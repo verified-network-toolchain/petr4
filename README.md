@@ -48,7 +48,7 @@ Please file issues on
 
 ## Credits
 
-See the list of [contributors](CONTRIBUTORS.md).
+See the list of [contributors](CONTRIBUTORS).
 
 ## License
 

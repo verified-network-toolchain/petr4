@@ -678,14 +678,14 @@ realTypeArgumentList
 typeDeclaration
 : d = derivedTypeDeclaration
 | d = typedefDeclaration
-| d = packageTypeDeclaration SEMICOLON
+| d = packageTypeDeclaration pop_scope SEMICOLON
   { declare_type (TypeDeclaration.name d);
     d }
-| ctd = controlTypeDeclaration SEMICOLON
+| ctd = controlTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ctd in
     (info,
      TypeDeclaration.ControlType { annotations; name; type_params; params } ) }
-| ptd = parserTypeDeclaration SEMICOLON
+| ptd = parserTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ptd in
     (info,
      TypeDeclaration.ParserType { annotations; name; type_params; params } ) }

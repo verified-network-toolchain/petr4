@@ -702,24 +702,21 @@ derivedTypeDeclaration
 headerTypeDeclaration
 :  annotations = optAnnotations info1 = HEADER name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { declare_vars (List.map ~f:(fun (_, f) -> f.TypeDeclaration.name) fields);
-       (Info.merge info1 info2,
+     { (Info.merge info1 info2,
         TypeDeclaration.Header { annotations; name; fields }) }
 ;
 
 headerUnionDeclaration
 :  annotations = optAnnotations info1 = HEADER_UNION name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { declare_vars (List.map ~f:(fun (_, f) -> f.TypeDeclaration.name) fields);
-       (Info.merge info1 info2,
+     { (Info.merge info1 info2,
         TypeDeclaration.HeaderUnion { annotations; name; fields }) }
 ;
 
 structTypeDeclaration
 :  annotations = optAnnotations info1 = STRUCT name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { declare_vars (List.map ~f:(fun (_, f) -> f.TypeDeclaration.name) fields);
-       (Info.merge info1 info2,
+     { (Info.merge info1 info2,
         TypeDeclaration.Struct { annotations; name; fields }) }
 ;
 

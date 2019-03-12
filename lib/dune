@@ -1,0 +1,15 @@
+(menhir
+  (flags --no-stdlib --explain)
+  (modules parser))
+
+(ocamllex (modules lexer))
+
+; TEMPORARY
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+
+(library
+  (name p4)
+   (libraries bignum core ppx_deriving_yojson.runtime yojson)
+   (preprocess (pps ppx_jane ppx_deriving_yojson)))

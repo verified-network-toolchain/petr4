@@ -17,16 +17,16 @@ open Util
 
 open Sexplib.Conv
 
-type 'a info = Info.t * 'a [@@deriving sexp,yojson]
+type 'a info = Info.t * 'a [@@deriving sexp] (* ,yojson] *)
 
 let info (i,_) = i
 
-(* let info_to_yojson f (_,x) = f x
- *
- * let info_of_yojson f json =
- *   match f json with
- *   | Ok pre -> Ok (Info.M "<yojson>", pre)
- *   | Error x -> Error x *)
+let info_to_yojson f (_,x) = f x
+
+let info_of_yojson f json =
+  match f json with
+  | Ok pre -> Ok (Info.M "<yojson>", pre)
+  | Error x -> Error x
 
 type bigint = Bigint.t [@@deriving sexp]
 

@@ -18,11 +18,15 @@ from source, perform the following steps.
     opam switch 4.06.0    
     ```        
 
-1. Install required OCaml dependencies. Note that JBuilder can compute the list of dependencies, 
+1. Install required OCaml dependencies. You can install Dune with
     ```
-    jbuilder external-lib-deps --missing @install
+    opam install dune
     ```
-    and you can install each using OPAM---for example:
+    and compute a list of missing dependencies as follows:
+    ```
+    dune external-lib-deps --missing @install
+    ```
+    Each dependency can be installed using OPAM. For example:
     ```
     opam install menhir    
     ```

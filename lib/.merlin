@@ -22,7 +22,7 @@ B /Users/nate/.opam/4.07.0/lib/ppx_assert/runtime-lib
 B /Users/nate/.opam/4.07.0/lib/ppx_bench/runtime-lib
 B /Users/nate/.opam/4.07.0/lib/ppx_compare/runtime-lib
 B /Users/nate/.opam/4.07.0/lib/ppx_deriving
-B /Users/nate/.opam/4.07.0/lib/ppx_deriving_yojson
+B /Users/nate/.opam/4.07.0/lib/ppx_deriving_yojson/runtime
 B /Users/nate/.opam/4.07.0/lib/ppx_expect/collector
 B /Users/nate/.opam/4.07.0/lib/ppx_expect/common
 B /Users/nate/.opam/4.07.0/lib/ppx_expect/config
@@ -41,7 +41,7 @@ B /Users/nate/.opam/4.07.0/lib/typerep
 B /Users/nate/.opam/4.07.0/lib/variantslib
 B /Users/nate/.opam/4.07.0/lib/yojson
 B /Users/nate/.opam/4.07.0/lib/zarith
-B ../_build/default/lib/.p4.objs
+B ../_build/default/lib/.p4.objs/byte
 S /Users/nate/.opam/4.07.0/lib/base
 S /Users/nate/.opam/4.07.0/lib/base/caml
 S /Users/nate/.opam/4.07.0/lib/base/md5
@@ -65,7 +65,7 @@ S /Users/nate/.opam/4.07.0/lib/ppx_assert/runtime-lib
 S /Users/nate/.opam/4.07.0/lib/ppx_bench/runtime-lib
 S /Users/nate/.opam/4.07.0/lib/ppx_compare/runtime-lib
 S /Users/nate/.opam/4.07.0/lib/ppx_deriving
-S /Users/nate/.opam/4.07.0/lib/ppx_deriving_yojson
+S /Users/nate/.opam/4.07.0/lib/ppx_deriving_yojson/runtime
 S /Users/nate/.opam/4.07.0/lib/ppx_expect/collector
 S /Users/nate/.opam/4.07.0/lib/ppx_expect/common
 S /Users/nate/.opam/4.07.0/lib/ppx_expect/config

@@ -236,7 +236,7 @@ end = struct
     | Return { expr = None } -> 
       Format.fprintf fmt "return;"
     | Return { expr = Some sexpr } -> 
-      Format.fprintf fmt "@[return %a@]"
+      Format.fprintf fmt "@[return %a;@]"
         Expression.format_t sexpr
     | DeclarationStatement { decl } -> 
       Declaration.format_t fmt decl

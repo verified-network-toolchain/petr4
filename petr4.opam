@@ -1,5 +1,5 @@
 opam-version: "1.2"
-version: "1.0"
+version: "0.1"
 maintainer: "jnfoster@cs.cornell.edu"
 authors: ["Nate Foster"]
 homepage: "https://github.com/cornell-netlab/petr4"

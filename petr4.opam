@@ -4,8 +4,21 @@ maintainer: "jnfoster@cs.cornell.edu"
 authors: ["Nate Foster"]
 homepage: "https://github.com/cornell-netlab/petr4"
 bug-reports: "https://github.com/cornell-netlab/petr4/issues"
-dev-repo: "https://github.com/cornell-netlab/petr4/"
+dev-repo: "git+https://github.com/cornell-netlab/petr4/"
 license: "Apache2"
 build: [
-  ["dune" "build" "--root" "." "-j" jobs "@install"]
+  [make]
+]
+install: [
+  [make "install"]
+]
+depends : [
+  "dune" {>= "1.8.2"}
+  "menhir" {>= "20181113"}
+  "bignum" {>= "v0.11.0"}
+  "core" {>= "v0.11.3"}
+  "core_extended" {>= "v0.11.0"}
+  "ppx_deriving_yojson"
+  "ppx_jane" {>= "v0.11.0"}
+  "yojson" {>= "1.5.0"}
 ]

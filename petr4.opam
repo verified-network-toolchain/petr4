@@ -1,11 +1,6 @@
-<<<<<<< HEAD
-opam-version: "2.0"
+opam-version: "1.2"
 version: "0.1"
 synopsis: "Petr4: Formal Semantics for the P4 Programming Language"
-=======
-opam-version: "1.2"
-version: "0.1.1"
->>>>>>> 992797d67fb73d8d9a8cb67084e49c8a9bdfcb6f
 maintainer: "jnfoster@cs.cornell.edu"
 authors: ["Nate Foster <jnfoster@cs.cornell.edu>"]
 homepage: "https://github.com/cornell-netlab/petr4"

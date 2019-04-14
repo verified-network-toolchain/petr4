@@ -1,4 +1,4 @@
-opam-version: "1.2"
+opam-version: "2.0"
 version: "0.1"
 synopsis: "Petr4: Formal Semantics for the P4 Programming Language"
 maintainer: "jnfoster@cs.cornell.edu"
@@ -13,7 +13,8 @@ build: [
 install: [
   [make "install"]
 ]
-depends : [
+depends: [
+  "ocaml"
   "dune"
   "menhir"
   "bignum"
@@ -22,14 +23,4 @@ depends : [
   "ppx_deriving_yojson"
   "ppx_jane"
   "yojson"
-]
-depends: [
-  "ocaml" { build & >= "4.05.0" }
-  "dune" { build & >= "1.0" }
-  "core" { >= "v0.11.0" }
-  "core_extended" { >= "v0.11.0" }
-  "menhir"
-  "ppx_jane"
-  "ppx_deriving_yojson"
-  "yojson" { >= "1.2.0" }
 ]

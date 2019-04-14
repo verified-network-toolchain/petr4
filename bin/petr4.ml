@@ -14,8 +14,8 @@
  *)
 
 open Core
-open Core_extended.Std
-open P4
+open Core_extended.Std 
+open Petr4
 
 exception ParsingError of string
 
@@ -57,7 +57,7 @@ let check_file include_dirs p4_file print_json pretty_json verbose =
       Format.printf "%a" Pretty.format_program prog      
   | `Error (info, Lexer.Error s) -> 
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-  | `Error (info, P4.Parser.Error) -> 
+  | `Error (info, Petr4.Parser.Error) -> 
     Format.eprintf "%s: syntax error@\n%!" (Info.to_string info) 
   | `Error (info, err) -> 
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
@@ -76,7 +76,7 @@ let check_dir include_dirs p4_dir verbose =
           | `Ok _ -> ()
           | `Error (info, Lexer.Error s) -> 
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, P4.Parser.Error) -> 
+          | `Error (info, Petr4.Parser.Error) -> 
              Format.eprintf "%s: syntax error@\n%!" (Info.to_string info) 
           | `Error (info, err) -> 
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)

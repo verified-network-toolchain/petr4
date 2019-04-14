@@ -48,7 +48,7 @@ B /Users/nate/.opam/4.07.0/lib/variantslib
 B /Users/nate/.opam/4.07.0/lib/yojson
 B /Users/nate/.opam/4.07.0/lib/zarith
 B ../_build/default/bin/.petr4.eobjs/byte
-B ../_build/default/lib/.p4.objs/byte
+B ../_build/default/lib/.petr4.objs/byte
 S /Users/nate/.opam/4.07.0/lib/base
 S /Users/nate/.opam/4.07.0/lib/base/caml
 S /Users/nate/.opam/4.07.0/lib/base/md5

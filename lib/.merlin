@@ -41,7 +41,7 @@ B /Users/nate/.opam/4.07.0/lib/typerep
 B /Users/nate/.opam/4.07.0/lib/variantslib
 B /Users/nate/.opam/4.07.0/lib/yojson
 B /Users/nate/.opam/4.07.0/lib/zarith
-B ../_build/default/lib/.p4.objs/byte
+B ../_build/default/lib/.petr4.objs/byte
 S /Users/nate/.opam/4.07.0/lib/base
 S /Users/nate/.opam/4.07.0/lib/base/caml
 S /Users/nate/.opam/4.07.0/lib/base/md5
@@ -85,5 +85,5 @@ S /Users/nate/.opam/4.07.0/lib/variantslib
 S /Users/nate/.opam/4.07.0/lib/yojson
 S /Users/nate/.opam/4.07.0/lib/zarith
 S .
-FLG -ppx '/Users/nate/shared/petr4/_build/default/.ppx/864c506360c916267443b5a56ada7d1a/ppx.exe --as-ppx --cookie '\''library-name="p4"'\'''
-FLG -open P4 -w -40
+FLG -ppx '/Users/nate/shared/petr4/_build/default/.ppx/864c506360c916267443b5a56ada7d1a/ppx.exe --as-ppx --cookie '\''library-name="petr4"'\'''
+FLG -open Petr4 -w -40

@@ -107,5 +107,5 @@ let command =
 
 let () = 
   Format.printf "@[";
-  Command.run ~version:"0.1" command;
+  Command.run ~version:"0.1.1" command;
   Format.printf "@]"

@@ -13,27 +13,24 @@ from source, perform the following steps.
 
 1. Install [OPAM](https://opam.ocaml.org/)
 
-1. Switch to OCaml version 4.06.0 or greater:
+1. Install external dependencies:
+   ```
+   sudo apt-get install m4 libgmp-dev
+   ```
+
+1. Check the installed version of OCaml:
     ```
-    opam switch 4.06.0    
+    ocamlc -v
+    ```
+    If the version is less than 4.06.0, upgrade:
+    ```
+    opam switch 4.06.0
     ```        
 
-1. Install required OCaml dependencies. You can install Dune with
+1. Use OPAM to build and install Petr4. This will take a while the first time
+   because it installs OPAM dependencies.
     ```
-    opam install dune
-    ```
-    and compute a list of missing dependencies as follows:
-    ```
-    dune external-lib-deps --missing @install
-    ```
-    Each dependency can be installed using OPAM. For example:
-    ```
-    opam install menhir    
-    ```
-    
-1. Build Petr4
-    ```
-    make && make install
+    opam pin add petr4 .
     ```
 
 ### Running Petr4

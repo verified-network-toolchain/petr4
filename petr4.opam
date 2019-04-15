@@ -1,6 +1,5 @@
 opam-version: "2.0"
 version: "0.1"
-synopsis: "Petr4: Formal Semantics for the P4 Programming Language"
 maintainer: "jnfoster@cs.cornell.edu"
 authors: ["Nate Foster <jnfoster@cs.cornell.edu>"]
 homepage: "https://github.com/cornell-netlab/petr4"
@@ -14,7 +13,7 @@ install: [
   [make "install"]
 ]
 depends: [
-  "ocaml"
+  "ocaml" {>= "4.04.0"}
   "dune"
   "menhir"
   "bignum"
@@ -24,3 +23,5 @@ depends: [
   "ppx_jane"
   "yojson"
 ]
+synopsis: "Petr4: Formal Semantics for the P4 Programming Language"
+

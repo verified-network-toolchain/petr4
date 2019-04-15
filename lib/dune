@@ -4,11 +4,6 @@
 
 (ocamllex (modules lexer))
 
-; TEMPORARY
-(env
-  (dev
-    (flags (:standard -warn-error -A))))
-
 (library
   (public_name petr4)
   (name petr4)

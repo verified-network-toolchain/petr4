@@ -8,10 +8,10 @@ dev-repo: "git+https://github.com/cornell-netlab/petr4/"
 bug-reports: "https://github.com/cornell-netlab/petr4/issues"
 license: "Apache2"
 build: [
-  [make]
-]
-install: [
-  [make "install"]
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+  ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
   "ocaml" {>= "4.04.0"}

@@ -1,4 +1,5 @@
 (executable
+  (public_name petr4)
   (name main)
-  (libraries core petr4)
+  (libraries core core_extended petr4)
   (preprocess (pps ppx_jane)))

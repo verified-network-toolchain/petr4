@@ -26,8 +26,8 @@ doc:
 
 link: $(TARGETS)
 
-%.exe:
-	test $@ && ln -s _build/default/bin/$@ .
+petr4.exe:
+	test $@ && ln -s _build/default/bin/main.exe $@
 
 install:
 	dune install

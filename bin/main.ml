@@ -14,12 +14,11 @@
  *)
 
 open Core
-open Core_extended.Std 
 open Petr4
 
 exception ParsingError of string
 
-let colorize colors s = Console.Ansi.string_with_attr colors s
+let colorize colors s = s
 let red s = colorize [`Red] s
 let green s = colorize [`Green] s
 

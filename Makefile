@@ -12,25 +12,23 @@
 # License for the specific language governing permissions and limitations 
 # under the License.
 
-TARGETS=petr4.exe
+NAME=petr4
 
 .PHONY: all build clean %.exe
 
-all: build link
+all: build
 
 build:
-	dune build --profile release
+	dune build @install
 
 doc:
 	dune build @doc
 
-link: $(TARGETS)
-
-petr4.exe:
-	test $@ && ln -s _build/default/bin/main.exe $@
+run:
+	dune exec $(NAME)  
 
 install:
 	dune install
 
 clean:
-	rm -rf _build *.install $(TARGETS)
+	dune clean

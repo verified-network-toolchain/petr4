@@ -86,4 +86,4 @@ S /Users/nate/.opam/4.07.0/lib/yojson
 S /Users/nate/.opam/4.07.0/lib/zarith
 S .
 FLG -ppx '/Users/nate/shared/petr4/_build/default/.ppx/864c506360c916267443b5a56ada7d1a/ppx.exe --as-ppx --cookie '\''library-name="petr4"'\'''
-FLG -open Petr4 -w -40
+FLG -open Petr4 -w @a-4-29-40-41-42-44-45-48-58-59-60-40 -strict-sequence -strict-formats -short-paths -keep-locs -warn-error -27-32 -w -27-32

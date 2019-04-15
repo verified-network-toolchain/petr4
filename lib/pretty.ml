@@ -17,8 +17,6 @@ open Core
 open Util
 module P4 = Types
 
-exception NotImplemented
-
 let format_list f fmt l = 
   List.iter l ~f:(f fmt)
 

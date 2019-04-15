@@ -14,19 +14,24 @@
  *)
 
 open Core
-open Core_extended.Std
 open Petr4
 
 exception ParsingError of string
 
-let colorize colors s = Console.Ansi.string_with_attr colors s
-let red s = colorize [`Red] s
-let green s = colorize [`Green] s
+let colorize colors s = ANSITerminal.sprintf colors "%s" s
+let red s = colorize [ANSITerminal.red] s
+let green s = colorize [ANSITerminal.green] s
 
 let preprocess include_dirs p4file = 
-  Shell.run_full "cc"
-    (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-    ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])
+  let cmd = 
+    String.concat ~sep:" "
+      (["cc"] @ 
+       (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+       ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in 
+  let in_chan = Unix.open_process_in cmd in
+  let str = In_channel.input_all in_chan in 
+  let _ = Unix.close_process_in in_chan in
+  str
     
 let parse include_dirs p4_file verbose = 
   let () = Lexer.reset () in 

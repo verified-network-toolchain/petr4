@@ -14,16 +14,17 @@
  *)
 
 open Core
+open Core_extended.Std
 open Petr4
 
 exception ParsingError of string
 
-let colorize colors s = s
+let colorize colors s = Console.Ansi.string_with_attr colors s
 let red s = colorize [`Red] s
 let green s = colorize [`Green] s
 
 let preprocess include_dirs p4file = 
-  Core_extended.Shell.run_full "cc"
+  Shell.run_full "cc"
     (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
     ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])
     

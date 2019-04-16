@@ -15,7 +15,7 @@ build: [
 ]
 depends: [
   "ocaml" {>= "4.04.0"}
-  "dune"
+  "dune" {build}
   "menhir"
   "ANSITerminal"
   "bignum"

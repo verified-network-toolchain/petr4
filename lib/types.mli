@@ -340,8 +340,8 @@ and Parser : sig
 
   type case = pre_case info [@@deriving sexp,yojson]
 
-  type pre_transition = 
-      Direct of 
+  type pre_transition =
+      Direct of
         { next: P4String.t }
     | Select of 
         { exprs: Expression.t list;

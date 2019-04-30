@@ -364,7 +364,7 @@ end = struct
   let format_t fmt e = 
     match snd e with 
     | In -> Format.fprintf fmt "in"
-    | Out -> Format.fprintf fmt "in"
+    | Out -> Format.fprintf fmt "out"
     | InOut -> Format.fprintf fmt "inout"
 end
 

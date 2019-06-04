@@ -26,6 +26,8 @@ type t =
   | M of string [@name "missing_info"]
 [@@deriving sexp,yojson]
 
+let dummy = M ""
+
 (* to_string info
    String containing the location information of info *)
 let to_string = function
@@ -42,19 +44,19 @@ let to_string = function
 
 let start_pos = function
     M _ -> (Int.max_value, Int.max_value)
-  | I { filename; line_start; line_end; col_start; col_end } ->
+  | I { line_start; col_start; _ } ->
     (line_start, col_start)
 
 let end_pos = function
     M _ -> (0, 0)
-  | I { filename; line_start; line_end; col_start; col_end } ->
+  | I { line_start; line_end; col_end; _} ->
     (match line_end with
      | None -> (line_start, col_end)
      | Some line_end -> (line_end, col_end))
 
 let file = function
     M _ -> ""
-  | I  { filename; line_start; line_end; col_start; col_end } ->
+  | I  { filename; _ } ->
     filename
 
 let merge (info1 : t) (info2 : t) =

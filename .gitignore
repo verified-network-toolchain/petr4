@@ -1,0 +1,5 @@
+# Build artifacts
+_build/
+*.exe
+petr4.install
+.merlin

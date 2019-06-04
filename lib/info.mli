@@ -23,6 +23,8 @@ type t =
   | M of string
 [@@deriving sexp,yojson]
 
+val dummy : t
+
 val merge : t -> t -> t
 
 val to_string : t -> string

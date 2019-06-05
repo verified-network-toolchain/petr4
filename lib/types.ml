@@ -165,7 +165,7 @@ and Type : sig
     | Error
     | IntType of Expression.t
     | BitType of Expression.t
-    | Varbit of Expression.t
+    | VarBit of Expression.t
     | TopLevelType of P4String.t
     | TypeName of P4String.t
     | SpecializedType of
@@ -186,7 +186,7 @@ end = struct
     | Error [@name "error"]
     | IntType of Expression.t [@name "int"]
     | BitType of Expression.t  [@name "bit"]
-    | Varbit of Expression.t  [@name "varbit"]
+    | VarBit of Expression.t  [@name "varbit"]
     | TopLevelType of P4String.t [@name "top_level"]
     | TypeName of P4String.t [@name "name"]
     | SpecializedType of

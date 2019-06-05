@@ -1,6 +1,6 @@
 open Types
 
-let rec eval_expression (env: Env.t) (exp: Expression.t) =
+let rec eval_expression (env: Env.eval_env) (exp: Expression.t) =
   match snd exp with
   | True ->
     Value.Bool true

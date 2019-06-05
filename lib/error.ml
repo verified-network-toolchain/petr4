@@ -4,10 +4,10 @@ type error =
 | Unbound of string 
 | Mismatch of
   { expected: string; (* TODO: string or Typed.t? *)
-    found: ExpType.t; }
+    found: Type.t; }
 | UnfoundMember of 
   { expected_member: string}
-| Type_Difference of ExpType.t * ExpType.t
+| Type_Difference of Type.t * Type.t
 | Duplicate
 | UnreachableBlock
 

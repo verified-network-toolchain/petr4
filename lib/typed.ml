@@ -4,7 +4,7 @@ type direction = In | Out | InOut (* If direction is not specified
 module rec Parameter : sig
   type t =
     { name: string;
-      typ: ExpType.t;
+      typ: Type.t;
       direction: direction}
 end = struct
   include Parameter
@@ -13,42 +13,9 @@ end
 and ConstructParam : sig
   type t =
     { name: string;
-      typ: ExpType.t;}
+      typ: Type.t}
 end = struct
   include ConstructParam
-end
-
-and DeclType : sig
-  type t =
-  (* header { l1: t1, ..., ln : tn } *)
-  | Header of RecordType.t
-
-  (* header union {11 : h1, ..., ln : hn}, hi is a Header Type *)
-  | HeaderUnion of UnionType.t
-
-  (* struct { l1: t1, ..., ln : tn } *)
-  | Struct of RecordType.t
-
-  (* enum { l1, ..., ln } *)
-  | Enum of EnumType.t
-
-  (* error *)
-  | Error of string list
-
-  (* match_kind *)
-  | MatchKind of string list
-
-  | Package of PackageType.t
-
-  | Control of TypeDecl.t
-
-  | Parser of TypeDecl.t
-
-  (* <return type> <function name>(x1,...,xn) {...} *)
-  | Function of FunctionType.t
-  (* need to keep track of body *)
-end = struct
-  include DeclType
 end
 
 and PackageType : sig
@@ -58,15 +25,64 @@ end = struct
   include PackageType
 end
 
-and TypeDecl : sig
+and ControlType : sig
   type t = {type_params: string list;
             parameters: Parameter.t list}
-(*  need to keep track of body  *)
 end = struct
-  include TypeDecl
+  include ControlType
 end
 
-and ExpType : sig
+and IntType : sig
+  type t =
+    { width: int }
+end = struct
+  include IntType
+end
+
+and ArrayType : sig
+  type t =
+    { typ: Type.t;
+      size: int; }
+end = struct
+  include ArrayType
+end
+
+and TupleType : sig
+  type t =
+    { types: Type.t list }
+end = struct
+  include TupleType
+end
+
+and RecordType : sig
+  type field =
+    { name: string;
+      typ: Type.t; }
+
+  type t =
+    { fields: field list; }
+end = struct
+  include RecordType
+end
+
+and EnumType : sig
+  type t =
+    { typ: Type.t option;
+      members: string list; }
+end = struct
+  include EnumType
+end
+
+and FunctionType : sig
+  type t =
+    { type_params: string list;
+      parameters: Parameter.t list;
+      return: Type.t}
+end = struct
+  include FunctionType
+end
+
+and Type : sig
   type t =
   (* bool *)
   | Bool
@@ -84,7 +100,7 @@ and ExpType : sig
   | Bit of IntType.t
 
   (* varbit<width> *)
-  | Var of IntType.t
+  | VarBit of IntType.t
 
   (* t[size] *)
   | Array of ArrayType.t
@@ -95,79 +111,40 @@ and ExpType : sig
   (* set<t> *)
   | Set of t
 
-  (* Type name *)
-  | Name of string
-
   (* General error type *)
   | Error
 
-  | TypeVar of string (* will also be used to access, indirectly DeclTypes...maybe...not yet *)
+  (* match_kind *)
+  | MatchKind
 
+  (* Type variables and references to declared types *)
+  | TypeName of string 
+
+  (* P4 void (acts like unit) *)
   | Void
-end = struct
-  include ExpType
-end
 
-and IntType : sig
-  type t =
-    { width: int }
-end = struct
-  include IntType
-end
+  (* header { l1: t1, ..., ln : tn } *)
+  | Header of RecordType.t
 
-and ArrayType : sig
-  type t =
-    { typ: ExpType.t;
-      size: int; }
-end = struct
-  include ArrayType
-end
+  (* header union {11 : h1, ..., ln : hn} *)
+  | HeaderUnion of RecordType.t
 
-and TupleType : sig
-  type t =
-    { types: ExpType.t list }
-end = struct
-  include TupleType
-end
+  (* struct { l1: t1, ..., ln : tn } *)
+  | Struct of RecordType.t
 
-and RecordType : sig
-  type field =
-    { name: string;
-      typ: ExpType.t; }
+  (* enum { l1, ..., ln } *)
+  | Enum of EnumType.t
 
-  type t =
-    { fields: field list; }
-end = struct
-  include RecordType
-end
+  | Package of PackageType.t
 
-and EnumType : sig
-  type t =
-    { typ: ExpType.t option;
-      fields: string list; }
-end = struct
-  include EnumType
-end
+  | Control of ControlType.t
 
-and UnionType : sig
-  type union_field =
-    { name: string;
-      h_type : string} (* In the environment h_type must
-                           * be associated with a Header variant. *)
-  type t =
-    {union_fields : union_field list}
-end = struct
-  include UnionType
-end
+  | Parser of ControlType.t
 
-and FunctionType : sig
-  type t =
-    { type_params: string list;
-      parameters: Parameter.t list;
-      return: ExpType.t option} (* None represents a void function. *)
-      (* TODO function return type can be void, a statement type, or an expression type *)
+  (* <return type> <function name>(x1,...,xn) {...} *)
+  | Function of FunctionType.t
 end = struct
-  include FunctionType
+  include Type
 end
 
 module rec StmType : sig

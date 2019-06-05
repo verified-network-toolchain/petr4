@@ -295,7 +295,7 @@ end = struct
     | BitType x ->
       Format.fprintf fmt "@[bit<%a>@]" 
         Expression.format_t x
-    | Varbit x ->
+    | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
     | TopLevelType x ->

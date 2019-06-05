@@ -621,7 +621,7 @@ baseType
 | info1 = VARBIT L_ANGLE value = INTEGER info2 = R_ANGLE
      { let max_width = (info value, Expression.Int value) in
        let info = Info.merge info1 info2 in
-      (info, Type.Varbit max_width) }
+      (info, Type.VarBit max_width) }
 | info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info2 = R_ANGLE
     { (Info.merge info1 info2,
        Type.BitType width) }
@@ -630,7 +630,7 @@ baseType
        Type.IntType width) }
 | info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info2 = R_ANGLE
     { (Info.merge info1 info2,
-       Type.Varbit max_width) }
+       Type.VarBit max_width) }
 ;
 
 typeOrVoid

@@ -1,62 +1,116 @@
-open Error
-open Types
-open Typed
+exception BadEnvironment of string
+exception UnboundName of string
 
-type 'binding env = (P4String.t * 'binding) list list
+type 'binding env = (string * 'binding) list list
 
-type t =
-  { exp: (ExpType.t * direction) env ;
-    typ: ExpType.t env;
-    decl: DeclType.t env;
-    value: Value.t env; }
+let push (env: 'a env) : 'a env = [] :: env
 
-let empty_env = {
-  exp   = [[]];
-  typ   = [[]];
-  decl  = [[]];
-  value = [[]];
-}
+let no_scopes () =
+  raise (BadEnvironment "no scopes")
 
-let raise_missing () =
-  raise (Internal "missing top-level environment")
-
-let push env = [] :: env
-
-let pop = function
-| []        -> raise_missing ()
-| _ :: []   -> raise (Internal "popping top-level environment")
+let pop: 'a env -> 'a env = function
+| []        -> no_scopes ()
 | _ :: env' -> env'
 
-let insert name binding = function
-| []     -> raise_missing ()
-| h :: t -> ((name, binding) :: h) :: t
+let insert (name: string) (value: 'a) : 'a env -> 'a env = function
+| []     -> no_scopes ()
+| h :: t -> ((name, value) :: h) :: t
 
-let insert_toplevel name binding env =
+let insert_toplevel (name: string) (binding: 'a) (env: 'a env) : 'a env =
   env |> List.rev
       |> insert name binding
       |> List.rev
 
-let rec find name = function
-| []     ->
-  let (info, name) = name in
-  raise (Type (info, Unbound name))
-| h :: t ->
-  let select ((_, name'), _) = snd name = name' in
-  match List.find_opt select h with
-  | None              -> find name t
-  | Some (_, binding) -> binding
 
-let find_toplevel name env = match List.rev env with
-| []       -> raise_missing ()
+let rec find_opt (name: string) : 'a env -> 'a option = function
+| [] -> None
+| h :: t ->
+  let select (name', _) = name = name' in
+  match List.find_opt select h with
+  | None              -> find_opt name t
+  | Some (_, binding) -> Some binding
+
+
+let opt_to_exn name v =
+  match v with
+  | Some v -> v
+  | None -> raise (UnboundName name)
+
+let find (name: string) (env: 'a env) : 'a =
+  opt_to_exn name (find_opt name env)
+
+let find_toplevel (name: string) (env: 'a env) : 'a = match List.rev env with
+| []       -> no_scopes ()
 | env :: _ -> find name [env]
 
-let rec contains (typ: ExpType.t) (name: P4String.t)= function
-| [] -> false
-| h :: t ->
-  let eq = fun ((_, name'), (typ', _)) -> snd name = name' && typ = typ' in
-  if List.exists eq h then true else contains typ name t
+let empty_env : 'a env = [[]]
 
-let contains_toplevel (typ: ExpType.t) (name: P4String.t) env =
-  match List.rev env with
-  | []       -> raise_missing ()
-  | env :: _ -> contains typ name [env]
+type checker_env =
+  { (* the program (top level declarations) so far *)
+    decl: Types.Declaration.t list;
+    (* maps type names to the types they refer to *)
+    typ: Typed.Type.t env;
+    (* maps variables to their types *)
+    typ_of: Typed.Type.t env;
+    (* maps constants to their values *)
+    const: Value.t env; }
+
+let empty_checker_env : checker_env =
+  { decl = [];
+    typ = empty_env;
+    typ_of = empty_env;
+    const = empty_env; }
+
+let find_decl name env =
+  let ok decl = 
+    name = snd (Types.Declaration.name decl)
+  in
+  match List.find_opt ok env.decl with
+  | Some v -> v
+  | None -> raise (UnboundName name)
+
+let resolve_type_name_opt name env =
+  find_opt name env.typ
+
+let resolve_type_name name env =
+  opt_to_exn name (resolve_type_name_opt name env)
+
+let find_type_of_opt name env =
+  find_opt name env.typ_of
+
+let find_type_of name env =
+  opt_to_exn name (find_type_of_opt name env)
+
+let find_type_of_toplevel name env =
+  find_toplevel name env.typ_of
+
+let insert_decl d env =
+  { env with decl = d :: env.decl }
+
+let insert_type name typ env =
+  { env with typ = insert name typ env.typ }
+
+let insert_type_of var typ env =
+  { env with typ_of = insert var typ env.typ_of }
+
+let push_scope env =
+  { decl = env.decl;
+    typ = push env.typ;
+    typ_of = push env.typ_of;
+    const = push env.const }
+
+let pop_scope env =
+  { decl = env.decl;
+    typ = pop env.typ;
+    typ_of = pop env.typ_of;
+    const = pop env.const }
+
+type eval_env =
+  { (* the program (top level declarations) so far *)
+    decl: Types.Declaration.t list;
+    (* maps variables to their values *)
+    var: Value.t env; }
+
+let eval_env_of_checker_env (cenv: checker_env) : eval_env =
+  { decl = cenv.decl;
+    var = cenv.const }

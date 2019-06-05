@@ -20,13 +20,13 @@ let assert_array = make_assert "array"
 
 let assert_bool = make_assert "bool"
   begin function
-  | Bool -> Some ExpType.Bool
+  | Bool -> Some Type.Bool
   | _ -> None
   end
 
 let assert_bit = make_assert "unsigned int"
   begin function
-  | Bit { width } -> Some (ExpType.Bit { width })
+  | Bit { width } -> Some (Type.Bit { width })
   | _ -> None
   end
 
@@ -44,26 +44,14 @@ let assert_numeric = make_assert "integer"
    * their mapping in the type context.
    * If nothing is mapped from that type variable it is unchanged.
    * Saturates a declaration type by updating the environment. *)
-(* let rec saturate_decl_type (_:Env.t) (_:ExpType.t) : Env.t =
+(* let rec saturate_decl_type (_:Env.checker_env) (_:Type.t) : Env.checker_env =
   failwith "Saturating declaration types is not yet supported." *)
 
 (* In an expression type replaces all type variables to
  * their mapping in the type context.
  * If nothing is mapped from that type variable it is unchanged. *)
-let rec saturate_exp_type (env:Env.t) (exp_type:ExpType.t) : ExpType.t =
-  let saturate = saturate_exp_type env in
-  let open ExpType in
-  match exp_type with
-  | Bool | String | Integer | Int _ | Bit _ | Var _ | Error | Void -> exp_type
-  | Array {typ=et; size=len} -> Array {typ=saturate et; size=len}
-  | Tuple {types=tl} -> Tuple {types=List.map saturate tl}
-  | Set st -> saturate st
-  | Name _ -> failwith "Saturating declaration types is not yet supported."
-  | TypeVar tn ->
-    begin try Env.find (Info.dummy,tn) env.typ with
-      | _ -> exp_type
-    end
-
+let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
+  failwith "TODO(ryan)"
 
 (* let assert_header_or_struct = make_assert "header or struct" *)
 (*   begin function *)
@@ -80,87 +68,90 @@ let rec saturate_exp_type (env:Env.t) (exp_type:ExpType.t) : ExpType.t =
  * Known Problems: unsure of what environment to return in some cases:
  * enums, headers, structs, env threading for parameters
 *)
-let rec alpha_sub_decl (env:Env.t) (old_t:string) (sub_t:string) (tn:string) : Env.t =
-  let partial_alpha_sub_exp = alpha_sub_exp env old_t sub_t in
+let rec alpha_sub_env (env:Env.checker_env) (old_t:string) (sub_t:string) (tn:string) : Env.checker_env =
   let open Parameter in
   let open ConstructParam in
-  let param_mapper = fun (p:Parameter.t) -> {p with typ = partial_alpha_sub_exp p.typ |> fst} in
-  let construct_param_mapper = fun (p:ConstructParam.t) -> {p with typ = partial_alpha_sub_exp p.typ |> fst} in
-  let record_mapper = fun (r:RecordType.field) ->
-    {r with typ=partial_alpha_sub_exp r.typ |> fst} in
-  let td = Env.find (Info.dummy,tn) env.decl in
-  match td with
-  | MatchKind _ | Error _  | HeaderUnion _ -> env
-  | Enum {typ=teo; fields=fs} ->
-    let (new_teo,new_env) =
-      begin match teo with
-        | None -> None,env
-        | Some te ->
-          let (ty,en) = partial_alpha_sub_exp te in
-          Some ty, en
-      end in
-    let new_td = DeclType.Enum {typ=new_teo; fields=fs} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td new_env.decl}
-  | Header {fields=fs} ->
-    let new_td = DeclType.Header {fields= List.map record_mapper fs} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
-  | Struct {fields=fs} ->
-    let new_td = DeclType.Struct {fields= List.map record_mapper fs} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
-  | Function {type_params=tps; parameters=ps; return=rt} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_rt =
-      begin match rt with
-        | None -> None
-        | Some ty -> Some (alpha_sub_exp env old_t sub_t ty |> fst)
-      end in
-    let new_td = DeclType.Function {type_params=new_tps; parameters=new_ps; return=new_rt} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
-  | Parser {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_td = DeclType.Parser {type_params=new_tps; parameters=new_ps} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
-  | Control {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_td = DeclType.Control {type_params=new_tps; parameters=new_ps} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
-  | Package {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map construct_param_mapper ps in
-    let new_td = DeclType.Package {type_params=new_tps; parameters=new_ps} in
-    {env with decl = Env.insert (Info.dummy,tn) new_td env.decl}
+  failwith "TODO(ryan)"
 
 (* Returns a type expression alpha equivalent to [t]
  * where all occurences of [old_t] are replaced with [sub_t]
  *)
-and alpha_sub_exp (env:Env.t) (old_t:string) (sub_t:string) (t:ExpType.t) : ExpType.t * Env.t =
+and alpha_sub_exp (env:Env.checker_env) (old_t:string) (sub_t:string) (t:Type.t) : Type.t * Env.checker_env =
   let partial_alpha_sub = alpha_sub_exp env old_t sub_t in
+  let param_mapper = fun (p:Parameter.t) -> {p with typ = partial_alpha_sub p.typ |> fst} in
+  let construct_param_mapper = fun (p:ConstructParam.t) -> {p with typ = partial_alpha_sub p.typ |> fst} in
+  let record_mapper = fun (r:RecordType.field) ->
+    {r with typ=partial_alpha_sub r.typ |> fst} in
   match t with
-  | TypeVar t_name -> if t_name = old_t then (TypeVar sub_t),env else t, env
-  | String | Bool | Integer | Int _ | Bit _ | Var _ | Error -> t, env
+  | TypeName t_name ->
+      if t_name = old_t 
+      then TypeName sub_t, env 
+      else t, env
+  | String 
+  | Bool
+  | Integer
+  | Int _
+  | Bit _
+  | VarBit _ 
+  | MatchKind 
+  | Error -> t, env
   | Array {typ=teip; size=n} -> let (new_typ,new_env) = partial_alpha_sub teip in
     (Array {typ=new_typ; size=n}), new_env
   | Tuple {types=ts} ->
-    let folder = fun (acc:ExpType.t list * Env.t) (teip:ExpType.t) ->
+    let folder = fun (acc:Type.t list * Env.checker_env) (teip:Type.t) ->
       begin let (new_typ,new_env) = alpha_sub_exp (snd acc) old_t sub_t teip in
         new_typ::(fst acc),new_env end in
     let (new_typs,final_env) = List.fold_left folder ([],env) ts in
     (Tuple {types=List.rev new_typs}),final_env
   | Set teip -> let (new_typ,new_env) = partial_alpha_sub teip in
     (Set new_typ), new_env
-  | Name decl_name ->
-    Name decl_name, alpha_sub_decl env old_t sub_t decl_name
   | Void -> Void,env
-  (* | _ -> failwith "alpha_sub_exp edge match case" *)
+  | Enum {typ=teo; members=fs} ->
+    let (new_teo,new_env) =
+      begin match teo with
+        | None -> None,env
+        | Some te ->
+          let (ty,en) = partial_alpha_sub te in
+          Some ty, en
+      end in
+    let new_td = Type.Enum {typ=new_teo; members=fs} in
+    new_td, env
+  | Header {fields=fs} ->
+    let new_td = Type.Header {fields= List.map record_mapper fs} in
+    new_td, env
+  | HeaderUnion {fields=fs} ->
+    let new_td = Type.HeaderUnion {fields= List.map record_mapper fs} in
+    new_td, env
+  | Struct {fields=fs} ->
+    let new_td = Type.Struct {fields= List.map record_mapper fs} in
+    new_td, env
+  | Function {type_params=tps; parameters=ps; return=rt} ->
+    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
+    let new_ps = List.map param_mapper ps in
+    let new_rt = fst (partial_alpha_sub rt) in
+    let new_td = Type.Function {type_params=new_tps; parameters=new_ps; return=new_rt} in
+    new_td, env
+  | Parser {type_params=tps; parameters=ps} ->
+    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
+    let new_ps = List.map param_mapper ps in
+    let new_td = Type.Parser {type_params=new_tps; parameters=new_ps} in
+    new_td, env
+  | Control {type_params=tps; parameters=ps} ->
+    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
+    let new_ps = List.map param_mapper ps in
+    let new_td = Type.Control {type_params=new_tps; parameters=new_ps} in
+    new_td, env
+  | Package {type_params=tps; parameters=ps} ->
+    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
+    let new_ps = List.map construct_param_mapper ps in
+    let new_td = Type.Package {type_params=new_tps; parameters=new_ps} in
+    new_td, env
 
 (* Alpha Substitutes type params [t1s] for [t2s] in type [t]
- * where [t] is either an ExpType.t or a DeclType.t and
+ * where [t] is either an Type.t or a Type.t and
  * alpha_sub is the appropriate alpha substition function. *)
-let alpha_sub_type_params env t2 t1s t2s : ExpType.t * Env.t =
-  let typ_fold = fun (t,env:ExpType.t*Env.t) (tv_old,tv_sub:string*string) ->
+let alpha_sub_type_params env t2 t1s t2s : Type.t * Env.checker_env =
+  let typ_fold = fun (t,env:Type.t*Env.checker_env) (tv_old,tv_sub:string*string) ->
     begin alpha_sub_exp env tv_old tv_sub t end in
   List.fold_left typ_fold (t2,env) (List.combine t2s t1s)
 
@@ -168,7 +159,7 @@ let alpha_sub_type_params env t2 t1s t2s : ExpType.t * Env.t =
  * declaration type t1 is equivalent to declaration type t2
  * under environment env.
  *  Alpha equivalent types are equal. *)
-let rec check_decl_equality (env: Env.t) (t1:DeclType.t) (t2:DeclType.t) : bool =
+let rec check_decl_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : bool =
   let rec_fields_match l r =
     let open RecordType in
     let field_compare = (fun fld1 fld2
@@ -181,21 +172,21 @@ let rec check_decl_equality (env: Env.t) (t1:DeclType.t) (t2:DeclType.t) : bool 
     let checks = List.map2 (type_equality env) tl tr  in
     not (List.mem false checks) in
 
-  let alpha_sub_fold_param env tp1s tp2s p2s : Env.t * Parameter.t list =
-    begin let fold = fun (env,pl:Env.t*Parameter.t list) (p2:Parameter.t) ->
+  let alpha_sub_fold_param env tp1s tp2s p2s : Env.checker_env * Parameter.t list =
+    begin let fold = fun (env,pl:Env.checker_env*Parameter.t list) (p2:Parameter.t) ->
       let (new_t,new_env) = alpha_sub_type_params env p2.typ tp1s tp2s in
       let new_p2 = {p2 with typ=new_t} in (new_env,new_p2::pl) in
       let (nenv,ps) =  List.fold_left fold (env,[]) p2s in (nenv, List.rev ps) end in
 
-  let alpha_sub_fold_construct_param env tp1s tp2s p2s : Env.t * ConstructParam.t list =
-    begin let fold = fun (env,pl:Env.t*ConstructParam.t list) (p2:ConstructParam.t) ->
+  let alpha_sub_fold_construct_param env tp1s tp2s p2s : Env.checker_env * ConstructParam.t list =
+    begin let fold = fun (env,pl:Env.checker_env*ConstructParam.t list) (p2:ConstructParam.t) ->
       let (new_t,new_env) = alpha_sub_type_params env p2.typ tp1s tp2s in
       let new_p2 = {p2 with typ=new_t} in (new_env,new_p2::pl) in
       let (nenv,ps) =  List.fold_left fold (env,[]) p2s in (nenv, List.rev ps) end in
 
   begin match t1, t2 with
-    | HeaderUnion {union_fields = l}, HeaderUnion {union_fields = r} ->
-        let open UnionType in
+    | HeaderUnion {fields = l}, HeaderUnion {fields = r} ->
+        let open RecordType in
         let ufield_cmp = (fun uf1 uf2 -> String.compare uf1.name uf2.name) in
         let sl = List.sort ufield_cmp l in
         let sr = List.sort ufield_cmp r in
@@ -231,27 +222,22 @@ let rec check_decl_equality (env: Env.t) (t1:DeclType.t) (t2:DeclType.t) : bool 
        Function {type_params=tp2s; parameters=p2s;return=r2}
        -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
        param_equality nenv p1s newp2s &&
-       begin match r1, r2 with
-         | None, None -> true
-         | Some rt1, Some rt2 ->
-           let (newrt2,new_env) = alpha_sub_type_params env rt2 tp1s tp2s in
-           type_equality new_env rt1 newrt2
-         | _ -> false
-         end
+       let (newrt2,new_env) = alpha_sub_type_params env r2 tp1s tp2s in
+       type_equality new_env r1 newrt2
      | _,_  -> false
   end
 
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
-and type_equality (env: Env.t) (t1:ExpType.t) (t2:ExpType.t) : bool =
+and type_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : bool =
   begin match t1,t2 with
     | Bool, Bool                                    -> true
     | String, String                                -> true
     | Bit { width = l}, Bit {width = r} when l = r  -> true
     | Int { width = l}, Int {width = r} when l = r  -> true
     | Integer, Integer                              -> true
-    | Var {width = l}, Var {width = r} when l = r   -> true
+    | VarBit {width = l}, VarBit {width = r} when l = r   -> true
     | Array {typ = lt; size = ls}, Array {typ = rt; size = rs}
       -> ls = rs && type_equality env lt rt
     | Error , Error                                 -> true
@@ -259,30 +245,26 @@ and type_equality (env: Env.t) (t1:ExpType.t) (t2:ExpType.t) : bool =
       -> let ts = List.combine t1s t2s in
       List.for_all (fun (ty1,ty2) -> type_equality env ty1 ty2) ts
     | Set ty1, Set ty2 -> type_equality env ty1 ty2
-    | Name tn1, Name tn2 ->
-      begin
-        try let d1 = Env.find (Info.dummy,tn1) env.decl in
-          let d2 = Env.find (Info.dummy,tn2) env.decl in
-          check_decl_equality env d1 d2 with
-        | _ -> tn1 = tn2
-      end
-    | TypeVar tn1, TypeVar tn2 ->
-      begin
-      try let et1 = Env.find (Info.dummy,tn1) env.typ in
-        let et2 = Env.find (Info.dummy,tn2) env.typ in
-        type_equality env et1 et2 with
+    | TypeName tn1, TypeName tn2 ->
+      begin try
+        let d1 = Env.resolve_type_name tn1 env in
+        let d2 = Env.resolve_type_name tn2 env in
+        check_decl_equality env d1 d2
+      with
       | _ -> tn1 = tn2
       end
-    | TypeVar tn1, _ ->
-      begin
-      try let et1 = Env.find (Info.dummy,tn1) env.typ in
-        type_equality env et1 t2 with
-      | _ ->  false
+    | TypeName tn1, _ ->
+      begin try 
+        let et1 = Env.resolve_type_name tn1 env in
+        type_equality env et1 t2
+      with
+      | _ -> false
       end
-    | _, TypeVar tn2 ->
-      begin
-        try let et2 = Env.find (Info.dummy,tn2) env.typ in
-          type_equality env t1 et2 with
+    | _, TypeName tn2 ->
+      begin try
+        let et2 = Env.resolve_type_name tn2 env in
+        type_equality env t1 et2
+      with
         | _ ->  false
       end
     | _,_  ->  false
@@ -309,29 +291,29 @@ and construct_param_equality env p1s p2s =
     type_equality env par1.typ par2.typ in
   List.for_all check_params (List.combine p1s p2s)
 
-let assert_same_type (env: Env.t) info1 info2 (typ1: ExpType.t) (typ2: ExpType.t) =
+let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
   if type_equality env typ1 typ2 then (typ1, typ2)
 else
   let info = Info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
 
-let compile_time_known_expr (_: Env.t) (_: Expression.t) : unit =
+let compile_time_known_expr (_: Env.checker_env) (_: Expression.t) : unit =
   failwith "Unimplemented"
 
-let rec type_expression (env: Env.t) ((_, exp): Expression.t) : ExpType.t =
+let rec type_expression (env: Env.checker_env) ((_, exp): Expression.t) : Type.t =
   match exp with
   | True ->
-    ExpType.Bool
+    Type.Bool
   | False ->
-    ExpType.Bool
+    Type.Bool
   | String _ ->
-    ExpType.String
+    Type.String
   | Int i ->
     type_int i
   | Name name ->
-    Env.find name env.exp |> fst
+    Env.find_type_of (snd name) env
   | TopLevel name ->
-    Env.find_toplevel name env.exp |> fst
+    Env.find_type_of_toplevel (snd name) env
   | ArrayAccess { array; index } ->
     type_array_access env array index
   | BitStringAccess { bits; lo; hi } ->
@@ -361,8 +343,11 @@ let rec type_expression (env: Env.t) ((_, exp): Expression.t) : ExpType.t =
   | Range { lo; hi } ->
     type_range env lo hi
 
-and translate_type (env: Env.t) (typ: Type.t) : ExpType.t =
+and translate_type (env: Env.checker_env) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
+  let eval e =
+    Eval.eval_expression (Env.eval_env_of_checker_env env) e
+  in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with
       | Some n -> n;
@@ -372,33 +357,33 @@ and translate_type (env: Env.t) (typ: Type.t) : ExpType.t =
   | Bool -> Bool
   | Error -> Error
   | IntType e ->
-    begin match Eval.eval_expression env e with
+    begin match eval e with
       | Int {value=v; _}
       | Bit {value=v; _}
       | Integer v     -> Int ({width= get_int_from_bigint v})
       | _ -> failwith "int type param must evaluate to an int"
     end
   | BitType e ->
-    begin match Eval.eval_expression env e with
+    begin match eval e with
       | Int {value=v; _}
       | Bit {value=v; _}
       | Integer v     -> Bit ({width= get_int_from_bigint v})
       | _ -> failwith "bit type param must evaluate to an int"
     end
-  | Varbit e ->
-    begin match Eval.eval_expression env e with
+  | VarBit e ->
+    begin match eval e with
       | Int {value=v; _}
       | Bit {value=v; _}
-      | Integer v     -> Var ({width= get_int_from_bigint v})
+      | Integer v     -> VarBit ({width= get_int_from_bigint v})
       | _ -> failwith "varbit type param must evaluate to an int"
     end
-  | TopLevelType ps -> Name (snd ps)
-  | TypeName ps -> TypeVar (snd ps)
+  | TopLevelType ps -> TypeName (snd ps)
+  | TypeName ps -> TypeName (snd ps)
   | SpecializedType _ -> failwith "Unimplemented"
   | HeaderStack {header=ht; size=e}
     -> let hdt = translate_type env ht in
     let len =
-      begin match Eval.eval_expression env e with
+      begin match eval e with
       | Int {value=v; _}
       | Bit {value=v; _}
       | Integer v     -> get_int_from_bigint v
@@ -447,9 +432,9 @@ and translate_construct_params env construct_params =
 and type_int (_, value) =
   let open P4Int in
   match value.width_signed with
-  | None -> ExpType.Integer
-  | Some (width, true) -> ExpType.Int { width }
-  | Some (width, false) -> ExpType.Bit { width }
+  | None -> Type.Integer
+  | Some (width, true) -> Type.Int { width }
+  | Some (width, false) -> Type.Bit { width }
 
 (* Section 8.15
  * ------------
@@ -494,7 +479,7 @@ and type_bit_string_access _ _ _ _ =
 and type_list env values =
   let type_valu = type_expression env in
   let types = List.map type_valu values in
-  ExpType.Tuple { types }
+  Type.Tuple { types }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -611,7 +596,7 @@ and type_unary_op env (_, op) arg =
 *)
 and type_binary_op env (_, op) (l, r) =
   let open Op in
-  let open ExpType in
+  let open Type in
 
   (* Implicit integer casts as per section 8.9.2
    *
@@ -651,9 +636,9 @@ and type_binary_op env (_, op) (l, r) =
     end
 
   (* Equality is defined on TODO*)
-  (*| Eq | NotEq when l_typ = r_typ -> ExpType.Bool *)(* FIXME *)
+  (*| Eq | NotEq when l_typ = r_typ -> Type.Bool *)(* FIXME *)
   | Eq | NotEq ->
-     if type_equality env l_typ r_typ then ExpType.Bool
+     if type_equality env l_typ r_typ then Type.Bool
     else failwith "Types are not equal under equality operation."
 
   (* Saturating operators are only defined on finite-width signed or unsigned integers *)
@@ -736,7 +721,7 @@ and type_type_member _ _ _ =
 and type_error_member env name =
   let errors = extract_errors env in
   if List.mem (snd name) errors then
-    ExpType.Error
+    Type.Error
   else
     failwith "Unknown error"
 
@@ -748,8 +733,8 @@ and type_expression_member env expr name =
   in
   let open RecordType in
   let fields = begin match expr_typ with
-    | Name na ->
-      let d = Env.find (Info.dummy,na) env.decl in
+    | TypeName na ->
+      let d = Env.resolve_type_name na env in
       begin match d with
         | Header {fields=fs} | Struct {fields=fs} -> fs
         | _ -> failwith "not a record type"
@@ -778,7 +763,7 @@ and type_ternary env cond tru fls =
   |> ((type_expression env tru)
   |> assert_same_type env (info tru) (info fls))
   |> begin function
-  | (ExpType.Integer, ExpType.Integer) -> failwith "unless the condition itself can be evaluated at compilation time"
+  | (Type.Integer, Type.Integer) -> failwith "unless the condition itself can be evaluated at compilation time"
   | (t1, _) -> t1
   end
 
@@ -803,8 +788,8 @@ and check_call env func type_args args post_check : 'a =
   let get_fun_type = fun (ft:Types.Expression.t) ->
     begin match snd ft with
       | Name na ->
-        begin match Env.find na env.decl with
-        | DeclType.Function fr -> fr
+        begin match Env.resolve_type_name (snd na) env with
+        | Type.Function fr -> fr
         | _ -> failwith "Function name must be associated with a function type."
         end
       | _ -> failwith "function name must be a string"
@@ -816,7 +801,7 @@ and check_call env func type_args args post_check : 'a =
   let typ_ps = fun_type.type_params in
 
   (* helper to extend delta environment *)
-  let extend_delta = fun (environ:Env.t) ((t_par,t_arg),_:(string*ExpType.t)*Types.Type.t) ->
+  let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg),_:(string*Type.t)*Types.Type.t) ->
     begin {environ with typ = Env.insert (Info.dummy, t_par)
                             t_arg environ.typ} end in
 
@@ -841,7 +826,7 @@ and check_call env func type_args args post_check : 'a =
     let check_positional = fun (par,arg:Parameter.t * Argument.t) ->
       begin match snd arg with
         | Expression {value=e} -> let t = type_expression new_ctx e in
-          let pt = saturate_exp_type new_ctx par.typ in
+          let pt = saturate_type new_ctx par.typ in
           if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
         | Missing ->
           begin match par.direction with
@@ -876,7 +861,7 @@ and check_call env func type_args args post_check : 'a =
     let check_named = fun (par,arg:Parameter.t * Argument.t) ->
       begin match snd arg with
         | KeyValue {value=e; _} -> let t = type_expression new_ctx e in
-          let pt = saturate_exp_type new_ctx par.typ in
+          let pt = saturate_type new_ctx par.typ in
           if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
         | Missing -> begin match par.direction with
             | Out -> true
@@ -901,14 +886,14 @@ and type_function_call env func type_args args =
     let typ_ps = fun_type.type_params in
 
     (* helper to extend delta environment *)
-    let extend_delta = fun (environ:Env.t) ((t_par,t_arg):string*ExpType.t) ->
+    let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg):string*Type.t) ->
       begin {environ with typ = Env.insert (Info.dummy, t_par)
                               t_arg environ.typ} end in
 
     let env = List.fold_left extend_delta env (List.combine typ_ps arg_types) in
       match fun_type.return with
-      | None -> failwith "function call must be non-void inside an expression"
-      | Some rt -> (saturate_exp_type env rt),(StmType.Unit,env) in
+      | Void -> failwith "function call must be non-void inside an expression"
+      | rt -> (saturate_type env rt),(StmType.Unit,env) in
   check_call env func type_args args post_check |> fst
 
 
@@ -920,7 +905,7 @@ and type_nameless_instantiation _ _ _ =
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =
-  ExpType.Set
+  Type.Set
   (type_expression env expr
   |> assert_bit (info expr)
   |> ignore;
@@ -939,7 +924,7 @@ and type_range env lo hi =
   | Int { width }, _ -> raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
   | _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
 
-and type_statement (env: Env.t) (stm: Statement.t) : (StmType.t * Env.t) =
+and type_statement (env: Env.checker_env) (stm: Statement.t) : (StmType.t * Env.checker_env) =
   match snd stm with
   | MethodCall { func; type_args; args } ->
     type_method_call env func type_args args
@@ -970,16 +955,16 @@ and type_method_call env func type_args args =
     let arg_types = List.map (translate_type env) type_args in
     (* helper to extend delta environment *)
     (* for now naively extend local delta environment instead of creating new symbols *)
-    let extend_delta = fun (environ:Env.t) ((t_par,t_arg):string*ExpType.t) ->
+    let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg):string*Type.t) ->
       begin {environ with typ = Env.insert (Info.dummy, t_par)
                               t_arg environ.typ} end in
     let env = List.fold_left extend_delta env (List.combine ft.type_params arg_types) in
-    let pfold = fun (acc:Env.t) (p:Parameter.t) ->
+    let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
       match p.direction with
       | In -> acc
       | Out | InOut -> (* only out variables are added to the environment *)
         {env with exp = Env.insert (Info.dummy,p.name) (p.typ,p.direction) env.exp} in
-    ExpType.Error,(StmType.Unit,List.fold_left pfold env ft.parameters) in
+    Type.Error,(StmType.Unit,List.fold_left pfold env ft.parameters) in
   check_call env func type_args args post_check |> snd
   (* type_function_call env func type_args args *)
 
@@ -1065,7 +1050,7 @@ and type_switch _ _ _ =
 and type_declaration_statement _ _ =
   failwith "Unimplemented"
 
-and type_declaration (env: Env.t) ((_, decl): Declaration.t) : Env.t =
+and type_declaration (env: Env.checker_env) ((_, decl): Declaration.t) : Env.checker_env =
   match decl with
   | Constant { annotations = _; typ; name; value } ->
     type_constant env typ name value
@@ -1123,7 +1108,7 @@ and type_control _ _ _ _ _ _ _ =
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
 and type_function env return name type_params params body =
-  let p_fold = fun (acc,env:Parameter.t list * Env.t) (p:Types.Parameter.t) ->
+  let p_fold = fun (acc,env:Parameter.t list * Env.checker_env) (p:Types.Parameter.t) ->
     begin let open Parameter in
     let p = snd p in
       let pd = begin match p.direction with
@@ -1142,7 +1127,7 @@ and type_function env return name type_params params body =
   let (ps,body_env) = List.fold_left p_fold ([],env) params in
   let ps = List.rev ps in
   let rt = return |> translate_type env  in
-  let sfold = fun (prev_type,envi:StmType.t*Env.t) (stmt:Statement.t) ->
+  let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
     begin match prev_type with
       | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
       | Unit ->
@@ -1160,7 +1145,7 @@ and type_function env return name type_params params body =
     end in
   let _ = List.fold_left sfold (StmType.Unit, body_env) (snd body).statements in
   let open FunctionType in
-  let funtype = DeclType.Function {parameters=ps;
+  let funtype = Type.Function {parameters=ps;
                  type_params= type_params |> List.map snd;
                  return= Some rt} in
   {env with decl = Env.insert name funtype env.decl}
@@ -1200,7 +1185,7 @@ and type_table _ _ _ =
  * Can't return a new environment because TypeDef and NewType might need the type (typ_or_decl field)
  * Can't return a single type because some nodes (e.g. Error, MatchKind) declare multiple bindings at once
  *)
-and type_type_declaration (env: Env.t) ((_, decl): TypeDeclaration.t) : Env.t =
+and type_type_declaration (env: Env.checker_env) ((_, decl): TypeDeclaration.t) : Env.checker_env =
   match decl with
   | Header { annotations = _; name; fields } ->
     type_header env name fields
@@ -1238,7 +1223,7 @@ and type_field env field =
 (* Section 7.2.2 *)
 and type_header env name fields =
   let fields = List.map (type_field env) fields in
-  let header_typ = DeclType.Header { fields } in
+  let header_typ = Type.Header { fields } in
   { env with decl = Env.insert name header_typ env.decl }
 
 (* Section 7.2.3 *)
@@ -1256,13 +1241,13 @@ and type_header_union env name fields =
       | _ -> failwith "Header Union field is undefined"
     end in
   let ufields = List.fold_left union_folder [] fields |> List.rev in
-  let hu = DeclType.HeaderUnion {union_fields=ufields} in
+  let hu = Type.HeaderUnion {union_fields=ufields} in
   { env with decl = Env.insert name hu env.decl }
 
 (* Section 7.2.5 *)
 and type_struct env name fields =
   let fields = List.map (type_field env) fields in
-  let struct_typ = DeclType.Struct { fields } in
+  let struct_typ = Type.Struct { fields } in
   { env with decl = Env.insert name struct_typ env.decl }
 
 (* Auxillary function for [type_error] and [type_match_kind],
@@ -1277,7 +1262,7 @@ and fold_unique members (_, member) =
 (* called by type_type_declaration *)
 and type_error env members =
   let errors = extract_errors env in
-  let errors' = DeclType.Error (List.fold_left fold_unique errors members) in
+  let errors' = Type.Error (List.fold_left fold_unique errors members) in
   { env with decl = insert_errors errors' env }
 
 and extract_errors env =
@@ -1292,7 +1277,7 @@ and insert_errors errors env =
 (* Section 7.1.3 *)
 and type_match_kind env members =
   let kinds = extract_match_kinds env in
-  let kinds' = DeclType.MatchKind (List.fold_left fold_unique kinds members) in
+  let kinds' = Type.MatchKind (List.fold_left fold_unique kinds members) in
   { env with decl = insert_match_kinds kinds' env }
 
 and extract_match_kinds env =
@@ -1307,7 +1292,7 @@ and insert_match_kinds kinds env =
 (* Section 7.2.1 *)
 and type_enum env name members =
   let fields = List.map snd members in
-  let enum_typ = DeclType.Enum { fields; typ = None } in
+  let enum_typ = Type.Enum { fields; typ = None } in
   { env with decl = Env.insert name enum_typ env.decl }
 
 (* Section 8.3 *)
@@ -1330,7 +1315,7 @@ and type_new_type _ _ _ =
 and type_control_type env name type_params params =
   let ps = translate_parameters env params in
   let tps = List.map snd type_params in
-  let ctrl = DeclType.Control {type_params=tps; parameters=ps} in
+  let ctrl = Type.Control {type_params=tps; parameters=ps} in
   {env with decl = Env.insert name ctrl env.decl}
 
 
@@ -1339,22 +1324,22 @@ and type_control_type env name type_params params =
 and type_parser_type env name type_params params =
   let ps = translate_parameters env params in
   let tps = List.map snd type_params in
-  let ctrl = DeclType.Parser {type_params=tps; parameters=ps} in
+  let ctrl = Type.Parser {type_params=tps; parameters=ps} in
   {env with decl = Env.insert name ctrl env.decl}
 
 (* Section 7.2.12 *)
 and type_package_type env name type_params params =
   let ps = translate_construct_params env params in
   let tps = List.map snd type_params in
-  let ctrl = DeclType.Package {type_params=tps; parameters=ps} in
+  let ctrl = Type.Package {type_params=tps; parameters=ps} in
   {env with decl = Env.insert name ctrl env.decl}
 
 (* Entry point function for type checker *)
-let check_program (program:Types.program) : Env.t =
+let check_program (program:Types.program) : Env.checker_env =
   let top_decls = match program with Program tds -> tds in
   let init_acc = Env.empty_env in
   let program_folder =
-    fun (acc:Env.t) -> fun (top_decl:Types.TopDeclaration.t) ->
+    fun (acc:Env.checker_env) -> fun (top_decl:Types.TopDeclaration.t) ->
       begin match top_decl with
       | TypeDeclaration type_decl -> type_type_declaration acc type_decl
       | Declaration decl -> type_declaration acc decl

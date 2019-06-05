@@ -96,7 +96,7 @@ and Type : sig
     | Error
     | IntType of Expression.t
     | BitType of Expression.t
-    | Varbit of Expression.t
+    | VarBit of Expression.t
     | TopLevelType of P4String.t
     | TypeName of P4String.t
     | SpecializedType of

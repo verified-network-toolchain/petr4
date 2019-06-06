@@ -38,19 +38,76 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
+let insert_type_vars : Env.checker_env -> string list -> Env.checker_env =
+  List.fold_left (Core.Fn.flip Env.insert_type_var)
 
-  (* In a declaration type replaces all type variables to
-   * their mapping in the type context.
-   * If nothing is mapped from that type variable it is unchanged.
-   * Saturates a declaration type by updating the environment. *)
-(* let rec saturate_decl_type (_:Env.checker_env) (_:Type.t) : Env.checker_env =
-  failwith "Saturating declaration types is not yet supported." *)
-
-(* In an expression type replaces all type variables to
- * their mapping in the type context.
- * If nothing is mapped from that type variable it is unchanged. *)
-let saturate_type (_: Env.checker_env) (_: Type.t) : Type.t =
-  failwith "TODO(ryan)"
+(* Eliminate all type references in typ and replace them with the type they
+ * refer to. The result of saturation will contain no TypeName constructors
+ * anywhere. It may contain TypeVar constructors.
+ *
+ * Warning: this will loop forever if you give it an environment with circular
+ * TypeName references.
+ *)
+let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
+  let open Type in
+  let saturate_field env (field: RecordType.field) =
+    {field with typ = saturate_type env field.typ}
+  in
+  let saturate_rec env ({fields}: RecordType.t) : RecordType.t =
+    {fields = List.map (saturate_field env) fields}
+  in
+  let saturate_construct_param env (param: ConstructParam.t) =
+    {param with typ = saturate_type env param.typ}
+  in
+  let saturate_param env (param: Parameter.t) =
+    {param with typ = saturate_type env param.typ}
+  in
+  let saturate_pkg env (pkg: PackageType.t) : PackageType.t = 
+    let env = insert_type_vars env pkg.type_params in
+    {type_params = pkg.type_params;
+     parameters = List.map (saturate_construct_param env) pkg.parameters}
+  in
+  let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
+    let env = insert_type_vars env ctrl.type_params in
+    {type_params = ctrl.type_params;
+     parameters = List.map (saturate_param env) ctrl.parameters}
+  in
+  let saturate_function env (fn: FunctionType.t) : FunctionType.t =
+    let env = insert_type_vars env fn.type_params in
+    {type_params = fn.type_params;
+     parameters = List.map (saturate_param env) fn.parameters;
+     return = saturate_type env fn.return}
+  in
+  match typ with
+  | TypeName typ ->
+      saturate_type env (Env.resolve_type_name typ env)
+  | Bool | String | Integer
+  | Int _ | Bit _ | VarBit _ 
+  | TypeVar _
+  | Error | MatchKind | Void ->
+      typ
+  | Array arr ->
+      Array {arr with typ = saturate_type env arr.typ}
+  | Tuple {types} ->
+      Tuple {types = List.map (saturate_type env) types}
+  | Set typ ->
+      Set (saturate_type env typ)
+  | Header rec_typ ->
+      Header (saturate_rec env rec_typ)
+  | HeaderUnion rec_typ ->
+      HeaderUnion (saturate_rec env rec_typ)
+  | Struct rec_typ ->
+      Struct (saturate_rec env rec_typ)
+  | Enum enum ->
+      Enum {enum with typ = option_map (saturate_type env) enum.typ}
+  | Package pkg ->
+      Package (saturate_pkg env pkg)
+  | Control control ->
+      Control (saturate_ctrl env control)
+  | Parser control ->
+      Parser (saturate_ctrl env control)
+  | Function func ->
+      Function (saturate_function env func)
 
 (* let assert_header_or_struct = make_assert "header or struct" *)
 (*   begin function *)
@@ -68,7 +125,7 @@ let saturate_type (_: Env.checker_env) (_: Type.t) : Type.t =
  * enums, headers, structs, env threading for parameters
 *)
 let rec alpha_sub_env (_:Env.checker_env) (_:string) (_:string) (_:string) : Env.checker_env =
-  failwith "TODO(ryan)"
+  failwith "unused"
 
 (* Returns a type expression alpha equivalent to [t]
  * where all occurences of [old_t] are replaced with [sub_t]

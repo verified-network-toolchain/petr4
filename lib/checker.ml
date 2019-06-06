@@ -109,196 +109,126 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   | Function func ->
       Function (saturate_function env func)
 
-(* let assert_header_or_struct = make_assert "header or struct" *)
-(*   begin function *)
-(*   | Header record_typ *)
-(*   | Struct record_typ -> Some record_typ *)
-(*   | _ -> None *)
-(*   end *)
+let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordType.t) : bool =
+  let open RecordType in
+  let field_eq (f1, f2) =
+    f1.name = f2.name && type_equality' env equiv_vars f1.typ f2.typ
+  in
+  let field_cmp f1 f2 =
+    String.compare f1.name f2.name
+  in
+  let fields1 = List.sort field_cmp rec1.fields in
+  let fields2 = List.sort field_cmp rec2.fields in
+  let field_pairs = List.combine fields1 fields2 in
+  List.for_all field_eq field_pairs
 
-(* Returns a type declaration alpha equivalent to [t]
- * where all occurences of [old_t] are replaced with [sub_t]
- * Needs to be fixed for new decl types.
- * tn is the name of the declared type.
- *
- * Known Problems: unsure of what environment to return in some cases:
- * enums, headers, structs, env threading for parameters
-*)
-let rec alpha_sub_env (_:Env.checker_env) (_:string) (_:string) (_:string) : Env.checker_env =
-  failwith "unused"
+and enum_type_equality env equiv_vars enum1 enum2 : bool =
+  let open EnumType in
+  let same_typ =
+    match enum1.typ, enum2.typ with 
+    | Some typ1, Some typ2 -> 
+        type_equality' env equiv_vars typ1 typ2
+    | None, None -> true
+    | _, _ -> false
+  in
+  let mems1 = List.sort String.compare enum1.members in
+  let mems2 = List.sort String.compare enum2.members in
+  mems1 = mems2 && same_typ
 
-(* Returns a type expression alpha equivalent to [t]
- * where all occurences of [old_t] are replaced with [sub_t]
- *)
-and alpha_sub_exp (env:Env.checker_env) (old_t:string) (sub_t:string) (t:Type.t) : Type.t * Env.checker_env =
-  let partial_alpha_sub = alpha_sub_exp env old_t sub_t in
-  let param_mapper = fun (p:Parameter.t) -> {p with typ = partial_alpha_sub p.typ |> fst} in
-  let construct_param_mapper = fun (p:ConstructParam.t) -> {p with typ = partial_alpha_sub p.typ |> fst} in
-  let record_mapper = fun (r:RecordType.field) ->
-    {r with typ=partial_alpha_sub r.typ |> fst} in
-  match t with
-  | TypeVar t_name ->
-      if t_name = old_t 
-      then TypeVar sub_t, env 
-      else t, env
-  | TypeName t_name ->
-      if t_name = old_t 
-      then TypeName sub_t, env 
-      else t, env
-  | String 
-  | Bool
-  | Integer
-  | Int _
-  | Bit _
-  | VarBit _ 
-  | MatchKind 
-  | Error -> t, env
-  | Array {typ=teip; size=n} -> let (new_typ,new_env) = partial_alpha_sub teip in
-    (Array {typ=new_typ; size=n}), new_env
-  | Tuple {types=ts} ->
-    let folder = fun (acc:Type.t list * Env.checker_env) (teip:Type.t) ->
-      begin let (new_typ,new_env) = alpha_sub_exp (snd acc) old_t sub_t teip in
-        new_typ::(fst acc),new_env end in
-    let (new_typs,final_env) = List.fold_left folder ([],env) ts in
-    (Tuple {types=List.rev new_typs}),final_env
-  | Set teip -> let (new_typ,new_env) = partial_alpha_sub teip in
-    (Set new_typ), new_env
-  | Void -> Void,env
-  | Enum {typ=teo; members=fs} ->
-    let (new_teo,new_env) =
-      begin match teo with
-        | None -> None,env
-        | Some te ->
-          let (ty,en) = partial_alpha_sub te in
-          Some ty, en
-      end in
-    let new_td = Type.Enum {typ=new_teo; members=fs} in
-    new_td, env
-  | Header {fields=fs} ->
-    let new_td = Type.Header {fields= List.map record_mapper fs} in
-    new_td, env
-  | HeaderUnion {fields=fs} ->
-    let new_td = Type.HeaderUnion {fields= List.map record_mapper fs} in
-    new_td, env
-  | Struct {fields=fs} ->
-    let new_td = Type.Struct {fields= List.map record_mapper fs} in
-    new_td, env
-  | Function {type_params=tps; parameters=ps; return=rt} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_rt = fst (partial_alpha_sub rt) in
-    let new_td = Type.Function {type_params=new_tps; parameters=new_ps; return=new_rt} in
-    new_td, env
-  | Parser {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_td = Type.Parser {type_params=new_tps; parameters=new_ps} in
-    new_td, env
-  | Control {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map param_mapper ps in
-    let new_td = Type.Control {type_params=new_tps; parameters=new_ps} in
-    new_td, env
-  | Package {type_params=tps; parameters=ps} ->
-    let new_tps = List.map (fun s -> if s = old_t then sub_t else s) tps in
-    let new_ps = List.map construct_param_mapper ps in
-    let new_td = Type.Package {type_params=new_tps; parameters=new_ps} in
-    new_td, env
+and package_type_equality env equiv_vars pkg1 pkg2 : bool =
+  failwith ""
 
-(* Alpha Substitutes type params [t1s] for [t2s] in type [t]
- * where [t] is either an Type.t or a Type.t and
- * alpha_sub is the appropriate alpha substition function. *)
-let alpha_sub_type_params env t2 t1s t2s : Type.t * Env.checker_env =
-  let typ_fold = fun (t,env:Type.t*Env.checker_env) (tv_old,tv_sub:string*string) ->
-    begin alpha_sub_exp env tv_old tv_sub t end in
-  List.fold_left typ_fold (t2,env) (List.combine t2s t1s)
+and control_type_equality env equiv_vars pkg1 pkg2 : bool =
+  failwith ""
 
-(* [check_decl_equality env t1 t2] is true if and only if
- * declaration type t1 is equivalent to declaration type t2
- * under environment env.
- *  Alpha equivalent types are equal. *)
-let rec check_decl_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : bool =
-  let rec_fields_match l r =
-    let open RecordType in
-    let field_compare = (fun fld1 fld2
-                          -> String.compare fld1.name fld2.name) in
-    let sl = List.sort field_compare l in
-    let sr = List.sort field_compare r in
-    let get_field_type = (fun fld -> fld.typ) in
-    let tl = List.map get_field_type sl in
-    let tr = List.map get_field_type sr in
-    let checks = List.map2 (type_equality env) tl tr  in
-    not (List.mem false checks) in
-
-  let alpha_sub_fold_param env tp1s tp2s p2s : Env.checker_env * Parameter.t list =
-    begin let fold = fun (env,pl:Env.checker_env*Parameter.t list) (p2:Parameter.t) ->
-      let (new_t,new_env) = alpha_sub_type_params env p2.typ tp1s tp2s in
-      let new_p2 = {p2 with typ=new_t} in (new_env,new_p2::pl) in
-      let (nenv,ps) =  List.fold_left fold (env,[]) p2s in (nenv, List.rev ps) end in
-
-  let alpha_sub_fold_construct_param env tp1s tp2s p2s : Env.checker_env * ConstructParam.t list =
-    begin let fold = fun (env,pl:Env.checker_env*ConstructParam.t list) (p2:ConstructParam.t) ->
-      let (new_t,new_env) = alpha_sub_type_params env p2.typ tp1s tp2s in
-      let new_p2 = {p2 with typ=new_t} in (new_env,new_p2::pl) in
-      let (nenv,ps) =  List.fold_left fold (env,[]) p2s in (nenv, List.rev ps) end in
-
-  begin match t1, t2 with
-  | HeaderUnion {fields = l}, HeaderUnion {fields = r}
-  | Header {fields = l}, Header {fields = r}
-  | Struct {fields = l}, Struct { fields = r} ->
-      rec_fields_match l r
-  | Enum {typ = lto; members = lfs}, Enum {typ = rto; members = rfs}
-    -> List.sort String.compare lfs = List.sort String.compare rfs &&
-       begin match lto,rto with
-       | Some lt, Some rt -> type_equality env lt rt
-       | None, None -> true
-       | _, _ -> false
-       end
-  | Error, Error -> true
-  | MatchKind, MatchKind -> true
-  | Control {type_params=tp1s; parameters=p1s;},
-    Control {type_params=tp2s; parameters=p2s;}
-  | Parser {type_params=tp1s; parameters=p1s;},
-    Parser {type_params=tp2s; parameters=p2s;}
-    -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
-    param_equality nenv p1s newp2s
-  | Package {type_params=tp1s; parameters=p1s;},
-    Package {type_params=tp2s; parameters=p2s;}
-    -> let (nenv,newp2s) = alpha_sub_fold_construct_param env tp1s tp2s p2s in
-    construct_param_equality nenv p1s newp2s
-  | Function {type_params=tp1s; parameters=p1s;return=r1},
-    Function {type_params=tp2s; parameters=p2s;return=r2}
-    -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
-    param_equality nenv p1s newp2s &&
-    let (newrt2,new_env) = alpha_sub_type_params env r2 tp1s tp2s in
-    type_equality new_env r1 newrt2
-  | _,_  -> false
-  end
+and function_type_equality env equiv_vars func1 func2 : bool =
+  failwith ""
 
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
-and type_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : bool =
-  begin match t1,t2 with
-    | Bool, Bool                                    -> true
-    | String, String                                -> true
-    | Bit { width = l}, Bit {width = r} when l = r  -> true
-    | Int { width = l}, Int {width = r} when l = r  -> true
-    | Integer, Integer                              -> true
-    | VarBit {width = l}, VarBit {width = r} when l = r   -> true
-    | Array {typ = lt; size = ls}, Array {typ = rt; size = rs}
-      -> ls = rs && type_equality env lt rt
-    | Error , Error                                 -> true
-    | Tuple {types=t1s}, Tuple {types=t2s}
-      -> let ts = List.combine t1s t2s in
-      List.for_all (fun (ty1,ty2) -> type_equality env ty1 ty2) ts
-    | Set ty1, Set ty2 -> type_equality env ty1 ty2
-    | TypeVar tv1, TypeVar tv2 -> tv1 = tv2
-    | TypeName tn1, _ ->
-        type_equality env (Env.resolve_type_name tn1 env) t2
-    | _, TypeName tn2 ->
-        type_equality env t1 (Env.resolve_type_name tn2 env)
-    | _,_ -> failwith "unimplemented"
+and type_equality env t1 t2 =
+  type_equality' env [] t1 t2
+
+and type_equality' (env: Env.checker_env) 
+                   (equiv_vars: (string * string) list) 
+                   (t1:Type.t) (t2:Type.t) : bool =
+  let t1' = saturate_type env t1  in
+  let t2' = saturate_type env t2 in
+  begin match t1', t2' with
+    | TypeName _, _
+    | _, TypeName _ ->
+        failwith "TypeName in saturated type?"
+
+    | Bool, Bool
+    | String, String
+    | Integer, Integer
+    | Error, Error
+    | MatchKind, MatchKind
+    | Void, Void ->
+        true
+
+    | Bit { width = l}, Bit {width = r}
+    | Int { width = l}, Int {width = r}
+    | VarBit {width = l}, VarBit {width = r} ->
+        l = r
+
+    | Array {typ = lt; size = ls}, Array {typ = rt; size = rs} ->
+        ls = rs && type_equality' env equiv_vars lt rt
+
+    | Tuple {types = types1}, Tuple {types = types2} ->
+        let type_pairs = List.combine types1 types2 in
+        List.for_all (fun (t1, t2) -> type_equality' env equiv_vars t1 t2) type_pairs
+
+    | Set ty1, Set ty2 ->
+        type_equality' env equiv_vars ty1 ty2
+
+    | TypeVar tv1, TypeVar tv2 ->
+        tv1 = tv2
+
+    | Header rec1, Header rec2
+    | HeaderUnion rec1, HeaderUnion rec2
+    | Struct rec1, Struct rec2 ->
+        record_type_equality env equiv_vars rec1 rec2
+
+    | Enum enum1, Enum enum2 ->
+        enum_type_equality env equiv_vars enum1 enum2
+
+    | Package pkg1, Package pkg2 ->
+        package_type_equality env equiv_vars pkg1 pkg2
+
+    | Control ctrl1, Control ctrl2
+    | Parser ctrl1, Parser ctrl2 ->
+        control_type_equality env equiv_vars ctrl1 ctrl2
+
+    | Function func1, Function func2 ->
+        function_type_equality env equiv_vars func1 func2
+
+    (* We could replace this all with | _, _ -> false. I am writing it this way
+     * because when I change Type.t I want Ocaml to warn me about missing match
+     * cases. *)
+    | Bool, _
+    | String, _
+    | Integer, _
+    | Error, _
+    | MatchKind, _
+    | Void, _
+    | Bit _, _
+    | Int _, _
+    | VarBit _, _
+    | Array _, _
+    | Tuple _, _
+    | Set _, _
+    | TypeVar _, _
+    | Header _, _
+    | HeaderUnion _, _
+    | Struct _, _
+    | Enum _, _
+    | Control _, _
+    | Parser _, _
+    | Package _, _
+    | Function _, _ ->
+        false
   end
 
 (* Checks that a list of parameters is type equivalent.

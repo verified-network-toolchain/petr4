@@ -208,76 +208,6 @@ and Expression : sig
   and t = pre_t info [@@deriving sexp,yojson]
 end
 
-and TypeDeclaration : sig 
-  type pre_t =
-      Header of 
-        { annotations: Annotation.t list; 
-          name: P4String.t; 
-          fields: field list }
-    | HeaderUnion of 
-        { annotations: Annotation.t list; 
-          name: P4String.t; 
-          fields: field list }
-    | Struct of 
-        { annotations: Annotation.t list; 
-          name: P4String.t; 
-          fields: field list }
-    | Error of 
-        { members: P4String.t list }
-    | MatchKind of
-        { members: P4String.t list }
-    | Enum of 
-        { annotations: Annotation.t list; 
-          name: P4String.t; 
-          members: P4String.t list }
-    | SerializableEnum of 
-        { annotations: Annotation.t list; 
-          typ: Type.t;
-          name: P4String.t; 
-          members: (P4String.t * Expression.t) list }
-    | ExternObject of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
-          methods: MethodPrototype.t list }
-    | TypeDef of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          typ_or_decl: (Type.t, t) alternative }
-    | NewType of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          typ_or_decl: (Type.t, t) alternative }
-    | ControlType of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
-          params: Parameter.t list }
-    | ParserType of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
-          params: Parameter.t list }
-    | PackageType of 
-        { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
-          params: Parameter.t list }
-  [@@deriving sexp,yojson]
-
-  and t = pre_t info [@@deriving sexp,yojson]
-
-  and pre_field = 
-      { annotations: Annotation.t list;
-        typ: Type.t;
-        name: P4String.t } [@@deriving sexp,yojson]
-    
-  and field = pre_field info [@@deriving sexp,yojson]
-
-  val name : t -> P4String.t
-
-end
-
 and Table : sig
   type pre_action_ref = 
     { annotations: Annotation.t list;
@@ -360,19 +290,19 @@ and Parser : sig
   type state = pre_state info [@@deriving sexp,yojson]
 end
 
-and Declaration : sig 
+and Declaration : sig
   type pre_t =
-      Constant of 
+      Constant of
         { annotations: Annotation.t list;
-          typ: Type.t;
+          typ: Type.t [@key "type"];
           name: P4String.t;
           value: Expression.t }
     | Instantiation of
         { annotations: Annotation.t list;
-          typ: Type.t;
+          typ: Type.t [@key "type"];
           args: Argument.t list;
           name: P4String.t }
-    | Parser of 
+    | Parser of
         { annotations: Annotation.t list;
           name: P4String.t;
           type_params: P4String.t list;
@@ -400,14 +330,14 @@ and Declaration : sig
           name: P4String.t;
           type_params: P4String.t list;
           params: Parameter.t list }
-    | Variable of 
+    | Variable of
         { annotations: Annotation.t list;
-          typ: Type.t;
+          typ: Type.t [@key "type"];
           name: P4String.t;
           init: Expression.t option }
     | ValueSet of
         { annotations: Annotation.t list;
-          typ: Type.t;
+          typ: Type.t [@key "type"];
           size: Expression.t;
           name: P4String.t }
     | Action of
@@ -415,13 +345,73 @@ and Declaration : sig
           name: P4String.t;
           params: Parameter.t list;
           body: Block.t }
-    | Table of 
+    | Table of
         { annotations: Annotation.t list;
           name: P4String.t;
           properties: Table.property list }
+    | Header of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          fields: field list }
+    | HeaderUnion of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          fields: field list }
+    | Struct of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          fields: field list }
+    | Error of
+        { members: P4String.t list }
+    | MatchKind of
+        { members: P4String.t list }
+    | Enum of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          members: P4String.t list }
+    | SerializableEnum of
+        { annotations: Annotation.t list;
+          typ: Type.t [@key "type"];
+          name: P4String.t;
+          members: (P4String.t * Expression.t) list }
+    | ExternObject of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          type_params: P4String.t list;
+          methods: MethodPrototype.t list }
+    | TypeDef of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          typ_or_decl: (Type.t, t) alternative }
+    | NewType of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          typ_or_decl: (Type.t, t) alternative }
+    | ControlType of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          type_params: P4String.t list;
+          params: Parameter.t list }
+    | ParserType of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          type_params: P4String.t list;
+          params: Parameter.t list }
+    | PackageType of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          type_params: P4String.t list;
+          params: Parameter.t list }
   [@@deriving sexp,yojson]
 
   and t = pre_t info [@@deriving sexp,yojson]
+
+  and pre_field =
+      { annotations: Annotation.t list;
+        typ: Type.t [@key "type"];
+        name: P4String.t } [@@deriving sexp,yojson]
+
+  and field = pre_field info [@@deriving sexp,yojson]
 
   val name : t -> P4String.t
 end
@@ -484,13 +474,5 @@ and Block : sig
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-and TopDeclaration : sig
-  type t = 
-      TypeDeclaration of TypeDeclaration.t
-    | Declaration of Declaration.t
-  [@@deriving sexp,yojson]
-
-end 
-
 type program = 
-  Program of TopDeclaration.t list [@@deriving sexp,yojson,yojson]
+  Program of Declaration.t list [@@deriving sexp,yojson,yojson]

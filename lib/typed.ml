@@ -120,7 +120,10 @@ and Type : sig
   (* match_kind *)
   | MatchKind
 
-  (* Type variables and references to declared types *)
+  (* Type variables *)
+  | TypeVar of string 
+
+  (* References to other types *)
   | TypeName of string 
 
   (* P4 void (acts like unit) *)

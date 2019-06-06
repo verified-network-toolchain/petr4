@@ -1,7 +1,6 @@
 open Types
 open Typed
 open Error
-open Info
 
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
@@ -50,7 +49,7 @@ let assert_numeric = make_assert "integer"
 (* In an expression type replaces all type variables to
  * their mapping in the type context.
  * If nothing is mapped from that type variable it is unchanged. *)
-let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
+let saturate_type (_: Env.checker_env) (_: Type.t) : Type.t =
   failwith "TODO(ryan)"
 
 (* let assert_header_or_struct = make_assert "header or struct" *)
@@ -68,9 +67,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
  * Known Problems: unsure of what environment to return in some cases:
  * enums, headers, structs, env threading for parameters
 *)
-let rec alpha_sub_env (env:Env.checker_env) (old_t:string) (sub_t:string) (tn:string) : Env.checker_env =
-  let open Parameter in
-  let open ConstructParam in
+let rec alpha_sub_env (_:Env.checker_env) (_:string) (_:string) (_:string) : Env.checker_env =
   failwith "TODO(ryan)"
 
 (* Returns a type expression alpha equivalent to [t]
@@ -83,6 +80,10 @@ and alpha_sub_exp (env:Env.checker_env) (old_t:string) (sub_t:string) (t:Type.t)
   let record_mapper = fun (r:RecordType.field) ->
     {r with typ=partial_alpha_sub r.typ |> fst} in
   match t with
+  | TypeVar t_name ->
+      if t_name = old_t 
+      then TypeVar sub_t, env 
+      else t, env
   | TypeName t_name ->
       if t_name = old_t 
       then TypeName sub_t, env 
@@ -235,29 +236,12 @@ and type_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : bool =
       -> let ts = List.combine t1s t2s in
       List.for_all (fun (ty1,ty2) -> type_equality env ty1 ty2) ts
     | Set ty1, Set ty2 -> type_equality env ty1 ty2
-    | TypeName tn1, TypeName tn2 ->
-      begin try
-        let d1 = Env.resolve_type_name tn1 env in
-        let d2 = Env.resolve_type_name tn2 env in
-        check_decl_equality env d1 d2
-      with
-      | _ -> tn1 = tn2
-      end
+    | TypeVar tv1, TypeVar tv2 -> tv1 = tv2
     | TypeName tn1, _ ->
-      begin try 
-        let et1 = Env.resolve_type_name tn1 env in
-        type_equality env et1 t2
-      with
-      | _ -> false
-      end
+        type_equality env (Env.resolve_type_name tn1 env) t2
     | _, TypeName tn2 ->
-      begin try
-        let et2 = Env.resolve_type_name tn2 env in
-        type_equality env t1 et2
-      with
-        | _ ->  false
-      end
-    | _,_  ->  false
+        type_equality env t1 (Env.resolve_type_name tn2 env)
+    | _,_ -> failwith "unimplemented"
   end
 
 (* Checks that a list of parameters is type equivalent.
@@ -290,16 +274,17 @@ else
 let compile_time_known_expr (_: Env.checker_env) (_: Expression.t) : unit =
   failwith "Unimplemented"
 
-let rec type_expression (env: Env.checker_env) ((_, exp): Expression.t) : Type.t =
+let rec type_expression_dir (env: Env.checker_env) ((_, exp): Expression.t) : Type.t
+* direction =
   match exp with
   | True ->
-    Type.Bool
+    (Type.Bool, Directionless)
   | False ->
-    Type.Bool
+    (Type.Bool, Directionless)
   | String _ ->
-    Type.String
+    (Type.String, Directionless)
   | Int i ->
-    type_int i
+    (type_int i, Directionless)
   | Name name ->
     Env.find_type_of (snd name) env
   | TopLevel name ->
@@ -309,29 +294,32 @@ let rec type_expression (env: Env.checker_env) ((_, exp): Expression.t) : Type.t
   | BitStringAccess { bits; lo; hi } ->
     type_bit_string_access env bits lo hi
   | List { values } ->
-    type_list env values
+    (type_list env values, Directionless)
   | UnaryOp { op; arg } ->
     type_unary_op env op arg
   | BinaryOp { op; args } ->
-    type_binary_op env op args
+    (type_binary_op env op args, Directionless)
   | Cast { typ; expr } ->
     type_cast env typ expr
   | TypeMember { typ; name } ->
     type_type_member env typ name
   | ErrorMember name ->
-    type_error_member env name
+    (type_error_member env name, Directionless)
   | ExpressionMember { expr; name } ->
-    type_expression_member env expr name
+    (type_expression_member env expr name, Directionless)
   | Ternary { cond; tru; fls } ->
-    type_ternary env cond tru fls
+    (type_ternary env cond tru fls, Directionless)
   | FunctionCall { func; type_args; args } ->
-    type_function_call env func type_args args
+    (type_function_call env func type_args args, Directionless)
   | NamelessInstantiation { typ; args } ->
-    type_nameless_instantiation env typ args
+    (type_nameless_instantiation env typ args, Directionless)
   | Mask { expr; mask } ->
-    type_mask env expr mask
+    (type_mask env expr mask, Directionless)
   | Range { lo; hi } ->
-    type_range env lo hi
+    (type_range env lo hi, Directionless)
+
+and type_expression (env: Env.checker_env) (exp : Expression.t) : Type.t =
+  fst (type_expression_dir env exp)
 
 and translate_type (env: Env.checker_env) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
@@ -435,14 +423,12 @@ and type_int (_, value) =
  *
  * Some architectures may further require ctk(i).
  *)
-and type_array_access env array index =
-  let array_typ = array
-  |> type_expression env
-  |> assert_array (info array)
-  in type_expression env index
-  |> assert_numeric (info index)
-  |> ignore;
-  array_typ.typ
+and type_array_access env (array: Types.Expression.t) index =
+  let (array_typ, array_dir) = type_expression_dir env array in
+  let idx_typ = type_expression env index in
+  assert_array (info array) array_typ |> ignore;
+  assert_numeric (info index) idx_typ |> ignore;
+  (array_typ, array_dir)
 
 (* Section 8.5
  * -----------
@@ -466,8 +452,8 @@ and type_bit_string_access _ _ _ _ =
  * Δ, T, Γ |- { x1, ..., xn } : (t1, ..., tn)
  *
  *)
-and type_list env values =
-  let type_valu = type_expression env in
+and type_list env values : Typed.Type.t =
+  let type_valu v = type_expression env v in
   let types = List.map type_valu values in
   Type.Tuple { types }
 
@@ -500,12 +486,14 @@ and type_list env values =
  * Δ, T, Γ |- -e : int<n>
  *)
 and type_unary_op env (_, op) arg =
-  let arg_typ = type_expression env arg in
+  let (arg_typ, dir) = type_expression_dir env arg in
   let open Op in
-  match op with
-  | Not    -> assert_bool (info arg) arg_typ
-  | BitNot -> assert_bit (info arg) arg_typ
-  | UMinus -> assert_numeric (info arg) arg_typ |> ignore; arg_typ
+  begin match op with
+  | Not    -> assert_bool (info arg) arg_typ    |> ignore
+  | BitNot -> assert_bit (info arg) arg_typ     |> ignore
+  | UMinus -> assert_numeric (info arg) arg_typ |> ignore
+  end;
+  (arg_typ, dir)
 
 (* Sections 8.5-8.8
  *
@@ -584,7 +572,7 @@ and type_unary_op env (_, op) arg =
 * Δ, T, Γ |- e1 ++ e2 : bit<w1 + w2>
 *
 *)
-and type_binary_op env (_, op) (l, r) =
+and type_binary_op env (_, op) (l, r) : Typed.Type.t =
   let open Op in
   let open Type in
 
@@ -708,26 +696,25 @@ and type_type_member _ _ _ =
  * Δ, T, Γ |- error.e : error
  *
  *)
-and type_error_member env name =
-  let errors = extract_errors env in
-  if List.mem (snd name) errors then
-    Type.Error
-  else
-    failwith "Unknown error"
+and type_error_member env name : Typed.Type.t =
+  let (e, _) = Env.find_type_of ("error." ^ (snd name)) env in
+  match e with
+  | Type.Error -> Type.Error
+  | _ -> failwith "Error member not an error?"
 
 (* Sections 6.6, 8.14 *)
-and type_expression_member env expr name =
+and type_expression_member env expr name : Typed.Type.t =
   let expr_typ = expr
   |> type_expression env
   (* |> assert_header_or_struct (info expr) *)
   in
   let open RecordType in
-  let fields = begin match expr_typ with
+  let fields =
+    begin match expr_typ with
     | TypeName na ->
-      let d = Env.resolve_type_name na env in
-      begin match d with
-        | Header {fields=fs} | Struct {fields=fs} -> fs
-        | _ -> failwith "not a record type"
+      begin match Env.resolve_type_name na env with
+      | Header {fields=fs} | Struct {fields=fs} -> fs
+      | _ -> failwith "not a record type"
       end
     | _ -> failwith "not a record type"
   end in
@@ -744,7 +731,7 @@ and type_expression_member env expr name =
  * -------------------------------------------------------------------
  *              Δ, T, Γ |- cond ? tru : fls : t
  *)
-and type_ternary env cond tru fls =
+and type_ternary env cond tru fls : Typed.Type.t =
   let _ = cond
   |> type_expression env
   |> assert_bool (info cond)
@@ -950,7 +937,7 @@ and type_method_call env func type_args args =
     let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
       match p.direction with
       | In -> acc
-      | Out | InOut -> (* only out variables are added to the environment *)
+      | Directionless | Out | InOut -> (* only out variables are added to the environment *)
           Env.insert_type_of p.name p.typ env
     in
     Type.Error,(StmType.Unit,List.fold_left pfold env ft.parameters) in
@@ -1073,7 +1060,7 @@ and type_constant env typ name value =
   let initialized_typ = type_expression env value in
   compile_time_known_expr env value;
   let expr_typ, _ = assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
-  {env with exp = (Env.insert name (expr_typ,In) env.exp)}
+  Env.insert_dir_type_of (snd name) expr_typ In env
 
 (* Section 10.3 *)
 and type_instantiation _ _ _ _ =
@@ -1111,7 +1098,9 @@ and type_function env return name type_params params body =
     let par = {name=p.variable |> snd;
               typ=p.typ |> translate_type env;
               direction=pd} in
-      let new_env =  {env with exp = Env.insert p.variable (par.typ,par.direction) env.exp} in
+    let new_env =
+      Env.insert_dir_type_of (snd p.variable) par.typ par.direction env
+    in
     par::acc, new_env end in
   let (ps,body_env) = List.fold_left p_fold ([],env) params in
   let ps = List.rev ps in
@@ -1136,8 +1125,8 @@ and type_function env return name type_params params body =
   let open FunctionType in
   let funtype = Type.Function {parameters=ps;
                  type_params= type_params |> List.map snd;
-                 return= Some rt} in
-  {env with decl = Env.insert name funtype env.decl}
+                 return= rt} in
+  Env.insert_type_of (snd name) funtype env
 
 (* Section 7.2.9.1 *)
 and type_extern_function _ _ _ _ _ =
@@ -1152,11 +1141,11 @@ and type_extern_function _ _ _ _ _ =
 and type_variable env typ name init =
   let expected_typ = translate_type env typ in
   match init with
-  | None -> {env with exp = (Env.insert name (expected_typ,In) env.exp)}
+  | None ->
+      Env.insert_dir_type_of (snd name) expected_typ In env
   | Some value -> let initialized_typ = type_expression env value in
     let expr_typ, _ = assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
-    {env with exp = (Env.insert name (expr_typ,In) env.exp)}
-
+    Env.insert_dir_type_of (snd name) expr_typ In env
 
 (* Section 12.11 *)
 and type_value_set _ _ _ _ =
@@ -1213,11 +1202,11 @@ and type_field env field =
 and type_header env name fields =
   let fields = List.map (type_field env) fields in
   let header_typ = Type.Header { fields } in
-  { env with decl = Env.insert name header_typ env.decl }
+  Env.insert_type (snd name) header_typ env
 
 (* Section 7.2.3 *)
 and type_header_union env name fields =
-  let open UnionType in
+  let open RecordType in
   let union_folder = fun acc -> fun field ->
     begin let open Types.TypeDeclaration in
       let {typ=ht; name=fn; _} = snd field in
@@ -1225,19 +1214,19 @@ and type_header_union env name fields =
         | TypeName tn -> snd tn
         | _ -> failwith "Header Union fields must be Headers"
       end in
-      match Env.find (Info.dummy,ht) env.decl with
-      | Header _ -> {name= snd fn; h_type=ht}::acc
+      match Env.resolve_type_name ht env with
+      | Header _ -> {name = snd fn; typ=TypeName ht}::acc
       | _ -> failwith "Header Union field is undefined"
     end in
   let ufields = List.fold_left union_folder [] fields |> List.rev in
-  let hu = Type.HeaderUnion {union_fields=ufields} in
-  { env with decl = Env.insert name hu env.decl }
+  let hu = Type.HeaderUnion {fields=ufields} in
+  Env.insert_type (snd name) hu env
 
 (* Section 7.2.5 *)
 and type_struct env name fields =
   let fields = List.map (type_field env) fields in
   let struct_typ = Type.Struct { fields } in
-  { env with decl = Env.insert name struct_typ env.decl }
+  Env.insert_type (snd name) struct_typ env
 
 (* Auxillary function for [type_error] and [type_match_kind],
  * which require unique names *)
@@ -1250,39 +1239,23 @@ and fold_unique members (_, member) =
 (* Section 7.1.2 *)
 (* called by type_type_declaration *)
 and type_error env members =
-  let errors = extract_errors env in
-  let errors' = Type.Error (List.fold_left fold_unique errors members) in
-  { env with decl = insert_errors errors' env }
-
-and extract_errors env =
-  match Env.find_toplevel (Info.dummy, "error") env.decl with
-  | Error errors -> errors
-  | _ -> failwith "[INTERNAL ERROR]: non-error type bound to error"
-
-and insert_errors errors env =
-  let open Env in
-  Env.insert_toplevel (Info.dummy, "error") errors env.decl
+  let add_err env (_, e) =
+    Env.insert_type_of_toplevel ("error." ^ e) Type.Error env
+  in
+  List.fold_left add_err env members
 
 (* Section 7.1.3 *)
 and type_match_kind env members =
-  let kinds = extract_match_kinds env in
-  let kinds' = Type.MatchKind (List.fold_left fold_unique kinds members) in
-  { env with decl = insert_match_kinds kinds' env }
-
-and extract_match_kinds env =
-  match Env.find_toplevel (Info.dummy, "match_kind") env.decl with
-  | MatchKind kinds -> kinds
-  | _ -> failwith "[INTERNAL ERROR]: non-error type bound to error"
-
-and insert_match_kinds kinds env =
-  let open Env in
-  Env.insert_toplevel (Info.dummy, "match_kind") kinds env.decl
+  let add_mk env (_, m) =
+    Env.insert_type_of_toplevel ("match_kind." ^ m) Type.MatchKind env
+  in
+  List.fold_left add_mk env members
 
 (* Section 7.2.1 *)
 and type_enum env name members =
-  let fields = List.map snd members in
-  let enum_typ = Type.Enum { fields; typ = None } in
-  { env with decl = Env.insert name enum_typ env.decl }
+  let members' = List.map snd members in
+  let enum_typ = Type.Enum { members = members'; typ = None } in
+  Env.insert_type (snd name) enum_typ env
 
 (* Section 8.3 *)
 and type_serializable_enum _ _ _ _ =
@@ -1305,28 +1278,26 @@ and type_control_type env name type_params params =
   let ps = translate_parameters env params in
   let tps = List.map snd type_params in
   let ctrl = Type.Control {type_params=tps; parameters=ps} in
-  {env with decl = Env.insert name ctrl env.decl}
-
-
+  Env.insert_type (snd name) ctrl env
 
 (* Section 7.2.11 *)
 and type_parser_type env name type_params params =
   let ps = translate_parameters env params in
   let tps = List.map snd type_params in
   let ctrl = Type.Parser {type_params=tps; parameters=ps} in
-  {env with decl = Env.insert name ctrl env.decl}
+  Env.insert_type (snd name) ctrl env
 
 (* Section 7.2.12 *)
 and type_package_type env name type_params params =
   let ps = translate_construct_params env params in
   let tps = List.map snd type_params in
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
-  {env with decl = Env.insert name ctrl env.decl}
+  Env.insert_type (snd name) ctrl env
 
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : Env.checker_env =
   let top_decls = match program with Program tds -> tds in
-  let init_acc = Env.empty_env in
+  let init_acc = Env.empty_checker_env in
   let program_folder =
     fun (acc:Env.checker_env) -> fun (top_decl:Types.TopDeclaration.t) ->
       begin match top_decl with

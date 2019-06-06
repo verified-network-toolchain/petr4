@@ -30,7 +30,6 @@ let rec find_opt (name: string) : 'a env -> 'a option = function
   | None              -> find_opt name t
   | Some (_, binding) -> Some binding
 
-
 let opt_to_exn name v =
   match v with
   | Some v -> v
@@ -45,13 +44,17 @@ let find_toplevel (name: string) (env: 'a env) : 'a = match List.rev env with
 
 let empty_env : 'a env = [[]]
 
+type type_name_meaning =
+| TypeVar
+| TypeRef of Typed.Type.t
+
 type checker_env =
   { (* the program (top level declarations) so far *)
     decl: Types.Declaration.t list;
-    (* maps type names to the types they refer to *)
-    typ: Typed.Type.t env;
-    (* maps variables to their types *)
-    typ_of: Typed.Type.t env;
+    (* types that type names refer to (or Typevar for vars in scope) *)
+    typ: type_name_meaning env;
+    (* maps variables to their types & directions *)
+    typ_of: (Typed.Type.t * Typed.direction) env;
     (* maps constants to their values *)
     const: Value.t env; }
 
@@ -88,10 +91,16 @@ let insert_decl d env =
   { env with decl = d :: env.decl }
 
 let insert_type name typ env =
-  { env with typ = insert name typ env.typ }
+  { env with typ = insert name (TypeRef typ) env.typ }
+
+let insert_type_var var env =
+  { env with typ = insert var TypeVar env.typ }
 
 let insert_type_of var typ env =
-  { env with typ_of = insert var typ env.typ_of }
+  { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
+
+let insert_dir_type_of var typ dir env =
+  { env with typ_of = insert var (typ, dir) env.typ_of }
 
 let push_scope env =
   { decl = env.decl;

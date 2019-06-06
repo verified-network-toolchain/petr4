@@ -1,5 +1,8 @@
-type direction = In | Out | InOut (* If direction is not specified
-                                   * then it is In. *)
+type direction =
+  | In
+  | Out
+  | InOut
+  | Directionless
 
 module rec Parameter : sig
   type t =

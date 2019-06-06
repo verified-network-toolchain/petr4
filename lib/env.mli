@@ -16,6 +16,7 @@ val find_type_of_toplevel : string -> checker_env -> Typed.Type.t
 val insert_decl : Types.Declaration.t -> checker_env -> checker_env
 val insert_type : string -> Typed.Type.t -> checker_env -> checker_env
 val insert_type_of : string -> Typed.Type.t -> checker_env -> checker_env
+val insert_type_var : string -> checker_env -> checker_env
 val push_scope : checker_env -> checker_env
 val pop_scope : checker_env -> checker_env
 

@@ -185,46 +185,36 @@ let rec check_decl_equality (env: Env.checker_env) (t1:Type.t) (t2:Type.t) : boo
       let (nenv,ps) =  List.fold_left fold (env,[]) p2s in (nenv, List.rev ps) end in
 
   begin match t1, t2 with
-    | HeaderUnion {fields = l}, HeaderUnion {fields = r} ->
-        let open RecordType in
-        let ufield_cmp = (fun uf1 uf2 -> String.compare uf1.name uf2.name) in
-        let sl = List.sort ufield_cmp l in
-        let sr = List.sort ufield_cmp r in
-        let get_ufield_type = (fun uf -> Env.find (header_union_info,uf.h_type) env.exp |> fst) in
-        let tl = List.map get_ufield_type sl in
-        let tr = List.map get_ufield_type sr in
-        let checks = List.map2 (type_equality env) tl tr in
-        not (List.mem false checks)
-      | Header {fields = l}, Header {fields = r}
-        -> rec_fields_match l r
-      | Struct {fields = l}, Struct { fields = r}
-        -> rec_fields_match l r
-      | Enum {typ = lto; fields = lfs}, Enum {typ = rto; fields = rfs}
-        -> List.sort String.compare lfs = List.sort String.compare rfs &&
-           begin match lto,rto with
-             | Some lt, Some rt -> type_equality env lt rt
-             | None, None -> true
-             | _, _ -> false
-           end
-             (* why are errors lists of strings? *)
-     | Error _, Error _ -> true
-     | Control {type_params=tp1s; parameters=p1s;},
-       Control {type_params=tp2s; parameters=p2s;}
-     | Parser {type_params=tp1s; parameters=p1s;},
-       Parser {type_params=tp2s; parameters=p2s;}
-       -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
-       param_equality nenv p1s newp2s
-     | Package {type_params=tp1s; parameters=p1s;},
-       Package {type_params=tp2s; parameters=p2s;}
-       -> let (nenv,newp2s) = alpha_sub_fold_construct_param env tp1s tp2s p2s in
-       construct_param_equality nenv p1s newp2s
-     | Function {type_params=tp1s; parameters=p1s;return=r1},
-       Function {type_params=tp2s; parameters=p2s;return=r2}
-       -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
-       param_equality nenv p1s newp2s &&
-       let (newrt2,new_env) = alpha_sub_type_params env r2 tp1s tp2s in
-       type_equality new_env r1 newrt2
-     | _,_  -> false
+  | HeaderUnion {fields = l}, HeaderUnion {fields = r}
+  | Header {fields = l}, Header {fields = r}
+  | Struct {fields = l}, Struct { fields = r} ->
+      rec_fields_match l r
+  | Enum {typ = lto; members = lfs}, Enum {typ = rto; members = rfs}
+    -> List.sort String.compare lfs = List.sort String.compare rfs &&
+       begin match lto,rto with
+       | Some lt, Some rt -> type_equality env lt rt
+       | None, None -> true
+       | _, _ -> false
+       end
+  | Error, Error -> true
+  | MatchKind, MatchKind -> true
+  | Control {type_params=tp1s; parameters=p1s;},
+    Control {type_params=tp2s; parameters=p2s;}
+  | Parser {type_params=tp1s; parameters=p1s;},
+    Parser {type_params=tp2s; parameters=p2s;}
+    -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
+    param_equality nenv p1s newp2s
+  | Package {type_params=tp1s; parameters=p1s;},
+    Package {type_params=tp2s; parameters=p2s;}
+    -> let (nenv,newp2s) = alpha_sub_fold_construct_param env tp1s tp2s p2s in
+    construct_param_equality nenv p1s newp2s
+  | Function {type_params=tp1s; parameters=p1s;return=r1},
+    Function {type_params=tp2s; parameters=p2s;return=r2}
+    -> let (nenv,newp2s) = alpha_sub_fold_param env tp1s tp2s p2s in
+    param_equality nenv p1s newp2s &&
+    let (newrt2,new_env) = alpha_sub_type_params env r2 tp1s tp2s in
+    type_equality new_env r1 newrt2
+  | _,_  -> false
   end
 
 (* [type_equality env t1 t2] is true if and only if expression type t1
@@ -801,11 +791,11 @@ and check_call env func type_args args post_check : 'a =
   let typ_ps = fun_type.type_params in
 
   (* helper to extend delta environment *)
-  let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg),_:(string*Type.t)*Types.Type.t) ->
-    begin {environ with typ = Env.insert (Info.dummy, t_par)
-                            t_arg environ.typ} end in
-
-  let env = List.fold_left extend_delta env (List.combine (List.combine typ_ps arg_types) type_args) in
+  let extend_delta environ (t_par, t_arg) =
+    Env.insert_type t_par t_arg environ
+  in
+  let type_names_args = List.combine typ_ps arg_types in
+  let env = List.fold_left extend_delta env type_names_args in
 
   (* Case 1: All atguments are positional *)
   let case1 = fun (arg:Argument.t) ->
@@ -882,20 +872,18 @@ and type_function_call env func type_args args =
   let open FunctionType in
   (* helper to extend delta environment *)
   let arg_types = List.map (translate_type env) type_args in
-  let post_check = fun fun_type ->
+  let post_check fun_type =
     let typ_ps = fun_type.type_params in
 
     (* helper to extend delta environment *)
-    let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg):string*Type.t) ->
-      begin {environ with typ = Env.insert (Info.dummy, t_par)
-                              t_arg environ.typ} end in
-
+    let extend_delta environ (t_par, t_arg) =
+      Env.insert_type t_par t_arg environ
+    in
     let env = List.fold_left extend_delta env (List.combine typ_ps arg_types) in
-      match fun_type.return with
-      | Void -> failwith "function call must be non-void inside an expression"
-      | rt -> (saturate_type env rt),(StmType.Unit,env) in
+    match fun_type.return with
+    | Void -> failwith "function call must be non-void inside an expression"
+    | rt -> (saturate_type env rt),(StmType.Unit,env) in
   check_call env func type_args args post_check |> fst
-
 
 
 
@@ -955,15 +943,16 @@ and type_method_call env func type_args args =
     let arg_types = List.map (translate_type env) type_args in
     (* helper to extend delta environment *)
     (* for now naively extend local delta environment instead of creating new symbols *)
-    let extend_delta = fun (environ:Env.checker_env) ((t_par,t_arg):string*Type.t) ->
-      begin {environ with typ = Env.insert (Info.dummy, t_par)
-                              t_arg environ.typ} end in
+    let extend_delta environ (t_par, t_arg) =
+      Env.insert_type t_par t_arg environ
+    in
     let env = List.fold_left extend_delta env (List.combine ft.type_params arg_types) in
     let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
       match p.direction with
       | In -> acc
       | Out | InOut -> (* only out variables are added to the environment *)
-        {env with exp = Env.insert (Info.dummy,p.name) (p.typ,p.direction) env.exp} in
+          Env.insert_type_of p.name p.typ env
+    in
     Type.Error,(StmType.Unit,List.fold_left pfold env ft.parameters) in
   check_call env func type_args args post_check |> snd
   (* type_function_call env func type_args args *)

@@ -29,14 +29,6 @@ module MethodPrototype : sig
   val format_t : Format.formatter -> Types.MethodPrototype.t -> unit 
 end
 
-module TypeDeclaration : sig
-  val format_t : Format.formatter -> Types.TypeDeclaration.t -> unit
-end
-
-module TopDeclaration : sig
-  val format_t : Format.formatter -> Types.TopDeclaration.t -> unit
-end
-
 module Statement : sig 
   val format_t : Format.formatter -> Types.Statement.t -> unit
 end

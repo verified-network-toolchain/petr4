@@ -1087,6 +1087,38 @@ and type_declaration (env: Env.checker_env) ((_, decl): Declaration.t) : Env.che
     type_action env name params body
   | Table { annotations = _; name; properties } ->
     type_table env name properties
+  | Header { annotations = _; name; fields } ->
+    type_header env name fields
+  | HeaderUnion { annotations = _; name; fields } ->
+    type_header_union env name fields
+  | Struct { annotations = _; name; fields } ->
+    type_struct env name fields
+  | Error { members } ->
+    type_error env members
+  | MatchKind { members } ->
+    type_match_kind env members
+  | Enum { annotations = _; name; members } ->
+    type_enum env name members
+  | SerializableEnum { annotations = _; typ; name; members } ->
+    type_serializable_enum env typ name members
+  | ExternObject { annotations = _; name; type_params; methods } ->
+    type_extern_object env name type_params methods
+  | TypeDef { annotations = _; name; typ_or_decl } ->
+    type_type_def env name typ_or_decl
+  | NewType { annotations = _; name; typ_or_decl } ->
+    type_new_type env name typ_or_decl
+  | ControlType { annotations = _; name; type_params; params } ->
+    type_control_type env name type_params params
+  | ParserType { annotations = _; name; type_params; params } ->
+    type_parser_type env name type_params params
+  | PackageType { annotations = _; name; type_params; params } ->
+    type_package_type env name type_params params
+
+and type_field env field =
+  let Declaration.{ annotations = _; typ; name } = snd field in
+  let name = snd name in
+  let typ = translate_type env typ in
+  RecordType.{ name; typ }
 
 (* Section 10.1
  *
@@ -1198,45 +1230,6 @@ and type_action _ _ _ _ =
 and type_table _ _ _ =
   failwith "Unimplemented"
 
-(* TODO: is there a cleaner type for this?
- * Can't return a new environment because TypeDef and NewType might need the type (typ_or_decl field)
- * Can't return a single type because some nodes (e.g. Error, MatchKind) declare multiple bindings at once
- *)
-and type_type_declaration (env: Env.checker_env) ((_, decl): TypeDeclaration.t) : Env.checker_env =
-  match decl with
-  | Header { annotations = _; name; fields } ->
-    type_header env name fields
-  | HeaderUnion { annotations = _; name; fields } ->
-    type_header_union env name fields
-  | Struct { annotations = _; name; fields } ->
-    type_struct env name fields
-  | Error { members } ->
-    type_error env members
-  | MatchKind { members } ->
-    type_match_kind env members
-  | Enum { annotations = _; name; members } ->
-    type_enum env name members
-  | SerializableEnum { annotations = _; typ; name; members } ->
-    type_serializable_enum env typ name members
-  | ExternObject { annotations = _; name; type_params; methods } ->
-    type_extern_object env name type_params methods
-  | TypeDef { annotations = _; name; typ_or_decl } ->
-    type_type_def env name typ_or_decl
-  | NewType { annotations = _; name; typ_or_decl } ->
-    type_new_type env name typ_or_decl
-  | ControlType { annotations = _; name; type_params; params } ->
-    type_control_type env name type_params params
-  | ParserType { annotations = _; name; type_params; params } ->
-    type_parser_type env name type_params params
-  | PackageType { annotations = _; name; type_params; params } ->
-    type_package_type env name type_params params
-
-and type_field env field =
-  let TypeDeclaration.{ annotations = _; typ; name } = snd field in
-  let name = snd name in
-  let typ = translate_type env typ in
-  RecordType.{ name; typ }
-
 (* Section 7.2.2 *)
 and type_header env name fields =
   let fields = List.map (type_field env) fields in
@@ -1247,7 +1240,7 @@ and type_header env name fields =
 and type_header_union env name fields =
   let open RecordType in
   let union_folder = fun acc -> fun field ->
-    begin let open Types.TypeDeclaration in
+    begin let open Types.Declaration in
       let {typ=ht; name=fn; _} = snd field in
       let ht = begin match snd ht with
         | TypeName tn -> snd tn
@@ -1337,10 +1330,4 @@ and type_package_type env name type_params params =
 let check_program (program:Types.program) : Env.checker_env =
   let top_decls = match program with Program tds -> tds in
   let init_acc = Env.empty_checker_env in
-  let program_folder =
-    fun (acc:Env.checker_env) -> fun (top_decl:Types.TopDeclaration.t) ->
-      begin match top_decl with
-      | TypeDeclaration type_decl -> type_type_declaration acc type_decl
-      | Declaration decl -> type_declaration acc decl
-      end in
-  List.fold_left program_folder init_acc top_decls
+  List.fold_left type_declaration init_acc top_decls

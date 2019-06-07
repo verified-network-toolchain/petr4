@@ -24,11 +24,6 @@ module Info = P4Info
 
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
-let declare_top top = match top with
-  | TopDeclaration.TypeDeclaration td ->
-     declare_type (TypeDeclaration.name td)
-  | TopDeclaration.Declaration d ->
-     declare_var (Declaration.name d)
 
 %}
 
@@ -72,7 +67,7 @@ let declare_top top = match top with
 
 %start <Types.program> p4program
 %start <Types.Declaration.t> variableDeclaration
-%start <Types.TypeDeclaration.t> typeDeclaration
+%start <Types.Declaration.t> typeDeclaration
 
 %%
 
@@ -204,33 +199,33 @@ topDeclarationList
 topDeclaration
 : c = constantDeclaration
     { declare_var (Declaration.name c);
-      TopDeclaration.Declaration c }
+      c }
 | e = externDeclaration
-    { declare_top e;
+    { declare_type (Declaration.name e);
       e }
 | a = actionDeclaration
     { declare_var (Declaration.name a);
-      TopDeclaration.Declaration a }
+      a }
 | p = parserDeclaration
     { declare_type (Declaration.name p);
-      TopDeclaration.Declaration p }
+      p }
 | c = controlDeclaration
     { declare_type (Declaration.name c);
-      TopDeclaration.Declaration c }
+      c }
 | i = instantiation
     { declare_var (Declaration.name i);
-      TopDeclaration.Declaration i }
+      i }
 | t = typeDeclaration
-    { declare_type (TypeDeclaration.name t);
-      TopDeclaration.TypeDeclaration t }
+    { declare_type (Declaration.name t);
+      t }
 | e = errorDeclaration
-    { (* declare_type (TypeDeclaration.name e); *)
-      TopDeclaration.TypeDeclaration e }
+    { (* declare_type (Declaration.name e); *)
+      e }
 | m = matchKindDeclaration
-    { TopDeclaration.TypeDeclaration m }
+    { m }
 | f = functionDeclaration
     { declare_var (Declaration.name f);
-      TopDeclaration.Declaration f }
+      f }
 ;
 
 varName
@@ -261,8 +256,7 @@ nonTypeName
 
 name
 : n = nonTypeName
-| n = NAME TYPENAME   { n }
-;
+| n = NAME TYPENAME   { n } ;
 
 %inline optAnnotations
 : (* empty *)  { [] }
@@ -321,7 +315,7 @@ packageTypeDeclaration
      type_params = optTypeParameters
      L_PAREN params = parameterList info2 = R_PAREN
      {  (Info.merge info1 info2,
-        TypeDeclaration.PackageType { annotations; name; type_params; params }) }
+        Declaration.PackageType { annotations; name; type_params; params }) }
 ;
 
 instantiation
@@ -516,15 +510,15 @@ externDeclaration
      pop_scope
      { let type_decl =
          (Info.merge info1 info2,
-          (TypeDeclaration.ExternObject { annotations; name; type_params; methods })) in
-       TopDeclaration.TypeDeclaration type_decl }
+          (Declaration.ExternObject { annotations; name; type_params; methods })) in
+       type_decl }
 |  annotations = optAnnotations info1 = EXTERN
      func = functionPrototype pop_scope info2 = SEMICOLON
      { let (_, return, name, type_params, params) = func in
        let decl =
          (Info.merge info1 info2,
           Declaration.ExternFunction { annotations; return; name; type_params; params }) in
-       TopDeclaration.Declaration decl }
+       decl }
 ;
 
 externName
@@ -679,16 +673,16 @@ typeDeclaration
 : d = derivedTypeDeclaration
 | d = typedefDeclaration
 | d = packageTypeDeclaration pop_scope SEMICOLON
-  { declare_type (TypeDeclaration.name d);
+  { declare_type (Declaration.name d);
     d }
 | ctd = controlTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ctd in
     (info,
-     TypeDeclaration.ControlType { annotations; name; type_params; params } ) }
+     Declaration.ControlType { annotations; name; type_params; params } ) }
 | ptd = parserTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ptd in
     (info,
-     TypeDeclaration.ParserType { annotations; name; type_params; params } ) }
+     Declaration.ParserType { annotations; name; type_params; params } ) }
 ;
 
 derivedTypeDeclaration
@@ -703,21 +697,21 @@ headerTypeDeclaration
 :  annotations = optAnnotations info1 = HEADER name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
-        TypeDeclaration.Header { annotations; name; fields }) }
+        Declaration.Header { annotations; name; fields }) }
 ;
 
 headerUnionDeclaration
 :  annotations = optAnnotations info1 = HEADER_UNION name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
-        TypeDeclaration.HeaderUnion { annotations; name; fields }) }
+        Declaration.HeaderUnion { annotations; name; fields }) }
 ;
 
 structTypeDeclaration
 :  annotations = optAnnotations info1 = STRUCT name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
-        TypeDeclaration.Struct { annotations; name; fields }) }
+        Declaration.Struct { annotations; name; fields }) }
 ;
 
 structField
@@ -731,27 +725,27 @@ enumDeclaration
 : annotations = optAnnotations info1 = ENUM name = name
     L_BRACE members = identifierList info2 = R_BRACE
     { (Info.merge info1 info2,
-      TypeDeclaration.Enum { annotations; name; members }) }
+      Declaration.Enum { annotations; name; members }) }
 | annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER info3 = R_ANGLE
     name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
    { let width = (info value, Expression.Int value) in
      let typ = (Info.merge info2 info4, Type.BitType width) in
      (Info.merge info1 info4,
-      TypeDeclaration.SerializableEnum { annotations; typ; name; members }) }
+      Declaration.SerializableEnum { annotations; typ; name; members }) }
 ;
 
 errorDeclaration
 : info1 = ERROR L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
       (Info.merge info1 info2,
-       TypeDeclaration.Error { members }) }
+       Declaration.Error { members }) }
 ;
 
 matchKindDeclaration
 : info1 = MATCH_KIND L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
       (Info.merge info1 info2,
-       TypeDeclaration.MatchKind { members }) }
+       Declaration.MatchKind { members }) }
 ;
 
 identifierList
@@ -770,19 +764,19 @@ typedefDeclaration
 : annotations = optAnnotations info1 = TYPEDEF
     typ = typeRef name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
-       TypeDeclaration.TypeDef { annotations; name; typ_or_decl = Left typ } ) }
+       Declaration.TypeDef { annotations; name; typ_or_decl = Left typ } ) }
 | annotations = optAnnotations info1 = TYPEDEF
     decl = derivedTypeDeclaration name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
-       TypeDeclaration.TypeDef { annotations; name; typ_or_decl = Right decl } ) }
+       Declaration.TypeDef { annotations; name; typ_or_decl = Right decl } ) }
 | annotations = optAnnotations info1 = TYPE
     typ = typeRef name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
-       TypeDeclaration.NewType { annotations; name; typ_or_decl = Left typ } ) }
+       Declaration.NewType { annotations; name; typ_or_decl = Left typ } ) }
 | annotations = optAnnotations info1 = TYPE
     decl = derivedTypeDeclaration name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
-       TypeDeclaration.NewType { annotations; name; typ_or_decl = Right decl } ) }
+       Declaration.NewType { annotations; name; typ_or_decl = Right decl } ) }
 ;
 
 (*************************** STATEMENTS *************************)

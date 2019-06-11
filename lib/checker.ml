@@ -311,7 +311,7 @@ else
     raise_type_error info (Type_Difference (typ1, typ2))
 
 let compile_time_known_expr (_: Env.checker_env) (_: Expression.t) : unit =
-  failwith "Unimplemented"
+  failwith "compile_time_known_expr unimplemented"
 
 let rec type_expression_dir (env: Env.checker_env) ((_, exp): Expression.t) : Type.t
 * direction =
@@ -396,7 +396,7 @@ and translate_type (env: Env.checker_env) (typ: Types.Type.t) : Typed.Type.t =
     end
   | TopLevelType ps -> TypeName (snd ps)
   | TypeName ps -> TypeName (snd ps)
-  | SpecializedType _ -> failwith "Unimplemented"
+  | SpecializedType _ -> failwith "SpecializedType translation unimplemented"
   | HeaderStack {header=ht; size=e}
     -> let hdt = translate_type env ht in
     let len =
@@ -481,7 +481,7 @@ and type_array_access env (array: Types.Expression.t) index =
  * Δ, T, Γ |- b[m:l] : bit<m - l>
  *)
 and type_bit_string_access _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_bit_string_access unimplemented"
 
 (* Section 8.11
  * ------------
@@ -649,7 +649,7 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
     | Integer, Integer -> Integer
     | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
     | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-    | _, _ -> failwith "Unimplemented" (* TODO: better error message here *)
+    | _, _ -> failwith "this binop unimplemented" (* TODO: better error message here *)
     end
 
   (* Equality is defined on TODO*)
@@ -663,7 +663,7 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
     begin match l_typ, r_typ with
     | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
     | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-    | _, _ -> failwith "Unimplemented" (* TODO: better error message here *)
+    | _, _ -> failwith "this saturating op unimplemented" (* TODO: better error message here *)
     end
 
   (* Bitwise operators are only defined on bitstrings of the same width *)
@@ -688,7 +688,7 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
     | Integer, Integer -> ()
     | Bit { width = l }, Bit { width = r } when l = r -> ()
     | Int { width = l }, Int { width = r } when l = r -> ()
-    | _, _ -> failwith "Unimplemented" (* TODO: better error message here *)
+    | _, _ -> failwith "this comparison unimplemented" (* TODO: better error message here *)
     end;
     Bool
 
@@ -721,11 +721,11 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
 
 (* Section 8.9 *)
 and type_cast _ _ _ =
-  failwith "type_cast Unimplemented"
+  failwith "type_cast unimplemented"
 
 (* ? *)
 and type_type_member _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_type_member unimplemented"
 
 (* Section 8.2
  * -----------
@@ -915,7 +915,7 @@ and type_function_call env func type_args args =
 
 (* Section 14.1 *)
 and type_nameless_instantiation _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_nameless_instantiation unimplemented"
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =
@@ -1001,7 +1001,7 @@ and type_assignment env lhs rhs =
 
 (* Section 13.1 desugar and resugar the exceptions*)
 and type_direct_application _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_direct_application unimplemented"
 
 (* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean
@@ -1059,60 +1059,63 @@ and type_return env expr =
 
 (* Section 11.7 *)
 and type_switch _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_switch unimplemented"
 
 (* Section 10.3 *)
 and type_declaration_statement _ _ =
-  failwith "Unimplemented"
+  failwith "type_declaration_statement unimplemented"
 
-and type_declaration (env: Env.checker_env) ((_, decl): Declaration.t) : Env.checker_env =
-  match decl with
-  | Constant { annotations = _; typ; name; value } ->
-    type_constant env typ name value
-  | Instantiation { annotations = _; typ; args; name } ->
-    type_instantiation env typ args name
-  | Parser { annotations = _; name; type_params; params; constructor_params; locals; states } ->
-    type_parser env name type_params params constructor_params locals states
-  | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
-    type_control env name type_params params constructor_params locals apply
-  | Function { return; name; type_params; params; body } ->
-    type_function env return name type_params params body
-  | ExternFunction { annotations = _; return; name; type_params; params } ->
-    type_extern_function env return name type_params params
-  | Variable { annotations = _; typ; name; init } ->
-    type_variable env typ name init
-  | ValueSet { annotations = _; typ; size; name } ->
-    type_value_set env typ size name
-  | Action { annotations = _; name; params; body } ->
-    type_action env name params body
-  | Table { annotations = _; name; properties } ->
-    type_table env name properties
-  | Header { annotations = _; name; fields } ->
-    type_header env name fields
-  | HeaderUnion { annotations = _; name; fields } ->
-    type_header_union env name fields
-  | Struct { annotations = _; name; fields } ->
-    type_struct env name fields
-  | Error { members } ->
-    type_error env members
-  | MatchKind { members } ->
-    type_match_kind env members
-  | Enum { annotations = _; name; members } ->
-    type_enum env name members
-  | SerializableEnum { annotations = _; typ; name; members } ->
-    type_serializable_enum env typ name members
-  | ExternObject { annotations = _; name; type_params; methods } ->
-    type_extern_object env name type_params methods
-  | TypeDef { annotations = _; name; typ_or_decl } ->
-    type_type_def env name typ_or_decl
-  | NewType { annotations = _; name; typ_or_decl } ->
-    type_new_type env name typ_or_decl
-  | ControlType { annotations = _; name; type_params; params } ->
-    type_control_type env name type_params params
-  | ParserType { annotations = _; name; type_params; params } ->
-    type_parser_type env name type_params params
-  | PackageType { annotations = _; name; type_params; params } ->
-    type_package_type env name type_params params
+and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_env =
+  let env' = 
+    match snd decl with
+    | Constant { annotations = _; typ; name; value } ->
+      type_constant env typ name value
+    | Instantiation { annotations = _; typ; args; name } ->
+      type_instantiation env typ args name
+    | Parser { annotations = _; name; type_params; params; constructor_params; locals; states } ->
+      type_parser env name type_params params constructor_params locals states
+    | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
+      type_control env name type_params params constructor_params locals apply
+    | Function { return; name; type_params; params; body } ->
+      type_function env return name type_params params body
+    | ExternFunction { annotations = _; return; name; type_params; params } ->
+      type_extern_function env return name type_params params
+    | Variable { annotations = _; typ; name; init } ->
+      type_variable env typ name init
+    | ValueSet { annotations = _; typ; size; name } ->
+      type_value_set env typ size name
+    | Action { annotations = _; name; params; body } ->
+      type_action env name params body
+    | Table { annotations = _; name; properties } ->
+      type_table env name properties
+    | Header { annotations = _; name; fields } ->
+      type_header env name fields
+    | HeaderUnion { annotations = _; name; fields } ->
+      type_header_union env name fields
+    | Struct { annotations = _; name; fields } ->
+      type_struct env name fields
+    | Error { members } ->
+      type_error env members
+    | MatchKind { members } ->
+      type_match_kind env members
+    | Enum { annotations = _; name; members } ->
+      type_enum env name members
+    | SerializableEnum { annotations = _; typ; name; members } ->
+      type_serializable_enum env typ name members
+    | ExternObject { annotations = _; name; type_params; methods } ->
+      type_extern_object env name type_params methods
+    | TypeDef { annotations = _; name; typ_or_decl } ->
+      type_type_def env name typ_or_decl
+    | NewType { annotations = _; name; typ_or_decl } ->
+      type_new_type env name typ_or_decl
+    | ControlType { annotations = _; name; type_params; params } ->
+      type_control_type env name type_params params
+    | ParserType { annotations = _; name; type_params; params } ->
+      type_parser_type env name type_params params
+    | PackageType { annotations = _; name; type_params; params } ->
+      type_package_type env name type_params params
+  in
+  Env.insert_decl decl env'
 
 and type_field env field =
   let Declaration.{ annotations = _; typ; name } = snd field in
@@ -1135,15 +1138,15 @@ and type_constant env typ name value =
 
 (* Section 10.3 *)
 and type_instantiation _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_instantiation unimplemented"
 
 (* Section 12.2 *)
 and type_parser _ _ _ _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_parser unimplemented"
 
 (* Section 13 *)
 and type_control _ _ _ _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_control unimplemented"
 
 (* Section 9
  * Function Declaration:
@@ -1201,7 +1204,7 @@ and type_function env return name type_params params body =
 
 (* Section 7.2.9.1 *)
 and type_extern_function _ _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_extern_function unimplemented"
 
 (* Section 10.2
  *
@@ -1220,15 +1223,15 @@ and type_variable env typ name init =
 
 (* Section 12.11 *)
 and type_value_set _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_value_set unimplemented"
 
 (* Section 13.1 *)
 and type_action _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_action unimplemented"
 
 (* Section 13.2 *)
 and type_table _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_table unimplemented"
 
 (* Section 7.2.2 *)
 and type_header env name fields =
@@ -1291,19 +1294,19 @@ and type_enum env name members =
 
 (* Section 8.3 *)
 and type_serializable_enum _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_serializable_enum unimplemented"
 
 (* Section 7.2.9.2 *)
 and type_extern_object _ _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_extern_object unimplemented"
 
 (* Section 7.3 *)
 and type_type_def _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_type_def unimplemented"
 
 (* ? *)
 and type_new_type _ _ _ =
-  failwith "Unimplemented"
+  failwith "type_new_type unimplemented"
 
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =

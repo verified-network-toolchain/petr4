@@ -201,8 +201,7 @@ topDeclaration
     { declare_var (Declaration.name c);
       c }
 | e = externDeclaration
-    { declare_type (Declaration.name e);
-      e }
+    { e }
 | a = actionDeclaration
     { declare_var (Declaration.name a);
       a }
@@ -511,6 +510,7 @@ externDeclaration
      { let type_decl =
          (Info.merge info1 info2,
           (Declaration.ExternObject { annotations; name; type_params; methods })) in
+       declare_type (Declaration.name type_decl);
        type_decl }
 |  annotations = optAnnotations info1 = EXTERN
      func = functionPrototype pop_scope info2 = SEMICOLON
@@ -518,6 +518,7 @@ externDeclaration
        let decl =
          (Info.merge info1 info2,
           Declaration.ExternFunction { annotations; return; name; type_params; params }) in
+       declare_var (Declaration.name decl);
        decl }
 ;
 

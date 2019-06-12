@@ -13,6 +13,9 @@
  * under the License. 
  *)
 
+val format_list : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a Core.List.t -> unit
+val format_list_sep : (Format.formatter -> 'a -> unit) -> string -> Format.formatter -> 'a Core.List.t -> unit
+
 module P4Int : sig 
   val format_t : Format.formatter -> Types.P4Int.t -> unit 
 end
@@ -27,6 +30,14 @@ end
 
 module MethodPrototype : sig 
   val format_t : Format.formatter -> Types.MethodPrototype.t -> unit 
+end
+
+module TypeDeclaration : sig
+  val format_t : Format.formatter -> Types.TypeDeclaration.t -> unit
+end
+
+module TopDeclaration : sig
+  val format_t : Format.formatter -> Types.TopDeclaration.t -> unit
 end
 
 module Statement : sig 

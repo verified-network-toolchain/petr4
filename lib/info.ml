@@ -44,19 +44,19 @@ let to_string = function
 
 let start_pos = function
     M _ -> (Int.max_value, Int.max_value)
-  | I { line_start; col_start; _ } ->
+  | I { filename; line_start; line_end; col_start; col_end } ->
     (line_start, col_start)
 
 let end_pos = function
     M _ -> (0, 0)
-  | I { line_start; line_end; col_end; _} ->
+  | I { filename; line_start; line_end; col_start; col_end } ->
     (match line_end with
      | None -> (line_start, col_end)
      | Some line_end -> (line_end, col_end))
 
 let file = function
     M _ -> ""
-  | I  { filename; _ } ->
+  | I  { filename; line_start; line_end; col_start; col_end } ->
     filename
 
 let merge (info1 : t) (info2 : t) =

@@ -10,10 +10,7 @@
 \usepackage{tgpagella}
 \usepackage{mathpazo}
 
-\newcommand{\todo}{\textsf{TODO}}
-
 \newcommand{\Sequent}[2]{\ensuremath{#1 \vdash #2}}
-\newcommand{\DoubleSequent}[3]{\ensuremath{#1 \vdash #2 \dashv #3}}
 \newcommand{\Numeric}[1]{\ensuremath{\operatorname{numeric}(#1)}}
 \newcommand{\Keyword}[1]{\ensuremath{\mathsf{#1}}}
 
@@ -32,11 +29,11 @@
 
 % macros for Petr4 syntax
 \newcommand{\Error}{\Keyword{error}}
-\newcommand{\MatchKind}{\Keyword{match\_kind}}
 \newcommand{\Void}{\Keyword{void}}
 \newcommand{\Bool}{\Keyword{bool}}
 \newcommand{\True}{\Keyword{true}}
 \newcommand{\False}{\Keyword{false}}
+\newcommand{\String}{\Keyword{string}}
 \newcommand{\Varbit}[1]{\Keyword{varbit}\langle#1\rangle}
 \newcommand{\Int}[1]{
     \Keyword{int}
@@ -51,7 +48,7 @@
 \newcommand{\Arrow}{\longrightarrow}
 \newcommand{\TApp}[2]{#1 \langle #2 \rangle}
 \newcommand{\SignedLit}[2]{#1\Keyword{s}#2}
-\newcommand{\UnsignedLit}[2]{#1\Keyword{u}#2}
+\newcommand{\UnsignedLit}[2]{#1\Keyword{w}#2}
 \newcommand{\Member}{.}
 \newcommand{\Index}[2]{#1 [#2]}
 \newcommand{\Slice}[3]{#1 [#2 : #3]}
@@ -84,28 +81,15 @@
         {\langle #2 \rangle}\ \{ #3 \}
 }
 \newcommand{\Newtype}[2]{\Keyword{newtype}\ #1\ #2}
-\newcommand{\Typedef}[2]{\Keyword{typedef}\ #1\ #2}
 \newcommand{\Control}[3]{\Keyword{control}\ \AppWithTypes{#1}{#2}{#3}}
 \newcommand{\Package}[3]{\Keyword{package}\ \AppWithTypes{#1}{#2}{#3}}
 \newcommand{\Parser}[3]{\Keyword{parser}\ \AppWithTypes{#1}{#2}{#3}}
-\newcommand{\Function}[3]{\Keyword{function}\ \AppWithTypes{#1}{#2}{#3}}
-\newcommand{\ExternFunction}[3]{\Keyword{extern}\ \Keyword{function}\ \AppWithTypes{#1}{#2}{#3}}
-\newcommand{\ValueSet}[3]{\AppWithTypes{\Keyword{value\_set}}{#1}{#2}\ #3}
-\newcommand{\Action}[2]{\Keyword{action}\ \AppWithTypes{#1}{}{#2}}
-\newcommand{\Table}[1]{\Keyword{table}\ #1\ \todo}
 
-\newcommand{\Typed}[5]{\Sequent{#1;#2;#3}{#4 : #5}}
-\newcommand{\TypedOut}[6]{\DoubleSequent{#1;#2;#3}{#4 : #5}{#6}}
+\newcommand{\Typed}[3]{\Sequent{#1;#2}{#3}}
 \newcommand{\Var}{\Keyword{Var}}
 \newcommand{\Str}{\Keyword{Str}}
 \newcommand{\Name}{\Keyword{Name}}
 \newcommand{\Z}{\mathbb{Z}}
-
-\newcommand{\Exit}{\Keyword{exit}}
-\newcommand{\Return}[1]{\Keyword{return}\ #1}
-\newcommand{\Switch}[2]{\Keyword{switch}\ #1\ \{ #2 \}}
-\newcommand{\If}[3]{\Keyword{if}\ (#1)\ #2\ \Keyword{else}\ #3}
-\newcommand{\Nop}{\Keyword{nop}}
 
 \newcommand{\Lookup}[2]{\operatorname{\Keyword{lookup}} #1\,#2}
 
@@ -125,16 +109,32 @@ Field names \(f \in \Name\).
 
 Integer literals \(m, n \in \Z\).
 
+String literals \(s \in \Str\).
+
 Unary operators \(\ominus \in \{\dots\}\).
 
 Binary operators \(\odot \in \{\dots\}\).
 
-Directions for function arguments.
+Expression types.
 \begin{Syntax}
-    \SynClassAndCase{p}{\Keyword{in}}
-    \SynCase{\Keyword{out}}
-    \SynCase{\Keyword{inout}}
+    \SynClassAndCase{\tau}{\Bool}
+    \SynCase{\Error}
+    \SynCase{\Int{}}
+    \SynCase{\Int{n}}
+    \SynCase{\Bit{n}}
+    \SynCase{\Varbit{n}}
+    \SynCase{.T}
+    \SynCase{T}
+    \SynCase{\TApp{T}{\Many{\tau}}}
+    \SynCase{\Stack{T}{n}}
+    \SynCase{\tau_1 \Prod \cdots \Prod \tau_n}
+    \SynCase{\Void}
+    \SynCase{\Set{\tau}}
 \end{Syntax}
+
+Some of these types are not permitted in the surface syntax. For example, you
+cannot use \(\Set{\tau}\) types directly, but you can create expressions of type
+\(\Set{\tau}\).\SpecRef{sec-set-exprs}
 
 Expressions.
 \begin{Syntax}
@@ -143,6 +143,7 @@ Expressions.
     \SynCase{n}
     \SynCase{\SignedLit{m}{n}}
     \SynCase{\UnsignedLit{m}{n}}
+    \SynCase{s}
     \SynCase{x}
     \SynCase{\Member f}
     \SynCase{\Index{e_1}{e_2}}
@@ -160,57 +161,23 @@ Expressions.
     \SynCase{e_1 \Range e_2}
 \end{Syntax}
 
-Blocks and statements.
+Directions for function arguments.
 \begin{Syntax}
-    \SynClassAndCase{B}{\{ \overline{s} \}}
-    \SynClassAndCase{s}{B}
-    \SynCase{D}
-    \SynCase{\FunApp{e}{\Many{\tau}}{\overline{x : \tau\,d}}}
-    \SynCase{x = e}
-    \SynCase{\FunApp{\tau}{}{\overline{x : \tau\,d}}}
-    \SynCase{\If{e}{s}{s}}
-    \SynCase{\Exit}
-    \SynCase{\Nop}
-    \SynCase{\Return{e}}
-    \SynCase{\Switch{e}{\todo}}
+    \SynClassAndCase{p}{\Keyword{in}}
+    \SynCase{\Keyword{out}}
+    \SynCase{\Keyword{inout}}
+\end{Syntax}
+
+Method declarations.
+\begin{Syntax}
+    \SynClassAndCase{m}{\Keyword{constructor}\ \FunApp{T}{}{\Many{x : \tau\, p}}}
+    \SynCase{\FunApp{T}{\Many{T}}{\Many{x : \tau\, p}}}
 \end{Syntax}
 
 Declarations.
 \begin{Syntax}
-    \SynClassAndCase{D}{\Keyword{const}\ x : \tau = e}
-    \SynCase{x : \tau = e}
-    \SynCase{\tau(\Many{e})\,x}
-    \SynCase{\Header{T}{\Many{f: \tau}}}
+    \SynClassAndCase{D}{\Header{T}{\Many{f: \tau}}}
     \SynCase{\HeaderUnion{T}{\Many{f: \tau}}}
-    \SynCase{\Struct{T}{\Many{f: \tau}}}
-    \SynCase{\ErrorDecl{T}}
-    \SynCase{\Enum{T}{\Many{f}}}
-    \SynCase{\SEnum{T}{\Many{f: e}}}
-    \SynCase{\Newtype{T}{\tau}}
-    \SynCase{\Typedef{T}{\tau}}
-    \SynCase{\Package{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Control{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Control{T}{}{\Many{x : \tau\,p}}(\Many{x : \tau})\ \{
-        \overline{D}\ \Keyword{apply}\ B\}}
-    \SynCase{\Action{f}{\Many{x : \tau\,p}, \Many{x : \tau}} B}
-    \SynCase{\Parser{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Parser{T}{\Many{T}}{\Many{x : \tau\,p}}(\Many{x : \tau})\ \{ \todo \}}
-    \SynCase{\ValueSet{\tau}{e}{T}}
-    \SynCase{\Function{T}{\Many{T}}{\Many{x : \tau\,p}}\ \{ \todo \}}
-    \SynCase{\ExternFunction{T}{\Many{T}}{\Many{x : \tau\,p}}\ \{ \todo \}}
-    \SynCase{\Extern{T}{\Many{T}}{\todo}}
-    \SynCase{\Table{T}}
-\end{Syntax}
-
-Types.
-\begin{Syntax}
-    \SynClassAndCase{\tau}{\Header{T}{\Many{f: \tau}}}
-    \SynCase{\tau_1 \Prod \cdots \Prod \tau_n}
-    \SynCase{(\Many{x: \tau\,d}) \to \tau'}
-    \SynCase{(\Many{x: \tau}) \to \tau'}
-    \SynCase{\Set{\tau}}
-    \SynCase{\HeaderUnion{T}{\Many{f: \tau}}}
-    \SynCase{\Stack{T}{n}}
     \SynCase{\Struct{T}{\Many{f: \tau}}}
     \SynCase{\ErrorDecl{T}}
     \SynCase{\Enum{T}{\Many{f}}}
@@ -219,163 +186,21 @@ Types.
     \SynCase{\Newtype{T}{\tau}}
     \SynCase{\Control{T}{\Many{T}}{\Many{x : \tau\,p}}}
     \SynCase{\Parser{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Package{T}{\Many{T}}{\Many{x : \tau}}}
-\end{Syntax}
-
-Base types.
-\begin{Syntax}
-    \SynClassAndCase{\sigma}{\Void}
-    \SynCase{\Error}
-    \SynCase{\Bool}
-    \SynCase{\Int{}}
-    \SynCase{\Int{n}}
-    \SynCase{\Bit{n}}
-    \SynCase{\Varbit{n}}
-\end{Syntax}
-
-\begin{Syntax}
-    \SynClassAndCase{\hat{\tau}}{.T}
-    \SynCase{T}
-    \SynCase{\alpha}
-    \SynCase{\TApp{T}{\Many{\hat{\tau}}}}
-\end{Syntax}
-
-
-Type contexts \(\Delta = T_1: \tau_1, \dots, T_n: \tau_n\) where all \(T_i\) are
-distinct.
-Declaration contexts \(\Xi = D_1, D_2, \dots, D_n\).
-Contexts \(\Gamma = x_1 : \tau_1, \dots, x_n: \tau_n\).
-
-Typing judgements for expressions. \[
-    \Typed{\Xi}{\Delta}{\Gamma}{e}{\tau}
-\]
-
-Rules for expression typing: booleans. \todo{} ternary operator.
-\[
-\begin{array}{c}
-    \inferrule{{}}{\Typed{\Xi}{\Delta}{\Gamma}{\True}{\Bool}} \quad
-    \inferrule{{}}{\Typed{\Xi}{\Delta}{\Gamma}{\False}{\Bool}} \\
-    \inferrule{\Uop \in \{!\} \\ \Typed{\Xi}{\Delta}{\Gamma}{e}{\Bool}}
-              {\Typed{\Xi}{\Delta}{\Gamma}{\Uop e}{\Bool}} \\
-    \inferrule{\Binop \in \{\Keyword{\&\&}, \Keyword{||}\} \\
-               \Typed{\Xi}{\Delta}{\Gamma}{e_1}{\Bool} \\
-               \Typed{\Xi}{\Delta}{\Gamma}{e_2}{\Bool}}
-              {\Typed{\Xi}{\Delta}{\Gamma}{e_1 \Binop e_2}{\Bool}}
-\end{array}
-\]
-Rules for expression typing: integers. \todo: operations on integers.
-\[
-\begin{array}{c}
-    \inferrule{{}}{\Typed{\Xi}{\Delta}{\Gamma}{n}{\Int{}}} \quad
-    \inferrule{m > 1}{\Typed{\Xi}{\Delta}{\Gamma}{\SignedLit{m}{n}}{\Int{m}}}
-    \quad
-    \inferrule{{}}{\Typed{\Xi}{\Delta}{\Gamma}{\UnsignedLit{m}{n}}{\Bit{m}}}
-\end{array}
-\]
-Rules for expression typing: variables.
-\[
-    \inferrule{\Lookup{\Gamma}{x} = \tau}{\Typed{\Xi}{\Delta}{\Gamma}{x}{\tau}}
-\]
-
-Rules for expresion typing: array operations. \todo
-
-Rules for expresion typing: sets. \todo
-
-Rules for expresion typing: casts. \todo
-
-Rules for expresion typing: errors. \todo
-
-Rules for expresion typing: set operations. \todo
-
-Rules for expresion typing: applications.
-\[
-    \inferrule{\Typed{\Xi}{\Delta}{\Gamma}{e}{(\Many{\tau\,p}) \to \tau'} \\
-    e_i : \tau_i \\
-    \Keyword{dir}(e_i) \sqsubseteq p_i}
-              {\Typed{\Xi}{\Delta}{\Gamma}{\FunApp{e}{}{\Many{e}}}{\tau}}
-\]
-
-Rules for expression typing: top level fields .f
-
-Rules for expresion typing: type members \(\tau.f\).
-
-Typing judgements for statements. \[
-    \TypedOut{\Xi}{\Delta}{\Gamma}{s}{\tau}{\Gamma'}
-\]
-
-Typing judgements for declarations. \[
-    \TypedOut{\Xi}{\Delta}{\Gamma}{D}{\tau}{\Gamma'; \Delta'}
-\]
-
-\newpage
-Declarations.
-\begin{Syntax}
-    \SynClassAndCase{D}{\tau(\Many{e})\,x}
     \SynCase{\Package{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Control{T}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Control{T}{}{\Many{x : \tau\,p}}(\Many{x : \tau})\ \{
-        \overline{D}\ \Keyword{apply}\ B\}}
 \end{Syntax}
 
-Types.
-\begin{Syntax}
-    \SynClassAndCase{\tau}{T}
-    \SynCase{\Control{}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Parser{}{\Many{T}}{\Many{x : \tau\,p}}}
-    \SynCase{\Package{}{\Many{T}}{\Many{x : \tau}}}
-\end{Syntax}
+Type contexts are lists \(\Gamma = \Gamma_1, \dots, \Gamma_n\) of scopes
+\(\Gamma_n\). Each scope is a list \(\Gamma_i = x_1 : \tau_1, \dots, x_n
+: \tau_n\). There is a function \(\Lookup{\Gamma}{x}\) which finds the first
+binding for \(x\) in the context \(\Gamma\).
 
-Expressions.
-\begin{Syntax}
-    \SynClassAndCase{e}{x}
-    \SynCase{\FunApp{\tau}{}{\Many{e}}}
-\end{Syntax}
+Declaration contexts are lists of declarations \(\Delta = D_1, \dots, D_n\).
+TODO: There is a well-formedness condition here, I think?
 
-
-How should we typecheck the following program?
-\begin{align*}
-    &\Control{A}{}{}; \\
-    &\Package{P}{}{a : A}; \\
-    &\Control{C}{}{} \{ \}; \\
-    &\Control{T}{}{}\ \{ \Keyword{apply}\ \{\}\} \\
-    &A(C())\ x;
-\end{align*}
-Our judgment for checking declarations has the shape
-\(\DoubleSequent{\Delta;\Gamma}{D}{\Delta';\Gamma'}\). We'll set it up so that
-\(\Delta' = \Delta, D\) regardless of \(D\), and it should typecheck bodies of
-controls. The last line (the instantiation) is the tricky part.
-
-Rules for typechecking instantiations.
+The typing judgment for expressions takes the form \(\Typed{\Delta}{\Gamma}{e
+: \tau}\) and is defined by the following rules.
 \[
-\begin{array}{c}
-    \inferrule[Inst-Control]{\Keyword{lookup}_\Delta(\tau) = \Control{T}{}{\Many{x
-    : \tau\,p}}(x_1 : \tau_1, \dots, x_n : \tau_n)\ \{
-        \overline{D}\ \Keyword{apply}\ B\}\\
-    \Sequent{\Delta; \Gamma}{e_i: \tau_i} \text{ for each \(i\)}}
-    {\Sequent{\Delta; \Gamma}{\tau(e_1, \dots, e_n) : \Control{}{}{\Many{x:\tau
-    p}}}} \\
-    \inferrule[Inst-Package]{\Keyword{lookup}_\Delta(\tau) = \Package{T}{}{x_1
-    : \tau_1, \dots, x_n : \tau_n} \\
-    \Sequent{\Delta; \Gamma}{e_i: \tau_i} \text{ for each \(i\)}}
-    {\Sequent{\Delta; \Gamma}{\tau(e_1, \dots, e_n) : \Keyword{package}}}
-\end{array}
+    \inferrule{\Lookup{\Gamma}{x} = \tau}{\Typed{\Delta}{\Gamma}{x : \tau}}
 \]
-
-This isn't enough to typecheck the example. The type of the constructor argument
-to \(P\) is \(A\), not \(\Control{}{}{}\). This can be dealt with by adding
-a rule for "resolving" type names, but I think another option would be to inline
-types. Maybe the way we do it in the formalization should be different from how
-we do it in the implementation.
-
-The rules do not handle generics.
-
-\[
-    \inferrule[Resolve-Control-Type]
-    {\Sequent{\Delta; \Gamma}{e: \Control{}{\Many{T}}{\Many{x : \tau d}}} \\
-     \Keyword{lookup}_\Delta(T_0) = \Control{T_0}{\Many{T}}{\Many{x : \tau d}}}
-    {\Sequent{\Delta; \Gamma}{e: T_0}}
-\]
-
-
 
 \end{document}

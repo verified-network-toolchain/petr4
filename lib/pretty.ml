@@ -17,6 +17,8 @@ open Core
 open Util
 module P4 = Types
 
+exception NotImplemented
+
 let format_list f fmt l = 
   List.iter l ~f:(f fmt)
 
@@ -295,7 +297,7 @@ end = struct
     | BitType x ->
       Format.fprintf fmt "@[bit<%a>@]" 
         Expression.format_t x
-    | VarBit x ->
+    | Varbit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
     | TopLevelType x ->
@@ -364,7 +366,7 @@ end = struct
   let format_t fmt e = 
     match snd e with 
     | In -> Format.fprintf fmt "in"
-    | Out -> Format.fprintf fmt "out"
+    | Out -> Format.fprintf fmt "in"
     | InOut -> Format.fprintf fmt "inout"
 end
 
@@ -513,56 +515,11 @@ end = struct
         Expression.format_t value
 end
 
-and MethodPrototype : sig
-  val format_t : Format.formatter -> P4.MethodPrototype.t -> unit
-end = struct
-  open P4.MethodPrototype 
-  let format_t fmt e = 
-    match snd e with 
-    | Constructor { annotations; name; params } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a(%a);@]"
-        P4String.format_t name
-        Parameter.format_params params
-    | Method { annotations; return; name; type_params; params } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a %a%a(%a);@]"
-        Type.format_t return
-        P4String.format_t name
-        Type.format_type_params type_params
-        Parameter.format_params params
-end
-
-
 and Declaration : sig
   val format_t : Format.formatter -> P4.Declaration.t -> unit
 end = struct
   open P4.Declaration 
-
-  let format_field fmt f = 
-    match snd f with 
-    | { annotations; typ; name } -> 
-      Format.fprintf fmt "@[%a@]" 
-        Annotation.format_ts annotations;
-      Format.fprintf fmt "@[%a %a;@]"
-        Type.format_t typ
-        P4String.format_t name
-
-  let format_fields fmt l = 
-    if l = [] then 
-      Format.fprintf fmt "{ }@]"
-    else
-      Format.fprintf fmt "{@\n%a@]@\n}"
-        (format_list_nl format_field) l
-      
-  let rec format_typ_or_decl fmt td = 
-    match td with 
-    | Left(typ) -> 
-      Type.format_t fmt typ
-    | Right(decl) -> 
-      format_t fmt decl
-
-  and format_t fmt e =
+  let rec format_t fmt e =
     match snd e with 
     | Constant { annotations; typ; name; value } -> 
       Format.fprintf fmt "@[<4>%aconst %a %s = %a;@]"
@@ -596,6 +553,12 @@ end = struct
       Format.fprintf fmt "%a" (format_list_nl format_t) locals;
       Parser.format_states fmt states;
       Format.fprintf fmt "@]@\n}"
+    | Package { annotations; name; type_params; params } ->
+      Format.fprintf fmt "@[%apackage %s%a(%a);@]"
+        Annotation.format_ts annotations
+        (snd name)
+        Type.format_type_params type_params
+        (format_list_sep Parameter.format_t ",") params
     | Instantiation { annotations; typ; args; name } -> 
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%a(%a) %a;@]"
@@ -638,6 +601,56 @@ end = struct
         Type.format_t typ
         Expression.format_t size
         P4String.format_t name
+end
+
+module MethodPrototype = struct
+  open P4.MethodPrototype 
+  let format_t fmt e = 
+    match snd e with 
+    | Constructor { annotations; name; params } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[%a(%a);@]"
+        P4String.format_t name
+        Parameter.format_params params
+    | Method { annotations; return; name; type_params; params } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[%a %a%a(%a);@]"
+        Type.format_t return
+        P4String.format_t name
+        Type.format_type_params type_params
+        Parameter.format_params params
+end
+
+module TypeDeclaration : sig
+  val format_t : Format.formatter -> P4.TypeDeclaration.t -> unit
+end = struct
+  open P4.TypeDeclaration
+
+  let format_field fmt f = 
+    match snd f with 
+    | { annotations; typ; name } -> 
+      Format.fprintf fmt "@[%a@]" 
+        Annotation.format_ts annotations;
+      Format.fprintf fmt "@[%a %a;@]"
+        Type.format_t typ
+        P4String.format_t name
+
+  let format_fields fmt l = 
+    if l = [] then 
+      Format.fprintf fmt "{ }@]"
+    else
+      Format.fprintf fmt "{@\n%a@]@\n}"
+        (format_list_nl format_field) l
+      
+  let rec format_typ_or_decl fmt td = 
+    match td with 
+    | Left(typ) -> 
+      Type.format_t fmt typ
+    | Right(decl) -> 
+      format_t fmt decl
+
+  and format_t fmt (e:t) =
+    match snd e with 
     | TypeDef { annotations; name; typ_or_decl } ->
       Format.printf "@[%atypedef %a %s;@]"
         Annotation.format_ts annotations
@@ -651,12 +664,6 @@ end = struct
         (format_list_sep Parameter.format_t ",") params
     | ParserType { annotations; name; type_params; params } ->
       Format.fprintf fmt "@[%aparser %s%a(%a);@]"
-        Annotation.format_ts annotations
-        (snd name)
-        Type.format_type_params type_params
-        (format_list_sep Parameter.format_t ",") params
-    | PackageType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[%apackage %s%a(%a);@]"
         Annotation.format_ts annotations
         (snd name)
         Type.format_type_params type_params
@@ -730,8 +737,19 @@ end = struct
         (snd name)
 end
 
+module TopDeclaration = struct
+  open P4.TopDeclaration
+  let format_t fmt e =
+    ignore e;
+    match e with
+    | TypeDeclaration x -> 
+      TypeDeclaration.format_t fmt x;
+    | Declaration x -> 
+      Declaration.format_t fmt x
+end
+
 let format_program fmt p =
   match p with 
   | P4.Program(ds) -> 
     Format.fprintf fmt "@[%a@\n@]"
-      (format_list_nl Declaration.format_t) ds
+      (format_list_nl TopDeclaration.format_t) ds

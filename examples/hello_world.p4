@@ -35,4 +35,5 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply { }
 }
 
+//this is declaration
 V1Switch(MyParser(), MyChecksum(), MyIngress(), MyEgress(), MyChecksum(), MyDeparser()) main;

@@ -1,7 +1,5 @@
 open Types
 
-type env = Context.t
-
 type t =
   | Bool of bool
   | Integer of Bigint.t
@@ -15,7 +13,10 @@ type t =
   | Set of set
   | String of string
   | Error of P4String.t
-  | Struct' of env
+  | Header_or_struct of (P4String.t * t) list
+  (* | headers and structs as mappings from strings to value *)
+  | Objstate of obj 
+  (* stateful objects *)
 
 and set = 
   | Singleton of Bigint.t 
@@ -23,3 +24,7 @@ and set =
   | Mask of t * t
   | Range of t * t
   | Prod 
+
+and obj =
+  { decl: Types.Declaration.t;
+    state: (P4String.t * t) list; }

@@ -74,6 +74,9 @@ let resolve_type_name_opt name env =
 let resolve_type_name name env =
   opt_to_exn name (resolve_type_name_opt name env)
 
+let resolve_type_name_toplevel name env =
+  find_toplevel name env.typ
+
 let find_type_of_opt name env =
   find_opt name env.typ_of
 

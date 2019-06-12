@@ -167,6 +167,7 @@ and Type : sig
     | BitType of Expression.t
     | VarBit of Expression.t
     | TopLevelType of P4String.t
+    (* this could be a typename or a type variable. *)
     | TypeName of P4String.t
     | SpecializedType of
         { base: t;

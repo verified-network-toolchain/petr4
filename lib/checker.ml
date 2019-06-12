@@ -240,6 +240,12 @@ and type_equality' (env: Env.checker_env)
     | Bool, Bool
     | String, String
     | Integer, Integer
+    (* These false "equalities" should probably be handled by addding implicit
+     * casts as described in sec. 8.9.2 of the p4-16 spec. *)
+    | Integer, Int _ 
+    | Int _, Integer
+    | Integer, Bit _ 
+    | Bit _, Integer
     | Error, Error
     | MatchKind, MatchKind
     | Void, Void ->

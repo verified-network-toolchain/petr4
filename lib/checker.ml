@@ -72,6 +72,9 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
     {type_params = ctrl.type_params;
      parameters = List.map (saturate_param env) ctrl.parameters}
   in
+  let saturate_extern env (extern: ExternType.t) : ExternType.t =
+    failwith "saturate_extern unimplemented!"
+  in
   let saturate_function env (fn: FunctionType.t) : FunctionType.t =
     let env = insert_type_vars env fn.type_params in
     {type_params = fn.type_params;
@@ -111,6 +114,8 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
       Control (saturate_ctrl env control)
   | Parser control ->
       Parser (saturate_ctrl env control)
+  | Extern extern ->
+      Extern (saturate_extern env extern)
   | Function func ->
       Function (saturate_function env func)
 
@@ -181,6 +186,9 @@ and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
     in
     params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
 
+and extern_type_equality env equiv_vars extern1 extern2 : bool = 
+  failwith "extern_type_equality unimplemented"
+
 and function_type_equality env equiv_vars func1 func2 : bool =
   let open FunctionType in
   if List.length func1.type_params <> List.length func2.type_params
@@ -216,8 +224,9 @@ and apply_type (env: Env.checker_env) (base: Typed.Type.t) (args: Typed.Type.t l
   | Package _
   | Control _
   | Parser _
+  | Extern _
   | Function _ ->
-      failwith ":("
+      failwith "apply_type unimplemented"
 
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
@@ -284,6 +293,9 @@ and type_equality' (env: Env.checker_env)
     | Parser ctrl1, Parser ctrl2 ->
         control_type_equality env equiv_vars ctrl1 ctrl2
 
+    | Extern extern1, Extern extern2 ->
+        extern_type_equality env equiv_vars extern1 extern2
+
     | Function func1, Function func2 ->
         function_type_equality env equiv_vars func1 func2
 
@@ -315,6 +327,7 @@ and type_equality' (env: Env.checker_env)
     | Control _, _
     | Parser _, _
     | Package _, _
+    | Extern _, _
     | Function _, _ ->
         false
   end

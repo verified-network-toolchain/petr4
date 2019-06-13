@@ -52,6 +52,20 @@ end = struct
     [@@deriving sexp]
 end
 
+and ExternType : sig
+  type t =
+    { type_params: string list;
+      constructors: FunctionType.t list;
+      methods: FunctionType.t list }
+    [@@deriving sexp]
+end = struct
+  type t =
+    { type_params: string list;
+      constructors: FunctionType.t list;
+      methods: FunctionType.t list }
+    [@@deriving sexp]
+end
+
 and IntType : sig
   type t =
     { width: int }
@@ -210,6 +224,8 @@ and Type : sig
 
   | Parser of ControlType.t
 
+  | Extern of ExternType.t
+
   (* <return type> <function name>(x1,...,xn) {...} *)
   | Function of FunctionType.t
   [@@deriving sexp]
@@ -280,6 +296,8 @@ end = struct
   | Control of ControlType.t
 
   | Parser of ControlType.t
+
+  | Extern of ExternType.t
 
   (* <return type> <function name>(x1,...,xn) {...} *)
   | Function of FunctionType.t

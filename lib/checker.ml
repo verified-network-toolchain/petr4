@@ -319,6 +319,11 @@ and type_equality' (env: Env.checker_env)
         false
   end
 
+and assert_type_equality env info t1 t2 : unit =
+  if type_equality env t1 t2
+  then ()
+  else raise @@ Error.Type (info, Type_Difference (t1, t2))
+
 (* Checks that a list of parameters is type equivalent.
  * True if equivalent, false otherwise.
  * Parameter names are ignored.
@@ -400,6 +405,13 @@ let rec type_expression_dir (env: Env.checker_env) ((_, exp): Expression.t) : Ty
 
 and type_expression (env: Env.checker_env) (exp : Expression.t) : Type.t =
   fst (type_expression_dir env exp)
+
+and translate_direction (dir: Types.Direction.t option) : Typed.direction =
+  match dir with
+  | Some (_, In) -> In
+  | Some (_, Out) -> Out
+  | Some (_, InOut) -> InOut
+  | None -> Directionless
 
 and translate_type (env: Env.checker_env) (vars : string list) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
@@ -1117,8 +1129,8 @@ and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_
       type_constant env typ name value
     | Instantiation { annotations = _; typ; args; name } ->
       type_instantiation env typ args name
-    | Parser { annotations = _; name; type_params; params; constructor_params; locals; states } ->
-      type_parser env name type_params params constructor_params locals states
+    | Parser { annotations = _; name; type_params = _; params; constructor_params; locals; states } ->
+      type_parser env name params constructor_params locals states
     | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
       type_control env name type_params params constructor_params locals apply
     | Function { return; name; type_params; params; body } ->
@@ -1184,13 +1196,64 @@ and type_constant env typ name value =
   else
     failwith "expression not compile-time-known"
 
+and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.checker_env =
+  let open Types.Parameter in
+  let insert_param env (_, p) =
+    let typ = translate_type env [] p.typ in
+    let dir = translate_direction p.direction in
+    Env.insert_dir_type_of (snd p.variable) typ dir env
+  in
+  List.fold_left insert_param env params
+
 (* Section 10.3 *)
 and type_instantiation _ _ _ _ =
   failwith "type_instantiation unimplemented"
 
 (* Section 12.2 *)
-and type_parser _ _ _ _ _ _ _ =
-  failwith "type_parser unimplemented"
+and type_parser env name params constructor_params locals states =
+  let open Parser in
+  let open Block in
+  let open Match in
+  let env' = insert_params env constructor_params in
+  let env'' = List.fold_left type_declaration env' locals in
+  let state_names = List.map (fun (_, state) -> snd state.name) states in
+
+  let type_select_case env expr_types (_, case) : unit =
+    let matches_and_types = List.combine expr_types case.matches in
+    let check_match (typ, m) =
+      match snd m with
+      | Expression {expr} ->
+          let t = type_expression env expr in
+          assert_type_equality env (fst m)  t typ
+      | Default
+      | DontCare -> ()
+    in
+    List.iter check_match matches_and_types;
+    let name = snd case.next in
+    if List.mem name state_names
+    then ()
+    else raise @@ Env.UnboundName name
+  in
+
+  let type_transition env transition : unit =
+    match snd transition with
+    | Direct {next = (_, name')} ->
+        if List.mem name' state_names
+        then ()
+        else raise @@ Env.UnboundName name'
+    | Select {exprs; cases} ->
+        let expr_types = List.map (type_expression env) exprs in
+        List.iter (type_select_case env expr_types) cases
+  in
+
+  let type_parser_state env (state: Parser.state) : unit =
+    let block = {annotations = []; statements = (snd state).statements} in
+    let (_, env') = type_block_statement env (fst state, block) in
+    type_transition env' (snd state).transition
+  in
+
+  List.iter (type_parser_state env'') states;
+  env
 
 (* Section 13 *)
 and type_control _ _ _ _ _ _ _ =

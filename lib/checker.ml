@@ -855,16 +855,11 @@ and type_ternary env cond tru fls : Typed.Type.t =
  *
 *)
 and check_call env func type_args args post_check : 'a =
-  let get_fun_type = fun (ft:Types.Expression.t) ->
-    begin match snd ft with
-      | Name na ->
-        begin match Env.resolve_type_name (snd na) env with
-        | Type.Function fr -> fr
-        | _ -> failwith "Function name must be associated with a function type."
-        end
-      | _ -> failwith "function name must be a string"
-    end in
-  let fun_type = get_fun_type func in
+  let fun_type =
+    match type_expression env func with
+    | Type.Function fr -> fr
+    | ty -> raise_mismatch (fst func) "function type" ty
+  in
   let open Parameter in
   let params = fun_type.parameters in
 

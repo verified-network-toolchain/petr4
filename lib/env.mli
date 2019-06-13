@@ -1,8 +1,8 @@
 exception BadEnvironment of string
 exception UnboundName of string
 
-type checker_env
-type eval_env
+type checker_env [@@deriving sexp]
+type eval_env [@@deriving sexp]
 
 val empty_checker_env : checker_env
 

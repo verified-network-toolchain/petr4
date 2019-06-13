@@ -1,7 +1,9 @@
+open Sexplib.Conv
+
 exception BadEnvironment of string
 exception UnboundName of string
 
-type 'binding env = (string * 'binding) list list
+type 'binding env = (string * 'binding) list list [@@deriving sexp]
 
 let push (env: 'a env) : 'a env = [] :: env
 
@@ -53,6 +55,7 @@ type checker_env =
     typ_of: (Typed.Type.t * Typed.direction) env;
     (* maps constants to their values *)
     const: Value.t env; }
+  [@@deriving sexp]
 
 let empty_checker_env : checker_env =
   { decl = [];
@@ -121,6 +124,7 @@ type eval_env =
     decl: Types.Declaration.t list;
     (* maps variables to their values *)
     var: Value.t env; }
+  [@@deriving sexp]
 
 let eval_env_of_checker_env (cenv: checker_env) : eval_env =
   { decl = cenv.decl;

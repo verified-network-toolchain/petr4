@@ -1,6 +1,8 @@
 open Types
+open Sexplib.Conv
 
 type env = Context.t
+[@@deriving sexp]
 
 type t =
   | Bool of bool
@@ -16,6 +18,7 @@ type t =
   | String of string
   | Error of P4String.t
   | Struct' of env
+  [@@deriving sexp]
 
 and set = 
   | Singleton of Bigint.t 
@@ -23,3 +26,4 @@ and set =
   | Mask of t * t
   | Range of t * t
   | Prod 
+  [@@deriving sexp]

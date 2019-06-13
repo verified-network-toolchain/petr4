@@ -53,16 +53,26 @@ end = struct
 end
 
 and ExternType : sig
+  type extern_method =
+    { name: string;
+      typ: FunctionType.t; }
+    [@@deriving sexp]
+
   type t =
     { type_params: string list;
       constructors: FunctionType.t list;
-      methods: FunctionType.t list }
+      methods: extern_method list }
     [@@deriving sexp]
 end = struct
+  type extern_method =
+    { name: string;
+      typ: FunctionType.t; }
+    [@@deriving sexp]
+
   type t =
     { type_params: string list;
       constructors: FunctionType.t list;
-      methods: FunctionType.t list }
+      methods: extern_method list }
     [@@deriving sexp]
 end
 

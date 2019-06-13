@@ -17,3 +17,6 @@ type ('a,'b) alternative =
     Left of 'a 
   | Right of 'b
   [@@deriving sexp,yojson]
+
+val option_map: ('a -> 'b) -> 'a option -> 'b option
+val combine_opt: 'a list -> 'b list -> ('a option * 'b option) list

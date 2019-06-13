@@ -13,7 +13,7 @@
  * under the License. 
  *)
 
-type t
+type t [@@deriving sexp]
 
 val reset : unit -> unit
 val declare_var : Info.t * string -> unit

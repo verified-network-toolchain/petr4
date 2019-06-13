@@ -1,15 +1,13 @@
+open Sexplib
 open Types
 open Typed
 open Error
+open Util
 
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
   | Some v -> v
   | None -> raise_mismatch info expected typ
-
-let option_map f = function
-  | Some x -> Some (f x)
-  | None -> None
 
 let assert_array = make_assert "array"
   begin function
@@ -72,10 +70,13 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
     {type_params = ctrl.type_params;
      parameters = List.map (saturate_param env) ctrl.parameters}
   in
-  let saturate_extern env (extern: ExternType.t) : ExternType.t =
-    failwith "saturate_extern unimplemented!"
-  in
-  let saturate_function env (fn: FunctionType.t) : FunctionType.t =
+  let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
+    { extern with
+      constructors = List.map (saturate_function env) extern.constructors;
+      methods = List.map (saturate_method env) extern.methods }
+  and saturate_method env (m: ExternType.extern_method) =
+    { m with typ = saturate_function env m.typ }
+  and saturate_function env (fn: FunctionType.t) : FunctionType.t =
     let env = insert_type_vars env fn.type_params in
     {type_params = fn.type_params;
      parameters = List.map (saturate_param env) fn.parameters;
@@ -813,23 +814,26 @@ and type_error_member env name : Typed.Type.t =
 and type_expression_member env expr name : Typed.Type.t =
   let expr_typ = expr
   |> type_expression env
-  (* |> assert_header_or_struct (info expr) *)
+  |> saturate_type env
   in
   let open RecordType in
-  let fields =
-    begin match expr_typ with
-    | TypeName na ->
-      begin match Env.resolve_type_name na env with
-      | Header {fields=fs} | Struct {fields=fs} -> fs
-      | _ -> failwith "not a record type"
+  match expr_typ with
+  | Header {fields=fs}
+  | HeaderUnion {fields=fs}
+  | Struct {fields=fs} ->
+      let matches f = f.name = snd name in
+      begin match List.find_opt matches fs with
+      | Some field -> field.typ
+      | None -> raise_unfound_member (info expr) (snd name)
       end
-    | _ -> failwith "not a record type"
-  end in
-  List.find_opt (fun field -> field.name = snd name) fields
-  |> begin function
-  | Some field -> field.typ
-  | None -> raise_unfound_member (info expr) (snd name)
-  end
+  | Extern {methods; _} ->
+      let open ExternType in
+      let matches m = m.name = snd name in
+      begin match List.find_opt matches methods with
+      | Some m -> Type.Function m.typ
+      | None -> raise_unfound_member (info expr) (snd name)
+      end
+  | _ -> failwith "not a header, header union, struct, or extern"
 
 (* Section 8.4.1
  * -------------
@@ -883,6 +887,9 @@ and check_call env func type_args args post_check : 'a =
     Env.insert_type t_par t_arg environ
   in
   let arg_types = List.map (translate_type env typ_ps) type_args in
+  if List.length typ_ps > List.length arg_types
+  then post_check fun_type (* Should actually be doing inference here! *)
+  else
   let type_names_args = List.combine typ_ps arg_types in
   let env = List.fold_left extend_delta env type_names_args in
 
@@ -1035,9 +1042,12 @@ and type_method_call env func type_args args =
     (* helper to extend delta environment *)
     (* for now naively extend local delta environment instead of creating new symbols *)
     let extend_delta environ (t_par, t_arg) =
-      Env.insert_type t_par t_arg environ
+      match t_par, t_arg with
+      | Some t_par, Some t_arg ->
+          Env.insert_type t_par t_arg environ
+      | _, _ -> environ
     in
-    let env = List.fold_left extend_delta env (List.combine ft.type_params arg_types) in
+    let env = List.fold_left extend_delta env (combine_opt ft.type_params arg_types) in
     let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
       match p.direction with
       | In -> acc
@@ -1214,8 +1224,9 @@ and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.
   List.fold_left insert_param env params
 
 (* Section 10.3 *)
-and type_instantiation _ _ _ _ =
-  failwith "type_instantiation unimplemented"
+and type_instantiation env _ _ _ =
+  (* TODO implement type_instantiation *)
+  env
 
 (* Section 12.2 *)
 and type_parser env name params constructor_params locals states =
@@ -1223,8 +1234,12 @@ and type_parser env name params constructor_params locals states =
   let open Block in
   let open Match in
   let env' = insert_params env constructor_params in
-  let env'' = List.fold_left type_declaration env' locals in
-  let state_names = List.map (fun (_, state) -> snd state.name) states in
+  let env' = insert_params env' params in
+  let env' = List.fold_left type_declaration env' locals in
+  let program_state_names = List.map (fun (_, state) -> snd state.name) states in
+  (* TODO: check that no program_state_names overlap w/ standard ones
+   * and that there is some "start" state *)
+  let state_names = program_state_names @ ["accept"; "reject"] in
 
   let type_select_case env expr_types (_, case) : unit =
     let matches_and_types = List.combine expr_types case.matches in
@@ -1260,12 +1275,13 @@ and type_parser env name params constructor_params locals states =
     type_transition env' (snd state).transition
   in
 
-  List.iter (type_parser_state env'') states;
+  List.iter (type_parser_state env') states;
   env
 
 (* Section 13 *)
-and type_control _ _ _ _ _ _ _ =
-  failwith "type_control unimplemented"
+and type_control env _ _ _ _ _ _ =
+  (* TODO implement type_control *)
+  env
 
 (* Section 9
  * Function Declaration:
@@ -1417,16 +1433,57 @@ and type_serializable_enum env _ _ _ =
   env
 
 (* Section 7.2.9.2 *)
-and type_extern_object env _ _ _ =
-  env
+and type_extern_object env name type_params methods =
+  let type_params' = List.map snd type_params in
+  let consume_method (constructors, methods) m =
+    match snd m with
+    | MethodPrototype.Constructor {name = cname; params; _} ->
+        assert (snd cname = snd name);
+        let params' = translate_parameters env type_params' params in
+        let c: FunctionType.t = 
+          { type_params = [];
+            parameters = params';
+            return = (TypeName (snd name)) }
+        in
+        (c :: constructors, methods)
+    | MethodPrototype.Method {return; name; type_params; params; _} ->
+        let method_typ_params = List.map snd type_params in
+        let all_typ_params = type_params' @ method_typ_params in
+        let params' =
+          translate_parameters env all_typ_params params 
+        in
+        let m: ExternType.extern_method = 
+          { name = snd name;
+            typ = { type_params = method_typ_params;
+                    parameters = params';
+                    return = translate_type env all_typ_params return } }
+        in
+        (constructors, m :: methods)
+  in
+  let (cs', ms') = List.fold_left consume_method ([], []) methods in
+  let typ: ExternType.t =
+    { type_params = type_params';
+      constructors = cs';
+      methods = ms' }
+  in
+  Env.insert_type (snd name) (Typed.Type.Extern typ) env
 
 (* Section 7.3 *)
-and type_type_def env _ _ =
-  env
+and type_type_def env (_, name) typ_or_decl =
+  match typ_or_decl with
+  | Left typ ->
+      Env.insert_type name (translate_type env [] typ) env
+  | Right decl ->
+      let env' = type_declaration env decl in
+      let (_, decl_name) = Declaration.name decl in
+      let decl_typ = Env.resolve_type_name decl_name env' in
+      Env.insert_type name decl_typ env'
 
 (* ? *)
-and type_new_type env _ _ =
-  env
+and type_new_type env name typ_or_decl =
+  (* Treating newtypes like typedefs for now even though this defeats the
+   * purpose of newtypes *)
+  type_type_def env name typ_or_decl
 
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =
@@ -1454,6 +1511,6 @@ and type_package_type env name type_params params =
 
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : Env.checker_env =
-  let top_decls = match program with Program tds -> tds in
+  let Program top_decls = program in
   let init_acc = Env.empty_checker_env in
   List.fold_left type_declaration init_acc top_decls

@@ -30,10 +30,10 @@ let info (i,_) = i
 
 type bigint = Bigint.t [@@deriving sexp]
 
-let bigint_to_yojson (b:bigint) : Yojson.Safe.json =
+let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
   `String (Bigint.to_string b)
 
-let bigint_of_yojson (json:Yojson.Safe.json) =
+let bigint_of_yojson (json:Yojson.Safe.t) =
   Ok (Bigint.of_string (Yojson.Safe.to_string json))
 
 module P4Int = struct

@@ -1,5 +1,4 @@
 module I = Info
-open Core
 module Info = I (* JNF: ugly hack *)
 open Types
 open Typed
@@ -9,7 +8,7 @@ module Eval_env: sig
   type t =     {exp: (ExpType.t * direction) env ;
                 typ: ExpType.t env;
                 decl: DeclType.t  env;
-                value: Value.t env; 
+                value: Value.t env;
                 eval_decl: Types.Declaration.t env }
 
   val empty_env: t
@@ -25,7 +24,7 @@ module Eval_env: sig
 end
 
 module Eval_int: sig
-  val to_int: P4.Value.t -> int
+  val to_int: Value.t -> int
 
   val power2w: int -> Bigint.t
 end

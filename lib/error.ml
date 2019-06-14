@@ -1,14 +1,13 @@
-open Types
 open Typed
 
 open Sexplib.Conv
 
 type error =
-| Unbound of string 
+| Unbound of string
 | Mismatch of
   { expected: string; (* TODO: string or Typed.t? *)
     found: ExpType.t; }
-| UnfoundMember of 
+| UnfoundMember of
   { expected_member: string}
 | Type_Difference of ExpType.t * ExpType.t
 | Duplicate

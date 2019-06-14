@@ -321,22 +321,22 @@ and translate_type (env: Env.t) (typ: Type.t) : ExpType.t =
   | Error -> Error
   | IntType e ->
     begin match Eval.eval_expression env e with
-      | Int {value=v}
-      | Bit {value=v}
+      | Int {value=v; _}
+      | Bit {value=v; _}
       | Integer v     -> Int ({width= get_int_from_bigint v})
       | _ -> failwith "int type param must evaluate to an int"
     end
   | BitType e ->
     begin match Eval.eval_expression env e with
-      | Int {value=v}
-      | Bit {value=v}
+      | Int {value=v; _}
+      | Bit {value=v; _}
       | Integer v     -> Bit ({width= get_int_from_bigint v})
       | _ -> failwith "bit type param must evaluate to an int"
     end
   | Varbit e ->
     begin match Eval.eval_expression env e with
-      | Int {value=v}
-      | Bit {value=v}
+      | Int {value=v; _}
+      | Bit {value=v; _}
       | Integer v     -> Var ({width= get_int_from_bigint v})
       | _ -> failwith "varbit type param must evaluate to an int"
     end
@@ -347,8 +347,8 @@ and translate_type (env: Env.t) (typ: Type.t) : ExpType.t =
     -> let hdt = translate_type env ht in
     let len =
       begin match Eval.eval_expression env e with
-      | Int {value=v}
-      | Bit {value=v}
+      | Int {value=v; _}
+      | Bit {value=v; _}
       | Integer v     -> get_int_from_bigint v
       | _ -> failwith "header stack size must be a number"
       end in
@@ -808,7 +808,7 @@ else if List.for_all case2 args then begin
     (* List.fold_left extend_env env (List.combine (List.combine sorted_params sorted_arg_types) sorted_args) in *)
   let check_named = fun (par,arg:Parameter.t * Argument.t) ->
     begin match snd arg with
-      | KeyValue {value= e} -> let t = type_expression new_ctx e in
+      | KeyValue {value= e; _} -> let t = type_expression new_ctx e in
         if type_equality new_ctx t par.typ then true else failwith "Function argument has incorrect type."
       | Missing -> begin match par.direction with
           | Out -> true
@@ -1173,7 +1173,7 @@ and type_header_union env name fields =
   let open UnionType in
   let union_folder = fun acc -> fun field ->
     begin let open Types.TypeDeclaration in
-      let {typ=ht; name=fn} = snd field in
+      let {typ=ht; name=fn; _} = snd field in
       let ht = begin match snd ht with
         | TypeName tn -> snd tn
         | _ -> failwith "Header Union fields must be Headers"

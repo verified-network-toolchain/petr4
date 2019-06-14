@@ -1,7 +1,6 @@
 open Error
 open Types
 open Typed
-open Env
 
 type 'binding env = (P4String.t * 'binding) list list
 
@@ -37,7 +36,7 @@ let insert_toplevel name binding env =
   |> insert name binding
   |> List.rev
 
-let rec good_find name env = 
+let good_find name env =
   Core.List.find_exn env ~f:(fun ((_,name'),_) -> name' = snd name)
 
 let rec find name = function

@@ -15,7 +15,7 @@
 
 open Core
 open Core_extended.Std
-open P4
+open Petr4
 
 exception ParsingError of string
 
@@ -58,14 +58,14 @@ let check_file include_dirs p4_file print_json pretty_json verbose =
       Format.printf "%a" Pretty.format_program prog
   | `Error (info, Lexer.Error s) ->
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-  | `Error (info, P4.Parser.Error) ->
+  | `Error (info, Parser.Error) ->
     Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
   | `Error (info, err) ->
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-let eval_file include_dirs p4_file verbose = 
+let eval_file include_dirs p4_file verbose =
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval prog   
+  | `Ok prog -> Eval.eval prog
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =
@@ -82,7 +82,7 @@ let check_dir include_dirs p4_dir verbose =
           | `Ok _ -> ()
           | `Error (info, Lexer.Error s) ->
             Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, P4.Parser.Error) ->
+          | `Error (info, Parser.Error) ->
             Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
           | `Error (info, err) ->
             Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
@@ -105,9 +105,9 @@ let command =
     spec
     (fun include_dirs p4_dir print_json pretty_json verbose p4_file () ->
        match p4_dir, p4_file with
-       | Some p4_dir,_ -> 
+       | Some p4_dir,_ ->
          check_dir include_dirs p4_dir verbose
-       | _, Some p4_file -> 
+       | _, Some p4_file ->
          (* check_file include_dirs p4_file print_json pretty_json verbose; *)
          let _ = eval_file include_dirs p4_file verbose in ()
        | None, None -> ())

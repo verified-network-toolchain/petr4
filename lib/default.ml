@@ -38,7 +38,7 @@ let make_annotation ((name: string), (args: 'a list)) =
 
 let make_field_bit (annote_pair, (name: string), (width: int)) =
   let n = make_p4String name in
-  let open TypeDeclaration in
+  let open Declaration in
   let open Type in
   (M("Field"),
    { annotations = List.map make_annotation annote_pair;
@@ -46,13 +46,13 @@ let make_field_bit (annote_pair, (name: string), (width: int)) =
 
 let make_field_error (name: string) =
   let n = make_p4String name in
-  let open TypeDeclaration in
+  let open Declaration in
   let open Type in
   (M("Field"), { annotations = []; typ = (M ("Type"), Error); name = n })
 
 let make_header annote_pairs (name: string) field_pairs =
   let n = make_p4String name in
-  let open TypeDeclaration in
+  let open Declaration in
   let annotations = List.map make_annotation annote_pairs in
   (* FIX IT: not handled fields that are not bit; hard coded for standard metadata currently*)
   let fields = (make_field_error "parser_err")::

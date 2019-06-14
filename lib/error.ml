@@ -1,21 +1,18 @@
 open Typed
 
-open Sexplib.Conv
-
 type error =
-| Unbound of string
-| Mismatch of
-  { expected: string; (* TODO: string or Typed.t? *)
-    found: ExpType.t; }
-| UnfoundMember of
-  { expected_member: string}
-| Type_Difference of ExpType.t * ExpType.t
-| Duplicate
-| UnreachableBlock
-[@@deriving sexp]
+  | Unbound of string
+  | Mismatch of
+      { expected: string; (* TODO: string or Typed.t? *)
+        found: Type.t; }
+  | UnfoundMember of
+      { expected_member: string}
+  | Type_Difference of Type.t * Type.t
+  | Duplicate
+  | UnreachableBlock
 
 exception Internal of string
-exception Type of (Info.t * error) [@@deriving sexp]
+exception Type of (Info.t * error)
 
 let raise_mismatch info expected found =
   let err = Mismatch { expected; found } in

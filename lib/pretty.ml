@@ -468,10 +468,10 @@ end = struct
   let format_key fmt e = 
     match snd e with 
     | { annotations; key; match_kind } -> 
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a@ :@ %a;@]"
+      Format.fprintf fmt "@[%a@ :@ %a %a;@]"
         Expression.format_t key
         P4String.format_t match_kind
+        Annotation.format_ts annotations      
 
   let format_action_ref fmt e = 
     match snd e with 
@@ -572,7 +572,7 @@ end = struct
         Expression.format_t value
     | Action { annotations; name; params; body } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>action@ %s(@[%a@]) %a"
+      Format.fprintf fmt "@[<4>action %s(@[%a@]) %a"
         (snd name)
         Parameter.format_params params
         Block.format_t body

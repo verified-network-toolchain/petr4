@@ -63,6 +63,9 @@ let empty_checker_env : checker_env =
     typ_of = empty_env;
     const = empty_env; }
 
+let all_decls env =
+  env.decl
+
 let find_decl name env =
   let ok decl = 
     name = snd (Types.Declaration.name decl)

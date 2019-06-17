@@ -6,6 +6,7 @@ type eval_env [@@deriving sexp]
 
 val empty_checker_env : checker_env
 
+val all_decls : checker_env -> Types.Declaration.t list
 val find_decl : string -> checker_env -> Types.Declaration.t
 val resolve_type_name_opt : string -> checker_env -> Typed.Type.t option
 val resolve_type_name : string -> checker_env -> Typed.Type.t

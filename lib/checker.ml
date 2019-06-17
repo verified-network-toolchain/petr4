@@ -1228,11 +1228,43 @@ and type_instantiation env _ _ _ =
   (* TODO implement type_instantiation *)
   env
 
-(* Section 12.2 *)
-and type_parser env name params constructor_params locals states =
+and type_select_case env state_names expr_types (_, case) : unit =
   let open Parser in
-  let open Block in
   let open Match in
+  let matches_and_types = List.combine expr_types case.matches in
+  let check_match (typ, m) =
+    match snd m with
+    | Expression {expr} ->
+        let t = type_expression env expr in
+        assert_type_equality env (fst m)  t typ
+    | Default
+    | DontCare -> ()
+  in
+  List.iter check_match matches_and_types;
+  let name = snd case.next in
+  if List.mem name state_names
+  then ()
+  else raise @@ Env.UnboundName name
+
+and type_transition env state_names transition : unit =
+  let open Parser in
+  match snd transition with
+  | Direct {next = (_, name')} ->
+      if List.mem name' state_names
+      then ()
+      else raise @@ Env.UnboundName name'
+  | Select {exprs; cases} ->
+      let expr_types = List.map (type_expression env) exprs in
+      List.iter (type_select_case env state_names expr_types) cases
+
+and type_parser_state env state_names (state: Parser.state) : unit =
+  let open Block in
+  let block = {annotations = []; statements = (snd state).statements} in
+  let (_, env') = type_block_statement env (fst state, block) in
+  type_transition env' state_names (snd state).transition
+
+and open_parser_scope env params constructor_params locals states =
+  let open Parser in
   let env' = insert_params env constructor_params in
   let env' = insert_params env' params in
   let env' = List.fold_left type_declaration env' locals in
@@ -1240,42 +1272,14 @@ and type_parser env name params constructor_params locals states =
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
   let state_names = program_state_names @ ["accept"; "reject"] in
+  (env', state_names)
 
-  let type_select_case env expr_types (_, case) : unit =
-    let matches_and_types = List.combine expr_types case.matches in
-    let check_match (typ, m) =
-      match snd m with
-      | Expression {expr} ->
-          let t = type_expression env expr in
-          assert_type_equality env (fst m)  t typ
-      | Default
-      | DontCare -> ()
-    in
-    List.iter check_match matches_and_types;
-    let name = snd case.next in
-    if List.mem name state_names
-    then ()
-    else raise @@ Env.UnboundName name
+(* Section 12.2 *)
+and type_parser env name params constructor_params locals states =
+  let (env', state_names) =
+    open_parser_scope env params constructor_params locals states
   in
-
-  let type_transition env transition : unit =
-    match snd transition with
-    | Direct {next = (_, name')} ->
-        if List.mem name' state_names
-        then ()
-        else raise @@ Env.UnboundName name'
-    | Select {exprs; cases} ->
-        let expr_types = List.map (type_expression env) exprs in
-        List.iter (type_select_case env expr_types) cases
-  in
-
-  let type_parser_state env (state: Parser.state) : unit =
-    let block = {annotations = []; statements = (snd state).statements} in
-    let (_, env') = type_block_statement env (fst state, block) in
-    type_transition env' (snd state).transition
-  in
-
-  List.iter (type_parser_state env') states;
+  List.iter (type_parser_state env' state_names) states;
   env
 
 (* Section 13 *)

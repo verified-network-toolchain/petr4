@@ -16,6 +16,7 @@
 val format_list_sep :
            (Format.formatter -> 'a -> unit) ->
            string -> Format.formatter -> 'a list -> unit
+             (* TODO: had to expose this function for current version of eval.ml *)
 
 module P4Int : sig
   val format_t : Format.formatter -> Types.P4Int.t -> unit

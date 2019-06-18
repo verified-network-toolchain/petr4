@@ -1,4 +1,3 @@
-open Sexplib
 open Types
 open Typed
 open Error
@@ -986,8 +985,9 @@ and type_function_call env func type_args args =
 
 
 (* Section 14.1 *)
-and type_nameless_instantiation _ _ _ =
-  failwith "type_nameless_instantiation unimplemented"
+and type_nameless_instantiation env typ args =
+  (* TODO check that args are right *)
+  translate_type env [] typ
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =

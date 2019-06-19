@@ -91,6 +91,34 @@ module EvalEnv = struct
     {decl = pop e.decl;
      var = push e.var;}
 
+  (* TODO: for the purpose of testing expressions and simple statements only*)
+  let print_env (e:t) : unit =
+    let open Core in
+    print_endline "First environment value mappings:";
+    let f (name, value) =
+      print_string "     ";
+      print_string name;
+      print_string " -> ";
+      let vstring = match value with
+        | VNull -> "null"
+        | VBool b -> string_of_bool b
+        | VInteger v
+        | VBit(_, v)
+        | VInt(_, v) -> begin match Bigint.to_int v with
+            | None -> "<bigint>"
+            | Some n -> string_of_int n end
+        | VList _ -> "<list>"
+        | VSet _ -> "<set>"
+        | VString s -> s
+        | VError _ -> "<error"
+        | VClosure _ -> "<function>"
+        | VHeader_or_struct _ -> "<struct>"
+        | VObjstate _ -> "<stateful object>" in
+      print_endline vstring in
+    match e.var with
+    | [] -> ()
+    | h :: _ -> h |> List.rev |> List.iter ~f:f
+
 end
 
 module CheckerEnv = struct

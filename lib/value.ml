@@ -4,12 +4,8 @@ type 'env pre_value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
-  | VBit of
-      { width: int;
-        value: Bigint.t }
-  | VInt of
-      { width: int;
-        value: Bigint.t }
+  | VBit of int * Bigint.t (* width, value *)
+  | VInt of int * Bigint.t
   | VList of ('env pre_value) list
   | VSet of 'env pre_set
   | VString of string

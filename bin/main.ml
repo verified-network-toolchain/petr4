@@ -112,6 +112,8 @@ let command =
          let _ = eval_file include_dirs p4_file verbose in ()
        | None, None -> ())
 
+(* let () = eval_file [] "examples/eval_tests/out_params.p4" false *)
+
 let () =
   Format.printf "@[";
   Command.run ~version:"0.1.1" command;

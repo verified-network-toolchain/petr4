@@ -18,6 +18,8 @@ module EvalEnv : sig
   val find_decl_toplevel : string -> t -> Declaration.t
   val push_scope : t -> t
   val pop_scope : t -> t
+
+  val print_env : t -> unit
 end
 
 module CheckerEnv : sig

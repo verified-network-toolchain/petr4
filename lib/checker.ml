@@ -377,22 +377,22 @@ and translate_type (env: Env.CheckerEnv.t) (typ: Types.Type.t) : Typed.Type.t =
   | Error -> Error
   | IntType e ->
     begin match eval e with
-      | VInt {value=v; _}
-      | VBit {value=v; _}
+      | VInt (_, v)
+      | VBit (_, v)
       | VInteger v     -> Int ({width= get_int_from_bigint v})
       | _ -> failwith "int type param must evaluate to an int"
     end
   | BitType e ->
     begin match eval e with
-      | VInt {value=v; _}
-      | VBit {value=v; _}
+      | VInt (_, v)
+      | VBit (_, v)
       | VInteger v     -> Bit ({width= get_int_from_bigint v})
       | _ -> failwith "bit type param must evaluate to an int"
     end
   | VarBit e ->
     begin match eval e with
-      | VInt {value=v; _}
-      | VBit {value=v; _}
+      | VInt (_, v)
+      | VBit (_, v)
       | VInteger v     -> VarBit ({width= get_int_from_bigint v})
       | _ -> failwith "varbit type param must evaluate to an int"
     end
@@ -403,8 +403,8 @@ and translate_type (env: Env.CheckerEnv.t) (typ: Types.Type.t) : Typed.Type.t =
     -> let hdt = translate_type env ht in
     let len =
       begin match eval e with
-      | VInt {value=v; _}
-      | VBit {value=v; _}
+      | VInt (_, v)
+      | VBit (_, v)
       | VInteger v     -> get_int_from_bigint v
       | _ -> failwith "header stack size must be a number"
       end in

@@ -41,7 +41,7 @@ end
 let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   match snd d with
   | Constant({annotations; typ; name = (_,name); value}) ->
-    let (v, env') = eval_expression' env value in
+    let (env', v) = eval_expression' env value in
     EvalEnv.insert_value env' name v
   | Instantiation({annotations; typ; args; name}) ->
     eval_instantiation env typ args name
@@ -71,15 +71,16 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   | PackageType({ name = (_,name); _ }) ->
     EvalEnv.insert_decls env name d
 
-and eval_decl_var env annotations typ name init =
+and eval_decl_var (env : EvalEnv.t) annotations typ (name : P4String.t)
+    (init : Expression.t option) : EvalEnv.t =
   match init with
   | None -> env
   | Some e ->
-    let (v,env') = eval_expression' env e in
+    let (env', v) = eval_expression' env e in
     EvalEnv.insert_value env' (snd name) v
 
-and eval_instantiation (env:EvalEnv.t) typ args name =
-  let (obj,env') = eval_nameless env typ args in
+and eval_instantiation (env:EvalEnv.t) typ args (name : P4String.t) : EvalEnv.t =
+  let (env', obj) = eval_nameless env typ args in
   EvalEnv.insert_value env' (snd name) obj
 
 (*----------------------------------------------------------------------------*)
@@ -87,7 +88,8 @@ and eval_instantiation (env:EvalEnv.t) typ args name =
 (*----------------------------------------------------------------------------*)
 
 (* TODO: flesh out implementation for statements*)
-and eval_statement (env :EvalEnv.t) (stm : Statement.t) sign : (EvalEnv.t * signal) =
+and eval_statement (env :EvalEnv.t) (stm : Statement.t)
+    (sign : signal) : (EvalEnv.t * signal) =
   match snd stm with
   | MethodCall{func;type_args;args} -> failwith "unimplemented"
   | Assignment{lhs;rhs}  (*TODO*)   -> eval_assign env sign lhs rhs
@@ -102,22 +104,23 @@ and eval_statement (env :EvalEnv.t) (stm : Statement.t) sign : (EvalEnv.t * sign
 
 and eval_method_call = failwith "unimplemented"
 
-and eval_assign env s lhs rhs : EvalEnv.t * signal =
+and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
+    (rhs : Expression.t) : EvalEnv.t * signal =
   match s with
   | SContinue ->
-    let (v, env') = eval_expression' env rhs in
+    let (env', v) = eval_expression' env rhs in
     (eval_assign' env lhs v, SContinue)
   | SReturn v -> (env, SReturn v)
   | SExit -> failwith "unimplemented"
 
-and eval_assign' env lhs rhs: EvalEnv.t =
+and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.t =
   match snd lhs with
   | Name (_,n) -> EvalEnv.insert_value env n rhs
   | BitStringAccess({bits; lo; hi}) -> failwith "unimplemented"
   | ArrayAccess({array = ar; index}) ->
-  let (index',env') = eval_expression' env index in
+  let (env', index') = eval_expression' env index in
   let i = Eval_int.to_int index' in
-  let (ar', env'') = eval_expression' env' ar in
+  let (env'', ar') = eval_expression' env' ar in
   begin match snd ar, ar' with
   | Name (_,n), VList l ->
     let rec helper acc = (function
@@ -132,12 +135,13 @@ and eval_assign' env lhs rhs: EvalEnv.t =
 
 and eval_application = failwith "unimplemented"
 
-and eval_conditional env sign cond tru fls =
+and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
+    (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
   match sign with
   | SExit -> failwith "unimplmented"
   | SReturn v -> (env, SReturn v)
   | SContinue ->
-    let (v,env') = eval_expression' env cond in
+    let (env', v) = eval_expression' env cond in
     begin match v with
       | VBool true -> eval_statement env' tru SContinue
       | VBool false ->
@@ -156,7 +160,7 @@ and eval_conditional env sign cond tru fls =
       | VHeader_or_struct _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
 
-and eval_block env sign block: (EvalEnv.t * signal) =
+and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
   let block = snd block in
   let rec f env s ss =
     match ss with
@@ -182,22 +186,22 @@ and eval_decl_stm = failwith "unimplemented"
 (* Expression Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_expression' (env: EvalEnv.t) (exp: Expression.t) : value * EvalEnv.t =
+and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
   match snd exp with
-  | True                              -> (VBool true, env)
-  | False                             -> (VBool false, env)
+  | True                              -> (env, VBool true)
+  | False                             -> (env, VBool false)
   | Int(_,n)                          -> eval_p4int env n
-  | String (_,value)                  -> (VString value, env)
-  | Name (_,name)                     -> (EvalEnv.find_value name env, env)
-  | TopLevel (_,name)                 -> (EvalEnv.find_value_toplevel name env, env)
+  | String (_,value)                  -> (env, VString value)
+  | Name (_,name)                     -> (env, EvalEnv.find_value name env)
+  | TopLevel (_,name)                 -> (env, EvalEnv.find_value_toplevel name env)
   | ArrayAccess({array=a; index=i})   -> eval_array env a i
   | BitStringAccess({bits;lo;hi})     -> eval_bit_string_access env bits lo hi
   | List{values}                      -> eval_list env values
-  | UnaryOp{op;arg}                   -> eval_unary op env arg
-  | BinaryOp{op; args=(l,r)}          -> eval_binop op env l r
+  | UnaryOp{op;arg}                   -> eval_unary env op arg
+  | BinaryOp{op; args=(l,r)}          -> eval_binop env op l r
   | Cast{typ;expr}                    -> eval_cast env typ expr
   | TypeMember{typ;name}              -> eval_typ_mem env typ name
-  | ErrorMember t                     -> (VError (t), env)
+  | ErrorMember t                     -> (env, VError t)
   | ExpressionMember{expr;name}       -> eval_expr_mem env expr name
   | Ternary{cond;tru;fls}             -> eval_ternary env cond tru fls
   | FunctionCall{func;type_args;args} -> eval_funcall env func args
@@ -205,17 +209,18 @@ and eval_expression' (env: EvalEnv.t) (exp: Expression.t) : value * EvalEnv.t =
   | Mask{expr;mask}                   -> eval_mask_expr env expr mask
   | Range{lo;hi}                      -> eval_range_expr env lo hi
 
-and eval_p4int env n =
+and eval_p4int (env : EvalEnv.t) (n : P4Int.pre_t) : EvalEnv.t * value =
   match n.width_signed with
-  | None          -> (VInteger n.value, env)
-  | Some(w,true)  -> (VInt {width=w; value=n.value}, env)
-  | Some(w,false) -> (VBit {width=w; value=n.value}, env)
+  | None          -> (env, VInteger n.value)
+  | Some(w,true)  -> (env, VInt {width=w; value=n.value})
+  | Some(w,false) -> (env, VBit {width=w; value=n.value})
 
-and eval_array env a i =
-  let (a', env') = eval_expression' env a in
-  let (i', env'') = eval_expression' env' i in
+and eval_array (env : EvalEnv.t) (a : Expression.t)
+    (i : Expression.t) : EvalEnv.t * value = (* TODO: probably wont represent header stacks as lists *)
+  let (env', a') = eval_expression' env a in
+  let (env'', i') = eval_expression' env' i in
   match a' with
-  | VList l -> (Base.List.nth_exn l (Eval_int.to_int i'), env'')
+  | VList l -> (env'', Base.List.nth_exn l (Eval_int.to_int i'))
   | VNull
   | VBool _
   | VInteger _
@@ -229,10 +234,11 @@ and eval_array env a i =
   | VObjstate _ -> failwith "impossible"
 (* TODO: graceful failure *)
 
-and eval_bit_string_access env s m l =
-  let (m,env') = eval_expression' env m in
-  let (l,env'') = eval_expression' env' l in
-  let (s,env''') = eval_expression' env'' s in
+and eval_bit_string_access (env : EvalEnv.t) (s : Expression.t)
+    (m : Expression.t) (l : Expression.t) : EvalEnv.t * value =
+  let (env', m) = eval_expression' env m in
+  let (env'', l) = eval_expression' env' l in
+  let (env''', s) = eval_expression' env'' s in
   match m, l, s with
   | VBit({ width = wm; value = vm }),
     VBit({ width = wl; value = vl }),
@@ -242,32 +248,29 @@ and eval_bit_string_access env s m l =
     let w = m' - l' + 1 in
     let v = (Bigint.shift_left v1 (l'+1) |>
              Bigint.shift_right) (w1-m'+l') in
-    (VBit({width = w; value = v;}), env''') (*TODO: should be shift right trunc*)
+    (env''', VBit{width = w; value = v;}) (*TODO: should be shift right trunc*)
   | _ -> failwith "bit string access impossible"
 (* TODO: graceful failure *)
 
-and eval_list env values =
-  let f (l,e) expr =
-    let (v,e') = eval_expression' e expr in
-    (v::l,e') in
-  let (l,env_final) = List.fold_left values ~f:f ~init:([],env) in
-  (VList l, env_final)
+and eval_list (env : EvalEnv.t) (values : Expression.t list) : EvalEnv.t * value =
+  let (env_final,l) = List.fold_map values ~f:eval_expression' ~init:env in
+  (env_final, VList l)
 
-and eval_unary op env e =
-  let (e',env') = eval_expression' env e in
+and eval_unary (env : EvalEnv.t) (op : Op.uni) (e : Expression.t) : EvalEnv.t * value =
+  let (env', e') = eval_expression' env e in
   match snd op, e'  with
-  | UMinus, VBit n ->
-    Bigint.(VBit{n with value = (Eval_int.power2w n.width) - n.value}, env')
-  | UMinus, VInt n -> (VBit{width = n.width; value = Bigint.neg n.value}, env')
-  | BitNot, VBit n -> (VBit{n with value = Bigint.neg n.value}, env')
-  | BitNot, VInt n -> (VInt{n with value = Bigint.neg n.value}, env')
-  | Not, VBool b   -> (VBool (not b), env')
+  | UMinus, VBit n -> Bigint.(env', VBit{n with value = (Eval_int.power2w n.width) - n.value})
+  | UMinus, VInt n -> (env', VBit{width = n.width; value = Bigint.neg n.value})
+  | BitNot, VBit n -> (env', VBit{n with value = Bigint.neg n.value})
+  | BitNot, VInt n -> (env', VInt{n with value = Bigint.neg n.value})
+  | Not, VBool b   -> (env', VBool (not b))
   | _ -> failwith "unary options don't apply"
 (* TODO: fail gracefully *)
 
-and eval_binop op env l r =
-  let (l,env') = eval_expression' env l in
-  let (r,env'') = eval_expression' env' r in
+and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
+    (r : Expression.t) : EvalEnv.t * value =
+  let (env',l) = eval_expression' env l in
+  let (env'',r) = eval_expression' env' r in
   let f = begin match snd op with
     | Plus     -> eval_two Bigint.( + )
     | PlusSat  -> eval_sat Bigint.( + )
@@ -290,9 +293,9 @@ and eval_binop op env l r =
     | PlusPlus -> eval_concat
     | And      -> eval_and_or (&&)
     | Or       -> eval_and_or (||) end in
-  (f l r, env'')
+  (env'', f l r)
 
-and eval_cast env typ expr =
+and eval_cast (env : EvalEnv.t) (typ : Type.t) (expr : Expression.t) : EvalEnv.t * value =
   let build_bit w v =
     VBit {width = Eval_int.to_int w;
           value = Bigint.of_int v} in
@@ -302,50 +305,51 @@ and eval_cast env typ expr =
       else (Bigint.shift_left v (w - new_w) |>
             Bigint.shift_right) (w - new_w) in
     (new_w, value) in
-  let (expr',env') = eval_expression' env expr in
+  let (env', expr') = eval_expression' env expr in
   match expr', snd typ with
   | VBit({width = 1; value = v}), Type.Bool ->
     if Bigint.(=) v Bigint.zero
-    then (VBool(false), env')
+    then (env', VBool(false))
     else if Bigint.(=) v Bigint.one
-    then (VBool(true), env')
+    then (env', VBool(true))
     else failwith "can't cast this bitstring to bool"
   | VBool(b), Type.BitType(e) ->
-    let (e',env'') = eval_expression' env' e in
-    if b then (build_bit e' 1, env'')
-    else (build_bit e' 0, env'')
+    let (env'', e') = eval_expression' env' e in
+    if b then (env'', build_bit e' 1)
+    else (env'', build_bit e' 0)
   | VInt({width = w; value = v}), Type.BitType(w') ->
     let turn_pos w v =
       if Bigint.(<) v Bigint.zero
       then Bigint.(+) v (Eval_int.power2w (w+1))
       else v in
-    (VBit({width = w; value = turn_pos w v}), env')
+    (env', VBit({width = w; value = turn_pos w v}))
   | VBit({width = w; value = v}), Type.IntType(w') ->
     let neg_bit w v =
       if Bigint.(>=) v (Eval_int.power2w (w-1))
       then Bigint.(-) v (Eval_int.power2w w)
       else v in
-    (VInt({width = w; value = neg_bit w v}), env')
+    (env', VInt{width = w; value = neg_bit w v})
   | VBit({width = w; value = v}), Type.BitType(l) ->
-    let (l',env'') = eval_expression' env' l in
+    let (env'', l') = eval_expression' env' l in
     let width, value = changesize w v l' in
-    (VBit({width; value}), env'')
+    (env'', VBit({width; value}))
   (* TODO: validate: Should be shift_right_truncate*)
   | VInt({width = w; value = v}), Type.IntType(l) ->
-    let (l',env'') = eval_expression' env l in
-    let width, value = changesize w v l' in
-    (VInt({width; value}), env'')
+    let (env'', l') = eval_expression' env l in
+    let (width, value) = changesize w v l' in
+    (env'', VInt{width; value})
   | _ -> failwith "type cast case should be handled by compiler"
 (* TODO: graceful failure *)
 
-and eval_typ_mem env typ name = (* TODO: implement member lookup *)
+and eval_typ_mem = (* TODO: implement member lookup *)
   failwith "unimplemented"
 
-and eval_expr_mem env expr name = (* TODO: implement member lookup *)
+and eval_expr_mem = (* TODO: implement member lookup *)
   failwith "unimplemented"
 
-and eval_ternary env c te fe =
-  let (c', env') = eval_expression' env c in
+and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
+    (fe : Expression.t) : EvalEnv.t * value =
+  let (env', c') = eval_expression' env c in
   match c' with
   | VBool(true)  -> (eval_expression' env te)
   | VBool(false) -> (eval_expression' env fe)
@@ -354,14 +358,27 @@ and eval_ternary env c te fe =
 
 (* TODO: key-arguments and optional arguments not implemented;
          should work for return values and regular arguments *)
-and eval_funcall env func args =
-  let (cl, env') = eval_expression' env func in
+(* TODO: rework*)
+and eval_funcall (env : EvalEnv.t) (func : Expression.t)
+    (args : Argument.t list) : EvalEnv.t * value =
+  let (env', cl) = eval_expression' env func in
   match cl with
+  | VNull
+  | VBool _
+  | VInteger _
+  | VBit _
+  | VInt _
+  | VList _
+  | VSet _
+  | VString _
+  | VError _
+  | VHeader_or_struct _
+  | VObjstate _ -> failwith "not a function"
   | VClosure (params, body, clenv) ->
     let f env e = begin
       match snd e with
       | Argument.Expression {value=expr} ->
-        let (v,e) = eval_expression' env expr in (e,v)
+        let (e,v) = eval_expression' env expr in (e,v)
       | Argument.KeyValue _
       | Argument.Missing -> failwith "unimplemented" (* TODO*) end in
     let (env'',arg_vals) = List.fold_map args ~f:f ~init:env' in
@@ -390,29 +407,18 @@ and eval_funcall env func args =
         | In -> e end in
     let final_env = List.fold2_exn params args ~init:env''' ~f:h in
     begin match sign with
-      | SReturn v -> (v, final_env)
+      | SReturn v -> (final_env, v)
       | SContinue
       | SExit -> failwith "function did no return" end
-  | VNull
-  | VBool _
-  | VInteger _
-  | VBit _
-  | VInt _
-  | VList _
-  | VSet _
-  | VString _
-  | VError _
-  | VHeader_or_struct _
-  | VObjstate _ -> failwith "not a function"
 (* TODO: fail gracefully *)
 
-and eval_nameless env typ args =
+and eval_nameless (env : EvalEnv.t) (typ : Type.t)
+    (args : Argument.t list) : EvalEnv.t * value  =
   let positional_binding env ((param : Parameter.t), arg) =
     let param = snd param in
     match (snd arg) with
     | Argument.Expression {value} ->
-      print_endline (Info.to_string (fst value));
-      let (v, env') = eval_expression' env value in
+      let (env', v) = eval_expression' env value in
       (env',(param.variable, v))
     | _ -> failwith "unimplemented" in
   let (info ,decl) = type_lookup env (snd typ) in
@@ -420,27 +426,27 @@ and eval_nameless env typ args =
   | Control typ_decl ->
     let l = List.zip_exn typ_decl.constructor_params args in
     let (env', state) = List.fold_map l ~f:positional_binding ~init:env in
-    (VObjstate {decl = (info, Control typ_decl); state = state}, env')
+    (env', VObjstate {decl = (info, Control typ_decl); state = state})
   | Parser typ_decl ->
     let l = List.zip_exn typ_decl.constructor_params args in
     let (env', state) = List.fold_map l ~f:positional_binding ~init:env in
-    (VObjstate{decl = (info, Parser typ_decl); state = state}, env')
+    (env', VObjstate{decl = (info, Parser typ_decl); state = state})
   | PackageType pack_decl ->
     let l = List.zip_exn pack_decl.params args in
     let (env', state) = List.fold_map l ~f:positional_binding ~init:env in
-    (VObjstate{decl = (info, PackageType pack_decl); state = state}, env')
+    (env', VObjstate{decl = (info, PackageType pack_decl); state = state})
   | _ -> failwith "unimplemented"
 (* TODO: instantiation for other types *)
 
 and eval_mask_expr env e m =
-  let (v1, env')  = eval_expression' env  e in
-  let (v2, env'') = eval_expression' env' m in
-  (VSet(SMask(v1,v2)), env'')
+  let (env', v1)  = eval_expression' env  e in
+  let (env'', v2) = eval_expression' env' m in
+  (env'', VSet(SMask(v1,v2)))
 
 and eval_range_expr env lo hi =
-  let (v1, env')  = eval_expression' env  lo in
-  let (v2, env'') = eval_expression' env' hi in
-  (VSet(SRange(v1,v2)), env'')
+  let (env', v1)  = eval_expression' env  lo in
+  let (env'', v2) = eval_expression' env' hi in
+  (env'', VSet(SRange(v1,v2)))
 
 (* TODO: these functions need to fail more gracefully *)
 and eval_sat op l r =
@@ -496,7 +502,7 @@ and eval_and_or op l r =
   | _ -> failwith "and / or operation only works on Bools"
 
 let eval_expression (env : EvalEnv.t) (expr : Expression.t) : value =
-  fst (eval_expression' env expr)
+  snd (eval_expression' env expr)
 
 let eval = function Program l ->
   let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in

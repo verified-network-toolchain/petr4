@@ -1,6 +1,10 @@
 module I = Info
 module Info = I (* JNF: ugly hack *)
+open Value
+open Env
+open Types
 
-val eval: Types.program -> unit
+type value = EvalEnv.t pre_value
 
-val eval_expression: Env.EvalEnv.t -> Types.Expression.t -> Value.t
+val eval: program -> unit
+val eval_expression: EvalEnv.t -> Expression.t -> value

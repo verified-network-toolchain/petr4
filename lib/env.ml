@@ -1,4 +1,5 @@
 open Types
+open Value
 
 exception BadEnvironment of string
 exception UnboundName of string
@@ -51,7 +52,7 @@ module EvalEnv = struct
     (* the program (top level declarations) so far *)
     decl: Declaration.t env;
     (* maps variables to their values *)
-    var: Value.t env;
+    var: t pre_value env;
   }
 
   let empty_eval_env = {
@@ -70,17 +71,25 @@ module EvalEnv = struct
   let insert_decls (e : t) name binding : t =
     {e with decl = insert name binding e.decl}
 
-  let find_value name e : Value.t =
+  let find_value name e : t pre_value =
     find name e.var
 
   let find_decl name e : Declaration.t =
     find name e.decl
 
-  let find_value_toplevel name e : Value.t =
+  let find_value_toplevel name e : t pre_value =
     find_toplevel name e.var
 
   let find_decl_toplevel name e : Declaration.t =
     find_toplevel name e.decl
+
+  let push_scope (e : t) : t =
+    {decl = push e.decl;
+     var = push e.var;}
+
+  let pop_scope (e:t) : t =
+    {decl = pop e.decl;
+     var = push e.var;}
 
 end
 
@@ -94,7 +103,7 @@ module CheckerEnv = struct
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
       (* maps constants to their values *)
-      const: Value.t env; }
+      const: EvalEnv.t pre_value env; }
 
   let empty_checker_env : t =
     { decl = [];
@@ -157,5 +166,5 @@ module CheckerEnv = struct
 
   let eval_env_of_checker_env (cenv: t) : EvalEnv.t =
     { decl = [];
-      var = cenv.const; }
+      var = cenv.const;}
 end

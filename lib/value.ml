@@ -1,31 +1,37 @@
 open Types
 
-type t =
-  | Bool of bool
-  | Integer of Bigint.t
-  | Bit of
+type 'env pre_value =
+  | VNull
+  | VBool of bool
+  | VInteger of Bigint.t
+  | VBit of
       { width: int;
         value: Bigint.t }
-  | Int of
+  | VInt of
       { width: int;
         value: Bigint.t }
-  | List of t list
-  | Set of set
-  | String of string
-  | Error of P4String.t
-  | Closure of Parameter.t list * Block.t
-  | Header_or_struct of (P4String.t * t) list
+  | VList of ('env pre_value) list
+  | VSet of 'env pre_set
+  | VString of string
+  | VError of P4String.t
+  | VClosure of Parameter.t list * Block.t * 'env
+  | VHeader_or_struct of (P4String.t * 'env pre_value) list
   (* | headers and structs as mappings from strings to value *)
-  | Objstate of obj
+  | VObjstate of 'env pre_obj
   (* stateful objects *)
 
-and set =
-  | Singleton of Bigint.t
-  | Universal
-  | Mask of t * t
-  | Range of t * t
-  | Prod
+and 'env pre_set =
+  | SSingleton of Bigint.t
+  | SUniversal
+  | SMask of 'env pre_value * 'env pre_value
+  | SRange of 'env pre_value * 'env pre_value
+  | SProd
 
-and obj =
+and 'env pre_obj =
   { decl: Types.Declaration.t;
-    state: (P4String.t * t) list; }
+    state: (P4String.t * 'env pre_value) list; }
+
+type 'env pre_signal =
+  | SContinue
+  | SReturn of 'env pre_value
+  | SExit

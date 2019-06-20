@@ -37,10 +37,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   match snd d with
   | Constant {
       annotations = _;
-      typ = _;
+      typ = t;
       value = v;
       name = (_,n);
-    } -> eval_const_decl env v n
+    } -> eval_const_decl env t v n
   | Instantiation {
       annotations = _;
       typ = typ;
@@ -114,9 +114,9 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_union_decl ()
   | Struct {
       annotations = _;
-      name = _;
+      name = (_,n);
       fields = _;
-    } -> eval_struct_decl ()
+    } -> eval_struct_decl env n d
   | Error {
       members = _;
     } -> eval_error_decl ()
@@ -169,10 +169,13 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       params = _;
     } -> eval_pkgtyp_decl env name d
 
-and eval_const_decl (env : EvalEnv.t) (e : Expression.t)
+and eval_const_decl (env : EvalEnv.t) (typ : Type.t) (e : Expression.t)
     (name : string) : EvalEnv.t =
-  let (env', v) = eval_expression' env e in
-  EvalEnv.insert_value env' name v
+  let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
+  let env' = EvalEnv. insert_typ env name typ in
+  fst (eval_assign env' SContinue name_expr e)
+  (* let (env', v) = eval_expression' env e in
+  EvalEnv.insert_value env' name v *)
 
 and eval_instantiation (env:EvalEnv.t) (typ : Type.t) (args : Argument.t list)
     (name : string) : EvalEnv.t =
@@ -211,7 +214,9 @@ and eval_header_decl () = failwith "unimplemented"
 
 and eval_union_decl () = failwith "unimplemented"
 
-and eval_struct_decl () = failwith "unimplemented"
+and eval_struct_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
 
 and eval_error_decl () = failwith "unimplemented"
 
@@ -274,21 +279,49 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
 
 and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.t =
   match snd lhs with
-  | Name (_,n) -> EvalEnv.insert_value env n rhs
+  | Name (_,n) ->
+    if is_struct env n
+    then begin match rhs with
+      | VTuple l -> EvalEnv.insert_value env n (struct_of_list env n l)
+      (* TODO: is there a more elegant way to solve this problem? *)
+      | _ -> EvalEnv.insert_value env n rhs end
+    else EvalEnv.insert_value env n rhs
   | BitStringAccess({bits; lo; hi}) -> failwith "unimplemented"
   | ArrayAccess({array = ar; index}) ->
     let (env', index') = eval_expression' env index in
     let i = Eval_int.to_int index' in
     let (env'', ar') = eval_expression' env' ar in
     begin match snd ar, ar' with
-      | Name (_,n), VList l ->
+      | Name (_,n), VTuple l -> (* TODO: header stacks are separate from tuples *)
         let rec helper acc = (function
             | h::d -> if acc = i then rhs::d else h::(helper (acc + 1) d)
             | [] -> []) in
-        EvalEnv.insert_value env'' n (VList(helper 0 l))
-      | _ -> failwith "array expected to evaluate to VList?" end
+        EvalEnv.insert_value env'' n (VTuple(helper 0 l))
+      | _ -> failwith "array expected to evaluate to VTuple?" end
   | ExpressionMember({ expr; name}) -> failwith "unimplemented"
   | _ -> failwith "can't assign to the LHS"
+
+and is_struct (env : EvalEnv.t) (name : string) : bool =
+  try
+    let struct_name = match snd (EvalEnv.find_typ name env) with
+      | TypeName(_,n) -> n
+      | _ -> "" in
+    match snd (EvalEnv.find_decl struct_name env) with
+    | Struct _ -> true
+    | _ -> false
+  with UnboundName name -> false
+
+and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
+  let struct_name = match snd (EvalEnv.find_typ name env) with
+    | TypeName (_,n) -> n
+    | _ -> "" in
+  let str = EvalEnv.find_decl struct_name env in
+  let fs = match snd str with
+    | Struct s -> s.fields
+    |_ -> failwith "not a struct" in
+  let fs' = List.map fs ~f:(fun x -> snd (snd x).name) in
+  let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
+  VStruct l'
 
 and eval_application () = failwith "unimplemented"
 
@@ -309,12 +342,12 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
       | VInteger _
       | VBit _
       | VInt _
-      | VList _
+      | VTuple _
       | VSet _
       | VString _
       | VError _
       | VFun _
-      | VHeader_or_struct _
+      | VStruct _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
@@ -392,7 +425,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   let (env', a') = eval_expression' env a in
   let (env'', i') = eval_expression' env' i in
   match a' with
-  | VList l -> (env'', List.nth_exn l (Eval_int.to_int i'))
+  | VTuple l -> (env'', List.nth_exn l (Eval_int.to_int i'))
   | VNull
   | VBool _
   | VInteger _
@@ -402,7 +435,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VString _
   | VError _
   | VFun _
-  | VHeader_or_struct _
+  | VStruct _
   | VObjstate _ -> failwith "impossible"
 (* TODO: graceful failure *)
 
@@ -424,7 +457,7 @@ and eval_bit_string_access (env : EvalEnv.t) (s : Expression.t)
 
 and eval_list (env : EvalEnv.t) (values : Expression.t list) : EvalEnv.t * value =
   let (env_final,l) = List.fold_map values ~f:eval_expression' ~init:env in
-  (env_final, VList l)
+  (env_final, VTuple l)
 
 and eval_unary (env : EvalEnv.t) (op : Op.uni) (e : Expression.t) : EvalEnv.t * value =
   let (env', e') = eval_expression' env e in
@@ -541,11 +574,11 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VInteger _
   | VBit _
   | VInt _
-  | VList _
+  | VTuple _
   | VSet _
   | VString _
   | VError _
-  | VHeader_or_struct _
+  | VStruct _
   | VObjstate _ -> failwith "not a function"
   | VFun (params, body) ->
     let f env e =

@@ -53,11 +53,14 @@ module EvalEnv = struct
     decl: Declaration.t env;
     (* maps variables to their values *)
     var: value env;
+    (* map variables to their types; only needed in a few cases *)
+    typ : Types.Type.t env;
   }
 
   let empty_eval_env = {
     decl = [[]];
     var = [[]];
+    typ = [[]];
   }
 
   let get_toplevel (env : t) : t =
@@ -66,7 +69,8 @@ module EvalEnv = struct
       | [] -> raise (BadEnvironment "no toplevel")
       | h :: _ -> [h] in
     {decl = get_last env.decl;
-     var = get_last env.var;}
+     var = get_last env.var;
+     typ = get_last env.typ;}
 
   let get_decl_toplevel (env : t) : (string * Declaration.t) list =
     match List.rev env.decl with
@@ -79,11 +83,16 @@ module EvalEnv = struct
   let insert_decls (e : t) name binding : t =
     {e with decl = insert name binding e.decl}
 
+  let insert_typ e name binding =
+    {e with typ = insert name binding e.typ}
+
   let find_value name e : value =
     find name e.var
 
   let find_decl name e : Declaration.t =
     find name e.decl
+
+  let find_typ name e = find name e.typ
 
   let find_value_toplevel name e : value =
     find_toplevel name e.var
@@ -91,13 +100,17 @@ module EvalEnv = struct
   let find_decl_toplevel name e : Declaration.t =
     find_toplevel name e.decl
 
+  let find_typ_toplevel name e = find_toplevel name e.typ
+
   let push_scope (e : t) : t =
     {decl = push e.decl;
-     var = push e.var;}
+     var = push e.var;
+     typ = push e.typ}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
-     var = push e.var;}
+     var = pop e.var;
+     typ = pop e.typ;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -115,12 +128,12 @@ module EvalEnv = struct
         | VInt(_, v) -> begin match Bigint.to_int v with
             | None -> "<bigint>"
             | Some n -> string_of_int n end
-        | VList _ -> "<list>"
+        | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
         | VString s -> s
         | VError _ -> "<error"
         | VFun _ -> "<function>"
-        | VHeader_or_struct _ -> "<struct>"
+        | VStruct _ -> "<struct>"
         | VObjstate _ -> "<stateful object>" in
       print_endline vstring in
     match e.var with
@@ -202,5 +215,6 @@ module CheckerEnv = struct
 
   let eval_env_of_checker_env (cenv: t) : EvalEnv.t =
     { decl = [];
-      var = cenv.const;}
+      var = cenv.const;
+      typ = [];}
 end

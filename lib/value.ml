@@ -6,13 +6,12 @@ type value =
   | VInteger of Bigint.t
   | VBit of int * Bigint.t (* width, value *)
   | VInt of int * Bigint.t
-  | VList of value list
+  | VTuple of value list
   | VSet of set
   | VString of string
   | VError of P4String.t
   | VFun of Parameter.t list * Block.t
-  | VHeader_or_struct of (P4String.t * value) list
-  (* | headers and structs as mappings from strings to value *)
+  | VStruct of (string * value) list
   | VObjstate of obj
   (* stateful objects *)
 

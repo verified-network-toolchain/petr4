@@ -4,7 +4,5 @@ open Value
 open Env
 open Types
 
-type value = EvalEnv.t pre_value
-
 val eval: program -> unit
 val eval_expression: EvalEnv.t -> Expression.t -> value

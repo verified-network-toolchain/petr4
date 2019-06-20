@@ -23,3 +23,28 @@ const bit<1> v = false ? 1 : 0;
 
 package EmptyPackage();
 EmptyPackage() main;
+
+/* expected mappings:
+true
+false
+true
+false
+false
+false
+true
+true
+true
+false
+false
+true
+true
+true
+false
+false
+false
+true
+true
+false
+1
+0
+*/

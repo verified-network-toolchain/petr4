@@ -52,13 +52,21 @@ module EvalEnv = struct
     (* the program (top level declarations) so far *)
     decl: Declaration.t env;
     (* maps variables to their values *)
-    var: t pre_value env;
+    var: value env;
   }
 
   let empty_eval_env = {
     decl = [[]];
     var = [[]];
   }
+
+  let get_toplevel (env : t) : t =
+    let get_last l =
+      match List.rev l with
+      | [] -> raise (BadEnvironment "no toplevel")
+      | h :: _ -> [h] in
+    {decl = get_last env.decl;
+     var = get_last env.var;}
 
   let get_decl_toplevel (env : t) : (string * Declaration.t) list =
     match List.rev env.decl with
@@ -71,13 +79,13 @@ module EvalEnv = struct
   let insert_decls (e : t) name binding : t =
     {e with decl = insert name binding e.decl}
 
-  let find_value name e : t pre_value =
+  let find_value name e : value =
     find name e.var
 
   let find_decl name e : Declaration.t =
     find name e.decl
 
-  let find_value_toplevel name e : t pre_value =
+  let find_value_toplevel name e : value =
     find_toplevel name e.var
 
   let find_decl_toplevel name e : Declaration.t =
@@ -111,7 +119,7 @@ module EvalEnv = struct
         | VSet _ -> "<set>"
         | VString s -> s
         | VError _ -> "<error"
-        | VClosure _ -> "<function>"
+        | VFun _ -> "<function>"
         | VHeader_or_struct _ -> "<struct>"
         | VObjstate _ -> "<stateful object>" in
       print_endline vstring in
@@ -131,7 +139,7 @@ module CheckerEnv = struct
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
       (* maps constants to their values *)
-      const: EvalEnv.t pre_value env; }
+      const: value env; }
 
   let empty_checker_env : t =
     { decl = [];

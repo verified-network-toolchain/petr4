@@ -9,11 +9,6 @@ module Info = I (* JNF: ugly hack *)
 (* Helper functions, modules, types, etc *)
 (*----------------------------------------------------------------------------*)
 
-type value = EvalEnv.t pre_value
-(* type set = EvalEnv.t pre_set *)
-(* type obj = EvalEnv.t pre_obj *)
-type signal = EvalEnv.t pre_signal
-
 let rec type_lookup (e : EvalEnv.t) (t : Type.pre_t) : Declaration.t =
   match t with
   | TypeName (_,s)                 -> (EvalEnv.find_decl s e)
@@ -148,12 +143,12 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   | TypeDef {
       annotations = _;
       name = _;
-      type_or_decl = _;
+      typ_or_decl = _;
     } -> eval_type_def ()
   | NewType {
       annotations = _;
       name = _;
-      type_or_decl = _;
+      typ_or_decl = _;
     } -> eval_type_decl ()
   | ControlType {
       annotations = _;
@@ -194,7 +189,7 @@ and eval_control_decl (env : EvalEnv.t) (name : string)
 
 and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) : EvalEnv.t =
-  EvalEnv.insert_value env name (VClosure(params,body,env))
+  EvalEnv.insert_value env name (VFun(params,body))
 
 and eval_extern_fun_decl () = failwith "unimplemented"
 
@@ -245,11 +240,11 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
 (*----------------------------------------------------------------------------*)
 
 (* TODO: flesh out implementation for statements*)
-and eval_statement (env :EvalEnv.t) (stm : Statement.t)
-    (sign : signal) : (EvalEnv.t * signal) =
+and eval_statement (env :EvalEnv.t) (sign : signal)
+    (stm : Statement.t) : (EvalEnv.t * signal) =
   match snd stm with
   | MethodCall{func;type_args;args} -> eval_method_call env sign func args
-  | Assignment{lhs;rhs}  (*TODO*)   -> eval_assign env sign lhs rhs
+  | Assignment{lhs;rhs}             -> eval_assign env sign lhs rhs
   | DirectApplication{typ;args}     -> failwith "unimplemented"
   | Conditional{cond;tru;fls}       -> eval_conditional env sign cond tru fls
   | BlockStatement{block}           -> eval_block env sign block
@@ -261,7 +256,6 @@ and eval_statement (env :EvalEnv.t) (stm : Statement.t)
 
 and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
     (args : Argument.t list) : EvalEnv.t * signal =
-  (* print_endline "method call..."; *)
   match sign with
   | SReturn v -> (env, SReturn v)
   | SExit -> failwith "unimplemented"
@@ -306,11 +300,11 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
   | SContinue ->
     let (env', v) = eval_expression' env cond in
     begin match v with
-      | VBool true -> eval_statement env' tru SContinue
+      | VBool true -> eval_statement env' SContinue tru
       | VBool false ->
         begin match fls with
           | None -> (env, SContinue)
-          | Some fls' -> eval_statement env' fls' SContinue end
+          | Some fls' -> eval_statement env' SContinue fls'  end
       | VNull
       | VInteger _
       | VBit _
@@ -319,7 +313,7 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
       | VSet _
       | VString _
       | VError _
-      | VClosure _
+      | VFun _
       | VHeader_or_struct _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
 
@@ -331,7 +325,7 @@ and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t *
     | h :: d ->
       begin match s with
         | SContinue ->
-          let (env', sign')= eval_statement env h SContinue in
+          let (env', sign')= eval_statement env SContinue h in
           f env' sign' d
         | SReturn v -> (env, SReturn v)
         | SExit -> failwith "unimplemented" end in
@@ -368,7 +362,7 @@ and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value 
   match snd exp with
   | True                              -> (env, VBool true)
   | False                             -> (env, VBool false)
-  | Int(_,n)                          -> (env, eval_p4int env n)
+  | Int(_,n)                          -> (env, eval_p4int n)
   | String (_,value)                  -> (env, VString value)
   | Name (_,name)                     -> (env, EvalEnv.find_value name env)
   | TopLevel (_,name)                 -> (env, EvalEnv.find_value_toplevel name env)
@@ -387,7 +381,7 @@ and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value 
   | Mask{expr;mask}                   -> eval_mask_expr env expr mask
   | Range{lo;hi}                      -> eval_range_expr env lo hi
 
-and eval_p4int (env : EvalEnv.t) (n : P4Int.pre_t) : value =
+and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
   | None          -> VInteger n.value
   | Some(w,true)  -> VInt (w, n.value)
@@ -398,7 +392,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   let (env', a') = eval_expression' env a in
   let (env'', i') = eval_expression' env' i in
   match a' with
-  | VList l -> (env'', Base.List.nth_exn l (Eval_int.to_int i'))
+  | VList l -> (env'', List.nth_exn l (Eval_int.to_int i'))
   | VNull
   | VBool _
   | VInteger _
@@ -407,7 +401,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VSet _
   | VString _
   | VError _
-  | VClosure _
+  | VFun _
   | VHeader_or_struct _
   | VObjstate _ -> failwith "impossible"
 (* TODO: graceful failure *)
@@ -553,7 +547,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VError _
   | VHeader_or_struct _
   | VObjstate _ -> failwith "not a function"
-  | VClosure (params, body, clenv) ->
+  | VFun (params, body) ->
     let f env e =
       match snd e with
       | Argument.Expression {value=expr} -> eval_expression' env expr
@@ -561,7 +555,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       | Argument.Missing -> failwith "unimplemented" (* TODO*) in
     let (env'',arg_vals) = List.fold_map args ~f:f ~init:env' in
     (* print_endline "env'' is: "; EvalEnv.print_env env''; *)
-    let clenv' = EvalEnv.push_scope clenv in
+    let fenv = EvalEnv.push_scope (EvalEnv.get_toplevel env'') in
     (* print_endline "clenv is: "; EvalEnv.print_env clenv; *)
     (* print_endline "clenv' is: "; EvalEnv.print_env clenv'; *)
     let g e (p : Parameter.t) v =
@@ -571,15 +565,15 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
         | InOut
         | In -> EvalEnv.insert_value e (snd (snd p).variable) v
         | Out -> e end in
-    let clenv'' = List.fold2_exn params arg_vals ~init:clenv' ~f:g in
-    let (clenv''', sign) = eval_block clenv'' SContinue body in
+    let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
+    let (fenv'', sign) = eval_block fenv' SContinue body in
     let h e (p:Parameter.t) a =
       match (snd p).direction with
       | None -> failwith "unimplmented"
       | Some x -> begin match snd x with
         | InOut
         | Out ->
-          let v = EvalEnv.find_value (snd (snd p).variable) clenv'' in
+          let v = EvalEnv.find_value (snd (snd p).variable) fenv'' in
           let lhs = begin match snd a with
             | Argument.Expression {value=expr} -> expr
             | Argument.KeyValue _
@@ -591,7 +585,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
     (* print_endline "finish function call"; *)
     begin match sign with
       | SReturn v -> (final_env, v)
-      | SContinue
+      | SContinue -> (final_env, VNull)
       | SExit -> failwith "function did no return" end
 (* TODO: fail gracefully *)
 

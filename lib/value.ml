@@ -1,33 +1,33 @@
 open Types
 
-type 'env pre_value =
+type value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
   | VBit of int * Bigint.t (* width, value *)
   | VInt of int * Bigint.t
-  | VList of ('env pre_value) list
-  | VSet of 'env pre_set
+  | VList of value list
+  | VSet of set
   | VString of string
   | VError of P4String.t
-  | VClosure of Parameter.t list * Block.t * 'env
-  | VHeader_or_struct of (P4String.t * 'env pre_value) list
+  | VFun of Parameter.t list * Block.t
+  | VHeader_or_struct of (P4String.t * value) list
   (* | headers and structs as mappings from strings to value *)
-  | VObjstate of 'env pre_obj
+  | VObjstate of obj
   (* stateful objects *)
 
-and 'env pre_set =
+and set =
   | SSingleton of Bigint.t
   | SUniversal
-  | SMask of 'env pre_value * 'env pre_value
-  | SRange of 'env pre_value * 'env pre_value
+  | SMask of value * value
+  | SRange of value * value
   | SProd
 
-and 'env pre_obj =
+and obj =
   { decl: Types.Declaration.t;
-    state: (P4String.t * 'env pre_value) list; }
+    state: (P4String.t * value) list; }
 
-type 'env pre_signal =
+type signal =
   | SContinue
-  | SReturn of 'env pre_value
+  | SReturn of value
   | SExit

@@ -9,12 +9,13 @@ module EvalEnv : sig
 
   val empty_eval_env : t
 
+  val get_toplevel : t -> t
   val get_decl_toplevel : t -> (string * Declaration.t) list
-  val insert_value : t -> string -> t pre_value -> t
+  val insert_value : t -> string -> value -> t
   val insert_decls: t -> string -> Declaration.t -> t
-  val find_value: string -> t -> t pre_value
+  val find_value: string -> t -> value
   val find_decl: string -> t -> Declaration.t
-  val find_value_toplevel : string -> t -> t pre_value
+  val find_value_toplevel : string -> t -> value
   val find_decl_toplevel : string -> t -> Declaration.t
   val push_scope : t -> t
   val pop_scope : t -> t

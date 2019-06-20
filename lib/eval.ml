@@ -91,7 +91,7 @@ and eval_instantiation (env:EvalEnv.t) typ args (name : P4String.t) : EvalEnv.t 
 and eval_statement (env :EvalEnv.t) (stm : Statement.t)
     (sign : signal) : (EvalEnv.t * signal) =
   match snd stm with
-  | MethodCall{func;type_args;args} -> failwith "unimplemented"
+  | MethodCall{func;type_args;args} -> eval_method_call env sign func args
   | Assignment{lhs;rhs}  (*TODO*)   -> eval_assign env sign lhs rhs
   | DirectApplication{typ;args}     -> failwith "unimplemented"
   | Conditional{cond;tru;fls}       -> eval_conditional env sign cond tru fls
@@ -100,9 +100,17 @@ and eval_statement (env :EvalEnv.t) (stm : Statement.t)
   | EmptyStatement                  -> (env, sign)
   | Return{expr}                    -> eval_return env sign expr
   | Switch{expr;cases}              -> failwith "unimplemented"
-  | DeclarationStatement{decl}      -> failwith "unimplemented "
+  | DeclarationStatement{decl}      -> eval_decl_stm env sign decl
 
-and eval_method_call () = failwith "unimplemented"
+and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
+    (args : Argument.t list) : EvalEnv.t * signal =
+  (* print_endline "method call..."; *)
+  match sign with
+  | SReturn v -> (env, SReturn v)
+  | SExit -> failwith "unimplemented"
+  | SContinue ->
+    let (env', _) = eval_funcall env func args in
+    (env', SContinue)
 
 and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
     (rhs : Expression.t) : EvalEnv.t * signal =
@@ -118,18 +126,16 @@ and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.
   | Name (_,n) -> EvalEnv.insert_value env n rhs
   | BitStringAccess({bits; lo; hi}) -> failwith "unimplemented"
   | ArrayAccess({array = ar; index}) ->
-  let (env', index') = eval_expression' env index in
-  let i = Eval_int.to_int index' in
-  let (env'', ar') = eval_expression' env' ar in
-  begin match snd ar, ar' with
-  | Name (_,n), VList l ->
-    let rec helper acc = (function
-        | h::d -> if acc = i then rhs::d else h::(helper (acc + 1) d)
-        | [] -> [])
-    in
-    EvalEnv.insert_value env'' n (VList(helper 0 l))
-  | _ -> failwith "array expected to evaluate to VList?"
-  end
+    let (env', index') = eval_expression' env index in
+    let i = Eval_int.to_int index' in
+    let (env'', ar') = eval_expression' env' ar in
+    begin match snd ar, ar' with
+      | Name (_,n), VList l ->
+        let rec helper acc = (function
+            | h::d -> if acc = i then rhs::d else h::(helper (acc + 1) d)
+            | [] -> []) in
+        EvalEnv.insert_value env'' n (VList(helper 0 l))
+      | _ -> failwith "array expected to evaluate to VList?" end
   | ExpressionMember({ expr; name}) -> failwith "unimplemented"
   | _ -> failwith "can't assign to the LHS"
 
@@ -190,7 +196,12 @@ and eval_return (env : EvalEnv.t) (sign : signal)
 
 and eval_switch () = failwith "unimplemented"
 
-and eval_decl_stm () = failwith "unimplemented"
+and eval_decl_stm (env : EvalEnv.t) (sign : signal)
+    (decl : Declaration.t) : EvalEnv.t * signal =
+  match sign with
+  | SReturn v -> (env, SReturn v)
+  | SExit -> failwith "unimplemented"
+  | SContinue -> (eval_decl env decl, SContinue)
 
 (*----------------------------------------------------------------------------*)
 (* Expression Evaluation *)
@@ -303,7 +314,8 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
     | Or       -> eval_and_or (||) end in
   (env'', f l r)
 
-and eval_cast (env : EvalEnv.t) (typ : Type.t) (expr : Expression.t) : EvalEnv.t * value =
+and eval_cast (env : EvalEnv.t) (typ : Type.t)
+    (expr : Expression.t) : EvalEnv.t * value =
   let build_bit w v =
     VBit (Eval_int.to_int w, Bigint.of_int v) in
   let changesize w v l =
@@ -368,7 +380,10 @@ and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
 (* TODO: rework*)
 and eval_funcall (env : EvalEnv.t) (func : Expression.t)
     (args : Argument.t list) : EvalEnv.t * value =
+  (* print_endline "function call"; *)
+  (* print_endline "env is:"; EvalEnv.print_env env; *)
   let (env', cl) = eval_expression' env func in
+  (* print_endline "env' is: ";  EvalEnv.print_env env'; *)
   match cl with
   | VNull
   | VBool _
@@ -388,7 +403,10 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       | Argument.KeyValue _
       | Argument.Missing -> failwith "unimplemented" (* TODO*) in
     let (env'',arg_vals) = List.fold_map args ~f:f ~init:env' in
+    (* print_endline "env'' is: "; EvalEnv.print_env env''; *)
     let clenv' = EvalEnv.push_scope clenv in
+    (* print_endline "clenv is: "; EvalEnv.print_env clenv; *)
+    (* print_endline "clenv' is: "; EvalEnv.print_env clenv'; *)
     let g e (p : Parameter.t) v =
       match (snd p).direction with
       | None -> failwith "unimplemented"
@@ -409,9 +427,11 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
             | Argument.Expression {value=expr} -> expr
             | Argument.KeyValue _
             | Argument.Missing -> failwith "unimplemented" end in
+          (* print_endline "doing assign"; *)
           eval_assign' e lhs v
         | In -> e end in
     let final_env = List.fold2_exn params args ~init:env'' ~f:h in
+    (* print_endline "finish function call"; *)
     begin match sign with
       | SReturn v -> (final_env, v)
       | SContinue

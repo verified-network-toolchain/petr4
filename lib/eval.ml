@@ -40,48 +40,205 @@ end
 
 let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   match snd d with
-  | Constant({annotations; typ; name = (_,name); value}) ->
-    let (env', v) = eval_expression' env value in
-    EvalEnv.insert_value env' name v
-  | Instantiation({annotations; typ; args; name}) ->
-    eval_instantiation env typ args name
-  | Parser({ name = (_,name); _ })
-  | Control({ name = (_,name); _ }) ->
-    EvalEnv.insert_decls env name d
-  | Function { name=(_,name); params=params;body=body; _} ->
-    EvalEnv.insert_value env name (VClosure(params,body,env))
-  | ExternFunction _ -> failwith "unimplemented" (* TODO *)
-  | Variable({annotations; typ; name; init}) ->
-    eval_decl_var env annotations typ name init
-  | ValueSet _ (* TODO *)
-  | Action _ (* TODO *)
-  | Table _ (* TODO *)
-  | Header _ (* TODO *)
-  | HeaderUnion _ (* TODO *)
-  | Struct _ (* TODO *)
-  | Error _ (* TODO *)
-  | MatchKind  _ (* TODO *)
-  | Enum _ (* TODO *)
-  | SerializableEnum _ (* TODO *)
-  | ExternObject _ (* TODO *)
-  | TypeDef _ (* TODO *)
-  | NewType _ (* TODO *)
-  | ControlType _ (* TODO *)
-  | ParserType _ -> failwith "unimplemented" (* TODO *)
-  | PackageType({ name = (_,name); _ }) ->
-    EvalEnv.insert_decls env name d
+  | Constant {
+      annotations = _;
+      typ = _;
+      value = v;
+      name = (_,n);
+    } -> eval_const_decl env v n
+  | Instantiation {
+      annotations = _;
+      typ = typ;
+      args = args;
+      name = (_,n);
+    } -> eval_instantiation env typ args n
+  | Parser {
+      annotations = _;
+      name = (_,n);
+      type_params = _;
+      params = _;
+      constructor_params = _;
+      locals = _;
+      states = _;
+    } -> eval_parser_decl env n d
+  | Control {
+      annotations = _;
+      name = (_,n);
+      type_params = _;
+      params = _;
+      constructor_params = _;
+      locals = _;
+      apply = _;
+    } -> eval_control_decl env n d
+  | Function {
+      return = _;
+      name = (_,n);
+      type_params = _;
+      params = ps;
+      body = b;
+    } -> eval_fun_decl env n ps b
+  | ExternFunction {
+      annotations = _;
+      return = _;
+      name = _;
+      type_params = _;
+      params = _;
+    } -> eval_extern_fun_decl ()
+  | Variable {
+      annotations = _;
+      typ = _;
+      name = (_,n);
+      init = v;
+    } -> eval_decl_var env n v
+  | ValueSet {
+      annotations = _;
+      typ = _;
+      size = _;
+      name = _;
+    } -> eval_set_decl ()
+  | Action {
+      annotations = _;
+      name = _;
+      params = _;
+      body = _;
+    } -> eval_action_decl ()
+  | Table {
+      annotations = _;
+      name = _;
+      properties = _;
+    } -> eval_table_decl ()
+  | Header {
+      annotations = _;
+      name = _;
+      fields = _;
+    } -> eval_header_decl ()
+  | HeaderUnion {
+      annotations = _;
+      name = _;
+      fields = _;
+    } -> eval_union_decl ()
+  | Struct {
+      annotations = _;
+      name = _;
+      fields = _;
+    } -> eval_struct_decl ()
+  | Error {
+      members = _;
+    } -> eval_error_decl ()
+  | MatchKind {
+      members = _;
+    } -> eval_matchkind_decl ()
+  | Enum {
+      annotations = _;
+      name = _;
+      members = _;
+    } -> eval_enum_decl ()
+  | SerializableEnum {
+      annotations = _;
+      typ = _;
+      name = _;
+      members = _;
+    } -> eval_senum_decl ()
+  | ExternObject {
+      annotations = _;
+      name = _;
+      type_params = _;
+      methods = _;
+    } -> eval_extern_obj ()
+  | TypeDef {
+      annotations = _;
+      name = _;
+      type_or_decl = _;
+    } -> eval_type_def ()
+  | NewType {
+      annotations = _;
+      name = _;
+      type_or_decl = _;
+    } -> eval_type_decl ()
+  | ControlType {
+      annotations = _;
+      name = _;
+      type_params = _;
+      params = _;
+    } -> eval_ctrltyp_decl ()
+  | ParserType {
+      annotations = _;
+      name = _;
+      type_params = _;
+      params = _;
+    } -> eval_prsrtyp_decl ()
+  | PackageType {
+      annotations = _;
+      name = (_,name);
+      type_params = _;
+      params = _;
+    } -> eval_pkgtyp_decl env name d
 
-and eval_decl_var (env : EvalEnv.t) annotations typ (name : P4String.t)
+and eval_const_decl (env : EvalEnv.t) (e : Expression.t)
+    (name : string) : EvalEnv.t =
+  let (env', v) = eval_expression' env e in
+  EvalEnv.insert_value env' name v
+
+and eval_instantiation (env:EvalEnv.t) (typ : Type.t) (args : Argument.t list)
+    (name : string) : EvalEnv.t =
+  let (env', obj) = eval_nameless env typ args in
+  EvalEnv.insert_value env' name obj
+
+and eval_parser_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
+
+and eval_control_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
+
+and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
+    (body : Block.t) : EvalEnv.t =
+  EvalEnv.insert_value env name (VClosure(params,body,env))
+
+and eval_extern_fun_decl () = failwith "unimplemented"
+
+and eval_decl_var (env : EvalEnv.t) (name : string)
     (init : Expression.t option) : EvalEnv.t =
   match init with
   | None -> env
   | Some e ->
     let (env', v) = eval_expression' env e in
-    EvalEnv.insert_value env' (snd name) v
+    EvalEnv.insert_value env' name v
 
-and eval_instantiation (env:EvalEnv.t) typ args (name : P4String.t) : EvalEnv.t =
-  let (env', obj) = eval_nameless env typ args in
-  EvalEnv.insert_value env' (snd name) obj
+and eval_set_decl () = failwith "unimplemented"
+
+and eval_action_decl () = failwith "unimplemented"
+
+and eval_table_decl () = failwith "unimplemented"
+
+and eval_header_decl () = failwith "unimplemented"
+
+and eval_union_decl () = failwith "unimplemented"
+
+and eval_struct_decl () = failwith "unimplemented"
+
+and eval_error_decl () = failwith "unimplemented"
+
+and eval_matchkind_decl () = failwith "unimplemented"
+
+and eval_enum_decl () = failwith "unimplemented"
+
+and eval_senum_decl () = failwith "unimplemented"
+
+and eval_extern_obj () = failwith "unimplemented"
+
+and eval_type_def () = failwith "unimplemented"
+
+and eval_type_decl () = failwith "unimplemented"
+
+and eval_ctrltyp_decl () = failwith "unimplemented"
+
+and eval_prsrtyp_decl () = failwith "unimplemented"
+
+and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
 
 (*----------------------------------------------------------------------------*)
 (* Statement Evaluation *)

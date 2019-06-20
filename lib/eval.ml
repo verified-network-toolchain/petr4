@@ -407,7 +407,7 @@ and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value 
   | Cast{typ;expr}                    -> eval_cast env typ expr
   | TypeMember{typ;name}              -> failwith "unimplemented"
   | ErrorMember t                     -> (env, VError t)
-  | ExpressionMember{expr;name}       -> failwith "unimplemented"
+  | ExpressionMember{expr;name}       -> eval_expr_mem env expr name
   | Ternary{cond;tru;fls}             -> eval_ternary env cond tru fls
   | FunctionCall{func;type_args;args} -> eval_funcall env func args
   | NamelessInstantiation{typ;args}   -> eval_nameless env typ args
@@ -547,8 +547,22 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
 and eval_typ_mem () = (* TODO: implement member lookup *)
   failwith "unimplemented"
 
-and eval_expr_mem () = (* TODO: implement member lookup *)
-  failwith "unimplemented"
+and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
+    (name : P4String.t) : EvalEnv.t * value =
+  let (env', v) = eval_expression' env expr in
+  match v with
+  | VNull
+  | VBool _
+  | VInteger _
+  | VBit _
+  | VInt _
+  | VTuple _
+  | VSet _
+  | VString _
+  | VError _
+  | VFun _ -> failwith "unimplemented"
+  | VStruct fs -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=))
+  | VObjstate _ -> failwith "unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
     (fe : Expression.t) : EvalEnv.t * value =
@@ -659,7 +673,7 @@ and eval_range_expr env lo hi =
   (env'', VSet(SRange(v1,v2)))
 
 (* TODO: these functions need to fail more gracefully *)
-(* TODO: these function need to hanle raw ints *)
+(* TODO: these functions need to handle raw ints *)
 and eval_sat op l r =
   let compute m n w =
     let a = Bigint.abs (op m n) in

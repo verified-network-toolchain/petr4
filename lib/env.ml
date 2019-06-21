@@ -134,6 +134,7 @@ module EvalEnv = struct
         | VError _ -> "<error"
         | VFun _ -> "<function>"
         | VStruct _ -> "<struct>"
+        | VHeader (_,_,b) -> "<header> with " ^ (string_of_bool b)
         | VObjstate _ -> "<stateful object>" in
       print_endline vstring in
     match e.var with

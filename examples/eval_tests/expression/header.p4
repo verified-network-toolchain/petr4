@@ -1,0 +1,36 @@
+header my_header {
+  bit<2> first;
+  bit<2> second;
+}
+
+my_header f(in bit<2> a, in bit<2> b) {
+    my_header ans;
+    ans.setValid();
+    // ans.first = a;
+    // ans.sescond = b;
+    return {a,b};
+}
+
+my_header g(in my_header hdr) {
+    hdr.setValid(); //should this modify top level scope?
+    bool tmp = hdr.isValid();
+    return hdr;     //copy-in-coy-out means no, right?
+}
+
+const my_header head = { 1, 0 };
+const bool a = head.isValid(); //false
+const bit<2> b = head.first; // 1
+const bit<2> c = head.second; // 0
+
+const my_header head2 = g(head);
+const bool d = head2.isValid(); //true
+const bit<2> e = head2.first; //1
+const bit<2> f = head2.second;//0
+
+// const my_header head2 = f(2,3);
+// const bool d = head2.isValid();
+// const bit<2> e = head2.first;
+// const bit<2> f = head2.second;
+
+package EmptyPackage();
+EmptyPackage() main;

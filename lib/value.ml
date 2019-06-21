@@ -9,9 +9,10 @@ type value =
   | VTuple of value list
   | VSet of set
   | VString of string
-  | VError of P4String.t
+  | VError of string
   | VFun of Parameter.t list * Block.t
   | VStruct of (string * value) list
+  | VHeader of string * (string * value) list * bool
   | VObjstate of obj
   (* stateful objects *)
 

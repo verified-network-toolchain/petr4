@@ -174,8 +174,6 @@ and eval_const_decl (env : EvalEnv.t) (typ : Type.t) (e : Expression.t)
   let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
   let env' = EvalEnv. insert_typ env name typ in
   fst (eval_assign env' SContinue name_expr e)
-  (* let (env', v) = eval_expression' env e in
-  EvalEnv.insert_value env' name v *)
 
 and eval_instantiation (env:EvalEnv.t) (typ : Type.t) (args : Argument.t list)
     (name : string) : EvalEnv.t =
@@ -334,7 +332,14 @@ and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.
             | [] -> []) in
         EvalEnv.insert_value env'' n (VTuple(helper 0 l))
       | _ -> failwith "array expected to evaluate to VTuple?" end
-  | ExpressionMember({ expr; name}) -> failwith "unimplemented"
+  | ExpressionMember({ expr; name}) ->
+    let (env', v) = eval_expression' env expr in
+    begin match v with
+      | VStruct _ -> failwith "unimplemented"
+      | VHeader(n, l, b) ->
+        let v' = VHeader (n, (snd name,rhs) :: l, b) in
+        EvalEnv.insert_value env' n v'
+      | _ -> failwith "unimplemented" end (* does not support nested l values *)
   | _ -> failwith "can't assign to the LHS"
 
 and is_struct (env : EvalEnv.t) (name : string) : bool =

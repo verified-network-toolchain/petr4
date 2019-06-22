@@ -218,12 +218,12 @@ and init_val_of_type (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   | VarBit expr -> failwith "unimplemented"
   | TopLevelType (_,n) ->
     begin match snd (EvalEnv.find_decl_toplevel n env) with
-      | Struct _ -> VStruct []
+      | Struct _ -> VStruct (name, [])
       | Header _ -> VHeader(name, [], false)
       | _ -> failwith "no init value for decl" end
   | TypeName (_,n) ->
     begin match snd (EvalEnv.find_decl n env) with
-      | Struct _ -> VStruct []
+      | Struct _ -> VStruct (name, [])
       | Header _ -> VHeader(name, [], false)
       | _ -> failwith "no init value for decl" end
   | SpecializedType _
@@ -335,7 +335,9 @@ and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.
   | ExpressionMember({ expr; name}) ->
     let (env', v) = eval_expression' env expr in
     begin match v with
-      | VStruct _ -> failwith "unimplemented"
+      | VStruct (n,l) ->
+        let v' = VStruct (n, (snd name, rhs) :: l) in
+        EvalEnv.insert_value env' n v'
       | VHeader(n, l, b) ->
         let v' = VHeader (n, (snd name,rhs) :: l, b) in
         EvalEnv.insert_value env' n v'
@@ -372,7 +374,7 @@ and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
     |_ -> failwith "not a struct" in
   let fs' = List.map fs ~f:(fun x -> snd (snd x).name) in
   let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
-  VStruct l'
+  VStruct (name, l')
 
 and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
   let header_name = match snd (EvalEnv.find_typ name env) with
@@ -626,7 +628,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VString _
   | VError _
   | VFun _ -> failwith "unimplemented"
-  | VStruct fs -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=))
+  | VStruct (n,fs) -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=))
   | VHeader (n, fs, vbit) ->
     begin match snd name with
       | "isValid" -> (env', VBool vbit)
@@ -680,6 +682,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       let name = snd (snd p).variable in
       let v' = match v with
         | VHeader (n,l,b) -> VHeader (name, l, b)
+        | VStruct (n,l) -> VStruct (name,l)
         | _ -> v in
       match (snd p).direction with
       | None -> failwith "unimplemented"

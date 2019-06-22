@@ -11,7 +11,7 @@ type value =
   | VString of string
   | VError of string
   | VFun of Parameter.t list * Block.t
-  | VStruct of (string * value) list
+  | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool
   | VObjstate of obj
   (* stateful objects *)

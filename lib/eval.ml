@@ -152,22 +152,22 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_type_decl ()
   | ControlType {
       annotations = _;
-      name = _;
+      name = (_,n);
       type_params = _;
       params = _;
-    } -> eval_ctrltyp_decl ()
+    } -> eval_ctrltyp_decl env n d
   | ParserType {
       annotations = _;
-      name = _;
+      name = (_,n);
       type_params = _;
       params = _;
-    } -> eval_prsrtyp_decl ()
+    } -> eval_prsrtyp_decl env n d
   | PackageType {
       annotations = _;
-      name = (_,name);
+      name = (_,n);
       type_params = _;
       params = _;
-    } -> eval_pkgtyp_decl env name d
+    } -> eval_pkgtyp_decl env n d
 
 and eval_const_decl (env : EvalEnv.t) (typ : Type.t) (e : Expression.t)
     (name : string) : EvalEnv.t =
@@ -247,9 +247,13 @@ and eval_type_def () = failwith "typedef unimplemented"
 
 and eval_type_decl () = failwith "type decl unimplemented"
 
-and eval_ctrltyp_decl () = failwith "controls unimplemented"
+and eval_ctrltyp_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
 
-and eval_prsrtyp_decl () = failwith "parsers unimplemented"
+and eval_prsrtyp_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
 
 and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =

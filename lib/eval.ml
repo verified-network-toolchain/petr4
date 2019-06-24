@@ -93,10 +93,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_set_decl ()
   | Action {
       annotations = _;
-      name = _;
-      params = _;
-      body = _;
-    } -> eval_action_decl ()
+      name = (_,n);
+      params = ps;
+      body = b;
+    } -> eval_action_decl env n ps b
   | Table {
       annotations = _;
       name = _;
@@ -125,9 +125,9 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_matchkind_decl env l
   | Enum {
       annotations = _;
-      name = _;
+      name = (_,n);
       members = _;
-    } -> eval_enum_decl ()
+    } -> eval_enum_decl env n d
   | SerializableEnum {
       annotations = _;
       typ = _;
@@ -207,7 +207,9 @@ and eval_decl_var (env : EvalEnv.t) (typ : Type.t) (name : string)
 
 and eval_set_decl () = failwith "set decls unimplemented"
 
-and eval_action_decl () = failwith "actions unimplemented"
+and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
+    (body : Block.t) : EvalEnv.t  =
+  EvalEnv.insert_value env name (VAction(params, body))
 
 and eval_table_decl () = failwith "tables unimplemented"
 
@@ -231,7 +233,9 @@ and eval_matchkind_decl (env : EvalEnv.t) (mems : P4String.t list) : EvalEnv.t =
   let mems' = List.map mems ~f:snd in
   List.fold_left mems' ~init:env ~f:insert
 
-and eval_enum_decl () = failwith "enums unimplemented"
+and eval_enum_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decls env name decl
 
 and eval_senum_decl () = failwith "senums unimplemented"
 
@@ -379,8 +383,10 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
       | VError _
       | VMatchKind
       | VFun _
+      | VAction _
       | VStruct _
       | VHeader _
+      | VEnumField _
       | VExternFun _
       | VExternObject _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
@@ -484,7 +490,7 @@ and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value 
   | UnaryOp{op;arg}                   -> eval_unary env op arg
   | BinaryOp{op; args=(l,r)}          -> eval_binop env op l r
   | Cast{typ;expr}                    -> eval_cast env typ expr
-  | TypeMember{typ;name}              -> failwith "type member unimplemented"
+  | TypeMember{typ;name}              -> eval_typ_mem env typ (snd name)
   | ErrorMember t                     -> (env, EvalEnv.find_err (snd t) env)
   | ExpressionMember{expr;name}       -> eval_expr_mem env expr name
   | Ternary{cond;tru;fls}             -> eval_ternary env cond tru fls
@@ -515,8 +521,10 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VError _
   | VMatchKind
   | VFun _
+  | VAction _
   | VStruct _
   | VHeader _
+  | VEnumField _
   | VExternFun _
   | VExternObject _
   | VObjstate _ -> failwith "impossible"
@@ -627,8 +635,18 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
   | _ -> failwith "type cast case should be handled by compiler" (* TODO *)
 (* TODO: graceful failure *)
 
-and eval_typ_mem () = (* TODO: implement member lookup *)
-  failwith "type memeber unimplemented"
+and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
+    (name : string) : EvalEnv.t * value =
+  let enum_name = begin match snd typ with
+    | TypeName(_,n) -> n
+    | _ -> failwith "typ mem unimplemented" end in
+  match snd (EvalEnv.find_decl enum_name env) with
+  | Enum {members;_} ->
+    let mems = List.map members ~f:snd in
+    if List.mem mems name ~equal:(=)
+    then (env, VEnumField (enum_name, name))
+    else raise (UnboundName name)
+  | _ -> failwith "typ mem unimplemented"
 
 and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
     (name : P4String.t) : EvalEnv.t * value =
@@ -644,7 +662,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VString _
   | VError _
   | VMatchKind
-  | VFun _ -> failwith "expr member unimplemented"
+  | VFun _
+  | VAction _ -> failwith "expr member unimplemented"
   | VStruct (n,fs) -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=))
   | VHeader (n, fs, vbit) ->
     begin match snd name with
@@ -657,6 +676,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
         let v' = VHeader (n, fs, false) in
         (EvalEnv.insert_value env' n v', VNull)
       | _ -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=)) end
+  | VEnumField _
   | VExternFun _
   | VExternObject _
   | VObjstate _ -> failwith "expr member unimplemented"
@@ -689,9 +709,11 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VMatchKind
   | VStruct _
   | VHeader _
+  | VEnumField _
   | VExternFun _
   | VExternObject _
   | VObjstate _ -> failwith "unreachable"
+  | VAction (params, body)
   | VFun (params, body) ->
     let f env e =
       match snd e with

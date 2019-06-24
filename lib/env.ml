@@ -149,8 +149,10 @@ module EvalEnv = struct
         | VError _ -> "<error"
         | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
+        | VAction _ -> "<action>"
         | VStruct _ -> "<struct>"
         | VHeader (_,_,b) -> "<header> with " ^ (string_of_bool b)
+        | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"
         | VObjstate _ -> "<stateful object>" in

@@ -151,6 +151,8 @@ module EvalEnv = struct
         | VFun _ -> "<function>"
         | VStruct _ -> "<struct>"
         | VHeader (_,_,b) -> "<header> with " ^ (string_of_bool b)
+        | VExternFun _ -> "<extern function>"
+        | VExternObject _ -> "<extern>"
         | VObjstate _ -> "<stateful object>" in
       print_endline vstring in
     match e.var with

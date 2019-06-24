@@ -75,10 +75,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   | ExternFunction {
       annotations = _;
       return = _;
-      name = _;
+      name = (_,n);
       type_params = _;
-      params = _;
-    } -> eval_extern_fun_decl ()
+      params = ps;
+    } -> eval_extern_fun_decl env n ps
   | Variable {
       annotations = _;
       typ = t;
@@ -136,10 +136,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_senum_decl ()
   | ExternObject {
       annotations = _;
-      name = _;
-      type_params = _;
-      methods = _;
-    } -> eval_extern_obj ()
+      name = (_,n);
+      type_params = tps;
+      methods = ms;
+    } -> eval_extern_obj env n ms
   | TypeDef {
       annotations = _;
       name = _;
@@ -192,7 +192,9 @@ and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) : EvalEnv.t =
   EvalEnv.insert_value env name (VFun(params,body))
 
-and eval_extern_fun_decl () = failwith "extern functions unimplemented"
+and eval_extern_fun_decl (env : EvalEnv.t) (name : string)
+    (params : Parameter.t list) : EvalEnv.t =
+  EvalEnv.insert_value env name (VExternFun params)
 
 and eval_decl_var (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t =
@@ -233,7 +235,9 @@ and eval_enum_decl () = failwith "enums unimplemented"
 
 and eval_senum_decl () = failwith "senums unimplemented"
 
-and eval_extern_obj () = failwith "extern objects unimplemented"
+and eval_extern_obj (env : EvalEnv.t) (name : string)
+    (methods : MethodPrototype.t list) : EvalEnv.t =
+  EvalEnv.insert_value env name (VExternObject (name, methods))
 
 and eval_type_def () = failwith "typedef unimplemented"
 
@@ -377,6 +381,8 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
       | VFun _
       | VStruct _
       | VHeader _
+      | VExternFun _
+      | VExternObject _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
@@ -511,6 +517,8 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VFun _
   | VStruct _
   | VHeader _
+  | VExternFun _
+  | VExternObject _
   | VObjstate _ -> failwith "impossible"
 (* TODO: graceful failure *)
 
@@ -649,6 +657,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
         let v' = VHeader (n, fs, false) in
         (EvalEnv.insert_value env' n v', VNull)
       | _ -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=)) end
+  | VExternFun _
+  | VExternObject _
   | VObjstate _ -> failwith "expr member unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
@@ -679,6 +689,8 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VMatchKind
   | VStruct _
   | VHeader _
+  | VExternFun _
+  | VExternObject _
   | VObjstate _ -> failwith "unreachable"
   | VFun (params, body) ->
     let f env e =

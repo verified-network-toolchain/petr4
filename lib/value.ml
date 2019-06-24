@@ -14,6 +14,8 @@ type value =
   | VFun of Parameter.t list * Block.t
   | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool
+  | VExternFun of Parameter.t list 
+  | VExternObject of string * (MethodPrototype.t list)
   | VObjstate of obj
   (* stateful objects *)
 

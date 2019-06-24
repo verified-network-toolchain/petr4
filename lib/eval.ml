@@ -118,11 +118,11 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       fields = _;
     } -> eval_struct_decl env n d
   | Error {
-      members = _;
-    } -> eval_error_decl ()
+      members = l;
+    } -> eval_error_decl env l
   | MatchKind {
-      members = _;
-    } -> eval_matchkind_decl ()
+      members = l;
+    } -> eval_matchkind_decl env l
   | Enum {
       annotations = _;
       name = _;
@@ -192,7 +192,7 @@ and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) : EvalEnv.t =
   EvalEnv.insert_value env name (VFun(params,body))
 
-and eval_extern_fun_decl () = failwith "unimplemented"
+and eval_extern_fun_decl () = failwith "extern functions unimplemented"
 
 and eval_decl_var (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t =
@@ -203,72 +203,78 @@ and eval_decl_var (env : EvalEnv.t) (typ : Type.t) (name : string)
     let (env'', v) = eval_expression' env' e in
     EvalEnv.insert_value env'' name v
 
-and init_val_of_type (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
-  match snd typ with
-  | Bool -> VBool false
-  | Error -> VError "NoError"
-  | IntType expr ->
-    begin match snd (eval_expression' env expr) with
-      | VInteger n -> VInt(Bigint.to_int_exn n, Bigint.zero)
-      | _ -> failwith "unimplemented" end
-  | BitType expr ->
-    begin match snd (eval_expression' env expr) with
-      | VInteger n -> VBit(Bigint.to_int_exn n, Bigint.zero)
-      | _ -> failwith "unimplemented" end
-  | VarBit expr -> failwith "unimplemented"
-  | TopLevelType (_,n) ->
-    begin match snd (EvalEnv.find_decl_toplevel n env) with
-      | Struct _ -> VStruct (name, [])
-      | Header _ -> VHeader(name, [], false)
-      | _ -> failwith "no init value for decl" end
-  | TypeName (_,n) ->
-    begin match snd (EvalEnv.find_decl n env) with
-      | Struct _ -> VStruct (name, [])
-      | Header _ -> VHeader(name, [], false)
-      | _ -> failwith "no init value for decl" end
-  | SpecializedType _
-  | HeaderStack _
-  | Tuple _
-  | Void
-  | DontCare -> failwith "unimplemented"
+and eval_set_decl () = failwith "set decls unimplemented"
 
-and eval_set_decl () = failwith "unimplemented"
+and eval_action_decl () = failwith "actions unimplemented"
 
-and eval_action_decl () = failwith "unimplemented"
-
-and eval_table_decl () = failwith "unimplemented"
+and eval_table_decl () = failwith "tables unimplemented"
 
 and eval_header_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decls env name decl
 
-and eval_union_decl () = failwith "unimplemented"
+and eval_union_decl () = failwith "header unions unimplemented"
 
 and eval_struct_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decls env name decl
 
-and eval_error_decl () = failwith "unimplemented"
+and eval_error_decl (env : EvalEnv.t) (errs : P4String.t list) : EvalEnv.t =
+  let errs' = List.map errs ~f:snd in
+  List.fold_left errs' ~init:env ~f:EvalEnv.insert_err
 
-and eval_matchkind_decl () = failwith "unimplemented"
+and eval_matchkind_decl (env : EvalEnv.t) (mems : P4String.t list) : EvalEnv.t =
+  let insert e mem =
+    EvalEnv.insert_value e mem VMatchKind in
+  let mems' = List.map mems ~f:snd in
+  List.fold_left mems' ~init:env ~f:insert
 
-and eval_enum_decl () = failwith "unimplemented"
+and eval_enum_decl () = failwith "enums unimplemented"
 
-and eval_senum_decl () = failwith "unimplemented"
+and eval_senum_decl () = failwith "senums unimplemented"
 
-and eval_extern_obj () = failwith "unimplemented"
+and eval_extern_obj () = failwith "extern objects unimplemented"
 
-and eval_type_def () = failwith "unimplemented"
+and eval_type_def () = failwith "typedef unimplemented"
 
-and eval_type_decl () = failwith "unimplemented"
+and eval_type_decl () = failwith "type decl unimplemented"
 
-and eval_ctrltyp_decl () = failwith "unimplemented"
+and eval_ctrltyp_decl () = failwith "controls unimplemented"
 
-and eval_prsrtyp_decl () = failwith "unimplemented"
+and eval_prsrtyp_decl () = failwith "parsers unimplemented"
 
 and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decls env name decl
+
+and init_val_of_type (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
+match snd typ with
+| Bool -> VBool false
+| Error -> VError "NoError"
+| IntType expr ->
+  begin match snd (eval_expression' env expr) with
+    | VInteger n -> VInt(Bigint.to_int_exn n, Bigint.zero)
+    | _ -> failwith "init unimplemented" end
+| BitType expr ->
+  begin match snd (eval_expression' env expr) with
+    | VInteger n -> VBit(Bigint.to_int_exn n, Bigint.zero)
+    | _ -> failwith "init unimplemented" end
+| VarBit expr -> failwith "init unimplemented"
+| TopLevelType (_,n) ->
+  begin match snd (EvalEnv.find_decl_toplevel n env) with
+    | Struct _ -> VStruct (name, [])
+    | Header _ -> VHeader(name, [], false)
+    | _ -> failwith "no init value for decl" end
+| TypeName (_,n) ->
+  begin match snd (EvalEnv.find_decl n env) with
+    | Struct _ -> VStruct (name, [])
+    | Header _ -> VHeader(name, [], false)
+    | _ -> failwith "no init value for decl" end
+| SpecializedType _
+| HeaderStack _
+| Tuple _
+| Void
+| DontCare -> failwith "init unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Statement Evaluation *)
@@ -280,20 +286,20 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   match snd stm with
   | MethodCall{func;type_args;args} -> eval_method_call env sign func args
   | Assignment{lhs;rhs}             -> eval_assign env sign lhs rhs
-  | DirectApplication{typ;args}     -> failwith "unimplemented"
+  | DirectApplication{typ;args}     -> failwith "direct applications unimplemented"
   | Conditional{cond;tru;fls}       -> eval_conditional env sign cond tru fls
   | BlockStatement{block}           -> eval_block env sign block
-  | Exit                            -> failwith "unimplemented"
+  | Exit                            -> failwith "exits unimplemented"
   | EmptyStatement                  -> (env, sign)
   | Return{expr}                    -> eval_return env sign expr
-  | Switch{expr;cases}              -> failwith "unimplemented"
+  | Switch{expr;cases}              -> failwith "switch stms unimplemented"
   | DeclarationStatement{decl}      -> eval_decl_stm env sign decl
 
 and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
     (args : Argument.t list) : EvalEnv.t * signal =
   match sign with
   | SReturn v -> (env, SReturn v)
-  | SExit -> failwith "unimplemented"
+  | SExit -> failwith "exit unimplemented"
   | SContinue ->
     let (env', _) = eval_funcall env func args in
     (env', SContinue)
@@ -305,7 +311,7 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
     let (env', v) = eval_expression' env rhs in
     (eval_assign' env lhs v, SContinue)
   | SReturn v -> (env, SReturn v)
-  | SExit -> failwith "unimplemented"
+  | SExit -> failwith "exit unimplemented"
 
 and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.t =
   match snd lhs with
@@ -320,7 +326,7 @@ and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.
       | VTuple l -> EvalEnv.insert_value env n (header_of_list env n l)
       | _ -> EvalEnv.insert_value env n rhs end
     else EvalEnv.insert_value env n rhs
-  | BitStringAccess({bits; lo; hi}) -> failwith "unimplemented"
+  | BitStringAccess({bits; lo; hi}) -> failwith "assign unimplemented"
   | ArrayAccess({array = ar; index}) ->
     let (env', index') = eval_expression' env index in
     let i = Eval_int.to_int index' in
@@ -341,8 +347,74 @@ and eval_assign' (env : EvalEnv.t) (lhs : Expression.t) (rhs : value) : EvalEnv.
       | VHeader(n, l, b) ->
         let v' = VHeader (n, (snd name,rhs) :: l, b) in
         EvalEnv.insert_value env' n v'
-      | _ -> failwith "unimplemented" end (* does not support nested l values *)
+      | _ -> failwith "assign unimplemented" end (* does not support nested l values *)
   | _ -> failwith "can't assign to the LHS"
+
+and eval_application () = failwith "direct application unimplemented"
+
+and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
+    (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
+  match sign with
+  | SExit -> failwith "exit unimplmented"
+  | SReturn v -> (env, SReturn v)
+  | SContinue ->
+    let (env', v) = eval_expression' env cond in
+    begin match v with
+      | VBool true -> eval_statement env' SContinue tru
+      | VBool false ->
+        begin match fls with
+          | None -> (env, SContinue)
+          | Some fls' -> eval_statement env' SContinue fls'  end
+      | VNull
+      | VInteger _
+      | VBit _
+      | VInt _
+      | VTuple _
+      | VSet _
+      | VString _
+      | VError _
+      | VMatchKind
+      | VFun _
+      | VStruct _
+      | VHeader _
+      | VObjstate _ -> failwith "conditional guard must be a bool" end
+
+and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
+  let block = snd block in
+  let rec f env s ss =
+    match ss with
+    | [] -> (env, s)
+    | h :: d ->
+      begin match s with
+        | SContinue ->
+          let (env', sign')= eval_statement env SContinue h in
+          f env' sign' d
+        | SReturn v -> (env, SReturn v)
+        | SExit -> failwith "exit unimplemented" end in
+  f env sign block.statements
+
+and eval_exit () = failwith "exit unimplemented"
+
+and eval_return (env : EvalEnv.t) (sign : signal)
+    (expr : Expression.t option) : (EvalEnv.t * signal) =
+  match sign with
+  | SReturn v -> (env, SReturn v)
+  | SExit -> failwith "exit unimplemented"
+  | SContinue ->
+    match expr with
+    | None -> (env, SReturn VNull)
+    | Some expr' ->
+      let (env', v) = eval_expression' env expr' in
+      (env', SReturn v)
+
+and eval_switch () = failwith "switch stm unimplemented"
+
+and eval_decl_stm (env : EvalEnv.t) (sign : signal)
+    (decl : Declaration.t) : EvalEnv.t * signal =
+  match sign with
+  | SReturn v -> (env, SReturn v)
+  | SExit -> failwith "exit unimplemented"
+  | SContinue -> (eval_decl env decl, SContinue)
 
 and is_struct (env : EvalEnv.t) (name : string) : bool =
   try
@@ -388,71 +460,6 @@ and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
   let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
   VHeader (name, l', false)
 
-and eval_application () = failwith "unimplemented"
-
-and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
-    (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
-  match sign with
-  | SExit -> failwith "unimplmented"
-  | SReturn v -> (env, SReturn v)
-  | SContinue ->
-    let (env', v) = eval_expression' env cond in
-    begin match v with
-      | VBool true -> eval_statement env' SContinue tru
-      | VBool false ->
-        begin match fls with
-          | None -> (env, SContinue)
-          | Some fls' -> eval_statement env' SContinue fls'  end
-      | VNull
-      | VInteger _
-      | VBit _
-      | VInt _
-      | VTuple _
-      | VSet _
-      | VString _
-      | VError _
-      | VFun _
-      | VStruct _
-      | VHeader _
-      | VObjstate _ -> failwith "conditional guard must be a bool" end
-
-and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
-  let block = snd block in
-  let rec f env s ss =
-    match ss with
-    | [] -> (env, s)
-    | h :: d ->
-      begin match s with
-        | SContinue ->
-          let (env', sign')= eval_statement env SContinue h in
-          f env' sign' d
-        | SReturn v -> (env, SReturn v)
-        | SExit -> failwith "unimplemented" end in
-  f env sign block.statements
-
-and eval_exit () = failwith "unimplemented"
-
-and eval_return (env : EvalEnv.t) (sign : signal)
-    (expr : Expression.t option) : (EvalEnv.t * signal) =
-  match sign with
-  | SReturn v -> (env, SReturn v)
-  | SExit -> failwith "unimplemented"
-  | SContinue ->
-    match expr with
-    | None -> (env, SReturn VNull)
-    | Some expr' ->
-      let (env', v) = eval_expression' env expr' in
-      (env', SReturn v)
-
-and eval_switch () = failwith "unimplemented"
-
-and eval_decl_stm (env : EvalEnv.t) (sign : signal)
-    (decl : Declaration.t) : EvalEnv.t * signal =
-  match sign with
-  | SReturn v -> (env, SReturn v)
-  | SExit -> failwith "unimplemented"
-  | SContinue -> (eval_decl env decl, SContinue)
-
 (*----------------------------------------------------------------------------*)
 (* Expression Evaluation *)
 (*----------------------------------------------------------------------------*)
@@ -471,8 +478,8 @@ and eval_expression' (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value 
   | UnaryOp{op;arg}                   -> eval_unary env op arg
   | BinaryOp{op; args=(l,r)}          -> eval_binop env op l r
   | Cast{typ;expr}                    -> eval_cast env typ expr
-  | TypeMember{typ;name}              -> failwith "unimplemented"
-  | ErrorMember t                     -> (env, VError (snd t))
+  | TypeMember{typ;name}              -> failwith "type member unimplemented"
+  | ErrorMember t                     -> (env, EvalEnv.find_err (snd t) env)
   | ExpressionMember{expr;name}       -> eval_expr_mem env expr name
   | Ternary{cond;tru;fls}             -> eval_ternary env cond tru fls
   | FunctionCall{func;type_args;args} -> eval_funcall env func args
@@ -500,6 +507,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VSet _
   | VString _
   | VError _
+  | VMatchKind
   | VFun _
   | VStruct _
   | VHeader _
@@ -612,7 +620,7 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
 (* TODO: graceful failure *)
 
 and eval_typ_mem () = (* TODO: implement member lookup *)
-  failwith "unimplemented"
+  failwith "type memeber unimplemented"
 
 and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
     (name : P4String.t) : EvalEnv.t * value =
@@ -627,7 +635,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VSet _
   | VString _
   | VError _
-  | VFun _ -> failwith "unimplemented"
+  | VMatchKind
+  | VFun _ -> failwith "expr member unimplemented"
   | VStruct (n,fs) -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=))
   | VHeader (n, fs, vbit) ->
     begin match snd name with
@@ -640,7 +649,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
         let v' = VHeader (n, fs, false) in
         (EvalEnv.insert_value env' n v', VNull)
       | _ -> (env', List.Assoc.find_exn fs (snd name) ~equal:(=)) end
-  | VObjstate _ -> failwith "unimplemented"
+  | VObjstate _ -> failwith "expr member unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
     (fe : Expression.t) : EvalEnv.t * value =
@@ -667,6 +676,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VSet _
   | VString _
   | VError _
+  | VMatchKind
   | VStruct _
   | VHeader _
   | VObjstate _ -> failwith "unreachable"
@@ -675,7 +685,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       match snd e with
       | Argument.Expression {value=expr} -> eval_expression' env expr
       | Argument.KeyValue _
-      | Argument.Missing -> failwith "unimplemented" (* TODO*) in
+      | Argument.Missing -> failwith "missing args unimplemented" (* TODO*) in
     let (env'',arg_vals) = List.fold_map args ~f:f ~init:env' in
     let fenv = EvalEnv.push_scope (EvalEnv.get_toplevel env'') in
     let g e (p : Parameter.t) v =
@@ -685,7 +695,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
         | VStruct (n,l) -> VStruct (name,l)
         | _ -> v in
       match (snd p).direction with
-      | None -> failwith "unimplemented"
+      | None -> failwith "unspecified arg direction unimplemented"
       | Some x -> begin match snd x with
         | InOut
         | In -> EvalEnv.insert_value e (snd (snd p).variable) v'
@@ -702,7 +712,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
           let lhs = begin match snd a with
             | Argument.Expression {value=expr} -> expr
             | Argument.KeyValue _
-            | Argument.Missing -> failwith "unimplemented" end in
+            | Argument.Missing -> failwith "missing args unimplemented" end in
           eval_assign' e lhs v
         | In -> e end in
     let final_env = List.fold2_exn params args ~init:env'' ~f:h in
@@ -727,7 +737,7 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     | Argument.Expression {value} ->
       let (env', v) = eval_expression' env value in
       (env',(param.variable, v))
-    | _ -> failwith "unimplemented" in
+    | _ -> failwith "missing args unimplemented" in
   let (info ,decl) = type_lookup env (snd typ) in
   match decl with
   | Control typ_decl ->
@@ -742,7 +752,7 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     let l = List.zip_exn pack_decl.params args in
     let (env', state) = List.fold_map l ~f:positional_binding ~init:env in
     (env', VObjstate{decl = (info, PackageType pack_decl); state = state})
-  | _ -> failwith "unimplemented"
+  | _ -> failwith "instantiation unimplemented"
 (* TODO: instantiation for other types *)
 
 and eval_mask_expr env e m =

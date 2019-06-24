@@ -10,6 +10,7 @@ type value =
   | VSet of set
   | VString of string
   | VError of string
+  | VMatchKind
   | VFun of Parameter.t list * Block.t
   | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool

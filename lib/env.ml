@@ -55,12 +55,15 @@ module EvalEnv = struct
     var: value env;
     (* map variables to their types; only needed in a few cases *)
     typ : Types.Type.t env;
+    (* the error namespace *)
+    err : string list;
   }
 
   let empty_eval_env = {
     decl = [[]];
     var = [[]];
     typ = [[]];
+    err = [];
   }
 
   let get_toplevel (env : t) : t =
@@ -70,7 +73,8 @@ module EvalEnv = struct
       | h :: _ -> [h] in
     {decl = get_last env.decl;
      var = get_last env.var;
-     typ = get_last env.typ;}
+     typ = get_last env.typ;
+     err = env.err;}
 
   let get_decl_toplevel (env : t) : (string * Declaration.t) list =
     match List.rev env.decl with
@@ -86,6 +90,9 @@ module EvalEnv = struct
   let insert_typ e name binding =
     {e with typ = insert name binding e.typ}
 
+  let insert_err e name =
+    {e with err = name :: e.err}
+
   let find_value name e : value =
     find name e.var
 
@@ -93,6 +100,12 @@ module EvalEnv = struct
     find name e.decl
 
   let find_typ name e = find name e.typ
+
+  let find_err name e =
+    if List.mem name e.err then
+      VError name
+    else
+      raise (UnboundName name)
 
   let find_value_toplevel name e : value =
     find_toplevel name e.var
@@ -105,12 +118,14 @@ module EvalEnv = struct
   let push_scope (e : t) : t =
     {decl = push e.decl;
      var = push e.var;
-     typ = push e.typ}
+     typ = push e.typ;
+     err = e.err;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      var = pop e.var;
-     typ = pop e.typ;}
+     typ = pop e.typ;
+     err = e.err;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -132,6 +147,7 @@ module EvalEnv = struct
         | VSet _ -> "<set>"
         | VString s -> s
         | VError _ -> "<error"
+        | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VStruct _ -> "<struct>"
         | VHeader (_,_,b) -> "<header> with " ^ (string_of_bool b)
@@ -215,7 +231,8 @@ module CheckerEnv = struct
       const = pop env.const }
 
   let eval_env_of_checker_env (cenv: t) : EvalEnv.t =
-    { decl = [];
+    { decl = [[]];
       var = cenv.const;
-      typ = [];}
+      typ = [[]];
+      err = [];}
 end

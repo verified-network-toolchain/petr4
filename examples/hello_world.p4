@@ -13,13 +13,13 @@ parser MyParser(packet_in packet,
     }
 }
 
-control MyChecksum(inout headers hdr, inout metadata meta) {   
+control MyChecksum(inout headers hdr, inout metadata meta) {
     apply { }
 }
 
 control MyIngress(inout headers hdr,
                   inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {    
+                  inout standard_metadata_t standard_metadata) {
     apply {
         standard_metatadata.egress_spec = 9;
     }
@@ -36,4 +36,12 @@ control MyDeparser(packet_out packet, in headers hdr) {
 }
 
 //this is declaration
-V1Switch(MyParser(), MyChecksum(), MyIngress(), MyEgress(), MyChecksum(), MyDeparser()) main;
+V1Switch(
+    MyParser(),
+    MyChecksum(),
+    MyIngress(),
+    MyEgress(),
+    MyChecksum(),
+    MyDeparser()
+    )
+main;

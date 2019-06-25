@@ -365,7 +365,7 @@ and translate_type (env: Env.CheckerEnv.t) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
   let open Env.CheckerEnv in
   let eval e =
-    Eval.eval_expression (eval_env_of_checker_env env) e
+    snd (Eval.eval_expression (eval_env_of_checker_env env) e)
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with

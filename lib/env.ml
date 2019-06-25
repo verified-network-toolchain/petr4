@@ -81,6 +81,9 @@ module EvalEnv = struct
     | [] -> no_scopes ()
     | h :: _ -> h
 
+  let get_var_firstlevel env =
+    List.hd (env.var)
+
   let insert_value (e : t) name binding : t =
     {e with var = insert name binding e.var}
 

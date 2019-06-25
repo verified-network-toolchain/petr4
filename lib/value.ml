@@ -18,7 +18,7 @@ type value =
   | VEnumField of string * string
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
-  | VObjstate of obj
+  | VObjstate of Declaration.t * (string * value) list
   (* stateful objects *)
 
 and set =
@@ -27,10 +27,6 @@ and set =
   | SMask of value * value
   | SRange of value * value
   | SProd
-
-and obj =
-  { decl: Types.Declaration.t;
-    state: (P4String.t * value) list; }
 
 type signal =
   | SContinue

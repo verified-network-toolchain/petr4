@@ -65,7 +65,7 @@ let check_file include_dirs p4_file print_json pretty_json verbose =
 
 let eval_file include_dirs p4_file verbose =
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval prog
+  | `Ok prog -> Eval.eval_program prog
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =
@@ -112,7 +112,7 @@ let command =
          let _ = eval_file include_dirs p4_file verbose in ()
        | None, None -> ())
 
-let () = eval_file [] "examples/v1model.p4" false
+let () = eval_file ["./examples"] "examples/hello_world.p4" false
 
 (* let () =
   Format.printf "@[";

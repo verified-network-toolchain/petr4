@@ -21,4 +21,4 @@ EmptyPackage() main;
 
 /* doubles as a tricky variable naming test */
 
-/* fails do to unimplemented bitstring access lvalue */
+/* fails due to unimplemented bitstring access lvalue */

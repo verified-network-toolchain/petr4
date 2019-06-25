@@ -4,5 +4,5 @@ open Value
 open Env
 open Types
 
-val eval: program -> unit
-val eval_expression: EvalEnv.t -> Expression.t -> value
+val eval_program: program -> unit
+val eval_expression: EvalEnv.t -> Expression.t -> EvalEnv.t * value

@@ -40,7 +40,7 @@ let rec eval_program = function Program l ->
   EvalEnv.print_env env;
   Format.printf "Done\n";
   let packetin = Bigint.zero in
-  let packout = eval_packet env packetin in
+  let packout = eval_main env packetin in
   ignore packout
 
 (*----------------------------------------------------------------------------*)
@@ -407,6 +407,7 @@ and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
       | VEnumField _
       | VExternFun _
       | VExternObject _
+      | VRuntime _
       | VObjstate _ -> failwith "conditional guard must be a bool" end
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
@@ -545,6 +546,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
   | VEnumField _
   | VExternFun _
   | VExternObject _
+  | VRuntime _
   | VObjstate _ -> failwith "impossible"
 (* TODO: graceful failure *)
 
@@ -697,6 +699,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VEnumField _
   | VExternFun _
   | VExternObject _
+  | VRuntime _
   | VObjstate _ -> failwith "expr member unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
@@ -730,6 +733,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VEnumField _
   | VExternFun _
   | VExternObject _
+  | VRuntime _
   | VObjstate _ -> failwith "unreachable"
   | VAction (params, body) (* TODO: ? *)
   | VFun (params, body) ->
@@ -740,7 +744,6 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       | SReturn v -> (final_env, v)
       | SContinue -> (final_env, VNull)
       | SExit -> failwith "function did no return" end
-(* TODO: fail gracefully *)
 
 and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -759,7 +762,6 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     let state' = state |> EvalEnv.get_var_firstlevel |> List.rev in
     (env', VObjstate((info, decl), state'))
   | _ -> failwith "instantiation unimplemented"
-(* TODO: instantiation for other types? *)
 
 and eval_mask_expr env e m =
   let (env', v1)  = eval_expression env  e in
@@ -869,33 +871,89 @@ and eval_and_or op l r =
 (* Target and Architecture Dependent Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
-and eval_packet (env : EvalEnv.t) (pack : packet) : packet =
+and eval_main (env : EvalEnv.t) (pack : packet) : packet =
   let open Declaration in
-  match EvalEnv.find_value "main" env with
-  | VObjstate ((_, PackageType pkg), vs) ->
-    let vs' = List.map vs ~f:snd in
-    eval_package env (PackageType pkg) vs' pack
-  | _ -> failwith "main not a package"
+  let (_, obj, vs) =
+    match EvalEnv.find_value "main" env with
+    | VObjstate ((info, obj), vs) -> (info, obj, vs)
+    | _ -> failwith "main not a stateful object" in
+  let name =
+    match obj with
+    | PackageType {name=(_,n);_} -> n
+    | _ -> failwith "main is no a package" in
+  match name with
+  | "V1Switch" -> eval_v1switch env vs pack
+  | _ -> failwith "architecture not supported"
 
-and eval_package (env : EvalEnv.t) (pkg : Declaration.pre_t)
-    (vs : value list) (pack : packet) : packet =
-  (* let open Declaration in *)
-  match vs with
-  | [] -> pack
-  | VObjstate ((_, Declaration.Parser prsr), pvs) :: t ->
-    pack
-    |> eval_parser env (Declaration.Parser prsr) pvs
-    |> eval_package env pkg t
-  | VObjstate ((_, Declaration.Control ctrl), cvs) :: t ->
-    pack
-    |> eval_control env (Declaration.Control ctrl) cvs
-    |> eval_package env pkg t
-  | _ -> failwith "program does not match arcitecture"
+and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
+    (pack : packet) : packet =
+  let parser =
+    List.Assoc.find_exn vs "p"   ~equal:(=) in
+  let verify =
+    List.Assoc.find_exn vs "vr"  ~equal:(=) in
+  let ingress =
+    List.Assoc.find_exn vs "ig"  ~equal:(=) in
+  let egress =
+    List.Assoc.find_exn vs "eg"  ~equal:(=) in
+  let compute =
+    List.Assoc.find_exn vs "ck"  ~equal:(=) in
+  let deparser =
+    List.Assoc.find_exn vs "dep" ~equal:(=) in
+  let (_, obj, pvs) =
+    match parser with
+    | VObjstate ((info, obj), pvs) -> (info, obj, pvs)
+    | _ -> failwith "parser is not a stateful object" in
+  let params =
+    match obj with
+    | Parser {params=ps;_} -> ps
+    | _ -> failwith "parser is not a parser object" in
+  let pckt = VRuntime "packet" in
+  let hdr =
+    init_val_of_type env "hdr"      (snd (List.nth_exn params 1)).typ in
+  let meta =
+    init_val_of_type env "meta"     (snd (List.nth_exn params 2)).typ in
+  let std_meta =
+    init_val_of_type env "std_meta" (snd (List.nth_exn params 3)).typ in
+  let env = EvalEnv.insert_value env "packet"   pckt in
+  let env = EvalEnv.insert_value env "hdr"      hdr in
+  let env = EvalEnv.insert_value env "meta"     meta in
+  let env = EvalEnv.insert_value env "std_meta" std_meta in
+  let pckt_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
+  let hdr_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
+  let meta_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
+  let std_meta_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
+  (env, pack)
+  |> eval_v1parser   parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
+  |> eval_v1verify   verify   [hdr_expr; meta_expr]
+  |> eval_v1ingress  ingress  [hdr_expr; meta_expr; std_meta_expr]
+  |> eval_v1egress   egress   [hdr_expr; meta_expr; std_meta_expr]
+  |> eval_v1compute  compute  [hdr_expr; meta_expr]
+  |> eval_v1deparser deparser [pckt_expr; hdr_expr]
 
-and eval_parser (env : EvalEnv.t) (prsr : Declaration.pre_t)
-    (vs : (string * value) list) (pack : packet) : packet =
-  failwith "parsing unimplemented"
+and eval_v1parser (parser : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
+  failwith "v1 parsing unimplemented"
 
-and eval_control (env : EvalEnv.t) (prsr : Declaration.pre_t)
-    (vs : (string * value) list) (pack : packet) : packet =
-  failwith "control logic unimplemented"
+and eval_v1verify (control : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
+  failwith "v1 checksum verification unimplemented"
+
+and eval_v1ingress (control : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
+  failwith "v1 ingress unimplemented"
+
+and eval_v1egress (control : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
+  failwith "v1 ingress unimplemented"
+
+and eval_v1compute (control : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
+  failwith "v1 checksum computation unimplemented"
+
+and eval_v1deparser (control : value) (args : Argument.t list)
+    ((env : EvalEnv.t), (pack : packet)) : packet =
+  failwith "v1 deparsing unimplemented"

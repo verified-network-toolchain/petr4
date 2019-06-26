@@ -158,7 +158,8 @@ module EvalEnv = struct
         | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"
-        | VObjstate _ -> "<stateful object>" in
+        | VRuntime s -> s
+        | VObjstate (_,vs) -> "<stateful object>" in
       print_endline vstring in
     match e.var with
     | [] -> ()

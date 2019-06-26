@@ -18,6 +18,7 @@ type value =
   | VEnumField of string * string
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
+  | VRuntime of string
   | VObjstate of Declaration.t * (string * value) list
   (* stateful objects *)
 

@@ -867,6 +867,38 @@ and eval_and_or op l r =
   | VBool(bl), VBool(br) -> VBool(op bl br)
   | _ -> failwith "and / or operation only works on Bools"
 
+(*----------------------------------------------------------------------------*)
+(* Parser Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_parser (env : EvalEnv.t) (locals : Declaration.t list)
+    (states : Parser.state list) (pack : packet) : EvalEnv.t * packet =
+  let env' = List.fold_left locals ~init:env ~f:eval_decl in
+  let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
+  let start = List.Assoc.find_exn states' "start" ~equal:(=) in
+  eval_state_machine env' states' start pack
+
+and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
+    (state : Parser.state) (pack : packet) : EvalEnv.t * packet =
+  let (stms, transition) =
+    match snd state with
+    | {statements=stms; transition=t;_} -> (stms, t) in
+  let stms' = (Info.dummy, Statement.BlockStatement
+                 {block = (Info.dummy, {annotations = []; statements = stms})}) in
+  let (env', _) = eval_statement env SContinue stms' in
+  eval_transition env' states transition pack
+
+and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
+    (transition : Parser.transition) (pack : packet) : EvalEnv.t * packet =
+  match snd transition with
+  | Direct {next = (_, "accept")} -> (env, pack)
+  | Direct {next = (_, "reject")} -> (env, pack)
+  | Direct {next = (_, next)} ->
+    let state = List.Assoc.find_exn states next ~equal:(=) in
+    eval_state_machine env states state pack
+  | Select _ -> failwith "select statement unimplemented"
+
+
 (* -------------------------------------------------------------------------- *)
 (* Target and Architecture Dependent Evaluation *)
 (* -------------------------------------------------------------------------- *)
@@ -926,6 +958,8 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
+  print_endline "Before Pipeline";
+  EvalEnv.print_env env;
   (env, pack)
   |> eval_v1parser   parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
   |> eval_v1verify   verify   [hdr_expr; meta_expr]
@@ -936,11 +970,24 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
 
 and eval_v1parser (parser : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
-  failwith "v1 parsing unimplemented"
+  let (_, decl, vs) =
+    match parser with
+    | VObjstate((info, decl), vs) -> (info, decl, vs)
+    | _ -> failwith "v1 parser is not a stateful object" in
+  let (params, locals, states) =
+    match decl with
+    | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
+    | _ -> failwith "v1 parser is not a parser" in
+  let (env', penv) = eval_inargs env params args in
+  let f a (x,y) = EvalEnv.insert_value a x y in
+  let penv' = List.fold_left vs ~init:penv ~f:f in
+  let (penv'', pack') = eval_parser penv' locals states pack in
+  let final_env = eval_outargs env' penv'' params args in
+  (final_env, pack')
 
 and eval_v1verify (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
-  failwith "v1 checksum verification unimplemented"
+  (env, pack) (* TODO*)
 
 and eval_v1ingress (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
@@ -948,12 +995,12 @@ and eval_v1ingress (control : value) (args : Argument.t list)
 
 and eval_v1egress (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
-  failwith "v1 ingress unimplemented"
+  (env, pack) (* TODO *)
 
 and eval_v1compute (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
-  failwith "v1 checksum computation unimplemented"
+  (env, pack) (* TODO *)
 
 and eval_v1deparser (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : packet =
-  failwith "v1 deparsing unimplemented"
+  pack (* TODO *)

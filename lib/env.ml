@@ -134,7 +134,7 @@ module EvalEnv = struct
   let print_env (e:t) : unit =
     let open Core in
     print_endline "First environment value mappings:";
-    let f (name, value) =
+    let rec f (name, value) =
       print_string "     ";
       print_string name;
       print_string " -> ";
@@ -153,8 +153,12 @@ module EvalEnv = struct
         | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VAction _ -> "<action>"
-        | VStruct _ -> "<struct>"
-        | VHeader (_,_,b) -> "<header> with " ^ (string_of_bool b)
+        | VStruct (_, l) ->
+          print_endline "<struct>";
+          List.iter l ~f:(fun a -> print_string "    "; f a); ""
+        | VHeader (_,l,b) ->
+          print_endline ("<header> with " ^ (string_of_bool b));
+          List.iter l ~f:(fun a -> print_string "    "; f a); ""
         | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"

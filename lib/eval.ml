@@ -274,33 +274,44 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decls env name decl
 
 and init_val_of_type (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
-match snd typ with
-| Bool -> VBool false
-| Error -> VError "NoError"
-| IntType expr ->
-  begin match snd (eval_expression env expr) with
-    | VInteger n -> VInt(Bigint.to_int_exn n, Bigint.zero)
-    | _ -> failwith "init unimplemented" end
-| BitType expr ->
-  begin match snd (eval_expression env expr) with
-    | VInteger n -> VBit(Bigint.to_int_exn n, Bigint.zero)
-    | _ -> failwith "init unimplemented" end
-| VarBit expr -> failwith "init unimplemented"
-| TopLevelType (_,n) ->
-  begin match snd (EvalEnv.find_decl_toplevel n env) with
-    | Struct _ -> VStruct (name, [])
-    | Header _ -> VHeader(name, [], false)
-    | _ -> failwith "no init value for decl" end
-| TypeName (_,n) ->
-  begin match snd (EvalEnv.find_decl n env) with
-    | Struct _ -> VStruct (name, [])
-    | Header _ -> VHeader(name, [], false)
-    | _ -> failwith "no init value for decl" end
-| SpecializedType _
-| HeaderStack _
-| Tuple _
-| Void
-| DontCare -> failwith "init unimplemented"
+  let f (a:Declaration.field) =
+    let n = snd (snd a).name in
+    (n, init_val_of_type env n (snd a).typ) in
+  match snd typ with
+  | Bool -> VBool false
+  | Error -> VError "NoError"
+  | IntType expr ->
+    begin match snd (eval_expression env expr) with
+      | VInteger n -> VInt(Bigint.to_int_exn n, Bigint.zero)
+      | _ -> failwith "init unimplemented" end
+  | BitType expr ->
+    begin match snd (eval_expression env expr) with
+      | VInteger n -> VBit(Bigint.to_int_exn n, Bigint.zero)
+      | _ -> failwith "init unimplemented" end
+  | VarBit expr -> failwith "init unimplemented"
+  | TopLevelType (_,n) ->
+    begin match snd (EvalEnv.find_decl_toplevel n env) with
+      | Struct {fields=fs;_} ->
+        let finits = List.map fs ~f:f in
+        VStruct (name, finits)
+      | Header {fields=fs;_} ->
+        let finits = List.map fs ~f:f in
+        VHeader(name, finits, false)
+      | _ -> failwith "no init value for decl" end
+  | TypeName (_,n) ->
+    begin match snd (EvalEnv.find_decl n env) with
+      | Struct {fields=fs;_} ->
+        let finits = List.map fs ~f:f in
+        VStruct (name, finits)
+      | Header {fields=fs;_} ->
+        let finits = List.map fs ~f:f in
+        VHeader(name, finits, false)
+      | _ -> failwith "no init value for decl" end
+  | SpecializedType _
+  | HeaderStack _
+  | Tuple _
+  | Void
+  | DontCare -> failwith "init unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Statement Evaluation *)
@@ -886,6 +897,7 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
   let stms' = (Info.dummy, Statement.BlockStatement
                  {block = (Info.dummy, {annotations = []; statements = stms})}) in
   let (env', _) = eval_statement env SContinue stms' in
+  (* TODO: figure out how to thread the packet through statement evaluation *)
   eval_transition env' states transition pack
 
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
@@ -898,6 +910,19 @@ and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
     eval_state_machine env states state pack
   | Select _ -> failwith "select statement unimplemented"
 
+(* -------------------------------------------------------------------------- *)
+(* Control Evaluation *)
+(* -------------------------------------------------------------------------- *)
+
+and eval_control (env : EvalEnv.t) (locals : Declaration.t list)
+    (apply : Block.t) : EvalEnv.t =
+  let env' = List.fold_left locals ~init:env ~f:eval_decl in
+  let block = (Info.dummy, Statement.BlockStatement {block = apply}) in
+  let (env'', sign) = eval_statement env' SContinue block in
+  match sign with
+  | SContinue
+  | SExit -> env''
+  | SReturn _ -> failwith "control should not return"
 
 (* -------------------------------------------------------------------------- *)
 (* Target and Architecture Dependent Evaluation *)
@@ -958,8 +983,8 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
-  print_endline "Before Pipeline";
-  EvalEnv.print_env env;
+  (* print_endline "Before Pipeline";
+  EvalEnv.print_env env; *)
   (env, pack)
   |> eval_v1parser   parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
   |> eval_v1verify   verify   [hdr_expr; meta_expr]
@@ -983,6 +1008,8 @@ and eval_v1parser (parser : value) (args : Argument.t list)
   let penv' = List.fold_left vs ~init:penv ~f:f in
   let (penv'', pack') = eval_parser penv' locals states pack in
   let final_env = eval_outargs env' penv'' params args in
+  (* print_endline "After Parser";
+  EvalEnv.print_env final_env; *)
   (final_env, pack')
 
 and eval_v1verify (control : value) (args : Argument.t list)
@@ -991,7 +1018,22 @@ and eval_v1verify (control : value) (args : Argument.t list)
 
 and eval_v1ingress (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =
-  failwith "v1 ingress unimplemented"
+  let (_, decl, vs) =
+    match control with
+    | VObjstate((info, decl), vs) -> (info,  decl, vs)
+    | _ -> failwith "v1 ingress is not a stateful object" in
+  let (params, locals, apply) =
+    match decl with
+    | Control{params=ps; locals=ls; apply=b; _} -> (ps, ls, b)
+    | _ -> failwith "v1 ingress is not a control" in
+  let (env', cenv) = eval_inargs env params args in
+  let f a (x,y) = EvalEnv.insert_value a x y in
+  let cenv' = List.fold_left vs ~init:cenv ~f:f in
+  let cenv'' = eval_control cenv' locals apply in
+  let final_env = eval_outargs env' cenv'' params args in
+  print_endline "After Ingress";
+  EvalEnv.print_env final_env;
+  (final_env, pack)
 
 and eval_v1egress (control : value) (args : Argument.t list)
     ((env : EvalEnv.t), (pack : packet)) : EvalEnv.t * packet =

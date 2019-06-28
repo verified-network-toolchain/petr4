@@ -12,13 +12,15 @@ type value =
   | VError of string
   | VMatchKind
   | VFun of Parameter.t list * Block.t
+  | VBuiltinFun of string * value list
   | VAction of Parameter.t list * Block.t
   | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool
+  | VUnion of string * (string * value) list
   | VEnumField of string * string
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
-  | VRuntime of string
+  | VRuntime of vruntime
   | VObjstate of Declaration.t * (string * value) list
   (* stateful objects *)
 
@@ -29,7 +31,12 @@ and set =
   | SRange of value * value
   | SProd
 
-type signal =
+and vruntime =
+  | Packet of packet
+
+and signal =
   | SContinue
   | SReturn of value
   | SExit
+
+and packet = Bigint.t

@@ -1,5 +1,6 @@
 open Types
 open Value
+open Core
 
 exception BadEnvironment of string
 exception UnboundName of string
@@ -29,7 +30,7 @@ let rec find_opt (name: string) : 'a env -> 'a option = function
   | [] -> None
   | h :: t ->
     let select (name', _) = name = name' in
-    match List.find_opt select h with
+    match List.find ~f:select h with
     | None              -> find_opt name t
     | Some (_, binding) -> Some binding
 
@@ -50,9 +51,9 @@ let empty_env : 'a env = [[]]
 module EvalEnv = struct
   type t = {
     (* the program (top level declarations) so far *)
-    decl: Declaration.t env;
+    decl : Declaration.t env;
     (* maps variables to their values *)
-    var: value env;
+    vs : value env;
     (* map variables to their types; only needed in a few cases *)
     typ : Types.Type.t env;
     (* the error namespace *)
@@ -61,7 +62,7 @@ module EvalEnv = struct
 
   let empty_eval_env = {
     decl = [[]];
-    var = [[]];
+    vs = [[]];
     typ = [[]];
     err = [];
   }
@@ -72,61 +73,69 @@ module EvalEnv = struct
       | [] -> raise (BadEnvironment "no toplevel")
       | h :: _ -> [h] in
     {decl = get_last env.decl;
-     var = get_last env.var;
+     vs = get_last env.vs;
      typ = get_last env.typ;
      err = env.err;}
 
-  let get_decl_toplevel (env : t) : (string * Declaration.t) list =
-    match List.rev env.decl with
-    | [] -> no_scopes ()
-    | h :: _ -> h
+  let get_val_firstlevel env =
+    List.hd_exn (env.vs)
 
-  let get_var_firstlevel env =
-    List.hd (env.var)
+  let insert_val name binding e =
+    {e with vs = insert name binding e.vs}
 
-  let insert_value (e : t) name binding : t =
-    {e with var = insert name binding e.var}
-
-  let insert_decls (e : t) name binding : t =
+  let insert_decl name binding e =
     {e with decl = insert name binding e.decl}
 
-  let insert_typ e name binding =
+  let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
 
-  let insert_err e name =
+  let insert_err name e =
     {e with err = name :: e.err}
 
-  let find_value name e : value =
-    find name e.var
+  let insert_vals bindings e =
+    List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-  let find_decl name e : Declaration.t =
+  let insert_decls bindings e =
+    List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_decl b c a)
+
+  let insert_typs bindings e =
+    List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
+
+  let insert_errs ss e =
+    {e with err = e.err @ ss}
+
+  let find_val name e =
+    find name e.vs
+
+  let find_decl name e =
     find name e.decl
 
-  let find_typ name e = find name e.typ
+  let find_typ name e =
+    find name e.typ
 
   let find_err name e =
-    if List.mem name e.err then
-      VError name
-    else
-      raise (UnboundName name)
+    if List.exists ~f:(fun a -> a = name) e.err
+    then VError name
+    else raise (UnboundName name)
 
-  let find_value_toplevel name e : value =
-    find_toplevel name e.var
+  let find_val_toplevel name e =
+    find_toplevel name e.vs
 
-  let find_decl_toplevel name e : Declaration.t =
+  let find_decl_toplevel name e =
     find_toplevel name e.decl
 
-  let find_typ_toplevel name e = find_toplevel name e.typ
+  let find_typ_toplevel name e =
+    find_toplevel name e.typ
 
   let push_scope (e : t) : t =
     {decl = push e.decl;
-     var = push e.var;
+     vs = push e.vs;
      typ = push e.typ;
      err = e.err;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
-     var = pop e.var;
+     vs = pop e.vs;
      typ = pop e.typ;
      err = e.err;}
 
@@ -152,6 +161,7 @@ module EvalEnv = struct
         | VError _ -> "<error"
         | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
+        | VBuiltinFun _ -> "<function>"
         | VAction _ -> "<action>"
         | VStruct (_, l) ->
           print_endline "<struct>";
@@ -159,13 +169,16 @@ module EvalEnv = struct
         | VHeader (_,l,b) ->
           print_endline ("<header> with " ^ (string_of_bool b));
           List.iter l ~f:(fun a -> print_string "    "; f a); ""
+        | VUnion (_,l) ->
+          print_endline "<union>";
+          List.iter l ~f:(fun a -> print_string "    "; f a); ""
         | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"
-        | VRuntime s -> s
+        | VRuntime _ -> "packet"
         | VObjstate (_,vs) -> "<stateful object>" in
       print_endline vstring in
-    match e.var with
+    match e.vs with
     | [] -> ()
     | h :: _ -> h |> List.rev |> List.iter ~f:f
 
@@ -193,7 +206,7 @@ module CheckerEnv = struct
     let ok decl =
       name = snd (Types.Declaration.name decl)
     in
-    match List.find_opt ok env.decl with
+    match List.find ~f:ok env.decl with
     | Some v -> v
     | None -> raise (UnboundName name)
 
@@ -244,7 +257,7 @@ module CheckerEnv = struct
 
   let eval_env_of_checker_env (cenv: t) : EvalEnv.t =
     { decl = [[]];
-      var = cenv.const;
+      vs = cenv.const;
       typ = [[]];
       err = [];}
 end

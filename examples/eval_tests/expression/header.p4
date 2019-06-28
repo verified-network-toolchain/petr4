@@ -17,7 +17,7 @@ my_header g(in my_header hdr) {
 }
 
 const my_header head = { 1, 0 };
-const bool a = head.isValid(); //false
+const bool a = head.isValid(); //true; initializing with a list expression makes it valid
 const bit<2> b = head.first; // 1
 const bit<2> c = head.second; // 0
 

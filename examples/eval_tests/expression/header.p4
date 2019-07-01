@@ -12,8 +12,8 @@ my_header f(in bit<2> a, in bit<2> b) {
 }
 
 my_header g(in my_header hdr) {
-    hdr.setValid(); //should this modify top level scope?
-    return hdr;     //copy-in-coy-out means no, right?
+    hdr.setInvalid();
+    return hdr;
 }
 
 const my_header head = { 1, 0 };
@@ -22,7 +22,7 @@ const bit<2> b = head.first; // 1
 const bit<2> c = head.second; // 0
 
 const my_header head2 = g(head);
-const bool d = head2.isValid(); //true
+const bool d = head2.isValid(); //false
 const bit<2> e = head2.first; //1
 const bit<2> h = head2.second;//0
 

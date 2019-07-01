@@ -12,7 +12,7 @@ type value =
   | VError of string
   | VMatchKind
   | VFun of Parameter.t list * Block.t
-  | VBuiltinFun of string * value list
+  | VBuiltinFun of string * lvalue
   | VAction of Parameter.t list * Block.t
   | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool
@@ -22,7 +22,13 @@ type value =
   | VExternObject of string * (MethodPrototype.t list)
   | VRuntime of vruntime
   | VObjstate of Declaration.t * (string * value) list
-  (* stateful objects *)
+
+and lvalue =
+  | LName of string
+  | LTopName of string
+  | LMember of lvalue * string
+  | LBitAccess of lvalue * Expression.t * Expression.t
+  | LArrayAccess of lvalue * Expression.t
 
 and set =
   | SSingleton of Bigint.t

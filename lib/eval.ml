@@ -706,12 +706,12 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (env', VObjstate((info, decl), state'))
   | _ -> failwith "instantiation unimplemented"
 
-and eval_mask_expr env e m =
+and eval_mask env e m =
   let (env', v1)  = eval_expression env  e in
   let (env'', v2) = eval_expression env' m in
   (env'', VSet(SMask(v1,v2)))
 
-and eval_range_expr env lo hi =
+and eval_range env lo hi =
   let (env', v1)  = eval_expression env  lo in
   let (env'', v2) = eval_expression env' hi in
   (env'', VSet(SRange(v1,v2)))
@@ -919,12 +919,17 @@ and eval_pushfront (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
 (* Parser Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_parser (env : EvalEnv.t) (locals : Declaration.t list)
-    (states : Parser.state list) : EvalEnv.t =
-  let env' = List.fold_left locals ~init:env ~f:eval_decl in
+and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
+    (args : Argument.t list) (vs : (string * value) list)
+    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t =
+  let (env', penv) = eval_inargs env params args in
+  let f a (x,y) = EvalEnv.insert_val x y a in
+  let penv' = List.fold_left vs ~init:penv ~f:f in
+  let penv'' = List.fold_left locals ~init:penv' ~f:eval_decl in
   let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
   let start = List.Assoc.find_exn states' "start" ~equal:(=) in
-  eval_state_machine env' states' start
+  let penv''' = eval_state_machine penv'' states' start in
+  eval_outargs env' penv''' params args
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
     (state : Parser.state) : EvalEnv.t =
@@ -950,14 +955,18 @@ and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
 (* Control Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
-and eval_control (env : EvalEnv.t) (locals : Declaration.t list)
-    (apply : Block.t) : EvalEnv.t =
-  let env' = List.fold_left locals ~init:env ~f:eval_decl in
+and eval_control (env : EvalEnv.t) (params : Parameter.t list)
+    (args : Argument.t list) (vs : (string * value) list)
+    (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t =
+  let (env', cenv) = eval_inargs env params args in
+  let f a (x,y) = EvalEnv.insert_val x y a in
+  let cenv' = List.fold_left vs ~init:cenv ~f:f in
+  let cenv'' = List.fold_left locals ~init:cenv' ~f:eval_decl in
   let block = (Info.dummy, Statement.BlockStatement {block = apply}) in
-  let (env'', sign) = eval_statement env' SContinue block in
+  let (cenv''', sign) = eval_statement cenv'' SContinue block in
   match sign with
   | SContinue
-  | SExit -> env''
+  | SExit     -> eval_outargs env' cenv''' params args
   | SReturn _ -> failwith "control should not return"
 
 (*----------------------------------------------------------------------------*)
@@ -1085,12 +1094,12 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
   let env = env
-    |> eval_v1parser   parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1verify   verify   [hdr_expr; meta_expr]
-    |> eval_v1ingress  ingress  [hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1egress   egress   [hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1compute  compute  [hdr_expr; meta_expr]
-    |> eval_v1deparser deparser [pckt_expr; hdr_expr] in
+    |> eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
+    |> eval_v1control verify   [hdr_expr; meta_expr]
+    |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr]
+    |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr]
+    |> eval_v1control compute  [hdr_expr; meta_expr]
+    |> eval_v1control deparser [pckt_expr; hdr_expr] in
   match EvalEnv.find_val "packet" env with
   | VRuntime (Packet p) -> p
   | _ -> failwith "pack not a packet"
@@ -1105,47 +1114,19 @@ and eval_v1parser (parser : value) (args : Argument.t list)
     match decl with
     | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
     | _ -> failwith "v1 parser is not a parser" in
-  let (env', penv) = eval_inargs env params args in
-  let f a (x,y) = EvalEnv.insert_val x y a in
-  let penv' = List.fold_left vs ~init:penv ~f:f in
-  let penv'' = eval_parser penv' locals states in
-  let final_env = eval_outargs env' penv'' params args in
-  final_env
+  eval_parser env params args vs locals states
 
-and eval_v1verify (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
-  env (* TODO*)
-
-and eval_v1ingress (control : value) (args : Argument.t list)
+and eval_v1control (control : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t =
   let (_, decl, vs) =
     match control with
     | VObjstate((info, decl), vs) -> (info,  decl, vs)
-    | _ -> failwith "v1 ingress is not a stateful object" in
+    | _ -> failwith "v1 control is not a stateful object" in
   let (params, locals, apply) =
     match decl with
     | Control{params=ps; locals=ls; apply=b; _} -> (ps, ls, b)
-    | _ -> failwith "v1 ingress is not a control" in
-  let (env', cenv) = eval_inargs env params args in
-  let f a (x,y) = EvalEnv.insert_val x y a in
-  let cenv' = List.fold_left vs ~init:cenv ~f:f in
-  let cenv'' = eval_control cenv' locals apply in
-  let final_env = eval_outargs env' cenv'' params args in
-  print_endline "After Ingress";
-  EvalEnv.print_env final_env;
-  final_env
-
-and eval_v1egress (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
-  env (* TODO *)
-
-and eval_v1compute (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
-  env (* TODO *)
-
-and eval_v1deparser (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
-  env (* TODO *)
+    | _ -> failwith "v1 control is not a control" in
+  eval_control env params args vs locals apply
 
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)

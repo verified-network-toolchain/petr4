@@ -16,7 +16,8 @@ type value =
   | VAction of Parameter.t list * Block.t
   | VStruct of string * (string * value) list
   | VHeader of string * (string * value) list * bool
-  | VUnion of string * (string * value) list * (string * bool) list
+  | VUnion of string * value * (string * bool) list
+  | VStack of string * value list * int * int
   | VEnumField of string * string
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)

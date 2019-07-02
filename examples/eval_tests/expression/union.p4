@@ -35,6 +35,12 @@ Union set2(in Union x) {
     return x;
 }
 
+Union set3(in Union x) {
+    x.h1.setInvalid();
+    x.h2.setInvalid();
+    return x;
+}
+
 const Union a = f1(42);
 const Union b = f2(42);
 const bit<8> c = a.h1.u; //42
@@ -51,6 +57,12 @@ const bool m = i.h2.isValid(); //true
 const bit<16> n = j.h1.u; //42
 const bool o = j.h1.isValid(); //true
 const bool p = j.h2.isValid(); //false
+const Union q = set3(i);
+const Union r = set3(j);
+const bool s = q.h1.isValid(); //false
+const bool t = q.h2.isValid(); //false
+const bool u = r.h1.isValid(); //false
+const bool v = r.h2.isValid(); //false
 
 package EmptyPackage();
 EmptyPackage() main;

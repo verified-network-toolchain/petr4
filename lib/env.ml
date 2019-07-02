@@ -171,10 +171,12 @@ module EvalEnv = struct
           List.iter l ~f:(fun a -> print_string "    "; f a); ""
         | VUnion (_,l,v) ->
           print_endline "<union>";
-          List.iter l
-            ~f:(fun (a, b) -> print_string "     ";
-                 print_string (string_of_bool (List.Assoc.find_exn v a ~equal:(=)));
-                 f (a,b)); ""
+          f ("valid header", l);
+          List.iter v ~f:(fun (a, b) -> print_string "     ";
+                           print_string a;
+                           print_string " -> ";
+                           print_string (string_of_bool b)); ""
+        | VStack _ -> "<stack>"
         | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"

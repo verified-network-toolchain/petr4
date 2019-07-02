@@ -54,13 +54,13 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       name = (_,n);
       type_params = _;
       params = ps;
-    } -> eval_extern_fun_decl env n ps
+    } -> eval_extern_fun env n ps
   | Variable {
       annotations = _;
       typ = t;
       name = (_,n);
       init = v;
-    } -> eval_decl_var env t n v
+    } -> eval_var_decl env t n v
   | ValueSet {
       annotations = _;
       typ = _;
@@ -168,11 +168,11 @@ and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) : EvalEnv.t =
   EvalEnv.insert_val name (VFun(params,body)) env
 
-and eval_extern_fun_decl (env : EvalEnv.t) (name : string)
+and eval_extern_fun (env : EvalEnv.t) (name : string)
     (params : Parameter.t list) : EvalEnv.t =
   EvalEnv.insert_val name (VExternFun params) env
 
-and eval_decl_var (env : EvalEnv.t) (typ : Type.t) (name : string)
+and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t =
   let env' = EvalEnv.insert_typ name typ env in
   match init with
@@ -211,7 +211,6 @@ and eval_matchkind_decl (env : EvalEnv.t) (mems : P4String.t list) : EvalEnv.t =
   |> List.map ~f:(fun a -> (a, VMatchKind))
   |> (fun a -> EvalEnv.insert_vals a env)
 
-
 and eval_enum_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decl name decl env
@@ -240,18 +239,18 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
 
 and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   match snd typ with
-  | Bool               -> VBool false
-  | Error              -> VError "NoError"
-  | IntType expr       -> init_val_of_int env expr
-  | BitType expr       -> init_val_of_bit env expr
-  | VarBit expr        -> failwith "varbit init unimplemented"
-  | TopLevelType (_,n) -> init_val_of_typname env n name true
-  | TypeName (_,n)     -> init_val_of_typname env n name false
-  | SpecializedType _  -> failwith "specialized init unimplemented"
-  | HeaderStack _      -> failwith "header stack init unimplemented"
-  | Tuple _            -> failwith "tuple init unimplemented"
-  | Void               -> VNull
-  | DontCare           -> failwith "no init value for dont care types"
+  | Bool                      -> VBool false
+  | Error                     -> VError "NoError"
+  | IntType expr              -> init_val_of_int env expr
+  | BitType expr              -> init_val_of_bit env expr
+  | VarBit expr               -> failwith "varbit init unimplemented"
+  | TopLevelType (_,n)        -> init_val_of_typname env n name true
+  | TypeName (_,n)            -> init_val_of_typname env n name false
+  | SpecializedType _         -> failwith "specialized init unimplemented"
+  | HeaderStack{header; size} -> init_val_of_stack env name header size
+  | Tuple _                   -> failwith "tuple init unimplemented"
+  | Void                      -> VNull
+  | DontCare                  -> failwith "no init value for dont care types"
 
 and init_val_of_int (env : EvalEnv.t) (expr : Expression.t) : value =
   match snd (eval_expression env expr) with
@@ -271,6 +270,13 @@ and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b :
   | HeaderUnion {fields=fs;_} -> init_val_of_union env vname fs
   | _ -> failwith "decl init value unimplemented"
 
+and init_val_of_stack (env: EvalEnv.t) (name : string)
+    (hdr : Type.t) (size : Expression.t) : value =
+  let size' = size |> eval_expression env |> snd |> int_of_val in
+  let hdrs = size' |> List.init ~f:string_of_int
+             |> List.map ~f:(fun s -> init_val_of_typ env s hdr) in
+  VStack(name, hdrs, size', 0)
+
 and init_val_of_struct (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
   VStruct (name, List.map fs ~f:(init_binding_of_field env))
@@ -283,7 +289,8 @@ and init_val_of_union (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
   let fs' = List.map fs ~f:(init_binding_of_field env) in
   let bs = List.map fs' ~f:(fun (a,b) -> (a,false)) in
-  VUnion (name, fs', bs)
+  let v = fs' |> List.hd_exn |> snd in
+  VUnion (name, v, bs)
 
 (*----------------------------------------------------------------------------*)
 (* Statement Evaluation *)
@@ -294,13 +301,13 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   match snd stm with
   | MethodCall{func;type_args;args} -> eval_method_call env sign func args
   | Assignment{lhs;rhs}             -> eval_assign env sign lhs rhs
-  | DirectApplication{typ;args}     -> failwith "direct applications unimplemented"
-  | Conditional{cond;tru;fls}       -> eval_conditional env sign cond tru fls
+  | DirectApplication{typ;args}     -> eval_app ()
+  | Conditional{cond;tru;fls}       -> eval_cond env sign cond tru fls
   | BlockStatement{block}           -> eval_block env sign block
-  | Exit                            -> failwith "exits unimplemented"
+  | Exit                            -> eval_exit ()
   | EmptyStatement                  -> (env, sign)
   | Return{expr}                    -> eval_return env sign expr
-  | Switch{expr;cases}              -> failwith "switch stms unimplemented"
+  | Switch{expr;cases}              -> eval_switch ()
   | DeclarationStatement{decl}      -> eval_decl_stm env sign decl
 
 and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
@@ -319,107 +326,23 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
   | SReturn v -> (env, SReturn v)
   | SExit     -> failwith "exit unimplemented"
 
-and eval_assign' (env : EvalEnv.t) (lhs : lvalue) (rhs : value) : EvalEnv.t =
-  match lhs with
-  | LName n -> assign_name env n rhs
-  | LTopName n -> failwith "top assign unimplemented"
-  | LMember(lv, mname) -> assign_member env lv mname rhs
-  | LBitAccess _ -> failwith "bitstring access assignment unimplemented"
-  | LArrayAccess _ -> failwith "array access assignment unimplemented"
+and eval_app () = failwith "direct application unimplemented"
 
-and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
-  let t = EvalEnv.find_typ name env in
-  match rhs with
-  | VTuple l ->
-    let f = match snd (decl_of_typ env t) with
-      | Declaration.Struct _ -> struct_of_list env name
-      | Declaration.Header _ -> header_of_list env name
-      | _ -> (fun l -> VTuple l) in (* implicit cast from tuples *)
-    EvalEnv.insert_val name (f l) env
-  | _ -> EvalEnv.insert_val name rhs env
-
-and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
-    (rhs : value) : EvalEnv.t =
-  let v = value_of_lvalue env lv in
-  let rhs' = match v with
-    | VStruct(n,l)    -> assign_struct_mem env rhs mname n l
-    | VHeader(n,l,b)  -> assign_header_mem env rhs mname n l b
-    | VUnion(n,vs,bs) -> assign_union_mem env rhs mname n vs bs
-    | _ -> failwith "member assignment unimplemented" in
-  eval_assign' env lv rhs'
-
-and value_of_lvalue (env : EvalEnv.t) (lv : lvalue) : value =
-  match lv with
-  | LName n                -> EvalEnv.find_val n env
-  | LTopName n             -> EvalEnv.find_val_toplevel n env
-  | LMember(lv, n)         -> value_of_lmember env lv n
-  | LBitAccess(lv, hi, lo) -> value_of_lbit env lv hi lo
-  | LArrayAccess(lv, idx)  -> value_of_larray env lv idx
-
-and value_of_lmember (env : EvalEnv.t) (lv : lvalue) (n : string) : value =
-  match value_of_lvalue env lv with
-  | VStruct(_, vs)
-  | VHeader(_, vs, _)
-  | VUnion(_, vs, _) -> List.Assoc.find_exn vs n ~equal:(=)
-  | _ -> failwith "no lvalue member"
-
-and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
-    (lo : Expression.t) : value =
-  failwith "value of l unimplemented"
-
-and value_of_larray (env : EvalEnv.t) (lv : lvalue)
-    (idx : Expression.t) : value =
-  failwith "value of l unimplemented"
-
-and assign_struct_mem (env : EvalEnv.t) (rhs : value) (fname : string)
-    (sname : string) (l : (string * value) list) : value =
-  VStruct (sname, (fname, rhs) :: l)
-
-and assign_header_mem (env : EvalEnv.t) (rhs : value) (fname : string)
-    (hname : string) (l : (string * value) list) (b : bool) : value =
-  VHeader(hname, (fname, rhs) :: l, b)
-
-and assign_union_mem (env : EvalEnv.t) (rhs : value)
-    (fname : string) (uname : string) (l : (string * value) list)
-    (vbs : (string * bool) list) : value =
-  let t = typ_of_union_field env uname fname in
-  let dummy_env = EvalEnv.insert_typ fname t env in
-  let rhs' = match rhs with
-    | VTuple l -> header_of_list dummy_env fname l
-    | x -> x in
-  let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
-  VUnion(uname, (fname, rhs') :: l, vbs')
-
-and typ_of_union_field (env : EvalEnv.t) (uname : string)
-    (fname : string) : Type.t =
-  let t = EvalEnv.find_typ uname env in
-  let (_, d) = decl_of_typ env t in
-  let fs = match d with
-    | HeaderUnion u -> u.fields
-    | _ -> failwith "not a union" in
-  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
-  | h :: _ -> (snd h).typ
-  | _ -> failwith "field name not found"
-
-and eval_application () = failwith "direct application unimplemented"
-
-and eval_conditional (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
+and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
-  match sign with
-  | SContinue -> eval_conditional' env cond tru fls
-  | SReturn v -> (env, SReturn v)
-  | SExit     -> failwith "exit unimplmented"
-
-and eval_conditional' (env : EvalEnv.t) (cond : Expression.t) (tru : Statement.t)
-    (fls : Statement.t option) : EvalEnv.t * signal =
-  let (env', v) = eval_expression env cond in
-  match v with
+  let eval_cond' env cond tru fls =
+    let (env', v) = eval_expression env cond in
+    match v with
     | VBool true  -> eval_statement env' SContinue tru
     | VBool false ->
       begin match fls with
         | None -> (env, SContinue)
         | Some fls' -> eval_statement env' SContinue fls'  end
-    | _ -> failwith "conditional guard must be a bool"
+    | _ -> failwith "conditional guard must be a bool" in
+  match sign with
+  | SContinue -> eval_cond' env cond tru fls
+  | SReturn v -> (env, SReturn v)
+  | SExit     -> failwith "exit unimplmented"
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
   let block = snd block in
@@ -452,6 +375,76 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
   | SReturn v -> (env, SReturn v)
   | SExit     -> failwith "exit unimplemented"
 
+(*----------------------------------------------------------------------------*)
+(* Asssignment Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_assign' (env : EvalEnv.t) (lhs : lvalue) (rhs : value) : EvalEnv.t =
+  match lhs with
+  | LName n           -> assign_name env n rhs
+  | LTopName n        -> assign_toplevel env n rhs
+  | LMember(lv,mname) -> assign_member env lv mname rhs
+  | LBitAccess _      -> assign_bitaccess ()
+  | LArrayAccess _    -> assign_arrayaccess ()
+
+and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
+  let t = EvalEnv.find_typ name env in
+  match rhs with
+  | VTuple l ->
+    let f = match snd (decl_of_typ env t) with
+      | Declaration.Struct _ -> struct_of_list env name
+      | Declaration.Header _ -> header_of_list env name
+      | _ -> (fun l -> VTuple l) in
+    EvalEnv.insert_val name (f l) env
+  | _ -> EvalEnv.insert_val name rhs env
+
+and assign_toplevel (env : EvalEnv.t) (name : string)
+    (rhs : value) : EvalEnv.t =
+  failwith "toplevel assignment unimplemented"
+
+and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
+    (rhs : value) : EvalEnv.t =
+  let v = value_of_lvalue env lv in
+  let rhs' = match v with
+    | VStruct(n,l)       -> assign_struct_mem env rhs mname n l
+    | VHeader(n,l,b)     -> assign_header_mem env rhs mname n l b
+    | VUnion(n,vs,bs)    -> assign_union_mem env rhs mname n bs
+    | VStack(n,hdrs,s,i) -> assign_stack_mem env rhs mname n hdrs s i
+    | _ -> failwith "member assignment unimplemented" in
+  eval_assign' env lv rhs'
+
+and assign_bitaccess () =
+  failwith "bitstring access assignment unimplemented"
+
+and assign_arrayaccess () =
+  failwith "header stack member assignment unimplemented"
+
+and assign_struct_mem (env : EvalEnv.t) (rhs : value) (fname : string)
+    (sname : string) (l : (string * value) list) : value =
+  VStruct (sname, (fname, rhs) :: l)
+
+and assign_header_mem (env : EvalEnv.t) (rhs : value) (fname : string)
+    (hname : string) (l : (string * value) list) (b : bool) : value =
+  VHeader(hname, (fname, rhs) :: l, b)
+
+and assign_union_mem (env : EvalEnv.t) (rhs : value)
+    (fname : string) (uname : string) (vbs : (string * bool) list) : value =
+  let t = typ_of_union_field env uname fname in
+  let dummy_env = EvalEnv.insert_typ fname t env in
+  let rhs' = match rhs with
+    | VTuple l -> header_of_list dummy_env fname l
+    | x -> x in
+  let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
+  VUnion(uname, rhs', vbs')
+
+and assign_stack_mem (env : EvalEnv.t) (rhs : value) (mname : string)
+    (sname : string) (hdrs : value list) (size : int) (next : int) : value =
+  failwith "assign stack member unimplemented"
+
+(*----------------------------------------------------------------------------*)
+(* Functions on L-Values*)
+(*----------------------------------------------------------------------------*)
+
 and lvalue_of_expr (expr : Expression.t) =
   match snd expr with
   | Name(_,n) -> LName n
@@ -461,27 +454,28 @@ and lvalue_of_expr (expr : Expression.t) =
   | ArrayAccess{array;index} -> LArrayAccess(lvalue_of_expr array, index)
   | _ -> failwith "not an lvalue"
 
-and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
-  env
-  |> EvalEnv.find_typ name
-  |> decl_of_typ env
-  |> snd
-  |> (function Declaration.Struct s -> s.fields | _ -> failwith "not a struct")
-  |> List.map ~f:(fun x -> snd (snd x).name)
-  |> (fun fs i v -> (List.nth_exn fs i, v))
-  |> (fun f -> List.mapi l ~f:f)
-  |> (fun l -> VStruct (name, l))
+and value_of_lvalue (env : EvalEnv.t) (lv : lvalue) : value =
+  match lv with
+  | LName n                -> EvalEnv.find_val n env
+  | LTopName n             -> EvalEnv.find_val_toplevel n env
+  | LMember(lv, n)         -> value_of_lmember env lv n
+  | LBitAccess(lv, hi, lo) -> value_of_lbit env lv hi lo
+  | LArrayAccess(lv, idx)  -> value_of_larray env lv idx
 
-and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
-  env
-  |> EvalEnv.find_typ name
-  |> decl_of_typ env
-  |> snd
-  |> (function Declaration.Header s -> s.fields | _ -> failwith "not a struct")
-  |> List.map ~f:(fun x -> snd (snd x).name)
-  |> (fun fs i v -> (List.nth_exn fs i, v))
-  |> (fun f -> List.mapi l ~f:f)
-  |> (fun l -> VHeader (name, l, true))
+and value_of_lmember (env : EvalEnv.t) (lv : lvalue) (n : string) : value =
+  match value_of_lvalue env lv with
+  | VStruct(_,l)
+  | VHeader(_,l, _) -> List.Assoc.find_exn l n ~equal:(=)
+  | VUnion(_,v,_)   -> v
+  | _ -> failwith "no lvalue member"
+
+and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
+    (lo : Expression.t) : value =
+  failwith "value of l unimplemented"
+
+and value_of_larray (env : EvalEnv.t) (lv : lvalue)
+    (idx : Expression.t) : value =
+  failwith "value of stack element l value unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Expression Evaluation *)
@@ -496,7 +490,7 @@ and eval_expression (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
   | Name (_,name)                     -> (env, EvalEnv.find_val name env)
   | TopLevel (_,name)                 -> (env, EvalEnv.find_val_toplevel name env)
   | ArrayAccess({array=a; index=i})   -> eval_array env a i
-  | BitStringAccess({bits;lo;hi})     -> eval_bit_string_access env bits lo hi
+  | BitStringAccess({bits;lo;hi})     -> eval_bitstring_access env bits lo hi
   | List{values}                      -> eval_list env values
   | UnaryOp{op;arg}                   -> eval_unary env op arg
   | BinaryOp{op; args=(l,r)}          -> eval_binop env op l r
@@ -507,8 +501,8 @@ and eval_expression (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
   | Ternary{cond;tru;fls}             -> eval_ternary env cond tru fls
   | FunctionCall{func;type_args;args} -> eval_funcall env func args
   | NamelessInstantiation{typ;args}   -> eval_nameless env typ args
-  | Mask{expr;mask}                   -> eval_mask_expr env expr mask
-  | Range{lo;hi}                      -> eval_range_expr env lo hi
+  | Mask{expr;mask}                   -> eval_mask env expr mask
+  | Range{lo;hi}                      -> eval_range env lo hi
 
 and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
@@ -520,7 +514,7 @@ and eval_array (env : EvalEnv.t) (a : Expression.t)
     (i : Expression.t) : EvalEnv.t * value =
   failwith "header stacks unimplemented"
 
-and eval_bit_string_access (env : EvalEnv.t) (s : Expression.t)
+and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
     (m : Expression.t) (l : Expression.t) : EvalEnv.t * value =
   let (env', m) = eval_expression env m in
   let (env'', l) = eval_expression env' l in
@@ -648,31 +642,16 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VMatchKind
   | VFun _
   | VBuiltinFun _
-  | VAction _             -> failwith "expr member does not exist"
-  | VStruct (_, fs)       -> eval_struct_mem env' (snd name) fs
-  | VHeader (n, fs, vbit) -> eval_header_mem env' (snd name) expr fs vbit
-  | VUnion (_, fs, _)     -> eval_union_mem env' (snd name) fs
+  | VAction _           -> failwith "expr member does not exist"
+  | VStruct (_,fs)      -> eval_struct_mem env' (snd name) fs
+  | VHeader (_,fs,vbit) -> eval_header_mem env' (snd name) expr fs vbit
+  | VUnion (_,v,_)      -> (env', v)
+  | VStack (_,hdrs,s,n) -> eval_stack_mem env' (snd name) expr hdrs s n
   | VEnumField _
   | VExternFun _
   | VExternObject _
   | VRuntime _
-  | VObjstate _           -> failwith "expr member unimplemented"
-
-and eval_struct_mem (env : EvalEnv.t) (name : string)
-    (fs : (string * value) list) : EvalEnv.t * value =
-  (env, List.Assoc.find_exn fs name ~equal:(=))
-
-and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
-    (fs : (string * value) list) (valid : bool) : EvalEnv.t * value =
-  match fname with
-  | "isValid"    -> (env, VBuiltinFun(fname, lvalue_of_expr e))
-  | "setValid"   -> (env, VBuiltinFun(fname, lvalue_of_expr e))
-  | "setInvalid" -> (env, VBuiltinFun(fname, lvalue_of_expr e))
-  | _ -> (env, List.Assoc.find_exn fs fname ~equal:(=))
-
-and eval_union_mem (env : EvalEnv.t) (fname : string)
-    (fs : (string * value) list) : EvalEnv.t * value =
-  (env, List.Assoc.find_exn fs fname ~equal:(=))
+  | VObjstate _         -> failwith "expr member unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
     (fe : Expression.t) : EvalEnv.t * value =
@@ -686,6 +665,9 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
     (args : Argument.t list) : EvalEnv.t * value =
   let (env', cl) = eval_expression env func in
   match cl with
+  | VAction (params, body)
+  | VFun (params, body)    -> eval_funcall' env' params args body
+  | VBuiltinFun(n,vs)      -> eval_builtin env n vs
   | VNull
   | VBool _
   | VInteger _
@@ -699,69 +681,12 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VStruct _
   | VHeader _
   | VUnion _
+  | VStack _
   | VEnumField _
   | VExternFun _
   | VExternObject _
   | VRuntime _
   | VObjstate _            -> failwith "unreachable"
-  | VBuiltinFun(n,vs)      -> eval_builtin env n vs
-  | VAction (params, body)
-  | VFun (params, body)    -> eval_funcall' env' params args body
-
-and eval_builtin (env : EvalEnv.t) (name : string)
-    (lv : lvalue) : EvalEnv.t * value =
-  match name with
-  | "setValid"   -> eval_setvalid env lv
-  | "setInvalid" -> eval_setinvalid env lv
-  | "isValid"    -> eval_isvalid env lv
-  | _ -> failwith "builtin unimplemented"
-
-and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  match lv with
-  | LName n ->
-    begin match EvalEnv.find_val n env with
-      | VHeader (n', fs, b) ->
-        (EvalEnv.insert_val n' (VHeader(n', fs, true)) env, VNull)
-      | _ -> failwith "not a header" end
-  | LMember(LName n1, n2) ->
-    begin match EvalEnv.find_val n1 env with
-      | VUnion (_, fs, vs) ->
-        let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
-        (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
-      | _ -> failwith "not a union" end
-  | _ -> failwith "unimplemented header validity"
-
-and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  match lv with
-  | LName n ->
-    begin match EvalEnv.find_val n env with
-      | VHeader (n', fs, b) ->
-        (EvalEnv.insert_val n' (VHeader(n', fs, false)) env, VNull)
-      | _ -> failwith "not a header" end
-  | _ -> failwith "unimplemented header validity"
-
-and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-match lv with
-  | LName n ->
-    begin match EvalEnv.find_val n env with
-      | VHeader (_, _, b) -> (env, VBool b)
-      | _ -> failwith "not a header" end
-  | LMember(LName n1, n2) ->
-    begin match EvalEnv.find_val n1 env with
-      | VUnion (_, fs, vs) ->
-        (env, VBool(List.Assoc.find_exn vs n2 ~equal:(=)))
-      | _ -> failwith "not a union" end
-  | _ -> failwith "unimplemented header validity"
-
-and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
-    (args : Argument.t list) (body : Block.t) : EvalEnv.t * value =
-  let (env', fenv) = eval_inargs env params args in
-  let (fenv', sign) = eval_block fenv SContinue body in
-  let final_env = eval_outargs env' fenv' params args in
-  match sign with
-  | SReturn v -> (final_env, v)
-  | SContinue -> (final_env, VNull)
-  | SExit -> failwith "function did not return"
 
 and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -791,6 +716,94 @@ and eval_range_expr env lo hi =
   let (env'', v2) = eval_expression env' hi in
   (env'', VSet(SRange(v1,v2)))
 
+(*----------------------------------------------------------------------------*)
+(* Binary Operator Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_two op l r =
+  match l,r with
+  | VBit(w1, v1), VBit(_, v2) -> VBit(w1, op v1 v2)
+  | VInt(w1, v1), VInt(_, v2) -> VInt(w1, op v1 v2)
+  | _ -> failwith "binary logical operation only works on bitstrings"
+
+and eval_sat op l r =
+  let compute m n w =
+    let a = Bigint.abs (op m n) in
+    if  Bigint.(<) a m || Bigint.(<) a n then power_of_two w else a in
+  match l,r with
+  | VBit(w1,v1), VBit(w2, v2) -> VBit(w1, compute v1 v2 w1)
+  | VInt(w1,v1), VInt(w2, v2) -> VInt(w1, compute v1 v2 (w1-1))
+  | _ -> failwith "binary logical operation only works on bitstrings"
+
+and eval_shift op l r =
+  match l,r with
+  | VBit(w1, v1), VBit(_, v2)
+  | VBit(w1, v1), VInt(_, v2) ->
+    if v1 >= Bigint.zero
+    then VBit(w1, op v1 (Bigint.to_int_exn v2))
+    else failwith "can't shift with a negative amount"
+  | _ -> failwith "shift doesn't works on this type"
+
+and eval_compare op l r =
+  match l,r with
+  | VBit(_, v1), VBit(_, v2)
+  | VInt(_, v1), VInt(_, v2) -> VBool(op v1 v2)
+  | _ -> failwith " binary comparison only works on fixed length integer"
+
+and eval_eq (op : bool) (l : value) (r : value) : value =
+  match l,r with
+  | VBit(_, v1), VBit(_, v2)
+  | VInt(_, v1), VInt(_, v2)
+  | VInteger v1, VInteger v2 -> VBool (if op then v1 = v2 else v1 <> v2)
+  | VBool v1, VBool v2 -> VBool (if op then v1 = v2 else v1 <> v2)
+  | _ -> failwith "equality for varbit binary comparison only works on bitstrings"
+
+and eval_concat l r =
+  let concat m n wn =
+    Bigint.( + ) (Bigint.shift_left m wn) n in
+  match l,r with
+  | VBit(w1, v1), VBit(w2, v2) -> VBit(w1+w2, concat v1 v2 w2)
+  | VInt(w1, v1), VInt(w2, v2) -> VInt(w1+w2, concat v1 v2 w2)
+  | _ -> failwith " binary concatenation only works on fixed length integer"
+
+and eval_and_or op l r =
+  match l,r with
+  | VBool(bl), VBool(br) -> VBool(op bl br)
+  | _ -> failwith "and / or operation only works on Bools"
+
+(*----------------------------------------------------------------------------*)
+(* Membership Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_struct_mem (env : EvalEnv.t) (name : string)
+    (fs : (string * value) list) : EvalEnv.t * value =
+  (env, List.Assoc.find_exn fs name ~equal:(=))
+
+and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
+    (fs : (string * value) list) (valid : bool) : EvalEnv.t * value =
+  match fname with
+  | "isValid"    -> (env, VBuiltinFun(fname, lvalue_of_expr e))
+  | "setValid"   -> (env, VBuiltinFun(fname, lvalue_of_expr e))
+  | "setInvalid" -> (env, VBuiltinFun(fname, lvalue_of_expr e))
+  | _ -> (env, List.Assoc.find_exn fs fname ~equal:(=))
+
+and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
+    (hdrs : value list) (size : int) (next : int) : EvalEnv.t * value =
+  failwith "stack mem unimplemented"
+
+(*----------------------------------------------------------------------------*)
+(* Function and Method Call Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
+  (args : Argument.t list) (body : Block.t) : EvalEnv.t * value =
+  let (env', fenv) = eval_inargs env params args in
+  let (fenv', sign) = eval_block fenv SContinue body in
+  let final_env = eval_outargs env' fenv' params args in
+  match sign with
+  | SReturn v -> (final_env, v)
+  | SContinue -> (final_env, VNull)
+  | SExit -> failwith "function did not return"
 
 and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       (args : Argument.t list) : EvalEnv.t * EvalEnv.t =
@@ -826,7 +839,7 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
     (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None -> e (* treat directionless as in *)
+    | None -> e
     | Some x -> begin match snd x with
       | InOut
       | Out ->
@@ -839,56 +852,68 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
       | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
 
-and eval_sat op l r =
-  let compute m n w =
-    let a = Bigint.abs (op m n) in
-    if  Bigint.(<) a m || Bigint.(<) a n then power_of_two w else a in
-  match l,r with
-  | VBit(w1,v1), VBit(w2, v2) -> VBit(w1, compute v1 v2 w1)
-  | VInt(w1,v1), VInt(w2, v2) -> VInt(w1, compute v1 v2 (w1-1))
-  | _ -> failwith "binary logical operation only works on bitstrings"
+(*----------------------------------------------------------------------------*)
+(* Built-in Function Evaluation *)
+(*----------------------------------------------------------------------------*)
 
-and eval_shift op l r =
-  match l,r with
-  | VBit(w1, v1), VBit(_, v2)
-  | VBit(w1, v1), VInt(_, v2) ->
-    if v1 >= Bigint.zero
-    then VBit(w1, op v1 (Bigint.to_int_exn v2))
-    else failwith "can't shift with a negative amount"
-  | _ -> failwith "shift doesn't works on this type"
+and eval_builtin (env : EvalEnv.t) (name : string)
+    (lv : lvalue) : EvalEnv.t * value =
+  match name with
+  | "isValid"    -> eval_isvalid env lv
+  | "setValid"   -> eval_setvalid env lv
+  | "setInvalid" -> eval_setinvalid env lv
+  | "pop_front"  -> eval_popfront env lv
+  | "push_front" -> eval_pushfront env lv
+  | _ -> failwith "builtin unimplemented"
 
-and eval_eq (op : bool) (l : value) (r : value) : value =
-  match l,r with
-  | VBit(_, v1), VBit(_, v2)
-  | VInt(_, v1), VInt(_, v2)
-  | VInteger v1, VInteger v2 -> VBool (if op then v1 = v2 else v1 <> v2)
-  | VBool v1, VBool v2 -> VBool (if op then v1 = v2 else v1 <> v2)
-  | _ -> failwith "equality for varbit binary comparison only works on bitstrings"
+and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  match lv with
+  | LName n ->
+    begin match EvalEnv.find_val n env with
+      | VHeader (_, _, b) -> (env, VBool b)
+      | _ -> failwith "not a header" end
+  | LMember(LName n1, n2) ->
+    begin match EvalEnv.find_val n1 env with
+      | VUnion (_, fs, vs) ->
+        (env, VBool(List.Assoc.find_exn vs n2 ~equal:(=)))
+      | _ -> failwith "not a union" end
+  | _ -> failwith "unimplemented header validity"
 
-and eval_compare op l r =
-  match l,r with
-  | VBit(_, v1), VBit(_, v2)
-  | VInt(_, v1), VInt(_, v2) -> VBool(op v1 v2)
-  | _ -> failwith " binary comparison only works on fixed length integer"
+and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  match lv with
+  | LName n ->
+    begin match EvalEnv.find_val n env with
+      | VHeader (n', fs, b) ->
+        (EvalEnv.insert_val n' (VHeader(n', fs, true)) env, VNull)
+      | _ -> failwith "not a header" end
+  | LMember(LName n1, n2) ->
+    begin match EvalEnv.find_val n1 env with
+      | VUnion (_, fs, vs) ->
+        let vs' = List.map vs ~f:(fun (a,_) -> (a,a=n2)) in
+        (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
+      | _ -> failwith "not a union" end
+  | _ -> failwith "unimplemented header validity"
 
-and eval_two op l r =
-  match l,r with
-  | VBit(w1, v1), VBit(_, v2) -> VBit(w1, op v1 v2)
-  | VInt(w1, v1), VInt(_, v2) -> VInt(w1, op v1 v2)
-  | _ -> failwith "binary logical operation only works on bitstrings"
+and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  match lv with
+  | LName n ->
+    begin match EvalEnv.find_val n env with
+      | VHeader (n', fs, b) ->
+        (EvalEnv.insert_val n' (VHeader(n', fs, false)) env, VNull)
+      | _ -> failwith "not a header" end
+  | LMember(LName n1, n2) ->
+    begin match EvalEnv.find_val n1 env with
+      | VUnion (_, fs, vs) ->
+        let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
+        (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
+      | _ -> failwith "not a union" end
+  | _ -> failwith "unimplemented header validity"
 
-and eval_concat l r =
-  let concat m n wn =
-    Bigint.( + ) (Bigint.shift_left m wn) n in
-  match l,r with
-  | VBit(w1, v1), VBit(w2, v2) -> VBit(w1+w2, concat v1 v2 w2)
-  | VInt(w1, v1), VInt(w2, v2) -> VInt(w1+w2, concat v1 v2 w2)
-  | _ -> failwith " binary concatenation only works on fixed length integer"
+and eval_popfront (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  failwith "pop front unimplemented"
 
-and eval_and_or op l r =
-  match l,r with
-  | VBool(bl), VBool(br) -> VBool(op bl br)
-  | _ -> failwith "and / or operation only works on Bools"
+and eval_pushfront (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  failwith "push front unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Parser Evaluation *)
@@ -909,7 +934,6 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
   let stms' = (Info.dummy, Statement.BlockStatement
                  {block = (Info.dummy, {annotations = []; statements = stms})}) in
   let (env', _) = eval_statement env SContinue stms' in
-  (* TODO: figure out how to thread the packet through statement evaluation *)
   eval_transition env' states transition
 
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
@@ -960,6 +984,39 @@ and int_of_val (v : value) : int =
 
 and power_of_two (w : int) : Bigint.t =
   Bigint.shift_left (Bigint.of_int 1) (w-1)
+
+and typ_of_union_field (env : EvalEnv.t) (uname : string)
+    (fname : string) : Type.t =
+  let t = EvalEnv.find_typ uname env in
+  let (_, d) = decl_of_typ env t in
+  let fs = match d with
+    | HeaderUnion u -> u.fields
+    | _ -> failwith "not a union" in
+  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  | h :: _ -> (snd h).typ
+  | _ -> failwith "field name not found"
+
+and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
+  env
+  |> EvalEnv.find_typ name
+  |> decl_of_typ env
+  |> snd
+  |> (function Declaration.Struct s -> s.fields | _ -> failwith "not a struct")
+  |> List.map ~f:(fun x -> snd (snd x).name)
+  |> (fun fs i v -> (List.nth_exn fs i, v))
+  |> (fun f -> List.mapi l ~f:f)
+  |> (fun l -> VStruct (name, l))
+
+and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
+  env
+  |> EvalEnv.find_typ name
+  |> decl_of_typ env
+  |> snd
+  |> (function Declaration.Header s -> s.fields | _ -> failwith "not a struct")
+  |> List.map ~f:(fun x -> snd (snd x).name)
+  |> (fun fs i v -> (List.nth_exn fs i, v))
+  |> (fun f -> List.mapi l ~f:f)
+  |> (fun l -> VHeader (name, l, true))
 
 (* -------------------------------------------------------------------------- *)
 (* Target and Architecture Dependent Evaluation *)

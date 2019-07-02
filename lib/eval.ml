@@ -312,7 +312,6 @@ and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
 
 and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
     (rhs : Expression.t) : EvalEnv.t * signal =
-  print_endline "tis an assign";
   let (env', v) = eval_expression env rhs in
   let lv = lvalue_of_expr lhs in
   match s with
@@ -324,7 +323,7 @@ and eval_assign' (env : EvalEnv.t) (lhs : lvalue) (rhs : value) : EvalEnv.t =
   match lhs with
   | LName n -> assign_name env n rhs
   | LTopName n -> failwith "top assign unimplemented"
-  | LMember(lv, mname) -> print_endline "assigne to lmemeber"; assign_member env lv mname rhs
+  | LMember(lv, mname) -> assign_member env lv mname rhs
   | LBitAccess _ -> failwith "bitstring access assignment unimplemented"
   | LArrayAccess _ -> failwith "array access assignment unimplemented"
 
@@ -342,11 +341,10 @@ and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
 and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
     (rhs : value) : EvalEnv.t =
   let v = value_of_lvalue env lv in
-  print_endline "got past value of lvalue";
   let rhs' = match v with
-    | VStruct(n,l)    -> print_endline "tis struct mem"; assign_struct_mem env rhs mname n l
-    | VHeader(n,l,b)  -> print_endline "tis header mem"; assign_header_mem env rhs mname n l b
-    | VUnion(n,vs,bs) -> print_endline "tis union mem"; assign_union_mem env rhs mname n vs bs
+    | VStruct(n,l)    -> assign_struct_mem env rhs mname n l
+    | VHeader(n,l,b)  -> assign_header_mem env rhs mname n l b
+    | VUnion(n,vs,bs) -> assign_union_mem env rhs mname n vs bs
     | _ -> failwith "member assignment unimplemented" in
   eval_assign' env lv rhs'
 
@@ -394,11 +392,8 @@ and assign_union_mem (env : EvalEnv.t) (rhs : value)
 
 and typ_of_union_field (env : EvalEnv.t) (uname : string)
     (fname : string) : Type.t =
-  print_endline "doing the union mem thing";
   let t = EvalEnv.find_typ uname env in
-  print_endline "found type";
   let (_, d) = decl_of_typ env t in
-  print_endline "found decl";
   let fs = match d with
     | HeaderUnion u -> u.fields
     | _ -> failwith "not a union" in
@@ -732,7 +727,6 @@ and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
     begin match EvalEnv.find_val n1 env with
       | VUnion (_, fs, vs) ->
         let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
-        print_endline "setvlaid worked fine";
         (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
       | _ -> failwith "not a union" end
   | _ -> failwith "unimplemented header validity"
@@ -762,9 +756,7 @@ match lv with
 and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (body : Block.t) : EvalEnv.t * value =
   let (env', fenv) = eval_inargs env params args in
-  EvalEnv.print_env fenv;
   let (fenv', sign) = eval_block fenv SContinue body in
-  EvalEnv.print_env fenv';
   let final_env = eval_outargs env' fenv' params args in
   match sign with
   | SReturn v -> (final_env, v)

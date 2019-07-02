@@ -129,8 +129,9 @@ let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordTy
   in
   let fields1 = List.sort field_cmp rec1.fields in
   let fields2 = List.sort field_cmp rec2.fields in
-  let field_pairs = List.combine fields1 fields2 in
+  try let field_pairs = List.combine fields1 fields2 in
   List.for_all field_eq field_pairs
+  with Invalid_argument _ -> false
 
 and enum_type_equality env equiv_vars enum1 enum2 : bool =
   let open EnumType in
@@ -151,19 +152,16 @@ and constructor_params_equality env equiv_vars ps1 ps2 : bool =
     type_equality' env equiv_vars p1.typ p2.typ &&
     p1.name = p2.name
   in
-  if List.length ps1 <> List.length ps2
-  then false
-  else List.for_all param_eq (List.combine ps1 ps2)
+  try List.for_all param_eq (List.combine ps1 ps2)
+  with Invalid_argument _ -> false
 
 and package_type_equality env equiv_vars pkg1 pkg2 : bool =
   let open PackageType in
-  if List.length pkg1.type_params <> List.length pkg2.type_params
-  then false
-  else
-    let equiv_vars' = 
-      equiv_vars @ List.combine pkg1.type_params pkg2.type_params
-    in
-    constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
+  try let equiv_vars' = 
+    equiv_vars @ List.combine pkg1.type_params pkg2.type_params
+  in
+  constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
+  with Invalid_argument _ -> false
 
 and params_equality env equiv_vars ps1 ps2 : bool =
   let open Parameter in
@@ -172,33 +170,28 @@ and params_equality env equiv_vars ps1 ps2 : bool =
     p1.name = p2.name &&
     p1.direction = p2.direction
   in
-  if List.length ps1 <> List.length ps2
-  then false
-  else List.for_all param_eq (List.combine ps1 ps2)
+  try List.for_all param_eq (List.combine ps1 ps2)
+  with Invalid_argument _ -> false
 
 and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
   let open ControlType in
-  if List.length ctrl1.type_params <> List.length ctrl2.type_params
-  then false
-  else
-    let equiv_vars' = 
-      equiv_vars @ List.combine ctrl1.type_params ctrl2.type_params
-    in
-    params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
+  try let equiv_vars' = 
+    equiv_vars @ List.combine ctrl1.type_params ctrl2.type_params
+  in
+  params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
+  with Invalid_argument _ -> false
 
 and extern_type_equality env equiv_vars extern1 extern2 : bool = 
   failwith "extern_type_equality unimplemented"
 
 and function_type_equality env equiv_vars func1 func2 : bool =
   let open FunctionType in
-  if List.length func1.type_params <> List.length func2.type_params
-  then false
-  else
-    let equiv_vars' = 
-      equiv_vars @ List.combine func1.type_params func2.type_params
-    in
-    type_equality' env equiv_vars' func1.return func2.return &&
-    params_equality env equiv_vars' func1.parameters func2.parameters
+  try let equiv_vars' = 
+    equiv_vars @ List.combine func1.type_params func2.type_params
+  in
+  type_equality' env equiv_vars' func1.return func2.return &&
+  params_equality env equiv_vars' func1.parameters func2.parameters
+  with Invalid_argument _ -> false
 
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
@@ -269,8 +262,11 @@ and type_equality' (env: Env.checker_env)
         ls = rs && type_equality' env equiv_vars lt rt
 
     | Tuple {types = types1}, Tuple {types = types2} ->
-        let type_pairs = List.combine types1 types2 in
+        begin try let type_pairs = List.combine types1 types2 in
         List.for_all (fun (t1, t2) -> type_equality' env equiv_vars t1 t2) type_pairs
+        with
+        | Invalid_argument _ -> false
+        end
 
     | Set ty1, Set ty2 ->
         type_equality' env equiv_vars ty1 ty2
@@ -346,7 +342,8 @@ and param_equality env p1s p2s =
   let check_params = fun (par1,par2) ->
     if par1.direction <> par2.direction then false
     else type_equality env par1.typ par2.typ in
-  List.for_all check_params (List.combine p1s p2s)
+  try List.for_all check_params (List.combine p1s p2s)
+  with Invalid_argument _ -> false
 
 (* Checks that a list of constructor parameters is type equivalent.
  * True if equivalent, false otherwise.
@@ -356,7 +353,8 @@ and construct_param_equality env p1s p2s =
   let open ConstructParam in
   let check_params = fun (par1,par2) ->
     type_equality env par1.typ par2.typ in
-  List.for_all check_params (List.combine p1s p2s)
+  try List.for_all check_params (List.combine p1s p2s)
+  with Invalid_argument _ -> false
 
 let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
   if type_equality env typ1 typ2 then (typ1, typ2)

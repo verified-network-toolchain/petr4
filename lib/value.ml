@@ -4,7 +4,7 @@ type value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
-  | VBit of int * Bigint.t (* width, value *)
+  | VBit of int * Bigint.t
   | VInt of int * Bigint.t
   | VTuple of value list
   | VSet of set

@@ -489,7 +489,7 @@ and eval_expression (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
   | String (_,value)                  -> (env, VString value)
   | Name (_,name)                     -> (env, EvalEnv.find_val name env)
   | TopLevel (_,name)                 -> (env, EvalEnv.find_val_toplevel name env)
-  | ArrayAccess({array=a; index=i})   -> eval_array env a i
+  | ArrayAccess({array=a; index=i})   -> eval_array_access env a i
   | BitStringAccess({bits;lo;hi})     -> eval_bitstring_access env bits lo hi
   | List{values}                      -> eval_list env values
   | UnaryOp{op;arg}                   -> eval_unary env op arg
@@ -510,9 +510,16 @@ and eval_p4int (n : P4Int.pre_t) : value =
   | Some(w,true)  -> VInt (w, n.value)
   | Some(w,false) -> VBit (w, n.value)
 
-and eval_array (env : EvalEnv.t) (a : Expression.t)
+and eval_array_access (env : EvalEnv.t) (a : Expression.t)
     (i : Expression.t) : EvalEnv.t * value =
-  failwith "header stacks unimplemented"
+  let (env', a') = eval_expression env a in
+  let (env'', i') = eval_expression env' i in
+  let idx = int_of_val i' in
+  match a' with
+  | VStack(name,hdrs,size,next) ->
+    let idx' = idx mod size in
+    (env'', List.nth_exn hdrs idx')
+  | _ -> failwith "array access must be on header stack"
 
 and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
     (m : Expression.t) (l : Expression.t) : EvalEnv.t * value =
@@ -782,14 +789,47 @@ and eval_struct_mem (env : EvalEnv.t) (name : string)
 and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
     (fs : (string * value) list) (valid : bool) : EvalEnv.t * value =
   match fname with
-  | "isValid"    -> (env, VBuiltinFun(fname, lvalue_of_expr e))
-  | "setValid"   -> (env, VBuiltinFun(fname, lvalue_of_expr e))
+  | "isValid"
+  | "setValid"
   | "setInvalid" -> (env, VBuiltinFun(fname, lvalue_of_expr e))
-  | _ -> (env, List.Assoc.find_exn fs fname ~equal:(=))
+  | _            -> (env, List.Assoc.find_exn fs fname ~equal:(=))
 
 and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
     (hdrs : value list) (size : int) (next : int) : EvalEnv.t * value =
-  failwith "stack mem unimplemented"
+  match fname with
+  | "size"       -> eval_stack_size env size
+  | "next"       -> eval_stack_next env hdrs size next
+  | "last"       -> eval_stack_last env hdrs size next
+  | "lastIndex"  -> eval_stack_lastindex env next
+  | "pop_front"
+  | "push_front" -> eval_stack_builtin env fname e
+  | _ -> failwith "stack member unimplemented"
+
+and eval_stack_size (env : EvalEnv.t) (size : int) : EvalEnv.t * value =
+  (env, VBit(32, Bigint.of_int size))
+
+and eval_stack_next (env : EvalEnv.t) (hdrs : value list) (size : int)
+    (next : int) : EvalEnv.t * value =
+  let hdr =
+    if next >= size
+    then failwith "signal reject unimplemented"
+    else List.nth_exn hdrs next in
+  (env, hdr)
+
+and eval_stack_last (env : EvalEnv.t) (hdrs : value list) (size : int)
+    (next : int) : EvalEnv.t * value =
+  let hdr =
+    if next < 1 || next > size
+    then failwith "signal reject unimplemented"
+    else List.nth_exn hdrs next in
+  (env, hdr)
+
+and eval_stack_lastindex (env : EvalEnv.t) (next : int) : EvalEnv.t * value =
+  (env, VBit(32, Bigint.of_int (next - 1)))
+
+and eval_stack_builtin (env : EvalEnv.t) (fname : string)
+    (e : Expression.t) : EvalEnv.t * value =
+  (env, VBuiltinFun(fname, lvalue_of_expr e))
 
 (*----------------------------------------------------------------------------*)
 (* Function and Method Call Evaluation *)

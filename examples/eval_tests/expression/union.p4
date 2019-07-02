@@ -31,14 +31,26 @@ Union set1(in Union x) {
 
 Union set2(in Union x) {
     x.h2.setValid();
-    x.h1.v = 16w42;
+    x.h2.v = 16w42;
     return x;
 }
 
-const Union b = f1(42);
-const Union c = f2(42);
-const Union d = set1(a);
-const Union e = set2(a);
+const Union a = f1(42);
+const Union b = f2(42);
+const bit<8> c = a.h1.u; //42
+const bool d = a.h1.isValid(); //true
+const bool e = a.h2.isValid(); //false
+const bit<16> f = b.h2.v; //42
+const bool g = b.h1.isValid(); //false
+const bool h = b.h2.isValid(); //true
+const Union i = set2(a);
+const Union j = set1(b);
+const bit<8> k = i.h2.v; //42
+const bool l = i.h1.isValid(); //false
+const bool m = i.h2.isValid(); //true
+const bit<16> n = j.h1.u; //42
+const bool o = j.h1.isValid(); //true
+const bool p = j.h2.isValid(); //false
 
 package EmptyPackage();
 EmptyPackage() main;

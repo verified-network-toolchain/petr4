@@ -158,7 +158,7 @@ module EvalEnv = struct
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
         | VString s -> s
-        | VError _ -> "<error"
+        | VError _ -> "<error>"
         | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"
@@ -169,9 +169,12 @@ module EvalEnv = struct
         | VHeader (_,l,b) ->
           print_endline ("<header> with " ^ (string_of_bool b));
           List.iter l ~f:(fun a -> print_string "    "; f a); ""
-        | VUnion (_,l) ->
+        | VUnion (_,l,v) ->
           print_endline "<union>";
-          List.iter l ~f:(fun a -> print_string "    "; f a); ""
+          List.iter l
+            ~f:(fun (a, b) -> print_string "     ";
+                 print_string (string_of_bool (List.Assoc.find_exn v a ~equal:(=)));
+                 f (a,b)); ""
         | VEnumField (enum,field) -> enum ^ "." ^ field
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"

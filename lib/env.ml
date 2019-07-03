@@ -177,7 +177,8 @@ module EvalEnv = struct
                            print_string " -> ";
                            print_string (string_of_bool b)); ""
         | VStack _ -> "<stack>"
-        | VEnumField (enum,field) -> enum ^ "." ^ field
+        | VEnumField(enum,field) -> enum ^ "." ^ field
+        | VSenumField(enum,field,_) -> enum ^ "." ^ field ^ " <value>"
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"
         | VRuntime _ -> "packet"

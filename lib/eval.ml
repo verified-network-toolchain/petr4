@@ -107,9 +107,9 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   | SerializableEnum {
       annotations = _;
       typ = _;
-      name = _;
+      name = (_,n);
       members = _;
-    } -> eval_senum_decl ()
+    } -> eval_senum_decl env n d
   | ExternObject {
       annotations = _;
       name = (_,n);
@@ -215,7 +215,9 @@ and eval_enum_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decl name decl env
 
-and eval_senum_decl () = failwith "senums unimplemented"
+and eval_senum_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) :EvalEnv.t =
+  EvalEnv.insert_decl name decl env
 
 and eval_extern_obj (env : EvalEnv.t) (name : string)
     (methods : MethodPrototype.t list) : EvalEnv.t =
@@ -681,6 +683,13 @@ and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
     if List.mem mems name ~equal:(=)
     then (env, VEnumField (n, name))
     else raise (UnboundName name)
+  | Declaration.SerializableEnum {members=ms;name=(_,n);_ } ->
+    let f = fun e (a,b) ->
+      let (e', v) = eval_expression e b in
+      (env, (snd a, v)) in
+    let (env', vs) = List.fold_map ms ~init:env ~f:f in
+    let v = List.Assoc.find_exn vs name ~equal:(=) in
+    (env, VSenumField(n,name,v))
   | _ -> failwith "typ mem unimplemented"
 
 and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
@@ -705,6 +714,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VUnion (_,v,_)      -> (env', v)
   | VStack (_,hdrs,s,n) -> eval_stack_mem env' (snd name) expr hdrs s n
   | VEnumField _
+  | VSenumField _
   | VExternFun _
   | VExternObject _
   | VRuntime _
@@ -740,6 +750,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VUnion _
   | VStack _
   | VEnumField _
+  | VSenumField _
   | VExternFun _
   | VExternObject _
   | VRuntime _

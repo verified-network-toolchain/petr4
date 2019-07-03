@@ -19,6 +19,7 @@ type value =
   | VUnion of string * value * (string * bool) list
   | VStack of string * value list * int * int
   | VEnumField of string * string
+  | VSenumField of string * string * value
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
   | VRuntime of vruntime

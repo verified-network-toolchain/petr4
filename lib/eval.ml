@@ -237,6 +237,10 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_decl name decl env
 
+(*----------------------------------------------------------------------------*)
+(* Functions to Calculate Initialization Values *)
+(*----------------------------------------------------------------------------*)
+
 and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   match snd typ with
   | Bool                      -> VBool false
@@ -385,7 +389,7 @@ and eval_assign' (env : EvalEnv.t) (lhs : lvalue) (rhs : value) : EvalEnv.t =
   | LTopName n        -> assign_toplevel env n rhs
   | LMember(lv,mname) -> assign_member env lv mname rhs
   | LBitAccess _      -> assign_bitaccess ()
-  | LArrayAccess _    -> assign_arrayaccess ()
+  | LArrayAccess(lv,e)    -> assign_arrayaccess env lv e rhs
 
 and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
   let t = EvalEnv.find_typ name env in
@@ -396,6 +400,10 @@ and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
       | Declaration.Header _ -> header_of_list env name
       | _ -> (fun l -> VTuple l) in
     EvalEnv.insert_val name (f l) env
+  | VStruct(n,l)    -> EvalEnv.insert_val name (VStruct(name,l)) env
+  | VHeader(n,l,b)  -> EvalEnv.insert_val name (VHeader(name,l,b)) env
+  | VUnion(n,v,l)   -> EvalEnv.insert_val name (VUnion(name,v,l)) env
+  | VStack(n,v,a,i) -> EvalEnv.insert_val name (VStack(name,v,a,i)) env
   | _ -> EvalEnv.insert_val name rhs env
 
 and assign_toplevel (env : EvalEnv.t) (name : string)
@@ -409,15 +417,29 @@ and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
     | VStruct(n,l)       -> assign_struct_mem env rhs mname n l
     | VHeader(n,l,b)     -> assign_header_mem env rhs mname n l b
     | VUnion(n,vs,bs)    -> assign_union_mem env rhs mname n bs
-    | VStack(n,hdrs,s,i) -> assign_stack_mem env rhs mname n hdrs s i
+    | VStack(n,hdrs,s,i) -> assign_stack_mem env rhs n mname hdrs s i
     | _ -> failwith "member assignment unimplemented" in
   eval_assign' env lv rhs'
 
 and assign_bitaccess () =
   failwith "bitstring access assignment unimplemented"
 
-and assign_arrayaccess () =
-  failwith "header stack member assignment unimplemented"
+and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
+    (rhs : value) : EvalEnv.t =
+  let v = value_of_lvalue env lv in
+  let (env', i) = eval_expression env e in
+  let i' = int_of_val i in
+  print_endline (string_of_int i');
+  let rhs' = match v with
+    | VStack(n,hdrs,size,next) ->
+      let (hdrs1, hdrs2) = List.split_n hdrs i' in
+      let hdrs' = match hdrs2 with
+        | _ :: t -> hdrs1 @ (rhs :: t)
+        | [] -> failwith "empty header stack" in
+      VStack(n,hdrs',size,next)
+    | _ -> failwith "array access is not a header stack" in
+  eval_assign' env lv rhs'
+
 
 and assign_struct_mem (env : EvalEnv.t) (rhs : value) (fname : string)
     (sname : string) (l : (string * value) list) : value =
@@ -433,13 +455,32 @@ and assign_union_mem (env : EvalEnv.t) (rhs : value)
   let dummy_env = EvalEnv.insert_typ fname t env in
   let rhs' = match rhs with
     | VTuple l -> header_of_list dummy_env fname l
-    | x -> x in
+    | x -> x in (* TODO: this should not scale to nested structs *)
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
   VUnion(uname, rhs', vbs')
 
-and assign_stack_mem (env : EvalEnv.t) (rhs : value) (mname : string)
-    (sname : string) (hdrs : value list) (size : int) (next : int) : value =
-  failwith "assign stack member unimplemented"
+and assign_stack_mem (env : EvalEnv.t) (rhs : value) (sname : string)
+    (mname : string) (hdrs : value list) (size : int) (next : int) : value =
+  let () =
+    match mname with
+    | "next" -> ()
+    | _ -> failwith "stack mem not an lvalue" in
+  let () =
+    if next >= size
+    then failwith "signal reject unimplemented"
+    else () in
+  let t = typ_of_stack_mem env sname in
+  let dummy_env = EvalEnv.insert_typ mname t env in
+  let rhs' =
+    match rhs with
+    | VTuple l -> header_of_list dummy_env mname l
+    | x -> x in
+  let (hdrs1, hdrs2) = List.split_n hdrs next in
+  let hdrs' =
+    match hdrs2 with
+    | _ :: t -> hdrs1 @ (rhs' :: t)
+    | [] -> failwith "header stack is empty" in
+  VStack(sname,hdrs',size,next)
 
 (*----------------------------------------------------------------------------*)
 (* Functions on L-Values*)
@@ -465,17 +506,26 @@ and value_of_lvalue (env : EvalEnv.t) (lv : lvalue) : value =
 and value_of_lmember (env : EvalEnv.t) (lv : lvalue) (n : string) : value =
   match value_of_lvalue env lv with
   | VStruct(_,l)
-  | VHeader(_,l, _) -> List.Assoc.find_exn l n ~equal:(=)
-  | VUnion(_,v,_)   -> v
+  | VHeader(_,l, _)  -> List.Assoc.find_exn l n ~equal:(=)
+  | VUnion(_,v,_)    -> v
+  | VStack(_,vs,s,i) -> value_of_stack_mem_lvalue n vs s i
   | _ -> failwith "no lvalue member"
 
 and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
     (lo : Expression.t) : value =
-  failwith "value of l unimplemented"
+  failwith "value of bitstring l value unimplemented"
 
 and value_of_larray (env : EvalEnv.t) (lv : lvalue)
     (idx : Expression.t) : value =
-  failwith "value of stack element l value unimplemented"
+  match value_of_lvalue env lv with
+  | VStack(n,vs,s,i) -> List.nth_exn vs (i mod s)
+  | _ -> failwith "array access is not a header stack "
+
+and value_of_stack_mem_lvalue (name : string) (vs : value list) (size : int)
+    (next : int) : value =
+  match name with
+  | "next" -> List.nth_exn vs (next mod size)
+  | _ -> failwith "not an lvalue"
 
 (*----------------------------------------------------------------------------*)
 (* Expression Evaluation *)
@@ -674,7 +724,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   match cl with
   | VAction (params, body)
   | VFun (params, body)    -> eval_funcall' env' params args body
-  | VBuiltinFun(n,vs)      -> eval_builtin env n vs
+  | VBuiltinFun(n,lv)      -> eval_builtin env n lv args
   | VNull
   | VBool _
   | VInteger _
@@ -896,64 +946,111 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
 (* Built-in Function Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_builtin (env : EvalEnv.t) (name : string)
-    (lv : lvalue) : EvalEnv.t * value =
+and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
   match name with
   | "isValid"    -> eval_isvalid env lv
   | "setValid"   -> eval_setvalid env lv
   | "setInvalid" -> eval_setinvalid env lv
-  | "pop_front"  -> eval_popfront env lv
-  | "push_front" -> eval_pushfront env lv
+  | "pop_front"  -> eval_popfront env lv args
+  | "push_front" -> eval_pushfront env lv args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  match lv with
-  | LName n ->
-    begin match EvalEnv.find_val n env with
-      | VHeader (_, _, b) -> (env, VBool b)
-      | _ -> failwith "not a header" end
-  | LMember(LName n1, n2) ->
-    begin match EvalEnv.find_val n1 env with
-      | VUnion (_, fs, vs) ->
-        (env, VBool(List.Assoc.find_exn vs n2 ~equal:(=)))
-      | _ -> failwith "not a union" end
-  | _ -> failwith "unimplemented header validity"
+  let v = value_of_lvalue env lv in
+  match v with
+  | VHeader(_,_,b) -> (env, VBool b)
+  | _ -> failwith "isvalid call is not a header"
 
 and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
   match lv with
-  | LName n ->
+  | LName n
+  | LTopName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n', fs, b) ->
-        (EvalEnv.insert_val n' (VHeader(n', fs, true)) env, VNull)
+      | VHeader (n',fs,b) -> (eval_assign' env lv (VHeader(n',fs,true)), VNull)
       | _ -> failwith "not a header" end
-  | LMember(LName n1, n2) ->
-    begin match EvalEnv.find_val n1 env with
-      | VUnion (_, fs, vs) ->
+  | LMember(lv', n2) ->
+    begin match value_of_lvalue env lv' with
+      | VUnion (n1, fs, vs) ->
         let vs' = List.map vs ~f:(fun (a,_) -> (a,a=n2)) in
-        (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
+        (eval_assign' env lv' (VUnion(n1, fs, vs')), VNull)
       | _ -> failwith "not a union" end
-  | _ -> failwith "unimplemented header validity"
+  | LArrayAccess(lv', e) ->
+    begin match value_of_lvalue env lv' with
+      | VStack(n1,hdrs,size,next) ->
+        let (env', i) = eval_expression env e in
+        let i' = int_of_val i in
+        let (hdrs1, hdrs2) = List.split_n hdrs i' in
+        let hdrs' = match hdrs2 with
+          | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,true) :: t)
+          | _ -> failwith "not a header" in
+        (eval_assign' env' lv' (VStack(n1,hdrs',size,next)), VNull)
+      | _ -> failwith "not a stack" end
+  | LBitAccess _ -> failwith "not a header"
 
 and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
   match lv with
-  | LName n ->
+  | LName n
+  | LTopName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n', fs, b) ->
-        (EvalEnv.insert_val n' (VHeader(n', fs, false)) env, VNull)
+      | VHeader (n',fs,b) -> (eval_assign' env lv (VHeader(n',fs,false)), VNull)
       | _ -> failwith "not a header" end
-  | LMember(LName n1, n2) ->
-    begin match EvalEnv.find_val n1 env with
-      | VUnion (_, fs, vs) ->
+  | LMember(lv', n2) ->
+    begin match value_of_lvalue env lv' with
+      | VUnion (n1, fs, vs) ->
         let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
-        (EvalEnv.insert_val n1 (VUnion(n1, fs, vs')) env, VNull)
+        (eval_assign' env lv' (VUnion(n1, fs, vs')), VNull)
       | _ -> failwith "not a union" end
-  | _ -> failwith "unimplemented header validity"
+  | LArrayAccess(lv', e) ->
+    begin match value_of_lvalue env lv' with
+      | VStack(n1,hdrs,size,next) ->
+        let (env', i) = eval_expression env e in
+        let i' = int_of_val i in
+        let (hdrs1, hdrs2) = List.split_n hdrs i' in
+        let hdrs' = match hdrs2 with
+          | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,false) :: t)
+          | _ -> failwith "not a header" in
+        (eval_assign' env' lv' (VStack(n1,hdrs',size,next)), VNull)
+      | _ -> failwith "not a stack" end
+  | LBitAccess _ -> failwith "not a header"
 
-and eval_popfront (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  failwith "pop front unimplemented"
+and eval_pushfront (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
+  let (env', a) = eval_push_pop_args env args in
+  let (n, hdrs, size, next) =
+    match value_of_lvalue env lv with
+    | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
+    | _ -> failwith "push call not a header stack" in
+  let (hdrs1, hdrs2) = List.split_n hdrs (size - a) in
+  let t = typ_of_stack_mem env n in
+  let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
+  let hdrs' = hdrs0 @ hdrs1 in
+  let v = VStack(n,hdrs',size,next+a) in
+  (eval_assign' env lv v, VNull)
 
-and eval_pushfront (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  failwith "push front unimplemented"
+and eval_popfront (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
+  let (env', a) = eval_push_pop_args env args in
+  let (n, hdrs, size, next) =
+    match value_of_lvalue env lv with
+    | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
+    | _ -> failwith "push call not a header stack" in
+  let (hdrs1, hdrs2) = List.split_n hdrs a in
+  let t = typ_of_stack_mem env n in
+  let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
+  let hdrs' = hdrs2 @ hdrs0 in
+  let v = VStack(n,hdrs',size,next-a) in
+  (eval_assign' env lv v, VNull)
+
+and eval_push_pop_args (env : EvalEnv.t)
+    (args : Argument.t list) : EvalEnv.t * int =
+  let args' = List.map args ~f:snd in
+  match args' with
+  | [Argument.Expression{value}]
+  | [Argument.KeyValue{value=value;_}] ->
+    let (env', v) = eval_expression env value in
+    (env', int_of_val v)
+  | _ -> failwith "invalid push or pop args"
 
 (*----------------------------------------------------------------------------*)
 (* Parser Evaluation *)
@@ -1044,6 +1141,13 @@ and typ_of_union_field (env : EvalEnv.t) (uname : string)
   match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
   | h :: _ -> (snd h).typ
   | _ -> failwith "field name not found"
+
+and typ_of_stack_mem (env : EvalEnv.t) (name : string) : Type.t =
+  let t = EvalEnv.find_typ name env in
+  match snd t with
+  | HeaderStack{header;_} -> header
+  | _ -> failwith "not a header stack"
+
 
 and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
   env
@@ -1140,6 +1244,8 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr]
     |> eval_v1control compute  [hdr_expr; meta_expr]
     |> eval_v1control deparser [pckt_expr; hdr_expr] in
+  print_endline "After runtime evaluation";
+  EvalEnv.print_env env;
   match EvalEnv.find_val "packet" env with
   | VRuntime (Packet p) -> p
   | _ -> failwith "pack not a packet"

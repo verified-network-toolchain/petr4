@@ -103,7 +103,7 @@ end = struct
         format_t x.hi
     | List x ->
       Format.fprintf fmt "@[<4>{%a}@]" 
-        (format_list format_t) x.values
+        (format_list_sep format_t ",") x.values
     | UnaryOp x ->
       let uop = match (snd x.op) with
       | Not -> "!"

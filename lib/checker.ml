@@ -182,7 +182,23 @@ and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
   with Invalid_argument _ -> false
 
 and extern_type_equality env equiv_vars extern1 extern2 : bool = 
-  failwith "extern_type_equality unimplemented"
+  let open Typed.ExternType in
+  try let equiv_vars' = 
+    equiv_vars @ List.combine extern1.type_params extern2.type_params
+  in
+  let method_cmp m1 m2 =
+    String.compare m1.name m2.name
+  in
+  let method_eq (m1, m2) =
+    m1.name = m2.name && function_type_equality env equiv_vars' m1.typ m2.typ
+  in
+  let methods1 = List.sort method_cmp extern1.methods in
+  let methods2 = List.sort method_cmp extern2.methods in
+  let field_pairs = List.combine methods1 methods2 in
+  let ctor_pairs = List.combine extern1.constructors extern2.constructors in
+  List.for_all method_eq field_pairs &&
+  List.for_all (Util.uncurry @@ function_type_equality env equiv_vars') ctor_pairs
+  with Invalid_argument _ -> false
 
 and function_type_equality env equiv_vars func1 func2 : bool =
   let open FunctionType in

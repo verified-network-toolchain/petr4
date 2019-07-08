@@ -22,6 +22,8 @@ let option_map f = function
   | Some x -> Some (f x)
   | None -> None
 
+let uncurry f (x, y) = f x y
+
 let rec combine_opt xs ys =
   match xs, ys with
   | x :: xs, y :: ys ->

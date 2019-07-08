@@ -39,12 +39,12 @@ and set =
   | SRange of value * value
   | SProd of set list
 
-and vruntime =
-  | Packet of packet
-
 and signal =
   | SContinue
   | SReturn of value
   | SExit
 
-and packet = Bigint.t
+and vruntime =
+  | Packet of packet
+
+and packet = bool list

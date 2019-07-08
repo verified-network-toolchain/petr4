@@ -435,7 +435,6 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
   let v = value_of_lvalue env lv in
   let (env', i) = eval_expression env e in
   let i' = int_of_val i in
-  print_endline (string_of_int i');
   let rhs' = match v with
     | VStack(n,hdrs,size,next) ->
       let (hdrs1, hdrs2) = List.split_n hdrs i' in
@@ -717,11 +716,11 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VHeader (_,fs,vbit) -> eval_header_mem env' (snd name) expr fs vbit
   | VUnion (_,v,_)      -> (env', v)
   | VStack (_,hdrs,s,n) -> eval_stack_mem env' (snd name) expr hdrs s n
+  | VRuntime v          -> eval_runtime_mem env' (snd name) expr v
   | VEnumField _
   | VSenumField _
   | VExternFun _
   | VExternObject _
-  | VRuntime _
   | VObjstate _         -> failwith "expr member unimplemented"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t) (te : Expression.t)
@@ -870,6 +869,11 @@ and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
   | "push_front" -> eval_stack_builtin env fname e
   | _ -> failwith "stack member unimplemented"
 
+and eval_runtime_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
+    (v : vruntime) : EvalEnv.t * value =
+  match v with
+  | Packet p -> eval_packet_mem env mname expr p
+
 and eval_stack_size (env : EvalEnv.t) (size : int) : EvalEnv.t * value =
   (env, VBit(32, Bigint.of_int size))
 
@@ -895,6 +899,13 @@ and eval_stack_lastindex (env : EvalEnv.t) (next : int) : EvalEnv.t * value =
 and eval_stack_builtin (env : EvalEnv.t) (fname : string)
     (e : Expression.t) : EvalEnv.t * value =
   (env, VBuiltinFun(fname, lvalue_of_expr e))
+
+and eval_packet_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
+    (p : packet) : EvalEnv.t * value =
+  match mname with
+  | "extract" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
+  | _ -> failwith "packet member unimplemented"
+
 
 (*----------------------------------------------------------------------------*)
 (* Function and Method Call Evaluation *)
@@ -969,6 +980,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "setInvalid" -> eval_setinvalid env lv
   | "pop_front"  -> eval_popfront env lv args
   | "push_front" -> eval_pushfront env lv args
+  | "extract"    -> eval_extract env lv args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
@@ -1066,6 +1078,61 @@ and eval_push_pop_args (env : EvalEnv.t)
     let (env', v) = eval_expression env value in
     (env', int_of_val v)
   | _ -> failwith "invalid push or pop args"
+
+and eval_extract (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
+  match args with
+  | [a]   -> eval_fixed_extract env lv args
+  | [a;b] -> eval_var_extract env lv args
+  | _ -> failwith "wrong number of args for extract"
+
+and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
+  let args' = List.map args ~f:snd in
+  let (env', v, lhdr) = match args' with
+    | [Argument.Expression{value}]
+    | [Argument.KeyValue{value=value;_}] ->
+      let (env', v) = eval_expression env value in
+      let lhdr = lvalue_of_expr value in
+      (env', v, lhdr)
+    | _ -> failwith "invalid extraction args" in
+  let p = lv |> value_of_lvalue env' |> assert_runtime |> assert_packet in
+  match v with
+  | VHeader(n,fs,_) ->
+    let (p', fs') = fields_of_packet env' p fs in
+    let env'' = eval_assign' env' lhdr (VHeader(n,fs',true)) in
+    (eval_assign' env'' lv (VRuntime(Packet p')), VNull)
+  | _ -> failwith "not a header"
+
+and fields_of_packet (env : EvalEnv.t) (p : packet)
+    (fs : (string * value) list) : packet * (string * value) list =
+  let (ns, vs) = List.unzip fs in
+  let (p',vs') = List.fold_map vs ~init:p ~f:field_of_packet in
+  (p', List.zip_exn ns vs')
+
+and field_of_packet (p : packet) (v : value) : packet * value =
+  match v with
+  | VBit(len,_) -> bits_of_packet p len
+  | _ -> failwith "header field population unimplemented"
+
+and bits_of_packet (p : packet) (len : int) : packet * value =
+  let rec h p l v =
+    print_endline ("l is " ^ (string_of_int l));
+    if l = 0 then (p,v)
+    else
+      let (a,b) = match v with
+        | VBit(a,b) -> (a,b)
+        | _ -> failwith "not a bitstring" in
+      let two = Bigint.(one + one) in
+      match p with
+      | [] -> failwith "packet too short"
+      | x :: y ->
+        h y (l-1) (VBit(a+1,Bigint.((if x then one else zero) + (two * b)))) in
+  h p len (VBit(0,Bigint.zero))
+
+and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) : EvalEnv.t * value =
+  failwith "variable width extraction unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Parser Evaluation *)
@@ -1187,6 +1254,14 @@ and assert_set (v : value) : set =
   | VSet s -> s
   | VInteger i -> SSingleton i
   | _ -> failwith "not a set"
+
+and assert_runtime (v : value) : vruntime =
+  match v with
+  | VRuntime r -> r
+  | _ -> failwith "not a runtime value"
+
+and assert_packet (p : vruntime) : packet =
+  match p with Packet x -> x
 
 and decl_of_typ (e : EvalEnv.t) (t : Type.t) : Declaration.t =
   match snd t with
@@ -1355,10 +1430,12 @@ and eval_v1control (control : value) (args : Argument.t list)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
+let byte_packet_fortytwo = [false;false;true;false;true;false;true;false]
+
 let eval_program = function Program l ->
   let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
   EvalEnv.print_env env;
   Format.printf "Done\n";
-  let packetin = Bigint.zero in
+  let packetin = byte_packet_fortytwo @ byte_packet_fortytwo @ [true;false] in
   let packout = eval_main env packetin in
   ignore packout

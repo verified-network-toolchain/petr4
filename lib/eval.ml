@@ -904,6 +904,7 @@ and eval_packet_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
     (p : packet) : EvalEnv.t * value =
   match mname with
   | "extract" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
+  | "emit" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
   | _ -> failwith "packet member unimplemented"
 
 
@@ -981,6 +982,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "pop_front"  -> eval_popfront env lv args
   | "push_front" -> eval_pushfront env lv args
   | "extract"    -> eval_extract env lv args
+  | "emit"       -> eval_emit env lv args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
@@ -1086,6 +1088,58 @@ and eval_extract (env : EvalEnv.t) (lv : lvalue)
   | [a;b] -> eval_var_extract env lv args
   | _ -> failwith "wrong number of args for extract"
 
+and eval_emit (env : EvalEnv.t) (lv : lvalue)
+  (args : Argument.t list) : EvalEnv.t * value =
+  let args' = match args with
+    | [a] -> List.map args ~f:snd
+    | _ -> failwith "invalid emission args" in
+  let (env', v) = match args' with
+    | [Argument.Expression{value}]
+    | [Argument.KeyValue{value=value;_}] -> eval_expression env value
+    | _ -> failwith "invalid emission args" in
+  let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet in
+  let p' = emit_value env' p v in
+  (* List.iter p' ~f:(fun b -> print_string (if b then "1" else "0")); print_endline ""; *)
+  (eval_assign' env' lv (VRuntime(Packet p')), VNull)
+
+and emit_value (env : EvalEnv.t) (p : packet) (v : value) : packet =
+  match v with
+  | VStruct(n,fs)      -> emit_struct env p fs
+  | VHeader(_,fs,b)    -> emit_header env p fs b
+  | VUnion(n,v,bs)     -> emit_union env p v bs
+  | VStack(n,vs,sz,nx) -> emit_stack env p vs
+  | _ -> p
+
+and emit_struct (env : EvalEnv.t) (p : packet)
+    (fs : (string * value) list) : packet =
+  failwith "struct emission unimplemented"
+
+and emit_header (env : EvalEnv.t) (p : packet) (fs : (string * value) list)
+    (b : bool) : packet =
+  if not b then p else
+    fs
+    |> List.map ~f:snd
+    |> List.map ~f:packet_of_value
+    |> List.fold_right ~init:[] ~f:(@)
+
+and packet_of_value (v : value) : packet =
+  match v with
+  | VBit(w,n) -> packet_of_bitstring w n
+  | _ -> failwith "value to packet conversion unimplemented"
+
+and packet_of_bitstring (w : int) (n : Bigint.t) : packet =
+  let rec h w n l =
+    if w = 0 then l
+    else h (w-1) Bigint.(n/(one + one)) (Bigint.(n%(one+one)=one) :: l) in
+  h w n []
+
+and emit_union (env : EvalEnv.t) (p : packet) (v : value)
+    (bs : (string * bool) list) : packet =
+  failwith "union emission unimplemented"
+
+and emit_stack (env : EvalEnv.t) (p : packet) (vs : value list) : packet =
+  failwith "stack emission unimplemented"
+
 and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
   let args' = List.map args ~f:snd in
@@ -1117,7 +1171,6 @@ and field_of_packet (p : packet) (v : value) : packet * value =
 
 and bits_of_packet (p : packet) (len : int) : packet * value =
   let rec h p l v =
-    print_endline ("l is " ^ (string_of_int l));
     if l = 0 then (p,v)
     else
       let (a,b) = match v with

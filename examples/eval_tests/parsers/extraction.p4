@@ -40,7 +40,9 @@ control MyEgress(inout headers hdr,
 }
 
 control MyDeparser(packet_out packet, in headers hdr) {
-    apply { }
+    apply {
+        packet.emit(hdr.h1);
+    }
 }
 
 //this is declaration

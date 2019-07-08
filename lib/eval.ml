@@ -118,14 +118,14 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_extern_obj env n ms
   | TypeDef {
       annotations = _;
-      name = _;
+      name = (_,n);
       typ_or_decl = _;
-    } -> eval_type_def () (* probably needed for implicit casts *)
+    } -> eval_type_def env n d
   | NewType {
       annotations = _;
-      name = _;
+      name = (_,n);
       typ_or_decl = _;
-    } -> eval_type_decl () (* probably needed for explicit casts *)
+    } -> eval_type_decl env n d
   | ControlType {
       annotations = _;
       name = (_,n);
@@ -223,9 +223,13 @@ and eval_extern_obj (env : EvalEnv.t) (name : string)
     (methods : MethodPrototype.t list) : EvalEnv.t =
   EvalEnv.insert_val name (VExternObject (name, methods)) env
 
-and eval_type_def () = failwith "typedef unimplemented"
+and eval_type_def (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decl name decl env
 
-and eval_type_decl () = failwith "type decl unimplemented"
+and eval_type_decl (env : EvalEnv.t) (name : string)
+    (decl : Declaration.t) : EvalEnv.t =
+  EvalEnv.insert_decl name decl env
 
 and eval_ctrltyp_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -1092,12 +1096,69 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
     (transition : Parser.transition) : EvalEnv.t =
   match snd transition with
-  | Direct {next = (_, "accept")} -> env
-  | Direct {next = (_, "reject")} -> env
-  | Direct {next = (_, next)} ->
+  | Direct{next = (_, next)} -> eval_direct env states next
+  | Select{exprs;cases} -> eval_select env states exprs cases
+
+and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
+    (next : string) : EvalEnv.t =
+  if next = "accept" || next = "reject"
+  then
+    env
+  else
     let state = List.Assoc.find_exn states next ~equal:(=) in
     eval_state_machine env states state
-  | Select _ -> failwith "select statement unimplemented"
+
+and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
+    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t =
+  let (env', vs) = List.fold_map exprs ~init:env ~f:eval_expression in
+  let (env'', ss) = List.fold_map cases ~init:env' ~f:set_of_case in
+  let (env''', ms) = List.fold_map ss ~init:env'' ~f:(values_match_set vs) in
+  let next = List.Assoc.find_exn (List.zip_exn ms cases) true ~equal:(=) in
+  let next' = snd (snd next).next in
+  eval_direct env''' states next'
+
+and set_of_case (env : EvalEnv.t) (case : Parser.case) : EvalEnv.t * set =
+  let matches = (snd case).matches in
+  match matches with
+  | []  -> failwith "invalid set"
+  | [m] -> set_of_match env m
+  | l   -> let (env', l') = List.fold_map l ~init:env ~f:set_of_match in
+    (env', SProd l')
+
+and set_of_match (env : EvalEnv.t) (m : Match.t) : EvalEnv.t * set =
+  match snd m with
+  | Default
+  | DontCare         -> (env, SUniversal)
+  | Expression{expr} -> let (env', v) = eval_expression env expr in
+    (env', assert_set v)
+
+and values_match_set (vs : value list) (env : EvalEnv.t)
+    (s : set) : EvalEnv.t * bool =
+  match s with
+  | SSingleton n  -> (env, values_match_singleton vs n)
+  | SUniversal    -> (env, true)
+  | SMask(v1,v2)  -> values_match_mask env vs v1 v2
+  | SRange(v1,v2) -> values_match_range env vs v1 v2
+  | SProd l       -> values_match_prod env vs l
+
+and values_match_singleton (vs :value list) (n : Bigint.t) : bool =
+  match vs with
+  | [v] -> v |> int_of_val |> Bigint.of_int |> (Bigint.(=) n)
+  | _   -> false
+
+and values_match_mask (env : EvalEnv.t) (vs : value list) (v1 : value)
+    (v2 : value) : EvalEnv.t * bool =
+  failwith "mask matching unimplemented"
+
+and values_match_range (env : EvalEnv.t) (vs : value list) (v1 : value)
+    (v2 : value) : EvalEnv.t * bool =
+  failwith "range matching unimplemented"
+
+and values_match_prod (env : EvalEnv.t) (vs : value list)
+    (l : set list) : EvalEnv.t * bool =
+  let (env', bs) = List.fold_mapi l ~init:env
+      ~f:(fun i e x -> values_match_set [List.nth_exn vs i] e x) in
+  (env', List.for_all bs ~f:(fun b -> b))
 
 (* -------------------------------------------------------------------------- *)
 (* Control Evaluation *)
@@ -1120,6 +1181,12 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
 (*----------------------------------------------------------------------------*)
 (* Helper functions *)
 (*----------------------------------------------------------------------------*)
+
+and assert_set (v : value) : set =
+  match v with
+  | VSet s -> s
+  | VInteger i -> SSingleton i
+  | _ -> failwith "not a set"
 
 and decl_of_typ (e : EvalEnv.t) (t : Type.t) : Declaration.t =
   match snd t with
@@ -1158,7 +1225,6 @@ and typ_of_stack_mem (env : EvalEnv.t) (name : string) : Type.t =
   match snd t with
   | HeaderStack{header;_} -> header
   | _ -> failwith "not a header stack"
-
 
 and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
   env

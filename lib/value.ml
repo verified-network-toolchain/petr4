@@ -37,7 +37,7 @@ and set =
   | SUniversal
   | SMask of value * value
   | SRange of value * value
-  | SProd
+  | SProd of set list
 
 and vruntime =
   | Packet of packet

@@ -22,6 +22,6 @@ depends: [
   "core"
   "ppx_deriving_yojson"
   "ppx_jane"
-  "yojson"
+  "yojson" {>= "1.7.0"}
 ]
 

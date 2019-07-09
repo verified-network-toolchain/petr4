@@ -31,6 +31,9 @@ module EvalEnv : sig
   val find_decl_toplevel: string -> t -> Declaration.t
   val find_typ_toplevel : string -> t -> Type.t
 
+  val set_error : string -> t -> t
+  val get_error : t -> string
+
   val push_scope : t -> t
   val pop_scope : t -> t
 

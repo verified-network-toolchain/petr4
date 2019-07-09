@@ -43,6 +43,7 @@ and 'a pre_signal =
   | SContinue
   | SReturn of 'a pre_value
   | SExit
+  | SReject
 
 and 'a pre_vruntime =
   | Packet of 'a

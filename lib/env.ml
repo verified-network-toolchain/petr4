@@ -59,6 +59,8 @@ module EvalEnv = struct
     typ : Types.Type.t env;
     (* the error namespace *)
     err : string list;
+    (* the parser error *)
+    parser_error : string
   }
 
   let empty_eval_env = {
@@ -66,6 +68,7 @@ module EvalEnv = struct
     vs = [[]];
     typ = [[]];
     err = [];
+    parser_error = "NoError";
   }
 
   let get_toplevel (env : t) : t =
@@ -76,7 +79,8 @@ module EvalEnv = struct
     {decl = get_last env.decl;
      vs = get_last env.vs;
      typ = get_last env.typ;
-     err = env.err;}
+     err = env.err;
+     parser_error = env.parser_error;}
 
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
@@ -128,17 +132,25 @@ module EvalEnv = struct
   let find_typ_toplevel name e =
     find_toplevel name e.typ
 
+  let set_error (s : string) (env : t) : t =
+    {env with parser_error = s}
+
+  let get_error (env : t) : string =
+    env.parser_error
+
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;
      typ = push e.typ;
-     err = e.err;}
+     err = e.err;
+     parser_error = e.parser_error;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
      typ = pop e.typ;
-     err = e.err;}
+     err = e.err;
+     parser_error = e.parser_error;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -266,5 +278,6 @@ module CheckerEnv = struct
     { decl = [[]];
       vs = cenv.const;
       typ = [[]];
-      err = [];}
+      err = [];
+      parser_error = "NoError"}
 end

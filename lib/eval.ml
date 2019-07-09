@@ -329,7 +329,8 @@ and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
     (args : Argument.t list) : EvalEnv.t * signal =
   match sign with
   | SContinue -> (fst (eval_funcall env func args), sign)
-  | SReturn v -> (env, SReturn v)
+  | SReject
+  | SReturn _ -> (env, sign)
   | SExit     -> failwith "exit unimplemented"
 
 and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
@@ -337,8 +338,9 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
   let (env', v) = eval_expression env rhs in
   let lv = lvalue_of_expr lhs in
   match s with
-  | SContinue -> (eval_assign' env' lv v, SContinue)
-  | SReturn v -> (env, SReturn v)
+  | SContinue -> eval_assign' env' lv v
+  | SReject
+  | SReturn _ -> (env, s)
   | SExit     -> failwith "exit unimplemented"
 
 and eval_app () = failwith "direct application unimplemented"
@@ -356,7 +358,8 @@ and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     | _ -> failwith "conditional guard must be a bool" in
   match sign with
   | SContinue -> eval_cond' env cond tru fls
-  | SReturn v -> (env, SReturn v)
+  | SReject
+  | SReturn _ -> (env, sign)
   | SExit     -> failwith "exit unimplmented"
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
@@ -364,7 +367,8 @@ and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t *
   let f (env,sign) stm =
     match sign with
     | SContinue -> eval_statement env sign stm
-    | SReturn v -> (env, sign)
+    | SReject
+    | SReturn _ -> (env, sign)
     | SExit     -> failwith "exit unimplemented" in
   List.fold_left block.statements ~init:(env,sign) ~f:f
 
@@ -378,7 +382,8 @@ and eval_return (env : EvalEnv.t) (sign : signal)
     | Some e -> eval_expression env e in
   match sign with
   | SContinue -> (env', SReturn v)
-  | SReturn v -> (env, SReturn v)
+  | SReject
+  | SReturn _ -> (env, sign)
   | SExit     -> failwith "exit unimplemented"
 
 and eval_switch () = failwith "switch stm unimplemented"
@@ -387,56 +392,56 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
     (decl : Declaration.t) : EvalEnv.t * signal =
   match sign with
   | SContinue -> (eval_decl env decl, SContinue)
-  | SReturn v -> (env, SReturn v)
+  | SReject
+  | SReturn _ -> (env, sign)
   | SExit     -> failwith "exit unimplemented"
 
 (*----------------------------------------------------------------------------*)
 (* Asssignment Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_assign' (env : EvalEnv.t) (lhs : lvalue) (rhs : value) : EvalEnv.t =
+and eval_assign' (env : EvalEnv.t)(lhs : lvalue)
+    (rhs : value) : EvalEnv.t * signal =
   match lhs with
-  | LName n           -> assign_name env n rhs
-  | LTopName n        -> assign_toplevel env n rhs
-  | LMember(lv,mname) -> assign_member env lv mname rhs
-  | LBitAccess _      -> assign_bitaccess ()
-  | LArrayAccess(lv,e)    -> assign_arrayaccess env lv e rhs
+  | LName n            -> (assign_name env n rhs, SContinue)
+  | LTopName n         -> (assign_toplevel env n rhs, SContinue)
+  | LMember(lv,mname)  -> assign_member env lv mname rhs
+  | LBitAccess _       -> (assign_bitaccess (), SContinue)
+  | LArrayAccess(lv,e) -> assign_arrayaccess env lv e rhs
 
 and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
   let t = EvalEnv.find_typ name env in
   match rhs with
-  | VTuple l ->
-    let f = match snd (decl_of_typ env t) with
-      | Declaration.Struct _ -> struct_of_list env name
-      | Declaration.Header _ -> header_of_list env name
-      | _ -> (fun l -> VTuple l) in
-    EvalEnv.insert_val name (f l) env
-  | VStruct(n,l)    -> EvalEnv.insert_val name (VStruct(name,l)) env
-  | VHeader(n,l,b)  -> EvalEnv.insert_val name (VHeader(name,l,b)) env
-  | VUnion(n,v,l)   -> EvalEnv.insert_val name (VUnion(name,v,l)) env
-  | VStack(n,v,a,i) -> EvalEnv.insert_val name (VStack(name,v,a,i)) env
-  | _ -> EvalEnv.insert_val name rhs env
+    | VTuple l ->
+      let f = match snd (decl_of_typ env t) with
+        | Declaration.Struct _ -> struct_of_list env name
+        | Declaration.Header _ -> header_of_list env name
+        | _ -> (fun l -> VTuple l) in
+      EvalEnv.insert_val name (f l) env
+    | VStruct(n,l)    -> EvalEnv.insert_val name (VStruct(name,l)) env
+    | VHeader(n,l,b)  -> EvalEnv.insert_val name (VHeader(name,l,b)) env
+    | VUnion(n,v,l)   -> EvalEnv.insert_val name (VUnion(name,v,l)) env
+    | VStack(n,v,a,i) -> EvalEnv.insert_val name (VStack(name,v,a,i)) env
+    | _ -> EvalEnv.insert_val name rhs env
 
-and assign_toplevel (env : EvalEnv.t) (name : string)
-    (rhs : value) : EvalEnv.t =
+and assign_toplevel (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
   failwith "toplevel assignment unimplemented"
 
 and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
-    (rhs : value) : EvalEnv.t =
+    (rhs : value) : EvalEnv.t * signal =
   let v = value_of_lvalue env lv in
-  let rhs' = match v with
-    | VStruct(n,l)       -> assign_struct_mem env rhs mname n l
-    | VHeader(n,l,b)     -> assign_header_mem env rhs mname n l b
-    | VUnion(n,vs,bs)    -> assign_union_mem env rhs mname n bs
-    | VStack(n,hdrs,s,i) -> assign_stack_mem env rhs n mname hdrs s i
-    | _ -> failwith "member assignment unimplemented" in
-  eval_assign' env lv rhs'
+  match v with
+  | VStruct(n,l)       -> (assign_struct_mem env lv rhs mname n l, SContinue)
+  | VHeader(n,l,b)     -> (assign_header_mem env lv rhs mname n l b, SContinue)
+  | VUnion(n,vs,bs)    -> (assign_union_mem env lv rhs mname n bs, SContinue)
+  | VStack(n,hdrs,s,i) -> assign_stack_mem env lv rhs n mname hdrs s i
+  | _ -> failwith "member assignment unimplemented"
 
 and assign_bitaccess () =
   failwith "bitstring access assignment unimplemented"
 
 and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
-    (rhs : value) : EvalEnv.t =
+    (rhs : value) : EvalEnv.t * signal =
   let v = value_of_lvalue env lv in
   let (env', i) = eval_expression env e in
   let i' = int_of_val i in
@@ -450,47 +455,47 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
     | _ -> failwith "array access is not a header stack" in
   eval_assign' env lv rhs'
 
+and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
+    (fname : string) (sname : string) (l : (string * value) list) : EvalEnv.t =
+  EvalEnv.insert_val sname (VStruct(sname, (fname, rhs) :: l)) env
 
-and assign_struct_mem (env : EvalEnv.t) (rhs : value) (fname : string)
-    (sname : string) (l : (string * value) list) : value =
-  VStruct (sname, (fname, rhs) :: l)
+and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
+    (fname : string) (hname : string) (l : (string * value) list)
+    (b : bool) : EvalEnv.t =
+  EvalEnv.insert_val hname (VHeader(hname,(fname,rhs) :: l,b)) env
 
-and assign_header_mem (env : EvalEnv.t) (rhs : value) (fname : string)
-    (hname : string) (l : (string * value) list) (b : bool) : value =
-  VHeader(hname, (fname, rhs) :: l, b)
-
-and assign_union_mem (env : EvalEnv.t) (rhs : value)
-    (fname : string) (uname : string) (vbs : (string * bool) list) : value =
+and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
+    (fname : string) (uname : string) (vbs : (string * bool) list) : EvalEnv.t =
   let t = typ_of_union_field env uname fname in
   let dummy_env = EvalEnv.insert_typ fname t env in
   let rhs' = match rhs with
     | VTuple l -> header_of_list dummy_env fname l
     | x -> x in (* TODO: this should not scale to nested structs *)
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
-  VUnion(uname, rhs', vbs')
+  EvalEnv.insert_val uname (VUnion(uname, rhs', vbs')) env
 
-and assign_stack_mem (env : EvalEnv.t) (rhs : value) (sname : string)
-    (mname : string) (hdrs : value list) (size : int) (next : int) : value =
+and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
+    (sname : string) (mname : string) (hdrs : value list) (size : int)
+    (next : int) : EvalEnv.t * signal =
   let () =
     match mname with
     | "next" -> ()
     | _ -> failwith "stack mem not an lvalue" in
-  let () =
-    if next >= size
-    then failwith "signal reject unimplemented"
-    else () in
-  let t = typ_of_stack_mem env sname in
-  let dummy_env = EvalEnv.insert_typ mname t env in
-  let rhs' =
-    match rhs with
-    | VTuple l -> header_of_list dummy_env mname l
-    | x -> x in
-  let (hdrs1, hdrs2) = List.split_n hdrs next in
-  let hdrs' =
-    match hdrs2 with
-    | _ :: t -> hdrs1 @ (rhs' :: t)
-    | [] -> failwith "header stack is empty" in
-  VStack(sname,hdrs',size,next)
+  if next >= size
+  then (env, SReject)
+  else
+    let t = typ_of_stack_mem env sname in
+    let dummy_env = EvalEnv.insert_typ mname t env in
+    let rhs' =
+      match rhs with
+      | VTuple l -> header_of_list dummy_env mname l
+      | x -> x in
+    let (hdrs1, hdrs2) = List.split_n hdrs next in
+    let hdrs' =
+      match hdrs2 with
+      | _ :: t -> hdrs1 @ (rhs' :: t)
+      | [] -> failwith "header stack is empty" in
+    (EvalEnv.insert_val sname (VStack(sname,hdrs',size,next)) env, SContinue)
 
 (*----------------------------------------------------------------------------*)
 (* Functions on L-Values*)
@@ -923,6 +928,7 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
   let (fenv', sign) = eval_block fenv SContinue body in
   let final_env = eval_outargs env' fenv' params args in
   match sign with
+  | SReject -> (env, VNull)
   | SReturn v -> (final_env, v)
   | SContinue -> (final_env, VNull)
   | SExit -> failwith "function did not return"
@@ -943,8 +949,7 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       | VStruct (n,l) -> VStruct (name,l)
       | _ -> v in
     match (snd p).direction with
-    | None ->
-      e
+    | None -> e
       |> EvalEnv.insert_val (snd (snd p).variable) v'
       |> EvalEnv.insert_typ (snd (snd p).variable) (snd p).typ
     | Some x -> begin match snd x with
@@ -970,7 +975,7 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
           | Argument.Expression {value=expr} -> expr
           | Argument.KeyValue _
           | Argument.Missing -> failwith "missing args unimplemented" end in
-        eval_assign' e (lvalue_of_expr lhs) v
+        fst (eval_assign' e (lvalue_of_expr lhs) v) (* shouldnt have function calls in parsers *)
       | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
 
@@ -1001,13 +1006,13 @@ and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
   | LName n
   | LTopName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n',fs,b) -> (eval_assign' env lv (VHeader(n',fs,true)), VNull)
+      | VHeader (n',fs,b) -> (fst (eval_assign' env lv (VHeader(n',fs,true))), VNull)
       | _ -> failwith "not a header" end
   | LMember(lv', n2) ->
     begin match value_of_lvalue env lv' with
       | VUnion (n1, fs, vs) ->
         let vs' = List.map vs ~f:(fun (a,_) -> (a,a=n2)) in
-        (eval_assign' env lv' (VUnion(n1, fs, vs')), VNull)
+        (fst (eval_assign' env lv' (VUnion(n1, fs, vs'))), VNull)
       | _ -> failwith "not a union" end
   | LArrayAccess(lv', e) ->
     begin match value_of_lvalue env lv' with
@@ -1018,7 +1023,7 @@ and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
         let hdrs' = match hdrs2 with
           | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,true) :: t)
           | _ -> failwith "not a header" in
-        (eval_assign' env' lv' (VStack(n1,hdrs',size,next)), VNull)
+        (fst (eval_assign' env' lv' (VStack(n1,hdrs',size,next))), VNull)
       | _ -> failwith "not a stack" end
   | LBitAccess _ -> failwith "not a header"
 
@@ -1027,13 +1032,13 @@ and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
   | LName n
   | LTopName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n',fs,b) -> (eval_assign' env lv (VHeader(n',fs,false)), VNull)
+      | VHeader (n',fs,b) -> (fst (eval_assign' env lv (VHeader(n',fs,false))), VNull)
       | _ -> failwith "not a header" end
   | LMember(lv', n2) ->
     begin match value_of_lvalue env lv' with
       | VUnion (n1, fs, vs) ->
         let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
-        (eval_assign' env lv' (VUnion(n1, fs, vs')), VNull)
+        (fst (eval_assign' env lv' (VUnion(n1, fs, vs'))), VNull)
       | _ -> failwith "not a union" end
   | LArrayAccess(lv', e) ->
     begin match value_of_lvalue env lv' with
@@ -1044,7 +1049,7 @@ and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
         let hdrs' = match hdrs2 with
           | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,false) :: t)
           | _ -> failwith "not a header" in
-        (eval_assign' env' lv' (VStack(n1,hdrs',size,next)), VNull)
+        (fst (eval_assign' env' lv' (VStack(n1,hdrs',size,next))), VNull)
       | _ -> failwith "not a stack" end
   | LBitAccess _ -> failwith "not a header"
 
@@ -1060,7 +1065,7 @@ and eval_pushfront (env : EvalEnv.t) (lv : lvalue)
   let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
   let hdrs' = hdrs0 @ hdrs1 in
   let v = VStack(n,hdrs',size,next+a) in
-  (eval_assign' env lv v, VNull)
+  (fst (eval_assign' env lv v), VNull)
 
 and eval_popfront (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1074,7 +1079,7 @@ and eval_popfront (env : EvalEnv.t) (lv : lvalue)
   let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
   let hdrs' = hdrs2 @ hdrs0 in
   let v = VStack(n,hdrs',size,next-a) in
-  (eval_assign' env lv v, VNull)
+  (fst (eval_assign' env lv v), VNull)
 
 and eval_push_pop_args (env : EvalEnv.t)
     (args : Argument.t list) : EvalEnv.t * int =
@@ -1104,7 +1109,7 @@ and eval_emit (env : EvalEnv.t) (lv : lvalue)
     | _ -> failwith "invalid emission args" in
   let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet in
   let p' = emit p v in
-  (eval_assign' env' lv (VRuntime(Packet p')), VNull)
+  (fst (eval_assign' env' lv (VRuntime(Packet p'))), VNull)
 
 and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1122,8 +1127,8 @@ and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     let ns, vs = List.unzip fs in
     let (p', vs') = List.fold_map vs ~init:p ~f:fixed_width_extract in
     let fs' = List.zip_exn ns vs' in
-    let env'' = eval_assign' env' lhdr (VHeader(n,fs',true)) in
-    (eval_assign' env'' lv (VRuntime(Packet p')), VNull)
+    let env'' = fst (eval_assign' env' lhdr (VHeader(n,fs',true))) in
+    (fst (eval_assign' env'' lv (VRuntime(Packet p'))), VNull)
   | _ -> failwith "not a header"
 
 and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
@@ -1136,43 +1141,47 @@ and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
 
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
-    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t =
+    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * string =
   let (env', penv) = eval_inargs env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let penv' = List.fold_left vs ~init:penv ~f:f in
   let penv'' = List.fold_left locals ~init:penv' ~f:eval_decl in
   let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
   let start = List.Assoc.find_exn states' "start" ~equal:(=) in
-  let penv''' = eval_state_machine penv'' states' start in
-  eval_outargs env' penv''' params args
+  let (penv''',final_state) = eval_state_machine penv'' states' start in
+  (eval_outargs env' penv''' params args, final_state)
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (state : Parser.state) : EvalEnv.t =
+    (state : Parser.state) : EvalEnv.t * string =
   let (stms, transition) =
     match snd state with
     | {statements=stms; transition=t;_} -> (stms, t) in
   let stms' = (Info.dummy, Statement.BlockStatement
                  {block = (Info.dummy, {annotations = []; statements = stms})}) in
-  let (env', _) = eval_statement env SContinue stms' in
-  eval_transition env' states transition
+  let (env', sign) = eval_statement env SContinue stms' in
+  match sign with
+  | SContinue -> eval_transition env' states transition
+  | SReject -> (env', "reject")
+  | SReturn _ -> failwith "return statements not permitted in parsers"
+  | SExit -> failwith "exit statements not permitted in parsers"
 
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (transition : Parser.transition) : EvalEnv.t =
+    (transition : Parser.transition) : EvalEnv.t * string =
   match snd transition with
   | Direct{next = (_, next)} -> eval_direct env states next
   | Select{exprs;cases} -> eval_select env states exprs cases
 
 and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (next : string) : EvalEnv.t =
+    (next : string) : EvalEnv.t * string =
   if next = "accept" || next = "reject"
   then
-    env
+    (env, next)
   else
     let state = List.Assoc.find_exn states next ~equal:(=) in
     eval_state_machine env states state
 
 and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t =
+    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t * string =
   let (env', vs) = List.fold_map exprs ~init:env ~f:eval_expression in
   let (env'', ss) = List.fold_map cases ~init:env' ~f:set_of_case in
   let (env''', ms) = List.fold_map ss ~init:env'' ~f:(values_match_set vs) in
@@ -1239,6 +1248,7 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
   match sign with
   | SContinue
   | SExit     -> eval_outargs env' cenv''' params args
+  | SReject   -> failwith "control should not reject"
   | SReturn _ -> failwith "control should not return"
 
 (*----------------------------------------------------------------------------*)
@@ -1386,12 +1396,13 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
   let env = env
-    |> eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1control verify   [hdr_expr; meta_expr]
-    |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr]
-    |> eval_v1control compute  [hdr_expr; meta_expr]
-    |> eval_v1control deparser [pckt_expr; hdr_expr] in
+            |> eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
+            |> fst (* TODO: handle errors and parser rejections *)
+            |> eval_v1control verify   [hdr_expr; meta_expr]
+            |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr]
+            |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr]
+            |> eval_v1control compute  [hdr_expr; meta_expr]
+            |> eval_v1control deparser [pckt_expr; hdr_expr] in
   print_endline "After runtime evaluation";
   EvalEnv.print_env env;
   match EvalEnv.find_val "packet" env with
@@ -1399,7 +1410,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   | _ -> failwith "pack not a packet"
 
 and eval_v1parser (parser : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
+    (env : EvalEnv.t) : EvalEnv.t * string =
   let (_, decl, vs) =
     match parser with
     | VObjstate((info, decl), vs) -> (info, decl, vs)

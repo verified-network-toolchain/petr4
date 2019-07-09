@@ -1119,16 +1119,12 @@ and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
   let p = lv |> value_of_lvalue env' |> assert_runtime |> assert_packet in
   match v with
   | VHeader(n,fs,_) ->
-    let (p', fs') = fields_of_packet env' p fs in
+    let ns, vs = List.unzip fs in
+    let (p', vs') = List.fold_map vs ~init:p ~f:fixed_width_extract in
+    let fs' = List.zip_exn ns vs' in
     let env'' = eval_assign' env' lhdr (VHeader(n,fs',true)) in
     (eval_assign' env'' lv (VRuntime(Packet p')), VNull)
   | _ -> failwith "not a header"
-
-and fields_of_packet (env : EvalEnv.t) (p : packet)
-    (fs : (string * value) list) : packet * (string * value) list =
-  let (ns, vs) = List.unzip fs in
-  let (p',vs') = List.fold_map vs ~init:p ~f:fixed_width_extract in
-  (p', List.zip_exn ns vs')
 
 and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =

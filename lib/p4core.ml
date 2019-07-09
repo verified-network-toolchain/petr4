@@ -9,6 +9,30 @@ let rec fixed_width_extract (p : packet) (v : value) : packet * value =
   | VBit(len,_) -> bits_of_packet p len
   | _ -> failwith "header field population unimplemented"
 
+and var_width_extract (packet : packet) (hdr : value)
+    (size : value) : packet * value =
+  failwith "variable width extraction unimplemented"
+
+and lookahead (p : packet) (v: value) : packet =
+  failwith "lookahead unimplemented"
+
+and packet_length (p : packet) : value =
+  failwith "packet length unimplemented"
+
+and advance (p : packet) (v : value) : packet =
+  failwith "packet advancement unimplemented"
+
+and emit (p : packet) (v : value) : packet =
+  match v with
+  | VStruct(n,fs)    -> emit_struct p fs
+  | VHeader(_,fs,b)  -> emit_header p fs b
+  | VUnion(_,v,bs)   -> emit_union p v bs
+  | VStack(_,vs,_,_) -> emit_stack p vs
+  | _ -> failwith "cannot emit this type"
+
+and emit_struct (p : packet) (fs : (string * value) list) : packet  =
+  failwith "struct emission unimlemented"
+
 and bits_of_packet (p : packet) (len : int) : packet * value =
   let rec h p l v =
     if l = 0 then (p,v)
@@ -22,17 +46,6 @@ and bits_of_packet (p : packet) (len : int) : packet * value =
       | x :: y ->
         h y (l-1) (VBit(a+1,Bigint.((if x then one else zero) + (two * b)))) in
   h p len (VBit(0,Bigint.zero))
-
-and emit (p : packet) (v : value) : packet =
-  match v with
-  | VStruct(n,fs)    -> emit_struct p fs
-  | VHeader(_,fs,b)  -> emit_header p fs b
-  | VUnion(_,v,bs)   -> emit_union p v bs
-  | VStack(_,vs,_,_) -> emit_stack p vs
-  | _ -> failwith "cannot emit this type"
-
-and emit_struct (p : packet) (fs : (string * value) list) : packet  =
-  failwith "struct emission unimlemented"
 
 and emit_header (p : packet) (fs : (string * value) list) (b : bool) : packet =
   if not b then p else
@@ -58,4 +71,4 @@ and packet_of_bitstring (w : int) (n : Bigint.t) : packet =
     else h (w-1) Bigint.(n/(one+one)) (Bigint.(n%(one+one)=one) :: l) in
   h w n []
 
-and packet_of_list (p : bool list) : packet = p 
+and packet_of_list (p : bool list) : packet = p

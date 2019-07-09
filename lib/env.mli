@@ -1,5 +1,5 @@
 open Types
-open Value
+open P4core
 
 exception BadEnvironment of string
 exception UnboundName of string
@@ -20,7 +20,7 @@ module EvalEnv : sig
   val insert_vals : (string * value) list -> t -> t
   val insert_decls: (string * Declaration.t) list -> t ->t
   val insert_typs : (string * Type.t) list -> t -> t
-  val insert_errs : string list -> t ->t 
+  val insert_errs : string list -> t ->t
 
   val find_val : string -> t -> value
   val find_decl: string -> t -> Declaration.t

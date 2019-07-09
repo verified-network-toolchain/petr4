@@ -3,7 +3,12 @@ open Core
 open Env
 open Types
 open Value
+open P4core
 module Info = I (* JNF: ugly hack *)
+
+type signal = packet pre_signal
+type vruntime = packet pre_vruntime
+type set = packet pre_set
 
 (*----------------------------------------------------------------------------*)
 (* Declaration Evaluation *)
@@ -1098,47 +1103,8 @@ and eval_emit (env : EvalEnv.t) (lv : lvalue)
     | [Argument.KeyValue{value=value;_}] -> eval_expression env value
     | _ -> failwith "invalid emission args" in
   let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet in
-  let p' = emit_value env' p v in
-  (* List.iter p' ~f:(fun b -> print_string (if b then "1" else "0")); print_endline ""; *)
+  let p' = emit p v in
   (eval_assign' env' lv (VRuntime(Packet p')), VNull)
-
-and emit_value (env : EvalEnv.t) (p : packet) (v : value) : packet =
-  match v with
-  | VStruct(n,fs)      -> emit_struct env p fs
-  | VHeader(_,fs,b)    -> emit_header env p fs b
-  | VUnion(n,v,bs)     -> emit_union env p v bs
-  | VStack(n,vs,sz,nx) -> emit_stack env p vs
-  | _ -> p
-
-and emit_struct (env : EvalEnv.t) (p : packet)
-    (fs : (string * value) list) : packet =
-  failwith "struct emission unimplemented"
-
-and emit_header (env : EvalEnv.t) (p : packet) (fs : (string * value) list)
-    (b : bool) : packet =
-  if not b then p else
-    fs
-    |> List.map ~f:snd
-    |> List.map ~f:packet_of_value
-    |> List.fold_right ~init:[] ~f:(@)
-
-and packet_of_value (v : value) : packet =
-  match v with
-  | VBit(w,n) -> packet_of_bitstring w n
-  | _ -> failwith "value to packet conversion unimplemented"
-
-and packet_of_bitstring (w : int) (n : Bigint.t) : packet =
-  let rec h w n l =
-    if w = 0 then l
-    else h (w-1) Bigint.(n/(one + one)) (Bigint.(n%(one+one)=one) :: l) in
-  h w n []
-
-and emit_union (env : EvalEnv.t) (p : packet) (v : value)
-    (bs : (string * bool) list) : packet =
-  failwith "union emission unimplemented"
-
-and emit_stack (env : EvalEnv.t) (p : packet) (vs : value list) : packet =
-  failwith "stack emission unimplemented"
 
 and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1161,27 +1127,8 @@ and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
 and fields_of_packet (env : EvalEnv.t) (p : packet)
     (fs : (string * value) list) : packet * (string * value) list =
   let (ns, vs) = List.unzip fs in
-  let (p',vs') = List.fold_map vs ~init:p ~f:field_of_packet in
+  let (p',vs') = List.fold_map vs ~init:p ~f:fixed_width_extract in
   (p', List.zip_exn ns vs')
-
-and field_of_packet (p : packet) (v : value) : packet * value =
-  match v with
-  | VBit(len,_) -> bits_of_packet p len
-  | _ -> failwith "header field population unimplemented"
-
-and bits_of_packet (p : packet) (len : int) : packet * value =
-  let rec h p l v =
-    if l = 0 then (p,v)
-    else
-      let (a,b) = match v with
-        | VBit(a,b) -> (a,b)
-        | _ -> failwith "not a bitstring" in
-      let two = Bigint.(one + one) in
-      match p with
-      | [] -> failwith "packet too short"
-      | x :: y ->
-        h y (l-1) (VBit(a+1,Bigint.((if x then one else zero) + (two * b)))) in
-  h p len (VBit(0,Bigint.zero))
 
 and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1489,6 +1436,7 @@ let eval_program = function Program l ->
   let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
   EvalEnv.print_env env;
   Format.printf "Done\n";
-  let packetin = byte_packet_fortytwo @ byte_packet_fortytwo @ [true;false] in
+  let packetin = byte_packet_fortytwo @ byte_packet_fortytwo @ [true;false]
+                 |> packet_of_list in
   let packout = eval_main env packetin in
   ignore packout

@@ -1,29 +1,29 @@
 open Types
 
-type value =
+type 'a pre_value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
   | VBit of int * Bigint.t
   | VInt of int * Bigint.t
-  | VTuple of value list
-  | VSet of set
+  | VTuple of 'a pre_value list
+  | VSet of 'a pre_set
   | VString of string
   | VError of string
   | VMatchKind
   | VFun of Parameter.t list * Block.t
   | VBuiltinFun of string * lvalue
   | VAction of Parameter.t list * Block.t
-  | VStruct of string * (string * value) list
-  | VHeader of string * (string * value) list * bool
-  | VUnion of string * value * (string * bool) list
-  | VStack of string * value list * int * int
+  | VStruct of string * (string * 'a pre_value) list
+  | VHeader of string * (string * 'a pre_value) list * bool
+  | VUnion of string * 'a pre_value * (string * bool) list
+  | VStack of string * 'a pre_value list * int * int
   | VEnumField of string * string
-  | VSenumField of string * string * value
+  | VSenumField of string * string * 'a pre_value
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
-  | VRuntime of vruntime
-  | VObjstate of Declaration.t * (string * value) list
+  | VRuntime of 'a pre_vruntime
+  | VObjstate of Declaration.t * (string * 'a pre_value) list
 
 and lvalue =
   | LName of string
@@ -32,19 +32,17 @@ and lvalue =
   | LBitAccess of lvalue * Expression.t * Expression.t
   | LArrayAccess of lvalue * Expression.t
 
-and set =
+and 'a pre_set =
   | SSingleton of Bigint.t
   | SUniversal
-  | SMask of value * value
-  | SRange of value * value
-  | SProd of set list
+  | SMask of 'a pre_value * 'a pre_value
+  | SRange of 'a pre_value * 'a pre_value
+  | SProd of 'a pre_set list
 
-and signal =
+and 'a pre_signal =
   | SContinue
-  | SReturn of value
+  | SReturn of 'a pre_value
   | SExit
 
-and vruntime =
-  | Packet of packet
-
-and packet = bool list
+and 'a pre_vruntime =
+  | Packet of 'a

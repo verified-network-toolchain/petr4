@@ -112,7 +112,7 @@ let command =
          let _ = eval_file include_dirs p4_file verbose in ()
        | None, None -> ())
 
-let () = eval_file ["./examples"] "examples/eval_tests/parsers/extraction.p4" false
+let () = eval_file ["./examples"] "examples/eval_tests/parsers/masks.p4" false
 
 (* let () =
   Format.printf "@[";

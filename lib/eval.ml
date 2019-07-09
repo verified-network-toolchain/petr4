@@ -1209,18 +1209,31 @@ and values_match_set (vs : value list) (env : EvalEnv.t)
   match s with
   | SSingleton n  -> (env, values_match_singleton vs n)
   | SUniversal    -> (env, true)
-  | SMask(v1,v2)  -> values_match_mask env vs v1 v2
+  | SMask(v1,v2)  -> (env, values_match_mask vs v1 v2)
   | SRange(v1,v2) -> values_match_range env vs v1 v2
   | SProd l       -> values_match_prod env vs l
 
 and values_match_singleton (vs :value list) (n : Bigint.t) : bool =
-  match vs with
-  | [v] -> v |> int_of_val |> Bigint.of_int |> (Bigint.(=) n)
-  | _   -> false
+  let v = assert_singleton vs in
+  v
+  |> int_of_val
+  |> Bigint.of_int
+  |> (Bigint.(=) n)
 
-and values_match_mask (env : EvalEnv.t) (vs : value list) (v1 : value)
-    (v2 : value) : EvalEnv.t * bool =
-  failwith "mask matching unimplemented"
+and values_match_mask (vs : value list) (v1 : value)
+    (v2 : value) : bool =
+  let two = Bigint.(one + one) in
+  let v = assert_singleton vs in
+  let (a,b,c) = assert_bit v, assert_bit v1, assert_bit v2 in
+  let rec h (w0,b0) (w1,b1) (w2,b2) =
+    if not (w0 = w1 && w1 = w2)
+    then false
+    else if w0 = 0
+    then true
+    else if Bigint.(b2%two = zero) || Bigint.(b1%two = b0%two)
+    then h (w0-1,Bigint.(b0/two)) (w1-1,Bigint.(b1/two)) (w2-1,Bigint.(b2/two))
+    else false in
+  h a b c
 
 and values_match_range (env : EvalEnv.t) (vs : value list) (v1 : value)
     (v2 : value) : EvalEnv.t * bool =
@@ -1254,6 +1267,17 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
 (*----------------------------------------------------------------------------*)
 (* Helper functions *)
 (*----------------------------------------------------------------------------*)
+
+
+and assert_singleton (vs : value list) : value =
+  match vs with
+  | [v] -> v
+  | _ -> failwith "value list has more than one element"
+
+and assert_bit (v : value) : int * Bigint.t =
+  match v with
+  | VBit(w,n) -> (w,n)
+  | _ -> failwith "not a bitstring"
 
 and assert_set (v : value) : set =
   match v with

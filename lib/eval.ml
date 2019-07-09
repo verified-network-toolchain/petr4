@@ -1210,7 +1210,7 @@ and values_match_set (vs : value list) (env : EvalEnv.t)
   | SSingleton n  -> (env, values_match_singleton vs n)
   | SUniversal    -> (env, true)
   | SMask(v1,v2)  -> (env, values_match_mask vs v1 v2)
-  | SRange(v1,v2) -> values_match_range env vs v1 v2
+  | SRange(v1,v2) -> (env, values_match_range env vs v1 v2)
   | SProd l       -> values_match_prod env vs l
 
 and values_match_singleton (vs :value list) (n : Bigint.t) : bool =
@@ -1236,8 +1236,13 @@ and values_match_mask (vs : value list) (v1 : value)
   h a b c
 
 and values_match_range (env : EvalEnv.t) (vs : value list) (v1 : value)
-    (v2 : value) : EvalEnv.t * bool =
-  failwith "range matching unimplemented"
+    (v2 : value) : bool =
+  let v = assert_singleton vs in
+  match (v, v1, v2) with
+  | VBit(w0,b0), VBit(w1,b1), VBit(w2,b2)
+  | VInt(w0,b0), VInt(w1,b1), VInt(w2,b2) ->
+    w0 = w1 && w1 = w2 && Bigint.(b1 <= b0 && b0 <= b2)
+  | _ -> failwith "implicit casts unimplemented"
 
 and values_match_prod (env : EvalEnv.t) (vs : value list)
     (l : set list) : EvalEnv.t * bool =

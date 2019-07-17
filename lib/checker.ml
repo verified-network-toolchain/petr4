@@ -1527,6 +1527,42 @@ and type_package_type env name type_params params =
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
 
+let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
+  let fail typ =
+    Core.raise_s [%message "cannot translate this type to a surface type"
+                           ~typ:(typ: Typed.Type.t)]
+  in
+  let mkint i =
+    let i: P4Int.t =
+      Info.dummy, { value = Bigint.of_int i; width_signed = None }
+    in
+    Info.dummy, Expression.Int i
+  in
+  let go : Typed.Type.t -> Types.Type.pre_t =
+    function
+    | Bool -> Bool
+    | String -> fail String
+    | Integer -> fail Integer
+    | Int { width } -> IntType (mkint width)
+    | Bit { width } -> BitType (mkint width)
+    | VarBit { width } -> VarBit (mkint width)
+    | Array { typ; size } -> 
+        let typ' = backtranslate_type typ in
+        let size' = mkint size in
+        HeaderStack { header = typ'; size = size' }
+    | Tuple {types} ->
+        Tuple (List.map backtranslate_type types)
+    | Set typ -> fail (Set typ)
+    | Error -> Error
+    | MatchKind -> fail MatchKind
+    | TypeVar name -> TypeName (Info.dummy, name)
+    | TypeName name -> TypeName (Info.dummy, name)
+    | TopLevelType name -> TopLevelType (Info.dummy, name)
+    | Void -> Void
+    | other -> fail other
+  in
+  Info.dummy, go typ
+
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : Env.checker_env =
   let Program top_decls = program in

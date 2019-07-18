@@ -26,7 +26,6 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
   |> insert name value
   |> List.rev
 
-
 let rec find_opt (name: string) : 'a env -> 'a option = function
   | [] -> None
   | h :: t ->
@@ -122,6 +121,9 @@ module EvalEnv = struct
     if List.exists ~f:(fun a -> a = name) e.err
     then VError name
     else raise (UnboundName name)
+
+  let insert_val_toplevel name v env =
+    {env with vs = insert_toplevel name v env.vs}
 
   let find_val_toplevel name e =
     find_toplevel name e.vs

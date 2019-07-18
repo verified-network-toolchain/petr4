@@ -27,6 +27,8 @@ module EvalEnv : sig
   val find_typ : string -> t -> Type.t
   val find_err : string -> t -> value
 
+  val insert_val_toplevel : string -> value -> t -> t
+
   val find_val_toplevel : string -> t -> value
   val find_decl_toplevel: string -> t -> Declaration.t
   val find_typ_toplevel : string -> t -> Type.t

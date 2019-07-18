@@ -400,32 +400,26 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
 (* Asssignment Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_assign' (env : EvalEnv.t)(lhs : lvalue)
+and eval_assign' (env : EvalEnv.t) (lhs : lvalue)
     (rhs : value) : EvalEnv.t * signal =
   match lhs with
-  | LName n            -> (assign_name env n rhs, SContinue)
-  | LTopName n         -> (assign_toplevel env n rhs, SContinue)
+  | LName n            -> (assign_name env n rhs EvalEnv.insert_val, SContinue)
+  | LTopName n         -> (assign_name env n rhs EvalEnv.insert_val_toplevel, SContinue)
   | LMember(lv,mname)  -> assign_member env lv mname rhs
   | LBitAccess _       -> (assign_bitaccess (), SContinue)
   | LArrayAccess(lv,e) -> assign_arrayaccess env lv e rhs
 
-and assign_name (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
+and assign_name (env : EvalEnv.t) (name : string) (rhs : value)
+    (f : string -> value -> EvalEnv.t -> EvalEnv.t) : EvalEnv.t =
   let t = EvalEnv.find_typ name env in
   match rhs with
-    | VTuple l ->
-      let f = match snd (decl_of_typ env t) with
-        | Declaration.Struct _ -> struct_of_list env name
-        | Declaration.Header _ -> header_of_list env name
-        | _ -> (fun l -> VTuple l) in
-      EvalEnv.insert_val name (f l) env
-    | VStruct(n,l)    -> EvalEnv.insert_val name (VStruct(name,l)) env
-    | VHeader(n,l,b)  -> EvalEnv.insert_val name (VHeader(name,l,b)) env
-    | VUnion(n,v,l)   -> EvalEnv.insert_val name (VUnion(name,v,l)) env
-    | VStack(n,v,a,i) -> EvalEnv.insert_val name (VStack(name,v,a,i)) env
-    | _ -> EvalEnv.insert_val name rhs env
-
-and assign_toplevel (env : EvalEnv.t) (name : string) (rhs : value) : EvalEnv.t =
-  failwith "toplevel assignment unimplemented"
+  | VTuple l        -> f name (implicit_cast_from_tuple env name l t) env
+  | VStruct(n,l)    -> f name (VStruct(name,l)) env
+  | VHeader(n,l,b)  -> f name (VHeader(name,l,b)) env
+  | VUnion(n,v,l)   -> f name (VUnion(name,v,l)) env
+  | VStack(n,v,a,i) -> f name (VStack(name,v,a,i)) env
+  | VInteger n      -> f name (implicit_cast_from_rawint env n t) env
+  | _ -> f name rhs env
 
 and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
     (rhs : value) : EvalEnv.t * signal =
@@ -457,12 +451,20 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
 
 and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (sname : string) (l : (string * value) list) : EvalEnv.t =
-  EvalEnv.insert_val sname (VStruct(sname, (fname, rhs) :: l)) env
+  let t = typ_of_struct_field env sname fname in
+  let rhs' = match rhs with
+    | VInteger n -> implicit_cast_from_rawint env n t
+    | _ -> rhs in
+  EvalEnv.insert_val sname (VStruct(sname, (fname, rhs') :: l)) env
 
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (hname : string) (l : (string * value) list)
     (b : bool) : EvalEnv.t =
-  EvalEnv.insert_val hname (VHeader(hname,(fname,rhs) :: l,b)) env
+  let t = typ_of_header_field env hname fname in
+  let rhs' = match rhs with
+    | VInteger n ->  implicit_cast_from_rawint env n t
+    | _ -> rhs in
+  EvalEnv.insert_val hname (VHeader(hname,(fname,rhs') :: l,b)) env
 
 and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (uname : string) (vbs : (string * bool) list) : EvalEnv.t =
@@ -470,7 +472,7 @@ and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
   let dummy_env = EvalEnv.insert_typ fname t env in
   let rhs' = match rhs with
     | VTuple l -> header_of_list dummy_env fname l
-    | x -> x in (* TODO: this should not scale to nested structs *)
+    | _ -> rhs in
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
   EvalEnv.insert_val uname (VUnion(uname, rhs', vbs')) env
 
@@ -546,7 +548,8 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list) (size : int)
 (* Expression Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_expression (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
+and eval_expression (env : EvalEnv.t)
+    (exp : Expression.t) : EvalEnv.t * value =
   match snd exp with
   | True                              -> (env, VBool true)
   | False                             -> (env, VBool false)
@@ -554,7 +557,7 @@ and eval_expression (env : EvalEnv.t) (exp : Expression.t) : EvalEnv.t * value =
   | String (_,value)                  -> (env, VString value)
   | Name (_,name)                     -> (env, EvalEnv.find_val name env)
   | TopLevel (_,name)                 -> (env, EvalEnv.find_val_toplevel name env)
-  | ArrayAccess({array=a; index=i})   -> eval_array_access env a i
+  | ArrayAccess{array=a; index=i}     -> eval_array_access env a i
   | BitStringAccess({bits;lo;hi})     -> eval_bitstring_access env bits lo hi
   | List{values}                      -> eval_list env values
   | UnaryOp{op;arg}                   -> eval_unary env op arg
@@ -600,12 +603,14 @@ and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
     (env''', VBit(m'-l'+1, v))
   | _ -> failwith "bit string access unimplemented"
 
-and eval_list (env : EvalEnv.t) (values : Expression.t list) : EvalEnv.t * value =
+and eval_list (env : EvalEnv.t)
+    (values : Expression.t list) : EvalEnv.t * value =
   values
   |> List.fold_map ~f:eval_expression ~init:env
   |> (fun (e,l) -> (e, VTuple l))
 
-and eval_unary (env : EvalEnv.t) (op : Op.uni) (e : Expression.t) : EvalEnv.t * value =
+and eval_unary (env : EvalEnv.t) (op : Op.uni)
+    (e : Expression.t) : EvalEnv.t * value =
   let (env', e') = eval_expression env e in
   match snd op, e' with
   | UMinus, VBit(w,v) -> Bigint.(env', VBit(w, (power_of_two w) - v))
@@ -787,12 +792,14 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (env', VObjstate((info, decl), state'))
   | _ -> failwith "instantiation unimplemented"
 
-and eval_mask env e m =
+and eval_mask (env : EvalEnv.t) (e : Expression.t)
+    (m : Expression.t) : EvalEnv.t * value =
   let (env', v1)  = eval_expression env  e in
   let (env'', v2) = eval_expression env' m in
   (env'', VSet(SMask(v1,v2)))
 
-and eval_range env lo hi =
+and eval_range (env : EvalEnv.t) (lo : Expression.t)
+    (hi : Expression.t) : EvalEnv.t * value =
   let (env', v1)  = eval_expression env  lo in
   let (env'', v2) = eval_expression env' hi in
   (env'', VSet(SRange(v1,v2)))
@@ -801,10 +808,19 @@ and eval_range env lo hi =
 (* Binary Operator Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-and eval_two op l r =
+(* should handle the following two-place operations on bitstrings, signed and
+   unsigned, along with implicit casts from raw int type:
+   +, -, *, /, %, &, ^, | *)
+and eval_two (op : Bigint.t -> Bigint.t -> Bigint.t) (l : value)
+    (r : value) : value =
   match l,r with
   | VBit(w1, v1), VBit(_, v2) -> VBit(w1, op v1 v2)
   | VInt(w1, v1), VInt(_, v2) -> VInt(w1, op v1 v2)
+  | VBit(w1, v1), VInteger n -> eval_two op l (bit_of_rawint n w1)
+  | VInteger n, VBit(w1, v1) -> eval_two op (bit_of_rawint n w1) r
+  | VInt(w1, v1), VInteger n -> eval_two op l (int_of_rawint n w1)
+  | VInteger n, VInt(w1, v1) -> eval_two op (int_of_rawint n w1) r
+  | VInteger n1, VInteger n2 -> VInteger(op n1 n2)
   | _ -> failwith "binary logical operation only works on bitstrings"
 
 and eval_sat op l r =
@@ -1273,7 +1289,6 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
 (* Helper functions *)
 (*----------------------------------------------------------------------------*)
 
-
 and assert_singleton (vs : value list) : value =
   match vs with
   | [v] -> v
@@ -1283,6 +1298,11 @@ and assert_bit (v : value) : int * Bigint.t =
   match v with
   | VBit(w,n) -> (w,n)
   | _ -> failwith "not a bitstring"
+
+and assert_rawint (v : value) : Bigint.t =
+  match v with
+  | VInteger n -> n
+  | _ -> failwith "not a raw int type"
 
 and assert_set (v : value) : set =
   match v with
@@ -1319,6 +1339,28 @@ and int_of_val (v : value) : int =
 and power_of_two (w : int) : Bigint.t =
   Bigint.shift_left (Bigint.of_int 1) (w-1)
 
+and typ_of_struct_field (env : EvalEnv.t) (sname : string)
+    (fname : string) : Type.t =
+  let t = EvalEnv.find_typ sname env in
+  let (_, d) = decl_of_typ env t in
+  let fs = match d with
+    | Struct h -> h.fields
+    | _ -> failwith "not a struct" in
+  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  | h :: _ -> (snd h).typ
+  | _ -> failwith "field name not found"
+
+and typ_of_header_field (env : EvalEnv.t) (hname : string)
+    (fname : string) : Type.t =
+  let t = EvalEnv.find_typ hname env in
+  let (_,d) = decl_of_typ env t in
+  let fs = match d with
+    | Header h -> h.fields
+    | _ -> failwith "not a header" in
+  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  | h :: _ -> (snd h). typ
+  | _ -> failwith "field name not found"
+
 and typ_of_union_field (env : EvalEnv.t) (uname : string)
     (fname : string) : Type.t =
   let t = EvalEnv.find_typ uname env in
@@ -1337,26 +1379,69 @@ and typ_of_stack_mem (env : EvalEnv.t) (name : string) : Type.t =
   | _ -> failwith "not a header stack"
 
 and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
-  env
-  |> EvalEnv.find_typ name
-  |> decl_of_typ env
-  |> snd
-  |> (function Declaration.Struct s -> s.fields | _ -> failwith "not a struct")
-  |> List.map ~f:(fun x -> snd (snd x).name)
-  |> (fun fs i v -> (List.nth_exn fs i, v))
-  |> (fun f -> List.mapi l ~f:f)
-  |> (fun l -> VStruct (name, l))
+  let t = EvalEnv.find_typ name env in
+  let d = decl_of_typ env t in
+  let fs = match snd d with
+    | Declaration.Struct s -> s.fields
+    | _ -> failwith "not a struct" in
+  let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
+  let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
+  let f (fn,v) =
+    match v with
+    | VInteger n ->
+      let t = typ_of_struct_field env name fn in
+      (fn,implicit_cast_from_rawint env n t)
+    | _ -> (fn,v) in
+  let l'' = List.map l' ~f:f in
+  VStruct (name, l'')
 
 and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
-  env
-  |> EvalEnv.find_typ name
-  |> decl_of_typ env
-  |> snd
-  |> (function Declaration.Header s -> s.fields | _ -> failwith "not a struct")
-  |> List.map ~f:(fun x -> snd (snd x).name)
-  |> (fun fs i v -> (List.nth_exn fs i, v))
-  |> (fun f -> List.mapi l ~f:f)
-  |> (fun l -> VHeader (name, l, true))
+  let t = EvalEnv.find_typ name env in
+  let d = decl_of_typ env t in
+  let fs = match snd d with
+    | Declaration.Header h -> h.fields
+    | _ -> failwith "not a header" in
+  let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
+  let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
+  let f (fn,v) =
+    match v with
+    | VInteger n ->
+      let t = typ_of_header_field env name fn in
+      (fn, implicit_cast_from_rawint env n t)
+    | _ -> (fn,v) in
+  let l'' = List.map l' ~f:f in
+  VHeader (name, l'', true)
+
+and implicit_cast_from_rawint (env : EvalEnv.t) (n : Bigint.t)
+    (t : Type.t) : value =
+  let (e, f) = match snd t with
+    | Type.IntType e -> (e, int_of_rawint)
+    | Type.BitType e -> (e, bit_of_rawint)
+    | _ -> failwith "attempt to assign raw int to wrong type"  in
+  e |> eval_expression env |> snd |> int_of_val |> f n
+
+and implicit_cast_from_tuple (env : EvalEnv.t) (n : string) (l : value list)
+    (t : Type.t) : value =
+  match snd (decl_of_typ env t) with
+    | Struct _ -> struct_of_list env n l
+    | Header _ -> header_of_list env n l
+    | _ -> VTuple l
+
+and bit_of_rawint (n : Bigint.t) (width : int) : value =
+  let i = Bigint.(power_of_two width - one) in
+  let n' = Bigint.(
+      if n < zero then failwith "bitstrings cannot be negative"
+      else if n > i then failwith "unsigned bitstring overflow"
+      else n) in
+  VBit(width, n')
+
+and int_of_rawint (n : Bigint.t) (width : int) : value =
+  let i = Bigint.(-) (power_of_two (width - 1)) Bigint.one in
+  let j = Bigint.neg (power_of_two (width - 1)) in
+  Bigint.(
+    if n < j then failwith "signed bitstring overflow, less than"
+    else if n > i then int_of_rawint (neg (power_of_two width) + n) width
+    else VInt(width,n))
 
 (* -------------------------------------------------------------------------- *)
 (* Target and Architecture Dependent Evaluation *)

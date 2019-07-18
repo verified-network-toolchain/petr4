@@ -9,11 +9,8 @@ parser MyParser(packet_in packet,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
 
-    bit<8> a = 8w7;
-    bit<8> b = 8w6;
-
     state start {
-        transition select(a) {
+        transition select(8w7) {
             7 : first_state;
             _ : accept;
         }
@@ -21,7 +18,7 @@ parser MyParser(packet_in packet,
 
     state first_state {
         standard_metadata.egress_spec = 1;
-        transition select(b) {
+        transition select(8w6) {
             6 : second_state;
             _ : accept;
         }
@@ -29,7 +26,7 @@ parser MyParser(packet_in packet,
 
     state second_state {
         standard_metadata.egress_spec = 2;
-        transition select(a) {
+        transition select(8w7) {
             0 : accept;
             _ : third_state;
         }
@@ -37,7 +34,7 @@ parser MyParser(packet_in packet,
 
     state third_state {
         standard_metadata.egress_spec = 3;
-        transition select(a) {
+        transition select(8w7) {
             0 : accept;
             default : fourth_state;
         }
@@ -45,7 +42,7 @@ parser MyParser(packet_in packet,
 
     state fourth_state {
         standard_metadata.egress_spec = 4;
-        transition select(a,b) {
+        transition select(8w7,8w6) {
             (6,7) : accept;
             (0,0) : accept;
             (_,2) : accept;

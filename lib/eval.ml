@@ -544,7 +544,13 @@ and value_of_lmember (env : EvalEnv.t) (lv : lvalue) (n : string) : value =
 
 and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
     (lo : Expression.t) : value =
-  failwith "value of bitstring l value unimplemented"
+  let (_, m) = eval_expression env hi in
+  let (_,l) = eval_expression env lo in
+  let n = value_of_lvalue env lv in
+  let n' = bigint_of_val n in
+  let m' = bigint_of_val m in
+  let l' = bigint_of_val l in
+  VBit(Bigint.(to_int_exn (m' - l' + one)), bitstring_slice n' m' l')
 
 and value_of_larray (env : EvalEnv.t) (lv : lvalue)
     (idx : Expression.t) : value =
@@ -613,8 +619,8 @@ and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
   let mi = int_of_val m in
   let li = int_of_val l in
   match s with
-  | VBit(_, v1) -> (env''', VBit(mi-li+1, bitstring_slice v1 m' l'))
-  | _ -> failwith "bit string access unimplemented"
+  | VBit(_, v1) -> (env''',VBit(mi-li+1,bitstring_slice v1 m' l'))
+  | _ -> failwith "bitstring slice on non-bitstring value"
 
 and eval_list (env : EvalEnv.t)
     (values : Expression.t list) : EvalEnv.t * value =
@@ -624,14 +630,11 @@ and eval_list (env : EvalEnv.t)
 
 and eval_unary (env : EvalEnv.t) (op : Op.uni)
     (e : Expression.t) : EvalEnv.t * value =
-  let (env', e') = eval_expression env e in
-  match snd op, e' with
-  | UMinus, VBit(w,v) -> Bigint.(env', VBit(w, (power_of_two w) - v))
-  | UMinus, VInt(w,v) -> Bigint.(env', VBit(w, -v))
-  | BitNot, VBit(w,v) -> Bigint.(env', VBit(w, -v))
-  | BitNot, VInt(w,v) -> Bigint.(env', VInt(w, -v))
-  | Not, VBool b      -> (env', VBool (not b))
-  | _ -> failwith "unary op unimplemented"
+  let (env', v) = eval_expression env e in
+  match snd op with
+  | Not    -> eval_not env' v
+  | BitNot -> eval_bitnot env' v
+  | UMinus -> eval_uminus env' v
 
 and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
     (r : Expression.t) : EvalEnv.t * value =
@@ -816,6 +819,36 @@ and eval_range (env : EvalEnv.t) (lo : Expression.t)
   let (env', v1)  = eval_expression env  lo in
   let (env'', v2) = eval_expression env' hi in
   (env'', VSet(SRange(v1,v2)))
+
+(*----------------------------------------------------------------------------*)
+(* Unary Operator Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and eval_not (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
+  match v with
+  | VBool b -> (env, VBool (not b))
+  | _ -> failwith "not operator can only be applied to bools"
+
+and eval_bitnot (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
+  match v with
+  | VBit(w,n) -> (env, VBit(w, bitwise_neg_of_bigint n w))
+  | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
+
+and bitwise_neg_of_bigint (n : Bigint.t) (w : int) : Bigint.t =
+  if w > 0 then
+    let w' = power_of_two (w-1) in
+    let g = Bigint.(bitstring_slice n (of_int w) (of_int w)) in
+    if Bigint.(g = zero)
+    then bitwise_neg_of_bigint Bigint.(n + w') (w-1)
+    else bitwise_neg_of_bigint Bigint.(n - w') (w-1)
+  else n
+
+and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
+  match v with
+  | VBit(w,n)  -> Bigint.(env, VBit(w, (power_of_two w) - n))
+  | VInt(w,n)  -> Bigint.(env, VBit(w, -n))
+  | VInteger n -> (env, VInteger (Bigint.neg n))
+  | _ -> failwith "unary minus on non-int type"
 
 (*----------------------------------------------------------------------------*)
 (* Binary Operator Evaluation *)

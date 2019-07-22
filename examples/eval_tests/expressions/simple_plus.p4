@@ -1,4 +1,4 @@
-const bit<8> c = 8w5 + 8w5;
+const bit<8> c = 5 + 5;
 
 package EmptyPackage();
 

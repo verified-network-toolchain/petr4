@@ -9,12 +9,12 @@ MyHeader[5] init() {
 }
 
 MyHeader[5] set_next(in MyHeader[5] a) {
-    a.next = {8w42,8w42};
+    a.next = {42,42};
     return a;
 }
 
 MyHeader[5] set_third(in MyHeader[5] a) {
-    a[3] = {8w42,8w42};
+    a[3] = {42,42};
     return a;
 }
 

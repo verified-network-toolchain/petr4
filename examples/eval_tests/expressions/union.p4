@@ -25,13 +25,13 @@ Union f2(in bit<8> x) {
 
 Union set1(in Union x) {
     x.h1.setValid();
-    x.h1.u = 8w42;
+    x.h1.u = 42;
     return x;
 }
 
 Union set2(in Union x) {
     x.h2.setValid();
-    x.h2.v = 16w42;
+    x.h2.v = 42;
     return x;
 }
 

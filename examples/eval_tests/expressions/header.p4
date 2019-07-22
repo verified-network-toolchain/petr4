@@ -26,7 +26,7 @@ const bool d = head2.isValid(); //false
 const bit<2> e = head2.first; //1
 const bit<2> h = head2.second;//0
 
-const my_header head3 = f(2w2,2w3);
+const my_header head3 = f(2,3);
 const bool i = head3.isValid(); //true
 const bit<2> j = head3.first; //2
 const bit<2> k = head3.second; //3

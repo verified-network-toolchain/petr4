@@ -1,8 +1,8 @@
 enum bit<2> Suits {
-    Spade = 2w0,
-    Diamond = 2w1,
-    Heart = 2w2,
-    Club = 2w3
+    Spade = 0,
+    Diamond = 1,
+    Heart = 2,
+    Club = 3
 }
 
 const Suits a = Suits.Heart;

@@ -263,9 +263,9 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   | TypeName (_,n)            -> init_val_of_typname env n name false
   | SpecializedType _         -> failwith "specialized init unimplemented"
   | HeaderStack{header; size} -> init_val_of_stack env name header size
-  | Tuple _                   -> failwith "tuple init unimplemented"
+  | Tuple l                   -> init_val_of_tuple env typ l
   | Void                      -> VNull
-  | DontCare                  -> failwith "no init value for dont care types"
+  | DontCare                  -> VNull
 
 and init_val_of_int (env : EvalEnv.t) (expr : Expression.t) : value =
   match snd (eval_expression env expr) with
@@ -291,6 +291,9 @@ and init_val_of_stack (env: EvalEnv.t) (name : string)
   let hdrs = size' |> List.init ~f:string_of_int
              |> List.map ~f:(fun s -> init_val_of_typ env s hdr) in
   VStack(name, hdrs, size', 0)
+
+and init_val_of_tuple (env : EvalEnv.t) (t : Type.t) (l : Type.t list) : value =
+  VTuple (List.map l ~f:(init_val_of_typ env ""))
 
 and init_val_of_struct (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
@@ -406,7 +409,7 @@ and eval_assign' (env : EvalEnv.t) (lhs : lvalue)
   | LName n            -> (assign_name env n rhs EvalEnv.insert_val, SContinue)
   | LTopName n         -> (assign_name env n rhs EvalEnv.insert_val_toplevel, SContinue)
   | LMember(lv,mname)  -> assign_member env lv mname rhs
-  | LBitAccess _       -> (assign_bitaccess (), SContinue)
+  | LBitAccess(lv,m,l) -> assign_bitaccess env lv m l rhs
   | LArrayAccess(lv,e) -> assign_arrayaccess env lv e rhs
 
 and assign_name (env : EvalEnv.t) (name : string) (rhs : value)
@@ -425,14 +428,31 @@ and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
     (rhs : value) : EvalEnv.t * signal =
   let v = value_of_lvalue env lv in
   match v with
-  | VStruct(n,l)       -> (assign_struct_mem env lv rhs mname n l, SContinue)
-  | VHeader(n,l,b)     -> (assign_header_mem env lv rhs mname n l b, SContinue)
-  | VUnion(n,vs,bs)    -> (assign_union_mem env lv rhs mname n bs, SContinue)
+  | VStruct(n,l)       -> assign_struct_mem env lv rhs mname n l
+  | VHeader(n,l,b)     -> assign_header_mem env lv rhs mname n l b
+  | VUnion(n,vs,bs)    -> assign_union_mem env lv rhs mname n bs
   | VStack(n,hdrs,s,i) -> assign_stack_mem env lv rhs n mname hdrs s i
   | _ -> failwith "member assignment unimplemented"
 
-and assign_bitaccess () =
-  failwith "bitstring access assignment unimplemented"
+and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
+    (lsb : Expression.t) (rhs : value) : EvalEnv.t * signal =
+  let (env', msb') = eval_expression env msb in
+  let (env'', lsb') = eval_expression env' lsb in
+  let lsb'' = bigint_of_val lsb' in
+  let msb'' = bigint_of_val msb' in
+  let w = Bigint.(msb'' - lsb'' + one) in
+  let v = value_of_lvalue env lv in
+  let n = bigint_of_val v in
+  let rhs' = bit_of_rawint (bigint_of_val rhs) (Bigint.to_int_exn w) |> bigint_of_val in
+  let n0 = bitstring_slice n msb'' lsb'' in
+  let diff = Bigint.(n0 - rhs') in
+  let diff' = Bigint.(diff * (power_of_two (to_int_exn lsb''))) in
+  let final = Bigint.(n - diff') in
+  match rhs with
+  | VInt(w,_)  -> eval_assign' env'' lv (VInt(w,final))
+  | VBit(w,_)  -> eval_assign' env'' lv (VBit(w,final))
+  | VInteger _ -> eval_assign' env'' lv (VInteger(final))
+  | _ -> failwith "bitstring access assignment with non-int type"
 
 and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
     (rhs : value) : EvalEnv.t * signal =
@@ -447,34 +467,28 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
         | [] -> failwith "empty header stack" in
       VStack(n,hdrs',size,next)
     | _ -> failwith "array access is not a header stack" in
-  eval_assign' env lv rhs'
+  eval_assign' env' lv rhs'
 
 and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
-    (fname : string) (sname : string) (l : (string * value) list) : EvalEnv.t =
-  let t = typ_of_struct_field env sname fname in
-  let rhs' = match rhs with
-    | VInteger n -> implicit_cast_from_rawint env n t
-    | _ -> rhs in
-  EvalEnv.insert_val sname (VStruct(sname, (fname, rhs') :: l)) env
+    (fname : string) (sname : string)
+    (l : (string * value) list) : EvalEnv.t * signal =
+  eval_assign' env lhs ((VStruct(sname, (fname, rhs) :: l)))
 
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (hname : string) (l : (string * value) list)
-    (b : bool) : EvalEnv.t =
-  let t = typ_of_header_field env hname fname in
-  let rhs' = match rhs with
-    | VInteger n ->  implicit_cast_from_rawint env n t
-    | _ -> rhs in
-  EvalEnv.insert_val hname (VHeader(hname,(fname,rhs') :: l,b)) env
+    (b : bool) : EvalEnv.t * signal =
+  eval_assign' env lhs ((VHeader(hname,(fname,rhs) :: l,b)))
 
 and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
-    (fname : string) (uname : string) (vbs : (string * bool) list) : EvalEnv.t =
+    (fname : string) (uname : string)
+    (vbs : (string * bool) list) : EvalEnv.t * signal =
   let t = typ_of_union_field env uname fname in
   let dummy_env = EvalEnv.insert_typ fname t env in
   let rhs' = match rhs with
     | VTuple l -> header_of_list dummy_env fname l
     | _ -> rhs in
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
-  EvalEnv.insert_val uname (VUnion(uname, rhs', vbs')) env
+  eval_assign' env lhs (VUnion(uname, rhs', vbs'))
 
 and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (sname : string) (mname : string) (hdrs : value list) (size : int)
@@ -497,7 +511,7 @@ and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
       match hdrs2 with
       | _ :: t -> hdrs1 @ (rhs' :: t)
       | [] -> failwith "header stack is empty" in
-    (EvalEnv.insert_val sname (VStack(sname,hdrs',size,next)) env, SContinue)
+    eval_assign' env lhs (VStack(sname,hdrs',size,next))
 
 (*----------------------------------------------------------------------------*)
 (* Functions on L-Values*)
@@ -594,13 +608,12 @@ and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
   let (env', m) = eval_expression env m in
   let (env'', l) = eval_expression env' l in
   let (env''', s) = eval_expression env'' s in
-  let m' = int_of_val m in
-  let l' = int_of_val l in
-  match m, l, s with
-  | VBit(_, vm), VBit(_, vl), VBit(w1, v1) ->
-    let v = (Bigint.shift_left v1 (l'+1) |>
-             Bigint.shift_right) (w1-m'+l') in
-    (env''', VBit(m'-l'+1, v))
+  let m' = bigint_of_val m in
+  let l' = bigint_of_val l in
+  let mi = int_of_val m in
+  let li = int_of_val l in
+  match s with
+  | VBit(_, v1) -> (env''', VBit(mi-li+1, bitstring_slice v1 m' l'))
   | _ -> failwith "bit string access unimplemented"
 
 and eval_list (env : EvalEnv.t)
@@ -933,7 +946,6 @@ and eval_packet_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
   | "emit" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
   | _ -> failwith "packet member unimplemented"
 
-
 (*----------------------------------------------------------------------------*)
 (* Function and Method Call Evaluation *)
 (*----------------------------------------------------------------------------*)
@@ -963,6 +975,7 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
     let v' = match v with
       | VHeader (n,l,b) -> VHeader (name, l, b)
       | VStruct (n,l) -> VStruct (name,l)
+      | VInteger n -> implicit_cast_from_rawint e n (snd p).typ
       | _ -> v in
     match (snd p).direction with
     | None -> e
@@ -1012,10 +1025,24 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  let v = value_of_lvalue env lv in
-  match v with
-  | VHeader(_,_,b) -> (env, VBool b)
-  | _ -> failwith "isvalid call is not a header"
+  match lv with
+  | LName _
+  | LTopName _
+  | LBitAccess _
+  | LArrayAccess _ ->
+    let v = value_of_lvalue env lv in
+    begin match v with
+      | VHeader(_,_,b) -> (env, VBool b)
+      | _ -> failwith "isvalid call is not a header" end
+  | LMember(lv',n) ->
+    let v = value_of_lvalue env lv' in
+    begin match v with
+      | VUnion(_,_,l) -> (env, VBool (List.Assoc.find_exn l n ~equal:(=)))
+      | _ ->
+        let v = value_of_lvalue env lv in
+        begin match v with
+          | VHeader(_,_,b) -> (env, VBool b)
+          | _ -> failwith "isvalid call is not a header" end end
 
 and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
   match lv with
@@ -1336,8 +1363,21 @@ and int_of_val (v : value) : int =
   | VInt (_,n) -> Bigint.to_int_exn n
   | _ -> failwith "not an int"
 
+and bigint_of_val (v : value) : Bigint.t =
+  match v with
+  | VInt(_,n)
+  | VBit(_,n)
+  | VInteger n -> n
+  | _ -> failwith "value not representable as bigint"
+
 and power_of_two (w : int) : Bigint.t =
-  Bigint.shift_left (Bigint.of_int 1) (w-1)
+  Bigint.shift_left (Bigint.of_int 1) w
+
+and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
+  Bigint.(
+    if l > zero
+    then bitstring_slice (n/(one + one)) (m-one) (l-one)
+    else n % (power_of_two (to_int_exn (m + one))))
 
 and typ_of_struct_field (env : EvalEnv.t) (sname : string)
     (fname : string) : Type.t =
@@ -1386,14 +1426,7 @@ and struct_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
     | _ -> failwith "not a struct" in
   let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
   let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
-  let f (fn,v) =
-    match v with
-    | VInteger n ->
-      let t = typ_of_struct_field env name fn in
-      (fn,implicit_cast_from_rawint env n t)
-    | _ -> (fn,v) in
-  let l'' = List.map l' ~f:f in
-  VStruct (name, l'')
+  VStruct (name, l')
 
 and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
   let t = EvalEnv.find_typ name env in
@@ -1403,14 +1436,7 @@ and header_of_list (env : EvalEnv.t) (name : string) (l : value list) : value =
     | _ -> failwith "not a header" in
   let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
   let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
-  let f (fn,v) =
-    match v with
-    | VInteger n ->
-      let t = typ_of_header_field env name fn in
-      (fn, implicit_cast_from_rawint env n t)
-    | _ -> (fn,v) in
-  let l'' = List.map l' ~f:f in
-  VHeader (name, l'', true)
+  VHeader (name, l', true)
 
 and implicit_cast_from_rawint (env : EvalEnv.t) (n : Bigint.t)
     (t : Type.t) : value =

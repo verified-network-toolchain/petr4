@@ -640,29 +640,29 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
     (r : Expression.t) : EvalEnv.t * value =
   let (env',l) = eval_expression env l in
   let (env'',r) = eval_expression env' r in
-  let f = begin match snd op with
-    | Plus     -> eval_two Bigint.( + )
-    | PlusSat  -> eval_sat Bigint.( + )
-    | Minus    -> eval_two Bigint.( - )
-    | MinusSat -> eval_sat Bigint.( - )
-    | Mul      -> eval_two Bigint.( * )
-    | Div      -> eval_two Bigint.( / )
-    | Mod      -> eval_two Bigint.rem
-    | Shl      -> eval_shift Bigint.shift_left
-    | Shr      -> eval_shift Bigint.shift_right
-    | Le       -> eval_compare (<=)
-    | Ge       -> eval_compare (>=)
-    | Lt       -> eval_compare (<)
-    | Gt       -> eval_compare (>)
-    | Eq       -> eval_eq true
-    | NotEq    -> eval_eq false
-    | BitAnd   -> eval_two Bigint.bit_and
-    | BitXor   -> eval_two Bigint.bit_xor
-    | BitOr    -> eval_two Bigint.bit_or
-    | PlusPlus -> eval_concat
-    | And      -> eval_and_or (&&)
-    | Or       -> eval_and_or (||) end in
-  (env'', f l r)
+  let v = match snd op with
+    | Plus     -> eval_bplus l r
+    | PlusSat  -> eval_bplus_sat l r
+    | Minus    -> eval_bminus l r
+    | MinusSat -> eval_bminus_sat l r
+    | Mul      -> eval_bmult l r
+    | Div      -> eval_bdiv l r
+    | Mod      -> eval_bmod l r
+    | Shl      -> eval_bshl l r
+    | Shr      -> eval_bshr l r
+    | Le       -> eval_ble l r
+    | Ge       -> eval_bge l r
+    | Lt       -> eval_blt l r
+    | Gt       -> eval_bgt l r
+    | Eq       -> eval_beq l r
+    | NotEq    -> eval_bne l r
+    | BitAnd   -> eval_bitwise_and l r
+    | BitXor   -> eval_bitwise_xor l r
+    | BitOr    -> eval_bitwise_or l r
+    | PlusPlus -> eval_concat l r
+    | And      -> eval_band l r
+    | Or       -> eval_bor l r in
+  (env'', v)
 
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
     (expr : Expression.t) : EvalEnv.t * value =
@@ -854,65 +854,233 @@ and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
 (* Binary Operator Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-(* should handle the following two-place operations on bitstrings, signed and
-   unsigned, along with implicit casts from raw int type:
-   +, -, *, /, %, &, ^, | *)
-and eval_two (op : Bigint.t -> Bigint.t -> Bigint.t) (l : value)
-    (r : value) : value =
-  match l,r with
-  | VBit(w1, v1), VBit(_, v2) -> VBit(w1, op v1 v2)
-  | VInt(w1, v1), VInt(_, v2) -> VInt(w1, op v1 v2)
-  | VBit(w1, v1), VInteger n -> eval_two op l (bit_of_rawint n w1)
-  | VInteger n, VBit(w1, v1) -> eval_two op (bit_of_rawint n w1) r
-  | VInt(w1, v1), VInteger n -> eval_two op l (int_of_rawint n w1)
-  | VInteger n, VInt(w1, v1) -> eval_two op (int_of_rawint n w1) r
-  | VInteger n1, VInteger n2 -> VInteger(op n1 n2)
-  | _ -> failwith "binary logical operation only works on bitstrings"
+and eval_bplus (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 + v2) w)
+  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 + v2) w)
+  | VBit(w,v1), VInteger n   -> eval_bplus l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v1)   -> eval_bplus (bit_of_rawint n w) r
+  | VInt(w,v1), VInteger n   -> eval_bplus l (int_of_rawint n w)
+  | VInteger n, VInt(w,v1)   -> eval_bplus (int_of_rawint n w) r
+  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 + n2)
+  | _ -> failwith "binary plus operation only defined on ints"
 
-and eval_sat op l r =
-  let compute m n w =
-    let a = Bigint.abs (op m n) in
-    if  Bigint.(<) a m || Bigint.(<) a n then power_of_two w else a in
-  match l,r with
-  | VBit(w1,v1), VBit(w2, v2) -> VBit(w1, compute v1 v2 w1)
-  | VInt(w1,v1), VInt(w2, v2) -> VInt(w1, compute v1 v2 (w1-1))
-  | _ -> failwith "binary logical operation only works on bitstrings"
+and eval_bplus_sat (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2) -> unsigned_plus_sat v1 v2 w
+  | VInt(w,v1), VInt(_,v2) -> signed_plus_sat v1 v2 w
+  | VBit(w,v1), VInteger n -> eval_bplus_sat l (bit_of_rawint n w)
+  | VInteger n, VBit(w,_)  -> eval_bplus_sat (bit_of_rawint n w) r
+  | VInt(w,_), VInteger n  -> eval_bplus_sat l (int_of_rawint n w)
+  | VInteger n, VInt(w,_)  -> eval_bplus_sat (int_of_rawint n w) r
+  | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
-and eval_shift op l r =
-  match l,r with
-  | VBit(w1, v1), VBit(_, v2)
-  | VBit(w1, v1), VInt(_, v2) ->
-    if v1 >= Bigint.zero
-    then VBit(w1, op v1 (Bigint.to_int_exn v2))
-    else failwith "can't shift with a negative amount"
-  | _ -> failwith "shift doesn't works on this type"
+and eval_bminus (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 - v2) w)
+  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 - v2) w)
+  | VBit(w,v1), VInteger n   -> eval_bminus l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v1)   -> eval_bminus (bit_of_rawint n w) r
+  | VInt(w,v1), VInteger n   -> eval_bminus l (int_of_rawint n w)
+  | VInteger n, VInt(w,v1)   -> eval_bminus (int_of_rawint n w) r
+  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 - n2)
+  | _ -> failwith "binary plus operation only defined on ints"
 
-and eval_compare op l r =
-  match l,r with
-  | VBit(_, v1), VBit(_, v2)
-  | VInt(_, v1), VInt(_, v2) -> VBool(op v1 v2)
-  | _ -> failwith " binary comparison only works on fixed length integer"
+and eval_bminus_sat (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2) -> unsigned_minus_sat v1 v2 w
+  | VInt(w,v1), VInt(_,v2) -> signed_minus_sat v1 v2 w
+  | VBit(w,v1), VInteger n -> eval_bminus_sat l (bit_of_rawint n w)
+  | VInteger n, VBit(w,_)  -> eval_bminus_sat (bit_of_rawint n w) r
+  | VInt(w,_), VInteger n  -> eval_bminus_sat l (int_of_rawint n w)
+  | VInteger n, VInt(w,_)  -> eval_bminus_sat (int_of_rawint n w) r
+  | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
-and eval_eq (op : bool) (l : value) (r : value) : value =
-  match l,r with
-  | VBit(_, v1), VBit(_, v2)
-  | VInt(_, v1), VInt(_, v2)
-  | VInteger v1, VInteger v2 -> VBool (if op then v1 = v2 else v1 <> v2)
-  | VBool v1, VBool v2 -> VBool (if op then v1 = v2 else v1 <> v2)
-  | _ -> failwith "equality for varbit binary comparison only works on bitstrings"
+and eval_bmult (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 * v2) w)
+  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 * v2) w)
+  | VBit(w,v1), VInteger n   -> eval_bmult l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v1)   -> eval_bmult (bit_of_rawint n w) r
+  | VInt(w,v1), VInteger n   -> eval_bmult l (int_of_rawint n w)
+  | VInteger n, VInt(w,v1)   -> eval_bmult (int_of_rawint n w) r
+  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 * n2)
+  | _ -> failwith "binary plus operation only defined on ints"
 
-and eval_concat l r =
-  let concat m n wn =
-    Bigint.( + ) (Bigint.shift_left m wn) n in
-  match l,r with
-  | VBit(w1, v1), VBit(w2, v2) -> VBit(w1+w2, concat v1 v2 w2)
-  | VInt(w1, v1), VInt(w2, v2) -> VInt(w1+w2, concat v1 v2 w2)
-  | _ -> failwith " binary concatenation only works on fixed length integer"
+and eval_bdiv (l : value) (r : value) : value =
+  match (l,r) with
+  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 / n2)
+  | _ -> failwith "division only defined on raw ints"
 
-and eval_and_or op l r =
-  match l,r with
-  | VBool(bl), VBool(br) -> VBool(op bl br)
-  | _ -> failwith "and / or operation only works on Bools"
+and eval_bmod (l : value) (r : value) : value =
+  match (l,r) with
+  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 % n2)
+  | _ -> failwith "mod only defined on raw ints"
+
+and eval_bshl (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2)
+  | VBit(w,v1), VInteger v2 -> VBit(w, of_twos_complement (shift_bigint_left v1 v2) w)
+  | VInt(w,v1), VBit(_,v2)
+  | VInt(w,v1), VInteger v2 -> VInt(w, to_twos_complement (shift_bigint_left v1 v2) w)
+  | VInteger v1, VInteger v2 -> VInteger(shift_bigint_left v1 v2)
+  | _ -> failwith "shift left operator not defined for these types"
+
+and eval_bshr (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2)
+  | VBit(w,v1), VInteger v2 -> VBit(w, of_twos_complement (shift_bigint_right v1 v2) w)
+  | VInt(w,v1), VBit(_,v2)
+  | VInt(w,v1), VInteger v2 -> VInt(w, to_twos_complement (shift_bigint_right v1 v2) w)
+  | VInteger v1, VInteger v2 -> VInteger(shift_bigint_right v1 v2)
+  | _ -> failwith "shift right operator not defined for these types"
+
+and eval_ble (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(_,v1), VBit(_,v2)
+  | VInteger v1, VInteger v2
+  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 <= v2)
+  | VInteger v1, VBit(w,v2) -> eval_ble (bit_of_rawint v1 w) r
+  | VBit(w,v1), VInteger v2 -> eval_ble l (bit_of_rawint v2 w)
+  | VInteger v1, VInt(w,v2) -> eval_ble (int_of_rawint v1 w) r
+  | VInt(w,v1), VInteger v2 -> eval_ble l (int_of_rawint v2 w)
+  | _ -> failwith "leq operator only defined on int types"
+
+and eval_bge (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(_,v1), VBit(_,v2)
+  | VInteger v1, VInteger v2
+  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 >= v2)
+  | VInteger v1, VBit(w,v2) -> eval_bge (bit_of_rawint v1 w) r
+  | VBit(w,v1), VInteger v2 -> eval_bge l (bit_of_rawint v2 w)
+  | VInteger v1, VInt(w,v2) -> eval_bge (int_of_rawint v1 w) r
+  | VInt(w,v1), VInteger v2 -> eval_bge l (int_of_rawint v2 w)
+  | _ -> failwith "geq operator only defined on int types"
+
+and eval_blt (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(_,v1), VBit(_,v2)
+  | VInteger v1, VInteger v2
+  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 < v2)
+  | VInteger v1, VBit(w,v2) -> eval_blt (bit_of_rawint v1 w) r
+  | VBit(w,v1), VInteger v2 -> eval_blt l (bit_of_rawint v2 w)
+  | VInteger v1, VInt(w,v2) -> eval_blt (int_of_rawint v1 w) r
+  | VInt(w,v1), VInteger v2 -> eval_blt l (int_of_rawint v2 w)
+  | _ -> failwith "lt operator only defined on int types"
+
+and eval_bgt (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(_,v1), VBit(_,v2)
+  | VInteger v1, VInteger v2
+  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 > v2)
+  | VInteger v1, VBit(w,v2) -> eval_bgt (bit_of_rawint v1 w) r
+  | VBit(w,v1), VInteger v2 -> eval_bgt l (bit_of_rawint v2 w)
+  | VInteger v1, VInt(w,v2) -> eval_bgt (int_of_rawint v1 w) r
+  | VInt(w,v1), VInteger v2 -> eval_bgt l (int_of_rawint v2 w)
+  | _ -> failwith "gt operator only defined on int types"
+
+and eval_beq (l : value) (r : value) : value =
+  failwith "unimplemented"
+
+and eval_bne (l : value) (r : value) : value =
+  failwith "unimplemented"
+
+and eval_bitwise_and (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_and v1 v2)
+  | VBit(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
+  | _ -> failwith "bitwise and only defined on unsigned ints"
+
+and eval_bitwise_xor (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_xor v1 v2)
+  | VBit(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
+  | _ -> failwith "bitwise xor only defined on unsigned ints"
+
+and eval_bitwise_or (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_or v1 v2)
+  | VBit(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
+  | _ -> failwith "bitwise or only defined on unsigned ints"
+
+and eval_concat (l : value) (r : value) : value =
+  match (l,r) with
+  | VBit(w1,v1), VBit(w2,v2) -> VBit(w1+w2, Bigint.(shift_bigint_left v1 (of_int w2) + v2))
+  | VBit(w,v), VInteger n    -> eval_concat l (bit_of_rawint n w)
+  | VInteger n, VBit(w,v)    -> eval_concat (bit_of_rawint n w) r
+  | _ -> failwith "concat operator only defined on unsigned ints"
+
+and eval_band (l : value) (r : value) : value =
+  match (l,r) with
+  | VBool b1, VBool b2 -> VBool(b1 && b2)
+  | _ -> failwith "and operator only defined on bools"
+
+and eval_bor (l : value) (r : value) : value =
+  match (l,r) with
+  | VBool b1, VBool b2 -> VBool(b1 || b2)
+  | _ -> failwith "or operator only defined on bools"
+
+and of_twos_complement (n : Bigint.t) (w : int) : Bigint.t =
+  let w' = power_of_two w in
+  if Bigint.(n >= w')
+  then Bigint.(n % w')
+  else if Bigint.(n < zero)
+  then of_twos_complement Bigint.(n + w') w
+  else n
+
+and to_twos_complement (n : Bigint.t) (w : int) : Bigint.t =
+  let two = Bigint.(one + one) in
+  let w' = power_of_two w in
+  if Bigint.(n >= (w' / two))
+  then to_twos_complement Bigint.(n-w') w
+  else if Bigint.(n < -(w'/two))
+  then to_twos_complement Bigint.(n+w') w
+  else n
+
+and bigint_max (n : Bigint.t) (m : Bigint.t) : Bigint.t =
+  if Bigint.(n>m) then n else m
+
+and bigint_min (n : Bigint.t) (m : Bigint.t) : Bigint.t =
+  if Bigint.(n<m) then n else m
+
+and unsigned_plus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+  VBit(w, bigint_min Bigint.(l + r) Bigint.((power_of_two w) - one))
+
+and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+  let x = power_of_two (w-1) in
+  let n = Bigint.(l+r) in
+  let n' =
+    if Bigint.(n > zero)
+    then bigint_min n Bigint.(x - one)
+    else bigint_max n Bigint.(-x) in
+  VInt(w, n')
+
+and unsigned_minus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+  VBit(w, bigint_min Bigint.(l-r) Bigint.((power_of_two w) - one))
+
+and signed_minus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+  let x = power_of_two (w-1) in
+  let n = Bigint.(l-r) in
+  let n' =
+    if Bigint.(n > zero)
+    then bigint_min n Bigint.(x - one)
+    else bigint_max n Bigint.(-x) in
+  VInt(w, n')
+
+and shift_bigint_left (v : Bigint.t) (o : Bigint.t) : Bigint.t =
+  if Bigint.(o > zero)
+  then shift_bigint_left Bigint.(v * (one + one)) Bigint.(o - one)
+  else v
+
+and shift_bigint_right (v : Bigint.t) (o : Bigint.t) : Bigint.t =
+  if Bigint.(v = -one)
+  then v
+  else if Bigint.(o > zero)
+  then shift_bigint_right Bigint.(v / (one + one)) Bigint.(o - one)
+  else v
 
 (*----------------------------------------------------------------------------*)
 (* Membership Evaluation *)

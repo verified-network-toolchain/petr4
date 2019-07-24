@@ -735,6 +735,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
   | VInteger _
   | VBit _
   | VInt _
+  | VVarbit _
   | VTuple _
   | VSet _
   | VString _
@@ -774,6 +775,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VInteger _
   | VBit _
   | VInt _
+  | VVarbit _
   | VTuple _
   | VSet _
   | VString _

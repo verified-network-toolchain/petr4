@@ -167,7 +167,8 @@ module EvalEnv = struct
         | VBool b -> string_of_bool b
         | VInteger v
         | VBit(_, v)
-        | VInt(_, v) -> begin match Bigint.to_int v with
+        | VInt(_, v)
+        | VVarbit(_,v) -> begin match Bigint.to_int v with
             | None -> "<bigint>"
             | Some n -> string_of_int n end
         | VTuple _ -> "<tuple>"

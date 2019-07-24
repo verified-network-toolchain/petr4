@@ -269,12 +269,14 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
 
 and init_val_of_int (env : EvalEnv.t) (expr : Expression.t) : value =
   match snd (eval_expression env expr) with
-  | VInteger n -> VInt(Bigint.to_int_exn n, Bigint.zero)
+  | VInteger n
+  | VBit(_,n)
+  | VInt(_,n) -> VInt(n, Bigint.zero)
   | _ -> failwith "int width is not an int"
 
 and init_val_of_bit (env : EvalEnv.t) (expr : Expression.t) : value =
   match snd (eval_expression env expr) with
-  | VInteger n -> VBit(Bigint.to_int_exn n, Bigint.zero)
+  | VInteger n -> VBit(n, Bigint.zero)
   | _ -> failwith "bit width is not an int"
 
 and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b : bool) : value =
@@ -287,10 +289,10 @@ and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b :
 
 and init_val_of_stack (env: EvalEnv.t) (name : string)
     (hdr : Type.t) (size : Expression.t) : value =
-  let size' = size |> eval_expression env |> snd |> int_of_val in
-  let hdrs = size' |> List.init ~f:string_of_int
+  let size' = size |> eval_expression env |> snd |> bigint_of_val in
+  let hdrs = size' |> Bigint.to_int_exn |> List.init ~f:string_of_int
              |> List.map ~f:(fun s -> init_val_of_typ env s hdr) in
-  VStack(name, hdrs, size', 0)
+  VStack(name, hdrs, size', Bigint.zero)
 
 and init_val_of_tuple (env : EvalEnv.t) (t : Type.t) (l : Type.t list) : value =
   VTuple (List.map l ~f:(init_val_of_typ env ""))
@@ -443,10 +445,10 @@ and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
   let w = Bigint.(msb'' - lsb'' + one) in
   let v = value_of_lvalue env lv in
   let n = bigint_of_val v in
-  let rhs' = bit_of_rawint (bigint_of_val rhs) (Bigint.to_int_exn w) |> bigint_of_val in
+  let rhs' = bit_of_rawint (bigint_of_val rhs) w |> bigint_of_val in
   let n0 = bitstring_slice n msb'' lsb'' in
   let diff = Bigint.(n0 - rhs') in
-  let diff' = Bigint.(diff * (power_of_two (to_int_exn lsb''))) in
+  let diff' = Bigint.(diff * (power_of_two lsb'')) in
   let final = Bigint.(n - diff') in
   match rhs with
   | VInt(w,_)  -> eval_assign' env'' lv (VInt(w,final))
@@ -491,8 +493,8 @@ and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
   eval_assign' env lhs (VUnion(uname, rhs', vbs'))
 
 and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
-    (sname : string) (mname : string) (hdrs : value list) (size : int)
-    (next : int) : EvalEnv.t * signal =
+    (sname : string) (mname : string) (hdrs : value list) (size : Bigint.t)
+    (next : Bigint.t) : EvalEnv.t * signal =
   let () =
     match mname with
     | "next" -> ()
@@ -506,7 +508,7 @@ and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
       match rhs with
       | VTuple l -> header_of_list dummy_env mname l
       | x -> x in
-    let (hdrs1, hdrs2) = List.split_n hdrs next in
+    let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn next) in
     let hdrs' =
       match hdrs2 with
       | _ :: t -> hdrs1 @ (rhs' :: t)
@@ -550,18 +552,18 @@ and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
   let n' = bigint_of_val n in
   let m' = bigint_of_val m in
   let l' = bigint_of_val l in
-  VBit(Bigint.(to_int_exn (m' - l' + one)), bitstring_slice n' m' l')
+  VBit(Bigint.(m' - l' + one), bitstring_slice n' m' l')
 
 and value_of_larray (env : EvalEnv.t) (lv : lvalue)
     (idx : Expression.t) : value =
   match value_of_lvalue env lv with
-  | VStack(n,vs,s,i) -> List.nth_exn vs (i mod s)
+  | VStack(n,vs,s,i) -> List.nth_exn vs Bigint.(to_int_exn (i % s))
   | _ -> failwith "array access is not a header stack "
 
-and value_of_stack_mem_lvalue (name : string) (vs : value list) (size : int)
-    (next : int) : value =
+and value_of_stack_mem_lvalue (name : string) (vs : value list)
+    (size : Bigint.t) (next : Bigint.t) : value =
   match name with
-  | "next" -> List.nth_exn vs (next mod size)
+  | "next" -> List.nth_exn vs Bigint.(to_int_exn (next % size))
   | _ -> failwith "not an lvalue"
 
 (*----------------------------------------------------------------------------*)
@@ -595,17 +597,17 @@ and eval_expression (env : EvalEnv.t)
 and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
   | None          -> VInteger n.value
-  | Some(w,true)  -> VInt (w, n.value)
-  | Some(w,false) -> VBit (w, n.value)
+  | Some(w,true)  -> VInt (Bigint.of_int w, n.value)
+  | Some(w,false) -> VBit (Bigint.of_int w, n.value)
 
 and eval_array_access (env : EvalEnv.t) (a : Expression.t)
     (i : Expression.t) : EvalEnv.t * value =
   let (env', a') = eval_expression env a in
   let (env'', i') = eval_expression env' i in
-  let idx = int_of_val i' in
+  let idx = bigint_of_val i' in
   match a' with
   | VStack(name,hdrs,size,next) ->
-    let idx' = idx mod size in
+    let idx' = Bigint.(to_int_exn (idx % size)) in
     (env'', List.nth_exn hdrs idx')
   | _ -> failwith "array access must be on header stack"
 
@@ -616,10 +618,8 @@ and eval_bitstring_access (env : EvalEnv.t) (s : Expression.t)
   let (env''', s) = eval_expression env'' s in
   let m' = bigint_of_val m in
   let l' = bigint_of_val l in
-  let mi = int_of_val m in
-  let li = int_of_val l in
   match s with
-  | VBit(_, v1) -> (env''',VBit(mi-li+1,bitstring_slice v1 m' l'))
+  | VBit(_, v1) -> (env''',VBit(Bigint.(m' - l' + one),bitstring_slice v1 m' l'))
   | _ -> failwith "bitstring slice on non-bitstring value"
 
 and eval_list (env : EvalEnv.t)
@@ -667,16 +667,16 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
     (expr : Expression.t) : EvalEnv.t * value =
   let build_bit w v =
-    VBit (int_of_val w, Bigint.of_int v) in
+    VBit (bigint_of_val w, Bigint.of_int v) in
   let changesize w v l =
-    let new_w = l |> int_of_val in
+    let new_w = l |> bigint_of_val in
     let value = if new_w >= w then v
-      else (Bigint.shift_left v (w - new_w) |>
-            Bigint.shift_right) (w - new_w) in
+      else (shift_bigint_left v Bigint.(w - new_w) |>
+           shift_bigint_right) Bigint.(w - new_w) in
     (new_w, value) in
   let (env', expr') = eval_expression env expr in
   match expr', snd typ with
-  | VBit(1, v), Type.Bool ->
+  | VBit(n, v), Type.Bool when Bigint.(n=one) ->
     if Bigint.(=) v Bigint.zero
     then (env', VBool(false))
     else if Bigint.(=) v Bigint.one
@@ -689,12 +689,12 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
   | VInt(w, v), Type.BitType(w') ->
     let turn_pos w v =
       if Bigint.(<) v Bigint.zero
-      then Bigint.(+) v (power_of_two (w+1))
+      then Bigint.(+) v (power_of_two Bigint.(w+one))
       else v in
     (env', VBit(w, turn_pos w v))
   | VBit(w, v), Type.IntType(w') ->
     let neg_bit w v =
-      if Bigint.(>=) v (power_of_two (w-1))
+      if Bigint.(>=) v (power_of_two Bigint.(w-one))
       then Bigint.(-) v (power_of_two w)
       else v in
     (env', VInt(w, neg_bit w v))
@@ -836,13 +836,13 @@ and eval_bitnot (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
   | VBit(w,n) -> (env, VBit(w, bitwise_neg_of_bigint n w))
   | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
-and bitwise_neg_of_bigint (n : Bigint.t) (w : int) : Bigint.t =
-  if w > 0 then
-    let w' = power_of_two (w-1) in
-    let g = Bigint.(bitstring_slice n (of_int w) (of_int w)) in
+and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
+  if Bigint.(w > zero) then
+    let w' = power_of_two Bigint.(w-one) in
+    let g = bitstring_slice n w w in
     if Bigint.(g = zero)
-    then bitwise_neg_of_bigint Bigint.(n + w') (w-1)
-    else bitwise_neg_of_bigint Bigint.(n - w') (w-1)
+    then bitwise_neg_of_bigint Bigint.(n + w') Bigint.(w-one)
+    else bitwise_neg_of_bigint Bigint.(n - w') Bigint.(w-one)
   else n
 
 and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
@@ -1010,7 +1010,7 @@ and eval_bitwise_or (l : value) (r : value) : value =
 
 and eval_concat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w1,v1), VBit(w2,v2) -> VBit(w1+w2, Bigint.(shift_bigint_left v1 (of_int w2) + v2))
+  | VBit(w1,v1), VBit(w2,v2) -> VBit(Bigint.(w1+w2), Bigint.(shift_bigint_left v1 w2 + v2))
   | VBit(w,v), VInteger n    -> eval_concat l (bit_of_rawint n w)
   | VInteger n, VBit(w,v)    -> eval_concat (bit_of_rawint n w) r
   | _ -> failwith "concat operator only defined on unsigned ints"
@@ -1025,7 +1025,7 @@ and eval_bor (l : value) (r : value) : value =
   | VBool b1, VBool b2 -> VBool(b1 || b2)
   | _ -> failwith "or operator only defined on bools"
 
-and of_twos_complement (n : Bigint.t) (w : int) : Bigint.t =
+and of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   let w' = power_of_two w in
   if Bigint.(n >= w')
   then Bigint.(n % w')
@@ -1033,7 +1033,7 @@ and of_twos_complement (n : Bigint.t) (w : int) : Bigint.t =
   then of_twos_complement Bigint.(n + w') w
   else n
 
-and to_twos_complement (n : Bigint.t) (w : int) : Bigint.t =
+and to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   let two = Bigint.(one + one) in
   let w' = power_of_two w in
   if Bigint.(n >= (w' / two))
@@ -1048,11 +1048,11 @@ and bigint_max (n : Bigint.t) (m : Bigint.t) : Bigint.t =
 and bigint_min (n : Bigint.t) (m : Bigint.t) : Bigint.t =
   if Bigint.(n<m) then n else m
 
-and unsigned_plus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+and unsigned_plus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
   VBit(w, bigint_min Bigint.(l + r) Bigint.((power_of_two w) - one))
 
-and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
-  let x = power_of_two (w-1) in
+and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
+  let x = power_of_two Bigint.(w-one) in
   let n = Bigint.(l+r) in
   let n' =
     if Bigint.(n > zero)
@@ -1060,11 +1060,11 @@ and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
     else bigint_max n Bigint.(-x) in
   VInt(w, n')
 
-and unsigned_minus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
+and unsigned_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
   VBit(w, bigint_min Bigint.(l-r) Bigint.((power_of_two w) - one))
 
-and signed_minus_sat (l : Bigint.t) (r : Bigint.t) (w : int) : value =
-  let x = power_of_two (w-1) in
+and signed_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
+  let x = power_of_two Bigint.(w-one) in
   let n = Bigint.(l-r) in
   let n' =
     if Bigint.(n > zero)
@@ -1101,7 +1101,8 @@ and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
   | _            -> (env, List.Assoc.find_exn fs fname ~equal:(=))
 
 and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
-    (hdrs : value list) (size : int) (next : int) : EvalEnv.t * value =
+    (hdrs : value list) (size : Bigint.t)
+    (next : Bigint.t) : EvalEnv.t * value =
   match fname with
   | "size"       -> eval_stack_size env size
   | "next"       -> eval_stack_next env hdrs size next
@@ -1116,27 +1117,31 @@ and eval_runtime_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
   match v with
   | Packet p -> eval_packet_mem env mname expr p
 
-and eval_stack_size (env : EvalEnv.t) (size : int) : EvalEnv.t * value =
-  (env, VBit(32, Bigint.of_int size))
+and eval_stack_size (env : EvalEnv.t) (size : Bigint.t) : EvalEnv.t * value =
+  let five = Bigint.(one + one + one + one + one) in
+  let thirty_two = shift_bigint_left Bigint.one five in
+  (env, VBit(thirty_two, size))
 
-and eval_stack_next (env : EvalEnv.t) (hdrs : value list) (size : int)
-    (next : int) : EvalEnv.t * value =
+and eval_stack_next (env : EvalEnv.t) (hdrs : value list) (size : Bigint.t)
+    (next : Bigint.t) : EvalEnv.t * value =
   let hdr =
-    if next >= size
+    if Bigint.(next >= size)
     then failwith "signal reject unimplemented"
-    else List.nth_exn hdrs next in
+    else List.nth_exn hdrs Bigint.(to_int_exn next) in
   (env, hdr)
 
-and eval_stack_last (env : EvalEnv.t) (hdrs : value list) (size : int)
-    (next : int) : EvalEnv.t * value =
+and eval_stack_last (env : EvalEnv.t) (hdrs : value list) (size : Bigint.t)
+    (next : Bigint.t) : EvalEnv.t * value =
   let hdr =
-    if next < 1 || next > size
+    if Bigint.(next < one) || Bigint.(next > size)
     then failwith "signal reject unimplemented"
-    else List.nth_exn hdrs next in
+    else List.nth_exn hdrs Bigint.(to_int_exn next) in
   (env, hdr)
 
-and eval_stack_lastindex (env : EvalEnv.t) (next : int) : EvalEnv.t * value =
-  (env, VBit(32, Bigint.of_int (next - 1)))
+and eval_stack_lastindex (env : EvalEnv.t) (next : Bigint.t) : EvalEnv.t * value =
+  let five = Bigint.(one + one + one + one + one) in
+  let thirty_two = shift_bigint_left Bigint.one five in
+  (env, VBit(thirty_two, Bigint.(next - one)))
 
 and eval_stack_builtin (env : EvalEnv.t) (fname : string)
     (e : Expression.t) : EvalEnv.t * value =
@@ -1306,11 +1311,11 @@ and eval_pushfront (env : EvalEnv.t) (lv : lvalue)
     match value_of_lvalue env lv with
     | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
     | _ -> failwith "push call not a header stack" in
-  let (hdrs1, hdrs2) = List.split_n hdrs (size - a) in
+  let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn (size - a)) in
   let t = typ_of_stack_mem env n in
-  let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
+  let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
   let hdrs' = hdrs0 @ hdrs1 in
-  let v = VStack(n,hdrs',size,next+a) in
+  let v = VStack(n,hdrs',size,Bigint.(next+a)) in
   (fst (eval_assign' env lv v), VNull)
 
 and eval_popfront (env : EvalEnv.t) (lv : lvalue)
@@ -1320,21 +1325,21 @@ and eval_popfront (env : EvalEnv.t) (lv : lvalue)
     match value_of_lvalue env lv with
     | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
     | _ -> failwith "push call not a header stack" in
-  let (hdrs1, hdrs2) = List.split_n hdrs a in
+  let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn a) in
   let t = typ_of_stack_mem env n in
-  let hdrs0 = List.init a ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
+  let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
   let hdrs' = hdrs2 @ hdrs0 in
-  let v = VStack(n,hdrs',size,next-a) in
+  let v = VStack(n,hdrs',size,Bigint.(next-a)) in
   (fst (eval_assign' env lv v), VNull)
 
 and eval_push_pop_args (env : EvalEnv.t)
-    (args : Argument.t list) : EvalEnv.t * int =
+    (args : Argument.t list) : EvalEnv.t * Bigint.t =
   let args' = List.map args ~f:snd in
   match args' with
   | [Argument.Expression{value}]
   | [Argument.KeyValue{value=value;_}] ->
     let (env', v) = eval_expression env value in
-    (env', int_of_val v)
+    (env', bigint_of_val v)
   | _ -> failwith "invalid push or pop args"
 
 and eval_extract (env : EvalEnv.t) (lv : lvalue)
@@ -1461,10 +1466,7 @@ and values_match_set (vs : value list) (env : EvalEnv.t)
 
 and values_match_singleton (vs :value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
-  v
-  |> int_of_val
-  |> Bigint.of_int
-  |> (Bigint.(=) n)
+  v |> bigint_of_val |> (Bigint.(=) n)
 
 and values_match_mask (vs : value list) (v1 : value)
     (v2 : value) : bool =
@@ -1472,12 +1474,12 @@ and values_match_mask (vs : value list) (v1 : value)
   let v = assert_singleton vs in
   let (a,b,c) = assert_bit v, assert_bit v1, assert_bit v2 in
   let rec h (w0,b0) (w1,b1) (w2,b2) =
-    if not (w0 = w1 && w1 = w2)
+    if not (Bigint.(w0 = w1) && Bigint.(w1 = w2))
     then false
-    else if w0 = 0
+    else if Bigint.(w0 = zero)
     then true
     else if Bigint.(b2%two = zero) || Bigint.(b1%two = b0%two)
-    then h (w0-1,Bigint.(b0/two)) (w1-1,Bigint.(b1/two)) (w2-1,Bigint.(b2/two))
+    then h Bigint.(w0-one, b0/two) Bigint.(w1-one, b1/two) Bigint.(w2-one, b2/two)
     else false in
   h a b c
 
@@ -1524,7 +1526,7 @@ and assert_singleton (vs : value list) : value =
   | [v] -> v
   | _ -> failwith "value list has more than one element"
 
-and assert_bit (v : value) : int * Bigint.t =
+and assert_bit (v : value) : Bigint.t * Bigint.t =
   match v with
   | VBit(w,n) -> (w,n)
   | _ -> failwith "not a bitstring"
@@ -1573,14 +1575,14 @@ and bigint_of_val (v : value) : Bigint.t =
   | VInteger n -> n
   | _ -> failwith "value not representable as bigint"
 
-and power_of_two (w : int) : Bigint.t =
-  Bigint.shift_left (Bigint.of_int 1) w
+and power_of_two (w : Bigint.t) : Bigint.t =
+  shift_bigint_left Bigint.one w
 
 and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
   Bigint.(
     if l > zero
     then bitstring_slice (n/(one + one)) (m-one) (l-one)
-    else n % (power_of_two (to_int_exn (m + one))))
+    else n % (power_of_two (m + one)))
 
 and typ_of_struct_field (env : EvalEnv.t) (sname : string)
     (fname : string) : Type.t =
@@ -1647,7 +1649,7 @@ and implicit_cast_from_rawint (env : EvalEnv.t) (n : Bigint.t)
     | Type.IntType e -> (e, int_of_rawint)
     | Type.BitType e -> (e, bit_of_rawint)
     | _ -> failwith "attempt to assign raw int to wrong type"  in
-  e |> eval_expression env |> snd |> int_of_val |> f n
+  e |> eval_expression env |> snd |> bigint_of_val |> f n
 
 and implicit_cast_from_tuple (env : EvalEnv.t) (n : string) (l : value list)
     (t : Type.t) : value =
@@ -1656,7 +1658,7 @@ and implicit_cast_from_tuple (env : EvalEnv.t) (n : string) (l : value list)
     | Header _ -> header_of_list env n l
     | _ -> VTuple l
 
-and bit_of_rawint (n : Bigint.t) (width : int) : value =
+and bit_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
   let i = Bigint.(power_of_two width - one) in
   let n' = Bigint.(
       if n < zero then failwith "bitstrings cannot be negative"
@@ -1664,9 +1666,9 @@ and bit_of_rawint (n : Bigint.t) (width : int) : value =
       else n) in
   VBit(width, n')
 
-and int_of_rawint (n : Bigint.t) (width : int) : value =
-  let i = Bigint.(-) (power_of_two (width - 1)) Bigint.one in
-  let j = Bigint.neg (power_of_two (width - 1)) in
+and int_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
+  let i = Bigint.((power_of_two (width - one)) - Bigint.one) in
+  let j = Bigint.(neg (power_of_two (width - one))) in
   Bigint.(
     if n < j then failwith "signed bitstring overflow, less than"
     else if n > i then int_of_rawint (neg (power_of_two width) + n) width

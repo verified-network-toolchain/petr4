@@ -4,8 +4,8 @@ type 'a pre_value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
-  | VBit of int * Bigint.t
-  | VInt of int * Bigint.t
+  | VBit of Bigint.t * Bigint.t
+  | VInt of Bigint.t * Bigint.t
   | VVarbit of int * Bigint.t
   | VTuple of 'a pre_value list
   | VSet of 'a pre_set
@@ -18,7 +18,7 @@ type 'a pre_value =
   | VStruct of string * (string * 'a pre_value) list
   | VHeader of string * (string * 'a pre_value) list * bool
   | VUnion of string * 'a pre_value * (string * bool) list
-  | VStack of string * 'a pre_value list * int * int
+  | VStack of string * 'a pre_value list * Bigint.t * Bigint.t
   | VEnumField of string * string
   | VSenumField of string * string * 'a pre_value
   | VExternFun of Parameter.t list

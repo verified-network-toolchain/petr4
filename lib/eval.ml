@@ -666,48 +666,13 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
 
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
     (expr : Expression.t) : EvalEnv.t * value =
-  let build_bit w v =
-    VBit (bigint_of_val w, Bigint.of_int v) in
-  let changesize w v l =
-    let new_w = l |> bigint_of_val in
-    let value = if new_w >= w then v
-      else (shift_bigint_left v Bigint.(w - new_w) |>
-           shift_bigint_right) Bigint.(w - new_w) in
-    (new_w, value) in
-  let (env', expr') = eval_expression env expr in
-  match expr', snd typ with
-  | VBit(n, v), Type.Bool when Bigint.(n=one) ->
-    if Bigint.(=) v Bigint.zero
-    then (env', VBool(false))
-    else if Bigint.(=) v Bigint.one
-    then (env', VBool(true))
-    else failwith "can't cast this bitstring to bool"
-  | VBool(b), Type.BitType(e) ->
-    let (env'', e') = eval_expression env' e in
-    if b then (env'', build_bit e' 1)
-    else (env'', build_bit e' 0)
-  | VInt(w, v), Type.BitType(w') ->
-    let turn_pos w v =
-      if Bigint.(<) v Bigint.zero
-      then Bigint.(+) v (power_of_two Bigint.(w+one))
-      else v in
-    (env', VBit(w, turn_pos w v))
-  | VBit(w, v), Type.IntType(w') ->
-    let neg_bit w v =
-      if Bigint.(>=) v (power_of_two Bigint.(w-one))
-      then Bigint.(-) v (power_of_two w)
-      else v in
-    (env', VInt(w, neg_bit w v))
-  | VBit(w, v), Type.BitType(l) ->
-    let (env'', l') = eval_expression env' l in
-    let width, value = changesize w v l' in
-    (env'', VBit(width, value))
-  (* TODO: validate: Should be shift_right_truncate*)
-  | VInt(w, v), Type.IntType(l) ->
-    let (env'', l') = eval_expression env l in
-    let (width, value) = changesize w v l' in
-    (env'', VInt(width, value))
-  | _ -> failwith "type cast unimplemented" (* TODO *)
+  let (env', v) = eval_expression env expr in
+  match snd typ with
+  | Bool -> (env', bool_of_val v)
+  | BitType e -> bit_of_val env' e v
+  | IntType e -> int_of_val env' e v
+  | TypeName s -> eval_cast env (EvalEnv.find_typ (snd s) env) expr
+  | _ -> failwith "type cast unimplemented"
 
 and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
     (name : string) : EvalEnv.t * value =
@@ -1134,6 +1099,53 @@ and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
   let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
   let b2 = List.Assoc.find l1' true ~equal:(=) = List.Assoc.find l2' true ~equal:(=) in
   VBool (b1 || b2)
+
+(*----------------------------------------------------------------------------*)
+(* Type Casting Evaluation *)
+(*----------------------------------------------------------------------------*)
+
+and bool_of_val (v : value) : value =
+  match v with
+  | VBit(w,n) when Bigint.(w = one) -> VBool Bigint.(n = one)
+  | _ -> failwith "cast to bool undefined"
+
+and bit_of_val (env : EvalEnv.t) (e : Expression.t)
+    (v : value) : EvalEnv.t * value =
+  let (env', x) = eval_expression env e in
+  let w = bigint_of_val x in
+  let v' = match v with
+    | VInt(_,n)  -> VBit(w, of_twos_complement n w)
+    | VBit(w',n) -> bit_of_rawint w n
+    | VInteger n -> bit_of_rawint w n
+    | _ -> failwith "cast to bitstring undefined" in
+  (env', v')
+
+and int_of_val (env : EvalEnv.t) (e : Expression.t)
+    (v : value) : EvalEnv.t * value =
+  let (env', x) = eval_expression env e in
+  let w = bigint_of_val x in
+  let v' = match v with
+    | VBit(_,n) -> VInt(w, to_twos_complement n w)
+    | VInt(w',n) -> int_of_rawint w n
+    | VInteger n -> int_of_rawint w n
+    | _ -> failwith "cast to bitstring undefined" in
+  (env', v')
+
+and bit_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
+  let i = Bigint.(power_of_two width - one) in
+  let n' = Bigint.(
+      if n < zero then failwith "bitstrings cannot be negative"
+      else if n > i then failwith "unsigned bitstring overflow"
+      else n) in
+  VBit(width, n')
+
+and int_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
+  let i = Bigint.((power_of_two (width - one)) - Bigint.one) in
+  let j = Bigint.(neg (power_of_two (width - one))) in
+  Bigint.(
+    if n < j then failwith "signed bitstring overflow, less than"
+    else if n > i then int_of_rawint (neg (power_of_two width) + n) width
+    else VInt(width,n))
 
 (*----------------------------------------------------------------------------*)
 (* Membership Evaluation *)
@@ -1706,22 +1718,6 @@ and implicit_cast_from_tuple (env : EvalEnv.t) (n : string) (l : value list)
     | Struct _ -> struct_of_list env n l
     | Header _ -> header_of_list env n l
     | _ -> VTuple l
-
-and bit_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
-  let i = Bigint.(power_of_two width - one) in
-  let n' = Bigint.(
-      if n < zero then failwith "bitstrings cannot be negative"
-      else if n > i then failwith "unsigned bitstring overflow"
-      else n) in
-  VBit(width, n')
-
-and int_of_rawint (n : Bigint.t) (width : Bigint.t) : value =
-  let i = Bigint.((power_of_two (width - one)) - Bigint.one) in
-  let j = Bigint.(neg (power_of_two (width - one))) in
-  Bigint.(
-    if n < j then failwith "signed bitstring overflow, less than"
-    else if n > i then int_of_rawint (neg (power_of_two width) + n) width
-    else VInt(width,n))
 
 (* -------------------------------------------------------------------------- *)
 (* Target and Architecture Dependent Evaluation *)

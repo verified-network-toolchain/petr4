@@ -6,7 +6,7 @@ type 'a pre_value =
   | VInteger of Bigint.t
   | VBit of Bigint.t * Bigint.t
   | VInt of Bigint.t * Bigint.t
-  | VVarbit of int * Bigint.t
+  | VVarbit of Bigint.t * Bigint.t
   | VTuple of 'a pre_value list
   | VSet of 'a pre_set
   | VString of string

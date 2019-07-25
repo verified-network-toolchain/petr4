@@ -460,10 +460,10 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
     (rhs : value) : EvalEnv.t * signal =
   let v = value_of_lvalue env lv in
   let (env', i) = eval_expression env e in
-  let i' = int_of_val i in
+  let i' = bigint_of_val i in
   let rhs' = match v with
     | VStack(n,hdrs,size,next) ->
-      let (hdrs1, hdrs2) = List.split_n hdrs i' in
+      let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
       let hdrs' = match hdrs2 with
         | _ :: t -> hdrs1 @ (rhs :: t)
         | [] -> failwith "empty header stack" in
@@ -982,10 +982,27 @@ and eval_bgt (l : value) (r : value) : value =
   | _ -> failwith "gt operator only defined on int types"
 
 and eval_beq (l : value) (r : value) : value =
-  failwith "unimplemented"
+  match (l,r) with
+  | VError s1, VError s2
+  | VEnumField(_,s1), VEnumField(_,s2)       -> VBool(s1 = s2)
+  | VSenumField(_,_,v1), VSenumField(_,_,v2) -> eval_beq v1 v2
+  | VBool b1, VBool b2                       -> VBool(b1 = b2)
+  | VBit(_,n1), VBit(_,n2)
+  | VInteger n1, VInteger n2
+  | VVarbit(_,n1), VVarbit(_,n2)
+  | VInt(_,n1), VInt(_,n2)                   -> VBool Bigint.(n1 = n2)
+  | VBit(w,n1), VInteger n2                  -> eval_beq l (bit_of_rawint n2 w)
+  | VInteger n1, VBit(w,n2)                  -> eval_beq (bit_of_rawint n1 w) r
+  | VInt(w,n1), VInteger n2                  -> eval_beq l (int_of_rawint n2 w)
+  | VInteger n1, VInt(w,n2)                  -> eval_beq (int_of_rawint n1 w) r
+  | VStruct(_,l1), VStruct(_,l2)             -> structs_equal l1 l2
+  | VHeader(_,l1,b1), VHeader(_,l2,b2)       -> headers_equal l1 l2 b1 b2
+  | VStack(_,l1,_,_), VStack(_,l2,_,_)   -> stacks_equal l1 l2
+  | VUnion(_,v1,l1), VUnion(_,v2,l2)         -> unions_equal v1 v2 l1 l2
+  | _ -> failwith "equality comparison undefined for given types"
 
 and eval_bne (l : value) (r : value) : value =
-  failwith "unimplemented"
+  eval_beq l r |> assert_bool |> not |> VBool
 
 and eval_bitwise_and (l : value) (r : value) : value =
   match (l,r) with
@@ -1083,6 +1100,40 @@ and shift_bigint_right (v : Bigint.t) (o : Bigint.t) : Bigint.t =
   else if Bigint.(o > zero)
   then shift_bigint_right Bigint.(v / (one + one)) Bigint.(o - one)
   else v
+
+and structs_equal (l1 : (string * value) list)
+    (l2 : (string * value) list) : value =
+  let f (a : (string * value) list) (b : string * value) =
+    if List.Assoc.mem a ~equal:(=) (fst b)
+    then a
+    else b :: a in
+  let l1' = List.fold_left l1 ~init:[] ~f:f in
+  let l2' = List.fold_left l2 ~init:[] ~f:f in
+  let g (a,b) =
+    let h = (fun (x,y) -> x = a && assert_bool (eval_beq y b)) in
+    List.exists l2' ~f:h in
+  let b = List.for_all l1' ~f:g in
+  VBool b
+
+and headers_equal (l1 : (string * value) list) (l2 : (string * value) list)
+    (b1 : bool) (b2 : bool) : value =
+  let a = (not b1 && not b2) in
+  let b = (b1 && b2 && assert_bool (structs_equal l1 l2)) in
+  VBool (a || b)
+
+and stacks_equal (l1 : value list) (l2 : value list) : value =
+  let f = (fun i a -> a |> eval_beq (List.nth_exn l2 i) |> assert_bool) in
+  let b = List.for_alli l1 ~f:f in
+  VBool b
+
+and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
+    (l2 : (string * bool) list) : value =
+  let f = fun (_,x) -> not x in
+  let b1 = (List.for_all l1 ~f:f) && (List.for_all l2 ~f:f) in
+  let l1' = List.map l1 ~f:(fun (x,y) -> (y,x)) in
+  let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
+  let b2 = List.Assoc.find l1' true ~equal:(=) = List.Assoc.find l2' true ~equal:(=) in
+  VBool (b1 || b2)
 
 (*----------------------------------------------------------------------------*)
 (* Membership Evaluation *)
@@ -1269,8 +1320,8 @@ and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
     begin match value_of_lvalue env lv' with
       | VStack(n1,hdrs,size,next) ->
         let (env', i) = eval_expression env e in
-        let i' = int_of_val i in
-        let (hdrs1, hdrs2) = List.split_n hdrs i' in
+        let i' = bigint_of_val i in
+        let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn i') in
         let hdrs' = match hdrs2 with
           | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,true) :: t)
           | _ -> failwith "not a header" in
@@ -1295,8 +1346,8 @@ and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
     begin match value_of_lvalue env lv' with
       | VStack(n1,hdrs,size,next) ->
         let (env', i) = eval_expression env e in
-        let i' = int_of_val i in
-        let (hdrs1, hdrs2) = List.split_n hdrs i' in
+        let i' = bigint_of_val i in
+        let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
         let hdrs' = match hdrs2 with
           | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,false) :: t)
           | _ -> failwith "not a header" in
@@ -1526,6 +1577,11 @@ and assert_singleton (vs : value list) : value =
   | [v] -> v
   | _ -> failwith "value list has more than one element"
 
+and assert_bool (v : value) : bool =
+  match v with
+  | VBool b -> b
+  | _ -> failwith "not a bool"
+
 and assert_bit (v : value) : Bigint.t * Bigint.t =
   match v with
   | VBit(w,n) -> (w,n)
@@ -1560,13 +1616,6 @@ and init_binding_of_field (env : EvalEnv.t)
     (f : Declaration.field) : string * value =
   let n = snd (snd f).name in
   (n, init_val_of_typ env n (snd f).typ)
-
-and int_of_val (v : value) : int =
-  match v with
-  | VInteger n
-  | VBit (_,n)
-  | VInt (_,n) -> Bigint.to_int_exn n
-  | _ -> failwith "not an int"
 
 and bigint_of_val (v : value) : Bigint.t =
   match v with

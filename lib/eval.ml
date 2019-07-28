@@ -856,6 +856,9 @@ and eval_not (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
 and eval_bitnot (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
   match v with
   | VBit(w,n) -> (env, VBit(w, bitwise_neg_of_bigint n w))
+  | VInt(w,n) -> (env, VBit(w, ((of_twos_complement n w
+                                 |> bitwise_neg_of_bigint) w
+                                |> to_twos_complement) w))
   | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
 and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
@@ -1031,6 +1034,9 @@ and eval_bitwise_and (l : value) (r : value) : value =
   | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_and v1 v2)
   | VBit(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
   | VInteger n, VBit(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
+  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_and v1 v2 w
+  | VInt(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
+  | VInteger n, VInt(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
   | _ -> failwith "bitwise and only defined on unsigned ints"
 
 and eval_bitwise_xor (l : value) (r : value) : value =
@@ -1038,6 +1044,9 @@ and eval_bitwise_xor (l : value) (r : value) : value =
   | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_xor v1 v2)
   | VBit(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
   | VInteger n, VBit(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
+  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_xor v1 v2 w
+  | VInt(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
+  | VInteger n, VInt(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
   | _ -> failwith "bitwise xor only defined on unsigned ints"
 
 and eval_bitwise_or (l : value) (r : value) : value =
@@ -1045,6 +1054,9 @@ and eval_bitwise_or (l : value) (r : value) : value =
   | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_or v1 v2)
   | VBit(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
   | VInteger n, VBit(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
+  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_or v1 v2 w
+  | VInt(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
+  | VInteger n, VInt(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
   | _ -> failwith "bitwise or only defined on unsigned ints"
 
 and eval_concat (l : value) (r : value) : value =
@@ -1105,6 +1117,13 @@ and shift_bigint_right (v : Bigint.t) (o : Bigint.t) : Bigint.t =
   else if Bigint.(o > zero)
   then shift_bigint_right Bigint.(v / (one + one)) Bigint.(o - one)
   else v
+
+and bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
+    (v1 : Bigint.t) (v2 : Bigint.t) (w : Bigint.t) : value =
+  let v1' = of_twos_complement v1 w in
+  let v2' = of_twos_complement v2 w in
+  let n = op v1' v2' in
+  VBit(w,to_twos_complement n w)
 
 and structs_equal (l1 : (string * value) list)
     (l2 : (string * value) list) : value =

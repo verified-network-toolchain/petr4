@@ -864,7 +864,7 @@ and eval_bitnot (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
 and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   if Bigint.(w > zero) then
     let w' = power_of_two Bigint.(w-one) in
-    let g = bitstring_slice n w w in
+    let g = bitstring_slice n Bigint.(w - one) Bigint.(w - one) in
     if Bigint.(g = zero)
     then bitwise_neg_of_bigint Bigint.(n + w') Bigint.(w-one)
     else bitwise_neg_of_bigint Bigint.(n - w') Bigint.(w-one)
@@ -873,7 +873,7 @@ and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
 and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
   match v with
   | VBit(w,n)  -> Bigint.(env, VBit(w, (power_of_two w) - n))
-  | VInt(w,n)  -> Bigint.(env, VBit(w, -n))
+  | VInt(w,n)  -> Bigint.(env, VInt(w, to_twos_complement (-n) w))
   | VInteger n -> (env, VInteger (Bigint.neg n))
   | _ -> failwith "unary minus on non-int type"
 
@@ -932,7 +932,7 @@ and eval_bmult (l : value) (r : value) : value =
   | VInt(w,v1), VInteger n   -> eval_bmult l (int_of_rawint n w)
   | VInteger n, VInt(w,v1)   -> eval_bmult (int_of_rawint n w) r
   | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 * n2)
-  | _ -> failwith "binary plus operation only defined on ints"
+  | _ -> failwith "binary mult operation only defined on ints"
 
 and eval_bdiv (l : value) (r : value) : value =
   match (l,r) with
@@ -1020,10 +1020,11 @@ and eval_beq (l : value) (r : value) : value =
   | VInteger n1, VBit(w,n2)                  -> eval_beq (bit_of_rawint n1 w) r
   | VInt(w,n1), VInteger n2                  -> eval_beq l (int_of_rawint n2 w)
   | VInteger n1, VInt(w,n2)                  -> eval_beq (int_of_rawint n1 w) r
-  | VStruct(_,l1), VStruct(_,l2)             -> structs_equal l1 l2
+  | VStruct(_,l1), VStruct(_,l2)             -> print_endline "got here"; structs_equal l1 l2
   | VHeader(_,l1,b1), VHeader(_,l2,b2)       -> headers_equal l1 l2 b1 b2
   | VStack(_,l1,_,_), VStack(_,l2,_,_)   -> stacks_equal l1 l2
   | VUnion(_,v1,l1), VUnion(_,v2,l2)         -> unions_equal v1 v2 l1 l2
+  | VTuple _, _ -> failwith "got tuple"
   | _ -> failwith "equality comparison undefined for given types"
 
 and eval_bne (l : value) (r : value) : value =
@@ -1037,7 +1038,7 @@ and eval_bitwise_and (l : value) (r : value) : value =
   | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_and v1 v2 w
   | VInt(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
   | VInteger n, VInt(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
-  | _ -> failwith "bitwise and only defined on unsigned ints"
+  | _ -> failwith "bitwise and only defined on fixed width ints"
 
 and eval_bitwise_xor (l : value) (r : value) : value =
   match (l,r) with
@@ -1047,7 +1048,7 @@ and eval_bitwise_xor (l : value) (r : value) : value =
   | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_xor v1 v2 w
   | VInt(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
   | VInteger n, VInt(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
-  | _ -> failwith "bitwise xor only defined on unsigned ints"
+  | _ -> failwith "bitwise xor only defined on fixed width ints"
 
 and eval_bitwise_or (l : value) (r : value) : value =
   match (l,r) with
@@ -1057,7 +1058,7 @@ and eval_bitwise_or (l : value) (r : value) : value =
   | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_or v1 v2 w
   | VInt(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
   | VInteger n, VInt(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
-  | _ -> failwith "bitwise or only defined on unsigned ints"
+  | _ -> failwith "bitwise or only defined on fixed width ints"
 
 and eval_concat (l : value) (r : value) : value =
   match (l,r) with
@@ -1095,7 +1096,7 @@ and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
   VInt(w, n')
 
 and unsigned_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
-  VBit(w, bigint_min Bigint.(l-r) Bigint.((power_of_two w) - one))
+  VBit(w, bigint_max Bigint.(l-r) Bigint.zero)
 
 and signed_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
   let x = power_of_two Bigint.(w-one) in

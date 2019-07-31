@@ -1357,8 +1357,16 @@ and type_function env return name type_params params body =
   Env.insert_type_of (snd name) funtype env
 
 (* Section 7.2.9.1 *)
-and type_extern_function env _ _ _ _ =
-  env
+and type_extern_function env return name type_params params =
+  let type_params = type_params |> List.map snd in
+  let return = return |> translate_type env type_params in
+  let params = translate_parameters env type_params params in
+  let typ: Typed.FunctionType.t =
+    { type_params = type_params;
+      parameters = params;
+      return = return }
+  in
+  Env.insert_type_of (snd name) (Function typ) env
 
 (* Section 10.2
  *

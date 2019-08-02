@@ -22,6 +22,7 @@ val insert_type_of : string -> Typed.Type.t -> checker_env -> checker_env
 val insert_type_of_toplevel : string -> Typed.Type.t -> checker_env -> checker_env
 val insert_dir_type_of : string -> Typed.Type.t -> Typed.direction -> checker_env -> checker_env
 val insert_type_var : string -> checker_env -> checker_env
+val insert_type_vars : string list -> checker_env -> checker_env
 val push_scope : checker_env -> checker_env
 val pop_scope : checker_env -> checker_env
 

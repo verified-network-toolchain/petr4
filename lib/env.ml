@@ -104,6 +104,12 @@ let insert_type name typ env =
 let insert_type_var var env =
   { env with typ = insert var (Typed.Type.TypeVar var) env.typ }
 
+let insert_type_vars vars env =
+  let go env var =
+    insert_type_var var env
+  in
+  List.fold_left go env vars
+
 let insert_type_of var typ env =
   { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
 

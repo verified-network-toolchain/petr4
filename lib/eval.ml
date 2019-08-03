@@ -725,11 +725,12 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
     (expr : Expression.t) : EvalEnv.t * value =
   let (env', v) = eval_expression env expr in
+  print_endline "casting";
   match snd typ with
   | Bool -> (env', bool_of_val v)
   | BitType e -> bit_of_val env' e v
   | IntType e -> int_of_val env' e v
-  | TypeName s -> eval_cast env (EvalEnv.find_typ (snd s) env) expr
+  | TypeName s -> print_endline "got here"; eval_cast env (EvalEnv.find_typ (snd s) env) expr
   | _ -> failwith "type cast unimplemented"
 
 and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
@@ -1160,7 +1161,7 @@ and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
   let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
   let b2 = List.Assoc.find l1' true ~equal:(=) = List.Assoc.find l2' true ~equal:(=) in
   let b3 = eval_beq v1 v2 |> assert_bool in
-  VBool (b1 || (b2 && b3)) 
+  VBool (b1 || (b2 && b3))
 
 (*----------------------------------------------------------------------------*)
 (* Type Casting Evaluation *)
@@ -1178,7 +1179,7 @@ and bit_of_val (env : EvalEnv.t) (e : Expression.t)
   let v' = match v with
     | VInt(_,n)
     | VBit(_,n)
-    | VInteger n -> bit_of_rawint w n
+    | VInteger n -> bit_of_rawint n w
     | _ -> failwith "cast to bitstring undefined" in
   (env', v')
 
@@ -1189,7 +1190,7 @@ and int_of_val (env : EvalEnv.t) (e : Expression.t)
   let v' = match v with
     | VBit(_,n)
     | VInt(_,n)
-    | VInteger n -> int_of_rawint w n
+    | VInteger n -> int_of_rawint n w
     | _ -> failwith "cast to bitstring undefined" in
   (env', v')
 

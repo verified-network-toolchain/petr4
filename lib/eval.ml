@@ -476,7 +476,8 @@ and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (l : (string * value) list) : EvalEnv.t * signal =
   let t = typ_of_struct_field env lhs fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
-  eval_assign' env lhs ((VStruct(sname, (fname, rhs') :: l)))
+  let rhs'' = implicit_cast_from_tuple env (LMember(lhs, fname)) fname rhs' t in
+  eval_assign' env lhs ((VStruct(sname, (fname, rhs'') :: l)))
 
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (hname : string) (l : (string * value) list)
@@ -1020,9 +1021,9 @@ and eval_beq (l : value) (r : value) : value =
   | VInteger n1, VBit(w,n2)                  -> eval_beq (bit_of_rawint n1 w) r
   | VInt(w,n1), VInteger n2                  -> eval_beq l (int_of_rawint n2 w)
   | VInteger n1, VInt(w,n2)                  -> eval_beq (int_of_rawint n1 w) r
-  | VStruct(_,l1), VStruct(_,l2)             -> print_endline "got here"; structs_equal l1 l2
+  | VStruct(_,l1), VStruct(_,l2)             -> structs_equal l1 l2
   | VHeader(_,l1,b1), VHeader(_,l2,b2)       -> headers_equal l1 l2 b1 b2
-  | VStack(_,l1,_,_), VStack(_,l2,_,_)   -> stacks_equal l1 l2
+  | VStack(_,l1,_,_), VStack(_,l2,_,_)       -> stacks_equal l1 l2
   | VUnion(_,v1,l1), VUnion(_,v2,l2)         -> unions_equal v1 v2 l1 l2
   | VTuple _, _ -> failwith "got tuple"
   | _ -> failwith "equality comparison undefined for given types"
@@ -1158,7 +1159,8 @@ and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
   let l1' = List.map l1 ~f:(fun (x,y) -> (y,x)) in
   let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
   let b2 = List.Assoc.find l1' true ~equal:(=) = List.Assoc.find l2' true ~equal:(=) in
-  VBool (b1 || b2)
+  let b3 = eval_beq v1 v2 |> assert_bool in
+  VBool (b1 || (b2 && b3)) 
 
 (*----------------------------------------------------------------------------*)
 (* Type Casting Evaluation *)
@@ -1759,9 +1761,14 @@ and struct_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
   let fs = match snd d with
     | Declaration.Struct s -> s.fields
     | _ -> failwith "not a struct" in
-  let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
-  let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
-  VStruct (name, l')
+  let ns = List.map fs ~f:(fun x -> snd (snd x).name) in
+  let ts = List.map fs ~f:(fun x -> (snd x).typ) in
+  let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
+  let l'' = List.mapi l' ~f:(fun i v -> implicit_cast_from_tuple env
+                             (LMember(lv, List.nth_exn ns i)) (List.nth_exn ns i)
+                             v (List.nth_exn ts i)) in
+  let l''' = List.mapi l'' ~f:(fun i v -> (List.nth_exn ns i, v)) in
+  VStruct (name, l''')
 
 and header_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
     (l : value list) : value =
@@ -1770,9 +1777,11 @@ and header_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
   let fs = match snd d with
     | Declaration.Header h -> h.fields
     | _ -> failwith "not a header" in
-  let fs' = List.map ~f:(fun x -> snd (snd x).name) fs in
-  let l' = List.mapi l ~f:(fun i v -> (List.nth_exn fs' i, v)) in
-  VHeader (name, l', true)
+  let ns = List.map fs ~f:(fun x -> snd (snd x).name) in
+  let ts = List.map fs ~f:(fun x -> (snd x).typ) in
+  let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
+  let l'' = List.mapi l' ~f:(fun i v -> (List.nth_exn ns i, v)) in
+  VHeader (name, l'', true)
 
 and implicit_cast_from_rawint (env : EvalEnv.t) (v : value)
     (t : Type.t) : value =
@@ -1781,6 +1790,8 @@ and implicit_cast_from_rawint (env : EvalEnv.t) (v : value)
     let (e, f) = match snd t with
       | Type.IntType e -> (e, int_of_rawint)
       | Type.BitType e -> (e, bit_of_rawint)
+      | Type.Bool -> failwith "is bool"
+      | Type.TypeName (_,n) -> failwith n
       | _ -> failwith "attempt to assign raw int to wrong type"  in
     e |> eval_expression env |> snd |> bigint_of_val |> f n
   | _ -> v

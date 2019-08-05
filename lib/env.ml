@@ -66,11 +66,14 @@ let empty_checker_env : checker_env =
 let all_decls env =
   env.decl
 
-let find_decl name env =
+let find_decl_opt name env =
   let ok decl = 
     name = snd (Types.Declaration.name decl)
   in
-  match List.find_opt ok env.decl with
+  List.find_opt ok env.decl
+
+let find_decl name env =
+  match find_decl_opt name env with
   | Some v -> v
   | None -> raise (UnboundName name)
 

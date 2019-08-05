@@ -23,7 +23,6 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
       |> insert name value
       |> List.rev
 
-
 let rec find_opt (name: string) : 'a env -> 'a option = function
 | [] -> None
 | h :: t ->
@@ -68,7 +67,10 @@ let all_decls env =
 
 let find_decl_opt name env =
   let ok decl = 
-    name = snd (Types.Declaration.name decl)
+    match Types.Declaration.name_opt decl with
+    | Some decl_name ->
+        name = snd decl_name
+    | None -> false
   in
   List.find_opt ok env.decl
 

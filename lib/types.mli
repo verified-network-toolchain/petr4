@@ -414,6 +414,8 @@ and Declaration : sig
   and field = pre_field info [@@deriving sexp,yojson]
 
   val name : t -> P4String.t
+
+  val name_opt : t -> P4String.t option
 end
 
 and Statement : sig

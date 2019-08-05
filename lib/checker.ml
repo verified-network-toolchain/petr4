@@ -806,8 +806,24 @@ and type_cast _ _ _ =
   failwith "type_cast unimplemented"
 
 (* ? *)
-and type_type_member _ _ _ =
-  failwith "type_type_member unimplemented"
+and type_type_member env typ name =
+  let open Core in
+  let typ = typ
+            |> translate_type env []
+            |> saturate_type env
+  in
+  match typ with
+  | Enum { typ = carrier; members } ->
+      if List.mem ~equal:(fun x y -> x = y) members (snd name)
+      then match carrier with
+           | None -> typ, In
+           | Some carrier -> carrier, In
+      else raise_s [%message "enum has no such member"
+                             ~enum:(typ: Typed.Type.t)
+                             ~member:(snd name)]
+   | _ -> raise_s [%message "type_type_member unimplemented"
+                             ~typ:(typ: Typed.Type.t)
+                             ~name:(snd name)]
 
 (* Section 8.2
  * -----------
@@ -823,6 +839,15 @@ and type_error_member env name : Typed.Type.t =
   | Type.Error -> Type.Error
   | _ -> failwith "Error member not an error?"
 
+and header_methods typ =
+  let fake_fields: RecordType.field list =
+    [{name = "isValid";
+      typ = Function {type_params = []; parameters = []; return = Bool}}]
+  in
+  match typ with
+  | Type.Header { fields } -> fake_fields
+  | _ -> []
+
 (* Sections 6.6, 8.14 *)
 and type_expression_member env expr name : Typed.Type.t =
   let expr_typ = expr
@@ -830,10 +855,12 @@ and type_expression_member env expr name : Typed.Type.t =
   |> saturate_type env
   in
   let open RecordType in
+  let methods = header_methods expr_typ in
   match expr_typ with
   | Header {fields=fs}
   | HeaderUnion {fields=fs}
   | Struct {fields=fs} ->
+      let fs = fs @ methods in
       let matches f = f.name = snd name in
       begin match List.find_opt matches fs with
       | Some field -> field.typ

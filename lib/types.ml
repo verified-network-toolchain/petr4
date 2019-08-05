@@ -667,6 +667,8 @@ and field = pre_field info [@@deriving sexp,yojson]
 
 val name : t -> P4String.t
 
+val name_opt : t -> P4String.t option
+
 end = struct
   type pre_t =
       Constant of
@@ -791,33 +793,38 @@ and pre_field =
 
 and field = pre_field info [@@deriving sexp,yojson]
 
-let name d =
+let name_opt d =
   match snd d with
-  | Constant x -> x.name
-  | Instantiation x -> x.name
-  | Parser x -> x.name
-  | Control x -> x.name
-  | Function x -> x.name
-  | ExternFunction x -> x.name
-  | Variable x -> x.name
-  | ValueSet x -> x.name
-  | Action x -> x.name
-  | Table x -> x.name
-  | Header x -> x.name
-  | HeaderUnion x -> x.name
-  | Struct x -> x.name
-  | Enum x -> x.name
-  | SerializableEnum x -> x.name
-  | ExternObject x -> x.name
-  | TypeDef x -> x.name
-  | NewType x -> x.name
-  | ControlType x -> x.name
-  | ParserType x -> x.name
-  | PackageType x -> x.name
-  | Error _ ->
-    failwith "Error type declarations do not have a name"
+  | Constant {name; _}
+  | Instantiation {name; _}
+  | Parser {name; _}
+  | Control {name; _}
+  | Function {name; _}
+  | ExternFunction {name; _}
+  | Variable {name; _}
+  | ValueSet {name; _}
+  | Action {name; _}
+  | Table {name; _}
+  | Header {name; _}
+  | HeaderUnion {name; _}
+  | Struct {name; _}
+  | Enum {name; _}
+  | SerializableEnum {name; _}
+  | ExternObject {name; _}
+  | TypeDef {name; _}
+  | NewType {name; _}
+  | ControlType {name; _}
+  | ParserType {name; _}
+  | PackageType {name; _} ->
+      Some name
+  | Error _
   | MatchKind _ ->
-    failwith "MatchKind type declarations do not have a name"
+      None
+
+let name d =
+  match name_opt d with
+  | Some name -> name
+  | None -> failwith "this declaration does not have a name"
 end
 
 and Statement : sig

@@ -1304,15 +1304,19 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
 
 and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       (args : Argument.t list) : EvalEnv.t * EvalEnv.t =
-  let f env e =
-    match snd e with
-    | Argument.Expression {value=expr} -> eval_expression env expr
-    | Argument.KeyValue _
-    | Argument.Missing -> failwith "missing args unimplemented" in
-  let (env',arg_vals) = List.fold_map args ~f:f ~init:env in
+  let f i env e =
+    Parameter.(
+      let p = snd (List.nth_exn params i) in
+      let ((env',v), n) = match snd e with
+        | Argument.Expression {value=expr} -> (eval_expression env expr, snd p.variable)
+        | Argument.KeyValue {value=expr;key=(_,n)} -> (eval_expression env expr, n)
+        | Argument.Missing ->
+          (eval_expression env (assert_some p.opt_value), snd p.variable) in
+      (env', (n,v))) in
+  let (env',arg_vals) = List.fold_mapi args ~f:f ~init:env in
   let fenv = EvalEnv.push_scope (EvalEnv.get_toplevel env') in
-  let g e (p : Parameter.t) v =
-    let name = snd (snd p).variable in
+  let g e (p : Parameter.t) (n,v) =
+    let name = n in
     let v' = match v with
       | VHeader (n,l,b) -> VHeader (name, l, b)
       | VStruct (n,l) -> VStruct (name,l)
@@ -1331,6 +1335,11 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
   let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
   (env', fenv')
 
+and assert_some (x : 'a option) : 'a =
+  match x with
+  | None -> failwith "is none"
+  | Some v -> v
+
 and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
     (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
   let h e (p:Parameter.t) a =
@@ -1340,11 +1349,10 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
       | InOut
       | Out ->
         let v = EvalEnv.find_val (snd (snd p).variable) fenv in
-        let lhs = begin match snd a with
-          | Argument.Expression {value=expr} -> expr
-          | Argument.KeyValue _
-          | Argument.Missing -> failwith "missing args unimplemented" end in
-        fst (eval_assign' e (lvalue_of_expr lhs) v) (* shouldnt have function calls in parsers *)
+        begin match snd a with
+          | Argument.Expression {value=expr}
+          | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
+          | Argument.Missing -> e end (* shouldnt have function calls in parsers *)
       | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
 

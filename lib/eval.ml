@@ -258,7 +258,7 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   | Error                     -> VError "NoError"
   | IntType expr              -> init_val_of_int env expr
   | BitType expr              -> init_val_of_bit env expr
-  | VarBit expr               -> failwith "varbit init unimplemented"
+  | VarBit expr               -> init_val_of_varbit env expr
   | TopLevelType (_,n)        -> init_val_of_typname env n name true
   | TypeName (_,n)            -> init_val_of_typname env n name false
   | SpecializedType _         -> failwith "specialized init unimplemented"
@@ -276,8 +276,17 @@ and init_val_of_int (env : EvalEnv.t) (expr : Expression.t) : value =
 
 and init_val_of_bit (env : EvalEnv.t) (expr : Expression.t) : value =
   match snd (eval_expression env expr) with
-  | VInteger n -> VBit(n, Bigint.zero)
+  | VInteger n
+  | VBit(_,n)
+  | VInt(_,n) -> VBit(n, Bigint.zero)
   | _ -> failwith "bit width is not an int"
+
+and init_val_of_varbit (env : EvalEnv.t) (expr: Expression.t) : value =
+  match snd (eval_expression env expr) with
+  | VInteger n
+  | VBit(_,n)
+  | VInt(_,n) -> VVarbit(n, Bigint.zero)
+  | _ -> failwith "varbit width is not an int"
 
 and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b : bool) : value =
   let f = EvalEnv.(if b then find_decl_toplevel else find_decl) in
@@ -434,7 +443,7 @@ and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
   | VHeader(n,l,b)     -> assign_header_mem env lv rhs mname n l b
   | VUnion(n,vs,bs)    -> assign_union_mem env lv rhs mname n bs
   | VStack(n,hdrs,s,i) -> assign_stack_mem env lv rhs n mname hdrs s i
-  | _ -> failwith "member assignment unimplemented"
+  | _ -> failwith "member access undefined"
 
 and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
     (lsb : Expression.t) (rhs : value) : EvalEnv.t * signal =
@@ -578,23 +587,11 @@ and typ_of_lmember (env : EvalEnv.t) (lv : lvalue) (s : string) : Type.t =
   | HeaderStack{header;_} -> typ_of_stack_lmem env s header
   | TypeName(_,n) ->
     begin match snd (decl_of_typ env t) with
-      | Header{fields=fs;_} -> typ_of_header_lmem env s fs
-      | HeaderUnion{fields=fs;_} -> typ_of_union_lmem env s fs
-      | Struct{fields=fs;_} -> typ_of_struct_lmem env s fs
+      | Header{fields=fs;_}      -> typ_of_struct_lmem env s fs
+      | HeaderUnion{fields=fs;_} -> typ_of_struct_lmem env s fs
+      | Struct{fields=fs;_}      -> typ_of_struct_lmem env s fs
       | _ -> failwith "lvalue type name member access not defined" end
   | _ -> failwith "type of lvalue member unimplemented"
-
-and typ_of_header_lmem (env : EvalEnv.t) (s : string)
-    (fields : Declaration.field list) : Type.t =
-  let fs = List.map fields ~f:(fun a -> (snd (snd a).name, a)) in
-  let f = List.Assoc.find_exn fs ~equal:(=) s in
-  (snd f).typ
-
-and typ_of_union_lmem (env : EvalEnv.t) (s : string)
-    (fields : Declaration.field list) : Type.t =
-  let fs = List.map fields ~f:(fun a -> (snd (snd a).name, a)) in
-  let f = List.Assoc.find_exn fs ~equal:(=) s in
-  (snd f).typ
 
 and typ_of_struct_lmem (env : EvalEnv.t) (s : string)
     (fields : Declaration.field list) : Type.t =
@@ -725,12 +722,11 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
     (expr : Expression.t) : EvalEnv.t * value =
   let (env', v) = eval_expression env expr in
-  print_endline "casting";
   match snd typ with
   | Bool -> (env', bool_of_val v)
   | BitType e -> bit_of_val env' e v
   | IntType e -> int_of_val env' e v
-  | TypeName s -> print_endline "got here"; eval_cast env (EvalEnv.find_typ (snd s) env) expr
+  | TypeName s -> eval_cast env (EvalEnv.find_typ (snd s) env) expr
   | _ -> failwith "type cast unimplemented"
 
 and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
@@ -748,7 +744,7 @@ and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
     let (env', vs) = List.fold_map ms ~init:env ~f:f in
     let v = List.Assoc.find_exn vs name ~equal:(=) in
     (env, VSenumField(n,name,v))
-  | _ -> failwith "typ mem unimplemented"
+  | _ -> failwith "typ mem undefined"
 
 and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
     (name : P4String.t) : EvalEnv.t * value =
@@ -794,27 +790,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   | VAction (params, body)
   | VFun (params, body)    -> eval_funcall' env' params args body
   | VBuiltinFun(n,lv)      -> eval_builtin env n lv args
-  | VNull
-  | VBool _
-  | VInteger _
-  | VBit _
-  | VInt _
-  | VVarbit _
-  | VTuple _
-  | VSet _
-  | VString _
-  | VError _
-  | VMatchKind
-  | VStruct _
-  | VHeader _
-  | VUnion _
-  | VStack _
-  | VEnumField _
-  | VSenumField _
-  | VExternFun _
-  | VExternObject _
-  | VRuntime _
-  | VObjstate _            -> failwith "unreachable"
+  | _ -> failwith "unreachable"
 
 and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -896,8 +872,8 @@ and eval_bplus (l : value) (r : value) : value =
 
 and eval_bplus_sat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> unsigned_plus_sat v1 v2 w
-  | VInt(w,v1), VInt(_,v2) -> signed_plus_sat v1 v2 w
+  | VBit(w,v1), VBit(_,v2) -> unsigned_op_sat v1 v2 w Bigint.(+)
+  | VInt(w,v1), VInt(_,v2) -> signed_op_sat v1 v2 w Bigint.(+)
   | VBit(w,v1), VInteger n -> eval_bplus_sat l (bit_of_rawint n w)
   | VInteger n, VBit(w,_)  -> eval_bplus_sat (bit_of_rawint n w) r
   | VInt(w,_), VInteger n  -> eval_bplus_sat l (int_of_rawint n w)
@@ -917,8 +893,8 @@ and eval_bminus (l : value) (r : value) : value =
 
 and eval_bminus_sat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> unsigned_minus_sat v1 v2 w
-  | VInt(w,v1), VInt(_,v2) -> signed_minus_sat v1 v2 w
+  | VBit(w,v1), VBit(_,v2) -> unsigned_op_sat v1 v2 w Bigint.(-)
+  | VInt(w,v1), VInt(_,v2) -> signed_op_sat v1 v2 w Bigint.(-)
   | VBit(w,v1), VInteger n -> eval_bminus_sat l (bit_of_rawint n w)
   | VInteger n, VBit(w,_)  -> eval_bminus_sat (bit_of_rawint n w) r
   | VInt(w,_), VInteger n  -> eval_bminus_sat l (int_of_rawint n w)
@@ -949,18 +925,18 @@ and eval_bmod (l : value) (r : value) : value =
 and eval_bshl (l : value) (r : value) : value =
   match (l,r) with
   | VBit(w,v1), VBit(_,v2)
-  | VBit(w,v1), VInteger v2 -> VBit(w, of_twos_complement (shift_bigint_left v1 v2) w)
+  | VBit(w,v1), VInteger v2  -> VBit(w, of_twos_complement (shift_bigint_left v1 v2) w)
   | VInt(w,v1), VBit(_,v2)
-  | VInt(w,v1), VInteger v2 -> VInt(w, to_twos_complement (shift_bigint_left v1 v2) w)
+  | VInt(w,v1), VInteger v2  -> VInt(w, to_twos_complement (shift_bigint_left v1 v2) w)
   | VInteger v1, VInteger v2 -> VInteger(shift_bigint_left v1 v2)
   | _ -> failwith "shift left operator not defined for these types"
 
 and eval_bshr (l : value) (r : value) : value =
   match (l,r) with
   | VBit(w,v1), VBit(_,v2)
-  | VBit(w,v1), VInteger v2 -> VBit(w, of_twos_complement (shift_bigint_right v1 v2) w)
+  | VBit(w,v1), VInteger v2  -> VBit(w, of_twos_complement (shift_bigint_right v1 v2) w)
   | VInt(w,v1), VBit(_,v2)
-  | VInt(w,v1), VInteger v2 -> VInt(w, to_twos_complement (shift_bigint_right v1 v2) w)
+  | VInt(w,v1), VInteger v2  -> VInt(w, to_twos_complement (shift_bigint_right v1 v2) w)
   | VInteger v1, VInteger v2 -> VInteger(shift_bigint_right v1 v2)
   | _ -> failwith "shift right operator not defined for these types"
 
@@ -1085,24 +1061,20 @@ and bigint_max (n : Bigint.t) (m : Bigint.t) : Bigint.t =
 and bigint_min (n : Bigint.t) (m : Bigint.t) : Bigint.t =
   if Bigint.(n<m) then n else m
 
-and unsigned_plus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
-  VBit(w, bigint_min Bigint.(l + r) Bigint.((power_of_two w) - one))
-
-and signed_plus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
-  let x = power_of_two Bigint.(w-one) in
-  let n = Bigint.(l+r) in
+and unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
+    (op : Bigint.t -> Bigint.t -> Bigint.t) : value =
+  let x = power_of_two w in
+  let n = op l r in
   let n' =
     if Bigint.(n > zero)
     then bigint_min n Bigint.(x - one)
-    else bigint_max n Bigint.(-x) in
-  VInt(w, n')
+    else bigint_max n Bigint.zero in
+  VBit(w, n')
 
-and unsigned_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
-  VBit(w, bigint_max Bigint.(l-r) Bigint.zero)
-
-and signed_minus_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t) : value =
+and signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
+    (op : Bigint.t -> Bigint.t -> Bigint.t) : value =
   let x = power_of_two Bigint.(w-one) in
-  let n = Bigint.(l-r) in
+  let n = op l r in
   let n' =
     if Bigint.(n > zero)
     then bigint_min n Bigint.(x - one)
@@ -1206,7 +1178,7 @@ and of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   then Bigint.(n % w')
   else if Bigint.(n < zero)
   then of_twos_complement Bigint.(n + w') w
-  else n (* TODO: these some of these cases should emit warnings *)
+  else n
 
 and to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   let two = Bigint.(one + one) in
@@ -1215,7 +1187,7 @@ and to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   then to_twos_complement Bigint.(n-w') w
   else if Bigint.(n < -(w'/two))
   then to_twos_complement Bigint.(n+w') w
-  else n (* TODO: these some of these cases should emit warnings *)
+  else n
 
 (*----------------------------------------------------------------------------*)
 (* Membership Evaluation *)
@@ -1300,7 +1272,7 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
   | SReject -> (env, VNull)
   | SReturn v -> (final_env, v)
   | SContinue -> (final_env, VNull)
-  | SExit -> failwith "function did not return"
+  | SExit -> failwith "exit unimplemented"
 
 and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       (args : Argument.t list) : EvalEnv.t * EvalEnv.t =
@@ -1335,11 +1307,6 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
   let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
   (env', fenv')
 
-and assert_some (x : 'a option) : 'a =
-  match x with
-  | None -> failwith "is none"
-  | Some v -> v
-
 and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
     (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
   let h e (p:Parameter.t) a =
@@ -1352,7 +1319,7 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
         begin match snd a with
           | Argument.Expression {value=expr}
           | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
-          | Argument.Missing -> e end (* shouldnt have function calls in parsers *)
+          | Argument.Missing -> e end
       | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
 
@@ -1364,8 +1331,8 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
   match name with
   | "isValid"    -> eval_isvalid env lv
-  | "setValid"   -> eval_setvalid env lv
-  | "setInvalid" -> eval_setinvalid env lv
+  | "setValid"   -> eval_setbool env lv true
+  | "setInvalid" -> eval_setbool env lv false
   | "pop_front"  -> eval_popfront env lv args
   | "push_front" -> eval_pushfront env lv args
   | "extract"    -> eval_extract env lv args
@@ -1392,18 +1359,22 @@ and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
           | VHeader(_,_,b) -> (env, VBool b)
           | _ -> failwith "isvalid call is not a header" end end
 
-and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+and eval_setbool (env : EvalEnv.t) (lv : lvalue) (b : bool) : EvalEnv.t * value =
   match lv with
-  | LName n
-  | LTopName n ->
+  | LName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n',fs,b) -> (fst (eval_assign' env lv (VHeader(n',fs,true))), VNull)
+      | VHeader (n',fs,_) -> (fst (eval_assign' env lv (VHeader(n',fs,b))), VNull)
+      | _ -> failwith "not a header" end
+  | LTopName n ->
+    begin match EvalEnv.find_val_toplevel n env with
+      | VHeader (n',fs,_) -> (fst (eval_assign' env lv (VHeader(n',fs,b))), VNull)
       | _ -> failwith "not a header" end
   | LMember(lv', n2) ->
     begin match value_of_lvalue env lv' with
       | VUnion (n1, fs, vs) ->
-        let vs' = List.map vs ~f:(fun (a,_) -> (a,a=n2)) in
+        let vs' = List.map vs ~f:(fun (a,_) -> (a,if b then a=n2 else b)) in
         (fst (eval_assign' env lv' (VUnion(n1, fs, vs'))), VNull)
+      | VStruct(n1, fs) -> failwith "unimplemented"
       | _ -> failwith "not a union" end
   | LArrayAccess(lv', e) ->
     begin match value_of_lvalue env lv' with
@@ -1412,33 +1383,7 @@ and eval_setvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
         let i' = bigint_of_val i in
         let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn i') in
         let hdrs' = match hdrs2 with
-          | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,true) :: t)
-          | _ -> failwith "not a header" in
-        (fst (eval_assign' env' lv' (VStack(n1,hdrs',size,next))), VNull)
-      | _ -> failwith "not a stack" end
-  | LBitAccess _ -> failwith "not a header"
-
-and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
-  match lv with
-  | LName n
-  | LTopName n ->
-    begin match EvalEnv.find_val n env with
-      | VHeader (n',fs,b) -> (fst (eval_assign' env lv (VHeader(n',fs,false))), VNull)
-      | _ -> failwith "not a header" end
-  | LMember(lv', n2) ->
-    begin match value_of_lvalue env lv' with
-      | VUnion (n1, fs, vs) ->
-        let vs' = List.map vs ~f:(fun (a,_) -> (a,false)) in
-        (fst (eval_assign' env lv' (VUnion(n1, fs, vs'))), VNull)
-      | _ -> failwith "not a union" end
-  | LArrayAccess(lv', e) ->
-    begin match value_of_lvalue env lv' with
-      | VStack(n1,hdrs,size,next) ->
-        let (env', i) = eval_expression env e in
-        let i' = bigint_of_val i in
-        let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
-        let hdrs' = match hdrs2 with
-          | VHeader(n2,vs,b) :: t -> hdrs1 @ (VHeader(n2,vs,false) :: t)
+          | VHeader(n2,vs,_) :: t -> hdrs1 @ (VHeader(n2,vs,b) :: t)
           | _ -> failwith "not a header" in
         (fst (eval_assign' env' lv' (VStack(n1,hdrs',size,next))), VNull)
       | _ -> failwith "not a stack" end
@@ -1446,32 +1391,27 @@ and eval_setinvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
 
 and eval_pushfront (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
-  let (env', a) = eval_push_pop_args env args in
-  let v = value_of_lvalue env lv in
-  let (n, hdrs, size, next) =
-    match v with
-    | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
-    | _ -> failwith "push call not a header stack" in
-  let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn (size - a)) in
-  let t = typ_of_stack_mem env lv in
-  let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
-  let hdrs' = hdrs0 @ hdrs1 in
-  let v = VStack(n,hdrs',size,Bigint.(next+a)) in
-  (fst (eval_assign' env lv v), VNull)
+  eval_push_pop env lv args true
 
 and eval_popfront (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
+  eval_push_pop env lv args false
+
+and eval_push_pop (env : EvalEnv.t) (lv : lvalue)
+    (args : Argument.t list) (b : bool) : EvalEnv.t * value =
   let (env', a) = eval_push_pop_args env args in
   let v = value_of_lvalue env lv in
   let (n, hdrs, size, next) =
     match v with
     | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
     | _ -> failwith "push call not a header stack" in
-  let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn a) in
+  let x = if b then Bigint.(size - a) else a in
+  let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn x) in
   let t = typ_of_stack_mem env lv in
   let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
-  let hdrs' = hdrs2 @ hdrs0 in
-  let v = VStack(n,hdrs',size,Bigint.(next-a)) in
+  let hdrs' = if b then hdrs0 @ hdrs1 else hdrs2 @ hdrs0 in
+  let y = if b then Bigint.(next + a) else Bigint.(next-a) in
+  let v = VStack(n,hdrs',size,y) in
   (fst (eval_assign' env lv v), VNull)
 
 and eval_push_pop_args (env : EvalEnv.t)
@@ -1696,6 +1636,11 @@ and assert_runtime (v : value) : vruntime =
 
 and assert_packet (p : vruntime) : packet =
   match p with Packet x -> x
+
+and assert_some (x : 'a option) : 'a =
+  match x with
+  | None -> failwith "is none"
+  | Some v -> v
 
 and decl_of_typ (e : EvalEnv.t) (t : Type.t) : Declaration.t =
   match snd t with

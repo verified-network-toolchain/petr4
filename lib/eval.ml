@@ -3,12 +3,7 @@ open Core
 open Env
 open Types
 open Value
-open P4core
 module Info = I (* JNF: ugly hack *)
-
-type signal = packet pre_signal
-type vruntime = packet pre_vruntime
-type set = packet pre_set
 
 (*----------------------------------------------------------------------------*)
 (* Declaration Evaluation *)
@@ -1337,6 +1332,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "push_front" -> eval_pushfront env lv args
   | "extract"    -> eval_extract env lv args
   | "emit"       -> eval_emit env lv args
+  | "length"     -> eval_length env lv
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
@@ -1441,12 +1437,19 @@ and eval_emit (env : EvalEnv.t) (lv : lvalue)
     | [Argument.KeyValue{value=value;_}] -> eval_expression env value
     | _ -> failwith "invalid emission args" in
   let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet in
-  let p' = emit p v in
+  let p' = emit_val p v in
   (fst (eval_assign' env' lv (VRuntime(Packet p'))), VNull)
+
+and emit_val (p : packet) (v : value) : packet = failwith "unimplemented"
+
+and eval_length (env : EvalEnv.t) ( lv : lvalue) : EvalEnv.t * value =
+  let p = value_of_lvalue env lv |> assert_runtime |> assert_packet in
+  (env, VBit (Bigint.of_int 32, p |> Cstruct.len |> Bigint.of_int))
 
 and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
-  let args' = List.map args ~f:snd in
+  failwith "unimplemented"
+  (* let args' = List.map args ~f:snd in
   let (env', v, lhdr) = match args' with
     | [Argument.Expression{value}]
     | [Argument.KeyValue{value=value;_}] ->
@@ -1462,7 +1465,7 @@ and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
     let fs' = List.zip_exn ns vs' in
     let env'' = fst (eval_assign' env' lhdr (VHeader(n,fs',true))) in
     (fst (eval_assign' env'' lv (VRuntime(Packet p'))), VNull)
-  | _ -> failwith "not a header"
+  | _ -> failwith "not a header" *)
 
 and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1868,13 +1871,17 @@ and eval_v1control (control : value) (args : Argument.t list)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let byte_packet_fortytwo = [false;false;true;false;true;false;true;false]
+let packet = Cstruct.create 3
+
+let () =
+  Cstruct.set_char packet 0 '*';
+  Cstruct.set_char packet 1 '*';
+  Cstruct.set_char packet 2 '\128'
 
 let eval_program = function Program l ->
   let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
   EvalEnv.print_env env;
   Format.printf "Done\n";
-  let packetin = byte_packet_fortytwo @ byte_packet_fortytwo @ [true;false]
-                 |> packet_of_list in
+  let packetin = packet in
   let packout = eval_main env packetin in
   ignore packout

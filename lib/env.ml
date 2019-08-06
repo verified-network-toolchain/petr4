@@ -1,5 +1,4 @@
 open Types
-open P4core
 open Value
 open Core
 

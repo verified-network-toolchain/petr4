@@ -1,30 +1,32 @@
 open Types
 
-type 'a pre_value =
+type packet = Cstruct.t
+
+type value =
   | VNull
   | VBool of bool
   | VInteger of Bigint.t
   | VBit of Bigint.t * Bigint.t
   | VInt of Bigint.t * Bigint.t
   | VVarbit of Bigint.t * Bigint.t
-  | VTuple of 'a pre_value list
-  | VSet of 'a pre_set
+  | VTuple of value list
+  | VSet of set
   | VString of string
   | VError of string
   | VMatchKind
   | VFun of Parameter.t list * Block.t
   | VBuiltinFun of string * lvalue
   | VAction of Parameter.t list * Block.t
-  | VStruct of string * (string * 'a pre_value) list
-  | VHeader of string * (string * 'a pre_value) list * bool
-  | VUnion of string * 'a pre_value * (string * bool) list
-  | VStack of string * 'a pre_value list * Bigint.t * Bigint.t
+  | VStruct of string * (string * value) list
+  | VHeader of string * (string * value) list * bool
+  | VUnion of string * value * (string * bool) list
+  | VStack of string * value list * Bigint.t * Bigint.t
   | VEnumField of string * string
-  | VSenumField of string * string * 'a pre_value
+  | VSenumField of string * string * value
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
-  | VRuntime of 'a pre_vruntime
-  | VObjstate of Declaration.t * (string * 'a pre_value) list
+  | VRuntime of vruntime
+  | VObjstate of Declaration.t * (string * value) list
 
 and lvalue =
   | LName of string
@@ -33,18 +35,18 @@ and lvalue =
   | LBitAccess of lvalue * Expression.t * Expression.t
   | LArrayAccess of lvalue * Expression.t
 
-and 'a pre_set =
+and set =
   | SSingleton of Bigint.t
   | SUniversal
-  | SMask of 'a pre_value * 'a pre_value
-  | SRange of 'a pre_value * 'a pre_value
-  | SProd of 'a pre_set list
+  | SMask of value * value
+  | SRange of value * value
+  | SProd of set list
 
-and 'a pre_signal =
+and signal =
   | SContinue
-  | SReturn of 'a pre_value
+  | SReturn of value
   | SExit
   | SReject
 
-and 'a pre_vruntime =
-  | Packet of 'a
+and vruntime =
+  | Packet of packet

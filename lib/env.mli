@@ -1,5 +1,5 @@
 open Types
-open P4core
+open Value
 
 exception BadEnvironment of string
 exception UnboundName of string

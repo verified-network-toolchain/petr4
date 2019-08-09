@@ -478,7 +478,7 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
 and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (sname : string)
     (l : (string * value) list) : EvalEnv.t * signal =
-  let t = typ_of_struct_field env lhs fname in
+  let t = typ_of_struct_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
   let rhs'' = implicit_cast_from_tuple env (LMember(lhs, fname)) fname rhs' t in
   eval_assign' env lhs ((VStruct(sname, (fname, rhs'') :: l)))
@@ -486,14 +486,14 @@ and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (hname : string) (l : (string * value) list)
     (b : bool) : EvalEnv.t * signal =
-  let t = typ_of_header_field env lhs fname in
+  let t = typ_of_header_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
   eval_assign' env lhs ((VHeader(hname,(fname,rhs') :: l,b)))
 
 and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (uname : string)
     (vbs : (string * bool) list) : EvalEnv.t * signal =
-  let t = typ_of_union_field env lhs fname in
+  let t = typ_of_union_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_tuple env lhs fname rhs t in
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
   eval_assign' env lhs (VUnion(uname, rhs', vbs'))
@@ -1444,7 +1444,141 @@ and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
   let t = match ts with
     | [t] -> t
     | _ -> failwith "invalid lookahead type args" in
-  ignore t; failwith "unimplemented"
+  let w = width_of_typ env t in
+  let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet_in in
+  let (p',_) = Cstruct.split p (Bigint.to_int_exn w) in
+  let (_,n) = bytes_of_packet p' w in
+  (env, val_of_bigint env w n (init_val_of_typ env "" t) t)
+
+and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
+    (t : Type.t) : value =
+  match v with
+  | VNull              -> VNull
+  | VBool _            -> VBool Bigint.(bitstring_slice n one zero = one)
+  | VBit _             -> VBit(w,n)
+  | VInt _             -> VInt(w,to_twos_complement n w)
+  | VTuple l           -> tuple_of_bigint env w n t l
+  | VStruct(_,fs)      -> struct_of_bigint env w n t fs
+  | VHeader(_,fs,_)    -> header_of_bigint env w n t fs
+  | VStack(_,vs,s,n)   -> stack_of_bigint env w n t vs s n
+  | VSenumField(a,b,v) -> VSenumField(a,b,val_of_bigint env w n v t)
+  | VInteger _
+  | VVarbit _
+  | VSet _
+  | VString _
+  | VError _
+  | VMatchKind
+  | VFun _
+  | VBuiltinFun _
+  | VAction _
+  | VUnion _
+  | VEnumField _
+  | VExternFun _
+  | VExternObject _
+  | VRuntime _
+  | VObjstate _        -> failwith "value does not have a fixed width"
+
+and tuple_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
+    (t : Type.t) (l : value list) : value =
+  let f i (w,n) v =
+    let t' = typ_of_tuple_field t i in
+    let wv = width_of_typ env t' in
+    let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
+    let w' = Bigint.(w-wv) in
+    let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
+    let v' = val_of_bigint env wv nv v t' in
+    ((w',n'), v') in
+  let l' = List.folding_mapi l ~init:(w,n) ~f:f in
+  VTuple l'
+
+and typ_of_tuple_field (t : Type.t) (i : int) : Type.t =
+  match snd t with
+  | Tuple ts -> List.nth_exn ts i
+  | _ -> failwith "not a tuple type"
+
+and struct_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
+    (t : Type.t) (fs : (string * value) list) : value =
+  let f (w,n) (s,v) =
+    let t' = typ_of_struct_field env t s in
+    let wv = width_of_typ env t' in
+    let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
+    let w' = Bigint.(w-wv) in
+    let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
+    let v' = val_of_bigint env wv nv v t' in
+    ((w',n'),(s,v')) in
+  let fs' = List.folding_map fs ~init:(w,n) ~f:f in
+  VStruct("",fs')
+
+and header_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
+    (t : Type.t) (fs : (string * value) list) : value =
+  let f (w,n) (s,v) =
+    let t' = typ_of_header_field env t s in
+    let wv = width_of_typ env t' in
+    let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
+    let w' = Bigint.(w-wv) in
+    let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
+    let v' = val_of_bigint env wv nv v t' in
+    ((w',n'),(s,v')) in
+  let fs' = List.folding_map fs ~init:(w,n) ~f:f in
+  VHeader("",fs',true)
+
+and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
+    (t : Type.t) (vs : value list) (size : Bigint.t) (next : Bigint.t) : value =
+  let t' = match snd t with
+    | HeaderStack{header;_} -> header
+    | _ -> failwith "not a header stack" in
+  let f (w,n) v =
+    let wv = width_of_typ env t' in
+    let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
+    let w' = Bigint.(w-wv) in
+    let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
+    let v' = val_of_bigint env wv nv v t' in
+    ((w',n'),v') in
+  let vs' = List.folding_map vs ~init:(w,n) ~f:f in
+  VStack("",vs',size,next)
+
+and width_of_typ (env : EvalEnv.t) (t : Type.t) : Bigint.t =
+  match snd t with
+  | Bool -> Bigint.one
+  | IntType e -> e |> eval_expression env |> snd |> bigint_of_val
+  | BitType e -> e |> eval_expression env |> snd |> bigint_of_val
+  | TopLevelType _
+  | TypeName _ -> width_of_decl env (decl_of_typ env t)
+  | HeaderStack{header=t';size=e} -> width_of_stack env t' e
+  | Tuple l -> width_of_tuple env l
+  | Void | DontCare -> Bigint.zero
+  | Error | VarBit _ -> failwith "type does not a have a fixed width"
+  | SpecializedType _ -> failwith "unimplemented"
+
+and width_of_tuple (env : EvalEnv.t) (l : Type.t list) : Bigint.t =
+  let l' = List.map l ~f:(width_of_typ env) in
+  List.fold_left l' ~init:Bigint.zero ~f:Bigint.(+)
+
+and width_of_stack (env : EvalEnv.t) (t : Type.t)
+    (e : Expression.t) : Bigint.t =
+  Bigint.(
+    e
+    |> eval_expression env
+    |> snd
+    |> bigint_of_val
+    |> ( * ) (width_of_typ env t))
+
+and width_of_hdr (env : EvalEnv.t) (fs : Declaration.field list) : Bigint.t =
+  let ts = List.map fs ~f:(fun f -> (snd f).typ) in
+  let ws = List.map ts ~f:(width_of_typ env) in
+  List.fold_left ws ~init:Bigint.zero ~f:Bigint.(+)
+
+and width_of_decl (env : EvalEnv.t) (d : Declaration.t) : Bigint.t =
+  match snd d with
+  | Header{fields;_} -> width_of_hdr env fields
+  | Struct{fields;_} -> width_of_hdr env fields
+  | SerializableEnum{typ;_} -> width_of_typ env typ
+  | TypeDef{typ_or_decl;_}
+  | NewType{typ_or_decl;_} ->
+    begin match typ_or_decl with
+    | Left t -> width_of_typ env t
+    | Right d -> width_of_decl env d end
+  | _ -> failwith "decl does not have a fixed width"
 
 and eval_advance (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
@@ -1797,9 +1931,8 @@ and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
     then bitstring_slice (n/(one + one)) (m-one) (l-one)
     else n % (power_of_two (m + one)))
 
-and typ_of_struct_field (env : EvalEnv.t) (lv : lvalue)
+and typ_of_struct_field (env : EvalEnv.t) (t : Type.t)
     (fname : string) : Type.t =
-  let t = typ_of_lvalue env lv in
   let (_, d) = decl_of_typ env t in
   let fs = match d with
     | Struct h -> h.fields
@@ -1808,9 +1941,8 @@ and typ_of_struct_field (env : EvalEnv.t) (lv : lvalue)
   | h :: _ -> (snd h).typ
   | _ -> failwith "field name not found"
 
-and typ_of_header_field (env : EvalEnv.t) (lv : lvalue)
+and typ_of_header_field (env : EvalEnv.t) (t : Type.t)
     (fname : string) : Type.t =
-  let t = typ_of_lvalue env lv in
   let (_,d) = decl_of_typ env t in
   let fs = match d with
     | Header h -> h.fields
@@ -1819,9 +1951,8 @@ and typ_of_header_field (env : EvalEnv.t) (lv : lvalue)
   | h :: _ -> (snd h). typ
   | _ -> failwith "field name not found"
 
-and typ_of_union_field (env : EvalEnv.t) (lv : lvalue)
+and typ_of_union_field (env : EvalEnv.t) (t : Type.t)
     (fname : string) : Type.t =
-  let t = typ_of_lvalue env lv in
   let (_, d) = decl_of_typ env t in
   let fs = match d with
     | HeaderUnion u -> u.fields

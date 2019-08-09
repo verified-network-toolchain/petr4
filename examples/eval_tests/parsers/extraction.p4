@@ -2,14 +2,21 @@
 #include <v1model.p4>
 
 header head {
-    bit<8> a;
-    bit<8> b;
-    bit<8> c;
+    bit<4> a;
+    bit<4> b;
+    bit<4> c;
+    bit<4> d;
+}
+
+header head0 {
+    bit<4> a;
+    bit<4> b;
 }
 
 struct metadata { }
 struct headers {
     head h1;
+    head0 h2;
 }
 
 parser MyParser(packet_in packet,
@@ -19,6 +26,7 @@ parser MyParser(packet_in packet,
 
     state start {
         packet.extract(hdr.h1);
+        packet.extract(hdr.h2);
         transition accept;
     }
 }

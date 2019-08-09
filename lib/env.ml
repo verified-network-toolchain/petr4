@@ -196,7 +196,10 @@ module EvalEnv = struct
         | VSenumField(enum,field,_) -> enum ^ "." ^ field ^ " <value>"
         | VExternFun _ -> "<extern function>"
         | VExternObject _ -> "<extern>"
-        | VRuntime _ -> "packet"
+        | VRuntime r ->
+          begin match r with
+            | PacketIn p -> Cstruct.to_string p
+            | PacketOut (p1,p2) -> Cstruct.to_string (Cstruct.append p1 p2) end
         | VObjstate (_,vs) -> "<stateful object>" in
       print_endline vstring in
     match e.vs with

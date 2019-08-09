@@ -463,8 +463,10 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
   let v = value_of_lvalue env lv in
   let (env', i) = eval_expression env e in
   let i' = bigint_of_val i in
-  let t = typ_of_stack_mem env lv in
-  let rhs' = implicit_cast_from_tuple env lv (string_of_int (Bigint.to_int_exn i')) rhs t in
+  let t = match snd (typ_of_lvalue env lv) with
+    | HeaderStack{header;_} -> header
+    | _ -> failwith "not a stack" in
+  let rhs' = implicit_cast_from_tuple env (LArrayAccess(lv,e)) (string_of_int (Bigint.to_int_exn i')) rhs t in
   let rhs'' = match v with
     | VStack(n,hdrs,size,next) ->
       let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
@@ -559,7 +561,9 @@ and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
 and value_of_larray (env : EvalEnv.t) (lv : lvalue)
     (idx : Expression.t) : value =
   match value_of_lvalue env lv with
-  | VStack(n,vs,s,i) -> List.nth_exn vs Bigint.(to_int_exn (i % s))
+  | VStack(n,vs,s,i) ->
+    let idx' = eval_expression env idx |> snd |> bigint_of_val in 
+    List.nth_exn vs Bigint.(to_int_exn (idx' % s))
   | _ -> failwith "array access is not a header stack "
 
 and value_of_stack_mem_lvalue (name : string) (vs : value list)
@@ -1309,14 +1313,18 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
         |> EvalEnv.insert_typ (snd (snd p).variable) (snd p).typ
       | Out -> e end in
   let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
-  print_endline "finished inarg eval";
   (env', fenv')
 
 and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
     (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None -> e
+    | None ->
+      let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+      begin match snd a with
+        | Argument.Expression {value=expr}
+        | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
+        | Argument.Missing -> e end
     | Some x -> begin match snd x with
       | InOut
       | Out ->
@@ -1446,8 +1454,9 @@ and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
     | _ -> failwith "invalid lookahead type args" in
   let w = width_of_typ env t in
   let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet_in in
-  let (p',_) = Cstruct.split p (Bigint.to_int_exn w) in
-  let (_,n) = bytes_of_packet p' w in
+  let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+  let (p',_) = Cstruct.split ~start:0 p Bigint.(to_int_exn (w/eight)) in
+  let (_,n) = bytes_of_packet p' Bigint.(w/eight) in
   (env, val_of_bigint env w n (init_val_of_typ env "" t) t)
 
 and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
@@ -1663,9 +1672,9 @@ and emit_lval (env : EvalEnv.t) (p : packet_out) (lv : lvalue) : packet_out =
   let v = value_of_lvalue env lv in
   match v with
   | VStruct(_,fs)    -> emit_struct env p lv fs
-  | VHeader(_,fs,b)  -> emit_header env p lv fs b
+  | VHeader(_,fs,b)  -> print_endline "emitting header"; emit_header env p lv fs b
   | VUnion(_,v,bs)   -> emit_union env p lv v bs
-  | VStack(_,hs,_,_) -> emit_stack env p lv hs
+  | VStack(_,hs,_,_) -> print_endline "emitting stack" ; emit_stack env p lv hs
   | _ -> failwith "emit undefined on type"
 
 and emit_struct (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
@@ -1691,6 +1700,8 @@ and emit_header (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let w = Bigint.(nbytes_of_hdr env d * eight) in
     let p1 = packet_of_bytes n w in
+    print_string "emitting packet: ";
+    p1 |> Cstruct.to_string |> print_endline;
     let (p0,p2) = p in
     (Cstruct.append p0 p1,p2)
   else p
@@ -1707,10 +1718,13 @@ and emit_union (env : EvalEnv.t) (p : packet_out) (lv : lvalue) (v : value)
 and emit_stack (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
     (hs : value list) : packet_out =
   let f (p,n) v =
+    print_string "n is: "; n |> Bigint.to_int_exn |> string_of_int |> print_endline;
     let lv' = (LArrayAccess(lv, (Info.dummy, Expression.Int(Info.dummy,
                                                             {value = n;
                                                              width_signed = None})))) in
     (emit_lval env p lv', Bigint.(n + one)) in
+  let snd' (a,b,c) = b in
+  List.fold_left hs ~init:() ~f:(fun _ x -> x |> assert_header |> snd' |> List.hd_exn |> snd |> bigint_of_val |> Bigint.to_int_exn |> string_of_int |> print_endline);
   List.fold_left hs ~init:(p,Bigint.zero) ~f:f |> fst
 
 (*----------------------------------------------------------------------------*)
@@ -1791,7 +1805,7 @@ and values_match_set (vs : value list) (env : EvalEnv.t)
   | SRange(v1,v2) -> (env, values_match_range env vs v1 v2)
   | SProd l       -> values_match_prod env vs l
 
-and values_match_singleton (vs :value list) (n : Bigint.t) : bool =
+and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
   v |> bigint_of_val |> (Bigint.(=) n)
 
@@ -2144,6 +2158,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   let env = env
             |> eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
             |> fst (* TODO: handle errors and parser rejections *) in
+  print_endline (Cstruct.to_string (EvalEnv.find_val "packet" env |> assert_runtime |> assert_packet_in));
   let pckt' =
     VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
                                           |> assert_runtime
@@ -2189,12 +2204,22 @@ and eval_v1control (control : value) (args : Argument.t list)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let packet = Cstruct.create 3
+let packet = Cstruct.create 13
 
 let () =
   Cstruct.set_char packet 0 '*';
   Cstruct.set_char packet 1 '*';
-  Cstruct.set_char packet 2 '\128'
+  Cstruct.set_char packet 2 '*';
+  Cstruct.set_char packet 3 '*';
+  Cstruct.set_char packet 4 '*';
+  Cstruct.set_char packet 5 '*';
+  Cstruct.set_char packet 6 '*';
+  Cstruct.set_char packet 7 '*';
+  Cstruct.set_char packet 8 '*';
+  Cstruct.set_char packet 9 '*';
+  Cstruct.set_char packet 10 '*';
+  Cstruct.set_char packet 11 '*';
+  Cstruct.set_char packet 12 '!'
 
 let eval_program = function Program l ->
   let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in

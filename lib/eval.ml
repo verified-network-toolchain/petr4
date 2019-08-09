@@ -280,7 +280,7 @@ and init_val_of_varbit (env : EvalEnv.t) (expr: Expression.t) : value =
   match snd (eval_expression env expr) with
   | VInteger n
   | VBit(_,n)
-  | VInt(_,n) -> VVarbit(n, Bigint.zero)
+  | VInt(_,n) -> VVarbit(n, Bigint.zero, Bigint.zero)
   | _ -> failwith "varbit width is not an int"
 
 and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b : bool) : value =
@@ -987,8 +987,8 @@ and eval_beq (l : value) (r : value) : value =
   | VBool b1, VBool b2                       -> VBool(b1 = b2)
   | VBit(_,n1), VBit(_,n2)
   | VInteger n1, VInteger n2
-  | VVarbit(_,n1), VVarbit(_,n2)
   | VInt(_,n1), VInt(_,n2)                   -> VBool Bigint.(n1 = n2)
+  | VVarbit(_,w1,n1), VVarbit(_,w2, n2)      -> VBool(Bigint.(n1 = n2 && w1 = w2))
   | VBit(w,n1), VInteger n2                  -> eval_beq l (bit_of_rawint n2 w)
   | VInteger n1, VBit(w,n2)                  -> eval_beq (bit_of_rawint n1 w) r
   | VInt(w,n1), VInteger n2                  -> eval_beq l (int_of_rawint n2 w)
@@ -1215,7 +1215,8 @@ and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
 and eval_runtime_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
     (v : vruntime) : EvalEnv.t * value =
   match v with
-  | Packet p -> eval_packet_mem env mname expr p
+  | Packetin p -> eval_packetin_mem env mname expr p
+  | Packetout p -> eval_packetout_mem env mname expr p
 
 and eval_stack_size (env : EvalEnv.t) (size : Bigint.t) : EvalEnv.t * value =
   let five = Bigint.(one + one + one + one + one) in
@@ -1247,10 +1248,18 @@ and eval_stack_builtin (env : EvalEnv.t) (fname : string)
     (e : Expression.t) : EvalEnv.t * value =
   (env, VBuiltinFun(fname, lvalue_of_expr e))
 
-and eval_packet_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
-    (p : packet) : EvalEnv.t * value =
+and eval_packetin_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
+    (p : packetin) : EvalEnv.t * value =
   match mname with
   | "extract" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
+  | "length" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
+  | "lookahead" -> failwith "unimplemented"
+  | "advance" -> failwith "unimplemented"
+  | _ -> failwith "packet member undefined"
+
+and eval_packetout_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
+    (p : packetout) : EvalEnv.t * value =
+  match mname with
   | "emit" -> (env, VBuiltinFun(mname, lvalue_of_expr expr))
   | _ -> failwith "packet member unimplemented"
 
@@ -1423,53 +1432,197 @@ and eval_push_pop_args (env : EvalEnv.t)
 and eval_extract (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) : EvalEnv.t * value =
   match args with
-  | [a]   -> eval_fixed_extract env lv args
-  | [a;b] -> eval_var_extract env lv args
+  | [(_,Argument.Expression{value})]
+  | [(_,Argument.KeyValue{value;_})]-> eval_extract' env lv value Bigint.zero
+  | [(_,Argument.Expression{value=e1}); (_,Argument.Expression{value=e2})]
+  | [(_,Argument.KeyValue{value=e1;key=(_,"variableSizeHeader")});
+     (_,Argument.KeyValue{value=e2;key=(_,"variableFieldSizeInBits")})]
+  | [(_,Argument.KeyValue{value=e2;key=(_,"variableFieldSizeInBits")});
+     (_,Argument.KeyValue{value=e1;key=(_,"variableSizeHeader")})] ->
+       let (env', b') = eval_expression env e2 in
+       let n = bigint_of_val b' in
+       eval_extract' env' lv e1 n
   | _ -> failwith "wrong number of args for extract"
 
 and eval_emit (env : EvalEnv.t) (lv : lvalue)
   (args : Argument.t list) : EvalEnv.t * value =
   let args' = match args with
     | [a] -> List.map args ~f:snd
-    | _ -> failwith "invalid emission args" in
-  let (env', v) = match args' with
+    | _ -> failwith "invalid emit args" in
+  let expr = match args' with
     | [Argument.Expression{value}]
-    | [Argument.KeyValue{value=value;_}] -> eval_expression env value
-    | _ -> failwith "invalid emission args" in
-  let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packet in
-  let p' = emit_val p v in
-  (fst (eval_assign' env' lv (VRuntime(Packet p'))), VNull)
+    | [Argument.KeyValue{value=value;_}] -> value
+    | _ -> failwith "invalid emit args" in
+  let lemit = lvalue_of_expr expr in
+  let (env',_) = eval_expression env expr in
+  let p = lv |> value_of_lvalue env |> assert_runtime |> assert_packetout in
+  let p' = emit_lval env' p lemit in
+  (fst (eval_assign' env' lv (VRuntime(Packetout p'))), VNull)
 
-and emit_val (p : packet) (v : value) : packet = failwith "unimplemented"
+and assert_packetout (v : vruntime) : packetout =
+  match v with
+  | Packetout p -> p
+  | _ -> failwith "not a packetout"
 
-and eval_length (env : EvalEnv.t) ( lv : lvalue) : EvalEnv.t * value =
-  let p = value_of_lvalue env lv |> assert_runtime |> assert_packet in
+and eval_length (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * value =
+  let p = value_of_lvalue env lv |> assert_runtime |> assert_packetin in
   (env, VBit (Bigint.of_int 32, p |> Cstruct.len |> Bigint.of_int))
 
-and eval_fixed_extract (env : EvalEnv.t) (lv : lvalue)
-    (args : Argument.t list) : EvalEnv.t * value =
-  failwith "unimplemented"
-  (* let args' = List.map args ~f:snd in
-  let (env', v, lhdr) = match args' with
-    | [Argument.Expression{value}]
-    | [Argument.KeyValue{value=value;_}] ->
-      let (env', v) = eval_expression env value in
-      let lhdr = lvalue_of_expr value in
-      (env', v, lhdr)
-    | _ -> failwith "invalid extraction args" in
-  let p = lv |> value_of_lvalue env' |> assert_runtime |> assert_packet in
-  match v with
-  | VHeader(n,fs,_) ->
-    let ns, vs = List.unzip fs in
-    let (p', vs') = List.fold_map vs ~init:p ~f:fixed_width_extract in
-    let fs' = List.zip_exn ns vs' in
-    let env'' = fst (eval_assign' env' lhdr (VHeader(n,fs',true))) in
-    (fst (eval_assign' env'' lv (VRuntime(Packet p'))), VNull)
-  | _ -> failwith "not a header" *)
+and eval_extract' (env : EvalEnv.t) (lv : lvalue)
+    (expr : Expression.t) (w : Bigint.t) : EvalEnv.t * value =
+  let (env', v) = eval_expression env expr in
+  let lhdr = lvalue_of_expr expr in
+  let t = typ_of_lvalue env' lv in
+  let d = decl_of_typ env' t in
+  let (name,_,_) = assert_header v in
+  let v' = init_val_of_typ env name t in
+  let p = lv |> value_of_lvalue env' |> assert_runtime |> assert_packetin in
+  let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+  let nbytes = Bigint.(nbytes_of_hdr env' d + w / eight)in
+  let (p',n) = bytes_of_packet p nbytes in
+  let (name,fs,_) = assert_header v' in
+  let (ns, vs) = List.unzip fs in
+  let vs' = List.folding_map vs ~init:Bigint.(nbytes * eight, n) ~f:(extract_hdr_field w) in
+  let fs' = List.zip_exn ns vs' in
+  let env'' = fst (eval_assign' env' lhdr (VHeader(name,fs',true))) in
+  (fst (eval_assign' env'' lv (VRuntime(Packetin p'))), VNull)
 
-and eval_var_extract (env : EvalEnv.t) (lv : lvalue)
-    (args : Argument.t list) : EvalEnv.t * value =
-  failwith "variable width extraction unimplemented"
+and nbytes_of_hdr (env : EvalEnv.t) (d : Declaration.t) : Bigint.t =
+  match snd d with
+  | Header{fields = fs;_} ->
+    let ts = List.map fs ~f:(fun f -> snd (snd f).typ) in
+    let ls = List.map ts
+        ~f:(function
+            | Type.IntType e
+            | Type.BitType e -> eval_expression env e |> snd |> bigint_of_val
+            | Type.VarBit _ -> Bigint.zero
+            | _ -> failwith "illegal header field type") in
+    List.fold_left ls ~init:Bigint.zero ~f:Bigint.(+)
+  | _ -> failwith "not a header"
+
+and bytes_of_packet (p : packetin) (nbytes : Bigint.t) : packetin * Bigint.t =
+  let (c1,c2) = Cstruct.split p (Bigint.to_int_exn nbytes) in
+  let s = Cstruct.to_string c1 in
+  let chars = String.to_list s in
+  let bytes = List.map chars ~f:Char.to_int in
+  let bytes' = List.map bytes ~f:Bigint.of_int in
+  let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+  let f a n = Bigint.(a * power_of_two eight + n) in
+  let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
+  (c2,n)
+
+and packet_of_bytes (n : Bigint.t) (w : Bigint.t) : packetin =
+  let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+  let seven = Bigint.(eight - one) in
+  let rec h acc n w =
+    if Bigint.(w = zero) then acc else
+      let lsbyte = bitstring_slice n seven Bigint.zero in
+      let n' = bitstring_slice n Bigint.(w-one) eight in
+      h (lsbyte :: acc) n' Bigint.(w-eight) in
+  let bytes = h [] n w in
+  let ints = List.map bytes ~f:Bigint.to_int_exn in
+  let chars = List.map ints ~f:Char.of_int_exn in
+  let s = String.of_char_list chars in
+  Cstruct.of_string s
+
+and extract_hdr_field (nvarbits : Bigint.t) (n : Bigint.t * Bigint.t)
+    (v : value) : (Bigint.t * Bigint.t) * value =
+  match v with
+  | VBit(w,_) -> extract_bit n w
+  | VInt(w,_) -> extract_int n w
+  | VVarbit(w,_,_) -> extract_varbit nvarbits n w
+  | _ -> failwith "invalid header field type"
+
+and extract_bit (n : Bigint.t * Bigint.t)
+    (w : Bigint.t) : (Bigint.t * Bigint.t) * value =
+  let (nw,nv) = n in
+  let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
+  let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
+  Bigint.((nw - w, y), VBit(w,x))
+
+and extract_int (n : Bigint.t * Bigint.t)
+    (w : Bigint.t) : (Bigint.t * Bigint.t) * value =
+  let (nw,nv) = n in
+  let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
+  let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
+  Bigint.((nw-w, y), VInt(w,to_twos_complement x w))
+
+and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
+    (w : Bigint.t) : (Bigint.t * Bigint.t) * value =
+  let (nw,nv) = n in
+  let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
+  let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
+  Bigint.((nw-nbits, y), VVarbit(w,nbits,x))
+
+and emit_lval (env : EvalEnv.t) (p : packetout) (lv : lvalue) : packetout =
+  let v = value_of_lvalue env lv in
+  match v with
+  | VStruct(_,fs)    -> emit_struct env p lv fs
+  | VHeader(_,fs,b)  -> emit_header env p lv fs b
+  | VUnion(_,v,bs)   -> emit_union env p lv v bs
+  | VStack(_,hs,_,_) -> emit_stack env p lv hs
+  | _ -> failwith "emit undefined on type"
+
+and emit_struct (env : EvalEnv.t) (p : packetout) (lv : lvalue)
+    (fs :(string * value) list) : packetout =
+  let fs' = reset_fields env lv fs in
+  let h p (n,v) = emit_lval env p (LMember(lv,n)) in
+  List.fold_left fs' ~init:p ~f:h
+
+and reset_fields (env : EvalEnv.t) (lv : lvalue)
+    (fs : (string * value) list) : (string * value) list =
+  let f l (n,v) =
+    if List.Assoc.mem l ~equal:(=) n
+    then l
+    else (n,v) :: l in
+  let fs' = List.fold_left fs ~init:[] ~f:f in
+  let init = init_val_of_typ env "" (typ_of_lvalue env lv) in
+  let fs0 = match init with
+    | VStruct(_,fs) -> fs
+    | VHeader(_,fs,_) -> fs
+    | _ -> failwith "not a struct or header" in
+  let g (n,_) =
+    (n, List.Assoc.find_exn fs' ~equal:(=) n) in
+  List.map fs0 ~f:g
+
+and emit_header (env : EvalEnv.t) (p : packetout) (lv : lvalue)
+    (fs : (string * value) list) (b : bool) : packetout =
+  if b
+  then
+    let fs' = reset_fields env lv fs in
+    let fs'' = List.map fs' ~f:snd in
+    let d = decl_of_typ env (typ_of_lvalue env lv) in
+    let f n v =
+      match v with
+      | VBit(w,v) -> Bigint.(n * power_of_two w + v)
+      | VInt(w,v) -> Bigint.(n * power_of_two w + (of_twos_complement v w))
+      | VVarbit(_,w,v) -> Bigint.(n * power_of_two w + v)
+      | _ -> failwith "invalid header field type" in
+    let n = List.fold_left fs'' ~init:Bigint.zero ~f:f in
+    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let w = Bigint.(nbytes_of_hdr env d * eight) in
+    let p1 = packet_of_bytes n w in
+    let (p0,p2) = p in
+    (Cstruct.append p0 p1,p2)
+  else p
+
+and emit_union (env : EvalEnv.t) (p : packetout) (lv : lvalue) (v : value)
+    (vs : (string * bool) list) : packetout =
+  if List.exists vs ~f:snd
+  then
+    let vs' = List.map vs ~f:(fun (a,b) -> (b,a)) in
+    let n = List.Assoc.find_exn vs' ~equal:(=) true in
+    emit_lval env p (LMember(lv, n))
+  else p
+
+and emit_stack (env : EvalEnv.t) (p : packetout) (lv : lvalue)
+    (hs : value list) : packetout =
+  let f (p,n) v =
+    let lv' = (LArrayAccess(lv, (Info.dummy, Expression.Int(Info.dummy,
+                                                            {value = n;
+                                                             width_signed = None})))) in
+    (emit_lval env p lv', Bigint.(n + one))  in
+  List.fold_left hs ~init:(p,Bigint.zero) ~f:f |> fst
 
 (*----------------------------------------------------------------------------*)
 (* Parser Evaluation *)
@@ -1637,8 +1790,20 @@ and assert_runtime (v : value) : vruntime =
   | VRuntime r -> r
   | _ -> failwith "not a runtime value"
 
-and assert_packet (p : vruntime) : packet =
-  match p with Packet x -> x
+and assert_packetin (p : vruntime) : packetin =
+  match p with
+  | Packetin x -> x
+  | _ -> failwith "not a packet in"
+
+and assert_struct (v : value) : string * (string * value) list =
+  match v with
+  | VStruct(n,vs) -> (n,vs)
+  | _ -> failwith "not a struct"
+
+and assert_header (v : value) : string * (string * value) list * bool =
+  match v with
+  | VHeader (n,l,b) -> (n,l,b)
+  | _ -> failwith "not a header"
 
 and assert_some (x : 'a option) : 'a =
   match x with
@@ -1767,7 +1932,7 @@ and implicit_cast_from_tuple (env : EvalEnv.t) (lv : lvalue) (n : string) (v : v
 (* Target and Architecture Dependent Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
-let rec eval_main (env : EvalEnv.t) (pack : packet) : packet =
+let rec eval_main (env : EvalEnv.t) (pack : packetin) : packetin =
   let (_, obj, vs) =
     match EvalEnv.find_val "main" env with
     | VObjstate ((info, obj), vs) -> (info, obj, vs)
@@ -1782,7 +1947,7 @@ let rec eval_main (env : EvalEnv.t) (pack : packet) : packet =
   | _ -> failwith "architecture not supported"
 
 and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
-    (pack : packet) : packet =
+    (pack : packetin) : packetin =
   let parser =
     List.Assoc.find_exn vs "p"   ~equal:(=) in
   let verify =
@@ -1803,7 +1968,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     match obj with
     | Parser {params=ps;_} -> ps
     | _ -> failwith "parser is not a parser object" in
-  let pckt = VRuntime (Packet pack) in
+  let pckt = VRuntime (Packetin pack) in
   let hdr =
     init_val_of_typ env "hdr"      (snd (List.nth_exn params 1)).typ in
   let meta =
@@ -1840,7 +2005,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   print_endline "After runtime evaluation";
   EvalEnv.print_env env;
   match EvalEnv.find_val "packet" env with
-  | VRuntime (Packet p) -> p
+  | VRuntime (Packetin p) -> p
   | _ -> failwith "pack not a packet"
 
 and eval_v1parser (parser : value) (args : Argument.t list)

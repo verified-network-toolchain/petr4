@@ -1,6 +1,7 @@
 open Types
 
-type packet = Cstruct.t
+type packetin = Cstruct.t
+type packetout = Cstruct.t * Cstruct.t
 
 type value =
   | VNull
@@ -8,7 +9,7 @@ type value =
   | VInteger of Bigint.t
   | VBit of Bigint.t * Bigint.t
   | VInt of Bigint.t * Bigint.t
-  | VVarbit of Bigint.t * Bigint.t
+  | VVarbit of Bigint.t * Bigint.t * Bigint.t (* max width, dynamic width, value*)
   | VTuple of value list
   | VSet of set
   | VString of string
@@ -49,4 +50,5 @@ and signal =
   | SReject
 
 and vruntime =
-  | Packet of packet
+  | Packetin of packetin
+  | Packetout of packetout

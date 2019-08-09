@@ -1,7 +1,7 @@
 open Types
 
-type packetin = Cstruct.t
-type packetout = Cstruct.t * Cstruct.t
+type packet_in = Cstruct.t
+type packet_out = Cstruct.t * Cstruct.t
 
 type value =
   | VNull
@@ -50,5 +50,5 @@ and signal =
   | SReject
 
 and vruntime =
-  | Packetin of packetin
-  | Packetout of packetout
+  | PacketIn of packet_in
+  | PacketOut of packet_out

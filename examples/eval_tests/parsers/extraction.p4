@@ -4,7 +4,7 @@
 header head {
     bit<8> a;
     bit<8> b;
-    bit<2> c;
+    bit<8> c;
 }
 
 struct metadata { }

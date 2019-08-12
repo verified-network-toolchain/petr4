@@ -33,6 +33,10 @@ module EvalEnv : sig
   val find_decl_toplevel: string -> t -> Declaration.t
   val find_typ_toplevel : string -> t -> Type.t
 
+  val insert_val_firstlevel : string -> value -> t -> t
+  val insert_decl_firstlevel: string -> Declaration.t -> t -> t
+  val insert_typ_firstlevel : string -> Type.t -> t -> t
+
   val set_error : string -> t -> t
   val get_error : t -> string
 

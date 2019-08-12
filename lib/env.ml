@@ -16,14 +16,23 @@ let pop: 'a env -> 'a env = function
   | []        -> no_scopes ()
   | _ :: env' -> env'
 
-let insert (name: string) (value: 'a) : 'a env -> 'a env = function
+let rec insert (name: string) (value: 'a) : 'a env -> 'a env = function
   | []     -> no_scopes ()
+  | h :: t ->
+    try
+      if List.Assoc.mem h ~equal:(=) name
+      then ((name, value) :: h) :: t
+      else h :: (insert name value t)
+    with BadEnvironment _ -> ((name, value) :: h) :: t
+
+let insert_firstlevel (name : string) (value : 'a) : 'a env -> 'a env = function
+  | [] -> no_scopes ()
   | h :: t -> ((name, value) :: h) :: t
 
 let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
-  env |> List.rev
-  |> insert name value
-  |> List.rev
+  let (env0,env1) = List.split_n env (List.length env - 1) in
+  let env1' = insert name value env1 in
+  env0 @ env1'
 
 let rec find_opt (name: string) : 'a env -> 'a option = function
   | [] -> None
@@ -132,6 +141,15 @@ module EvalEnv = struct
 
   let find_typ_toplevel name e =
     find_toplevel name e.typ
+
+  let insert_val_firstlevel s v e =
+    {e with vs = insert_firstlevel s v e.vs}
+
+  let insert_decl_firstlevel s v e =
+    {e with decl = insert_firstlevel s v e.decl}
+
+  let insert_typ_firstlevel s v e =
+    {e with typ = insert_firstlevel s v e.typ}
 
   let set_error (s : string) (env : t) : t =
     {env with parser_error = s}
@@ -253,19 +271,19 @@ module CheckerEnv = struct
     { env with decl = d :: env.decl }
 
   let insert_type name typ env =
-    { env with typ = insert name typ env.typ }
+    { env with typ = insert_firstlevel name typ env.typ }
 
   let insert_type_var var env =
-    { env with typ = insert var (Typed.Type.TypeVar var) env.typ }
+    { env with typ = insert_firstlevel var (Typed.Type.TypeVar var) env.typ }
 
   let insert_type_of var typ env =
-    { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
+    { env with typ_of = insert_firstlevel var (typ, Typed.Directionless) env.typ_of }
 
   let insert_type_of_toplevel var typ env =
     { env with typ_of = insert_toplevel var (typ, Typed.Directionless) env.typ_of }
 
   let insert_dir_type_of var typ dir env =
-    { env with typ_of = insert var (typ, dir) env.typ_of }
+    { env with typ_of = insert_firstlevel var (typ, dir) env.typ_of }
 
   let push_scope env =
     { decl = env.decl;

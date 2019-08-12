@@ -1303,14 +1303,14 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       | _ -> v in
     match (snd p).direction with
     | None -> e
-      |> EvalEnv.insert_val (snd (snd p).variable) v'
-      |> EvalEnv.insert_typ (snd (snd p).variable) (snd p).typ
+      |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
+      |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
     | Some x -> begin match snd x with
       | InOut
       | In ->
         e
-        |> EvalEnv.insert_val (snd (snd p).variable) v'
-        |> EvalEnv.insert_typ (snd (snd p).variable) (snd p).typ
+        |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
+        |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
       | Out -> e end in
   let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
   (env', fenv')
@@ -1415,9 +1415,6 @@ and eval_pushfront (env : EvalEnv.t) (lv : lvalue)
 
 and eval_extract (env : EvalEnv.t) (lv : lvalue) (args : Argument.t list)
     (ts : Type.t list) : EvalEnv.t * value =
-  let t = match ts with
-    | [x] -> x
-    | _ -> failwith "invalid type args for extract" in
   match args with
   | [(_,Argument.Expression{value})]
   | [(_,Argument.KeyValue{value;_})]-> eval_extract' env lv value Bigint.zero
@@ -1429,7 +1426,11 @@ and eval_extract (env : EvalEnv.t) (lv : lvalue) (args : Argument.t list)
        let (env', b') = eval_expression env e2 in
        let n = bigint_of_val b' in
        eval_extract' env' lv e1 n
-  | [(_,Argument.Missing)] -> eval_advance' env lv (width_of_typ env t)
+  | [(_,Argument.Missing)] ->
+    let t = match ts with
+      | [x] -> x
+      | _ -> failwith "invalid type args for extract" in
+    eval_advance' env lv (width_of_typ env t)
   | _ -> failwith "wrong number of args for extract"
 
 and eval_emit (env : EvalEnv.t) (lv : lvalue)
@@ -1747,6 +1748,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
     (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * string =
+  print_endline "started parser";
   let (env', penv) = eval_inargs env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let penv' = List.fold_left vs ~init:penv ~f:f in
@@ -1754,6 +1756,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
   let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
   let start = List.Assoc.find_exn states' "start" ~equal:(=) in
   let (penv''',final_state) = eval_state_machine penv'' states' start in
+  print_endline "finished parser";
   (eval_outargs env' penv''' params args, final_state)
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
@@ -2127,6 +2130,7 @@ let rec eval_main (env : EvalEnv.t) (pack : packet_in) : packet_in =
 
 and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (pack : packet_in) : packet_in =
+  print_endline "started v1 evaluation";
   let parser =
     List.Assoc.find_exn vs "p"   ~equal:(=) in
   let verify =
@@ -2139,6 +2143,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     List.Assoc.find_exn vs "ck"  ~equal:(=) in
   let deparser =
     List.Assoc.find_exn vs "dep" ~equal:(=) in
+  print_endline "got package args";
   let (_, obj, pvs) =
     match parser with
     | VObjstate ((info, obj), pvs) -> (info, obj, pvs)

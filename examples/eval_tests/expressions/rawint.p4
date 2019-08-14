@@ -6,7 +6,7 @@ const bool e = 7 <= 8;
 const bool f = 7 <= 7;
 const bool g = 8 >= 7;
 const bool h = 7 >= 7; // all true
-const bit<8> i = -(214); //-214
+const bit<8> i = -(214); //42
 const bit<8> j = +(42); //42
 const bit<8> k = (7 + 3) + 32; //42
 const bit<8> l = 117 - 75; //42

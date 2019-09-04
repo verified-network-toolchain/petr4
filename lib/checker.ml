@@ -1312,6 +1312,7 @@ and open_parser_scope env params constructor_params locals states =
   let program_state_names = List.map (fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
+
   let state_names = program_state_names @ ["accept"; "reject"] in
   (env', state_names)
 
@@ -1329,6 +1330,7 @@ and type_control env _ _ _ _ _ _ =
   env
 
 (* Section 9
+
  * Function Declaration:
  *
  *        Γ' = union over i Γ (xi -> di ti)
@@ -1339,6 +1341,7 @@ and type_control env _ _ _ _ _ _ =
  *)
 and type_function env return name type_params params body =
   let t_params = List.map snd type_params in
+  let body_env = Env.insert_type_vars t_params env in
   let p_fold = fun (acc,env:Parameter.t list * Env.checker_env) (p:Types.Parameter.t) ->
     begin let open Parameter in
     let p = snd p in
@@ -1357,7 +1360,7 @@ and type_function env return name type_params params body =
       Env.insert_dir_type_of (snd p.variable) par.typ par.direction env
     in
     par::acc, new_env end in
-  let (ps,body_env) = List.fold_left p_fold ([],env) params in
+  let (ps,body_env) = List.fold_left p_fold ([],body_env) params in
   let ps = List.rev ps in
   let rt = return |> translate_type env t_params in
   let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
@@ -1369,9 +1372,11 @@ and type_function env return name type_params params body =
           | Return {expr=eo} ->
             begin match eo with
               | None -> failwith "return expression must have an expression"
-              | Some e -> let te = type_expression envi e in
-                if not (type_equality envi rt te) then failwith "body does not match return type"
-                else (st,new_env)
+              | Some e ->
+                 let te = type_expression envi e in
+                 if not (type_equality envi rt te)
+                 then failwith "body does not match return type"
+                 else (st,new_env)
             end
           | _ -> (st,new_env)
         end

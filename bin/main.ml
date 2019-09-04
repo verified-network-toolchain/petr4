@@ -78,7 +78,8 @@ let check_dir include_dirs p4_dir verbose =
         begin
           let p4_file = Filename.concat p4_dir file in 
           match parse include_dirs p4_file verbose with 
-          | `Ok _ -> ()
+          | `Ok prog ->
+             Checker.check_program prog |> ignore
           | `Error (info, Lexer.Error s) -> 
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
           | `Error (info, Petr4.Parser.Error) -> 

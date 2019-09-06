@@ -191,7 +191,7 @@ module EvalEnv = struct
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
         | VString s -> s
-        | VError _ -> "<error>"
+        | VError s -> "Error: " ^ s
         | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"

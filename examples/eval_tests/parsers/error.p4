@@ -12,7 +12,7 @@ parser MyParser(packet_in packet,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
-        packet.extract(hdr[0]);
+        packet.extract(hdr[15]);
         transition select(packet.lookahead< bit<8> >()) {
             42 : next;
             _ : reject;
@@ -23,9 +23,7 @@ parser MyParser(packet_in packet,
         hdr.push_front(1);
         packet.extract(hdr[0]);
         transition select(packet.lookahead< bit<8> >()) {
-            42 : next;
-            33 : final;
-            _ : reject;
+            _ : next;
         }
     }
 
@@ -54,22 +52,7 @@ control MyEgress(inout head[13] hdr,
 }
 
 control MyDeparser(packet_out packet, in head[13] hdr) {
-    apply {
-        hdr[0] = { 72 };
-        hdr[1] = { 101 };
-        hdr[2] = { 108 };
-        hdr[3] = { 108 };
-        hdr[4] = { 111 };
-        hdr[5] = { 44 };
-        hdr[6] = { 32 };
-        hdr[7] = { 87 };
-        hdr[8] = { 111 };
-        hdr[9] = { 114 };
-        hdr[10] = { 108 };
-        hdr[11] = { 100 };
-        hdr[12] = { 33 };
-        packet.emit(hdr);
-    }
+    apply { }
 }
 
 V1Switch(

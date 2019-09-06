@@ -42,7 +42,8 @@ let parse include_dirs p4_file verbose =
     if verbose then Format.eprintf "[%s] %s@\n%!" (red "Failed") p4_file;
     `Error (Lexer.info lexbuf, err)
 
-let check_file include_dirs p4_file print_json pretty_json verbose =
+let check_file (include_dirs : string list) (p4_file : string)
+    (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
   match parse include_dirs p4_file verbose with
   | `Ok prog ->
     let _ = Checker.check_program prog in

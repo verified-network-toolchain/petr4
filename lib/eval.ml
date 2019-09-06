@@ -498,19 +498,22 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
     | HeaderStack{header;_} -> header
     | _ -> failwith "not a stack" in
   let rhs' = implicit_cast_from_tuple env (LArrayAccess(lv,e)) (string_of_int (Bigint.to_int_exn i')) rhs t in
-  let rhs'' = match v with
-    | VStack(n,hdrs,size,next) ->
-      let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
-      let hdrs' = match hdrs2 with
-        | _ :: t -> hdrs1 @ (rhs' :: t)
-        | [] -> failwith "empty header stack" in
-      VStack(n,hdrs',size,next)
-    | _ -> failwith "array access is not a header stack" in
   match s,s' with
-  | SContinue,SContinue -> eval_assign' env' lv rhs''
-  | SReject,_ -> (EvalEnv.set_error "StackOutOfBound" env, s)
+  | SContinue,SContinue ->
+    begin match v with
+      | VStack(n,hdrs,size,next) ->
+        let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
+        begin match hdrs2 with
+          | _ :: t ->
+            let hdrs' = hdrs1 @ (rhs' :: t) in
+            let rhs'' = VStack(n,hdrs',size,next) in
+            eval_assign' env' lv rhs''
+          | [] -> (EvalEnv.set_error "StackOutOfBounds" env', SReject) end
+      | _ -> failwith "array access is not a header stack" end
+  | SReject,_ -> (EvalEnv.set_error "StackOutOfBounds" env, s)
   | _,SReject -> (env', s)
   | _ -> failwith "unreachable"
+
 
 and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (sname : string)
@@ -1459,6 +1462,7 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
           | Argument.Missing -> e end
       | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
+  |> EvalEnv.set_error (EvalEnv.get_error fenv)
 
 (*----------------------------------------------------------------------------*)
 (* Built-in Function Evaluation *)
@@ -1636,7 +1640,7 @@ and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
       (env, SContinue, val_of_bigint env w n (init_val_of_typ env "" t) t)
     with Invalid_argument _ ->
       (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
-  | SReject -> (env,s,VNull)
+  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env ,s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_advance (env : EvalEnv.t) (lv : lvalue)
@@ -1659,10 +1663,13 @@ and eval_advance' (env : EvalEnv.t) (lv : lvalue)
   let p = v |> assert_runtime |> assert_packet_in in
   match s with
   | SContinue ->
-    let x = n |> Bigint.to_int_exn |> (/) 8 in
-    let p' = Cstruct.split p x |> snd in
-    let env' = fst (eval_assign' env lv (VRuntime(PacketIn p'))) in
-    (env', SContinue, VNull)
+    begin try
+        let x = n |> Bigint.to_int_exn |> (/) 8 in
+        let p' = Cstruct.split p x |> snd in
+        let env' = fst (eval_assign' env lv (VRuntime(PacketIn p'))) in
+        (env', SContinue, VNull)
+      with Invalid_argument _ ->
+        (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
   | SReject -> (env,s,VNull)
   | _ -> failwith "unreachable"
 
@@ -1728,8 +1735,12 @@ and eval_extract' (env : EvalEnv.t) (lv : lvalue)
               | SReject -> (EvalEnv.set_error "HeaderTooShort" env',s,VNull)
               | SContinue ->
                 let fs' = List.zip_exn ns vs' in
-                let env'' = fst (eval_assign' env' lhdr (VHeader(name,fs',true))) in
-                (fst (eval_assign' env'' lv (VRuntime(PacketIn p'))), s, VNull)
+                let (env'',s') = eval_assign' env' lhdr (VHeader(name,fs',true)) in
+                begin match s' with
+                  | SContinue ->
+                    (fst (eval_assign' env'' lv (VRuntime(PacketIn p'))), s', VNull)
+                  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env', s',VNull)
+                  | _ -> failwith "unreachable" end
               | _ -> failwith "unreachable" end
           | _ -> failwith "unreachable" end
       | SReject -> (EvalEnv.set_error "StackOutOfBounds" env', s, VNull)
@@ -2305,15 +2316,7 @@ and struct_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
 
 and header_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
     (l : value list) : value =
-  begin match lv with
-    | LMember(LName("a"),"next") -> print_endline "expected"
-    | LName("a") -> print_endline "not expected"
-    | _ -> () end ;
   let t = typ_of_lvalue env lv in
-  begin match snd t with
-  | TypeName(_,n) -> print_endline n
-  | HeaderStack _ -> print_endline "ruh roh"
-  | _ -> () end ;
   let d = decl_of_typ env t in
   let fs = match snd d with
     | Declaration.Header h -> h.fields
@@ -2472,9 +2475,13 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
-  let env = env
-            |> eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr]
-            |> fst (* TODO: handle errors and parser rejections *) in
+  let (env, state) =
+    eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr] env in
+  let err = EvalEnv.get_error env in
+  let env = if state = "reject"
+    then
+      eval_assign' env (LMember(LName("std_meta"),"parser_error")) (VError(err)) |> fst
+    else env in
   let pckt' =
     VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
                                           |> assert_runtime
@@ -2502,7 +2509,8 @@ and eval_v1parser (parser : value) (args : Argument.t list)
     match decl with
     | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
     | _ -> failwith "v1 parser is not a parser" in
-  eval_parser env params args vs locals states
+  let (env',state) = eval_parser env params args vs locals states in
+  (env',state)
 
 and eval_v1control (control : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t =
@@ -2520,22 +2528,14 @@ and eval_v1control (control : value) (args : Argument.t list)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let packet = Cstruct.create 13
+let packet =
+  let s1 = "\255\255\255\255\255\255\165\165\165\165\165\165\000\000\222\173\190\239" in
+  Cstruct.of_string (s1)
 
-let () =
-  Cstruct.set_char packet 0 '*';
-  Cstruct.set_char packet 1 '*';
-  Cstruct.set_char packet 2 '*';
-  Cstruct.set_char packet 3 '*';
-  Cstruct.set_char packet 4 '*';
-  Cstruct.set_char packet 5 '*';
-  Cstruct.set_char packet 6 '*';
-  Cstruct.set_char packet 7 '*';
-  Cstruct.set_char packet 8 '*';
-  Cstruct.set_char packet 9 '*';
-  Cstruct.set_char packet 10 '*';
-  Cstruct.set_char packet 11 '*';
-  Cstruct.set_char packet 12 '!'
+let string_of_hex (s : string) : string =
+  s
+  |> String.to_list
+  |> String.of_char_list
 
 let eval_expression env expr =
   let (a,b,c) = eval_expression' env SContinue expr in

@@ -64,9 +64,11 @@ let check_file (include_dirs : string list) (p4_file : string)
   | `Error (info, err) ->
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-let eval_file include_dirs p4_file verbose =
+let eval_file include_dirs p4_file verbose pfile =
+  let packet_string = Core_kernel.In_channel.read_all pfile in
+  let pack = Cstruct.of_hex packet_string in
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog
+  | `Ok prog -> Eval.eval_program prog pack
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =
@@ -100,22 +102,21 @@ let command =
     +> flag "-json" no_arg ~doc:"Emit parsed program as JSON on stdout"
     +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
     +> flag "-verbose" no_arg ~doc:"Verbose mode"
+    +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
     +> anon (maybe ("p4file" %:string)) in
   Command.basic_spec
     ~summary:"p4i: OCaml front-end for the P4 language"
     spec
-    (fun include_dirs p4_dir print_json pretty_json verbose p4_file () ->
-       match p4_dir, p4_file with
-       | Some p4_dir,_ ->
+    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file () ->
+       match p4_dir, p4_file, packet with
+       | Some p4_dir,_,_ ->
          check_dir include_dirs p4_dir verbose
-       | _, Some p4_file ->
+       | _, Some p4_file, Some pfile ->
          (* check_file include_dirs p4_file print_json pretty_json verbose; *)
-         let _ = eval_file include_dirs p4_file verbose in ()
-       | None, None -> ())
+         let _ = eval_file include_dirs p4_file verbose pfile in ()
+       | _, _, _ -> ())
 
-let () = eval_file ["./examples"] "examples/eval_tests/parsers/extraction.p4" false
-
-(* let () =
+let () =
   Format.printf "@[";
   Command.run ~version:"0.1.1" command;
-  Format.printf "@]" *)
+  Format.printf "@]"

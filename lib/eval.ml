@@ -2528,23 +2528,14 @@ and eval_v1control (control : value) (args : Argument.t list)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let packet =
-  let s1 = "\255\255\255\255\255\255\165\165\165\165\165\165\000\000\222\173\190\239" in
-  Cstruct.of_string (s1)
-
-let string_of_hex (s : string) : string =
-  s
-  |> String.to_list
-  |> String.of_char_list
-
 let eval_expression env expr =
   let (a,b,c) = eval_expression' env SContinue expr in
   (a,c)
 
-let eval_program = function Program l ->
-  let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
-  EvalEnv.print_env env;
-  Format.printf "Done\n";
-  let packetin = packet in
-  let packetout = eval_main env packetin in
-  print_string "Resulting packet: "; packetout |> Cstruct.to_string |> print_endline
+let eval_program (p : Types.program) (pack : packet_in) : unit =
+  match p with Program l ->
+    let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
+    EvalEnv.print_env env;
+    Format.printf "Done\n";
+    let packetout = eval_main env pack in
+    print_string "Resulting packet: "; packetout |> Cstruct.to_string |> print_endline

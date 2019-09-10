@@ -1,7 +1,13 @@
 open Types
 open Typed
-open Error
 open Util
+(* hack *)
+module Petr4Error = Error
+module Petr4Info = Info
+open Core
+open Petr4Error
+module Error = Petr4Error
+module Info = Petr4Info
 
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
@@ -34,9 +40,6 @@ let assert_numeric = make_assert "integer"
   | Bit typ -> Some (Some typ)
   | _ -> None
   end
-
-let insert_type_vars : Env.checker_env -> string list -> Env.checker_env =
-  List.fold_left (Core.Fn.flip Env.insert_type_var)
 
 let get_type_params (t: Typed.Type.t) : string list =
   match t with
@@ -76,7 +79,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
     {field with typ = saturate_type env field.typ}
   in
   let saturate_rec env ({fields}: RecordType.t) : RecordType.t =
-    {fields = List.map (saturate_field env) fields}
+    {fields = List.map ~f:(saturate_field env) fields}
   in
   let saturate_construct_param env (param: ConstructParam.t) =
     {param with typ = saturate_type env param.typ}
@@ -85,25 +88,25 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
     {param with typ = saturate_type env param.typ}
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t = 
-    let env = insert_type_vars env pkg.type_params in
+    let env = Env.insert_type_vars pkg.type_params env in
     {type_params = pkg.type_params;
-     parameters = List.map (saturate_construct_param env) pkg.parameters}
+     parameters = List.map ~f:(saturate_construct_param env) pkg.parameters}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
-    let env = insert_type_vars env ctrl.type_params in
+    let env = Env.insert_type_vars ctrl.type_params env in
     {type_params = ctrl.type_params;
-     parameters = List.map (saturate_param env) ctrl.parameters}
+     parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
     { extern with
-      constructors = List.map (saturate_function env) extern.constructors;
-      methods = List.map (saturate_method env) extern.methods }
+      constructors = List.map ~f:(saturate_function env) extern.constructors;
+      methods = List.map ~f:(saturate_method env) extern.methods }
   and saturate_method env (m: ExternType.extern_method) =
     { m with typ = saturate_function env m.typ }
   and saturate_function env (fn: FunctionType.t) : FunctionType.t =
-    let env = insert_type_vars env fn.type_params in
+    let env = Env.insert_type_vars fn.type_params env in
     {type_params = fn.type_params;
-     parameters = List.map (saturate_param env) fn.parameters;
+     parameters = List.map ~f:(saturate_param env) fn.parameters;
      return = saturate_type env fn.return}
   in
   match typ with
@@ -119,7 +122,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   | Array arr ->
       Array {arr with typ = saturate_type env arr.typ}
   | Tuple {types} ->
-      Tuple {types = List.map (saturate_type env) types}
+      Tuple {types = List.map ~f:(saturate_type env) types}
   | Set typ ->
       Set (saturate_type env typ)
   | Header rec_typ ->
@@ -132,7 +135,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
       Enum {enum with typ = option_map (saturate_type env) enum.typ}
   | SpecializedType spec ->
       SpecializedType {base = saturate_type env spec.base;
-                       args = List.map (saturate_type env) spec.args}
+                       args = List.map ~f:(saturate_type env) spec.args}
   | Package pkg ->
       Package (saturate_pkg env pkg)
   | Control control ->
@@ -152,11 +155,9 @@ let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordTy
   let field_cmp f1 f2 =
     String.compare f1.name f2.name
   in
-  let fields1 = List.sort field_cmp rec1.fields in
-  let fields2 = List.sort field_cmp rec2.fields in
-  try let field_pairs = List.combine fields1 fields2 in
-  List.for_all field_eq field_pairs
-  with Invalid_argument _ -> false
+  let fields1 = List.sort ~compare:field_cmp rec1.fields in
+  let fields2 = List.sort ~compare:field_cmp rec2.fields in
+  eq_lists ~f:field_eq fields1 fields2
 
 and enum_type_equality env equiv_vars enum1 enum2 : bool =
   let open EnumType in
@@ -167,8 +168,8 @@ and enum_type_equality env equiv_vars enum1 enum2 : bool =
     | None, None -> true
     | _, _ -> false
   in
-  let mems1 = List.sort String.compare enum1.members in
-  let mems2 = List.sort String.compare enum2.members in
+  let mems1 = List.sort ~compare:String.compare enum1.members in
+  let mems2 = List.sort ~compare:String.compare enum2.members in
   mems1 = mems2 && same_typ
 
 and constructor_params_equality env equiv_vars ps1 ps2 : bool =
@@ -177,16 +178,15 @@ and constructor_params_equality env equiv_vars ps1 ps2 : bool =
     type_equality' env equiv_vars p1.typ p2.typ &&
     p1.name = p2.name
   in
-  try List.for_all param_eq (List.combine ps1 ps2)
-  with Invalid_argument _ -> false
+  eq_lists ~f:param_eq ps1 ps2
 
 and package_type_equality env equiv_vars pkg1 pkg2 : bool =
   let open PackageType in
-  try let equiv_vars' = 
-    equiv_vars @ List.combine pkg1.type_params pkg2.type_params
-  in
-  constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
-  with Invalid_argument _ -> false
+  match List.zip pkg1.type_params pkg2.type_params with
+  | Some param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
+  | None -> false
 
 and params_equality env equiv_vars ps1 ps2 : bool =
   let open Parameter in
@@ -195,44 +195,45 @@ and params_equality env equiv_vars ps1 ps2 : bool =
     p1.name = p2.name &&
     p1.direction = p2.direction
   in
-  try List.for_all param_eq (List.combine ps1 ps2)
-  with Invalid_argument _ -> false
+  eq_lists ~f:param_eq ps1 ps2
 
 and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
   let open ControlType in
-  try let equiv_vars' = 
-    equiv_vars @ List.combine ctrl1.type_params ctrl2.type_params
-  in
-  params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
-  with Invalid_argument _ -> false
+  match List.zip ctrl1.type_params ctrl2.type_params with
+  | Some param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
+  | None -> false
 
 and extern_type_equality env equiv_vars extern1 extern2 : bool = 
   let open Typed.ExternType in
-  try let equiv_vars' = 
-    equiv_vars @ List.combine extern1.type_params extern2.type_params
-  in
-  let method_cmp m1 m2 =
-    String.compare m1.name m2.name
-  in
-  let method_eq (m1, m2) =
-    m1.name = m2.name && function_type_equality env equiv_vars' m1.typ m2.typ
-  in
-  let methods1 = List.sort method_cmp extern1.methods in
-  let methods2 = List.sort method_cmp extern2.methods in
-  let field_pairs = List.combine methods1 methods2 in
-  let ctor_pairs = List.combine extern1.constructors extern2.constructors in
-  List.for_all method_eq field_pairs &&
-  List.for_all (Util.uncurry @@ function_type_equality env equiv_vars') ctor_pairs
-  with Invalid_argument _ -> false
+  match List.zip extern1.type_params extern2.type_params with
+  | Some param_pairs ->
+      let equiv_vars' = equiv_vars @ param_pairs in
+      let method_cmp m1 m2 =
+          String.compare m1.name m2.name
+      in
+      let method_eq (m1, m2) =
+          m1.name = m2.name && function_type_equality env equiv_vars' m1.typ m2.typ
+      in
+      let methods1 = List.sort ~compare:method_cmp extern1.methods in
+      let methods2 = List.sort ~compare:method_cmp extern2.methods in
+      begin match List.zip methods1 methods2, List.zip extern1.constructors extern2.constructors with
+      | Some field_pairs, Some ctor_pairs ->
+          List.for_all ~f:method_eq field_pairs &&
+          List.for_all ~f:(Util.uncurry @@ function_type_equality env equiv_vars') ctor_pairs
+      | _ -> false
+      end
+  | None -> false
 
 and function_type_equality env equiv_vars func1 func2 : bool =
   let open FunctionType in
-  try let equiv_vars' = 
-    equiv_vars @ List.combine func1.type_params func2.type_params
-  in
-  type_equality' env equiv_vars' func1.return func2.return &&
-  params_equality env equiv_vars' func1.parameters func2.parameters
-  with Invalid_argument _ -> false
+  match List.zip func1.type_params func2.type_params with
+  | Some param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     type_equality' env equiv_vars' func1.return func2.return &&
+     params_equality env equiv_vars' func1.parameters func2.parameters
+  | None -> false
 
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
@@ -260,9 +261,11 @@ and subst_type (typ: Typed.Type.t) (var: string) (arg: Typed.Type.t) : Typed.Typ
 and subst_types (typ: Typed.Type.t) (args: Typed.Type.t list) : Typed.Type.t =
   let vars = get_type_params typ in
   let typ = drop_type_params typ in
-  let vars_args = List.combine vars args in
-  let go (var, arg) acc = subst_type typ var arg in
-  List.fold_right go vars_args typ
+  match List.zip vars args with
+  | Some vars_args -> 
+      let go (var, arg) acc = subst_type typ var arg in
+      List.fold_right ~f:go ~init:typ vars_args
+  | None -> failwith "different number of vars and arguments"
 
 and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = saturate_type env typ in
@@ -272,7 +275,7 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
      | [] ->
         typ
      | t_params ->
-        let args = List.map (reduce_type env) sp.args in
+        let args = List.map ~f:(reduce_type env) sp.args in
         let generic = reduce_type env sp.base in
         subst_types generic args
      end
@@ -323,10 +326,10 @@ and type_equality' (env: Env.checker_env)
         ls = rs && type_equality' env equiv_vars lt rt
 
     | Tuple {types = types1}, Tuple {types = types2} ->
-        begin try let type_pairs = List.combine types1 types2 in
-        List.for_all (fun (t1, t2) -> type_equality' env equiv_vars t1 t2) type_pairs
-        with
-        | Invalid_argument _ -> false
+        begin match List.zip types1 types2 with
+        | Some type_pairs ->
+          List.for_all ~f:(fun (t1, t2) -> type_equality' env equiv_vars t1 t2) type_pairs
+        | None -> false
         end
 
     | Set ty1, Set ty2 ->
@@ -398,8 +401,7 @@ and param_equality env p1s p2s =
   let check_params = fun (par1,par2) ->
     if par1.direction <> par2.direction then false
     else type_equality env par1.typ par2.typ in
-  try List.for_all check_params (List.combine p1s p2s)
-  with Invalid_argument _ -> false
+  eq_lists ~f:check_params p1s p2s
 
 (* Checks that a list of constructor parameters is type equivalent.
  * True if equivalent, false otherwise.
@@ -409,8 +411,7 @@ and construct_param_equality env p1s p2s =
   let open ConstructParam in
   let check_params = fun (par1,par2) ->
     type_equality env par1.typ par2.typ in
-  try List.for_all check_params (List.combine p1s p2s)
-  with Invalid_argument _ -> false
+  eq_lists ~f:check_params p1s p2s
 
 let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
   if type_equality env typ1 typ2 then (typ1, typ2)
@@ -518,7 +519,7 @@ and translate_type (env: Env.checker_env) (vars : string list) (typ: Types.Type.
   | TypeName ps -> TypeName (snd ps)
   | SpecializedType {base; args} ->
       SpecializedType {base = (translate_type env vars base);
-                       args = (List.map (translate_type env vars) args)}
+                       args = (List.map ~f:(translate_type env vars) args)}
   | HeaderStack {header=ht; size=e}
     -> let hdt = translate_type env vars ht in
     let len =
@@ -530,7 +531,7 @@ and translate_type (env: Env.checker_env) (vars : string list) (typ: Types.Type.
       end in
     Array {typ=hdt; size=len}
   | Tuple tlist ->
-    Tuple {types = List.map (translate_type env vars) tlist}
+    Tuple {types = List.map ~f:(translate_type env vars) tlist}
   | Void -> Void
   | DontCare -> failwith "TODO: type inference"
 
@@ -550,7 +551,7 @@ and translate_parameters env vars params =
     let par = {name=p.variable |> snd;
                typ=p.typ |> translate_type env vars;
                direction=pd} in par::acc end in
-  List.fold_left p_folder [] params |> List.rev
+  List.fold_left ~f:p_folder ~init:[] params |> List.rev
 
 (* Translates Types.Parameters representing constructor parameters
  * to Typed.ConstructParams *)
@@ -565,7 +566,7 @@ and translate_construct_params env vars construct_params =
                in par::acc
       | Some _ -> failwith "Constructor parameters must be directionless."
        end in
-  List.fold_left p_folder [] construct_params |> List.rev
+  List.fold_left ~f:p_folder ~init:[] construct_params |> List.rev
 
 
 and type_int (_, value) =
@@ -615,7 +616,7 @@ and type_bit_string_access _ _ _ _ =
  *)
 and type_list env values : Typed.Type.t =
   let type_valu v = type_expression env v in
-  let types = List.map type_valu values in
+  let types = List.map ~f:type_valu values in
   Type.Tuple { types }
 
 (* Sections 8.5-8.8
@@ -902,14 +903,14 @@ and type_expression_member env expr name : Typed.Type.t =
   | Struct {fields=fs} ->
       let fs = fs @ methods in
       let matches f = f.name = snd name in
-      begin match List.find_opt matches fs with
+      begin match List.find ~f:matches fs with
       | Some field -> field.typ
       | None -> raise_unfound_member (info expr) (snd name)
       end
   | Extern {methods; _} ->
       let open ExternType in
       let matches m = m.name = snd name in
-      begin match List.find_opt matches methods with
+      begin match List.find ~f:matches methods with
       | Some m -> Type.Function m.typ
       | None -> raise_unfound_member (info expr) (snd name)
       end
@@ -966,81 +967,84 @@ and check_call env func type_args args post_check : 'a =
   let extend_delta environ (t_par, t_arg) =
     Env.insert_type t_par t_arg environ
   in
-  let arg_types = List.map (translate_type env typ_ps) type_args in
+
+  let arg_types = List.map ~f:(translate_type env typ_ps) type_args in
   if List.length typ_ps > List.length arg_types
   then post_check fun_type (* Should actually be doing inference here! *)
   else
-  let type_names_args = List.combine typ_ps arg_types in
-  let env = List.fold_left extend_delta env type_names_args in
+    match List.zip typ_ps arg_types with
+    | Some type_names_args ->
+        let env = List.fold_left ~f:extend_delta ~init:env type_names_args in
 
-  (* Case 1: All atguments are positional *)
-  let case1 = fun (arg:Argument.t) ->
-    begin match snd arg with
-      | Expression _ | Missing -> true
-      | KeyValue _ -> false
-    end in
+        (* Case 1: All atguments are positional *)
+        let case1 = fun (arg:Argument.t) ->
+            begin match snd arg with
+            | Expression _ | Missing -> true
+            | KeyValue _ -> false
+            end in
 
-  (* Case 2: All arguments are named *)
-  let case2 = fun (arg:Argument.t) ->
-    begin match snd arg with
-      | KeyValue _ | Missing -> true
-      | Expression _ -> false
-    end in
+        (* Case 2: All arguments are named *)
+        let case2 = fun (arg:Argument.t) ->
+            begin match snd arg with
+            | KeyValue _ | Missing -> true
+            | Expression _ -> false
+            end in
 
-  if List.for_all case1 args then begin
-    let new_ctx = env in
-    let check_positional = fun (par,arg:Parameter.t * Argument.t) ->
-      begin match snd arg with
-        | Expression {value=e} -> let t = type_expression new_ctx e in
-          let pt = saturate_type new_ctx par.typ in
-          if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
-        | Missing ->
-          begin match par.direction with
-            | Out -> true
-            | _ -> failwith "Only out parameters can have don't care arguments."
-          end
-      | _ -> failwith "Should not get here"
-      end in
-    if List.for_all check_positional (List.combine params args)
-    then post_check fun_type
-    else failwith "Function call does not type check"
-  end
+        if List.for_all ~f:case1 args then begin
+            let new_ctx = env in
+            let check_positional = fun (par,arg:Parameter.t * Argument.t) ->
+            begin match snd arg with
+                | Expression {value=e} -> let t = type_expression new_ctx e in
+                let pt = saturate_type new_ctx par.typ in
+                if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
+                | Missing ->
+                begin match par.direction with
+                    | Out -> true
+                    | _ -> failwith "Only out parameters can have don't care arguments."
+                end
+            | _ -> failwith "Should not get here"
+            end in
+            if eq_lists ~f:check_positional params args
+            then post_check fun_type
+            else failwith "Function call does not type check"
+        end
 
-  else if List.for_all case2 args then begin
+        else if List.for_all ~f:case2 args then begin
 
-    (* I need to align the order of arguments with the order
-     * of parameters. This is important for updating the environment
-     * and comparing each argument type to its
-     * corresponding parameter type*)
-    let comp_arg = fun (arg1:Argument.t) (arg2:Argument.t) ->
-      begin match snd arg1,snd arg2 with
-        | KeyValue {key= (_,n1) ;_},KeyValue{key= (_,n2) ;_} -> String.compare n1 n2
-        | _ -> failwith "Only call comp_arg when arguments are named."
-      end in
-    let comp_param = fun (par1:Parameter.t) (par2:Parameter.t) ->
-      begin match par1,par2 with
-        | {name=n1; _}, {name=n2; _} ->  String.compare n1 n2
-      end in
-    let sorted_params = List.sort comp_param params in
-    let sorted_args = List.sort comp_arg args in
-    let new_ctx = env in
-    let check_named = fun (par,arg:Parameter.t * Argument.t) ->
-      begin match snd arg with
-        | KeyValue {value=e; _} -> let t = type_expression new_ctx e in
-          let pt = saturate_type new_ctx par.typ in
-          if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
-        | Missing -> begin match par.direction with
-            | Out -> true
-            | _ -> failwith "Only out parameters can have don't care arguments."
-          end
-        | _ -> failwith "Arguments in a function call must be positional or named, not both"
-      end in
-    if  List.for_all check_named (List.combine sorted_params sorted_args)
-    then post_check fun_type
-    else failwith "Function call does not type check"
-  end
+            (* I need to align the order of arguments with the order
+            * of parameters. This is important for updating the environment
+            * and comparing each argument type to its
+            * corresponding parameter type*)
+            let comp_arg = fun (arg1:Argument.t) (arg2:Argument.t) ->
+            begin match snd arg1,snd arg2 with
+                | KeyValue {key= (_,n1) ;_},KeyValue{key= (_,n2) ;_} -> String.compare n1 n2
+                | _ -> failwith "Only call comp_arg when arguments are named."
+            end in
+            let comp_param = fun (par1:Parameter.t) (par2:Parameter.t) ->
+            begin match par1,par2 with
+                | {name=n1; _}, {name=n2; _} ->  String.compare n1 n2
+            end in
+            let sorted_params = List.sort ~compare:comp_param params in
+            let sorted_args = List.sort ~compare:comp_arg args in
+            let new_ctx = env in
+            let check_named = fun (par,arg:Parameter.t * Argument.t) ->
+            begin match snd arg with
+                | KeyValue {value=e; _} -> let t = type_expression new_ctx e in
+                let pt = saturate_type new_ctx par.typ in
+                if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
+                | Missing -> begin match par.direction with
+                    | Out -> true
+                    | _ -> failwith "Only out parameters can have don't care arguments."
+                end
+                | _ -> failwith "Arguments in a function call must be positional or named, not both"
+            end in
+            if  eq_lists ~f:check_named sorted_params sorted_args
+            then post_check fun_type
+            else failwith "Function call does not type check"
+        end
 
-  else failwith "All arguments must be positional or named, not both"
+        else failwith "All arguments must be positional or named, not both"
+    | None -> failwith "mismatching numbers of parameters and type arguments"
 
 (* Section 8.17: Typing Function Calls *)
 and type_function_call env func type_args args =
@@ -1050,17 +1054,22 @@ and type_function_call env func type_args args =
   let post_check fun_type =
     let typ_ps = fun_type.type_params in
     let arg_types =
-      List.map (translate_type env typ_ps) type_args
+      List.map ~f:(translate_type env typ_ps) type_args
     in
 
     (* helper to extend delta environment *)
     let extend_delta environ (t_par, t_arg) =
       Env.insert_type t_par t_arg environ
     in
-    let env = List.fold_left extend_delta env (List.combine typ_ps arg_types) in
-    match fun_type.return with
-    | Void -> failwith "function call must be non-void inside an expression"
-    | rt -> (saturate_type env rt),(StmType.Unit,env) in
+    match List.zip typ_ps arg_types with
+    | Some params_args ->
+        let env = List.fold_left ~f:extend_delta ~init:env params_args in
+        begin match fun_type.return with
+        | Void -> failwith "function call must be non-void inside an expression"
+        | rt -> (saturate_type env rt),(StmType.Unit,env)
+        end 
+    | None -> failwith "mismatch between type arguments and type parameters"
+  in
   check_call env func type_args args post_check |> fst
 
 
@@ -1119,7 +1128,7 @@ and type_method_call env func type_args args =
   let type_args  = List.rev type_args in
   let open FunctionType in
   let post_check = fun ft ->
-    let arg_types = List.map (translate_type env []) type_args in
+    let arg_types = List.map ~f:(translate_type env []) type_args in
     (* helper to extend delta environment *)
     (* for now naively extend local delta environment instead of creating new symbols *)
     let extend_delta environ (t_par, t_arg) =
@@ -1128,14 +1137,14 @@ and type_method_call env func type_args args =
           Env.insert_type t_par t_arg environ
       | _, _ -> environ
     in
-    let env = List.fold_left extend_delta env (combine_opt ft.type_params arg_types) in
+    let env = List.fold_left ~f:extend_delta ~init:env (combine_opt ft.type_params arg_types) in
     let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
       match p.direction with
       | In -> acc
       | Directionless | Out | InOut -> (* only out variables are added to the environment *)
           Env.insert_type_of p.name p.typ env
     in
-    Type.Error,(StmType.Unit,List.fold_left pfold env ft.parameters) in
+    Type.Error,(StmType.Unit,List.fold_left ~f:pfold ~init:env ft.parameters) in
   check_call env func type_args args post_check |> snd
   (* type_function_call env func type_args args *)
 
@@ -1197,7 +1206,7 @@ and type_block_statement env block =
     | StmType.Void -> raise_internal_error "UnreachableBlock"
     | StmType.Unit -> type_statement env statement
   in
-  List.fold_left fold (StmType.Unit, env) (snd block).statements
+  List.fold_left ~f:fold ~init:(StmType.Unit, env) (snd block).statements
 
 (* Section 11.4
  * Can a return statement update the environment?
@@ -1302,7 +1311,7 @@ and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.
     let dir = translate_direction p.direction in
     Env.insert_dir_type_of (snd p.variable) typ dir env
   in
-  List.fold_left insert_param env params
+  List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)
 and type_instantiation env _ _ _ =
@@ -1312,31 +1321,33 @@ and type_instantiation env _ _ _ =
 and type_select_case env state_names expr_types (_, case) : unit =
   let open Parser in
   let open Match in
-  let matches_and_types = List.combine expr_types case.matches in
-  let check_match (typ, m) =
-    match snd m with
-    | Expression {expr} ->
-        let t = type_expression env expr in
-        assert_type_equality env (fst m)  t typ
-    | Default
-    | DontCare -> ()
-  in
-  List.iter check_match matches_and_types;
-  let name = snd case.next in
-  if List.mem name state_names
-  then ()
-  else raise @@ Env.UnboundName name
+  match List.zip expr_types case.matches with
+  | Some matches_and_types ->
+    let check_match (typ, m) =
+        match snd m with
+        | Expression {expr} ->
+            let t = type_expression env expr in
+            assert_type_equality env (fst m)  t typ
+        | Default
+        | DontCare -> ()
+    in
+    List.iter ~f:check_match matches_and_types;
+    let name = snd case.next in
+    if List.mem ~equal:(=) state_names name
+    then ()
+    else raise @@ Env.UnboundName name
+  | None -> failwith "mismatch between types and number of matches"
 
 and type_transition env state_names transition : unit =
   let open Parser in
   match snd transition with
   | Direct {next = (_, name')} ->
-      if List.mem name' state_names
+      if List.mem ~equal:(=) state_names name'
       then ()
       else raise @@ Env.UnboundName name'
   | Select {exprs; cases} ->
-      let expr_types = List.map (type_expression env) exprs in
-      List.iter (type_select_case env state_names expr_types) cases
+      let expr_types = List.map ~f:(type_expression env) exprs in
+      List.iter ~f:(type_select_case env state_names expr_types) cases
 
 and type_parser_state env state_names (state: Parser.state) : unit =
   let open Block in
@@ -1348,8 +1359,8 @@ and open_parser_scope env params constructor_params locals states =
   let open Parser in
   let env' = insert_params env constructor_params in
   let env' = insert_params env' params in
-  let env' = List.fold_left type_declaration env' locals in
-  let program_state_names = List.map (fun (_, state) -> snd state.name) states in
+  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
+  let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
 
@@ -1361,7 +1372,7 @@ and type_parser env name params constructor_params locals states =
   let (env', state_names) =
     open_parser_scope env params constructor_params locals states
   in
-  List.iter (type_parser_state env' state_names) states;
+  List.iter ~f:(type_parser_state env' state_names) states;
   env
 
 (* Section 13 *)
@@ -1380,7 +1391,7 @@ and type_control env _ _ _ _ _ _ =
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
 and type_function env return name type_params params body =
-  let t_params = List.map snd type_params in
+  let t_params = List.map ~f:snd type_params in
   let body_env = Env.insert_type_vars t_params env in
   let p_fold = fun (acc,env:Parameter.t list * Env.checker_env) (p:Types.Parameter.t) ->
     begin let open Parameter in
@@ -1400,7 +1411,7 @@ and type_function env return name type_params params body =
       Env.insert_dir_type_of (snd p.variable) par.typ par.direction env
     in
     par::acc, new_env end in
-  let (ps,body_env) = List.fold_left p_fold ([],body_env) params in
+  let (ps,body_env) = List.fold_left ~f:p_fold ~init:([],body_env) params in
   let ps = List.rev ps in
   let rt = return |> translate_type env t_params in
   let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
@@ -1421,16 +1432,16 @@ and type_function env return name type_params params body =
           | _ -> (st,new_env)
         end
     end in
-  let _ = List.fold_left sfold (StmType.Unit, body_env) (snd body).statements in
+  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
   let open FunctionType in
   let funtype = Type.Function {parameters=ps;
-                 type_params= type_params |> List.map snd;
+                 type_params= type_params |> List.map ~f:snd;
                  return= rt} in
   Env.insert_type_of (snd name) funtype env
 
 (* Section 7.2.9.1 *)
 and type_extern_function env return name type_params params =
-  let type_params = type_params |> List.map snd in
+  let type_params = type_params |> List.map ~f:snd in
   let return = return |> translate_type env type_params in
   let params = translate_parameters env type_params params in
   let typ: Typed.FunctionType.t =
@@ -1469,7 +1480,7 @@ and type_table env _ _ =
 
 (* Section 7.2.2 *)
 and type_header env name fields =
-  let fields = List.map (type_field env) fields in
+  let fields = List.map ~f:(type_field env) fields in
   let header_typ = Type.Header { fields } in
   Env.insert_type (snd name) header_typ env
 
@@ -1487,20 +1498,20 @@ and type_header_union env name fields =
       | Header _ -> {name = snd fn; typ=TypeName ht}::acc
       | _ -> failwith "Header Union field is undefined"
     end in
-  let ufields = List.fold_left union_folder [] fields |> List.rev in
+  let ufields = List.fold_left ~f:union_folder ~init:[] fields |> List.rev in
   let hu = Type.HeaderUnion {fields=ufields} in
   Env.insert_type (snd name) hu env
 
 (* Section 7.2.5 *)
 and type_struct env name fields =
-  let fields = List.map (type_field env) fields in
+  let fields = List.map ~f:(type_field env) fields in
   let struct_typ = Type.Struct { fields } in
   Env.insert_type (snd name) struct_typ env
 
 (* Auxillary function for [type_error] and [type_match_kind],
  * which require unique names *)
 and fold_unique members (_, member) =
-  if List.mem member members then
+  if List.mem ~equal:(=) members member then
     failwith "Name already bound"
   else
     member :: members
@@ -1511,18 +1522,18 @@ and type_error env members =
   let add_err env (_, e) =
     Env.insert_type_of_toplevel ("error." ^ e) Type.Error env
   in
-  List.fold_left add_err env members
+  List.fold_left ~f:add_err ~init:env members
 
 (* Section 7.1.3 *)
 and type_match_kind env members =
   let add_mk env (_, m) =
     Env.insert_type_of_toplevel ("match_kind." ^ m) Type.MatchKind env
   in
-  List.fold_left add_mk env members
+  List.fold_left ~f:add_mk ~init:env members
 
 (* Section 7.2.1 *)
 and type_enum env name members =
-  let members' = List.map snd members in
+  let members' = List.map ~f:snd members in
   let enum_typ = Type.Enum { members = members'; typ = None } in
   Env.insert_type (snd name) enum_typ env
 
@@ -1532,7 +1543,7 @@ and type_serializable_enum env _ _ _ =
 
 (* Section 7.2.9.2 *)
 and type_extern_object env name type_params methods =
-  let type_params' = List.map snd type_params in
+  let type_params' = List.map ~f:snd type_params in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor {name = cname; params; _} ->
@@ -1545,7 +1556,7 @@ and type_extern_object env name type_params methods =
         in
         (c :: constructors, methods)
     | MethodPrototype.Method {return; name; type_params; params; _} ->
-        let method_typ_params = List.map snd type_params in
+        let method_typ_params = List.map ~f:snd type_params in
         let all_typ_params = type_params' @ method_typ_params in
         let params' =
           translate_parameters env all_typ_params params 
@@ -1558,7 +1569,7 @@ and type_extern_object env name type_params methods =
         in
         (constructors, m :: methods)
   in
-  let (cs', ms') = List.fold_left consume_method ([], []) methods in
+  let (cs', ms') = List.fold_left ~f:consume_method ~init:([], []) methods in
   let typ: ExternType.t =
     { type_params = type_params';
       constructors = cs';
@@ -1585,25 +1596,25 @@ and type_new_type env name typ_or_decl =
 
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =
-  let t_params = List.map snd type_params in
+  let t_params = List.map ~f:snd type_params in
   let ps = translate_parameters env t_params params in
-  let tps = List.map snd type_params in
+  let tps = List.map ~f:snd type_params in
   let ctrl = Type.Control {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
 
 (* Section 7.2.11 *)
 and type_parser_type env name type_params params =
-  let t_params = List.map snd type_params in
+  let t_params = List.map ~f:snd type_params in
   let ps = translate_parameters env t_params params in
-  let tps = List.map snd type_params in
+  let tps = List.map ~f:snd type_params in
   let ctrl = Type.Parser {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
 
 (* Section 7.2.12 *)
 and type_package_type env name type_params params =
-  let t_params = List.map snd type_params in
+  let t_params = List.map ~f:snd type_params in
   let ps = translate_construct_params env t_params params in
-  let tps = List.map snd type_params in
+  let tps = List.map ~f:snd type_params in
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
 
@@ -1631,7 +1642,7 @@ let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
         let size' = mkint size in
         HeaderStack { header = typ'; size = size' }
     | Tuple {types} ->
-        Tuple (List.map backtranslate_type types)
+        Tuple (List.map ~f:backtranslate_type types)
     | Set typ -> fail (Set typ)
     | Error -> Error
     | MatchKind -> fail MatchKind
@@ -1647,4 +1658,4 @@ let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
 let check_program (program:Types.program) : Env.checker_env =
   let Program top_decls = program in
   let init_acc = Env.empty_checker_env in
-  List.fold_left type_declaration init_acc top_decls
+  List.fold_left ~f:type_declaration ~init:init_acc top_decls

@@ -12,6 +12,7 @@
  * License for the specific language governing permissions and limitations 
  * under the License. 
  *)
+open Core
 
 type ('a,'b) alternative = 
     Left of 'a 
@@ -33,3 +34,8 @@ let rec combine_opt xs ys =
   | [], y :: ys -> 
       (None, Some y) :: combine_opt [] ys
   | [], [] -> []
+
+let eq_lists ~f xs ys =
+  match List.zip xs ys with
+  | Some xys -> List.for_all ~f xys
+  | None -> false

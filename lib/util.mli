@@ -23,3 +23,5 @@ val option_map: ('a -> 'b) -> 'a option -> 'b option
 val uncurry: ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 
 val combine_opt: 'a list -> 'b list -> ('a option * 'b option) list
+
+val eq_lists: f:('a * 'b -> bool) -> 'a list -> 'b list -> bool

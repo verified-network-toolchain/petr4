@@ -38,6 +38,31 @@ let assert_numeric = make_assert "integer"
 let insert_type_vars : Env.checker_env -> string list -> Env.checker_env =
   List.fold_left (Core.Fn.flip Env.insert_type_var)
 
+let get_type_params (t: Typed.Type.t) : string list =
+  match t with
+  | Package {type_params; _}
+  | Control {type_params; _}
+  | Parser {type_params; _}
+  | Extern {type_params; _}
+  | Function {type_params; _} ->
+     type_params
+  | _ ->
+     []
+
+let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
+  match t with
+  | Package p ->
+     Package {p with type_params = []}
+  | Control c ->
+     Control {c with type_params = []}
+  | Parser p ->
+     Parser {p with type_params = []}
+  | Extern e ->
+     Extern {e with type_params = []}
+  | Function f ->
+     Function {f with type_params = []}
+  | t -> t
+
 (* Eliminate all type references in typ and replace them with the type they
  * refer to. The result of saturation will contain no TypeName constructors
  * anywhere. It may contain TypeVar constructors.
@@ -218,24 +243,40 @@ and type_vars_equal_under env equiv_vars tv1 tv2 =
   | [] ->
       tv1 = tv2
 
-and apply_type (env: Env.checker_env) (base: Typed.Type.t) (args: Typed.Type.t list) : Typed.Type.t =
-  match base with
-  | Bool | String | Integer | Int _ | Bit _ | VarBit _
-  | Array _ | Tuple _ | Set _ | Error | MatchKind | TypeVar _
-  | Void | Header _ | HeaderUnion _ | Struct _ | Enum _ ->
-      failwith "cannot apply this type"
-  | TypeName name ->
-      apply_type env (Env.resolve_type_name name env) args
-  | TopLevelType name ->
-      apply_type env (Env.resolve_type_name_toplevel name env) args
+and subst_type (typ: Typed.Type.t) (var: string) (arg: Typed.Type.t) : Typed.Type.t =
+  match typ with
+  | Bool | String | Integer | Int _ | Bit _ | VarBit _ | Array _
+  | Tuple _ | Error | MatchKind | TopLevelType _ | Void ->
+     typ
+  | TypeVar x
+  | TypeName x ->
+     if x = var
+     then arg
+     else typ
+  | Set typ ->
+     Set (subst_type typ var arg)
+  | _ -> failwith "subst_type unimplemented"
+
+and subst_types (typ: Typed.Type.t) (args: Typed.Type.t list) : Typed.Type.t =
+  let vars = get_type_params typ in
+  let typ = drop_type_params typ in
+  let vars_args = List.combine vars args in
+  let go (var, arg) acc = subst_type typ var arg in
+  List.fold_right go vars_args typ
+
+and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
+  let typ = saturate_type env typ in
+  match typ with
   | SpecializedType sp ->
-      apply_type env (apply_type env sp.base sp.args) args
-  | Package _
-  | Control _
-  | Parser _
-  | Extern _
-  | Function _ ->
-      failwith "apply_type unimplemented"
+     begin match get_type_params typ with
+     | [] ->
+        typ
+     | t_params ->
+        let args = List.map (reduce_type env) sp.args in
+        let generic = reduce_type env sp.base in
+        subst_types generic args
+     end
+  | _ -> typ
 
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
@@ -246,14 +287,18 @@ and type_equality env t1 t2 =
 and type_equality' (env: Env.checker_env) 
                    (equiv_vars: (string * string) list) 
                    (t1:Type.t) (t2:Type.t) : bool =
-  let t1' = saturate_type env t1  in
-  let t2' = saturate_type env t2 in
+  let t1' = reduce_type env t1 in
+  let t2' = reduce_type env t2 in
   begin match t1', t2' with
     | TypeName _, _
     | _, TypeName _
     | TopLevelType _, _
     | _, TopLevelType _ ->
         failwith "TypeName in saturated type?"
+
+    | SpecializedType _, _
+    | _, SpecializedType _ ->
+        failwith "Stuck specialized type?"
 
     | Bool, Bool
     | String, String
@@ -310,11 +355,6 @@ and type_equality' (env: Env.checker_env)
 
     | Function func1, Function func2 ->
         function_type_equality env equiv_vars func1 func2
-
-    | SpecializedType spec1, other ->
-        type_equality' env equiv_vars (apply_type env spec1.base spec1.args) other
-    | other, SpecializedType spec2 ->
-        type_equality' env equiv_vars other (apply_type env spec2.base spec2.args)
 
     (* We could replace this all with | _, _ -> false. I am writing it this way
      * because when I change Type.t I want Ocaml to warn me about missing match

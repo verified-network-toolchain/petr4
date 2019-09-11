@@ -1,5 +1,5 @@
 (executable
   (public_name petr4)
   (name main)
-  (libraries ANSITerminal core core_extended petr4)
+  (libraries ANSITerminal core petr4)
   (preprocess (pps ppx_jane)))

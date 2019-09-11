@@ -859,7 +859,10 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VSenumField _
       | VExternFun _
       | VExternObject _
-      | VObjstate _         -> failwith "expr member unimplemented" end
+      | VParser _
+      | VControl _
+      | VPackage _
+      | VTable _            -> failwith "expr member unimplemented" end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
@@ -892,21 +895,21 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     let (env',state,s) = eval_inargs env typ_decl.constructor_params args in
     let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
     begin match s with
-      | SContinue -> (env', s, VObjstate((info, decl), state'))
+      | SContinue -> (env', s, VControl((info, decl), state'))
       | SReject -> (env,s,VNull)
       | _ -> failwith "unimplemented" end
   | Parser typ_decl ->
     let (env',state,s) = eval_inargs env typ_decl.constructor_params args in
     let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
     begin match s with
-      | SContinue -> (env', s, VObjstate((info, decl), state'))
+      | SContinue -> (env', s, VParser((info, decl), state'))
       | SReject -> (env,s,VNull)
       | _ -> failwith "unimplemented" end
   | PackageType pack_decl ->
     let (env', state,s) = eval_inargs env pack_decl.params args in
     let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
     begin match s with
-      | SContinue -> (env', s, VObjstate((info, decl), state'))
+      | SContinue -> (env', s, VPackage((info, decl), state'))
       | SReject -> (env,s,VNull)
       | _ -> failwith "unimplemented" end
   | _ -> failwith "instantiation unimplemented"
@@ -1922,7 +1925,10 @@ and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
   | VExternFun _
   | VExternObject _
   | VRuntime _
-  | VObjstate _        -> failwith "value does not have a fixed width"
+  | VParser _
+  | VControl _
+  | VPackage _
+  | VTable _           -> failwith "value does not have a fixed width"
 
 and tuple_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     (t : Type.t) (l : value list) : value =
@@ -2416,7 +2422,7 @@ and reset_fields (env : EvalEnv.t) (lv : lvalue)
 let rec eval_main (env : EvalEnv.t) (pack : packet_in) : packet_in =
   let (_, obj, vs) =
     match EvalEnv.find_val "main" env with
-    | VObjstate ((info, obj), vs) -> (info, obj, vs)
+    | VPackage ((info, obj), vs) -> (info, obj, vs)
     | _ -> failwith "main not a stateful object" in
   let name =
     match obj with
@@ -2443,7 +2449,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     List.Assoc.find_exn vs "dep" ~equal:(=) in
   let (_, obj, pvs) =
     match parser with
-    | VObjstate ((info, obj), pvs) -> (info, obj, pvs)
+    | VParser ((info, obj), pvs) -> (info, obj, pvs)
     | _ -> failwith "parser is not a stateful object" in
   let params =
     match obj with
@@ -2503,7 +2509,7 @@ and eval_v1parser (parser : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t * string =
   let (_, decl, vs) =
     match parser with
-    | VObjstate((info, decl), vs) -> (info, decl, vs)
+    | VParser((info, decl), vs) -> (info, decl, vs)
     | _ -> failwith "v1 parser is not a stateful object" in
   let (params, locals, states) =
     match decl with
@@ -2516,7 +2522,7 @@ and eval_v1control (control : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t =
   let (_, decl, vs) =
     match control with
-    | VObjstate((info, decl), vs) -> (info,  decl, vs)
+    | VControl((info, decl), vs) -> (info,  decl, vs)
     | _ -> failwith "v1 control is not a stateful object" in
   let (params, locals, apply) =
     match decl with

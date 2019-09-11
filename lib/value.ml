@@ -2,6 +2,7 @@ open Types
 
 type packet_in = Cstruct.t
 type packet_out = Cstruct.t * Cstruct.t
+type table = unit (* TODO *)
 
 type value =
   | VNull
@@ -27,7 +28,10 @@ type value =
   | VExternFun of Parameter.t list
   | VExternObject of string * (MethodPrototype.t list)
   | VRuntime of vruntime
-  | VObjstate of Declaration.t * (string * value) list
+  | VParser of Declaration.t * (string * value) list
+  | VControl of Declaration.t * (string * value) list
+  | VPackage of Declaration.t * (string * value) list
+  | VTable of table
 
 and lvalue =
   | LName of string

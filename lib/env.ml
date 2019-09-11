@@ -218,7 +218,10 @@ module EvalEnv = struct
           begin match r with
             | PacketIn p -> Cstruct.to_string p
             | PacketOut (p1,p2) -> Cstruct.to_string (Cstruct.append p1 p2) end
-        | VObjstate (_,vs) -> "<stateful object>" in
+        | VParser _ -> "<parser>"
+        | VControl _ -> "<control>"
+        | VPackage _ -> "<package>"
+        | VTable _ -> "<table>" in
       print_endline vstring in
     match e.vs with
     | [] -> ()

@@ -336,7 +336,7 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   | DirectApplication{typ;args}        -> eval_app ()
   | Conditional{cond;tru;fls}          -> eval_cond env sign cond tru fls
   | BlockStatement{block}              -> eval_block env sign block
-  | Exit                               -> eval_exit ()
+  | Exit                               -> eval_exit env sign
   | EmptyStatement                     -> (env, sign)
   | Return{expr}                       -> eval_return env sign expr
   | Switch{expr;cases}                 -> eval_switch ()
@@ -347,8 +347,8 @@ and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
   match sign with
   | SContinue -> let (e,s,_) = eval_funcall env func args ts in (e,s)
   | SReject
-  | SReturn _ -> (env, sign)
-  | SExit     -> failwith "exit unimplemented"
+  | SReturn _
+  | SExit     -> (env, sign)
 
 and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
     (rhs : Expression.t) : EvalEnv.t * signal =
@@ -361,8 +361,8 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
       | SContinue -> eval_assign' env' lv v
       | _ -> failwith "unreachable" end
   | SReject
-  | SReturn _ -> (env, s)
-  | SExit     -> failwith "exit unimplemented"
+  | SReturn _
+  | SExit     -> (env, s)
 
 and eval_app () = failwith "direct application unimplemented"
 
@@ -384,8 +384,8 @@ and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
   match sign with
   | SContinue -> eval_cond' env cond tru fls
   | SReject
-  | SReturn _ -> (env, sign)
-  | SExit     -> failwith "exit unimplmented"
+  | SReturn _
+  | SExit     -> (env, sign)
 
 and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t * signal) =
   let block = snd block in
@@ -393,11 +393,12 @@ and eval_block (env : EvalEnv.t) (sign :signal) (block : Block.t) : (EvalEnv.t *
     match sign with
     | SContinue -> eval_statement env sign stm
     | SReject
-    | SReturn _ -> (env, sign)
-    | SExit     -> failwith "exit unimplemented" in
+    | SReturn _
+    | SExit     -> (env, sign) in
   List.fold_left block.statements ~init:(env,sign) ~f:f
 
-and eval_exit () = failwith "exit unimplemented"
+and eval_exit (env : EvalEnv.t) (sign : signal) : (EvalEnv.t * signal) =
+  (env, SExit)
 
 and eval_return (env : EvalEnv.t) (sign : signal)
     (expr : Expression.t option) : (EvalEnv.t * signal) =
@@ -411,8 +412,8 @@ and eval_return (env : EvalEnv.t) (sign : signal)
     begin match sign with
       | SContinue -> (env', SReturn v)
       | SReject
-      | SReturn _ -> (env, sign)
-      | SExit     -> failwith "exit unimplemented" end
+      | SReturn _
+      | SExit     -> (env, sign) end
   | _ -> failwith "unreachable"
 
 and eval_switch () = failwith "switch stm unimplemented"
@@ -422,8 +423,8 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
   match sign with
   | SContinue -> (eval_decl env decl, SContinue)
   | SReject
-  | SReturn _ -> (env, sign)
-  | SExit     -> failwith "exit unimplemented"
+  | SReturn _
+  | SExit     -> (env, sign)
 
 (*----------------------------------------------------------------------------*)
 (* Asssignment Evaluation *)
@@ -1401,7 +1402,7 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
   | SReject -> (env, SReject, VNull)
   | SReturn v -> (final_env, SContinue, v)
   | SContinue -> (final_env, SContinue, VNull)
-  | SExit -> failwith "exit unimplemented"
+  | SExit -> (final_env, SExit, VNull)
 
 and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       (args : Argument.t list) : EvalEnv.t * EvalEnv.t * signal =

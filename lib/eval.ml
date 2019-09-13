@@ -334,7 +334,8 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   | MethodCall{func;type_args=ts;args} -> eval_method_call env sign func args ts
   | Assignment{lhs;rhs}                -> eval_assign env sign lhs rhs
   | DirectApplication{typ;args}        ->
-    let (env', sign', v) = eval_nameless env typ args in eval_app env' sign' v args
+    let (env', sign', v) = eval_nameless env typ [] in
+    eval_app env' sign' v args
   | Conditional{cond;tru;fls}          -> eval_cond env sign cond tru fls
   | BlockStatement{block}              -> eval_block env sign block
   | Exit                               -> eval_exit env sign

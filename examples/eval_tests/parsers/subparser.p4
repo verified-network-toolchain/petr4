@@ -7,14 +7,16 @@ header bitehdr {
 
 struct metadata { }
 
-parser MySubParser(packet_in packet, inout bitehdr[11] hdr) {
+error { MyError }
+
+parser MySubParser(packet_in packet, inout bitehdr[11] hdr, standard_metadata_t standard_metadata) {
 
     state start {
         hdr.pop_front(1);
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
             1 : first;
-            default : reject;
+            default : pre_reject;
         }
     }
 
@@ -23,7 +25,7 @@ parser MySubParser(packet_in packet, inout bitehdr[11] hdr) {
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
             2 : second;
-            default : reject;
+            default : pre_reject;
         }
     }
 
@@ -32,7 +34,7 @@ parser MySubParser(packet_in packet, inout bitehdr[11] hdr) {
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
             3 : third;
-            default : reject;
+            default : pre_reject;
         }
     }
 
@@ -41,8 +43,13 @@ parser MySubParser(packet_in packet, inout bitehdr[11] hdr) {
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
             4 : accept;
-            default : reject;
+            default : pre_reject;
         }
+    }
+
+    state pre_reject {
+        standard_metadata.parser_error = error.MyError;
+        transition reject;
     }
 }
 
@@ -64,7 +71,7 @@ parser MyParser(packet_in packet,
     }
 
     state evoke_subparser {
-        subparser.apply(packet, hdr);
+        MySubParser.apply(packet, hdr, standard_metadata);
         hdr.pop_front(1);
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {
@@ -82,7 +89,7 @@ control MyIngress(inout bitehdr[11] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        if (standard_metadata.parser_error == NoError) {
+        if (standard_metadata.parser_error == error.NoError) {
             exit;
         }
         else {

@@ -333,7 +333,7 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   match snd stm with
   | MethodCall{func;type_args=ts;args} -> eval_method_call env sign func args ts
   | Assignment{lhs;rhs}                -> eval_assign env sign lhs rhs
-  | DirectApplication{typ;args}        -> eval_app ()
+  | DirectApplication{typ;args}        -> failwith "directapplication"(*eval_app env sign parser args*)
   | Conditional{cond;tru;fls}          -> eval_cond env sign cond tru fls
   | BlockStatement{block}              -> eval_block env sign block
   | Exit                               -> eval_exit env sign
@@ -364,7 +364,23 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
   | SReturn _
   | SExit     -> (env, s)
 
-and eval_app () = failwith "direct application unimplemented"
+and eval_app (env : EvalEnv.t) (s : signal) (parser : value)
+  (args : Argument.t list) : EvalEnv.t * signal =
+  match s with
+  | SContinue ->
+    let (_, decl, vs) =
+      match parser with
+      | VParser((info, decl), vs) -> (info, decl, vs)
+      | _ -> failwith "v1 parser is not a stateful object" in
+    let (params, locals, states) =
+      match decl with
+      | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
+      | _ -> failwith "v1 parser is not a parser" in
+    let (env',state) = eval_parser env params args vs locals states in
+    (env',state)
+  | SReject
+  | SReturn _
+  | SExit -> (env, s)
 
 and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
@@ -615,7 +631,7 @@ and value_of_larray (env : EvalEnv.t) (lv : lvalue)
       | VStack(n,vs,s,i) ->
         let idx' = eval_expression' env SContinue idx |> thrd3 |> bigint_of_val in
         begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx' % s)))
-        with Invalid_argument _ -> (SReject, VNull) end
+          with Invalid_argument _ -> (SReject, VNull) end
       | _ -> failwith "array access is not a header stack" end
   | SReject -> (s,VNull)
   | _ -> failwith "unreachable"
@@ -703,9 +719,9 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
       | NamelessInstantiation{typ;args}      -> eval_nameless env typ args
       | Mask{expr;mask}                      -> eval_mask env expr mask
       | Range{lo;hi}                         -> eval_range env lo hi end
-| SReject -> (env, s, VNull)
-| SReturn _ -> failwith "expression should not return"
-| SExit -> failwith "expresion should not exit"
+  | SReject -> (env, s, VNull)
+  | SReturn _ -> failwith "expression should not return"
+  | SExit -> failwith "expresion should not exit"
 
 and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
@@ -859,8 +875,12 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VEnumField _
       | VSenumField _
       | VExternFun _
-      | VExternObject _
-      | VParser _
+      | VExternObject _     -> failwith "unimplemented"
+      | VParser _           -> begin match snd expr with
+                              | Expression.FunctionCall r ->
+                                let (env'', s') = eval_app env' s v r.args in (env'', s', VNull)
+                              | _ -> print_string (snd name); failwith "unreachable"
+                              end
       | VControl _
       | VPackage _
       | VTable _            -> failwith "expr member unimplemented" end
@@ -1394,7 +1414,7 @@ and eval_packet_out_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
 (*----------------------------------------------------------------------------*)
 
 and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
-  (args : Argument.t list) (body : Block.t) : EvalEnv.t * signal * value =
+    (args : Argument.t list) (body : Block.t) : EvalEnv.t * signal * value =
   let (env', fenv, s) = eval_inargs env params args in
   let (fenv', sign) = eval_block fenv SContinue body in
   let final_env = eval_outargs env' fenv' params args in
@@ -1405,7 +1425,7 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
   | SExit -> (final_env, SExit, VNull)
 
 and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
-      (args : Argument.t list) : EvalEnv.t * EvalEnv.t * signal =
+    (args : Argument.t list) : EvalEnv.t * EvalEnv.t * signal =
   let f i (env,sign) e =
     Parameter.(
       let p = snd (List.nth_exn params i) in
@@ -1431,15 +1451,15 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
       | _ -> v in
     match (snd p).direction with
     | None -> e
-      |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
-      |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
+              |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
+              |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
     | Some x -> begin match snd x with
-      | InOut
-      | In ->
-        e
-        |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
-        |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
-      | Out -> e end in
+        | InOut
+        | In ->
+          e
+          |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
+          |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
+        | Out -> e end in
   let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
   match s with
   | SContinue -> (env', fenv',s)
@@ -1457,14 +1477,14 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
         | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
         | Argument.Missing -> e end
     | Some x -> begin match snd x with
-      | InOut
-      | Out ->
-        let v = EvalEnv.find_val (snd (snd p).variable) fenv in
-        begin match snd a with
-          | Argument.Expression {value=expr}
-          | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
-          | Argument.Missing -> e end
-      | In -> e end in
+        | InOut
+        | Out ->
+          let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+          begin match snd a with
+            | Argument.Expression {value=expr}
+            | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
+            | Argument.Missing -> e end
+        | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
   |> EvalEnv.set_error (EvalEnv.get_error fenv)
 
@@ -1597,7 +1617,7 @@ and eval_extract (env : EvalEnv.t) (lv : lvalue) (args : Argument.t list)
   | _ -> failwith "wrong number of args for extract"
 
 and eval_emit (env : EvalEnv.t) (lv : lvalue)
-  (args : Argument.t list) : EvalEnv.t * signal * value =
+    (args : Argument.t list) : EvalEnv.t * signal * value =
   let args' = match args with
     | [a] -> List.map args ~f:snd
     | _ -> failwith "invalid emit args" in
@@ -1639,11 +1659,11 @@ and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
     let p = v |> assert_runtime |> assert_packet_in in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     begin try
-      let (p',_) = Cstruct.split ~start:0 p Bigint.(to_int_exn (w/eight)) in
-      let (_,n,_) = bytes_of_packet p' Bigint.(w/eight) in
-      (env, SContinue, val_of_bigint env w n (init_val_of_typ env "" t) t)
-    with Invalid_argument _ ->
-      (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
+        let (p',_) = Cstruct.split ~start:0 p Bigint.(to_int_exn (w/eight)) in
+        let (_,n,_) = bytes_of_packet p' Bigint.(w/eight) in
+        (env, SContinue, val_of_bigint env w n (init_val_of_typ env "" t) t)
+      with Invalid_argument _ ->
+        (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
   | SReject -> (EvalEnv.set_error "StackOutOfBounds" env ,s,VNull)
   | _ -> failwith "unreachable"
 
@@ -1896,8 +1916,8 @@ and width_of_decl (env : EvalEnv.t) (d : Declaration.t) : Bigint.t =
   | TypeDef{typ_or_decl;_}
   | NewType{typ_or_decl;_} ->
     begin match typ_or_decl with
-    | Left t -> width_of_typ env t
-    | Right d -> width_of_decl env d end
+      | Left t -> width_of_typ env t
+      | Right d -> width_of_decl env d end
   | _ -> failwith "decl does not have a fixed width"
 
 and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
@@ -1991,7 +2011,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
 
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
-    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * string =
+    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * Value.signal =
   let (env', penv, s) = eval_inargs env params args in
   match s with
   | SContinue ->
@@ -2002,11 +2022,11 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
     (eval_outargs env' penv''' params args, final_state)
-  | SReject -> (env', "reject")
+  | SReject -> (env', SReject)
   | _ -> failwith "unreachable"
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (state : Parser.state) : EvalEnv.t * string =
+    (state : Parser.state) : EvalEnv.t * Value.signal =
   let (stms, transition) =
     match snd state with
     | {statements=stms; transition=t;_} -> (stms, t) in
@@ -2015,27 +2035,26 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
   let (env', sign) = eval_statement env SContinue stms' in
   match sign with
   | SContinue -> eval_transition env' states transition
-  | SReject -> (env', "reject")
+  | SReject -> (env', SReject)
   | SReturn _ -> failwith "return statements not permitted in parsers"
   | SExit -> failwith "exit statements not permitted in parsers"
 
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (transition : Parser.transition) : EvalEnv.t * string =
+    (transition : Parser.transition) : EvalEnv.t * Value.signal =
   match snd transition with
   | Direct{next = (_, next)} -> eval_direct env states next
   | Select{exprs;cases} -> eval_select env states exprs cases
 
 and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (next : string) : EvalEnv.t * string =
-  if next = "accept" || next = "reject"
-  then
-    (env, next)
-  else
-    let state = List.Assoc.find_exn states next ~equal:(=) in
-    eval_state_machine env states state
+    (next : string) : EvalEnv.t * Value.signal =
+  match next with
+  | "accept" -> (env, SContinue)
+  | "reject" -> (env, SReject)
+  | _ -> let state = List.Assoc.find_exn states next ~equal:(=) in
+        eval_state_machine env states state
 
 and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t * string =
+    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t * Value.signal =
   let f (env,s) e =
     let (a,b,c) = eval_expression' env s e in
     ((a,b),c) in
@@ -2055,7 +2074,7 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
       | Some (fenv,next) ->
         let next' = snd (snd next).next in
         eval_direct fenv states next' end
-  | SReject -> (env', "reject")
+  | SReject -> (env', SReject)
   | _ -> failwith "unreachable"
 
 and set_of_case (env : EvalEnv.t) (s : signal)
@@ -2316,8 +2335,8 @@ and struct_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
   let ts = List.map fs ~f:(fun x -> (snd x).typ) in
   let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
   let l'' = List.mapi l' ~f:(fun i v -> implicit_cast_from_tuple env
-                             (LMember(lv, List.nth_exn ns i)) (List.nth_exn ns i)
-                             v (List.nth_exn ts i)) in
+                                (LMember(lv, List.nth_exn ns i)) (List.nth_exn ns i)
+                                v (List.nth_exn ts i)) in
   let l''' = List.mapi l'' ~f:(fun i v -> (List.nth_exn ns i, v)) in
   VStruct (name, l''')
 
@@ -2485,7 +2504,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   let (env, state) =
     eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr] env in
   let err = EvalEnv.get_error env in
-  let env = if state = "reject"
+  let env = if state = SReject
     then
       eval_assign' env (LMember(LName("std_meta"),"parser_error")) (VError(err)) |> fst
     else env in
@@ -2507,7 +2526,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   | _ -> failwith "pack not a packet"
 
 and eval_v1parser (parser : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t * string =
+    (env : EvalEnv.t) : EvalEnv.t * Value.signal =
   let (_, decl, vs) =
     match parser with
     | VParser((info, decl), vs) -> (info, decl, vs)

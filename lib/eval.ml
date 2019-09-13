@@ -877,8 +877,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VEnumField _
       | VSenumField _
       | VExternFun _
-      | VExternObject _
-      | VParser _
+      | VExternObject _     -> failwith "expr member unimplemented"
+      | VParser _           -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
       | VControl _
       | VPackage _
       | VTable _            -> failwith "expr member unimplemented" end
@@ -1484,7 +1484,6 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
             | Argument.Missing -> e end
         | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
-  |> EvalEnv.set_error (EvalEnv.get_error fenv)
 
 (*----------------------------------------------------------------------------*)
 (* Built-in Function Evaluation *)
@@ -1503,6 +1502,9 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "length"     -> eval_length env lv
   | "lookahead"  -> eval_lookahead env lv ts
   | "advance"    -> eval_advance env lv args
+  | "apply"      -> let (s,v) = value_of_lvalue env lv in
+                    let (env', s) = eval_app env s v args in
+                    (env', s, VNull)
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =

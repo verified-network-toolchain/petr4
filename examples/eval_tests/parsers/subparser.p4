@@ -71,7 +71,7 @@ parser MyParser(packet_in packet,
     }
 
     state evoke_subparser {
-        MySubParser.apply(packet, hdr, standard_metadata);
+        subparser.apply(packet, hdr, standard_metadata);
         hdr.pop_front(1);
         packet.extract(hdr[10]);
         transition select(hdr[10].v) {

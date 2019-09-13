@@ -333,7 +333,8 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   match snd stm with
   | MethodCall{func;type_args=ts;args} -> eval_method_call env sign func args ts
   | Assignment{lhs;rhs}                -> eval_assign env sign lhs rhs
-  | DirectApplication{typ;args}        -> failwith "directapplication"(*eval_app env sign parser args*)
+  | DirectApplication{typ;args}        ->
+    let (env', sign', v) = eval_nameless env typ args in eval_app env' sign' v args
   | Conditional{cond;tru;fls}          -> eval_cond env sign cond tru fls
   | BlockStatement{block}              -> eval_block env sign block
   | Exit                               -> eval_exit env sign
@@ -875,12 +876,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VEnumField _
       | VSenumField _
       | VExternFun _
-      | VExternObject _     -> failwith "unimplemented"
-      | VParser _           -> begin match snd expr with
-                              | Expression.FunctionCall r ->
-                                let (env'', s') = eval_app env' s v r.args in (env'', s', VNull)
-                              | _ -> print_string (snd name); failwith "unreachable"
-                              end
+      | VExternObject _
+      | VParser _
       | VControl _
       | VPackage _
       | VTable _            -> failwith "expr member unimplemented" end

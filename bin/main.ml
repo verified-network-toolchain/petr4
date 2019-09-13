@@ -118,11 +118,13 @@ let command =
        | Some p4_dir,_,_ ->
          check_dir include_dirs p4_dir verbose
        | _, Some p4_file, Some pfile ->
-         (* check_file include_dirs p4_file print_json pretty_json verbose; *)
+         check_file include_dirs p4_file print_json pretty_json verbose;
          let _ = eval_file include_dirs p4_file verbose pfile in ()
        | _, _, _ -> ())
 
-let () =
+let () = eval_file ["./examples"] "./examples/eval_tests/parsers/subparser.p4" false "packets/packet2.txt" 
+
+(* let () =
   Format.printf "@[";
   Command.run ~version:"0.1.1" command;
-  Format.printf "@]"
+  Format.printf "@]" *)

@@ -333,9 +333,7 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   match snd stm with
   | MethodCall{func;type_args=ts;args} -> eval_method_call env sign func args ts
   | Assignment{lhs;rhs}                -> eval_assign env sign lhs rhs
-  | DirectApplication{typ;args}        ->
-    let (env', sign', v) = eval_nameless env typ [] in
-    eval_app env' sign' v args
+  | DirectApplication{typ;args}        -> eval_app' env sign args typ
   | Conditional{cond;tru;fls}          -> eval_cond env sign cond tru fls
   | BlockStatement{block}              -> eval_block env sign block
   | Exit                               -> eval_exit env sign
@@ -366,23 +364,27 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
   | SReturn _
   | SExit     -> (env, s)
 
-and eval_app (env : EvalEnv.t) (s : signal) (parser : value)
+and eval_app (env : EvalEnv.t) (s : signal) (v : value)
   (args : Argument.t list) : EvalEnv.t * signal =
   match s with
   | SContinue ->
     let (_, decl, vs) =
-      match parser with
-      | VParser((info, decl), vs) -> (info, decl, vs)
-      | _ -> failwith "v1 parser is not a stateful object" in
-    let (params, locals, states) =
-      match decl with
-      | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
-      | _ -> failwith "v1 parser is not a parser" in
-    let (env',state) = eval_parser env params args vs locals states in
-    (env',state)
+      match v with
+      | VParser ((info, decl), vs)
+      | VControl ((info, decl), vs) -> (info,decl,vs)
+      | _ -> failwith "v1 parser/control is not a stateful object" in
+    begin match decl with
+    | Parser {params=ps;locals=ls;states=ss;_} -> eval_parser env ps args vs ls ss
+    | Control {params=ps; locals=ls; apply=b; _} -> eval_control env ps args vs ls b
+    | _ -> failwith "v1 parser/control is not a parser/control"
+    end
   | SReject
   | SReturn _
   | SExit -> (env, s)
+
+and eval_app' (env : EvalEnv.t) (s : signal) (args : Argument.t list) (t : Type.t)
+  : EvalEnv.t * signal =
+  let (env', sign', v) = eval_nameless env t [] in eval_app env' sign' v args
 
 and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
@@ -878,8 +880,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VSenumField _
       | VExternFun _
       | VExternObject _     -> failwith "expr member unimplemented"
-      | VParser _           -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
-      | VControl _
+      | VParser _
+      | VControl _          -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
       | VPackage _
       | VTable _            -> failwith "expr member unimplemented" end
   | SReject -> (env',s,VNull)
@@ -2151,7 +2153,7 @@ and values_match_prod (vs : value list) (l : set list) : bool =
 
 and eval_control (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
-    (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t =
+    (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t * Value.signal =
   let (env', cenv,_) = eval_inargs env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let cenv' = List.fold_left vs ~init:cenv ~f:f in
@@ -2160,7 +2162,7 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
   let (cenv''', sign) = eval_statement cenv'' SContinue block in
   match sign with
   | SContinue
-  | SExit     -> eval_outargs env' cenv''' params args
+  | SExit     -> (eval_outargs env' cenv''' params args, sign)
   | SReject   -> failwith "control should not reject"
   | SReturn _ -> failwith "control should not return"
 
@@ -2513,11 +2515,11 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
                                           |> assert_runtime
                                           |> assert_packet_in)) in
   let env = EvalEnv.insert_val "packet" pckt' env in
-  let env = env
-            |> eval_v1control verify   [hdr_expr; meta_expr]
-            |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr]
-            |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr]
-            |> eval_v1control compute  [hdr_expr; meta_expr]
+  let (env, _) = env
+            |> eval_v1control verify   [hdr_expr; meta_expr] |> fst
+            |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst
+            |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
+            |> eval_v1control compute  [hdr_expr; meta_expr] |> fst
             |> eval_v1control deparser [pckt_expr; hdr_expr] in
   print_endline "After runtime evaluation";
   EvalEnv.print_env env;
@@ -2539,7 +2541,7 @@ and eval_v1parser (parser : value) (args : Argument.t list)
   (env',state)
 
 and eval_v1control (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t =
+    (env : EvalEnv.t) : EvalEnv.t * Value.signal =
   let (_, decl, vs) =
     match control with
     | VControl((info, decl), vs) -> (info,  decl, vs)

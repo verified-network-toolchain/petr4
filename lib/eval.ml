@@ -707,7 +707,7 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
       | False                                -> (env, s, VBool false)
       | Int(_,n)                             -> (env, s, eval_p4int n)
       | String (_,value)                     -> (env, s, VString value)
-      | Name (_,name)                        -> (env, s, EvalEnv.find_val name env)
+      | Name (_,name)                        -> eval_name env s name exp
       | TopLevel (_,name)                    -> (env, s, EvalEnv.find_val_toplevel name env)
       | ArrayAccess{array=a; index=i}        -> eval_array_access env a i
       | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access env bits lo hi
@@ -726,6 +726,11 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
   | SReject -> (env, s, VNull)
   | SReturn _ -> failwith "expression should not return"
   | SExit -> failwith "expresion should not exit"
+
+and eval_name (env : EvalEnv.t) (s : signal) (name : string) (exp : Expression.t)
+  : EvalEnv.t * signal * value =
+  if name = "verify" then (env, s, VBuiltinFun (name, lvalue_of_expr exp))
+  else (env, s, EvalEnv.find_val name env)
 
 and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
@@ -1486,6 +1491,7 @@ and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
             | Argument.Missing -> e end
         | In -> e end in
   List.fold2_exn params args ~init:env ~f:h
+  |> EvalEnv.set_error (EvalEnv.get_error fenv)
 
 (*----------------------------------------------------------------------------*)
 (* Built-in Function Evaluation *)
@@ -1507,6 +1513,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "apply"      -> let (s,v) = value_of_lvalue env lv in
                     let (env', s) = eval_app env s v args in
                     (env', s, VNull)
+  | "verify"     -> let (env',_,_) = eval_verify env args in print_endline (EvalEnv.get_error env'); eval_verify env args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
@@ -1698,6 +1705,25 @@ and eval_advance' (env : EvalEnv.t) (lv : lvalue)
         (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
   | SReject -> (env,s,VNull)
   | _ -> failwith "unreachable"
+
+and eval_verify (env : EvalEnv.t) (args : Argument.t list)
+  : EvalEnv.t * signal * value =
+  let exp_of_arg (arg : Argument.pre_t) =
+    match arg with
+    | Expression {value} -> value
+    | _ -> failwith "arg is not an expression" in
+  match args with
+  | b :: err :: [] -> let (env', _, v) = eval_expression' env SContinue (snd b |> exp_of_arg) in
+    begin match v with
+    | VBool true -> (env', SContinue, VNull)
+    | VBool false -> let (env'', _, v') = eval_expression' env' SContinue (snd err |> exp_of_arg) in
+                     begin match v' with
+                     | VError e -> (EvalEnv.set_error e env'', SReject, VNull)
+                     | _ -> failwith "verify expected error"
+                     end
+    | _ -> failwith "verify expected bool"
+    end
+  | _ -> failwith "verify improper args"
 
 and eval_push_pop (env : EvalEnv.t) (lv : lvalue)
     (args : Argument.t list) (b : bool) : EvalEnv.t * signal * value =
@@ -2023,7 +2049,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
-    (eval_outargs env' penv''' params args, final_state)
+    print_endline "GOT HERE"; (eval_outargs env' penv''' params args, final_state)
   | SReject -> (env', SReject)
   | _ -> failwith "unreachable"
 

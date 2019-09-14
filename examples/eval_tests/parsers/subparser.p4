@@ -48,7 +48,7 @@ parser MySubParser(packet_in packet, inout bitehdr[11] hdr, standard_metadata_t 
     }
 
     state pre_reject {
-        standard_metadata.parser_error = error.MyError;
+        verify(false, error.MyError);
         transition reject;
     }
 }

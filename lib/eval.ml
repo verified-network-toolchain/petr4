@@ -1513,7 +1513,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "apply"      -> let (s,v) = value_of_lvalue env lv in
                     let (env', s) = eval_app env s v args in
                     (env', s, VNull)
-  | "verify"     -> let (env',_,_) = eval_verify env args in print_endline (EvalEnv.get_error env'); eval_verify env args
+  | "verify"     -> eval_verify env args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
@@ -2049,7 +2049,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
-    print_endline "GOT HERE"; (eval_outargs env' penv''' params args, final_state)
+    (eval_outargs env' penv''' params args, final_state)
   | SReject -> (env', SReject)
   | _ -> failwith "unreachable"
 
@@ -2530,7 +2530,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
   let (env, state) =
-    eval_v1parser  parser   [pckt_expr; hdr_expr; meta_expr; std_meta_expr] env in
+    eval_app env SContinue parser [pckt_expr; hdr_expr; meta_expr; std_meta_expr] in
   let err = EvalEnv.get_error env in
   let env = if state = SReject
     then
@@ -2553,30 +2553,9 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
   | _ -> failwith "pack not a packet"
 
-and eval_v1parser (parser : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t * Value.signal =
-  let (_, decl, vs) =
-    match parser with
-    | VParser((info, decl), vs) -> (info, decl, vs)
-    | _ -> failwith "v1 parser is not a stateful object" in
-  let (params, locals, states) =
-    match decl with
-    | Parser {params=ps;locals=ls;states=ss;_} -> (ps,ls,ss)
-    | _ -> failwith "v1 parser is not a parser" in
-  let (env',state) = eval_parser env params args vs locals states in
-  (env',state)
-
 and eval_v1control (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t * Value.signal =
-  let (_, decl, vs) =
-    match control with
-    | VControl((info, decl), vs) -> (info,  decl, vs)
-    | _ -> failwith "v1 control is not a stateful object" in
-  let (params, locals, apply) =
-    match decl with
-    | Control{params=ps; locals=ls; apply=b; _} -> (ps, ls, b)
-    | _ -> failwith "v1 control is not a control" in
-  eval_control env params args vs locals apply
+    (env : EvalEnv.t) : EvalEnv.t * signal =
+  eval_app env SContinue control args
 
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)
@@ -2586,10 +2565,46 @@ let eval_expression env expr =
   let (a,b,c) = eval_expression' env SContinue expr in
   (a,c)
 
+let hex_of_nibble (i : int) : string = 
+  match i with 
+  | 0 -> "0"
+  | 1 -> "1"
+  | 2 -> "2"
+  | 3 -> "3"
+  | 4 -> "4"
+  | 5 -> "5"
+  | 6 -> "6"
+  | 7 -> "7"
+  | 8 -> "8"
+  | 9 -> "9"
+  | 10 -> "A"
+  | 11 -> "B"
+  | 12 -> "C"
+  | 13 -> "D"
+  | 14 -> "E"
+  | 15 -> "F"
+  | _ -> failwith "unreachable"
+
+let hex_of_int (i : int) : string =
+  hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
+
+let hex_of_char (c : char) : string =
+  c |> Char.to_int |> hex_of_int
+
+let hex_of_string (s : string) : string =
+  s 
+  |> String.to_list 
+  |> List.map ~f:hex_of_char 
+  |> List.fold_left ~init:"" ~f:(^)
+
 let eval_program (p : Types.program) (pack : packet_in) : unit =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;
     Format.printf "Done\n";
     let packetout = eval_main env pack in
-    print_string "Resulting packet: "; packetout |> Cstruct.to_string |> print_endline
+    print_string "Resulting packet: ";
+    packetout 
+    |> Cstruct.to_string 
+    |> hex_of_string 
+    |> print_endline

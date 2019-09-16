@@ -68,6 +68,7 @@ control MyDeparser(packet_out packet, in head[13] hdr) {
         hdr[10] = { 108 };
         hdr[11] = { 100 };
         hdr[12] = { 33 };
+        packet.emit(hdr[0]);
         packet.emit(hdr);
     }
 }

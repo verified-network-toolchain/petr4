@@ -1,7 +1,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-header bitehdr {
+header head {
   bit<8> v;
 }
 
@@ -9,7 +9,7 @@ struct metadata { }
 
 error { MyError }
 
-parser MySubParser(packet_in packet, inout bitehdr[11] hdr, standard_metadata_t standard_metadata) {
+parser MySubParser(packet_in packet, inout head[11] hdr, standard_metadata_t standard_metadata) {
 
     state start {
         hdr.pop_front(1);
@@ -54,7 +54,7 @@ parser MySubParser(packet_in packet, inout bitehdr[11] hdr, standard_metadata_t 
 }
 
 parser MyParser(packet_in packet,
-                out bitehdr[11] hdr,
+                out head[11] hdr,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
 
@@ -81,11 +81,11 @@ parser MyParser(packet_in packet,
     }
 }
 
-control MyChecksum(inout bitehdr[11] hdr, inout metadata meta) {
+control MyChecksum(inout head[11] hdr, inout metadata meta) {
     apply { }
 }
 
-control MyIngress(inout bitehdr[11] hdr,
+control MyIngress(inout head[11] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
@@ -93,18 +93,30 @@ control MyIngress(inout bitehdr[11] hdr,
             exit;
         }
         else {
-            hdr.push_front(15);
+            standard_metadata.egress_spec = 7;
+            hdr.push_front(11);
+            hdr[0] = {42};
+            hdr[1] = {0};
+            hdr[2] = {0};
+            hdr[3] = {0};
+            hdr[4] = {0};
+            hdr[5] = {0};
+            hdr[6] = {0};
+            hdr[7] = {42};
+            hdr[8] = {0};
+            hdr[9] = {0};
+            hdr[10] = {42};
         }
     }
 }
 
-control MyEgress(inout bitehdr[11] hdr,
+control MyEgress(inout head[11] hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
     apply { }
 }
 
-control MyDeparser(packet_out packet, in bitehdr[11] hdr) {
+control MyDeparser(packet_out packet, in head[11] hdr) {
     apply {
         packet.emit(hdr);
     }

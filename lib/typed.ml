@@ -32,6 +32,18 @@ end = struct
     [@@deriving sexp]
 end
 
+(* and ActionParam : sig
+  type t =
+    { name: string;
+      typ: Type.t}
+      [@@deriving sexp]
+end = struct
+  type t =
+    { name: string;
+      typ: Type.t}
+      [@@deriving sexp]
+end *)
+
 and PackageType : sig
   type t = {type_params: string list;
             parameters: ConstructParam.t list}
@@ -166,6 +178,20 @@ end = struct
     [@@deriving sexp]
 end
 
+and ActionType : sig
+  type t =
+  { name: string;
+    parameters: Parameter.t list;
+    action_params: ConstructParam.t list}
+    [@@deriving sexp]
+end = struct
+  type t =
+  { name: string;
+    parameters: Parameter.t list;
+    action_params: ConstructParam.t list}
+    [@@deriving sexp]
+end
+
 and Type : sig
   type t =
   (* bool *)
@@ -238,6 +264,8 @@ and Type : sig
 
   (* <return type> <function name>(x1,...,xn) {...} *)
   | Function of FunctionType.t
+
+  | Action of ActionType.t
   [@@deriving sexp]
 end = struct
   type t =
@@ -311,6 +339,8 @@ end = struct
 
   (* <return type> <function name>(x1,...,xn) {...} *)
   | Function of FunctionType.t
+
+  | Action of ActionType.t
   [@@deriving sexp]
 end
 

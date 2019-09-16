@@ -87,7 +87,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   let saturate_param env (param: Parameter.t) =
     {param with typ = saturate_type env param.typ}
   in
-  let saturate_pkg env (pkg: PackageType.t) : PackageType.t = 
+  let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = Env.insert_type_vars pkg.type_params env in
     {type_params = pkg.type_params;
      parameters = List.map ~f:(saturate_construct_param env) pkg.parameters}
@@ -108,6 +108,10 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
     {type_params = fn.type_params;
      parameters = List.map ~f:(saturate_param env) fn.parameters;
      return = saturate_type env fn.return}
+  and saturate_action env (action: ActionType.t) : ActionType.t =
+    {action with
+     parameters = List.map ~f:(saturate_param env) action.parameters;
+     action_params = List.map ~f:(saturate_construct_param env) action.action_params}
   in
   match typ with
   | TypeName typ ->
@@ -115,7 +119,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   | TopLevelType typ ->
       saturate_type env (Env.resolve_type_name_toplevel typ env)
   | Bool | String | Integer
-  | Int _ | Bit _ | VarBit _ 
+  | Int _ | Bit _ | VarBit _
   | TypeVar _
   | Error | MatchKind | Void ->
       typ
@@ -146,6 +150,8 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
       Extern (saturate_extern env extern)
   | Function func ->
       Function (saturate_function env func)
+  | Action action ->
+    Action (saturate_action env action)
 
 let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordType.t) : bool =
   let open RecordType in
@@ -162,8 +168,8 @@ let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordTy
 and enum_type_equality env equiv_vars enum1 enum2 : bool =
   let open EnumType in
   let same_typ =
-    match enum1.typ, enum2.typ with 
-    | Some typ1, Some typ2 -> 
+    match enum1.typ, enum2.typ with
+    | Some typ1, Some typ2 ->
         type_equality' env equiv_vars typ1 typ2
     | None, None -> true
     | _, _ -> false
@@ -205,7 +211,7 @@ and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
      params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
   | None -> false
 
-and extern_type_equality env equiv_vars extern1 extern2 : bool = 
+and extern_type_equality env equiv_vars extern1 extern2 : bool =
   let open Typed.ExternType in
   match List.zip extern1.type_params extern2.type_params with
   | Some param_pairs ->
@@ -235,6 +241,13 @@ and function_type_equality env equiv_vars func1 func2 : bool =
      params_equality env equiv_vars' func1.parameters func2.parameters
   | None -> false
 
+and action_type_equality env equiv_vars action1 action2 : bool =
+  let open ActionType in
+  let params_equal = params_equality env equiv_vars action1.parameters action2.parameters in
+  let action_params_equal = constructor_params_equality env equiv_vars action1.action_params action2.action_params in
+  let names_equal = action1.name = action2.name in
+  params_equal && action_params_equal && names_equal
+
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
   | (a, b)::rest ->
@@ -262,7 +275,7 @@ and subst_types (typ: Typed.Type.t) (args: Typed.Type.t list) : Typed.Type.t =
   let vars = get_type_params typ in
   let typ = drop_type_params typ in
   match List.zip vars args with
-  | Some vars_args -> 
+  | Some vars_args ->
       let go (var, arg) acc = subst_type typ var arg in
       List.fold_right ~f:go ~init:typ vars_args
   | None -> failwith "different number of vars and arguments"
@@ -287,8 +300,8 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
 and type_equality env t1 t2 =
   type_equality' env [] t1 t2
 
-and type_equality' (env: Env.checker_env) 
-                   (equiv_vars: (string * string) list) 
+and type_equality' (env: Env.checker_env)
+                   (equiv_vars: (string * string) list)
                    (t1:Type.t) (t2:Type.t) : bool =
   let t1' = reduce_type env t1 in
   let t2' = reduce_type env t2 in
@@ -308,9 +321,9 @@ and type_equality' (env: Env.checker_env)
     | Integer, Integer
     (* These false "equalities" should probably be handled by addding implicit
      * casts as described in sec. 8.9.2 of the p4-16 spec. *)
-    | Integer, Int _ 
+    | Integer, Int _
     | Int _, Integer
-    | Integer, Bit _ 
+    | Integer, Bit _
     | Bit _, Integer
     | Error, Error
     | MatchKind, MatchKind
@@ -356,6 +369,9 @@ and type_equality' (env: Env.checker_env)
     | Extern extern1, Extern extern2 ->
         extern_type_equality env equiv_vars extern1 extern2
 
+    | Action action1, Action action2 ->
+        action_type_equality env equiv_vars action1 action2
+
     | Function func1, Function func2 ->
         function_type_equality env equiv_vars func1 func2
 
@@ -383,8 +399,9 @@ and type_equality' (env: Env.checker_env)
     | Parser _, _
     | Package _, _
     | Extern _, _
+    | Action _, _
     | Function _, _ ->
-        false
+      false
   end
 
 and assert_type_equality env info t1 t2 : unit =
@@ -1067,7 +1084,7 @@ and type_function_call env func type_args args =
         begin match fun_type.return with
         | Void -> failwith "function call must be non-void inside an expression"
         | rt -> (saturate_type env rt),(StmType.Unit,env)
-        end 
+        end
     | None -> failwith "mismatch between type arguments and type parameters"
   in
   check_call env func type_args args post_check |> fst
@@ -1231,7 +1248,7 @@ and type_declaration_statement _ _ =
   failwith "type_declaration_statement unimplemented"
 
 and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_env =
-  let env' = 
+  let env' =
     match snd decl with
     | Constant { annotations = _; typ; name; value } ->
       type_constant env typ name value
@@ -1471,8 +1488,55 @@ and type_value_set env _ _ _ =
   env
 
 (* Section 13.1 *)
-and type_action env _ _ _ =
-  env
+and type_action env name params body =
+ let p_fold = fun (((params,action_params),env): (Parameter.t list * ConstructParam.t list) * Env.checker_env) (p:Types.Parameter.t) ->
+    begin let p = snd p in
+      let name = p.variable |> snd in
+      let typ = p.typ |> translate_type env [] in
+      begin match p.direction with
+        | None ->
+          let open ConstructParam in
+          let action_par = {name=name; typ=typ} in
+          let new_env = Env.insert_type_of (snd p.variable) typ env in
+          (params, action_par::action_params), new_env
+        | Some d ->
+          if action_params <> []
+          then failwith "Action parameters with direction must come before directionless parameters"
+          else let d = begin match snd d with
+            | In -> In
+            | Out -> Out
+            | InOut -> InOut end in
+          let open Parameter in
+          let par = {name=name; typ=typ; direction=d} in
+          let new_env =
+            Env.insert_dir_type_of (snd p.variable) typ d env
+          in
+          (par::params, action_params), new_env
+      end
+      end in
+ let ((ps,aps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
+  let ps = List.rev ps in
+  let aps = List.rev aps in
+  let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
+    begin match prev_type with
+    | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
+    | Unit -> let (st,new_env) = type_statement envi stmt in
+      begin match snd stmt with
+      | Switch _ -> failwith "Actions can not contain Switch Statements"
+      | Return {expr=eo} ->
+        begin match eo with
+        | Some _ -> failwith "Return expressions in Actions must not contain expressions"
+        | None -> (st,new_env)
+        end
+      | _ -> (st, new_env)
+      end
+    end in
+  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
+  let open ActionType in
+  let action_type = Type.Action { name=snd name;
+                    parameters=ps;
+                    action_params=aps} in
+  Env.insert_type_of (snd name) action_type env
 
 (* Section 13.2 *)
 and type_table env _ _ =
@@ -1549,7 +1613,7 @@ and type_extern_object env name type_params methods =
     | MethodPrototype.Constructor {name = cname; params; _} ->
         assert (snd cname = snd name);
         let params' = translate_parameters env type_params' params in
-        let c: FunctionType.t = 
+        let c: FunctionType.t =
           { type_params = [];
             parameters = params';
             return = (TypeName (snd name)) }
@@ -1559,9 +1623,9 @@ and type_extern_object env name type_params methods =
         let method_typ_params = List.map ~f:snd type_params in
         let all_typ_params = type_params' @ method_typ_params in
         let params' =
-          translate_parameters env all_typ_params params 
+          translate_parameters env all_typ_params params
         in
-        let m: ExternType.extern_method = 
+        let m: ExternType.extern_method =
           { name = snd name;
             typ = { type_params = method_typ_params;
                     parameters = params';
@@ -1637,7 +1701,7 @@ let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
     | Int { width } -> IntType (mkint width)
     | Bit { width } -> BitType (mkint width)
     | VarBit { width } -> VarBit (mkint width)
-    | Array { typ; size } -> 
+    | Array { typ; size } ->
         let typ' = backtranslate_type typ in
         let size' = mkint size in
         HeaderStack { header = typ'; size = size' }

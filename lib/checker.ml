@@ -1299,6 +1299,9 @@ and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_
   in
   Env.insert_decl decl env'
 
+and type_declarations env decls =
+  List.fold_left ~f:type_declaration ~init:env decls
+
 and type_field env field =
   let Declaration.{ annotations = _; typ; name } = snd field in
   let name = snd name in
@@ -1389,6 +1392,7 @@ and type_parser env name params constructor_params locals states =
   let (env', state_names) =
     open_parser_scope env params constructor_params locals states
   in
+  let env' = type_declarations env locals in
   List.iter ~f:(type_parser_state env' state_names) states;
   env
 
@@ -1721,5 +1725,4 @@ let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : Env.checker_env =
   let Program top_decls = program in
-  let init_acc = Env.empty_checker_env in
-  List.fold_left ~f:type_declaration ~init:init_acc top_decls
+  type_declarations Env.empty_checker_env top_decls

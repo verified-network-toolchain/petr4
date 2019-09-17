@@ -1334,9 +1334,15 @@ and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.
   List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)
-and type_instantiation env _ _ _ =
-  (* TODO implement type_instantiation *)
-  env
+and type_instantiation env typ args name =
+  match snd typ with
+  | TypeName (_, decl_name) ->
+     let decl = Env.find_decl decl_name env in
+     begin match decl with
+     | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.t)]
+     end
+  | _ ->
+     failwith "expected typename"
 
 and type_select_case env state_names expr_types (_, case) : unit =
   let open Parser in
@@ -1346,8 +1352,12 @@ and type_select_case env state_names expr_types (_, case) : unit =
     let check_match (typ, m) =
         match snd m with
         | Expression {expr} ->
-            let t = type_expression env expr in
-            assert_type_equality env (fst m)  t typ
+            begin match type_expression env expr with
+            | Set element_type ->
+              assert_type_equality env (fst m) element_type typ
+            | non_set_type ->
+              assert_type_equality env (fst m) non_set_type typ
+            end
         | Default
         | DontCare -> ()
     in
@@ -1392,7 +1402,7 @@ and type_parser env name params constructor_params locals states =
   let (env', state_names) =
     open_parser_scope env params constructor_params locals states
   in
-  let env' = type_declarations env locals in
+  let env' = type_declarations env' locals in
   List.iter ~f:(type_parser_state env' state_names) states;
   env
 
@@ -1488,8 +1498,9 @@ and type_variable env typ name init =
     Env.insert_dir_type_of (snd name) expr_typ In env
 
 (* Section 12.11 *)
-and type_value_set env _ _ _ =
-  env
+and type_value_set env typ size name =
+  let element_type = translate_type env [] typ in
+  Env.insert_type_of (snd name) (Set element_type) env
 
 (* Section 13.1 *)
 and type_action env name params body =

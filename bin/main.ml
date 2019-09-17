@@ -76,10 +76,12 @@ let check_dir include_dirs p4_dir verbose =
     | Some file ->
       if Filename.check_suffix file "p4" then 
         begin
+          Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
           let p4_file = Filename.concat p4_dir file in 
           match parse include_dirs p4_file verbose with 
           | `Ok prog ->
-             Checker.check_program prog |> ignore
+             Checker.check_program prog |> ignore;
+             Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
           | `Error (info, Lexer.Error s) -> 
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
           | `Error (info, Petr4.Parser.Error) -> 

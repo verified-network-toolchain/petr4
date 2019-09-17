@@ -2,7 +2,7 @@ module I = Info
 open Core
 open Env
 open Types
-open Value
+open Value.Value
 module Info = I (* JNF: ugly hack *)
 
 (*----------------------------------------------------------------------------*)
@@ -2039,7 +2039,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
 
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
-    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * Value.signal =
+    (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * signal =
   let (env', penv, s) = eval_inargs env params args in
   match s with
   | SContinue ->
@@ -2054,7 +2054,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
   | _ -> failwith "unreachable"
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (state : Parser.state) : EvalEnv.t * Value.signal =
+    (state : Parser.state) : EvalEnv.t * signal =
   let (stms, transition) =
     match snd state with
     | {statements=stms; transition=t;_} -> (stms, t) in
@@ -2068,13 +2068,13 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
   | SExit -> failwith "exit statements not permitted in parsers"
 
 and eval_transition (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (transition : Parser.transition) : EvalEnv.t * Value.signal =
+    (transition : Parser.transition) : EvalEnv.t * signal =
   match snd transition with
   | Direct{next = (_, next)} -> eval_direct env states next
   | Select{exprs;cases} -> eval_select env states exprs cases
 
 and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (next : string) : EvalEnv.t * Value.signal =
+    (next : string) : EvalEnv.t * signal =
   match next with
   | "accept" -> (env, SContinue)
   | "reject" -> (env, SReject)
@@ -2082,7 +2082,7 @@ and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
         eval_state_machine env states state
 
 and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
-    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t * Value.signal =
+    (exprs : Expression.t list) (cases : Parser.case list) : EvalEnv.t * signal =
   let f (env,s) e =
     let (a,b,c) = eval_expression' env s e in
     ((a,b),c) in
@@ -2179,7 +2179,7 @@ and values_match_prod (vs : value list) (l : set list) : bool =
 
 and eval_control (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
-    (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t * Value.signal =
+    (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t * signal =
   let (env', cenv,_) = eval_inargs env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let cenv' = List.fold_left vs ~init:cenv ~f:f in

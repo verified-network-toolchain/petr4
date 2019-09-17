@@ -1,5 +1,5 @@
 open Types
-open Value
+open Value.Value
 open Core
 
 exception BadEnvironment of string

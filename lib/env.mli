@@ -1,5 +1,5 @@
 open Types
-open Value
+open Value.Value
 
 exception BadEnvironment of string
 exception UnboundName of string

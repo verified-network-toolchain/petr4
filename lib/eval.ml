@@ -2,7 +2,8 @@ module I = Info
 open Core
 open Env
 open Types
-open Value.Value
+open Value
+open Value
 module Info = I (* JNF: ugly hack *)
 
 (*----------------------------------------------------------------------------*)
@@ -75,9 +76,9 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_action_decl env n ps b
   | Table {
       annotations = _;
-      name = _;
-      properties = _;
-    } -> eval_table_decl ()
+      name = (_,n);
+      properties = ps;
+    } -> eval_table_decl env n d ps
   | Header {
       annotations = _;
       name = (_,n);
@@ -193,7 +194,42 @@ and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t lis
     (body : Block.t) : EvalEnv.t  =
   EvalEnv.insert_val name (VAction(params, body)) env
 
-and eval_table_decl () = failwith "tables unimplemented"
+and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t) 
+    (props : Table.property list) : EvalEnv.t = 
+  let props' = List.map props ~f:snd in 
+  let env' = EvalEnv.insert_decl name decl env in
+  let key = List.filter props' ~f:is_key 
+            |> List.hd_exn 
+            |> assert_key 
+            |> List.map ~f:snd 
+            |> List.map ~f:(fun k -> k.key) in
+  let (env'', ks) = List.fold_map key ~init:(env, SContinue) 
+                    ~f:(fun (a, b) k -> 
+                          let x,y,z = eval_expression' a b k in ((x,y),z)) in
+  let entries = List.filter props' ~f:is_entries |> List.hd_exn |> assert_entries in 
+  let v = VTable(ks,TableV.table_of_entries entries) in 
+  EvalEnv.insert_val name v env'
+
+and is_entries (p : Table.pre_property) : bool = 
+  match p with 
+  | Entries _ -> true 
+  | _ -> false 
+
+and assert_entries (p : Table.pre_property) : Table.entry list = 
+  match p with 
+  | Entries{entries=es} -> es 
+  | _ -> failwith "not an entries"
+
+and is_key (p : Table.pre_property) : bool =
+  match p with 
+  | Key _ -> true 
+  | _ -> false 
+
+and assert_key (p : Table.pre_property) : Table.key list = 
+  match p with 
+  | Key{keys=ks} -> ks
+  | _ -> failwith "not a key"
+
 
 and eval_header_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -368,16 +404,10 @@ and eval_app (env : EvalEnv.t) (s : signal) (v : value)
   (args : Argument.t list) : EvalEnv.t * signal =
   match s with
   | SContinue ->
-    let (_, decl, vs) =
-      match v with
-      | VParser ((info, decl), vs)
-      | VControl ((info, decl), vs) -> (info,decl,vs)
-      | _ -> failwith "v1 parser/control is not a stateful object" in
-    begin match decl with
-    | Parser {params=ps;locals=ls;states=ss;_} -> eval_parser env ps args vs ls ss
-    | Control {params=ps; locals=ls; apply=b; _} -> eval_control env ps args vs ls b
-    | _ -> failwith "v1 parser/control is not a parser/control"
-    end
+    begin match v with
+      | VParser {pvs;pparams;plocals;states} -> eval_parser env pparams args pvs plocals states
+      | VControl {cvs;cparams;clocals;apply} -> eval_control env cparams args cvs clocals apply
+      | _ -> failwith "apply not implemented on type" end
   | SReject
   | SReturn _
   | SExit -> (env, s)
@@ -887,8 +917,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VExternObject _     -> failwith "expr member unimplemented"
       | VParser _
       | VControl _          -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
-      | VPackage _
-      | VTable _            -> failwith "expr member unimplemented" end
+      | VPackage _          -> failwith "expr member unimplemented" 
+    | VTable _            -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr)) end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
@@ -916,29 +946,32 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
 and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     (args : Argument.t list) : EvalEnv.t * signal * value =
   let (info ,decl) = decl_of_typ env typ in
-  match decl with
-  | Control typ_decl ->
-    let (env',state,s) = eval_inargs env typ_decl.constructor_params args in
-    let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-    begin match s with
-      | SContinue -> (env', s, VControl((info, decl), state'))
-      | SReject -> (env,s,VNull)
-      | _ -> failwith "unimplemented" end
-  | Parser typ_decl ->
-    let (env',state,s) = eval_inargs env typ_decl.constructor_params args in
-    let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-    begin match s with
-      | SContinue -> (env', s, VParser((info, decl), state'))
-      | SReject -> (env,s,VNull)
-      | _ -> failwith "unimplemented" end
-  | PackageType pack_decl ->
-    let (env', state,s) = eval_inargs env pack_decl.params args in
-    let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-    begin match s with
-      | SContinue -> (env', s, VPackage((info, decl), state'))
-      | SReject -> (env,s,VNull)
-      | _ -> failwith "unimplemented" end
-  | _ -> failwith "instantiation unimplemented"
+  let (env',s,v) = match decl with
+    | Control typ_decl ->
+      let (env',state,s) = copyin env typ_decl.constructor_params args in
+      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
+      let v' = VControl { cvs = state';
+                          cparams = typ_decl.params;
+                          clocals = typ_decl.locals;
+                          apply = typ_decl.apply; } in
+      (env',s,v')
+    | Parser typ_decl ->
+      let (env',state,s) = copyin env typ_decl.constructor_params args in
+      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
+      let v' = VParser { pvs = state';
+                         pparams = typ_decl.params;
+                         plocals = typ_decl.locals;
+                         states = typ_decl.states; } in
+      (env',s,v')
+    | PackageType pack_decl ->
+      let (env', state,s) = copyin env pack_decl.params args in
+      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
+      (env', s, VPackage((info, decl), state'))
+    | _ -> failwith "instantiation unimplemented" in
+  match s with 
+  | SContinue -> (env',s,v)
+  | SReject -> (env,s,VNull)
+  | _ -> failwith "nameless should not return or exit"
 
 and eval_mask (env : EvalEnv.t) (e : Expression.t)
     (m : Expression.t) : EvalEnv.t * signal * value =
@@ -1420,16 +1453,16 @@ and eval_packet_out_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
 
 and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (body : Block.t) : EvalEnv.t * signal * value =
-  let (env', fenv, s) = eval_inargs env params args in
+  let (env', fenv, s) = copyin env params args in
   let (fenv', sign) = eval_block fenv SContinue body in
-  let final_env = eval_outargs env' fenv' params args in
+  let final_env = copyout env' fenv' params args in
   match sign with
   | SReject -> (env, SReject, VNull)
   | SReturn v -> (final_env, SContinue, v)
   | SContinue -> (final_env, SContinue, VNull)
   | SExit -> (final_env, SExit, VNull)
 
-and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
+and copyin (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) : EvalEnv.t * EvalEnv.t * signal =
   let f i (env,sign) e =
     Parameter.(
@@ -1471,7 +1504,7 @@ and eval_inargs (env : EvalEnv.t) (params : Parameter.t list)
   | SReject -> (env',fenv',s)
   | _ -> failwith " unreachable"
 
-and eval_outargs (env : EvalEnv.t) (fenv : EvalEnv.t)
+and copyout (env : EvalEnv.t) (fenv : EvalEnv.t)
     (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
   let h e (p:Parameter.t) a =
     match (snd p).direction with
@@ -2040,7 +2073,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
     (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * signal =
-  let (env', penv, s) = eval_inargs env params args in
+  let (env', penv, s) = copyin env params args in
   match s with
   | SContinue ->
     let f a (x,y) = EvalEnv.insert_val x y a in
@@ -2049,7 +2082,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
-    (eval_outargs env' penv''' params args, final_state)
+    (copyout env' penv''' params args, final_state)
   | SReject -> (env', SReject)
   | _ -> failwith "unreachable"
 
@@ -2180,7 +2213,7 @@ and values_match_prod (vs : value list) (l : set list) : bool =
 and eval_control (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
     (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t * signal =
-  let (env', cenv,_) = eval_inargs env params args in
+  let (env', cenv,_) = copyin env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let cenv' = List.fold_left vs ~init:cenv ~f:f in
   let cenv'' = List.fold_left locals ~init:cenv' ~f:eval_decl in
@@ -2188,7 +2221,7 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
   let (cenv''', sign) = eval_statement cenv'' SContinue block in
   match sign with
   | SContinue
-  | SExit     -> (eval_outargs env' cenv''' params args, sign)
+  | SExit     -> (copyout env' cenv''' params args, sign)
   | SReject   -> failwith "control should not reject"
   | SReturn _ -> failwith "control should not return"
 
@@ -2495,13 +2528,9 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     List.Assoc.find_exn vs "ck"  ~equal:(=) in
   let deparser =
     List.Assoc.find_exn vs "dep" ~equal:(=) in
-  let (_, obj, pvs) =
-    match parser with
-    | VParser ((info, obj), pvs) -> (info, obj, pvs)
-    | _ -> failwith "parser is not a stateful object" in
   let params =
-    match obj with
-    | Parser {params=ps;_} -> ps
+    match parser with
+    | VParser {pparams=ps;_} -> ps
     | _ -> failwith "parser is not a parser object" in
   let pckt = VRuntime (PacketIn pack) in
   let hdr =

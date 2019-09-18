@@ -1,8 +1,11 @@
 open Types
 
 module rec Value : sig
+
   type packet_in = Cstruct.t
+
   type packet_out = Cstruct.t * Cstruct.t
+
   type value =
     | VNull
     | VBool of bool
@@ -27,46 +30,64 @@ module rec Value : sig
     | VExternFun of Parameter.t list
     | VExternObject of string * (MethodPrototype.t list)
     | VRuntime of vruntime
-    | VParser of Declaration.t * (string * value ) list
-    | VControl of Declaration.t * (string * value ) list
+    | VParser of parserv
+    | VControl of controlv
     | VPackage of Declaration.t * (string * value ) list
-    | VTable of unit
+    | VTable of TableV.t
 
-  and lvalue =
-    | LName of string
-    | LTopName of string
-    | LMember of lvalue * string
-    | LBitAccess of lvalue * Expression.t * Expression.t
-    | LArrayAccess of lvalue * Expression.t
+    and parserv = {
+      pvs : (string * value) list;
+      pparams : Parameter.t list;
+      plocals : Declaration.t list;
+      states : Parser.state list;
+    }
+  
+    and controlv = {
+      cvs : (string * value) list;
+      cparams : Parameter.t list;
+      clocals : Declaration.t list;
+      apply : Block.t;
+    }
 
-  and set =
-    | SSingleton of Bigint.t
-    | SUniversal
-    | SMask of value * value 
-    | SRange of value * value 
-    | SProd of set list
+    and lvalue =
+      | LName of string
+      | LTopName of string
+      | LMember of lvalue * string
+      | LBitAccess of lvalue * Expression.t * Expression.t
+      | LArrayAccess of lvalue * Expression.t
 
-  and signal =
-    | SContinue
-    | SReturn of value
-    | SExit
-    | SReject
+    and set =
+      | SSingleton of Bigint.t
+      | SUniversal
+      | SMask of value * value 
+      | SRange of value * value 
+      | SProd of set list
 
-  and vruntime =
-    | PacketIn of packet_in
-    | PacketOut of packet_out
+    and signal =
+      | SContinue
+      | SReturn of value
+      | SExit
+      | SReject
+
+    and vruntime =
+      | PacketIn of packet_in
+      | PacketOut of packet_out
 end = struct 
 
   type packet_in = Cstruct.t
+
   type packet_out = Cstruct.t * Cstruct.t
 
   type value =
     | VNull
     | VBool of bool
     | VInteger of Bigint.t
+    (* width, value *)
     | VBit of Bigint.t * Bigint.t
+    (* width value *)
     | VInt of Bigint.t * Bigint.t
-    | VVarbit of Bigint.t * Bigint.t * Bigint.t (* max width, dynamic width, value*)
+    (* max width, dynamic width, value *)
+    | VVarbit of Bigint.t * Bigint.t * Bigint.t
     | VTuple of value list
     | VSet of set
     | VString of string
@@ -84,10 +105,24 @@ end = struct
     | VExternFun of Parameter.t list
     | VExternObject of string * (MethodPrototype.t list)
     | VRuntime of vruntime
-    | VParser of Declaration.t * (string * value ) list
-    | VControl of Declaration.t * (string * value ) list
+    | VParser of parserv
+    | VControl of controlv
     | VPackage of Declaration.t * (string * value ) list
-    | VTable of unit
+    | VTable of TableV.t
+
+    and parserv = {
+      pvs : (string * value) list;
+      pparams : Parameter.t list;
+      plocals : Declaration.t list;
+      states : Parser.state list;
+    }
+  
+    and controlv = {
+      cvs : (string * value) list;
+      cparams : Parameter.t list;
+      clocals : Declaration.t list;
+      apply : Block.t;
+    }
 
   and lvalue =
     | LName of string
@@ -116,16 +151,19 @@ end = struct
   end
 
 
-  and Table : sig
-    type t
+  and TableV : sig
+    type entry 
+    type t = Value.value list * entry list
     val empty : t
-    val add : unit -> unit 
-    val remove : unit -> unit 
+    val add : Value.set -> string -> t -> t
+    val table_of_entries : Table.entry list -> entry list
   end = struct 
-    type entry = unit
-    type t = entry list 
-    let empty = [] 
-    let add () = ()
-    let remove () = ()
+    type entry = Value.set * string
+    type t = Value.value list * entry list 
+    let empty = ([],[]) 
+    let add (key : Value.set) (action : string) (table : t) : t = 
+      let (a,b) = table in 
+      (a, (key, action) :: b)
+    let table_of_entries l = []
   end 
   

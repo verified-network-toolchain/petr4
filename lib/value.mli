@@ -1,8 +1,11 @@
 open Types
 
 module rec Value : sig 
+  
   type packet_in = Cstruct.t
+  
   type packet_out = Cstruct.t * Cstruct.t
+
   type value =
     | VNull
     | VBool of bool
@@ -27,10 +30,24 @@ module rec Value : sig
     | VExternFun of Parameter.t list
     | VExternObject of string * (MethodPrototype.t list)
     | VRuntime of vruntime
-    | VParser of Declaration.t * (string * value) list
-    | VControl of Declaration.t * (string * value) list
+    | VParser of parserv
+    | VControl of controlv
     | VPackage of Declaration.t * (string * value) list
-    | VTable of unit
+    | VTable of TableV.t
+
+    and parserv = {
+      pvs : (string * value) list;
+      pparams : Parameter.t list;
+      plocals : Declaration.t list;
+      states : Parser.state list;
+    }
+  
+    and controlv = {
+      cvs : (string * value) list;
+      cparams : Parameter.t list;
+      clocals : Declaration.t list;
+      apply : Block.t;
+    }
 
   and lvalue =
     | LName of string
@@ -58,9 +75,10 @@ module rec Value : sig
 
 end 
 
-and Table : sig
-  type t
+and TableV : sig
+  type entry
+  type t = Value.value list * entry list
   val empty : t
-  val add : unit -> unit 
-  val remove : unit -> unit 
+  val add : Value.set -> string -> t -> t
+  val table_of_entries : Table.entry list -> entry list
 end

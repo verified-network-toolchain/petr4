@@ -1,6 +1,6 @@
 open Types
 
-module rec Value : sig 
+module Value : sig 
   
   type packet_in = Cstruct.t
   
@@ -30,55 +30,54 @@ module rec Value : sig
     | VExternFun of Parameter.t list
     | VExternObject of string * (MethodPrototype.t list)
     | VRuntime of vruntime
-    | VParser of parserv
-    | VControl of controlv
+    | VParser of vparser
+    | VControl of vcontrol
     | VPackage of Declaration.t * (string * value) list
-    | VTable of TableV.t
+    | VTable of vtable
 
-    and parserv = {
+    and vparser = {
       pvs : (string * value) list;
       pparams : Parameter.t list;
       plocals : Declaration.t list;
       states : Parser.state list;
     }
   
-    and controlv = {
+    and vcontrol = {
       cvs : (string * value) list;
       cparams : Parameter.t list;
       clocals : Declaration.t list;
       apply : Block.t;
     }
 
-  and lvalue =
-    | LName of string
-    | LTopName of string
-    | LMember of lvalue * string
-    | LBitAccess of lvalue * Expression.t * Expression.t
-    | LArrayAccess of lvalue * Expression.t
+    and vtable = {
+      name : string;
+      keys : value list;
+      actions : Table.action_ref list;
+      const_entries : (set * Table.action_ref) list;
+    }
 
-  and set =
-    | SSingleton of Bigint.t
-    | SUniversal
-    | SMask of value * value
-    | SRange of value * value
-    | SProd of set list
+    and lvalue =
+      | LName of string
+      | LTopName of string
+      | LMember of lvalue * string
+      | LBitAccess of lvalue * Expression.t * Expression.t
+      | LArrayAccess of lvalue * Expression.t
 
-  and signal =
-    | SContinue
-    | SReturn of value
-    | SExit
-    | SReject
+    and set =
+      | SSingleton of Bigint.t
+      | SUniversal
+      | SMask of value * value
+      | SRange of value * value
+      | SProd of set list
 
-  and vruntime =
-    | PacketIn of packet_in
-    | PacketOut of packet_out
+    and signal =
+      | SContinue
+      | SReturn of value
+      | SExit
+      | SReject
 
-end 
+    and vruntime =
+      | PacketIn of packet_in
+      | PacketOut of packet_out
 
-and TableV : sig
-  type entry
-  type t = Value.value list * entry list
-  val empty : t
-  val add : Value.set -> string -> t -> t
-  val table_of_entries : Table.entry list -> entry list
 end

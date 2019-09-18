@@ -203,12 +203,36 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
             |> assert_key 
             |> List.map ~f:snd 
             |> List.map ~f:(fun k -> k.key) in
-  let (env'', ks) = List.fold_map key ~init:(env, SContinue) 
+  let ((env'',s), ks) = List.fold_map key ~init:(env', SContinue) 
                     ~f:(fun (a, b) k -> 
-                          let x,y,z = eval_expression' a b k in ((x,y),z)) in
-  let entries = List.filter props' ~f:is_entries |> List.hd_exn |> assert_entries in 
-  let v = VTable(ks,TableV.table_of_entries entries) in 
-  EvalEnv.insert_val name v env'
+                          
+                        let x,y,z = eval_expression' a b k in ((x,y),z)) in
+  let f ((w,x,y),z) = ((w,x),(y,z)) in
+  let ((env''',s'),entries) = List.filter props' ~f:is_entries 
+                |> List.hd_exn 
+                |> assert_entries
+                |> List.map ~f:snd
+                |> List.fold_map ~init:(env'',s) 
+                            ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f) in 
+  let actions = List.filter props' ~f:is_actionref
+                |> List.hd_exn
+                |> assert_actionref in
+  let v = VTable { name = name;
+                   keys = ks;
+                   actions = actions;
+                   const_entries = entries; } in 
+  EvalEnv.insert_val name v env'''
+  (* failwith "blegh" *)
+
+and is_actionref (p : Table.pre_property) : bool =
+  match p with 
+  | Actions _ -> true
+  | _ -> false 
+
+and assert_actionref (p : Table.pre_property) : Table.action_ref list =
+  match p with 
+  | Actions{actions} -> actions
+  | _ -> failwith "not an action ref list"
 
 and is_entries (p : Table.pre_property) : bool = 
   match p with 
@@ -229,7 +253,6 @@ and assert_key (p : Table.pre_property) : Table.key list =
   match p with 
   | Key{keys=ks} -> ks
   | _ -> failwith "not a key"
-
 
 and eval_header_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -405,15 +428,33 @@ and eval_app (env : EvalEnv.t) (s : signal) (v : value)
   match s with
   | SContinue ->
     begin match v with
-      | VParser {pvs;pparams;plocals;states} -> eval_parser env pparams args pvs plocals states
-      | VControl {cvs;cparams;clocals;apply} -> eval_control env cparams args cvs clocals apply
+      | VParser {pvs;pparams;plocals;states} -> 
+        eval_parser env pparams args pvs plocals states
+      | VControl {cvs;cparams;clocals;apply} -> 
+        eval_control env cparams args cvs clocals apply
+      | VTable {keys;const_entries;name;actions} -> 
+        eval_table env keys const_entries 
       | _ -> failwith "apply not implemented on type" end
   | SReject
   | SReturn _
   | SExit -> (env, s)
 
-and eval_app' (env : EvalEnv.t) (s : signal) (args : Argument.t list) (t : Type.t)
-  : EvalEnv.t * signal =
+and eval_table (env : EvalEnv.t) (key : value list)
+    (entries : (set * Table.action_ref) list) : EvalEnv.t * signal =
+  let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
+  let (_,action) = List.hd_exn l in
+  let name = Table.((snd action).name |> snd) in
+  let actionv = EvalEnv.find_val name env in
+  match actionv with 
+  | VAction(_,body) -> 
+    let (env,s,_) = eval_funcall' env [] [] body in
+    (env,s)
+  | _ -> failwith "table expects an action"
+
+  (* TODO: double check about scoping - actions before tables? *)
+
+and eval_app' (env : EvalEnv.t) (s : signal) (args : Argument.t list)
+(t : Type.t) : EvalEnv.t * signal =
   let (env', sign', v) = eval_nameless env t [] in eval_app env' sign' v args
 
 and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
@@ -2141,19 +2182,21 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
 and set_of_case (env : EvalEnv.t) (s : signal)
     (case : Parser.case) : EvalEnv.t * signal * set =
   match s with
-  | SContinue ->
-    let matches = (snd case).matches in
-    begin match matches with
-      | []  -> failwith "invalid set"
-      | [m] -> set_of_match env s m
-      | l   ->
-        let f (a,b) c =
-          let (x,y,z) = set_of_match a b c in
-          ((x,y),z) in
-        let ((env',s), l') = List.fold_map l ~init:(env,SContinue) ~f:f in
-        (env', s, SProd l') end
-  | SReject -> (env,s,SUniversal)
+  | SContinue -> set_of_matches env s (snd case).matches
+  | SReject   -> (env,s,SUniversal)
   | _ -> failwith "unreachable"
+
+and set_of_matches (env : EvalEnv.t) (s : signal)
+    (ms : Match.t list) : EvalEnv.t * signal * set =
+  match ms with 
+  | [] -> failwith "invalid set"
+  | [m] -> set_of_match env s m
+  | l -> 
+    let f (a,b) c = 
+      let (x,y,z) = set_of_match a b c in
+      ((x,y),z) in
+    let ((env',s),l') = List.fold_map l ~init:(env,SContinue) ~f:f in 
+    (env',s,SProd l')
 
 and set_of_match (env : EvalEnv.t) (s : signal)
     (m : Match.t) : EvalEnv.t * signal * set =
@@ -2270,6 +2313,8 @@ and assert_set (v : value) : set =
   match v with
   | VSet s -> s
   | VInteger i -> SSingleton i
+  | VInt (_,i) -> SSingleton i 
+  | VBit (_,i) -> SSingleton i
   | _ -> failwith "not a set"
 
 and assert_string (v : value) : string =

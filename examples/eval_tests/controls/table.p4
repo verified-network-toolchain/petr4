@@ -38,7 +38,7 @@ control MyEgress(inout head[13] hdr,
     }
 
     action set_two () {
-       standard_etadata.egress_spec = 2;
+        standard_metadata.egress_spec = 2;
     }
 
     table my_table {

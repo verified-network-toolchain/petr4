@@ -1359,12 +1359,49 @@ and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.
 and type_instantiation env typ args name =
   match snd typ with
   | TypeName (_, decl_name) ->
-     let decl = Env.find_decl decl_name env in
-     begin match decl with
-     | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.t)]
+     begin match Env.find_decl_opt decl_name env with
+     | Some decl ->
+        let instance_type =
+          begin match snd decl with
+          | Parser { params; constructor_params; _ } ->
+             check_constructor_invocation env constructor_params args;
+             let params' = translate_parameters env [] params in
+             Typed.Type.Parser { type_params = []; parameters = params' }
+          | Control { params; constructor_params; _ } ->
+             check_constructor_invocation env constructor_params args;
+             let params' = translate_parameters env [] params in
+             Typed.Type.Control { type_params = []; parameters = params' }
+          | PackageType { params; _ } ->
+             check_constructor_invocation env params args;
+             let params = translate_construct_params env [] params in
+             Typed.Type.Package {type_params = []; parameters = params}
+          | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.pre_t)]
+          end
+        in
+        Env.insert_type_of (snd (Declaration.name decl)) instance_type env
+     | None ->
+        raise_s [%message "could not find declaration" ~decl_name ~decls:(Env.all_decls env: Declaration.t list)]
      end
   | _ ->
      failwith "expected typename"
+
+and check_constructor_invocation env params args =
+  match List.zip params args with
+  | Some params_and_args ->
+     let param_matches_arg (param, arg: Types.Parameter.t * Types.Argument.t) =
+       match snd arg with
+       | Argument.Expression { value } ->
+          let arg_type = type_expression env value in
+          let param_type = translate_type env [] (snd param).typ in
+          assert_type_equality env (fst arg) arg_type param_type
+       | KeyValue _ -> failwith "key-value argument passing unimplemented"
+       | Missing -> failwith "missing argument??"
+     in
+     List.iter ~f:param_matches_arg params_and_args
+  | None ->
+     raise_s [%message "mismatch in constructor call"
+                 ~params:(params: Types.Parameter.t list)
+                 ~args:(args: Types.Argument.t list)]
 
 and type_select_case env state_names expr_types (_, case) : unit =
   let open Parser in

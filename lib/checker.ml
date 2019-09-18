@@ -127,6 +127,8 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
       Array {arr with typ = saturate_type env arr.typ}
   | Tuple {types} ->
       Tuple {types = List.map ~f:(saturate_type env) types}
+  | List {types} ->
+      List {types = List.map ~f:(saturate_type env) types}
   | Set typ ->
       Set (saturate_type env typ)
   | Header rec_typ ->
@@ -345,6 +347,20 @@ and type_equality' (env: Env.checker_env)
         | None -> false
         end
 
+    | List {types = types1}, Tuple {types = types2} ->
+       type_equality' env equiv_vars (Tuple {types = types1}) (Tuple {types = types2})
+
+    | List {types}, Struct {fields}
+    | List {types}, Header {fields} ->
+       begin match List.zip types fields with
+       | Some type_field_pairs ->
+          let ok (tuple_type, struct_field: Typed.Type.t * Typed.RecordType.field) =
+            type_equality' env equiv_vars tuple_type struct_field.typ
+          in
+          List.for_all ~f:ok type_field_pairs
+       | None -> false
+       end
+
     | Set ty1, Set ty2 ->
         type_equality' env equiv_vars ty1 ty2
 
@@ -389,6 +405,7 @@ and type_equality' (env: Env.checker_env)
     | VarBit _, _
     | Array _, _
     | Tuple _, _
+    | List _, _
     | Set _, _
     | TypeVar _, _
     | Header _, _
@@ -634,7 +651,7 @@ and type_bit_string_access _ _ _ _ =
 and type_list env values : Typed.Type.t =
   let type_valu v = type_expression env v in
   let types = List.map ~f:type_valu values in
-  Type.Tuple { types }
+  Type.List { types }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -1013,7 +1030,7 @@ and check_call env func type_args args post_check : 'a =
             begin match snd arg with
                 | Expression {value=e} -> let t = type_expression new_ctx e in
                 let pt = saturate_type new_ctx par.typ in
-                if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
+                assert_type_equality new_ctx (fst arg) t pt; true
                 | Missing ->
                 begin match par.direction with
                     | Out -> true
@@ -1244,8 +1261,13 @@ and type_switch _ _ _ =
   failwith "type_switch unimplemented"
 
 (* Section 10.3 *)
-and type_declaration_statement _ _ =
-  failwith "type_declaration_statement unimplemented"
+and type_declaration_statement (env: Env.checker_env) (decl: Declaration.t) : StmType.t * Env.checker_env =
+  match snd decl with
+  | Constant _
+  | Instantiation _
+  | Variable _ ->
+     StmType.Unit, type_declaration env decl
+  | _ -> raise_s [%message "declaration used as statement, but that's not allowed. Parser bug?" ~decl:(decl: Types.Declaration.t)]
 
 and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_env =
   let env' =

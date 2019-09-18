@@ -218,6 +218,9 @@ and Type : sig
   (* (t1, ..., tn) *)
   | Tuple of TupleType.t
 
+  (* A list expression (can be used as a Tuple or struct/header) *)
+  | List of TupleType.t
+
   (* set<t> *)
   | Set of t
 
@@ -292,6 +295,9 @@ end = struct
 
   (* (t1, ..., tn) *)
   | Tuple of TupleType.t
+
+  (* A list expression (can be used as a Tuple or struct/header) *)
+  | List of TupleType.t
 
   (* set<t> *)
   | Set of t

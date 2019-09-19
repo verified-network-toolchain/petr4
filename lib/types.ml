@@ -426,6 +426,8 @@ and Table : sig
       [@@deriving sexp,yojson]
 
       type property = pre_property info [@@deriving sexp,yojson]
+
+      val name_of_property : property -> string
     end = struct
               type pre_action_ref =
                 { annotations: Annotation.t list;
@@ -466,6 +468,13 @@ and Table : sig
               [@@deriving sexp,yojson]
 
               type property = pre_property info [@@deriving sexp,yojson]
+
+              let name_of_property p =
+                match snd p with
+                | Key _ -> "key"
+                | Actions _ -> "actions"
+                | Entries _ -> "entries"
+                | Custom {name; _} -> snd name
             end
 
 and Match : sig

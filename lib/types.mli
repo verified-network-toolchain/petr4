@@ -248,6 +248,8 @@ and Table : sig
   [@@deriving sexp,yojson]
 
   type property = pre_property info [@@deriving sexp,yojson]
+
+  val name_of_property : property -> string
 end
 
 and Match : sig 

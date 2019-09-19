@@ -14,9 +14,7 @@
 *)
 
 open Core
-
-(* Type of context *)
-module StringMap = Map.Make(String)
+open Util
 
 type t = (bool StringMap.t) list [@@deriving sexp]
 

@@ -13,6 +13,8 @@
  * under the License. 
  *)
 
+module StringMap : Core.Map.S with type Key.t = string
+
 type ('a,'b) alternative = 
     Left of 'a 
   | Right of 'b

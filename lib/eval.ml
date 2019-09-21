@@ -446,9 +446,9 @@ and eval_table (env : EvalEnv.t) (key : value list)
   let name = Table.((snd action).name |> snd) in
   let actionv = EvalEnv.find_val name env in
   match actionv with 
-  | VAction(_,body) -> 
-    let (env,s,_) = eval_funcall' env [] [] body in
-    (env,s)
+  | VAction(_,body) ->
+    let (env',s,_) = eval_funcall' env [] [] body in
+    (env',s)
   | _ -> failwith "table expects an action"
 
   (* TODO: double check about scoping - actions before tables? *)
@@ -1496,6 +1496,10 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (body : Block.t) : EvalEnv.t * signal * value =
   let (env', fenv, s) = copyin env params args in
   let (fenv', sign) = eval_block fenv SContinue body in
+  begin match value_of_lvalue fenv' (LMember(LName("standard_metadata"), "egress_spec")) with 
+    | _,VBit(_,n) 
+    | _,VInteger n -> if Bigint.(n = one + one) then () else failwith "not two"
+    | _ -> failwith "not a bitstring" end;
   let final_env = copyout env' fenv' params args in
   match sign with
   | SReject -> (env, SReject, VNull)
@@ -1521,7 +1525,7 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
       | _,SReject -> ((env',s),(n,VNull))
       | _ -> failwith "unreachable") in
   let ((env',s),arg_vals) = List.fold_mapi args ~f:f ~init:(env,SContinue) in
-  let fenv = EvalEnv.push_scope (EvalEnv.get_toplevel env') in
+  let fenv = EvalEnv.push_scope env' in
   let g e (p : Parameter.t) (n,v) =
     let name = n in
     let v' = match v with

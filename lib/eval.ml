@@ -217,12 +217,46 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
+  let default = List.filter props' ~f:is_default
+                |> default_of_defaults in 
   let v = VTable { name = name;
                    keys = ks;
                    actions = actions;
+                   default_action = default;
                    const_entries = entries; } in 
   EvalEnv.insert_val name v env'''
   (* failwith "blegh" *)
+
+and is_default (p : Table.pre_property) : bool =
+  match p with 
+  | Custom {name=(_,"default_action");_} -> true 
+  | _ -> false
+
+and default_of_defaults 
+    (p : Table.pre_property list) : Table.action_ref =
+  let pre = match p with 
+            | [] -> 
+              Table.{ annotations = []; 
+                      name = (Info.dummy,"NoAction"); 
+                      args = [] }
+            | (Custom {value;_}) :: _ -> 
+              let (s,args) = assert_functioncall value in 
+              Table.{ annotations = [];
+                      name = (Info.dummy,s);
+                      args = args }
+            | _ -> failwith "unreachable" in 
+  (Info.dummy,pre)
+
+and assert_functioncall (e : Expression.t) : string * Argument.t list =
+  match snd e with
+  | FunctionCall {func;args;_} ->
+    let f' = func |> assert_ename in (f',args)
+  | _ -> failwith "expression not a function call" 
+
+and assert_ename (e : Expression.t) : string =
+  match snd e with 
+  | Name (_,n) -> n 
+  | _ -> failwith "expression not a string"
 
 and is_actionref (p : Table.pre_property) : bool =
   match p with 
@@ -432,17 +466,20 @@ and eval_app (env : EvalEnv.t) (s : signal) (v : value)
         eval_parser env pparams args pvs plocals states
       | VControl {cvs;cparams;clocals;apply} -> 
         eval_control env cparams args cvs clocals apply
-      | VTable {keys;const_entries;name;actions} -> 
-        eval_table env keys const_entries 
+      | VTable {keys;const_entries;name;actions;default_action} -> 
+        eval_table env keys const_entries default_action
       | _ -> failwith "apply not implemented on type" end
   | SReject
   | SReturn _
   | SExit -> (env, s)
 
 and eval_table (env : EvalEnv.t) (key : value list)
-    (entries : (set * Table.action_ref) list) : EvalEnv.t * signal =
+    (entries : (set * Table.action_ref) list)
+    (default : Table.action_ref) : EvalEnv.t * signal =
   let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
-  let (_,action) = List.hd_exn l in
+  let action = match l with 
+               | [] -> default 
+               | _ -> List.hd_exn l |> snd in
   let name = Table.((snd action).name |> snd) in
   let actionv = EvalEnv.find_val name env in
   match actionv with 

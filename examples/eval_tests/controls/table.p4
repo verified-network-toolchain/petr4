@@ -44,8 +44,11 @@ control MyEgress(inout head[13] hdr,
     table my_table {
         key = { standard_metadata.egress_spec : exact; }
         actions = { set_one; set_two; }
-        default_action = set_one;
-        const entries = { 9w0 : set_two; }
+        default_action = set_two();
+        const entries = { 
+            9w2 : set_two;
+            9w1 : set_one;
+            }
     }
 
     apply {

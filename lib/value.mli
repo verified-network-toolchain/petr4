@@ -53,6 +53,7 @@ module Value : sig
       name : string;
       keys : value list;
       actions : Table.action_ref list;
+      default_action : Table.action_ref;
       const_entries : (set * Table.action_ref) list;
     }
 

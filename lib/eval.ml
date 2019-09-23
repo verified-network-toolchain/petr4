@@ -194,97 +194,97 @@ and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t lis
     (body : Block.t) : EvalEnv.t  =
   EvalEnv.insert_val name (VAction(params, body)) env
 
-and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t) 
-    (props : Table.property list) : EvalEnv.t = 
-  let props' = List.map props ~f:snd in 
+and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
+    (props : Table.property list) : EvalEnv.t =
+  let props' = List.map props ~f:snd in
   let env' = EvalEnv.insert_decl name decl env in
-  let key = List.filter props' ~f:is_key 
-            |> List.hd_exn 
-            |> assert_key 
-            |> List.map ~f:snd 
+  let key = List.filter props' ~f:is_key
+            |> List.hd_exn
+            |> assert_key
+            |> List.map ~f:snd
             |> List.map ~f:(fun k -> k.key) in
-  let ((env'',s), ks) = List.fold_map key ~init:(env', SContinue) 
-                    ~f:(fun (a, b) k -> 
-                          
+  let ((env'',s), ks) = List.fold_map key ~init:(env', SContinue)
+                    ~f:(fun (a, b) k ->
+
                         let x,y,z = eval_expression' a b k in ((x,y),z)) in
   let f ((w,x,y),z) = ((w,x),(y,z)) in
-  let ((env''',s'),entries) = List.filter props' ~f:is_entries 
-                |> List.hd_exn 
+  let ((env''',s'),entries) = List.filter props' ~f:is_entries
+                |> List.hd_exn
                 |> assert_entries
                 |> List.map ~f:snd
-                |> List.fold_map ~init:(env'',s) 
-                            ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f) in 
+                |> List.fold_map ~init:(env'',s)
+                            ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f) in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
   let default = List.filter props' ~f:is_default
-                |> default_of_defaults in 
+                |> default_of_defaults in
   let v = VTable { name = name;
                    keys = ks;
                    actions = actions;
                    default_action = default;
-                   const_entries = entries; } in 
+                   const_entries = entries; } in
   EvalEnv.insert_val name v env'''
   (* failwith "blegh" *)
 
 and is_default (p : Table.pre_property) : bool =
-  match p with 
-  | Custom {name=(_,"default_action");_} -> true 
+  match p with
+  | Custom {name=(_,"default_action");_} -> true
   | _ -> false
 
-and default_of_defaults 
+and default_of_defaults
     (p : Table.pre_property list) : Table.action_ref =
-  let pre = match p with 
-            | [] -> 
-              Table.{ annotations = []; 
-                      name = (Info.dummy,"NoAction"); 
+  let pre = match p with
+            | [] ->
+              Table.{ annotations = [];
+                      name = (Info.dummy,"NoAction");
                       args = [] }
-            | (Custom {value;_}) :: _ -> 
-              let (s,args) = assert_functioncall value in 
+            | (Custom {value;_}) :: _ ->
+              let (s,args) = assert_functioncall value in
               Table.{ annotations = [];
                       name = (Info.dummy,s);
                       args = args }
-            | _ -> failwith "unreachable" in 
+            | _ -> failwith "unreachable" in
   (Info.dummy,pre)
 
 and assert_functioncall (e : Expression.t) : string * Argument.t list =
   match snd e with
   | FunctionCall {func;args;_} ->
     let f' = func |> assert_ename in (f',args)
-  | _ -> failwith "expression not a function call" 
+  | _ -> failwith "expression not a function call"
 
 and assert_ename (e : Expression.t) : string =
-  match snd e with 
-  | Name (_,n) -> n 
+  match snd e with
+  | Name (_,n) -> n
   | _ -> failwith "expression not a string"
 
 and is_actionref (p : Table.pre_property) : bool =
-  match p with 
+  match p with
   | Actions _ -> true
-  | _ -> false 
+  | _ -> false
 
 and assert_actionref (p : Table.pre_property) : Table.action_ref list =
-  match p with 
+  match p with
   | Actions{actions} -> actions
   | _ -> failwith "not an action ref list"
 
-and is_entries (p : Table.pre_property) : bool = 
-  match p with 
-  | Entries _ -> true 
-  | _ -> false 
+and is_entries (p : Table.pre_property) : bool =
+  match p with
+  | Entries _ -> true
+  | _ -> false
 
-and assert_entries (p : Table.pre_property) : Table.entry list = 
-  match p with 
-  | Entries{entries=es} -> es 
+and assert_entries (p : Table.pre_property) : Table.entry list =
+  match p with
+  | Entries{entries=es} -> es
   | _ -> failwith "not an entries"
 
 and is_key (p : Table.pre_property) : bool =
-  match p with 
-  | Key _ -> true 
-  | _ -> false 
+  match p with
+  | Key _ -> true
+  | _ -> false
 
-and assert_key (p : Table.pre_property) : Table.key list = 
-  match p with 
+and assert_key (p : Table.pre_property) : Table.key list =
+  match p with
   | Key{keys=ks} -> ks
   | _ -> failwith "not a key"
 
@@ -458,41 +458,51 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
   | SExit     -> (env, s)
 
 and eval_app (env : EvalEnv.t) (s : signal) (v : value)
-  (args : Argument.t list) : EvalEnv.t * signal =
+  (args : Argument.t list) : EvalEnv.t * signal * value =
   match s with
   | SContinue ->
     begin match v with
-      | VParser {pvs;pparams;plocals;states} -> 
-        eval_parser env pparams args pvs plocals states
-      | VControl {cvs;cparams;clocals;apply} -> 
-        eval_control env cparams args cvs clocals apply
-      | VTable {keys;const_entries;name;actions;default_action} -> 
-        eval_table env keys const_entries default_action
+      | VParser {pvs;pparams;plocals;states} ->
+        let (env, s) = eval_parser env pparams args pvs plocals states in
+        (env,s,VNull)
+      | VControl {cvs;cparams;clocals;apply} ->
+        let (env,s) = eval_control env cparams args cvs clocals apply in
+        (env,s,VNull)
+      | VTable {keys;const_entries;name;actions;default_action} ->
+        eval_table env keys const_entries name actions default_action
       | _ -> failwith "apply not implemented on type" end
   | SReject
   | SReturn _
-  | SExit -> (env, s)
+  | SExit -> (env, s, VNull)
 
 and eval_table (env : EvalEnv.t) (key : value list)
     (entries : (set * Table.action_ref) list)
-    (default : Table.action_ref) : EvalEnv.t * signal =
+    (name : string) (actions : Table.action_ref list)
+    (default : Table.action_ref) : EvalEnv.t * signal * value =
   let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
-  let action = match l with 
-               | [] -> default 
+  let action = match l with
+               | [] -> default
                | _ -> List.hd_exn l |> snd in
-  let name = Table.((snd action).name |> snd) in
-  let actionv = EvalEnv.find_val name env in
-  match actionv with 
-  | VAction(_,body) ->
-    let (env',s,_) = eval_funcall' env [] [] body in
-    (env',s)
+  let action_name = Table.((snd action).name |> snd) in
+  let actionv = EvalEnv.find_val action_name env in
+  let args = Table.((snd action).args) in
+  match actionv with
+  | VAction(params,body) ->
+    let (env',s,_) = eval_funcall' env params args body in
+    let v = VStruct ("", [
+                          ("hit", VBool (not (List.is_empty l)));
+                          ("action_run", VEnumField (name, action_name))
+                         ]) in
+    (env',s,v)
   | _ -> failwith "table expects an action"
 
   (* TODO: double check about scoping - actions before tables? *)
 
 and eval_app' (env : EvalEnv.t) (s : signal) (args : Argument.t list)
 (t : Type.t) : EvalEnv.t * signal =
-  let (env', sign', v) = eval_nameless env t [] in eval_app env' sign' v args
+  let (env', sign', v) = eval_nameless env t [] in
+  let (env'', sign'',_) = eval_app env' sign' v args in
+  (env'',sign'')
 
 and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     (tru : Statement.t) (fls : Statement.t option) : EvalEnv.t * signal =
@@ -995,8 +1005,8 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VExternObject _     -> failwith "expr member unimplemented"
       | VParser _
       | VControl _          -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
-      | VPackage _          -> failwith "expr member unimplemented" 
-    | VTable _            -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr)) end
+      | VPackage _          -> failwith "expr member unimplemented"
+      | VTable _            -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr)) end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
@@ -1046,7 +1056,7 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
       let state = env' |> EvalEnv.get_val_firstlevel |> List.rev in
       (EvalEnv.pop_scope env', s, VPackage((info, decl), state))
     | _ -> failwith "instantiation unimplemented" in
-  match s with 
+  match s with
   | SContinue -> (env',s,v)
   | SReject -> (env,s,VNull)
   | _ -> failwith "nameless should not return or exit"
@@ -1587,12 +1597,7 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let env = EvalEnv.pop_scope fenv in
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None ->
-      let v = EvalEnv.find_val (snd (snd p).variable) fenv in
-      begin match snd a with
-        | Argument.Expression {value=expr}
-        | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
-        | Argument.Missing -> e end
+    | None -> e
     | Some x -> begin match snd x with
         | InOut
         | Out ->
@@ -1622,9 +1627,7 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "length"     -> eval_length env lv
   | "lookahead"  -> eval_lookahead env lv ts
   | "advance"    -> eval_advance env lv args
-  | "apply"      -> let (s,v) = value_of_lvalue env lv in
-                    let (env', s) = eval_app env s v args in
-                    (env', s, VNull)
+  | "apply"      -> let (s,v) = value_of_lvalue env lv in eval_app env s v args
   | "verify"     -> eval_verify env args
   | _ -> failwith "builtin unimplemented"
 
@@ -2226,14 +2229,14 @@ and set_of_case (env : EvalEnv.t) (s : signal)
 
 and set_of_matches (env : EvalEnv.t) (s : signal)
     (ms : Match.t list) : EvalEnv.t * signal * set =
-  match ms with 
+  match ms with
   | [] -> failwith "invalid set"
   | [m] -> set_of_match env s m
-  | l -> 
-    let f (a,b) c = 
+  | l ->
+    let f (a,b) c =
       let (x,y,z) = set_of_match a b c in
       ((x,y),z) in
-    let ((env',s),l') = List.fold_map l ~init:(env,SContinue) ~f:f in 
+    let ((env',s),l') = List.fold_map l ~init:(env,SContinue) ~f:f in
     (env',s,SProd l')
 
 and set_of_match (env : EvalEnv.t) (s : signal)
@@ -2351,7 +2354,7 @@ and assert_set (v : value) : set =
   match v with
   | VSet s -> s
   | VInteger i -> SSingleton i
-  | VInt (_,i) -> SSingleton i 
+  | VInt (_,i) -> SSingleton i
   | VBit (_,i) -> SSingleton i
   | _ -> failwith "not a set"
 
@@ -2641,7 +2644,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
   let std_meta_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
-  let (env, state) =
+  let (env, state, _) =
     eval_app env SContinue parser [pckt_expr; hdr_expr; meta_expr; std_meta_expr] in
   let err = EvalEnv.get_error env in
   let env = if state = SReject
@@ -2667,7 +2670,8 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
 
 and eval_v1control (control : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t * signal =
-  eval_app env SContinue control args
+  let (env,s,_) = eval_app env SContinue control args in
+  (env,s)
 
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)
@@ -2677,8 +2681,8 @@ let eval_expression env expr =
   let (a,b,c) = eval_expression' env SContinue expr in
   (a,c)
 
-let hex_of_nibble (i : int) : string = 
-  match i with 
+let hex_of_nibble (i : int) : string =
+  match i with
   | 0 -> "0"
   | 1 -> "1"
   | 2 -> "2"
@@ -2704,9 +2708,9 @@ let hex_of_char (c : char) : string =
   c |> Char.to_int |> hex_of_int
 
 let hex_of_string (s : string) : string =
-  s 
-  |> String.to_list 
-  |> List.map ~f:hex_of_char 
+  s
+  |> String.to_list
+  |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
 let eval_program (p : Types.program) (pack : packet_in) : unit =
@@ -2716,7 +2720,7 @@ let eval_program (p : Types.program) (pack : packet_in) : unit =
     Format.printf "Done\n";
     let packetout = eval_main env pack in
     print_string "Resulting packet: ";
-    packetout 
-    |> Cstruct.to_string 
-    |> hex_of_string 
+    packetout
+    |> Cstruct.to_string
+    |> hex_of_string
     |> print_endline

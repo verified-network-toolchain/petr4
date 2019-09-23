@@ -989,25 +989,25 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
   let (info ,decl) = decl_of_typ env typ in
   let (env',s,v) = match decl with
     | Control typ_decl ->
-      let (env',state,s) = copyin env typ_decl.constructor_params args in
-      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-      let v' = VControl { cvs = state';
+      let (env',s) = copyin env typ_decl.constructor_params args in
+      let state = env' |> EvalEnv.get_val_firstlevel |> List.rev in
+      let v' = VControl { cvs = state;
                           cparams = typ_decl.params;
                           clocals = typ_decl.locals;
                           apply = typ_decl.apply; } in
-      (env',s,v')
+      (EvalEnv.pop_scope env',s,v')
     | Parser typ_decl ->
-      let (env',state,s) = copyin env typ_decl.constructor_params args in
-      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-      let v' = VParser { pvs = state';
+      let (env',s) = copyin env typ_decl.constructor_params args in
+      let state = env' |> EvalEnv.get_val_firstlevel |> List.rev in
+      let v' = VParser { pvs = state;
                          pparams = typ_decl.params;
                          plocals = typ_decl.locals;
                          states = typ_decl.states; } in
-      (env',s,v')
+      (EvalEnv.pop_scope env',s,v')
     | PackageType pack_decl ->
-      let (env', state,s) = copyin env pack_decl.params args in
-      let state' = state |> EvalEnv.get_val_firstlevel |> List.rev in
-      (env', s, VPackage((info, decl), state'))
+      let (env',s) = copyin env pack_decl.params args in
+      let state = env' |> EvalEnv.get_val_firstlevel |> List.rev in
+      (EvalEnv.pop_scope env', s, VPackage((info, decl), state))
     | _ -> failwith "instantiation unimplemented" in
   match s with 
   | SContinue -> (env',s,v)
@@ -1494,21 +1494,17 @@ and eval_packet_out_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
 
 and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (body : Block.t) : EvalEnv.t * signal * value =
-  let (env', fenv, s) = copyin env params args in
+  let (fenv, s) = copyin env params args in
   let (fenv', sign) = eval_block fenv SContinue body in
-  begin match value_of_lvalue fenv' (LMember(LName("standard_metadata"), "egress_spec")) with 
-    | _,VBit(_,n) 
-    | _,VInteger n -> if Bigint.(n = one + one) then () else failwith "not two"
-    | _ -> failwith "not a bitstring" end;
-  let final_env = copyout env' fenv' params args in
+  let final_env = copyout fenv' params args in
   match sign with
-  | SReject -> (env, SReject, VNull)
+  | SReject -> (final_env, SReject, VNull)
   | SReturn v -> (final_env, SContinue, v)
   | SContinue -> (final_env, SContinue, VNull)
   | SExit -> (final_env, SExit, VNull)
 
 and copyin (env : EvalEnv.t) (params : Parameter.t list)
-    (args : Argument.t list) : EvalEnv.t * EvalEnv.t * signal =
+    (args : Argument.t list) : EvalEnv.t * signal =
   let f i (env,sign) e =
     Parameter.(
       let p = snd (List.nth_exn params i) in
@@ -1524,8 +1520,8 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
       | SReject, _ -> ((env,sign),(n,VNull))
       | _,SReject -> ((env',s),(n,VNull))
       | _ -> failwith "unreachable") in
-  let ((env',s),arg_vals) = List.fold_mapi args ~f:f ~init:(env,SContinue) in
-  let fenv = EvalEnv.push_scope env' in
+  let fenv = EvalEnv.push_scope env in
+  let ((fenv',s),arg_vals) = List.fold_mapi args ~f:f ~init:(fenv,SContinue) in
   let g e (p : Parameter.t) (n,v) =
     let name = n in
     let v' = match v with
@@ -1543,14 +1539,15 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
           |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
           |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
         | Out -> e end in
-  let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:g in
+  let fenv' = List.fold2_exn params arg_vals ~init:fenv' ~f:g in
   match s with
-  | SContinue -> (env', fenv',s)
-  | SReject -> (env',fenv',s)
+  | SContinue -> (fenv',s)
+  | SReject -> (fenv',s)
   | _ -> failwith " unreachable"
 
-and copyout (env : EvalEnv.t) (fenv : EvalEnv.t)
-    (params : Parameter.t list) (args : Argument.t list) : EvalEnv.t =
+and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
+    (args : Argument.t list) : EvalEnv.t =
+  let env = EvalEnv.pop_scope fenv in
   let h e (p:Parameter.t) a =
     match (snd p).direction with
     | None ->
@@ -2118,7 +2115,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
 and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
     (locals : Declaration.t list) (states : Parser.state list) : EvalEnv.t * signal =
-  let (env', penv, s) = copyin env params args in
+  let (penv, s) = copyin env params args in
   match s with
   | SContinue ->
     let f a (x,y) = EvalEnv.insert_val x y a in
@@ -2127,8 +2124,8 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
-    (copyout env' penv''' params args, final_state)
-  | SReject -> (env', SReject)
+    (copyout penv''' params args, final_state)
+  | SReject -> (EvalEnv.pop_scope penv, SReject)
   | _ -> failwith "unreachable"
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
@@ -2260,7 +2257,7 @@ and values_match_prod (vs : value list) (l : set list) : bool =
 and eval_control (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) (vs : (string * value) list)
     (locals : Declaration.t list) (apply : Block.t) : EvalEnv.t * signal =
-  let (env', cenv,_) = copyin env params args in
+  let (cenv,_) = copyin env params args in
   let f a (x,y) = EvalEnv.insert_val x y a in
   let cenv' = List.fold_left vs ~init:cenv ~f:f in
   let cenv'' = List.fold_left locals ~init:cenv' ~f:eval_decl in
@@ -2268,7 +2265,7 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
   let (cenv''', sign) = eval_statement cenv'' SContinue block in
   match sign with
   | SContinue
-  | SExit     -> (copyout env' cenv''' params args, sign)
+  | SExit     -> (copyout cenv''' params args, sign)
   | SReject   -> failwith "control should not reject"
   | SReturn _ -> failwith "control should not return"
 

@@ -993,19 +993,19 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VMatchKind
       | VFun _
       | VBuiltinFun _
-      | VAction _           -> failwith "expr member does not exist"
+      | VAction _
+      | VEnumField _
+      | VSenumField _
+      | VExternFun _
+      | VPackage _          -> failwith "expr member does not exist"
       | VStruct (_,fs)      -> eval_struct_mem env' (snd name) fs
       | VHeader (_,fs,vbit) -> eval_header_mem env' (snd name) expr fs vbit
       | VUnion (_,v,_)      -> (env', SContinue, v)
       | VStack (_,hdrs,s,n) -> eval_stack_mem env' (snd name) expr hdrs s n
       | VRuntime v          -> eval_runtime_mem env' (snd name) expr v
-      | VEnumField _
-      | VSenumField _
-      | VExternFun _
       | VExternObject _     -> failwith "expr member unimplemented"
       | VParser _
       | VControl _          -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
-      | VPackage _          -> failwith "expr member unimplemented"
       | VTable _            -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr)) end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"

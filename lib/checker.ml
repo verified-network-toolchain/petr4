@@ -1101,12 +1101,34 @@ and type_function_call env func type_args args =
   in
   check_call env func type_args args post_check |> fst
 
-
-
 (* Section 14.1 *)
 and type_nameless_instantiation env typ args =
-  (* TODO check that args are right *)
-  translate_type env [] typ
+  match snd typ with
+  | TypeName (_, decl_name) ->
+     begin match Env.find_decl_opt decl_name env with
+     | Some decl ->
+        begin match snd decl with
+        | Parser { params; constructor_params; _ } ->
+           let params = translate_parameters env [] params in
+           let constructor_params = translate_construct_params env [] constructor_params in
+           check_constructor_invocation env constructor_params args;
+           Typed.Type.Parser { type_params = []; parameters = params }
+        | Control { params; constructor_params; _ } ->
+           let params = translate_parameters env [] params in
+           let constructor_params = translate_construct_params env [] constructor_params in
+           check_constructor_invocation env constructor_params args;
+           Typed.Type.Control { type_params = []; parameters = params }
+        | PackageType { params; _ } ->
+           let params = translate_construct_params env [] params in
+           check_constructor_invocation env params args;
+           Typed.Type.Package {type_params = []; parameters = params}
+        | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.pre_t)]
+        end
+     | None ->
+        raise_s [%message "could not find declaration" ~decl_name ~decls:(Env.all_decls env: Declaration.t list)]
+     end
+  | _ ->
+     failwith "expected typename"
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =
@@ -1194,8 +1216,20 @@ and type_assignment env lhs rhs =
   (Unit, env)
 
 (* Section 13.1 desugar and resugar the exceptions*)
-and type_direct_application _ _ _ =
-  failwith "type_direct_application unimplemented"
+and type_direct_application env typ args =
+  let instance_type = type_nameless_instantiation env typ [] in
+  type_apply env instance_type args
+
+and type_apply env instance_type args =
+  let params =
+    match instance_type with
+    | Control {parameters; type_params = []}
+    | Parser {parameters; type_params = []} ->
+       parameters
+    | _ -> failwith "objects of this type have no .apply() method"
+  in
+  let _ = params in
+  failwith "unimplemented"
 
 (* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean
@@ -1352,35 +1386,8 @@ and insert_params (env: Env.checker_env) (params: Types.Parameter.t list) : Env.
 
 (* Section 10.3 *)
 and type_instantiation env typ args name =
-  match snd typ with
-  | TypeName (_, decl_name) ->
-     begin match Env.find_decl_opt decl_name env with
-     | Some decl ->
-        let instance_type =
-          begin match snd decl with
-          | Parser { params; constructor_params; _ } ->
-             let params = translate_parameters env [] params in
-             let constructor_params = translate_construct_params env [] constructor_params in
-             check_constructor_invocation env constructor_params args;
-             Typed.Type.Parser { type_params = []; parameters = params }
-          | Control { params; constructor_params; _ } ->
-             let params = translate_parameters env [] params in
-             let constructor_params = translate_construct_params env [] constructor_params in
-             check_constructor_invocation env constructor_params args;
-             Typed.Type.Control { type_params = []; parameters = params }
-          | PackageType { params; _ } ->
-             let params = translate_construct_params env [] params in
-             check_constructor_invocation env params args;
-             Typed.Type.Package {type_params = []; parameters = params}
-          | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.pre_t)]
-          end
-        in
-        Env.insert_type_of (snd (Declaration.name decl)) instance_type env
-     | None ->
-        raise_s [%message "could not find declaration" ~decl_name ~decls:(Env.all_decls env: Declaration.t list)]
-     end
-  | _ ->
-     failwith "expected typename"
+  let instance_type = type_nameless_instantiation env typ args in
+  Env.insert_type_of (snd name) instance_type env
 
 and check_constructor_invocation env params args =
   match List.zip params args with

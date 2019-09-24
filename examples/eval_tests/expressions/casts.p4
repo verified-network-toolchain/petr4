@@ -9,6 +9,12 @@ const int<4> g = 24; //-8
 typedef bit<32> u32;
 const u32 h = 5;
 const bit<32> i = (bit<32>) h;
+const int<32> j = (int<32>) h;
+const u32 k = (u32) 5;
+
+type int<32> s32;
+const int<32> k = 6;
+const s32 l = (s32) k;
 
 package EmptyPackage();
 EmptyPackage() main;

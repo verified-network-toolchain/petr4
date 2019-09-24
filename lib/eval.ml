@@ -948,6 +948,7 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
     | Bool -> (env', SContinue, bool_of_val v)
     | BitType e -> bit_of_val env' e v
     | IntType e -> int_of_val env' e v
+    | TypeName (_,n) -> (env', s, v)
     | _ -> failwith "type cast unimplemented" in
   match (s,s') with
   | SContinue,SContinue -> (env'',s,v')

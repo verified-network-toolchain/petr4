@@ -180,16 +180,12 @@ end
 
 and ActionType : sig
   type t =
-  { name: string;
-    parameters: Parameter.t list;
-    action_params: ConstructParam.t list}
-    [@@deriving sexp]
+    { parameters: Parameter.t list }
+      [@@deriving sexp]
 end = struct
   type t =
-  { name: string;
-    parameters: Parameter.t list;
-    action_params: ConstructParam.t list}
-    [@@deriving sexp]
+    { parameters: Parameter.t list }
+      [@@deriving sexp]
 end
 
 and Type : sig

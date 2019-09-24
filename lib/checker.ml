@@ -109,9 +109,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
      parameters = List.map ~f:(saturate_param env) fn.parameters;
      return = saturate_type env fn.return}
   and saturate_action env (action: ActionType.t) : ActionType.t =
-    {action with
-     parameters = List.map ~f:(saturate_param env) action.parameters;
-     action_params = List.map ~f:(saturate_construct_param env) action.action_params}
+    { parameters = List.map ~f:(saturate_param env) action.parameters }
   in
   match typ with
   | TypeName typ ->
@@ -245,10 +243,7 @@ and function_type_equality env equiv_vars func1 func2 : bool =
 
 and action_type_equality env equiv_vars action1 action2 : bool =
   let open ActionType in
-  let params_equal = params_equality env equiv_vars action1.parameters action2.parameters in
-  let action_params_equal = constructor_params_equality env equiv_vars action1.action_params action2.action_params in
-  let names_equal = action1.name = action2.name in
-  params_equal && action_params_equal && names_equal
+  params_equality env equiv_vars action1.parameters action2.parameters
 
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
@@ -1364,16 +1359,18 @@ and type_instantiation env typ args name =
         let instance_type =
           begin match snd decl with
           | Parser { params; constructor_params; _ } ->
+             let params = translate_parameters env [] params in
+             let constructor_params = translate_construct_params env [] constructor_params in
              check_constructor_invocation env constructor_params args;
-             let params' = translate_parameters env [] params in
-             Typed.Type.Parser { type_params = []; parameters = params' }
+             Typed.Type.Parser { type_params = []; parameters = params }
           | Control { params; constructor_params; _ } ->
+             let params = translate_parameters env [] params in
+             let constructor_params = translate_construct_params env [] constructor_params in
              check_constructor_invocation env constructor_params args;
-             let params' = translate_parameters env [] params in
-             Typed.Type.Control { type_params = []; parameters = params' }
+             Typed.Type.Control { type_params = []; parameters = params }
           | PackageType { params; _ } ->
-             check_constructor_invocation env params args;
              let params = translate_construct_params env [] params in
+             check_constructor_invocation env params args;
              Typed.Type.Package {type_params = []; parameters = params}
           | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.pre_t)]
           end
@@ -1388,19 +1385,18 @@ and type_instantiation env typ args name =
 and check_constructor_invocation env params args =
   match List.zip params args with
   | Some params_and_args ->
-     let param_matches_arg (param, arg: Types.Parameter.t * Types.Argument.t) =
+     let param_matches_arg (param, arg: Typed.ConstructParam.t * Types.Argument.t) =
        match snd arg with
        | Argument.Expression { value } ->
           let arg_type = type_expression env value in
-          let param_type = translate_type env [] (snd param).typ in
-          assert_type_equality env (fst arg) arg_type param_type
+          assert_type_equality env (fst arg) arg_type param.typ
        | KeyValue _ -> failwith "key-value argument passing unimplemented"
        | Missing -> failwith "missing argument??"
      in
      List.iter ~f:param_matches_arg params_and_args
   | None ->
      raise_s [%message "mismatch in constructor call"
-                 ~params:(params: Types.Parameter.t list)
+                 ~params:(params: Typed.ConstructParam.t list)
                  ~args:(args: Types.Argument.t list)]
 
 and type_select_case env state_names expr_types (_, case) : unit =
@@ -1447,8 +1443,8 @@ and type_parser_state env state_names (state: Parser.state) : unit =
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
   let env' = insert_params env constructor_params in
-  let env' = insert_params env' params in
   let env' = List.fold_left ~f:type_declaration ~init:env' locals in
+  let env' = insert_params env' params in
   let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
@@ -1465,10 +1461,21 @@ and type_parser env name params constructor_params locals states =
   List.iter ~f:(type_parser_state env' state_names) states;
   env
 
+and open_control_scope env params constructor_params locals =
+  (*TODO check that params and constructor params are well-formed *)
+  let env' = insert_params env constructor_params in
+  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
+  let env' = insert_params env' params in
+  env'
+
 (* Section 13 *)
-and type_control env _ _ _ _ _ _ =
-  (* TODO implement type_control *)
-  env
+and type_control env name type_params params constructor_params locals apply =
+  if List.length type_params > 0
+  then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
+  else 
+    let env' = open_control_scope env params constructor_params locals in
+    let _ = type_block_statement env' apply in
+    env
 
 (* Section 9
 
@@ -1589,8 +1596,6 @@ and type_action env name params body =
       end
       end in
  let ((ps,aps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
-  let ps = List.rev ps in
-  let aps = List.rev aps in
   let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
     begin match prev_type with
     | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
@@ -1604,17 +1609,80 @@ and type_action env name params body =
         end
       | _ -> (st, new_env)
       end
-    end in
+    end
+  in
   let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
-  let open ActionType in
-  let action_type = Type.Action { name=snd name;
-                    parameters=ps;
-                    action_params=aps} in
-  Env.insert_type_of (snd name) action_type env
+  env
 
 (* Section 13.2 *)
-and type_table env _ _ =
-  env
+and type_table env name properties =
+  type_table' env name None [] (List.map ~f:snd properties)
+
+and type_keys env keys =
+  let type_key (key: Types.Table.key) =
+    let {key; match_kind; _}: Table.pre_key = snd key in
+    match Env.find_type_of_opt (snd match_kind) env with
+    | Some (MatchKind, _) ->
+       type_expression env key
+    | _ ->
+       raise_s [%message "invalid match_kind" ~match_kind:(snd match_kind)]
+  in
+  List.map ~f:type_key keys
+
+and type_table_actions env key_types actions =
+  let type_table_action (_, action: Table.action_ref) =
+    match Env.find_decl_opt (snd action.name) env with
+    | Some (_, Action action_decl) ->
+       type_action_instantiation env action_decl.params action.args
+    | _ ->
+       raise_s [%message "invalid action" ~action:(snd action.name)]
+  in
+  List.map ~f:type_table_action actions
+
+and type_table' env name key_types action_types properties =
+  match properties with
+  | Key { keys } :: rest ->
+     begin match key_types with
+     | None -> type_table' env name (Some (type_keys env keys)) action_types rest
+     | Some key_types -> raise_s [%message "multiple key properties in table?" ~name:(snd name)]
+     end
+  | Actions { actions } :: rest ->
+     begin match key_types with
+     | None -> raise_s [%message "key property must be defined before actions" ~table:(snd name)]
+     | Some kts -> 
+        let action_types = type_table_actions env kts actions in
+        type_table' env name key_types action_types rest
+     end
+  | Entries { entries } :: rest -> failwith ""
+  | Custom { name = (_, "default_action"); _ } :: rest -> failwith ""
+  | Custom { name = (_, "size"); _ } :: rest -> failwith ""
+  | Custom _ :: rest -> failwith "custom table properties not supported"
+  | [] -> failwith "no properties for table?"
+
+and type_action_instantiation env (action_params: Types.Parameter.t list) action_args =
+  match action_params, action_args with
+  | (_, { direction = None; _ }) :: _, _ :: _
+  | [], _ :: _ ->
+     failwith "too many constructor arguments for action"
+  | params, [] ->
+     if List.for_all ~f:param_directionless params
+     then
+       let params = translate_parameters env [] action_params in
+       Typed.Type.Action { parameters = params }
+     else
+       failwith "more constructor parameters than supplied arguments"
+  | (_, { direction = Some _; typ; _ }) :: params, arg :: args ->
+     (* check arg has type typ *)
+     match snd arg with
+     | Types.Argument.Expression { value } ->
+        let arg_type = type_expression env value in
+        let param_type = translate_type env [] typ in
+        assert_type_equality env Info.dummy arg_type param_type;
+        type_action_instantiation env params args
+     | _ -> failwith "We only support positional arguments"
+
+and param_directionless (_, pre_param) =
+  pre_param.direction = None
 
 (* Section 7.2.2 *)
 and type_header env name fields =

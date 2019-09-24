@@ -1479,7 +1479,7 @@ and open_control_scope env params constructor_params locals =
 and type_control env name type_params params constructor_params locals apply =
   if List.length type_params > 0
   then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
-  else 
+  else
     let env' = open_control_scope env params constructor_params locals in
     let _ = type_block_statement env' apply in
     env
@@ -1656,7 +1656,7 @@ and type_table' env name key_types action_types properties =
   | Actions { actions } :: rest ->
      begin match key_types with
      | None -> raise_s [%message "key property must be defined before actions" ~table:(snd name)]
-     | Some kts -> 
+     | Some kts ->
         let action_types = type_table_actions env kts actions in
         type_table' env name key_types action_types rest
      end
@@ -1751,8 +1751,21 @@ and type_enum env name members =
   Env.insert_type (snd name) enum_typ env
 
 (* Section 8.3 *)
-and type_serializable_enum env _ _ _ =
-  env
+and type_serializable_enum env typ name members =
+  let typ = translate_type env [] typ in
+  begin match typ with
+    | Int _ | Bit _ ->
+      let enum_member_folder = fun (acc_members : string list) ((name,exp):P4String.t * Expression.t) ->
+        begin let name = snd name in
+          let mem_typ = type_expression env exp in
+          if type_equality env mem_typ typ then name::acc_members
+          else failwith "The type of each enum member must conform to the underlying type."
+        end in let members = List.fold_left ~f:enum_member_folder ~init:[] members in
+        let open EnumType in
+        let enum_typ = Type.Enum {typ=Some(typ); members=members} in
+        Env.insert_type (snd name) enum_typ env
+    | _ -> failwith "The underlying type of a serializable enum must be a fixed-width integer."
+  end
 
 (* Section 7.2.9.2 *)
 and type_extern_object env name type_params methods =

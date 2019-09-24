@@ -2504,14 +2504,38 @@ and implicit_cast_from_rawint (env : EvalEnv.t) (v : value)
     (t : Type.t) : value =
   match v with
   | VInteger n ->
-    let (e, f) = match snd t with
-      | Type.IntType e -> (e, int_of_rawint)
-      | Type.BitType e -> (e, bit_of_rawint)
+    begin match snd t with
+      | Type.IntType e ->
+        e
+        |> eval_expression' env SContinue
+        |> thrd3
+        |> bigint_of_val
+        |> int_of_rawint n
+      | Type.BitType e ->
+        e
+        |> eval_expression' env SContinue
+        |> thrd3
+        |> bigint_of_val
+        |> bit_of_rawint n
       | Type.Bool -> failwith "is bool"
-      | Type.TypeName (_,n) -> failwith n
-      | _ -> failwith "attempt to assign raw int to wrong type"  in
-    e |> eval_expression' env SContinue |> thrd3 |> bigint_of_val |> f n
+      | Type.TypeName (_,n) ->
+        EvalEnv.find_decl n env
+        |> assert_typ_def
+        |> assert_typ
+        |> implicit_cast_from_rawint env v
+      | _ -> failwith "attempt to assign raw int to wrong type"
+      end
   | _ -> v
+
+and assert_typ (typ_or_decl : (Type.t, Declaration.t) Util.alternative) : Type.t =
+  match typ_or_decl with
+  | Left typ -> typ
+  | Right decl -> failwith "not a typ"
+
+and assert_typ_def (typ : Declaration.t) : (Type.t, Declaration.t) Util.alternative =
+  match snd typ with
+  | TypeDef {typ_or_decl;_} -> typ_or_decl
+  | _ -> failwith "not a typedef"
 
 and implicit_cast_from_tuple (env : EvalEnv.t) (lv : lvalue) (n : string) (v : value)
     (t : Type.t) : value =

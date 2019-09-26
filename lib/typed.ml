@@ -188,6 +188,14 @@ end = struct
       [@@deriving sexp]
 end
 
+and TableType : sig
+  type t = {result_typ_name:string}
+  [@@deriving sexp]
+end = struct
+  type t = {result_typ_name:string}
+  [@@deriving sexp]
+end
+
 and Type : sig
   type t =
   (* bool *)
@@ -265,6 +273,8 @@ and Type : sig
   | Function of FunctionType.t
 
   | Action of ActionType.t
+
+  | Table of TableType.t
   [@@deriving sexp]
 end = struct
   type t =
@@ -343,6 +353,8 @@ end = struct
   | Function of FunctionType.t
 
   | Action of ActionType.t
+
+  | Table of TableType.t
   [@@deriving sexp]
 end
 

@@ -119,7 +119,8 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   | Bool | String | Integer
   | Int _ | Bit _ | VarBit _
   | TypeVar _
-  | Error | MatchKind | Void ->
+  | Error | MatchKind | Void
+  | Table _ ->
       typ
   | Array arr ->
       Array {arr with typ = saturate_type env arr.typ}
@@ -386,6 +387,9 @@ and type_equality' (env: Env.checker_env)
     | Function func1, Function func2 ->
         function_type_equality env equiv_vars func1 func2
 
+    | Table table1, Table table2 ->
+      table1.result_typ_name = table2.result_typ_name
+
     (* We could replace this all with | _, _ -> false. I am writing it this way
      * because when I change Type.t I want Ocaml to warn me about missing match
      * cases. *)
@@ -412,7 +416,8 @@ and type_equality' (env: Env.checker_env)
     | Package _, _
     | Extern _, _
     | Action _, _
-    | Function _, _ ->
+    | Function _, _
+    | Table _, _ ->
       false
   end
 
@@ -1644,27 +1649,79 @@ and type_table_actions env key_types actions =
     | _ ->
        raise_s [%message "invalid action" ~action:(snd action.name)]
   in
-  List.map ~f:type_table_action actions
+  let action_typs = List.map ~f:type_table_action actions in
+  (* Need to fail in the case of duplicate action names *)
+  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> snd action.name) actions in
+  List.zip_exn action_names action_typs
 
-and type_table' env name key_types action_types properties =
+and type_table_entries env entries key_typs action_map =
+  match key_typs with
+  (* Should key types be in an option type? *)
+  | None -> failwith "Keys need to have types"
+  | Some key_typs ->
+    let type_table_entry (_, entry: Table.entry) =
+      let type_entry_key_vals (key_typ: Type.t) (_, key_match: Match.t) =
+        match key_match with
+        | Default -> failwith "Default unimplemented"
+        | DontCare -> true
+        | Expression {expr= exp} -> exp |> type_expression env |> type_equality env key_typ in
+      let _ = List.map2 ~f:type_entry_key_vals key_typs entry.matches in
+      let action = snd entry.action in
+      match List.Assoc.find action_map ~equal:(=) (snd action.name) with
+      | None -> failwith "Entry must call an action in the table."
+      | Some (Type.Action {parameters=params}) ->
+        let check_arg (param:Parameter.t) (_, arg:Argument.t) =
+          begin match arg with
+          (* Direction handling probably is incorrect here. *)
+          | Expression {value=exp} -> exp |> type_expression env |> type_equality env param.typ
+          | _ -> failwith "Actions in entries onlt support positional arguments."
+          end in
+        let _ = List.map2 ~f:check_arg params action.args in true
+      | _ -> failwith "Table actions must have action types." in
+    List.for_all ~f:type_table_entry entries
+
+and type_table' env name key_types action_map properties =
   match properties with
   | Key { keys } :: rest ->
      begin match key_types with
-     | None -> type_table' env name (Some (type_keys env keys)) action_types rest
+     | None -> type_table' env name (Some (type_keys env keys)) action_map rest
      | Some key_types -> raise_s [%message "multiple key properties in table?" ~name:(snd name)]
      end
   | Actions { actions } :: rest ->
      begin match key_types with
      | None -> raise_s [%message "key property must be defined before actions" ~table:(snd name)]
      | Some kts ->
-        let action_types = type_table_actions env kts actions in
-        type_table' env name key_types action_types rest
+        let action_map = type_table_actions env kts actions in
+        type_table' env name key_types action_map rest
      end
-  | Entries { entries } :: rest -> failwith ""
+  | Entries { entries } :: rest ->
+    if type_table_entries env entries key_types action_map
+    then type_table' env name key_types action_map rest
+    else failwith ""
   | Custom { name = (_, "default_action"); _ } :: rest -> failwith ""
   | Custom { name = (_, "size"); _ } :: rest -> failwith ""
   | Custom _ :: rest -> failwith "custom table properties not supported"
-  | [] -> failwith "no properties for table?"
+  | [] ->
+    (* failwith "no properties for table?" *)
+    (* Aggregate table information. *)
+    let action_names = List.map ~f:fst action_map in
+    let open EnumType in
+    let action_enum_typ = Type.Enum {typ=None; members=action_names} in
+    (* Populate environment with action_enum *)
+    (* names of action list enums are "action_list_<<table name>>" *)
+    let env = Env.insert_type (name |> snd |> (^) "action_list_") action_enum_typ env in
+    let open RecordType in
+    let hit_field = {name="hit"; typ=Type.Bool} in
+    (* How to represent the type of an enum member *)
+    let run_field = {name="action_run"; typ=action_enum_typ} in
+    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]} in
+    (* names of table apply results are "apply_result_<<table name>>" *)
+    let result_typ_name = name |> snd |> (^) "apply_result_" in
+    let env = Env.insert_type result_typ_name apply_result_typ env in
+    let table_typ = Type.Table {result_typ_name=result_typ_name} in
+    Env.insert_type (snd name) table_typ env
+
+
 
 and type_action_instantiation env (action_params: Types.Parameter.t list) action_args =
   match action_params, action_args with

@@ -970,6 +970,52 @@ and type_ternary env cond tru fls : Typed.Type.t =
   | (t1, _) -> t1
   end
 
+and match_params_to_args call_site_info params args : (Parameter.t * Expression.t option) list =
+  let args = List.map ~f:snd args in
+  let res = match_params_to_args' call_site_info None params args [] in
+  List.rev res
+
+and match_params_to_args' call_site_info mode params args params_args : (Parameter.t * Expression.t option) list =
+  let open Typed.Parameter in
+  let open Types.Argument in
+  match mode, args with
+  | None, Expression { value } :: args
+  | Some `Positional, Expression { value } :: args ->
+     begin match params with
+     | p :: params ->
+        let params_args = (p, Some value) :: params_args in
+        match_params_to_args' call_site_info (Some `Positional) params args params_args
+     | _ -> raise_s [%message "too many arguments supplied at call site"
+                        ~info:(call_site_info: Info.t)]
+     end
+  | None, Missing :: args
+  | Some `Positional, Missing :: args ->
+     begin match params with
+     | p :: params ->
+        let params_args = (p, None) :: params_args in
+        match_params_to_args' call_site_info (Some `Positional) params args params_args
+     | _ -> raise_s [%message "too many arguments supplied at call site"
+                        ~info:(call_site_info: Info.t)]
+     end
+  | None, KeyValue { key; value } :: args
+  | Some `Named, KeyValue { key; value } :: args ->
+     let key_param, params = Util.find_and_drop ~f:(fun p -> p.name = snd key) params in
+     begin match key_param with
+     | Some key_param ->
+        let params_args = (key_param, Some value) :: params_args in
+        match_params_to_args' call_site_info (Some `Named) params args params_args
+     | None ->
+        raise_s [%message "key-value argument has no matching parameter"
+                    ~info:(call_site_info: Info.t)]
+     end
+  | _, [] ->
+     begin match params with
+     | [] -> params_args
+     | _ -> raise_s [%message "not enough arguments supplied" ~info:(call_site_info: Info.t)]
+     end
+  | _ -> raise_s [%message "mixed positional and named arguments at call site"
+                    ~info:(call_site_info: Info.t)]
+
 (* Section 8.17: Typing Function Calls
  *
  * Arguments are positional:
@@ -989,12 +1035,11 @@ and type_ternary env cond tru fls : Typed.Type.t =
 and check_call env func type_args args post_check : 'a =
   let fun_type =
     match type_expression env func with
-    | Type.Function fr -> fr
+    | Type.Function fun_type -> fun_type
     | ty -> raise_mismatch (fst func) "function type" ty
   in
-  let open Parameter in
-  let params = fun_type.parameters in
 
+  let params = fun_type.parameters in
   let typ_ps = fun_type.type_params in
 
   (* helper to extend delta environment *)
@@ -1082,29 +1127,19 @@ and check_call env func type_args args post_check : 'a =
 
 (* Section 8.17: Typing Function Calls *)
 and type_function_call env func type_args args =
-  let type_args  = List.rev type_args in
-  let open FunctionType in
-  (* helper to extend delta environment *)
-  let post_check fun_type =
-    let typ_ps = fun_type.type_params in
-    let arg_types =
-      List.map ~f:(translate_type env typ_ps) type_args
-    in
-
-    (* helper to extend delta environment *)
-    let extend_delta environ (t_par, t_arg) =
-      Env.insert_type t_par t_arg environ
-    in
-    match List.zip typ_ps arg_types with
-    | Some params_args ->
-        let env = List.fold_left ~f:extend_delta ~init:env params_args in
-        begin match fun_type.return with
-        | Void -> failwith "function call must be non-void inside an expression"
-        | rt -> (saturate_type env rt),(StmType.Unit,env)
-        end
-    | None -> failwith "mismatch between type arguments and type parameters"
+  let func_type = type_expression env func in
+  let params, return_type =
+    match func_type with
+    | Function { type_params; parameters; return } ->
+       parameters, return
+    | Action { parameters } ->
+       failwith "unimplemented"
+    | _ ->
+       raise_s [%message "don't know how to typecheck function call with function"
+                 ~fn:(func: Types.Expression.t)]
   in
-  check_call env func type_args args post_check |> fst
+  let params_args = match_params_to_args (fst func) params args in
+  let _ = params_args in failwith "TODO"
 
 (* Section 14.1 *)
 and type_nameless_instantiation env typ args =
@@ -1181,28 +1216,9 @@ and type_statement (env: Env.checker_env) (stm: Statement.t) : (StmType.t * Env.
 
 (* Section 8.17 *)
 and type_method_call env func type_args args =
-  let type_args  = List.rev type_args in
-  let open FunctionType in
-  let post_check = fun ft ->
-    let arg_types = List.map ~f:(translate_type env []) type_args in
-    (* helper to extend delta environment *)
-    (* for now naively extend local delta environment instead of creating new symbols *)
-    let extend_delta environ (t_par, t_arg) =
-      match t_par, t_arg with
-      | Some t_par, Some t_arg ->
-          Env.insert_type t_par t_arg environ
-      | _, _ -> environ
-    in
-    let env = List.fold_left ~f:extend_delta ~init:env (combine_opt ft.type_params arg_types) in
-    let pfold = fun (acc:Env.checker_env) (p:Parameter.t) ->
-      match p.direction with
-      | In -> acc
-      | Directionless | Out | InOut -> (* only out variables are added to the environment *)
-          Env.insert_type_of p.name p.typ env
-    in
-    Type.Error,(StmType.Unit,List.fold_left ~f:pfold ~init:env ft.parameters) in
-  check_call env func type_args args post_check |> snd
-  (* type_function_call env func type_args args *)
+  let _ = type_function_call env func type_args args in
+  StmType.Unit, env
+
 
 (* Question: Can Assignment statement update env? *)
 (* Typecheck LHS and RHS respectively and check if they have the same type. *)

@@ -41,3 +41,12 @@ let eq_lists ~f xs ys =
   match List.zip xs ys with
   | Some xys -> List.for_all ~f xys
   | None -> false
+
+let rec find_and_drop ~f xs =
+  match xs with
+  | [] -> None, []
+  | x :: xs ->
+     if f x
+     then Some x, xs
+     else let found, list = find_and_drop ~f xs in
+          found, x :: list

@@ -27,3 +27,5 @@ val uncurry: ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 val combine_opt: 'a list -> 'b list -> ('a option * 'b option) list
 
 val eq_lists: f:('a * 'b -> bool) -> 'a list -> 'b list -> bool
+
+val find_and_drop: f:('a -> bool) -> 'a list -> 'a option * 'a list

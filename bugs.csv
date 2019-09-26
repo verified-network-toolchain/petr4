@@ -1,2 +1,4 @@
-Github issue number,,URL,Date reported,Date fixed,Method
-2033,,https://github.com/p4lang/p4c/issues/2033,09/18/2019,,Found manually while implementing Petr4 typechecker
+Github issue number,Repo,URL,Date reported,Date fixed,Method
+2033,p4lang/p4c,https://github.com/p4lang/p4c/issues/2033,09/18/2019,,Found manually while implementing Petr4 typechecker
+780,p4lang/p4-spec,https://github.com/p4lang/p4-spec/issues/780,09/26/2019,,Found manually while implementing Petr4 typechecker
+2036,p4lang/p4c,https://github.com/p4lang/p4c/issues/2036,09/24/2019,,Found manually while implementing Petr4 typechecker

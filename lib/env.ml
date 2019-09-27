@@ -1,3 +1,4 @@
+open Core
 open Sexplib.Conv
 
 exception BadEnvironment of string
@@ -27,7 +28,7 @@ let rec find_opt (name: string) : 'a env -> 'a option = function
 | [] -> None
 | h :: t ->
   let select (name', _) = name = name' in
-  match List.find_opt select h with
+  match List.find ~f:select h with
   | None              -> find_opt name t
   | Some (_, binding) -> Some binding
 
@@ -72,7 +73,7 @@ let find_decl_opt name env =
         name = snd decl_name
     | None -> false
   in
-  List.find_opt ok env.decl
+  List.find ~f:ok env.decl
 
 let find_decl name env =
   match find_decl_opt name env with
@@ -103,6 +104,12 @@ let insert_decl d env =
 let insert_type name typ env =
   { env with typ = insert name typ env.typ }
 
+let insert_types names_types env =
+  let go env (name, typ) =
+    insert_type name typ env
+  in
+  List.fold ~f:go ~init:env names_types
+
 let insert_type_var var env =
   { env with typ = insert var (Typed.Type.TypeVar var) env.typ }
 
@@ -110,7 +117,7 @@ let insert_type_vars vars env =
   let go env var =
     insert_type_var var env
   in
-  List.fold_left go env vars
+  List.fold ~f:go ~init:env vars
 
 let insert_type_of var typ env =
   { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }

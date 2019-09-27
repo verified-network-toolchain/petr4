@@ -18,6 +18,7 @@ val find_type_of_toplevel : string -> checker_env -> Typed.Type.t * Typed.direct
 
 val insert_decl : Types.Declaration.t -> checker_env -> checker_env
 val insert_type : string -> Typed.Type.t -> checker_env -> checker_env
+val insert_types : (string * Typed.Type.t) list -> checker_env -> checker_env
 val insert_type_of : string -> Typed.Type.t -> checker_env -> checker_env
 val insert_type_of_toplevel : string -> Typed.Type.t -> checker_env -> checker_env
 val insert_dir_type_of : string -> Typed.Type.t -> Typed.direction -> checker_env -> checker_env

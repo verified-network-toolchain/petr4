@@ -41,6 +41,17 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
+let rec is_lvalue (_, expr) =
+  let open Types.Expression in
+  match expr with
+  | Name _
+  | TopLevel _ -> true
+  | ExpressionMember { expr = lvalue; _ }
+  | ArrayAccess { array = lvalue; _ }
+  | BitStringAccess { bits = lvalue; _ } ->
+     is_lvalue lvalue
+  | _ -> false
+
 let get_type_params (t: Typed.Type.t) : string list =
   match t with
   | Package {type_params; _}
@@ -461,7 +472,7 @@ let compile_time_known_expr (_: Env.checker_env) (exp: Expression.t) : bool =
   | False -> true
   | _ -> failwith "compile_time_known_expr unimplemented"
 
-let rec type_expression_dir (env: Env.checker_env) ((_, exp): Expression.t) : Type.t
+let rec type_expression_dir (env: Env.checker_env) (exp_info, exp: Expression.t) : Type.t
 * direction =
   match exp with
   | True ->
@@ -497,7 +508,7 @@ let rec type_expression_dir (env: Env.checker_env) ((_, exp): Expression.t) : Ty
   | Ternary { cond; tru; fls } ->
     (type_ternary env cond tru fls, Directionless)
   | FunctionCall { func; type_args; args } ->
-    (type_function_call env func type_args args, Directionless)
+    (type_function_call env exp_info func type_args args, Directionless)
   | NamelessInstantiation { typ; args } ->
     (type_nameless_instantiation env typ args, Directionless)
   | Mask { expr; mask } ->
@@ -1125,21 +1136,50 @@ and check_call env func type_args args post_check : 'a =
         else failwith "All arguments must be positional or named, not both"
     | None -> failwith "mismatching numbers of parameters and type arguments"
 
+and check_direction env dir expr expr_dir =
+  match dir with
+  | Directionless
+  | In -> ()
+  | Out
+  | InOut ->
+     if not @@ is_lvalue expr
+     then raise_s [%message "expected l-value, got expr:" ~expr:(expr: Expression.t)];
+     if expr_dir = In
+     then raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
+
 (* Section 8.17: Typing Function Calls *)
-and type_function_call env func type_args args =
+and type_function_call env call_info func type_args args =
+  let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
+    match expr with
+    | Some expr ->
+        let arg_typ, dir = type_expression_dir env expr in
+        check_direction env param.direction expr dir;
+        assert_type_equality env call_info arg_typ param.typ
+    | None ->
+       if param.direction <> Out
+       then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
+                        ~call_site:(call_info: Info.t) ~param:param.name]
+  in
   let func_type = type_expression env func in
-  let params, return_type =
+  let type_params, params, return_type =
     match func_type with
     | Function { type_params; parameters; return } ->
-       parameters, return
+       type_params, parameters, return
     | Action { parameters } ->
        failwith "unimplemented"
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
                  ~fn:(func: Types.Expression.t)]
   in
+  let type_args = List.map ~f:(translate_type env []) type_args in
   let params_args = match_params_to_args (fst func) params args in
-  let _ = params_args in failwith "TODO"
+  match List.zip type_params type_args with
+  | Some type_params_args ->
+     let env = Env.insert_types type_params_args env in
+     List.iter ~f:(type_param_arg env) params_args;
+     saturate_type env return_type
+  | None ->
+     failwith "type argument inference unimplemented"
 
 (* Section 14.1 *)
 and type_nameless_instantiation env typ args =
@@ -1194,7 +1234,7 @@ and type_range env lo hi =
 and type_statement (env: Env.checker_env) (stm: Statement.t) : (StmType.t * Env.checker_env) =
   match snd stm with
   | MethodCall { func; type_args; args } ->
-    type_method_call env func type_args args
+    type_method_call env (fst stm) func type_args args
   | Assignment { lhs; rhs } ->
     type_assignment env lhs rhs
   | DirectApplication { typ; args } ->
@@ -1215,8 +1255,8 @@ and type_statement (env: Env.checker_env) (stm: Statement.t) : (StmType.t * Env.
     type_declaration_statement env decl
 
 (* Section 8.17 *)
-and type_method_call env func type_args args =
-  let _ = type_function_call env func type_args args in
+and type_method_call env call_info func type_args args =
+  let _ = type_function_call env call_info func type_args args in
   StmType.Unit, env
 
 

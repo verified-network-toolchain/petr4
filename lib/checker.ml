@@ -637,6 +637,14 @@ and type_array_access env (array: Types.Expression.t) index =
   assert_numeric (info index) idx_typ |> ignore;
   (array_typ, array_dir)
 
+and is_numeric (typ: Typed.Type.t) : bool =
+  match typ with
+  | Int _
+  | Bit _
+  | VarBit _
+  | Integer -> true
+  | _ -> false
+
 (* Section 8.5
  * -----------
  *
@@ -648,8 +656,19 @@ and type_array_access env (array: Types.Expression.t) index =
  * -------------------------------
  * Δ, T, Γ |- b[m:l] : bit<m - l>
  *)
-and type_bit_string_access _ _ _ _ =
-  failwith "type_bit_string_access unimplemented"
+and type_bit_string_access env bits lo hi =
+  match type_expression_dir env bits with
+  | Bit { width }, dir ->
+     let typ_lo = type_expression env lo
+                  |> saturate_type env in
+     let typ_hi = type_expression env hi
+                  |> saturate_type env in
+     assert (is_numeric typ_lo);
+     assert (is_numeric typ_hi);
+     (* TODO: CTK eval to correct this *)
+     let diff = 10 in
+     Bit { width = diff }, dir
+  | typ, dir ->  raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
 
 (* Section 8.11
  * ------------

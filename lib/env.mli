@@ -15,6 +15,8 @@ val resolve_type_name_toplevel : string -> checker_env -> Typed.Type.t
 val find_type_of_opt : string -> checker_env -> (Typed.Type.t * Typed.direction) option
 val find_type_of : string -> checker_env -> Typed.Type.t * Typed.direction
 val find_type_of_toplevel : string -> checker_env -> Typed.Type.t * Typed.direction
+val find_const : string -> checker_env -> Value.t
+val find_const_opt : string -> checker_env -> Value.t option
 
 val insert_decl : Types.Declaration.t -> checker_env -> checker_env
 val insert_type : string -> Typed.Type.t -> checker_env -> checker_env
@@ -24,6 +26,7 @@ val insert_type_of_toplevel : string -> Typed.Type.t -> checker_env -> checker_e
 val insert_dir_type_of : string -> Typed.Type.t -> Typed.direction -> checker_env -> checker_env
 val insert_type_var : string -> checker_env -> checker_env
 val insert_type_vars : string list -> checker_env -> checker_env
+val insert_const : string -> Value.t -> checker_env -> checker_env
 val push_scope : checker_env -> checker_env
 val pop_scope : checker_env -> checker_env
 

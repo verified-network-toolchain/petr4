@@ -52,6 +52,55 @@ let rec is_lvalue (_, expr) =
      is_lvalue lvalue
   | _ -> false
 
+(* Evaluate the expression [expr] at compile time. Make sure to
+ * typecheck the expression before trying to evaluate it! *)
+let compile_time_eval_expr (env: Env.checker_env) (expr: Types.Expression.t) : Value.t option =
+  match snd expr with 
+  | Name (_, var) ->
+     Env.find_const_opt var env
+  | True -> Some (Value.Bool true)
+  | False -> Some (Value.Bool false)
+  | String (_, str) -> Some (Value.String str)
+  | Int (_, i) ->
+     begin match i.width_signed with
+     | None ->
+        Some (Value.Integer i.value)
+     | Some (width, signed) ->
+        if signed
+        then Some (Value.Int { width; value = i.value })
+        else Some (Value.Bit { width; value = i.value })
+     end
+  | UnaryOp { op; arg } -> failwith "unimplemented"
+  | BinaryOp { op; args } -> failwith "unimplemented"
+  | Cast { typ; expr } -> failwith "unimplemented"
+  | TypeMember {typ; name } -> failwith "unimplemented"
+  | Ternary {cond; tru; fls } -> failwith "unimplemented"
+  | _ -> None
+
+let compile_time_eval_bigint env expr: Bigint.t =
+  match compile_time_eval_expr env expr with
+  | Some (Value.Int { value; _})
+  | Some (Value.Bit { value; _})
+  | Some (Value.Integer value) ->
+     value
+  | _ -> raise_s [%message "could not compute compile-time-known numerical value for expr"
+                     ~expr:(snd expr: Types.Expression.pre_t)]
+
+(* Evaluate the declaration [decl] at compile time, updating env.const
+ * with any bindings made in the declaration.  Make sure to typecheck
+ * [decl] before trying to evaluate it! *)
+let compile_time_eval_decl (env: Env.checker_env) (decl: Types.Declaration.t) : Env.checker_env =
+  match snd decl with
+  | Constant { name; value; _ } ->
+     begin match compile_time_eval_expr env value with
+     | Some value' ->
+        Env.insert_const (snd name) value' env
+     | None ->
+        raise_s [%message "could not eval decl"
+                    ~decl:(snd decl: Types.Declaration.pre_t)]
+     end
+  | _ -> env
+
 let get_type_params (t: Typed.Type.t) : string list =
   match t with
   | Package {type_params; _}
@@ -464,13 +513,10 @@ else
   let info = Info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
 
-let compile_time_known_expr (_: Env.checker_env) (exp: Expression.t) : bool =
-  match snd exp with
-  | Int _
-  | String _
-  | True
-  | False -> true
-  | _ -> failwith "compile_time_known_expr unimplemented"
+let compile_time_known_expr (env: Env.checker_env) (expr: Expression.t) : bool =
+  match compile_time_eval_expr env expr with
+  | Some _ -> true
+  | None -> false
 
 let rec type_expression_dir (env: Env.checker_env) (exp_info, exp: Expression.t) : Type.t
 * direction =
@@ -665,8 +711,15 @@ and type_bit_string_access env bits lo hi =
                   |> saturate_type env in
      assert (is_numeric typ_lo);
      assert (is_numeric typ_hi);
-     (* TODO: CTK eval to correct this *)
-     let diff = 10 in
+     let val_lo = compile_time_eval_bigint env lo in
+     let val_hi = compile_time_eval_bigint env hi in
+     let big_width = Bigint.of_int width in
+     assert (Bigint.(<=) Bigint.zero val_lo);
+     assert (Bigint.(<) val_lo big_width);
+     assert (Bigint.(<=) val_lo val_hi);
+     assert (Bigint.(<) val_hi big_width);
+
+     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn in
      Bit { width = diff }, dir
   | typ, dir ->  raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
 

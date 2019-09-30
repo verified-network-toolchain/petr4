@@ -98,6 +98,12 @@ let find_type_of name env =
 let find_type_of_toplevel name env =
   find_toplevel name env.typ_of
 
+let find_const name env =
+  find name env.const
+
+let find_const_opt name env =
+  find_opt name env.const
+
 let insert_decl d env =
   { env with decl = d :: env.decl }
 
@@ -127,6 +133,9 @@ let insert_type_of_toplevel var typ env =
 
 let insert_dir_type_of var typ dir env =
   { env with typ_of = insert var (typ, dir) env.typ_of }
+
+let insert_const var value env =
+  { env with const = insert var value env.const }
 
 let push_scope env =
   { decl = env.decl;

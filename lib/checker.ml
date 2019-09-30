@@ -144,13 +144,16 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   let saturate_construct_param env (param: ConstructParam.t) =
     {param with typ = saturate_type env param.typ}
   in
+  let saturate_construct_params env (params: ConstructParam.t list) =
+    List.map ~f:(saturate_construct_param env) params
+  in
   let saturate_param env (param: Parameter.t) =
     {param with typ = saturate_type env param.typ}
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = Env.insert_type_vars pkg.type_params env in
     {type_params = pkg.type_params;
-     parameters = List.map ~f:(saturate_construct_param env) pkg.parameters}
+     parameters = saturate_construct_params env pkg.parameters}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
     let env = Env.insert_type_vars ctrl.type_params env in
@@ -159,7 +162,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
     { extern with
-      constructors = List.map ~f:(saturate_function env) extern.constructors;
+      constructors = List.map ~f:(saturate_construct_params env) extern.constructors;
       methods = List.map ~f:(saturate_method env) extern.methods }
   and saturate_method env (m: ExternType.extern_method) =
     { m with typ = saturate_function env m.typ }
@@ -288,7 +291,7 @@ and extern_type_equality env equiv_vars extern1 extern2 : bool =
       begin match List.zip methods1 methods2, List.zip extern1.constructors extern2.constructors with
       | Some field_pairs, Some ctor_pairs ->
           List.for_all ~f:method_eq field_pairs &&
-          List.for_all ~f:(Util.uncurry @@ function_type_equality env equiv_vars') ctor_pairs
+          List.for_all ~f:(Util.uncurry @@ construct_param_equality env) ctor_pairs
       | _ -> false
       end
   | None -> false
@@ -1973,13 +1976,8 @@ and type_extern_object env name type_params methods =
     match snd m with
     | MethodPrototype.Constructor {name = cname; params; _} ->
         assert (snd cname = snd name);
-        let params' = translate_parameters env type_params' params in
-        let c: FunctionType.t =
-          { type_params = [];
-            parameters = params';
-            return = (TypeName (snd name)) }
-        in
-        (c :: constructors, methods)
+        let params' = translate_construct_params env type_params' params in
+        (params' :: constructors, methods)
     | MethodPrototype.Method {return; name; type_params; params; _} ->
         let method_typ_params = List.map ~f:snd type_params in
         let all_typ_params = type_params' @ method_typ_params in

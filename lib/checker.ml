@@ -1432,7 +1432,7 @@ and type_declaration_statement (env: Env.checker_env) (decl: Declaration.t) : St
   | _ -> raise_s [%message "declaration used as statement, but that's not allowed. Parser bug?" ~decl:(decl: Types.Declaration.t)]
 
 and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_env =
-  let env' =
+  let env =
     match snd decl with
     | Constant { annotations = _; typ; name; value } ->
       type_constant env typ name value
@@ -1481,7 +1481,8 @@ and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_
     | PackageType { annotations = _; name; type_params; params } ->
       type_package_type env name type_params params
   in
-  Env.insert_decl decl env'
+  let env = compile_time_eval_decl env decl in
+  Env.insert_decl decl env
 
 and type_declarations env decls =
   List.fold_left ~f:type_declaration ~init:env decls

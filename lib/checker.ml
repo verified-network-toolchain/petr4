@@ -403,17 +403,17 @@ and type_equality' (env: Env.checker_env)
         | None -> false
         end
 
-    | List {types = types1}, Tuple {types = types2} ->
+    | Tuple {types = types1}, List {types = types2} ->
        type_equality' env equiv_vars (Tuple {types = types1}) (Tuple {types = types2})
 
-    | List {types}, Struct {fields}
-    | List {types}, Header {fields} ->
-       begin match List.zip types fields with
-       | Some type_field_pairs ->
-          let ok (tuple_type, struct_field: Typed.Type.t * Typed.RecordType.field) =
-            type_equality' env equiv_vars tuple_type struct_field.typ
+    | Struct {fields}, List {types}
+    | Header {fields}, List {types} ->
+       begin match List.zip fields types with
+       | Some field_type_pairs ->
+          let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
+            type_equality' env equiv_vars struct_field.typ tuple_type 
           in
-          List.for_all ~f:ok type_field_pairs
+          List.for_all ~f:ok field_type_pairs
        | None -> false
        end
 
@@ -481,11 +481,6 @@ and type_equality' (env: Env.checker_env)
       false
   end
 
-and assert_type_equality env info t1 t2 : unit =
-  if type_equality env t1 t2
-  then ()
-  else raise @@ Error.Type (info, Type_Difference (t1, t2))
-
 (* Checks that a list of parameters is type equivalent.
  * True if equivalent, false otherwise.
  * Parameter names are ignored.
@@ -508,10 +503,16 @@ and construct_param_equality env p1s p2s =
   eq_lists ~f:check_params p1s p2s
 
 let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
-  if type_equality env typ1 typ2 then (typ1, typ2)
-else
-  let info = Info.merge info1 info2 in
+  if type_equality env typ1 typ2
+  then (typ1, typ2)
+  else let info = Info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
+
+and assert_type_equality env info t1 t2 : unit =
+  if type_equality env t1 t2
+  then ()
+  else raise @@ Error.Type (info, Type_Difference (t1, t2))
+
 
 let compile_time_known_expr (env: Env.checker_env) (expr: Expression.t) : bool =
   match compile_time_eval_expr env expr with
@@ -1700,8 +1701,10 @@ and type_variable env typ name init =
   match init with
   | None ->
       Env.insert_dir_type_of (snd name) expected_typ In env
-  | Some value -> let initialized_typ = type_expression env value in
-    let expr_typ, _ = assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
+  | Some value ->
+     let initialized_typ = type_expression env value in
+     let expr_typ, _ =
+       assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
     Env.insert_dir_type_of (snd name) expr_typ In env
 
 (* Section 12.11 *)

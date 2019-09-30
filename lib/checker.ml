@@ -961,8 +961,8 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
     end
 
 (* Section 8.9 *)
-and type_cast _ _ _ =
-  failwith "type_cast unimplemented"
+and type_cast _ _ expr =
+  raise_s [%message "type_cast unimplemented" ~expr:(expr: Expression.t)]
 
 (* ? *)
 and type_type_member env typ name =
@@ -1254,34 +1254,44 @@ and type_function_call env call_info func type_args args =
   | None ->
      failwith "type argument inference unimplemented"
 
+and type_constructor_invocation env decl type_args args =
+  let open Types.Declaration in
+  match snd decl with
+  | Parser { params; constructor_params; _ } ->
+     let params = translate_parameters env [] params in
+     let constructor_params = translate_construct_params env [] constructor_params in
+     check_constructor_invocation env constructor_params args;
+     Typed.Type.Parser { type_params = []; parameters = params }
+  | Control { params; constructor_params; _ } ->
+     let params = translate_parameters env [] params in
+     let constructor_params = translate_construct_params env [] constructor_params in
+     check_constructor_invocation env constructor_params args;
+     Typed.Type.Control { type_params = []; parameters = params }
+  | PackageType { params; _ } ->
+     let params = translate_construct_params env [] params in
+     check_constructor_invocation env params args;
+     Typed.Type.Package {type_params = []; parameters = params}
+  | d -> raise_s [%message "instantiation unimplemented"
+                     ~decl:(d: Types.Declaration.pre_t)]
+
 (* Section 14.1 *)
 and type_nameless_instantiation env typ args =
   match snd typ with
-  | TypeName (_, decl_name) ->
-     begin match Env.find_decl_opt decl_name env with
-     | Some decl ->
-        begin match snd decl with
-        | Parser { params; constructor_params; _ } ->
-           let params = translate_parameters env [] params in
-           let constructor_params = translate_construct_params env [] constructor_params in
-           check_constructor_invocation env constructor_params args;
-           Typed.Type.Parser { type_params = []; parameters = params }
-        | Control { params; constructor_params; _ } ->
-           let params = translate_parameters env [] params in
-           let constructor_params = translate_construct_params env [] constructor_params in
-           check_constructor_invocation env constructor_params args;
-           Typed.Type.Control { type_params = []; parameters = params }
-        | PackageType { params; _ } ->
-           let params = translate_construct_params env [] params in
-           check_constructor_invocation env params args;
-           Typed.Type.Package {type_params = []; parameters = params}
-        | d -> raise_s [%message "instantiation unimplemented" ~decl:(d: Types.Declaration.pre_t)]
-        end
-     | None ->
-        raise_s [%message "could not find declaration" ~decl_name ~decls:(Env.all_decls env: Declaration.t list)]
+  | SpecializedType { base; args = type_args } ->
+     begin match snd base with
+     | TypeName (_, decl_name) ->
+        let decl = Env.find_decl decl_name env in
+        type_constructor_invocation env decl type_args args
+     | _ ->
+        raise_s [%message "don't know how to instantiate this type"
+                    ~typ:(typ: Types.Type.t)]
      end
+  | TypeName tn ->
+     let typ = fst typ, Types.Type.SpecializedType { base = typ; args = [] } in
+     type_nameless_instantiation env typ args
   | _ ->
-     failwith "expected typename"
+     raise_s [%message "don't know how to instantiate this type"
+                 ~typ:(typ: Types.Type.t)]
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =

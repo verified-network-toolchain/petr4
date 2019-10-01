@@ -2623,7 +2623,8 @@ and reset_fields (env : EvalEnv.t) (lv : lvalue)
 (* Target and Architecture Dependent Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
-let rec eval_main (env : EvalEnv.t) (pack : packet_in) : packet_in =
+let rec eval_main (env : EvalEnv.t) (pack : packet_in)
+    (ctrl : Table.pre_entry list) : packet_in =
   let (_, obj, vs) =
     match EvalEnv.find_val "main" env with
     | VPackage ((info, obj), vs) -> (info, obj, vs)
@@ -2633,12 +2634,12 @@ let rec eval_main (env : EvalEnv.t) (pack : packet_in) : packet_in =
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is no a package" in
   match name with
-  | "V1Switch" -> eval_v1switch env vs pack
+  | "V1Switch" -> eval_v1switch env vs pack ctrl
   | "EmptyPackage" -> pack
   | _ -> failwith "architecture not supported"
 
 and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
-    (pack : packet_in) : packet_in =
+    (pack : packet_in) (ctrl : Table.pre_entry list) : packet_in =
   let parser =
     List.Assoc.find_exn vs "p"   ~equal:(=) in
   let verify =
@@ -2671,7 +2672,8 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
              |> insert_typ "packet"   (snd (List.nth_exn params 0)).typ
              |> insert_typ "hdr"      (snd (List.nth_exn params 1)).typ
              |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
-             |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
+             |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ
+             |> insert_table_entries ctrl) in
   (* TODO: implement a more responsible way to generate variable names *)
   let pckt_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
@@ -2750,12 +2752,13 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-let eval_program (p : Types.program) (pack : packet_in) : unit =
+let eval_program (p : Types.program) (pack : packet_in)
+  (ctrl : Table.pre_entry list) : unit =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;
     Format.printf "Done\n";
-    let packetout = eval_main env pack in
+    let packetout = eval_main env pack ctrl in
     print_string "Resulting packet: ";
     packetout
     |> Cstruct.to_string

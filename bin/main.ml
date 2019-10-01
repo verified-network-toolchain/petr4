@@ -74,7 +74,7 @@ let eval_file include_dirs p4_file verbose pfile =
   let packet_string = Core_kernel.In_channel.read_all pfile in
   let pack = Cstruct.of_hex packet_string in
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog pack
+  | `Ok prog -> Eval.eval_program prog pack []
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =

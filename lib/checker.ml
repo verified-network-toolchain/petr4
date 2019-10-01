@@ -963,9 +963,32 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
       | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
     end
 
+and legal_cast env src_type tgt_type: bool =
+  let src_type = reduce_type env src_type in
+  let tgt_type = reduce_type env tgt_type in
+  match src_type, tgt_type with
+  | Bit { width }, Bool
+  | Bool, Bit { width } ->
+     width = 1
+  | Int { width = int_width }, Bit { width = bit_width }
+  | Bit { width = bit_width }, Int { width = int_width } ->
+     int_width = bit_width
+  | Bit _, Bit _
+  | Int _, Int _
+  | Integer, Bit _
+  | Integer, Int _ ->
+     true
+  | typ1, typ2 -> type_equality env typ1 typ2
+
 (* Section 8.9 *)
-and type_cast _ _ expr =
-  raise_s [%message "type_cast unimplemented" ~expr:(expr: Expression.t)]
+and type_cast env typ expr =
+  let expr_type, dir = type_expression_dir env expr in
+  let tgt_type = translate_type env [] typ in
+  if legal_cast env expr_type tgt_type
+  then tgt_type, dir
+  else raise_s [%message "illegal cast" ~expr:(expr: Types.Expression.t)
+               ~target_type:(tgt_type: Typed.Type.t)]
+
 
 (* ? *)
 and type_type_member env typ name =

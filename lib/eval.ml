@@ -1598,7 +1598,19 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let env = EvalEnv.pop_scope fenv in
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None -> e
+    | None ->
+      begin match snd (snd p).typ with 
+        | TypeName(_,n) 
+        | TopLevelType(_,n) -> 
+          begin match snd (EvalEnv.find_decl n e) with 
+            | ExternObject _ -> 
+              let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+              begin match snd a with
+                | Argument.Expression {value=expr}
+                | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
+                | Argument.Missing -> e end
+            | _ -> e end
+        | _ -> e end
     | Some x -> begin match snd x with
         | InOut
         | Out ->

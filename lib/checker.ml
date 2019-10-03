@@ -1793,8 +1793,6 @@ and type_table_actions env key_types actions =
   let type_table_action (call_info, action: Table.action_ref) =
     match Env.find_type_of_opt (snd action.name) env with
     | Some (Action action_decl, _) ->
-       (* let _ = type_action_instantiation env action_decl.data_params action.args in
-       action_decl *)
        (* Below should fail if there are control plane arguments *)
        let params_args = match_params_to_args call_info action_decl.data_params action.args in
        let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
@@ -1884,34 +1882,6 @@ and type_table' env name key_types action_map properties =
     let env = Env.insert_type result_typ_name apply_result_typ env in
     let table_typ = Type.Table {result_typ_name=result_typ_name} in
     Env.insert_type (snd name) table_typ env
-
-
-
-and type_action_instantiation env (action_params: Types.Parameter.t list) action_args =
-  match action_params, action_args with
-  | (_, { direction = None; _ }) :: _, _ :: _
-  | [], _ :: _ ->
-     failwith "too many constructor arguments for action"
-  | params, [] ->
-     if List.for_all ~f:param_directionless params
-     then
-       let params = translate_parameters env [] action_params in
-       (* I'm not sure if this function has what we want... *)
-       Typed.Type.Action { data_params = params; ctrl_params = [] }
-     else
-       failwith "more constructor parameters than supplied arguments"
-  | (_, { direction = Some _; typ; _ }) :: params, arg :: args ->
-     (* check arg has type typ *)
-     match snd arg with
-     | Types.Argument.Expression { value } ->
-        let arg_type = type_expression env value in
-        let param_type = translate_type env [] typ in
-        assert_type_equality env Info.dummy arg_type param_type;
-        type_action_instantiation env params args
-     | _ -> failwith "We only support positional arguments"
-
-and param_directionless (_, pre_param) =
-  pre_param.direction = None
 
 (* Section 7.2.2 *)
 and type_header env name fields =

@@ -161,8 +161,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
-    { extern with
-      constructors = List.map ~f:(saturate_construct_params env) extern.constructors;
+    { extern with 
       methods = List.map ~f:(saturate_method env) extern.methods }
   and saturate_method env (m: ExternType.extern_method) =
     { m with typ = saturate_function env m.typ }
@@ -289,10 +288,9 @@ and extern_type_equality env equiv_vars extern1 extern2 : bool =
       in
       let methods1 = List.sort ~compare:method_cmp extern1.methods in
       let methods2 = List.sort ~compare:method_cmp extern2.methods in
-      begin match List.zip methods1 methods2, List.zip extern1.constructors extern2.constructors with
-      | Some field_pairs, Some ctor_pairs ->
-          List.for_all ~f:method_eq field_pairs &&
-          List.for_all ~f:(Util.uncurry @@ construct_param_equality env) ctor_pairs
+      begin match List.zip methods1 methods2 with
+      | Some field_pairs ->
+          List.for_all ~f:method_eq field_pairs
       | _ -> false
       end
   | None -> false
@@ -1982,10 +1980,9 @@ and type_extern_object env name type_params methods =
         in
         (constructors, m :: methods)
   in
-  let (cs', ms') = List.fold_left ~f:consume_method ~init:([], []) methods in
+  let (_, ms') = List.fold_left ~f:consume_method ~init:([], []) methods in
   let typ: ExternType.t =
     { type_params = type_params';
-      constructors = cs';
       methods = ms' }
   in
   Env.insert_type (snd name) (Typed.Type.Extern typ) env

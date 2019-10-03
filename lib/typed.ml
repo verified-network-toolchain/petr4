@@ -72,7 +72,6 @@ and ExternType : sig
 
   type t =
     { type_params: string list;
-      constructors: ConstructParam.t list list;
       methods: extern_method list }
     [@@deriving sexp]
 end = struct
@@ -83,7 +82,6 @@ end = struct
 
   type t =
     { type_params: string list;
-      constructors: ConstructParam.t list list;
       methods: extern_method list }
     [@@deriving sexp]
 end

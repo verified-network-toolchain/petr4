@@ -55,7 +55,7 @@ let rec is_lvalue (_, expr) =
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
 let compile_time_eval_expr (env: Env.checker_env) (expr: Types.Expression.t) : Value.t option =
-  match snd expr with 
+  match snd expr with
   | Name (_, var) ->
      Env.find_const_opt var env
   | True -> Some (Value.Bool true)
@@ -172,7 +172,8 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
      parameters = List.map ~f:(saturate_param env) fn.parameters;
      return = saturate_type env fn.return}
   and saturate_action env (action: ActionType.t) : ActionType.t =
-    { parameters = List.map ~f:(saturate_param env) action.parameters }
+    { data_params = List.map ~f:(saturate_param env) action.data_params;
+      ctrl_params = List.map ~f:(saturate_construct_param env) action.ctrl_params}
   in
   match typ with
   | TypeName typ ->
@@ -307,7 +308,7 @@ and function_type_equality env equiv_vars func1 func2 : bool =
 
 and action_type_equality env equiv_vars action1 action2 : bool =
   let open ActionType in
-  params_equality env equiv_vars action1.parameters action2.parameters
+  (params_equality env equiv_vars action1.data_params action2.data_params) && (construct_param_equality env action1.ctrl_params action2.ctrl_params)
 
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
@@ -414,7 +415,7 @@ and type_equality' (env: Env.checker_env)
        begin match List.zip fields types with
        | Some field_type_pairs ->
           let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
-            type_equality' env equiv_vars struct_field.typ tuple_type 
+            type_equality' env equiv_vars struct_field.typ tuple_type
           in
           List.for_all ~f:ok field_type_pairs
        | None -> false
@@ -963,32 +964,9 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
       | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
     end
 
-and legal_cast env src_type tgt_type: bool =
-  let src_type = reduce_type env src_type in
-  let tgt_type = reduce_type env tgt_type in
-  match src_type, tgt_type with
-  | Bit { width }, Bool
-  | Bool, Bit { width } ->
-     width = 1
-  | Int { width = int_width }, Bit { width = bit_width }
-  | Bit { width = bit_width }, Int { width = int_width } ->
-     int_width = bit_width
-  | Bit _, Bit _
-  | Int _, Int _
-  | Integer, Bit _
-  | Integer, Int _ ->
-     true
-  | typ1, typ2 -> type_equality env typ1 typ2
-
 (* Section 8.9 *)
-and type_cast env typ expr =
-  let expr_type, dir = type_expression_dir env expr in
-  let tgt_type = translate_type env [] typ in
-  if legal_cast env expr_type tgt_type
-  then tgt_type, dir
-  else raise_s [%message "illegal cast" ~expr:(expr: Types.Expression.t)
-               ~target_type:(tgt_type: Typed.Type.t)]
-
+and type_cast _ _ expr =
+  raise_s [%message "type_cast unimplemented" ~expr:(expr: Expression.t)]
 
 (* ? *)
 and type_type_member env typ name =
@@ -1264,8 +1242,8 @@ and type_function_call env call_info func type_args args =
     match func_type with
     | Function { type_params; parameters; return } ->
        type_params, parameters, return
-    | Action { parameters } ->
-       failwith "unimplemented"
+    | Action { data_params; ctrl_params} ->
+       failwith "Unimplemented"
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
                  ~fn:(func: Types.Expression.t)]
@@ -1750,32 +1728,32 @@ and type_value_set env typ size name =
 
 (* Section 13.1 *)
 and type_action env name params body =
- let p_fold = fun (((params,action_params),env): (Parameter.t list * ConstructParam.t list) * Env.checker_env) (p:Types.Parameter.t) ->
+ let p_fold = fun (((data_params,ctrl_params),env): (Typed.Parameter.t list * ConstructParam.t list) * Env.checker_env) (p:Types.Parameter.t) : ((Typed.Parameter.t list * ConstructParam.t list) * Env.checker_env) ->
     begin let p = snd p in
       let name = p.variable |> snd in
       let typ = p.typ |> translate_type env [] in
       begin match p.direction with
         | None ->
           let open ConstructParam in
-          let action_par = {name=name; typ=typ} in
+          let ctrl_par = {name=name; typ=typ} in
           let new_env = Env.insert_type_of (snd p.variable) typ env in
-          (params, action_par::action_params), new_env
+          (data_params, ctrl_par::ctrl_params), new_env
         | Some d ->
-          if action_params <> []
+          if ctrl_params <> []
           then failwith "Action parameters with direction must come before directionless parameters"
           else let d = begin match snd d with
             | In -> In
             | Out -> Out
             | InOut -> InOut end in
-          let open Parameter in
+          let open Typed.Parameter in
           let par = {name=name; typ=typ; direction=d} in
           let new_env =
             Env.insert_dir_type_of (snd p.variable) typ d env
           in
-          (par::params, action_params), new_env
+          (par::data_params, ctrl_params), new_env
       end
       end in
- let ((ps,aps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
+ let ((dps,cps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
   let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
     begin match prev_type with
     | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
@@ -1792,7 +1770,9 @@ and type_action env name params body =
     end
   in
   let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
-  env
+  let open Typed.ActionType in
+  let actionType = Type.Action {data_params=dps; ctrl_params=cps} in
+  Env.insert_type_of (snd name) actionType env
 
 (* Section 13.2 *)
 and type_table env name properties =
@@ -1810,10 +1790,26 @@ and type_keys env keys =
   List.map ~f:type_key keys
 
 and type_table_actions env key_types actions =
-  let type_table_action (_, action: Table.action_ref) =
-    match Env.find_decl_opt (snd action.name) env with
-    | Some (_, Action action_decl) ->
-       type_action_instantiation env action_decl.params action.args
+  let type_table_action (call_info, action: Table.action_ref) =
+    match Env.find_type_of_opt (snd action.name) env with
+    | Some (Action action_decl, _) ->
+       (* let _ = type_action_instantiation env action_decl.data_params action.args in
+       action_decl *)
+       (* Below should fail if there are control plane arguments *)
+       let params_args = match_params_to_args call_info action_decl.data_params action.args in
+       let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
+         match expr with
+         | Some expr ->
+             let arg_typ, dir = type_expression_dir env expr in
+             check_direction env param.direction expr dir;
+             assert_type_equality env call_info arg_typ param.typ
+         | None ->
+            if param.direction = In
+            then raise_s [%message "don't care argument (underscore) provided for in parameter"
+                             ~call_site:(call_info: Info.t) ~param:param.name]
+       in
+       List.iter ~f:(type_param_arg env) params_args;
+       Type.Action action_decl
     | _ ->
        raise_s [%message "invalid action" ~action:(snd action.name)]
   in
@@ -1837,12 +1833,12 @@ and type_table_entries env entries key_typs action_map =
       let action = snd entry.action in
       match List.Assoc.find action_map ~equal:(=) (snd action.name) with
       | None -> failwith "Entry must call an action in the table."
-      | Some (Type.Action {parameters=params}) ->
+      | Some (Type.Action {data_params=params; ctrl_params=_}) ->
         let check_arg (param:Parameter.t) (_, arg:Argument.t) =
           begin match arg with
           (* Direction handling probably is incorrect here. *)
           | Expression {value=exp} -> exp |> type_expression env |> type_equality env param.typ
-          | _ -> failwith "Actions in entries onlt support positional arguments."
+          | _ -> failwith "Actions in entries only support positional arguments."
           end in
         let _ = List.map2 ~f:check_arg params action.args in true
       | _ -> failwith "Table actions must have action types." in
@@ -1900,7 +1896,8 @@ and type_action_instantiation env (action_params: Types.Parameter.t list) action
      if List.for_all ~f:param_directionless params
      then
        let params = translate_parameters env [] action_params in
-       Typed.Type.Action { parameters = params }
+       (* I'm not sure if this function has what we want... *)
+       Typed.Type.Action { data_params = params; ctrl_params = [] }
      else
        failwith "more constructor parameters than supplied arguments"
   | (_, { direction = Some _; typ; _ }) :: params, arg :: args ->

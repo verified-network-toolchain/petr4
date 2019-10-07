@@ -172,16 +172,23 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
      return = saturate_type env fn.return}
   and saturate_action env (action: ActionType.t) : ActionType.t =
     { data_params = List.map ~f:(saturate_param env) action.data_params;
-      ctrl_params = List.map ~f:(saturate_construct_param env) action.ctrl_params}
+      ctrl_params = List.map ~f:(saturate_construct_param env) action.ctrl_params }
   in
   match typ with
+  | TypeVar t ->
+     begin match Env.resolve_type_name_opt t env with
+     | Some (TypeVar _)
+     | None ->
+        typ
+     | Some typ' ->
+        saturate_type env typ'
+     end
   | TypeName typ ->
       saturate_type env (Env.resolve_type_name typ env)
   | TopLevelType typ ->
       saturate_type env (Env.resolve_type_name_toplevel typ env)
   | Bool | String | Integer
   | Int _ | Bit _ | VarBit _
-  | TypeVar _
   | Error | MatchKind | Void
   | Table _ ->
       typ
@@ -245,8 +252,8 @@ and enum_type_equality env equiv_vars enum1 enum2 : bool =
 and constructor_params_equality env equiv_vars ps1 ps2 : bool =
   let open ConstructParam in
   let param_eq (p1, p2) =
-    type_equality' env equiv_vars p1.typ p2.typ &&
-    p1.name = p2.name
+    type_equality' env equiv_vars p1.typ p2.typ
+    (* &&  p1.name = p2.name *)
   in
   eq_lists ~f:param_eq ps1 ps2
 
@@ -262,7 +269,7 @@ and params_equality env equiv_vars ps1 ps2 : bool =
   let open Parameter in
   let param_eq (p1, p2) =
     type_equality' env equiv_vars p1.typ p2.typ &&
-    p1.name = p2.name &&
+    (* p1.name = p2.name && *)
     p1.direction = p2.direction
   in
   eq_lists ~f:param_eq ps1 ps2
@@ -317,40 +324,22 @@ and type_vars_equal_under env equiv_vars tv1 tv2 =
   | [] ->
       tv1 = tv2
 
-and subst_type (typ: Typed.Type.t) (var: string) (arg: Typed.Type.t) : Typed.Type.t =
-  match typ with
-  | Bool | String | Integer | Int _ | Bit _ | VarBit _ | Array _
-  | Tuple _ | Error | MatchKind | TopLevelType _ | Void ->
-     typ
-  | TypeVar x
-  | TypeName x ->
-     if x = var
-     then arg
-     else typ
-  | Set typ ->
-     Set (subst_type typ var arg)
-  | _ -> failwith "subst_type unimplemented"
-
-and subst_types (typ: Typed.Type.t) (args: Typed.Type.t list) : Typed.Type.t =
-  let vars = get_type_params typ in
-  let typ = drop_type_params typ in
-  match List.zip vars args with
-  | Some vars_args ->
-      let go (var, arg) acc = subst_type typ var arg in
-      List.fold_right ~f:go ~init:typ vars_args
-  | None -> failwith "different number of vars and arguments"
-
 and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = saturate_type env typ in
   match typ with
-  | SpecializedType sp ->
-     begin match get_type_params typ with
-     | [] ->
-        typ
+  | SpecializedType { base; args } ->
+     let base = reduce_type env base in
+     begin match get_type_params base with
+     | [] -> typ
      | t_params ->
-        let args = List.map ~f:(reduce_type env) sp.args in
-        let generic = reduce_type env sp.base in
-        subst_types generic args
+        let args = List.map ~f:(reduce_type env) args in
+        begin match List.zip t_params args with
+        | Some pairs ->
+           let base = drop_type_params base in
+           reduce_type (Env.insert_types pairs env) base
+        | None ->
+           failwith "mismatch in # of type params and type args"
+        end
      end
   | _ -> typ
 
@@ -374,7 +363,8 @@ and type_equality' (env: Env.checker_env)
 
     | SpecializedType _, _
     | _, SpecializedType _ ->
-        failwith "Stuck specialized type?"
+       raise_s [%message "Stuck specialized type?" ~t1:(t1': Typed.Type.t)
+                                                   ~t2:(t2': Typed.Type.t)]
 
     | Bool, Bool
     | String, String
@@ -511,6 +501,8 @@ let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Ty
     raise_type_error info (Type_Difference (typ1, typ2))
 
 and assert_type_equality env info t1 t2 : unit =
+  let t1 = reduce_type env t1 in
+  let t2 = reduce_type env t2 in
   if type_equality env t1 t2
   then ()
   else raise @@ Error.Type (info, Type_Difference (t1, t2))
@@ -1034,7 +1026,13 @@ and type_expression_member env expr name : Typed.Type.t =
       | Some m -> Type.Function m.typ
       | None -> raise_unfound_member (info expr) (snd name)
       end
-  | _ -> failwith "not a header, header union, struct, or extern"
+  | Table { result_typ_name } ->
+     if snd name = "apply"
+     then Type.Function { type_params = [];
+                          parameters = [];
+                          return = TypeName result_typ_name }
+     else raise_s [%message "table has no member" ~member:(snd name)]
+  | _ -> raise_s [%message "this type has no members" ~typ:(expr_typ: Typed.Type.t)]
 
 (* Section 8.4.1
  * -------------
@@ -1222,6 +1220,25 @@ and check_direction env dir expr expr_dir =
      if expr_dir = In
      then raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
 
+and find_extern_methods env func : (FunctionType.t list) option =
+  match snd func with
+  | Expression.ExpressionMember { expr; name } ->
+     begin match reduce_type env @@ type_expression env expr with
+     | Extern e ->
+        let methods = List.filter ~f:(fun m -> m.name = snd name) e.methods in
+        Some (List.map ~f:(fun m -> m.typ) methods)
+     | _ -> None
+     end
+  | _ -> None
+
+and resolve_extern_overload env method_types args =
+  let works (method_type: FunctionType.t) =
+    try match_params_to_args Info.dummy method_type.parameters args |> ignore;
+        true
+    with _ -> false
+  in
+  Typed.Type.Function (List.find_exn ~f:works method_types)
+
 (* Section 8.17: Typing Function Calls *)
 and type_function_call env call_info func type_args args =
   let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
@@ -1235,7 +1252,13 @@ and type_function_call env call_info func type_args args =
        then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
                         ~call_site:(call_info: Info.t) ~param:param.name]
   in
-  let func_type = type_expression env func in
+  let func_type =
+    match find_extern_methods env func with
+    | Some method_types ->
+       resolve_extern_overload env method_types args
+    | None ->
+       type_expression env func
+  in
   let type_params, params, return_type =
     match func_type with
     | Function { type_params; parameters; return } ->
@@ -1254,10 +1277,28 @@ and type_function_call env call_info func type_args args =
      List.iter ~f:(type_param_arg env) params_args;
      saturate_type env return_type
   | None ->
-     failwith "type argument inference unimplemented"
+     raise_s [%message "type argument inference unimplemented" ~loc:(call_info: Info.t)]
+
+and select_constructor_params env info methods args =
+  let matching_constructor (proto: Types.MethodPrototype.t) =
+    match snd proto with
+    | Constructor { params; _ } ->
+       begin try
+         let params = translate_parameters env [] params in
+         let _ = match_params_to_args info params args in
+         true
+         with _ -> false
+       end
+    | Method _ -> false
+  in
+  match List.find ~f:matching_constructor methods with
+  | Some (_, Constructor { params; _ }) ->
+     Some (translate_construct_params env [] params)
+  | _ -> None
 
 and type_constructor_invocation env decl type_args args =
   let open Types.Declaration in
+  let type_args = List.map ~f:(translate_type env []) type_args in
   match snd decl with
   | Parser { params; constructor_params; _ } ->
      let params = translate_parameters env [] params in
@@ -1269,11 +1310,27 @@ and type_constructor_invocation env decl type_args args =
      let constructor_params = translate_construct_params env [] constructor_params in
      check_constructor_invocation env constructor_params args;
      Typed.Type.Control { type_params = []; parameters = params }
-  | PackageType { params; _ } ->
+  | PackageType { params; type_params; _ } ->
      let params = translate_construct_params env [] params in
+     let type_params = List.map ~f:snd type_params in
+     let env =
+       match List.zip type_params type_args with
+       | Some type_params_args ->
+          Env.insert_types type_params_args env
+       | None -> env
+     in
      check_constructor_invocation env params args;
      Typed.Type.Package {type_params = []; parameters = params}
-  | d -> raise_s [%message "instantiation unimplemented"
+  | ExternObject { methods; name; _ } ->
+     begin match select_constructor_params env (fst decl) methods args with
+     | None -> raise_s [%message "no constructor available for instantiation"]
+     | Some params ->
+        check_constructor_invocation env params args;
+        Typed.Type.SpecializedType { base = TypeName (snd name);
+                                    args = type_args }
+     end
+  | d ->
+     raise_s [%message "instantiation unimplemented"
                      ~decl:(d: Types.Declaration.pre_t)]
 
 (* Section 14.1 *)
@@ -1618,8 +1675,8 @@ and type_parser env name params constructor_params locals states =
 and open_control_scope env params constructor_params locals =
   (*TODO check that params and constructor params are well-formed *)
   let env' = insert_params env constructor_params in
-  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
   let env' = insert_params env' params in
+  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
   env'
 
 (* Section 13 *)
@@ -1858,8 +1915,9 @@ and type_table' env name key_types action_map properties =
     if type_table_entries env entries key_types action_map
     then type_table' env name key_types action_map rest
     else failwith ""
-  | Custom { name = (_, "default_action"); _ } :: rest -> failwith ""
-  | Custom { name = (_, "size"); _ } :: rest -> failwith ""
+  | Custom { name = (_, "default_action"); _ } :: rest ->
+     type_table' env name key_types action_map rest
+  | Custom { name = (_, "size"); _ } :: rest -> failwith "size checking unimplemented"
   | Custom _ :: rest -> failwith "custom table properties not supported"
   | [] ->
     (* failwith "no properties for table?" *)
@@ -1879,7 +1937,7 @@ and type_table' env name key_types action_map properties =
     let result_typ_name = name |> snd |> (^) "apply_result_" in
     let env = Env.insert_type result_typ_name apply_result_typ env in
     let table_typ = Type.Table {result_typ_name=result_typ_name} in
-    Env.insert_type (snd name) table_typ env
+    Env.insert_type_of (snd name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env name fields =
@@ -1930,7 +1988,7 @@ and type_error env members =
 (* Section 7.1.3 *)
 and type_match_kind env members =
   let add_mk env (_, m) =
-    Env.insert_type_of_toplevel ("match_kind." ^ m) Type.MatchKind env
+    Env.insert_type_of_toplevel m Type.MatchKind env
   in
   List.fold_left ~f:add_mk ~init:env members
 

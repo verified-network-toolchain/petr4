@@ -1069,7 +1069,8 @@ and type_declaration (env: Env.checker_env) ((_, decl): Declaration.t) : Env.che
   match decl with
   | Constant { annotations = _; typ; name; value } ->
     type_constant env typ name value
-  | Instantiation { annotations = _; typ; args; name } ->
+  | Instantiation { annotations = _; typ; args; name; init } ->
+    (* TODO: type check init? *)
     type_instantiation env typ args name
   | Parser { annotations = _; name; type_params; params; constructor_params; locals; states } ->
     type_parser env name type_params params constructor_params locals states

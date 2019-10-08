@@ -198,6 +198,7 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
     (props : Table.property list) : EvalEnv.t =
   let props' = List.map props ~f:snd in
   let env' = EvalEnv.insert_decl name decl env in
+  let ctrl_entries = EvalEnv.get_tables env' in
   let key = List.filter props' ~f:is_key
             |> List.hd_exn
             |> assert_key
@@ -208,12 +209,18 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
 
                         let x,y,z = eval_expression' a b k in ((x,y),z)) in
   let f ((w,x,y),z) = ((w,x),(y,z)) in
-  let ((env''',s'),entries) = List.filter props' ~f:is_entries
-                |> List.hd_exn
-                |> assert_entries
-                |> List.map ~f:snd
-                |> List.fold_map ~init:(env'',s)
-                            ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f) in
+  let ((env''',s'),entries) =
+    begin
+    match List.filter props' ~f:is_entries with
+      | [] -> List.fold_map ctrl_entries ~init:(env'',s)
+                ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f)
+      | l -> l
+             |> List.hd_exn
+             |> assert_entries
+             |> List.map ~f:snd
+             |> List.fold_map ~init:(env'',s)
+               ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f)
+    end in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
@@ -1598,8 +1605,8 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let env = EvalEnv.pop_scope fenv in
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None ->
-      begin match snd (snd p).typ with 
+    | None -> e
+(*      begin match snd (snd p).typ with 
         | TypeName(_,n) 
         | TopLevelType(_,n) -> 
           begin match snd (EvalEnv.find_decl n e) with 
@@ -1610,7 +1617,7 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
                 | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
                 | Argument.Missing -> e end
             | _ -> e end
-        | _ -> e end
+                                        | _ -> e end *)
     | Some x -> begin match snd x with
         | InOut
         | Out ->

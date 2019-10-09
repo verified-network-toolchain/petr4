@@ -1100,115 +1100,6 @@ and match_params_to_args' call_site_info mode params args params_args : (Paramet
   | _ -> raise_s [%message "mixed positional and named arguments at call site"
                     ~info:(call_site_info: Info.t)]
 
-(* Section 8.17: Typing Function Calls
- *
- * Arguments are positional:
- *   Δ (ef) = tr  f<...Ai,...>(...di ti,...)
- *  for all i  Δ (union over j)(Aj -> uj) , T, Γ ei : ti
- * ------------------------------------------------------
- *     Δ, T, Γ |- ef<...ui,...>(...ei,...) : tr
- *
- * Arguments are named:
- *   Δ (ef) = tr  f<...Ai,...>(...di ti,...)
- *  for all i  Δ (union over j)(Aj -> uj) , T, Γ ei : ti
- * ------------------------------------------------------
- *     Δ, T, Γ |- ef<...ui,...>(...ni = ei,...) : tr
- *
- *
-*)
-and check_call env func type_args args post_check : 'a =
-  let fun_type =
-    match type_expression env func with
-    | Type.Function fun_type -> fun_type
-    | ty -> raise_mismatch (fst func) "function type" ty
-  in
-
-  let params = fun_type.parameters in
-  let typ_ps = fun_type.type_params in
-
-  (* helper to extend delta environment *)
-  let extend_delta environ (t_par, t_arg) =
-    Env.insert_type t_par t_arg environ
-  in
-
-  let arg_types = List.map ~f:(translate_type env typ_ps) type_args in
-  if List.length typ_ps > List.length arg_types
-  then post_check fun_type (* Should actually be doing inference here! *)
-  else
-    match List.zip typ_ps arg_types with
-    | Some type_names_args ->
-        let env = List.fold_left ~f:extend_delta ~init:env type_names_args in
-
-        (* Case 1: All atguments are positional *)
-        let case1 = fun (arg:Argument.t) ->
-            begin match snd arg with
-            | Expression _ | Missing -> true
-            | KeyValue _ -> false
-            end in
-
-        (* Case 2: All arguments are named *)
-        let case2 = fun (arg:Argument.t) ->
-            begin match snd arg with
-            | KeyValue _ | Missing -> true
-            | Expression _ -> false
-            end in
-
-        if List.for_all ~f:case1 args then begin
-            let new_ctx = env in
-            let check_positional = fun (par,arg:Parameter.t * Argument.t) ->
-            begin match snd arg with
-                | Expression {value=e} -> let t = type_expression new_ctx e in
-                let pt = saturate_type new_ctx par.typ in
-                assert_type_equality new_ctx (fst arg) t pt; true
-                | Missing ->
-                begin match par.direction with
-                    | Out -> true
-                    | _ -> failwith "Only out parameters can have don't care arguments."
-                end
-            | _ -> failwith "Should not get here"
-            end in
-            if eq_lists ~f:check_positional params args
-            then post_check fun_type
-            else failwith "Function call does not type check"
-        end
-
-        else if List.for_all ~f:case2 args then begin
-
-            (* I need to align the order of arguments with the order
-            * of parameters. This is important for updating the environment
-            * and comparing each argument type to its
-            * corresponding parameter type*)
-            let comp_arg = fun (arg1:Argument.t) (arg2:Argument.t) ->
-            begin match snd arg1,snd arg2 with
-                | KeyValue {key= (_,n1) ;_},KeyValue{key= (_,n2) ;_} -> String.compare n1 n2
-                | _ -> failwith "Only call comp_arg when arguments are named."
-            end in
-            let comp_param = fun (par1:Parameter.t) (par2:Parameter.t) ->
-            begin match par1,par2 with
-                | {name=n1; _}, {name=n2; _} ->  String.compare n1 n2
-            end in
-            let sorted_params = List.sort ~compare:comp_param params in
-            let sorted_args = List.sort ~compare:comp_arg args in
-            let new_ctx = env in
-            let check_named = fun (par,arg:Parameter.t * Argument.t) ->
-            begin match snd arg with
-                | KeyValue {value=e; _} -> let t = type_expression new_ctx e in
-                let pt = saturate_type new_ctx par.typ in
-                if type_equality new_ctx t pt then true else failwith "Function argument has incorrect type."
-                | Missing -> begin match par.direction with
-                    | Out -> true
-                    | _ -> failwith "Only out parameters can have don't care arguments."
-                end
-                | _ -> failwith "Arguments in a function call must be positional or named, not both"
-            end in
-            if  eq_lists ~f:check_named sorted_params sorted_args
-            then post_check fun_type
-            else failwith "Function call does not type check"
-        end
-
-        else failwith "All arguments must be positional or named, not both"
-    | None -> failwith "mismatching numbers of parameters and type arguments"
-
 and check_direction env dir expr expr_dir =
   match dir with
   | Directionless
@@ -1263,7 +1154,7 @@ and type_function_call env call_info func type_args args =
     match func_type with
     | Function { type_params; parameters; return } ->
        type_params, parameters, return
-    | Action { data_params; ctrl_params} ->
+    | Action { data_params; ctrl_params } ->
        failwith "Unimplemented"
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
@@ -1271,13 +1162,73 @@ and type_function_call env call_info func type_args args =
   in
   let type_args = List.map ~f:(translate_type env []) type_args in
   let params_args = match_params_to_args (fst func) params args in
-  match List.zip type_params type_args with
-  | Some type_params_args ->
-     let env = Env.insert_types type_params_args env in
-     List.iter ~f:(type_param_arg env) params_args;
-     saturate_type env return_type
-  | None ->
-     raise_s [%message "type argument inference unimplemented" ~loc:(call_info: Info.t)]
+  let type_params_args =
+    match List.zip type_params type_args with
+    | Some type_params_args ->
+       type_params_args
+    | None ->
+       infer_type_arguments env return_type type_params params_args []
+  in
+  let env = Env.insert_types type_params_args env in
+  List.iter ~f:(type_param_arg env) params_args;
+  saturate_type env return_type
+
+and empty_constraints vars =
+  let empty_constraint var =
+    (var, None)
+  in
+  List.map ~f:empty_constraint vars
+
+(* This needs a real meet operator *)
+and merge_constraints env xs ys =
+  let fail () =
+    raise_s [%message "could not merge constraint sets during type argument inference"
+                ~xs:(xs: (string * Typed.Type.t option) list)
+                ~ys:(ys: (string * Typed.Type.t option) list)]
+  in
+  let merge ((x_var, x_typ), (y_var, y_typ)) =
+    match x_typ, y_typ with
+    | None, _
+    | _, None -> x_var, x_typ
+    | Some x_typ, Some y_typ ->
+       if type_equality env x_typ y_typ
+       then (x_var, Some x_typ)
+       else fail ()
+  in
+  match List.zip xs ys with
+  | Some xys ->
+     List.map ~f:merge xys
+  | None -> fail ()
+
+and constraints_to_type_args _ (cs: (string * Typed.Type.t option) list): (string * Typed.Type.t) list =
+  let constraint_to_type_arg (var, type_opt) =
+    match type_opt with
+    | Some t -> (var, t)
+    | None -> raise_s [%message "could not solve for type argument" ~var]
+  in
+  List.map ~f:constraint_to_type_arg cs
+
+and infer_type_arguments env ret type_params params_args constraints =
+  let constraints =
+    empty_constraints type_params
+    |> gen_constraints env type_params params_args
+  in
+  constraints_to_type_args ret constraints
+
+and gen_constraint _ _ _ =
+  failwith "unimplemented"
+
+and gen_constraints env type_params params_args constraints =
+  match params_args with
+  | (param_type, Some arg) :: more ->
+     let arg_type = type_expression env arg in
+     let arg_constraints = gen_constraint env param_type arg_type in
+     let constraints = merge_constraints env constraints arg_constraints in
+     gen_constraints env type_params more constraints
+  | (param_type, None) :: more ->
+     gen_constraints env type_params more constraints
+  | [] ->
+     constraints
 
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Types.MethodPrototype.t) =

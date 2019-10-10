@@ -33,7 +33,7 @@ end = struct
 end
 
 (* and ActionParam : sig
-  type t =
+  type t 
     { name: string;
       typ: Type.t}
       [@@deriving sexp]

@@ -161,6 +161,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
+    let env = Env.insert_type_vars extern.type_params env in
     { extern with 
       methods = List.map ~f:(saturate_method env) extern.methods }
   and saturate_method env (m: ExternType.extern_method) =
@@ -224,65 +225,158 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   | Action action ->
     Action (saturate_action env action)
 
-let rec record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordType.t) : bool =
+type var_constraint = string * Typed.Type.t option [@@deriving sexp]
+type var_constraints = var_constraint list [@@deriving sexp]
+type soln = var_constraints option [@@deriving sexp]
+
+let empty_constraints vars : var_constraints =
+  let empty_constraint var =
+    (var, None)
+  in
+  List.map ~f:empty_constraint vars
+
+let single_constraint vars var typ : var_constraints =
+  let empty = empty_constraints vars in
+  let update (v, emp) =
+    if v = var
+    then (v, Some typ)
+    else (v, emp)
+  in
+  List.map ~f:update empty
+
+(* This needs a real meet operator *)
+let rec merge_constraints env xs ys =
+  let fail () =
+    raise_s [%message "could not merge constraint sets during type argument inference"
+                ~xs:(xs: (string * Typed.Type.t option) list)
+                ~ys:(ys: (string * Typed.Type.t option) list)]
+  in
+  let merge ((x_var, x_typ), (y_var, y_typ)) =
+    match x_typ, y_typ with
+    | None, _ -> y_var, y_typ
+    | _, None -> x_var, x_typ
+    | Some x_typ, Some y_typ ->
+       if type_equality env x_typ y_typ
+       then (x_var, Some x_typ)
+       else fail ()
+  in
+  match List.zip xs ys with
+  | Some xys ->
+     List.map ~f:merge xys
+  | None -> fail ()
+
+and constraints_to_type_args _ (cs: var_constraints) : (string * Typed.Type.t) list =
+  let constraint_to_type_arg (var, type_opt) =
+    match type_opt with
+    | Some t -> (var, t)
+    | None -> raise_s [%message "could not solve for type argument" ~var]
+  in
+  List.map ~f:constraint_to_type_arg cs
+
+and gen_all_constraints (env: Env.checker_env) type_params params_args constraints =
+  match params_args with
+  | (param, Some arg) :: more ->
+     let arg_type = type_expression env arg in
+     let param_type = param.Parameter.typ in
+     begin match solve_types env [] type_params param_type arg_type with
+     | Some arg_constraints ->
+        let constraints = merge_constraints env constraints arg_constraints in
+        gen_all_constraints env type_params more constraints
+     | None -> raise_s [%message "could not solve type equality t1 = t2"
+                           ~t1:(param_type: Typed.Type.t) ~t2:(arg_type: Typed.Type.t)]
+     end
+  | (param_type, None) :: more ->
+     gen_all_constraints env type_params more constraints
+  | [] ->
+     constraints
+
+and infer_type_arguments env ret type_params params_args constraints =
+  let env = Env.insert_type_vars type_params env in
+  let constraints =
+    empty_constraints type_params
+    |> gen_all_constraints env type_params params_args
+  in
+  constraints_to_type_args ret constraints
+
+and merge_solutions env soln1 soln2 =
+  match soln1, soln2 with
+  | None, _
+  | _, None -> None
+  | Some constraints1, Some constraints2 ->
+     Some (merge_constraints env constraints1 constraints2)
+
+and solve_lists: 'a 'b.
+                 Env.checker_env -> string list ->
+                 f:('a * 'b -> soln) -> 'a list -> 'b list -> soln =
+  fun env unknowns ~f xs ys ->
+  zip_map_fold xs ys
+    ~f:f
+    ~merge:(merge_solutions env)
+    ~init:(Some (empty_constraints unknowns)) 
+  |> option_collapse
+
+and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
+  let open ConstructParam in
+  let solve_params (p1, p2) =
+    solve_types env equiv_vars unknowns p1.typ p2.typ
+  in
+  solve_lists env unknowns ps1 ps2 ~f:solve_params
+
+and solve_record_type_equality env equiv_vars unknowns (rec1: RecordType.t) (rec2: RecordType.t) =
   let open RecordType in
-  let field_eq (f1, f2) =
-    f1.name = f2.name && type_equality' env equiv_vars f1.typ f2.typ
+  let solve_fields (f1, f2) =
+    if f1.name = f2.name
+    then solve_types env equiv_vars unknowns f1.typ f2.typ
+    else None
   in
   let field_cmp f1 f2 =
     String.compare f1.name f2.name
   in
   let fields1 = List.sort ~compare:field_cmp rec1.fields in
   let fields2 = List.sort ~compare:field_cmp rec2.fields in
-  eq_lists ~f:field_eq fields1 fields2
+  solve_lists env unknowns fields1 fields2 ~f:solve_fields
 
-and enum_type_equality env equiv_vars enum1 enum2 : bool =
+and solve_enum_type_equality env equiv_vars unknowns enum1 enum2 =
   let open EnumType in
-  let same_typ =
+  let soln =
     match enum1.typ, enum2.typ with
     | Some typ1, Some typ2 ->
-        type_equality' env equiv_vars typ1 typ2
-    | None, None -> true
-    | _, _ -> false
+        solve_types env equiv_vars unknowns typ1 typ2
+    | None, None -> Some (empty_constraints unknowns)
+    | _, _ -> None
   in
   let mems1 = List.sort ~compare:String.compare enum1.members in
   let mems2 = List.sort ~compare:String.compare enum2.members in
-  mems1 = mems2 && same_typ
+  if mems1 = mems2
+  then soln
+  else None
 
-and constructor_params_equality env equiv_vars ps1 ps2 : bool =
-  let open ConstructParam in
-  let param_eq (p1, p2) =
-    type_equality' env equiv_vars p1.typ p2.typ
-    (* &&  p1.name = p2.name *)
-  in
-  eq_lists ~f:param_eq ps1 ps2
-
-and package_type_equality env equiv_vars pkg1 pkg2 : bool =
+and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
   let open PackageType in
   match List.zip pkg1.type_params pkg2.type_params with
   | Some param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
-     constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
-  | None -> false
+     solve_constructor_params_equality env equiv_vars' unknowns pkg1.parameters pkg2.parameters
+  | None -> None
 
-and params_equality env equiv_vars ps1 ps2 : bool =
+and solve_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Parameter in
   let param_eq (p1, p2) =
-    type_equality' env equiv_vars p1.typ p2.typ &&
-    (* p1.name = p2.name && *)
-    p1.direction = p2.direction
+    if p1.direction = p2.direction
+    then solve_types env equiv_vars unknowns p1.typ p2.typ
+    else None
   in
-  eq_lists ~f:param_eq ps1 ps2
+  solve_lists env unknowns ~f:param_eq ps1 ps2
 
-and control_type_equality env equiv_vars ctrl1 ctrl2 : bool =
+and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
   let open ControlType in
   match List.zip ctrl1.type_params ctrl2.type_params with
   | Some param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
-     params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
-  | None -> false
+     solve_params_equality env equiv_vars' unknowns ctrl1.parameters ctrl2.parameters
+  | None -> None
 
-and extern_type_equality env equiv_vars extern1 extern2 : bool =
+and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
   let open Typed.ExternType in
   match List.zip extern1.type_params extern2.type_params with
   | Some param_pairs ->
@@ -290,30 +384,30 @@ and extern_type_equality env equiv_vars extern1 extern2 : bool =
       let method_cmp m1 m2 =
           String.compare m1.name m2.name
       in
-      let method_eq (m1, m2) =
-          m1.name = m2.name && function_type_equality env equiv_vars' m1.typ m2.typ
+      let solve_method_eq (m1, m2) =
+        if m1.name = m2.name
+        then solve_function_type_equality env equiv_vars' unknowns m1.typ m2.typ
+        else None
       in
       let methods1 = List.sort ~compare:method_cmp extern1.methods in
       let methods2 = List.sort ~compare:method_cmp extern2.methods in
-      begin match List.zip methods1 methods2 with
-      | Some field_pairs ->
-          List.for_all ~f:method_eq field_pairs
-      | _ -> false
-      end
-  | None -> false
+      solve_lists env unknowns ~f:solve_method_eq methods1 methods2
+  | None -> None
 
-and function_type_equality env equiv_vars func1 func2 : bool =
+and solve_function_type_equality env equiv_vars unknowns func1 func2 =
   let open FunctionType in
   match List.zip func1.type_params func2.type_params with
   | Some param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
-     type_equality' env equiv_vars' func1.return func2.return &&
-     params_equality env equiv_vars' func1.parameters func2.parameters
-  | None -> false
+     merge_solutions env (solve_types env equiv_vars' unknowns func1.return func2.return)
+                         (solve_params_equality env equiv_vars' unknowns func1.parameters func2.parameters)
+  | None -> None
 
-and action_type_equality env equiv_vars action1 action2 : bool =
+and solve_action_type_equality env equiv_vars unknowns action1 action2 =
   let open ActionType in
-  (params_equality env equiv_vars action1.data_params action2.data_params) && (construct_param_equality env action1.ctrl_params action2.ctrl_params)
+  merge_solutions env 
+    (solve_params_equality env equiv_vars unknowns action1.data_params action2.data_params)
+    (solve_constructor_params_equality env equiv_vars unknowns action1.ctrl_params action2.ctrl_params)
 
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
@@ -330,7 +424,10 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
   | SpecializedType { base; args } ->
      let base = reduce_type env base in
      begin match get_type_params base with
-     | [] -> typ
+     | [] -> begin match args with
+             | [] -> base 
+             | _ -> typ (* stuck type application *)
+             end
      | t_params ->
         let args = List.map ~f:(reduce_type env) args in
         begin match List.zip t_params args with
@@ -347,11 +444,16 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
 and type_equality env t1 t2 =
-  type_equality' env [] t1 t2
+  match solve_types env [] [] t1 t2 with
+  | Some solution -> true
+  | None -> false
 
-and type_equality' (env: Env.checker_env)
-                   (equiv_vars: (string * string) list)
-                   (t1:Type.t) (t2:Type.t) : bool =
+and solve_types (env: Env.checker_env)
+                (equiv_vars: (string * string) list)
+                (unknowns: string list)
+                (t1:Type.t) (t2:Type.t)
+    : soln =
+
   let t1' = reduce_type env t1 in
   let t2' = reduce_type env t2 in
   begin match t1', t2' with
@@ -378,69 +480,79 @@ and type_equality' (env: Env.checker_env)
     | Error, Error
     | MatchKind, MatchKind
     | Void, Void ->
-        true
+        Some (empty_constraints unknowns)
 
     | Bit { width = l}, Bit {width = r}
     | Int { width = l}, Int {width = r}
     | VarBit {width = l}, VarBit {width = r} ->
-        l = r
+        if l = r
+        then Some (empty_constraints unknowns)
+        else None
 
     | Array {typ = lt; size = ls}, Array {typ = rt; size = rs} ->
-        ls = rs && type_equality' env equiv_vars lt rt
+       if ls = rs
+       then solve_types env equiv_vars unknowns lt rt
+       else None
 
     | Tuple {types = types1}, Tuple {types = types2} ->
-        begin match List.zip types1 types2 with
-        | Some type_pairs ->
-          List.for_all ~f:(fun (t1, t2) -> type_equality' env equiv_vars t1 t2) type_pairs
-        | None -> false
-        end
+       let solve_type_pair (t1, t2) =
+         solve_types env equiv_vars unknowns t1 t2
+       in
+       solve_lists env unknowns ~f:solve_type_pair types1 types2
 
+    | List {types = types1}, List {types = types2}
     | Tuple {types = types1}, List {types = types2} ->
-       type_equality' env equiv_vars (Tuple {types = types1}) (Tuple {types = types2})
+       solve_types env equiv_vars unknowns
+         (Tuple {types = types1}) (Tuple {types = types2})
 
     | Struct {fields}, List {types}
     | Header {fields}, List {types} ->
-       begin match List.zip fields types with
-       | Some field_type_pairs ->
-          let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
-            type_equality' env equiv_vars struct_field.typ tuple_type
-          in
-          List.for_all ~f:ok field_type_pairs
-       | None -> false
-       end
+       let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
+         solve_types env equiv_vars unknowns struct_field.typ tuple_type
+       in
+       solve_lists env unknowns ~f:ok fields types
 
     | Set ty1, Set ty2 ->
-        type_equality' env equiv_vars ty1 ty2
+        solve_types env equiv_vars unknowns ty1 ty2
 
     | TypeVar tv1, TypeVar tv2 ->
-        type_vars_equal_under env equiv_vars tv1 tv2
+        if type_vars_equal_under env equiv_vars tv1 tv2
+        then Some (empty_constraints unknowns)
+        else None
 
     | Header rec1, Header rec2
     | HeaderUnion rec1, HeaderUnion rec2
     | Struct rec1, Struct rec2 ->
-        record_type_equality env equiv_vars rec1 rec2
+        solve_record_type_equality env equiv_vars unknowns rec1 rec2
 
     | Enum enum1, Enum enum2 ->
-        enum_type_equality env equiv_vars enum1 enum2
+        solve_enum_type_equality env equiv_vars unknowns enum1 enum2
 
     | Package pkg1, Package pkg2 ->
-        package_type_equality env equiv_vars pkg1 pkg2
+        solve_package_type_equality env equiv_vars unknowns pkg1 pkg2
 
     | Control ctrl1, Control ctrl2
     | Parser ctrl1, Parser ctrl2 ->
-        control_type_equality env equiv_vars ctrl1 ctrl2
+        solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2
 
     | Extern extern1, Extern extern2 ->
-        extern_type_equality env equiv_vars extern1 extern2
+        solve_extern_type_equality env equiv_vars unknowns extern1 extern2
 
     | Action action1, Action action2 ->
-        action_type_equality env equiv_vars action1 action2
+        solve_action_type_equality env equiv_vars unknowns action1 action2
 
     | Function func1, Function func2 ->
-        function_type_equality env equiv_vars func1 func2
+        solve_function_type_equality env equiv_vars unknowns func1 func2
 
     | Table table1, Table table2 ->
-      table1.result_typ_name = table2.result_typ_name
+       if table1.result_typ_name = table2.result_typ_name
+       then Some (empty_constraints unknowns)
+       else None
+
+    | TypeVar tv, typ ->
+       if List.mem ~equal:(=) unknowns tv
+       then Some (single_constraint unknowns tv typ)
+       else None
 
     (* We could replace this all with | _, _ -> false. I am writing it this way
      * because when I change Type.t I want Ocaml to warn me about missing match
@@ -458,7 +570,6 @@ and type_equality' (env: Env.checker_env)
     | Tuple _, _
     | List _, _
     | Set _, _
-    | TypeVar _, _
     | Header _, _
     | HeaderUnion _, _
     | Struct _, _
@@ -470,7 +581,7 @@ and type_equality' (env: Env.checker_env)
     | Action _, _
     | Function _, _
     | Table _, _ ->
-      false
+      None
   end
 
 (* Checks that a list of parameters is type equivalent.
@@ -494,7 +605,7 @@ and construct_param_equality env p1s p2s =
     type_equality env par1.typ par2.typ in
   eq_lists ~f:check_params p1s p2s
 
-let assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
+and assert_same_type (env: Env.checker_env) info1 info2 (typ1: Type.t) (typ2: Type.t) =
   if type_equality env typ1 typ2
   then (typ1, typ2)
   else let info = Info.merge info1 info2 in
@@ -508,12 +619,12 @@ and assert_type_equality env info t1 t2 : unit =
   else raise @@ Error.Type (info, Type_Difference (t1, t2))
 
 
-let compile_time_known_expr (env: Env.checker_env) (expr: Expression.t) : bool =
+and compile_time_known_expr (env: Env.checker_env) (expr: Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
   | None -> false
 
-let rec type_expression_dir (env: Env.checker_env) (exp_info, exp: Expression.t) : Type.t
+and type_expression_dir (env: Env.checker_env) (exp_info, exp: Expression.t) : Type.t
 * direction =
   match exp with
   | True ->
@@ -654,6 +765,16 @@ and translate_construct_params env vars construct_params =
        end in
   List.fold_left ~f:p_folder ~init:[] construct_params |> List.rev
 
+and construct_param_as_param (construct_param: ConstructParam.t) : Parameter.t =
+  { name = construct_param.name;
+    typ = construct_param.typ;
+    direction = Directionless }
+
+and expr_of_arg (arg: Argument.t): Expression.t option =
+  match snd arg with
+  | Missing -> None
+  | KeyValue { value; _ }
+  | Expression { value } -> Some value
 
 and type_int (_, value) =
   let open P4Int in
@@ -1005,7 +1126,7 @@ and header_methods typ =
 and type_expression_member env expr name : Typed.Type.t =
   let expr_typ = expr
   |> type_expression env
-  |> saturate_type env
+  |> reduce_type env
   in
   let open RecordType in
   let methods = header_methods expr_typ in
@@ -1032,7 +1153,9 @@ and type_expression_member env expr name : Typed.Type.t =
                           parameters = [];
                           return = TypeName result_typ_name }
      else raise_s [%message "table has no member" ~member:(snd name)]
-  | _ -> raise_s [%message "this type has no members" ~typ:(expr_typ: Typed.Type.t)]
+  | _ -> raise_s [%message "this type has no members"
+                     ~typ:(expr_typ: Typed.Type.t)
+                     ~member:(snd name)]
 
 (* Section 8.4.1
  * -------------
@@ -1173,63 +1296,6 @@ and type_function_call env call_info func type_args args =
   List.iter ~f:(type_param_arg env) params_args;
   saturate_type env return_type
 
-and empty_constraints vars =
-  let empty_constraint var =
-    (var, None)
-  in
-  List.map ~f:empty_constraint vars
-
-(* This needs a real meet operator *)
-and merge_constraints env xs ys =
-  let fail () =
-    raise_s [%message "could not merge constraint sets during type argument inference"
-                ~xs:(xs: (string * Typed.Type.t option) list)
-                ~ys:(ys: (string * Typed.Type.t option) list)]
-  in
-  let merge ((x_var, x_typ), (y_var, y_typ)) =
-    match x_typ, y_typ with
-    | None, _
-    | _, None -> x_var, x_typ
-    | Some x_typ, Some y_typ ->
-       if type_equality env x_typ y_typ
-       then (x_var, Some x_typ)
-       else fail ()
-  in
-  match List.zip xs ys with
-  | Some xys ->
-     List.map ~f:merge xys
-  | None -> fail ()
-
-and constraints_to_type_args _ (cs: (string * Typed.Type.t option) list): (string * Typed.Type.t) list =
-  let constraint_to_type_arg (var, type_opt) =
-    match type_opt with
-    | Some t -> (var, t)
-    | None -> raise_s [%message "could not solve for type argument" ~var]
-  in
-  List.map ~f:constraint_to_type_arg cs
-
-and infer_type_arguments env ret type_params params_args constraints =
-  let constraints =
-    empty_constraints type_params
-    |> gen_constraints env type_params params_args
-  in
-  constraints_to_type_args ret constraints
-
-and gen_constraint _ _ _ =
-  failwith "unimplemented"
-
-and gen_constraints env type_params params_args constraints =
-  match params_args with
-  | (param_type, Some arg) :: more ->
-     let arg_type = type_expression env arg in
-     let arg_constraints = gen_constraint env param_type arg_type in
-     let constraints = merge_constraints env constraints arg_constraints in
-     gen_constraints env type_params more constraints
-  | (param_type, None) :: more ->
-     gen_constraints env type_params more constraints
-  | [] ->
-     constraints
-
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Types.MethodPrototype.t) =
     match snd proto with
@@ -1251,34 +1317,48 @@ and type_constructor_invocation env decl type_args args =
   let open Types.Declaration in
   let type_args = List.map ~f:(translate_type env []) type_args in
   match snd decl with
-  | Parser { params; constructor_params; _ } ->
+  | Parser { params; constructor_params; type_params; _ } ->
      let params = translate_parameters env [] params in
+     let type_params = List.map ~f:snd type_params in
      let constructor_params = translate_construct_params env [] constructor_params in
-     check_constructor_invocation env constructor_params args;
-     Typed.Type.Parser { type_params = []; parameters = params }
-  | Control { params; constructor_params; _ } ->
+     check_constructor_invocation env type_params constructor_params type_args args;
+     let type_args =
+       solve_constructor_invocation env type_params constructor_params type_args args
+     in
+     Typed.Type.SpecializedType
+       { base = Typed.Type.Parser
+                  { type_params = type_params;
+                    parameters = params };
+         args = type_args }
+  | Control { params; constructor_params; type_params; _ } ->
      let params = translate_parameters env [] params in
+     let type_params = List.map ~f:snd type_params in
      let constructor_params = translate_construct_params env [] constructor_params in
-     check_constructor_invocation env constructor_params args;
-     Typed.Type.Control { type_params = []; parameters = params }
+     let type_args =
+       solve_constructor_invocation env type_params constructor_params type_args args
+     in
+     Typed.Type.SpecializedType
+       { base = Typed.Type.Control 
+                  { type_params = type_params;
+                    parameters = params };
+         args = type_args }
   | PackageType { params; type_params; _ } ->
      let params = translate_construct_params env [] params in
      let type_params = List.map ~f:snd type_params in
-     let env =
-       match List.zip type_params type_args with
-       | Some type_params_args ->
-          Env.insert_types type_params_args env
-       | None -> env
-     in
-     check_constructor_invocation env params args;
-     Typed.Type.Package {type_params = []; parameters = params}
-  | ExternObject { methods; name; _ } ->
+     let type_args = solve_constructor_invocation env type_params params type_args args in
+     Typed.Type.SpecializedType
+       { base = Typed.Type.Package
+                  { type_params = type_params;
+                    parameters = params };
+         args = type_args }
+  | ExternObject { methods; type_params; name; _ } ->
      begin match select_constructor_params env (fst decl) methods args with
      | None -> raise_s [%message "no constructor available for instantiation"]
      | Some params ->
-        check_constructor_invocation env params args;
+        let type_params = List.map ~f:snd type_params in
+        let type_args = solve_constructor_invocation env type_params params type_args args in
         Typed.Type.SpecializedType { base = TypeName (snd name);
-                                    args = type_args }
+                                     args = type_args }
      end
   | d ->
      raise_s [%message "instantiation unimplemented"
@@ -1544,9 +1624,25 @@ and type_instantiation env typ args name =
   let instance_type = type_nameless_instantiation env typ args in
   Env.insert_type_of (snd name) instance_type env
 
-and check_constructor_invocation env params args =
+and check_constructor_invocation env type_params params type_args args =
+  solve_constructor_invocation env type_params params type_args args |> ignore
+
+and solve_constructor_invocation env type_params params type_args args: Typed.Type.t list =
   match List.zip params args with
-  | Some params_and_args ->
+  | Some params_args ->
+     let type_params_args =
+       match List.zip type_params type_args with
+       | Some type_params_args ->
+          type_params_args
+       | None ->
+          let inference_params_args =
+            List.map params_args
+              ~f:(fun (cons_param, arg) -> construct_param_as_param cons_param,
+                                           expr_of_arg arg)
+          in
+          infer_type_arguments env (Typed.Type.Void) type_params inference_params_args []
+     in
+     let env = Env.insert_types type_params_args env in
      let param_matches_arg (param, arg: Typed.ConstructParam.t * Types.Argument.t) =
        match snd arg with
        | Argument.Expression { value } ->
@@ -1555,7 +1651,8 @@ and check_constructor_invocation env params args =
        | KeyValue _ -> failwith "key-value argument passing unimplemented"
        | Missing -> failwith "missing argument??"
      in
-     List.iter ~f:param_matches_arg params_and_args
+     List.iter ~f:param_matches_arg params_args;
+     List.map ~f:snd type_params_args
   | None ->
      raise_s [%message "mismatch in constructor call"
                  ~params:(params: Typed.ConstructParam.t list)

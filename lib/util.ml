@@ -25,6 +25,10 @@ let option_map f = function
   | Some x -> Some (f x)
   | None -> None
 
+let option_collapse = function
+  | Some (Some x) -> Some x
+  | _ -> None
+
 let uncurry f (x, y) = f x y
 
 let rec combine_opt xs ys =
@@ -41,6 +45,12 @@ let eq_lists ~f xs ys =
   match List.zip xs ys with
   | Some xys -> List.for_all ~f xys
   | None -> false
+
+let zip_map_fold ~f ~merge ~init xs ys =
+  match List.zip xs ys with
+  | Some xys ->
+     Some (List.fold_left ~f:merge ~init @@ List.map ~f xys)
+  | None -> None
 
 let rec find_and_drop ~f xs =
   match xs with

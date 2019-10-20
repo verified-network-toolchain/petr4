@@ -38,14 +38,14 @@ control MyEgress(inout head[13] hdr,
 
   table my_table {
     key = {standard_metadata.egress_spec : exact;
-           standard_metadata.ingress_port : exact;
+           standard_metadata.ingress_port : ternary;
           }
     actions = {a;
                a_with_control_params;
                }
     default_action = a();
     const entries = {
-                     (9w0, 9w0) : a_with_control_params(1);
+                     (9w0, 9w1 &&& 9w1) : a_with_control_params(1);
                      (0x02, 0x1181) : a_with_control_params(2);
                      (0x03, 0x1111) : a_with_control_params(3);
                      (0x04, 0x1211) : a_with_control_params(4);

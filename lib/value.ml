@@ -65,11 +65,12 @@ module Value : sig
       | LArrayAccess of lvalue * Expression.t
 
     and set =
-      | SSingleton of Bigint.t
+      | SSingleton of Bigint.t * Bigint.t
       | SUniversal
       | SMask of value * value 
       | SRange of value * value 
       | SProd of set list
+      | SLpm of Bigint.t * Bigint.t
 
     and signal =
       | SContinue
@@ -148,11 +149,12 @@ end = struct
       | LArrayAccess of lvalue * Expression.t
 
     and set =
-      | SSingleton of Bigint.t
+      | SSingleton of Bigint.t * Bigint.t
       | SUniversal
       | SMask of value * value 
       | SRange of value * value 
       | SProd of set list
+      | SLpm of Bigint.t * Bigint.t
 
     and signal =
       | SContinue

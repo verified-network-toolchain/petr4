@@ -70,6 +70,7 @@ let check_file (include_dirs : string list) (p4_file : string)
   | `Error (info, err) ->
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
+
 let eval_file include_dirs p4_file verbose pfile =
   let packet_string = Core_kernel.In_channel.read_all pfile in
   let pack = Cstruct.of_hex packet_string in
@@ -122,9 +123,9 @@ let command =
          let _ = eval_file include_dirs p4_file verbose pfile in ()
        | _, _, _ -> ())
 
-let () = eval_file ["./examples"] "./examples/eval_tests/expressions/casts.p4" false "packets/sample_packet.txt"
+let () = eval_file ["./examples"] "./examples/eval_tests/controls/table2.p4" false "packets/sample_packet.txt"
 
 (* let () =
-  Format.printf "@[";
-  Command.run ~version:"0.1.1" command;
-  Format.printf "@]" *)
+   Format.printf "@[";
+   Command.run ~version:"0.1.1" command;
+   Format.printf "@]" *)

@@ -25,7 +25,7 @@ control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-
+        standard_metadata.egress_spec = 9w0b101010011;
     }
 }
 
@@ -41,12 +41,23 @@ control MyEgress(inout head[13] hdr,
         standard_metadata.egress_spec = 2;
     }
 
+    action set_three () {
+        standard_metadata.egress_spec = 3;
+    }
+
+    action set_four () {
+        standard_metadata.egress_spec = 4;
+    }
+
+
     table my_table {
         key = { standard_metadata.egress_spec : lpm;}
         actions = { set_one; set_two; }
         const entries = {
-            9w0 &&& 9w0 : set_two;
-            9w0 : set_one;
+            9w0b101010101 &&& 9w0b000000000 : set_one;
+            9w0b101010101 &&& 9w0b111111100 : set_three;
+            9w0b101010101 &&& 9w0b111110000 : set_two;
+            9w0b101010101 &&& 9w0b111111111 : set_four;
             }
     }
 

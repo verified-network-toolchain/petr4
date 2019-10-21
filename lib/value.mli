@@ -70,7 +70,7 @@ module Value : sig
       | SMask of value * value
       | SRange of value * value
       | SProd of set list
-      | SLpm of Bigint.t * Bigint.t
+      | SLpm of value * Bigint.t * value
 
     and signal =
       | SContinue

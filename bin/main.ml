@@ -123,7 +123,7 @@ let command =
          let _ = eval_file include_dirs p4_file verbose pfile in ()
        | _, _, _ -> ())
 
-let () = eval_file ["./examples"] "./examples/eval_tests/controls/table2.p4" false "packets/sample_packet.txt"
+let () = eval_file ["./examples"] "./examples/eval_tests/controls/table3.p4" false "packets/sample_packet.txt"
 
 (* let () =
    Format.printf "@[";

@@ -224,7 +224,15 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
              |> List.fold_map ~init:(env'',s)
                ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
   end in
-  let sorted_entries = List.sort entries ~compare:(fun (s1,_) (s2,_) -> failwith "gasdfdsa") in
+  let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in 
+  let compare = fun (s1,_) (s2,_) -> 
+    let (_,n1,_) = assert_lpm s1 in 
+    let (_,n2,_) = assert_lpm s2 in 
+    if Bigint.(n1 = n2) then 0 
+    else if Bigint.(n1 > n2) then -1 
+    else 1 in
+  let sorted_entries = List.sort entries' 
+                      ~compare:compare in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
@@ -236,16 +244,30 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
                    default_action = default;
                    const_entries = if sort_mks then sorted_entries else entries; } in
   EvalEnv.insert_val name v env'''
-(* failwith "blegh" *)
+
+and assert_lpm (s : set) : value * Bigint.t * value = 
+  match s with 
+  | SLpm (v1,bs,v2) -> (v1,bs,v2)
+  | _ -> failwith "not lpm"
 
 and lpm_set_of_set (s : set) : set =
   match s with
-  | SSingleton (w,v) -> SLpm (w,v)
+  | SSingleton (w,v) -> SLpm (VBit (w,v), w, VBit(w,bitwise_neg_of_bigint Bigint.zero w))  
   | SUniversal -> SUniversal
-  | SMask (v1,v2) -> failwith "blegh"
+  | SMask (v1,v2) -> 
+    SLpm (v1, v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false, v2)
   | SRange _ -> failwith "unreachable"
   | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
   | v -> v
+
+and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t = 
+  let two = Bigint.(one + one) in
+  if Bigint.(v = zero)
+  then acc 
+  else if Bigint.(v % two = zero)
+  then if b then failwith "bad lpm mask"
+       else bits_of_lpmmask acc b Bigint.(v / two) 
+  else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two) 
 
 and is_default (p : Table.pre_property) : bool =
   match p with
@@ -2301,7 +2323,7 @@ and values_match_set (vs : value list) (s : set) : bool =
   | SMask(v1,v2)  -> values_match_mask vs v1 v2
   | SRange(v1,v2) -> values_match_range vs v1 v2
   | SProd l       -> values_match_prod vs l
-  | SLpm _ -> failwith "unimplemented" (*TODO*)
+  | SLpm(v1,_,v2) -> values_match_mask vs v1 v2 
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in

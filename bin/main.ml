@@ -52,7 +52,7 @@ let check_file (include_dirs : string list) (p4_file : string)
     (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
   match parse include_dirs p4_file verbose with
   | `Ok prog ->
-    let _ = Checker.check_program prog in
+    let _ = () (*Checker.check_program prog*) in
     if print_json then
       let json = Types.program_to_yojson prog in
       let to_string j =
@@ -71,11 +71,18 @@ let check_file (include_dirs : string list) (p4_file : string)
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
 
-let eval_file include_dirs p4_file verbose pfile =
+let eval_file include_dirs p4_file verbose pfile cfile =
   let packet_string = Core_kernel.In_channel.read_all pfile in
   let pack = Cstruct.of_hex packet_string in
+  let open Yojson.Safe in
+  let ctrl_json = from_file cfile in
+  let entries = ctrl_json |> Util.member "entries" |> Util.to_list in
+  let ctrl = List.map entries ~f:Types.Table.pre_entry_of_yojson in
+  let pre_entries = List.map ctrl ~f:(fun r -> match r with
+      | Ok entries -> entries
+      | Error s -> failwith s) in
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog pack []
+  | `Ok prog -> Eval.eval_program prog pack pre_entries
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =
@@ -110,11 +117,12 @@ let command =
     +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
     +> flag "-verbose" no_arg ~doc:"Verbose mode"
     +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
+    +> flag "-ctrl" (optional string) ~doc:"<file> Read a control plane config from file"
     +> anon (maybe ("p4file" %:string)) in
   Command.basic_spec
     ~summary:"p4i: OCaml front-end for the P4 language"
     spec
-    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file () ->
+    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file ctrl_file () ->
        match p4_dir, p4_file, packet with
        | Some p4_dir,_,_ ->
          check_dir include_dirs p4_dir verbose
@@ -123,7 +131,9 @@ let command =
          let _ = eval_file include_dirs p4_file verbose pfile in ()
        | _, _, _ -> ())
 
-let () = eval_file ["./examples"] "./examples/eval_tests/controls/table3.p4" false "packets/sample_packet.txt"
+(*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
+
+let () = eval_file ["./examples"] "./examples/eval_tests/controls/table.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
 
 (* let () =
    Format.printf "@[";

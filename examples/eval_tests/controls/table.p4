@@ -37,25 +37,16 @@ control MyEgress(inout head[13] hdr,
         standard_metadata.egress_spec = 1;
     }
 
-    action set_two () {
-        standard_metadata.egress_spec = 2;
-    }
-
     table my_table {
-        key = { standard_metadata.egress_spec : exact;
-                standard_metadata.ingress_port : exact;}
-        actions = { set_one; set_two; }
-        default_action = set_two();
+        key = { standard_metadata.egress_spec : exact;}
+        actions = { set_one;}
         const entries = {
-            (9w0, 9w0) : set_two;
-            (9w1, 9w1) : set_one;
+            9w0 : set_one;
             }
     }
 
     apply {
-        if (my_table.apply().hit) {standard_metadata.egress_spec = 42;}
-        else {standard_metadata.egress_spec = 43;}
-        exit;
+        my_table.apply();
     }
 
 }

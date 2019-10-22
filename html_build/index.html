@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Petr4</title>
+</head>
+<body>
+  <textarea rows="4" cols="50" id="code-area">
+      struct my_struct {
+        bit<8> n;
+        bool b;
+      }
+
+      my_struct f(in bit<8> a, in bool b) {
+          my_struct ans;
+          ans.n = a;
+          ans.b = b;
+          return ans;
+      }
+
+      const my_struct s = { 42, true };
+      const bit<8> num = s.n;
+      const bool boo = s.b;
+
+      const my_struct s2 = f(42,true);
+      const bit<8> num2 = s2.n;
+      const bit<8> boo2 = s2.b;
+
+      package EmptyPackage();
+      EmptyPackage() main;
+  </textarea>
+  <textarea rows="4" cols="50" id="packet-area">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea>
+
+  <button id="form-submit">run</button>
+
+  <textarea rows="4" cols="50" id="output">out</textarea>
+  <script src="main.bc.js"></script>
+</body>
+</html>

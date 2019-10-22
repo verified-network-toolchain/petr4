@@ -3,6 +3,7 @@ _build/
 *.exe
 petr4.install
 .merlin
+html_build/*.js
 
 # LaTeX output
 *.aux

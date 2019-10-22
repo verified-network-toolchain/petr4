@@ -18,10 +18,8 @@ depends: [
   "dune" {build}
   "menhir"
   "ANSITerminal"
-  "bignum"
   "core"
   "ppx_deriving_yojson"
   "ppx_jane"
   "yojson"
 ]
-

@@ -76,11 +76,8 @@ let eval_file include_dirs p4_file verbose pfile cfile =
   let pack = Cstruct.of_hex packet_string in
   let open Yojson.Safe in
   let ctrl_json = from_file cfile in
-  let entries = ctrl_json |> Util.member "entries" |> Util.to_list in
-  let ctrl = List.map entries ~f:Types.Table.pre_entry_of_yojson_exn in
-  (*let pre_entries = List.map ctrl ~f:(fun r -> match r with
-      | Ok entries -> entries
-      | Error s -> failwith s) in*)
+  let pre_entries = ctrl_json |> Util.member "pre_entries" |> Util.to_list in
+  let ctrl = List.map pre_entries ~f:Types.Table.pre_entry_of_yojson_exn in
   match parse include_dirs p4_file verbose with
   | `Ok prog -> Eval.eval_program prog pack ctrl
   | _ -> failwith "error unhandled"

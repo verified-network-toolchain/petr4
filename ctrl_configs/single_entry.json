@@ -1,37 +1,23 @@
 {
-  "entries": [
-    [
-      {
-  "annotations": [],
-  "matches": [
-    [
-      [
-        "info",
-        {
-          "filename": "./examples/eval_tests/controls/table.p4\"",
-          "line_start": 44,
-          "line_end": null,
-          "col_start": 12,
-          "col_end": 15
-        }
-      ],
-      [
-        "Expression",
-        {
-          "expr": [
-            [
-              "info",
-              {
-                "filename": "./examples/eval_tests/controls/table.p4\"",
-                "line_start": 44,
-                "line_end": null,
-                "col_start": 12,
-                "col_end": 15
-              }
-            ],
-            [
-              "int",
-              [
+  "pre_entries": [
+    {
+      "annotations": [],
+      "matches": [
+        [
+          [
+            "info",
+            {
+              "filename": "./examples/eval_tests/controls/table.p4\"",
+              "line_start": 44,
+              "line_end": null,
+              "col_start": 12,
+              "col_end": 15
+            }
+          ],
+          [
+            "Expression",
+            {
+              "expr": [
                 [
                   "info",
                   {
@@ -42,28 +28,34 @@
                     "col_end": 15
                   }
                 ],
-                { "value": "0", "width_signed": [ 9, false ] }
+                [
+                  "int",
+                  [
+                    [
+                      "info",
+                      {
+                        "filename": "./examples/eval_tests/controls/table.p4\"",
+                        "line_start": 44,
+                        "line_end": null,
+                        "col_start": 12,
+                        "col_end": 15
+                      }
+                    ],
+                    {
+                      "value": 0,
+                      "width_signed": [
+                        9,
+                        false
+                      ]
+                    }
+                  ]
+                ]
               ]
-            ]
+            }
           ]
-        }
-      ]
-    ]
-  ],
-  "action": [
-    [
-      "info",
-      {
-        "filename": "./examples/eval_tests/controls/table.p4\"",
-        "line_start": 44,
-        "line_end": null,
-        "col_start": 18,
-        "col_end": 25
-      }
-    ],
-    {
-      "annotations": [],
-      "name": [
+        ]
+      ],
+      "action": [
         [
           "info",
           {
@@ -74,13 +66,24 @@
             "col_end": 25
           }
         ],
-        "set_one"
-      ],
-      "args": []
+        {
+          "annotations": [],
+          "name": [
+            [
+              "info",
+              {
+                "filename": "./examples/eval_tests/controls/table.p4\"",
+                "line_start": 44,
+                "line_end": null,
+                "col_start": 18,
+                "col_end": 25
+              }
+            ],
+            "set_one"
+          ],
+          "args": []
+        }
+      ]
     }
-  ]
-}
-
-    ]
   ]
 }

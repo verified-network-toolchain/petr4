@@ -217,12 +217,11 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
     match List.filter props' ~f:is_entries with
       | [] -> List.fold_map ctrl_entries ~init:(env'',s)
                 ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
-      | l -> let l' = l
+      | l -> l
              |> List.hd_exn
              |> assert_entries
-             |> List.map ~f:snd in
-      let () = List.iter l' ~f:(fun e -> print_endline (Types.Table.pre_entry_to_yojson e |> Yojson.Safe.pretty_to_string)) in
-             l' |> List.fold_map ~init:(env'',s)
+             |> List.map ~f:snd
+             |> List.fold_map ~init:(env'',s)
                ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
   end in
   let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in 

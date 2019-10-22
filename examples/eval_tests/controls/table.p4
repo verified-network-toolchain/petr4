@@ -40,9 +40,6 @@ control MyEgress(inout head[13] hdr,
     table my_table {
         key = { standard_metadata.egress_spec : exact;}
         actions = { set_one;}
-        const entries = {
-            9w0 : set_one;
-            }
     }
 
     apply {

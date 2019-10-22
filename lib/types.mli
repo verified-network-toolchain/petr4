@@ -229,7 +229,7 @@ and Table : sig
     { annotations: Annotation.t list;
       matches: Match.t list;
       action: action_ref }
-  [@@deriving sexp,yojson]      
+  [@@deriving sexp,yojson { exn = true }]      
 
   type entry = pre_entry info [@@deriving sexp,yojson]
 

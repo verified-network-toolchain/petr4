@@ -77,12 +77,12 @@ let eval_file include_dirs p4_file verbose pfile cfile =
   let open Yojson.Safe in
   let ctrl_json = from_file cfile in
   let entries = ctrl_json |> Util.member "entries" |> Util.to_list in
-  let ctrl = List.map entries ~f:Types.Table.pre_entry_of_yojson in
-  let pre_entries = List.map ctrl ~f:(fun r -> match r with
+  let ctrl = List.map entries ~f:Types.Table.pre_entry_of_yojson_exn in
+  (*let pre_entries = List.map ctrl ~f:(fun r -> match r with
       | Ok entries -> entries
-      | Error s -> failwith s) in
+      | Error s -> failwith s) in*)
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog pack pre_entries
+  | `Ok prog -> Eval.eval_program prog pack ctrl
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =

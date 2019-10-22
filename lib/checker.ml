@@ -162,7 +162,7 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
     let env = Env.insert_type_vars extern.type_params env in
-    { extern with 
+    { extern with
       methods = List.map ~f:(saturate_method env) extern.methods }
   and saturate_method env (m: ExternType.extern_method) =
     { m with typ = saturate_function env m.typ }
@@ -312,7 +312,7 @@ and solve_lists: 'a 'b.
   zip_map_fold xs ys
     ~f:f
     ~merge:(merge_solutions env)
-    ~init:(Some (empty_constraints unknowns)) 
+    ~init:(Some (empty_constraints unknowns))
   |> option_collapse
 
 and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
@@ -405,7 +405,7 @@ and solve_function_type_equality env equiv_vars unknowns func1 func2 =
 
 and solve_action_type_equality env equiv_vars unknowns action1 action2 =
   let open ActionType in
-  merge_solutions env 
+  merge_solutions env
     (solve_params_equality env equiv_vars unknowns action1.data_params action2.data_params)
     (solve_constructor_params_equality env equiv_vars unknowns action1.ctrl_params action2.ctrl_params)
 
@@ -425,7 +425,7 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
      let base = reduce_type env base in
      begin match get_type_params base with
      | [] -> begin match args with
-             | [] -> base 
+             | [] -> base
              | _ -> typ (* stuck type application *)
              end
      | t_params ->
@@ -765,16 +765,106 @@ and translate_construct_params env vars construct_params =
        end in
   List.fold_left ~f:p_folder ~init:[] construct_params |> List.rev
 
-and construct_param_as_param (construct_param: ConstructParam.t) : Parameter.t =
-  { name = construct_param.name;
-    typ = construct_param.typ;
-    direction = Directionless }
+  and construct_param_as_param (construct_param: ConstructParam.t) : Parameter.t =
+    { name = construct_param.name;
+      typ = construct_param.typ;
+      direction = Directionless }
 
-and expr_of_arg (arg: Argument.t): Expression.t option =
-  match snd arg with
-  | Missing -> None
-  | KeyValue { value; _ }
-  | Expression { value } -> Some value
+  and expr_of_arg (arg: Argument.t): Expression.t option =
+    match snd arg with
+    | Missing -> None
+    | KeyValue { value; _ }
+    | Expression { value } -> Some value
+
+(* Returns true if type typ is a well-formed type
+*)
+and is_well_formed_type env (typ: Typed.Type.t) : bool =
+  match typ with
+
+  (* Base types *)
+  | Bool
+  | String
+  | Integer
+  | Int _
+  | Bit _
+  | VarBit _
+  | Error
+  | MatchKind
+  | Void -> true
+
+  (* Recursive types *)
+  | Array {typ=t; _} -> is_well_formed_type env t
+  | Tuple {types= typs}
+  | List {types= typs} -> List.for_all ~f:(is_well_formed_type env) typs
+  | Set t -> is_well_formed_type env t
+  | Enum {typ=maybe_typ; _} ->
+    begin match maybe_typ with
+    | None -> true
+    | Some t ->  is_well_formed_type env t
+    end
+  | Header {fields=fields}
+  | HeaderUnion {fields=fields}
+  | Struct {fields=fields} ->
+    let open RecordType in
+    List.for_all ~f:(fun field -> field.typ |> is_well_formed_type env) fields
+  | Action { data_params=dps; ctrl_params=cps } ->
+    let res1 : bool = (are_param_types_well_formed env dps) in
+    let res2 : bool = (are_construct_params_types_well_formed env cps) in
+    res1 && res2
+
+  (* Type names *)
+  | TypeVar name
+  | TypeName name
+  | Table {result_typ_name=name} ->
+    begin match Env.find_type_of_opt name env with
+    | None -> false
+    | Some _ -> true (* Unsure of what to do in this case *)
+    end
+  | TopLevelType name ->
+    begin match Env.find_type_of_toplevel_opt name env with
+    | None -> false
+    | Some _ -> true (* Unsure of what to do in this case *)
+    end
+
+  (* Polymorphic types *)
+  | Function {type_params=tps; parameters=ps; return=rt} ->
+    let env = Env.insert_type_vars tps env in
+    are_param_types_well_formed env ps && is_well_formed_type env rt
+  | Extern {type_params=tps; methods=methods} ->
+    let env = Env.insert_type_vars tps env in
+    let open ExternType in
+    let folder (env,result) m =
+      if is_well_formed_type env (Type.Function m.typ) then
+      (Env.insert_type_of m.name (Type.Function m.typ) env,result)
+      else (env,false) in
+    List.fold_left ~f:folder ~init:(env,true) methods |> snd
+  | Parser {type_params=tps; parameters=ps}
+  | Control {type_params=tps; parameters=ps} ->
+    let env = Env.insert_type_vars tps env in
+    are_param_types_well_formed env ps
+  | Package {type_params=tps; parameters=cps} ->
+    let env = Env.insert_type_vars tps env in
+    are_construct_params_types_well_formed  env cps
+
+  (* Type Application *)
+  | SpecializedType {base=base_typ; args=typ_args} ->
+    if List.for_all ~f:(is_well_formed_type env) typ_args
+    then let filled = subst_types base_typ typ_args in
+    is_well_formed_type env filled
+    else false
+
+
+and are_param_types_well_formed env (params:Parameter.t list) : bool =
+  let open Parameter in
+  let check param = is_well_formed_type env param.typ in
+  List.for_all ~f:check params
+
+
+and are_construct_params_types_well_formed env (construct_params:ConstructParam.t list) : bool =
+  let open ConstructParam in
+  let check param = is_well_formed_type env param.typ in
+  List.for_all ~f:check construct_params
+
 
 and type_int (_, value) =
   let open P4Int in
@@ -1338,7 +1428,7 @@ and type_constructor_invocation env decl type_args args =
        solve_constructor_invocation env type_params constructor_params type_args args
      in
      Typed.Type.SpecializedType
-       { base = Typed.Type.Control 
+       { base = Typed.Type.Control
                   { type_params = type_params;
                     parameters = params };
          args = type_args }
@@ -1760,8 +1850,11 @@ and type_function env return name type_params params body =
           | InOut -> InOut
       end
     end in
+    let p_typ = p.typ |> translate_type env t_params in
+    if is_well_formed_type env p_typ |> not
+    then failwith "Parameter type is not well-formed" else
     let par = {name=p.variable |> snd;
-              typ=p.typ |> translate_type env t_params;
+              typ=p_typ;
               direction=pd} in
     let new_env =
       Env.insert_dir_type_of (snd p.variable) par.typ par.direction env
@@ -1835,6 +1928,8 @@ and type_action env name params body =
     begin let p = snd p in
       let name = p.variable |> snd in
       let typ = p.typ |> translate_type env [] in
+      if is_well_formed_type env typ |> not
+      then failwith "Parameter type is not well-formed" else
       begin match p.direction with
         | None ->
           let open ConstructParam in
@@ -1857,6 +1952,8 @@ and type_action env name params body =
       end
       end in
  let ((dps,cps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
+ let dps = List.rev dps in
+ let cps = List.rev cps in
   let sfold = fun (prev_type,envi:StmType.t*Env.checker_env) (stmt:Statement.t) ->
     begin match prev_type with
     | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
@@ -2065,6 +2162,7 @@ and type_serializable_enum env typ name members =
 
 (* Section 7.2.9.2 *)
 and type_extern_object env name type_params methods =
+  let init_env = env in
   let type_params' = List.map ~f:snd type_params in
   let consume_method (constructors, methods) m =
     match snd m with
@@ -2091,7 +2189,10 @@ and type_extern_object env name type_params methods =
     { type_params = type_params';
       methods = ms' }
   in
-  Env.insert_type (snd name) (Typed.Type.Extern typ) env
+  let extern_typ = (Typed.Type.Extern typ) in
+  if is_well_formed_type init_env extern_typ |> not
+  then failwith "Extern type is not well-formed" else
+  Env.insert_type (snd name) extern_typ env
 
 (* Section 7.3 *)
 and type_type_def env (_, name) typ_or_decl =
@@ -2113,7 +2214,10 @@ and type_new_type env name typ_or_decl =
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
+  let body_env = Env.insert_type_vars t_params env in
   let ps = translate_parameters env t_params params in
+  if are_param_types_well_formed body_env ps |> not
+  then failwith "Parameter types are not well-formed" else
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Control {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
@@ -2121,7 +2225,10 @@ and type_control_type env name type_params params =
 (* Section 7.2.11 *)
 and type_parser_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
+  let body_env = Env.insert_type_vars t_params env in
   let ps = translate_parameters env t_params params in
+  if are_param_types_well_formed body_env ps |> not
+  then failwith "Parameter types are not well-formed" else
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Parser {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
@@ -2129,7 +2236,10 @@ and type_parser_type env name type_params params =
 (* Section 7.2.12 *)
 and type_package_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
+  let body_env = Env.insert_type_vars t_params env in
   let ps = translate_construct_params env t_params params in
+  if are_construct_params_types_well_formed body_env ps |> not
+  then failwith "Parameter types are not well-formed" else
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env

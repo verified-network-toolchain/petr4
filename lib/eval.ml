@@ -1,5 +1,5 @@
 module I = Info
-open Core
+open Core_kernel
 open Env
 open Types
 open Value
@@ -1599,11 +1599,11 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let h e (p:Parameter.t) a =
     match (snd p).direction with
     | None ->
-      begin match snd (snd p).typ with 
-        | TypeName(_,n) 
-        | TopLevelType(_,n) -> 
-          begin match snd (EvalEnv.find_decl n e) with 
-            | ExternObject _ -> 
+      begin match snd (snd p).typ with
+        | TypeName(_,n)
+        | TopLevelType(_,n) ->
+          begin match snd (EvalEnv.find_decl n e) with
+            | ExternObject _ ->
               let v = EvalEnv.find_val (snd (snd p).variable) fenv in
               begin match snd a with
                 | Argument.Expression {value=expr}
@@ -2753,7 +2753,7 @@ let hex_of_string (s : string) : string =
   |> List.fold_left ~init:"" ~f:(^)
 
 let eval_program (p : Types.program) (pack : packet_in)
-  (ctrl : Table.pre_entry list) : unit =
+  (ctrl : Table.pre_entry list) : string =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;
@@ -2763,4 +2763,3 @@ let eval_program (p : Types.program) (pack : packet_in)
     packetout
     |> Cstruct.to_string
     |> hex_of_string
-    |> print_endline

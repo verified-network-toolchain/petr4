@@ -13,44 +13,28 @@
  * under the License.
 *)
 
-open Core
-(* open Core_extended.Std *)
+open Core_kernel
 open Petr4
+open Js_of_ocaml
+open Js_of_ocaml_lwt
 
-exception ParsingError of string
-
-let colorize colors s = ANSITerminal.sprintf colors "%s" s
-let red s = colorize [ANSITerminal.red] s
-let green s = colorize [ANSITerminal.green] s
-
-let preprocess include_dirs p4file =
-  let cmd =
-    String.concat ~sep:" "
-      (["cc"] @
-       (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-        ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-  let in_chan = Unix.open_process_in cmd in
-  let str = In_channel.input_all in_chan in
-  let _ = Unix.close_process_in in_chan in
-  str
-
-let parse include_dirs p4_file verbose =
+(*cc needs to be called before this, requiring this from users for now*)
+let parse p4_file_name (p4_file_contents:string) verbose =
   let () = Lexer.reset () in
-  let () = Lexer.set_filename p4_file in
-  let p4_string = preprocess include_dirs p4_file in
-  let lexbuf = Lexing.from_string p4_string in
+  let () = Lexer.set_filename p4_file_name in
+  let lexbuf = Lexing.from_string p4_file_contents in
   try
     let prog = Parser.p4program Lexer.lexer lexbuf in
-    if verbose then Format.eprintf "[%s] %s@\n%!" (green "Passed") p4_file;
+    if verbose then Format.eprintf "[%s] %s@\n%!" ("Passed") p4_file_name;
     `Ok prog
   with
   | err ->
-    if verbose then Format.eprintf "[%s] %s@\n%!" (red "Failed") p4_file;
+    if verbose then Format.eprintf "[%s] %s@\n%!" ("Failed") p4_file_name;
     `Error (Lexer.info lexbuf, err)
 
-let check_file (include_dirs : string list) (p4_file : string)
+let check_file (p4_file_name : string) (p4_file_contents : string)
     (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
-  match parse include_dirs p4_file verbose with
+  match parse p4_file_name p4_file_contents verbose with
   | `Ok prog ->
     let _ = Checker.check_program prog in
     if print_json then
@@ -70,61 +54,37 @@ let check_file (include_dirs : string list) (p4_file : string)
   | `Error (info, err) ->
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-let eval_file include_dirs p4_file verbose pfile =
+let eval_file p4_file_name verbose pfile =
   let packet_string = Core_kernel.In_channel.read_all pfile in
   let pack = Cstruct.of_hex packet_string in
-  match parse include_dirs p4_file verbose with
+  let p4_file_contents = Core_kernel.In_channel.read_all p4_file_name in
+  match parse p4_file_name p4_file_contents verbose with
   | `Ok prog -> Eval.eval_program prog pack []
   | _ -> failwith "error unhandled"
 
-let check_dir include_dirs p4_dir verbose =
-  let dir_handle = Unix.opendir p4_dir in
-  let rec loop () =
-    match Unix.readdir_opt dir_handle with
-    | None ->
-      ()
-    | Some file ->
-      if Filename.check_suffix file "p4" then
-        begin
-          let p4_file = Filename.concat p4_dir file in
-          match parse include_dirs p4_file verbose with
-          | `Ok _ -> ()
-          | `Error (info, Lexer.Error s) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, Parser.Error) ->
-            Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
-          | `Error (info, err) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
-        end;
-      loop () in
-  loop ()
+let eval_string verbose packet_string p4_file_contents =
+  let pack = Cstruct.of_hex packet_string in
+  match parse "input.p4" p4_file_contents verbose with
+  | `Ok prog -> Eval.eval_program prog pack []
+  | _ -> "error when evaluating program!"
 
-let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
-    +> flag "-testdir" (optional string) ~doc:"<dir> Test all P4 files in directory"
-    +> flag "-json" no_arg ~doc:"Emit parsed program as JSON on stdout"
-    +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
-    +> flag "-verbose" no_arg ~doc:"Verbose mode"
-    +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
-    +> anon (maybe ("p4file" %:string)) in
-  Command.basic_spec
-    ~summary:"p4i: OCaml front-end for the P4 language"
-    spec
-    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file () ->
-       match p4_dir, p4_file, packet with
-       | Some p4_dir,_,_ ->
-         check_dir include_dirs p4_dir verbose
-       | _, Some p4_file, Some pfile ->
-         check_file include_dirs p4_file print_json pretty_json verbose;
-         let _ = eval_file include_dirs p4_file verbose pfile in ()
-       | _, _, _ -> ())
 
-let () = eval_file ["./examples"] "./examples/eval_tests/expressions/casts.p4" false "packets/sample_packet.txt"
-
-(* let () =
-  Format.printf "@[";
-  Command.run ~version:"0.1.1" command;
-  Format.printf "@]" *)
+let () =
+   let form_submit = Dom_html.getElementById "form-submit" in
+   let text_area_of_string s  =
+      match Dom_html.getElementById s |> Dom_html.CoerceTo.textarea |> Js.Opt.to_option with
+      | Some x -> x
+      | _ -> failwith "unimp"
+    in
+    let area_input = text_area_of_string "code-area" in
+    let area_out = text_area_of_string "output" in
+    let area_packet = text_area_of_string "packet-area" in
+    Lwt.async @@ fun () ->
+      Lwt_js_events.clicks form_submit @@ fun _ _ ->
+        let packet = area_packet##.value |> Js.to_string in
+        area_out##.value :=
+          area_input##.value
+          |> Js.to_string
+          |> eval_string false packet
+          |> Js.string;
+        Lwt.return ()

@@ -13,7 +13,7 @@
  * under the License.
  *)
 
-open Core
+open Core_kernel
 open Sexplib.Conv
 
 type t =

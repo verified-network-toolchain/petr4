@@ -1,6 +1,6 @@
 open Types
 open Value.Value
-open Core
+open Core_kernel
 
 exception BadEnvironment of string
 exception UnboundName of string
@@ -105,7 +105,7 @@ module EvalEnv = struct
   let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
 
-  let insert_table_entry entry e = 
+  let insert_table_entry entry e =
     { e with tables = entry :: e.tables }
 
   let insert_err name e =
@@ -120,7 +120,7 @@ module EvalEnv = struct
   let insert_typs bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
 
-  let insert_table_entries entries e = 
+  let insert_table_entries entries e =
     {e with tables = e.tables @ entries }
 
   let insert_errs ss e =
@@ -185,7 +185,7 @@ module EvalEnv = struct
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
-    let open Core in
+    let open Core_kernel in
     print_endline "First environment value mappings:";
     let rec f (name, value) =
       print_string "     ";
@@ -197,9 +197,7 @@ module EvalEnv = struct
         | VInteger v
         | VBit(_, v)
         | VInt(_, v)
-        | VVarbit(_,_,v) -> begin match Bigint.to_int v with
-            | None -> "<bigint>"
-            | Some n -> string_of_int n end
+        | VVarbit(_,_,v) -> Bigint.to_string v
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
         | VString s -> s
@@ -316,7 +314,7 @@ module CheckerEnv = struct
     { decl = [[]];
       vs = cenv.const;
       typ = [[]];
-      tables = [];  
+      tables = [];
       err = [];
       parser_error = "NoError"}
 end

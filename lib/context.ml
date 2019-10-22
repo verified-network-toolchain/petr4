@@ -13,7 +13,7 @@
  * under the License.
 *)
 
-open Core
+open Core_kernel
 
 (* Type of context *)
 module StringMap = Map.Make(String)

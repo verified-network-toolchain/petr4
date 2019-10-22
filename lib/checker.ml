@@ -40,7 +40,7 @@ let assert_numeric = make_assert "integer"
 
 let insert_type_vars : Env.CheckerEnv.t -> string list -> Env.CheckerEnv.t =
   let open Env.CheckerEnv in
-  List.fold_left (Core.Fn.flip insert_type_var)
+  List.fold_left (Core_kernel.Fn.flip insert_type_var)
 
 (* Eliminate all type references in typ and replace them with the type they
  * refer to. The result of saturation will contain no TypeName constructors

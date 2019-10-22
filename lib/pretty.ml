@@ -13,7 +13,7 @@
  * under the License.
  *)
 
-open Core
+open Core_kernel
 open Util
 module P4 = Types
 

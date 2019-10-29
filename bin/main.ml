@@ -120,17 +120,17 @@ let command =
     ~summary:"p4i: OCaml front-end for the P4 language"
     spec
     (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file ctrl_file () ->
-       match p4_dir, p4_file, packet with
-       | Some p4_dir,_,_ ->
+       match p4_dir, p4_file, packet, ctrl_file with
+       | Some p4_dir,_,_,_ ->
          check_dir include_dirs p4_dir verbose
-       | _, Some p4_file, Some pfile ->
+       | _, Some p4_file, Some pfile, Some cfile ->
          check_file include_dirs p4_file print_json pretty_json verbose;
-         let _ = eval_file include_dirs p4_file verbose pfile in ()
-       | _, _, _ -> ())
+         let _ = eval_file include_dirs p4_file verbose pfile cfile in ()
+       | _, _, _, _ -> ())
 
 (*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
 
-let () = eval_file ["./examples"] "./examples/eval_tests/controls/table.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
+let () = eval_file ["./examples"] "./examples/eval_tests/controls/switch.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
 
 (* let () =
    Format.printf "@[";

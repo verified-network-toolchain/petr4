@@ -474,7 +474,7 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   | Exit                               -> eval_exit env sign
   | EmptyStatement                     -> (env, sign)
   | Return{expr}                       -> eval_return env sign expr
-  | Switch{expr;cases}                 -> eval_switch ()
+  | Switch{expr;cases}                 -> eval_switch env sign expr cases
   | DeclarationStatement{decl}         -> eval_decl_stm env sign decl
 
 and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
@@ -586,17 +586,52 @@ and eval_return (env : EvalEnv.t) (sign : signal)
     match expr with
     | None   -> (env, SContinue, VNull)
     | Some e -> eval_expression' env SContinue e in
-  match s' with
-  | SReject -> (env',s')
-  | SContinue ->
-    begin match sign with
+  match sign with
+  | SReject 
+  | SReturn _
+  | SExit -> (env,sign)
+  | SContinue -> begin match s' with
       | SContinue -> (env', SReturn v)
-      | SReject
+      | SReject   -> (env', SReject)
       | SReturn _
-      | SExit     -> (env, sign) end
-  | _ -> failwith "unreachable"
+      | SExit     -> failwith "unreachable" end
 
-and eval_switch () = failwith "switch stm unimplemented"
+and assert_enum (v : value) : string = 
+  match v with 
+  | VEnumField(_,s) -> s 
+  | _ -> failwith "not an enum"
+
+and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool =
+  match case with 
+  | Action{label;_} 
+  | FallThrough{label} -> 
+    begin match snd label with 
+      | Default -> true 
+      | Name(_,n) -> s = n end
+
+and eval_switch (env : EvalEnv.t) (sign : signal) (expr : Expression.t)
+    (cases : Statement.switch_case list) : EvalEnv.t * signal = 
+  let open Statement in 
+  let (env',s',v) = eval_expression' env SContinue expr in 
+  match sign with 
+  | SReject
+  | SReturn _ 
+  | SExit -> (env, sign)
+  | SContinue -> begin match s' with 
+    | SReject -> (env', SReject) 
+    | SContinue -> 
+      let s = assert_enum v in 
+      (* cases *)
+      cases 
+      |> List.map ~f:snd
+      |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
+      |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s))
+      |> List.hd_exn
+      |> List.filter ~f:(function Action _ -> true | _ -> false) 
+      |> List.hd_exn 
+      |> (function Action{label;code} -> code | _ -> failwith "unreachable")
+      |> eval_block env' SContinue
+    | _ -> failwith "unreachable" end
 
 and eval_decl_stm (env : EvalEnv.t) (sign : signal)
     (decl : Declaration.t) : EvalEnv.t * signal =

@@ -128,7 +128,7 @@ let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
 
 (* Eliminate all type references in typ and replace them with the type they
  * refer to. The result of saturation will contain no TypeName constructors
- * anywhere. It may contain TypeVar constructors.
+ * anywhere. It may contain TypeName constructors.
  *
  * Warning: this will loop forever if you give it an environment with circular
  * TypeName references.
@@ -176,16 +176,14 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
       ctrl_params = List.map ~f:(saturate_construct_param env) action.ctrl_params }
   in
   match typ with
-  | TypeVar t ->
+  | TypeName t ->
      begin match Env.resolve_type_name_opt t env with
-     | Some (TypeVar _)
+     | Some (TypeName _)
      | None ->
         typ
      | Some typ' ->
         saturate_type env typ'
      end
-  | TypeName typ ->
-      saturate_type env (Env.resolve_type_name typ env)
   | TopLevelType typ ->
       saturate_type env (Env.resolve_type_name_toplevel typ env)
   | Bool | String | Integer
@@ -457,16 +455,23 @@ and solve_types (env: Env.checker_env)
   let t1' = reduce_type env t1 in
   let t2' = reduce_type env t2 in
   begin match t1', t2' with
-    | TypeName _, _
-    | _, TypeName _
     | TopLevelType _, _
     | _, TopLevelType _ ->
-        failwith "TypeName in saturated type?"
+        failwith "TopLevelType in saturated type?"
 
     | SpecializedType _, _
     | _, SpecializedType _ ->
        raise_s [%message "Stuck specialized type?" ~t1:(t1': Typed.Type.t)
                                                    ~t2:(t2': Typed.Type.t)]
+    | TypeName tv1, TypeName tv2 ->
+        if type_vars_equal_under env equiv_vars tv1 tv2
+        then Some (empty_constraints unknowns)
+        else Some (single_constraint unknowns tv1 (TypeName tv2))
+
+    | TypeName tv, typ ->
+       if List.mem ~equal:(=) unknowns tv
+       then Some (single_constraint unknowns tv typ)
+       else None
 
     | Bool, Bool
     | String, String
@@ -515,11 +520,6 @@ and solve_types (env: Env.checker_env)
     | Set ty1, Set ty2 ->
         solve_types env equiv_vars unknowns ty1 ty2
 
-    | TypeVar tv1, TypeVar tv2 ->
-        if type_vars_equal_under env equiv_vars tv1 tv2
-        then Some (empty_constraints unknowns)
-        else None
-
     | Header rec1, Header rec2
     | HeaderUnion rec1, HeaderUnion rec2
     | Struct rec1, Struct rec2 ->
@@ -547,11 +547,6 @@ and solve_types (env: Env.checker_env)
     | Table table1, Table table2 ->
        if table1.result_typ_name = table2.result_typ_name
        then Some (empty_constraints unknowns)
-       else None
-
-    | TypeVar tv, typ ->
-       if List.mem ~equal:(=) unknowns tv
-       then Some (single_constraint unknowns tv typ)
        else None
 
     (* We could replace this all with | _, _ -> false. I am writing it this way
@@ -2162,7 +2157,6 @@ let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
     | Set typ -> fail (Set typ)
     | Error -> Error
     | MatchKind -> fail MatchKind
-    | TypeVar name -> TypeName (Info.dummy, name)
     | TypeName name -> TypeName (Info.dummy, name)
     | TopLevelType name -> TopLevelType (Info.dummy, name)
     | Void -> Void

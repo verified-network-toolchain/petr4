@@ -234,9 +234,6 @@ and Type : sig
   (* match_kind *)
   | MatchKind
 
-  (* Type variables *)
-  | TypeVar of string
-
   (* References to other types *)
   | TypeName of string
 
@@ -313,9 +310,6 @@ end = struct
 
   (* match_kind *)
   | MatchKind
-
-  (* Type variables *)
-  | TypeVar of string
 
   (* References to other types *)
   | TypeName of string

@@ -117,7 +117,7 @@ let insert_types names_types env =
   List.fold ~f:go ~init:env names_types
 
 let insert_type_var var env =
-  { env with typ = insert var (Typed.Type.TypeVar var) env.typ }
+  { env with typ = insert var (Typed.Type.TypeName var) env.typ }
 
 let insert_type_vars vars env =
   let go env var =

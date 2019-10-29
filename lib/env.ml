@@ -44,6 +44,10 @@ let find_toplevel (name: string) (env: 'a env) : 'a = match List.rev env with
 | []       -> no_scopes ()
 | env :: _ -> find name [env]
 
+let find_toplevel_opt (name: string) (env: 'a env) : 'a option = match List.rev env with
+| []       -> None
+| env :: _ -> find_opt name [env]
+
 let empty_env : 'a env = [[]]
 
 type checker_env =
@@ -67,7 +71,7 @@ let all_decls env =
   env.decl
 
 let find_decl_opt name env =
-  let ok decl = 
+  let ok decl =
     match Types.Declaration.name_opt decl with
     | Some decl_name ->
         name = snd decl_name
@@ -97,6 +101,9 @@ let find_type_of name env =
 
 let find_type_of_toplevel name env =
   find_toplevel name env.typ_of
+
+let find_type_of_toplevel_opt name env =
+  find_toplevel_opt name env.typ_of
 
 let find_const name env =
   find name env.const

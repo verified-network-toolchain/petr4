@@ -14,6 +14,7 @@ val resolve_type_name : string -> checker_env -> Typed.Type.t
 val resolve_type_name_toplevel : string -> checker_env -> Typed.Type.t
 val find_type_of_opt : string -> checker_env -> (Typed.Type.t * Typed.direction) option
 val find_type_of : string -> checker_env -> Typed.Type.t * Typed.direction
+val find_type_of_toplevel_opt : string -> checker_env -> (Typed.Type.t * Typed.direction) option
 val find_type_of_toplevel : string -> checker_env -> Typed.Type.t * Typed.direction
 val find_const : string -> checker_env -> Value.t
 val find_const_opt : string -> checker_env -> Value.t option

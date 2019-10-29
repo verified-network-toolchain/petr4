@@ -48,14 +48,14 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       type_params = _;
       params = ps;
       body = b;
-    } -> eval_fun_decl env n ps b
+    } -> eval_fun_decl env n ps b d
   | ExternFunction {
       annotations = _;
       return = _;
       name = (_,n);
       type_params = _;
       params = ps;
-    } -> eval_extern_fun env n ps
+    } -> eval_extern_fun env n ps d
   | Variable {
       annotations = _;
       typ = t;
@@ -73,7 +73,7 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       name = (_,n);
       params = ps;
       body = b;
-    } -> eval_action_decl env n ps b
+    } -> eval_action_decl env n ps b d
   | Table {
       annotations = _;
       name = (_,n);
@@ -116,7 +116,7 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       name = (_,n);
       type_params = tps;
       methods = ms;
-    } -> eval_extern_obj env n ms
+    } -> eval_extern_obj env n ms d
   | TypeDef {
       annotations = _;
       name = (_,n);
@@ -166,12 +166,14 @@ and eval_control_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decl name decl env
 
 and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
-    (body : Block.t) : EvalEnv.t =
+    (body : Block.t) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VFun(params,body)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_extern_fun (env : EvalEnv.t) (name : string)
-    (params : Parameter.t list) : EvalEnv.t =
+    (params : Parameter.t list) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VExternFun params) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t * signal =
@@ -191,8 +193,9 @@ and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
 and eval_set_decl () = failwith "set decls unimplemented"
 
 and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
-    (body : Block.t) : EvalEnv.t  =
+    (body : Block.t) (decl : Declaration.t) : EvalEnv.t  =
   EvalEnv.insert_val name (VAction(params, body)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
     (props : Table.property list) : EvalEnv.t =
@@ -361,8 +364,9 @@ and eval_senum_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decl name decl env
 
 and eval_extern_obj (env : EvalEnv.t) (name : string)
-    (methods : MethodPrototype.t list) : EvalEnv.t =
+    (methods : MethodPrototype.t list) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VExternObject (name, methods)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_type_def (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -621,7 +625,6 @@ and eval_switch (env : EvalEnv.t) (sign : signal) (expr : Expression.t)
     | SReject -> (env', SReject) 
     | SContinue -> 
       let s = assert_enum v in 
-      (* cases *)
       cases 
       |> List.map ~f:snd
       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
@@ -1675,19 +1678,19 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let env = EvalEnv.pop_scope fenv in
   let h e (p:Parameter.t) a =
     match (snd p).direction with
-    | None -> e
-(*      begin match snd (snd p).typ with 
+    | None ->
+     begin match snd (snd p).typ with 
         | TypeName(_,n) 
         | TopLevelType(_,n) -> 
-          begin match snd (EvalEnv.find_decl n e) with 
+          begin match print_endline "got here"; print_endline n; snd (EvalEnv.find_decl_toplevel n e) with 
             | ExternObject _ -> 
-              let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+              let v = print_endline "got here next"; EvalEnv.find_val (snd (snd p).variable) fenv in
               begin match snd a with
                 | Argument.Expression {value=expr}
                 | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
                 | Argument.Missing -> e end
             | _ -> e end
-                                        | _ -> e end *)
+        | _ -> e end
     | Some x -> begin match snd x with
         | InOut
         | Out ->

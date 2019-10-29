@@ -36,7 +36,7 @@ let check_file (p4_file_name : string) (p4_file_contents : string)
     (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
   match parse p4_file_name p4_file_contents verbose with
   | `Ok prog ->
-    let _ = Checker.check_program prog in
+    let _ = () (*Checker.check_program prog*) in
     if print_json then
       let json = Types.program_to_yojson prog in
       let to_string j =

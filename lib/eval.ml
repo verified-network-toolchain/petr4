@@ -48,14 +48,14 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       type_params = _;
       params = ps;
       body = b;
-    } -> eval_fun_decl env n ps b
+    } -> eval_fun_decl env n ps b d
   | ExternFunction {
       annotations = _;
       return = _;
       name = (_,n);
       type_params = _;
       params = ps;
-    } -> eval_extern_fun env n ps
+    } -> eval_extern_fun env n ps d
   | Variable {
       annotations = _;
       typ = t;
@@ -73,7 +73,7 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       name = (_,n);
       params = ps;
       body = b;
-    } -> eval_action_decl env n ps b
+    } -> eval_action_decl env n ps b d
   | Table {
       annotations = _;
       name = (_,n);
@@ -116,7 +116,7 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       name = (_,n);
       type_params = tps;
       methods = ms;
-    } -> eval_extern_obj env n ms
+    } -> eval_extern_obj env n ms d
   | TypeDef {
       annotations = _;
       name = (_,n);
@@ -166,12 +166,14 @@ and eval_control_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decl name decl env
 
 and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
-    (body : Block.t) : EvalEnv.t =
+    (body : Block.t) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VFun(params,body)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_extern_fun (env : EvalEnv.t) (name : string)
-    (params : Parameter.t list) : EvalEnv.t =
+    (params : Parameter.t list) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VExternFun params) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t * signal =
@@ -191,41 +193,109 @@ and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
 and eval_set_decl () = failwith "set decls unimplemented"
 
 and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
-    (body : Block.t) : EvalEnv.t  =
+    (body : Block.t) (decl : Declaration.t) : EvalEnv.t  =
   EvalEnv.insert_val name (VAction(params, body)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
     (props : Table.property list) : EvalEnv.t =
   let props' = List.map props ~f:snd in
   let env' = EvalEnv.insert_decl name decl env in
-  let key = List.filter props' ~f:is_key
-            |> List.hd_exn
-            |> assert_key
-            |> List.map ~f:snd
-            |> List.map ~f:(fun k -> k.key) in
+  let ctrl_entries = EvalEnv.get_tables env' in
+  let pre_ks = List.filter props' ~f:is_key
+               |> List.hd_exn
+               |> assert_key
+               |> List.map ~f:snd in
+  let key = pre_ks |> List.map ~f:(fun k -> k.key) in
+  let mks = pre_ks |> List.map ~f:(fun k -> snd k.match_kind) in
   let ((env'',s), ks) = List.fold_map key ~init:(env', SContinue)
                     ~f:(fun (a, b) k ->
 
                         let x,y,z = eval_expression' a b k in ((x,y),z)) in
   let f ((w,x,y),z) = ((w,x),(y,z)) in
-  let ((env''',s'),entries) = List.filter props' ~f:is_entries
-                |> List.hd_exn
-                |> assert_entries
-                |> List.map ~f:snd
-                |> List.fold_map ~init:(env'',s)
-                            ~f:(fun (a,b) c -> (set_of_matches a b c.matches, c.action) |> f) in
+  let sort_mks = check_lpm mks in
+  let ws = List.map ks ~f:width_of_val in
+  let ((env''',s'),entries) =
+    begin
+    match List.filter props' ~f:is_entries with
+      | [] -> List.fold_map ctrl_entries ~init:(env'',s)
+                ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
+      | l -> l
+             |> List.hd_exn
+             |> assert_entries
+             |> List.map ~f:snd
+             |> List.fold_map ~init:(env'',s)
+               ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
+  end in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
   let default = List.filter props' ~f:is_default
                 |> default_of_defaults in
+  let (final_entries, ks') = if mks = ["lpm"] then (sort_lpm entries, ks)
+    else if sort_mks then filter_lpm_prod mks ks entries
+    else (entries, ks) in
   let v = VTable { name = name;
-                   keys = ks;
+                   keys = ks';
                    actions = actions;
                    default_action = default;
-                   const_entries = entries; } in
+                   const_entries = final_entries; } in
   EvalEnv.insert_val name v env'''
-  (* failwith "blegh" *)
+
+and filter_lpm_prod (mks : string list) (ks : value list)
+    (entries : (set * Table.action_ref) list)
+    : (set * Table.action_ref) list * (value list) =
+      let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
+        | None -> failwith "unreachable, should have lpm"
+        | Some (i,_) -> i in
+      let entries = List.filter entries ~f:(fun (s,a) -> values_match_set ks s)
+                    |> List.map ~f:(fun (s,a) -> match s with
+                        | SProd l -> (List.nth_exn l index, a)
+                        | _ -> failwith "not lpm prod") in
+      let ks' = [List.nth_exn ks index] in
+      (sort_lpm entries, ks')
+
+and check_lpm (mks : string list) : bool =
+  let num_lpm = mks
+                |> List.filter ~f:(fun s -> s = "lpm")
+                |> List.length in
+  if num_lpm > 1 then failwith "more than one lpm" else num_lpm = 1
+
+and sort_lpm (entries : (set * Table.action_ref) list)
+  : (set * Table.action_ref) list =
+  let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
+  let compare = fun (s1,_) (s2,_) ->
+    let (_,n1,_) = assert_lpm s1 in
+    let (_,n2,_) = assert_lpm s2 in
+    if Bigint.(n1 = n2) then 0
+    else if Bigint.(n1 > n2) then -1
+    else 1 in
+  List.sort entries' ~compare:compare
+
+and assert_lpm (s : set) : value * Bigint.t * value =
+  match s with
+  | SLpm (v1,bs,v2) -> (v1,bs,v2)
+  | _ -> failwith "not lpm"
+
+and lpm_set_of_set (s : set) : set =
+  match s with
+  | SSingleton (w,v) ->
+    SLpm (VBit (w,v), w, VBit(w,bitwise_neg_of_bigint Bigint.zero w))
+  | SUniversal -> SUniversal
+  | SMask (v1,v2) ->
+    SLpm (v1, v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false, v2)
+  | SRange _ -> failwith "unreachable"
+  | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
+  | v -> v
+
+and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
+  let two = Bigint.(one + one) in
+  if Bigint.(v = zero)
+  then acc
+  else if Bigint.(v % two = zero)
+  then if b then failwith "bad lpm mask"
+       else bits_of_lpmmask acc b Bigint.(v / two)
+  else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two)
 
 and is_default (p : Table.pre_property) : bool =
   match p with
@@ -319,8 +389,9 @@ and eval_senum_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decl name decl env
 
 and eval_extern_obj (env : EvalEnv.t) (name : string)
-    (methods : MethodPrototype.t list) : EvalEnv.t =
+    (methods : MethodPrototype.t list) (decl : Declaration.t) : EvalEnv.t =
   EvalEnv.insert_val name (VExternObject (name, methods)) env
+  |> EvalEnv.insert_decl name decl
 
 and eval_type_def (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -432,7 +503,7 @@ and eval_statement (env :EvalEnv.t) (sign : signal)
   | Exit                               -> eval_exit env sign
   | EmptyStatement                     -> (env, sign)
   | Return{expr}                       -> eval_return env sign expr
-  | Switch{expr;cases}                 -> eval_switch ()
+  | Switch{expr;cases}                 -> eval_switch env sign expr cases
   | DeclarationStatement{decl}         -> eval_decl_stm env sign decl
 
 and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
@@ -544,17 +615,51 @@ and eval_return (env : EvalEnv.t) (sign : signal)
     match expr with
     | None   -> (env, SContinue, VNull)
     | Some e -> eval_expression' env SContinue e in
-  match s' with
-  | SReject -> (env',s')
-  | SContinue ->
-    begin match sign with
+  match sign with
+  | SReject
+  | SReturn _
+  | SExit -> (env,sign)
+  | SContinue -> begin match s' with
       | SContinue -> (env', SReturn v)
-      | SReject
+      | SReject   -> (env', SReject)
       | SReturn _
-      | SExit     -> (env, sign) end
-  | _ -> failwith "unreachable"
+      | SExit     -> failwith "unreachable" end
 
-and eval_switch () = failwith "switch stm unimplemented"
+and assert_enum (v : value) : string =
+  match v with
+  | VEnumField(_,s) -> s
+  | _ -> failwith "not an enum"
+
+and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool =
+  match case with
+  | Action{label;_}
+  | FallThrough{label} ->
+    begin match snd label with
+      | Default -> true
+      | Name(_,n) -> s = n end
+
+and eval_switch (env : EvalEnv.t) (sign : signal) (expr : Expression.t)
+    (cases : Statement.switch_case list) : EvalEnv.t * signal =
+  let open Statement in
+  let (env',s',v) = eval_expression' env SContinue expr in
+  match sign with
+  | SReject
+  | SReturn _
+  | SExit -> (env, sign)
+  | SContinue -> begin match s' with
+    | SReject -> (env', SReject)
+    | SContinue ->
+      let s = assert_enum v in
+      cases
+      |> List.map ~f:snd
+      |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
+      |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s))
+      |> List.hd_exn
+      |> List.filter ~f:(function Action _ -> true | _ -> false)
+      |> List.hd_exn
+      |> (function Action{label;code} -> code | _ -> failwith "unreachable")
+      |> eval_block env' SContinue
+    | _ -> failwith "unreachable" end
 
 and eval_decl_stm (env : EvalEnv.t) (sign : signal)
     (decl : Declaration.t) : EvalEnv.t * signal =
@@ -1599,12 +1704,12 @@ and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
   let h e (p:Parameter.t) a =
     match (snd p).direction with
     | None ->
-      begin match snd (snd p).typ with
+     begin match snd (snd p).typ with
         | TypeName(_,n)
         | TopLevelType(_,n) ->
-          begin match snd (EvalEnv.find_decl n e) with
+          begin match print_endline "got here"; print_endline n; snd (EvalEnv.find_decl_toplevel n e) with
             | ExternObject _ ->
-              let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+              let v = print_endline "got here next"; EvalEnv.find_val (snd (snd p).variable) fenv in
               begin match snd a with
                 | Argument.Expression {value=expr}
                 | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
@@ -2076,6 +2181,12 @@ and width_of_decl (env : EvalEnv.t) (d : Declaration.t) : Bigint.t =
       | Right d -> width_of_decl env d end
   | _ -> failwith "decl does not have a fixed width"
 
+and width_of_val (v : value) : Bigint.t =
+  match v with
+  | VBit (w,v) | VInt (w,v) -> w
+  | VInteger _ -> failwith "width of VInteger"
+  | _ -> failwith "unimplemented"
+
 and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
     (t : Type.t) : value =
   match v with
@@ -2215,10 +2326,11 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
     let (a,b,c) = eval_expression' env s e in
     ((a,b),c) in
   let ((env', s), vs) = List.fold_map exprs ~init:(env,SContinue) ~f:f in
+  let ws = List.map vs ~f:width_of_val in
   match s with
   | SContinue ->
     let g (e,s) set =
-      let (x,y,z) = set_of_case e s set in
+      let (x,y,z) = set_of_case e s set ws in
       ((x,y),(z,x)) in
     let ((env'',s), ss) = List.fold_map cases ~init:(env', SContinue) ~f:g in
     let ms = List.map ss ~f:(fun (x,y) -> (values_match_set vs x, y)) in
@@ -2234,26 +2346,26 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
   | _ -> failwith "unreachable"
 
 and set_of_case (env : EvalEnv.t) (s : signal)
-    (case : Parser.case) : EvalEnv.t * signal * set =
+    (case : Parser.case) (ws : Bigint.t list) : EvalEnv.t * signal * set =
   match s with
-  | SContinue -> set_of_matches env s (snd case).matches
+  | SContinue -> set_of_matches env s (snd case).matches ws
   | SReject   -> (env,s,SUniversal)
   | _ -> failwith "unreachable"
 
 and set_of_matches (env : EvalEnv.t) (s : signal)
-    (ms : Match.t list) : EvalEnv.t * signal * set =
-  match ms with
-  | [] -> failwith "invalid set"
-  | [m] -> set_of_match env s m
-  | l ->
-    let f (a,b) c =
-      let (x,y,z) = set_of_match a b c in
+    (ms : Match.t list) (ws : Bigint.t list) : EvalEnv.t * signal * set =
+  match ms,ws with
+  | [],_ -> failwith "invalid set"
+  | [m],[w] -> set_of_match env s m w
+  | l,ws ->
+    let f i (a,b) c =
+      let (x,y,z) = set_of_match a b c (List.nth_exn ws i) in
       ((x,y),z) in
-    let ((env',s),l') = List.fold_map l ~init:(env,SContinue) ~f:f in
+    let ((env',s),l') = List.fold_mapi l ~init:(env,SContinue) ~f:f in
     (env',s,SProd l')
 
 and set_of_match (env : EvalEnv.t) (s : signal)
-    (m : Match.t) : EvalEnv.t * signal * set =
+    (m : Match.t) (w : Bigint.t) : EvalEnv.t * signal * set =
   match s with
   | SContinue ->
     begin match snd m with
@@ -2261,17 +2373,18 @@ and set_of_match (env : EvalEnv.t) (s : signal)
       | DontCare         -> (env, SContinue, SUniversal)
       | Expression{expr} ->
         let (env', s, v) = eval_expression' env SContinue expr in
-        (env', s, assert_set v) end
+        (env', s, assert_set v w) end
   | SReject -> (env, s, SUniversal)
   | _ -> failwith "unreachable"
 
 and values_match_set (vs : value list) (s : set) : bool =
   match s with
-  | SSingleton n  -> values_match_singleton vs n
+  | SSingleton (w,v)  -> values_match_singleton vs v
   | SUniversal    -> true
   | SMask(v1,v2)  -> values_match_mask vs v1 v2
   | SRange(v1,v2) -> values_match_range vs v1 v2
   | SProd l       -> values_match_prod vs l
+  | SLpm(v1,_,v2) -> values_match_mask vs v1 v2
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
@@ -2363,12 +2476,12 @@ and assert_tuple (v : value) : value list =
   | VTuple l -> l
   | _ -> failwith "not a tuple"
 
-and assert_set (v : value) : set =
+and assert_set (v : value) (w : Bigint.t) : set =
   match v with
   | VSet s -> s
-  | VInteger i -> SSingleton i
-  | VInt (_,i) -> SSingleton i
-  | VBit (_,i) -> SSingleton i
+  | VInteger i -> SSingleton (w,i)
+  | VInt (_,i) -> SSingleton (w,i)
+  | VBit (_,i) -> SSingleton (w,i)
   | _ -> failwith "not a set"
 
 and assert_string (v : value) : string =

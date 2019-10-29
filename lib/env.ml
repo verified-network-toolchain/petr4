@@ -96,6 +96,9 @@ module EvalEnv = struct
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
 
+  let get_tables env =
+    env.tables
+
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
 

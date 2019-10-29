@@ -11,6 +11,7 @@ module EvalEnv : sig
 
   val get_toplevel : t -> t
   val get_val_firstlevel : t -> (string * value) list
+  val get_tables : t -> Table.pre_entry list
 
   val insert_val : string -> value -> t -> t
   val insert_decl: string -> Declaration.t -> t -> t

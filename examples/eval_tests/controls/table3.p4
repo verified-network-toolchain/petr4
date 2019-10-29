@@ -26,6 +26,8 @@ control MyIngress(inout head[13] hdr,
                   inout standard_metadata_t standard_metadata) {
     apply {
         standard_metadata.egress_spec = 9w0b101010011;
+        standard_metadata.ingress_port = 9w5;
+        standard_metadata.egress_port = 9w0b101010101;
     }
 }
 
@@ -51,13 +53,15 @@ control MyEgress(inout head[13] hdr,
 
 
     table my_table {
-        key = { standard_metadata.egress_spec : lpm;}
-        actions = { set_one; set_two; }
+        key = { standard_metadata.egress_spec : lpm;
+                standard_metadata.ingress_port : exact;
+                standard_metadata.egress_port : ternary; }
+        actions = { set_one; set_two; set_three; set_four; }
         const entries = {
-            9w0b101010101 &&& 9w0b000000000 : set_one;
-            9w0b101010101 &&& 9w0b111111100 : set_three;
-            9w0b101010101 &&& 9w0b111110000 : set_two;
-            9w0b101010101 &&& 9w0b111111111 : set_four;
+            (9w0b101010101 &&& 9w0b000000000, 9w5, 9w0b101010101) : set_one;
+            (9w0b101010101 &&& 9w0b111111000, 9w5, 9w0b101010101) : set_three;
+            (9w0b101010101 &&& 9w0b111110000, 9w5, 9w0b101010101) : set_two;
+            (9w0b101010101 &&& 9w0b111111111, 9w5, 9w0b101010101) : set_four;
             }
     }
 

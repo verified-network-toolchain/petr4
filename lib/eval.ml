@@ -213,7 +213,7 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
 
                         let x,y,z = eval_expression' a b k in ((x,y),z)) in
   let f ((w,x,y),z) = ((w,x),(y,z)) in
-  let sort_mks = mks = ["lpm"] in (*just temporary, one lpm*)
+  let sort_mks = check_lpm mks in
   let ws = List.map ks ~f:width_of_val in
   let ((env''',s'),entries) =
     begin
@@ -227,50 +227,75 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
              |> List.fold_map ~init:(env'',s)
                ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
   end in
-  let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in 
-  let compare = fun (s1,_) (s2,_) -> 
-    let (_,n1,_) = assert_lpm s1 in 
-    let (_,n2,_) = assert_lpm s2 in 
-    if Bigint.(n1 = n2) then 0 
-    else if Bigint.(n1 > n2) then -1 
-    else 1 in
-  let sorted_entries = List.sort entries' 
-                      ~compare:compare in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
   let default = List.filter props' ~f:is_default
                 |> default_of_defaults in
+  let (final_entries, ks') = if mks = ["lpm"] then (sort_lpm entries, ks)
+    else if sort_mks then filter_lpm_prod mks ks entries
+    else (entries, ks) in
   let v = VTable { name = name;
-                   keys = ks;
+                   keys = ks';
                    actions = actions;
                    default_action = default;
-                   const_entries = if sort_mks then sorted_entries else entries; } in
+                   const_entries = final_entries; } in
   EvalEnv.insert_val name v env'''
 
-and assert_lpm (s : set) : value * Bigint.t * value = 
-  match s with 
+and filter_lpm_prod (mks : string list) (ks : value list)
+    (entries : (set * Table.action_ref) list)
+    : (set * Table.action_ref) list * (value list) =
+      let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
+        | None -> failwith "unreachable, should have lpm"
+        | Some (i,_) -> i in
+      let entries = List.filter entries ~f:(fun (s,a) -> values_match_set ks s)
+                    |> List.map ~f:(fun (s,a) -> match s with
+                        | SProd l -> (List.nth_exn l index, a)
+                        | _ -> failwith "not lpm prod") in
+      let ks' = [List.nth_exn ks index] in
+      (sort_lpm entries, ks')
+
+and check_lpm (mks : string list) : bool =
+  let num_lpm = mks
+                |> List.filter ~f:(fun s -> s = "lpm")
+                |> List.length in
+  if num_lpm > 1 then failwith "more than one lpm" else num_lpm = 1
+
+and sort_lpm (entries : (set * Table.action_ref) list)
+  : (set * Table.action_ref) list =
+  let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
+  let compare = fun (s1,_) (s2,_) ->
+    let (_,n1,_) = assert_lpm s1 in
+    let (_,n2,_) = assert_lpm s2 in
+    if Bigint.(n1 = n2) then 0
+    else if Bigint.(n1 > n2) then -1
+    else 1 in
+  List.sort entries' ~compare:compare
+
+and assert_lpm (s : set) : value * Bigint.t * value =
+  match s with
   | SLpm (v1,bs,v2) -> (v1,bs,v2)
   | _ -> failwith "not lpm"
 
 and lpm_set_of_set (s : set) : set =
   match s with
-  | SSingleton (w,v) -> SLpm (VBit (w,v), w, VBit(w,bitwise_neg_of_bigint Bigint.zero w))  
+  | SSingleton (w,v) ->
+    SLpm (VBit (w,v), w, VBit(w,bitwise_neg_of_bigint Bigint.zero w))
   | SUniversal -> SUniversal
-  | SMask (v1,v2) -> 
+  | SMask (v1,v2) ->
     SLpm (v1, v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false, v2)
   | SRange _ -> failwith "unreachable"
   | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
   | v -> v
 
-and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t = 
+and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
   let two = Bigint.(one + one) in
   if Bigint.(v = zero)
-  then acc 
+  then acc
   else if Bigint.(v % two = zero)
   then if b then failwith "bad lpm mask"
-       else bits_of_lpmmask acc b Bigint.(v / two) 
-  else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two) 
+       else bits_of_lpmmask acc b Bigint.(v / two)
+  else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two)
 
 and is_default (p : Table.pre_property) : bool =
   match p with
@@ -2352,8 +2377,6 @@ and set_of_match (env : EvalEnv.t) (s : signal)
   | SReject -> (env, s, SUniversal)
   | _ -> failwith "unreachable"
 
-and lpm_of_set (s : set) = failwith "foo"
-
 and values_match_set (vs : value list) (s : set) : bool =
   match s with
   | SSingleton (w,v)  -> values_match_singleton vs v
@@ -2361,7 +2384,7 @@ and values_match_set (vs : value list) (s : set) : bool =
   | SMask(v1,v2)  -> values_match_mask vs v1 v2
   | SRange(v1,v2) -> values_match_range vs v1 v2
   | SProd l       -> values_match_prod vs l
-  | SLpm(v1,_,v2) -> values_match_mask vs v1 v2 
+  | SLpm(v1,_,v2) -> values_match_mask vs v1 v2
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in

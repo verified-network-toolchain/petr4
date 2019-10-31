@@ -58,10 +58,10 @@ control MyEgress(inout head[13] hdr,
                 standard_metadata.egress_port : ternary; }
         actions = { set_one; set_two; set_three; set_four; }
         const entries = {
-            (9w0b101010101 &&& 9w0b000000000, 9w5, 9w0b101010101) : set_one;
-            (9w0b101010101 &&& 9w0b111111000, 9w5, 9w0b101010101) : set_three;
-            (9w0b101010101 &&& 9w0b111110000, 9w5, 9w0b101010101) : set_two;
-            (9w0b101010101 &&& 9w0b111111111, 9w5, 9w0b101010101) : set_four;
+            (9w0b101010101 &&& 9w0b000000000, 9w3, 9w0b101010101) : set_one;
+            (9w0b101010101 &&& 9w0b111111000, 9w3, 9w0b101010101) : set_three;
+            (9w0b101010101 &&& 9w0b111110000, 9w3, 9w0b101010101) : set_two;
+            _ : set_four;
             }
     }
 

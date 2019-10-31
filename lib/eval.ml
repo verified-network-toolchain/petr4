@@ -209,15 +209,15 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
   let key = pre_ks |> List.map ~f:(fun k -> k.key) in
   let mks = pre_ks |> List.map ~f:(fun k -> snd k.match_kind) in
   let ((env'',s), ks) = List.fold_map key ~init:(env', SContinue)
-                    ~f:(fun (a, b) k ->
+      ~f:(fun (a, b) k ->
 
-                        let x,y,z = eval_expression' a b k in ((x,y),z)) in
+          let x,y,z = eval_expression' a b k in ((x,y),z)) in
   let f ((w,x,y),z) = ((w,x),(y,z)) in
   let sort_mks = check_lpm mks in
   let ws = List.map ks ~f:width_of_val in
   let ((env''',s'),entries) =
     begin
-    match List.filter props' ~f:is_entries with
+      match List.filter props' ~f:is_entries with
       | [] -> List.fold_map ctrl_entries ~init:(env'',s)
                 ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
       | l -> l
@@ -226,7 +226,7 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
              |> List.map ~f:snd
              |> List.fold_map ~init:(env'',s)
                ~f:(fun (a,b) c -> (set_of_matches a b c.matches ws, c.action) |> f)
-  end in
+    end in
   let actions = List.filter props' ~f:is_actionref
                 |> List.hd_exn
                 |> assert_actionref in
@@ -244,16 +244,16 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
 
 and filter_lpm_prod (mks : string list) (ks : value list)
     (entries : (set * Table.action_ref) list)
-    : (set * Table.action_ref) list * (value list) =
-      let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
-        | None -> failwith "unreachable, should have lpm"
-        | Some (i,_) -> i in
-      let entries = List.filter entries ~f:(fun (s,a) -> values_match_set ks s)
-                    |> List.map ~f:(fun (s,a) -> match s with
-                        | SProd l -> (List.nth_exn l index, a)
-                        | _ -> failwith "not lpm prod") in
-      let ks' = [List.nth_exn ks index] in
-      (sort_lpm entries, ks')
+  : (set * Table.action_ref) list * (value list) =
+  let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
+    | None -> failwith "unreachable, should have lpm"
+    | Some (i,_) -> i in
+  let entries = List.filter entries ~f:(fun (s,a) -> values_match_set ks s)
+                |> List.map ~f:(fun (s,a) -> match s with
+                    | SProd l -> (List.nth_exn l index, a)
+                    | _ -> failwith "not lpm prod") in
+  let ks' = [List.nth_exn ks index] in
+  (sort_lpm entries, ks')
 
 and check_lpm (mks : string list) : bool =
   let num_lpm = mks
@@ -264,17 +264,29 @@ and check_lpm (mks : string list) : bool =
 and sort_lpm (entries : (set * Table.action_ref) list)
   : (set * Table.action_ref) list =
   let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
+  let (entries'', uni) =
+    begin
+      match List.findi entries' ~f:(fun i (s,_) -> s = SUniversal) with
+      | None -> (entries', None)
+      | Some (i,_) -> let es = List.filteri entries' ~f:(fun ind _ -> ind < i) in
+        let u = List.nth_exn entries' i in
+        (es, Some u)
+    end in
   let compare = fun (s1,_) (s2,_) ->
     let (_,n1,_) = assert_lpm s1 in
     let (_,n2,_) = assert_lpm s2 in
     if Bigint.(n1 = n2) then 0
     else if Bigint.(n1 > n2) then -1
     else 1 in
-  List.sort entries' ~compare:compare
+  let sorted = List.sort entries'' ~compare:compare in
+  match uni with
+  | None -> sorted
+  | Some u -> sorted @ [u]
 
 and assert_lpm (s : set) : value * Bigint.t * value =
   match s with
   | SLpm (v1,bs,v2) -> (v1,bs,v2)
+  | SUniversal -> failwith "universal"
   | _ -> failwith "not lpm"
 
 and lpm_set_of_set (s : set) : set =

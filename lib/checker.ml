@@ -1203,6 +1203,62 @@ and header_methods typ =
   | Type.Header { fields } -> fake_fields
   | _ -> []
 
+and type_expression_member_builtin env info typ name : Typed.Type.t =
+  let open Typed.Type in
+  let fail () = raise_unfound_member info (snd name) in
+  match typ with
+  | Control { type_params = []; parameters = ps }
+  | Parser { type_params = []; parameters = ps } ->
+     begin match snd name with
+     | "apply" ->
+        Function { type_params = [];
+                   parameters = ps;
+                   return = Void }
+     | _ -> fail ()
+     end
+  | Table { result_typ_name } ->
+     begin match snd name with
+     | "apply" ->
+        Function { type_params = []; parameters = [];
+                   return = TypeName result_typ_name }
+     | _ -> fail ()
+     end
+  | Header { fields } ->
+     begin match snd name with
+     | "isValid" ->
+        Function { type_params = []; parameters = []; return = Bool }
+     | "setValid" 
+     | "setInvalid" ->
+        Function { type_params = []; parameters = []; return = Void }
+     | _ -> fail ()
+     end
+  | Array { typ; _ } ->
+     let idx_typ = Bit { width = 32 } in
+     begin match snd name with
+     | "size"
+     | "nextIndex"
+     | "lastIndex" ->
+        idx_typ
+     | "next"
+     | "last" ->
+        typ
+     | "push_front"
+     | "pop_front" ->
+        Function { type_params = [];
+                   parameters = [{ name = "count";
+                                   typ = Integer;
+                                   direction = Directionless }];
+                   return = Void }
+     | _ -> fail ()
+     end
+  | HeaderUnion { fields } ->
+     begin match snd name with
+     | "isValid" ->
+        Function { type_params = []; parameters = []; return = Bool }
+     | _ -> fail ()
+     end
+  | _ -> fail ()
+
 (* Sections 6.6, 8.14 *)
 and type_expression_member env expr name : Typed.Type.t =
   let expr_typ = expr
@@ -1219,24 +1275,16 @@ and type_expression_member env expr name : Typed.Type.t =
       let matches f = f.name = snd name in
       begin match List.find ~f:matches fs with
       | Some field -> field.typ
-      | None -> raise_unfound_member (info expr) (snd name)
+      | None -> type_expression_member_builtin env (info expr) expr_typ name
       end
   | Extern {methods; _} ->
       let open ExternType in
       let matches m = m.name = snd name in
       begin match List.find ~f:matches methods with
       | Some m -> Type.Function m.typ
-      | None -> raise_unfound_member (info expr) (snd name)
+      | None -> type_expression_member_builtin env (info expr) expr_typ name
       end
-  | Table { result_typ_name } ->
-     if snd name = "apply"
-     then Type.Function { type_params = [];
-                          parameters = [];
-                          return = TypeName result_typ_name }
-     else raise_s [%message "table has no member" ~member:(snd name)]
-  | _ -> raise_s [%message "this type has no members"
-                     ~typ:(expr_typ: Typed.Type.t)
-                     ~member:(snd name)]
+  | _ -> type_expression_member_builtin env (info expr) expr_typ name
 
 (* Section 8.4.1
  * -------------

@@ -229,11 +229,11 @@ type var_constraint = string * Typed.Type.t option [@@deriving sexp]
 type var_constraints = var_constraint list [@@deriving sexp]
 type soln = var_constraints option [@@deriving sexp]
 
-let empty_constraints vars : var_constraints =
+let empty_constraints unknowns : var_constraints =
   let empty_constraint var =
     (var, None)
   in
-  List.map ~f:empty_constraint vars
+  List.map ~f:empty_constraint unknowns
 
 let single_constraint vars var typ : var_constraints =
   let empty = empty_constraints vars in
@@ -273,30 +273,37 @@ and constraints_to_type_args _ (cs: var_constraints) : (string * Typed.Type.t) l
   in
   List.map ~f:constraint_to_type_arg cs
 
-and gen_all_constraints (env: Env.checker_env) type_params params_args constraints =
+and gen_all_constraints (env: Env.checker_env) unknowns params_args constraints =
   match params_args with
   | (param, Some arg) :: more ->
      let arg_type = type_expression env arg in
      let param_type = param.Parameter.typ in
-     begin match solve_types env [] type_params param_type arg_type with
+     begin match solve_types env [] unknowns param_type arg_type with
      | Some arg_constraints ->
         let constraints = merge_constraints env constraints arg_constraints in
-        gen_all_constraints env type_params more constraints
+        gen_all_constraints env unknowns more constraints
      | None -> raise_s [%message "could not solve type equality t1 = t2"
                            ~t1:(reduce_type env param_type: Typed.Type.t)
                            ~t2:(reduce_type env arg_type: Typed.Type.t)
                            ~env:(env: Env.checker_env)]
      end
   | (param_type, None) :: more ->
-     gen_all_constraints env type_params more constraints
+     gen_all_constraints env unknowns more constraints
   | [] ->
      constraints
 
-and infer_type_arguments env ret type_params params_args constraints =
-  let env = Env.insert_type_vars type_params env in
+and infer_type_arguments env ret type_params_args params_args constraints =
+  let insert (env, unknowns) (type_var, type_arg) =
+    match type_arg with
+    | Some arg ->
+       Env.insert_type type_var arg env, unknowns
+    | None ->
+       Env.insert_type_var type_var env, type_var :: unknowns
+  in
+  let env, unknowns = List.fold ~f:insert ~init:(env, []) type_params_args in
   let constraints =
-    empty_constraints type_params
-    |> gen_all_constraints env type_params params_args
+    empty_constraints unknowns
+    |> gen_all_constraints env unknowns params_args
   in
   constraints_to_type_args ret constraints
 
@@ -730,6 +737,11 @@ and translate_type (env: Env.checker_env) (vars : string list) (typ: Types.Type.
     Tuple {types = List.map ~f:(translate_type env vars) tlist}
   | Void -> Void
   | DontCare -> failwith "TODO: type inference"
+
+and translate_type_opt (env: Env.checker_env) (vars : string list) (typ: Types.Type.t) : Typed.Type.t option =
+  match snd typ with
+  | DontCare -> None
+  | _ -> Some (translate_type env vars typ)
 
 (* Translates Types.Parameters to Typed.Parameters *)
 and translate_parameters env vars params =
@@ -1416,14 +1428,18 @@ and type_function_call env call_info func type_args args =
        raise_s [%message "don't know how to typecheck function call with function"
                  ~fn:(func: Types.Expression.t)]
   in
-  let type_args = List.map ~f:(translate_type env []) type_args in
+  let type_args = List.map ~f:(translate_type_opt env []) type_args in
   let params_args = match_params_to_args (fst func) params args in
   let type_params_args =
     match List.zip type_params type_args with
-    | Some type_params_args ->
-       type_params_args
+    | Some v -> v
     | None ->
-       infer_type_arguments env return_type type_params params_args []
+       if type_args = []
+       then List.map ~f:(fun v -> v, None) type_params
+       else failwith "mismatch in type arguments"
+  in
+  let type_params_args =
+    infer_type_arguments env return_type type_params_args params_args type_params_args
   in
   let env = Env.insert_types type_params_args env in
   List.iter ~f:(type_param_arg env) params_args;
@@ -1448,7 +1464,7 @@ and select_constructor_params env info methods args =
 
 and type_constructor_invocation env decl type_args args =
   let open Types.Declaration in
-  let type_args = List.map ~f:(translate_type env []) type_args in
+  let type_args = List.map ~f:(translate_type_opt env []) type_args in
   match snd decl with
   | Parser { params; constructor_params; type_params; _ } ->
      let params = translate_parameters env [] params in
@@ -1781,19 +1797,23 @@ and check_constructor_invocation env type_params params type_args args =
   solve_constructor_invocation env type_params params type_args args |> ignore
 
 and solve_constructor_invocation env type_params params type_args args: Typed.Type.t list =
+  let type_params_args =
+    match List.zip type_params type_args with
+    | Some v -> v
+    | None ->
+       if type_args = []
+       then List.map ~f:(fun v -> v, None) type_params
+       else failwith "mismatch in type arguments"
+  in
   match List.zip params args with
   | Some params_args ->
      let type_params_args =
-       match List.zip type_params type_args with
-       | Some type_params_args ->
-          type_params_args
-       | None ->
-          let inference_params_args =
-            List.map params_args
-              ~f:(fun (cons_param, arg) -> construct_param_as_param cons_param,
-                                           expr_of_arg arg)
-          in
-          infer_type_arguments env (Typed.Type.Void) type_params inference_params_args []
+       let inference_params_args =
+         List.map params_args
+           ~f:(fun (cons_param, arg) -> construct_param_as_param cons_param,
+                                        expr_of_arg arg)
+       in
+       infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
      in
      let env = Env.insert_types type_params_args env in
      let param_matches_arg (param, arg: Typed.ConstructParam.t * Types.Argument.t) =

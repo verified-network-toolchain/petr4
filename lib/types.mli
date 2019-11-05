@@ -94,6 +94,7 @@ and Type : sig
   type pre_t =
       Bool
     | Error
+    | Integer
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t

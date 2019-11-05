@@ -626,6 +626,8 @@ baseType
 | info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info2 = R_ANGLE
     { (Info.merge info1 info2,
        Type.VarBit max_width) }
+| info = INT
+    { (info, Type.Integer) }
 ;
 
 typeOrVoid

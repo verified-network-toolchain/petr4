@@ -697,6 +697,7 @@ and translate_type (env: Env.checker_env) (vars : string list) (typ: Types.Type.
   match snd typ with
   | Bool -> Bool
   | Error -> Error
+  | Integer -> Integer
   | IntType e ->
     begin match eval e with
       | Int {value=v; _}

@@ -163,6 +163,7 @@ and Type : sig
   type pre_t =
       Bool
     | Error
+    | Integer
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
@@ -185,6 +186,7 @@ end = struct
   type pre_t =
       Bool [@name "bool"]
     | Error [@name "error"]
+    | Integer [@name "integer"]
     | IntType of Expression.t [@name "int"]
     | BitType of Expression.t  [@name "bit"]
     | VarBit of Expression.t  [@name "varbit"]

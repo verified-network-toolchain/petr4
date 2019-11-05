@@ -1227,7 +1227,7 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      begin match snd name with
      | "isValid" ->
         Function { type_params = []; parameters = []; return = Bool }
-     | "setValid" 
+     | "setValid"
      | "setInvalid" ->
         Function { type_params = []; parameters = []; return = Void }
      | _ -> fail ()
@@ -1649,8 +1649,28 @@ and type_return env expr =
 
 
 (* Section 11.7 *)
-and type_switch _ _ _ =
-  failwith "type_switch unimplemented"
+and type_switch env expr cases =
+  let action_name = type_expression env expr in
+  if not (type_equality env Type.String action_name)
+  then failwith "Switch Statement expression does not evaluate to an action name." else
+  let label_checker label =
+    begin match label with
+    | Default -> true
+    | Name (_,name) ->
+      begin match Env.find_type_of_opt name env with
+      | None -> false
+      | Some _ -> true
+      end
+    end in
+  let case_checker (_,case) =
+    begin match case with
+    | Action {label=(_,label);code=block} ->
+      let _ = type_block_statement env block in
+      label_checker label
+    | FallThrough {label=(_,label)} -> label_checker label
+    end in
+  if List.for_all ~f:case_checker cases then (StmType.Unit, env)
+  else failwith "Switch statement does not type check."
 
 (* Section 10.3 *)
 and type_declaration_statement (env: Env.checker_env) (decl: Declaration.t) : StmType.t * Env.checker_env =

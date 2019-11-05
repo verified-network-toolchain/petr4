@@ -178,9 +178,11 @@ let rec saturate_type (env: Env.checker_env) (typ: Type.t) : Type.t =
   match typ with
   | TypeName t ->
      begin match Env.resolve_type_name_opt t env with
-     | Some (TypeName _)
-     | None ->
-        typ
+     | None -> typ
+     | Some (TypeName t') ->
+        if t' = t
+        then typ
+        else saturate_type env (TypeName t')
      | Some typ' ->
         saturate_type env typ'
      end
@@ -281,7 +283,9 @@ and gen_all_constraints (env: Env.checker_env) type_params params_args constrain
         let constraints = merge_constraints env constraints arg_constraints in
         gen_all_constraints env type_params more constraints
      | None -> raise_s [%message "could not solve type equality t1 = t2"
-                           ~t1:(param_type: Typed.Type.t) ~t2:(arg_type: Typed.Type.t)]
+                           ~t1:(reduce_type env param_type: Typed.Type.t)
+                           ~t2:(reduce_type env arg_type: Typed.Type.t)
+                           ~env:(env: Env.checker_env)]
      end
   | (param_type, None) :: more ->
      gen_all_constraints env type_params more constraints

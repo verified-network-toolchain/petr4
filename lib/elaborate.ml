@@ -194,21 +194,59 @@ let rec freshen_params env gen params =
      let env, params = freshen_params env gen params in
      env, (info, pre_param) :: params
 
+let elab_method env gen m =
+  let open Types.MethodPrototype in
+  fst m,
+  match snd m with
+  | Constructor { annotations; name; params } ->
+     let params = subst_vars_params env params in
+     Constructor { annotations; name; params }
+  | Method { annotations; return; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let return = subst_vars_type env return in
+     let params = subst_vars_params env params in
+     Method { annotations; return; name; type_params; params }
+
+let elab_methods env gen ms =
+  List.map ~f:(elab_method env gen) ms
+
 let elab_decl env gen decl =
   let open Declaration in
   fst decl,
   match snd decl with
-  | Function { return;
-               name;
-               type_params;
-               params;
-               body } ->
+  | Function { return; name; type_params; params; body } ->
 
      let env, type_params = freshen_params env gen type_params in
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      let body = subst_vars_block env body in
      Function { return; name; type_params; params; body }
+
+  | ExternFunction { annotations; return; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let return = subst_vars_type env return in
+     let params = subst_vars_params env params in
+     ExternFunction { annotations; return; name; type_params; params }
+
+  | ExternObject { annotations; name; type_params; methods } ->
+     let env, type_params = freshen_params env gen type_params in
+     let methods = elab_methods env gen methods in
+     ExternObject { annotations; name; type_params; methods }
+
+  | ControlType { annotations; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let params = subst_vars_params env params in
+     ControlType { annotations; name; type_params; params }
+
+  | ParserType { annotations; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let params = subst_vars_params env params in
+     ParserType { annotations; name; type_params; params }
+
+  | PackageType { annotations; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let params = subst_vars_params env params in
+     PackageType { annotations; name; type_params; params }
 
   | d -> d
 

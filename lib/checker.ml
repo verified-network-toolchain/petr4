@@ -1670,6 +1670,7 @@ and type_return env expr =
 
 (* Section 11.7 *)
 and type_switch env expr cases =
+  let open Types.Statement in
   let action_name = type_expression env expr in
   if not (type_equality env Type.String action_name)
   then failwith "Switch Statement expression does not evaluate to an action name." else

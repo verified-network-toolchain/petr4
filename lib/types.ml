@@ -207,37 +207,49 @@ and t = pre_t info [@@deriving sexp,yojson]
 end
 
 and MethodPrototype : sig
-      type pre_t =
-          Constructor of
-            { annotations: Annotation.t list;
-              name: P4String.t;
-              params: Parameter.t list }
-        | Method of
-            { annotations: Annotation.t list;
-              return: Type.t;
-              name: P4String.t;
-              type_params: P4String.t list;
-              params: Parameter.t list}
-      [@@deriving sexp,yojson]
-
-      type t = pre_t info [@@deriving sexp,yojson]
-    end = struct
-                        type pre_t =
-                            Constructor of
-                              { annotations: Annotation.t list;
-                                name: P4String.t;
-                                params: Parameter.t list }
-                          | Method of
-                              { annotations: Annotation.t list;
-                                return: Type.t;
-                                name: P4String.t;
-                                type_params: P4String.t list;
-                                params: Parameter.t list}
-                        [@@deriving sexp,yojson]
-
-                        type t = pre_t info [@@deriving sexp,yojson]
-                      end
-
+  type pre_t =
+    Constructor of
+      { annotations: Annotation.t list;
+        name: P4String.t;
+        params: Parameter.t list }
+  | AbstractMethod of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+  | Method of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+        [@@deriving sexp,yojson]
+    
+  type t = pre_t info [@@deriving sexp,yojson]
+end = struct
+  type pre_t =
+    Constructor of
+      { annotations: Annotation.t list;
+        name: P4String.t;
+        params: Parameter.t list }
+  | AbstractMethod of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+  | Method of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+    [@@deriving sexp,yojson]
+    
+  type t = pre_t info [@@deriving sexp,yojson]
+end
+        
 and Argument : sig
       type pre_t  =
           Expression of
@@ -564,7 +576,8 @@ and Declaration : sig
             { annotations: Annotation.t list;
               typ: Type.t [@key "type"];
               args: Argument.t list;
-              name: P4String.t }
+              name: P4String.t;
+              init: Block.t option; }
         | Parser of
             { annotations: Annotation.t list;
               name: P4String.t;
@@ -691,7 +704,8 @@ end = struct
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           args: Argument.t list;
-          name: P4String.t }
+          name: P4String.t;
+          init: Block.t option; }
     | Parser of
         { annotations: Annotation.t list;
           name: P4String.t;

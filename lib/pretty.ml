@@ -533,6 +533,13 @@ end = struct
         P4String.format_t name
         Type.format_type_params type_params
         Parameter.format_params params
+    | AbstractMethod { annotations; return; name; type_params; params } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[%a abstract %a%a(%a);@]"
+        Type.format_t return
+        P4String.format_t name
+        Type.format_type_params type_params
+        Parameter.format_params params
 end
 
 
@@ -598,12 +605,19 @@ end = struct
       Format.fprintf fmt "%a" (format_list_nl format_t) locals;
       Parser.format_states fmt states;
       Format.fprintf fmt "@]@\n}"
-    | Instantiation { annotations; typ; args; name } -> 
+    | Instantiation { annotations; typ; args; name; init=None } -> 
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%a(%a) %a;@]"
         Type.format_t typ
         Argument.format_ts args
         P4String.format_t name
+    | Instantiation { annotations; typ; args; name; init=Some block } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[<4>%a(%a) %a = %a;"
+        Type.format_t typ
+        Argument.format_ts args
+        P4String.format_t name
+        Block.format_t block
     | Table { annotations; name; properties } -> 
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[<4>table %a {@\n%a@]@\n}"

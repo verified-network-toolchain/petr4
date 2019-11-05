@@ -120,6 +120,12 @@ and MethodPrototype : sig
         { annotations: Annotation.t list;
           name: P4String.t;
           params: Parameter.t list }
+    | AbstractMethod of
+        { annotations: Annotation.t list;
+          return: Type.t;
+          name: P4String.t;
+          type_params: P4String.t list;
+          params: Parameter.t list}
     | Method of
         { annotations: Annotation.t list;
           return: Type.t;
@@ -304,7 +310,8 @@ and Declaration : sig
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           args: Argument.t list;
-          name: P4String.t }
+          name: P4String.t;
+          init: Block.t option; }
     | Parser of
         { annotations: Annotation.t list;
           name: P4String.t;

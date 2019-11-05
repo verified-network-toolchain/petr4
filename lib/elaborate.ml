@@ -153,11 +153,12 @@ and subst_vars_stmt_declaration env decl =
   let open Types.Declaration in
   fst decl,
   match snd decl with
-  | Instantiation { annotations; typ; args; name } ->
+  | Instantiation { annotations; typ; args; name; init } ->
      Instantiation { annotations = annotations;
                      typ = subst_vars_type env typ;
                      args = subst_vars_arguments env args;
-                     name = name }
+                     name = name;
+                     init = option_map (subst_vars_block env) init }
   | Constant { annotations; typ; name; value } ->
      Constant { annotations = annotations;
                 typ = subst_vars_type env typ;
@@ -206,6 +207,11 @@ let elab_method env gen m =
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      Method { annotations; return; name; type_params; params }
+  | AbstractMethod { annotations; return; name; type_params; params } ->
+     let env, type_params = freshen_params env gen type_params in
+     let return = subst_vars_type env return in
+     let params = subst_vars_params env params in
+     AbstractMethod { annotations; return; name; type_params; params }
 
 let elab_methods env gen ms =
   List.map ~f:(elab_method env gen) ms

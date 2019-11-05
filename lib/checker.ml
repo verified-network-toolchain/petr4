@@ -1457,6 +1457,7 @@ and select_constructor_params env info methods args =
          with _ -> false
        end
     | Method _ -> false
+    | AbstractMethod _ -> false
   in
   match List.find ~f:matching_constructor methods with
   | Some (_, Constructor { params; _ }) ->
@@ -1708,7 +1709,8 @@ and type_declaration (env: Env.checker_env) (decl: Declaration.t) : Env.checker_
     match snd decl with
     | Constant { annotations = _; typ; name; value } ->
       type_constant env typ name value
-    | Instantiation { annotations = _; typ; args; name } ->
+    | Instantiation { annotations = _; typ; args; name; init } ->
+      (* TODO: type check init? *)
       type_instantiation env typ args name
     | Parser { annotations = _; name; type_params = _; params; constructor_params; locals; states } ->
       type_parser env name params constructor_params locals states
@@ -2255,7 +2257,8 @@ and type_extern_object env name type_params methods =
         assert (snd cname = snd name);
         let params' = translate_construct_params env type_params' params in
         (params' :: constructors, methods)
-    | MethodPrototype.Method {return; name; type_params; params; _} ->
+    | MethodPrototype.Method {return; name; type_params; params; _}
+    | MethodPrototype.AbstractMethod {return; name; type_params; params; _} ->
         let method_typ_params = List.map ~f:snd type_params in
         let all_typ_params = type_params' @ method_typ_params in
         let params' =

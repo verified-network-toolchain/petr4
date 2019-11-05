@@ -41,7 +41,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> DONTCARE
 %token<Info.t> MASK RANGE
 %token<Info.t> TRUE FALSE
-%token<Info.t> ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
+%token<Info.t> ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
 %token<Info.t> ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
 %token<Info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRUCT
 %token<Info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
@@ -321,7 +321,23 @@ instantiation
 : annotations = optAnnotations typ = typeRef
     L_PAREN args = argumentList R_PAREN name = name info2 = SEMICOLON
     { (Info.merge (info typ) info2,
-       Declaration.Instantiation { annotations; typ; args; name }) }
+       Declaration.Instantiation { annotations; typ; args; name; init=None }) }
+| annotations = optAnnotations typ = typeRef
+    L_PAREN args = argumentList R_PAREN name = name ASSIGN init = objInitializer info2 = SEMICOLON
+    { (Info.merge (info typ) info2,
+       Declaration.Instantiation { annotations; typ; args; name; init=Some init }) }
+;
+
+objInitializer
+: L_BRACE statements = list(objDeclaration) R_BRACE 
+  { (Info.merge $1 $3, Block.{ annotations = []; statements }) }
+;
+
+objDeclaration
+: decl = functionDeclaration
+  { (info decl, Statement.DeclarationStatement { decl }) }
+| decl = instantiation 
+  { (info decl, Statement.DeclarationStatement { decl }) }
 ;
 
 optConstructorParameters
@@ -542,6 +558,13 @@ methodPrototype
     { let (info1, return, name, type_params, params) = func in
       (Info.merge info1 info2,
        MethodPrototype.Method { annotations; return; name; type_params; params }) }
+
+| annotations = optAnnotations
+  ABSTRACT
+  func = functionPrototype pop_scope info2 = SEMICOLON
+    { let (info1, return, name, type_params, params) = func in
+      (Info.merge info1 info2,
+       MethodPrototype.AbstractMethod { annotations; return; name; type_params; params }) }
 | annotations = optAnnotations
   name = name (* NAME TYPENAME *)
     L_PAREN params = parameterList R_PAREN info2 = SEMICOLON

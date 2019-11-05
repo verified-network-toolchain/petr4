@@ -1651,7 +1651,7 @@ and type_conditional env cond tru fls =
   let tru_typ = type' tru in
   let fls_typ = option_map type' fls in
   match fls_typ with
-  | None -> (tru_typ, env) (*QUESTION: in old checker, type checks to Unit here*)
+  | None -> (StmType.Unit, env)
   | Some x ->
     (match tru_typ, x with
     | StmType.Void, StmType.Void -> (StmType.Void, env)

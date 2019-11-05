@@ -293,19 +293,19 @@ and gen_all_constraints (env: Env.checker_env) unknowns params_args constraints 
      constraints
 
 and infer_type_arguments env ret type_params_args params_args constraints =
-  let insert (env, unknowns) (type_var, type_arg) =
+  let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
     | Some arg ->
-       Env.insert_type type_var arg env, unknowns
+       Env.insert_type type_var arg env, (type_var, arg) :: args, unknowns
     | None ->
-       Env.insert_type_var type_var env, type_var :: unknowns
+       Env.insert_type_var type_var env, args, type_var :: unknowns
   in
-  let env, unknowns = List.fold ~f:insert ~init:(env, []) type_params_args in
+  let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =
     empty_constraints unknowns
     |> gen_all_constraints env unknowns params_args
   in
-  constraints_to_type_args ret constraints
+  params_args' @ constraints_to_type_args ret constraints
 
 and merge_solutions env soln1 soln2 =
   match soln1, soln2 with

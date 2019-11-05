@@ -26,4 +26,4 @@ control Pipe2(out bit<8> data) {
     }
 }
 
-Switch(P(), Pipe2()) m;
+Switch(P(), Pipe1()) m;

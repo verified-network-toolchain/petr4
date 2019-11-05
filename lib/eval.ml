@@ -2759,9 +2759,48 @@ let rec eval_main (env : EvalEnv.t) (pack : packet_in)
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is no a package" in
   match name with
+  | "ebpfFilter" -> eval_ebpfFilter env vs pack ctrl
   | "V1Switch" -> eval_v1switch env vs pack ctrl
   | "EmptyPackage" -> pack
   | _ -> failwith "architecture not supported"
+
+and eval_ebpfFilter (env : EvalEnv.t) (vs : (string * value) list)
+    (pack : packet_in) (ctrl : Table.pre_entry list) : packet_in =
+  let parser = List.Assoc.find_exn vs "prs"  ~equal:(=) in 
+  let filter = List.Assoc.find_exn vs "filt" ~equal:(=) in
+  let params = 
+    match parser with
+    | VParser {pparams=ps;_} -> ps
+    | _ -> failwith "parser is not a parser object" in
+  let pckt = VRuntime (PacketIn pack) in
+  let hdr = init_val_of_typ env "hdr" (snd (List.nth_exn params 1)).typ in
+  let accept = VBool (false) in
+  let env =
+    EvalEnv.(env 
+             |> insert_val "packet" pckt 
+             |> insert_val "hdr"    hdr
+             |> insert_val "accept" accept
+             |> insert_typ "packet" (snd (List.nth_exn params 0)).typ
+             |> insert_typ "hdr"    (snd (List.nth_exn params 1)).typ 
+             |> insert_typ "accept" (Info.dummy, Type.Bool)
+             |> insert_table_entries ctrl) in
+  let pckt_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
+  let hdr_expr = 
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
+  let accept_expr =
+    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "accept"))}) in
+  let (env, state, _) =
+    eval_app env SContinue parser [pckt_expr; hdr_expr] in
+  let env = if state = SReject
+    then
+      eval_assign' env (LName("accept")) (VBool(false)) |> fst
+    else env |> eval_ebpf_ctrl filter [hdr_expr; accept_expr] |> fst in
+  print_endline "After runtime evaluation";
+  EvalEnv.print_env env;
+  match EvalEnv.find_val "packet" env with
+  | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
+  | _ -> failwith "pack not a packet"
 
 and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
     (pack : packet_in) (ctrl : Table.pre_entry list) : packet_in =
@@ -2831,6 +2870,11 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
   match EvalEnv.find_val "packet" env with
   | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
   | _ -> failwith "pack not a packet"
+
+and eval_ebpf_ctrl (control : value) (args : Argument.t list) 
+    (env : EvalEnv.t) : EvalEnv.t * signal =
+  let (env,s,_) = eval_app env SContinue control args in 
+  (env,s) 
 
 and eval_v1control (control : value) (args : Argument.t list)
     (env : EvalEnv.t) : EvalEnv.t * signal =

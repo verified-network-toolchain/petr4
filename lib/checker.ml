@@ -54,7 +54,7 @@ let rec is_lvalue (_, expr) =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let compile_time_eval_expr (env: Env.checker_env) (expr: Types.Expression.t) : Value.t option =
+let rec compile_time_eval_expr (env: Env.checker_env) (expr: Types.Expression.t) : Value.t option =
   match snd expr with
   | Name (_, var) ->
      Env.find_const_opt var env
@@ -72,7 +72,7 @@ let compile_time_eval_expr (env: Env.checker_env) (expr: Types.Expression.t) : V
      end
   | UnaryOp { op; arg } -> failwith "unimplemented"
   | BinaryOp { op; args } -> failwith "unimplemented"
-  | Cast { typ; expr } -> failwith "unimplemented"
+  | Cast { typ; expr } -> compile_time_eval_expr env expr
   | TypeMember {typ; name } -> failwith "unimplemented"
   | Ternary {cond; tru; fls } -> failwith "unimplemented"
   | _ -> None
@@ -1173,9 +1173,21 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
       | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
     end
 
+and cast_ok original_type new_type =
+  (* TODO *)
+  match original_type, new_type with
+  | _ -> true
+
 (* Section 8.9 *)
-and type_cast _ _ expr =
-  raise_s [%message "type_cast unimplemented" ~expr:(expr: Expression.t)]
+and type_cast env typ expr =
+  let expr_type, expr_dir = type_expression_dir env expr in
+  let expr_type = saturate_type env expr_type in
+  let new_type = saturate_type env @@ translate_type env [] typ in
+  if cast_ok expr_type new_type
+  then new_type, expr_dir
+  else raise_s [%message "illegal explicit cast"
+                   ~old_type:(expr_type: Typed.Type.t)
+                   ~new_type:(new_type: Typed.Type.t)]
 
 (* ? *)
 and type_type_member env typ name =
@@ -2149,8 +2161,10 @@ and type_table' env name key_types action_map properties =
     else failwith ""
   | Custom { name = (_, "default_action"); _ } :: rest ->
      type_table' env name key_types action_map rest
-  | Custom { name = (_, "size"); _ } :: rest -> failwith "size checking unimplemented"
-  | Custom _ :: rest -> failwith "custom table properties not supported"
+  | Custom { name = (_, "size"); _ } :: rest
+  | Custom _ :: rest ->
+     (* TODO *)
+     type_table' env name key_types action_map rest
   | [] ->
     (* failwith "no properties for table?" *)
     (* Aggregate table information. *)

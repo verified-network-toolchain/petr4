@@ -130,7 +130,7 @@ let command =
 
 (*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
 
-let () = eval_file ["./examples"] "./examples/eval_tests/controls/table3.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
+let () = eval_file ["./examples"] "./examples/eval_tests/parsers/value_set.p4" false "packets/packet2.txt" "./ctrl_configs/single_entry.json"
 
 (* let () =
    Format.printf "@[";

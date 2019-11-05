@@ -64,10 +64,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
     } -> eval_var_decl env t n v |> fst
   | ValueSet {
       annotations = _;
-      typ = _;
-      size = _;
-      name = _;
-    } -> eval_set_decl ()
+      typ = t;
+      size = s;
+      name = (_,n);
+    } -> eval_set_decl env t n s |> fst
   | Action {
       annotations = _;
       name = (_,n);
@@ -190,7 +190,14 @@ and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     | SReturn _ -> failwith "variable declaration should not return"
     | SExit -> failwith "variable declaration should not exit"
 
-and eval_set_decl () = failwith "set decls unimplemented"
+and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
+    (size : Expression.t) : EvalEnv.t * signal =
+  let env' = EvalEnv.insert_typ name typ env in
+  let (env'', s, size') = eval_expression' env' SContinue size in
+  match s with
+  | SContinue -> (EvalEnv.insert_val name (VSet (SValueSet (size', []))) env'', s)
+  | SReject -> (env, s)
+  | _ -> failwith "value set declaration should not return or exit"
 
 and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) (decl : Declaration.t) : EvalEnv.t  =
@@ -2397,6 +2404,7 @@ and values_match_set (vs : value list) (s : set) : bool =
   | SRange(v1,v2) -> values_match_range vs v1 v2
   | SProd l       -> values_match_prod vs l
   | SLpm(v1,_,v2) -> values_match_mask vs v1 v2
+  | SValueSet _ -> failwith "value set unimplemented"
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in

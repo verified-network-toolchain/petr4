@@ -71,6 +71,7 @@ module Value : sig
       | SRange of value * value 
       | SProd of set list
       | SLpm of value * Bigint.t * value
+      | SValueSet of value * Parser.case list
 
     and signal =
       | SContinue
@@ -155,6 +156,7 @@ end = struct
       | SRange of value * value 
       | SProd of set list
       | SLpm of value * Bigint.t * value
+      | SValueSet of value * Parser.case list
 
     and signal =
       | SContinue

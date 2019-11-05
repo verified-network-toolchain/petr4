@@ -810,12 +810,12 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   (* Type names *)
   | TypeName name
   | Table {result_typ_name=name} ->
-    begin match Env.find_type_of_opt name env with
+    begin match Env.resolve_type_name_opt name env with
     | None -> false
     | Some _ -> true (* Unsure of what to do in this case *)
     end
   | TopLevelType name ->
-    begin match Env.find_type_of_toplevel_opt name env with
+    begin match Env.resolve_type_name_toplevel_opt name env with
     | None -> false
     | Some _ -> true (* Unsure of what to do in this case *)
     end
@@ -2270,13 +2270,23 @@ and type_new_type env name typ_or_decl =
    * purpose of newtypes *)
   type_type_def env name typ_or_decl
 
+and check_params_wf env params =
+  if not (are_param_types_well_formed env params)
+  then raise_s [%message "Parameter types are  not well-formed"
+                   ~ps:(params: Typed.Parameter.t list)]
+
+and check_construct_params_wf env params =
+  if not (are_construct_params_types_well_formed env params)
+  then raise_s [%message "Parameter types are  not well-formed"
+                   ~ps:(params: Typed.ConstructParam.t list)]
+
+
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
   let body_env = Env.insert_type_vars t_params env in
   let ps = translate_parameters env t_params params in
-  if are_param_types_well_formed body_env ps |> not
-  then failwith "Parameter types are not well-formed" else
+  check_params_wf body_env ps;
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Control {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
@@ -2286,8 +2296,7 @@ and type_parser_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
   let body_env = Env.insert_type_vars t_params env in
   let ps = translate_parameters env t_params params in
-  if are_param_types_well_formed body_env ps |> not
-  then failwith "Parameter types are not well-formed" else
+  check_params_wf body_env ps;
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Parser {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env
@@ -2297,8 +2306,7 @@ and type_package_type env name type_params params =
   let t_params = List.map ~f:snd type_params in
   let body_env = Env.insert_type_vars t_params env in
   let ps = translate_construct_params env t_params params in
-  if are_construct_params_types_well_formed body_env ps |> not
-  then failwith "Parameter types are not well-formed" else
+  check_construct_params_wf body_env ps;
   let tps = List.map ~f:snd type_params in
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
   Env.insert_type (snd name) ctrl env

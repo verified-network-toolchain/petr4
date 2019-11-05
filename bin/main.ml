@@ -50,6 +50,7 @@ let parse include_dirs p4_file verbose =
 let check_file include_dirs p4_file print_json pretty_json verbose = 
   match parse include_dirs p4_file verbose with
   | `Ok prog -> 
+    let prog = Elaborate.elab prog in
     Checker.check_program prog |> ignore;
     if print_json then 
       let json = Types.program_to_yojson prog in 
@@ -81,6 +82,7 @@ let check_dir include_dirs p4_dir verbose =
           let p4_file = Filename.concat p4_dir file in 
           match parse include_dirs p4_file verbose with 
           | `Ok prog ->
+             let prog = Elaborate.elab prog in
              Checker.check_program prog |> ignore;
              Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
           | `Error (info, Lexer.Error s) -> 

@@ -5,7 +5,7 @@
   <title>Petr4</title>
 </head>
 <body>
-  <textarea rows="4" cols="50" id="code-area">
+  <textarea rows="30" cols="50" id="code-area">
       struct my_struct {
         bit<8> n;
         bool b;
@@ -35,5 +35,12 @@
 
   <textarea rows="4" cols="50" id="output">out</textarea>
   <script src="main.bc.js"></script>
+  <link rel="stylesheet" href="codemirror.css">
+<script src="codemirror.js"></script>
+  <script>
+    var editor = CodeMirror.fromTextArea(document.getElementById("code-area"), {
+      lineNumbers: true
+    });
+  </script>
 </body>
 </html>

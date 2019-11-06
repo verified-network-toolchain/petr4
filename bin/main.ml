@@ -18,6 +18,14 @@ open Petr4
 open Js_of_ocaml
 open Js_of_ocaml_lwt
 
+exception ParsingError of string
+
+let preprocess p4_file_contents =
+  let buf = Buffer.create 101 in
+  let env = P4pp.Eval.{ file = "typed_input"; defines = []} in
+  ignore (P4pp.Eval.preprocess_string [] env buf p4_file_contents);
+  Buffer.contents buf
+
 (*cc needs to be called before this, requiring this from users for now*)
 let parse p4_file_name (p4_file_contents:string) verbose =
   let () = Lexer.reset () in
@@ -30,6 +38,7 @@ let parse p4_file_name (p4_file_contents:string) verbose =
   with
   | err ->
     if verbose then Format.eprintf "[%s] %s@\n%!" ("Failed") p4_file_name;
+    Lexer.info lexbuf |> Petr4.Info.to_string |> print_endline;
     `Error (Lexer.info lexbuf, err)
 
 let check_file (p4_file_name : string) (p4_file_contents : string)
@@ -82,9 +91,11 @@ let () =
     Lwt.async @@ fun () ->
       Lwt_js_events.clicks form_submit @@ fun _ _ ->
         let packet = area_packet##.value |> Js.to_string in
+        area_input##.value |> Js.to_string |> print_endline;
         area_out##.value :=
           area_input##.value
           |> Js.to_string
-          |> eval_string false packet
+          |> preprocess
+          |> eval_string true packet
           |> Js.string;
         Lwt.return ()

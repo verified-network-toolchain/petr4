@@ -1685,9 +1685,7 @@ and type_return env expr =
 (* Section 11.7 *)
 and type_switch env expr cases =
   let open Types.Statement in
-  let action_name = type_expression env expr in
-  if not (type_equality env Type.String action_name)
-  then failwith "Switch Statement expression does not evaluate to an action name." else
+  let action_name_typ = reduce_type env @@ type_expression env expr in
   let label_checker label =
     begin match label with
     | Default -> true
@@ -1704,8 +1702,12 @@ and type_switch env expr cases =
       label_checker label
     | FallThrough {label=(_,label)} -> label_checker label
     end in
-  if List.for_all ~f:case_checker cases then (StmType.Unit, env)
-  else failwith "Switch statement does not type check."
+  match action_name_typ with
+  | Enum _ -> 
+     if List.for_all ~f:case_checker cases
+     then (StmType.Unit, env)
+     else failwith "Switch statement does not type check."
+  | _ -> failwith "Switch statement does not type check."
 
 (* Section 10.3 *)
 and type_declaration_statement (env: Env.checker_env) (decl: Declaration.t) : StmType.t * Env.checker_env =

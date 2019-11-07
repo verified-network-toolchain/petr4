@@ -893,9 +893,9 @@ and type_int (_, value) =
 and type_array_access env (array: Types.Expression.t) index =
   let (array_typ, array_dir) = type_expression_dir env array in
   let idx_typ = type_expression env index in
-  assert_array (info array) array_typ |> ignore;
+  let element_typ = (assert_array (info array) array_typ).typ in
   assert_numeric (info index) idx_typ |> ignore;
-  (array_typ, array_dir)
+  (element_typ, array_dir)
 
 and is_numeric (typ: Typed.Type.t) : bool =
   match typ with
@@ -1234,7 +1234,8 @@ and header_methods typ =
 
 and type_expression_member_builtin env info typ name : Typed.Type.t =
   let open Typed.Type in
-  let fail () = raise_unfound_member info (snd name) in
+  let fail () =
+    raise_unfound_member info (snd name) in
   match typ with
   | Control { type_params = []; parameters = ps }
   | Parser { type_params = []; parameters = ps } ->
@@ -1850,17 +1851,33 @@ and solve_constructor_invocation env type_params params type_args args: Typed.Ty
 and type_select_case env state_names expr_types (_, case) : unit =
   let open Parser in
   let open Match in
+  let open Typed.Type in
+  let rec check' info match_type typ =
+    match match_type with
+    | Set element_type ->
+       begin match element_type, typ with
+       | Struct _, Struct _
+       | Tuple _, Tuple _
+       | List _, List _ ->
+          assert_type_equality env info element_type typ
+       | Tuple _, _
+       | Struct _, _ ->
+          assert_type_equality env info
+            element_type
+            (List { types = [typ] })
+       | _, _ ->
+          assert_type_equality env info element_type typ
+       end
+    | non_set_type ->
+       check' info (Set non_set_type) typ
+  in
   match List.zip expr_types case.matches with
   | Some matches_and_types ->
     let check_match (typ, m) =
         match snd m with
         | Expression {expr} ->
-            begin match type_expression env expr with
-            | Set element_type ->
-              assert_type_equality env (fst m) element_type typ
-            | non_set_type ->
-              assert_type_equality env (fst m) non_set_type typ
-            end
+           let match_type = reduce_type env @@ type_expression env expr in
+           check' (fst m) match_type typ
         | Default
         | DontCare -> ()
     in

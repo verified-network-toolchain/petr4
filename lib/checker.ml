@@ -2151,9 +2151,13 @@ and type_table' env name key_types action_map properties =
   | Actions { actions } :: rest ->
      begin match key_types with
      | None ->
-        if List.exists ~f:(function Key _ -> true | _ -> false)  rest
-        then raise_s [%message "key property must be defined before actions" ~table:(snd name)]
-        else type_table' env name (Some []) action_map properties
+        begin match Util.find_and_drop ~f:(function Table.Key _ -> true | _ -> false) properties with
+        | Some key_prop, other_props ->
+           let props = key_prop :: other_props in
+           type_table' env name None action_map props
+        | None, props ->
+           type_table' env name (Some []) action_map props
+        end
      | Some kts ->
         let action_map = type_table_actions env kts actions in
         type_table' env name key_types action_map rest

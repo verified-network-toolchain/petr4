@@ -218,11 +218,6 @@ let elab_methods env gen ms =
 
 let elab_decl env gen decl =
   let open Declaration in
-  begin match Declaration.name_opt decl with
-  | Some (_, name) ->
-     Renamer.observe_name gen name
-  | None -> ()
-  end;
   fst decl,
   match snd decl with
   | Function { return; name; type_params; params; body } ->
@@ -261,13 +256,24 @@ let elab_decl env gen decl =
 
   | d -> d
 
-let rec elab_decls env gen decls =
+let rec elab_decls' env gen decls =
   match decls with
   | decl :: decls ->
      let decl = elab_decl env gen decl in
      let env = Env.insert_decl decl env in
-     decl :: elab_decls env gen decls
+     decl :: elab_decls' env gen decls
   | [] -> []
+
+let elab_decls env gen decls =
+  (* add decl names to renamer first, because they are _free_ and
+     cannot be changed, unlike bound type variable names! *)
+  let observe_decl_name d =
+    match Declaration.name_opt d with
+    | Some (_, name) -> Renamer.observe_name gen name
+    | None -> ()
+  in
+  List.iter ~f:observe_decl_name decls;
+  elab_decls' env gen decls
 
 let elab (Program decls) =
   let gen = Renamer.create () in

@@ -1617,21 +1617,14 @@ and type_assignment env lhs rhs =
   ignore (assert_same_type env (info lhs) (info rhs) lhs_type rhs_type);
   (Unit, env)
 
-(* Section 13.1 desugar and resugar the exceptions*)
+(* This belongs in an elaboration pass, really. - Ryan *)
 and type_direct_application env typ args =
-  let instance_type = type_nameless_instantiation env typ [] in
-  type_apply env instance_type args
-
-and type_apply env instance_type args =
-  let params =
-    match instance_type with
-    | Control {parameters; type_params = []}
-    | Parser {parameters; type_params = []} ->
-       parameters
-    | _ -> failwith "objects of this type have no .apply() method"
-  in
-  let _ = params in
-  failwith "unimplemented"
+  let open Types.Expression in
+  let instance = NamelessInstantiation { typ = typ; args = [] } in
+  let apply = ExpressionMember { expr = Info.dummy, instance; name = (Info.dummy, "apply") } in
+  let call = FunctionCall { func = Info.dummy, apply; type_args = []; args = args } in
+  let _ = type_expression env (Info.dummy, call) in
+  (StmType.Unit, env)
 
 (* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean

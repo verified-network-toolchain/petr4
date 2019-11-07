@@ -933,7 +933,7 @@ and type_bit_string_access env bits lo hi =
      assert (Bigint.(<=) val_lo val_hi);
      assert (Bigint.(<) val_hi big_width);
 
-     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn in
+     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn |> (+) 1 in
      Bit { width = diff }, dir
   | typ, dir ->  raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
 

@@ -218,6 +218,11 @@ let elab_methods env gen ms =
 
 let elab_decl env gen decl =
   let open Declaration in
+  begin match Declaration.name_opt decl with
+  | Some (_, name) ->
+     Renamer.observe_name gen name
+  | None -> ()
+  end;
   fst decl,
   match snd decl with
   | Function { return; name; type_params; params; body } ->

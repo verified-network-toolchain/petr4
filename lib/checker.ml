@@ -1548,12 +1548,17 @@ and type_nameless_instantiation env typ args =
 
 (* Section 8.12.3 *)
 and type_mask env expr mask =
-  Type.Set
-  (type_expression env expr
-  |> assert_bit (info expr)
-  |> ignore;
-  type_expression env mask
-  |> assert_bit (info mask))
+  let open Typed.Type in
+  let res_typ =
+    match type_expression env expr, type_expression env mask with
+    | Bit { width }, Integer
+    | Integer, Bit { width } ->
+       Bit { width }
+    | Integer, Integer ->
+       Integer
+    | l_typ, r_typ -> failwith "bad type for mask operation &&&"
+  in
+  Type.Set res_typ
 
 (* Section 8.12.4 *)
 and type_range env lo hi =

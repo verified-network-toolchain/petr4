@@ -2150,7 +2150,10 @@ and type_table' env name key_types action_map properties =
      end
   | Actions { actions } :: rest ->
      begin match key_types with
-     | None -> raise_s [%message "key property must be defined before actions" ~table:(snd name)]
+     | None ->
+        if List.exists ~f:(function Key _ -> true | _ -> false)  rest
+        then raise_s [%message "key property must be defined before actions" ~table:(snd name)]
+        else type_table' env name (Some []) action_map properties
      | Some kts ->
         let action_map = type_table_actions env kts actions in
         type_table' env name key_types action_map rest
@@ -2166,15 +2169,14 @@ and type_table' env name key_types action_map properties =
      (* TODO *)
      type_table' env name key_types action_map rest
   | [] ->
-    (* failwith "no properties for table?" *)
+    let open EnumType in
+    let open RecordType in
     (* Aggregate table information. *)
     let action_names = List.map ~f:fst action_map in
-    let open EnumType in
     let action_enum_typ = Type.Enum {typ=None; members=action_names} in
     (* Populate environment with action_enum *)
     (* names of action list enums are "action_list_<<table name>>" *)
     let env = Env.insert_type (name |> snd |> (^) "action_list_") action_enum_typ env in
-    let open RecordType in
     let hit_field = {name="hit"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in

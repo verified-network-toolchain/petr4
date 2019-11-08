@@ -2,8 +2,7 @@ module I = Info
 open Core
 open Env
 open Types
-open Value
-open Value
+open Value.Value
 module Info = I (* JNF: ugly hack *)
 
 (*----------------------------------------------------------------------------*)
@@ -2769,24 +2768,27 @@ and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool 
 (* Target and Architecture Dependent Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
+let assert_package (v : value) : Declaration.t * (string * value) list =
+  match v with 
+  | VPackage (obj,vs) -> (obj, vs) 
+  | _ -> failwith "main is not a package" 
+
 let rec eval_main (env : EvalEnv.t) (pack : packet_in)
     (ctrl : Table.pre_entry list) : packet_in =
-  let (_, obj, vs) =
-    match EvalEnv.find_val "main" env with
-    | VPackage ((info, obj), vs) -> (info, obj, vs)
-    | _ -> failwith "main not a stateful object" in
+  let env' = EvalEnv.insert_table_entries ctrl env in
   let name =
-    match obj with
+    match env' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is no a package" in
   match name with
-  | "ebpfFilter" -> eval_ebpfFilter env vs pack ctrl
-  | "V1Switch" -> eval_v1switch env vs pack ctrl
+  | "V1Switch"     -> eval_v1switch env' pack
+  | "ebpfFilter"   -> eval_ebpfFilter env' pack
   | "EmptyPackage" -> pack
   | _ -> failwith "architecture not supported"
 
-and eval_ebpfFilter (env : EvalEnv.t) (vs : (string * value) list)
-    (pack : packet_in) (ctrl : Table.pre_entry list) : packet_in =
+and eval_ebpfFilter (env : EvalEnv.t) (pack : packet_in) : packet_in =
+  let main = EvalEnv.find_val "main" env in
+  let vs = assert_package main |> snd in
   let parser = List.Assoc.find_exn vs "prs"  ~equal:(=) in 
   let filter = List.Assoc.find_exn vs "filt" ~equal:(=) in
   let params = 
@@ -2803,8 +2805,7 @@ and eval_ebpfFilter (env : EvalEnv.t) (vs : (string * value) list)
              |> insert_val "accept" accept
              |> insert_typ "packet" (snd (List.nth_exn params 0)).typ
              |> insert_typ "hdr"    (snd (List.nth_exn params 1)).typ 
-             |> insert_typ "accept" (Info.dummy, Type.Bool)
-             |> insert_table_entries ctrl) in
+             |> insert_typ "accept" (Info.dummy, Type.Bool)) in
   let pckt_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
   let hdr_expr = 
@@ -2823,8 +2824,9 @@ and eval_ebpfFilter (env : EvalEnv.t) (vs : (string * value) list)
   | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
   | _ -> failwith "pack not a packet"
 
-and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
-    (pack : packet_in) (ctrl : Table.pre_entry list) : packet_in =
+and eval_v1switch (env : EvalEnv.t) (pack : packet_in) : packet_in =
+  let main = EvalEnv.find_val "main" env in
+  let vs = assert_package main |> snd in
   let parser =
     List.Assoc.find_exn vs "p"   ~equal:(=) in
   let verify =
@@ -2857,8 +2859,7 @@ and eval_v1switch (env : EvalEnv.t) (vs : (string * value) list)
              |> insert_typ "packet"   (snd (List.nth_exn params 0)).typ
              |> insert_typ "hdr"      (snd (List.nth_exn params 1)).typ
              |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
-             |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ
-             |> insert_table_entries ctrl) in
+             |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
   (* TODO: implement a more responsible way to generate variable names *)
   let pckt_expr =
     (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in

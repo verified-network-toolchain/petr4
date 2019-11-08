@@ -782,6 +782,12 @@ and translate_construct_params env vars construct_params =
       typ = construct_param.typ;
       direction = Directionless }
 
+  and control_param_as_param (control_param: ConstructParam.t) : Parameter.t =
+    { name = control_param.name;
+      typ = control_param.typ;
+      direction = In }
+
+
   and expr_of_arg (arg: Argument.t): Expression.t option =
     match snd arg with
     | Missing -> None
@@ -1437,7 +1443,10 @@ and type_function_call env call_info func type_args args =
     | Function { type_params; parameters; return } ->
        type_params, parameters, return
     | Action { data_params; ctrl_params } ->
-       failwith "Unimplemented"
+       let params =
+         data_params @ List.map ~f:control_param_as_param ctrl_params
+       in
+       [], params, Type.Void
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
                  ~fn:(func: Types.Expression.t)]

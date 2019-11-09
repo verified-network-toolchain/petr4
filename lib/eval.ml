@@ -2,7 +2,7 @@ module I = Info
 open Core
 open Env
 open Types
-open Value.Value
+open Value
 module Info = I (* JNF: ugly hack *)
 
 (*----------------------------------------------------------------------------*)
@@ -97,8 +97,8 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       members = l;
     } -> eval_error_decl env l
   | MatchKind {
-      members = l;
-    } -> eval_matchkind_decl env l
+      members = _;
+    } -> eval_matchkind_decl env d
   | Enum {
       annotations = _;
       name = (_,n);
@@ -166,13 +166,12 @@ and eval_control_decl (env : EvalEnv.t) (name : string)
 
 and eval_fun_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) (decl : Declaration.t) : EvalEnv.t =
-  EvalEnv.insert_val name (VFun(params,body)) env
+  EvalEnv.insert_val name (VFun{params;body}) env
   |> EvalEnv.insert_decl name decl
 
 and eval_extern_fun (env : EvalEnv.t) (name : string)
     (params : Parameter.t list) (decl : Declaration.t) : EvalEnv.t =
-  EvalEnv.insert_val name (VExternFun params) env
-  |> EvalEnv.insert_decl name decl
+  EvalEnv.insert_decl name decl env
 
 and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     (init : Expression.t option) : EvalEnv.t * signal =
@@ -200,7 +199,7 @@ and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
 
 and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
     (body : Block.t) (decl : Declaration.t) : EvalEnv.t  =
-  EvalEnv.insert_val name (VAction(params, body)) env
+  EvalEnv.insert_val name (VAction{params; body}) env
   |> EvalEnv.insert_decl name decl
 
 and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
@@ -262,11 +261,12 @@ and eval_error_decl (env : EvalEnv.t) (errs : P4String.t list) : EvalEnv.t =
   let errs' = List.map errs ~f:snd in
   EvalEnv.insert_errs errs' env
 
-and eval_matchkind_decl (env : EvalEnv.t) (mems : P4String.t list) : EvalEnv.t =
-  mems
+and eval_matchkind_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
+  env 
+  (* mems
   |> List.map ~f:snd
   |> List.map ~f:(fun a -> (a, VMatchKind))
-  |> (fun a -> EvalEnv.insert_vals a env)
+  |> (fun a -> EvalEnv.insert_vals a env) *)
 
 and eval_enum_decl (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -278,8 +278,7 @@ and eval_senum_decl (env : EvalEnv.t) (name : string)
 
 and eval_extern_obj (env : EvalEnv.t) (name : string)
     (methods : MethodPrototype.t list) (decl : Declaration.t) : EvalEnv.t =
-  EvalEnv.insert_val name (VExternObject (name, methods)) env
-  |> EvalEnv.insert_decl name decl
+  EvalEnv.insert_decl name decl env
 
 and eval_type_def (env : EvalEnv.t) (name : string)
     (decl : Declaration.t) : EvalEnv.t =
@@ -354,7 +353,8 @@ and sort_lpm (entries : (set * Table.action_ref) list)
 and lpm_set_of_set (s : set) : set =
   match s with
   | SSingleton (w,v) ->
-    SLpm (VBit (w,v), w, VBit(w,bitwise_neg_of_bigint Bigint.zero w))
+    let v' = bitwise_neg_of_bigint Bigint.zero w in
+    SLpm (VBit{w;v}, w, VBit{w;v=v'})
   | SMask (v1,v2) ->
     SLpm (v1, v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false, v2)
   | SRange _ -> failwith "unreachable"
@@ -407,23 +407,23 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
 
 and init_val_of_int (env : EvalEnv.t) (expr : Expression.t) : value =
   match thrd3 (eval_expression' env SContinue expr) with
-  | VInteger n
-  | VBit(_,n)
-  | VInt(_,n) -> VInt(n, Bigint.zero)
+  | VInteger v
+  | VBit{v;_}
+  | VInt{v;_} -> VInt{w=v;v=Bigint.zero}
   | _ -> failwith "int width is not an int"
 
 and init_val_of_bit (env : EvalEnv.t) (expr : Expression.t) : value =
   match thrd3 (eval_expression' env SContinue expr) with
-  | VInteger n
-  | VBit(_,n)
-  | VInt(_,n) -> VBit(n, Bigint.zero)
+  | VInteger v
+  | VBit{v;_}
+  | VInt{v;_} -> VBit{w=v;v=Bigint.zero}
   | _ -> failwith "bit width is not an int"
 
 and init_val_of_varbit (env : EvalEnv.t) (expr: Expression.t) : value =
   match thrd3 (eval_expression' env SContinue expr) with
-  | VInteger n
-  | VBit(_,n)
-  | VInt(_,n) -> VVarbit(n, Bigint.zero, Bigint.zero)
+  | VInteger v
+  | VBit{v;_}
+  | VInt{v;_} -> VVarbit{max=v; w=Bigint.zero; v=Bigint.zero}
   | _ -> failwith "varbit width is not an int"
 
 and init_val_of_typname (env : EvalEnv.t) (tname : string) (vname : string) (b : bool) : value =
@@ -439,25 +439,25 @@ and init_val_of_stack (env: EvalEnv.t) (name : string)
   let size' = size |> eval_expression' env SContinue |> thrd3 |> bigint_of_val in
   let hdrs = size' |> Bigint.to_int_exn |> List.init ~f:string_of_int
              |> List.map ~f:(fun s -> init_val_of_typ env s hdr) in
-  VStack(name, hdrs, size', Bigint.zero)
+  VStack{name;headers=hdrs;size=size';next=Bigint.zero}
 
 and init_val_of_tuple (env : EvalEnv.t) (t : Type.t) (l : Type.t list) : value =
   VTuple (List.map l ~f:(init_val_of_typ env ""))
 
 and init_val_of_struct (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
-  VStruct (name, List.map fs ~f:(init_binding_of_field env))
+  VStruct {name;fields=List.map fs ~f:(init_binding_of_field env)}
 
 and init_val_of_header (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
-  VHeader (name, List.map fs ~f:(init_binding_of_field env), false)
+  VHeader {name; fields=List.map fs ~f:(init_binding_of_field env);is_valid=false}
 
 and init_val_of_union (env : EvalEnv.t) (name : string)
     (fs : Declaration.field list) : value =
   let fs' = List.map fs ~f:(init_binding_of_field env) in
   let bs = List.map fs' ~f:(fun (a,b) -> (a,false)) in
   let v = fs' |> List.hd_exn |> snd in
-  VUnion (name, v, bs)
+  VUnion {name; valid_header=v; valid_fields=bs}
 
 (*----------------------------------------------------------------------------*)
 (* Statement Evaluation *)
@@ -529,12 +529,12 @@ and eval_table (env : EvalEnv.t) (key : value list)
   let actionv = EvalEnv.find_val action_name env in
   let args = Table.((snd action).args) in
   match actionv with
-  | VAction(params,body) ->
+  | VAction{params;body}  ->
     let (env',s,_) = eval_funcall' env params args body in
-    let v = VStruct ("", [
+    let v = VStruct {name="";fields=[
                           ("hit", VBool (not (List.is_empty l)));
-                          ("action_run", VEnumField (name, action_name))
-                         ]) in
+                          ("action_run", VEnumField{typ_name=name;enum_name=action_name})
+                         ]} in
     (env',s,v)
   | _ -> failwith "table expects an action"
 
@@ -649,12 +649,18 @@ and assign_name (env : EvalEnv.t) (name : string) (lhs : lvalue) (rhs : value)
     (f : string -> value -> EvalEnv.t -> EvalEnv.t) : EvalEnv.t =
   let t = EvalEnv.find_typ name env in
   match rhs with
-  | VTuple l        -> f name (implicit_cast_from_tuple env lhs name rhs t) env
-  | VStruct(n,l)    -> f name (VStruct(name,l)) env
-  | VHeader(n,l,b)  -> f name (VHeader(name,l,b)) env
-  | VUnion(n,v,l)   -> f name (VUnion(name,v,l)) env
-  | VStack(n,v,a,i) -> f name (VStack(name,v,a,i)) env
-  | VInteger n      -> f name (implicit_cast_from_rawint env rhs t) env
+  | VTuple l -> 
+    f name (implicit_cast_from_tuple env lhs name rhs t) env
+  | VStruct{name=n;fields} -> 
+    f name (VStruct{name=n;fields}) env
+  | VHeader{name=n;fields;is_valid} -> 
+    f name (VHeader{name=n;fields;is_valid}) env
+  | VUnion{name=n;valid_header;valid_fields} -> 
+    f name (VUnion{name=n;valid_header;valid_fields}) env
+  | VStack{name=n;headers;size;next} -> 
+    f name (VStack{name=n;headers;size;next}) env
+  | VInteger n -> 
+    f name (implicit_cast_from_rawint env rhs t) env
   | _ -> f name rhs env
 
 and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
@@ -663,10 +669,14 @@ and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
   match s with
   | SContinue ->
     begin match v with
-      | VStruct(n,l)       -> assign_struct_mem env lv rhs mname n l
-      | VHeader(n,l,b)     -> assign_header_mem env lv rhs mname n l b
-      | VUnion(n,vs,bs)    -> assign_union_mem env lv rhs mname n bs
-      | VStack(n,hdrs,s,i) -> assign_stack_mem env lv rhs n mname hdrs s i
+      | VStruct{name=n;fields=l} -> 
+        assign_struct_mem env lv rhs mname n l
+      | VHeader{name=n;fields=l;is_valid=b} -> 
+        assign_header_mem env lv rhs mname n l b
+      | VUnion{name=n;valid_header=vs;valid_fields=bs} -> 
+        assign_union_mem env lv rhs mname n bs
+      | VStack{name=n;headers=hdrs;size=s;next=i} ->
+        assign_stack_mem env lv rhs n mname hdrs s i
       | _ -> failwith "member access undefined" end
   | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s)
   | _ -> failwith "unreachable"
@@ -689,7 +699,7 @@ and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
         let diff = Bigint.(n0 - rhs') in
         let diff' = Bigint.(diff * (power_of_two lsb'')) in
         let final = Bigint.(n - diff') in
-        eval_assign' env'' lv (VBit(w,final))
+        eval_assign' env'' lv (VBit{w;v=final})
       | SReject -> (env'',s)
       | _ -> failwith "unreachable" end
   | SReject, _ -> (env',s)
@@ -708,12 +718,12 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
   match s,s' with
   | SContinue,SContinue ->
     begin match v with
-      | VStack(n,hdrs,size,next) ->
+      | VStack{name=n;headers=hdrs;size;next} ->
         let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn i') in
         begin match hdrs2 with
           | _ :: t ->
             let hdrs' = hdrs1 @ (rhs' :: t) in
-            let rhs'' = VStack(n,hdrs',size,next) in
+            let rhs'' = VStack{name=n;headers=hdrs';size;next} in
             eval_assign' env' lv rhs''
           | [] -> (EvalEnv.set_error "StackOutOfBounds" env', SReject) end
       | _ -> failwith "array access is not a header stack" end
@@ -728,14 +738,14 @@ and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
   let t = typ_of_struct_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
   let rhs'' = implicit_cast_from_tuple env (LMember(lhs, fname)) fname rhs' t in
-  eval_assign' env lhs ((VStruct(sname, (fname, rhs'') :: l)))
+  eval_assign' env lhs (VStruct{name=sname;fields=(fname, rhs'') :: l})
 
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (hname : string) (l : (string * value) list)
     (b : bool) : EvalEnv.t * signal =
   let t = typ_of_header_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
-  eval_assign' env lhs ((VHeader(hname,(fname,rhs') :: l,b)))
+  eval_assign' env lhs (VHeader{name=hname;fields=(fname,rhs') :: l;is_valid=b})
 
 and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (uname : string)
@@ -743,7 +753,7 @@ and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
   let t = typ_of_union_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_tuple env (LMember(lhs,fname)) fname rhs t in
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
-  eval_assign' env lhs (VUnion(uname, rhs', vbs'))
+  eval_assign' env lhs (VUnion{name=uname; valid_header=rhs'; valid_fields=vbs'})
 
 and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (sname : string) (mname : string) (hdrs : value list) (size : Bigint.t)
@@ -762,7 +772,7 @@ and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
       match hdrs2 with
       | _ :: t -> hdrs1 @ (rhs' :: t)
       | [] -> failwith "header stack is empty" in
-    eval_assign' env lhs (VStack(sname,hdrs',size,next))
+    eval_assign' env lhs (VStack{name=sname;headers=hdrs';size;next})
 
 (*----------------------------------------------------------------------------*)
 (* Functions on L-Values*)
@@ -789,10 +799,10 @@ and value_of_lmember (env : EvalEnv.t) (lv : lvalue)
     (n : string) : signal * value =
   let (s,v) = value_of_lvalue env lv in
   let v' = match v with
-    | VStruct(_,l)
-    | VHeader(_,l, _)  -> List.Assoc.find_exn l n ~equal:(=)
-    | VUnion(_,v,_)    -> v
-    | VStack(_,vs,s,i) -> value_of_stack_mem_lvalue n vs s i
+    | VStruct{fields=l;_}
+    | VHeader{fields=l;_}              -> List.Assoc.find_exn l n ~equal:(=)
+    | VUnion{valid_header=v;_}         -> v
+    | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
     | _ -> failwith "no lvalue member" in
   match s with
   | SContinue -> (s,v')
@@ -808,7 +818,7 @@ and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
   let m' = bigint_of_val m in
   let l' = bigint_of_val l in
   match s with
-  | SContinue -> (s, VBit(Bigint.(m' - l' + one), bitstring_slice n' m' l'))
+  | SContinue -> (s, VBit{w=Bigint.(m' - l' + one);v=bitstring_slice n' m' l'})
   | SReject -> (s, VNull)
   | _ -> failwith "unreachable"
 
@@ -818,7 +828,7 @@ and value_of_larray (env : EvalEnv.t) (lv : lvalue)
   match s with
   | SContinue ->
     begin match v with
-      | VStack(n,vs,s,i) ->
+      | VStack{name=n;headers=vs;size=s;next=i} ->
         let idx' = eval_expression' env SContinue idx |> thrd3 |> bigint_of_val in
         begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx' % s)))
           with Invalid_argument _ -> (SReject, VNull) end
@@ -915,14 +925,14 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
 
 and eval_name (env : EvalEnv.t) (s : signal) (name : string)
     (exp : Expression.t) : EvalEnv.t * signal * value =
-  if name = "verify" then (env, s, VBuiltinFun (name, lvalue_of_expr exp))
+  if name = "verify" then (env, s, VBuiltinFun {name;caller=lvalue_of_expr exp})
   else (env, s, EvalEnv.find_val name env)
 
 and eval_p4int (n : P4Int.pre_t) : value =
   match n.width_signed with
   | None          -> VInteger n.value
-  | Some(w,true)  -> VInt (Bigint.of_int w, n.value)
-  | Some(w,false) -> VBit (Bigint.of_int w, n.value)
+  | Some(w,true)  -> VInt {w=Bigint.of_int w;v=n.value}
+  | Some(w,false) -> VBit {w=Bigint.of_int w;v=n.value}
 
 and eval_array_access (env : EvalEnv.t) (a : Expression.t)
     (i : Expression.t) : EvalEnv.t * signal * value =
@@ -948,7 +958,7 @@ and eval_bitstring_access (env : EvalEnv.t) (b : Expression.t)
   let w = Bigint.(m'-l' + one) in
   let n = bitstring_slice b' m' l' in
   match (s,s',s'') with
-  | SContinue, SContinue, SContinue -> (env''', SContinue, VBit(w,n))
+  | SContinue, SContinue, SContinue -> (env''', SContinue, VBit{w;v=n})
   | SReject,_,_ -> (env',s,VNull)
   | _,SReject,_ -> (env'', s,VNull)
   | _,_,SReject -> (env''', s, VNull)
@@ -1030,7 +1040,7 @@ and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
   | Declaration.Enum {members=ms;name=(_,n);_} ->
     let mems = List.map ms ~f:snd in
     if List.mem mems name ~equal:(=)
-    then (env, SContinue, VEnumField (n, name))
+    then (env, SContinue, VEnumField{typ_name=n;enum_name=name})
     else raise (UnboundName name)
   | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
     let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
@@ -1038,7 +1048,7 @@ and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
     let (env',s,v) = eval_expression' env SContinue expr in
     let v' = implicit_cast_from_rawint env' v typ in
     begin match s with
-      | SContinue -> (env',s,VSenumField(n,name,v'))
+      | SContinue -> (env',s,VSenumField{typ_name=n;enum_name=name;v=v'})
       | SReject -> (env',s,VNull)
       | _ -> failwith "unreachable" end
   | _ -> failwith "typ mem undefined"
@@ -1059,23 +1069,20 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VSet _
       | VString _
       | VError _
-      | VMatchKind
       | VFun _
       | VBuiltinFun _
       | VAction _
       | VEnumField _
       | VSenumField _
-      | VExternFun _
-      | VPackage _          -> failwith "expr member does not exist"
-      | VStruct (_,fs)      -> eval_struct_mem env' (snd name) fs
-      | VHeader (_,fs,vbit) -> eval_header_mem env' (snd name) expr fs vbit
-      | VUnion (_,v,_)      -> (env', SContinue, v)
-      | VStack (_,hdrs,s,n) -> eval_stack_mem env' (snd name) expr hdrs s n
-      | VRuntime v          -> eval_runtime_mem env' (snd name) expr v
-      | VExternObject _     -> failwith "expr member unimplemented"
+      | VPackage _                           -> failwith "expr member does not exist"
+      | VStruct{fields=fs;_}                 -> eval_struct_mem env' (snd name) fs
+      | VHeader{fields=fs;is_valid=vbit;_}   -> eval_header_mem env' (snd name) expr fs vbit
+      | VUnion{valid_header=v;_}             -> (env', SContinue, v)
+      | VStack{headers=hdrs;size=s;next=n;_} -> eval_stack_mem env' (snd name) expr hdrs s n
+      | VRuntime v                           -> eval_runtime_mem env' (snd name) expr v
       | VParser _
-      | VControl _          -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr))
-      | VTable _            -> (env', s, VBuiltinFun (snd name, lvalue_of_expr expr)) end
+      | VControl _                           -> (env', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr})
+      | VTable _                             -> (env', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr}) end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
@@ -1093,9 +1100,9 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
   match s with
   | SContinue ->
     begin match cl with
-      | VAction (params, body)
-      | VFun (params, body)    -> eval_funcall' env' params args body
-      | VBuiltinFun(n,lv)      -> eval_builtin env n lv args ts
+      | VAction{params; body}
+      | VFun{params; body}            -> eval_funcall' env' params args body
+      | VBuiltinFun{name=n;caller=lv} -> eval_builtin env n lv args ts
       | _ -> failwith "unreachable" end
   | SReject -> (env',s,VNull)
   | _ -> failwith "unreachable"
@@ -1161,10 +1168,10 @@ and eval_not (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
 
 and eval_bitnot (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
   match v with
-  | VBit(w,n) -> (env, VBit(w, bitwise_neg_of_bigint n w))
-  | VInt(w,n) -> (env, VBit(w, ((of_twos_complement n w
-                                 |> bitwise_neg_of_bigint) w
-                                |> to_twos_complement) w))
+  | VBit{w;v=n} -> (env, VBit{w;v=bitwise_neg_of_bigint n w})
+  | VInt{w;v=n} -> (env, VBit{w;v=((of_twos_complement n w
+                                    |> bitwise_neg_of_bigint) w
+                                    |> to_twos_complement) w})
   | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
 and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
@@ -1178,8 +1185,8 @@ and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
 
 and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
   match v with
-  | VBit(w,n)  -> Bigint.(env, VBit(w, (power_of_two w) - n))
-  | VInt(w,n)  -> Bigint.(env, VInt(w, to_twos_complement (-n) w))
+  | VBit{w;v=n}  -> Bigint.(env, VBit{w;v=(power_of_two w) - n})
+  | VInt{w;v=n}  -> Bigint.(env, VInt{w;v=to_twos_complement (-n) w})
   | VInteger n -> (env, VInteger (Bigint.neg n))
   | _ -> failwith "unary minus on non-int type"
 
@@ -1189,55 +1196,55 @@ and eval_uminus (env : EvalEnv.t) (v : value) : EvalEnv.t * value =
 
 and eval_bplus (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 + v2) w)
-  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 + v2) w)
-  | VBit(w,v1), VInteger n   -> eval_bplus l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v1)   -> eval_bplus (bit_of_rawint n w) r
-  | VInt(w,v1), VInteger n   -> eval_bplus l (int_of_rawint n w)
-  | VInteger n, VInt(w,v1)   -> eval_bplus (int_of_rawint n w) r
-  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 + n2)
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 + v2) w}
+  | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 + v2) w}
+  | VBit{w;v=v1}, VInteger n   -> eval_bplus l (bit_of_rawint n w)
+  | VInteger n,   VBit{w;v=v1} -> eval_bplus (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInteger n   -> eval_bplus l (int_of_rawint n w)
+  | VInteger n,   VInt{w;v=v1} -> eval_bplus (int_of_rawint n w) r
+  | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 + n2)
   | _ -> failwith "binary plus operation only defined on ints"
 
 and eval_bplus_sat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> unsigned_op_sat v1 v2 w Bigint.(+)
-  | VInt(w,v1), VInt(_,v2) -> signed_op_sat v1 v2 w Bigint.(+)
-  | VBit(w,v1), VInteger n -> eval_bplus_sat l (bit_of_rawint n w)
-  | VInteger n, VBit(w,_)  -> eval_bplus_sat (bit_of_rawint n w) r
-  | VInt(w,_), VInteger n  -> eval_bplus_sat l (int_of_rawint n w)
-  | VInteger n, VInt(w,_)  -> eval_bplus_sat (int_of_rawint n w) r
+  | VBit{w;v=v1}, VBit{v=v2;_} -> unsigned_op_sat v1 v2 w Bigint.(+)
+  | VInt{w;v=v1}, VInt{v=v2;_} -> signed_op_sat v1 v2 w Bigint.(+)
+  | VBit{w;v=v1}, VInteger n   -> eval_bplus_sat l (bit_of_rawint n w)
+  | VInteger n,   VBit{w;_}    -> eval_bplus_sat (bit_of_rawint n w) r
+  | VInt{w;_},    VInteger n   -> eval_bplus_sat l (int_of_rawint n w)
+  | VInteger n,   VInt{w;_}    -> eval_bplus_sat (int_of_rawint n w) r
   | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
 and eval_bminus (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 - v2) w)
-  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 - v2) w)
-  | VBit(w,v1), VInteger n   -> eval_bminus l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v1)   -> eval_bminus (bit_of_rawint n w) r
-  | VInt(w,v1), VInteger n   -> eval_bminus l (int_of_rawint n w)
-  | VInteger n, VInt(w,v1)   -> eval_bminus (int_of_rawint n w) r
-  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 - n2)
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 - v2) w}
+  | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 - v2) w}
+  | VBit{w;v=v1}, VInteger n   -> eval_bminus l (bit_of_rawint n w)
+  | VInteger n,   VBit{w;v=v1} -> eval_bminus (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInteger n   -> eval_bminus l (int_of_rawint n w)
+  | VInteger n,   VInt{w;v=v1} -> eval_bminus (int_of_rawint n w) r
+  | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 - n2)
   | _ -> failwith "binary plus operation only defined on ints"
 
 and eval_bminus_sat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> unsigned_op_sat v1 v2 w Bigint.(-)
-  | VInt(w,v1), VInt(_,v2) -> signed_op_sat v1 v2 w Bigint.(-)
-  | VBit(w,v1), VInteger n -> eval_bminus_sat l (bit_of_rawint n w)
-  | VInteger n, VBit(w,_)  -> eval_bminus_sat (bit_of_rawint n w) r
-  | VInt(w,_), VInteger n  -> eval_bminus_sat l (int_of_rawint n w)
-  | VInteger n, VInt(w,_)  -> eval_bminus_sat (int_of_rawint n w) r
+  | VBit{w;v=v1}, VBit{v=v2;_} -> unsigned_op_sat v1 v2 w Bigint.(-)
+  | VInt{w;v=v1}, VInt{v=v2;_} -> signed_op_sat v1 v2 w Bigint.(-)
+  | VBit{w;v=v1}, VInteger n   -> eval_bminus_sat l (bit_of_rawint n w)
+  | VInteger n, VBit{w;_}      -> eval_bminus_sat (bit_of_rawint n w) r
+  | VInt{w;_}, VInteger n      -> eval_bminus_sat l (int_of_rawint n w)
+  | VInteger n, VInt{w;_}      -> eval_bminus_sat (int_of_rawint n w) r
   | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
 and eval_bmult (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2)   -> VBit(w, of_twos_complement Bigint.(v1 * v2) w)
-  | VInt(w,v1), VInt(_,v2)   -> VInt(w, to_twos_complement Bigint.(v1 * v2) w)
-  | VBit(w,v1), VInteger n   -> eval_bmult l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v1)   -> eval_bmult (bit_of_rawint n w) r
-  | VInt(w,v1), VInteger n   -> eval_bmult l (int_of_rawint n w)
-  | VInteger n, VInt(w,v1)   -> eval_bmult (int_of_rawint n w) r
-  | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 * n2)
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 * v2) w}
+  | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 * v2) w}
+  | VBit{w;v=v1}, VInteger n   -> eval_bmult l (bit_of_rawint n w)
+  | VInteger n,   VBit{w;v=v1} -> eval_bmult (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInteger n   -> eval_bmult l (int_of_rawint n w)
+  | VInteger n,   VInt{w;v=v1} -> eval_bmult (int_of_rawint n w) r
+  | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 * n2)
   | _ -> failwith "binary mult operation only defined on ints"
 
 and eval_bdiv (l : value) (r : value) : value =
@@ -1252,84 +1259,91 @@ and eval_bmod (l : value) (r : value) : value =
 
 and eval_bshl (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2)
-  | VBit(w,v1), VInteger v2  -> VBit(w, of_twos_complement (shift_bigint_left v1 v2) w)
-  | VInt(w,v1), VBit(_,v2)
-  | VInt(w,v1), VInteger v2  -> VInt(w, to_twos_complement (shift_bigint_left v1 v2) w)
-  | VInteger v1, VInteger v2 -> VInteger(shift_bigint_left v1 v2)
+  | VBit{w;v=v1}, VBit{v=v2;_}
+  | VBit{w;v=v1}, VInteger v2 -> VBit{w;v=of_twos_complement (shift_bigint_left v1 v2) w}
+  | VInt{w;v=v1}, VBit{v=v2;_}
+  | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bigint_left v1 v2) w}
+  | VInteger v1, VInteger v2  -> VInteger(shift_bigint_left v1 v2)
   | _ -> failwith "shift left operator not defined for these types"
 
 and eval_bshr (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2)
-  | VBit(w,v1), VInteger v2  -> VBit(w, of_twos_complement (shift_bigint_right v1 v2) w)
-  | VInt(w,v1), VBit(_,v2)
-  | VInt(w,v1), VInteger v2  -> VInt(w, to_twos_complement (shift_bigint_right v1 v2) w)
-  | VInteger v1, VInteger v2 -> VInteger(shift_bigint_right v1 v2)
+  | VBit{w;v=v1}, VBit{v=v2;_}
+  | VBit{w;v=v1}, VInteger v2 -> VBit{w;v=of_twos_complement (shift_bigint_right v1 v2) w}
+  | VInt{w;v=v1}, VBit{v=v2;_}
+  | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bigint_right v1 v2) w}
+  | VInteger v1,  VInteger v2 -> VInteger(shift_bigint_right v1 v2)
   | _ -> failwith "shift right operator not defined for these types"
 
 and eval_ble (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(_,v1), VBit(_,v2)
+  | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1, VInteger v2
-  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 <= v2)
-  | VInteger v1, VBit(w,v2) -> eval_ble (bit_of_rawint v1 w) r
-  | VBit(w,v1), VInteger v2 -> eval_ble l (bit_of_rawint v2 w)
-  | VInteger v1, VInt(w,v2) -> eval_ble (int_of_rawint v1 w) r
-  | VInt(w,v1), VInteger v2 -> eval_ble l (int_of_rawint v2 w)
+  | VInt{v=v1;_}, VInt{v=v2;_} -> VBool Bigint.(v1 <= v2)
+  | VInteger v1, VBit{w;v=v2}  -> eval_ble (bit_of_rawint v1 w) r
+  | VBit{w;v=v1}, VInteger v2  -> eval_ble l (bit_of_rawint v2 w)
+  | VInteger v1, VInt{w;v=v2}  -> eval_ble (int_of_rawint v1 w) r
+  | VInt{w;v=v1}, VInteger v2  -> eval_ble l (int_of_rawint v2 w)
   | _ -> failwith "leq operator only defined on int types"
 
 and eval_bge (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(_,v1), VBit(_,v2)
-  | VInteger v1, VInteger v2
-  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 >= v2)
-  | VInteger v1, VBit(w,v2) -> eval_bge (bit_of_rawint v1 w) r
-  | VBit(w,v1), VInteger v2 -> eval_bge l (bit_of_rawint v2 w)
-  | VInteger v1, VInt(w,v2) -> eval_bge (int_of_rawint v1 w) r
-  | VInt(w,v1), VInteger v2 -> eval_bge l (int_of_rawint v2 w)
+  | VBit{v=v1;_}, VBit{v=v2;_}
+  | VInteger v1,  VInteger v2
+  | VInt{v=v1;_}, VInt{v=v2;_} -> VBool Bigint.(v1 >= v2)
+  | VInteger v1,  VBit{w;v=v2} -> eval_bge (bit_of_rawint v1 w) r
+  | VBit{w;v=v1}, VInteger v2  -> eval_bge l (bit_of_rawint v2 w)
+  | VInteger v1,  VInt{w;v=v2} -> eval_bge (int_of_rawint v1 w) r
+  | VInt{w;v=v1}, VInteger v2  -> eval_bge l (int_of_rawint v2 w)
   | _ -> failwith "geq operator only defined on int types"
 
 and eval_blt (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(_,v1), VBit(_,v2)
+  | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1, VInteger v2
-  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 < v2)
-  | VInteger v1, VBit(w,v2) -> eval_blt (bit_of_rawint v1 w) r
-  | VBit(w,v1), VInteger v2 -> eval_blt l (bit_of_rawint v2 w)
-  | VInteger v1, VInt(w,v2) -> eval_blt (int_of_rawint v1 w) r
-  | VInt(w,v1), VInteger v2 -> eval_blt l (int_of_rawint v2 w)
+  | VInt{v=v1;_}, VInt{v=v2;_} -> VBool Bigint.(v1 < v2)
+  | VInteger v1, VBit{w;v=v2}  -> eval_blt (bit_of_rawint v1 w) r
+  | VBit{w;v=v1}, VInteger v2  -> eval_blt l (bit_of_rawint v2 w)
+  | VInteger v1, VInt{w;v=v2}  -> eval_blt (int_of_rawint v1 w) r
+  | VInt{w;v=v1}, VInteger v2  -> eval_blt l (int_of_rawint v2 w)
   | _ -> failwith "lt operator only defined on int types"
 
 and eval_bgt (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(_,v1), VBit(_,v2)
-  | VInteger v1, VInteger v2
-  | VInt(_,v1), VInt(_,v2)  -> VBool Bigint.(v1 > v2)
-  | VInteger v1, VBit(w,v2) -> eval_bgt (bit_of_rawint v1 w) r
-  | VBit(w,v1), VInteger v2 -> eval_bgt l (bit_of_rawint v2 w)
-  | VInteger v1, VInt(w,v2) -> eval_bgt (int_of_rawint v1 w) r
-  | VInt(w,v1), VInteger v2 -> eval_bgt l (int_of_rawint v2 w)
+  | VBit{v=v1;_}, VBit{v=v2;_}
+  | VInteger v1,  VInteger v2
+  | VInt{v=v1;_}, VInt{v=v2;_} -> VBool Bigint.(v1 > v2)
+  | VInteger v1,  VBit{w;v=v2} -> eval_bgt (bit_of_rawint v1 w) r
+  | VBit{w;v=v1}, VInteger v2  -> eval_bgt l (bit_of_rawint v2 w)
+  | VInteger v1,  VInt{w;v=v2} -> eval_bgt (int_of_rawint v1 w) r
+  | VInt{w;v=v1}, VInteger v2  -> eval_bgt l (int_of_rawint v2 w)
   | _ -> failwith "gt operator only defined on int types"
 
 and eval_beq (l : value) (r : value) : value =
   match (l,r) with
   | VError s1, VError s2
-  | VEnumField(_,s1), VEnumField(_,s2)       -> VBool(s1 = s2)
-  | VSenumField(_,_,v1), VSenumField(_,_,v2) -> eval_beq v1 v2
-  | VBool b1, VBool b2                       -> VBool(b1 = b2)
-  | VBit(_,n1), VBit(_,n2)
+  | VEnumField{enum_name=s1;_}, 
+    VEnumField{enum_name=s2;_}                -> VBool(s1 = s2)
+  | VSenumField{v=v1;_}, 
+    VSenumField{v=v2;_}                       -> eval_beq v1 v2
+  | VBool b1, VBool b2                        -> VBool(b1 = b2)
+  | VBit{v=n1;_}, VBit{v=n2;_}
   | VInteger n1, VInteger n2
-  | VInt(_,n1), VInt(_,n2)                   -> VBool Bigint.(n1 = n2)
-  | VVarbit(_,w1,n1), VVarbit(_,w2, n2)      -> VBool(Bigint.(n1 = n2 && w1 = w2))
-  | VBit(w,n1), VInteger n2                  -> eval_beq l (bit_of_rawint n2 w)
-  | VInteger n1, VBit(w,n2)                  -> eval_beq (bit_of_rawint n1 w) r
-  | VInt(w,n1), VInteger n2                  -> eval_beq l (int_of_rawint n2 w)
-  | VInteger n1, VInt(w,n2)                  -> eval_beq (int_of_rawint n1 w) r
-  | VStruct(_,l1), VStruct(_,l2)             -> structs_equal l1 l2
-  | VHeader(_,l1,b1), VHeader(_,l2,b2)       -> headers_equal l1 l2 b1 b2
-  | VStack(_,l1,_,_), VStack(_,l2,_,_)       -> stacks_equal l1 l2
-  | VUnion(_,v1,l1), VUnion(_,v2,l2)         -> unions_equal v1 v2 l1 l2
+  | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
+  | VVarbit{w=w1;v=n1;_}, 
+    VVarbit{w=w2;v=n2;_}                      -> VBool(Bigint.(n1 = n2 && w1 = w2))
+  | VBit{w;v=n1}, VInteger n2                 -> eval_beq l (bit_of_rawint n2 w)
+  | VInteger n1, VBit{w;v=n2}                 -> eval_beq (bit_of_rawint n1 w) r
+  | VInt{w;v=n1}, VInteger n2                 -> eval_beq l (int_of_rawint n2 w)
+  | VInteger n1, VInt{w;v=n2}                 -> eval_beq (int_of_rawint n1 w) r
+  | VStruct{fields=l1;_}, 
+    VStruct{fields=l2;_}                      -> structs_equal l1 l2
+  | VHeader{fields=l1;is_valid=b1;_}, 
+    VHeader{fields=l2;is_valid=b2;_}          -> headers_equal l1 l2 b1 b2
+  | VStack{headers=l1;_}, 
+    VStack{headers=l2;_}                      -> stacks_equal l1 l2
+  | VUnion{valid_header=v1;valid_fields=l1;_}, 
+    VUnion{valid_header=v2;valid_fields=l2;_} -> unions_equal v1 v2 l1 l2
   | VTuple _, _ -> failwith "got tuple"
   | _ -> failwith "equality comparison undefined for given types"
 
@@ -1338,39 +1352,40 @@ and eval_bne (l : value) (r : value) : value =
 
 and eval_bitwise_and (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_and v1 v2)
-  | VBit(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
-  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_and v1 v2 w
-  | VInt(w,v1), VInteger n -> eval_bitwise_and l (bit_of_rawint n w)
-  | VInteger n, VInt(w,v2) -> eval_bitwise_and (bit_of_rawint n w) r
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_and v1 v2}
+  | VBit{w;v=v1}, VInteger n   -> eval_bitwise_and l (bit_of_rawint n w)
+  | VInteger n, VBit{w;v=v2}   -> eval_bitwise_and (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_and v1 v2 w
+  | VInt{w;v=v1}, VInteger n   -> eval_bitwise_and l (bit_of_rawint n w)
+  | VInteger n, VInt{w;v=v2}   -> eval_bitwise_and (bit_of_rawint n w) r
   | _ -> failwith "bitwise and only defined on fixed width ints"
 
 and eval_bitwise_xor (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_xor v1 v2)
-  | VBit(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
-  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_xor v1 v2 w
-  | VInt(w,v1), VInteger n -> eval_bitwise_xor l (bit_of_rawint n w)
-  | VInteger n, VInt(w,v2) -> eval_bitwise_xor (bit_of_rawint n w) r
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_xor v1 v2}
+  | VBit{w;v=v1}, VInteger n   -> eval_bitwise_xor l (bit_of_rawint n w)
+  | VInteger n,   VBit{w;v=v2} -> eval_bitwise_xor (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_xor v1 v2 w
+  | VInt{w;v=v1}, VInteger n   -> eval_bitwise_xor l (bit_of_rawint n w)
+  | VInteger n,   VInt{w;v=v2} -> eval_bitwise_xor (bit_of_rawint n w) r
   | _ -> failwith "bitwise xor only defined on fixed width ints"
 
 and eval_bitwise_or (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w,v1), VBit(_,v2) -> VBit(w, Bigint.bit_or v1 v2)
-  | VBit(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
-  | VInt(w,v1), VInt(_,v2) -> bitwise_op_of_signeds Bigint.bit_or v1 v2 w
-  | VInt(w,v1), VInteger n -> eval_bitwise_or l (bit_of_rawint n w)
-  | VInteger n, VInt(w,v2) -> eval_bitwise_or (bit_of_rawint n w) r
+  | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_or v1 v2}
+  | VBit{w;v=v1}, VInteger n   -> eval_bitwise_or l (bit_of_rawint n w)
+  | VInteger n, VBit{w;v=v2}   -> eval_bitwise_or (bit_of_rawint n w) r
+  | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_or v1 v2 w
+  | VInt{w;v=v1}, VInteger n   -> eval_bitwise_or l (bit_of_rawint n w)
+  | VInteger n, VInt{w;v=v2}   -> eval_bitwise_or (bit_of_rawint n w) r
   | _ -> failwith "bitwise or only defined on fixed width ints"
 
 and eval_concat (l : value) (r : value) : value =
   match (l,r) with
-  | VBit(w1,v1), VBit(w2,v2) -> VBit(Bigint.(w1+w2), Bigint.(shift_bigint_left v1 w2 + v2))
-  | VBit(w,v), VInteger n    -> eval_concat l (bit_of_rawint n w)
-  | VInteger n, VBit(w,v)    -> eval_concat (bit_of_rawint n w) r
+  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} -> 
+    VBit{w=Bigint.(w1+w2);v=Bigint.(shift_bigint_left v1 w2 + v2)}
+  | VBit{w;v},  VInteger n -> eval_concat l (bit_of_rawint n w)
+  | VInteger n, VBit{w;v}  -> eval_concat (bit_of_rawint n w) r
   | _ -> failwith "concat operator only defined on unsigned ints"
 
 and eval_band (l : value) (r : value) : value =
@@ -1397,7 +1412,7 @@ and unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
     if Bigint.(n > zero)
     then bigint_min n Bigint.(x - one)
     else bigint_max n Bigint.zero in
-  VBit(w, n')
+  VBit{w;v=n'}
 
 and signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
     (op : Bigint.t -> Bigint.t -> Bigint.t) : value =
@@ -1407,7 +1422,7 @@ and signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
     if Bigint.(n > zero)
     then bigint_min n Bigint.(x - one)
     else bigint_max n Bigint.(-x) in
-  VInt(w, n')
+  VInt{w;v=n'}
 
 and shift_bigint_left (v : Bigint.t) (o : Bigint.t) : Bigint.t =
   if Bigint.(o > zero)
@@ -1426,7 +1441,7 @@ and bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
   let v1' = of_twos_complement v1 w in
   let v2' = of_twos_complement v2 w in
   let n = op v1' v2' in
-  VBit(w,to_twos_complement n w)
+  VBit{w;v=to_twos_complement n w}
 
 and structs_equal (l1 : (string * value) list)
     (l2 : (string * value) list) : value =
@@ -1469,7 +1484,7 @@ and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
 
 and bool_of_val (v : value) : value =
   match v with
-  | VBit(w,n) when Bigint.(w = one) -> VBool Bigint.(n = one)
+  | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
   | _ -> failwith "cast to bool undefined"
 
 and bit_of_val (env : EvalEnv.t) (e : Expression.t)
@@ -1477,8 +1492,8 @@ and bit_of_val (env : EvalEnv.t) (e : Expression.t)
   let (env', s, x) = eval_expression' env SContinue e in
   let w = bigint_of_val x in
   let v' = match v with
-    | VInt(_,n)
-    | VBit(_,n)
+    | VInt{v=n;_}
+    | VBit{v=n;_}
     | VInteger n -> bit_of_rawint n w
     | _ -> failwith "cast to bitstring undefined" in
   match s with
@@ -1491,8 +1506,8 @@ and int_of_val (env : EvalEnv.t) (e : Expression.t)
   let (env', s, x) = eval_expression' env SContinue e in
   let w = bigint_of_val x in
   let v' = match v with
-    | VBit(_,n)
-    | VInt(_,n)
+    | VBit{v=n;_}
+    | VInt{v=n;_}
     | VInteger n -> int_of_rawint n w
     | _ -> failwith "cast to bitstring undefined" in
   match s with
@@ -1501,10 +1516,10 @@ and int_of_val (env : EvalEnv.t) (e : Expression.t)
   | _ -> failwith "unreachable"
 
 and bit_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
-  VBit(w, of_twos_complement n w)
+  VBit{w;v=of_twos_complement n w}
 
 and int_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
-  VInt(w, to_twos_complement n w)
+  VInt{w;v=to_twos_complement n w}
 
 and of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   let w' = power_of_two w in
@@ -1536,7 +1551,7 @@ and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
   match fname with
   | "isValid"
   | "setValid"
-  | "setInvalid" -> (env, SContinue, VBuiltinFun(fname, lvalue_of_expr e))
+  | "setInvalid" -> (env, SContinue, VBuiltinFun{name=fname;caller=lvalue_of_expr e})
   | _            -> (env, SContinue, List.Assoc.find_exn fs fname ~equal:(=))
 
 and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
@@ -1561,7 +1576,7 @@ and eval_stack_size (env : EvalEnv.t)
     (size : Bigint.t) : EvalEnv.t * signal * value =
   let five = Bigint.(one + one + one + one + one) in
   let thirty_two = shift_bigint_left Bigint.one five in
-  (env, SContinue, VBit(thirty_two, size))
+  (env, SContinue, VBit{w=thirty_two;v=size})
 
 and eval_stack_next (env : EvalEnv.t) (hdrs : value list) (size : Bigint.t)
     (next : Bigint.t) : EvalEnv.t * signal * value =
@@ -1583,25 +1598,25 @@ and eval_stack_lastindex (env : EvalEnv.t)
     (next : Bigint.t) : EvalEnv.t * signal * value =
   let five = Bigint.(one + one + one + one + one) in
   let thirty_two = shift_bigint_left Bigint.one five in
-  (env, SContinue, VBit(thirty_two, Bigint.(next - one)))
+  (env, SContinue, VBit{w=thirty_two;v=Bigint.(next - one)})
 
 and eval_stack_builtin (env : EvalEnv.t) (fname : string)
     (e : Expression.t) : EvalEnv.t * signal * value =
-  (env, SContinue, VBuiltinFun(fname, lvalue_of_expr e))
+  (env, SContinue, VBuiltinFun{name=fname;caller=lvalue_of_expr e})
 
 and eval_packet_in_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
     (p : packet_in) : EvalEnv.t * signal * value =
   match mname with
-  | "extract"   -> (env, SContinue, VBuiltinFun(mname, lvalue_of_expr expr))
-  | "length"    -> (env, SContinue, VBuiltinFun(mname, lvalue_of_expr expr))
-  | "lookahead" -> (env, SContinue, VBuiltinFun(mname, lvalue_of_expr expr))
-  | "advance"   -> (env, SContinue, VBuiltinFun(mname, lvalue_of_expr expr))
+  | "extract"   -> (env, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
+  | "length"    -> (env, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
+  | "lookahead" -> (env, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
+  | "advance"   -> (env, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
   | _ -> failwith "packet member undefined"
 
 and eval_packet_out_mem (env : EvalEnv.t) (mname : string) (expr : Expression.t)
     (p : packet_out) : EvalEnv.t * signal * value =
   match mname with
-  | "emit" -> (env, SContinue, VBuiltinFun(mname, lvalue_of_expr expr))
+  | "emit" -> (env, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
   | _ -> failwith "packet out member undefined"
 
 (*----------------------------------------------------------------------------*)
@@ -1641,8 +1656,8 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
   let g e (p : Parameter.t) (n,v) =
     let name = n in
     let v' = match v with
-      | VHeader (n,l,b) -> VHeader (name, l, b)
-      | VStruct (n,l) -> VStruct (name,l)
+      | VHeader{fields=l;is_valid=b;_} -> VHeader{name;fields=l;is_valid=b}
+      | VStruct{fields=l;_}            -> VStruct{name;fields=l}
       | _ -> v in
     match (snd p).direction with
     | None -> e
@@ -1722,17 +1737,18 @@ and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
       | LBitAccess _
       | LArrayAccess _ ->
         begin match v with
-          | VHeader(_,_,b) -> (env, s, VBool b)
+          | VHeader{is_valid=b;_} -> (env, s, VBool b)
           | _ -> failwith "isvalid call is not a header" end
       | LMember(lv',n) ->
         let (s',v') = value_of_lvalue env lv' in
         begin match s' with
           | SContinue ->
             begin match v' with
-              | VUnion(_,_,l) -> (env, s', VBool (List.Assoc.find_exn l n ~equal:(=)))
+              | VUnion{valid_fields=l;_} -> 
+                (env, s', VBool (List.Assoc.find_exn l n ~equal:(=)))
               | _ ->
                 begin match v with
-                  | VHeader(_,_,b) -> (env, s', VBool b)
+                  | VHeader{is_valid=b;_} -> (env, s', VBool b)
                   | _ -> failwith "isvalid call is not a header" end end
           | SReject -> (env, s', VNull)
           | _ -> failwith "unreachable" end end
@@ -1744,14 +1760,14 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
   match lv with
   | LName n ->
     begin match EvalEnv.find_val n env with
-      | VHeader (n',fs,_) ->
-        let env' = fst (eval_assign' env lv (VHeader(n',fs,b))) in
+      | VHeader{name=n';fields=fs;_} ->
+        let env' = fst (eval_assign' env lv (VHeader{name=n';fields=fs;is_valid=b})) in
         (env', SContinue, VNull)
       | _ -> failwith "not a header" end
   | LTopName n ->
     begin match EvalEnv.find_val_toplevel n env with
-      | VHeader (n',fs,_) ->
-        let env' = fst (eval_assign' env lv (VHeader(n',fs,b))) in
+      | VHeader{name=n';fields=fs;_} ->
+        let env' = fst (eval_assign' env lv (VHeader{name=n';fields=fs;is_valid=b})) in
         (env', SContinue, VNull)
       | _ -> failwith "not a header" end
   | LMember(lv', n2) ->
@@ -1759,11 +1775,12 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
     begin match s with
       | SContinue ->
         begin match v' with
-          | VUnion (n1, fs, vs) ->
+          | VUnion{name=n1;valid_header=fs;valid_fields=vs} ->
             let vs' = List.map vs ~f:(fun (a,_) -> (a,if b then a=n2 else b)) in
-            let env' = fst (eval_assign' env lv' (VUnion(n1, fs, vs'))) in
+            let u = VUnion{name=n1;valid_header=fs;valid_fields=vs'} in
+            let env' = fst (eval_assign' env lv' u) in
             (env', SContinue, VNull)
-          | VStruct(n1, fs) -> failwith "unimplemented"
+          | VStruct{name=n1;fields=fs} -> failwith "unimplemented"
           | _ -> failwith "not a union" end
       | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
       | _ -> failwith "unreachable" end
@@ -1772,16 +1789,18 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
     begin match s with
       | SContinue ->
         begin match v' with
-          | VStack(n1,hdrs,size,next) ->
+          | VStack{name=n1;headers=hdrs;size;next} ->
             let (env', s, i) = eval_expression' env SContinue e in
             let i' = bigint_of_val i in
             let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn i') in
             let hdrs' = match hdrs2 with
-              | VHeader(n2,vs,_) :: t -> hdrs1 @ (VHeader(n2,vs,b) :: t)
+              | VHeader{name=n2;fields=vs;_} :: t -> 
+                hdrs1 @ (VHeader{name=n2;fields=vs;is_valid=b} :: t)
               | _ -> failwith "not a header" in
             begin match s with
               | SContinue ->
-                let env'' = fst (eval_assign' env' lv' (VStack(n1,hdrs',size,next))) in
+                let s = VStack{name=n1;headers=hdrs';size;next} in
+                let env'' = fst (eval_assign' env' lv' s) in
                 (env'', SContinue, VNull)
               | SReject -> (env', s, VNull)
               | _ -> failwith "unreachable" end
@@ -1848,7 +1867,7 @@ and eval_length (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
   let p = v |> assert_runtime |> assert_packet_in in
   match s with
   | SContinue ->
-    (env, s, VBit (Bigint.of_int 32, p |> Cstruct.len |> Bigint.of_int))
+    (env, s, VBit{w=Bigint.of_int 32;v=p |> Cstruct.len |> Bigint.of_int})
   | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
   | _ -> failwith "unreachable"
 
@@ -1928,7 +1947,7 @@ and eval_push_pop (env : EvalEnv.t) (lv : lvalue)
   let (s',v) = value_of_lvalue env lv in
   let (n, hdrs, size, next) =
     match v with
-    | VStack(n,hdrs,size,next) -> (n,hdrs,size,next)
+    | VStack{name=n;headers=hdrs;size;next} -> (n,hdrs,size,next)
     | _ -> failwith "push call not a header stack" in
   let x = if b then Bigint.(size - a) else a in
   let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn x) in
@@ -1936,7 +1955,7 @@ and eval_push_pop (env : EvalEnv.t) (lv : lvalue)
   let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> init_val_of_typ env (string_of_int x) t) in
   let hdrs' = if b then hdrs0 @ hdrs1 else hdrs2 @ hdrs0 in
   let y = if b then Bigint.(next + a) else Bigint.(next-a) in
-  let v = VStack(n,hdrs',size,y) in
+  let v = VStack{name=n;headers=hdrs';size;next=y} in
   match s,s' with
   | SContinue, SContinue -> (fst (eval_assign' env lv v), s, VNull)
   | SReject, _ -> (env',s,VNull)
@@ -1984,7 +2003,8 @@ and eval_extract' (env : EvalEnv.t) (lv : lvalue)
               | SReject -> (EvalEnv.set_error "HeaderTooShort" env',s,VNull)
               | SContinue ->
                 let fs' = List.zip_exn ns vs' in
-                let (env'',s') = eval_assign' env' lhdr (VHeader(name,fs',true)) in
+                let h = VHeader{name;fields=fs';is_valid=true} in
+                let (env'',s') = eval_assign' env' lhdr h in
                 begin match s' with
                   | SContinue ->
                     (fst (eval_assign' env'' lv (VRuntime(PacketIn p'))), s', VNull)
@@ -2003,9 +2023,9 @@ and extract_hdr_field (nvarbits : Bigint.t) (x : (Bigint.t * Bigint.t) * signal)
   match s with
   | SContinue ->
     begin match v with
-      | VBit(w,_) -> extract_bit n w
-      | VInt(w,_) -> extract_int n w
-      | VVarbit(w,_,_) -> extract_varbit nvarbits n w
+      | VBit{w;_} -> extract_bit n w
+      | VInt{w;_} -> extract_int n w
+      | VVarbit{max;_} -> extract_varbit nvarbits n max
       | _ -> failwith "invalid header field type" end
   | SReject -> ((n,s),VNull)
   | _ -> failwith "unreachable"
@@ -2015,14 +2035,14 @@ and extract_bit (n : Bigint.t * Bigint.t)
   let (nw,nv) = n in
   let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
   let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-  Bigint.(((nw-w, y), SContinue), VBit(w,x))
+  Bigint.(((nw-w, y), SContinue), VBit{w;v=x})
 
 and extract_int (n : Bigint.t * Bigint.t)
     (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
   let (nw,nv) = n in
   let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
   let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-  Bigint.(((nw-w, y), SContinue), VInt(w,to_twos_complement x w))
+  Bigint.(((nw-w, y), SContinue), VInt{w;v=to_twos_complement x w})
 
 and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
     (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -2032,7 +2052,7 @@ and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
   else
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
     let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
-    Bigint.(((nw-nbits, y), SContinue), VVarbit(w,nbits,x))
+    Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
 
 and emit_lval (env : EvalEnv.t) (p : packet_out)
     (lv : lvalue) : EvalEnv.t * signal * packet_out =
@@ -2040,10 +2060,10 @@ and emit_lval (env : EvalEnv.t) (p : packet_out)
   match s with
   | SContinue ->
     begin match v with
-      | VStruct(_,fs)    -> emit_struct env p lv fs
-      | VHeader(_,fs,b)  -> (env, s, emit_header env p lv fs b)
-      | VUnion(_,v,bs)   -> emit_union env p lv v bs
-      | VStack(_,hs,_,_) -> emit_stack env p lv hs
+      | VStruct{fields=fs;_}                     -> emit_struct env p lv fs
+      | VHeader{fields=fs;is_valid=b;_}          -> (env, s, emit_header env p lv fs b)
+      | VUnion{valid_header=v;valid_fields=bs;_} -> emit_union env p lv v bs
+      | VStack{headers=hs;_}                     -> emit_stack env p lv hs
       | _ -> failwith "emit undefined on type" end
   | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, p)
   | _ -> failwith "unreachable"
@@ -2067,9 +2087,9 @@ and emit_header (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
     let d = decl_of_typ env (typ_of_lvalue env lv) in
     let f n v =
       match v with
-      | VBit(w,v) -> Bigint.(n * power_of_two w + v)
-      | VInt(w,v) -> Bigint.(n * power_of_two w + (of_twos_complement v w))
-      | VVarbit(_,w,v) -> Bigint.(n * power_of_two w + v)
+      | VBit{w;v} -> Bigint.(n * power_of_two w + v)
+      | VInt{w;v} -> Bigint.(n * power_of_two w + (of_twos_complement v w))
+      | VVarbit{w;v;_} -> Bigint.(n * power_of_two w + v)
       | _ -> failwith "invalid header field type" in
     let n = List.fold_left fs'' ~init:Bigint.zero ~f:f in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
@@ -2147,35 +2167,33 @@ and width_of_decl (env : EvalEnv.t) (d : Declaration.t) : Bigint.t =
 
 and width_of_val (v : value) : Bigint.t =
   match v with
-  | VBit (w,v) | VInt (w,v) -> w
+  | VBit {w;v} | VInt {w;v} -> w
   | VInteger _ -> failwith "width of VInteger"
   | _ -> failwith "unimplemented"
 
 and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
     (t : Type.t) : value =
   match v with
-  | VNull              -> VNull
-  | VBool _            -> VBool Bigint.(bitstring_slice n one zero = one)
-  | VBit _             -> VBit(w,n)
-  | VInt _             -> VInt(w,to_twos_complement n w)
-  | VTuple l           -> tuple_of_bigint env w n t l
-  | VStruct(_,fs)      -> struct_of_bigint env w n t fs
-  | VHeader(_,fs,_)    -> header_of_bigint env w n t fs
-  | VStack(_,vs,s,n)   -> stack_of_bigint env w n t vs s n
-  | VSenumField(a,b,v) -> VSenumField(a,b,val_of_bigint env w n v t)
+  | VNull                                 -> VNull
+  | VBool _                               -> VBool Bigint.(bitstring_slice n one zero = one)
+  | VBit _                                -> VBit{w;v=n}
+  | VInt _                                -> VInt{w;v=to_twos_complement n w}
+  | VTuple l                              -> tuple_of_bigint env w n t l
+  | VStruct{fields=fs;_}                  -> struct_of_bigint env w n t fs
+  | VHeader{fields=fs;_}                  -> header_of_bigint env w n t fs
+  | VStack{headers=vs;size=s;next=n;_}    -> stack_of_bigint env w n t vs s n
+  | VSenumField{typ_name=a;enum_name=b;v} -> 
+    VSenumField{typ_name=a;enum_name=b;v=val_of_bigint env w n v t}
   | VInteger _
   | VVarbit _
   | VSet _
   | VString _
   | VError _
-  | VMatchKind
   | VFun _
   | VBuiltinFun _
   | VAction _
   | VUnion _
   | VEnumField _
-  | VExternFun _
-  | VExternObject _
   | VRuntime _
   | VParser _
   | VControl _
@@ -2206,7 +2224,7 @@ and struct_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     let v' = val_of_bigint env wv nv v t' in
     ((w',n'),(s,v')) in
   let fs' = List.folding_map fs ~init:(w,n) ~f:f in
-  VStruct("",fs')
+  VStruct{name="";fields=fs'}
 
 and header_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     (t : Type.t) (fs : (string * value) list) : value =
@@ -2219,7 +2237,7 @@ and header_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     let v' = val_of_bigint env wv nv v t' in
     ((w',n'),(s,v')) in
   let fs' = List.folding_map fs ~init:(w,n) ~f:f in
-  VHeader("",fs',true)
+  VHeader{name="";fields=fs';is_valid=true}
 
 and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     (t : Type.t) (vs : value list) (size : Bigint.t) (next : Bigint.t) : value =
@@ -2234,7 +2252,7 @@ and stack_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     let v' = val_of_bigint env wv nv v t' in
     ((w',n'),v') in
   let vs' = List.folding_map vs ~init:(w,n) ~f:f in
-  VStack("",vs',size,next)
+  VStack{name="";headers=vs';size;next}
 
 (*----------------------------------------------------------------------------*)
 (* Parser Evaluation *)
@@ -2372,8 +2390,8 @@ and values_match_mask (vs : value list) (v1 : value) (v2 : value) : bool =
 and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
   let v = assert_singleton vs in
   match (v, v1, v2) with
-  | VBit(w0,b0), VBit(w1,b1), VBit(w2,b2)
-  | VInt(w0,b0), VInt(w1,b1), VInt(w2,b2) ->
+  | VBit{w=w0;v=b0}, VBit{w=w1;v=b1}, VBit{w=w2;v=b2}
+  | VInt{w=w0;v=b0}, VInt{w=w1;v=b1}, VInt{w=w2;v=b2} ->
     w0 = w1 && w1 = w2 && Bigint.(b1 <= b0 && b0 <= b2)
   | _ -> failwith "implicit casts unimplemented"
 
@@ -2425,17 +2443,17 @@ and assert_rawint (v : value) : Bigint.t =
 
 and assert_bit (v : value) : Bigint.t * Bigint.t =
   match v with
-  | VBit(w,n) -> (w,n)
+  | VBit{w;v=n} -> (w,n)
   | _ -> failwith "not a bitstring"
 
 and assert_int (v : value) : Bigint.t * Bigint.t =
   match v with
-  | VInt(w,n) -> (w,n)
+  | VInt{w;v=n} -> (w,n)
   | _ -> failwith "not a signed bitstring"
 
 and assert_varbit (v : value) : Bigint.t * Bigint.t * Bigint.t =
   match v with
-  | VVarbit(fw,dw,n) -> (fw,dw,n)
+  | VVarbit{max=fw;w=dw;v=n} -> (fw,dw,n)
   | _ -> failwith "not a varbit"
 
 and assert_tuple (v : value) : value list =
@@ -2446,9 +2464,9 @@ and assert_tuple (v : value) : value list =
 and assert_set (v : value) (w : Bigint.t) : set =
   match v with
   | VSet s -> s
-  | VInteger i -> SSingleton (w,i)
-  | VInt (_,i) -> SSingleton (w,i)
-  | VBit (_,i) -> SSingleton (w,i)
+  | VInteger i   -> SSingleton (w,i)
+  | VInt {v=i;_} -> SSingleton (w,i)
+  | VBit {v=i;_} -> SSingleton (w,i)
   | _ -> failwith "not a set"
 
 and assert_string (v : value) : string =
@@ -2463,17 +2481,17 @@ and assert_error (v : value) : string =
 
 and assert_struct (v : value) : string * (string * value) list =
   match v with
-  | VStruct(n,vs) -> (n,vs)
+  | VStruct{name=n;fields=vs} -> (n,vs)
   | _ -> failwith "not a struct"
 
 and assert_header (v : value) : string * (string * value) list * bool =
   match v with
-  | VHeader (n,l,b) -> (n,l,b)
+  | VHeader{name=n;fields=l;is_valid=b} -> (n,l,b)
   | _ -> failwith "not a header"
 
 and assert_stack (v : value) : (string * value list * Bigint.t * Bigint.t) =
   match v with
-  | VStack(s,vs,size,n) -> (s,vs,size,n)
+  | VStack{name=s;headers=vs;size;next=n} -> (s,vs,size,n)
   | _ -> failwith "not a stack"
 
 and assert_runtime (v : value) : vruntime =
@@ -2550,7 +2568,7 @@ and assert_key (p : Table.pre_property) : Table.key list =
 
 and assert_enum (v : value) : string = 
   match v with 
-  | VEnumField(_,s) -> s 
+  | VEnumField{enum_name=s;_} -> s 
   | _ -> failwith "not an enum"
 
 and assert_typ (typ_or_decl : (Type.t, Declaration.t) Util.alternative) : Type.t =
@@ -2576,8 +2594,8 @@ and init_binding_of_field (env : EvalEnv.t)
 
 and bigint_of_val (v : value) : Bigint.t =
   match v with
-  | VInt(_,n)
-  | VBit(_,n)
+  | VInt{v=n;_}
+  | VBit{v=n;_}
   | VInteger n -> n
   | _ -> failwith "value not representable as bigint"
 
@@ -2645,7 +2663,7 @@ and struct_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
                                 (LMember(lv, List.nth_exn ns i)) (List.nth_exn ns i)
                                 v (List.nth_exn ts i)) in
   let l''' = List.mapi l'' ~f:(fun i v -> (List.nth_exn ns i, v)) in
-  VStruct (name, l''')
+  VStruct{name;fields=l'''}
 
 and header_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
     (l : value list) : value =
@@ -2658,7 +2676,7 @@ and header_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
   let ts = List.map fs ~f:(fun x -> (snd x).typ) in
   let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
   let l'' = List.mapi l' ~f:(fun i v -> (List.nth_exn ns i, v)) in
-  VHeader (name, l'', true)
+  VHeader{name;fields=l'';is_valid=true}
 
 and implicit_cast_from_rawint (env : EvalEnv.t) (v : value)
     (t : Type.t) : value =
@@ -2749,8 +2767,8 @@ and reset_fields (env : EvalEnv.t) (lv : lvalue)
   let fs' = List.fold_left fs ~init:[] ~f:f in
   let init = init_val_of_typ env "" (typ_of_lvalue env lv) in
   let fs0 = match init with
-    | VStruct(_,fs) -> fs
-    | VHeader(_,fs,_) -> fs
+    | VStruct{fields=fs;_}
+    | VHeader{fields=fs;_} -> fs
     | _ -> failwith "not a struct or header" in
   let g (n,_) =
     (n, List.Assoc.find_exn fs' ~equal:(=) n) in

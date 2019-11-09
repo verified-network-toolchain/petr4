@@ -1,5 +1,5 @@
 module I = Info
-open Value.Value
+open Value
 open Env
 open Types
 open Core

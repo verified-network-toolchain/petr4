@@ -1,5 +1,5 @@
 open Types
-open Value.Value
+open Value
 open Core
 
 exception BadEnvironment of string
@@ -198,37 +198,34 @@ module EvalEnv = struct
         | VNull -> "null"
         | VBool b -> string_of_bool b
         | VInteger v
-        | VBit(_, v)
-        | VInt(_, v)
-        | VVarbit(_,_,v) -> begin match Bigint.to_int v with
+        | VBit {v;_}
+        | VInt {v;_}
+        | VVarbit {v;_} -> begin match Bigint.to_int v with
             | None -> "<bigint>"
             | Some n -> string_of_int n end
+        | VString s -> s
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
-        | VString s -> s
         | VError s -> "Error: " ^ s
-        | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"
         | VAction _ -> "<action>"
-        | VStruct (_, l) ->
+        | VStruct {fields;_} ->
           print_endline "<struct>";
-          List.iter l ~f:(fun a -> print_string "    "; f a); ""
-        | VHeader (_,l,b) ->
-          print_endline ("<header> with " ^ (string_of_bool b));
-          List.iter l ~f:(fun a -> print_string "    "; f a); ""
-        | VUnion (_,l,v) ->
+          List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+        | VHeader {name;fields;is_valid} ->
+          print_endline ("<header> with " ^ (string_of_bool is_valid));
+          List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+        | VUnion {name;valid_header;valid_fields} ->
           print_endline "<union>";
-          f ("valid header", l);
-          List.iter v ~f:(fun (a, b) -> print_string "     ";
+          f ("valid header", valid_header);
+          List.iter valid_fields ~f:(fun (a, b) -> print_string "     ";
                            print_string a;
                            print_string " -> ";
                            print_string (string_of_bool b)); ""
         | VStack _ -> "<stack>"
-        | VEnumField(enum,field) -> enum ^ "." ^ field
-        | VSenumField(enum,field,_) -> enum ^ "." ^ field ^ " <value>"
-        | VExternFun _ -> "<extern function>"
-        | VExternObject _ -> "<extern>"
+        | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
+        | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
         | VRuntime r ->
           begin match r with
             | PacketIn p -> Cstruct.to_string p

@@ -357,11 +357,11 @@ and lpm_set_of_set (s : set) : set =
     SLpm{w=VBit{w;v};nbits=w;v=VBit{w;v=v'}}
   | SMask{v=v1;mask=v2} ->
     SLpm{w=v1;nbits=v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false;v=v2}
-  | SRange _ -> failwith "unreachable"
   | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
-  | SUniversal 
-  | SLpm _
-  | SValueSet _ -> s
+  | SUniversal
+  | SLpm _ -> s
+  | SRange _
+  | SValueSet _ -> failwith "unreachable"
 
 and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
   let two = Bigint.(one + one) in

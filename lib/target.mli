@@ -2,8 +2,9 @@ open Value
 open Env
 open Types
 
-module type target = sig 
-  type extern = EvalEnv.t -> value list -> EvalEnv.t * value 
+type extern = EvalEnv.t -> value list -> EvalEnv.t * value 
+
+module type Target = sig 
 
   val externs : (string * extern) list
 
@@ -11,10 +12,13 @@ module type target = sig
 
   val eval_pipeline : EvalEnv.t -> packet_in -> 
   (EvalEnv.t -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) -> 
-  (EvalEnv.t -> lvalue -> value -> EvalEnv.t * 'b) -> packet_in
+  (EvalEnv.t -> lvalue -> value -> EvalEnv.t * 'b) -> 
+  (EvalEnv.t -> string -> Type.t -> value) -> packet_in
 
 end
 
-module Core : target 
+module Core : Target 
 
-module V1Model : target
+module V1Model : Target
+
+module EbpfFilter : Target

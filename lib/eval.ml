@@ -2502,6 +2502,11 @@ and assert_runtime (v : value) : vruntime =
   | VRuntime r -> r
   | _ -> failwith "not a runtime value"
 
+and assert_package (v : value) : Declaration.t * (string * value) list =
+  match v with 
+  | VPackage{decl;args} -> (decl,args) 
+  | _ -> failwith "main is not a package" 
+
 and assert_packet_in (p : vruntime) : packet_in =
   match p with
   | PacketIn x -> x
@@ -2784,153 +2789,10 @@ and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool 
     begin match snd label with 
       | Default -> true 
       | Name(_,n) -> s = n end
-
-(* -------------------------------------------------------------------------- *)
-(* Target and Architecture Dependent Evaluation *)
-(* -------------------------------------------------------------------------- *)
-
-let assert_package (v : value) : Declaration.t * (string * value) list =
-  match v with 
-  | VPackage{decl;args} -> (decl,args) 
-  | _ -> failwith "main is not a package" 
-
-let rec eval_main (env : EvalEnv.t) (pack : packet_in)
-    (ctrl : Table.pre_entry list) : packet_in =
-  let env' = EvalEnv.insert_table_entries ctrl env in
-  let name =
-    match env' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
-    | Declaration.PackageType {name=(_,n);_} -> n
-    | _ -> failwith "main is no a package" in
-  match name with
-  | "V1Switch"     -> eval_v1switch env' pack
-  | "ebpfFilter"   -> eval_ebpfFilter env' pack
-  | "EmptyPackage" -> pack
-  | _ -> failwith "architecture not supported"
-
-and eval_ebpfFilter (env : EvalEnv.t) (pack : packet_in) : packet_in =
-  let main = EvalEnv.find_val "main" env in
-  let vs = assert_package main |> snd in
-  let parser = List.Assoc.find_exn vs "prs"  ~equal:(=) in 
-  let filter = List.Assoc.find_exn vs "filt" ~equal:(=) in
-  let params = 
-    match parser with
-    | VParser {pparams=ps;_} -> ps
-    | _ -> failwith "parser is not a parser object" in
-  let pckt = VRuntime (PacketIn pack) in
-  let hdr = init_val_of_typ env "hdr" (snd (List.nth_exn params 1)).typ in
-  let accept = VBool (false) in
-  let env =
-    EvalEnv.(env 
-             |> insert_val "packet" pckt 
-             |> insert_val "hdr"    hdr
-             |> insert_val "accept" accept
-             |> insert_typ "packet" (snd (List.nth_exn params 0)).typ
-             |> insert_typ "hdr"    (snd (List.nth_exn params 1)).typ 
-             |> insert_typ "accept" (Info.dummy, Type.Bool)) in
-  let pckt_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
-  let hdr_expr = 
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
-  let accept_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "accept"))}) in
-  let (env, state, _) =
-    eval_app env SContinue parser [pckt_expr; hdr_expr] in
-  let env = if state = SReject
-    then
-      eval_assign' env (LName("accept")) (VBool(false)) |> fst
-    else env |> eval_ebpf_ctrl filter [hdr_expr; accept_expr] |> fst in
-  print_endline "After runtime evaluation";
-  EvalEnv.print_env env;
-  match EvalEnv.find_val "packet" env with
-  | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
-  | _ -> failwith "pack not a packet"
-
-and eval_v1switch (env : EvalEnv.t) (pack : packet_in) : packet_in =
-  let main = EvalEnv.find_val "main" env in
-  let vs = assert_package main |> snd in
-  let parser =
-    List.Assoc.find_exn vs "p"   ~equal:(=) in
-  let verify =
-    List.Assoc.find_exn vs "vr"  ~equal:(=) in
-  let ingress =
-    List.Assoc.find_exn vs "ig"  ~equal:(=) in
-  let egress =
-    List.Assoc.find_exn vs "eg"  ~equal:(=) in
-  let compute =
-    List.Assoc.find_exn vs "ck"  ~equal:(=) in
-  let deparser =
-    List.Assoc.find_exn vs "dep" ~equal:(=) in
-  let params =
-    match parser with
-    | VParser {pparams=ps;_} -> ps
-    | _ -> failwith "parser is not a parser object" in
-  let pckt = VRuntime (PacketIn pack) in
-  let hdr =
-    init_val_of_typ env "hdr"      (snd (List.nth_exn params 1)).typ in
-  let meta =
-    init_val_of_typ env "meta"     (snd (List.nth_exn params 2)).typ in
-  let std_meta =
-    init_val_of_typ env "std_meta" (snd (List.nth_exn params 3)).typ in
-  let env =
-    EvalEnv.(env
-             |> insert_val "packet"   pckt
-             |> insert_val "hdr"      hdr
-             |> insert_val "meta"     meta
-             |> insert_val "std_meta" std_meta
-             |> insert_typ "packet"   (snd (List.nth_exn params 0)).typ
-             |> insert_typ "hdr"      (snd (List.nth_exn params 1)).typ
-             |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
-             |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
-  (* TODO: implement a more responsible way to generate variable names *)
-  let pckt_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
-  let hdr_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
-  let meta_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
-  let std_meta_expr =
-    (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
-  let (env, state, _) =
-    eval_app env SContinue parser [pckt_expr; hdr_expr; meta_expr; std_meta_expr] in
-  let err = EvalEnv.get_error env in
-  let env = if state = SReject
-    then
-      eval_assign' env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) |> fst
-    else env in
-  let pckt' =
-    VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
-                                          |> assert_runtime
-                                          |> assert_packet_in)) in
-  let env = EvalEnv.insert_val "packet" pckt' env in
-  let (env, _) = env
-            |> eval_v1control verify   [hdr_expr; meta_expr] |> fst
-            |> eval_v1control ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst
-            |> eval_v1control egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
-            |> eval_v1control compute  [hdr_expr; meta_expr] |> fst
-            |> eval_v1control deparser [pckt_expr; hdr_expr] in
-  print_endline "After runtime evaluation";
-  EvalEnv.print_env env;
-  match EvalEnv.find_val "packet" env with
-  | VRuntime (PacketOut(p0,p1)) -> Cstruct.append p0 p1
-  | _ -> failwith "pack not a packet"
-
-and eval_ebpf_ctrl (control : value) (args : Argument.t list) 
-    (env : EvalEnv.t) : EvalEnv.t * signal =
-  let (env,s,_) = eval_app env SContinue control args in 
-  (env,s) 
-
-and eval_v1control (control : value) (args : Argument.t list)
-    (env : EvalEnv.t) : EvalEnv.t * signal =
-  let (env,s,_) = eval_app env SContinue control args in
-  (env,s)
-
+      
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
-
-let eval_expression env expr =
-  let (a,b,c) = eval_expression' env SContinue expr in
-  (a,c)
 
 let hex_of_nibble (i : int) : string =
   match i with
@@ -2963,6 +2825,33 @@ let hex_of_string (s : string) : string =
   |> String.to_list
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
+  
+let eval_main (env : EvalEnv.t) (pack : packet_in)
+    (ctrl : Table.pre_entry list) : packet_in =
+  let env' = EvalEnv.insert_table_entries ctrl env in
+  let name =
+    match env' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
+    | Declaration.PackageType {name=(_,n);_} -> n
+    | _ -> failwith "main is no a package" in
+  match name with
+  | "V1Switch"     -> Target.V1Model.eval_pipeline 
+                        env' 
+                        pack
+                        eval_app 
+                        eval_assign' 
+                        init_val_of_typ
+  | "ebpfFilter"   -> Target.EbpfFilter.eval_pipeline 
+                        env' 
+                        pack
+                        eval_app
+                        eval_assign'
+                        init_val_of_typ
+  | "EmptyPackage" -> pack
+  | _ -> failwith "architecture not supported"
+
+let eval_expression env expr =
+  let (a,b,c) = eval_expression' env SContinue expr in
+  (a,c)
 
 let eval_program (p : Types.program) (pack : packet_in)
   (ctrl : Table.pre_entry list) : unit =

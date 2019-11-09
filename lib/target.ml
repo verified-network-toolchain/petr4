@@ -8,7 +8,7 @@ module Info = I
 
 let assert_package (v : value) : Declaration.t * (string * value) list =
   match v with 
-  | VPackage (obj,vs) -> (obj, vs) 
+  | VPackage{decl;args} -> (decl, args) 
   | _ -> failwith "main is not a package" 
 
 let assert_packet_in (p : vruntime) : packet_in =
@@ -109,7 +109,7 @@ module V1Model : target = struct
     let err = EvalEnv.get_error env in
     let env = if state = SReject
       then
-        assign env (LMember(LName("std_meta"),"parser_error")) (VError(err)) |> fst
+        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) |> fst
       else env in
     let pckt' =
       VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env

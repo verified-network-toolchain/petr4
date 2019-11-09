@@ -57,7 +57,9 @@ type value =
   | VRuntime of vruntime
   | VParser of vparser
   | VControl of vcontrol
-  | VPackage of Declaration.t * (string * value) list
+  | VPackage of 
+      { decl : Declaration.t;
+        args : (string * value) list; }
   | VTable of vtable
 
   and vparser = {
@@ -85,18 +87,36 @@ type value =
   and lvalue =
     | LName of string
     | LTopName of string
-    | LMember of lvalue * string
-    | LBitAccess of lvalue * Expression.t * Expression.t
-    | LArrayAccess of lvalue * Expression.t
+    | LMember of 
+      { expr : lvalue;
+        name : string; }
+    | LBitAccess of 
+        { expr : lvalue;
+          msb : Expression.t;
+          lsb : Expression.t; }
+    | LArrayAccess of 
+        { expr : lvalue;
+          idx : Expression.t; }
 
   and set =
-    | SSingleton of Bigint.t * Bigint.t
+    | SSingleton of 
+        { w : Bigint.t;
+          v : Bigint.t; }
     | SUniversal
-    | SMask of value * value
-    | SRange of value * value
+    | SMask of 
+        { v : value;
+          mask : value; }
+    | SRange of 
+        { lo : value;
+          hi : value; }
     | SProd of set list
-    | SLpm of value * Bigint.t * value
-    | SValueSet of value * Parser.case list
+    | SLpm of 
+        { w : value;
+          nbits : Bigint.t;
+          v : value; }
+    | SValueSet of 
+        { size : value;
+          members : Parser.case list; }
 
   and signal =
     | SContinue

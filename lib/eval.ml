@@ -193,7 +193,7 @@ and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
   let env' = EvalEnv.insert_typ name typ env in
   let (env'', s, size') = eval_expression' env' SContinue size in
   match s with
-  | SContinue -> (EvalEnv.insert_val name (VSet (SValueSet (size', []))) env'', s)
+  | SContinue -> (EvalEnv.insert_val name (VSet (SValueSet{size=size';members=[]})) env'', s)
   | SReject -> (env, s)
   | _ -> failwith "value set declaration should not return or exit"
 
@@ -352,11 +352,11 @@ and sort_lpm (entries : (set * Table.action_ref) list)
 
 and lpm_set_of_set (s : set) : set =
   match s with
-  | SSingleton (w,v) ->
+  | SSingleton{w;v} ->
     let v' = bitwise_neg_of_bigint Bigint.zero w in
-    SLpm (VBit{w;v}, w, VBit{w;v=v'})
-  | SMask (v1,v2) ->
-    SLpm (v1, v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false, v2)
+    SLpm{w=VBit{w;v};nbits=w;v=VBit{w;v=v'}}
+  | SMask{v=v1;mask=v2} ->
+    SLpm{w=v1;nbits=v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false;v=v2}
   | SRange _ -> failwith "unreachable"
   | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
   | SUniversal 
@@ -639,11 +639,13 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
 and eval_assign' (env : EvalEnv.t) (lhs : lvalue)
     (rhs : value) : EvalEnv.t * signal =
   match lhs with
-  | LName n            -> (assign_name env n lhs rhs EvalEnv.insert_val, SContinue)
-  | LTopName n         -> (assign_name env n lhs rhs EvalEnv.insert_val_toplevel, SContinue)
-  | LMember(lv,mname)  -> assign_member env lv mname rhs
-  | LBitAccess(lv,m,l) -> assign_bitaccess env lv m l rhs
-  | LArrayAccess(lv,e) -> assign_arrayaccess env lv e rhs
+  | LName n -> 
+    (assign_name env n lhs rhs EvalEnv.insert_val, SContinue)
+  | LTopName n -> 
+    (assign_name env n lhs rhs EvalEnv.insert_val_toplevel, SContinue)
+  | LMember{expr=lv;name=mname}     -> assign_member env lv mname rhs
+  | LBitAccess{expr=lv;msb=m;lsb=l} -> assign_bitaccess env lv m l rhs
+  | LArrayAccess{expr=lv;idx=e}     -> assign_arrayaccess env lv e rhs
 
 and assign_name (env : EvalEnv.t) (name : string) (lhs : lvalue) (rhs : value)
     (f : string -> value -> EvalEnv.t -> EvalEnv.t) : EvalEnv.t =
@@ -714,7 +716,8 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
   let t = match snd (typ_of_lvalue env lv) with
     | HeaderStack{header;_} -> header
     | _ -> failwith "not a stack" in
-  let rhs' = implicit_cast_from_tuple env (LArrayAccess(lv,e)) (string_of_int (Bigint.to_int_exn i')) rhs t in
+  let x = LArrayAccess{expr=lv;idx=e} in
+  let rhs' = implicit_cast_from_tuple env x (string_of_int (Bigint.to_int_exn i')) rhs t in
   match s,s' with
   | SContinue,SContinue ->
     begin match v with
@@ -737,7 +740,7 @@ and assign_struct_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (l : (string * value) list) : EvalEnv.t * signal =
   let t = typ_of_struct_field env (typ_of_lvalue env lhs) fname in
   let rhs' = implicit_cast_from_rawint env rhs t in
-  let rhs'' = implicit_cast_from_tuple env (LMember(lhs, fname)) fname rhs' t in
+  let rhs'' = implicit_cast_from_tuple env (LMember{expr=lhs;name=fname}) fname rhs' t in
   eval_assign' env lhs (VStruct{name=sname;fields=(fname, rhs'') :: l})
 
 and assign_header_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
@@ -751,7 +754,7 @@ and assign_union_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     (fname : string) (uname : string)
     (vbs : (string * bool) list) : EvalEnv.t * signal =
   let t = typ_of_union_field env (typ_of_lvalue env lhs) fname in
-  let rhs' = implicit_cast_from_tuple env (LMember(lhs,fname)) fname rhs t in
+  let rhs' = implicit_cast_from_tuple env (LMember{expr=lhs;name=fname}) fname rhs t in
   let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
   eval_assign' env lhs (VUnion{name=uname; valid_header=rhs'; valid_fields=vbs'})
 
@@ -766,7 +769,7 @@ and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
   then (env, SReject)
   else
     let t = typ_of_stack_mem env lhs in
-    let rhs' = implicit_cast_from_tuple env (LMember(lhs,mname)) mname rhs t in
+    let rhs' = implicit_cast_from_tuple env (LMember{expr=lhs;name=mname}) mname rhs t in
     let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn next) in
     let hdrs' =
       match hdrs2 with
@@ -782,18 +785,18 @@ and lvalue_of_expr (expr : Expression.t) =
   match snd expr with
   | Name(_,n) -> LName n
   | TopLevel(_,n) -> LTopName n
-  | ExpressionMember{expr=e; name=(_,n)} -> LMember(lvalue_of_expr e, n)
-  | BitStringAccess{bits;lo;hi} -> LBitAccess(lvalue_of_expr bits, lo, hi)
-  | ArrayAccess{array;index} -> LArrayAccess(lvalue_of_expr array, index)
+  | ExpressionMember{expr=e; name=(_,n)} -> LMember{expr=lvalue_of_expr e;name=n}
+  | BitStringAccess{bits;lo;hi} -> LBitAccess{expr=lvalue_of_expr bits;msb=lo;lsb=hi}
+  | ArrayAccess{array;index} -> LArrayAccess{expr=lvalue_of_expr array;idx=index}
   | _ -> failwith "not an lvalue"
 
 and value_of_lvalue (env : EvalEnv.t) (lv : lvalue) : signal * value =
   match lv with
-  | LName n                -> (SContinue, EvalEnv.find_val n env)
-  | LTopName n             -> (SContinue, EvalEnv.find_val_toplevel n env)
-  | LMember(lv, n)         -> value_of_lmember env lv n
-  | LBitAccess(lv, hi, lo) -> value_of_lbit env lv hi lo
-  | LArrayAccess(lv, idx)  -> value_of_larray env lv idx
+  | LName n                           -> (SContinue, EvalEnv.find_val n env)
+  | LTopName n                        -> (SContinue, EvalEnv.find_val_toplevel n env)
+  | LMember{expr=lv;name=n}           -> value_of_lmember env lv n
+  | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit env lv hi lo
+  | LArrayAccess{expr=lv;idx}         -> value_of_larray env lv idx
 
 and value_of_lmember (env : EvalEnv.t) (lv : lvalue)
     (n : string) : signal * value =
@@ -844,11 +847,11 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
 
 and typ_of_lvalue (env : EvalEnv.t) (lv : lvalue) : Type.t =
   match lv with
-  | LName s -> EvalEnv.find_typ s env
-  | LTopName s -> EvalEnv.find_typ_toplevel s env
-  | LMember(lv', s) -> typ_of_lmember env lv' s
-  | LBitAccess(lv', e1, e2) -> typ_of_lbit env lv' e1 e2
-  | LArrayAccess(lv', e) -> typ_of_larray env lv' e
+  | LName s                            -> EvalEnv.find_typ s env
+  | LTopName s                         -> EvalEnv.find_typ_toplevel s env
+  | LMember{expr=lv';name=s}           -> typ_of_lmember env lv' s
+  | LBitAccess{expr=lv';msb=e1;lsb=e2} -> typ_of_lbit env lv' e1 e2
+  | LArrayAccess{expr=lv';idx=e}       -> typ_of_larray env lv' e
 
 and typ_of_lmember (env : EvalEnv.t) (lv : lvalue) (s : string) : Type.t =
   let t = typ_of_lvalue env lv in
@@ -1130,7 +1133,7 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     | PackageType pack_decl ->
       let (env',s) = copyin env pack_decl.params args in
       let state = env' |> EvalEnv.get_val_firstlevel |> List.rev in
-      (EvalEnv.pop_scope env', s, VPackage((info, decl), state))
+      (EvalEnv.pop_scope env', s, VPackage{decl=(info, decl);args=state})
     | _ -> failwith "instantiation unimplemented" in
   match s with
   | SContinue -> (env',s,v)
@@ -1142,7 +1145,7 @@ and eval_mask (env : EvalEnv.t) (e : Expression.t)
   let (env', s, v1)  = eval_expression' env SContinue e in
   let (env'', s', v2) = eval_expression' env' SContinue m in
   match (s,s') with
-  | SContinue, SContinue -> (env'', s, VSet(SMask(v1,v2)))
+  | SContinue, SContinue -> (env'', s, VSet(SMask{v=v1;mask=v2}))
   | SReject,_ -> (env',s,VNull)
   | _,SReject -> (env'',s',VNull)
   | _ -> failwith "unreachable"
@@ -1152,7 +1155,7 @@ and eval_range (env : EvalEnv.t) (lo : Expression.t)
   let (env', s, v1)  = eval_expression' env SContinue lo in
   let (env'', s', v2) = eval_expression' env' SContinue hi in
   match (s,s') with
-  | SContinue, SContinue -> (env'', s, VSet(SRange(v1,v2)))
+  | SContinue, SContinue -> (env'', s, VSet(SRange{lo=v1;hi=v2}))
   | SReject,_ -> (env',s,VNull)
   | _,SReject -> (env'',s',VNull)
   | _ -> failwith "unreachable"
@@ -1739,7 +1742,7 @@ and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
         begin match v with
           | VHeader{is_valid=b;_} -> (env, s, VBool b)
           | _ -> failwith "isvalid call is not a header" end
-      | LMember(lv',n) ->
+      | LMember{expr=lv';name=n} ->
         let (s',v') = value_of_lvalue env lv' in
         begin match s' with
           | SContinue ->
@@ -1770,7 +1773,7 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
         let env' = fst (eval_assign' env lv (VHeader{name=n';fields=fs;is_valid=b})) in
         (env', SContinue, VNull)
       | _ -> failwith "not a header" end
-  | LMember(lv', n2) ->
+  | LMember{expr=lv';name=n2} ->
     let (s,v') = value_of_lvalue env lv' in
     begin match s with
       | SContinue ->
@@ -1784,7 +1787,7 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
           | _ -> failwith "not a union" end
       | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
       | _ -> failwith "unreachable" end
-  | LArrayAccess(lv', e) ->
+  | LArrayAccess{expr=lv';idx=e} ->
     let (s,v') = value_of_lvalue env lv' in
     begin match s with
       | SContinue ->
@@ -2073,7 +2076,7 @@ and emit_struct (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
   let fs' = reset_fields env lv fs in
   let h (e,s,p) (n,v) =
     match s with
-    | SContinue -> emit_lval e p (LMember(lv,n))
+    | SContinue -> emit_lval e p (LMember{expr=lv;name=n})
     | SReject -> (e,s,p)
     | _ -> failwith "unreachable" in
   List.fold_left fs' ~init:(env, SContinue, p) ~f:h
@@ -2105,15 +2108,15 @@ and emit_union (env : EvalEnv.t) (p : packet_out) (lv : lvalue) (v : value)
   then
     let vs' = List.map vs ~f:(fun (a,b) -> (b,a)) in
     let n = List.Assoc.find_exn vs' ~equal:(=) true in
-    emit_lval env p (LMember(lv, n))
+    emit_lval env p (LMember{expr=lv;name=n})
   else (env, SContinue, p)
 
 and emit_stack (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
     (hs : value list) : EvalEnv.t * signal * packet_out =
   let f (e,s,p,n) v =
-    let lv' = (LArrayAccess(lv, (Info.dummy, Expression.Int(Info.dummy,
+    let lv' = (LArrayAccess{expr=lv;idx=(Info.dummy, Expression.Int(Info.dummy,
                                                             {value = n;
-                                                             width_signed = None})))) in
+                                                             width_signed = None}))}) in
     let (e',s',p') = emit_lval env p lv' in
     match s with
     | SContinue -> (e',s',p', Bigint.(n + one))
@@ -2361,13 +2364,13 @@ and set_of_match (env : EvalEnv.t) (s : signal)
 
 and values_match_set (vs : value list) (s : set) : bool =
   match s with
-  | SSingleton (w,v)  -> values_match_singleton vs v
-  | SUniversal    -> true
-  | SMask(v1,v2)  -> values_match_mask vs v1 v2
-  | SRange(v1,v2) -> values_match_range vs v1 v2
-  | SProd l       -> values_match_prod vs l
-  | SLpm(v1,_,v2) -> values_match_mask vs v1 v2
-  | SValueSet _   -> failwith "value set unimplemented"
+  | SSingleton{w;v}     -> values_match_singleton vs v
+  | SUniversal          -> true
+  | SMask{v=v1;mask=v2} -> values_match_mask vs v1 v2
+  | SRange{lo=v1;hi=v2} -> values_match_range vs v1 v2
+  | SProd l             -> values_match_prod vs l
+  | SLpm{w=v1;v=v2;_}   -> values_match_mask vs v1 v2
+  | SValueSet _         -> failwith "value set unimplemented"
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
@@ -2464,9 +2467,9 @@ and assert_tuple (v : value) : value list =
 and assert_set (v : value) (w : Bigint.t) : set =
   match v with
   | VSet s -> s
-  | VInteger i   -> SSingleton (w,i)
-  | VInt {v=i;_} -> SSingleton (w,i)
-  | VBit {v=i;_} -> SSingleton (w,i)
+  | VInteger i   -> SSingleton{w;v=i}
+  | VInt {v=i;_} -> SSingleton{w;v=i}
+  | VBit {v=i;_} -> SSingleton{w;v=i}
   | _ -> failwith "not a set"
 
 and assert_string (v : value) : string =
@@ -2516,7 +2519,7 @@ and assert_some (x : 'a option) : 'a =
 
 and assert_lpm (s : set) : value * Bigint.t * value =
   match s with
-  | SLpm (v1,bs,v2) -> (v1,bs,v2)
+  | SLpm{w=v1;nbits=bs;v=v2} -> (v1,bs,v2)
   | SUniversal -> failwith "universal"
   | _ -> failwith "not lpm"
 
@@ -2660,7 +2663,7 @@ and struct_of_list (env : EvalEnv.t) (lv : lvalue) (name : string)
   let ts = List.map fs ~f:(fun x -> (snd x).typ) in
   let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
   let l'' = List.mapi l' ~f:(fun i v -> implicit_cast_from_tuple env
-                                (LMember(lv, List.nth_exn ns i)) (List.nth_exn ns i)
+                                (LMember{expr=lv;name=List.nth_exn ns i}) (List.nth_exn ns i)
                                 v (List.nth_exn ts i)) in
   let l''' = List.mapi l'' ~f:(fun i v -> (List.nth_exn ns i, v)) in
   VStruct{name;fields=l'''}
@@ -2788,7 +2791,7 @@ and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool 
 
 let assert_package (v : value) : Declaration.t * (string * value) list =
   match v with 
-  | VPackage (obj,vs) -> (obj, vs) 
+  | VPackage{decl;args} -> (decl,args) 
   | _ -> failwith "main is not a package" 
 
 let rec eval_main (env : EvalEnv.t) (pack : packet_in)
@@ -2892,7 +2895,7 @@ and eval_v1switch (env : EvalEnv.t) (pack : packet_in) : packet_in =
   let err = EvalEnv.get_error env in
   let env = if state = SReject
     then
-      eval_assign' env (LMember(LName("std_meta"),"parser_error")) (VError(err)) |> fst
+      eval_assign' env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) |> fst
     else env in
   let pckt' =
     VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env

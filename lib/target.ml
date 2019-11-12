@@ -27,7 +27,7 @@ module type Target = sig
 
   val externs : (string * extern) list
 
-  val check_pipeline : EvalEnv.t -> unit (* TODO: maybe something a bit more involved *)
+  val check_pipeline : EvalEnv.t -> unit
 
   val eval_pipeline : EvalEnv.t -> packet_in -> 
   (EvalEnv.t -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) -> 
@@ -38,7 +38,39 @@ end
 
 module Core : Target = struct 
 
-  let externs = []
+  let eval_extract_fixed env pkt v =
+    failwith "unimplemented"
+  
+  let eval_extract_var env pkt v1 v2 =
+    failwith "unimplemented"
+
+  let eval_extract env args = 
+    match args with 
+    | [pkt;v1] -> eval_extract_fixed env pkt v1 
+    | [pkt;v1;v2] -> eval_extract_var env pkt v1 v2 
+    | _ -> failwith "wrong number of args for extract"
+
+  let eval_lookahead env args =
+    failwith "unimplemented"
+
+  let eval_advance env args = 
+    failwith "unimplemented"
+
+  let eval_length env args = 
+    failwith "unimplemented"
+
+  let eval_emit env args =
+    failwith "unimplemented"
+
+  let eval_verify env args =
+    failwith "unimplemented"
+
+  let externs = [("extract", eval_extract);
+                 ("lookahead", eval_lookahead);
+                 ("advance", eval_advance);
+                 ("length", eval_length);
+                 ("emit", eval_emit);
+                 ("verify", eval_verify)]
 
   let check_pipeline _ = failwith "core has no pipeline"
 

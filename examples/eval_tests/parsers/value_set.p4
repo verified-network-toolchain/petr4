@@ -6,10 +6,10 @@ header head {
 }
 
 struct metadata { }
-    struct vsk_t {
-        @match(ternary)
-        bit<8> look;
-    }
+struct vsk_t {
+    @match(ternary)
+    bit<8> look;
+}
 
 parser MyParser(packet_in packet,
                 out head[13] hdr,
@@ -19,7 +19,7 @@ parser MyParser(packet_in packet,
     value_set <vsk_t>(4) pvs;
 
     state start {
-        packet.extract(hdr[15]);
+        standard_metadata.egress_port = 1;
         transition select(packet.lookahead< bit<8> >()) {
             pvs : next;
             _ : reject;
@@ -27,6 +27,7 @@ parser MyParser(packet_in packet,
     }
 
     state next {
+        standard_metadata.egress_spec = 2;
         hdr.push_front(1);
         packet.extract(hdr[0]);
         transition select(packet.lookahead< bit<8> >()) {

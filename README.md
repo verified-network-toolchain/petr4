@@ -25,7 +25,7 @@ from source, perform the following steps.
     If the version is less than 4.06.0, upgrade:
     ```
     opam switch 4.06.0
-    ```        
+    ```
 
 1. Use OPAM to build and install Petr4. This will take a while the first time
    because it installs OPAM dependencies.
@@ -37,10 +37,15 @@ from source, perform the following steps.
 
 Currently `petr4` is merely a P4 front-end. By default, it will parse
 a source program to an abstract syntax tree and print it out, either
-as P4 or encoded into JSON. 
+as P4 or encoded into JSON.
 
 Run `petr4 -help` to see the list of currently-supported options.
-            
+
+### Web user interface
+
+`petr4` uses `js_of_ocaml` to provide a web interface. To compile to javascript,
+run `make build_js`. Then open `index.html` in `html_build` in a browser.
+
 ## Contributing
 
 Petr4 is an open-source project. We encourage contributions!

@@ -116,7 +116,7 @@ and set =
         v : value; }
   | SValueSet of 
       { size : value;
-        members : Parser.case list; }
+        members : Match.t list; }
 
 and signal =
   | SContinue

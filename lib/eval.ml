@@ -193,7 +193,10 @@ and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
   let env' = EvalEnv.insert_typ name typ env in
   let (env'', s, size') = eval_expression' env' SContinue size in
   match s with
-  | SContinue -> (EvalEnv.insert_val name (VSet (SValueSet{size=size';members=[]})) env'', s)
+  | SContinue ->
+    let vset = VSet (SValueSet{size=size';members=EvalEnv.get_value_set env''}) in
+    let env''' = EvalEnv.insert_val name vset env'' in
+    (env''', s)
   | SReject -> (env, s)
   | _ -> failwith "value set declaration should not return or exit"
 
@@ -236,7 +239,7 @@ and eval_table_decl (env : EvalEnv.t) (name : string) (decl : Declaration.t)
   let default = List.filter props' ~f:is_default
                 |> default_of_defaults in
   let (final_entries, ks') = if mks = ["lpm"] then (sort_lpm entries, ks)
-    else if sort_mks then filter_lpm_prod mks ks entries
+    else if sort_mks then filter_lpm_prod env''' mks ks entries
     else (entries, ks) in
   let v = VTable { name = name;
                    keys = ks';
@@ -304,7 +307,7 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
 (* Table Declaration Evaluation *)
 (* -------------------------------------------------------------------------- *)
 
-and filter_lpm_prod (mks : string list) (ks : value list)
+and filter_lpm_prod (env : EvalEnv.t) (mks : string list) (ks : value list)
     (entries : (set * Table.action_ref) list)
     : (set * Table.action_ref) list * (value list) =
   let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
@@ -315,7 +318,7 @@ and filter_lpm_prod (mks : string list) (ks : value list)
     | _ -> failwith "not lpm prod" in
   let entries = 
     entries
-    |> List.filter ~f:(fun (s,a) -> values_match_set ks s)          
+    |> List.filter ~f:(fun (s,a) -> values_match_set env ks s)          
     |> List.map ~f:f in
   let ks' = [List.nth_exn ks index] in
   (sort_lpm entries, ks')
@@ -521,7 +524,7 @@ and eval_table (env : EvalEnv.t) (key : value list)
     (entries : (set * Table.action_ref) list)
     (name : string) (actions : Table.action_ref list)
     (default : Table.action_ref) : EvalEnv.t * signal * value =
-  let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
+  let l = List.filter entries ~f:(fun (s,a) -> values_match_set env key s) in
   let action = match l with
                | [] -> default
                | _ -> List.hd_exn l |> snd in
@@ -2318,7 +2321,7 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
       let (x,y,z) = set_of_case e s set ws in
       ((x,y),(z,x)) in
     let ((env'',s), ss) = List.fold_map cases ~init:(env', SContinue) ~f:g in
-    let ms = List.map ss ~f:(fun (x,y) -> (values_match_set vs x, y)) in
+    let ms = List.map ss ~f:(fun (x,y) -> (values_match_set env'' vs x, y)) in
     let ms' = List.zip_exn ms cases
               |> List.map ~f:(fun ((b,env),c) -> (b,(env,c))) in
     let next = List.Assoc.find ms' true ~equal:(=) in
@@ -2362,15 +2365,15 @@ and set_of_match (env : EvalEnv.t) (s : signal)
   | SReject -> (env, s, SUniversal)
   | _ -> failwith "unreachable"
 
-and values_match_set (vs : value list) (s : set) : bool =
+and values_match_set (env : EvalEnv.t) (vs : value list) (s : set) : bool =
   match s with
   | SSingleton{w;v}     -> values_match_singleton vs v
   | SUniversal          -> true
   | SMask{v=v1;mask=v2} -> values_match_mask vs v1 v2
   | SRange{lo=v1;hi=v2} -> values_match_range vs v1 v2
-  | SProd l             -> values_match_prod vs l
+  | SProd l             -> values_match_prod env vs l
   | SLpm{w=v1;v=v2;_}   -> values_match_mask vs v1 v2
-  | SValueSet _         -> failwith "value set unimplemented"
+  | SValueSet {members=ms;_}   -> values_match_value_set env vs ms
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
@@ -2398,9 +2401,15 @@ and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
     w0 = w1 && w1 = w2 && Bigint.(b1 <= b0 && b0 <= b2)
   | _ -> failwith "implicit casts unimplemented"
 
-and values_match_prod (vs : value list) (l : set list) : bool =
-  let bs = List.mapi l ~f:(fun i x -> values_match_set [List.nth_exn vs i] x) in
+and values_match_prod (env : EvalEnv.t) (vs : value list) (l : set list) : bool =
+  let bs = List.mapi l ~f:(fun i x -> values_match_set env [List.nth_exn vs i] x) in
   List.for_all bs ~f:(fun b -> b)
+
+and values_match_value_set (env : EvalEnv.t) (vs : value list)
+    (ms : Match.t list) : bool =
+  let ws = List.map vs ~f:width_of_val in
+  let (e,s,set) = set_of_matches env SContinue ms ws in
+  values_match_set e vs set
 
 (* -------------------------------------------------------------------------- *)
 (* Control Evaluation *)
@@ -2825,23 +2834,24 @@ let hex_of_string (s : string) : string =
   |> String.to_list
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
-  
+
 let eval_main (env : EvalEnv.t) (pack : packet_in)
-    (ctrl : Table.pre_entry list) : packet_in =
+    (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list) : packet_in =
   let env' = EvalEnv.insert_table_entries ctrl env in
+  let env'' = EvalEnv.insert_value_set_cases ctrl_vs env' in
   let name =
-    match env' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
+    match env'' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is no a package" in
   match name with
-  | "V1Switch"     -> Target.V1Model.eval_pipeline 
-                        env' 
+  | "V1Switch"     -> Target.V1Model.eval_pipeline
+                        env''
                         pack
-                        eval_app 
-                        eval_assign' 
+                        eval_app
+                        eval_assign'
                         init_val_of_typ
-  | "ebpfFilter"   -> Target.EbpfFilter.eval_pipeline 
-                        env' 
+  | "ebpfFilter"   -> Target.EbpfFilter.eval_pipeline
+                        env''
                         pack
                         eval_app
                         eval_assign'
@@ -2854,12 +2864,12 @@ let eval_expression env expr =
   (a,c)
 
 let eval_program (p : Types.program) (pack : packet_in)
-  (ctrl : Table.pre_entry list) : unit =
+  (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list) : unit =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;
     Format.printf "Done\n";
-    let packetout = eval_main env pack ctrl in
+    let packetout = eval_main env pack ctrl ctrl_vs in
     print_string "Resulting packet: ";
     packetout
     |> Cstruct.to_string

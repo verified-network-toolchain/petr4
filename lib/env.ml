@@ -66,6 +66,8 @@ module EvalEnv = struct
     typ : Types.Type.t env;
     (* a list of commands for populating tables *)
     tables : Table.pre_entry list;
+    (* a list of commands for populating value sets *)
+    value_set : Match.t list;
     (* the error namespace *)
     err : string list;
     (* the parser error *)
@@ -77,6 +79,7 @@ module EvalEnv = struct
     vs = [[]];
     typ = [[]];
     tables = [];
+    value_set = [];
     err = [];
     parser_error = "NoError";
   }
@@ -90,6 +93,7 @@ module EvalEnv = struct
      vs = get_last env.vs;
      typ = get_last env.typ;
      tables = env.tables;
+     value_set = env.value_set;
      err = env.err;
      parser_error = env.parser_error;}
 
@@ -98,6 +102,9 @@ module EvalEnv = struct
 
   let get_tables env =
     env.tables
+
+  let get_value_set env =
+    env.value_set
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -108,8 +115,11 @@ module EvalEnv = struct
   let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
 
-  let insert_table_entry entry e = 
+  let insert_table_entry entry e =
     { e with tables = entry :: e.tables }
+
+  let insert_value_set_case case e =
+    {e with value_set = case :: e.value_set }
 
   let insert_err name e =
     {e with err = name :: e.err}
@@ -123,8 +133,11 @@ module EvalEnv = struct
   let insert_typs bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
 
-  let insert_table_entries entries e = 
+  let insert_table_entries entries e =
     {e with tables = e.tables @ entries }
+
+  let insert_value_set_cases cases e =
+    {e with value_set = e.value_set @ cases }
 
   let insert_errs ss e =
     {e with err = e.err @ ss}
@@ -175,6 +188,7 @@ module EvalEnv = struct
      vs = push e.vs;
      typ = push e.typ;
      tables = e.tables;
+     value_set = e.value_set;
      err = e.err;
      parser_error = e.parser_error;}
 
@@ -183,6 +197,7 @@ module EvalEnv = struct
      vs = pop e.vs;
      typ = pop e.typ;
      tables = e.tables;
+     value_set = e.value_set;
      err = e.err;
      parser_error = e.parser_error;}
 
@@ -316,7 +331,8 @@ module CheckerEnv = struct
     { decl = [[]];
       vs = cenv.const;
       typ = [[]];
-      tables = [];  
+      tables = [];
+      value_set = [];
       err = [];
       parser_error = "NoError"}
 end

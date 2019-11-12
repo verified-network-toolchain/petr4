@@ -85,5 +85,66 @@
         }
       ]
     }
-  ]
+  ],
+  "matches": [
+        [
+          [
+            "info",
+            {
+              "filename": "./examples/eval_tests/parsers/value_set.p4\"",
+              "line_start": 23,
+              "line_end": null,
+              "col_start": 12,
+              "col_end": 14
+            }
+          ],
+          [
+            "Expression",
+            {
+              "expr": [
+                [
+                  "info",
+                  {
+                    "filename": "./examples/eval_tests/parsers/value_set.p4\"",
+                    "line_start": 23,
+                    "line_end": null,
+                    "col_start": 12,
+                    "col_end": 14
+                  }
+                ],
+                [
+                  "int",
+                  [
+                    [
+                      "info",
+                      {
+                        "filename":
+                          "./examples/eval_tests/parsers/value_set.p4\"",
+                        "line_start": 23,
+                        "line_end": null,
+                        "col_start": 12,
+                        "col_end": 14
+                      }
+                    ],
+                    { "value": 42, "width_signed": null }
+                  ]
+                ]
+              ]
+            }
+          ]
+        ]
+      ],
+      "next": [
+        [
+          "info",
+          {
+            "filename": "./examples/eval_tests/parsers/value_set.p4\"",
+            "line_start": 23,
+            "line_end": null,
+            "col_start": 17,
+            "col_end": 21
+          }
+        ],
+        "next"
+      ]
 }

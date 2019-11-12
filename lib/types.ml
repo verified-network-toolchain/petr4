@@ -473,25 +473,25 @@ and Match : sig
         | DontCare
         | Expression of
             { expr: Expression.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,yojson { exn = true }]
 
-      type t = pre_t info [@@deriving sexp,yojson]
+      type t = pre_t info [@@deriving sexp,yojson { exn = true }]
     end = struct
               type pre_t =
                   Default
                 | DontCare
                 | Expression of
                     { expr: Expression.t }
-              [@@deriving sexp,yojson]
+              [@@deriving sexp,yojson { exn = true }]
 
-              type t = pre_t info [@@deriving sexp,yojson]
+              type t = pre_t info [@@deriving sexp,yojson { exn = true }]
             end
 
 and Parser : sig
       type pre_case =
         { matches: Match.t list;
           next: P4String.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,yojson { exn = true }]
 
       type case = pre_case info [@@deriving sexp,yojson]
 
@@ -517,7 +517,7 @@ and Parser : sig
                type pre_case =
                  { matches: Match.t list;
                    next: P4String.t }
-               [@@deriving sexp,yojson]
+               [@@deriving sexp,yojson { exn = true }]
 
                type case = pre_case info [@@deriving sexp,yojson]
 

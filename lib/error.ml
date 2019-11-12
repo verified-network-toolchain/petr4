@@ -1,4 +1,5 @@
 open Typed
+open Sexplib.Conv
 
 type error =
 | Unbound of string 
@@ -10,9 +11,10 @@ type error =
 | Type_Difference of Type.t * Type.t
 | Duplicate
 | UnreachableBlock
+[@@deriving sexp]
 
-exception Internal of string
-exception Type of (Info.t * error)
+exception Internal of string [@@deriving sexp]
+exception Type of (Info.t * error) [@@deriving sexp]
 
 let raise_mismatch info expected found =
   let err = Mismatch { expected; found } in

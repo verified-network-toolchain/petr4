@@ -289,6 +289,8 @@ end = struct
       Format.fprintf fmt "bool"
     | Error -> 
       Format.fprintf fmt "error"
+    | Integer ->
+      Format.fprintf fmt "int"
     | IntType x ->
       Format.fprintf fmt "@[int<%a>@]" 
         Expression.format_t x

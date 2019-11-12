@@ -649,6 +649,8 @@ baseType
 | info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info2 = R_ANGLE
     { (Info.merge info1 info2,
        Type.VarBit max_width) }
+| info = INT
+    { (info, Type.Integer) }
 ;
 
 typeOrVoid
@@ -1061,7 +1063,7 @@ lvalue
 | array = lvalue L_BRACKET index = expression info2 = R_BRACKET
     { (Info.merge (info array) info2,
        Expression.ArrayAccess { array; index }) }
-| bits = lvalue L_BRACKET lo = expression COLON hi = expression
+| bits = lvalue L_BRACKET hi = expression COLON lo = expression
     info2 = R_BRACKET
     { (Info.merge (info bits) info2,
        Expression.BitStringAccess { bits; lo; hi }) }
@@ -1083,7 +1085,7 @@ expression
 | array = expression L_BRACKET index = expression info2 = R_BRACKET
   { (Info.merge (info array) info2,
      Expression.ArrayAccess { array; index }) }
-| bits = expression L_BRACKET lo = expression COLON hi = expression
+| bits = expression L_BRACKET hi = expression COLON lo = expression
     info2 = R_BRACKET
   { (Info.merge (info bits) info2,
      Expression.BitStringAccess { bits; lo; hi }) }

@@ -94,6 +94,7 @@ and Type : sig
   type pre_t =
       Bool
     | Error
+    | Integer
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
@@ -254,6 +255,8 @@ and Table : sig
   [@@deriving sexp,yojson]
 
   type property = pre_property info [@@deriving sexp,yojson]
+
+  val name_of_property : property -> string
 end
 
 and Match : sig 
@@ -421,6 +424,8 @@ and Declaration : sig
   and field = pre_field info [@@deriving sexp,yojson]
 
   val name : t -> P4String.t
+
+  val name_opt : t -> P4String.t option
 end
 
 and Statement : sig

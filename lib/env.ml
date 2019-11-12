@@ -1,5 +1,5 @@
 open Types
-open Value.Value
+open Value
 open Core_kernel
 
 exception BadEnvironment of string
@@ -66,6 +66,8 @@ module EvalEnv = struct
     typ : Types.Type.t env;
     (* a list of commands for populating tables *)
     tables : Table.pre_entry list;
+    (* a list of commands for populating value sets *)
+    value_set : Match.t list;
     (* the error namespace *)
     err : string list;
     (* the parser error *)
@@ -77,6 +79,7 @@ module EvalEnv = struct
     vs = [[]];
     typ = [[]];
     tables = [];
+    value_set = [];
     err = [];
     parser_error = "NoError";
   }
@@ -90,6 +93,7 @@ module EvalEnv = struct
      vs = get_last env.vs;
      typ = get_last env.typ;
      tables = env.tables;
+     value_set = env.value_set;
      err = env.err;
      parser_error = env.parser_error;}
 
@@ -98,6 +102,9 @@ module EvalEnv = struct
 
   let get_tables env =
     env.tables
+
+  let get_value_set env =
+    env.value_set
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -110,6 +117,9 @@ module EvalEnv = struct
 
   let insert_table_entry entry e =
     { e with tables = entry :: e.tables }
+
+  let insert_value_set_case case e =
+    {e with value_set = case :: e.value_set }
 
   let insert_err name e =
     {e with err = name :: e.err}
@@ -125,6 +135,9 @@ module EvalEnv = struct
 
   let insert_table_entries entries e =
     {e with tables = e.tables @ entries }
+
+  let insert_value_set_cases cases e =
+    {e with value_set = e.value_set @ cases }
 
   let insert_errs ss e =
     {e with err = e.err @ ss}
@@ -175,6 +188,7 @@ module EvalEnv = struct
      vs = push e.vs;
      typ = push e.typ;
      tables = e.tables;
+     value_set = e.value_set;
      err = e.err;
      parser_error = e.parser_error;}
 
@@ -183,6 +197,7 @@ module EvalEnv = struct
      vs = pop e.vs;
      typ = pop e.typ;
      tables = e.tables;
+     value_set = e.value_set;
      err = e.err;
      parser_error = e.parser_error;}
 
@@ -198,35 +213,34 @@ module EvalEnv = struct
         | VNull -> "null"
         | VBool b -> string_of_bool b
         | VInteger v
-        | VBit(_, v)
-        | VInt(_, v)
-        | VVarbit(_,_,v) -> Bigint.to_string v
+        | VBit {v;_}
+        | VInt {v;_}
+        | VVarbit {v;_} -> begin match Bigint.to_int v with
+            | None -> "<bigint>"
+            | Some n -> string_of_int n end
+        | VString s -> s
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
-        | VString s -> s
         | VError s -> "Error: " ^ s
-        | VMatchKind -> "<matchkind>"
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"
         | VAction _ -> "<action>"
-        | VStruct (_, l) ->
+        | VStruct {fields;_} ->
           print_endline "<struct>";
-          List.iter l ~f:(fun a -> print_string "    "; f a); ""
-        | VHeader (_,l,b) ->
-          print_endline ("<header> with " ^ (string_of_bool b));
-          List.iter l ~f:(fun a -> print_string "    "; f a); ""
-        | VUnion (_,l,v) ->
+          List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+        | VHeader {name;fields;is_valid} ->
+          print_endline ("<header> with " ^ (string_of_bool is_valid));
+          List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+        | VUnion {name;valid_header;valid_fields} ->
           print_endline "<union>";
-          f ("valid header", l);
-          List.iter v ~f:(fun (a, b) -> print_string "     ";
+          f ("valid header", valid_header);
+          List.iter valid_fields ~f:(fun (a, b) -> print_string "     ";
                            print_string a;
                            print_string " -> ";
                            print_string (string_of_bool b)); ""
         | VStack _ -> "<stack>"
-        | VEnumField(enum,field) -> enum ^ "." ^ field
-        | VSenumField(enum,field,_) -> enum ^ "." ^ field ^ " <value>"
-        | VExternFun _ -> "<extern function>"
-        | VExternObject _ -> "<extern>"
+        | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
+        | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
         | VRuntime r ->
           begin match r with
             | PacketIn p -> Cstruct.to_string p
@@ -318,6 +332,7 @@ module CheckerEnv = struct
       vs = cenv.const;
       typ = [[]];
       tables = [];
+      value_set = [];
       err = [];
       parser_error = "NoError"}
 end

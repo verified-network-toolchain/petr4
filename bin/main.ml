@@ -74,7 +74,7 @@ let eval_file p4_file_name verbose pfile =
 let eval_string verbose packet_string p4_file_contents =
   let pack = Cstruct.of_hex packet_string in
   match parse "input.p4" p4_file_contents verbose with
-  | `Ok prog -> Eval.eval_program prog pack []
+  | `Ok prog -> Eval.eval_program prog pack [] []
   | _ -> "error when evaluating program!"
 
 

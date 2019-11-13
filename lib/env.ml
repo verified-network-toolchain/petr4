@@ -67,7 +67,7 @@ module EvalEnv = struct
     (* a list of commands for populating tables *)
     tables : Table.pre_entry list;
     (* a list of commands for populating value sets *)
-    value_set : Match.t list;
+    value_set : Match.t list list;
     (* the error namespace *)
     err : string list;
     (* the parser error *)

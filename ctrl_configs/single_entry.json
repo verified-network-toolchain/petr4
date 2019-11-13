@@ -87,6 +87,7 @@
     }
   ],
   "matches": [
+      [
         [
           [
             "info",
@@ -133,18 +134,6 @@
             }
           ]
         ]
-      ],
-      "next": [
-        [
-          "info",
-          {
-            "filename": "./examples/eval_tests/parsers/value_set.p4\"",
-            "line_start": 23,
-            "line_end": null,
-            "col_start": 17,
-            "col_end": 21
-          }
-        ],
-        "next"
       ]
+    ]
 }

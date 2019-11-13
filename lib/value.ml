@@ -116,7 +116,8 @@ and set =
         v : value; }
   | SValueSet of 
       { size : value;
-        members : Match.t list; }
+        members : Match.t list list;
+        sets : set list; }
 
 and signal =
   | SContinue

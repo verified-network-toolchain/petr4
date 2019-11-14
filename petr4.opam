@@ -19,7 +19,7 @@ depends: [
   "menhir"
   "ANSITerminal"
   "bignum"
-  "core"
+  "core" {>= "0.12.3"}
   "ppx_deriving_yojson"
   "ppx_jane"
   "yojson" {>= "1.7.0"}

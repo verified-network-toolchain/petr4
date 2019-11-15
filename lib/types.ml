@@ -163,10 +163,12 @@ and Type : sig
   type pre_t =
       Bool
     | Error
+    | Integer
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
     | TopLevelType of P4String.t
+    (* this could be a typename or a type variable. *)
     | TypeName of P4String.t
     | SpecializedType of
         { base: t;
@@ -184,6 +186,7 @@ end = struct
   type pre_t =
       Bool [@name "bool"]
     | Error [@name "error"]
+    | Integer [@name "integer"]
     | IntType of Expression.t [@name "int"]
     | BitType of Expression.t  [@name "bit"]
     | VarBit of Expression.t  [@name "varbit"]
@@ -204,37 +207,49 @@ and t = pre_t info [@@deriving sexp,yojson]
 end
 
 and MethodPrototype : sig
-      type pre_t =
-          Constructor of
-            { annotations: Annotation.t list;
-              name: P4String.t;
-              params: Parameter.t list }
-        | Method of
-            { annotations: Annotation.t list;
-              return: Type.t;
-              name: P4String.t;
-              type_params: P4String.t list;
-              params: Parameter.t list}
-      [@@deriving sexp,yojson]
-
-      type t = pre_t info [@@deriving sexp,yojson]
-    end = struct
-                        type pre_t =
-                            Constructor of
-                              { annotations: Annotation.t list;
-                                name: P4String.t;
-                                params: Parameter.t list }
-                          | Method of
-                              { annotations: Annotation.t list;
-                                return: Type.t;
-                                name: P4String.t;
-                                type_params: P4String.t list;
-                                params: Parameter.t list}
-                        [@@deriving sexp,yojson]
-
-                        type t = pre_t info [@@deriving sexp,yojson]
-                      end
-
+  type pre_t =
+    Constructor of
+      { annotations: Annotation.t list;
+        name: P4String.t;
+        params: Parameter.t list }
+  | AbstractMethod of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+  | Method of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+        [@@deriving sexp,yojson]
+    
+  type t = pre_t info [@@deriving sexp,yojson]
+end = struct
+  type pre_t =
+    Constructor of
+      { annotations: Annotation.t list;
+        name: P4String.t;
+        params: Parameter.t list }
+  | AbstractMethod of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+  | Method of
+      { annotations: Annotation.t list;
+        return: Type.t;
+        name: P4String.t;
+        type_params: P4String.t list;
+        params: Parameter.t list}
+    [@@deriving sexp,yojson]
+    
+  type t = pre_t info [@@deriving sexp,yojson]
+end
+        
 and Argument : sig
       type pre_t  =
           Expression of
@@ -425,6 +440,8 @@ and Table : sig
       [@@deriving sexp,yojson]
 
       type property = pre_property info [@@deriving sexp,yojson]
+
+      val name_of_property : property -> string
     end = struct
               type pre_action_ref =
                 { annotations: Annotation.t list;
@@ -465,6 +482,13 @@ and Table : sig
               [@@deriving sexp,yojson]
 
               type property = pre_property info [@@deriving sexp,yojson]
+
+              let name_of_property p =
+                match snd p with
+                | Key _ -> "key"
+                | Actions _ -> "actions"
+                | Entries _ -> "entries"
+                | Custom {name; _} -> snd name
             end
 
 and Match : sig
@@ -552,7 +576,8 @@ and Declaration : sig
             { annotations: Annotation.t list;
               typ: Type.t [@key "type"];
               args: Argument.t list;
-              name: P4String.t }
+              name: P4String.t;
+              init: Block.t option; }
         | Parser of
             { annotations: Annotation.t list;
               name: P4String.t;
@@ -666,6 +691,8 @@ and field = pre_field info [@@deriving sexp,yojson]
 
 val name : t -> P4String.t
 
+val name_opt : t -> P4String.t option
+
 end = struct
   type pre_t =
       Constant of
@@ -677,7 +704,8 @@ end = struct
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           args: Argument.t list;
-          name: P4String.t }
+          name: P4String.t;
+          init: Block.t option; }
     | Parser of
         { annotations: Annotation.t list;
           name: P4String.t;
@@ -790,33 +818,38 @@ and pre_field =
 
 and field = pre_field info [@@deriving sexp,yojson]
 
-let name d =
+let name_opt d =
   match snd d with
-  | Constant x -> x.name
-  | Instantiation x -> x.name
-  | Parser x -> x.name
-  | Control x -> x.name
-  | Function x -> x.name
-  | ExternFunction x -> x.name
-  | Variable x -> x.name
-  | ValueSet x -> x.name
-  | Action x -> x.name
-  | Table x -> x.name
-  | Header x -> x.name
-  | HeaderUnion x -> x.name
-  | Struct x -> x.name
-  | Enum x -> x.name
-  | SerializableEnum x -> x.name
-  | ExternObject x -> x.name
-  | TypeDef x -> x.name
-  | NewType x -> x.name
-  | ControlType x -> x.name
-  | ParserType x -> x.name
-  | PackageType x -> x.name
-  | Error _ ->
-    failwith "Error type declarations do not have a name"
+  | Constant {name; _}
+  | Instantiation {name; _}
+  | Parser {name; _}
+  | Control {name; _}
+  | Function {name; _}
+  | ExternFunction {name; _}
+  | Variable {name; _}
+  | ValueSet {name; _}
+  | Action {name; _}
+  | Table {name; _}
+  | Header {name; _}
+  | HeaderUnion {name; _}
+  | Struct {name; _}
+  | Enum {name; _}
+  | SerializableEnum {name; _}
+  | ExternObject {name; _}
+  | TypeDef {name; _}
+  | NewType {name; _}
+  | ControlType {name; _}
+  | ParserType {name; _}
+  | PackageType {name; _} ->
+      Some name
+  | Error _
   | MatchKind _ ->
-    failwith "MatchKind type declarations do not have a name"
+      None
+
+let name d =
+  match name_opt d with
+  | Some name -> name
+  | None -> failwith "this declaration does not have a name"
 end
 
 and Statement : sig

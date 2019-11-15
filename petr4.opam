@@ -14,14 +14,16 @@ build: [
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
-  "ocaml" {>= "4.04.0"}
+  "ocaml" {>= "4.08.0"}
   "dune" {build}
+  "cstruct"
+  "cstruct-sexp"
   "menhir"
   "ANSITerminal"
   "bignum"
-  "core"
+  "core" {>= "0.12.3"}
   "ppx_deriving_yojson"
   "ppx_jane"
-  "yojson"
+  "yojson" {>= "1.7.0"}
 ]
 

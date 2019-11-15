@@ -51,14 +51,15 @@ let parse include_dirs p4_file verbose =
 let check_file (include_dirs : string list) (p4_file : string)
     (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
   match parse include_dirs p4_file verbose with
-  | `Ok prog ->
-    let _ = () (*Checker.check_program prog*) in
-    if print_json then
-      let json = Types.program_to_yojson prog in
-      let to_string j =
-        if pretty_json then
-          Yojson.Safe.pretty_to_string j
-        else
+  | `Ok prog -> 
+    let prog = Elaborate.elab prog in
+    Checker.check_program prog |> ignore;
+    if print_json then 
+      let json = Types.program_to_yojson prog in 
+      let to_string j = 
+        if pretty_json then 
+          Yojson.Safe.pretty_to_string j 
+        else 
           Yojson.Safe.to_string j in
       Format.printf "%s" (to_string json)
     else
@@ -99,15 +100,19 @@ let check_dir include_dirs p4_dir verbose =
     | Some file ->
       if Filename.check_suffix file "p4" then
         begin
-          let p4_file = Filename.concat p4_dir file in
-          match parse include_dirs p4_file verbose with
-          | `Ok _ -> ()
-          | `Error (info, Lexer.Error s) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, Parser.Error) ->
-            Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
-          | `Error (info, err) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+          Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
+          let p4_file = Filename.concat p4_dir file in 
+          match parse include_dirs p4_file verbose with 
+          | `Ok prog ->
+             let prog = Elaborate.elab prog in
+             Checker.check_program prog |> ignore;
+             Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
+          | `Error (info, Lexer.Error s) -> 
+             Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
+          | `Error (info, Petr4.Parser.Error) -> 
+             Format.eprintf "%s: syntax error@\n%!" (Info.to_string info) 
+          | `Error (info, err) -> 
+             Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
         end;
       loop () in
   loop ()

@@ -22,7 +22,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       typ = typ;
       args = args;
       name = (_,n);
+      init = None
     } -> eval_instantiation env typ args n
+  | Instantiation { init = Some _; _ } ->
+     failwith "evaluating instantiations with initializers is unimplemented"
   | Parser {
       annotations = _;
       name = (_,n);
@@ -402,6 +405,7 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   match snd typ with
   | Bool                      -> VBool false
   | Error                     -> VError "NoError"
+  | Integer                   -> VInteger Bigint.zero
   | IntType expr              -> init_val_of_int env expr
   | BitType expr              -> init_val_of_bit env expr
   | VarBit expr               -> init_val_of_varbit env expr
@@ -2143,7 +2147,7 @@ and width_of_typ (env : EvalEnv.t) (t : Type.t) : Bigint.t =
   | HeaderStack{header=t';size=e} -> width_of_stack env t' e
   | Tuple l -> width_of_tuple env l
   | Void | DontCare -> Bigint.zero
-  | Error | VarBit _ -> failwith "type does not a have a fixed width"
+  | Error | VarBit _ | Integer -> failwith "type does not a have a fixed width"
   | SpecializedType _ -> failwith "unimplemented"
 
 and width_of_tuple (env : EvalEnv.t) (l : Type.t list) : Bigint.t =

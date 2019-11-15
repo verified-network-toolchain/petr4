@@ -1,8 +1,8 @@
 open Types
 
-type packet_in = Cstruct.t
+type packet_in = Cstruct_sexp.t [@@deriving sexp]
 
-type packet_out = Cstruct.t * Cstruct.t
+type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
 
 type value =
   | VNull
@@ -61,6 +61,7 @@ type value =
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
+  [@@deriving sexp]
 
   and vparser = {
     pvs : (string * value) list;
@@ -68,6 +69,7 @@ type value =
     plocals : Declaration.t list;
     states : Parser.state list;
   }
+  [@@deriving sexp]
 
   and vcontrol = {
     cvs : (string * value) list;
@@ -75,6 +77,7 @@ type value =
     clocals : Declaration.t list;
     apply : Block.t;
   }
+  [@@deriving sexp]
 
   and vtable = {
     name : string;
@@ -83,6 +86,7 @@ type value =
     default_action : Table.action_ref;
     const_entries : (set * Table.action_ref) list;
   }
+  [@@deriving sexp]
 
   and lvalue =
     | LName of string
@@ -97,6 +101,7 @@ type value =
     | LArrayAccess of 
         { expr : lvalue;
           idx : Expression.t; }
+  [@@deriving sexp]
 
   and set =
     | SSingleton of 
@@ -118,13 +123,16 @@ type value =
         { size : value;
           members : Match.t list list;
           sets : set list; }
+  [@@deriving sexp]
 
   and signal =
     | SContinue
     | SReturn of value
     | SExit
     | SReject
+  [@@deriving sexp]
 
   and vruntime =
     | PacketIn of packet_in
     | PacketOut of packet_out
+  [@@deriving sexp]

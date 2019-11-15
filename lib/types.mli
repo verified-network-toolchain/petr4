@@ -94,6 +94,7 @@ and Type : sig
   type pre_t =
       Bool
     | Error
+    | Integer
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
@@ -119,6 +120,12 @@ and MethodPrototype : sig
         { annotations: Annotation.t list;
           name: P4String.t;
           params: Parameter.t list }
+    | AbstractMethod of
+        { annotations: Annotation.t list;
+          return: Type.t;
+          name: P4String.t;
+          type_params: P4String.t list;
+          params: Parameter.t list}
     | Method of
         { annotations: Annotation.t list;
           return: Type.t;
@@ -248,6 +255,8 @@ and Table : sig
   [@@deriving sexp,yojson]
 
   type property = pre_property info [@@deriving sexp,yojson]
+
+  val name_of_property : property -> string
 end
 
 and Match : sig 
@@ -301,7 +310,8 @@ and Declaration : sig
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           args: Argument.t list;
-          name: P4String.t }
+          name: P4String.t;
+          init: Block.t option; }
     | Parser of
         { annotations: Annotation.t list;
           name: P4String.t;
@@ -414,6 +424,8 @@ and Declaration : sig
   and field = pre_field info [@@deriving sexp,yojson]
 
   val name : t -> P4String.t
+
+  val name_opt : t -> P4String.t option
 end
 
 and Statement : sig

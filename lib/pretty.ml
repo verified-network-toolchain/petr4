@@ -102,8 +102,8 @@ end = struct
         format_t x.lo
         format_t x.hi
     | List x ->
-      Format.fprintf fmt "@[<4>{%a}@]"
-        (format_list format_t) x.values
+      Format.fprintf fmt "@[<4>{%a}@]" 
+        (format_list_sep format_t ",") x.values
     | UnaryOp x ->
       let uop = match (snd x.op) with
       | Not -> "!"
@@ -289,6 +289,8 @@ end = struct
       Format.fprintf fmt "bool"
     | Error ->
       Format.fprintf fmt "error"
+    | Integer ->
+      Format.fprintf fmt "int"
     | IntType x ->
       Format.fprintf fmt "@[int<%a>@]"
         Expression.format_t x
@@ -465,13 +467,13 @@ and Table : sig
 end = struct
   open P4.Table
 
-  let format_key fmt e =
-    match snd e with
-    | { annotations; key; match_kind } ->
-      Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a@ :@ %a;@]"
+  let format_key fmt e = 
+    match snd e with 
+    | { annotations; key; match_kind } -> 
+      Format.fprintf fmt "@[%a@ :@ %a %a;@]"
         Expression.format_t key
         P4String.format_t match_kind
+        Annotation.format_ts annotations      
 
   let format_action_ref fmt e =
     match snd e with
@@ -531,6 +533,13 @@ end = struct
         P4String.format_t name
         Type.format_type_params type_params
         Parameter.format_params params
+    | AbstractMethod { annotations; return; name; type_params; params } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[%a abstract %a%a(%a);@]"
+        Type.format_t return
+        P4String.format_t name
+        Type.format_type_params type_params
+        Parameter.format_params params
 end
 
 
@@ -572,7 +581,7 @@ end = struct
         Expression.format_t value
     | Action { annotations; name; params; body } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>action@ %s(@[%a@]) %a"
+      Format.fprintf fmt "@[<4>action %s(@[%a@]) %a"
         (snd name)
         Parameter.format_params params
         Block.format_t body
@@ -596,13 +605,20 @@ end = struct
       Format.fprintf fmt "%a" (format_list_nl format_t) locals;
       Parser.format_states fmt states;
       Format.fprintf fmt "@]@\n}"
-    | Instantiation { annotations; typ; args; name } ->
+    | Instantiation { annotations; typ; args; name; init=None } -> 
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%a(%a) %a;@]"
         Type.format_t typ
         Argument.format_ts args
         P4String.format_t name
-    | Table { annotations; name; properties } ->
+    | Instantiation { annotations; typ; args; name; init=Some block } -> 
+      Annotation.format_ts fmt annotations;
+      Format.fprintf fmt "@[<4>%a(%a) %a = %a;"
+        Type.format_t typ
+        Argument.format_ts args
+        P4String.format_t name
+        Block.format_t block
+    | Table { annotations; name; properties } -> 
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[<4>table %a {@\n%a@]@\n}"
         P4String.format_t name

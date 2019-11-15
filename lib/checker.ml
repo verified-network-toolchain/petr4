@@ -261,9 +261,9 @@ let rec merge_constraints env xs ys =
        else fail ()
   in
   match List.zip xs ys with
-  | Some xys ->
+  | Ok xys ->
      List.map ~f:merge xys
-  | None -> fail ()
+  | Unequal_lengths -> fail ()
 
 and constraints_to_type_args _ (cs: var_constraints) : (string * Typed.Type.t) list =
   let constraint_to_type_arg (var, type_opt) =
@@ -363,10 +363,10 @@ and solve_enum_type_equality env equiv_vars unknowns enum1 enum2 =
 and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
   let open PackageType in
   match List.zip pkg1.type_params pkg2.type_params with
-  | Some param_pairs ->
+  | Ok param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
      solve_constructor_params_equality env equiv_vars' unknowns pkg1.parameters pkg2.parameters
-  | None -> None
+  | Unequal_lengths -> None
 
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Parameter in
@@ -380,15 +380,15 @@ and solve_params_equality env equiv_vars unknowns ps1 ps2 =
 and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
   let open ControlType in
   match List.zip ctrl1.type_params ctrl2.type_params with
-  | Some param_pairs ->
+  | Ok param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
      solve_params_equality env equiv_vars' unknowns ctrl1.parameters ctrl2.parameters
-  | None -> None
+  | Unequal_lengths -> None
 
 and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
   let open Typed.ExternType in
   match List.zip extern1.type_params extern2.type_params with
-  | Some param_pairs ->
+  | Ok param_pairs ->
       let equiv_vars' = equiv_vars @ param_pairs in
       let method_cmp m1 m2 =
           String.compare m1.name m2.name
@@ -401,16 +401,16 @@ and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
       let methods1 = List.sort ~compare:method_cmp extern1.methods in
       let methods2 = List.sort ~compare:method_cmp extern2.methods in
       solve_lists env unknowns ~f:solve_method_eq methods1 methods2
-  | None -> None
+  | Unequal_lengths -> None
 
 and solve_function_type_equality env equiv_vars unknowns func1 func2 =
   let open FunctionType in
   match List.zip func1.type_params func2.type_params with
-  | Some param_pairs ->
+  | Ok param_pairs ->
      let equiv_vars' = equiv_vars @ param_pairs in
      merge_solutions env (solve_types env equiv_vars' unknowns func1.return func2.return)
                          (solve_params_equality env equiv_vars' unknowns func1.parameters func2.parameters)
-  | None -> None
+  | Unequal_lengths -> None
 
 and solve_action_type_equality env equiv_vars unknowns action1 action2 =
   let open ActionType in
@@ -440,10 +440,10 @@ and reduce_type (env: Env.checker_env) (typ: Typed.Type.t) : Typed.Type.t =
      | t_params ->
         let args = List.map ~f:(reduce_type env) args in
         begin match List.zip t_params args with
-        | Some pairs ->
+        | Ok pairs ->
            let base = drop_type_params base in
            reduce_type (Env.insert_types pairs env) base
-        | None ->
+        | Unequal_lengths ->
            failwith "mismatch in # of type params and type args"
         end
      end
@@ -1455,8 +1455,8 @@ and type_function_call env call_info func type_args args =
   let params_args = match_params_to_args (fst func) params args in
   let type_params_args =
     match List.zip type_params type_args with
-    | Some v -> v
-    | None ->
+    | Ok v -> v
+    | Unequal_lengths ->
        if type_args = []
        then List.map ~f:(fun v -> v, None) type_params
        else failwith "mismatch in type arguments"
@@ -1825,14 +1825,14 @@ and check_constructor_invocation env type_params params type_args args =
 and solve_constructor_invocation env type_params params type_args args: Typed.Type.t list =
   let type_params_args =
     match List.zip type_params type_args with
-    | Some v -> v
-    | None ->
+    | Ok v -> v
+    | Unequal_lengths ->
        if type_args = []
        then List.map ~f:(fun v -> v, None) type_params
        else failwith "mismatch in type arguments"
   in
   match List.zip params args with
-  | Some params_args ->
+  | Ok params_args ->
      let type_params_args =
        let inference_params_args =
          List.map params_args
@@ -1852,7 +1852,7 @@ and solve_constructor_invocation env type_params params type_args args: Typed.Ty
      in
      List.iter ~f:param_matches_arg params_args;
      List.map ~f:snd type_params_args
-  | None ->
+  | Unequal_lengths ->
      raise_s [%message "mismatch in constructor call"
                  ~params:(params: Typed.ConstructParam.t list)
                  ~args:(args: Types.Argument.t list)]
@@ -1881,7 +1881,7 @@ and type_select_case env state_names expr_types (_, case) : unit =
        check' info (Set non_set_type) typ
   in
   match List.zip expr_types case.matches with
-  | Some matches_and_types ->
+  | Ok matches_and_types ->
     let check_match (typ, m) =
         match snd m with
         | Expression {expr} ->
@@ -1895,7 +1895,7 @@ and type_select_case env state_names expr_types (_, case) : unit =
     if List.mem ~equal:(=) state_names name
     then ()
     else raise @@ Env.UnboundName name
-  | None -> failwith "mismatch between types and number of matches"
+  | Unequal_lengths -> failwith "mismatch between types and number of matches"
 
 and type_transition env state_names transition : unit =
   let open Parser in

@@ -43,14 +43,14 @@ let rec combine_opt xs ys =
 
 let eq_lists ~f xs ys =
   match List.zip xs ys with
-  | Some xys -> List.for_all ~f xys
-  | None -> false
+  | Ok xys -> List.for_all ~f xys
+  | Unequal_lengths -> false
 
 let zip_map_fold ~f ~merge ~init xs ys =
   match List.zip xs ys with
-  | Some xys ->
+  | Ok xys ->
      Some (List.fold_left ~f:merge ~init @@ List.map ~f xys)
-  | None -> None
+  | Unequal_lengths -> None
 
 let rec find_and_drop ~f xs =
   match xs with

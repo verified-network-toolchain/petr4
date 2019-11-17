@@ -5,22 +5,6 @@ open Types
 open Core
 module Info = I
 
-
-let assert_package (v : value) : Declaration.t * (string * value) list =
-  match v with 
-  | VPackage{decl;args} -> (decl, args) 
-  | _ -> failwith "main is not a package" 
-
-let assert_packet_in (p : vruntime) : packet_in =
-  match p with
-  | PacketIn x -> x
-  | _ -> failwith "not a packet in"  
-
-let assert_runtime (v : value) : vruntime =
-  match v with
-  | VRuntime r -> r
-  | _ -> failwith "not a runtime value"
-
 type extern = EvalEnv.t -> value list -> EvalEnv.t * value
 
 module type Target = sig

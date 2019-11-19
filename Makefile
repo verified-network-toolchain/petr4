@@ -34,4 +34,4 @@ clean:
 	dune clean
 
 build_js:
-	cd bin && dune build ./main.bc.js --profile release && cp ../_build/default/bin/main.bc.js ../html_build/ && cd ..
+	cd web && dune build ./web.bc.js --profile release && cp ../_build/default/web/web.bc.js ../html_build/ && cd ..

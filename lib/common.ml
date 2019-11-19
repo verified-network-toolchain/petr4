@@ -13,16 +13,19 @@
  * under the License.
 *)
 
-open Core
+module P4Info = Info
+open Core_kernel
+module Info = P4Info
+
 (* open Core_extended.Std *)
-open Petr4
 
 exception ParsingError of string
 
-let colorize colors s = ANSITerminal.sprintf colors "%s" s
+(* let colorize colors s = ANSITerminal.sprintf colors "%s" s
 let red s = colorize [ANSITerminal.red] s
-let green s = colorize [ANSITerminal.green] s
-
+let green s = colorize [ANSITerminal.green] s *)
+let red s = s
+let green s = s
 
 let parse include_dirs p4_file verbose preprocess =
   let () = Lexer.reset () in

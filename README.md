@@ -34,7 +34,6 @@ implementation.
     ```
     If the version is less than 4.08.0, upgrade:
     ```
-
     opam switch 4.08.0
     ```        
 

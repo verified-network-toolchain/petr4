@@ -1,4 +1,5 @@
 open Core
+open Env
 open Util
 open Types
 
@@ -45,7 +46,7 @@ let rec subst_vars_type env typ =
   match snd typ with
   | TypeName name ->
      let name_info, nm = name in
-     begin match Env.resolve_type_name_opt nm env with
+     begin match CheckerEnv.resolve_type_name_opt nm env with
      | Some (TypeName v) -> (TypeName (name_info, v))
      | Some _ -> failwith "unexpected type value during elaboration"
      | None -> TypeName name
@@ -184,7 +185,7 @@ let subst_vars_params env params =
 
 let freshen_param env gen param = 
   let param' = Renamer.freshen_name gen param in
-  Env.insert_type param (TypeName param') env, param'
+  CheckerEnv.insert_type param (TypeName param') env, param'
 
 let rec freshen_params env gen params =
   match params with
@@ -260,7 +261,7 @@ let rec elab_decls' env gen decls =
   match decls with
   | decl :: decls ->
      let decl = elab_decl env gen decl in
-     let env = Env.insert_decl decl env in
+     let env = CheckerEnv.insert_decl decl env in
      decl :: elab_decls' env gen decls
   | [] -> []
 
@@ -277,5 +278,5 @@ let elab_decls env gen decls =
 
 let elab (Program decls) =
   let gen = Renamer.create () in
-  let env = Env.empty_checker_env in
+  let env = CheckerEnv.empty_t in
   Program (elab_decls env gen decls)

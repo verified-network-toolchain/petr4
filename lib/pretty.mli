@@ -6,30 +6,30 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software 
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations 
- * under the License. 
- *)
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+*)
 
-module P4Int : sig 
-  val format_t : Format.formatter -> Types.P4Int.t -> unit 
+module P4Int : sig
+  val format_t : Format.formatter -> Types.P4Int.t -> unit
 end
 
 module P4String : sig
-  val format_t : Format.formatter -> Types.P4String.t -> unit 
+  val format_t : Format.formatter -> Types.P4String.t -> unit
 end
 
 module Expression : sig
-  val format_t : Format.formatter -> Types.Expression.t -> unit 
-end  
-
-module MethodPrototype : sig 
-  val format_t : Format.formatter -> Types.MethodPrototype.t -> unit 
+  val format_t : Format.formatter -> Types.Expression.t -> unit
 end
 
-module Statement : sig 
+module MethodPrototype : sig
+  val format_t : Format.formatter -> Types.MethodPrototype.t -> unit
+end
+
+module Statement : sig
   val format_t : Format.formatter -> Types.Statement.t -> unit
 end
 

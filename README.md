@@ -32,10 +32,11 @@ implementation.
     ```
     ocamlc -v
     ```
-    If the version is less than 4.06.0, upgrade:
+    If the version is less than 4.08.0, upgrade:
     ```
-    opam switch 4.06.0
-    ```
+
+    opam switch 4.08.0
+    ```        
 
 1. Use OPAM to build and install Petr4. This will take a while the first time
    because it installs OPAM dependencies.

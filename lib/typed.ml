@@ -198,81 +198,81 @@ end
 
 and Type : sig
   type t =
-  (* bool *)
-  | Bool
+    (* bool *)
+    | Bool
 
-  (* string *)
-  | String
+    (* string *)
+    | String
 
-  (* int *)
-  | Integer
+    (* int *)
+    | Integer
 
-  (* int<width> *)
-  | Int of IntType.t
+    (* int<width> *)
+    | Int of IntType.t
 
-  (* bit<width> *)
-  | Bit of IntType.t
+    (* bit<width> *)
+    | Bit of IntType.t
 
-  (* varbit<width> *)
-  | VarBit of IntType.t
+    (* varbit<width> *)
+    | VarBit of IntType.t
 
-  (* t[size] *)
-  | Array of ArrayType.t
+    (* t[size] *)
+    | Array of ArrayType.t
 
-  (* (t1, ..., tn) *)
-  | Tuple of TupleType.t
+    (* (t1, ..., tn) *)
+    | Tuple of TupleType.t
 
-  (* A list expression (can be used as a Tuple or struct/header) *)
-  | List of TupleType.t
+    (* A list expression (can be used as a Tuple or struct/header) *)
+    | List of TupleType.t
 
-  (* set<t> *)
-  | Set of t
+    (* set<t> *)
+    | Set of t
 
-  (* General error type *)
-  | Error
+    (* General error type *)
+    | Error
 
-  (* match_kind *)
-  | MatchKind
+    (* match_kind *)
+    | MatchKind
 
-  (* References to other types *)
-  | TypeName of string
+    (* References to other types *)
+    | TypeName of string
 
-  (* References to other types in the top-level namespace *)
-  | TopLevelType of string
+    (* References to other types in the top-level namespace *)
+    | TopLevelType of string
 
-  (* P4 void (acts like unit) *)
-  | Void
+    (* P4 void (acts like unit) *)
+    | Void
 
-  (* header { l1: t1, ..., ln : tn } *)
-  | Header of RecordType.t
+    (* header { l1: t1, ..., ln : tn } *)
+    | Header of RecordType.t
 
-  (* header union {11 : h1, ..., ln : hn} *)
-  | HeaderUnion of RecordType.t
+    (* header union {11 : h1, ..., ln : hn} *)
+    | HeaderUnion of RecordType.t
 
-  (* struct { l1: t1, ..., ln : tn } *)
-  | Struct of RecordType.t
+    (* struct { l1: t1, ..., ln : tn } *)
+    | Struct of RecordType.t
 
-  (* enum { l1, ..., ln } *)
-  | Enum of EnumType.t
+    (* enum { l1, ..., ln } *)
+    | Enum of EnumType.t
 
-  (* Type application *)
-  | SpecializedType of SpecializedType.t
+    (* Type application *)
+    | SpecializedType of SpecializedType.t
 
-  | Package of PackageType.t
+    | Package of PackageType.t
 
-  | Control of ControlType.t
+    | Control of ControlType.t
 
-  | Parser of ControlType.t
+    | Parser of ControlType.t
 
-  | Extern of ExternType.t
+    | Extern of ExternType.t
 
-  (* <return type> <function name>(x1,...,xn) {...} *)
-  | Function of FunctionType.t
+    (* <return type> <function name>(x1,...,xn) {...} *)
+    | Function of FunctionType.t
 
-  | Action of ActionType.t
+    | Action of ActionType.t
 
-  | Table of TableType.t
-  [@@deriving sexp]
+    | Table of TableType.t
+    [@@deriving sexp]
 end = struct
   type t =
   (* bool *)

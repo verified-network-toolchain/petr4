@@ -22,7 +22,10 @@ let rec eval_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
       typ = typ;
       args = args;
       name = (_,n);
+      init = None
     } -> eval_instantiation env typ args n
+  | Instantiation { init = Some _; _ } ->
+     failwith "evaluating instantiations with initializers is unimplemented"
   | Parser {
       annotations = _;
       name = (_,n);
@@ -192,9 +195,14 @@ and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     (size : Expression.t) : EvalEnv.t * signal =
   let env' = EvalEnv.insert_typ name typ env in
   let (env'', s, size') = eval_expression' env' SContinue size in
+  let size'' = assert_rawint size' in
   match s with
   | SContinue ->
-    let vset = VSet (SValueSet{size=size';members=EvalEnv.get_value_set env''}) in
+    let ms = EvalEnv.get_value_set env'' in
+    if Bigint.(Bigint.of_int (List.length ms) > size'')
+    then failwith "too many elements inserted to value set"
+    else
+    let vset = VSet (SValueSet{size=size';members=ms;sets=[]}) in
     let env''' = EvalEnv.insert_val name vset env'' in
     (env''', s)
   | SReject -> (env, s)
@@ -318,7 +326,7 @@ and filter_lpm_prod (env : EvalEnv.t) (mks : string list) (ks : value list)
     | _ -> failwith "not lpm prod" in
   let entries =
     entries
-    |> List.filter ~f:(fun (s,a) -> values_match_set env ks s)
+    |> List.filter ~f:(fun (s,a) -> values_match_set ks s)
     |> List.map ~f:f in
   let ks' = [List.nth_exn ks index] in
   (sort_lpm entries, ks')
@@ -397,6 +405,7 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   match snd typ with
   | Bool                      -> VBool false
   | Error                     -> VError "NoError"
+  | Integer                   -> VInteger Bigint.zero
   | IntType expr              -> init_val_of_int env expr
   | BitType expr              -> init_val_of_bit env expr
   | VarBit expr               -> init_val_of_varbit env expr
@@ -524,7 +533,7 @@ and eval_table (env : EvalEnv.t) (key : value list)
     (entries : (set * Table.action_ref) list)
     (name : string) (actions : Table.action_ref list)
     (default : Table.action_ref) : EvalEnv.t * signal * value =
-  let l = List.filter entries ~f:(fun (s,a) -> values_match_set env key s) in
+  let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
   let action = match l with
                | [] -> default
                | _ -> List.hd_exn l |> snd in
@@ -615,7 +624,7 @@ and eval_switch (env : EvalEnv.t) (sign : signal) (expr : Expression.t)
   | SContinue -> begin match s' with
     | SReject -> (env', SReject)
     | SContinue ->
-      let s = assert_enum v in
+      let s = assert_enum v |> snd in
       cases
       |> List.map ~f:snd
       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
@@ -1642,41 +1651,10 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
 
 and copyin (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) : EvalEnv.t * signal =
-  let f i (env,sign) e =
-    Parameter.(
-      let p = snd (List.nth_exn params i) in
-      let ((env',s,v), n) = match snd e with
-        | Argument.Expression {value=expr} ->
-          (eval_expression' env SContinue expr, snd p.variable)
-        | Argument.KeyValue {value=expr;key=(_,n)} ->
-          (eval_expression' env SContinue expr, n)
-        | Argument.Missing ->
-          (eval_expression' env SContinue (assert_some p.opt_value), snd p.variable) in
-      match (sign,s) with
-      | SContinue,SContinue -> ((env',s), (n,v))
-      | SReject, _ -> ((env,sign),(n,VNull))
-      | _,SReject -> ((env',s),(n,VNull))
-      | _ -> failwith "unreachable") in
   let fenv = EvalEnv.push_scope env in
-  let ((fenv',s),arg_vals) = List.fold_mapi args ~f:f ~init:(fenv,SContinue) in
-  let g e (p : Parameter.t) (n,v) =
-    let name = n in
-    let v' = match v with
-      | VHeader{fields=l;is_valid=b;_} -> VHeader{name;fields=l;is_valid=b}
-      | VStruct{fields=l;_}            -> VStruct{name;fields=l}
-      | _ -> v in
-    match (snd p).direction with
-    | None -> e
-              |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
-              |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
-    | Some x -> begin match snd x with
-        | InOut
-        | In ->
-          e
-          |> EvalEnv.insert_val_firstlevel (snd (snd p).variable) v'
-          |> EvalEnv.insert_typ_firstlevel (snd (snd p).variable) (snd p).typ
-        | Out -> e end in
-  let fenv' = List.fold2_exn params arg_vals ~init:fenv' ~f:g in
+  let ((fenv',s),arg_vals) =
+    List.fold_mapi args ~f:(eval_nth_arg params) ~init:(fenv,SContinue) in
+  let fenv' = List.fold2_exn params arg_vals ~init:fenv' ~f:insert_arg in
   match s with
   | SContinue -> (fenv',s)
   | SReject -> (fenv',s)
@@ -1685,32 +1663,69 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
 and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) : EvalEnv.t =
   let env = EvalEnv.pop_scope fenv in
-  let h e (p:Parameter.t) a =
-    match (snd p).direction with
-    | None ->
-     begin match snd (snd p).typ with
-        | TypeName(_,n)
-        | TopLevelType(_,n) ->
-          begin match snd (EvalEnv.find_decl_toplevel n e) with
-            | ExternObject _ ->
-              let v = EvalEnv.find_val (snd (snd p).variable) fenv in
-              begin match snd a with
-                | Argument.Expression {value=expr}
-                | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
-                | Argument.Missing -> e end
-            | _ -> e end
-        | _ -> e end
-    | Some x -> begin match snd x with
-        | InOut
-        | Out ->
-          let v = EvalEnv.find_val (snd (snd p).variable) fenv in
-          begin match snd a with
-            | Argument.Expression {value=expr}
-            | Argument.KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
-            | Argument.Missing -> e end
-        | In -> e end in
-  List.fold2_exn params args ~init:env ~f:h
+  List.fold2_exn params args ~init:env ~f:(copy_arg_out fenv)
   |> EvalEnv.set_error (EvalEnv.get_error fenv)
+
+and eval_nth_arg (params : Parameter.t list) (i : int)
+    ((env,sign) : EvalEnv.t * signal)
+    (e : Argument.t) : (EvalEnv.t * signal) * (string * value) =
+  let open Parameter in
+  let open Argument in
+  let p = snd (List.nth_exn params i) in
+  let ((env',s,v), n) = match snd e with
+    | Expression {value=expr} ->
+      (eval_expression' env SContinue expr, snd p.variable)
+    | KeyValue {value=expr;key=(_,n)} ->
+      (eval_expression' env SContinue expr, n)
+    | Missing ->
+      (eval_expression' env SContinue (assert_some p.opt_value), snd p.variable) in
+  match (sign,s) with
+  | SContinue,SContinue -> ((env',s), (n,v))
+  | SReject, _ -> ((env,sign),(n,VNull))
+  | _,SReject -> ((env',s),(n,VNull))
+  | _ -> failwith "unreachable"
+
+and insert_arg (e : EvalEnv.t) (p : Parameter.t) ((name,v) : string * value) : EvalEnv.t =
+  let v' = match v with
+    | VHeader{fields=l;is_valid=b;_} -> VHeader{name;fields=l;is_valid=b}
+    | VStruct{fields=l;_}            -> VStruct{name;fields=l}
+    | _ -> v in
+  let var = snd (snd p).variable in
+  let f = EvalEnv.insert_val_firstlevel in
+  let g = EvalEnv.insert_typ_firstlevel in
+  match (snd p).direction with
+  | None -> e |> f var v' |> g var (snd p).typ
+  | Some x ->
+    begin match snd x with
+      | InOut
+      | In -> e |> f var v' |> g var (snd p).typ
+      | Out -> e end
+
+and copy_arg_out (fenv : EvalEnv.t) (e : EvalEnv.t) (p : Parameter.t)
+    (a : Argument.t) : EvalEnv.t =
+  match (snd p).direction with
+  | None ->
+    begin match snd (snd p).typ with
+      | TypeName(_,n)
+      | TopLevelType(_,n) ->
+        if is_extern_object (EvalEnv.find_decl_toplevel n e)
+        then copy_arg_out_h fenv e p a
+        else e
+      | _ -> e end
+  | Some x ->
+    begin match snd x with
+      | InOut
+      | Out -> copy_arg_out_h fenv e p a
+      | In -> e end
+
+and copy_arg_out_h (fenv : EvalEnv.t) (e : EvalEnv.t) (p : Parameter.t)
+    (a : Argument.t) : EvalEnv.t =
+  let open Argument in
+  let v = EvalEnv.find_val (snd (snd p).variable) fenv in
+  begin match snd a with
+    | Expression {value=expr}
+    | KeyValue {value=expr;_} -> fst (eval_assign' e (lvalue_of_expr expr) v)
+    | Missing -> e end
 
 (*----------------------------------------------------------------------------*)
 (* Built-in Function Evaluation *)
@@ -1724,13 +1739,13 @@ and eval_builtin (env : EvalEnv.t) (name : string) (lv : lvalue)
   | "setInvalid" -> eval_setbool env lv false
   | "pop_front"  -> eval_popfront env lv args
   | "push_front" -> eval_pushfront env lv args
-  | "extract"    -> eval_extract env lv args ts
-  | "emit"       -> eval_emit env lv args
-  | "length"     -> eval_length env lv
-  | "lookahead"  -> eval_lookahead env lv ts
-  | "advance"    -> eval_advance env lv args
+  | (* TODO *) "extract"    -> eval_extract env lv args ts
+  | (* TODO *) "emit"       -> eval_emit env lv args
+  | (* TODO *) "length"     -> eval_length env lv
+  | (* TODO *) "lookahead"  -> eval_lookahead env lv ts
+  | (* TODO *) "advance"    -> eval_advance env lv args
   | "apply"      -> let (s,v) = value_of_lvalue env lv in eval_app env s v args
-  | "verify"     -> eval_verify env args
+  | (* TODO *) "verify"     -> eval_verify env args
   | _ -> failwith "builtin unimplemented"
 
 and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
@@ -2138,7 +2153,7 @@ and width_of_typ (env : EvalEnv.t) (t : Type.t) : Bigint.t =
   | HeaderStack{header=t';size=e} -> width_of_stack env t' e
   | Tuple l -> width_of_tuple env l
   | Void | DontCare -> Bigint.zero
-  | Error | VarBit _ -> failwith "type does not a have a fixed width"
+  | Error | VarBit _ | Integer -> failwith "type does not a have a fixed width"
   | SpecializedType _ -> failwith "unimplemented"
 
 and width_of_tuple (env : EvalEnv.t) (l : Type.t list) : Bigint.t =
@@ -2204,7 +2219,7 @@ and val_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t) (v : value)
   | VParser _
   | VControl _
   | VPackage _
-  | VTable _           -> failwith "value does not have a fixed width"
+  | VTable _ -> failwith "value does not have a fixed width"
 
 and tuple_of_bigint (env : EvalEnv.t) (w : Bigint.t) (n : Bigint.t)
     (t : Type.t) (l : value list) : value =
@@ -2321,7 +2336,17 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
       let (x,y,z) = set_of_case e s set ws in
       ((x,y),(z,x)) in
     let ((env'',s), ss) = List.fold_map cases ~init:(env', SContinue) ~f:g in
-    let ms = List.map ss ~f:(fun (x,y) -> (values_match_set env'' vs x, y)) in
+    let coerce_value_set s =
+      match s with
+      | SValueSet {size=si;members=ms;_},e ->
+        let h (a,b) c =
+          let (x,y,z) = set_of_matches a b c ws in
+          ((x,y),z) in
+        let ((e',_),ss) = List.fold_map ms ~init:(e,SContinue) ~f:h in
+        (SValueSet {size=si;members=ms;sets=ss},e')
+      | x -> x in
+    let ss' = List.map ss ~f:coerce_value_set in
+    let ms = List.map ss' ~f:(fun (x,y) -> (values_match_set vs x, y)) in
     let ms' = List.zip_exn ms cases
               |> List.map ~f:(fun ((b,env),c) -> (b,(env,c))) in
     let next = List.Assoc.find ms' true ~equal:(=) in
@@ -2365,15 +2390,15 @@ and set_of_match (env : EvalEnv.t) (s : signal)
   | SReject -> (env, s, SUniversal)
   | _ -> failwith "unreachable"
 
-and values_match_set (env : EvalEnv.t) (vs : value list) (s : set) : bool =
+and values_match_set (vs : value list) (s : set) : bool =
   match s with
   | SSingleton{w;v}     -> values_match_singleton vs v
   | SUniversal          -> true
   | SMask{v=v1;mask=v2} -> values_match_mask vs v1 v2
   | SRange{lo=v1;hi=v2} -> values_match_range vs v1 v2
-  | SProd l             -> values_match_prod env vs l
+  | SProd l             -> values_match_prod vs l
   | SLpm{w=v1;v=v2;_}   -> values_match_mask vs v1 v2
-  | SValueSet {members=ms;_}   -> values_match_value_set env vs ms
+  | SValueSet {sets=ss;_}   -> values_match_value_set vs ss
 
 and values_match_singleton (vs : value list) (n : Bigint.t) : bool =
   let v = assert_singleton vs in
@@ -2401,15 +2426,13 @@ and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
     w0 = w1 && w1 = w2 && Bigint.(b1 <= b0 && b0 <= b2)
   | _ -> failwith "implicit casts unimplemented"
 
-and values_match_prod (env : EvalEnv.t) (vs : value list) (l : set list) : bool =
-  let bs = List.mapi l ~f:(fun i x -> values_match_set env [List.nth_exn vs i] x) in
+and values_match_prod (vs : value list) (l : set list) : bool =
+  let bs = List.mapi l ~f:(fun i x -> values_match_set [List.nth_exn vs i] x) in
   List.for_all bs ~f:(fun b -> b)
 
-and values_match_value_set (env : EvalEnv.t) (vs : value list)
-    (ms : Match.t list) : bool =
-  let ws = List.map vs ~f:width_of_val in
-  let (e,s,set) = set_of_matches env SContinue ms ws in
-  values_match_set e vs set
+and values_match_value_set (vs : value list) (l : set list) : bool =
+  let bs = List.map l ~f:(values_match_set vs) in
+  List.exists bs ~f:(fun b -> b)
 
 (* -------------------------------------------------------------------------- *)
 (* Control Evaluation *)
@@ -2434,8 +2457,6 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
 (* Helper functions *)
 (*----------------------------------------------------------------------------*)
 
-and snd3 (a,b,c) = b
-
 and thrd3 (a,b,c) = c
 
 and assert_singleton (vs : value list) : value =
@@ -2443,99 +2464,10 @@ and assert_singleton (vs : value list) : value =
   | [v] -> v
   | _ -> failwith "value list has more than one element"
 
-and assert_bool (v : value) : bool =
-  match v with
-  | VBool b -> b
-  | _ -> failwith "not a bool"
-
-and assert_rawint (v : value) : Bigint.t =
-  match v with
-  | VInteger n -> n
-  | _ -> failwith "not a raw int type"
-
-and assert_bit (v : value) : Bigint.t * Bigint.t =
-  match v with
-  | VBit{w;v=n} -> (w,n)
-  | _ -> failwith "not a bitstring"
-
-and assert_int (v : value) : Bigint.t * Bigint.t =
-  match v with
-  | VInt{w;v=n} -> (w,n)
-  | _ -> failwith "not a signed bitstring"
-
-and assert_varbit (v : value) : Bigint.t * Bigint.t * Bigint.t =
-  match v with
-  | VVarbit{max=fw;w=dw;v=n} -> (fw,dw,n)
-  | _ -> failwith "not a varbit"
-
-and assert_tuple (v : value) : value list =
-  match v with
-  | VTuple l -> l
-  | _ -> failwith "not a tuple"
-
-and assert_set (v : value) (w : Bigint.t) : set =
-  match v with
-  | VSet s -> s
-  | VInteger i   -> SSingleton{w;v=i}
-  | VInt {v=i;_} -> SSingleton{w;v=i}
-  | VBit {v=i;_} -> SSingleton{w;v=i}
-  | _ -> failwith "not a set"
-
-and assert_string (v : value) : string =
-  match v with
-  | VString s -> s
-  | _ -> failwith "not a string"
-
-and assert_error (v : value) : string =
-  match v with
-  | VError s -> s
-  | _ -> failwith "not an error"
-
-and assert_struct (v : value) : string * (string * value) list =
-  match v with
-  | VStruct{name=n;fields=vs} -> (n,vs)
-  | _ -> failwith "not a struct"
-
-and assert_header (v : value) : string * (string * value) list * bool =
-  match v with
-  | VHeader{name=n;fields=l;is_valid=b} -> (n,l,b)
-  | _ -> failwith "not a header"
-
-and assert_stack (v : value) : (string * value list * Bigint.t * Bigint.t) =
-  match v with
-  | VStack{name=s;headers=vs;size;next=n} -> (s,vs,size,n)
-  | _ -> failwith "not a stack"
-
-and assert_runtime (v : value) : vruntime =
-  match v with
-  | VRuntime r -> r
-  | _ -> failwith "not a runtime value"
-
-and assert_package (v : value) : Declaration.t * (string * value) list =
-  match v with
-  | VPackage{decl;args} -> (decl,args)
-  | _ -> failwith "main is not a package"
-
-and assert_packet_in (p : vruntime) : packet_in =
-  match p with
-  | PacketIn x -> x
-  | _ -> failwith "not a packet in"
-
-and assert_packet_out (v : vruntime) : packet_out =
-  match v with
-  | PacketOut p -> p
-  | _ -> failwith "not a packet_out"
-
 and assert_some (x : 'a option) : 'a =
   match x with
   | None -> failwith "is none"
   | Some v -> v
-
-and assert_lpm (s : set) : value * Bigint.t * value =
-  match s with
-  | SLpm{w=v1;nbits=bs;v=v2} -> (v1,bs,v2)
-  | SUniversal -> failwith "universal"
-  | _ -> failwith "not lpm"
 
 and is_default (p : Table.pre_property) : bool =
   match p with
@@ -2583,11 +2515,6 @@ and assert_key (p : Table.pre_property) : Table.key list =
   | Key{keys=ks} -> ks
   | _ -> failwith "not a key"
 
-and assert_enum (v : value) : string =
-  match v with
-  | VEnumField{enum_name=s;_} -> s
-  | _ -> failwith "not an enum"
-
 and assert_typ (typ_or_decl : (Type.t, Declaration.t) Util.alternative) : Type.t =
   match typ_or_decl with
   | Left typ -> typ
@@ -2597,6 +2524,11 @@ and assert_typ_def (typ : Declaration.t) : (Type.t, Declaration.t) Util.alternat
   match snd typ with
   | TypeDef {typ_or_decl;_} -> typ_or_decl
   | _ -> failwith "not a typedef"
+
+and is_extern_object (d : Declaration.t) : bool =
+  match snd d with
+  | ExternObject _ -> true
+  | _ -> false
 
 and decl_of_typ (e : EvalEnv.t) (t : Type.t) : Declaration.t =
   match snd t with
@@ -2836,7 +2768,7 @@ let hex_of_string (s : string) : string =
   |> List.fold_left ~init:"" ~f:(^)
 
 let eval_main (env : EvalEnv.t) (pack : packet_in)
-    (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list) : packet_in =
+    (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list list) : packet_in =
   let env' = EvalEnv.insert_table_entries ctrl env in
   let env'' = EvalEnv.insert_value_set_cases ctrl_vs env' in
   let name =
@@ -2864,7 +2796,7 @@ let eval_expression env expr =
   (a,c)
 
 let eval_program (p : Types.program) (pack : packet_in)
-  (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list) : string =
+  (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list list) : string =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;

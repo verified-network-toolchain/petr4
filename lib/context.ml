@@ -14,11 +14,9 @@
 *)
 
 open Core_kernel
+open Util
 
-(* Type of context *)
-module StringMap = Map.Make(String)
-
-type t = (bool StringMap.t) list
+type t = (bool StringMap.t) list [@@deriving sexp]
 
 (* Current context, stored as a mutable global variable *)
 let context = ref [StringMap.empty]

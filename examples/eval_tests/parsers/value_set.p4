@@ -7,7 +7,6 @@ header head {
 
 struct metadata { }
 struct vsk_t {
-    @match(ternary)
     bit<8> look;
 }
 

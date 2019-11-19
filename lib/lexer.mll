@@ -143,6 +143,8 @@ rule tokenize = parse
     { INTEGER (parse_width_int s n (info lexbuf)) }
   | sign as s int as n
     { INTEGER (parse_width_int s n (info lexbuf)) }
+  | "abstract"
+      { ABSTRACT (info lexbuf) }
   | "action"
       { ACTION (info lexbuf) }
   | "actions"

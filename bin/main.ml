@@ -13,89 +13,79 @@
  * under the License.
 *)
 
-open Core_kernel
+open Core
+(* open Core_extended.Std *)
 open Petr4
-open Js_of_ocaml
-open Js_of_ocaml_lwt
+open Common
 
 exception ParsingError of string
 
-let preprocess p4_file_contents =
+let preprocess include_dirs p4file =
   let buf = Buffer.create 101 in
-  let env = P4pp.Eval.{ file = "typed_input"; defines = []} in
-  ignore (P4pp.Eval.preprocess_string [] env buf p4_file_contents);
+  let env = P4pp.Eval.{ file = p4file; defines = []} in
+  ignore (P4pp.Eval.preprocess_file [] env buf p4file);
   Buffer.contents buf
 
-(*cc needs to be called before this, requiring this from users for now*)
-let parse p4_file_name (p4_file_contents:string) verbose =
-  let () = Lexer.reset () in
-  let () = Lexer.set_filename p4_file_name in
-  let lexbuf = Lexing.from_string p4_file_contents in
-  try
-    let prog = Parser.p4program Lexer.lexer lexbuf in
-    if verbose then Format.eprintf "[%s] %s@\n%!" ("Passed") p4_file_name;
-    `Ok prog
-  with
-  | err ->
-    if verbose then Format.eprintf "[%s] %s@\n%!" ("Failed") p4_file_name;
-    Lexer.info lexbuf |> Petr4.Info.to_string |> print_endline;
-    `Error (Lexer.info lexbuf, err)
+let check_dir include_dirs p4_dir verbose =
+  let dir_handle = Unix.opendir p4_dir in
+  let rec loop () =
+    match Unix.readdir_opt dir_handle with
+    | None ->
+      ()
+    | Some file ->
+      if Filename.check_suffix file "p4" then
+        begin
+          Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
+          let p4_file = Filename.concat p4_dir file in
+          match parse include_dirs p4_file verbose preprocess with
+          | `Ok prog ->
+             let prog = Elaborate.elab prog in
+             Checker.check_program prog |> ignore;
+             Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
+          | `Error (info, Lexer.Error s) ->
+             Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
+          | `Error (info, Petr4.Parser.Error) ->
+             Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
+          | `Error (info, err) ->
+             Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+        end;
+      loop () in
+  loop ()
 
-let check_file (p4_file_name : string) (p4_file_contents : string)
-    (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
-  match parse p4_file_name p4_file_contents verbose with
-  | `Ok prog ->
-    let _ = () (*Checker.check_program prog*) in
-    if print_json then
-      let json = Types.program_to_yojson prog in
-      let to_string j =
-        if pretty_json then
-          Yojson.Safe.pretty_to_string j
-        else
-          Yojson.Safe.to_string j in
-      Format.printf "%s" (to_string json)
-    else
-      Format.printf "%a" Pretty.format_program prog
-  | `Error (info, Lexer.Error s) ->
-    Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-  | `Error (info, Parser.Error) ->
-    Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
-  | `Error (info, err) ->
-    Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+let command =
+  let spec =
+    let open Command.Spec in
+    empty
+    +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+    +> flag "-testdir" (optional string) ~doc:"<dir> Test all P4 files in directory"
+    +> flag "-json" no_arg ~doc:"Emit parsed program as JSON on stdout"
+    +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
+    +> flag "-verbose" no_arg ~doc:"Verbose mode"
+    +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
+    +> flag "-ctrl" (optional string) ~doc:"<file> Read a control plane config from file"
+    +> anon (maybe ("p4file" %:string)) in
+  Command.basic_spec
+    ~summary:"p4i: OCaml front-end for the P4 language"
+    spec
+    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file ctrl_file () ->
+       match p4_dir, p4_file, packet, ctrl_file with
+       | Some p4_dir,_,_,_ ->
+         check_dir include_dirs p4_dir verbose
+       | _, Some p4_file, Some pfile, Some cfile ->
+         check_file include_dirs p4_file print_json pretty_json verbose preprocess;
+          (* let packet_string =  *)
+          let ctrl_json = Yojson.Safe.from_file cfile in
+          let packet_string = Core_kernel.In_channel.read_all pfile in
+          eval_file include_dirs packet_string ctrl_json verbose preprocess p4_file
+          |> print_endline
+       | _, _, _, _ -> ())
 
-let eval_file p4_file_name verbose pfile =
-  let packet_string = Core_kernel.In_channel.read_all pfile in
-  let pack = Cstruct.of_hex packet_string in
-  let p4_file_contents = Core_kernel.In_channel.read_all p4_file_name in
-  match parse p4_file_name p4_file_contents verbose with
-  | `Ok prog -> Eval.eval_program prog pack []
-  | _ -> failwith "error unhandled"
+(*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
 
-let eval_string verbose packet_string p4_file_contents =
-  let pack = Cstruct.of_hex packet_string in
-  match parse "input.p4" p4_file_contents verbose with
-  | `Ok prog -> Eval.eval_program prog pack [] []
-  | _ -> "error when evaluating program!"
-
+(*let () = eval_file ["./examples"] "./examples/eval_tests/parsers/value_set.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
+         |> print_endline*)
 
 let () =
-   let form_submit = Dom_html.getElementById "form-submit" in
-   let text_area_of_string s  =
-      match Dom_html.getElementById s |> Dom_html.CoerceTo.textarea |> Js.Opt.to_option with
-      | Some x -> x
-      | _ -> failwith "unimp"
-    in
-    let area_input = text_area_of_string "code-area" in
-    let area_out = text_area_of_string "output" in
-    let area_packet = text_area_of_string "packet-area" in
-    Lwt.async @@ fun () ->
-      Lwt_js_events.clicks form_submit @@ fun _ _ ->
-        let packet = area_packet##.value |> Js.to_string in
-        area_input##.value |> Js.to_string |> print_endline;
-        area_out##.value :=
-          area_input##.value
-          |> Js.to_string
-          |> preprocess
-          |> eval_string true packet
-          |> Js.string;
-        Lwt.return ()
+   Format.printf "@[";
+   Command.run ~version:"0.1.1" command;
+   Format.printf "@]"

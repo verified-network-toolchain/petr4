@@ -12,20 +12,20 @@ module EvalEnv : sig
   val get_toplevel : t -> t
   val get_val_firstlevel : t -> (string * value) list
   val get_tables : t -> Table.pre_entry list
-  val get_value_set : t -> Match.t list
+  val get_value_set : t -> Match.t list list
 
   val insert_val : string -> value -> t -> t
   val insert_decl: string -> Declaration.t -> t -> t
   val insert_typ : string -> Type.t -> t -> t
   val insert_table_entry : Table.pre_entry -> t -> t
-  val insert_value_set_case : Match.t -> t -> t
+  val insert_value_set_case : Match.t list -> t -> t
   val insert_err : string -> t -> t
 
   val insert_vals : (string * value) list -> t -> t
   val insert_decls: (string * Declaration.t) list -> t ->t
   val insert_typs : (string * Type.t) list -> t -> t
   val insert_table_entries : Table.pre_entry list -> t -> t
-  val insert_value_set_cases : Match.t list -> t -> t
+  val insert_value_set_cases : Match.t list list -> t -> t
   val insert_errs : string list -> t ->t
 
   val find_val : string -> t -> value
@@ -53,9 +53,9 @@ module EvalEnv : sig
 end
 
 module CheckerEnv : sig
-  type t
+  type t [@@deriving sexp]
 
-  val empty_checker_env : t
+  val empty_t : t
 
   val find_decl : string -> t -> Types.Declaration.t
   val resolve_type_name_opt : string -> t -> Typed.Type.t option
@@ -73,5 +73,31 @@ module CheckerEnv : sig
   val push_scope : t -> t
   val pop_scope : t -> t
 
-  val eval_env_of_checker_env : t -> EvalEnv.t
+  val all_decls : t -> Types.Declaration.t list
+  val find_decl_opt : string -> t -> Types.Declaration.t option
+  val find_decl : string -> t -> Types.Declaration.t
+  val resolve_type_name_opt : string -> t -> Typed.Type.t option
+  val resolve_type_name : string -> t -> Typed.Type.t
+  val resolve_type_name_toplevel : string -> t -> Typed.Type.t
+  val resolve_type_name_toplevel_opt : string -> t -> Typed.Type.t option
+  val find_type_of_opt : string -> t -> (Typed.Type.t * Typed.direction) option
+  val find_type_of : string -> t -> Typed.Type.t * Typed.direction
+  val find_type_of_toplevel_opt : string -> t -> (Typed.Type.t * Typed.direction) option
+  val find_type_of_toplevel : string -> t -> Typed.Type.t * Typed.direction
+  val find_const : string -> t -> value
+  val find_const_opt : string -> t -> value option
+
+  val insert_decl : Types.Declaration.t -> t -> t
+  val insert_type : string -> Typed.Type.t -> t -> t
+  val insert_types : (string * Typed.Type.t) list -> t -> t
+  val insert_type_of : string -> Typed.Type.t -> t -> t
+  val insert_type_of_toplevel : string -> Typed.Type.t -> t -> t
+  val insert_dir_type_of : string -> Typed.Type.t -> Typed.direction -> t -> t
+  val insert_type_var : string -> t -> t
+  val insert_type_vars : string list -> t -> t
+  val insert_const : string -> value -> t -> t
+  val push_scope : t -> t
+  val pop_scope : t -> t
+
+  val eval_env_of_t : t -> EvalEnv.t
 end

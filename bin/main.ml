@@ -141,11 +141,7 @@ let command =
          let _ = eval_file include_dirs p4_file verbose pfile cfile in ()
        | _, _, _, _ -> ())
 
-(*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
-
-let () = eval_file ["./examples"] "./examples/eval_tests/parsers/value_set.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
-
-(* let () =
-   Format.printf "@[";
-   Command.run ~version:"0.1.1" command;
-   Format.printf "@]" *)
+let () =
+  Format.printf "@[";
+  Command.run ~version:"0.1.1" command;
+  Format.printf "@]"

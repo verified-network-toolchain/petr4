@@ -132,7 +132,7 @@ let command =
   Command.basic_spec
     ~summary:"p4i: OCaml front-end for the P4 language"
     spec
-    (fun include_dirs p4_dir print_json pretty_json verbose packet p4_file ctrl_file () ->
+    (fun include_dirs p4_dir print_json pretty_json verbose packet ctrl_file p4_file () ->
        match p4_dir, p4_file, packet, ctrl_file with
        | Some p4_dir,_,_,_ ->
          check_dir include_dirs p4_dir verbose

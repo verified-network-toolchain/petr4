@@ -138,7 +138,7 @@ let command =
          check_dir include_dirs p4_dir verbose
        | _, Some p4_file, Some pfile, Some cfile ->
          check_file include_dirs p4_file print_json pretty_json verbose;
-         let _ = eval_file include_dirs p4_file verbose pfile cfile in ()
+         eval_file include_dirs p4_file verbose pfile cfile
        | _, _, _, _ -> ())
 
 let () =

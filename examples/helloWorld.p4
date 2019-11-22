@@ -22,7 +22,7 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        standard_metatadata.egress_spec = 9;
+        standard_metadata.egress_spec = 9;
     }
 }
 

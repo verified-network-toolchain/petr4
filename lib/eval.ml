@@ -414,6 +414,7 @@ and init_val_of_typ (env : EvalEnv.t) (name : string) (typ : Type.t) : value =
   | SpecializedType _         -> failwith "specialized init unimplemented"
   | HeaderStack{header; size} -> init_val_of_stack env name header size
   | Tuple l                   -> init_val_of_tuple env typ l
+  | String                    -> failwith "string init unimplemented"
   | Void                      -> VNull
   | DontCare                  -> VNull
 
@@ -2153,7 +2154,7 @@ and width_of_typ (env : EvalEnv.t) (t : Type.t) : Bigint.t =
   | HeaderStack{header=t';size=e} -> width_of_stack env t' e
   | Tuple l -> width_of_tuple env l
   | Void | DontCare -> Bigint.zero
-  | Error | VarBit _ | Integer -> failwith "type does not a have a fixed width"
+  | Error | VarBit _ | Integer | String -> failwith "type does not a have a fixed width"
   | SpecializedType _ -> failwith "unimplemented"
 
 and width_of_tuple (env : EvalEnv.t) (l : Type.t list) : Bigint.t =

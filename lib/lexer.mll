@@ -205,6 +205,8 @@ rule tokenize = parse
       { SELECT (info lexbuf) }
   | "state"
       { STATE (info lexbuf) }
+  | "string"
+      { STRING (info lexbuf) }
   | "struct"
       { STRUCT (info lexbuf) }
   | "switch"

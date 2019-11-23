@@ -269,8 +269,7 @@ and eval_struct_decl (env : EvalEnv.t) (name : string)
   EvalEnv.insert_decl name decl env
 
 and eval_error_decl (env : EvalEnv.t) (errs : P4String.t list) : EvalEnv.t =
-  let errs' = List.map errs ~f:snd in
-  EvalEnv.insert_errs errs' env
+  env
 
 and eval_matchkind_decl (env : EvalEnv.t) (d : Declaration.t) : EvalEnv.t =
   env 
@@ -927,7 +926,7 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
       | BinaryOp{op; args=(l,r)}             -> eval_binop env op l r
       | Cast{typ;expr}                       -> eval_cast env typ expr
       | TypeMember{typ;name}                 -> eval_typ_mem env typ (snd name)
-      | ErrorMember t                        -> (env, s, EvalEnv.find_err (snd t) env)
+      | ErrorMember t                        -> (env, s, VError (snd t))
       | ExpressionMember{expr;name}          -> eval_expr_mem env expr name
       | Ternary{cond;tru;fls}                -> eval_ternary env cond tru fls
       | FunctionCall{func;type_args=ts;args} -> eval_funcall env func args ts

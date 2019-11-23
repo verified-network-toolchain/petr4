@@ -73,8 +73,6 @@ module EvalEnv = struct
     tables : Table.pre_entry list;
     (* a list of commands for populating value sets *)
     value_set : Match.t list list;
-    (* the error namespace *)
-    err : string list;
     (* the parser error *)
     parser_error : string
   }
@@ -85,7 +83,6 @@ module EvalEnv = struct
     typ = [[]];
     tables = [];
     value_set = [];
-    err = [];
     parser_error = "NoError";
   }
 
@@ -99,7 +96,6 @@ module EvalEnv = struct
      typ = get_last env.typ;
      tables = env.tables;
      value_set = env.value_set;
-     err = env.err;
      parser_error = env.parser_error;}
 
   let get_val_firstlevel env =
@@ -126,9 +122,6 @@ module EvalEnv = struct
   let insert_value_set_case case e =
     {e with value_set = case :: e.value_set }
 
-  let insert_err name e =
-    {e with err = name :: e.err}
-
   let insert_vals bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
@@ -144,9 +137,6 @@ module EvalEnv = struct
   let insert_value_set_cases cases e =
     {e with value_set = e.value_set @ cases }
 
-  let insert_errs ss e =
-    {e with err = e.err @ ss}
-
   let find_val name e =
     find name e.vs
 
@@ -155,11 +145,6 @@ module EvalEnv = struct
 
   let find_typ name e =
     find name e.typ
-
-  let find_err name e =
-    if List.exists ~f:(fun a -> a = name) e.err
-    then VError name
-    else raise (UnboundName name)
 
   let insert_val_toplevel name v env =
     {env with vs = insert_toplevel name v env.vs}
@@ -194,7 +179,6 @@ module EvalEnv = struct
      typ = push e.typ;
      tables = e.tables;
      value_set = e.value_set;
-     err = e.err;
      parser_error = e.parser_error;}
 
   let pop_scope (e:t) : t =
@@ -203,7 +187,6 @@ module EvalEnv = struct
      typ = pop e.typ;
      tables = e.tables;
      value_set = e.value_set;
-     err = e.err;
      parser_error = e.parser_error;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
@@ -381,6 +364,5 @@ module CheckerEnv = struct
       typ = [[]];
       tables = [];
       value_set = [];
-      err = [];
       parser_error = "NoError"}
 end

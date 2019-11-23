@@ -19,19 +19,16 @@ module EvalEnv : sig
   val insert_typ : string -> Type.t -> t -> t
   val insert_table_entry : Table.pre_entry -> t -> t
   val insert_value_set_case : Match.t list -> t -> t
-  val insert_err : string -> t -> t
 
   val insert_vals : (string * value) list -> t -> t
   val insert_decls: (string * Declaration.t) list -> t ->t
   val insert_typs : (string * Type.t) list -> t -> t
   val insert_table_entries : Table.pre_entry list -> t -> t
   val insert_value_set_cases : Match.t list list -> t -> t
-  val insert_errs : string list -> t ->t
 
   val find_val : string -> t -> value
   val find_decl: string -> t -> Declaration.t
   val find_typ : string -> t -> Type.t
-  val find_err : string -> t -> value
 
   val insert_val_toplevel : string -> value -> t -> t
 

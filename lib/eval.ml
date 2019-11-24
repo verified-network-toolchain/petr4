@@ -187,7 +187,7 @@ and eval_var_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     let (env'', s, v) = eval_expression' env' SContinue e in
     match s with
     | SContinue -> (EvalEnv.insert_val name v env'', s)
-    | SReject -> (env, s)
+    | SReject _ -> (env, s)
     | SReturn _ -> failwith "variable declaration should not return"
     | SExit -> failwith "variable declaration should not exit"
 
@@ -205,7 +205,7 @@ and eval_set_decl (env : EvalEnv.t) (typ : Type.t) (name : string)
     let vset = VSet (SValueSet{size=size';members=ms;sets=[]}) in
     let env''' = EvalEnv.insert_val name vset env'' in
     (env''', s)
-  | SReject -> (env, s)
+  | SReject _ -> (env, s)
   | _ -> failwith "value set declaration should not return or exit"
 
 and eval_action_decl (env : EvalEnv.t) (name : string) (params : Parameter.t list)
@@ -492,7 +492,7 @@ and eval_method_call (env : EvalEnv.t) (sign : signal) (func : Expression.t)
     (args : Argument.t list) (ts : Type.t list) : EvalEnv.t * signal =
   match sign with
   | SContinue -> let (e,s,_) = eval_funcall env func args ts in (e,s)
-  | SReject
+  | SReject _
   | SReturn _
   | SExit     -> (env, sign)
 
@@ -503,10 +503,10 @@ and eval_assign (env : EvalEnv.t) (s : signal) (lhs : Expression.t)
     let (env', s', v) = eval_expression' env SContinue rhs in
     let lv = lvalue_of_expr lhs in
     begin match s' with
-      | SReject -> (env', SReject)
+      | SReject _ -> (env', s')
       | SContinue -> eval_assign' env' lv v
       | _ -> failwith "unreachable" end
-  | SReject
+  | SReject _
   | SReturn _
   | SExit     -> (env, s)
 
@@ -524,7 +524,7 @@ and eval_app (env : EvalEnv.t) (s : signal) (v : value)
       | VTable {keys;const_entries;name;actions;default_action} ->
         eval_table env keys const_entries name actions default_action
       | _ -> failwith "apply not implemented on type" end
-  | SReject
+  | SReject _
   | SReturn _
   | SExit -> (env, s, VNull)
 
@@ -562,7 +562,7 @@ and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
   let eval_cond' env cond tru fls =
     let (env', s', v) = eval_expression' env SContinue cond in
     match s' with
-    | SReject -> (env',s')
+    | SReject _ -> (env',s')
     | SContinue ->
       begin match v with
         | VBool true  -> eval_statement env' SContinue tru
@@ -574,7 +574,7 @@ and eval_cond (env : EvalEnv.t) (sign : signal) (cond : Expression.t)
     | _ -> failwith "unreachable" in
   match sign with
   | SContinue -> eval_cond' env cond tru fls
-  | SReject
+  | SReject _
   | SReturn _
   | SExit     -> (env, sign)
 
@@ -584,7 +584,7 @@ and eval_block (env : EvalEnv.t) (sign :signal)
   let f (env,sign) stm =
     match sign with
     | SContinue -> eval_statement env sign stm
-    | SReject
+    | SReject _
     | SReturn _
     | SExit     -> (env, sign) in
   List.fold_left block.statements ~init:(env,sign) ~f:f
@@ -594,7 +594,7 @@ and eval_exit (env : EvalEnv.t) (sign : signal) : (EvalEnv.t * signal) =
     | SContinue -> (env, SExit)
     | SReturn v -> (env, SReturn v) 
     | SExit -> (env, SExit)
-    | SReject -> failwith "reject and exit in the same block"
+    | SReject _ -> failwith "reject and exit in the same block"
 
 and eval_return (env : EvalEnv.t) (sign : signal)
     (expr : Expression.t option) : (EvalEnv.t * signal) =
@@ -603,12 +603,12 @@ and eval_return (env : EvalEnv.t) (sign : signal)
     | None   -> (env, SContinue, VNull)
     | Some e -> eval_expression' env SContinue e in
   match sign with
-  | SReject 
+  | SReject _
   | SReturn _
   | SExit -> (env,sign)
   | SContinue -> begin match s' with
       | SContinue -> (env', SReturn v)
-      | SReject   -> (env', SReject)
+      | SReject _ -> (env', s')
       | SReturn _
       | SExit     -> failwith "unreachable" end
 
@@ -617,11 +617,11 @@ and eval_switch (env : EvalEnv.t) (sign : signal) (expr : Expression.t)
   let open Statement in 
   let (env',s',v) = eval_expression' env SContinue expr in 
   match sign with 
-  | SReject
+  | SReject _
   | SReturn _ 
   | SExit -> (env, sign)
   | SContinue -> begin match s' with 
-    | SReject -> (env', SReject) 
+    | SReject _ -> (env', s') 
     | SContinue -> 
       let s = assert_enum v |> snd in 
       cases 
@@ -639,7 +639,7 @@ and eval_decl_stm (env : EvalEnv.t) (sign : signal)
     (decl : Declaration.t) : EvalEnv.t * signal =
   match sign with
   | SContinue -> (eval_decl env decl, SContinue)
-  | SReject
+  | SReject _
   | SReturn _
   | SExit     -> (env, sign)
 
@@ -691,7 +691,7 @@ and assign_member (env : EvalEnv.t) (lv : lvalue) (mname : string)
       | VStack{name=n;headers=hdrs;size=s;next=i} ->
         assign_stack_mem env lv rhs n mname hdrs s i
       | _ -> failwith "member access undefined" end
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s)
+  | SReject _ -> (env, s)
   | _ -> failwith "unreachable"
 
 and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
@@ -713,10 +713,10 @@ and assign_bitaccess (env : EvalEnv.t) (lv : lvalue) (msb : Expression.t)
         let diff' = Bigint.(diff * (power_of_two lsb'')) in
         let final = Bigint.(n - diff') in
         eval_assign' env'' lv (VBit{w;v=final})
-      | SReject -> (env'',s)
+      | SReject _ -> (env'',s)
       | _ -> failwith "unreachable" end
-  | SReject, _ -> (env',s)
-  | _, SReject -> (env'',s')
+  | SReject _, _ -> (env',s)
+  | _, SReject _ -> (env'',s')
   | _ -> failwith "unreachable"
 
 and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
@@ -739,10 +739,10 @@ and assign_arrayaccess (env : EvalEnv.t) (lv : lvalue) (e : Expression.t)
             let hdrs' = hdrs1 @ (rhs' :: t) in
             let rhs'' = VStack{name=n;headers=hdrs';size;next} in
             eval_assign' env' lv rhs''
-          | [] -> (EvalEnv.set_error "StackOutOfBounds" env', SReject) end
+          | [] -> (env', SReject "StackOutOfBounds") end
       | _ -> failwith "array access is not a header stack" end
-  | SReject,_ -> (EvalEnv.set_error "StackOutOfBounds" env, s)
-  | _,SReject -> (env', s)
+  | SReject _,_ -> (env, s)
+  | _,SReject _ -> (env', s')
   | _ -> failwith "unreachable"
 
 
@@ -777,7 +777,7 @@ and assign_stack_mem (env : EvalEnv.t) (lhs : lvalue) (rhs : value)
     | "next" -> ()
     | _ -> failwith "stack mem not an lvalue" in
   if next >= size
-  then (env, SReject)
+  then (env, SReject "StackOutOfBounds")
   else
     let t = typ_of_stack_mem env lhs in
     let rhs' = implicit_cast_from_tuple env (LMember{expr=lhs;name=mname}) mname rhs t in
@@ -820,7 +820,7 @@ and value_of_lmember (env : EvalEnv.t) (lv : lvalue)
     | _ -> failwith "no lvalue member" in
   match s with
   | SContinue -> (s,v')
-  | SReject -> (s,VNull)
+  | SReject _ -> (s,VNull)
   | _ -> failwith "unreachable"
 
 and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
@@ -833,7 +833,7 @@ and value_of_lbit (env : EvalEnv.t) (lv : lvalue) (hi : Expression.t)
   let l' = bigint_of_val l in
   match s with
   | SContinue -> (s, VBit{w=Bigint.(m' - l' + one);v=bitstring_slice n' m' l'})
-  | SReject -> (s, VNull)
+  | SReject _ -> (s, VNull)
   | _ -> failwith "unreachable"
 
 and value_of_larray (env : EvalEnv.t) (lv : lvalue)
@@ -845,9 +845,9 @@ and value_of_larray (env : EvalEnv.t) (lv : lvalue)
       | VStack{name=n;headers=vs;size=s;next=i} ->
         let idx' = eval_expression' env SContinue idx |> thrd3 |> bigint_of_val in
         begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx' % s)))
-          with Invalid_argument _ -> (SReject, VNull) end
+          with Invalid_argument _ -> (SReject "StackOutOfBounds", VNull) end
       | _ -> failwith "array access is not a header stack" end
-  | SReject -> (s,VNull)
+  | SReject _ -> (s,VNull)
   | _ -> failwith "unreachable"
 
 and value_of_stack_mem_lvalue (name : string) (vs : value list)
@@ -933,7 +933,7 @@ and eval_expression' (env : EvalEnv.t) (s : signal)
       | NamelessInstantiation{typ;args}      -> eval_nameless env typ args
       | Mask{expr;mask}                      -> eval_mask env expr mask
       | Range{lo;hi}                         -> eval_range env lo hi end
-  | SReject -> (env, s, VNull)
+  | SReject _ -> (env, s, VNull)
   | SReturn _ -> failwith "expression should not return"
   | SExit -> failwith "expresion should not exit"
 
@@ -957,8 +957,8 @@ and eval_array_access (env : EvalEnv.t) (a : Expression.t)
   let idx' = Bigint.(to_int_exn (idx % size)) in
   match (s,s') with
   | SContinue, SContinue -> (env'', SContinue, List.nth_exn hdrs idx')
-  | SReject,_ -> (env',s, VNull)
-  | _,SReject -> (env'',s',VNull)
+  | SReject _,_ -> (env',s, VNull)
+  | _,SReject _ -> (env'',s',VNull)
   | _ -> failwith "unreachable"
 
 and eval_bitstring_access (env : EvalEnv.t) (b : Expression.t)
@@ -973,9 +973,9 @@ and eval_bitstring_access (env : EvalEnv.t) (b : Expression.t)
   let n = bitstring_slice b' m' l' in
   match (s,s',s'') with
   | SContinue, SContinue, SContinue -> (env''', SContinue, VBit{w;v=n})
-  | SReject,_,_ -> (env',s,VNull)
-  | _,SReject,_ -> (env'', s,VNull)
-  | _,_,SReject -> (env''', s, VNull)
+  | SReject _,_,_ -> (env',s,VNull)
+  | _,SReject _,_ -> (env'', s',VNull)
+  | _,_,SReject _ -> (env''', s'', VNull)
   | _ -> failwith "unreachable"
 
 and eval_list (env : EvalEnv.t)
@@ -997,7 +997,7 @@ and eval_unary (env : EvalEnv.t) (op : Op.uni)
       | BitNot -> eval_bitnot env' v
       | UMinus -> eval_uminus env' v in
     (env,s,v)
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
@@ -1028,8 +1028,8 @@ and eval_binop (env : EvalEnv.t) (op : Op.bin) (l : Expression.t)
     | Or       -> eval_bor l r in
   match (s,s') with
   | SContinue, SContinue -> (env'', SContinue, v)
-  | SReject,_ -> (env',s,VNull)
-  | _,SReject -> (env'',s',VNull)
+  | SReject _,_ -> (env',s,VNull)
+  | _,SReject _ -> (env'',s',VNull)
   | _ -> failwith "unreachable"
 
 and eval_cast (env : EvalEnv.t) (typ : Type.t)
@@ -1044,8 +1044,8 @@ and eval_cast (env : EvalEnv.t) (typ : Type.t)
     | _ -> failwith "type cast unimplemented" in
   match (s,s') with
   | SContinue,SContinue -> (env'',s,v')
-  | SReject,_ -> (env',s,VNull)
-  | _,SReject -> (env'',s',VNull)
+  | SReject _,_ -> (env',s,VNull)
+  | _,SReject _ -> (env'',s',VNull)
   | _ -> failwith "unreachable"
 
 and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
@@ -1063,7 +1063,7 @@ and eval_typ_mem (env : EvalEnv.t) (typ : Type.t)
     let v' = implicit_cast_from_rawint env' v typ in
     begin match s with
       | SContinue -> (env',s,VSenumField{typ_name=n;enum_name=name;v=v'})
-      | SReject -> (env',s,VNull)
+      | SReject _ -> (env',s,VNull)
       | _ -> failwith "unreachable" end
   | _ -> failwith "typ mem undefined"
 
@@ -1097,7 +1097,7 @@ and eval_expr_mem (env : EvalEnv.t) (expr : Expression.t)
       | VParser _
       | VControl _                           -> (env', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr})
       | VTable _                             -> (env', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr}) end
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_ternary (env : EvalEnv.t) (c : Expression.t)
@@ -1118,7 +1118,7 @@ and eval_funcall (env : EvalEnv.t) (func : Expression.t)
       | VFun{params; body}            -> eval_funcall' env' params args body
       | VBuiltinFun{name=n;caller=lv} -> eval_builtin env n lv args ts
       | _ -> failwith "unreachable" end
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_nameless (env : EvalEnv.t) (typ : Type.t)
@@ -1148,7 +1148,7 @@ and eval_nameless (env : EvalEnv.t) (typ : Type.t)
     | _ -> failwith "instantiation unimplemented" in
   match s with
   | SContinue -> (env',s,v)
-  | SReject -> (env,s,VNull)
+  | SReject _ -> (env,s,VNull)
   | _ -> failwith "nameless should not return or exit"
 
 and eval_mask (env : EvalEnv.t) (e : Expression.t)
@@ -1157,8 +1157,8 @@ and eval_mask (env : EvalEnv.t) (e : Expression.t)
   let (env'', s', v2) = eval_expression' env' SContinue m in
   match (s,s') with
   | SContinue, SContinue -> (env'', s, VSet(SMask{v=v1;mask=v2}))
-  | SReject,_ -> (env',s,VNull)
-  | _,SReject -> (env'',s',VNull)
+  | SReject _,_ -> (env',s,VNull)
+  | _,SReject _ -> (env'',s',VNull)
   | _ -> failwith "unreachable"
 
 and eval_range (env : EvalEnv.t) (lo : Expression.t)
@@ -1167,8 +1167,8 @@ and eval_range (env : EvalEnv.t) (lo : Expression.t)
   let (env'', s', v2) = eval_expression' env' SContinue hi in
   match (s,s') with
   | SContinue, SContinue -> (env'', s, VSet(SRange{lo=v1;hi=v2}))
-  | SReject,_ -> (env',s,VNull)
-  | _,SReject -> (env'',s',VNull)
+  | SReject _,_ -> (env',s,VNull)
+  | _,SReject _ -> (env'',s',VNull)
   | _ -> failwith "unreachable"
 
 (*----------------------------------------------------------------------------*)
@@ -1512,7 +1512,7 @@ and bit_of_val (env : EvalEnv.t) (e : Expression.t)
     | _ -> failwith "cast to bitstring undefined" in
   match s with
   | SContinue -> (env', s,v')
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and int_of_val (env : EvalEnv.t) (e : Expression.t)
@@ -1526,7 +1526,7 @@ and int_of_val (env : EvalEnv.t) (e : Expression.t)
     | _ -> failwith "cast to bitstring undefined" in
   match s with
   | SContinue -> (env', s,v')
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and bit_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
@@ -1596,7 +1596,7 @@ and eval_stack_next (env : EvalEnv.t) (hdrs : value list) (size : Bigint.t)
     (next : Bigint.t) : EvalEnv.t * signal * value =
   let (env', s, hdr) =
     if Bigint.(next >= size)
-    then (EvalEnv.set_error "StackOutOfBounds" env, SReject, VNull)
+    then (env, SReject "StackOutOfBounds", VNull)
     else (env, SContinue, List.nth_exn hdrs Bigint.(to_int_exn next)) in
   (env', s, hdr)
 
@@ -1604,7 +1604,7 @@ and eval_stack_last (env : EvalEnv.t) (hdrs : value list) (size : Bigint.t)
     (next : Bigint.t) : EvalEnv.t * signal *  value =
   let (env', s, hdr) =
     if Bigint.(next < one) || Bigint.(next > size)
-    then (EvalEnv.set_error "StackOutOfBounds" env, SReject, VNull)
+    then (env, SReject "StackOutOfBounds", VNull)
     else (env, SContinue, List.nth_exn hdrs Bigint.(to_int_exn next)) in
   (env', s, hdr)
 
@@ -1643,10 +1643,10 @@ and eval_funcall' (env : EvalEnv.t) (params : Parameter.t list)
   let (fenv', sign) = eval_block fenv SContinue body in
   let final_env = copyout fenv' params args in
   match sign with
-  | SReject -> (final_env, SReject, VNull)
   | SReturn v -> (final_env, SContinue, v)
-  | SContinue -> (final_env, SContinue, VNull)
-  | SExit -> (final_env, SExit, VNull)
+  | SReject _
+  | SContinue
+  | SExit     -> (final_env, sign, VNull)
 
 and copyin (env : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) : EvalEnv.t * signal =
@@ -1656,14 +1656,13 @@ and copyin (env : EvalEnv.t) (params : Parameter.t list)
   let fenv' = List.fold2_exn params arg_vals ~init:fenv' ~f:insert_arg in
   match s with
   | SContinue -> (fenv',s)
-  | SReject -> (fenv',s)
+  | SReject _ -> (fenv',s)
   | _ -> failwith " unreachable"
 
 and copyout (fenv : EvalEnv.t) (params : Parameter.t list)
     (args : Argument.t list) : EvalEnv.t =
   let env = EvalEnv.pop_scope fenv in
   List.fold2_exn params args ~init:env ~f:(copy_arg_out fenv)
-  |> EvalEnv.set_error (EvalEnv.get_error fenv)
   
 and eval_nth_arg (params : Parameter.t list) (i : int) 
     ((env,sign) : EvalEnv.t * signal)
@@ -1680,8 +1679,8 @@ and eval_nth_arg (params : Parameter.t list) (i : int)
       (eval_expression' env SContinue (assert_some p.opt_value), snd p.variable) in
   match (sign,s) with
   | SContinue,SContinue -> ((env',s), (n,v))
-  | SReject, _ -> ((env,sign),(n,VNull))
-  | _,SReject -> ((env',s),(n,VNull))
+  | SReject _, _ -> ((env,sign),(n,VNull))
+  | _, SReject _ -> ((env',s),(n,VNull))
   | _ -> failwith "unreachable"
   
 and insert_arg (e : EvalEnv.t) (p : Parameter.t) ((name,v) : string * value) : EvalEnv.t =
@@ -1770,9 +1769,9 @@ and eval_isvalid (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
                 begin match v with
                   | VHeader{is_valid=b;_} -> (env, s', VBool b)
                   | _ -> failwith "isvalid call is not a header" end end
-          | SReject -> (env, s', VNull)
+          | SReject _ -> (env, s', VNull)
           | _ -> failwith "unreachable" end end
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
+  | SReject _ -> (env, s, VNull)
   | _ -> failwith "unreachable"
 
 and eval_setbool (env : EvalEnv.t) (lv : lvalue)
@@ -1802,7 +1801,7 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
             (env', SContinue, VNull)
           | VStruct{name=n1;fields=fs} -> failwith "unimplemented"
           | _ -> failwith "not a union" end
-      | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
+      | SReject _ -> (env, s, VNull)
       | _ -> failwith "unreachable" end
   | LArrayAccess{expr=lv';idx=e} ->
     let (s,v') = value_of_lvalue env lv' in
@@ -1822,10 +1821,10 @@ and eval_setbool (env : EvalEnv.t) (lv : lvalue)
                 let s = VStack{name=n1;headers=hdrs';size;next} in
                 let env'' = fst (eval_assign' env' lv' s) in
                 (env'', SContinue, VNull)
-              | SReject -> (env', s, VNull)
+              | SReject _ -> (env', s, VNull)
               | _ -> failwith "unreachable" end
           | _ -> failwith "not a stack" end
-      | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s , VNull)
+      | SReject _ -> (env, s , VNull)
       | _ -> failwith "unreachable" end
   | LBitAccess _ -> failwith "not a header"
 
@@ -1851,7 +1850,7 @@ and eval_extract (env : EvalEnv.t) (lv : lvalue) (args : Argument.t list)
     let n = bigint_of_val b' in
     begin match s with
       | SContinue -> eval_extract' env' lv e1 n
-      | SReject -> (env',s,VNull)
+      | SReject _ -> (env',s,VNull)
       | _ -> failwith "unreachable" end
   | [(_,Argument.Missing)] ->
     let t = match ts with
@@ -1877,9 +1876,9 @@ and eval_emit (env : EvalEnv.t) (lv : lvalue)
   let env''' = fst (eval_assign' env'' lv (VRuntime(PacketOut p'))) in
   match s,s',s'' with
   | SContinue,SContinue,SContinue -> (env''', s, VNull)
-  | SReject,_,_ -> (env, s, VNull)
-  | _,SReject,_ -> (EvalEnv.set_error "StackOutOfBounds" env',s',VNull)
-  | _,_,SReject -> (env'',s'',VNull)
+  | SReject _,_,_ -> (env, s, VNull)
+  | _,SReject _,_ -> (env',s',VNull)
+  | _,_,SReject _ -> (env',s'',VNull)
   | _ -> failwith "unreachable"
 
 and eval_length (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
@@ -1888,7 +1887,7 @@ and eval_length (env : EvalEnv.t) (lv : lvalue) : EvalEnv.t * signal * value =
   match s with
   | SContinue ->
     (env, s, VBit{w=Bigint.of_int 32;v=p |> Cstruct.len |> Bigint.of_int})
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, VNull)
+  | SReject _ -> (env, s, VNull)
   | _ -> failwith "unreachable"
 
 and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
@@ -1907,8 +1906,8 @@ and eval_lookahead (env : EvalEnv.t) (lv : lvalue)
         let (_,n,_) = bytes_of_packet p' Bigint.(w/eight) in
         (env, SContinue, val_of_bigint env w n (init_val_of_typ env "" t) t)
       with Invalid_argument _ ->
-        (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env ,s,VNull)
+        (env, SReject "PacketTooShort", VNull) end
+  | SReject _ -> (env ,s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_advance (env : EvalEnv.t) (lv : lvalue)
@@ -1922,7 +1921,7 @@ and eval_advance (env : EvalEnv.t) (lv : lvalue)
   let n = v |> bigint_of_val in
   match s with
   | SContinue -> eval_advance' env' lv n
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env', s, VNull)
+  | SReject _ -> (env, s, VNull)
   | _ -> failwith "unreachable"
 
 and eval_advance' (env : EvalEnv.t) (lv : lvalue)
@@ -1937,8 +1936,8 @@ and eval_advance' (env : EvalEnv.t) (lv : lvalue)
         let env' = fst (eval_assign' env lv (VRuntime(PacketIn p'))) in
         (env', SContinue, VNull)
       with Invalid_argument _ ->
-        (EvalEnv.set_error "PacketTooShort" env, SReject, VNull) end
-  | SReject -> (env,s,VNull)
+        (env, SReject "PacketTooShort", VNull) end
+  | SReject _ -> (env,s,VNull)
   | _ -> failwith "unreachable"
 
 and eval_verify (env : EvalEnv.t) 
@@ -1955,7 +1954,7 @@ and eval_verify (env : EvalEnv.t)
     | VBool false -> 
       let (env'', _, v') = eval_expression' env' SContinue (snd err |> exp_of_arg) in
       begin match v' with
-        | VError e -> (EvalEnv.set_error e env'', SReject, VNull)
+        | VError e -> (env'', SReject e, VNull)
         | _ -> failwith "verify expected error" end
     | _ -> failwith "verify expected bool"
     end
@@ -1978,8 +1977,8 @@ and eval_push_pop (env : EvalEnv.t) (lv : lvalue)
   let v = VStack{name=n;headers=hdrs';size;next=y} in
   match s,s' with
   | SContinue, SContinue -> (fst (eval_assign' env lv v), s, VNull)
-  | SReject, _ -> (env',s,VNull)
-  | _,SReject -> (EvalEnv.set_error "StackOutOfBounds" env',s',VNull)
+  | SReject _, _ -> (env',s,VNull)
+  | _, SReject _ -> (env',s',VNull)
   | _ -> failwith "unreachble"
 
 and eval_push_pop_args (env : EvalEnv.t)
@@ -1991,7 +1990,7 @@ and eval_push_pop_args (env : EvalEnv.t)
     let (env', s, v) = eval_expression' env SContinue value in
     begin match s with
       | SContinue -> (env', s, bigint_of_val v)
-      | SReject -> (env', s, Bigint.zero)
+      | SReject _ -> (env', s, Bigint.zero)
       | _ -> failwith "unreachable" end
   | _ -> failwith "invalid push or pop args"
 
@@ -2013,14 +2012,14 @@ and eval_extract' (env : EvalEnv.t) (lv : lvalue)
     begin match s with
       | SContinue ->
         begin match s' with
-          | SReject -> (EvalEnv.set_error "PacketTooShort" env',s',VNull)
+          | SReject _ -> (env',s',VNull)
           | SContinue ->
             let (name,fs,_) = assert_header v' in
             let (ns, vs) = List.unzip fs in
             let ((_,s),vs') =
               List.fold_map vs ~init:(Bigint.(nbytes * eight, n), SContinue) ~f:(extract_hdr_field w) in
             begin match s with
-              | SReject -> (EvalEnv.set_error "HeaderTooShort" env',s,VNull)
+              | SReject _ -> (env',s,VNull)
               | SContinue ->
                 let fs' = List.zip_exn ns vs' in
                 let h = VHeader{name;fields=fs';is_valid=true} in
@@ -2028,13 +2027,13 @@ and eval_extract' (env : EvalEnv.t) (lv : lvalue)
                 begin match s' with
                   | SContinue ->
                     (fst (eval_assign' env'' lv (VRuntime(PacketIn p'))), s', VNull)
-                  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env', s',VNull)
+                  | SReject _ -> (env', s',VNull)
                   | _ -> failwith "unreachable" end
               | _ -> failwith "unreachable" end
           | _ -> failwith "unreachable" end
-      | SReject -> (EvalEnv.set_error "StackOutOfBounds" env', s, VNull)
+      | SReject _ -> (env', s, VNull)
       | _ -> failwith "unreachable" end
-  | SReject -> (env',s,VNull)
+  | SReject _ -> (env',s,VNull)
   | _ -> failwith "unreachable"
 
 and extract_hdr_field (nvarbits : Bigint.t) (x : (Bigint.t * Bigint.t) * signal)
@@ -2047,7 +2046,7 @@ and extract_hdr_field (nvarbits : Bigint.t) (x : (Bigint.t * Bigint.t) * signal)
       | VInt{w;_} -> extract_int n w
       | VVarbit{max;_} -> extract_varbit nvarbits n max
       | _ -> failwith "invalid header field type" end
-  | SReject -> ((n,s),VNull)
+  | SReject _ -> ((n,s),VNull)
   | _ -> failwith "unreachable"
 
 and extract_bit (n : Bigint.t * Bigint.t)
@@ -2068,7 +2067,7 @@ and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
     (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
   let (nw,nv) = n in
   if Bigint.(nbits > w)
-  then ((n,SReject),VNull)
+  then ((n,SReject "HeaderTooShort"),VNull)
   else
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
     let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
@@ -2085,7 +2084,7 @@ and emit_lval (env : EvalEnv.t) (p : packet_out)
       | VUnion{valid_header=v;valid_fields=bs;_} -> emit_union env p lv v bs
       | VStack{headers=hs;_}                     -> emit_stack env p lv hs
       | _ -> failwith "emit undefined on type" end
-  | SReject -> (EvalEnv.set_error "StackOutOfBounds" env, s, p)
+  | SReject _ -> (env, s, p)
   | _ -> failwith "unreachable"
 
 and emit_struct (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
@@ -2094,7 +2093,7 @@ and emit_struct (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
   let h (e,s,p) (n,v) =
     match s with
     | SContinue -> emit_lval e p (LMember{expr=lv;name=n})
-    | SReject -> (e,s,p)
+    | SReject _ -> (e,s,p)
     | _ -> failwith "unreachable" in
   List.fold_left fs' ~init:(env, SContinue, p) ~f:h
 
@@ -2137,7 +2136,7 @@ and emit_stack (env : EvalEnv.t) (p : packet_out) (lv : lvalue)
     let (e',s',p') = emit_lval env p lv' in
     match s with
     | SContinue -> (e',s',p', Bigint.(n + one))
-    | SReject -> (e,s,p,Bigint.(n + one))
+    | SReject _ -> (e,s,p,Bigint.(n + one))
     | _ -> failwith "unreachable" in
   let (a,b,c,d) =  List.fold_left hs ~init:(env,SContinue,p,Bigint.zero) ~f:f in
   (a,b,c)
@@ -2291,7 +2290,7 @@ and eval_parser (env : EvalEnv.t) (params : Parameter.t list)
     let start = List.Assoc.find_exn states' "start" ~equal:(=) in
     let (penv''',final_state) = eval_state_machine penv'' states' start in
     (copyout penv''' params args, final_state)
-  | SReject -> (EvalEnv.pop_scope penv, SReject)
+  | SReject _ -> (EvalEnv.pop_scope penv, s)
   | _ -> failwith "unreachable"
 
 and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
@@ -2304,7 +2303,7 @@ and eval_state_machine (env : EvalEnv.t) (states : (string * Parser.state) list)
   let (env', sign) = eval_statement env SContinue stms' in
   match sign with
   | SContinue -> eval_transition env' states transition
-  | SReject -> (env', SReject)
+  | SReject _ -> (env', sign)
   | SReturn _ -> failwith "return statements not permitted in parsers"
   | SExit -> failwith "exit statements not permitted in parsers"
 
@@ -2318,7 +2317,7 @@ and eval_direct (env : EvalEnv.t) (states : (string * Parser.state) list)
     (next : string) : EvalEnv.t * signal =
   match next with
   | "accept" -> (env, SContinue)
-  | "reject" -> (env, SReject)
+  | "reject" -> (env, SReject "NoError")
   | _ -> let state = List.Assoc.find_exn states next ~equal:(=) in
         eval_state_machine env states state
 
@@ -2350,18 +2349,18 @@ and eval_select (env : EvalEnv.t) (states : (string * Parser.state) list)
               |> List.map ~f:(fun ((b,env),c) -> (b,(env,c))) in
     let next = List.Assoc.find ms' true ~equal:(=) in
     begin match next with
-      | None -> eval_direct (EvalEnv.set_error "NoMatch" env'') states "reject"
+      | None -> (env'', SReject "NotMatch")
       | Some (fenv,next) ->
         let next' = snd (snd next).next in
         eval_direct fenv states next' end
-  | SReject -> (env', SReject)
+  | SReject _ -> (env', s)
   | _ -> failwith "unreachable"
 
 and set_of_case (env : EvalEnv.t) (s : signal)
     (case : Parser.case) (ws : Bigint.t list) : EvalEnv.t * signal * set =
   match s with
   | SContinue -> set_of_matches env s (snd case).matches ws
-  | SReject   -> (env,s,SUniversal)
+  | SReject _ -> (env,s,SUniversal)
   | _ -> failwith "unreachable"
 
 and set_of_matches (env : EvalEnv.t) (s : signal)
@@ -2386,7 +2385,7 @@ and set_of_match (env : EvalEnv.t) (s : signal)
       | Expression{expr} ->
         let (env', s, v) = eval_expression' env SContinue expr in
         (env', s, assert_set v w) end
-  | SReject -> (env, s, SUniversal)
+  | SReject _ -> (env, s, SUniversal)
   | _ -> failwith "unreachable"
 
 and values_match_set (vs : value list) (s : set) : bool =
@@ -2449,7 +2448,7 @@ and eval_control (env : EvalEnv.t) (params : Parameter.t list)
   match sign with
   | SContinue
   | SExit     -> (copyout cenv''' params args, sign)
-  | SReject   -> failwith "control should not reject"
+  | SReject _ -> failwith "control should not reject"
   | SReturn _ -> failwith "control should not return"
 
 (*----------------------------------------------------------------------------*)
@@ -2690,7 +2689,7 @@ and bytes_of_packet (p : packet_in)
     let f a n = Bigint.(a * power_of_two eight + n) in
     let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
     (c2,n,SContinue)
-  with Invalid_argument _ -> (p,Bigint.zero,SReject)
+  with Invalid_argument _ -> (p,Bigint.zero,SReject "PacketTooShort")
 
 and packet_of_bytes (n : Bigint.t) (w : Bigint.t) : packet_in =
   let eight = Bigint.((one + one) * (one + one) * (one + one)) in

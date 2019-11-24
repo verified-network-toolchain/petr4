@@ -129,7 +129,7 @@ and signal =
   | SContinue
   | SReturn of value
   | SExit
-  | SReject
+  | SReject of string
 [@@deriving sexp]
 
 and vruntime =

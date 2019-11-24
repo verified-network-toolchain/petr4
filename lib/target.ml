@@ -120,11 +120,13 @@ module V1Model : Target = struct
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
     let (env, state, _) =
       app env SContinue parser [pckt_expr; hdr_expr; meta_expr; std_meta_expr] in
-    let err = EvalEnv.get_error env in
-    let env = if state = SReject
-      then
-        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) |> fst
-      else env in
+    let env = 
+      match state with 
+      | SReject err -> 
+        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) 
+        |> fst
+      | SContinue -> env 
+      | _ -> failwith "parser should not exit or return" in
     let pckt' =
       VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
                                             |> assert_runtime
@@ -183,10 +185,11 @@ module EbpfFilter : Target = struct
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "accept"))}) in
     let (env, state, _) =
       app env SContinue parser [pckt_expr; hdr_expr] in
-    let env = if state = SReject
-      then
-        assign env (LName("accept")) (VBool(false)) |> fst
-      else env |> eval_ebpf_ctrl filter [hdr_expr; accept_expr] app |> fst in
+    let env = 
+      match state with 
+      | SReject _ -> assign env (LName("accept")) (VBool(false)) |> fst
+      | SContinue ->  env |> eval_ebpf_ctrl filter [hdr_expr; accept_expr] app |> fst 
+      | _ -> failwith "parser should not exit or return" in
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with

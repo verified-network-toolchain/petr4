@@ -40,9 +40,6 @@ module EvalEnv : sig
   val insert_decl_firstlevel: string -> Declaration.t -> t -> t
   val insert_typ_firstlevel : string -> Type.t -> t -> t
 
-  val set_error : string -> t -> t
-  val get_error : t -> string
-
   val push_scope : t -> t
   val pop_scope : t -> t
 

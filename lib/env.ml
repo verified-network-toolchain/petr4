@@ -167,12 +167,6 @@ module EvalEnv = struct
   let insert_typ_firstlevel s v e =
     {e with typ = insert_firstlevel s v e.typ}
 
-  let set_error (s : string) (env : t) : t =
-    {env with parser_error = s}
-
-  let get_error (env : t) : string =
-    env.parser_error
-
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;

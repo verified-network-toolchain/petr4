@@ -10,7 +10,7 @@ module type Target = sig
 
   val check_pipeline : EvalEnv.t -> unit 
 
-  val eval_pipeline : EvalEnv.t -> packet_in -> 
+  val eval_pipeline : EvalEnv.t -> ctrl -> packet_in -> 
   (EvalEnv.t -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) -> 
   (EvalEnv.t -> lvalue -> value -> EvalEnv.t * 'b) -> 
   (EvalEnv.t -> string -> Type.t -> value) -> packet_in

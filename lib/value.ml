@@ -4,6 +4,13 @@ open Sexplib.Conv
 type packet_in = Cstruct_sexp.t [@@deriving sexp]
 
 type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
+
+type entries = Table.pre_entry list
+
+type value_sets = Match.t list list
+
+type ctrl = entries * value_sets
+
 type value =
   | VNull
   | VBool of bool

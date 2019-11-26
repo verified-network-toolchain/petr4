@@ -73,8 +73,6 @@ module EvalEnv = struct
     tables : Table.pre_entry list;
     (* a list of commands for populating value sets *)
     value_set : Match.t list list;
-    (* the parser error *)
-    parser_error : string
   }
 
   let empty_eval_env = {
@@ -83,7 +81,6 @@ module EvalEnv = struct
     typ = [[]];
     tables = [];
     value_set = [];
-    parser_error = "NoError";
   }
 
   let get_toplevel (env : t) : t =
@@ -95,8 +92,7 @@ module EvalEnv = struct
      vs = get_last env.vs;
      typ = get_last env.typ;
      tables = env.tables;
-     value_set = env.value_set;
-     parser_error = env.parser_error;}
+     value_set = env.value_set;}
 
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
@@ -172,16 +168,14 @@ module EvalEnv = struct
      vs = push e.vs;
      typ = push e.typ;
      tables = e.tables;
-     value_set = e.value_set;
-     parser_error = e.parser_error;}
+     value_set = e.value_set;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
      typ = pop e.typ;
      tables = e.tables;
-     value_set = e.value_set;
-     parser_error = e.parser_error;}
+     value_set = e.value_set;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -357,6 +351,5 @@ module CheckerEnv = struct
       vs = cenv.const;
       typ = [[]];
       tables = [];
-      value_set = [];
-      parser_error = "NoError"}
+      value_set = [];}
 end

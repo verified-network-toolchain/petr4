@@ -2765,10 +2765,9 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-let eval_main (env : EvalEnv.t) (pack : packet_in)
-    (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list list) : packet_in =
-  let env' = EvalEnv.insert_table_entries ctrl env in
-  let env'' = EvalEnv.insert_value_set_cases ctrl_vs env' in
+let eval_main (env : EvalEnv.t) (ctrl : ctrl) (pkt : packet_in) : packet_in =
+  let env' = EvalEnv.insert_table_entries (fst ctrl) env in
+  let env'' = EvalEnv.insert_value_set_cases (snd ctrl) env' in
   let name =
     match env'' |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
     | Declaration.PackageType {name=(_,n);_} -> n
@@ -2776,32 +2775,33 @@ let eval_main (env : EvalEnv.t) (pack : packet_in)
   match name with
   | "V1Switch"     -> Target.V1Model.eval_pipeline
                         env''
-                        pack
+                        ctrl
+                        pkt
                         eval_app
                         eval_assign'
                         init_val_of_typ
   | "ebpfFilter"   -> Target.EbpfFilter.eval_pipeline
                         env''
-                        pack
+                        ctrl
+                        pkt
                         eval_app
                         eval_assign'
                         init_val_of_typ
-  | "EmptyPackage" -> pack
+  | "EmptyPackage" -> pkt
   | _ -> failwith "architecture not supported"
 
 let eval_expression env expr =
   let (a,b,c) = eval_expression' env SContinue expr in
   (a,c)
 
-let eval_program (p : Types.program) (pack : packet_in)
-  (ctrl : Table.pre_entry list) (ctrl_vs : Match.t list list) : unit =
+let eval_program (p : Types.program) (ctrl : ctrl) (pkt : packet_in) : unit =
   match p with Program l ->
     let env = List.fold_left l ~init:EvalEnv.empty_eval_env ~f:eval_decl in
     EvalEnv.print_env env;
     Format.printf "Done\n";
-    let packetout = eval_main env pack ctrl ctrl_vs in
+    let pkt' = eval_main env ctrl pkt in
     print_string "Resulting packet: ";
-    packetout
+    pkt'
     |> Cstruct.to_string
     |> hex_of_string
     |> print_endline

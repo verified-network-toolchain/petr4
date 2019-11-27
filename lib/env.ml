@@ -97,12 +97,6 @@ module EvalEnv = struct
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
 
-  let get_tables env =
-    env.tables
-
-  let get_value_set env =
-    env.value_set
-
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
 
@@ -112,12 +106,6 @@ module EvalEnv = struct
   let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
 
-  let insert_table_entry entry e =
-    { e with tables = entry :: e.tables }
-
-  let insert_value_set_case case e =
-    {e with value_set = case :: e.value_set }
-
   let insert_vals bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
@@ -126,12 +114,6 @@ module EvalEnv = struct
 
   let insert_typs bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
-
-  let insert_table_entries entries e =
-    {e with tables = e.tables @ entries }
-
-  let insert_value_set_cases cases e =
-    {e with value_set = e.value_set @ cases }
 
   let find_val name e =
     find name e.vs

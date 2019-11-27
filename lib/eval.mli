@@ -5,4 +5,4 @@ open Types
 open Value
 
 val eval_program: program -> ctrl -> packet_in -> unit
-val eval_expression: EvalEnv.t -> Expression.t -> EvalEnv.t * value
+val eval_expression: EvalEnv.t -> ctrl -> Expression.t -> EvalEnv.t * value

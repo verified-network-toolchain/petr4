@@ -69,18 +69,12 @@ module EvalEnv = struct
     vs : value env;
     (* map variables to their types; only needed in a few cases *)
     typ : Types.Type.t env;
-    (* a list of commands for populating tables *)
-    tables : Table.pre_entry list;
-    (* a list of commands for populating value sets *)
-    value_set : Match.t list list;
   }
 
   let empty_eval_env = {
     decl = [[]];
     vs = [[]];
     typ = [[]];
-    tables = [];
-    value_set = [];
   }
 
   let get_toplevel (env : t) : t =
@@ -90,9 +84,7 @@ module EvalEnv = struct
       | h :: _ -> [h] in
     {decl = get_last env.decl;
      vs = get_last env.vs;
-     typ = get_last env.typ;
-     tables = env.tables;
-     value_set = env.value_set;}
+     typ = get_last env.typ;}
 
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
@@ -148,16 +140,12 @@ module EvalEnv = struct
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;
-     typ = push e.typ;
-     tables = e.tables;
-     value_set = e.value_set;}
+     typ = push e.typ;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
-     typ = pop e.typ;
-     tables = e.tables;
-     value_set = e.value_set;}
+     typ = pop e.typ;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -331,7 +319,5 @@ module CheckerEnv = struct
   let eval_env_of_t (cenv: t) : EvalEnv.t =
     { decl = [[]];
       vs = cenv.const;
-      typ = [[]];
-      tables = [];
-      value_set = [];}
+      typ = [[]];}
 end

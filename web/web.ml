@@ -21,8 +21,9 @@ exception ParsingError of string
 
 let preprocess _ p4_file_contents =
   let buf = Buffer.create 101 in
-  let env = P4pp.Eval.{ file = "typed_input"; defines = []} in
-  ignore (P4pp.Eval.preprocess_string [] env buf p4_file_contents);
+  let file ="typed_input.p4" in
+  let env = P4pp.Eval.{ file = file ; defines = []} in
+  ignore (P4pp.Eval.preprocess_string [] env buf file p4_file_contents);
   Buffer.contents buf
 
 let eval_string verbose packet_string ctrl_string p4_file_contents =

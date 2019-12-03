@@ -6,28 +6,54 @@
 </head>
 <body>
   <textarea rows="30" cols="50" id="code-area">
-      struct my_struct {
-        bit<8> n;
-        bool b;
-      }
+    #include <core.p4>
+    #include <v1model.p4>
 
-      my_struct f(in bit<8> a, in bool b) {
-          my_struct ans;
-          ans.n = a;
-          ans.b = b;
-          return ans;
-      }
+    struct metadata { }
+    struct headers { }
 
-      const my_struct s = { 42, true };
-      const bit<8> num = s.n;
-      const bool boo = s.b;
+    parser MyParser(packet_in packet,
+                    out headers hdr,
+                    inout metadata meta,
+                    inout standard_metadata_t standard_metadata) {
+        state start {
+            transition accept;
+        }
+    }
 
-      const my_struct s2 = f(42,true);
-      const bit<8> num2 = s2.n;
-      const bit<8> boo2 = s2.b;
+    control MyChecksum(inout headers hdr, inout metadata meta) {
+        apply { }
+    }
 
-      package EmptyPackage();
-      EmptyPackage() main;
+    control MyIngress(inout headers hdr,
+                      inout metadata meta,
+                      inout standard_metadata_t standard_metadata) {
+        apply {
+            standard_metadata.egress_spec = 9;
+        }
+    }
+
+    control MyEgress(inout headers hdr,
+                      inout metadata meta,
+                      inout standard_metadata_t standard_metadata) {
+        apply { }
+    }
+
+    control MyDeparser(packet_out packet, in headers hdr) {
+        apply { }
+    }
+
+    //this is declaration
+    V1Switch(
+        MyParser(),
+        MyChecksum(),
+        MyIngress(),
+        MyEgress(),
+        MyChecksum(),
+        MyDeparser()
+        )
+    main;
+
   </textarea>
   <textarea rows="4" cols="50" id="packet-area">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea>
 

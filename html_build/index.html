@@ -3,63 +3,235 @@
 <head>
   <meta charset="UTF-8">
   <title>Petr4</title>
+  <style>
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 2fr 1fr;
+      width: 95vw;
+        height: 90vh;
+    }
+    .grid-item {
+        margin: auto;
+        height: 100%;
+        width: 100%;
+        align-items: center;
+    }
+    textarea {
+    box-sizing: border-box; /* fit parent width */
+    height: 90%;
+    width: 100%;
+    font-family: monospace;
+    }
+    label {
+    width: 100%;
+    display:inline-block;
+    text-align: center;
+    }
+    </style>
 </head>
 <body>
-  <textarea rows="30" cols="50" id="code-area">
-    #include <core.p4>
-    #include <v1model.p4>
+<div class="grid-container">
+    <div class = "grid-item"><label>p4 program</label><textarea id="code-area">
+        #include <core.p4>
+        #include <v1model.p4>
 
-    struct metadata { }
-    struct headers { }
+        struct metadata { }
+        struct headers { }
 
-    parser MyParser(packet_in packet,
-                    out headers hdr,
-                    inout metadata meta,
-                    inout standard_metadata_t standard_metadata) {
-        state start {
-            transition accept;
+        parser MyParser(packet_in packet,
+                        out headers hdr,
+                        inout metadata meta,
+                        inout standard_metadata_t standard_metadata) {
+            state start {
+                transition accept;
+            }
         }
-    }
 
-    control MyChecksum(inout headers hdr, inout metadata meta) {
-        apply { }
-    }
-
-    control MyIngress(inout headers hdr,
-                      inout metadata meta,
-                      inout standard_metadata_t standard_metadata) {
-        apply {
-            standard_metadata.egress_spec = 9;
+        control MyChecksum(inout headers hdr, inout metadata meta) {
+            apply { }
         }
-    }
 
-    control MyEgress(inout headers hdr,
-                      inout metadata meta,
-                      inout standard_metadata_t standard_metadata) {
-        apply { }
-    }
+        control MyIngress(inout headers hdr,
+                            inout metadata meta,
+                            inout standard_metadata_t standard_metadata) {
+            apply {
+                standard_metadata.egress_spec = 9;
+            }
+        }
 
-    control MyDeparser(packet_out packet, in headers hdr) {
-        apply { }
-    }
+        control MyEgress(inout headers hdr,
+                            inout metadata meta,
+                            inout standard_metadata_t standard_metadata) {
+            apply { }
+        }
 
-    //this is declaration
-    V1Switch(
-        MyParser(),
-        MyChecksum(),
-        MyIngress(),
-        MyEgress(),
-        MyChecksum(),
-        MyDeparser()
-        )
-    main;
+        control MyDeparser(packet_out packet, in headers hdr) {
+            apply { }
+        }
 
-  </textarea>
-  <textarea rows="4" cols="50" id="packet-area">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea>
+        //this is declaration
+        V1Switch(
+            MyParser(),
+            MyChecksum(),
+            MyIngress(),
+            MyEgress(),
+            MyChecksum(),
+            MyDeparser()
+            )
+        main;
+
+          </textarea></div>
+    <div class = "grid-item"><label>control</label><textarea rows="30" cols="50" id="control-json-area">
+        {
+            "pre_entries": [
+                {
+                "annotations": [],
+                "matches": [
+                    [
+                    [
+                        "info",
+                        {
+                        "filename": "./examples/eval_tests/controls/table.p4\"",
+                        "line_start": 44,
+                        "line_end": null,
+                        "col_start": 12,
+                        "col_end": 15
+                        }
+                    ],
+                    [
+                        "Expression",
+                        {
+                        "expr": [
+                            [
+                            "info",
+                            {
+                                "filename": "./examples/eval_tests/controls/table.p4\"",
+                                "line_start": 44,
+                                "line_end": null,
+                                "col_start": 12,
+                                "col_end": 15
+                            }
+                            ],
+                            [
+                            "int",
+                            [
+                                [
+                                "info",
+                                {
+                                    "filename": "./examples/eval_tests/controls/table.p4\"",
+                                    "line_start": 44,
+                                    "line_end": null,
+                                    "col_start": 12,
+                                    "col_end": 15
+                                }
+                                ],
+                                {
+                                "value": 0,
+                                "width_signed": [
+                                    9,
+                                    false
+                                ]
+                                }
+                            ]
+                            ]
+                        ]
+                        }
+                    ]
+                    ]
+                ],
+                "action": [
+                    [
+                    "info",
+                    {
+                        "filename": "./examples/eval_tests/controls/table.p4\"",
+                        "line_start": 44,
+                        "line_end": null,
+                        "col_start": 18,
+                        "col_end": 25
+                    }
+                    ],
+                    {
+                    "annotations": [],
+                    "name": [
+                        [
+                        "info",
+                        {
+                            "filename": "./examples/eval_tests/controls/table.p4\"",
+                            "line_start": 44,
+                            "line_end": null,
+                            "col_start": 18,
+                            "col_end": 25
+                        }
+                        ],
+                        "set_one"
+                    ],
+                    "args": []
+                    }
+                ]
+                }
+            ],
+            "matches": [
+                [
+                    [
+                    [
+                        "info",
+                        {
+                        "filename": "./examples/eval_tests/parsers/value_set.p4\"",
+                        "line_start": 23,
+                        "line_end": null,
+                        "col_start": 12,
+                        "col_end": 14
+                        }
+                    ],
+                    [
+                        "Expression",
+                        {
+                        "expr": [
+                            [
+                            "info",
+                            {
+                                "filename": "./examples/eval_tests/parsers/value_set.p4\"",
+                                "line_start": 23,
+                                "line_end": null,
+                                "col_start": 12,
+                                "col_end": 14
+                            }
+                            ],
+                            [
+                            "int",
+                            [
+                                [
+                                "info",
+                                {
+                                    "filename":
+                                    "./examples/eval_tests/parsers/value_set.p4\"",
+                                    "line_start": 23,
+                                    "line_end": null,
+                                    "col_start": 12,
+                                    "col_end": 14
+                                }
+                                ],
+                                { "value": 42, "width_signed": null }
+                            ]
+                            ]
+                        ]
+                        }
+                    ]
+                    ]
+                ]
+                ]
+            }
+          </textarea></div>
+    <div class = "grid-item"><label>packet in</label><textarea rows="4" cols="50" id="packet-area">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea></div>
+    <div class = "grid-item"><label>packet out</label><textarea rows="4" cols="50" id="output">out</textarea></div>
+  </div>
+
+
 
   <button id="form-submit">run</button>
 
-  <textarea rows="4" cols="50" id="output">out</textarea>
+
   <script src="web.bc.js"></script>
 </body>
 </html>

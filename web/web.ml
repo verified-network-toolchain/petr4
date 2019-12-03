@@ -30,164 +30,25 @@ let eval_string verbose packet_string ctrl_string p4_file_contents =
   let ctrl_json = Yojson.Safe.from_string ctrl_string in
   eval_file [] packet_string ctrl_json verbose preprocess p4_file_contents
 
-let control_json_string =
-{|{
-  "pre_entries": [
-    {
-      "annotations": [],
-      "matches": [
-        [
-          [
-            "info",
-            {
-              "filename": "./examples/eval_tests/controls/table.p4\"",
-              "line_start": 44,
-              "line_end": null,
-              "col_start": 12,
-              "col_end": 15
-            }
-          ],
-          [
-            "Expression",
-            {
-              "expr": [
-                [
-                  "info",
-                  {
-                    "filename": "./examples/eval_tests/controls/table.p4\"",
-                    "line_start": 44,
-                    "line_end": null,
-                    "col_start": 12,
-                    "col_end": 15
-                  }
-                ],
-                [
-                  "int",
-                  [
-                    [
-                      "info",
-                      {
-                        "filename": "./examples/eval_tests/controls/table.p4\"",
-                        "line_start": 44,
-                        "line_end": null,
-                        "col_start": 12,
-                        "col_end": 15
-                      }
-                    ],
-                    {
-                      "value": 0,
-                      "width_signed": [
-                        9,
-                        false
-                      ]
-                    }
-                  ]
-                ]
-              ]
-            }
-          ]
-        ]
-      ],
-      "action": [
-        [
-          "info",
-          {
-            "filename": "./examples/eval_tests/controls/table.p4\"",
-            "line_start": 44,
-            "line_end": null,
-            "col_start": 18,
-            "col_end": 25
-          }
-        ],
-        {
-          "annotations": [],
-          "name": [
-            [
-              "info",
-              {
-                "filename": "./examples/eval_tests/controls/table.p4\"",
-                "line_start": 44,
-                "line_end": null,
-                "col_start": 18,
-                "col_end": 25
-              }
-            ],
-            "set_one"
-          ],
-          "args": []
-        }
-      ]
-    }
-  ],
-  "matches": [
-      [
-        [
-          [
-            "info",
-            {
-              "filename": "./examples/eval_tests/parsers/value_set.p4\"",
-              "line_start": 23,
-              "line_end": null,
-              "col_start": 12,
-              "col_end": 14
-            }
-          ],
-          [
-            "Expression",
-            {
-              "expr": [
-                [
-                  "info",
-                  {
-                    "filename": "./examples/eval_tests/parsers/value_set.p4\"",
-                    "line_start": 23,
-                    "line_end": null,
-                    "col_start": 12,
-                    "col_end": 14
-                  }
-                ],
-                [
-                  "int",
-                  [
-                    [
-                      "info",
-                      {
-                        "filename":
-                          "./examples/eval_tests/parsers/value_set.p4\"",
-                        "line_start": 23,
-                        "line_end": null,
-                        "col_start": 12,
-                        "col_end": 14
-                      }
-                    ],
-                    { "value": 42, "width_signed": null }
-                  ]
-                ]
-              ]
-            }
-          ]
-        ]
-      ]
-    ]
-}|}
-
 let () =
    let form_submit = Dom_html.getElementById "form-submit" in
    let text_area_of_string s  =
       match Dom_html.getElementById s |> Dom_html.CoerceTo.textarea |> Js.Opt.to_option with
       | Some x -> x
-      | _ -> failwith "unimp"
+      | _ -> failwith "bad html"
     in
     let area_input = text_area_of_string "code-area" in
     let area_out = text_area_of_string "output" in
     let area_packet = text_area_of_string "packet-area" in
+    let area_control_json = text_area_of_string "control-json-area" in
     Lwt.async @@ fun () ->
       Lwt_js_events.clicks form_submit @@ fun _ _ ->
         let packet = area_packet##.value |> Js.to_string in
+        let control_json = area_control_json##.value |> Js.to_string in
         area_input##.value |> Js.to_string |> print_endline;
         area_out##.value :=
           area_input##.value
           |> Js.to_string
-          |> eval_string true packet control_json_string
+          |> eval_string true packet control_json
           |> Js.string;
         Lwt.return ()

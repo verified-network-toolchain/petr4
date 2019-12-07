@@ -13,8 +13,6 @@ module Annotation = Types.Annotation
 
 module Op = Types.Op
 
-module Argument = Types.Argument
-
 module rec TypeParameter : sig
   type pre_t =
     { annotations: Annotation.t list;

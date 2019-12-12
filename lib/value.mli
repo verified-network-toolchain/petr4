@@ -1,8 +1,9 @@
 open Types
 
-type packet_in = Cstruct_sexp.t [@@deriving sexp]
+type buf = Cstruct_sexp.t [@@deriving sexp,yojson]
 
-type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
+type packet_in = buf [@@deriving sexp,yojson]
+type packet_out = buf * buf [@@deriving sexp,yojson]
 
 type value =
   | VNull
@@ -61,7 +62,7 @@ type value =
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 
 and vparser = {
   pvs : (string * value) list;
@@ -69,7 +70,7 @@ and vparser = {
   plocals : Declaration.t list;
   states : Parser.state list;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vcontrol = {
   cvs : (string * value) list;
@@ -77,7 +78,7 @@ and vcontrol = {
   clocals : Declaration.t list;
   apply : Block.t;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vtable = {
   name : string;
@@ -86,7 +87,7 @@ and vtable = {
   default_action : Table.action_ref;
   const_entries : (set * Table.action_ref) list;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and lvalue =
   | LName of string
@@ -101,7 +102,7 @@ and lvalue =
   | LArrayAccess of 
       { expr : lvalue;
         idx : Expression.t; }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and set =
   | SSingleton of 
@@ -123,19 +124,19 @@ and set =
       { size : value;
         members : Match.t list list;
         sets : set list; }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and signal =
   | SContinue
   | SReturn of value
   | SExit
   | SReject
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vruntime =
   | PacketIn of packet_in
   | PacketOut of packet_out
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 val assert_bool : value -> bool 
 

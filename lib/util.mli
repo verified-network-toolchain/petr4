@@ -33,3 +33,5 @@ val zip_map_fold: f:('a * 'b -> 'c) -> merge:('d -> 'c -> 'd) -> init:'d -> 'a l
 val eq_lists: f:('a * 'b -> bool) -> 'a list -> 'b list -> bool
 
 val find_and_drop: f:('a -> bool) -> 'a list -> 'a option * 'a list
+
+type bigint = Bigint.t [@@deriving sexp,yojson]

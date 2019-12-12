@@ -10,6 +10,23 @@ open Petr4Error
 module Error = Petr4Error
 module Info = Petr4Info
 
+let find_decl_opt name decls =
+  let ok decl =
+    match Prog.Declaration.name_opt decl with
+    | Some decl_name ->
+       name = snd decl_name
+    | None -> false
+  in
+  List.find ~f:ok decls
+
+let find_decl name decls =
+  let ok decl =
+    name = snd (Prog.Declaration.name decl)
+  in
+  match List.find ~f:ok decls with
+  | Some v -> v
+  | None -> raise (UnboundName name)
+
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
   | Some v -> v
@@ -55,8 +72,8 @@ let rec is_lvalue (_, expr) =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Types.Expression.t) : Value.value option =
-  match snd expr with
+let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Typed.Expression.t) : Value.value option =
+  match fst (snd expr) with
   | Name (_, var) ->
      CheckerEnv.find_const_opt var env
   | True -> Some (Value.VBool true)
@@ -85,12 +102,12 @@ let compile_time_eval_bigint env expr: Bigint.t =
   | Some (Value.VInteger v) ->
      v
   | _ -> raise_s [%message "could not compute compile-time-known numerical value for expr"
-                     ~expr:(snd expr: Types.Expression.pre_t)]
+                     ~expr:(expr: Typed.Expression.t)]
 
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
  * [decl] before trying to evaluate it! *)
-let compile_time_eval_decl (env: CheckerEnv.t) (decl: Types.Declaration.t) : CheckerEnv.t =
+let compile_time_eval_decl (env: CheckerEnv.t) (decl: Typed.Declaration.t) : CheckerEnv.t =
   match snd decl with
   | Constant { name; value; _ } ->
      begin match compile_time_eval_expr env value with
@@ -98,7 +115,7 @@ let compile_time_eval_decl (env: CheckerEnv.t) (decl: Types.Declaration.t) : Che
         CheckerEnv.insert_const (snd name) value' env
      | None ->
         raise_s [%message "could not eval decl"
-                    ~decl:(snd decl: Types.Declaration.pre_t)]
+                    ~decl:(snd decl: Typed.Declaration.pre_t)]
      end
   | _ -> env
 
@@ -148,7 +165,7 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Type.t) : Type.t =
   let saturate_construct_params env (params: ConstructParam.t list) =
     List.map ~f:(saturate_construct_param env) params
   in
-  let saturate_param env (param: Parameter.t) =
+  let saturate_param env (param: TypeParameter.t) =
     {param with typ = saturate_type env param.typ}
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
@@ -372,6 +389,7 @@ and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Parameter in
   let param_eq (p1, p2) =
+    let open Typed.TypeParameter in
     if p1.direction = p2.direction
     then solve_types env equiv_vars unknowns p1.typ p2.typ
     else None
@@ -1723,70 +1741,13 @@ and type_switch env expr cases =
   | _ -> failwith "Switch statement does not type check."
 
 (* Section 10.3 *)
-and type_declaration_statement (env: CheckerEnv.t) (decl: Declaration.t) : StmType.t * CheckerEnv.t =
+and type_declaration_statement env prog (decl: Declaration.t) : StmType.t * CheckerEnv.t =
   match snd decl with
   | Constant _
   | Instantiation _
   | Variable _ ->
      StmType.Unit, type_declaration env decl
   | _ -> raise_s [%message "declaration used as statement, but that's not allowed. Parser bug?" ~decl:(decl: Types.Declaration.t)]
-
-and type_declaration (env: CheckerEnv.t) (decl: Declaration.t) : CheckerEnv.t =
-  let env =
-    match snd decl with
-    | Constant { annotations = _; typ; name; value } ->
-      type_constant env typ name value
-    | Instantiation { annotations = _; typ; args; name; init } ->
-      (* TODO: type check init? *)
-      type_instantiation env typ args name
-    | Parser { annotations = _; name; type_params = _; params; constructor_params; locals; states } ->
-      type_parser env name params constructor_params locals states
-    | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
-      type_control env name type_params params constructor_params locals apply
-    | Function { return; name; type_params; params; body } ->
-      type_function env return name type_params params body
-    | ExternFunction { annotations = _; return; name; type_params; params } ->
-      type_extern_function env return name type_params params
-    | Variable { annotations = _; typ; name; init } ->
-      type_variable env typ name init
-    | ValueSet { annotations = _; typ; size; name } ->
-      type_value_set env typ size name
-    | Action { annotations = _; name; params; body } ->
-      type_action env name params body
-    | Table { annotations = _; name; properties } ->
-      type_table env name properties
-    | Header { annotations = _; name; fields } ->
-      type_header env name fields
-    | HeaderUnion { annotations = _; name; fields } ->
-      type_header_union env name fields
-    | Struct { annotations = _; name; fields } ->
-      type_struct env name fields
-    | Error { members } ->
-      type_error env members
-    | MatchKind { members } ->
-      type_match_kind env members
-    | Enum { annotations = _; name; members } ->
-      type_enum env name members
-    | SerializableEnum { annotations = _; typ; name; members } ->
-      type_serializable_enum env typ name members
-    | ExternObject { annotations = _; name; type_params; methods } ->
-      type_extern_object env name type_params methods
-    | TypeDef { annotations = _; name; typ_or_decl } ->
-      type_type_def env name typ_or_decl
-    | NewType { annotations = _; name; typ_or_decl } ->
-      type_new_type env name typ_or_decl
-    | ControlType { annotations = _; name; type_params; params } ->
-      type_control_type env name type_params params
-    | ParserType { annotations = _; name; type_params; params } ->
-      type_parser_type env name type_params params
-    | PackageType { annotations = _; name; type_params; params } ->
-      type_package_type env name type_params params
-  in
-  let env = compile_time_eval_decl env decl in
-  CheckerEnv.insert_decl decl env
-
-and type_declarations env decls =
-  List.fold_left ~f:type_declaration ~init:env decls
 
 and type_field env field =
   let Declaration.{ annotations = _; typ; name } = snd field in
@@ -2391,42 +2352,66 @@ and type_package_type env name type_params params =
   let ctrl = Type.Package {type_params=tps; parameters=ps} in
   CheckerEnv.insert_type (snd name) ctrl env
 
-let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
-  let fail typ =
-    Core.raise_s [%message "cannot translate this type to a surface type"
-                           ~typ:(typ: Typed.Type.t)]
+and type_declaration ((env, prog): CheckerEnv.t * Prog.Declaration.t list) (decl: Types.Declaration.t) : CheckerEnv.t * Prog.Declaration.t list =
+  let env, (decl': Prog.Declaration.t) =
+    match snd decl with
+    | Constant { annotations = _; typ; name; value } ->
+      type_constant env typ name value
+    | Instantiation { annotations = _; typ; args; name; init } ->
+      (* TODO: type check init? *)
+      type_instantiation env typ args name
+    | Parser { annotations = _; name; type_params = _; params; constructor_params; locals; states } ->
+      type_parser env name params constructor_params locals states
+    | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
+      type_control env name type_params params constructor_params locals apply
+    | Function { return; name; type_params; params; body } ->
+      type_function env return name type_params params body
+    | ExternFunction { annotations = _; return; name; type_params; params } ->
+      type_extern_function env return name type_params params
+    | Variable { annotations = _; typ; name; init } ->
+      type_variable env typ name init
+    | ValueSet { annotations = _; typ; size; name } ->
+      type_value_set env typ size name
+    | Action { annotations = _; name; params; body } ->
+      type_action env name params body
+    | Table { annotations = _; name; properties } ->
+      type_table env name properties
+    | Header { annotations = _; name; fields } ->
+      type_header env name fields
+    | HeaderUnion { annotations = _; name; fields } ->
+      type_header_union env name fields
+    | Struct { annotations = _; name; fields } ->
+      type_struct env name fields
+    | Error { members } ->
+      type_error env members
+    | MatchKind { members } ->
+      type_match_kind env members
+    | Enum { annotations = _; name; members } ->
+      type_enum env name members
+    | SerializableEnum { annotations = _; typ; name; members } ->
+      type_serializable_enum env typ name members
+    | ExternObject { annotations = _; name; type_params; methods } ->
+      type_extern_object env name type_params methods
+    | TypeDef { annotations = _; name; typ_or_decl } ->
+      type_type_def env name typ_or_decl
+    | NewType { annotations = _; name; typ_or_decl } ->
+      type_new_type env name typ_or_decl
+    | ControlType { annotations = _; name; type_params; params } ->
+      type_control_type env name type_params params
+    | ParserType { annotations = _; name; type_params; params } ->
+      type_parser_type env name type_params params
+    | PackageType { annotations = _; name; type_params; params } ->
+      type_package_type env name type_params params
   in
-  let mkint i =
-    let i: P4Int.t =
-      Info.dummy, { value = Bigint.of_int i; width_signed = None }
-    in
-    Info.dummy, Expression.Int i
-  in
-  let go : Typed.Type.t -> Types.Type.pre_t =
-    function
-    | Bool -> Bool
-    | String -> fail String
-    | Integer -> fail Integer
-    | Int { width } -> IntType (mkint width)
-    | Bit { width } -> BitType (mkint width)
-    | VarBit { width } -> VarBit (mkint width)
-    | Array { typ; size } ->
-        let typ' = backtranslate_type typ in
-        let size' = mkint size in
-        HeaderStack { header = typ'; size = size' }
-    | Tuple {types} ->
-        Tuple (List.map ~f:backtranslate_type types)
-    | Set typ -> fail (Set typ)
-    | Error -> Error
-    | MatchKind -> fail MatchKind
-    | TypeName name -> TypeName (Info.dummy, name)
-    | TopLevelType name -> TopLevelType (Info.dummy, name)
-    | Void -> Void
-    | other -> fail other
-  in
-  Info.dummy, go typ
+  let env = compile_time_eval_decl env decl' in
+  let env = CheckerEnv.insert_decl decl env in
+  env, (decl' :: prog)
+
+and type_declarations env decls =
+  List.fold_left ~f:type_declaration ~init:(env, []) decls
 
 (* Entry point function for type checker *)
-let check_program (program:Types.program) : CheckerEnv.t =
+let check_program (program:Types.program) : CheckerEnv.t * Prog.program =
   let Program top_decls = program in
-  type_declarations CheckerEnv.empty_t top_decls
+  let env, decls = type_declarations CheckerEnv.empty_t top_decls in
+  env, Prog.Program decls

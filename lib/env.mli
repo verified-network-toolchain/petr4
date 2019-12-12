@@ -53,18 +53,16 @@ module EvalEnv : sig
 end
 
 module CheckerEnv : sig
-  type t [@@deriving sexp]
+  type t [@@deriving sexp,yojson]
 
   val empty_t : t
 
-  val find_decl : string -> t -> Types.Declaration.t
   val resolve_type_name_opt : string -> t -> Typed.Type.t option
   val resolve_type_name : string -> t -> Typed.Type.t
   val find_type_of_opt : string -> t -> (Typed.Type.t * Typed.direction) option
   val find_type_of : string -> t -> Typed.Type.t * Typed.direction
   val find_type_of_toplevel : string -> t -> Typed.Type.t * Typed.direction
 
-  val insert_decl : Types.Declaration.t -> t -> t
   val insert_type : string -> Typed.Type.t -> t -> t
   val insert_type_of : string -> Typed.Type.t -> t -> t
   val insert_type_of_toplevel : string -> Typed.Type.t -> t -> t
@@ -73,9 +71,6 @@ module CheckerEnv : sig
   val push_scope : t -> t
   val pop_scope : t -> t
 
-  val all_decls : t -> Types.Declaration.t list
-  val find_decl_opt : string -> t -> Types.Declaration.t option
-  val find_decl : string -> t -> Types.Declaration.t
   val resolve_type_name_opt : string -> t -> Typed.Type.t option
   val resolve_type_name : string -> t -> Typed.Type.t
   val resolve_type_name_toplevel : string -> t -> Typed.Type.t
@@ -87,7 +82,6 @@ module CheckerEnv : sig
   val find_const : string -> t -> value
   val find_const_opt : string -> t -> value option
 
-  val insert_decl : Types.Declaration.t -> t -> t
   val insert_type : string -> Typed.Type.t -> t -> t
   val insert_types : (string * Typed.Type.t) list -> t -> t
   val insert_type_of : string -> Typed.Type.t -> t -> t

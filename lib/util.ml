@@ -60,3 +60,11 @@ let rec find_and_drop ~f xs =
      then Some x, xs
      else let found, list = find_and_drop ~f xs in
           found, x :: list
+
+type bigint = Bigint.t [@@deriving sexp]
+
+let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
+  `String (Bigint.to_string b)
+
+let bigint_of_yojson (json:Yojson.Safe.t) =
+  Ok (Bigint.of_string (Yojson.Safe.to_string json))

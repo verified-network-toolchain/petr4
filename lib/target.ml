@@ -77,17 +77,17 @@ module V1Model : Target = struct
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
     let parser =
-      List.Assoc.find_exn vs "p"   ~equal:(=) in
+      List.Assoc.find_exn vs "p"   ~equal:String.equal in
     let verify =
-      List.Assoc.find_exn vs "vr"  ~equal:(=) in
+      List.Assoc.find_exn vs "vr"  ~equal:String.equal in
     let ingress =
-      List.Assoc.find_exn vs "ig"  ~equal:(=) in
+      List.Assoc.find_exn vs "ig"  ~equal:String.equal in
     let egress =
-      List.Assoc.find_exn vs "eg"  ~equal:(=) in
+      List.Assoc.find_exn vs "eg"  ~equal:String.equal in
     let compute =
-      List.Assoc.find_exn vs "ck"  ~equal:(=) in
+      List.Assoc.find_exn vs "ck"  ~equal:String.equal in
     let deparser =
-      List.Assoc.find_exn vs "dep" ~equal:(=) in
+      List.Assoc.find_exn vs "dep" ~equal:String.equal in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
@@ -160,9 +160,9 @@ module EbpfFilter : Target = struct
   let eval_pipeline env ctrl pkt app assign init = 
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
-    let parser = List.Assoc.find_exn vs "prs"  ~equal:(=) in 
-    let filter = List.Assoc.find_exn vs "filt" ~equal:(=) in
-    let params = 
+    let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal in
+    let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal in
+    let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in

@@ -246,7 +246,7 @@ and eval_table_decl (env : EvalEnv.t) (ctrl : ctrl) (name : string)
                 |> assert_actionref in
   let default = List.filter props' ~f:is_default
                 |> default_of_defaults in
-  let (final_entries, ks') = if mks = ["lpm"] then (sort_lpm entries, ks)
+  let (final_entries, ks') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries, ks)
     else if sort_mks then filter_lpm_prod env''' mks ks entries
     else (entries, ks) in
   let v = VTable { name = name;
@@ -317,7 +317,7 @@ and eval_pkgtyp_decl (env : EvalEnv.t) (name : string)
 and filter_lpm_prod (env : EvalEnv.t) (mks : string list) (ks : value list)
     (entries : (set * Table.action_ref) list)
     : (set * Table.action_ref) list * (value list) =
-  let index = match List.findi mks ~f:(fun _ s -> s = "lpm") with
+  let index = match List.findi mks ~f:(fun _ s -> String.equal s "lpm") with
     | None -> failwith "unreachable, should have lpm"
     | Some (i,_) -> i in
   let f = function
@@ -333,7 +333,7 @@ and filter_lpm_prod (env : EvalEnv.t) (mks : string list) (ks : value list)
 and check_lpm_count (mks : string list) : bool =
   let num_lpm =
     mks
-    |> List.filter ~f:(fun s -> s = "lpm")
+    |> List.filter ~f:(fun s -> String.equal s "lpm")
     |> List.length in
   if num_lpm > 1
   then failwith "more than one lpm"
@@ -343,7 +343,7 @@ and sort_lpm (entries : (set * Table.action_ref) list)
     : (set * Table.action_ref) list =
   let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
   let (entries'', uni) =
-    match List.findi entries' ~f:(fun i (s,_) -> s = SUniversal) with
+    match List.findi entries' ~f:(fun i (s,_) -> Poly.(s = SUniversal)) with
     | None -> (entries', None)
     | Some (i,_) ->
       let es = List.filteri entries' ~f:(fun ind _ -> ind < i) in
@@ -776,7 +776,7 @@ and assign_union_mem (env : EvalEnv.t) (ctrl : ctrl) (lhs : lvalue)
     (vbs : (string * bool) list) : EvalEnv.t * signal =
   let t = typ_of_union_field env (typ_of_lvalue env ctrl lhs) fname in
   let rhs' = implicit_cast_from_tuple env ctrl (LMember{expr=lhs;name=fname}) fname rhs t in
-  let vbs' = List.map vbs ~f:(fun (s,_) -> (s, s=fname)) in
+  let vbs' = List.map vbs ~f:(fun (s,_) -> (s, String.equal s fname)) in
   eval_assign' env ctrl lhs (VUnion{name=uname; valid_header=rhs'; valid_fields=vbs'})
 
 and assign_stack_mem (env : EvalEnv.t) (ctrl : ctrl) (lhs : lvalue)
@@ -786,7 +786,7 @@ and assign_stack_mem (env : EvalEnv.t) (ctrl : ctrl) (lhs : lvalue)
     match mname with
     | "next" -> ()
     | _ -> failwith "stack mem not an lvalue" in
-  if next >= size
+  if Bigint.compare next size >= 0
   then (env, SReject "StackOutOfBounds")
   else
     let t = typ_of_stack_mem env ctrl lhs in
@@ -825,7 +825,7 @@ and value_of_lmember (env : EvalEnv.t) (ctrl : ctrl) (lv : lvalue)
   let (s,v) = value_of_lvalue env ctrl lv in
   let v' = match v with
     | VStruct{fields=l;_}
-    | VHeader{fields=l;_}              -> List.Assoc.find_exn l n ~equal:(=)
+    | VHeader{fields=l;_}              -> List.Assoc.find_exn l n ~equal:String.equal
     | VUnion{valid_header=v;_}         -> v
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
     | _ -> failwith "no lvalue member" in
@@ -893,7 +893,7 @@ and typ_of_lmember (env : EvalEnv.t) (ctrl : ctrl) (lv : lvalue)
 and typ_of_struct_lmem (env : EvalEnv.t) (s : string)
     (fields : Declaration.field list) : Type.t =
   let fs = List.map fields ~f:(fun a -> (snd (snd a).name, a)) in
-  let f = List.Assoc.find_exn fs ~equal:(=) s in
+  let f = List.Assoc.find_exn fs ~equal:String.equal s in
   (snd f).typ
 
 and typ_of_stack_lmem (env : EvalEnv.t) (s : string) (t : Type.t) : Type.t =
@@ -953,7 +953,7 @@ and eval_expression' (env : EvalEnv.t) (ctrl : ctrl) (s : signal)
 
 and eval_name (env : EvalEnv.t) (s : signal) (name : string)
     (exp : Expression.t) : EvalEnv.t * signal * value =
-  if name = "verify" then (env, s, VBuiltinFun {name;caller=lvalue_of_expr exp})
+  if String.equal name "verify" then (env, s, VBuiltinFun {name;caller=lvalue_of_expr exp})
   else (env, s, EvalEnv.find_val name env)
 
 and eval_p4int (n : P4Int.pre_t) : value =
@@ -1067,12 +1067,12 @@ and eval_typ_mem (env : EvalEnv.t) (ctrl : ctrl) (typ : Type.t)
   match snd (decl_of_typ env typ) with
   | Declaration.Enum {members=ms;name=(_,n);_} ->
     let mems = List.map ms ~f:snd in
-    if List.mem mems name ~equal:(=)
+    if List.mem mems name ~equal:String.equal
     then (env, SContinue, VEnumField{typ_name=n;enum_name=name})
     else raise (UnboundName name)
   | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
     let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
-    let expr = List.Assoc.find_exn ms' ~equal:(=) name in
+    let expr = List.Assoc.find_exn ms' ~equal:String.equal name in
     let (env',s,v) = eval_expression' env ctrl SContinue expr in
     let v' = implicit_cast_from_rawint env' ctrl v typ in
     begin match s with
@@ -1350,11 +1350,11 @@ and eval_bgt (l : value) (r : value) : value =
 and eval_beq (l : value) (r : value) : value =
   match (l,r) with
   | VError s1, VError s2
-  | VEnumField{enum_name=s1;_}, 
-    VEnumField{enum_name=s2;_}                -> VBool(s1 = s2)
-  | VSenumField{v=v1;_}, 
+  | VEnumField{enum_name=s1;_},
+    VEnumField{enum_name=s2;_}                -> VBool Poly.(s1 = s2)
+  | VSenumField{v=v1;_},
     VSenumField{v=v2;_}                       -> eval_beq v1 v2
-  | VBool b1, VBool b2                        -> VBool(b1 = b2)
+  | VBool b1, VBool b2                        -> VBool Poly.(b1 = b2)
   | VBit{v=n1;_}, VBit{v=n2;_}
   | VInteger n1, VInteger n2
   | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
@@ -1474,13 +1474,13 @@ and bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
 and structs_equal (l1 : (string * value) list)
     (l2 : (string * value) list) : value =
   let f (a : (string * value) list) (b : string * value) =
-    if List.Assoc.mem a ~equal:(=) (fst b)
+    if List.Assoc.mem a ~equal:String.equal (fst b)
     then a
     else b :: a in
   let l1' = List.fold_left l1 ~init:[] ~f:f in
   let l2' = List.fold_left l2 ~init:[] ~f:f in
   let g (a,b) =
-    let h = (fun (x,y) -> x = a && assert_bool (eval_beq y b)) in
+    let h = (fun (x,y) -> String.equal x a && assert_bool (eval_beq y b)) in
     List.exists l2' ~f:h in
   let b = List.for_all l1' ~f:g in
   VBool b
@@ -1502,7 +1502,7 @@ and unions_equal (v1 : value) (v2 : value) (l1 : (string * bool) list)
   let b1 = (List.for_all l1 ~f:f) && (List.for_all l2 ~f:f) in
   let l1' = List.map l1 ~f:(fun (x,y) -> (y,x)) in
   let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
-  let b2 = List.Assoc.find l1' true ~equal:(=) = List.Assoc.find l2' true ~equal:(=) in
+  let b2 = Poly.(=) (List.Assoc.find l1' true ~equal:Poly.(=)) (List.Assoc.find l2' true ~equal:Poly.(=)) in
   let b3 = eval_beq v1 v2 |> assert_bool in
   VBool (b1 || (b2 && b3))
 
@@ -1572,7 +1572,7 @@ and to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
 
 and eval_struct_mem (env : EvalEnv.t) (name : string)
     (fs : (string * value) list) : EvalEnv.t * signal * value =
-  (env, SContinue, List.Assoc.find_exn fs name ~equal:(=))
+  (env, SContinue, List.Assoc.find_exn fs name ~equal:String.equal)
 
 and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
     (fs : (string * value) list) (valid : bool) : EvalEnv.t * signal * value =
@@ -1580,7 +1580,7 @@ and eval_header_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
   | "isValid"
   | "setValid"
   | "setInvalid" -> (env, SContinue, VBuiltinFun{name=fname;caller=lvalue_of_expr e})
-  | _            -> (env, SContinue, List.Assoc.find_exn fs fname ~equal:(=))
+  | _            -> (env, SContinue, List.Assoc.find_exn fs fname ~equal:String.equal)
 
 and eval_stack_mem (env : EvalEnv.t) (fname : string) (e : Expression.t)
     (hdrs : value list) (size : Bigint.t)
@@ -1779,8 +1779,8 @@ and eval_isvalid (env : EvalEnv.t) (ctrl : ctrl)
         begin match s' with
           | SContinue ->
             begin match v' with
-              | VUnion{valid_fields=l;_} -> 
-                (env, s', VBool (List.Assoc.find_exn l n ~equal:(=)))
+              | VUnion{valid_fields=l;_} ->
+                (env, s', VBool (List.Assoc.find_exn l n ~equal:String.equal))
               | _ ->
                 begin match v with
                   | VHeader{is_valid=b;_} -> (env, s', VBool b)
@@ -1811,7 +1811,7 @@ and eval_setbool (env : EvalEnv.t) (ctrl : ctrl) (lv : lvalue)
       | SContinue ->
         begin match v' with
           | VUnion{name=n1;valid_header=fs;valid_fields=vs} ->
-            let vs' = List.map vs ~f:(fun (a,_) -> (a,if b then a=n2 else b)) in
+            let vs' = List.map vs ~f:(fun (a,_) -> (a,if b then String.equal a n2 else b)) in
             let u = VUnion{name=n1;valid_header=fs;valid_fields=vs'} in
             let env' = fst (eval_assign' env ctrl lv' u) in
             (env', SContinue, VNull)
@@ -2140,7 +2140,7 @@ and emit_union (env : EvalEnv.t) (ctrl : ctrl) (p : packet_out) (lv : lvalue)
   if List.exists vs ~f:snd
   then
     let vs' = List.map vs ~f:(fun (a,b) -> (b,a)) in
-    let n = List.Assoc.find_exn vs' ~equal:(=) true in
+    let n = List.Assoc.find_exn vs' ~equal:Poly.(=) true in
     emit_lval env ctrl p (LMember{expr=lv;name=n})
   else (env, SContinue, p)
 
@@ -2307,7 +2307,7 @@ and eval_parser (env : EvalEnv.t) (ctrl : ctrl) (params : Parameter.t list)
     let penv' = List.fold_left vs ~init:penv ~f:f in
     let penv'' = List.fold_left locals ~init:penv' ~f:(fun e -> eval_decl e ctrl) in
     let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
-    let start = List.Assoc.find_exn states' "start" ~equal:(=) in
+    let start = List.Assoc.find_exn states' "start" ~equal:String.equal in
     let (penv''',final_state) = eval_state_machine penv'' ctrl states' start in
     (copyout penv''' ctrl params args, final_state)
   | SReject _ -> (EvalEnv.pop_scope penv, s)
@@ -2341,7 +2341,7 @@ and eval_direct (env : EvalEnv.t) (ctrl : ctrl)
   match next with
   | "accept" -> (env, SContinue)
   | "reject" -> (env, SReject "NoError")
-  | _ -> let state = List.Assoc.find_exn states next ~equal:(=) in
+  | _ -> let state = List.Assoc.find_exn states next ~equal:String.equal in
         eval_state_machine env ctrl states state
 
 and eval_select (env : EvalEnv.t) (ctrl : ctrl) 
@@ -2371,7 +2371,7 @@ and eval_select (env : EvalEnv.t) (ctrl : ctrl)
     let ms = List.map ss' ~f:(fun (x,y) -> (values_match_set vs x, y)) in
     let ms' = List.zip_exn ms cases
               |> List.map ~f:(fun ((b,env),c) -> (b,(env,c))) in
-    let next = List.Assoc.find ms' true ~equal:(=) in
+    let next = List.Assoc.find ms' true ~equal:Poly.(=) in
     begin match next with
       | None -> (env'', SReject "NotMatch")
       | Some (fenv,next) ->
@@ -2445,7 +2445,7 @@ and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
   match (v, v1, v2) with
   | VBit{w=w0;v=b0}, VBit{w=w1;v=b1}, VBit{w=w2;v=b2}
   | VInt{w=w0;v=b0}, VInt{w=w1;v=b1}, VInt{w=w2;v=b2} ->
-    w0 = w1 && w1 = w2 && Bigint.(b1 <= b0 && b0 <= b2)
+    Bigint.equal w0 w1 && Bigint.equal w1 w2 && Bigint.compare b1 b0 <= 0 && Bigint.compare b0 b2 <= 0
   | _ -> failwith "implicit casts unimplemented"
 
 and values_match_prod (vs : value list) (l : set list) : bool =
@@ -2590,7 +2590,7 @@ and typ_of_struct_field (env : EvalEnv.t) (t : Type.t)
   let fs = match d with
     | Struct h -> h.fields
     | _ -> failwith "not a struct" in
-  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  match List.filter fs ~f:(fun a -> String.equal (snd (snd a).name) fname) with
   | h :: _ -> (snd h).typ
   | _ -> failwith "field name not found"
 
@@ -2600,7 +2600,7 @@ and typ_of_header_field (env : EvalEnv.t) (t : Type.t)
   let fs = match d with
     | Header h -> h.fields
     | _ -> failwith "not a header" in
-  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  match List.filter fs ~f:(fun a -> String.equal (snd (snd a).name) fname) with
   | h :: _ -> (snd h). typ
   | _ -> failwith "field name not found"
 
@@ -2610,7 +2610,7 @@ and typ_of_union_field (env : EvalEnv.t) (t : Type.t)
   let fs = match d with
     | HeaderUnion u -> u.fields
     | _ -> failwith "not a union" in
-  match List.filter fs ~f:(fun a -> snd (snd a).name = fname) with
+  match List.filter fs ~f:(fun a -> String.equal (snd (snd a).name) fname) with
   | h :: _ -> (snd h).typ
   | _ -> failwith "field name not found"
 
@@ -2733,7 +2733,7 @@ and packet_of_bytes (n : Bigint.t) (w : Bigint.t) : packet_in =
 and reset_fields (env : EvalEnv.t) (ctrl : ctrl) (lv : lvalue)
     (fs : (string * value) list) : (string * value) list =
   let f l (n,v) =
-    if List.Assoc.mem l ~equal:(=) n
+    if List.Assoc.mem l ~equal:String.equal n
     then l
     else (n,v) :: l in
   let fs' = List.fold_left fs ~init:[] ~f:f in
@@ -2743,17 +2743,17 @@ and reset_fields (env : EvalEnv.t) (ctrl : ctrl) (lv : lvalue)
     | VHeader{fields=fs;_} -> fs
     | _ -> failwith "not a struct or header" in
   let g (n,_) =
-    (n, List.Assoc.find_exn fs' ~equal:(=) n) in
+    (n, List.Assoc.find_exn fs' ~equal:String.equal n) in
   List.map fs0 ~f:g
 
 and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool =
-  match case with 
-  | Action{label;_} 
-  | FallThrough{label} -> 
-    begin match snd label with 
-      | Default -> true 
-      | Name(_,n) -> s = n end
-      
+  match case with
+  | Action{label;_}
+  | FallThrough{label} ->
+    begin match snd label with
+      | Default -> true
+      | Name(_,n) -> String.equal s n end
+
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)

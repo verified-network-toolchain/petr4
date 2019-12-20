@@ -11,7 +11,7 @@ module Renamer = struct
   let create () = ref { counter = 0; seen = [] }
 
   let seen_name st name =
-    List.mem ~equal:(=) !st.seen name
+    List.mem ~equal:String.equal !st.seen name
 
   let observe_name st name =
     if seen_name st name

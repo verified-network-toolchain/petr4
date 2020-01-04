@@ -641,7 +641,7 @@ end = struct
         Expression.format_t sinit;
     | ExternFunction { annotations; return; name; type_params; params } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a %a%a(%a);@]"
+      Format.fprintf fmt "@[extern %a %a%a(%a);@]"
         Type.format_t return
         P4String.format_t name
         Type.format_type_params type_params

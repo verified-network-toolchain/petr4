@@ -181,7 +181,7 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Type.t) : Type.t =
      begin match CheckerEnv.resolve_type_name_opt t env with
      | None -> typ
      | Some (TypeName t') ->
-        if t' = t
+        if String.equal t' t
         then typ
         else saturate_type env (TypeName t')
      | Some typ' ->
@@ -239,7 +239,7 @@ let empty_constraints unknowns : var_constraints =
 let single_constraint vars var typ : var_constraints =
   let empty = empty_constraints vars in
   let update (v, emp) =
-    if v = var
+    if String.equal v var
     then (v, Some typ)
     else (v, emp)
   in
@@ -335,7 +335,7 @@ and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
 and solve_record_type_equality env equiv_vars unknowns (rec1: RecordType.t) (rec2: RecordType.t) =
   let open RecordType in
   let solve_fields (f1, f2) =
-    if f1.name = f2.name
+    if String.equal f1.name f2.name
     then solve_types env equiv_vars unknowns f1.typ f2.typ
     else None
   in
@@ -357,7 +357,7 @@ and solve_enum_type_equality env equiv_vars unknowns enum1 enum2 =
   in
   let mems1 = List.sort ~compare:String.compare enum1.members in
   let mems2 = List.sort ~compare:String.compare enum2.members in
-  if mems1 = mems2
+  if List.equal String.equal mems1 mems2
   then soln
   else None
 
@@ -372,7 +372,7 @@ and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Parameter in
   let param_eq (p1, p2) =
-    if p1.direction = p2.direction
+    if Poly.(p1.direction = p2.direction)
     then solve_types env equiv_vars unknowns p1.typ p2.typ
     else None
   in
@@ -395,7 +395,7 @@ and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
           String.compare m1.name m2.name
       in
       let solve_method_eq (m1, m2) =
-        if m1.name = m2.name
+        if String.equal m1.name m2.name
         then solve_function_type_equality env equiv_vars' unknowns m1.typ m2.typ
         else None
       in
@@ -422,11 +422,11 @@ and solve_action_type_equality env equiv_vars unknowns action1 action2 =
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
   | (a, b)::rest ->
-      if tv1 = a || tv2 = b
-      then tv1 = a && tv2 = b
+      if Poly.(tv1 = a || tv2 = b)
+      then Poly.(tv1 = a && tv2 = b)
       else type_vars_equal_under env rest tv1 tv2
   | [] ->
-      tv1 = tv2
+      Poly.(tv1 = tv2)
 
 and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = saturate_type env typ in
@@ -481,7 +481,7 @@ and solve_types (env: CheckerEnv.t)
         else Some (single_constraint unknowns tv1 (TypeName tv2))
 
     | TypeName tv, typ ->
-       if List.mem ~equal:(=) unknowns tv
+       if List.mem ~equal:String.equal unknowns tv
        then Some (single_constraint unknowns tv typ)
        else None
 
@@ -557,7 +557,7 @@ and solve_types (env: CheckerEnv.t)
         solve_function_type_equality env equiv_vars unknowns func1 func2
 
     | Table table1, Table table2 ->
-       if table1.result_typ_name = table2.result_typ_name
+       if String.equal table1.result_typ_name table2.result_typ_name
        then Some (empty_constraints unknowns)
        else None
 
@@ -598,7 +598,7 @@ and solve_types (env: CheckerEnv.t)
 and param_equality env p1s p2s =
   let open Parameter in
   let check_params = fun (par1,par2) ->
-    if par1.direction <> par2.direction then false
+    if Poly.(par1.direction <> par2.direction) then false
     else type_equality env par1.typ par2.typ in
   eq_lists ~f:check_params p1s p2s
 
@@ -688,7 +688,7 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and translate_type (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
   let eval e =
-    Eval.eval_expression (CheckerEnv.eval_env_of_t env) e
+    Eval.eval_expression (CheckerEnv.eval_env_of_t env) ([],[]) e
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with
@@ -906,7 +906,7 @@ and type_array_access env (array: Types.Expression.t) index =
   let (array_typ, array_dir) = type_expression_dir env array in
   let idx_typ = type_expression env index in
   let element_typ = (assert_array (info array) array_typ).typ in
-  assert_numeric (info index) idx_typ |> ignore;
+  ignore (assert_numeric (info index) idx_typ : IntType.t option);
   (element_typ, array_dir)
 
 and is_numeric (typ: Typed.Type.t) : bool =
@@ -994,9 +994,9 @@ and type_unary_op env (_, op) arg =
   let (arg_typ, dir) = type_expression_dir env arg in
   let open Op in
   begin match op with
-  | Not    -> assert_bool (info arg) arg_typ    |> ignore
-  | BitNot -> assert_bit (info arg) arg_typ     |> ignore
-  | UMinus -> assert_numeric (info arg) arg_typ |> ignore
+  | Not    -> ignore (assert_bool (info arg) arg_typ : Typed.Type.t)
+  | BitNot -> ignore (assert_bit (info arg) arg_typ : Typed.Type.t)
+  | UMinus -> ignore (assert_numeric (info arg) arg_typ : IntType.t option)
   end;
   (arg_typ, dir)
 
@@ -1105,8 +1105,8 @@ and type_binary_op env (_, op) (l, r) : Typed.Type.t =
 
   match op with
   | And | Or ->
-    assert_bool (info l) l_typ |> ignore;
-    assert_bool (info r) r_typ |> ignore;
+    ignore  (assert_bool (info l) l_typ : t);
+    ignore  (assert_bool (info r) r_typ : t);
     Bool
 
   (* Basic numeric operations are defined on both arbitrary and fixed-width integers *)
@@ -1210,7 +1210,7 @@ and type_type_member env typ name =
   in
   match typ with
   | Enum { typ = carrier; members } ->
-      if List.mem ~equal:(fun x y -> x = y) members (snd name)
+      if List.mem ~equal:(fun x y -> String.equal x y) members (snd name)
       then match carrier with
            | None -> typ, In
            | Some carrier -> carrier, In
@@ -1314,14 +1314,14 @@ and type_expression_member env expr name : Typed.Type.t =
   | HeaderUnion {fields=fs}
   | Struct {fields=fs} ->
       let fs = fs @ methods in
-      let matches f = f.name = snd name in
+      let matches f = String.equal f.name (snd name) in
       begin match List.find ~f:matches fs with
       | Some field -> field.typ
       | None -> type_expression_member_builtin env (info expr) expr_typ name
       end
   | Extern {methods; _} ->
       let open ExternType in
-      let matches m = m.name = snd name in
+      let matches m = String.equal m.name (snd name) in
       begin match List.find ~f:matches methods with
       | Some m -> Type.Function m.typ
       | None -> type_expression_member_builtin env (info expr) expr_typ name
@@ -1336,7 +1336,7 @@ and type_expression_member env expr name : Typed.Type.t =
  *              Δ, T, Γ |- cond ? tru : fls : t
  *)
 and type_ternary env cond tru fls : Typed.Type.t =
-  let _ = cond
+  let _ : Typed.Type.t = cond
   |> type_expression env
   |> assert_bool (info cond)
   in
@@ -1377,7 +1377,7 @@ and match_params_to_args' call_site_info mode params args params_args : (Paramet
      end
   | None, KeyValue { key; value } :: args
   | Some `Named, KeyValue { key; value } :: args ->
-     let key_param, params = Util.find_and_drop ~f:(fun p -> p.name = snd key) params in
+     let key_param, params = Util.find_and_drop ~f:(fun p -> String.equal p.name (snd key)) params in
      begin match key_param with
      | Some key_param ->
         let params_args = (key_param, Some value) :: params_args in
@@ -1402,15 +1402,17 @@ and check_direction env dir expr expr_dir =
   | InOut ->
      if not @@ is_lvalue expr
      then raise_s [%message "expected l-value, got expr:" ~expr:(expr: Expression.t)];
-     if expr_dir = In
-     then raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
+     match expr_dir with
+     | In ->
+       raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
+     | _ -> ()
 
 and find_extern_methods env func : (FunctionType.t list) option =
   match snd func with
   | Expression.ExpressionMember { expr; name } ->
      begin match reduce_type env @@ type_expression env expr with
      | Extern e ->
-        let methods = List.filter ~f:(fun m -> m.name = snd name) e.methods in
+        let methods = List.filter ~f:(fun m -> String.equal m.name (snd name)) e.methods in
         Some (List.map ~f:(fun m -> m.typ) methods)
      | _ -> None
      end
@@ -1418,7 +1420,7 @@ and find_extern_methods env func : (FunctionType.t list) option =
 
 and resolve_extern_overload env method_types args =
   let works (method_type: FunctionType.t) =
-    try match_params_to_args Info.dummy method_type.parameters args |> ignore;
+    try ignore (match_params_to_args Info.dummy method_type.parameters args : (Typed.Parameter.t * Expression.t option) list);
         true
     with _ -> false
   in
@@ -1433,8 +1435,10 @@ and type_function_call env call_info func type_args args =
         check_direction env param.direction expr dir;
         assert_type_equality env call_info arg_typ param.typ
     | None ->
-       if param.direction <> Out
-       then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
+        match param.direction with
+        | Out -> ()
+        | _ ->
+         raise_s [%message "don't care argument (underscore) provided for non-out parameter"
                         ~call_site:(call_info: Info.t) ~param:param.name]
   in
   let func_type =
@@ -1463,9 +1467,9 @@ and type_function_call env call_info func type_args args =
     match List.zip type_params type_args with
     | Ok v -> v
     | Unequal_lengths ->
-       if type_args = []
-       then List.map ~f:(fun v -> v, None) type_params
-       else failwith "mismatch in type arguments"
+       match type_args with
+       | [] -> List.map ~f:(fun v -> v, None) type_params
+       | _ :: _ -> failwith "mismatch in type arguments"
   in
   let type_params_args =
     infer_type_arguments env return_type type_params_args params_args type_params_args
@@ -1480,7 +1484,7 @@ and select_constructor_params env info methods args =
     | Constructor { params; _ } ->
        begin try
          let params = translate_parameters env [] params in
-         let _ = match_params_to_args info params args in
+         let _ : (Typed.Parameter.t * Expression.t option) list = match_params_to_args info params args in
          true
          with _ -> false
        end
@@ -1613,7 +1617,7 @@ and type_statement (env: CheckerEnv.t) (stm: Statement.t) : (StmType.t * Checker
 
 (* Section 8.17 *)
 and type_method_call env call_info func type_args args =
-  let _ = type_function_call env call_info func type_args args in
+  let _ : Typed.Type.t = type_function_call env call_info func type_args args in
   StmType.Unit, env
 
 
@@ -1630,7 +1634,7 @@ and type_method_call env call_info func type_args args =
 and type_assignment env lhs rhs =
   let lhs_type = type_expression env lhs in
   let rhs_type = type_expression env rhs in
-  ignore (assert_same_type env (info lhs) (info rhs) lhs_type rhs_type);
+  ignore (assert_same_type env (info lhs) (info rhs) lhs_type rhs_type : Typed.Type.t * Typed.Type.t);
   (Unit, env)
 
 (* This belongs in an elaboration pass, really. - Ryan *)
@@ -1639,7 +1643,7 @@ and type_direct_application env typ args =
   let instance = NamelessInstantiation { typ = typ; args = [] } in
   let apply = ExpressionMember { expr = Info.dummy, instance; name = (Info.dummy, "apply") } in
   let call = FunctionCall { func = Info.dummy, apply; type_args = []; args = args } in
-  let _ = type_expression env (Info.dummy, call) in
+  let _ : Typed.Type.t = type_expression env (Info.dummy, call) in
   (StmType.Unit, env)
 
 (* Question: Can Conditional statement update env? *)
@@ -1658,9 +1662,8 @@ and type_direct_application env typ args =
  *    Δ, T, Γ |- if e1 then e2 else e3: Δ', T', Γ'
  *)
 and type_conditional env cond tru fls =
-  cond |> type_expression env
-  |> assert_bool (info cond)
-  |> ignore;
+  ignore (cond |> type_expression env
+  |> assert_bool (info cond) : Typed.Type.t);
   let type' x = fst (type_statement env x) in
   let tru_typ = type' tru in
   let fls_typ = option_map type' fls in
@@ -1693,7 +1696,7 @@ and type_return env expr =
   let ret = StmType.Void, env in
   match expr with
   | None -> ret
-  | Some e -> let _ = type_expression env e in ret
+  | Some e -> let _ : Typed.Type.t = type_expression env e in ret
 
 
 (* Section 11.7 *)
@@ -1712,12 +1715,12 @@ and type_switch env expr cases =
   let case_checker (_,case) =
     begin match case with
     | Action {label=(_,label);code=block} ->
-      let _ = type_block_statement env block in
+      let _ : StmType.t * CheckerEnv.t = type_block_statement env block in
       label_checker label
     | FallThrough {label=(_,label)} -> label_checker label
     end in
   match action_name_typ with
-  | Enum _ -> 
+  | Enum _ ->
      if List.for_all ~f:case_checker cases
      then (StmType.Unit, env)
      else failwith "Switch statement does not type check."
@@ -1826,16 +1829,16 @@ and type_instantiation env typ args name =
   CheckerEnv.insert_type_of (snd name) instance_type env
 
 and check_constructor_invocation env type_params params type_args args =
-  solve_constructor_invocation env type_params params type_args args |> ignore
+  ignore (solve_constructor_invocation env type_params params type_args args : Typed.Type.t list)
 
 and solve_constructor_invocation env type_params params type_args args: Typed.Type.t list =
   let type_params_args =
     match List.zip type_params type_args with
     | Ok v -> v
     | Unequal_lengths ->
-       if type_args = []
-       then List.map ~f:(fun v -> v, None) type_params
-       else failwith "mismatch in type arguments"
+       match type_args with
+       | [] -> List.map ~f:(fun v -> v, None) type_params
+       | _ :: _ -> failwith "mismatch in type arguments"
   in
   match List.zip params args with
   | Ok params_args ->
@@ -1898,7 +1901,7 @@ and type_select_case env state_names expr_types (_, case) : unit =
     in
     List.iter ~f:check_match matches_and_types;
     let name = snd case.next in
-    if List.mem ~equal:(=) state_names name
+    if List.mem ~equal:String.equal state_names name
     then ()
     else raise @@ Env.UnboundName name
   | Unequal_lengths -> failwith "mismatch between types and number of matches"
@@ -1907,7 +1910,7 @@ and type_transition env state_names transition : unit =
   let open Parser in
   match snd transition with
   | Direct {next = (_, name')} ->
-      if List.mem ~equal:(=) state_names name'
+      if List.mem ~equal:String.equal state_names name'
       then ()
       else raise @@ Env.UnboundName name'
   | Select {exprs; cases} ->
@@ -1954,7 +1957,7 @@ and type_control env name type_params params constructor_params locals apply =
   then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
   else
     let env' = open_control_scope env params constructor_params locals in
-    let _ = type_block_statement env' apply in
+    let _ : StmType.t * CheckerEnv.t = type_block_statement env' apply in
     env
 
 (* Section 9
@@ -2012,7 +2015,7 @@ and type_function env return name type_params params body =
           | _ -> (st,new_env)
         end
     end in
-  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
+  let _ : StmType.t * CheckerEnv.t = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
   let open FunctionType in
   let funtype = Type.Function {parameters=ps;
                  type_params= type_params |> List.map ~f:snd;
@@ -2068,9 +2071,9 @@ and type_action env name params body =
           let new_env = CheckerEnv.insert_type_of (snd p.variable) typ env in
           (data_params, ctrl_par::ctrl_params), new_env
         | Some d ->
-          if ctrl_params <> []
-          then failwith "Action parameters with direction must come before directionless parameters"
-          else let d = begin match snd d with
+          match ctrl_params with
+          | _ :: _ -> failwith "Action parameters with direction must come before directionless parameters"
+          | [] -> let d = begin match snd d with
             | In -> In
             | Out -> Out
             | InOut -> InOut end in
@@ -2100,7 +2103,7 @@ and type_action env name params body =
       end
     end
   in
-  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
+  let _ : StmType.t * CheckerEnv.t = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
   let open Typed.ActionType in
   let actionType = Type.Action {data_params=dps; ctrl_params=cps} in
   CheckerEnv.insert_type_of (snd name) actionType env
@@ -2133,9 +2136,10 @@ and type_table_actions env key_types actions =
              check_direction env param.direction expr dir;
              assert_type_equality env call_info arg_typ param.typ
          | None ->
-            if param.direction = In
-            then raise_s [%message "don't care argument (underscore) provided for in parameter"
+            match param.direction with
+            | In -> raise_s [%message "don't care argument (underscore) provided for in parameter"
                              ~call_site:(call_info: Info.t) ~param:param.name]
+            | _ -> ()
        in
        List.iter ~f:(type_param_arg env) params_args;
        Type.Action action_decl
@@ -2158,9 +2162,9 @@ and type_table_entries env entries key_typs action_map =
         | Default -> failwith "Default unimplemented"
         | DontCare -> true
         | Expression {expr= exp} -> exp |> type_expression env |> type_equality env key_typ in
-      let _ = List.map2 ~f:type_entry_key_vals key_typs entry.matches in
+      let _ : bool list List.Or_unequal_lengths.t = List.map2 ~f:type_entry_key_vals key_typs entry.matches in
       let action = snd entry.action in
-      match List.Assoc.find action_map ~equal:(=) (snd action.name) with
+      match List.Assoc.find action_map ~equal:String.equal (snd action.name) with
       | None -> failwith "Entry must call an action in the table."
       | Some (Type.Action {data_params=params; ctrl_params=_}) ->
         let check_arg (param:Parameter.t) (_, arg:Argument.t) =
@@ -2169,7 +2173,7 @@ and type_table_entries env entries key_typs action_map =
           | Expression {value=exp} -> exp |> type_expression env |> type_equality env param.typ
           | _ -> failwith "Actions in entries only support positional arguments."
           end in
-        let _ = List.map2 ~f:check_arg params action.args in true
+        let _ : bool list List.Or_unequal_lengths.t = List.map2 ~f:check_arg params action.args in true
       | _ -> failwith "Table actions must have action types." in
     List.for_all ~f:type_table_entry entries
 
@@ -2306,7 +2310,7 @@ and type_extern_object env name type_params methods =
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor {name = cname; params; _} ->
-        assert (snd cname = snd name);
+        assert (String.equal (snd cname) (snd name));
         let params' = translate_construct_params env type_params' params in
         (params' :: constructors, methods)
     | MethodPrototype.Method {return; name; type_params; params; _}

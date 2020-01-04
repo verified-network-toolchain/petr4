@@ -72,23 +72,23 @@ let check_file (include_dirs : string list) (p4_file : string)
     Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
 
-let eval_file include_dirs p4_file verbose pfile cfile =
-  let packet_string = Core_kernel.In_channel.read_all pfile in
-  let pack = Cstruct.of_hex packet_string in
+let eval_file include_dirs p4_file verbose pkt_file ctrl_file =
+  let pkt_str = Core_kernel.In_channel.read_all pkt_file in
+  let pkt = Cstruct.of_hex pkt_str in
   let open Yojson.Safe in
-  let ctrl_json = from_file cfile in
+  let ctrl_json = from_file ctrl_file in
   let pre_entries = ctrl_json
                     |> Util.member "pre_entries"
                     |> Util.to_list in
-  let ctrl = List.map pre_entries ~f:Types.Table.pre_entry_of_yojson_exn in
+  let tbls = List.map pre_entries ~f:Types.Table.pre_entry_of_yojson_exn in
   let matches = ctrl_json
                 |> Util.member "matches"
                 |> Util.to_list
                 |> List.map ~f:Util.to_list in
-  let ctrl_vs =
+  let vsets =
     List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog pack ctrl ctrl_vs
+  | `Ok prog -> Eval.eval_program prog (tbls, vsets) pkt
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =

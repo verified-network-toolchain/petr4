@@ -25,7 +25,7 @@ let format_list_nl f fmt l =
     if b then Format.fprintf fmt "@\n";
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g)
+  ignore (List.fold_left l ~init:false ~f:g : bool)
 
 let format_list_sep f sep fmt l =
   let g b x =
@@ -33,14 +33,14 @@ let format_list_sep f sep fmt l =
     Format.fprintf fmt "@,";
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g)
+  ignore (List.fold_left l ~init:false ~f:g : bool)
 
 let format_list_sep_nl f sep fmt l =
   let g b x =
     if b then Format.fprintf fmt "%s@\n" sep;
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g)
+  ignore (List.fold_left l ~init:false ~f:g : bool)
 
 let format_option f fmt o =
   match o with
@@ -354,9 +354,10 @@ end = struct
         P4String.format_t name
         (format_list_sep Argument.format_t ",") args
   let format_ts fmt l =
-    if l = [] then
+    match l with
+    | [] ->
       ()
-    else
+    | _ :: _ ->
       (format_list_nl format_t fmt l;
        Format.fprintf fmt "@\n")
 end
@@ -383,7 +384,7 @@ end = struct
     Annotation.format_ts fmt p.annotations;
     Format.fprintf fmt "@[%a%s%a %s%a@]"
       (format_option Direction.format_t) p.direction
-      (if p.direction = None then "" else " ")
+      (match p.direction with None -> "" | Some _ -> " ")
       Type.format_t p.typ
       (snd p.variable)
       (format_option
@@ -394,9 +395,10 @@ end = struct
     Format.fprintf fmt "@[%a@]" (format_list_sep format_t ",") l
 
   let format_constructor_params fmt l =
-    if l = [] then
+    match l with
+    | [] ->
       ()
-    else
+    | _ :: _ ->
       Format.fprintf fmt "(@[%a@])"
         (format_list_sep format_t ",") l
 
@@ -457,7 +459,7 @@ end = struct
       Format.fprintf fmt "@[<4>state %a {@\n%a"
         P4String.format_t name
         (format_list_nl Statement.format_t) statements;
-      (if statements = [] then () else Format.fprintf fmt "@\n");
+      (match statements with [] -> () | _ :: _ -> Format.fprintf fmt "@\n");
       Format.fprintf fmt "%a@]@\n}" format_transition transition
 
   let format_states fmt l =
@@ -560,9 +562,10 @@ end = struct
         P4String.format_t name
 
   let format_fields fmt l =
-    if l = [] then
+    match l with
+    | [] ->
       Format.fprintf fmt "{ }@]"
-    else
+    | _ :: _ ->
       Format.fprintf fmt "{@\n%a@]@\n}"
         (format_list_nl format_field) l
 

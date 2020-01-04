@@ -130,7 +130,7 @@ let command =
     +> flag "-ctrl" (optional string) ~doc:"<file> Read a control plane config from file"
     +> anon (maybe ("p4file" %:string)) in
   Command.basic_spec
-    ~summary:"p4i: OCaml front-end for the P4 language"
+    ~summary:"petr4 reference implementation of P4-16"
     spec
     (fun include_dirs p4_dir print_json pretty_json verbose packet ctrl_file p4_file () ->
        match p4_dir, p4_file, packet, ctrl_file with

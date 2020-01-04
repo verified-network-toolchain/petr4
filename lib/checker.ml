@@ -741,6 +741,7 @@ and translate_type (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) 
     Array {typ=hdt; size=len}
   | Tuple tlist ->
     Tuple {types = List.map ~f:(translate_type env vars) tlist}
+  | String -> String
   | Void -> Void
   | DontCare -> failwith "TODO: type inference"
 

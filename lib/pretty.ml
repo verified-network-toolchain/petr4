@@ -317,6 +317,8 @@ end = struct
     | Tuple x ->
       Format.fprintf fmt "@[tuple<%a>@]"
         (format_list_sep format_t ",") x
+    | String -> 
+       Format.fprintf fmt "string"      
     | Void ->
       Format.fprintf fmt "void"
     | DontCare ->

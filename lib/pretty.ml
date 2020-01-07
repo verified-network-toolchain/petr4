@@ -25,7 +25,7 @@ let format_list_nl f fmt l =
     if b then Format.fprintf fmt "@\n";
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g : bool)
+  ignore (List.fold_left l ~init:false ~f:g)
 
 let format_list_sep f sep fmt l =
   let g b x =
@@ -33,25 +33,23 @@ let format_list_sep f sep fmt l =
     Format.fprintf fmt "@,";
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g : bool)
+  ignore (List.fold_left l ~init:false ~f:g)
 
 let format_list_term f term fmt l =
-  let g b x =
-    if b then Format.fprintf fmt "%s" term;
-    Format.fprintf fmt "@,";
+  let g x =
     f fmt x;
-    true in
+    Format.fprintf fmt "%s@," term; in
   if l = [] then 
     Format.fprintf fmt "%s" term
   else 
-    ignore (List.fold_left l ~init:false ~f:g : bool)
+    List.iter l ~f:g
 
 let format_list_sep_nl f sep fmt l =
   let g b x =
     if b then Format.fprintf fmt "%s@\n" sep;
     f fmt x;
     true in
-  ignore (List.fold_left l ~init:false ~f:g : bool)
+  ignore (List.fold_left l ~init:false ~f:g)
 
 let format_option f fmt o =
   match o with

@@ -195,7 +195,7 @@ end = struct
         Expression.format_t lhs
         Expression.format_t rhs
     | DirectApplication { typ; args } ->
-      Format.fprintf fmt "@[%a(%a);@]"
+      Format.fprintf fmt "@[%a.apply(%a);@]"
         Type.format_t typ
         Argument.format_ts args
     | Conditional { cond; tru; fls } ->
@@ -228,7 +228,7 @@ end = struct
       Format.fprintf fmt "@[<4>%a"
         Block.format_t block
     | Exit ->
-      Format.fprintf fmt "exit"
+      Format.fprintf fmt "exit;"
     | EmptyStatement ->
       Format.fprintf fmt ";"
     | Return { expr = None } ->
@@ -267,7 +267,7 @@ end = struct
       Format.fprintf fmt "@[%a@]"
         Expression.format_t x.value
     | KeyValue x ->
-      Format.fprintf fmt "@[<4>%s:%a@]"
+      Format.fprintf fmt "@[<4>%s=%a@]"
         (snd x.key)
         Expression.format_t x.value
     | Missing ->
@@ -439,7 +439,7 @@ end = struct
     match snd e with
     | { matches; next } ->
       Format.fprintf fmt "%a: %a;"
-        (format_list_sep Match.format_t ",") matches
+        Match.format_ts matches
         P4String.format_t next
 
   let format_transition fmt e =
@@ -539,7 +539,7 @@ end = struct
         Parameter.format_params params
     | AbstractMethod { annotations; return; name; type_params; params } -> 
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a abstract %a%a(%a);@]"
+      Format.fprintf fmt "@[abstract %a %a%a(%a);@]"
         Type.format_t return
         P4String.format_t name
         Type.format_type_params type_params
@@ -660,7 +660,7 @@ end = struct
         Expression.format_t size
         P4String.format_t name
     | TypeDef { annotations; name; typ_or_decl } ->
-      Format.printf "@[%atypedef %a %s;@]"
+      Format.fprintf fmt "@[%atypedef %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
         (snd name)
@@ -745,7 +745,7 @@ end = struct
         P4String.format_t name
         format_fields fields
     | NewType { annotations; name; typ_or_decl } ->
-      Format.printf "@[%atype %a %s;@]"
+      Format.fprintf "@[%atype %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
         (snd name)

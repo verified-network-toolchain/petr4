@@ -660,7 +660,7 @@ end = struct
         Expression.format_t size
         P4String.format_t name
     | TypeDef { annotations; name; typ_or_decl } ->
-      Format.printf "@[%atypedef %a %s;@]"
+      Format.fprintf fmt "@[%atypedef %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
         (snd name)
@@ -745,7 +745,7 @@ end = struct
         P4String.format_t name
         format_fields fields
     | NewType { annotations; name; typ_or_decl } ->
-      Format.printf "@[%atype %a %s;@]"
+      Format.fprintf fmt "@[%atype %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
         (snd name)

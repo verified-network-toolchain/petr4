@@ -35,6 +35,17 @@ let format_list_sep f sep fmt l =
     true in
   ignore (List.fold_left l ~init:false ~f:g : bool)
 
+let format_list_term f term fmt l =
+  let g b x =
+    if b then Format.fprintf fmt "%s" term;
+    Format.fprintf fmt "@,";
+    f fmt x;
+    true in
+  if l = [] then 
+    Format.fprintf fmt "%s" term
+  else 
+    ignore (List.fold_left l ~init:false ~f:g : bool)
+
 let format_list_sep_nl f sep fmt l =
   let g b x =
     if b then Format.fprintf fmt "%s@\n" sep;
@@ -529,7 +540,7 @@ end = struct
         (format_list_nl format_key) keys
     | Actions { actions } ->
       Format.fprintf fmt "@[<4>actions = {@\n%a@]@\n}"
-        (format_list_sep format_action_ref ";") actions
+        (format_list_term format_action_ref ";") actions
     | Entries { entries } ->
       Format.fprintf fmt "@[<4>const entries = {@\n%a@]@\n}"
         (format_list_nl format_entry) entries

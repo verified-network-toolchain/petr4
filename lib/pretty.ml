@@ -99,8 +99,8 @@ end = struct
     | BitStringAccess x ->
       Format.fprintf fmt "@[%a[%a:%a]@]"
         format_t x.bits
-        format_t x.lo
         format_t x.hi
+        format_t x.lo
     | List x ->
       Format.fprintf fmt "@[<4>{%a}@]" 
         (format_list_sep format_t ",") x.values
@@ -177,12 +177,32 @@ end = struct
       Format.fprintf fmt "@[<4>%a@ ..@ %a@]" (* TODO: check *)
         format_t x.lo
         format_t x.hi
+
 end
 
 and Statement : sig
   val format_t : Format.formatter -> P4.Statement.t -> unit
 end = struct
   open P4.Statement
+
+  let format_switch_label fmt sl =
+    match sl with
+    | Default ->
+      Format.fprintf fmt "default"
+    | Name(sl) ->
+       Format.fprintf fmt "@[%a@]"
+        P4String.format_t sl
+
+  let format_switch_case fmt sc =
+    match snd sc with
+    | Action { label; code } ->
+       Format.fprintf fmt "%a: %a"
+         format_switch_label (snd label)
+         Block.format_t code
+    | FallThrough { label } ->
+       Format.fprintf fmt "%a:"
+        format_switch_label (snd label)     
+
   let rec format_t fmt (e:t) =
     match snd e with
     | MethodCall { func; type_args; args } ->
@@ -236,10 +256,12 @@ end = struct
     | Return { expr = Some sexpr } ->
       Format.fprintf fmt "@[return %a;@]"
         Expression.format_t sexpr
+    | Switch { expr; cases } -> 
+       Format.fprintf fmt "@[<4>switch (%a) {%a@]@\n}"
+         Expression.format_t expr
+         (format_list_nl format_switch_case) cases
     | DeclarationStatement { decl } ->
       Declaration.format_t fmt decl
-    | _ ->
-      Format.fprintf fmt "<statement>"
 end
 
 and Block : sig
@@ -483,11 +505,11 @@ end = struct
     match snd e with
     | { annotations; name; args = [] } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a;@]"
+      Format.fprintf fmt "@[%a@]"
         P4String.format_t name
     | { annotations; name; args } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[%a(%a);@]"
+      Format.fprintf fmt "@[%a(%a)@]"
         P4String.format_t name
         Argument.format_ts args
 
@@ -507,9 +529,9 @@ end = struct
         (format_list_nl format_key) keys
     | Actions { actions } ->
       Format.fprintf fmt "@[<4>actions = {@\n%a@]@\n}"
-        (format_list_nl format_action_ref) actions
+        (format_list_sep format_action_ref ";") actions
     | Entries { entries } ->
-      Format.fprintf fmt "@[<4>entries = {@\n%a@]@\n}"
+      Format.fprintf fmt "@[<4>const entries = {@\n%a@]@\n}"
         (format_list_nl format_entry) entries
     | Custom { annotations; const; name; value } ->
       Annotation.format_ts fmt annotations;
@@ -647,7 +669,7 @@ end = struct
         Type.format_type_params type_params
         Parameter.format_params params
     | Function { return; name; type_params; params; body } ->
-      Format.fprintf fmt "@[<4>function %a %a%a(%a) %a"
+      Format.fprintf fmt "@[<4>%a %a%a(%a) %a"
         Type.format_t return
         P4String.format_t name
         Type.format_type_params type_params

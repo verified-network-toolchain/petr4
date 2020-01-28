@@ -38,8 +38,8 @@ let format_list_sep f sep fmt l =
 let format_list_term f term fmt l =
   let g x =
     f fmt x;
-    Format.fprintf fmt "%s@," term; in
-  if l = [] then 
+    Format.fprintf fmt "%s@," term in
+  if List.is_empty l then
     Format.fprintf fmt "%s" term
   else 
     List.iter l ~f:g

@@ -56,9 +56,9 @@ module Core : Target = struct
                  ("emit", eval_emit);
                  ("verify", eval_verify)]
 
-  let check_pipeline = failwith "core has no pipeline"
+  let check_pipeline _ = failwith "core has no pipeline"
 
-  let eval_pipeline = failwith "core has no pipeline"
+  let eval_pipeline _ = failwith "core has no pipeline"
 
 end 
 

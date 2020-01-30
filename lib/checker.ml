@@ -57,8 +57,7 @@ let rec is_lvalue (_, expr) =
  * typecheck the expression before trying to evaluate it! *)
 let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Types.Expression.t) : Value.value option =
   match snd expr with
-  | Name (_, var) ->
-     CheckerEnv.find_const_opt var env
+  | Name (_, var) -> CheckerEnv.find_const_opt var env
   | True -> Some (Value.VBool true)
   | False -> Some (Value.VBool false)
   | String (_, str) -> Some (Value.VString str)

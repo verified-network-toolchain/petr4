@@ -628,7 +628,8 @@ end = struct
         Type.format_type_params type_params
         Parameter.format_params params
         Parameter.format_constructor_params constructor_params;
-      Format.fprintf fmt "%a" (format_list_nl format_t) locals;
+      if not (List.is_empty locals) then 
+        Format.fprintf fmt "%a@\n" (format_list_nl format_t) locals;
       Format.fprintf fmt "@[<4>apply %a" Block.format_t apply;
       Format.fprintf fmt "@]@\n}"
     | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
@@ -638,7 +639,8 @@ end = struct
         Type.format_type_params type_params
         Parameter.format_params params
         Parameter.format_constructor_params constructor_params;
-      Format.fprintf fmt "%a" (format_list_nl format_t) locals;
+      if not (List.is_empty locals) then 
+        Format.fprintf fmt "%a@\n" (format_list_nl format_t) locals;
       Parser.format_states fmt states;
       Format.fprintf fmt "@]@\n}"
     | Instantiation { annotations; typ; args; name; init=None } -> 
@@ -696,19 +698,19 @@ end = struct
         format_typ_or_decl typ_or_decl
         (snd name)
     | ControlType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[%acontrol %s%a(@[%a@]);@]"
+      Format.fprintf fmt "@[<4>%acontrol %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
         (snd name)
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | ParserType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[%aparser %s%a(%a);@]"
+      Format.fprintf fmt "@[<4>%aparser %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
         (snd name)
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | PackageType { annotations; name; type_params; params } ->
-      Format.fprintf fmt "@[%apackage %s%a(%a);@]"
+      Format.fprintf fmt "@[<4>%apackage %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
         (snd name)
         Type.format_type_params type_params

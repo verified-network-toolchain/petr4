@@ -14,7 +14,6 @@
 *)
 
 open Core
-(* open Core_extended.Std *)
 open Petr4
 
 exception ParsingError of string
@@ -117,31 +116,24 @@ let check_dir include_dirs p4_dir verbose =
       loop () in
   loop ()
 
-let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
-    +> flag "-testdir" (optional string) ~doc:"<dir> Test all P4 files in directory"
-    +> flag "-json" no_arg ~doc:"Emit parsed program as JSON on stdout"
-    +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
-    +> flag "-verbose" no_arg ~doc:"Verbose mode"
-    +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
-    +> flag "-ctrl" (optional string) ~doc:"<file> Read a control plane config from file"
-    +> anon (maybe ("p4file" %:string)) in
+let check_command = 
+  let open Command.Spec in 
   Command.basic_spec
-    ~summary:"Petr4: a reference implementation of the P4-16 language"
-    spec
-    (fun include_dirs p4_dir print_json pretty_json verbose packet ctrl_file p4_file () ->
-       match p4_dir, p4_file, packet, ctrl_file with
-       | Some p4_dir,_,_,_ ->
-         check_dir include_dirs p4_dir verbose
-       | _, Some p4_file, Some pfile, Some cfile ->
-         check_file include_dirs p4_file print_json pretty_json verbose;
-         eval_file include_dirs p4_file verbose pfile cfile
-       | _, _, _, _ -> ())
+    ~summary: "Check syntax of P4_16 file"
+    (empty
+     +> flag "-v" no_arg ~doc:" Enable verbose output" 
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-json" no_arg ~doc:" Print parsed tree as JSON"
+     +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
+     +> anon ("p4file" %: string))
+     (fun verbose include_dir json pretty p4file () -> 
+       ignore (check_file include_dir p4file json pretty verbose))
+       
+let command = 
+  Command.group
+    ~summary: "Petr4: A reference implementation of the P4_16 language"
+    ["check", check_command]
 
-let () =
-  Format.printf "@[";
-  Command.run ~version:"0.1.1" command;
-  Format.printf "@]"
+let () = Command.run ~version: "0.1.1" command
+
+

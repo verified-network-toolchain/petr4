@@ -689,7 +689,7 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and translate_type (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
   let eval e =
-    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.dummy_st Cstruct.empty e
+    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state Cstruct.empty e
     |> fun (a,_,_,b) -> (a,b)
   in
   let get_int_from_bigint num =

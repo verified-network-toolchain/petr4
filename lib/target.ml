@@ -11,7 +11,7 @@ module type Target = sig
 
   type st
 
-  val dummy_st : st
+  val empty_state : st
 
   val externs : (string * extern) list
 
@@ -28,7 +28,7 @@ module Core : Target = struct
 
   type st = unit
 
-  let dummy_st = ()
+  let empty_state = ()
 
   let eval_extract_fixed env pkt v =
     failwith "unimplemented"
@@ -74,7 +74,7 @@ module V1Model : Target = struct
 
   type st = unit
 
-  let dummy_st = ()
+  let empty_state = ()
 
   let externs = []
 
@@ -163,7 +163,7 @@ module EbpfFilter : Target = struct
 
   type st = unit
 
-  let dummy_st = ()
+  let empty_state = ()
 
   let externs = []
 

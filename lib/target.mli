@@ -8,7 +8,7 @@ module type Target = sig
 
   type st
 
-  val dummy_st : st
+  val empty_state : st
 
   val externs : (string * extern) list
 

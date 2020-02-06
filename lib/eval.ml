@@ -12,7 +12,7 @@ module type Interpreter = sig
   
   type st
   
-  val dummy_st : st
+  val empty_state : st
 
   val eval : ctrl -> env -> st -> pkt -> (st * pkt) 
 
@@ -34,7 +34,7 @@ module MakeInterpreter (T : Target) = struct
 
   type st = T.st
 
-  let dummy_st = T.dummy_st
+  let empty_state = T.empty_state
 
   (*----------------------------------------------------------------------------*)
   (* Declaration Evaluation *)
@@ -2849,8 +2849,8 @@ let eval_main (env : env) (ctrl : ctrl) (pkt : pkt) : pkt =
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is not a package" in
   match name with
-  | "V1Switch"     -> V1Interp.eval ctrl env V1Interp.dummy_st pkt |> snd
-  | "ebpfFilter"   -> EbpfInterp.eval ctrl env EbpfInterp.dummy_st pkt |> snd
+  | "V1Switch"     -> V1Interp.eval ctrl env V1Interp.empty_state pkt |> snd
+  | "ebpfFilter"   -> EbpfInterp.eval ctrl env EbpfInterp.empty_state pkt |> snd
   | "EmptyPackage" -> pkt
   | _ -> failwith "architecture not supported"
 
@@ -2873,7 +2873,7 @@ let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : unit =
       | _ -> failwith "architecture not supported" in
     let (env,st) = 
       List.fold_left l 
-        ~init:(EvalEnv.empty_eval_env, V1Interp.dummy_st)
+        ~init:(EvalEnv.empty_eval_env, V1Interp.empty_state)
         ~f:(fun (e,s) -> eval_decl ctrl e s) 
     in
     EvalEnv.print_env env;

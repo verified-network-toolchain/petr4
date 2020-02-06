@@ -776,7 +776,7 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   fun env vars typ ->
   let open Types.Type in
   let eval e =
-    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.dummy_st Cstruct.empty e
+    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state Cstruct.empty e
     |> fun (a,_,_,b) -> (a,b)
   in
   let get_int_from_bigint num =

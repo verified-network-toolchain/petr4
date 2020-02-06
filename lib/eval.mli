@@ -10,7 +10,7 @@ module type Interpreter = sig
 
   type st
 
-  val dummy_st : st
+  val empty_state : st
 
   val eval : ctrl -> env -> st -> pkt -> (st * pkt)
 

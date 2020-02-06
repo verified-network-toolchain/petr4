@@ -10,6 +10,8 @@ open Petr4Error
 module Error = Petr4Error
 module Info = Petr4Info
 
+module Eval = Eval.MakeInterpreter(Target.V1Model)
+
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
   | Some v -> v
@@ -687,7 +689,8 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and translate_type (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t =
   let open Types.Type in
   let eval e =
-    Eval.eval_expression (CheckerEnv.eval_env_of_t env) ([],[]) e
+    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.dummy_st Cstruct.empty e
+    |> fun (a,_,_,b) -> (a,b)
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with

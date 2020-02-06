@@ -87,7 +87,7 @@ let eval_file include_dirs p4_file verbose pkt_file ctrl_file =
   let vsets =
     List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
   match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog (tbls, vsets) pkt
+  | `Ok prog -> Eval.eval_prog prog (tbls, vsets) pkt
   | _ -> failwith "error unhandled"
 
 let check_dir include_dirs p4_dir verbose =

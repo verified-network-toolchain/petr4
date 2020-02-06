@@ -1,15 +1,15 @@
 open Types
 open Sexplib.Conv
 
-type packet_in = Cstruct_sexp.t [@@deriving sexp]
+type pkt = Cstruct_sexp.t [@@deriving sexp]
 
-type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
+type pkt_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
 
 type entries = Table.pre_entry list
 
-type value_sets = Match.t list list
+type vsets = Match.t list list
 
-type ctrl = entries * value_sets
+type ctrl = entries * vsets
 
 type value =
   | VNull
@@ -140,8 +140,8 @@ and signal =
 [@@deriving sexp]
 
 and vruntime =
-  | PacketIn of packet_in
-  | PacketOut of packet_out
+  | PacketIn of pkt
+  | PacketOut of pkt_out
 [@@deriving sexp]
 
 let assert_bool v =
@@ -317,12 +317,12 @@ let assert_valueset s =
   | SValueSet {size; members; sets} -> (size, members, sets)
   | _ -> failwith "not a valueset"
 
-let assert_packet_in r = 
+let assert_pkt r = 
   match r with 
   | PacketIn p -> p
   | _ -> failwith "not a packet in"
 
-let assert_packet_out r = 
+let assert_pkt_out r = 
   match r with 
   | PacketOut p -> p 
   | _ -> failwith "not a packet out"

@@ -66,8 +66,8 @@ let merge (info1 : t) (info2 : t) =
     match info1 with
     | M _ -> info2
     | I _ ->
-      let start_l, start_c = min (start_pos info1) (start_pos info2)   in
-      let end_l, end_c     = max (end_pos info1)   (end_pos info2)     in
+      let start_l, start_c = Poly.min (start_pos info1) (start_pos info2)   in
+      let end_l, end_c     = Poly.max (end_pos info1)   (end_pos info2)     in
       let end_l_opt = if (start_l = end_l) then None else (Some end_l) in
       I { filename = file info1;
           line_start = start_l;

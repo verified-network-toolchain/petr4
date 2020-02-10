@@ -1,6 +1,5 @@
 (executable
   (public_name petr4)
   (name main)
-  (libraries p4pp core core_kernel petr4 js_of_ocaml js_of_ocaml-lwt)
-  (js_of_ocaml (flags +dynlink.js +toplevel.js))
-  (preprocess (pps ppx_jane js_of_ocaml-ppx)))
+  (libraries ANSITerminal core petr4)
+  (preprocess (pps ppx_jane)))

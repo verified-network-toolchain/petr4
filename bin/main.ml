@@ -12,18 +12,34 @@
  * License for the specific language governing permissions and limitations
  * under the License.
 *)
+
 open Core
-(* open Core_extended.Std *)
 open Petr4
 open Common
 
 exception ParsingError of string
 
-let preprocess include_dirs p4file =
-  let buf = Buffer.create 101 in
-  let env = P4pp.Eval.{ file = p4file; defines = []} in
-  ignore (P4pp.Eval.preprocess_file [] env buf p4file);
-  Buffer.contents buf
+let colorize colors s = ANSITerminal.sprintf colors "%s" s
+
+module Conf: Parse_config = struct
+  let red s = colorize [ANSITerminal.red] s
+  let green s = colorize [ANSITerminal.green] s
+
+  let preprocess include_dirs p4file =
+    let cmd =
+      String.concat ~sep:" "
+        (["cc"] @
+        (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
+    let in_chan = Unix.open_process_in cmd in
+    let str = In_channel.input_all in_chan in
+    let _ = Unix.close_process_in in_chan in
+    str
+end
+
+module Parse = Make_parse(Conf)
+
+open Parse
 
 let check_dir include_dirs p4_dir verbose =
   let dir_handle = Unix.opendir p4_dir in
@@ -36,7 +52,7 @@ let check_dir include_dirs p4_dir verbose =
         begin
           Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
           let p4_file = Filename.concat p4_dir file in
-          match parse include_dirs p4_file verbose preprocess with
+          match parse include_dirs p4_file p4_file verbose with
           | `Ok prog ->
              let prog = Elaborate.elab prog in
              Checker.check_program prog |> ignore;
@@ -51,41 +67,22 @@ let check_dir include_dirs p4_dir verbose =
       loop () in
   loop ()
 
-let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
-    +> flag "-testdir" (optional string) ~doc:"<dir> Test all P4 files in directory"
-    +> flag "-json" no_arg ~doc:"Emit parsed program as JSON on stdout"
-    +> flag "-pretty" no_arg ~doc:"Pretty print JSON"
-    +> flag "-verbose" no_arg ~doc:"Verbose mode"
-    +> flag "-packet" (optional string) ~doc:"<file> Read a packet from file"
-    +> flag "-ctrl" (optional string) ~doc:"<file> Read a control plane config from file"
-    +> anon (maybe ("p4file" %:string)) in
+let check_command =
+  let open Command.Spec in
   Command.basic_spec
-    ~summary:"p4i: OCaml front-end for the P4 language"
-    spec
-    (fun include_dirs p4_dir print_json pretty_json verbose packet ctrl_file p4_file () ->
-       match p4_dir, p4_file, packet, ctrl_file with
-       | Some p4_dir,_,_,_ ->
-         check_dir include_dirs p4_dir verbose
-       | _, Some p4_file, Some pfile, Some cfile ->
-         check_file include_dirs p4_file print_json pretty_json verbose preprocess;
-          (* let packet_string =  *)
-          let ctrl_json = Yojson.Safe.from_file cfile in
-          let packet_string = Core_kernel.In_channel.read_all pfile in
-          check_file include_dirs p4_file print_json pretty_json verbose preprocess;
-          eval_file include_dirs packet_string ctrl_json verbose preprocess p4_file
-          |> print_endline
-       | _, _, _, _ -> ())
+    ~summary: "Check syntax of P4_16 file"
+    (empty
+     +> flag "-v" no_arg ~doc:" Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-json" no_arg ~doc:" Print parsed tree as JSON"
+     +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
+     +> anon ("p4file" %: string))
+     (fun verbose include_dir json pretty p4file () ->
+       ignore (check_file include_dir p4file p4file json pretty verbose))
 
-(*let () = check_file ["./examples"] "./examples/eval_tests/controls/table.p4" true true false*)
+let command =
+  Command.group
+    ~summary: "Petr4: A reference implementation of the P4_16 language"
+    ["check", check_command]
 
-(*let () = eval_file ["./examples"] "./examples/eval_tests/parsers/value_set.p4" false "packets/sample_packet.txt" "./ctrl_configs/single_entry.json"
-         |> print_endline*)
-
-let () =
-   Format.printf "@[";
-   Command.run ~version:"0.1.1" command;
-   Format.printf "@]"
+let () = Command.run ~version: "0.1.1" command

@@ -13,10 +13,10 @@ module type Target = sig
 
   val check_pipeline : EvalEnv.t -> unit
 
-  val eval_pipeline : EvalEnv.t -> packet_in ->
-  (EvalEnv.t -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) ->
-  (EvalEnv.t -> lvalue -> value -> EvalEnv.t * 'b) ->
-  (EvalEnv.t -> string -> Type.t -> value) -> packet_in
+  val eval_pipeline : EvalEnv.t -> ctrl -> packet_in ->
+  (EvalEnv.t -> ctrl -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) ->
+  (EvalEnv.t -> ctrl -> lvalue -> value -> EvalEnv.t * 'b) ->
+  (EvalEnv.t -> ctrl -> string -> Type.t -> value) -> packet_in
 
 end
 
@@ -58,7 +58,7 @@ module Core : Target = struct
 
   let check_pipeline _ = failwith "core has no pipeline"
 
-  let eval_pipeline _ _ = failwith "core has no pipeline"
+  let eval_pipeline _ = failwith "core has no pipeline"
 
 end
 
@@ -68,40 +68,40 @@ module V1Model : Target = struct
 
   let check_pipeline env = ()
 
-  let eval_v1control (app : 'a) (control : value) (args : Argument.t list)
-      (env : EvalEnv.t) : EvalEnv.t * signal =
-    let (env,s,_) = app env SContinue control args in
+  let eval_v1control (ctrl : ctrl) (app) (control : value)
+      (args : Argument.t list) (env : EvalEnv.t) : EvalEnv.t * signal =
+    let (env,s,_) = app env ctrl SContinue control args in
     (env,s)
 
-  let eval_pipeline env pack app assign init =
+  let eval_pipeline env ctrl pkt app assign init =
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
     let parser =
-      List.Assoc.find_exn vs "p"   ~equal:(=) in
+      List.Assoc.find_exn vs "p"   ~equal:String.equal in
     let verify =
-      List.Assoc.find_exn vs "vr"  ~equal:(=) in
+      List.Assoc.find_exn vs "vr"  ~equal:String.equal in
     let ingress =
-      List.Assoc.find_exn vs "ig"  ~equal:(=) in
+      List.Assoc.find_exn vs "ig"  ~equal:String.equal in
     let egress =
-      List.Assoc.find_exn vs "eg"  ~equal:(=) in
+      List.Assoc.find_exn vs "eg"  ~equal:String.equal in
     let compute =
-      List.Assoc.find_exn vs "ck"  ~equal:(=) in
+      List.Assoc.find_exn vs "ck"  ~equal:String.equal in
     let deparser =
-      List.Assoc.find_exn vs "dep" ~equal:(=) in
+      List.Assoc.find_exn vs "dep" ~equal:String.equal in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
-    let pckt = VRuntime (PacketIn pack) in
+    let vpkt = VRuntime (PacketIn pkt) in
     let hdr =
-      init env "hdr"      (snd (List.nth_exn params 1)).typ in
+      init env ctrl "hdr"      (snd (List.nth_exn params 1)).typ in
     let meta =
-      init env "meta"     (snd (List.nth_exn params 2)).typ in
+      init env ctrl "meta"     (snd (List.nth_exn params 2)).typ in
     let std_meta =
-      init env "std_meta" (snd (List.nth_exn params 3)).typ in
+      init env ctrl "std_meta" (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
-              |> insert_val "packet"   pckt
+              |> insert_val "packet"   vpkt
               |> insert_val "hdr"      hdr
               |> insert_val "meta"     meta
               |> insert_val "std_meta" std_meta
@@ -110,7 +110,7 @@ module V1Model : Target = struct
               |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
               |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
-    let pckt_expr =
+    let pkt_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
     let hdr_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
@@ -119,23 +119,25 @@ module V1Model : Target = struct
     let std_meta_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
     let (env, state, _) =
-      app env SContinue parser [pckt_expr; hdr_expr; meta_expr; std_meta_expr] in
-    let err = EvalEnv.get_error env in
-    let env = if state = SReject
-      then
-        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) |> fst
-      else env in
-    let pckt' =
+      app env ctrl SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
+    let env =
+      match state with
+      | SReject err ->
+        assign env ctrl (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err))
+        |> fst
+      | SContinue -> env
+      | _ -> failwith "parser should not exit or return" in
+    let vpkt' =
       VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
                                             |> assert_runtime
                                             |> assert_packet_in)) in
-    let env = EvalEnv.insert_val "packet" pckt' env in
+    let env = EvalEnv.insert_val "packet" vpkt' env in
     let (env, _) = env
-              |> eval_v1control app verify   [hdr_expr; meta_expr] |> fst
-              |> eval_v1control app ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst
-              |> eval_v1control app egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
-              |> eval_v1control app compute  [hdr_expr; meta_expr] |> fst
-              |> eval_v1control app deparser [pckt_expr; hdr_expr] in
+              |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst
+              |> eval_v1control ctrl app ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst
+              |> eval_v1control ctrl app egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
+              |> eval_v1control ctrl app compute  [hdr_expr; meta_expr] |> fst
+              |> eval_v1control ctrl app deparser [pkt_expr; hdr_expr] in
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with
@@ -150,22 +152,22 @@ module EbpfFilter : Target = struct
 
   let check_pipeline env = failwith "unimplemented"
 
-  let eval_ebpf_ctrl (control : value) (args : Argument.t list) app
+  let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Argument.t list) app
   (env : EvalEnv.t) : EvalEnv.t * signal =
-    let (env,s,_) = app env SContinue control args in
+    let (env,s,_) = app env ctrl SContinue control args in
     (env,s)
 
-  let eval_pipeline env pkt app assign init =
+  let eval_pipeline env ctrl pkt app assign init =
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
-    let parser = List.Assoc.find_exn vs "prs"  ~equal:(=) in
-    let filter = List.Assoc.find_exn vs "filt" ~equal:(=) in
+    let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal in
+    let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
     let pckt = VRuntime (PacketIn pkt) in
-    let hdr = init env "hdr" (snd (List.nth_exn params 1)).typ in
+    let hdr = init env ctrl "hdr" (snd (List.nth_exn params 1)).typ in
     let accept = VBool (false) in
     let env =
       EvalEnv.(env
@@ -182,11 +184,12 @@ module EbpfFilter : Target = struct
     let accept_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "accept"))}) in
     let (env, state, _) =
-      app env SContinue parser [pckt_expr; hdr_expr] in
-    let env = if state = SReject
-      then
-        assign env (LName("accept")) (VBool(false)) |> fst
-      else env |> eval_ebpf_ctrl filter [hdr_expr; accept_expr] app |> fst in
+      app env ctrl SContinue parser [pckt_expr; hdr_expr] in
+    let env =
+      match state with
+      | SReject _ -> assign env ctrl (LName("accept")) (VBool(false)) |> fst
+      | SContinue ->  env |> eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app |> fst
+      | _ -> failwith "parser should not exit or return" in
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with

@@ -77,5 +77,8 @@ module Make_parse (Conf: Parse_config) = struct
         List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
       match parse include_dirs p4_file_name p4_file_contents verbose with
       | `Ok prog -> Eval.eval_program prog (tbls, vsets) pkt
-      | _ -> failwith "error unhandled"
+      | `Error (info, exn) ->
+        let exn_msg = Exn.to_string exn in
+        let info_string = Info.to_string info in
+        info_string ^ "\n" ^ exn_msg
 end

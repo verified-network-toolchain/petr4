@@ -3,9 +3,11 @@ open Core
 
 open Typed
 
-module rec Parameter : sig
+module P4String = Types.P4String
+
+module rec TypeParameter : sig
   type pre_t =
-    { annotations: Types.Annotation.t list;
+    { annotations: Annotation.t list;
       direction: Typed.direction;
       typ: Typed.Type.t;
       variable: Types.P4String.t;
@@ -30,19 +32,19 @@ and MethodPrototype : sig
     Constructor of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | AbstractMethod of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list}
+        params: TypeParameter.t list}
   | Method of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list}
+        params: TypeParameter.t list}
         [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
@@ -51,19 +53,19 @@ end = struct
     Constructor of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | AbstractMethod of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list}
+        params: TypeParameter.t list}
   | Method of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list}
+        params: TypeParameter.t list}
     [@@deriving sexp,yojson]
     
   type t = pre_t info [@@deriving sexp,yojson]
@@ -109,10 +111,10 @@ and Expression : sig
   | FunctionCall of
       { func: t;
         type_args: Type.t list;
-        args: Expression.t list }
+        args: t list }
   | NamelessInstantiation of
       { typ: Type.t [@key "type"];
-        args: Expression.t list }
+        args: t list }
   | Mask of
       { expr: t;
         mask: t }
@@ -121,7 +123,10 @@ and Expression : sig
         hi: t }
   [@@deriving sexp,yojson]
 
-  and t = (pre_t * Type.t) info [@@deriving sexp,yojson]
+  and typed_t = { expr: pre_t;
+                  typ: Type.t;
+                  dir: direction }
+  and t = typed_t info [@@deriving sexp,yojson]
 end = struct
   type pre_t =
     True
@@ -174,7 +179,10 @@ end = struct
         hi: t }
         [@@deriving sexp,yojson]
 
-  and t = (pre_t * Type.t) info [@@deriving sexp,yojson]
+  and typed_t = { expr: pre_t;
+                  typ: Type.t;
+                  dir: direction }
+  and t = typed_t info [@@deriving sexp,yojson]
 end
 
 and Match : sig
@@ -462,7 +470,7 @@ and Declaration : sig
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
-        value: Expression.t }
+        value: Value.value }
   | Instantiation of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -473,8 +481,8 @@ and Declaration : sig
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
-        constructor_params: Parameter.t list;
+        params: TypeParameter.t list;
+        constructor_params: TypeParameter.t list;
         locals: t list;
         type_env: Env.CheckerEnv.t;
         states: Parser.state list }
@@ -482,22 +490,22 @@ and Declaration : sig
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
-        constructor_params: Parameter.t list;
+        params: TypeParameter.t list;
+        constructor_params: TypeParameter.t list;
         locals: t list;
         apply: Block.t }
   | Function of
       { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
+        params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | Variable of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -511,7 +519,7 @@ and Declaration : sig
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: Parameter.t list;
+        params: TypeParameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;
@@ -559,17 +567,17 @@ and Declaration : sig
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | ParserType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | PackageType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
         [@@deriving sexp,yojson]
 
   and t = pre_t info [@@deriving sexp,yojson]
@@ -591,7 +599,7 @@ end = struct
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
-        value: Expression.t }
+        value: Value.value }
   | Instantiation of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -602,8 +610,8 @@ end = struct
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
-        constructor_params: Parameter.t list;
+        params: TypeParameter.t list;
+        constructor_params: TypeParameter.t list;
         locals: t list;
         type_env: Env.CheckerEnv.t;
         states: Parser.state list }
@@ -611,22 +619,22 @@ end = struct
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
-        constructor_params: Parameter.t list;
+        params: TypeParameter.t list;
+        constructor_params: TypeParameter.t list;
         locals: t list;
         apply: Block.t }
   | Function of
       { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list;
+        params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | Variable of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -640,7 +648,7 @@ end = struct
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: Parameter.t list;
+        params: TypeParameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;
@@ -688,17 +696,17 @@ end = struct
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | ParserType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
   | PackageType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: Parameter.t list }
+        params: TypeParameter.t list }
         [@@deriving sexp,yojson]
 
   and t = pre_t info [@@deriving sexp,yojson]
@@ -746,3 +754,4 @@ end
 
 type program =
     Program of Declaration.t list [@name "program"]
+

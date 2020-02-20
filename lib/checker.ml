@@ -72,8 +72,8 @@ let rec is_lvalue (_, expr) =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Typed.Expression.t) : Value.value option =
-  match fst (snd expr) with
+let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Value.value option =
+  match (snd expr).expr with
   | Name (_, var) ->
      CheckerEnv.find_const_opt var env
   | True -> Some (Value.VBool true)
@@ -102,21 +102,15 @@ let compile_time_eval_bigint env expr: Bigint.t =
   | Some (Value.VInteger v) ->
      v
   | _ -> raise_s [%message "could not compute compile-time-known numerical value for expr"
-                     ~expr:(expr: Typed.Expression.t)]
+                     ~expr:(expr: Prog.Expression.t)]
 
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
  * [decl] before trying to evaluate it! *)
-let compile_time_eval_decl (env: CheckerEnv.t) (decl: Typed.Declaration.t) : CheckerEnv.t =
+let compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
   match snd decl with
   | Constant { name; value; _ } ->
-     begin match compile_time_eval_expr env value with
-     | Some value' ->
-        CheckerEnv.insert_const (snd name) value' env
-     | None ->
-        raise_s [%message "could not eval decl"
-                    ~decl:(snd decl: Typed.Declaration.pre_t)]
-     end
+     CheckerEnv.insert_const (snd name) value env
   | _ -> env
 
 let get_type_params (t: Typed.Type.t) : string list =
@@ -151,7 +145,7 @@ let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
  * Warning: this will loop forever if you give it an environment with circular
  * TypeName references.
  *)
-let rec saturate_type (env: CheckerEnv.t) (typ: Type.t) : Type.t =
+let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let open Type in
   let saturate_field env (field: RecordType.field) =
     {field with typ = saturate_type env field.typ}
@@ -165,7 +159,7 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Type.t) : Type.t =
   let saturate_construct_params env (params: ConstructParam.t list) =
     List.map ~f:(saturate_construct_param env) params
   in
-  let saturate_param env (param: TypeParameter.t) =
+  let saturate_param env (param: Typed.Parameter.t) =
     {param with typ = saturate_type env param.typ}
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
@@ -302,7 +296,7 @@ and gen_all_constraints (env: CheckerEnv.t) unknowns params_args constraints =
         gen_all_constraints env unknowns more constraints
      | None -> raise_s [%message "could not solve type equality t1 = t2"
                            ~t1:(reduce_type env param_type: Typed.Type.t)
-                           ~t2:(reduce_type env arg_type: Typed.Type.t)
+                           ~t2:((snd arg_type).typ: Typed.Type.t)
                            ~env:(env: CheckerEnv.t)]
      end
   | (param_type, None) :: more ->
@@ -343,7 +337,7 @@ and solve_lists: 'a 'b.
   |> option_collapse
 
 and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
-  let open ConstructParam in
+  let open Typed.ConstructParam in
   let solve_params (p1, p2) =
     solve_types env equiv_vars unknowns p1.typ p2.typ
   in
@@ -389,7 +383,6 @@ and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Parameter in
   let param_eq (p1, p2) =
-    let open Typed.TypeParameter in
     if p1.direction = p2.direction
     then solve_types env equiv_vars unknowns p1.typ p2.typ
     else None
@@ -446,7 +439,8 @@ and type_vars_equal_under env equiv_vars tv1 tv2 =
   | [] ->
       tv1 = tv2
 
-and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
+  fun env typ ->
   let typ = saturate_type env typ in
   match typ with
   | SpecializedType { base; args } ->
@@ -482,8 +476,8 @@ and solve_types (env: CheckerEnv.t)
                 (t1:Type.t) (t2:Type.t)
     : soln =
 
-  let t1' = reduce_type env t1 in
-  let t2' = reduce_type env t2 in
+  let t1' = reduce_type env (translate_type env [] t1) in
+  let t2' = reduce_type env (translate_type env [] t2) in
   begin match t1', t2' with
     | TopLevelType _, _
     | _, TopLevelType _ ->
@@ -636,65 +630,83 @@ and assert_same_type (env: CheckerEnv.t) info1 info2 (typ1: Type.t) (typ2: Type.
   else let info = Info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
 
-and assert_type_equality env info t1 t2 : unit =
+and assert_type_equality env info (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
   let t1 = reduce_type env t1 in
   let t2 = reduce_type env t2 in
   if type_equality env t1 t2
   then ()
   else raise @@ Error.Type (info, Type_Difference (t1, t2))
 
-
 and compile_time_known_expr (env: CheckerEnv.t) (expr: Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
   | None -> false
 
-and type_expression_dir (env: CheckerEnv.t) (exp_info, exp: Expression.t) : Type.t
-* direction =
-  match exp with
-  | True ->
-    (Type.Bool, Directionless)
-  | False ->
-    (Type.Bool, Directionless)
-  | String _ ->
-    (Type.String, Directionless)
-  | Int i ->
-    (type_int i, Directionless)
-  | Name name ->
-    CheckerEnv.find_type_of (snd name) env
-  | TopLevel name ->
-    CheckerEnv.find_type_of_toplevel (snd name) env
-  | ArrayAccess { array; index } ->
-    type_array_access env array index
-  | BitStringAccess { bits; lo; hi } ->
-    type_bit_string_access env bits lo hi
-  | List { values } ->
-    (type_list env values, Directionless)
-  | UnaryOp { op; arg } ->
-    type_unary_op env op arg
-  | BinaryOp { op; args } ->
-    (type_binary_op env op args, Directionless)
-  | Cast { typ; expr } ->
-    type_cast env typ expr
-  | TypeMember { typ; name } ->
-    type_type_member env typ name
-  | ErrorMember name ->
-    (type_error_member env name, Directionless)
-  | ExpressionMember { expr; name } ->
-    (type_expression_member env expr name, Directionless)
-  | Ternary { cond; tru; fls } ->
-    (type_ternary env cond tru fls, Directionless)
+and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
+    : Prog.Expression.t =
+  let module E = Prog.Expression in
+  let pre_expr : E.typed_t =
+    match exp with
+    | True ->
+       { expr = E.True;
+         typ = Bool;
+         dir = Directionless }
+    | False ->
+       { expr = E.False;
+         typ = Bool;
+         dir = Directionless }
+    | String s ->
+       { expr = E.String s;
+         typ = String;
+         dir = Directionless }
+    | Int i ->
+       type_int i
+    | Name name ->
+       let typ, dir = CheckerEnv.find_type_of (snd name) env in
+       { expr = E.Name name;
+         typ = typ;
+         dir = dir }
+    | TopLevel name ->
+       let typ, dir = CheckerEnv.find_type_of_toplevel (snd name) env in
+       { expr = E.TopLevel name;
+         typ = typ;
+         dir = dir }
+    | ArrayAccess { array; index } ->
+       type_array_access env array index
+    | BitStringAccess { bits; lo; hi } ->
+       type_bit_string_access env bits lo hi
+    | List { values } ->
+       type_list env values
+    | UnaryOp { op; arg } ->
+       type_unary_op env op arg
+    | BinaryOp { op; args } ->
+       type_binary_op env op args
+    | Cast { typ; expr } ->
+       type_cast env typ expr
+    | TypeMember { typ; name } ->
+       type_type_member env typ name
+    | ErrorMember name ->
+       type_error_member env name
+    | ExpressionMember { expr; name } ->
+       type_expression_member env expr name
+    | Ternary { cond; tru; fls } ->
+       type_ternary env cond tru fls
+    | FunctionCall { func; type_args; args } ->
+       type_function_call env exp_info func type_args args
+    | NamelessInstantiation { typ; args } ->
+       type_nameless_instantiation env typ args
+    | Mask { expr; mask } ->
+       type_mask env expr mask
+    | Range { lo; hi } ->
+       type_range env lo hi
+  in
+  (exp_info, pre_expr)
+  (*
   | FunctionCall { func; type_args; args } ->
-    (type_function_call env exp_info func type_args args, Directionless)
-  | NamelessInstantiation { typ; args } ->
-    (type_nameless_instantiation env typ args, Directionless)
-  | Mask { expr; mask } ->
-    (type_mask env expr mask, Directionless)
-  | Range { lo; hi } ->
-    (type_range env lo hi, Directionless)
-
-and type_expression (env: CheckerEnv.t) (exp : Expression.t) : Type.t =
-  fst (type_expression_dir env exp)
+     (type_function_call env exp_info func type_args args, Directionless)
+  in
+  (typ, dir, (Info.dummy, pre_exp))
+   *)
 
 and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   match dir with
@@ -703,7 +715,8 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   | Some (_, InOut) -> InOut
   | None -> Directionless
 
-and translate_type (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t =
+and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
+  fun env vars typ ->
   let open Types.Type in
   let eval e =
     Eval.eval_expression (CheckerEnv.eval_env_of_t env) e
@@ -769,53 +782,46 @@ and translate_type_opt (env: CheckerEnv.t) (vars : string list) (typ: Types.Type
 
 (* Translates Types.Parameters to Typed.Parameters *)
 and translate_parameters env vars params =
-  let p_folder = fun (acc:Parameter.t list) (p:Types.Parameter.t) ->
-    begin let open Parameter in
-      let p = snd p in
-      let pd = begin match p.direction with
-      | None -> In
-      | Some d -> begin match snd d with
-          | In -> In
-          | Out -> Out
-          | InOut -> InOut
-      end
-    end in
-    let par = {name=p.variable |> snd;
-               typ=p.typ |> translate_type env vars;
-               direction=pd} in par::acc end in
-  List.fold_left ~f:p_folder ~init:[] params |> List.rev
+  let translate_parameter (info, param : Types.Parameter.t) : Typed.Parameter.t =
+    { annotations = param.annotations;
+      direction = translate_direction param.direction;
+      typ = translate_type env vars param.typ;
+      variable = param.variable }
+  in
+  List.map ~f:translate_parameter params
 
 (* Translates Types.Parameters representing constructor parameters
  * to Typed.ConstructParams *)
 and translate_construct_params env vars construct_params =
-  let p_folder = fun (acc:ConstructParam.t list) (p:Types.Parameter.t) ->
-    begin let open ConstructParam in
-      let p = snd p in
-      match p.direction with
-      | None ->
-      let par = {name=p.variable |> snd;
-               typ=p.typ |> translate_type env vars}
-               in par::acc
-      | Some _ -> failwith "Constructor parameters must be directionless."
-       end in
-  List.fold_left ~f:p_folder ~init:[] construct_params |> List.rev
+  let translate_parameter (info, param : Types.Parameter.t) : Typed.ConstructParam.t =
+    if param.direction <> None
+    then failwith "Constructor parameters must be directionless."
+    else if List.length param.annotations > 0
+    then failwith "Constructor parameters should not be annotated."
+    else if param.opt_value <> None
+    then failwith "Constructor parameters should not have an optional value."
+    else { typ = translate_type env vars param.typ;
+           name = snd param.variable }
+  in
+  List.map ~f:translate_parameter construct_params
 
-  and construct_param_as_param (construct_param: ConstructParam.t) : Parameter.t =
-    { name = construct_param.name;
-      typ = construct_param.typ;
-      direction = Directionless }
-
-  and control_param_as_param (control_param: ConstructParam.t) : Parameter.t =
-    { name = control_param.name;
-      typ = control_param.typ;
-      direction = In }
-
-
-  and expr_of_arg (arg: Argument.t): Expression.t option =
-    match snd arg with
-    | Missing -> None
-    | KeyValue { value; _ }
-    | Expression { value } -> Some value
+and construct_param_as_param (construct_param: ConstructParam.t) : Parameter.t =
+  { variable = Info.dummy, construct_param.name;
+    typ = construct_param.typ;
+    direction = Directionless;
+    annotations = [] }
+  
+and control_param_as_param (control_param: ConstructParam.t) : Parameter.t =
+  { variable = Info.dummy, control_param.name;
+    typ = control_param.typ;
+    direction = In;
+    annotations = [] }
+  
+and expr_of_arg (arg: Argument.t): Expression.t option =
+  match snd arg with
+  | Missing -> None
+  | KeyValue { value; _ }
+  | Expression { value } -> Some value
 
 (* Returns true if type typ is a well-formed type
 *)
@@ -903,12 +909,14 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
   List.for_all ~f:check construct_params
 
 
-and type_int (_, value) =
+and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
-  match value.width_signed with
-  | None -> Type.Integer
-  | Some (width, true) -> Type.Int { width }
-  | Some (width, false) -> Type.Bit { width }
+  { expr = Int (val_info, value);
+    dir = Directionless;
+    typ = match value.width_signed with
+          | None -> Type.Integer
+          | Some (width, true) -> Type.Int { width }
+          | Some (width, false) -> Type.Bit { width } }
 
 (* Section 8.15
  * ------------
@@ -919,12 +927,15 @@ and type_int (_, value) =
  *
  * Some architectures may further require ctk(i).
  *)
-and type_array_access env (array: Types.Expression.t) index =
-  let (array_typ, array_dir) = type_expression_dir env array in
-  let idx_typ = type_expression env index in
+and type_array_access env (array: Types.Expression.t) index : Prog.Expression.typed_t =
+  let array_typed = type_expression env array in
+  let array_typ = (snd array_typed).typ in
+  let idx_typed = type_expression env index in
   let element_typ = (assert_array (info array) array_typ).typ in
-  assert_numeric (info index) idx_typ |> ignore;
-  (element_typ, array_dir)
+  assert_numeric (info index) (snd idx_typed).typ |> ignore;
+  { expr = ArrayAccess { array = array_typed; index = idx_typed };
+    typ = element_typ;
+    dir = (snd array_typed).dir }
 
 and is_numeric (typ: Typed.Type.t) : bool =
   match typ with
@@ -945,26 +956,32 @@ and is_numeric (typ: Typed.Type.t) : bool =
  * -------------------------------
  * Δ, T, Γ |- b[m:l] : bit<m - l>
  *)
-and type_bit_string_access env bits lo hi =
-  match type_expression_dir env bits with
-  | Bit { width }, dir ->
-     let typ_lo = type_expression env lo
-                  |> saturate_type env in
-     let typ_hi = type_expression env hi
-                  |> saturate_type env in
+and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
+  let bits_typed = type_expression env bits in
+  match (snd bits_typed).typ with
+  | Bit { width } ->
+     let lo_typed = type_expression env lo in
+     let typ_lo = saturate_type env (snd lo_typed).typ in
+     let hi_typed = type_expression env hi in
+     let typ_hi = saturate_type env (snd hi_typed).typ in
      assert (is_numeric typ_lo);
      assert (is_numeric typ_hi);
-     let val_lo = compile_time_eval_bigint env lo in
-     let val_hi = compile_time_eval_bigint env hi in
+     let val_lo = compile_time_eval_bigint env lo_typed in
+     let val_hi = compile_time_eval_bigint env hi_typed in
      let big_width = Bigint.of_int width in
+     (* Bounds checking *)
      assert (Bigint.(<=) Bigint.zero val_lo);
      assert (Bigint.(<) val_lo big_width);
      assert (Bigint.(<=) val_lo val_hi);
      assert (Bigint.(<) val_hi big_width);
-
      let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn |> (+) 1 in
-     Bit { width = diff }, dir
-  | typ, dir ->  raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
+     { expr = BitStringAccess { bits = bits_typed;
+                                lo = val_lo;
+                                hi = val_hi };
+       typ = Bit { width = diff };
+       dir = (snd bits_typed).dir }
+  | typ ->
+     raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
 
 (* Section 8.11
  * ------------
@@ -974,10 +991,12 @@ and type_bit_string_access env bits lo hi =
  * Δ, T, Γ |- { x1, ..., xn } : (t1, ..., tn)
  *
  *)
-and type_list env values : Typed.Type.t =
-  let type_valu v = type_expression env v in
-  let types = List.map ~f:type_valu values in
-  Type.List { types }
+and type_list env values : Prog.Expression.typed_t =
+  let typed_exprs = List.map ~f:(type_expression env) values in
+  let types = List.map ~f:(fun e -> (snd e).typ) typed_exprs in
+  { expr = List { values = typed_exprs };
+    typ = Type.List { types };
+    dir = Directionless }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -1007,15 +1026,18 @@ and type_list env values : Typed.Type.t =
  * ----------------------
  * Δ, T, Γ |- -e : int<n>
  *)
-and type_unary_op env (_, op) arg =
-  let (arg_typ, dir) = type_expression_dir env arg in
-  let open Op in
-  begin match op with
-  | Not    -> assert_bool (info arg) arg_typ    |> ignore
-  | BitNot -> assert_bit (info arg) arg_typ     |> ignore
+and type_unary_op env op arg =
+  let arg_typed = type_expression env arg in
+  let arg_typ = (snd arg_typed).typ in
+  begin match snd op with
+  | Not    -> assert_bool (info arg) arg_typ |> ignore
+  | BitNot -> assert_bit (info arg) arg_typ |> ignore
   | UMinus -> assert_numeric (info arg) arg_typ |> ignore
   end;
-  (arg_typ, dir)
+  { expr = UnaryOp { op = op;
+                     arg = arg_typed };
+    typ = arg_typ;
+    dir = (snd arg_typed).dir }
 
 (* Sections 8.5-8.8
  *
@@ -1034,6 +1056,9 @@ and type_unary_op env (_, op) arg =
  * Let shift be in the set {<<, >>}.
  *
  * Let div be in the set {%, /}.
+ *
+ * TODO(ryan): fix use of implicit cast here to remove it from
+ * individual rules
  *
  * Equality operations:
  * Δ, T, Γ |- e1 : t1      Δ, T, Γ |- e2 : t2
@@ -1094,113 +1119,177 @@ and type_unary_op env (_, op) arg =
 * Δ, T, Γ |- e1 ++ e2 : bit<w1 + w2>
 *
 *)
-and type_binary_op env (_, op) (l, r) : Typed.Type.t =
-  let open Op in
-  let open Type in
+and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
+  match (snd l).typ, (snd r).typ with
+  | Bit { width }, Integer ->
+     None, Some (Bit { width })
+  | Integer, Bit { width } ->
+     Some (Bit { width }), None
+  | Int { width }, Integer ->
+     None, Some (Int { width })
+  | Integer, Int { width } ->
+     Some (Int { width }), None
+  | _, _ ->
+     None, None
 
+and coerce_binary_op_args env l r =
   (* Implicit integer casts as per section 8.9.2
    *
    * Let implicit_cast(t1,t2) be defined as follows to describe
    * p4's impliciting casting behavior on operands in binary expressions:
    *
-   * implicit_cast(bit<w>, bit<w>)    = bit<w>
-   * implicit_cast(bit<w>, int CTK)   = bit<w>
-   * implicit_cast(int CTK, bit<w>)   = bit<w>
-   * implicit_cast(int<w>, int CTK)   = int<w>
-   * implicit_cast(int CTK, int<w>)   = int<w>
-   * implicit_cast(int<w>, int<w>)    = int<w>
-   * implicit_cast(int CTK, int CTK)  = int CTK
-   * implicit_cast(_, _)              = implicit_cast_error
+   * implicit_cast(bit<w>, int CTK)   = bit<w>                 (cast RHS)
+   * implicit_cast(int CTK, bit<w>)   = bit<w>                 (cast LHS)
+   * implicit_cast(int<w>, int CTK)   = int<w>                 (cast RHS)
+   * implicit_cast(int CTK, int<w>)   = int<w>                 (cast LHS)
+   * implicit_cast(_, _)              = None                    (no cast)
    *
    *)
-  let l_typ, r_typ =
-    match type_expression env l, type_expression env r with
-    | Bit { width }, Integer | Integer, Bit { width } -> Bit { width }, Bit { width }
-    | Int { width }, Integer | Integer, Int { width } -> Int { width }, Int { width }
-    | l_typ, r_typ -> l_typ, r_typ
+  let l_typed = type_expression env l in
+  let r_typed = type_expression env r in
+  let cast typ (expr_info, expr : Prog.Expression.t) : Prog.Expression.t =
+    expr_info,
+    { expr = Cast { typ = typ;
+                    expr = (expr_info, expr) };
+      typ = typ;
+      dir = expr.dir }
   in
+  let cast_opt = function
+    | Some typ -> cast typ
+    | None -> fun e -> e
+  in
+  let cast_type_l, cast_type_r = implicit_cast env l_typed r_typed in
+  cast_opt cast_type_l l_typed, cast_opt cast_type_r r_typed
 
-  match op with
-  | And | Or ->
-    assert_bool (info l) l_typ |> ignore;
-    assert_bool (info r) r_typ |> ignore;
-    Bool
+(* TODO: Checking if two values of this type be compared for equality
+ * (==) or inequality (!=).
+ *)
+and type_has_equality_tests env (typ: Typed.Type.t) =
+  match typ with
+  | Bool
+  | String
+  | Integer
+  | Int _
+  | Bit _
+  | VarBit _
+  | Error
+  | MatchKind
+  | Void ->
+     true
+  | Array { typ; _ }
+  | Set typ ->
+     type_has_equality_tests env typ
+  | Tuple { types }
+  | List { types } ->
+     List.for_all ~f:(type_has_equality_tests env) types
+  | Header { fields }
+  | HeaderUnion { fields }
+  | Struct { fields } ->
+     List.for_all ~f:(fun field -> type_has_equality_tests env field.typ) fields
+  | Enum { typ; _ } ->
+     begin match typ with
+     | Some typ -> type_has_equality_tests env typ
+     | None -> true
+     end
+  | TypeName name
+  | TopLevelType name ->
+     failwith "type name?"
+  | _ ->
+     false
 
-  (* Basic numeric operations are defined on both arbitrary and fixed-width integers *)
-  | Plus | Minus | Mul ->
-    begin match l_typ, r_typ with
-    | Integer, Integer -> Integer
-    | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
-    | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-    | _, _ -> failwith "this binop unimplemented" (* TODO: better error message here *)
-    end
-
-  (* Equality is defined on TODO*)
-  (*| Eq | NotEq when l_typ = r_typ -> Type.Bool *)(* FIXME *)
-  | Eq | NotEq ->
-     if type_equality env l_typ r_typ then Type.Bool
-    else failwith "Types are not equal under equality operation."
-
-  (* Saturating operators are only defined on finite-width signed or unsigned integers *)
-  | PlusSat | MinusSat ->
-    begin match l_typ, r_typ with
-    | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
-    | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-    | _, _ -> failwith "this saturating op unimplemented" (* TODO: better error message here *)
-    end
-
-  (* Bitwise operators are only defined on bitstrings of the same width *)
-  | BitAnd | BitXor | BitOr ->
-    begin match l_typ, r_typ with
-    | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
-    | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
-    | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
-    end
-
-  (* Bitstring concatentation is defined on any two bitstrings *)
-  | PlusPlus ->
-    begin match l_typ, r_typ with
-    | Bit { width = l }, Bit { width = r } -> Bit { width = l + r }
-    | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
-    | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
-    end
-
-  (* Comparison is defined on both arbitrary and fixed-width integers *)
-  | Le | Ge | Lt | Gt ->
-    begin match l_typ, r_typ with
-    | Integer, Integer -> ()
-    | Bit { width = l }, Bit { width = r } when l = r -> ()
-    | Int { width = l }, Int { width = r } when l = r -> ()
-    | _, _ -> failwith "this comparison unimplemented" (* TODO: better error message here *)
-    end;
-    Bool
-
-  (* Division is only defined on compile-time known arbitrary-precision positive integers *)
-  | Div | Mod ->
-    begin match l_typ, r_typ with
-    | Integer, Integer -> Integer (* TODO: must be compile-time-known? *)
-    | Integer, _ -> raise_mismatch (info r) "arbitrary precision integer" r_typ
-    | _, _ -> raise_mismatch (info l) "arbitrary precision integer" l_typ
-    end
-
- (* Left and Right Shifts
-  * Shift operators:
-  * Δ, T, Γ |- e1 : t1     numeric(t1)
-  * Δ, T, Γ |- e2 : t2     t2 = int or t2 = bit<w>     e2 > 0
-  * ----------------------------------------------------------
-  * Δ, T, Γ |- e1 shift e2 : t1
-  * As of yet we assume that e2 > 0, but this must be updated.
-  *)
-  | Shl | Shr ->
-    begin match l_typ, r_typ with
-      | Bit _, Bit _ -> l_typ
-      | Int _, Bit _ -> l_typ
-      | Integer, Bit _ -> l_typ
-      | Bit _, Int _ -> l_typ
-      | Int _, Int _ -> l_typ
-      | Integer, Int _ -> l_typ
-      | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
-    end
+and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
+  let open Op in
+  let open Typed.Type in
+  let typed_l, typed_r = coerce_binary_op_args env l r in
+  let l_typ = (snd typed_l).typ in
+  let r_typ = (snd typed_r).typ in
+  let dir =
+    match (snd typed_l).dir, (snd typed_r).dir with
+    | In, In -> In
+    | _ -> Directionless
+  in
+  let typ =
+    match op with
+    | And | Or ->
+       begin match l_typ, r_typ with
+       | Bool, Bool -> Bool
+       | Bool, r -> raise_mismatch (op_info) "Operand must be a bool" r
+       | l, r -> raise_mismatch (op_info) "Operand must be a bool" l
+       end
+    (* Basic numeric operations are defined on both arbitrary and fixed-width integers *)
+    | Plus | Minus | Mul ->
+       begin match l_typ, r_typ with
+       | Integer, Integer -> Integer
+       | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
+       | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
+       | _, _ -> failwith "this binop unimplemented" (* TODO: better error message here *)
+       end
+    | Eq | NotEq ->
+       if type_equality env l_typ r_typ
+       then if type_has_equality_tests env l_typ
+            then Type.Bool
+            else failwith "bad error message: type doesn't have equality tests (== and !=)"
+       else raise_type_error op_info (Type_Difference (l_typ, r_typ))
+    (* Saturating operators are only defined on finite-width signed or unsigned integers *)
+    | PlusSat | MinusSat ->
+       begin match l_typ, r_typ with
+       | Bit { width = l }, Bit { width = r } when l = r ->
+          Bit { width = l }
+       | Int { width = l }, Int { width = r } when l = r ->
+          Int { width = l }
+       | Bit _, r | Int _, r ->
+          raise_mismatch (op_info) "Operand must have type int<w> or bit<w>" r
+       | l, r ->
+          raise_mismatch (op_info) "Operand must have type int<w> or bit<w>" l
+       end
+    (* Bitwise operators are only defined on bitstrings of the same width *)
+    | BitAnd | BitXor | BitOr ->
+       begin match l_typ, r_typ with
+       | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
+       | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
+       | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
+       end
+    (* Bitstring concatentation is defined on any two bitstrings *)
+    | PlusPlus ->
+       begin match l_typ, r_typ with
+       | Bit { width = l }, Bit { width = r } -> Bit { width = l + r }
+       | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
+       | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
+       end
+    (* Comparison is defined on both arbitrary and fixed-width integers *)
+    | Le | Ge | Lt | Gt ->
+       begin match l_typ, r_typ with
+       | Integer, Integer -> Bool
+       | Bit { width = l }, Bit { width = r } when l = r -> Bool
+       | Int { width = l }, Int { width = r } when l = r -> Bool
+       | _, _ -> raise_type_error op_info (Type_Difference (l_typ, r_typ))
+       end
+    (* Division is only defined on compile-time known arbitrary-precision positive integers *)
+    | Div | Mod ->
+       begin match l_typ, r_typ with
+       | Integer, Integer -> Integer (* TODO: must be compile-time-known? *)
+       | Integer, _ -> raise_mismatch (info r) "arbitrary precision integer" r_typ
+       | _, _ -> raise_mismatch (info l) "arbitrary precision integer" l_typ
+       end
+    (* Left and Right Shifts
+     * Shift operators:
+     * Δ, T, Γ |- e1 : t1     numeric(t1)
+     * Δ, T, Γ |- e2 : t2     t2 = int or t2 = bit<w>     e2 > 0
+     * ----------------------------------------------------------
+     * Δ, T, Γ |- e1 shift e2 : t1
+     * As of yet we assume that e2 > 0, but this must be updated.
+     *)
+    | Shl | Shr ->
+       if is_numeric l_typ
+       then match r_typ with
+            |  Bit _ -> l_typ
+            |  Integer -> l_typ (* TODO check the value of the rhs is non negative *)
+            | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
+       else failwith "can only shift numbers"
+  in
+  { expr = BinaryOp { op = (op_info, op); args = (typed_l, typed_r) };
+    typ = typ;
+    dir = dir }
 
 and cast_ok original_type new_type =
   (* TODO *)
@@ -1208,35 +1297,40 @@ and cast_ok original_type new_type =
   | _ -> true
 
 (* Section 8.9 *)
-and type_cast env typ expr =
-  let expr_type, expr_dir = type_expression_dir env expr in
-  let expr_type = saturate_type env expr_type in
-  let new_type = saturate_type env @@ translate_type env [] typ in
-  if cast_ok expr_type new_type
-  then new_type, expr_dir
+and type_cast env typ expr : Prog.Expression.typed_t =
+  let expr_typed = type_expression env expr in
+  let expr_type = saturate_type env (snd expr_typed).typ in
+  let new_type = translate_type env [] typ in
+  if cast_ok expr_type (saturate_type env new_type)
+  then { (snd expr_typed) with typ = new_type }
   else raise_s [%message "illegal explicit cast"
                    ~old_type:(expr_type: Typed.Type.t)
                    ~new_type:(new_type: Typed.Type.t)]
 
 (* ? *)
-and type_type_member env typ name =
+and type_type_member env typ name : Prog.Expression.typed_t =
   let open Core in
-  let typ = typ
-            |> translate_type env []
-            |> saturate_type env
+  let typ = translate_type env [] typ in
+  let full_typ = saturate_type env typ
   in
-  match typ with
-  | Enum { typ = carrier; members } ->
-      if List.mem ~equal:(fun x y -> x = y) members (snd name)
-      then match carrier with
-           | None -> typ, In
-           | Some carrier -> carrier, In
-      else raise_s [%message "enum has no such member"
-                             ~enum:(typ: Typed.Type.t)
-                             ~member:(snd name)]
-   | _ -> raise_s [%message "type_type_member unimplemented"
-                             ~typ:(typ: Typed.Type.t)
-                             ~name:(snd name)]
+  let out_typ = 
+    match full_typ with
+    | Enum { typ = carrier; members } ->
+       if List.mem ~equal:(fun x y -> x = y) members (snd name)
+       then match carrier with
+            | None -> typ
+            | Some carrier -> carrier
+       else raise_s [%message "enum has no such member"
+                        ~enum:(full_typ: Typed.Type.t)
+                        ~member:(snd name)]
+    | _ -> raise_s [%message "type_type_member unimplemented"
+                       ~typ:(full_typ: Typed.Type.t)
+                       ~name:(snd name)]
+  in
+  { expr = TypeMember { typ = typ;
+                        name = name };
+    typ = out_typ;
+    dir = Directionless }
 
 (* Section 8.2
  * -----------
@@ -1246,11 +1340,12 @@ and type_type_member env typ name =
  * Δ, T, Γ |- error.e : error
  *
  *)
-and type_error_member env name : Typed.Type.t =
+and type_error_member env name : Prog.Expression.typed_t =
   let (e, _) = CheckerEnv.find_type_of ("error." ^ (snd name)) env in
-  match e with
-  | Type.Error -> Type.Error
-  | _ -> failwith "Error member not an error?"
+  if e <> Type.Error then failwith "Error member not an error?";
+  { expr = ErrorMember name;
+    typ = Type.Error;
+    dir = Directionless }
 
 and header_methods typ =
   let fake_fields: RecordType.field list =
@@ -1304,9 +1399,10 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      | "push_front"
      | "pop_front" ->
         Function { type_params = [];
-                   parameters = [{ name = "count";
+                   parameters = [{ variable = Info.dummy, "count";
                                    typ = Integer;
-                                   direction = Directionless }];
+                                   direction = Directionless;
+                                   annotations = [] }];
                    return = Void }
      | _ -> fail ()
      end
@@ -1319,31 +1415,35 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
   | _ -> fail ()
 
 (* Sections 6.6, 8.14 *)
-and type_expression_member env expr name : Typed.Type.t =
-  let expr_typ = expr
-  |> type_expression env
-  |> reduce_type env
-  in
+and type_expression_member env expr name : Prog.Expression.typed_t =
+  let typed_expr = type_expression env expr in
+  let expr_typ = reduce_type env (snd typed_expr).typ in
   let open RecordType in
-  let methods = header_methods expr_typ in
-  match expr_typ with
-  | Header {fields=fs}
-  | HeaderUnion {fields=fs}
-  | Struct {fields=fs} ->
-      let fs = fs @ methods in
-      let matches f = f.name = snd name in
-      begin match List.find ~f:matches fs with
-      | Some field -> field.typ
-      | None -> type_expression_member_builtin env (info expr) expr_typ name
-      end
-  | Extern {methods; _} ->
-      let open ExternType in
-      let matches m = m.name = snd name in
-      begin match List.find ~f:matches methods with
-      | Some m -> Type.Function m.typ
-      | None -> type_expression_member_builtin env (info expr) expr_typ name
-      end
-  | _ -> type_expression_member_builtin env (info expr) expr_typ name
+  let methods = header_methods (snd typed_expr).typ in
+  let typ = 
+    match expr_typ with
+    | Header {fields=fs}
+    | HeaderUnion {fields=fs}
+    | Struct {fields=fs} ->
+       let fs = fs @ methods in
+       let matches f = f.name = snd name in
+       begin match List.find ~f:matches fs with
+       | Some field -> field.typ
+       | None -> type_expression_member_builtin env (info expr) expr_typ name
+       end
+    | Extern {methods; _} ->
+       let open ExternType in
+       let matches m = m.name = snd name in
+       begin match List.find ~f:matches methods with
+       | Some m -> Type.Function m.typ
+       | None -> type_expression_member_builtin env (info expr) expr_typ name
+       end
+    | _ -> type_expression_member_builtin env (info expr) expr_typ name
+  in
+  { expr = ExpressionMember { expr = typed_expr;
+                              name = name };
+    typ = typ;
+    dir = Directionless }
 
 (* Section 8.4.1
  * -------------
@@ -1352,28 +1452,45 @@ and type_expression_member env expr name : Typed.Type.t =
  * -------------------------------------------------------------------
  *              Δ, T, Γ |- cond ? tru : fls : t
  *)
-and type_ternary env cond tru fls : Typed.Type.t =
-  let _ = cond
-  |> type_expression env
-  |> assert_bool (info cond)
-  in
-  (type_expression env fls)
-  |> ((type_expression env tru)
-  |> assert_same_type env (info tru) (info fls))
-  |> begin function
-  | (Type.Integer, Type.Integer) -> failwith "unless the condition itself can be evaluated at compilation time"
-  | (t1, _) -> t1
-  end
+and type_ternary env cond tru fls : Prog.Expression.typed_t =
+  let cond_typed = type_expression env cond in
+  assert_bool (info cond) (snd cond_typed).typ |> ignore;
+  let fls_typed = type_expression env fls in
+  let tru_typed = type_expression env tru in
+  assert_same_type env (info tru) (info fls) (snd tru_typed).typ (snd fls_typed).typ |> ignore;
+  match (snd tru_typed).typ with
+  | Type.Integer ->
+     (* TODO this is allowed if cond is compile-time known *)
+     failwith "Conditional expressions may not have arbitrary width integer type"
+  | t ->
+     { expr = Ternary { cond = cond_typed; tru = tru_typed; fls = fls_typed };
+       typ = t;
+       dir = Directionless }
 
 and match_params_to_args call_site_info params args : (Parameter.t * Expression.t option) list =
+  let rec get_mode mode (args: Types.Argument.pre_t list) =
+    match mode, args with
+    | None, Expression { value } :: args
+    | Some `Positional, Expression { value } :: args ->
+       get_mode (Some `Positional) args
+    | None, Missing :: args
+    | Some `Positional, Missing :: args ->
+       get_mode (Some `Positional) args
+    | None, KeyValue { key; value } :: args
+    | Some `Named, KeyValue { key; value } :: args ->
+       get_mode (Some `Named) args
+    | m, [] -> m
+    | _ -> raise_s [%message "mixed positional and named arguments at call site"
+                       ~info:(call_site_info: Info.t)]
+  in
   let args = List.map ~f:snd args in
-  let res = match_params_to_args' call_site_info None params args [] in
+  let mode = get_mode None args in
+  let res = match_params_to_args' call_site_info mode params args [] in
   List.rev res
 
 and match_params_to_args' call_site_info mode params args params_args : (Parameter.t * Expression.t option) list =
   let open Typed.Parameter in
-  let open Types.Argument in
-  match mode, args with
+  match mode,  TODO TODO TODO HERE
   | None, Expression { value } :: args
   | Some `Positional, Expression { value } :: args ->
      begin match params with
@@ -1394,7 +1511,7 @@ and match_params_to_args' call_site_info mode params args params_args : (Paramet
      end
   | None, KeyValue { key; value } :: args
   | Some `Named, KeyValue { key; value } :: args ->
-     let key_param, params = Util.find_and_drop ~f:(fun p -> p.name = snd key) params in
+     let key_param, params = Util.find_and_drop ~f:(fun p -> snd p.variable = snd key) params in
      begin match key_param with
      | Some key_param ->
         let params_args = (key_param, Some value) :: params_args in
@@ -1425,7 +1542,7 @@ and check_direction env dir expr expr_dir =
 and find_extern_methods env func : (FunctionType.t list) option =
   match snd func with
   | Expression.ExpressionMember { expr; name } ->
-     begin match reduce_type env @@ type_expression env expr with
+     begin match reduce_type env @@ (snd (type_expression env expr)).typ with
      | Extern e ->
         let methods = List.filter ~f:(fun m -> m.name = snd name) e.methods in
         Some (List.map ~f:(fun m -> m.typ) methods)
@@ -1442,24 +1559,25 @@ and resolve_extern_overload env method_types args =
   Typed.Type.Function (List.find_exn ~f:works method_types)
 
 (* Section 8.17: Typing Function Calls *)
-and type_function_call env call_info func type_args args =
-  let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
-    match expr with
-    | Some expr ->
-        let arg_typ, dir = type_expression_dir env expr in
-        check_direction env param.direction expr dir;
-        assert_type_equality env call_info arg_typ param.typ
-    | None ->
-       if param.direction <> Out
-       then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
-                        ~call_site:(call_info: Info.t) ~param:param.name]
-  in
+and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
+  match expr with
+  | Some expr ->
+     let info, typed_arg = type_expression env expr in
+     check_direction env param.direction expr typed_arg.dir;
+     assert_type_equality env call_info typed_arg.typ param.typ
+  | None ->
+     if param.direction <> Out
+     then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
+                      ~call_site:(call_info: Info.t)
+                      ~param:(snd param.variable)]
+
+and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
   let func_type =
     match find_extern_methods env func with
     | Some method_types ->
        resolve_extern_overload env method_types args
     | None ->
-       type_expression env func
+       (snd (type_expression env func)).typ
   in
   let type_params, params, return_type =
     match func_type with
@@ -1488,7 +1606,7 @@ and type_function_call env call_info func type_args args =
     infer_type_arguments env return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
-  List.iter ~f:(type_param_arg env) params_args;
+  List.iter ~f:(type_param_arg env call_info) params_args;
   saturate_type env return_type
 
 and select_constructor_params env info methods args =
@@ -1580,10 +1698,11 @@ and type_nameless_instantiation env typ args =
                  ~typ:(typ: Types.Type.t)]
 
 (* Section 8.12.3 *)
-and type_mask env expr mask =
-  let open Typed.Type in
-  let res_typ =
-    match type_expression env expr, type_expression env mask with
+and type_mask env expr mask : Prog.Expression.typed_t =
+  let expr_typed = type_expression env expr in
+  let mask_typed = type_expression env mask in
+  let res_typ : Typed.Type.t =
+    match (snd expr_typed).typ, (snd mask_typed).typ with
     | Bit { width }, Integer
     | Integer, Bit { width } ->
        Bit { width }
@@ -1591,19 +1710,30 @@ and type_mask env expr mask =
        Integer
     | l_typ, r_typ -> failwith "bad type for mask operation &&&"
   in
-  Type.Set res_typ
+  { expr = Mask { expr = expr_typed; mask = mask_typed };
+    typ = Type.Set res_typ;
+    dir = Directionless }
 
 (* Section 8.12.4 *)
-and type_range env lo hi =
-  let lo_typ = type_expression env lo in
-  let hi_typ = type_expression env hi in
-  match lo_typ, hi_typ with
-  | Bit { width = l }, Bit { width = r } when l = r -> Set lo_typ
-  | Int { width = l }, Int { width = r } when l = r -> Set lo_typ
-  (* TODO: add pretty-printer and [to_string] for Typed module *)
-  | Bit { width }, _ -> raise_mismatch (info hi) ("bit<" ^ (string_of_int width) ^ ">") hi_typ
-  | Int { width }, _ -> raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
-  | _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
+and type_range env lo hi : Prog.Expression.typed_t =
+  let lo_typed = type_expression env lo in
+  let hi_typed = type_expression env hi in
+  let typ : Typed.Type.t = 
+    match (snd lo_typed).typ, (snd hi_typed).typ with
+    | Bit { width = l }, Bit { width = r } when l = r ->
+       Bit { width = l}
+    | Int { width = l }, Int { width = r } when l = r ->
+       Int { width = l }
+    (* TODO: add pretty-printer and [to_string] for Typed module *)
+    | Bit { width }, hi_typ ->
+       raise_mismatch (info hi) ("bit<" ^ (string_of_int width) ^ ">") hi_typ
+    | Int { width }, hi_typ ->
+       raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
+    | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
+  in
+  { expr = Range { lo = lo_typed; hi = hi_typed };
+    typ = Set typ;
+    dir = Directionless }
 
 and type_statement (env: CheckerEnv.t) (stm: Statement.t) : (StmType.t * CheckerEnv.t) =
   match snd stm with
@@ -1761,15 +1891,16 @@ and type_field env field =
  * ---------------------------------------------
  *    Δ, T, Γ |- const t x = e : Δ, T, Γ[x -> t]
  *)
-and type_constant env typ name value =
+and type_constant env decl_info typ name expr =
   let expected_typ = translate_type env [] typ in
-  let initialized_typ = type_expression env value in
-  if compile_time_known_expr env value
-  then
-    let expr_typ, _ = assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
-    CheckerEnv.insert_dir_type_of (snd name) expr_typ In env
-  else
-    failwith "expression not compile-time-known"
+  let typed_expr = type_expression env expr in
+  assert_same_type env decl_info (fst expr)
+    expected_typ (snd typed_expr).typ |> ignore;
+  match compile_time_eval_expr env typed_expr with
+  | Some value ->
+     CheckerEnv.insert_dir_type_of (snd name) (snd typed_expr).typ In env
+  | None ->
+     failwith "expression not compile-time-known"
 
 and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : CheckerEnv.t =
   let open Types.Parameter in
@@ -2089,7 +2220,7 @@ and type_table_actions env key_types actions =
        let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
          match expr with
          | Some expr ->
-             let arg_typ, dir = type_expression_dir env expr in
+             let arg_typ, dir = type_expression env expr in
              check_direction env param.direction expr dir;
              assert_type_equality env call_info arg_typ param.typ
          | None ->
@@ -2356,7 +2487,7 @@ and type_declaration ((env, prog): CheckerEnv.t * Prog.Declaration.t list) (decl
   let env, (decl': Prog.Declaration.t) =
     match snd decl with
     | Constant { annotations = _; typ; name; value } ->
-      type_constant env typ name value
+      type_constant env (fst decl) typ name value
     | Instantiation { annotations = _; typ; args; name; init } ->
       (* TODO: type check init? *)
       type_instantiation env typ args name

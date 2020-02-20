@@ -13,7 +13,7 @@ module Annotation = Types.Annotation
 
 module Op = Types.Op
 
-module rec TypeParameter : sig
+module rec Parameter : sig
   type t =
     { annotations: Annotation.t list;
       direction: direction;
@@ -53,11 +53,11 @@ end
 
 and ControlType : sig
   type t = {type_params: string list;
-            parameters: TypeParameter.t list}
+            parameters: Parameter.t list}
     [@@deriving sexp,yojson]
 end = struct
   type t = {type_params: string list;
-            parameters: TypeParameter.t list}
+            parameters: Parameter.t list}
     [@@deriving sexp,yojson]
 end
 
@@ -150,13 +150,13 @@ end
 and FunctionType : sig
   type t =
     { type_params: string list;
-      parameters: TypeParameter.t list;
+      parameters: Parameter.t list;
       return: Type.t}
     [@@deriving sexp,yojson]
 end = struct
   type t =
     { type_params: string list;
-      parameters: TypeParameter.t list;
+      parameters: Parameter.t list;
       return: Type.t}
     [@@deriving sexp,yojson]
 end
@@ -175,12 +175,12 @@ end
 
 and ActionType : sig
   type t =
-    { data_params: TypeParameter.t list;
+    { data_params: Parameter.t list;
       ctrl_params: ConstructParam.t list}
       [@@deriving sexp,yojson]
 end = struct
   type t =
-  { data_params: TypeParameter.t list;
+  { data_params: Parameter.t list;
     ctrl_params: ConstructParam.t list}
       [@@deriving sexp,yojson]
 end

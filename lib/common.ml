@@ -20,7 +20,7 @@ module Info = P4Info
 module type Parse_config = sig
   val red: string -> string
   val green: string -> string
-  val preprocess: string sexp_list -> string -> string
+  val preprocess: string list -> string -> string
 end
 
 module Make_parse (Conf: Parse_config) = struct

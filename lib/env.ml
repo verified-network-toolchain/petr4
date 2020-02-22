@@ -1,6 +1,6 @@
 open Types
 open Value
-open Core
+open Core_kernel
 open Sexplib.Conv
 
 exception BadEnvironment of string
@@ -149,7 +149,7 @@ module EvalEnv = struct
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
-    let open Core in
+    let open Core_kernel in
     print_endline "First environment value mappings:";
     let rec f (name, value) =
       print_string "     ";
@@ -303,7 +303,7 @@ module CheckerEnv = struct
 
   let insert_const var value env =
     { env with const = insert var value env.const }
-  
+
   let push_scope env =
     { decl = env.decl;
       typ = push env.typ;

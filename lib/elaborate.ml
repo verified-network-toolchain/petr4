@@ -1,4 +1,4 @@
-open Core
+open Core_kernel
 open Env
 open Util
 open Types
@@ -130,7 +130,7 @@ let rec subst_vars_statement env stmt =
   | Switch { expr; cases } ->
      Switch { expr = subst_vars_expression env expr;
               cases = subst_vars_cases env cases }
-  | DeclarationStatement { decl } -> 
+  | DeclarationStatement { decl } ->
      DeclarationStatement { decl = subst_vars_stmt_declaration env decl }
 
 and subst_vars_case env case =
@@ -139,12 +139,12 @@ and subst_vars_case env case =
   match snd case with
   | Action { label; code } ->
      Action { label = label; code = subst_vars_block env code }
-  | FallThrough { label } -> 
+  | FallThrough { label } ->
      FallThrough { label }
 
 and subst_vars_cases env cases =
   List.map ~f:(subst_vars_case env) cases
-  
+
 and subst_vars_block env block =
   let open Types.Block in
   let { annotations; statements } = snd block in
@@ -183,7 +183,7 @@ let subst_vars_param env param =
 let subst_vars_params env params =
   List.map ~f:(subst_vars_param env) params
 
-let freshen_param env gen param = 
+let freshen_param env gen param =
   let param' = Renamer.freshen_name gen param in
   CheckerEnv.insert_type param (TypeName param') env, param'
 

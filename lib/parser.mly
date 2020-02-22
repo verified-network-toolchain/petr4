@@ -16,7 +16,7 @@
 %{
 module P4Info = Info
 
-open Core
+open Core_kernel
 open Context
 open Types
 

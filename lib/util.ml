@@ -6,18 +6,18 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software 
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations 
- * under the License. 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *)
-open Core
+open Core_kernel
 
 module StringMap = Map.Make(String)
 
-type ('a,'b) alternative = 
-    Left of 'a 
+type ('a,'b) alternative =
+    Left of 'a
   | Right of 'b
   [@@deriving sexp,yojson]
 
@@ -37,7 +37,7 @@ let rec combine_opt xs ys =
       (Some x, Some y) :: combine_opt xs ys
   | x :: xs, [] ->
       (Some x, None) :: combine_opt xs []
-  | [], y :: ys -> 
+  | [], y :: ys ->
       (None, Some y) :: combine_opt [] ys
   | [], [] -> []
 

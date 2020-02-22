@@ -15,80 +15,31 @@
 
 open Core
 open Petr4
+open Common
 
 exception ParsingError of string
 
 let colorize colors s = ANSITerminal.sprintf colors "%s" s
-let red s = colorize [ANSITerminal.red] s
-let green s = colorize [ANSITerminal.green] s
 
-let preprocess include_dirs p4file =
-  let cmd =
-    String.concat ~sep:" "
-      (["cc"] @
-       (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-        ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-  let in_chan = Unix.open_process_in cmd in
-  let str = In_channel.input_all in_chan in
-  let _ = Unix.close_process_in in_chan in
-  str
+module Conf: Parse_config = struct
+  let red s = colorize [ANSITerminal.red] s
+  let green s = colorize [ANSITerminal.green] s
 
-let parse include_dirs p4_file verbose =
-  let () = Lexer.reset () in
-  let () = Lexer.set_filename p4_file in
-  let p4_string = preprocess include_dirs p4_file in
-  let lexbuf = Lexing.from_string p4_string in
-  try
-    let prog = Parser.p4program Lexer.lexer lexbuf in
-    if verbose then Format.eprintf "[%s] %s@\n%!" (green "Passed") p4_file;
-    `Ok prog
-  with
-  | err ->
-    if verbose then Format.eprintf "[%s] %s@\n%!" (red "Failed") p4_file;
-    `Error (Lexer.info lexbuf, err)
+  let preprocess include_dirs p4file =
+    let cmd =
+      String.concat ~sep:" "
+        (["cc"] @
+        (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
+    let in_chan = Unix.open_process_in cmd in
+    let str = In_channel.input_all in_chan in
+    let _ = Unix.close_process_in in_chan in
+    str
+end
 
-let check_file (include_dirs : string list) (p4_file : string)
-    (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
-  match parse include_dirs p4_file verbose with
-  | `Ok prog -> 
-    let prog = Elaborate.elab prog in
-    Checker.check_program prog |> ignore;
-    if print_json then 
-      let json = Types.program_to_yojson prog in 
-      let to_string j = 
-        if pretty_json then 
-          Yojson.Safe.pretty_to_string j 
-        else 
-          Yojson.Safe.to_string j in
-      Format.printf "%s" (to_string json)
-    else
-      Format.printf "%a" Pretty.format_program prog
-  | `Error (info, Lexer.Error s) ->
-    Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-  | `Error (info, Parser.Error) ->
-    Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
-  | `Error (info, err) ->
-    Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+module Parse = Make_parse(Conf)
 
-
-let eval_file include_dirs p4_file verbose pkt_file ctrl_file =
-  let pkt_str = Core_kernel.In_channel.read_all pkt_file in
-  let pkt = Cstruct.of_hex pkt_str in
-  let open Yojson.Safe in
-  let ctrl_json = from_file ctrl_file in
-  let pre_entries = ctrl_json
-                    |> Util.member "pre_entries"
-                    |> Util.to_list in
-  let tbls = List.map pre_entries ~f:Types.Table.pre_entry_of_yojson_exn in
-  let matches = ctrl_json
-                |> Util.member "matches"
-                |> Util.to_list
-                |> List.map ~f:Util.to_list in
-  let vsets =
-    List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
-  match parse include_dirs p4_file verbose with
-  | `Ok prog -> Eval.eval_program prog (tbls, vsets) pkt
-  | _ -> failwith "error unhandled"
+open Parse
 
 let check_dir include_dirs p4_dir verbose =
   let dir_handle = Unix.opendir p4_dir in
@@ -100,40 +51,38 @@ let check_dir include_dirs p4_dir verbose =
       if Filename.check_suffix file "p4" then
         begin
           Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
-          let p4_file = Filename.concat p4_dir file in 
-          match parse include_dirs p4_file verbose with 
+          let p4_file = Filename.concat p4_dir file in
+          match parse include_dirs p4_file p4_file verbose with
           | `Ok prog ->
              let prog = Elaborate.elab prog in
              Checker.check_program prog |> ignore;
              Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
-          | `Error (info, Lexer.Error s) -> 
+          | `Error (info, Lexer.Error s) ->
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, Petr4.Parser.Error) -> 
-             Format.eprintf "%s: syntax error@\n%!" (Info.to_string info) 
-          | `Error (info, err) -> 
+          | `Error (info, Petr4.Parser.Error) ->
+             Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
+          | `Error (info, err) ->
              Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
         end;
       loop () in
   loop ()
 
-let check_command = 
-  let open Command.Spec in 
+let check_command =
+  let open Command.Spec in
   Command.basic_spec
     ~summary: "Check syntax of P4_16 file"
     (empty
-     +> flag "-v" no_arg ~doc:" Enable verbose output" 
+     +> flag "-v" no_arg ~doc:" Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-json" no_arg ~doc:" Print parsed tree as JSON"
      +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
      +> anon ("p4file" %: string))
-     (fun verbose include_dir json pretty p4file () -> 
-       ignore (check_file include_dir p4file json pretty verbose))
-       
-let command = 
+     (fun verbose include_dir json pretty p4file () ->
+       ignore (check_file include_dir p4file p4file json pretty verbose))
+
+let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
     ["check", check_command]
 
 let () = Command.run ~version: "0.1.1" command
-
-

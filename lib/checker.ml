@@ -5,7 +5,7 @@ open Env
 (* hack *)
 module Petr4Error = Error
 module Petr4Info = Info
-open Core
+open Core_kernel
 open Petr4Error
 module Error = Petr4Error
 module Info = Petr4Info
@@ -1202,7 +1202,7 @@ and type_cast env typ expr =
 
 (* ? *)
 and type_type_member env typ name =
-  let open Core in
+  let open Core_kernel in
   let typ = typ
             |> translate_type env []
             |> saturate_type env
@@ -2397,7 +2397,7 @@ and type_package_type env name type_params params =
 
 let rec backtranslate_type (typ: Typed.Type.t) : Types.Type.t =
   let fail typ =
-    Core.raise_s [%message "cannot translate this type to a surface type"
+    Core_kernel.raise_s [%message "cannot translate this type to a surface type"
                            ~typ:(typ: Typed.Type.t)]
   in
   let mkint i =

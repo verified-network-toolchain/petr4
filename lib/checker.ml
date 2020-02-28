@@ -637,7 +637,7 @@ and assert_type_equality env info (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
   then ()
   else raise @@ Error.Type (info, Type_Difference (t1, t2))
 
-and compile_time_known_expr (env: CheckerEnv.t) (expr: Expression.t) : bool =
+and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
   | None -> false
@@ -1120,6 +1120,7 @@ and type_unary_op env op arg =
 *
 *)
 and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
+  let open Prog.Expression in
   match (snd l).typ, (snd r).typ with
   | Bit { width }, Integer ->
      None, Some (Bit { width })
@@ -1467,7 +1468,7 @@ and type_ternary env cond tru fls : Prog.Expression.typed_t =
        typ = t;
        dir = Directionless }
 
-and match_params_to_args call_site_info params args : (Parameter.t * Expression.t option) list =
+and match_params_to_args call_site_info params args : (Typed.Parameter.t * Expression.t option) list =
   let rec get_mode mode (args: Types.Argument.pre_t list) =
     match mode, args with
     | None, Expression { value } :: args
@@ -1484,50 +1485,65 @@ and match_params_to_args call_site_info params args : (Parameter.t * Expression.
                        ~info:(call_site_info: Info.t)]
   in
   let args = List.map ~f:snd args in
-  let mode = get_mode None args in
-  let res = match_params_to_args' call_site_info mode params args [] in
-  List.rev res
-
-and match_params_to_args' call_site_info mode params args params_args : (Parameter.t * Expression.t option) list =
-  let open Typed.Parameter in
-  match mode,  TODO TODO TODO HERE
-  | None, Expression { value } :: args
-  | Some `Positional, Expression { value } :: args ->
+  match get_mode None args with
+  | None ->
      begin match params with
-     | p :: params ->
-        let params_args = (p, Some value) :: params_args in
-        match_params_to_args' call_site_info (Some `Positional) params args params_args
-     | _ -> raise_s [%message "too many arguments supplied at call site"
-                        ~info:(call_site_info: Info.t)]
-     end
-  | None, Missing :: args
-  | Some `Positional, Missing :: args ->
-     begin match params with
-     | p :: params ->
-        let params_args = (p, None) :: params_args in
-        match_params_to_args' call_site_info (Some `Positional) params args params_args
-     | _ -> raise_s [%message "too many arguments supplied at call site"
-                        ~info:(call_site_info: Info.t)]
-     end
-  | None, KeyValue { key; value } :: args
-  | Some `Named, KeyValue { key; value } :: args ->
-     let key_param, params = Util.find_and_drop ~f:(fun p -> snd p.variable = snd key) params in
-     begin match key_param with
-     | Some key_param ->
-        let params_args = (key_param, Some value) :: params_args in
-        match_params_to_args' call_site_info (Some `Named) params args params_args
-     | None ->
-        raise_s [%message "key-value argument has no matching parameter"
-                    ~info:(call_site_info: Info.t)]
-     end
-  | _, [] ->
-     begin match params with
-     | [] -> params_args
+     | [] -> []
      | _ -> raise_s [%message "not enough arguments supplied" ~info:(call_site_info: Info.t)]
      end
-  | _ -> raise_s [%message "mixed positional and named arguments at call site"
-                    ~info:(call_site_info: Info.t)]
+  | Some `Positional ->
+     match_positional_args_to_params call_site_info params args
+  | Some `Named ->
+     match_named_args_to_params call_site_info params args
 
+and match_positional_args_to_params call_site_info params args =
+  let open Types.Argument in
+  match List.zip params args with
+  | Ok matches ->
+     let conv (param, arg) =
+       match arg with
+       | Expression { value } -> param, Some value
+       | Missing -> param, None
+       | _ -> failwith "expected positional argument"
+     in
+     List.map ~f:conv matches
+  | Unequal_lengths ->
+     raise_s [%message "wrong number of arguments provided at call site"
+                 ~info:(call_site_info: Info.t)
+                 ~args:(args : Types.Argument.pre_t list)]
+
+     
+and match_named_args_to_params call_site_info (params: Typed.Parameter.t list) args =
+  let open Types.Argument in
+  let open Typed.Parameter in
+  match params with
+  | p :: params ->
+     let right_arg = function
+       | KeyValue { key; value } ->
+          if snd p.variable = snd key
+          then Some value
+          else None
+       | _ -> None
+     in
+     let maybe_arg_for_p, other_args =
+       Util.find_map_and_drop ~f:right_arg args
+     in
+     begin match maybe_arg_for_p with
+     | Some arg_for_p ->
+        (p, Some arg_for_p) :: match_named_args_to_params call_site_info params other_args
+     | None ->
+        raise_s [%message "parameter has no matching argument"
+                    ~call_site:(call_site_info: Info.t)
+                    ~param:(p: Typed.Parameter.t)]
+     end
+  | [] ->
+     match args with
+     | [] -> []
+     | a :: rest ->
+        raise_s [%message "too many arguments supplied at call site"
+                    ~info:(call_site_info: Info.t)
+                    ~unused_args:(args : Types.Argument.pre_t list)]
+     
 and check_direction env dir expr expr_dir =
   match dir with
   | Directionless
@@ -1572,6 +1588,7 @@ and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
                       ~param:(snd param.variable)]
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
+  let func_typed = type_expression env func 
   let func_type =
     match find_extern_methods env func with
     | Some method_types ->
@@ -1590,7 +1607,8 @@ and type_function_call env call_info func type_args args : Prog.Expression.typed
        [], params, Type.Void
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
-                 ~fn:(func: Types.Expression.t)]
+                   ~fn:(func: Types.Expression.t)
+                   ~fn_type:(func_type: Typed.Type.t)]
   in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
   let params_args = match_params_to_args (fst func) params args in
@@ -1598,16 +1616,20 @@ and type_function_call env call_info func type_args args : Prog.Expression.typed
     match List.zip type_params type_args with
     | Ok v -> v
     | Unequal_lengths ->
-       if type_args = []
-       then List.map ~f:(fun v -> v, None) type_params
-       else failwith "mismatch in type arguments"
+       match type_args with
+       | [] -> List.map ~f:(fun v -> v, None) type_params
+       | _ -> failwith "mismatch in type arguments"
   in
   let type_params_args =
     infer_type_arguments env return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
   List.iter ~f:(type_param_arg env call_info) params_args;
-  saturate_type env return_type
+  let out_args = List.map ~f:(function
+                     | Some e -> Expression { value = e }
+                     | params_args -> false)  in
+  let typ = saturate_type env return_type in
+  FunctionCall { func = func_typd
 
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Types.MethodPrototype.t) =

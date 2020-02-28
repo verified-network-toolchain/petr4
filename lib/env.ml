@@ -269,7 +269,7 @@ module CheckerEnv = struct
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
       (* maps constants to their values *)
-      const: value env; }
+      const: value env }
   [@@deriving sexp,yojson]
 
   let empty_t : t =
@@ -289,7 +289,7 @@ module CheckerEnv = struct
   let resolve_type_name_toplevel_opt name env =
     find_toplevel_opt name env.typ
 
-  let find_type_of_opt name env =
+  let find_type_of_optname env =
     find_opt name env.typ_of
 
   let find_type_of name env =

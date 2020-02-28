@@ -111,7 +111,7 @@ and Expression : sig
   | FunctionCall of
       { func: t;
         type_args: Type.t list;
-        args: t list }
+        args: (t option) list }
   | NamelessInstantiation of
       { typ: Type.t [@key "type"];
         args: t list }
@@ -167,7 +167,7 @@ end = struct
   | FunctionCall of
       { func: t;
         type_args: Type.t list;
-        args: Expression.t list }
+        args: (t option) list }
   | NamelessInstantiation of
       { typ: Type.t [@key "type"];
         args: Expression.t list }

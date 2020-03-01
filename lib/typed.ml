@@ -359,5 +359,4 @@ end = struct
   | Unit
   | Void
   [@@deriving sexp,yojson]
-
 end

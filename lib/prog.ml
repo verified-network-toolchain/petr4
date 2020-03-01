@@ -316,7 +316,7 @@ and Statement : sig
           MethodCall of
             { func: Expression.t;
               type_args: Type.t list;
-              args: Expression.t list }
+              args: (Expression.t option) list }
         | Assignment of
             { lhs: Expression.t;
               rhs: Expression.t }
@@ -340,7 +340,11 @@ and Statement : sig
             { decl: Declaration.t }
       [@@deriving sexp,yojson]
 
-      and t = pre_t info [@@deriving sexp,yojson]
+      and typed_t =
+        { stmt: pre_t;
+          typ: StmType.t }
+
+      and t = typed_t info [@@deriving sexp,yojson]
 end = struct
   type pre_switch_label =
       Default [@name "default"]
@@ -363,7 +367,7 @@ end = struct
       MethodCall of
         { func: Expression.t;
           type_args: Type.t list;
-          args: Expression.t list } [@name "method_call"]
+          args: (Expression.t option) list } [@name "method_call"]
     | Assignment of
         { lhs: Expression.t;
           rhs: Expression.t } [@name "assignment"]
@@ -387,22 +391,24 @@ end = struct
         { decl: Declaration.t } [@name "declaration"]
   [@@deriving sexp,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+  and typed_t =
+    { stmt: pre_t;
+      typ: StmType.t }
+    
+  and t = typed_t info [@@deriving sexp,yojson]
 end
 
 and Block : sig
   type pre_t =
     { annotations: Annotation.t list;
-      statements: Statement.t list;
-      type_env: Env.CheckerEnv.t }
+      statements: Statement.t list }
       [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
 end = struct
   type pre_t =
     { annotations: Annotation.t list;
-      statements: Statement.t list;
-      type_env: Env.CheckerEnv.t }
+      statements: Statement.t list }
       [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
@@ -428,7 +434,6 @@ and Parser : sig
 
       type pre_state =
         { annotations: Annotation.t list;
-          type_env: Env.CheckerEnv.t;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
@@ -455,7 +460,6 @@ end = struct
 
       type pre_state =
         { annotations: Annotation.t list;
-          type_env: Env.CheckerEnv.t;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
@@ -484,7 +488,6 @@ and Declaration : sig
         params: TypeParameter.t list;
         constructor_params: TypeParameter.t list;
         locals: t list;
-        type_env: Env.CheckerEnv.t;
         states: Parser.state list }
   | Control of
       { annotations: Annotation.t list;
@@ -613,7 +616,6 @@ end = struct
         params: TypeParameter.t list;
         constructor_params: TypeParameter.t list;
         locals: t list;
-        type_env: Env.CheckerEnv.t;
         states: Parser.state list }
   | Control of
       { annotations: Annotation.t list;

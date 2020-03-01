@@ -264,7 +264,9 @@ end
 module CheckerEnv = struct
 
   type t =
-    { (* types that type names refer to (or Typevar for vars in scope) *)
+    { (* program so far *)
+      decl: Prog.Declaration.t list;
+      (* types that type names refer to (or Typevar for vars in scope) *)
       typ: Typed.Type.t env;
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
@@ -273,9 +275,30 @@ module CheckerEnv = struct
   [@@deriving sexp,yojson]
 
   let empty_t : t =
-    { typ = empty_env;
+    { decl = [];
+      typ = empty_env;
       typ_of = empty_env;
-      const = empty_env; }
+      const = empty_env }
+
+  let all_decls env =
+    env.decl
+
+  let find_decl_opt name env =
+    let ok decl =
+      match Prog.Declaration.name_opt decl with
+      | Some decl_name ->
+         name = snd decl_name
+      | None -> false
+    in
+    List.find ~f:ok env.decl
+
+  let find_decl name env =
+    let ok decl =
+      name = snd (Prog.Declaration.name decl)
+    in
+    match List.find ~f:ok env.decl with
+    | Some v -> v
+    | None -> raise (UnboundName name)
 
   let resolve_type_name_opt name env =
     find_opt name env.typ
@@ -289,7 +312,7 @@ module CheckerEnv = struct
   let resolve_type_name_toplevel_opt name env =
     find_toplevel_opt name env.typ
 
-  let find_type_of_optname env =
+  let find_type_of_opt name env =
     find_opt name env.typ_of
 
   let find_type_of name env =
@@ -336,14 +359,19 @@ module CheckerEnv = struct
 
   let insert_const var value env =
     { env with const = insert var value env.const }
+
+  let insert_decl d env =
+    { env with decl = d :: env.decl }
   
   let push_scope env =
-    { typ = push env.typ;
+    { decl = env.decl;
+      typ = push env.typ;
       typ_of = push env.typ_of;
       const = push env.const }
 
   let pop_scope env =
-    { typ = pop env.typ;
+    { decl = env.decl;
+      typ = pop env.typ;
       typ_of = pop env.typ_of;
       const = pop env.const }
 

@@ -146,5 +146,82 @@ P4 Programming Language.
 
 # Introduction { #sec-introduction }
 # Syntax { #sec-syntax }
+
+## Expressions
+
+
+~ Begin P4Grammar
+
+// expressions
+e = true
+  | false
+  | n // integer
+  | string // string literal
+  | name // name
+  | toplevel
+  | e1[e2] // array access
+  | e1[e2:e3] // bit-string access
+  | {e1,...,en} // list
+  | uop e
+  | e1 binop e2
+  | (tau) e // explicit cast
+  | tau.name // type member
+  | error // error member
+  | e.name // expression member
+  | e1 ? e2 : e3 // ternary operator
+  | f <T1,...,Tn>(e1,...,en)
+  | f<T1,...,Tn>(x1=e1,...,xn=en)
+  | tau(e1,...,en) // nameless instantiation
+  | e1 &&& e2 // mask
+  | e1 .. e2 // range
+
+// unary operators
+uop = ! // not
+    | - // unary minus
+    | ~ // bitwise complement/not
+
+// binary operators
+binop = +
+      | |+|
+      | -
+      | |-|
+      | *
+      | /
+      | %
+      | <<
+      | >>
+      | <
+      | >
+      | <=
+      | >=
+      | ==
+      | !=
+      | &
+      | ^
+      | |
+      | ++
+      | &&
+      | ||
+
+
+// expression types
+tau = bool
+    | Error
+    | int
+    | int<e>
+    | bit<e>
+    | varbit<e>
+    | topleveltype
+    | T // type name
+    | tau(tau1,...,taun) // specialized type
+    | tau[e] // header stack
+    | tuple<tau1,...,taun>
+    | String
+    | void
+    | _ // don't care type
+
+~ End P4Grammar
+
+
 # Static Semantics { #sec-static }
 # Dynamic Semantics { #sec-dynamic }

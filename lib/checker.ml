@@ -902,12 +902,42 @@ and are_param_types_well_formed env (params:Parameter.t list) : bool =
   let check param = is_well_formed_type env param.typ in
   List.for_all ~f:check params
 
-
 and are_construct_params_types_well_formed env (construct_params:ConstructParam.t list) : bool =
   let open ConstructParam in
   let check param = is_well_formed_type env param.typ in
   List.for_all ~f:check construct_params
 
+and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
+  let typ = translate_type env [] param.typ in
+  if is_well_formed_type env typ
+  then
+    let opt_value_typed =
+      match param.opt_value with
+      | Some value ->
+         let value_typed = type_expression env value in
+         assert_type_equality env param_info (snd value_typed).typ typ;
+         Some value_typed
+      | None -> None
+    in
+    (Info.dummy, { annotations = param.annotations;
+                      direction = translate_direction param.direction;
+                      typ = typ;
+                      variable = param.variable;
+                      opt_value = opt_value_typed })
+  else raise_s [%message "Parameter type is not well-formed"
+                   ~param:((param_info, param): Types.Parameter.t)]
+
+and type_params env params =
+  List.map ~f:(type_param env) params
+
+and type_constructor_param env (param: Types.Parameter.t) : Prog.TypeParameter.t =
+  if (snd param).direction <> None
+  then raise_s [%message "Constructor parameters must be directionless"
+                   ~param:(param: Types.Parameter.t)]
+  else type_param env param
+
+and type_constructor_params env params =
+  List.map ~f:(type_constructor_param env) params
 
 and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
@@ -1698,14 +1728,11 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
     | _ ->
        None
   in
-  let f (param, arg) = 
-    match arg with
-    | Some a -> (param, a)
-    | None -> raise_s [%message "missing parameter?"
-                          ~param:(param: Prog.TypeParameter.t)
-                          ~call_site:(info: Info.t)]
-  in
-  option_map (List.map ~f) params_maybe_args
+  match params_maybe_args with
+  | Some ps -> ps
+  | None ->
+     raise_s [%message "type does not have constructor for these arguments" 
+                 ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
 and type_constructor_invocation env info decl type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Types.Declaration in
@@ -2011,13 +2038,14 @@ and type_field env field =
  * ---------------------------------------------
  *    Δ, T, Γ |- const t x = e : Δ, T, Γ[x -> t]
  *)
-and type_constant env decl_info typ name expr =
+and type_constant env decl_info annotations typ name expr : Prog.Declaration.t * CheckerEnv.t =
   let expected_typ = translate_type env [] typ in
   let typed_expr = type_expression env expr in
   assert_same_type env decl_info (fst expr)
     expected_typ (snd typed_expr).typ |> ignore;
   match compile_time_eval_expr env typed_expr with
   | Some value ->
+     (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
      CheckerEnv.insert_dir_type_of (snd name) (snd typed_expr).typ In env
   | None ->
      failwith "expression not compile-time-known"
@@ -2032,12 +2060,29 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
   List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)
-and type_instantiation env info typ args name =
-  let instance_type = type_nameless_instantiation env info typ args in
-  CheckerEnv.insert_type_of (snd name) instance_type env
+and type_instantiation env info annotations typ args name : Prog.Declaration.t * CheckerEnv.t =
+  let instance_typed = type_nameless_instantiation env info typ args in
+  let instance_type = instance_typed.typ in
+  match instance_typed.expr with
+  | NamelessInstantiation { args; typ } ->
+     (info, 
+      Instantiation
+        { annotations = annotations;
+          typ = typ;
+          args = args;
+          name = name;
+          init = None }),
+     CheckerEnv.insert_type_of (snd name) instance_type env
+  | _ -> failwith "BUG: expected NamelessInstantiation"
+    
+and check_constructor_invocation env type_params params_args type_args args =
+  solve_constructor_invocation env type_params params_args type_args args |> ignore
 
-and check_constructor_invocation env type_params params type_args args =
-  solve_constructor_invocation env type_params params type_args args |> ignore
+and prog_param_to_typed_param (_, p: Prog.TypeParameter.t) : Typed.Parameter.t =
+  { annotations = p.annotations;
+    direction = p.direction;
+    typ= p.typ;
+    variable = p.variable }
 
 and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list =
   let type_params_args =
@@ -2051,27 +2096,24 @@ and solve_constructor_invocation env type_params params_args type_args args: Typ
   let type_params_args =
     let inference_params_args =
       List.map params_args
-        ~f:(fun (cons_param, arg) -> construct_param_as_param cons_param,
-                                     expr_of_arg arg)
+        ~f:(fun (cons_param, arg) -> prog_param_to_typed_param cons_param, arg)
     in
     infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
   in
   let env = CheckerEnv.insert_types type_params_args env in
-  let param_matches_arg (param, arg: Typed.ConstructParam.t * Types.Argument.t) =
-    match snd arg with
-    | Argument.Expression { value } ->
-       let arg_type = type_expression env value in
-       assert_type_equality env (fst arg) arg_type param.typ
-    | KeyValue _ -> failwith "key-value argument passing unimplemented"
-    | Missing -> failwith "missing argument??"
+  let param_matches_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
+    match arg with
+    | Some value ->
+       let value_typed = type_expression env value in
+       assert_type_equality env (fst value_typed) (snd value_typed).typ (snd param).typ
+    | None -> failwith "missing argument??"
   in
   List.iter ~f:param_matches_arg params_args;
   List.map ~f:snd type_params_args
 
-and type_select_case env state_names expr_types (_, case) : unit =
-  let open Parser in
-  let open Match in
+and type_select_case env state_names expr_types (case_info, case) : Prog.Parser.case =
   let open Typed.Type in
+  let open Types.Parser in
   let rec check' info match_type typ =
     match match_type with
     | Set element_type ->
@@ -2079,7 +2121,7 @@ and type_select_case env state_names expr_types (_, case) : unit =
        | Struct _, Struct _
        | Tuple _, Tuple _
        | List _, List _ ->
-          assert_type_equality env info element_type typ
+          assert_type_equality env info element_type typ;
        | Tuple _, _
        | Struct _, _ ->
           assert_type_equality env info
@@ -2093,74 +2135,121 @@ and type_select_case env state_names expr_types (_, case) : unit =
   in
   match List.zip expr_types case.matches with
   | Ok matches_and_types ->
-    let check_match (typ, m) =
-        match snd m with
-        | Expression {expr} ->
-           let match_type = reduce_type env @@ type_expression env expr in
-           check' (fst m) match_type typ
-        | Default
-        | DontCare -> ()
+    let check_match (typ, m) : Prog.Match.t =
+      fst m,
+      match snd m with
+      | Types.Match.Expression { expr } ->
+         let expr_typed = type_expression env expr in
+         let match_type = reduce_type env (snd expr_typed).typ in
+         check' (fst m) match_type typ;
+         Expression { expr = expr_typed }
+      | Default -> DontCare
+      | DontCare -> DontCare
     in
-    List.iter ~f:check_match matches_and_types;
+    let matches_typed = List.map ~f:check_match matches_and_types in
     let name = snd case.next in
     if List.mem ~equal:(=) state_names name
-    then ()
+    then case_info, { matches = matches_typed; next = case.next }
     else raise @@ Env.UnboundName name
   | Unequal_lengths -> failwith "mismatch between types and number of matches"
 
-and type_transition env state_names transition : unit =
+and type_transition env state_names transition : Prog.Parser.transition =
   let open Parser in
+  fst transition,
   match snd transition with
-  | Direct {next = (_, name')} ->
+  | Direct {next = (name_info, name')} ->
       if List.mem ~equal:(=) state_names name'
-      then ()
+      then Direct { next = (name_info, name') }
       else raise @@ Env.UnboundName name'
   | Select {exprs; cases} ->
-      let expr_types = List.map ~f:(type_expression env) exprs in
-      List.iter ~f:(type_select_case env state_names expr_types) cases
+      let exprs_typed = List.map ~f:(type_expression env) exprs in
+      let expr_types = List.map ~f:(fun (_, e) -> e.typ) exprs_typed in
+      let cases_typed = 
+        List.map ~f:(type_select_case env state_names expr_types) cases
+      in
+      Select { exprs = exprs_typed; cases = cases_typed }
 
-and type_parser_state env state_names (state: Parser.state) : unit =
+and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state =
   let open Block in
   let block = {annotations = []; statements = (snd state).statements} in
-  let (_, env') = type_block_statement env (fst state, block) in
-  type_transition env' state_names (snd state).transition
+  let (block_typed, env') = type_block_statement env (fst state, block) in
+  match block_typed.stmt with
+  | BlockStatement { block } ->
+     let transition_typed = type_transition env' state_names (snd state).transition in
+     let pre_state : Prog.Parser.pre_state =
+       { annotations = (snd state).annotations;
+         statements = (snd block).statements;
+         transition = transition_typed;
+         name = (snd state).name }
+     in
+     (fst state, pre_state)
+  | _ -> failwith "bug: expected BlockStatement"
+  
 
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
-  let env' = insert_params env constructor_params in
-  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
-  let env' = insert_params env' params in
+  let constructor_params_typed = type_constructor_params env constructor_params in
+  let params_typed = type_params env params in
+  let env = insert_params env constructor_params in
+  let locals_typed, env = type_declarations env locals in
+  let env = insert_params env params in
   let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
-
   let state_names = program_state_names @ ["accept"; "reject"] in
-  (env', state_names)
+  (env, state_names, constructor_params_typed, params_typed, locals_typed)
 
 (* Section 12.2 *)
-and type_parser env name params constructor_params locals states =
-  let (env', state_names) =
+and type_parser env info name annotations params constructor_params locals states =
+  let (env', state_names,
+       constructor_params_typed, params_typed, locals_typed) =
     open_parser_scope env params constructor_params locals states
   in
-  let env' = type_declarations env' locals in
-  List.iter ~f:(type_parser_state env' state_names) states;
-  env
+  let states_typed = List.map ~f:(type_parser_state env' state_names) states in
+  let parser_typed : Prog.Declaration.pre_t =
+    Parser { annotations;
+             name;
+             type_params = [];
+             params = params_typed;
+             constructor_params = constructor_params_typed;
+             locals = locals_typed;
+             states = states_typed }
+  in
+  (info, parser_typed), env
 
 and open_control_scope env params constructor_params locals =
-  (*TODO check that params and constructor params are well-formed *)
-  let env' = insert_params env constructor_params in
-  let env' = insert_params env' params in
-  let env' = List.fold_left ~f:type_declaration ~init:env' locals in
-  env'
+  let params_typed = type_params env params in
+  let constructor_params_typed = type_constructor_params env constructor_params in
+  let env = insert_params env constructor_params in
+  let env = insert_params env params in
+  let locals_typed, env = type_declarations env locals in
+  env, params_typed, constructor_params_typed, locals_typed
 
 (* Section 13 *)
-and type_control env name type_params params constructor_params locals apply =
+and type_control env info name annotations type_params params constructor_params locals apply =
   if List.length type_params > 0
   then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
   else
-    let env' = open_control_scope env params constructor_params locals in
-    let _ = type_block_statement env' apply in
-    env
+    let env', params_typed, constructor_params_typed, locals_typed =
+      open_control_scope env params constructor_params locals
+    in
+    let block_typed, env'' = type_block_statement env' apply in
+    let apply_typed =
+      match block_typed.stmt with
+      | BlockStatement { block } -> block
+      | _ -> failwith "expected BlcokStatement"
+    in
+    let control : Prog.Declaration.pre_t =
+      Control { annotations = annotations;
+                name = name;
+                type_params = [];
+                params = params_typed;
+                constructor_params = constructor_params_typed;
+                locals = locals_typed;
+                apply = apply_typed }
+    in
+    (info, control), env
+
 
 (* Section 9
 
@@ -2172,69 +2261,70 @@ and type_control env name type_params params constructor_params locals apply =
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
-and type_function env return name type_params params body =
+and type_function env info return name type_params params body =
+  let open Block in
   let t_params = List.map ~f:snd type_params in
   let body_env = CheckerEnv.insert_type_vars t_params env in
-  let p_fold = fun (acc,env:Parameter.t list * CheckerEnv.t) (p:Types.Parameter.t) ->
-    begin let open Parameter in
-    let p = snd p in
-      let pd = begin match p.direction with
-      | None -> In
-      | Some d -> begin match snd d with
-          | In -> In
-          | Out -> Out
-          | InOut -> InOut
-      end
-    end in
-    let p_typ = p.typ |> translate_type env t_params in
-    if is_well_formed_type env p_typ |> not
-    then failwith "Parameter type is not well-formed" else
-    let par = {name=p.variable |> snd;
-              typ=p_typ;
-              direction=pd} in
-    let new_env =
-      CheckerEnv.insert_dir_type_of (snd p.variable) par.typ par.direction env
-    in
-    par::acc, new_env end in
-  let (ps,body_env) = List.fold_left ~f:p_fold ~init:([],body_env) params in
-  let ps = List.rev ps in
-  let rt = return |> translate_type env t_params in
-  let sfold = fun (prev_type,envi:StmType.t*CheckerEnv.t) (stmt:Statement.t) ->
-    begin match prev_type with
-      | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
-      | Unit ->
-        let (st,new_env) = type_statement envi stmt in
-        begin match snd stmt with
-          | Return {expr=eo} ->
-            begin match eo with
-              | None -> failwith "return expression must have an expression"
-              | Some e ->
-                 let te = type_expression envi e in
-                 if not (type_equality envi rt te)
-                 then failwith "body does not match return type"
-                 else (st,new_env)
-            end
-          | _ -> (st,new_env)
-        end
-    end in
-  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
-  let open FunctionType in
-  let funtype = Type.Function {parameters=ps;
-                 type_params= type_params |> List.map ~f:snd;
-                 return= rt} in
-  CheckerEnv.insert_type_of (snd name) funtype env
+  let params_typed = List.map ~f:(type_param body_env) params in
+  let return_type = return |> translate_type env t_params in
+  let typ_params = List.map ~f:prog_param_to_typed_param params_typed in
+  let body_env = insert_params body_env params in
+  let check_statement (stmts, env) stmt =
+    let stmt_typed, env' = type_statement env stmt in
+    match (snd stmt_typed).stmt with
+    | Return { expr } ->
+       let expr_type =
+         match expr with
+         | Some e -> (snd e).typ
+         | None -> Void
+       in
+       assert_type_equality env (fst stmt_typed) return_type expr_type;
+       stmt_typed :: stmts, env'
+    | _ -> stmt_typed :: stmts, env'
+  in
+  let check_statements env (block: Block.t) =
+    let stmts, env = List.fold ~f:check_statement  ~init:([], env) (snd block).statements in
+    List.rev stmts
+  in
+  let body_typed : Prog.Block.t =
+    fst body,
+    { annotations = (snd body).annotations;
+      statements = check_statements body_env body }
+  in
+  let funtype =
+    Type.Function { parameters = typ_params;
+                    type_params = List.map ~f:snd type_params;
+                    return = return_type } in
+  let env = CheckerEnv.insert_type_of (snd name) funtype env in
+  let fn_typed : Prog.Declaration.pre_t =
+    Function { return = return_type;
+               name = name;
+               type_params = type_params;
+               params = params_typed;
+               body = body_typed }
+  in
+  (info, fn_typed), env
 
 (* Section 7.2.9.1 *)
-and type_extern_function env return name type_params params =
-  let type_params = type_params |> List.map ~f:snd in
-  let return = return |> translate_type env type_params in
-  let params = translate_parameters env type_params params in
+and type_extern_function env info annotations return name type_params params =
+  let t_params = type_params |> List.map ~f:snd in
+  let return = return |> translate_type env t_params in
+  let env' = CheckerEnv.insert_type_vars t_params env in
+  let params_typed = List.map ~f:(type_param env') params in
+  let params = List.map ~f:prog_param_to_typed_param params_typed in
   let typ: Typed.FunctionType.t =
-    { type_params = type_params;
+    { type_params = t_params;
       parameters = params;
       return = return }
   in
-  CheckerEnv.insert_type_of (snd name) (Function typ) env
+  let fn_typed : Prog.Declaration.pre_t =
+    ExternFunction { annotations;
+                     return;
+                     type_params;
+                     params = params_typed;
+                     name = name }
+  in
+  (info, fn_typed), CheckerEnv.insert_type_of (snd name) (Function typ) env
 
 (* Section 10.2
  *
@@ -2242,21 +2332,40 @@ and type_extern_function env return name type_params params =
  * ---------------------------------------------
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]
  *)
-and type_variable env typ name init =
+and type_variable env info annotations typ name init =
   let expected_typ = translate_type env [] typ in
-  match init with
-  | None ->
-      CheckerEnv.insert_dir_type_of (snd name) expected_typ In env
-  | Some value ->
-     let initialized_typ = type_expression env value in
-     let expr_typ, _ =
-       assert_same_type env (fst value) (fst value) expected_typ initialized_typ in
-    CheckerEnv.insert_dir_type_of (snd name) expr_typ In env
+  let init_typed =
+    match init with
+    | None ->
+       None
+    | Some value ->
+       let expected_typ = translate_type env [] typ in
+       let typed_expr = type_expression env value in
+       assert_same_type env info (fst value)
+         expected_typ (snd typed_expr).typ |> ignore;
+       Some typed_expr
+  in
+  let var_typed : Prog.Declaration.pre_t = 
+    Variable { annotations;
+               typ = expected_typ;
+               name = name;
+               init = init_typed }
+  in
+  let env = CheckerEnv.insert_dir_type_of (snd name) expected_typ InOut env in
+  (info, var_typed), env
 
 (* Section 12.11 *)
-and type_value_set env typ size name =
+and type_value_set env info annotations typ size name =
   let element_type = translate_type env [] typ in
-  CheckerEnv.insert_type_of (snd name) (Set element_type) env
+  let size_typed = type_expression env size in
+  let env = CheckerEnv.insert_type_of (snd name) (Set element_type) env in
+  let value_set : Prog.Declaration.pre_t =
+    ValueSet { annotations;
+               typ = element_type;
+               name = name;
+               size = size_typed }
+  in
+  (info, value_set), env
 
 (* Section 13.1 *)
 and type_action env name params body =
@@ -2556,16 +2665,6 @@ and type_new_type env name typ_or_decl =
    * purpose of newtypes *)
   type_type_def env name typ_or_decl
 
-and check_params_wf env params =
-  if not (are_param_types_well_formed env params)
-  then raise_s [%message "Parameter types are  not well-formed"
-                   ~ps:(params: Typed.Parameter.t list)]
-
-and check_construct_params_wf env params =
-  if not (are_construct_params_types_well_formed env params)
-  then raise_s [%message "Parameter types are  not well-formed"
-                   ~ps:(params: Typed.ConstructParam.t list)]
-
 
 (* Section 7.2.11.2 *)
 and type_control_type env name type_params params =
@@ -2600,30 +2699,32 @@ and type_package_type env name type_params params =
 and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   let (decl': Prog.Declaration.t), env =
     match snd decl with
-    | Constant { annotations = _; typ; name; value } ->
-      type_constant env (fst decl) typ name value
-    | Instantiation { annotations = _; typ; args; name; init } ->
-      (* TODO: type check init? *)
-      type_instantiation env (fst decl) typ args name
-    | Parser { annotations = _; name; type_params = _; params; constructor_params; locals; states } ->
-      type_parser env name params constructor_params locals states
-    | Control { annotations = _; name; type_params; params; constructor_params; locals; apply } ->
-      type_control env name type_params params constructor_params locals apply
+    | Constant { annotations; typ; name; value } ->
+      type_constant env (fst decl) annotations typ name value
+    | Instantiation { annotations; typ; args; name; init } ->
+       begin match init with
+       | Some init -> failwith "initializer block in instantiation unsupported"
+       | None -> type_instantiation env (fst decl) annotations typ args name
+       end
+    | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
+      type_parser env (fst decl) name annotations params constructor_params locals states
+    | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+      type_control env (fst decl) name annotations type_params params constructor_params locals apply
     | Function { return; name; type_params; params; body } ->
-      type_function env return name type_params params body
-    | ExternFunction { annotations = _; return; name; type_params; params } ->
-      type_extern_function env return name type_params params
-    | Variable { annotations = _; typ; name; init } ->
-      type_variable env typ name init
-    | ValueSet { annotations = _; typ; size; name } ->
-      type_value_set env typ size name
-    | Action { annotations = _; name; params; body } ->
-      type_action env name params body
-    | Table { annotations = _; name; properties } ->
+      type_function env (fst decl) return name type_params params body
+    | ExternFunction { annotations; return; name; type_params; params } ->
+      type_extern_function env (fst decl) annotations return name type_params params
+    | Variable { annotations; typ; name; init } ->
+      type_variable env (fst decl) annotations typ name init
+    | ValueSet { annotations; typ; size; name } ->
+      type_value_set env (fst decl) annotations typ size name
+    | Action { annotations; name; params; body } ->
+      type_action env (fst decl) annotations name params body
+    | Table { annotations; name; properties } ->
       type_table env name properties
-    | Header { annotations = _; name; fields } ->
+    | Header { annotations; name; fields } ->
       type_header env name fields
-    | HeaderUnion { annotations = _; name; fields } ->
+    | HeaderUnion { annotations; name; fields } ->
       type_header_union env name fields
     | Struct { annotations = _; name; fields } ->
       type_struct env name fields
@@ -2652,8 +2753,12 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
   decl', CheckerEnv.insert_decl decl' env
 
 and type_declarations env decls =
-  let f env decl = snd (type_declaration env decl) in
-  List.fold_left ~f ~init:env decls
+  let f (decls_typed, env) decl =
+    let decl_typed, env = type_declaration env decl in
+    decl_typed :: decls_typed, env
+  in
+  let decls, env = List.fold_left ~f ~init:([], env) decls in
+  List.rev decls, env
 
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : CheckerEnv.t * Prog.program =

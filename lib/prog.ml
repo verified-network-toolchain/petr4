@@ -522,7 +522,8 @@ and Declaration : sig
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: TypeParameter.t list;
+        data_params: TypeParameter.t list;
+        ctrl_params: TypeParameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;
@@ -650,7 +651,8 @@ end = struct
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: TypeParameter.t list;
+        data_params: TypeParameter.t list;
+        ctrl_params: TypeParameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;

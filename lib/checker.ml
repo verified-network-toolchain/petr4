@@ -1685,15 +1685,12 @@ and type_function_call env call_info func type_args args : Prog.Expression.typed
   in
   { expr = call; typ = typ; dir = Directionless }
 
-and prog_params_to_typed_params ps = failwith "unimplemented"
-
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Prog.MethodPrototype.t) =
     match snd proto with
     | Constructor { params; _ } ->
-       let params' = prog_params_to_typed_params params in
        begin try
-         let _ = match_params_to_args info params' args in
+         let _ = match_params_to_args info params args in
          true
          with _ -> false
        end
@@ -1702,8 +1699,7 @@ and select_constructor_params env info methods args =
   in
   match List.find ~f:matching_constructor methods with
   | Some (_, Constructor { params; _ }) ->
-     let params' = prog_params_to_typed_params params in
-     Some (match_params_to_args info params' args)
+     Some (match_params_to_args info params args)
   | _ -> None
 
 and get_decl_type_params (decl : Prog.Declaration.t) : P4String.t list =
@@ -2084,6 +2080,16 @@ and prog_param_to_typed_param (_, p: Prog.TypeParameter.t) : Typed.Parameter.t =
     typ= p.typ;
     variable = p.variable }
 
+and prog_params_to_typed_params ps =
+  List.map ~f:prog_param_to_typed_param ps
+
+and prog_param_to_constructor_param (_, p: Prog.TypeParameter.t) : Typed.ConstructParameter.t =
+  failwith "unimplemented"
+
+and prog_params_to_constructor_params ps =
+  List.map ~f:prog_param_to_constructor_param ps
+
+
 and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list =
   let type_params_args =
     match List.zip type_params type_args with
@@ -2368,56 +2374,37 @@ and type_value_set env info annotations typ size name =
   (info, value_set), env
 
 (* Section 13.1 *)
-and type_action env name params body =
- let p_fold = fun (((data_params,ctrl_params),env): (Typed.Parameter.t list * ConstructParam.t list) * CheckerEnv.t) (p:Types.Parameter.t) : ((Typed.Parameter.t list * ConstructParam.t list) * CheckerEnv.t) ->
-    begin let p = snd p in
-      let name = p.variable |> snd in
-      let typ = p.typ |> translate_type env [] in
-      if is_well_formed_type env typ |> not
-      then failwith "Parameter type is not well-formed" else
-      begin match p.direction with
-        | None ->
-          let open ConstructParam in
-          let ctrl_par = {name=name; typ=typ} in
-          let new_env = CheckerEnv.insert_type_of (snd p.variable) typ env in
-          (data_params, ctrl_par::ctrl_params), new_env
-        | Some d ->
-          if ctrl_params <> []
-          then failwith "Action parameters with direction must come before directionless parameters"
-          else let d = begin match snd d with
-            | In -> In
-            | Out -> Out
-            | InOut -> InOut end in
-          let open Typed.Parameter in
-          let par = {name=name; typ=typ; direction=d} in
-          let new_env =
-            CheckerEnv.insert_dir_type_of (snd p.variable) typ d env
-          in
-          (par::data_params, ctrl_params), new_env
-      end
-      end in
- let ((dps,cps),body_env) = List.fold_left ~f:p_fold ~init:(([],[]),env) params in
- let dps = List.rev dps in
- let cps = List.rev cps in
-  let sfold = fun (prev_type,envi:StmType.t*CheckerEnv.t) (stmt:Statement.t) ->
-    begin match prev_type with
-    | Void -> failwith "UnreachableBlock" (* do we want to do this? *)
-    | Unit -> let (st,new_env) = type_statement envi stmt in
-      begin match snd stmt with
-      | Switch _ -> failwith "Actions can not contain Switch Statements"
-      | Return {expr=eo} ->
-        begin match eo with
-        | Some _ -> failwith "Return expressions in Actions must not contain expressions"
-        | None -> (st,new_env)
-        end
-      | _ -> (st, new_env)
-      end
-    end
+and type_action env info annotations name params body =
+  let fn_typed, fn_env =
+    type_function env info (Info.dummy, Types.Type.Void) name [] params body
   in
-  let _ = List.fold_left ~f:sfold ~init:(StmType.Unit, body_env) (snd body).statements in
-  let open Typed.ActionType in
-  let actionType = Type.Action {data_params=dps; ctrl_params=cps} in
-  CheckerEnv.insert_type_of (snd name) actionType env
+  let action_typed, action_type =
+    match snd fn_typed with
+    | Function { return; name; type_params; params; body } ->
+       let data_params, ctrl_params =
+         List.split_while params
+           ~f:(fun (_, p) -> p.direction <> Directionless)
+       in
+       let check_ctrl p =
+         let open Prog.TypeParameter in
+         if (snd p).direction <> Directionless
+         then raise_s [%message "data parameter after a control parameter in action declaration"
+                          ~data_param:(p: Prog.TypeParameter.t)
+                          ~action_info:(info: Info.t)]
+       in
+       List.iter ~f:check_ctrl ctrl_params;
+       let action_type : Typed.Type.t =
+         Action { data_params = prog_params_to_typed_params data_params;
+                  ctrl_params = prog_params_to_constructor_params ctrl_params; }
+       in
+       let action = 
+         Prog.Declaration.Action { annotations; name; data_params; ctrl_params; body = body }
+       in
+       action, action_type
+    | _ -> failwith "expected function declaration"
+  in
+  (info, action_typed),
+  CheckerEnv.insert_type_of (snd name) action_type env
 
 (* Section 13.2 *)
 and type_table env name properties =

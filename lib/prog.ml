@@ -207,10 +207,15 @@ and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
           name: Types.P4String.t;
-          args: Expression.t list }
+          args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
-      type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+      type typed_action_ref =
+        { action: pre_action_ref;
+          typ: Typed.Type.t }
+      [@@deriving sexp,yojson]
+
+      type action_ref = typed_action_ref info [@@deriving sexp,yojson]
 
       type pre_key =
         { annotations: Annotation.t list;
@@ -229,17 +234,10 @@ and Table : sig
       type entry = pre_entry info [@@deriving sexp,yojson]
 
       type pre_property =
-          Key of
-            { keys: key list }
-        | Actions of
-            { actions: action_ref list }
-        | Entries of
-            { entries: entry list }
-        | Custom of
-            { annotations: Annotation.t list;
-              const: bool;
-              name: Types.P4String.t;
-              value: Expression.t }
+        { annotations: Annotation.t list;
+          const: bool;
+          name: Types.P4String.t;
+          value: Expression.t }
       [@@deriving sexp,yojson]
 
       type property = pre_property info [@@deriving sexp,yojson]
@@ -249,10 +247,15 @@ and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
           name: Types.P4String.t;
-          args: Expression.t list }
+          args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
-      type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+      type typed_action_ref =
+        { action: pre_action_ref;
+          typ: Typed.Type.t }
+      [@@deriving sexp,yojson]
+
+      type action_ref = typed_action_ref info [@@deriving sexp,yojson]
 
       type pre_key =
         { annotations: Annotation.t list;
@@ -271,27 +274,16 @@ and Table : sig
       type entry = pre_entry info [@@deriving sexp,yojson]
 
       type pre_property =
-          Key of
-            { keys: key list }
-        | Actions of
-            { actions: action_ref list }
-        | Entries of
-            { entries: entry list }
-        | Custom of
-            { annotations: Annotation.t list;
-              const: bool;
-              name: Types.P4String.t;
-              value: Expression.t }
+        { annotations: Annotation.t list;
+          const: bool;
+          name: Types.P4String.t;
+          value: Expression.t }
       [@@deriving sexp,yojson]
 
       type property = pre_property info [@@deriving sexp,yojson]
 
-      let name_of_property p =
-        match snd p with
-        | Key _ -> "key"
-        | Actions _ -> "actions"
-        | Entries _ -> "entries"
-        | Custom {name; _} -> snd name
+      let name_of_property (_, {name; _}) =
+        snd name
 end
 
 and Statement : sig
@@ -528,7 +520,12 @@ and Declaration : sig
   | Table of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        properties: Table.property list }
+        key: Table.key list;
+        actions: Table.action_ref list;
+        entries: (Table.entry list) option;
+        default_action: Table.action_ref option;
+        size: Types.P4Int.t option;
+        custom_properties: Table.property list }
   | Header of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
@@ -657,7 +654,12 @@ end = struct
   | Table of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        properties: Table.property list }
+        key: Table.key list;
+        actions: Table.action_ref list;
+        entries: (Table.entry list) option;
+        default_action: Table.action_ref option;
+        size: Types.P4Int.t option;
+        custom_properties: Table.property list }
   | Header of
       { annotations: Annotation.t list;
         name: Types.P4String.t;

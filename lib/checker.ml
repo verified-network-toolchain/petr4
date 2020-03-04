@@ -1729,7 +1729,6 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
                  ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
 and type_constructor_invocation env info decl type_args args : Prog.Expression.t list * Typed.Type.t =
-  let open Types.Declaration in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
   let type_params = List.map ~f:snd (get_decl_type_params decl) in
   let constructor_params = get_decl_constructor_params env info decl args in
@@ -2082,7 +2081,6 @@ and prog_param_to_constructor_param (_, p: Prog.TypeParameter.t) : Typed.Constru
 and prog_params_to_constructor_params ps =
   List.map ~f:prog_param_to_constructor_param ps
 
-
 and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list =
   let type_params_args =
     match List.zip type_params type_args with
@@ -2400,15 +2398,17 @@ and type_action env info annotations name params body =
   CheckerEnv.insert_type_of (snd name) action_type env
 
 (* Section 13.2 *)
-and type_table env name properties =
-  type_table' env name None [] (List.map ~f:snd properties)
+and type_table env info annotations name properties : Prog.Declaration.t * CheckerEnv.t =
+  type_table' env info annotations name None [] None (List.map ~f:snd properties)
 
 and type_keys env keys =
-  let type_key (key: Types.Table.key) =
-    let {key; match_kind; _}: Table.pre_key = snd key in
+  let open Prog.Table in
+  let type_key key =
+    let {key; match_kind; annotations}: Table.pre_key = snd key in
     match CheckerEnv.find_type_of_opt (snd match_kind) env with
     | Some (MatchKind, _) ->
-       type_expression env key
+       let expr_typed = type_expression env key in
+       (fst key, { annotations; key = expr_typed; match_kind })
     | _ ->
        raise_s [%message "invalid match_kind" ~match_kind:(snd match_kind)]
   in
@@ -2416,23 +2416,32 @@ and type_keys env keys =
 
 and type_table_actions env key_types actions =
   let type_table_action (call_info, action: Table.action_ref) =
-    match CheckerEnv.find_type_of_opt (snd action.name) env with
-    | Some (Action action_decl, _) ->
+    match CheckerEnv.find_decl_opt (snd action.name) env with
+    | Some (_, Action action_decl) ->
        (* Below should fail if there are control plane arguments *)
        let params_args = match_params_to_args call_info action_decl.data_params action.args in
-       let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
+       let type_param_arg env (param, expr: Prog.TypeParameter.t * Expression.t option) =
          match expr with
          | Some expr ->
              let arg_typed = type_expression env expr in
-             check_direction env param.direction expr (snd arg_typed).dir;
-             assert_type_equality env call_info (snd arg_typed).typ param.typ
+             check_direction env (snd param).direction expr (snd arg_typed).dir;
+             assert_type_equality env call_info (snd arg_typed).typ (snd param).typ;
+             Some arg_typed
          | None ->
-            if param.direction = In
-            then raise_s [%message "don't care argument (underscore) provided for in parameter"
-                             ~call_site:(call_info: Info.t) ~param:(snd param.variable)]
+            match (snd param).direction with
+            | Out -> None
+            | _ ->
+               raise_s [%message "don't care argument (underscore) provided for non-out parameter"
+                           ~call_site:(call_info: Info.t) ~param:(snd (snd param).variable)]
        in
-       List.iter ~f:(type_param_arg env) params_args;
-       Type.Action action_decl
+       let args_typed = List.map ~f:(type_param_arg env) params_args in
+       let open Prog.Table in
+       (call_info,
+        { action =
+            { annotations = action.annotations;
+              name = action.name;
+              args = args_typed };
+          typ = fst @@ CheckerEnv.find_type_of (snd action.name) env })
     | _ ->
        raise_s [%message "invalid action" ~action:(snd action.name)]
   in
@@ -2442,43 +2451,66 @@ and type_table_actions env key_types actions =
   List.zip_exn action_names action_typs
 
 and type_table_entries env entries key_typs action_map =
-  match key_typs with
-  (* Should key types be in an option type? *)
-  | None -> failwith "Keys need to have types"
-  | Some key_typs ->
-    let type_table_entry (_, entry: Table.entry) =
-      let type_entry_key_vals (key_typ: Type.t) (_, key_match: Match.t) =
-        match key_match with
-        | Default -> failwith "Default unimplemented"
-        | DontCare -> true
-        | Expression { expr = exp } ->
-           let exp_typed = type_expression env exp in
-           type_equality env key_typ (snd exp_typed).typ
-      in
-      let _ = List.map2 ~f:type_entry_key_vals key_typs entry.matches in
-      let action = snd entry.action in
-      match List.Assoc.find action_map ~equal:(=) (snd action.name) with
-      | None -> failwith "Entry must call an action in the table."
-      | Some (Type.Action {data_params=params; ctrl_params=_}) ->
-        let check_arg (param:Parameter.t) (_, arg:Argument.t) =
-          begin match arg with
-          (* Direction handling probably is incorrect here. *)
-          | Expression { value = exp } ->
-             let exp_typed = type_expression env exp in
-             type_equality env param.typ (snd exp_typed).typ
-          | _ -> failwith "Actions in entries only support positional arguments."
-          end in
-        let _ = List.map2 ~f:check_arg params action.args in true
-      | _ -> failwith "Table actions must have action types." in
-    List.for_all ~f:type_table_entry entries
+  let open Prog.Table in
+  let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
+    let type_entry_key_vals (key_typ: Type.t) (match_info, key_match: Match.t) : Prog.Match.t =
+      match key_match with
+      | Default -> failwith "Default unimplemented"
+      | DontCare ->
+         (match_info, DontCare)
+      | Expression { expr = exp } ->
+         let exp_typed = type_expression env exp in
+         assert_type_equality env (fst exp) key_typ (snd exp_typed).typ;
+         (match_info, Expression { expr = exp_typed })
+    in
+    let matches_typed = List.map2_exn ~f:type_entry_key_vals key_typs entry.matches in
+    match List.Assoc.find action_map ~equal:(=) (snd (snd entry.action).name) with
+    | None ->
+       failwith "Entry must call an action in the table."
+    | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->
+       let type_arg (param:Parameter.t) (arg_info, arg:Argument.t) =
+         begin match arg with
+         (* Direction handling probably is incorrect here. *)
+         | Expression { value = exp } ->
+            let exp_typed = type_expression env exp in
+            assert_type_equality env (fst exp) param.typ (snd exp_typed).typ;
+            Some exp_typed
+         | _ ->
+            failwith "Actions in entries only support positional arguments."
+         end in
+       let args_typed = List.map2_exn ~f:type_arg data_params (snd entry.action).args in
+       let action_ref_typed : Prog.Table.action_ref =
+         action_info,
+         { action =
+             { annotations = (snd entry.action).annotations;
+               name = (snd entry.action).name;
+               args =  args_typed };
+           typ = Action { data_params; ctrl_params } }
+       in
+       let pre_entry : Prog.Table.pre_entry =
+         { annotations = entry.annotations;
+           matches = matches_typed;
+           action = action_ref_typed }
+       in
+       (entry_info, pre_entry)
+    | _ -> failwith "Table actions must have action types."
+  in
+  List.map ~f:type_table_entry entries
 
-and type_table' env name key_types action_map properties =
+and type_table' env info annotations name key_types action_map entries_typed properties =
   let open Types.Table in
   match properties with
   | Key { keys } :: rest ->
      begin match key_types with
-     | None -> type_table' env name (Some (type_keys env keys)) action_map rest
-     | Some key_types -> raise_s [%message "multiple key properties in table?" ~name:(snd name)]
+     | None ->
+        type_table' env info annotations
+          name
+          (Some (type_keys env keys))
+          action_map
+          entries_typed
+          rest
+     | Some key_types ->
+        raise_s [%message "multiple key properties in table?" ~name:(snd name)]
      end
   | Actions { actions } :: rest ->
      begin match key_types with
@@ -2486,30 +2518,67 @@ and type_table' env name key_types action_map properties =
         begin match Util.find_and_drop ~f:(function Table.Key _ -> true | _ -> false) properties with
         | Some key_prop, other_props ->
            let props = key_prop :: other_props in
-           type_table' env name None action_map props
+           type_table' env info annotations
+             name
+             None
+             action_map
+             entries_typed
+             props
         | None, props ->
-           type_table' env name (Some []) action_map props
+           type_table' env info annotations
+             name
+             (Some [])
+             action_map
+             entries_typed
+             props
         end
      | Some kts ->
         let action_map = type_table_actions env kts actions in
-        type_table' env name key_types action_map rest
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          rest
      end
   | Entries { entries } :: rest ->
-    if type_table_entries env entries key_types action_map
-    then type_table' env name key_types action_map rest
-    else failwith ""
+     begin match entries_typed with
+     | Some _ -> failwith "multiple entries properties in table"
+     | None ->
+        begin match key_types with
+        | Some keys_typed ->
+           let key_types' = List.map ~f:(fun k -> (snd (snd k).key).typ) keys_typed in
+           let entries_typed = type_table_entries env entries key_types' action_map in
+           type_table' env info annotations name key_types action_map (Some entries_typed) rest
+        | None -> failwith "entries with no keys?"
+        end
+     end
   | Custom { name = (_, "default_action"); _ } :: rest ->
-     type_table' env name key_types action_map rest
+     type_table' env info annotations
+       name
+       key_types
+       action_map
+       entries_typed
+       rest
   | Custom { name = (_, "size"); _ } :: rest
   | Custom _ :: rest ->
      (* TODO *)
-     type_table' env name key_types action_map rest
+     type_table' env info annotations
+       name
+       key_types
+       action_map
+       entries_typed
+       rest
   | [] ->
     let open EnumType in
     let open RecordType in
     (* Aggregate table information. *)
     let action_names = List.map ~f:fst action_map in
     let action_enum_typ = Type.Enum {typ=None; members=action_names} in
+    let key = match key_types with
+      | Some ks -> ks
+      | None -> failwith "no key property in table?"
+    in
     (* Populate environment with action_enum *)
     (* names of action list enums are "action_list_<<table name>>" *)
     let env = CheckerEnv.insert_type (name |> snd |> (^) "action_list_") action_enum_typ env in
@@ -2521,7 +2590,17 @@ and type_table' env name key_types action_map properties =
     let result_typ_name = name |> snd |> (^) "apply_result_" in
     let env = CheckerEnv.insert_type result_typ_name apply_result_typ env in
     let table_typ = Type.Table {result_typ_name=result_typ_name} in
-    CheckerEnv.insert_type_of (snd name) table_typ env
+    let table_typed : Prog.Declaration.pre_t =
+      Table { annotations;
+              name;
+              key = key;
+              actions = List.map ~f:snd action_map;
+              entries = None;
+              default_action = None;
+              size = None;
+              custom_properties = [] }
+    in
+    (info, table_typed), CheckerEnv.insert_type_of (snd name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
@@ -2786,7 +2865,7 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
     | Action { annotations; name; params; body } ->
       type_action env (fst decl) annotations name params body
     | Table { annotations; name; properties } ->
-      type_table env name properties
+      type_table env (fst decl) annotations name properties
     | Header { annotations; name; fields } ->
       type_header env (fst decl) annotations name fields
     | HeaderUnion { annotations; name; fields } ->

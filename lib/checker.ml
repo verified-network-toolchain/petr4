@@ -1730,12 +1730,11 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
 
 and type_constructor_invocation env info decl type_args args : Prog.Expression.t list * Typed.Type.t =
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
-  let type_params = List.map ~f:snd (get_decl_type_params decl) in
+  let t_params = get_decl_type_params decl in
   let constructor_params = get_decl_constructor_params env info decl args in
-  check_constructor_invocation env type_params constructor_params type_args args;
-  let type_args = solve_constructor_invocation env type_params constructor_params type_args args in
-  ignore type_args;
-  failwith "unimplemented"
+  let type_args, args = solve_constructor_invocation env (List.map ~f:snd t_params) constructor_params type_args args in
+  let decl_type = CheckerEnv.resolve_type_name (snd (Prog.Declaration.name decl)) env in
+  args, SpecializedType { base = decl_type; args = type_args }
 
 (* Section 14.1 *)
 and type_nameless_instantiation env info typ args =
@@ -2061,9 +2060,6 @@ and type_instantiation env info annotations typ args name : Prog.Declaration.t *
           init = None }),
      CheckerEnv.insert_type_of (snd name) instance_type env
   | _ -> failwith "BUG: expected NamelessInstantiation"
-    
-and check_constructor_invocation env type_params params_args type_args args =
-  solve_constructor_invocation env type_params params_args type_args args |> ignore
 
 and prog_param_to_typed_param (_, p: Prog.TypeParameter.t) : Typed.Parameter.t =
   { annotations = p.annotations;
@@ -2081,7 +2077,7 @@ and prog_param_to_constructor_param (_, p: Prog.TypeParameter.t) : Typed.Constru
 and prog_params_to_constructor_params ps =
   List.map ~f:prog_param_to_constructor_param ps
 
-and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list =
+and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list * Prog.Expression.t list =
   let type_params_args =
     match List.zip type_params type_args with
     | Ok v -> v
@@ -2102,11 +2098,11 @@ and solve_constructor_invocation env type_params params_args type_args args: Typ
     match arg with
     | Some value ->
        let value_typed = type_expression env value in
-       assert_type_equality env (fst value_typed) (snd value_typed).typ (snd param).typ
+       assert_type_equality env (fst value_typed) (snd value_typed).typ (snd param).typ;
+       value_typed
     | None -> failwith "missing argument??"
   in
-  List.iter ~f:param_matches_arg params_args;
-  List.map ~f:snd type_params_args
+  List.map ~f:snd type_params_args, List.map ~f:param_matches_arg params_args
 
 and type_select_case env state_names expr_types (case_info, case) : Prog.Parser.case =
   let open Typed.Type in
@@ -2212,6 +2208,11 @@ and type_parser env info name annotations params constructor_params locals state
              locals = locals_typed;
              states = states_typed }
   in
+  let parser_typ : Typed.ControlType.t =
+    { type_params = [];
+      parameters = prog_params_to_typed_params params_typed }
+  in
+  let env = CheckerEnv.insert_type (snd name) (Parser parser_typ) env in
   (info, parser_typed), env
 
 and open_control_scope env params constructor_params locals =
@@ -2245,6 +2246,11 @@ and type_control env info name annotations type_params params constructor_params
                 locals = locals_typed;
                 apply = apply_typed }
     in
+    let control_typ : Typed.ControlType.t =
+      { type_params = [];
+        parameters = prog_params_to_typed_params params_typed }
+    in
+    let env = CheckerEnv.insert_type (snd name) (Control control_typ) env in
     (info, control), env
 
 
@@ -2754,10 +2760,33 @@ and type_extern_object env info annotations name t_params methods =
   in
   let extern_typ: ExternType.t =
     { type_params = type_params';
-      methods = List.map ~f:(failwith "unimplemented: convert MethodPrototype to extern_method") ms }
+      methods = List.map
+                  ~f:(method_prototype_to_extern_method name)
+                  ms }
   in
   let env = CheckerEnv.insert_type (snd name) (Extern extern_typ) env in
   (info, extern_decl), env
+
+and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
+  Typed.ExternType.extern_method =
+    let open Typed.Type in
+    let open Typed.ExternType in
+    let name, (fn : Typed.FunctionType.t) =
+      match snd m with
+      | Constructor { annotations; name; params } ->
+          name,
+          { type_params = [];
+            return = TypeName (snd extern_name);
+            parameters = prog_params_to_typed_params params }
+      | AbstractMethod { annotations; return; name; type_params; params }
+      | Method { annotations; return; name; type_params; params } ->
+          name,
+          { type_params = List.map ~f:snd type_params;
+            return = return;
+            parameters = prog_params_to_typed_params params }
+    in
+    { name = snd name;
+      typ = fn }
 
 (* Section 7.3 *)
 and type_type_def env info annotations name typ_or_decl =

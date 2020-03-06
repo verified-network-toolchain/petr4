@@ -1,0 +1,5 @@
+(library
+ (name tests)
+ (inline_tests (deps (glob_files *.p4)))
+ (libraries core p4pp petr4)
+ (preprocess (pps ppx_inline_test)))

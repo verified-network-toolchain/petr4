@@ -2,4 +2,12 @@
   (public_name petr4)
   (name main)
   (libraries ANSITerminal core petr4)
+  (modules main)
+  (preprocess (pps ppx_jane -allow-unannotated-ignores)))
+
+(executable
+  (public_name tables)
+  (name tables)
+  (libraries core ocamlgraph p4pp petr4)
+  (modules tables)
   (preprocess (pps ppx_jane -allow-unannotated-ignores)))

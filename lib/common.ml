@@ -24,7 +24,7 @@ module type Parse_config = sig
 end
 
 module Make_parse (Conf: Parse_config) = struct
-  let parse include_dirs p4_file_name p4_file verbose=
+  let parse include_dirs p4_file_name p4_file verbose =
     let () = Lexer.reset () in
     let () = Lexer.set_filename p4_file_name in
     let p4_string = Conf.preprocess include_dirs p4_file in

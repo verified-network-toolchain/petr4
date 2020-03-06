@@ -445,54 +445,54 @@ and Table : sig
 
       val name_of_property : property -> string
     end = struct
-              type pre_action_ref =
-                { annotations: Annotation.t list;
-                  name: P4String.t;
-                  args: Argument.t list }
-              [@@deriving sexp,yojson]
-
-              type action_ref = pre_action_ref info [@@deriving sexp,yojson]
-
-              type pre_key =
-                { annotations: Annotation.t list;
-                  key: Expression.t;
-                  match_kind: P4String.t }
-              [@@deriving sexp,yojson]
-
-              type key = pre_key info [@@deriving sexp,yojson]
-
-              type pre_entry =
-                { annotations: Annotation.t list;
-                  matches: Match.t list;
-                  action: action_ref }
-              [@@deriving sexp,yojson { exn = true }]
-
-              type entry = pre_entry info [@@deriving sexp,yojson]
-
-              type pre_property =
-                  Key of
-                    { keys: key list }
-                | Actions of
-                    { actions: action_ref list }
-                | Entries of
-                    { entries: entry list }
-                | Custom of
-                    { annotations: Annotation.t list;
-                      const: bool;
-                      name: P4String.t;
-                      value: Expression.t }
-              [@@deriving sexp,yojson]
-
-              type property = pre_property info [@@deriving sexp,yojson]
-
-              let name_of_property p =
-                match snd p with
-                | Key _ -> "key"
-                | Actions _ -> "actions"
-                | Entries _ -> "entries"
-                | Custom {name; _} -> snd name
-            end
-
+  type pre_action_ref =
+    { annotations: Annotation.t list;
+      name: P4String.t;
+      args: Argument.t list }
+      [@@deriving sexp,yojson]
+    
+  type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+                  
+  type pre_key =
+    { annotations: Annotation.t list;
+      key: Expression.t;
+      match_kind: P4String.t }
+      [@@deriving sexp,yojson]
+    
+  type key = pre_key info [@@deriving sexp,yojson]
+           
+  type pre_entry =
+    { annotations: Annotation.t list;
+      matches: Match.t list;
+      action: action_ref }
+      [@@deriving sexp,yojson { exn = true }]
+    
+  type entry = pre_entry info [@@deriving sexp,yojson]
+             
+  type pre_property =
+    Key of
+      { keys: key list }
+  | Actions of
+      { actions: action_ref list }
+  | Entries of
+      { entries: entry list }
+  | Custom of
+      { annotations: Annotation.t list;
+        const: bool;
+        name: P4String.t;
+        value: Expression.t }
+        [@@deriving sexp,yojson]
+    
+  type property = pre_property info [@@deriving sexp,yojson]
+                
+  let name_of_property p =
+    match snd p with
+    | Key _ -> "key"
+    | Actions _ -> "actions"
+    | Entries _ -> "entries"
+    | Custom {name; _} -> snd name
+end
+        
 and Match : sig
       type pre_t =
           Default

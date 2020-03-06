@@ -37,8 +37,7 @@ open Parse
 
 let eval verbose packet_str ctrl_str p4_contents =
   let ctrl_json = Yojson.Safe.from_string ctrl_str in
-  eval_string [] "typed_input.p4" p4_contents verbose packet_str ctrl_json
-
+  eval_file [] p4_contents verbose packet_str ctrl_json
 
 let () =
    let form_submit = Dom_html.getElementById "form-submit" in

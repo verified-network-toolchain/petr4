@@ -52,7 +52,7 @@ let check_dir include_dirs p4_dir verbose =
         begin
           Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
           let p4_file = Filename.concat p4_dir file in
-          match parse include_dirs p4_file p4_file verbose with
+          match parse_file include_dirs p4_file verbose with
           | `Ok prog ->
              let prog = Elaborate.elab prog in
              Checker.check_program prog |> ignore;
@@ -78,7 +78,7 @@ let check_command =
      +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
      +> anon ("p4file" %: string))
      (fun verbose include_dir json pretty p4file () ->
-       ignore (check_file include_dir p4file p4file json pretty verbose))
+       ignore (check_file include_dir p4file json pretty verbose))
 
 let command =
   Command.group

@@ -20,8 +20,8 @@ open Ast
 %token END
 %token ADD ALL BYTES CHECK_COUNTER EXPECT NO_PACKET PACKET PACKETS REMOVE SETDEFAULT WAIT
 %token<string> ID
-%token COLON COMMA DATA_HEX DATA_TERN DOT
-%token<string> INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX INT_CONST_BIN DATA_DEC
+%token COLON COMMA DATA_TERN DOT
+%token<string> INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX INT_CONST_BIN DATA_DEC DATA_HEX
 %token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ LBRACKET RBRACKET
 
 
@@ -35,13 +35,13 @@ statements:
 
 statement:
   | ADD qualified_name priority match_list action
-    { Add($2, $3, List.rev $4, $5, None) }
+    { Add($2, Some($3), List.rev $4, $5, None) }
   | ADD qualified_name match_list action
     { Add($2, None, List.rev $3, $4, None) }
   | ADD qualified_name priority match_list action EQUAL ID
-    { Add($2, $3, List.rev $4, $5, $7) }
+    { Add($2, Some($3), List.rev $4, $5, Some($7)) }
   | ADD qualified_name match_list action EQUAL ID
-    { Add($2, None, List.rev $3, $4, $6) }
+    { Add($2, None, List.rev $3, $4, Some($6)) }
   | CHECK_COUNTER ID LPAREN id_or_index RPAREN
     { Check_counter($2, $4, (None, Eqeq, "0")) }
   | CHECK_COUNTER ID LPAREN id_or_index RPAREN count_type logical_cond number
@@ -79,7 +79,7 @@ number_or_lpm:
 
 match_list:
   | matcht
-    { $1 }
+    { [$1] }
   | match_list matcht
     { $2 :: $1 }
 
@@ -141,7 +141,7 @@ port:
 
 priority:
   | INT_CONST_DEC
-    { string_of_int $1 }
+    { int_of_string $1 }
 
 expect_data:
   | expect_datum

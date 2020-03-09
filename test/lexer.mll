@@ -99,7 +99,7 @@ and keyword = parse
   | "no_packet"
     { NO_PACKET }
   | "packet"
-    { PACKET }
+    { lexer:= Packet_data; PACKET }
   | "packets"
     { PACKETS }
   | "remove"
@@ -112,7 +112,7 @@ and keyword = parse
     { newline (); keyword lexbuf }
   | whitespace
     { keyword lexbuf }
-  | '#' _* '\n'
+  | '#' [^'\n']* '\n'
     { newline(); keyword lexbuf }
   | eof
     { END }

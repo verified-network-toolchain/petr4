@@ -26,7 +26,7 @@ type logical_cond =
   | Neq
   | Leq
   | Le
-  | GEQ
+  | Geq
   | Gt
 
 type count_type =
@@ -37,8 +37,8 @@ type statement =
   | Wait
   | Remove_all
   | Expect of port * expect_data option
+  | Packet of port * packet_data
   | No_packet
   | Add of qualified_name * int option * match_ list * action * id option
-  | Packet of port * packet_data
   | Set_default of qualified_name * action
   | Check_counter of id * id_or_index * (count_type option * logical_cond * number)

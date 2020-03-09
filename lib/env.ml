@@ -191,7 +191,8 @@ module EvalEnv = struct
         | VParser _ -> "<parser>"
         | VControl _ -> "<control>"
         | VPackage _ -> "<package>"
-        | VTable _ -> "<table>" in
+        | VTable _ -> "<table>"
+        | VExternFun _ -> "<function>" in
       print_endline vstring in
     match e.vs with
     | [] -> ()

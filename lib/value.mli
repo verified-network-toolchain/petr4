@@ -10,6 +10,8 @@ type vsets = Match.t list list
 
 type ctrl = entries * vsets
 
+type loc = int [@@deriving sexp]
+
 type value =
   | VNull
   | VBool of bool
@@ -67,6 +69,9 @@ type value =
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
+  | VExternFun of 
+      { name : string;
+        caller : loc option; }
   [@@deriving sexp]
 
 and vparser = {

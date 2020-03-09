@@ -34,8 +34,10 @@ let test_bad_file include_dirs p4_file () =
     end
               
 let make_case base_dir testfn filename =
+  let include_dirs = ["examples"]
+  in
   Alcotest.test_case filename `Quick
-    (testfn ["/home/ryan/dev/p4c/p4include"] (Filename.concat base_dir filename))
+    (testfn include_dirs (Filename.concat base_dir filename))
 
 let () =
   let is_p4 f = String.is_suffix ~suffix:".p4" f in

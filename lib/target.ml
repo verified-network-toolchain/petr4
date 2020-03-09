@@ -5,7 +5,7 @@ open Types
 open Core
 module Info = I
 
-type extern = EvalEnv.t -> value list -> EvalEnv.t * value
+(* type extern = EvalEnv.t -> value list -> EvalEnv.t * value *)
 
 module State = struct
 
@@ -29,6 +29,8 @@ module type Target = sig
 
   type st = obj State.t
 
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+
   val externs : (string * extern) list
 
   val check_pipeline : EvalEnv.t -> unit
@@ -43,8 +45,8 @@ end
 module Core = struct
 
   type obj = 
-    | PacketIn of Cstruct_sexp.t
-    | PacketOut of Cstruct_sexp.t * Cstruct_sexp.t
+    | PacketIn of pkt
+    | PacketOut of pkt_out
 
   let eval_extract_fixed env pkt v =
     failwith "unimplemented"
@@ -90,11 +92,15 @@ module V1Model : Target = struct
 
   type st = obj State.t
 
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
     | _ -> failwith "not a packet"
 
-  let externs = []
+  let v1externs = [ (* TODO *) ]
+
+  let externs = Core.externs @ v1externs
 
   let check_pipeline env = ()
 
@@ -129,7 +135,7 @@ module V1Model : Target = struct
       | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
     let pkt_loc = State.fresh_loc () in
-    let vpkt = VRuntime pkt_loc in
+    let vpkt = VRuntime { loc = pkt_loc; typ_name = "packet_in"; } in
     let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
       init ctrl env st "hdr"      (snd (List.nth_exn params 1)).typ in
@@ -166,7 +172,7 @@ module V1Model : Target = struct
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
     let pktout_loc = State.fresh_loc () in 
-    let vpkt' = VRuntime pktout_loc in
+    let vpkt' = VRuntime { loc = pktout_loc; typ_name = "packet_out"; } in
     let st = 
       State.insert 
         pktout_loc 
@@ -184,7 +190,7 @@ module V1Model : Target = struct
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with
-    | VRuntime loc -> 
+    | VRuntime {loc; _ } -> 
       begin match State.find loc st with 
         | CoreObject (PacketOut(p0,p1)) -> st, Cstruct.append p0 p1
         | _ -> failwith "not a packet" end
@@ -192,11 +198,13 @@ module V1Model : Target = struct
 
 end
 
-module EbpfFilter  = struct 
+module EbpfFilter : Target = struct 
 
   type obj = unit (* TODO *)
 
   type st = obj State.t
+
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
 
   let externs = []
 

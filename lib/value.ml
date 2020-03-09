@@ -63,7 +63,9 @@ type value =
       { typ_name : string;
         enum_name : string;
         v : value; }
-  | VRuntime of vruntime
+  | VRuntime of 
+      { loc : loc; 
+        typ_name : string; }
   | VParser of vparser
   | VControl of vcontrol
   | VPackage of 
@@ -72,7 +74,7 @@ type value =
   | VTable of vtable
   | VExternFun of
       { name : string;
-        caller : loc option; }
+        caller : (loc * string) option; }
 [@@deriving sexp]
 
 and vparser = {
@@ -142,9 +144,6 @@ and signal =
   | SReturn of value
   | SExit
   | SReject of string
-[@@deriving sexp]
-
-and vruntime = int
 [@@deriving sexp]
 
 let assert_bool v =
@@ -242,7 +241,7 @@ let assert_senum v =
 
 let assert_runtime v = 
   match v with 
-  | VRuntime r -> r 
+  | VRuntime {loc; _ } -> loc 
   | _ -> failwith "not a runtime value"
 
 let assert_parser v = 

@@ -2,7 +2,7 @@ open Value
 open Env
 open Types
 
-type extern = EvalEnv.t -> value list -> EvalEnv.t * value
+(* type extern = EvalEnv.t -> value list -> EvalEnv.t * value *)
 
 module State : sig
   type 'a t
@@ -18,6 +18,8 @@ module type Target = sig
   type obj
 
   type st = obj State.t
+
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
 
   val externs : (string * extern) list
 

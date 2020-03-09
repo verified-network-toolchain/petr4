@@ -1,0 +1,5 @@
+(executable
+  (public_name test_petr4)
+  (name checker_tests)
+  (libraries alcotest core petr4)
+  (preprocess (pps ppx_jane)))

@@ -14,6 +14,7 @@ build: [
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
+  "alcotest"
   "ocaml" {>= "4.08.0"}
   "dune" {build}
   "cstruct"

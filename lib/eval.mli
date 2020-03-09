@@ -12,13 +12,13 @@ module type Interpreter = sig
 
   val empty_state : st
 
-  val eval : ctrl -> env -> st -> pkt -> (st * pkt)
+  val eval : ctrl -> env -> st -> pkt -> st * pkt
 
   val eval_decl : ctrl -> env -> st -> Declaration.t -> (env * st)
 
-  val eval_statement : ctrl -> env -> st -> pkt -> Statement.t -> (env * st * pkt)
+  val eval_statement : ctrl -> env -> st -> Statement.t -> (env * st)
 
-  val eval_expression : ctrl -> env -> st -> pkt -> Expression.t -> (env * st * pkt * value)
+  val eval_expression : ctrl -> env -> st -> Expression.t -> (env * st * value)
 
   val eval_app : ctrl -> env -> st -> signal -> value -> Argument.t list -> env * st * signal * value
 

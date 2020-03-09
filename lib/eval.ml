@@ -14,13 +14,13 @@ module type Interpreter = sig
   
   val empty_state : st
 
-  val eval : ctrl -> env -> st -> pkt -> (st * pkt) 
+  val eval : ctrl -> env -> st -> pkt -> st * pkt
 
   val eval_decl : ctrl -> env -> st -> Declaration.t -> (env * st)
 
-  val eval_statement : ctrl -> env -> st -> pkt -> Statement.t -> (env * st * pkt)
+  val eval_statement : ctrl -> env -> st -> Statement.t -> (env * st)
 
-  val eval_expression : ctrl -> env -> st -> pkt -> Expression.t -> (env * st * pkt * value)
+  val eval_expression : ctrl -> env -> st  -> Expression.t -> (env * st * value)
 
   val eval_app : ctrl -> env -> st -> signal -> value -> Argument.t list -> env * st * signal * value
 
@@ -2794,9 +2794,11 @@ module MakeInterpreter (T : Target) = struct
         | Default -> true
         | Name(_,n) -> String.equal s n end
 
-  and eval_statement _ = failwith "unimplemented" (* TODO *)
+  and eval_statement ctrl env st s = 
+    let (a,b,_) = eval_stmt ctrl env st SContinue s in (a,b)
 
-  and eval_expression _ = failwith "unimplemented" (* TODO *)
+  and eval_expression ctrl env st expr = 
+    let (a,b,_,c) = eval_expr ctrl env st SContinue expr in (a,b,c)
 
   and eval (ctrl : ctrl) (env : env) (st : st) (pkt : pkt) : st * pkt =
     T.eval_pipeline ctrl env st pkt eval_app eval_assign' init_val_of_typ

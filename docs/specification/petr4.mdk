@@ -7,6 +7,14 @@ Pdf Latex: xelatex
 Document Class: [11pt]article
 Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
+Package: mathpartir
+
+infer {
+replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+\\infer{\1}{\3}{\textsc{\2}}/m";
+replace:"~Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+~End MathPre";
+}
 
 Tex Header:
   \setlength{\headheight}{30pt}
@@ -135,6 +143,21 @@ p4grammar {
 }
 }
 
+<!--
+mathpre {
+replace: "/\bt\b/\tau{}/g";
+replace: "/\bG\b/\Gamma{}/g";
+}
+
+infer {
+replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+\\infer{\1}{\3}{\textsc{\2}}/m";
+replace:"~Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+~End MathPre";
+}
+-->
+
+
 [TITLE]
 
 ~ Begin Abstract
@@ -157,8 +180,8 @@ e = true
   | false
   | n // integer
   | string // string literal
-  | name // name
-  | toplevel
+  | x // name
+  | x_{top} //toplevel name
   | e1[e2] // array access
   | e1[e2:e3] // bit-string access
   | {e1,...,en} // list
@@ -169,8 +192,8 @@ e = true
   | error // error member
   | e.name // expression member
   | e1 ? e2 : e3 // ternary operator
-  | f <T1,...,Tn>(e1,...,en)
-  | f<T1,...,Tn>(x1=e1,...,xn=en)
+  | f <X1,...,Xn>(e1,...,en)
+  | f<X1,...,Xn>(x1=e1,...,xn=en)
   | tau(e1,...,en) // nameless instantiation
   | e1 &&& e2 // mask
   | e1 .. e2 // range
@@ -212,9 +235,10 @@ tau = bool
     | bit<e>
     | varbit<e>
     | topleveltype
-    | T // type name
+    | X // type name
     | tau(tau1,...,taun) // specialized type
     | tau[e] // header stack
+    | \{\tau_1,...,\tau_n\} // list type
     | tuple<tau1,...,taun>
     | String
     | void
@@ -222,6 +246,225 @@ tau = bool
 
 ~ End P4Grammar
 
-
 # Static Semantics { #sec-static }
+
+## Typing contexts
+
+~ Math
+Top : x -> \tau \; \;
+\Gamma : e -> \tau \; \;
+\Delta : X -> \tau \; \;
+~
+
+## Typing judgments
+
+### Helper Rules
+
+~ Math
+\infer{
+  \tau = int \lor
+  \tau = int<\_> \lor
+  \tau = bit<\_>
+}{numeric(\tau)}[numeric]
+~
+
+### Base Types
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash true : bool}[true]
+~
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash false : bool}[false]
+~
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash string : String}[string]
+~
+
+<!--
+I'm not sure of the best way to judge integer literals...
+seems ambiguous...
+-->
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash n : int}[int]
+~
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash n : int<w>}[int<w>]
+~
+
+~ Math
+\infer{
+}{Top,\Gamma,\Delta \vdash n : bit<w>}[bit<w>]
+~
+
+### Variables
+
+~ Math
+\infer{
+  \Gamma(x) = \tau
+}{Top,\Gamma,\Delta \vdash x : \tau}[name]
+~
+
+~ Math
+\infer{
+  Top(x_{top}) = \tau
+}{Top,\Gamma,\Delta \vdash x_{top} : \tau}[name]
+~
+
+### Accesses
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : \tau_1[] \\
+  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
+  numeric(\tau_2)
+}{Top,\Gamma,\Delta \vdash e_1[e_2] : \tau_1}[array \; access]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
+  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
+  numeric(\tau_2) \\
+  Top,\Gamma,\Delta \vdash e_3  : \tau_3 \\
+  numeric(\tau_3) \\
+  0 \leq e_2 \\
+  e_2 < w \\
+  e_2  \leq e_3 \\
+  e_3 < w
+}{Top,\Gamma,\Delta \vdash e1[e2:e3] : \tau_1}[bit \; string \; access]
+~
+
+~ Math
+\infer{
+  \forall i \in [0,n], \,
+  Top,\Gamma,\Delta \vdash e_i : \tau_i
+}{
+  Top,\Gamma,\Delta \vdash \{e_1,...,e_n\} :
+  \{\tau_1,...,\tau_n\}
+}[list]
+~
+
+### Unary Operations
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : bool
+}{
+  Top,\Gamma,\Delta \vdash !e : bool
+}[not]
+~
+
+<!--
+not sure how to format tilde
+-->
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : bit<w>
+}{
+  Top,\Gamma,\Delta \vdash \tilde e : bit<w>
+}[bit \; not]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : \tau \\
+  numeric(\tau)
+}{
+  Top,\Gamma,\Delta \vdash -e : \tau
+}[unary \; minus]
+~
+
+### Binary Operations
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : bool \\
+  Top,\Gamma,\Delta \vdash e_2 : bool \\
+  \diamond \in \{ \& \&,|| \}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
+}[and, \, or]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : int \\
+  Top,\Gamma,\Delta \vdash e_2 : int \\
+  \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int
+}[binary \, int \, operations]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : int<w> \\
+  Top,\Gamma,\Delta \vdash e_2 : int<w> \\
+  \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int<w>
+}[binary \, fixed \, width \, int \, operations]
+~
+
+<!--
+having trouble with ^ symbol for xor
+-->
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
+  Top,\Gamma,\Delta \vdash e_2 : bit<w> \\
+  \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bit<w>
+}[bit \, string \, binary \, operations]
+~
+
+<!--
+need to define has_equality
+-->
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
+  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
+  \tau_1 = \tau_2 \\
+  has\_equality(\tau_1)
+  \diamond \in \{ ==,!= \}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
+}[equality]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : bit<l> \\
+  Top,\Gamma,\Delta \vdash e_2 : bit<r> \\
+}{
+  Top,\Gamma,\Delta \vdash e_1 ++ e_2 : bit<l+r>
+}[concatenation]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
+  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
+  numeric(\tau_1) \\
+  \tau_2 = bit<\_> \lor \tau_2 int \\
+  \diamond \in \{<<,>>\}
+}{
+  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : \tau_1
+}[shift]
+~
+
 # Dynamic Semantics { #sec-dynamic }

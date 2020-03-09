@@ -1,39 +1,44 @@
-type bop =
-  | Add
-  | Sub
-  | Mult
-  | Div
-  | Eq
+type qualified_name = string
+
+type id = string
+type number = string
+type port = string
+type packet_data = string
+type expect_data = string
+
+
+type arg = id * number
+
+type action = qualified_name * arg list
+
+type number_or_lpm =
+  | Slash of number * number
+  | Num of number
+
+type match_ = qualified_name * number_or_lpm
+
+type id_or_index =
+  | Id of string
+  | Num of number
+
+type logical_cond =
+  | Eqeq
   | Neq
-  | Lt
-  | Gt
+  | Leq
   | Le
-  | Ge
-  | And
-  | Or
-  | BAnd
-  | BOr
-  | BXor
-  | BShl
-  | BShr
+  | GEQ
+  | Gt
 
-type uop =
-  | Not
-  | BNot
+type count_type =
+  | Bytes
+  | Packets
 
-type test =
-  | Int of Int64.t
-  | Ident of string
-  | Defined of string
-  | BinOp of test * bop * test
-  | UnOp of uop * test
-
-type term =
-  | String of string
-  | Text of string
-  | Include of int * bool * string
-  | Define of string
-  | Undef of string
-  | IfDef of string * int * term list * int * term list * int
-  | IfNDef of string * int * term list * int * term list * int
-  | If of test * int * term list * int * term list * int
+type statement =
+  | Wait
+  | Remove_all
+  | Expect of port * expect_data option
+  | No_packet
+  | Add of qualified_name * int option * match_ list * action * id option
+  | Packet of port * packet_data
+  | Set_default of qualified_name * action
+  | Check_counter of id * id_or_index * (count_type option * logical_cond * number)

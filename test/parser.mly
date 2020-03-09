@@ -14,110 +14,158 @@
  *)
 
 %{
-open Core_kernel
 open Ast
 %}
 
 %token END
 %token ADD ALL BYTES CHECK_COUNTER EXPECT NO_PACKET PACKET PACKETS REMOVE SETDEFAULT WAIT
-%token COLON COMMA DATA_DEC DATA_HEX DATA_TERN DOT ID INT_CONST_BIN
-%token INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX LBRACKET RBRACKET
-%token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ
+%token<string> ID
+%token COLON COMMA DATA_HEX DATA_TERN DOT
+%token<string> INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX INT_CONST_BIN DATA_DEC
+%token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ LBRACKET RBRACKET
 
 
-%start <Ast.term list> program
+%start <Ast.statement list> statements
 
 %%
 
-program:
-  term* END
-  { $1 }
-;
+statements:
+  statement* END
+  { $1 } ;
 
-term:
-  | STRING
-      { String($1) }
-  | TEXT
-      { Text($1) }
-  | INCLUDE
-      { let line, search, filename = $1 in
-        Include(line, search, filename) }
-  | DEFINE
-      { Define($1) }
-  | UNDEF
-      { Undef($1) }
-  | IFDEF term* ENDIF
-      { let line1, macro = $1 in
-        let line2 = $3 in
-        IfDef(macro, line1, $2, line2, [], line2) }
-  | IFDEF term* ELSE term* ENDIF
-      { let line1, macro = $1 in
-        let line2 = $3 in
-        let line3 = $5 in
-        IfDef(macro, line1, $2, line2, $4, line3) }
-  | IFNDEF term* ENDIF
-      { let line1, macro = $1 in
-        let line2 = $3 in
-        IfNDef(macro, line1, $2, line2, [], line2) }
-  | IFNDEF term* ELSE term* ENDIF
-      { let line1, macro = $1 in
-        let line2 = $3 in
-        let line3 = $5 in
-        IfNDef(macro, line1, $2, line2, $4, line3) }
-  | IF test term* ENDIF
-      { let line1 = $1 in
-        let line2 = $4 in
-        If($2, line1, $3, line2, [], line2) }
-  | IF test term* ELSE term* ENDIF
-      { let line1 = $1 in
-        let line2 = $4 in
-        let line3 = $6 in
-        If($2, line1, $3, line2, $5, line3) }
+statement:
+  | ADD qualified_name priority match_list action
+    { Add($2, $3, List.rev $4, $5, None) }
+  | ADD qualified_name match_list action
+    { Add($2, None, List.rev $3, $4, None) }
+  | ADD qualified_name priority match_list action EQUAL ID
+    { Add($2, $3, List.rev $4, $5, $7) }
+  | ADD qualified_name match_list action EQUAL ID
+    { Add($2, None, List.rev $3, $4, $6) }
+  | CHECK_COUNTER ID LPAREN id_or_index RPAREN
+    { Check_counter($2, $4, (None, Eqeq, "0")) }
+  | CHECK_COUNTER ID LPAREN id_or_index RPAREN count_type logical_cond number
+    { Check_counter($2, $4, (Some($6), $7, $8)) }
+  | EXPECT port expect_data
+    { Expect($2, $3) }
+  | EXPECT port
+    { Expect($2, None) }
+  | NO_PACKET
+    { No_packet }
+  | PACKET port packet_data
+    { Packet($2, $3) }
+  | SETDEFAULT qualified_name action
+    { Set_default($2, $3) }
+  | REMOVE ALL
+    { Remove_all }
+  | WAIT
+    { Wait }
 
-test:
-  | INT
-    { Int($1) }
-  | IDENT
-    { Ident($1) }
-  | DEFINED LPAREN IDENT RPAREN
-    { Defined($3) }
-  | test ADD test
-    { BinOp($1, Add, $3) }
-  | test SUB test
-    { BinOp($1, Sub, $3) }
-  | test MULT test
-    { BinOp($1, Mult, $3) }
-  | test DIV test
-    { BinOp($1, Div, $3) }
-  | test EQ test
-    { BinOp($1, Eq, $3) }
-  | test NEQ test
-    { BinOp($1, Neq, $3) }
-  | test GT test
-    { BinOp($1, Gt, $3) }
-  | test LT test
-    { BinOp($1, Lt, $3) }
-  | test LE test
-    { BinOp($1, Le, $3) }
-  | test GE test
-    { BinOp($1, Ge, $3) }
-  | test AND test
-    { BinOp($1, And, $3) }
-  | test OR test
-    { BinOp($1, Or, $3) }
-  | NOT test
-    { UnOp(Not, $2) }
-  | test BAND test
-    { BinOp($1, BAnd, $3) }
-  | test BOR test
-    { BinOp($1, BOr, $3) }
-  | BNOT test
-    { UnOp(BNot, $2) }
-  | test BSHL test
-    { BinOp($1, BShl, $3) }
-  | test BSHR test
-    { BinOp($1, BShr, $3) }
-  | test BXOR test
-    { BinOp($1, BXor, $3) }
-  | LPAREN test RPAREN
-    { $2 }
+number:
+  | INT_CONST_DEC
+    { $1 }
+  | INT_CONST_BIN
+    { $1 }
+  | INT_CONST_HEX
+    { $1 }
+  | TERN_CONST_HEX
+    { $1 }
+
+number_or_lpm:
+  | number SLASH number
+    { Slash($1, $3) }
+  | number
+    { Num($1) }
+
+match_list:
+  | matcht
+    { $1 }
+  | match_list matcht
+    { $2 :: $1 }
+
+matcht:
+  | qualified_name COLON number_or_lpm
+    { ($1, $3) }
+
+qualified_name:
+  | ID
+    { $1 }
+  | ID LBRACKET INT_CONST_DEC RBRACKET
+    { $1 ^ "[" ^ $3 ^ "]"}
+  | qualified_name DOT ID
+    { $1 ^ "." ^ $3}
+
+id_or_index:
+  | ID
+    { Id($1) }
+  | number
+    { Num($1) }
+
+count_type:
+  | BYTES
+    { Bytes }
+  | PACKETS
+    { Packets }
+
+logical_cond:
+  | EQEQ
+    { Eqeq }
+  | NEQ
+    { Neq }
+  | LEQ
+    { Leq }
+  | LE
+    { Le }
+  | GEQ
+    { Geq }
+  | GT
+    { Gt }
+
+action:
+  | qualified_name LPAREN args RPAREN
+    { $1, $3 }
+
+args:
+  | arg
+    { [$1] }
+  | arg COMMA args
+    { $1 :: $3 }
+
+arg:
+  | ID COLON number
+    { $1, $3 }
+
+port:
+  | DATA_DEC
+    { $1 }
+
+priority:
+  | INT_CONST_DEC
+    { string_of_int $1 }
+
+expect_data:
+  | expect_datum
+    { $1 }
+  | expect_data expect_datum
+    { match $1, $2 with
+      | Some(x), Some(y) -> Some(x ^ y)
+      | None, Some(x) | Some(x), None -> Some(x)
+      | None, None -> None}
+
+packet_data:
+  | packet_datum
+    { $1 }
+  | packet_data packet_datum
+    { $1 ^ $2 }
+
+expect_datum:
+  | packet_datum
+    { Some($1) }
+  | DATA_TERN
+    { None }
+
+packet_datum:
+  | DATA_DEC
+    { $1 }
+  | DATA_HEX
+    { $1 }

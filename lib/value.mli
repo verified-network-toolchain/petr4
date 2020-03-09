@@ -60,7 +60,7 @@ type value =
       { typ_name : string;
         enum_name : string;
         v : value; }
-  | VRuntime of vruntime
+  | VRuntime of int
   | VParser of vparser
   | VControl of vcontrol
   | VPackage of 
@@ -138,11 +138,6 @@ and signal =
   | SReject of string
 [@@deriving sexp]
 
-and vruntime =
-  | PacketIn of pkt
-  | PacketOut of pkt_out
-[@@deriving sexp]
-
 val assert_bool : value -> bool 
 
 val assert_rawint : value -> Bigint.t 
@@ -179,7 +174,7 @@ val assert_enum : value -> string * string
 
 val assert_senum : value -> string * string * value 
 
-val assert_runtime : value -> vruntime 
+val assert_runtime : value -> int
 
 val assert_parser : value -> vparser
 
@@ -209,8 +204,4 @@ val assert_prod : set -> set list
 
 val assert_lpm : set -> value * Bigint.t * value 
 
-val assert_valueset : set -> value * Match.t list list * set list 
-
-val assert_pkt : vruntime -> pkt 
-
-val assert_pkt_out : vruntime -> pkt_out
+val assert_valueset : set -> value * Match.t list list * set list

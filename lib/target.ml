@@ -7,11 +7,42 @@ module Info = I
 
 type extern = EvalEnv.t -> value list -> EvalEnv.t * value
 
+(* module type State = sig
+  type loc = int
+  type 'a t
+  val empty : 'a t
+  val insert : loc -> 'a -> 'a t -> 'a t
+  val find : loc -> 'a t -> 'a
+  val fresh_loc : unit -> loc
+end *)
+
+module State = struct 
+  type loc = int
+  type 'a t = (loc * 'a) list
+
+  let empty = []
+
+  let insert loc v st = (loc, v) :: st
+  
+  let find loc st = List.Assoc.find_exn (* TODO *) st loc ~equal:Int.equal
+
+  let fresh_loc = 
+    let counter = ref 0 in
+    (fun () -> counter := !counter + 1; !counter)
+
+end
+
 module type Target = sig
 
+  type obj
   type st
 
   val empty_state : st
+  val insert : int -> obj -> st -> st
+  val find : int -> st -> obj
+  val fresh_loc : unit -> int
+
+  val obj_mem : obj -> string -> value
 
   val externs : (string * extern) list
 
@@ -24,11 +55,24 @@ module type Target = sig
 
 end
 
-module Core : Target = struct 
+module Core = struct
 
-  type st = unit
+  type obj = 
+    | PacketIn of Cstruct_sexp.t
+    | PacketOut of Cstruct_sexp.t * Cstruct_sexp.t
 
-  let empty_state = ()
+  let pktin_mem mname = 
+    match mname with 
+    | _ -> failwith "TODO"
+
+  let pktout_mem mname = 
+    match mname with 
+    | _ -> failwith "TODO"
+
+  let obj_mem obj mname =
+    match obj with
+    | PacketIn _ -> pktin_mem mname
+    | PacketOut _ -> pktout_mem mname
 
   let eval_extract_fixed env pkt v =
     failwith "unimplemented"
@@ -72,9 +116,25 @@ end
 
 module V1Model : Target = struct
 
-  type st = unit
+  type obj = 
+    | CoreObject of Core.obj
+    (* | V1Object of unit *) (* TODO *)
 
-  let empty_state = ()
+  type st = obj State.t
+
+  let empty_state = State.empty
+
+  let insert = State.insert
+  let find = State.find
+  let fresh_loc = State.fresh_loc
+
+  let obj_mem (obj : obj) (mname : string) : value = 
+    match obj with 
+    | CoreObject cobj -> Core.obj_mem cobj mname
+
+  let assert_pkt = function
+    | CoreObject (PacketIn pkt) -> pkt
+    | _ -> failwith "TODO"
 
   let externs = []
 
@@ -105,7 +165,14 @@ module V1Model : Target = struct
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
-    let vpkt = VRuntime (PacketIn pkt) in
+    let deparse_params = 
+      match deparser with 
+      | VControl {cparams=ps;_} -> ps
+      | _ -> failwith "deparser is not a control object" in 
+    ignore deparse_params;
+    let pkt_loc = State.fresh_loc () in
+    let vpkt = VRuntime pkt_loc in
+    let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
       init ctrl env st "hdr"      (snd (List.nth_exn params 1)).typ in
     let meta =
@@ -140,26 +207,34 @@ module V1Model : Target = struct
         |> fst23
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
-    let vpkt' =
-      VRuntime (PacketOut(Cstruct.create 0, EvalEnv.find_val "packet" env
-                                            |> assert_runtime
-                                            |> assert_pkt)) in
+    let pktout_loc = State.fresh_loc () in 
+    let vpkt' = VRuntime pktout_loc in
+    let st = 
+      State.insert 
+        pktout_loc 
+        (CoreObject (PacketOut (Cstruct.create 0, State.find pkt_loc st
+                                                  |> assert_pkt))) st in
     let env = EvalEnv.insert_val "packet" vpkt' env in
-    let (env,st,_) = (env,st)
-              |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst23
-              |> eval_v1control ctrl app ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23
-              |> eval_v1control ctrl app egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
-              |> eval_v1control ctrl app compute  [hdr_expr; meta_expr] |> fst23
-              |> eval_v1control ctrl app deparser [pkt_expr; hdr_expr] in
+    let env = EvalEnv.insert_typ "packet" (snd (List.nth_exn deparse_params 0)).typ env in (* TODO: add type to env here *)
+    let (env,st,_) = 
+      (env,st)
+      |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst23
+      |> eval_v1control ctrl app ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23
+      |> eval_v1control ctrl app egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
+      |> eval_v1control ctrl app compute  [hdr_expr; meta_expr] |> fst23
+      |> eval_v1control ctrl app deparser [pkt_expr; hdr_expr] in
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with
-    | VRuntime (PacketOut(p0,p1)) -> ( (), Cstruct.append p0 p1)
+    | VRuntime loc -> 
+      begin match State.find loc st with 
+        | CoreObject (PacketOut(p0,p1)) -> st, Cstruct.append p0 p1
+        | _ -> failwith "not a packet" end
     | _ -> failwith "pack not a packet"
 
 end
 
-module EbpfFilter : Target = struct 
+module EbpfFilter  = struct 
 
   type st = unit
 
@@ -174,8 +249,8 @@ module EbpfFilter : Target = struct
     let (env,st,s,_) = app ctrl env st SContinue control args in 
     (env,st,s)
 
-  let eval_pipeline ctrl env st pkt app assign init = 
-    let main = EvalEnv.find_val "main" env in
+  let eval_pipeline ctrl env st pkt app assign init = failwith "TODO"
+    (* let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
     let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal in
     let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal in
@@ -183,6 +258,7 @@ module EbpfFilter : Target = struct
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
+    let 
     let pckt = VRuntime (PacketIn pkt) in
     let hdr = init ctrl env st "hdr" (snd (List.nth_exn params 1)).typ in
     let accept = VBool (false) in
@@ -211,7 +287,7 @@ module EbpfFilter : Target = struct
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
     match EvalEnv.find_val "packet" env with
-    | VRuntime (PacketOut(p0,p1)) -> ( (), Cstruct.append p0 p1)
-    | _ -> failwith "pack not a packet"
+    | VRuntime (PacketOut(p0,p1)) -> ( (), Cstruct.append p0 p1) *)
+    (* | _ -> failwith "pack not a packet" *)
 
 end

@@ -2,13 +2,30 @@ open Value
 open Env
 open Types
 
-type extern = EvalEnv.t -> value list -> EvalEnv.t * value 
+type extern = EvalEnv.t -> value list -> EvalEnv.t * value
+(* 
+module type State = sig
+  type loc = int
+  type 'a t
+  val empty : 'a t
+  val insert : loc -> 'a -> 'a t -> 'a t
+  val find : loc -> 'a t -> 'a
+  val fresh_loc : unit -> loc
+end
+
+module State : State *)
 
 module type Target = sig 
 
+  type obj
   type st
 
   val empty_state : st
+  val insert : int -> obj -> st -> st
+  val find : int -> st -> obj
+  val fresh_loc : unit -> int
+
+  val obj_mem : obj -> string -> value
 
   val externs : (string * extern) list
 
@@ -21,8 +38,8 @@ module type Target = sig
 
 end
 
-module Core : Target 
+(* module Core *)
 
 module V1Model : Target
 
-module EbpfFilter : Target
+(* module EbpfFilter : Target *)

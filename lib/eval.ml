@@ -1633,10 +1633,9 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith "stack member unimplemented"
 
   and eval_runtime_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
-      (v : vruntime) : env * st * signal * value =
-    match v with
-    | PacketIn p -> eval_packet_in_mem env st mname expr p
-    | PacketOut p -> eval_packet_out_mem env st mname expr p
+      (loc : int) : env * st * signal * value =
+    let v = T.find loc st in
+    env, st, SContinue, T.obj_mem v mname
 
   and eval_stack_size (env : env) (st : st) 
       (size : Bigint.t) : env * st * signal * value =
@@ -1670,20 +1669,22 @@ module MakeInterpreter (T : Target) = struct
       (e : Expression.t) : env * st * signal * value =
     (env, st, SContinue, VBuiltinFun{name=fname;caller=lvalue_of_expr e})
 
-  and eval_packet_in_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
+  (* and eval_packet_in_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
       (p : pkt) : env * st * signal * value =
     match mname with
     | "extract"   -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
     | "length"    -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
     | "lookahead" -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
     | "advance"   -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | _ -> failwith "packet member undefined"
+    | _ -> failwith "packet member undefined" *)
 
-  and eval_packet_out_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
+  (* TODO *)
+    
+  (* and eval_packet_out_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
       (p : pkt_out) : env * st * signal * value =
     match mname with
     | "emit" -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | _ -> failwith "packet out member undefined"
+    | _ -> failwith "packet out member undefined" *)
 
   (*----------------------------------------------------------------------------*)
   (* Function and Method Call Evaluation *)
@@ -1916,7 +1917,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_emit (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) : env * st * signal * value =
-    let args' = match args with
+    (* let args' = match args with
       | [a] -> List.map args ~f:snd
       | _ -> failwith "invalid emit args" in
     let expr = match args' with
@@ -1934,21 +1935,23 @@ module MakeInterpreter (T : Target) = struct
     | SReject _,_,_ -> (env, st, s, VNull)
     | _,SReject _,_ -> (env', st', s',VNull)
     | _,_,SReject _ -> (env'', st'', s'',VNull)
-    | _ -> failwith "unreachable"
+    | _ -> failwith "unreachable" *)
+  failwith "TODO: move this code to target"
 
   and eval_length (ctrl : ctrl) (env : env) (st : st) 
       (lv : lvalue) : env * st * signal * value =
-    let (s,v) = value_of_lvalue ctrl env st lv in
+    (* let (s,v) = value_of_lvalue ctrl env st lv in
     let p = v |> assert_runtime |> assert_pkt in
     match s with
     | SContinue ->
       (env, st, s, VBit{w=Bigint.of_int 32;v=p |> Cstruct.len |> Bigint.of_int})
     | SReject _ -> (env, st, s, VNull)
-    | _ -> failwith "unreachable"
+    | _ -> failwith "unreachable" *)
+  failwith "TODO: move this code to target"
 
   and eval_lookahead (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (ts : Type.t list) : env * st * signal * value =
-    let t = match ts with
+    (* let t = match ts with
       | [t] -> t
       | _ -> failwith "invalid lookahead type args" in
     let w = width_of_typ ctrl env st t in
@@ -1964,7 +1967,8 @@ module MakeInterpreter (T : Target) = struct
         with Invalid_argument _ ->
           (env, st, SReject "PacketTooShort", VNull) end
     | SReject _ -> (env, st, s, VNull)
-    | _ -> failwith "unreachable"
+    | _ -> failwith "unreachable" *)
+  failwith "TODO: move this code to target"
 
   and eval_advance (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) : env * st * signal * value =
@@ -1982,7 +1986,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_advance' (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (n : Bigint.t) : env * st * signal * value =
-    let (s,v) = value_of_lvalue ctrl env st lv in
+    (* let (s,v) = value_of_lvalue ctrl env st lv in
     let p = v |> assert_runtime |> assert_pkt in
     match s with
     | SContinue ->
@@ -1994,7 +1998,8 @@ module MakeInterpreter (T : Target) = struct
         with Invalid_argument _ ->
           (env, st, SReject "PacketTooShort", VNull) end
     | SReject _ -> (env,st,s,VNull)
-    | _ -> failwith "unreachable"
+    | _ -> failwith "unreachable" *)
+  failwith "TODO : move this code to target"
 
   and eval_verify (ctrl : ctrl) (env : env) (st : st) 
       (args : Argument.t list) : env * st * signal * value =
@@ -2053,7 +2058,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_extract' (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (expr : Expression.t) (w : Bigint.t) : env * st * signal * value =
-    let (env', st', s, v) = eval_expr ctrl env st SContinue expr in
+    (* let (env', st', s, v) = eval_expr ctrl env st SContinue expr in
     match s with
     | SContinue ->
       let lhdr = lvalue_of_expr expr in
@@ -2091,7 +2096,8 @@ module MakeInterpreter (T : Target) = struct
         | SReject _ -> (env', st', s, VNull)
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
-    | _ -> failwith "unreachable"
+    | _ -> failwith "unreachable" *)
+  failwith "TODO: move this code to target"
 
   and extract_hdr_field (nvarbits : Bigint.t) (x : (Bigint.t * Bigint.t) * signal)
       (v : value) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -2841,9 +2847,9 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-module V1Interp = MakeInterpreter(Target.V1Model)
+module V1Interpreter = MakeInterpreter(Target.V1Model)
 
-module EbpfInterp = MakeInterpreter(Target.EbpfFilter)
+(* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 
 let eval_main (env : env) (ctrl : ctrl) (pkt : pkt) : pkt =
   let name =
@@ -2851,8 +2857,8 @@ let eval_main (env : env) (ctrl : ctrl) (pkt : pkt) : pkt =
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is not a package" in
   match name with
-  | "V1Switch"     -> V1Interp.eval ctrl env V1Interp.empty_state pkt |> snd
-  | "ebpfFilter"   -> EbpfInterp.eval ctrl env EbpfInterp.empty_state pkt |> snd
+  | "V1Switch"     -> V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt |> snd
+  (* | "ebpfFilter"   -> EbpfInterpreter.eval ctrl env EbpfInterpreter.empty_state pkt |> snd *)
   | "EmptyPackage" -> pkt
   | _ -> failwith "architecture not supported"
 
@@ -2869,13 +2875,13 @@ let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : unit =
   match p with Program l ->
     let name = List.rev l |> List.hd_exn |> assert_main_pkg in
     let eval_decl = match name with 
-      | "V1Switch"     -> V1Interp.eval_decl
+      | "V1Switch"     -> V1Interpreter.eval_decl
       | "ebpfFilter"   -> failwith "unimplemented" (* TODO: resolve return type of eval_prog *)
       | "EmptyPackage" -> failwith "unimplemented" (* (fun (e:env) s d -> e) *)
       | _ -> failwith "architecture not supported" in
     let (env,st) = 
       List.fold_left l 
-        ~init:(EvalEnv.empty_eval_env, V1Interp.empty_state)
+        ~init:(EvalEnv.empty_eval_env, V1Interpreter.empty_state)
         ~f:(fun (e,s) -> eval_decl ctrl e s) 
     in
     EvalEnv.print_env env;

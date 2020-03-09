@@ -189,7 +189,7 @@ e = true
   | e1 binop e2
   | (tau) e // explicit cast
   | tau.name // type member
-  | error // error member
+  | ERROR.name // error member
   | e.name // expression member
   | e1 ? e2 : e3 // ternary operator
   | f <X1,...,Xn>(e1,...,en)
@@ -235,9 +235,13 @@ tau = bool
     | bit<e>
     | varbit<e>
     | topleveltype
+    | f<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
     | X // type name
     | tau(tau1,...,taun) // specialized type
-    | tau[e] // header stack
+    | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
+    | HU {f_1 : \tau_1, ... , f_n : \tau_n} // header union
+    | struct X {f_1 : \tau_1, ... , f_n : \tau_n}
+    | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
     | \{\tau_1,...,\tau_n\} // list type
     | tuple<tau1,...,taun>
     | String
@@ -257,6 +261,10 @@ Top : x -> \tau \; \;
 ~
 
 ## Typing judgments
+
+<!--
+need to add direction
+-->
 
 ### Helper Rules
 
@@ -466,5 +474,84 @@ need to define has_equality
   Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : \tau_1
 }[shift]
 ~
+
+### Casts
+
+<!--
+need to legal casts
+-->
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : \tau' \\
+  legal\_cast(\tau',\tau)
+}{
+  Top,\Gamma,\Delta \vdash (\tau) e : \tau
+}[casts]
+~
+
+### Member expressions
+
+~ Math
+\infer{
+  ERROR.name \in dom(\Gamma)
+}{
+  Top,\Gamma,\Delta \vdash ERROR.name : Error
+}[error \, member]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : H[n] \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
+  \exists f_i = name
+}{
+  Top,\Gamma,\Delta \vdash e.name : \tau_i
+}[header \, member]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : HU \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
+  \exists f_i = name
+}{
+  Top,\Gamma,\Delta \vdash e.name : \tau_i
+}[header \, union \, member]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : struct X \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
+  \exists f_i = name
+}{
+  Top,\Gamma,\Delta \vdash e.name : \tau_i
+}[struct \, member]
+~
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e : extern X \{...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...\} \\
+  \exists m_i = name
+}{
+  Top,\Gamma,\Delta \vdash e.name : m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
+}[extern \, member]
+~
+
+### Ternary Expression
+
+~ Math
+\infer{
+  Top,\Gamma,\Delta \vdash e_1 : bool \\
+  Top,\Gamma,\Delta \vdash e_2 : \tau \\
+  Top,\Gamma,\Delta \vdash e_3 : \tau \\
+}{
+  Top,\Gamma,\Delta \vdash e_1 ? e_2 : e_3 : \tau
+}[ternary]
+~
+
+<!--
+~ Math
+\infer{}{}[function \, calls: \, named \, arguments]
+~
+-->
 
 # Dynamic Semantics { #sec-dynamic }

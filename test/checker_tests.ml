@@ -25,11 +25,35 @@ let check_file include_dirs p4_file =
 
 let test_good_file include_dirs p4_file () =
   Alcotest.(check bool) "file typechecks" true (check_file include_dirs p4_file)
-     
+
+let test_bad_file include_dirs p4_file () =
+  Alcotest.(check bool) "file does not typecheck" false
+    begin
+      try check_file include_dirs p4_file
+      with _ -> false
+    end
+              
+let make_case base_dir testfn filename =
+  Alcotest.test_case filename `Quick
+    (testfn ["/home/ryan/dev/p4c/p4include"] (Filename.concat base_dir filename))
+
 let () =
-  let open Alcotest in
-  run "p4c checker_tests" [
-      "good", [
-        test_case "constants" `Quick (test_good_file ["/home/ryan/dev/p4c/p4include"] "/home/ryan/dev/petr4/examples/checker_tests/good/constants.p4");
-      ]
+  let is_p4 f = String.is_suffix ~suffix:".p4" f in
+  let good_dir = "examples/checker_tests/good" in
+  let good_tests =
+    Sys.readdir good_dir
+    |> Array.filter ~f:is_p4
+    |> Array.map ~f:(make_case good_dir test_good_file)
+    |> Array.to_list
+  in
+  let bad_dir = "examples/checker_tests/bad" in
+  let bad_tests =
+    Sys.readdir bad_dir
+    |> Array.filter ~f:is_p4
+    |> Array.map ~f:(make_case bad_dir test_bad_file)
+    |> Array.to_list
+  in
+  Alcotest.run "p4c checker_tests" [
+      "good", good_tests;
+      "bad", bad_tests
     ]

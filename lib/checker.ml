@@ -1714,6 +1714,7 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
   let open Prog.Declaration in
   let params_maybe_args =
     match snd decl with
+    | PackageType { params = constructor_params; _ }
     | Parser { constructor_params; _ }
     | Control { constructor_params; _ } ->
        Some (match_params_to_args info constructor_params args)
@@ -1734,7 +1735,9 @@ and type_constructor_invocation env info decl type_args args : Prog.Expression.t
   let constructor_params = get_decl_constructor_params env info decl args in
   let type_args, args = solve_constructor_invocation env (List.map ~f:snd t_params) constructor_params type_args args in
   let decl_type = CheckerEnv.resolve_type_name (snd (Prog.Declaration.name decl)) env in
-  args, SpecializedType { base = decl_type; args = type_args }
+  if List.length t_params > 0
+  then args, SpecializedType { base = decl_type; args = type_args }
+  else args, decl_type
 
 (* Section 14.1 *)
 and type_nameless_instantiation env info typ args =
@@ -2474,7 +2477,7 @@ and type_table_entries env entries key_typs action_map =
     | None ->
        failwith "Entry must call an action in the table."
     | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->
-       let type_arg (param:Parameter.t) (arg_info, arg:Argument.t) =
+       let type_arg (param:Typed.ConstructParam.t) (arg_info, arg:Argument.t) =
          begin match arg with
          (* Direction handling probably is incorrect here. *)
          | Expression { value = exp } ->
@@ -2484,7 +2487,7 @@ and type_table_entries env entries key_typs action_map =
          | _ ->
             failwith "Actions in entries only support positional arguments."
          end in
-       let args_typed = List.map2_exn ~f:type_arg data_params (snd entry.action).args in
+       let args_typed = List.map2_exn ~f:type_arg ctrl_params (snd entry.action).args in
        let action_ref_typed : Prog.Table.action_ref =
          action_info,
          { action =

@@ -468,6 +468,8 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
 and type_equality env t1 t2 =
+  let t1 = reduce_type env t1 in
+  let t2 = reduce_type env t2 in
   match solve_types env [] [] t1 t2 with
   | Some solution -> true
   | None -> false
@@ -989,7 +991,7 @@ and is_numeric (typ: Typed.Type.t) : bool =
  *)
 and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
   let bits_typed = type_expression env bits in
-  match (snd bits_typed).typ with
+  match reduce_type env (snd bits_typed).typ with
   | Bit { width } ->
      let lo_typed = type_expression env lo in
      let typ_lo = saturate_type env (snd lo_typed).typ in

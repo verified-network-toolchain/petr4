@@ -41,13 +41,14 @@ let make_case base_dir testfn filename =
 
 let () =
   let is_p4 f = String.is_suffix ~suffix:".p4" f in
-  let good_dir = "examples/checker_tests/good" in
+  let good_dir = "examples/checker_tests/good_mini" in
   let good_tests =
     Sys.readdir good_dir
     |> Array.filter ~f:is_p4
     |> Array.map ~f:(make_case good_dir test_good_file)
     |> Array.to_list
   in
+  (*
   let bad_dir = "examples/checker_tests/bad" in
   let bad_tests =
     Sys.readdir bad_dir
@@ -55,7 +56,8 @@ let () =
     |> Array.map ~f:(make_case bad_dir test_bad_file)
     |> Array.to_list
   in
+   *)
   Alcotest.run "p4c checker_tests" [
       "good", good_tests;
-      "bad", bad_tests
+      (*"bad", bad_tests*)
     ]

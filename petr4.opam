@@ -15,16 +15,15 @@ build: [
 ]
 depends: [
   "alcotest"
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.09.0"}
   "dune" {build}
   "cstruct"
   "cstruct-sexp"
   "menhir"
   "ANSITerminal"
-  "bignum"
-  "core" {>= "0.12.3"}
+  "core" {>= "0.13.0"}
   "ppx_deriving_yojson"
-  "ppx_jane"
+  "ppx_jane" {>= "0.13.0" }
+  "ppx_js_style" {>= "0.13.0" }
   "yojson" {>= "1.7.0"}
 ]
-

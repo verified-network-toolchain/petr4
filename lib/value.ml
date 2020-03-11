@@ -8,6 +8,14 @@ let buf_of_yojson j = failwith "unimplemented"
 type packet_in = buf [@@deriving sexp,yojson]
 type packet_out = buf * buf [@@deriving sexp,yojson]
 
+type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
+
+type entries = Table.pre_entry list
+
+type value_sets = Match.t list list
+
+type ctrl = entries * value_sets
+
 type value =
   | VNull
   | VBool of bool
@@ -133,7 +141,7 @@ and signal =
   | SContinue
   | SReturn of value
   | SExit
-  | SReject
+  | SReject of string
 [@@deriving sexp,yojson]
 
 and vruntime =

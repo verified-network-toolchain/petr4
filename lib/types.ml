@@ -169,6 +169,7 @@ and Type : sig
         { header: t;
           size:  Expression.t }
     | Tuple of t list
+    | String
     | Void
     | DontCare
   [@@deriving sexp,yojson]
@@ -191,6 +192,7 @@ end = struct
         { header: t;
           size:  Expression.t } [@name "header_stack"]
     | Tuple of t list [@name "tuple"]
+    | String [@name "string"]
     | Void [@name "void"]
     | DontCare [@name "dont_care"]
   [@@deriving sexp,yojson]

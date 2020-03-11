@@ -16,7 +16,7 @@
 %{
 module P4Info = Info
 
-open Core
+open Core_kernel
 open Context
 open Types
 
@@ -43,7 +43,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> TRUE FALSE
 %token<Info.t> ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
 %token<Info.t> ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
-%token<Info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRUCT
+%token<Info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRING STRUCT
 %token<Info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
 
 (********************** PRIORITY AND ASSOCIATIVITY ************************)
@@ -651,6 +651,8 @@ baseType
        Type.VarBit max_width) }
 | info = INT
     { (info, Type.Integer) }
+| info = STRING
+    { (info, Type.String) }
 ;
 
 typeOrVoid

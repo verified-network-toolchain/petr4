@@ -107,6 +107,7 @@ and Type : sig
         { header: t; 
           size:  Expression.t }
     | Tuple of t list
+    | String
     | Void
     | DontCare 
   [@@deriving sexp,yojson]

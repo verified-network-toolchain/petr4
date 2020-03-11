@@ -5,6 +5,12 @@ type buf = Cstruct_sexp.t [@@deriving sexp,yojson]
 type packet_in = buf [@@deriving sexp,yojson]
 type packet_out = buf * buf [@@deriving sexp,yojson]
 
+type entries = Table.pre_entry list 
+
+type value_sets = Match.t list list 
+
+type ctrl = entries * value_sets
+
 type value =
   | VNull
   | VBool of bool
@@ -130,7 +136,7 @@ and signal =
   | SContinue
   | SReturn of value
   | SExit
-  | SReject
+  | SReject of string
 [@@deriving sexp,yojson]
 
 and vruntime =

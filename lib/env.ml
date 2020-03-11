@@ -1,6 +1,6 @@
 open Types
 open Value
-open Core
+open Core_kernel
 open Sexplib.Conv
 
 exception BadEnvironment of string
@@ -69,24 +69,12 @@ module EvalEnv = struct
     vs : value env;
     (* map variables to their types; only needed in a few cases *)
     typ : Types.Type.t env;
-    (* a list of commands for populating tables *)
-    tables : Table.pre_entry list;
-    (* a list of commands for populating value sets *)
-    value_set : Match.t list list;
-    (* the error namespace *)
-    err : string list;
-    (* the parser error *)
-    parser_error : string
   }
 
   let empty_eval_env = {
     decl = [[]];
     vs = [[]];
     typ = [[]];
-    tables = [];
-    value_set = [];
-    err = [];
-    parser_error = "NoError";
   }
 
   let get_toplevel (env : t) : t =
@@ -96,20 +84,10 @@ module EvalEnv = struct
       | h :: _ -> [h] in
     {decl = get_last env.decl;
      vs = get_last env.vs;
-     typ = get_last env.typ;
-     tables = env.tables;
-     value_set = env.value_set;
-     err = env.err;
-     parser_error = env.parser_error;}
+     typ = get_last env.typ;}
 
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
-
-  let get_tables env =
-    env.tables
-
-  let get_value_set env =
-    env.value_set
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -120,15 +98,6 @@ module EvalEnv = struct
   let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
 
-  let insert_table_entry entry e =
-    { e with tables = entry :: e.tables }
-
-  let insert_value_set_case case e =
-    {e with value_set = case :: e.value_set }
-
-  let insert_err name e =
-    {e with err = name :: e.err}
-
   let insert_vals bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
@@ -138,15 +107,6 @@ module EvalEnv = struct
   let insert_typs bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
 
-  let insert_table_entries entries e =
-    {e with tables = e.tables @ entries }
-
-  let insert_value_set_cases cases e =
-    {e with value_set = e.value_set @ cases }
-
-  let insert_errs ss e =
-    {e with err = e.err @ ss}
-
   let find_val name e =
     find name e.vs
 
@@ -155,11 +115,6 @@ module EvalEnv = struct
 
   let find_typ name e =
     find name e.typ
-
-  let find_err name e =
-    if List.exists ~f:(fun a -> a = name) e.err
-    then VError name
-    else raise (UnboundName name)
 
   let insert_val_toplevel name v env =
     {env with vs = insert_toplevel name v env.vs}
@@ -182,33 +137,19 @@ module EvalEnv = struct
   let insert_typ_firstlevel s v e =
     {e with typ = insert_firstlevel s v e.typ}
 
-  let set_error (s : string) (env : t) : t =
-    {env with parser_error = s}
-
-  let get_error (env : t) : string =
-    env.parser_error
-
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;
-     typ = push e.typ;
-     tables = e.tables;
-     value_set = e.value_set;
-     err = e.err;
-     parser_error = e.parser_error;}
+     typ = push e.typ;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
-     typ = pop e.typ;
-     tables = e.tables;
-     value_set = e.value_set;
-     err = e.err;
-     parser_error = e.parser_error;}
+     typ = pop e.typ;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
-    let open Core in
+    let open Core_kernel in
     print_endline "First environment value mappings:";
     let rec f (name, value) =
       print_string "     ";
@@ -378,9 +319,5 @@ module CheckerEnv = struct
   let eval_env_of_t (cenv: t) : EvalEnv.t =
     { decl = [[]];
       vs = cenv.const;
-      typ = [[]];
-      tables = [];
-      value_set = [];
-      err = [];
-      parser_error = "NoError"}
+      typ = [[]];}
 end

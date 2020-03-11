@@ -81,7 +81,7 @@ let parse_int n info =
 let parse_width_int s n info =
   let l_s = String.length s in
   let l_n = String.length n in
-  let _ = assert(l_n > l_s) in
+  let _ : unit = assert(l_n > l_s) in
   let number = String.sub n l_s (l_n - l_s) in
   let width = String.sub s 0 (l_s - 1) in
   let sign = String.sub s (l_s - 1) 1 in
@@ -205,6 +205,8 @@ rule tokenize = parse
       { SELECT (info lexbuf) }
   | "state"
       { STATE (info lexbuf) }
+  | "string"
+      { STRING (info lexbuf) }
   | "struct"
       { STRUCT (info lexbuf) }
   | "switch"

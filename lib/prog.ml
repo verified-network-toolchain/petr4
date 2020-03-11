@@ -1,5 +1,5 @@
 open Util
-open Core
+open Core_kernel
 
 open Typed
 

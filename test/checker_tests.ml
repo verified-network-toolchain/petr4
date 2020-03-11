@@ -5,7 +5,7 @@ let preprocess include_dirs p4file =
   let cmd =
     String.concat ~sep:" "
       (["cc"] @
-       (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+      (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
         ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
   let in_chan = Unix.open_process_in cmd in
   let str = In_channel.input_all in_chan in

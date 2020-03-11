@@ -5,10 +5,12 @@ open Env
 (* hack *)
 module Petr4Error = Error
 module Petr4Info = Info
-open Core
+open Core_kernel
 open Petr4Error
 module Error = Petr4Error
 module Info = Petr4Info
+let (=) = Stdlib.(=)
+let (<>) = Stdlib.(<>)
 
 let find_decl_opt name decls =
   let ok decl =
@@ -717,7 +719,7 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   fun env vars typ ->
   let open Types.Type in
   let eval e =
-    Eval.eval_expression (CheckerEnv.eval_env_of_t env) e
+    Eval.eval_expression (CheckerEnv.eval_env_of_t env) ([], []) e
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with
@@ -728,6 +730,7 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   | Bool -> Bool
   | Error -> Error
   | Integer -> Integer
+  | String -> String
   | IntType e ->
     begin match snd (eval e) with
       | Value.VInt {v; _}
@@ -1338,7 +1341,6 @@ and type_cast env typ expr : Prog.Expression.typed_t =
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =
-  let open Core in
   let typ = translate_type env [] typ in
   let full_typ = saturate_type env typ
   in

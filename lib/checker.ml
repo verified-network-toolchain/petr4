@@ -297,8 +297,9 @@ and gen_all_constraints (env: CheckerEnv.t) unknowns params_args constraints =
         let constraints = merge_constraints env constraints arg_constraints in
         gen_all_constraints env unknowns more constraints
      | None -> raise_s [%message "could not solve type equality t1 = t2"
-                           ~t1:(reduce_type env param_type: Typed.Type.t)
+                           ~t1:(param_type: Typed.Type.t)
                            ~t2:((snd arg_typed).typ: Typed.Type.t)
+                           ~unknowns:(unknowns: string list)
                            ~env:(env: CheckerEnv.t)]
      end
   | (param_type, None) :: more ->
@@ -468,8 +469,6 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
 and type_equality env t1 t2 =
-  let t1 = reduce_type env t1 in
-  let t2 = reduce_type env t2 in
   match solve_types env [] [] t1 t2 with
   | Some solution -> true
   | None -> false
@@ -480,6 +479,8 @@ and solve_types (env: CheckerEnv.t)
                 (t1: Typed.Type.t)
                 (t2: Typed.Type.t)
   : soln =
+  let t1 = reduce_type env t1 in
+  let t2 = reduce_type env t2 in
   begin match t1, t2 with
     | TopLevelType _, _
     | _, TopLevelType _ ->
@@ -1709,7 +1710,10 @@ and get_decl_type_params (decl : Prog.Declaration.t) : P4String.t list =
   match snd decl with
   | ExternObject { type_params; _ }
   | Parser { type_params; _ }
-  | Control { type_params; _ } ->
+  | ParserType { type_params; _ }
+  | Control { type_params; _ }
+  | ControlType { type_params; _ }
+  | PackageType { type_params; _ } ->
      type_params
   | _ ->
      []
@@ -2848,16 +2852,16 @@ and type_parser_type env info annotations name t_params params =
   let body_env = CheckerEnv.insert_type_vars simple_t_params env in
   let params_typed = type_params body_env params in
   let params_for_type = prog_params_to_typed_params params_typed in
-  let ctrl_decl =
+  let parser_decl =
     Prog.Declaration.ParserType
       { annotations;
         name;
         type_params = t_params;
         params = params_typed }
   in
-  let ctrl_typ = Type.Parser { type_params = simple_t_params;
+  let parser_typ = Type.Parser { type_params = simple_t_params;
                                parameters = params_for_type } in
-  (info, ctrl_decl), CheckerEnv.insert_type (snd name) ctrl_typ env
+  (info, parser_decl), CheckerEnv.insert_type (snd name) parser_typ env
 
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =

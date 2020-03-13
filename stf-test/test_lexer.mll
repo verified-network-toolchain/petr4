@@ -14,7 +14,7 @@
  *)
 {
 open Lexing
-open Parser
+open Test_parser
 
 exception Error of string
 
@@ -32,7 +32,7 @@ let whitespace = white+
 let opt_whitespace = white*
 
 
-let identifier = ['_' 'A'-'Z' 'a'-'z']['_' 'A'-'Z' 'a'-'z' '0'-'9']*
+let identifier = ['$' '_' 'A'-'Z' 'a'-'z']['$' '_' 'A'-'Z' 'a'-'z' '0'-'9']*
 
 let q_chars = [^ '"' '\n']+
 let h_chars = [^ '>' '\n']+
@@ -113,7 +113,7 @@ and keyword = parse
   | whitespace
     { keyword lexbuf }
   | '#' [^'\n']* '\n'
-    { newline(); keyword lexbuf }
+    { newline(); lexer:= Keyword; keyword lexbuf }
   | eof
     { END }
 

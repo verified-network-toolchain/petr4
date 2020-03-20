@@ -12,6 +12,7 @@ module TableVertex = struct
 end
 
 module TableGraph = Graph.Persistent.Digraph.Concrete(TableVertex)
+module String_map = Map.M(String)
 
 (*
   Final questions before I can convert my notes to code:
@@ -53,17 +54,41 @@ let format_table_graph fmt g =
     _ -> g , cannot contain other statement(s) or a table application
 *)
 
-let edges_from_stmt g prev stmt =
+let rec block_iterator ((m,g),prev) s =
+  let open Statement in
+  let open Expression in
+  let ((_,g'),tblname) = match s with
+  | _, MethodCall meth -> begin
+        match meth.func with
+        | _, ExpressionMember e -> (m,g),snd e.name
+        | _ -> (m,g),""
+    end
+  | _, Conditional cnd -> (m,g), "todo"
+  | _, Switch sw -> (m,g), "todo"
+  | _, BlockStatement b -> let b' = snd b.block in
+                           let bl = b'.statements in
+                           List.fold bl ~init:((m,g),prev) ~f:block_iterator
+  | _, DirectApplication da -> (m,g), "todo"
+  | _ -> (m,g), "" in
+  if String.equal prev "" then
+    ((m,g),tblname) else
+    let tbl = Base.Map.find_exn m tblname in
+    let prevtable = Base.Map.find_exn m prev in
+    ((m,TableGraph.add_edge g' prevtable tbl),tblname)
+
+and edges_from_stmt (m,g) prev stmt =
   let open Statement in
   match stmt with
-    | _, MethodCall s -> g
-    | _, DirectApplication da -> g
-    | _, Conditional cnd -> g
-    | _, Switch sw -> g
-    | _, BlockStatement bl -> g
-    | _ -> g
+    | _, MethodCall s -> (m,g),prev
+    | _, DirectApplication da -> (m,g),prev
+    | _, Conditional cnd -> (m,g),prev
+    | _, Switch sw -> (m,g),prev
+    | _, BlockStatement b -> let b' = snd b.block in
+                             let bl = b'.statements in
+                             List.fold bl ~init:((m,g),prev) ~f:block_iterator
+    | _ -> (m,g),prev
 
-let edges_from_block g block =
+let edges_from_block (m,g) block =
   match block with
     | [] -> g
     | h::t -> (* if first application found then thread above helper through t with first application in prev
@@ -76,19 +101,18 @@ let edges_from_block g block =
     can tables be declared anywhere other than inside a control? I don't think so (maybe technically the parser)
 *)
 
-let rec tables_declaration g decl =
+let rec tables_declaration (m,g) decl =
   let open Declaration in
   match decl with
   | _, Control ctrl ->
-     let g' = List.fold_left ctrl.locals ~init:g ~f:tables_declaration in
-     edges_from_block g' (snd ctrl.apply).statements
+     List.fold_left ctrl.locals ~init:(m,g) ~f:tables_declaration
   | _, Table tbl ->
      Format.eprintf "TABLE: %s@\n" (snd tbl.name);
      let t =
        TableVertex.{ name = tbl.name;
                      properties = tbl.properties } in
-     TableGraph.add_vertex g t
-  | _ -> g
+     (Base.Map.set m ~key:(snd tbl.name) ~data:t, TableGraph.add_vertex g t)
+  | _ -> (m, g)
 
 
 let tables_program g prog = 
@@ -104,8 +128,8 @@ let go verbose include_dirs p4file =
     Buffer.contents buf in
   let lexbuf = Lexing.from_string p4string in
   try
-    let prog = Petr4.Parser.p4program Lexer.lexer lexbuf in 
-    let tables = tables_program TableGraph.empty prog in 
+    let prog = Petr4.Parser.p4program Lexer.lexer lexbuf in
+    let tables = tables_program (Map.empty (module String),TableGraph.empty) prog in 
     Format.printf "%a@\n" format_table_graph tables
   with
   | err -> 

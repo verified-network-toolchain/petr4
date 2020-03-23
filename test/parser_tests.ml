@@ -20,6 +20,32 @@ let parser_test file =
   | `Ok _ -> true
   | `Error _ -> false
 
+let rec get_parse_files parse_dir dir_handle acc =
+  match Unix.readdir_opt dir_handle with
+  | Some ".."
+  | Some "." -> get_parse_files parse_dir dir_handle acc
+  | Some file -> 
+    begin
+      let path = Filename.concat parse_dir file in 
+      get_parse_files parse_dir dir_handle (path::acc)
+    end
+  | None -> acc
+
+let parser_files = 
+  Sys.chdir Filename.parent_dir_name;
+  Sys.chdir Filename.parent_dir_name;
+  Sys.chdir Filename.parent_dir_name;
+  let test_dir = Filename.concat (Sys.getcwd ()) "test" in
+  let parse_dir = Filename.concat test_dir "parse" in
+  let dir = Unix.opendir parse_dir in
+  get_parse_files parse_dir dir []
+
+let rec make_parse_tests files =
+  match files with
+  | h::[] -> parser_test h
+  | h::t -> ignore (parser_test h); make_parse_tests t
+  | [] -> true
+
 let%test _ = 
   Format.printf "%s@\n%!" (Sys.getcwd ());
-  parser_test "simple.p4"
+  make_parse_tests parser_files

@@ -194,8 +194,8 @@ e = true
   | ERROR.name // error member
   | e.name // expression member
   | e1 ? e2 : e3 // ternary operator
-  | f <X1,...,Xn>(e1,...,en)
-  | f<X1,...,Xn>(x1=e1,...,xn=en)
+  | f<...,\tau_j,...>(...,ei,...)
+  | f<...,\tau_j,...>(...,xi=ei,...)
   | tau(e1,...,en) // nameless instantiation
   | e1 &&& e2 // mask
   | e1 .. e2 // range
@@ -237,7 +237,7 @@ tau = bool
     | bit<e>
     | varbit<e>
     | topleveltype
-    | f<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
+    | f<...,X_j,...>(...,x_i:\tau_i,...) : \tau
     | X // type name
     | tau(tau1,...,taun) // specialized type
     | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
@@ -572,10 +572,25 @@ need to legal casts
 }[ternary]
 ~
 
-<!--
+### Function Calls
+
 ~ Math
-\infer{}{}[function \, calls: \, named \, arguments]
+\infer{
+  \Pi,\Gamma,\Delta \vdash f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_ \\
+  \forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+}{
+  \Pi,\Gamma,\Delta \vdash f<...,\tau_i,...>(...,e_j,...) : \tau,none
+}[function \, calls: \, nameless \, arguments]
 ~
--->
+
+
+~ Math
+\infer{
+  \Pi,\Gamma,\Delta \vdash f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_ \\
+  \forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+}{
+  \Pi,\Gamma,\Delta \vdash f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,none
+}[function \, calls: \, nameled \, arguments]
+~
 
 # Dynamic Semantics { #sec-dynamic }

@@ -350,6 +350,117 @@ end = struct
   and t = pre_t info [@@deriving sexp,yojson]
 end
 
+and Table : sig
+  type pre_action_ref =
+    { annotations: Annotation.t list;
+      name: P4String.t;
+      args: Argument.t list }
+  [@@deriving sexp,yojson]
+
+  type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+
+  type pre_key =
+    { annotations: Annotation.t list;
+      key: Expression.t;
+      match_kind: P4String.t }
+  [@@deriving sexp,yojson]
+
+  type key = pre_key info [@@deriving sexp,yojson]
+
+  type pre_entry =
+    { annotations: Annotation.t list;
+      matches: Match.t list;
+      action: action_ref }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type entry = pre_entry info [@@deriving sexp,yojson]
+
+  type pre_property =
+      Key of
+        { keys: key list }
+    | Actions of
+        { actions: action_ref list }
+    | Entries of
+        { entries: entry list }
+    | Custom of
+        { annotations: Annotation.t list;
+          const: bool;
+          name: P4String.t;
+          value: Expression.t }
+  [@@deriving sexp,yojson]
+
+  type property = pre_property info [@@deriving sexp,yojson]
+
+  val name_of_property : property -> string
+end = struct
+  type pre_action_ref =
+    { annotations: Annotation.t list;
+      name: P4String.t;
+      args: Argument.t list }
+  [@@deriving sexp,yojson]
+
+  type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+
+  type pre_key =
+    { annotations: Annotation.t list;
+      key: Expression.t;
+      match_kind: P4String.t }
+  [@@deriving sexp,yojson]
+
+  type key = pre_key info [@@deriving sexp,yojson]
+
+  type pre_entry =
+    { annotations: Annotation.t list;
+      matches: Match.t list;
+      action: action_ref }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type entry = pre_entry info [@@deriving sexp,yojson]
+
+  type pre_property =
+      Key of
+        { keys: key list }
+    | Actions of
+        { actions: action_ref list }
+    | Entries of
+        { entries: entry list }
+    | Custom of
+        { annotations: Annotation.t list;
+          const: bool;
+          name: P4String.t;
+          value: Expression.t }
+  [@@deriving sexp,yojson]
+
+  type property = pre_property info [@@deriving sexp,yojson]
+
+  let name_of_property p =
+    match snd p with
+    | Key _ -> "key"
+    | Actions _ -> "actions"
+    | Entries _ -> "entries"
+    | Custom {name; _} -> snd name
+end
+
+and Match : sig
+  type pre_t =
+      Default
+    | DontCare
+    | Expression of
+        { expr: Expression.t }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+end = struct
+  type pre_t =
+      Default
+    | DontCare
+    | Expression of
+        { expr: Expression.t }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+end
+
 and Declaration : sig
   type pre_t =
       Constant of
@@ -375,6 +486,15 @@ and Declaration : sig
           name: P4String.t;
           type_params: P4String.t list;
           params: Parameter.t list }
+    | Action of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          params: Parameter.t list;
+          body: Block.t }
+    | Table of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          properties: Table.property list }
     | Variable of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
@@ -439,6 +559,15 @@ end = struct
           name: P4String.t;
           type_params: P4String.t list;
           params: Parameter.t list }
+    | Action of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          params: Parameter.t list;
+          body: Block.t }
+    | Table of
+        { annotations: Annotation.t list;
+          name: P4String.t;
+          properties: Table.property list }
     | Variable of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
@@ -480,6 +609,8 @@ end = struct
     | Instantiation {name; _}
     | Function {name; _}
     | ExternFunction {name; _}
+    | Action {name; _}
+    | Table {name; _}
     | Variable {name; _}
     | Struct {name; _}
     | ExternObject {name; _}

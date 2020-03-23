@@ -178,10 +178,12 @@ P4 Programming Language.
 // expressions
 e = true
   | false
-  | n // integer
-  | string // string literal
+  | a // arbitrary width integer literal
+  | nwa // bit-width integer literal
+  | nsa // int-width integer literal
+  | uvw // string literal
   | x // name
-  | x_{top} //toplevel name
+  | .x //toplevel name
   | e1[e2] // array access
   | e1[e2:e3] // bit-string access
   | {e1,...,en} // list
@@ -240,13 +242,20 @@ tau = bool
     | tau(tau1,...,taun) // specialized type
     | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
     | HU {f_1 : \tau_1, ... , f_n : \tau_n} // header union
+    | enum X:\tau {m_1,...,m_n} // enum type
     | struct X {f_1 : \tau_1, ... , f_n : \tau_n}
     | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
     | \{\tau_1,...,\tau_n\} // list type
     | tuple<tau1,...,taun>
-    | String
+    | string
     | void
     | _ // don't care type
+
+// directions
+d = in
+  | out
+  | inout
+  | none
 
 ~ End P4Grammar
 
@@ -255,8 +264,8 @@ tau = bool
 ## Typing contexts
 
 ~ Math
-Top : x -> \tau \; \;
-\Gamma : e -> \tau \; \;
+\Pi : .x -> \tau,d \; \;
+\Gamma : x -> \tau,d \; \;
 \Delta : X -> \tau \; \;
 ~
 
@@ -280,84 +289,78 @@ need to add direction
 
 ~ Math
 \infer{
-}{Top,\Gamma,\Delta \vdash true : bool}[true]
+}{\Pi,\Gamma,\Delta \vdash true,none : bool}[true]
 ~
 
 ~ Math
 \infer{
-}{Top,\Gamma,\Delta \vdash false : bool}[false]
+}{\Pi,\Gamma,\Delta \vdash false,none : bool}[false]
 ~
 
 ~ Math
 \infer{
-}{Top,\Gamma,\Delta \vdash string : String}[string]
-~
-
-<!--
-I'm not sure of the best way to judge integer literals...
-seems ambiguous...
--->
-
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash n : int}[int]
+}{\Pi,\Gamma,\Delta \vdash uvw,none : string}[string]
 ~
 
 ~ Math
 \infer{
-}{Top,\Gamma,\Delta \vdash n : int<w>}[int<w>]
+}{\Pi,\Gamma,\Delta \vdash a,none : int}[int]
 ~
 
 ~ Math
 \infer{
-}{Top,\Gamma,\Delta \vdash n : bit<w>}[bit<w>]
+}{\Pi,\Gamma,\Delta \vdash nsa,none : int<a>}[int<a>]
+~
+
+~ Math
+\infer{
+}{\Pi,\Gamma,\Delta \vdash nwa,none : bit<a>}[bit<a>]
 ~
 
 ### Variables
 
 ~ Math
 \infer{
-  \Gamma(x) = \tau
-}{Top,\Gamma,\Delta \vdash x : \tau}[name]
+  \Gamma(x) = \tau,d
+}{\Pi,\Gamma,\Delta \vdash x,d : \tau}[name]
 ~
 
 ~ Math
 \infer{
-  Top(x_{top}) = \tau
-}{Top,\Gamma,\Delta \vdash x_{top} : \tau}[name]
+  \Pi(.x) = \tau,d
+}{\Pi,\Gamma,\Delta \vdash .x,d : \tau}[name]
 ~
 
 ### Accesses
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1[] \\
-  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
+  \Pi,\Gamma,\Delta \vdash e_1 : \tau_1,d [ ] \\
+  \Pi,\Gamma,\Delta \vdash e_2 : \tau_2,\_ \\
   numeric(\tau_2)
-}{Top,\Gamma,\Delta \vdash e_1[e_2] : \tau_1}[array \; access]
+}{\Pi,\Gamma,\Delta \vdash e_1[e_2] : \tau_1,d }[array \; access]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
-  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
+  \Pi,\Gamma,\Delta \vdash e_1 : bit<a>,d \\
+  \Pi,\Gamma,\Delta \vdash e_2  : \tau_2,\_ \\
   numeric(\tau_2) \\
-  Top,\Gamma,\Delta \vdash e_3  : \tau_3 \\
+  e_2 \rightsquigarrow_\tau a_2 \\
+  \Pi,\Gamma,\Delta \vdash e_3  : \tau_3,\_ \\
   numeric(\tau_3) \\
-  0 \leq e_2 \\
-  e_2 < w \\
-  e_2  \leq e_3 \\
-  e_3 < w
-}{Top,\Gamma,\Delta \vdash e1[e2:e3] : \tau_1}[bit \; string \; access]
+  e_3 \rightsquigarrow_\tau a_3 \\
+  0 \leq a_2  \leq a_3 < a \\
+}{\Pi,\Gamma,\Delta \vdash e_1[e_2:e_3] : bit<a_3 - a_2 + 1> }[bit \; string \; access]
 ~
 
 ~ Math
 \infer{
-  \forall i \in [0,n], \,
-  Top,\Gamma,\Delta \vdash e_i : \tau_i
+  \forall i \in [1,n], \,
+  \Pi,\Gamma,\Delta \vdash e_i : \tau_i, \_
 }{
-  Top,\Gamma,\Delta \vdash \{e_1,...,e_n\} :
-  \{\tau_1,...,\tau_n\}
+  \Pi,\Gamma,\Delta \vdash \{e_1,...,e_n\} :
+  \{\tau_1,...,\tau_n\}, none
 }[list]
 ~
 
@@ -365,9 +368,9 @@ seems ambiguous...
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : bool
+  \Pi,\Gamma,\Delta \vdash e : bool,d
 }{
-  Top,\Gamma,\Delta \vdash !e : bool
+  \Pi,\Gamma,\Delta \vdash !e : bool,d
 }[not]
 ~
 
@@ -377,50 +380,58 @@ not sure how to format tilde
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : bit<w>
+  \Pi,\Gamma,\Delta \vdash e : bit<a>,d
 }{
-  Top,\Gamma,\Delta \vdash \tilde e : bit<w>
+  \Pi,\Gamma,\Delta \vdash \tilde e : bit<a>,d
 }[bit \; not]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : \tau \\
+  \Pi,\Gamma,\Delta \vdash e : \tau,d \\
   numeric(\tau)
 }{
-  Top,\Gamma,\Delta \vdash -e : \tau
+  \Pi,\Gamma,\Delta \vdash -e : \tau,d
 }[unary \; minus]
 ~
 
 ### Binary Operations
 
+```haskell
+  fun binaryDir In In = In
+    | binaryDir _  _  = none
+```
+
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : bool \\
-  Top,\Gamma,\Delta \vdash e_2 : bool \\
+  \Pi,\Gamma,\Delta \vdash e_1 : bool,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : bool,d_2 \\
+  d = binaryDir(d_1,d_2) \\
   \diamond \in \{ \& \&,|| \}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool,d
 }[and, \, or]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : int \\
-  Top,\Gamma,\Delta \vdash e_2 : int \\
+  \Pi,\Gamma,\Delta \vdash e_1 : int,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : int,d_2 \\
+  d = binaryDir(d_1,d_2) \\
   \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : int,d
 }[binary \, int \, operations]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : int<w> \\
-  Top,\Gamma,\Delta \vdash e_2 : int<w> \\
+  \Pi,\Gamma,\Delta \vdash e_1 : int<a>,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : int<a>,d_2 \\
+  d = binaryDir(d_1,d_2) \\
   \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int<w>
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : int<a>,d
 }[binary \, fixed \, width \, int \, operations]
 ~
 
@@ -430,11 +441,12 @@ having trouble with ^ symbol for xor
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
-  Top,\Gamma,\Delta \vdash e_2 : bit<w> \\
+  \Pi,\Gamma,\Delta \vdash e_1 : bit<a>,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : bit<a>,d_2 \\
+  d = binaryDir(d_1,d_2) \\
   \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bit<w>
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : bit<a>,d
 }[bit \, string \, binary \, operations]
 ~
 
@@ -444,34 +456,37 @@ need to define has_equality
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
+  \Pi,\Gamma,\Delta \vdash e_1 : \tau_1,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : \tau_2,d_2 \\
   \tau_1 = \tau_2 \\
+  d = binaryDir(d_1,d_2) \\
   has\_equality(\tau_1)
   \diamond \in \{ ==,!= \}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool,d
 }[equality]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<l> \\
-  Top,\Gamma,\Delta \vdash e_2 : bit<r> \\
+  \Pi,\Gamma,\Delta \vdash e_1 : bit<a_1>,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : bit<a_2>,d_2 \\
+  d = binaryDir(d_1,d_2) \\
 }{
-  Top,\Gamma,\Delta \vdash e_1 ++ e_2 : bit<l+r>
+  \Pi,\Gamma,\Delta \vdash e_1 ++ e_2 : bit<a_1+a_2>,d
 }[concatenation]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
+  \Pi,\Gamma,\Delta \vdash e_1 : \tau_1,d_1 \\
+  \Pi,\Gamma,\Delta \vdash e_2 : \tau_2,d_2 \\
   numeric(\tau_1) \\
-  \tau_2 = bit<\_> \lor \tau_2 int \\
+  \tau_2 = bit<\_> \lor \tau_2 = int<\_> \\
+  d = binaryDir(d_1,d_2) \\
   \diamond \in \{<<,>>\}
 }{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : \tau_1
+  \Pi,\Gamma,\Delta \vdash e_1 \diamond e_2 : \tau_1,d
 }[shift]
 ~
 
@@ -483,10 +498,10 @@ need to legal casts
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : \tau' \\
+  \Pi,\Gamma,\Delta \vdash e : \tau',d \\
   legal\_cast(\tau',\tau)
 }{
-  Top,\Gamma,\Delta \vdash (\tau) e : \tau
+  \Pi,\Gamma,\Delta \vdash (\tau) e : \tau,d
 }[casts]
 ~
 
@@ -494,45 +509,54 @@ need to legal casts
 
 ~ Math
 \infer{
-  ERROR.name \in dom(\Gamma)
+  \Delta(X) = enum \, X: \tau \, \{m_1,...,m_n \} \\
+  m_i = name
 }{
-  Top,\Gamma,\Delta \vdash ERROR.name : Error
+  \Pi,\Gamma,\Delta \vdash X.name : \tau ,none
 }[error \, member]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : H[n] \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
+  ERROR.name \in dom(\Pi)
 }{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
+  \Pi,\Gamma,\Delta \vdash ERROR.name : Error,none
+}[error \, member]
+~
+
+~ Math
+\infer{
+  \Pi,\Gamma,\Delta \vdash e : H[n] \{f_1 : \tau_1, ... , f_n : \tau_n\}, \_ \\
+  f_i = name
+}{
+  \Pi,\Gamma,\Delta \vdash e.name : \tau_i,none
 }[header \, member]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : HU \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
+  \Pi,\Gamma,\Delta \vdash e : HU \{f_1 : \tau_1, ... , f_n : \tau_n\}, \_ \\
+  f_i = name
 }{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
+  \Pi,\Gamma,\Delta \vdash e.name : \tau_i,none
 }[header \, union \, member]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : struct X \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
+  \Pi,\Gamma,\Delta \vdash e : struct \, X \{f_1 : \tau_1, ... , f_n : \tau_n\}, \_ \\
+  f_i = name
 }{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
+  \Pi,\Gamma,\Delta \vdash e.name : \tau_i,none
 }[struct \, member]
 ~
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e : extern X \{...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...\} \\
-  \exists m_i = name
+  \Pi,\Gamma,\Delta \vdash e : extern \, X \{...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...\}, \_ \\
+  m_i = name
 }{
-  Top,\Gamma,\Delta \vdash e.name : m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
+  \Pi,\Gamma,\Delta \vdash e.name : m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n), none
 }[extern \, member]
 ~
 
@@ -540,11 +564,11 @@ need to legal casts
 
 ~ Math
 \infer{
-  Top,\Gamma,\Delta \vdash e_1 : bool \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau \\
-  Top,\Gamma,\Delta \vdash e_3 : \tau \\
+  \Pi,\Gamma,\Delta \vdash e_1 : bool, \_ \\
+  \Pi,\Gamma,\Delta \vdash e_2 : \tau, \_ \\
+  \Pi,\Gamma,\Delta \vdash e_3 : \tau, \_ \\
 }{
-  Top,\Gamma,\Delta \vdash e_1 ? e_2 : e_3 : \tau
+  \Pi,\Gamma,\Delta \vdash e_1 ? e_2 : e_3 : \tau,none
 }[ternary]
 ~
 

@@ -8,12 +8,30 @@ Document Class: [11pt]article
 Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
 Package: mathpartir
+Package: textcomp
 
-infer {
-replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
-\\infer{\1}{\3}{\textsc{\2}}/m";
-replace:"~Begin MathPre {.infer}&nl;&nl;&source;&nl;\
-~End MathPre";
+.mathpre {
+  replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/-\>/\to{}/g";
+  replace: "/\bG\b/\Gamma{}/g";
+  replace: "/\bD\b/\Delta{}/g";
+  replace: "/\bt\b/\tau{}/g";
+  replace: "/\bint<([^>]+)>/\texttt{int}\langle{}\1\rangle{}/g";
+  replace: "/\bbit<([^>]+)>/\texttt{bit}\langle{}\1\rangle{}/g";
+  replace: "/\bint\b/\texttt{int}/g";
+  replace: "/\bbool\b/\texttt{bool}/g";
+  replace: "/\btrue\b/\texttt{true}/g";
+  replace: "/\bfalse\b/\texttt{false}/g";
+  replace: "/\bstring\b/\texttt{string}/g";
+}
+
+Infer {
+  replace:"/(\n|^)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{{}}{\3}{\textsc{\2}}/m";
+  replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{\1}{\3}{\textsc{\2}}/m";
+  replace:"~ Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+           ~ End MathPre";
 }
 
 Tex Header:
@@ -143,21 +161,6 @@ p4grammar {
 }
 }
 
-<!--
-mathpre {
-replace: "/\bt\b/\tau{}/g";
-replace: "/\bG\b/\Gamma{}/g";
-}
-
-infer {
-replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
-\\infer{\1}{\3}{\textsc{\2}}/m";
-replace:"~Begin MathPre {.infer}&nl;&nl;&source;&nl;\
-~End MathPre";
-}
--->
-
-
 [TITLE]
 
 ~ Begin Abstract
@@ -235,14 +238,14 @@ tau = bool
     | bit<e>
     | varbit<e>
     | topleveltype
-    | f<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
+    | f<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t
     | X // type name
     | tau(tau1,...,taun) // specialized type
-    | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
-    | HU {f_1 : \tau_1, ... , f_n : \tau_n} // header union
-    | struct X {f_1 : \tau_1, ... , f_n : \tau_n}
-    | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
-    | \{\tau_1,...,\tau_n\} // list type
+    | H[e] {f_1 : t_1, ... , f_n : t_n} // header stack
+    | HU {f_1 : t_1, ... , f_n : t_n} // header union
+    | struct X {f_1 : t_1, ... , f_n : t_n}
+    | extern X {...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...}
+    | \{t_1,...,t_n\} // list type
     | tuple<tau1,...,taun>
     | String
     | void
@@ -254,10 +257,10 @@ tau = bool
 
 ## Typing contexts
 
-~ Math
-Top : x -> \tau \; \;
-\Gamma : e -> \tau \; \;
-\Delta : X -> \tau \; \;
+~ MathPre
+Top : \mathsf{Var} -> \mathsf{Type}
+G : \mathsf{Var} -> \mathsf{Type}
+D : X -> t
 ~
 
 ## Typing judgments
@@ -268,29 +271,32 @@ need to add direction
 
 ### Helper Rules
 
-~ Math
-\infer{
-  \tau = int \lor
-  \tau = int<\_> \lor
-  \tau = bit<\_>
-}{numeric(\tau)}[numeric]
+~ MathPre
+numeric(t) = \begin{cases} true & t = int
+true & t = int<w>
+true & t = bit<w>
+false & \text{otherwise}
+\end{cases}
 ~
 
 ### Base Types
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash true : bool}[true]
+~ Infer
+
+------------------------[Bool-True]
+ Top,G,D |- true : bool
 ~
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash false : bool}[false]
+~ Infer
+
+------------------------[Bool-False]
+ Top,G,D |- false : bool
 ~
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash string : String}[string]
+~ Infer
+
+------------------------[String]
+ Top,G,D |- u : string
 ~
 
 <!--
@@ -298,130 +304,113 @@ I'm not sure of the best way to judge integer literals...
 seems ambiguous...
 -->
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash n : int}[int]
+~ Infer
+
+------------------------[Int-Constant]
+Top,G,D |- n : int
 ~
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash n : int<w>}[int<w>]
+~ Infer
+
+------------------------[Signed-Int-Constant]
+Top,G,D |- n : int<w>
 ~
 
-~ Math
-\infer{
-}{Top,\Gamma,\Delta \vdash n : bit<w>}[bit<w>]
+~ Infer
+
+------------------------[Unsigned-Int-Constant]
+Top,G,D |- n : bit<w>
 ~
 
 ### Variables
 
-~ Math
-\infer{
-  \Gamma(x) = \tau
-}{Top,\Gamma,\Delta \vdash x : \tau}[name]
+~ Infer
+  G(x) = t
+-------------------[Var]
+Top,G,D |- x : t
 ~
 
-~ Math
-\infer{
-  Top(x_{top}) = \tau
-}{Top,\Gamma,\Delta \vdash x_{top} : \tau}[name]
+~ Infer
+  Top(x_{top}) = t
+----------------------[Var-Top]
+Top,G,D |- x_{top} : t
 ~
 
 ### Accesses
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1[] \\
-  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
-  numeric(\tau_2)
-}{Top,\Gamma,\Delta \vdash e_1[e_2] : \tau_1}[array \; access]
+~ Infer
+Top,G,D |- e_1 : t_1[]
+Top,G,D |- e_2  : t_2
+numeric(t_2)
+----------------------[Array-Access]
+Top,G,D |- e_1[e_2] : t_1
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
-  Top,\Gamma,\Delta \vdash e_2  : \tau_2 \\
-  numeric(\tau_2) \\
-  Top,\Gamma,\Delta \vdash e_3  : \tau_3 \\
-  numeric(\tau_3) \\
-  0 \leq e_2 \\
-  e_2 < w \\
-  e_2  \leq e_3 \\
-  e_3 < w
-}{Top,\Gamma,\Delta \vdash e1[e2:e3] : \tau_1}[bit \; string \; access]
+~ Infer
+Top,G,D |- e_1 : bit<w> 
+Top,G,D |- e_2  : t_2 
+numeric(t_2) 
+Top,G,D |- e_3  : t_3 
+numeric(t_3) 
+0 \leq e_2 
+e_2 < w 
+e_2  \leq e_3 
+e_3 < w
+------------------------[Slice]
+Top,G,D |- e1[e2:e3] : t_1
 ~
 
-~ Math
-\infer{
-  \forall i \in [0,n], \,
-  Top,\Gamma,\Delta \vdash e_i : \tau_i
-}{
-  Top,\Gamma,\Delta \vdash \{e_1,...,e_n\} :
-  \{\tau_1,...,\tau_n\}
-}[list]
+~ Infer
+Top,G,D |- \overline{e: \tau}
+-----------------------------------------------[List-Expression]
+Top,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}
 ~
 
 ### Unary Operations
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : bool
-}{
-  Top,\Gamma,\Delta \vdash !e : bool
-}[not]
+~ Infer
+Top,G,D |- e : bool
+-------------------[Not]
+Top,G,D |- !e : bool
 ~
 
-<!--
-not sure how to format tilde
--->
-
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : bit<w>
-}{
-  Top,\Gamma,\Delta \vdash \tilde e : bit<w>
-}[bit \; not]
+~ Infer
+Top,G,D |- e : bit<w>
+-----------------------------[Bitwise-Not]
+Top,G,D |- {\texttt{\textasciitilde}e} : bit<w>
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : \tau \\
-  numeric(\tau)
-}{
-  Top,\Gamma,\Delta \vdash -e : \tau
-}[unary \; minus]
+~ Infer
+Top,G,D |- e : t 
+numeric(t)
+--------------------[Negate]
+Top,G,D |- {-e} : t
 ~
 
 ### Binary Operations
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : bool \\
-  Top,\Gamma,\Delta \vdash e_2 : bool \\
-  \diamond \in \{ \& \&,|| \}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
-}[and, \, or]
+~ Infer
+Top,G,D |- e_1 : bool 
+Top,G,D |- e_2 : bool 
+\diamond \in \{ \& \&,|| \}
+--------------------------------------[Bool-Binary-Op]
+Top,G,D |- e_1 \diamond e_2 : bool
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : int \\
-  Top,\Gamma,\Delta \vdash e_2 : int \\
-  \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int
-}[binary \, int \, operations]
+~ Infer
+Top,G,D |- e_1 : int 
+Top,G,D |- e_2 : int 
+\diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+-------------------------------------[Int-Binary-Op]
+Top,G,D |- e_1 \diamond e_2 : int
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : int<w> \\
-  Top,\Gamma,\Delta \vdash e_2 : int<w> \\
-  \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : int<w>
-}[binary \, fixed \, width \, int \, operations]
+~ Infer
+Top,G,D |- e_1 : int<w> 
+Top,G,D |- e_2 : int<w> 
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+-------------------------------------[Int-Signed-Binary-Op]
+Top,G,D |- e_1 \diamond e_2 : int<w>
 ~
 
 <!--
@@ -429,50 +418,42 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<w> \\
-  Top,\Gamma,\Delta \vdash e_2 : bit<w> \\
-  \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bit<w>
-}[bit \, string \, binary \, operations]
+Top,G,D |- e_1 : bit<w> 
+Top,G,D |- e_2 : bit<w> 
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
+----------------------------------------------------------[Int-Unsigned-Binary-Op]
+Top,G,D |- e_1 \diamond e_2 : bit<w>
 ~
 
 <!--
 need to define has_equality
 -->
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
-  \tau_1 = \tau_2 \\
-  has\_equality(\tau_1)
-  \diamond \in \{ ==,!= \}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : bool
-}[equality]
+~ Infer
+Top,G,D |- e_1 : t_1 
+Top,G,D |- e_2 : t_2 
+t_1 = t_2 
+has\_equality(t_1)
+\diamond \in \{ ==,!= \}
+----------------------------------------------------------[Equality-Op]
+Top,G,D |- e_1 \diamond e_2 : bool
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : bit<l> \\
-  Top,\Gamma,\Delta \vdash e_2 : bit<r> \\
-}{
-  Top,\Gamma,\Delta \vdash e_1 ++ e_2 : bit<l+r>
-}[concatenation]
+~ Infer
+Top,G,D |- e_1 : bit<l> 
+Top,G,D |- e_2 : bit<r> 
+---------------------------------[Bit-Concat-Op]
+Top,G,D |- e_1 ++ e_2 : bit<l+r>
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : \tau_1 \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau_2 \\
-  numeric(\tau_1) \\
-  \tau_2 = bit<\_> \lor \tau_2 int \\
-  \diamond \in \{<<,>>\}
-}{
-  Top,\Gamma,\Delta \vdash e_1 \diamond e_2 : \tau_1
-}[shift]
+~ Infer
+Top,G,D |- e_1 : t_1 
+Top,G,D |- e_2 : t_2 
+numeric(t_1) 
+t_2 = bit<\_> \lor t_2 int 
+\diamond \in \{<<,>>\}
+---------------------------------[Shift-Op]
+Top,G,D |- e_1 \diamond e_2 : t_1
 ~
 
 ### Casts
@@ -481,71 +462,57 @@ need to define has_equality
 need to legal casts
 -->
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : \tau' \\
-  legal\_cast(\tau',\tau)
-}{
-  Top,\Gamma,\Delta \vdash (\tau) e : \tau
-}[casts]
+~ Infer
+Top,G,D |- e : t' 
+legal\_cast(t',t)
+--------------------[Cast]
+Top,G,D |- (t) e : t
 ~
 
 ### Member expressions
 
-~ Math
-\infer{
-  ERROR.name \in dom(\Gamma)
-}{
-  Top,\Gamma,\Delta \vdash ERROR.name : Error
-}[error \, member]
+~ Infer
+ERROR.name \in dom(G)
+--------------------[Error-Member]
+Top,G,D |- ERROR.name : Error
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : H[n] \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
-}{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
-}[header \, member]
+~ Infer
+Top,G,D |- e : H[n] \{f_1 : t_1, ... , f_n : t_n\} 
+\exists f_i = name
+---------------------------------------------------[Header-Member]
+Top,G,D |- e.name : t_i
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : HU \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
-}{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
-}[header \, union \, member]
+~ Infer
+Top,G,D |- e : HU \{f_1 : t_1, ... , f_n : t_n\} 
+\exists f_i = name
+---------------------------------------------------[Header-Union-Member]
+Top,G,D |- e.name : t_i
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : struct X \{f_1 : \tau_1, ... , f_n : \tau_n\} \\
-  \exists f_i = name
-}{
-  Top,\Gamma,\Delta \vdash e.name : \tau_i
-}[struct \, member]
+~ Infer
+Top,G,D |- e : struct X \{f_1 : t_1, ... , f_n : t_n\} 
+\exists f_i = name
+---------------------------------------------------[Struct-Member]
+Top,G,D |- e.name : t_i
 ~
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e : extern X \{...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...\} \\
-  \exists m_i = name
-}{
-  Top,\Gamma,\Delta \vdash e.name : m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau
-}[extern \, member]
+~ Infer
+Top,G,D |- e : extern X \{...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...\} 
+\exists m_i = name
+---------------------------------------------------[Extern-Member]
+Top,G,D |- e.name : m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t
 ~
 
 ### Ternary Expression
 
-~ Math
-\infer{
-  Top,\Gamma,\Delta \vdash e_1 : bool \\
-  Top,\Gamma,\Delta \vdash e_2 : \tau \\
-  Top,\Gamma,\Delta \vdash e_3 : \tau \\
-}{
-  Top,\Gamma,\Delta \vdash e_1 ? e_2 : e_3 : \tau
-}[ternary]
+~ Infer
+Top,G,D |- e_1 : bool 
+Top,G,D |- e_2 : t 
+Top,G,D |- e_3 : t 
+--------------------------------[Ternary-Op]
+Top,G,D |- e_1 ? e_2 : e_3 : t
 ~
 
 <!--

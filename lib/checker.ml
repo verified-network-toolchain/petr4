@@ -1632,7 +1632,7 @@ and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
   | Some expr ->
      let info, typed_arg = type_expression env expr in
      check_direction env param.direction expr typed_arg.dir;
-     assert_type_equality env call_info typed_arg.typ param.typ
+     assert_type_equality env call_info param.typ typed_arg.typ
   | None ->
      if param.direction <> Out
      then raise_s [%message "don't care argument (underscore) provided for non-out parameter"

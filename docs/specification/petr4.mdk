@@ -181,10 +181,12 @@ P4 Programming Language.
 // expressions
 e = true
   | false
-  | n // integer
-  | string // string literal
+  | a // arbitrary width integer literal
+  | nwa // bit-width integer literal
+  | nsa // int-width integer literal
+  | uvw // string literal
   | x // name
-  | x_{top} //toplevel name
+  | .x //toplevel name
   | e1[e2] // array access
   | e1[e2:e3] // bit-string access
   | {e1,...,en} // list
@@ -195,8 +197,8 @@ e = true
   | ERROR.name // error member
   | e.name // expression member
   | e1 ? e2 : e3 // ternary operator
-  | f <X1,...,Xn>(e1,...,en)
-  | f<X1,...,Xn>(x1=e1,...,xn=en)
+  | f<...,\tau_j,...>(...,ei,...)
+  | f<...,\tau_j,...>(...,xi=ei,...)
   | tau(e1,...,en) // nameless instantiation
   | e1 &&& e2 // mask
   | e1 .. e2 // range
@@ -238,18 +240,25 @@ tau = bool
     | bit<e>
     | varbit<e>
     | topleveltype
-    | f<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t
+    | f<...,X_j,...>(...,x_i:\tau_i,...) : \tau
     | X // type name
     | tau(tau1,...,taun) // specialized type
-    | H[e] {f_1 : t_1, ... , f_n : t_n} // header stack
-    | HU {f_1 : t_1, ... , f_n : t_n} // header union
-    | struct X {f_1 : t_1, ... , f_n : t_n}
-    | extern X {...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...}
-    | \{t_1,...,t_n\} // list type
-    | tuple<tau1,...,taun>
-    | String
+    | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
+    | HU {f_1 : \tau_1, ... , f_n : \tau_n} // header union
+    | enum X:\tau {m_1,...,m_n} // enum type
+    | struct X {f_1 : \tau_1, ... , f_n : \tau_n}
+    | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+    | \{\tau_1,...,\tau_n\} // list type
+    | tuple<\tau_1,...,\tau_n>
+    | string
     | void
     | _ // don't care type
+
+// directions
+d = in
+  | out
+  | inout
+  | none
 
 ~ End P4Grammar
 
@@ -258,7 +267,7 @@ tau = bool
 ## Typing contexts
 
 ~ MathPre
-Top : \mathsf{Var} -> \mathsf{Type}
+\Pi : \mathsf{Var} -> \mathsf{Type}
 G : \mathsf{Var} -> \mathsf{Type}
 D : X -> t
 ~
@@ -284,42 +293,37 @@ false & \text{otherwise}
 ~ Infer
 
 ------------------------[Bool-True]
- Top,G,D |- true : bool
+ \Pi,G,D |- true, none : bool
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- Top,G,D |- false : bool
+ \Pi,G,D |- false, none : bool
 ~
 
 ~ Infer
 
 ------------------------[String]
- Top,G,D |- u : string
+ \Pi,G,D |- u, none : string
 ~
-
-<!--
-I'm not sure of the best way to judge integer literals...
-seems ambiguous...
--->
 
 ~ Infer
 
 ------------------------[Int-Constant]
-Top,G,D |- n : int
+\Pi,G,D |- a, none : int
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-Top,G,D |- n : int<w>
+\Pi,G,D |- nsa, none : int<w>
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-Top,G,D |- n : bit<w>
+\Pi,G,D |- nwa, none : bit<a>
 ~
 
 ### Variables
@@ -327,102 +331,107 @@ Top,G,D |- n : bit<w>
 ~ Infer
   G(x) = t
 -------------------[Var]
-Top,G,D |- x : t
+\Pi,G,D |- x : t
 ~
 
 ~ Infer
-  Top(x_{top}) = t
+  \Pi(x_{top}) = t
 ----------------------[Var-Top]
-Top,G,D |- x_{top} : t
+\Pi,G,D |- x_{top} : t
 ~
 
 ### Accesses
 
 ~ Infer
-Top,G,D |- e_1 : t_1[]
-Top,G,D |- e_2  : t_2
+\Pi,G,D |- e_1 : t_1[], d_1
+\Pi,G,D |- e_2  : t_2, \_
 numeric(t_2)
 ----------------------[Array-Access]
-Top,G,D |- e_1[e_2] : t_1
+\Pi,G,D |- e_1[e_2] : t_1, d_1
 ~
 
 ~ Infer
-Top,G,D |- e_1 : bit<w> 
-Top,G,D |- e_2  : t_2 
+\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_2  : t_2 
 numeric(t_2) 
-Top,G,D |- e_3  : t_3 
+\Pi,G,D |- e_3  : t_3 
 numeric(t_3) 
 0 \leq e_2 
 e_2 < w 
-e_2  \leq e_3 
+e_2 \leq e_3 
 e_3 < w
 ------------------------[Slice]
-Top,G,D |- e1[e2:e3] : t_1
+\Pi,G,D |- e1[e2:e3] : t_1, d_1
 ~
 
 ~ Infer
-Top,G,D |- \overline{e: \tau}
+\Pi,G,D |- \overline{e: \tau, none}
 -----------------------------------------------[List-Expression]
-Top,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}
+\Pi,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
 ### Unary Operations
 
 ~ Infer
-Top,G,D |- e : bool
+\Pi,G,D |- e : bool, d
 -------------------[Not]
-Top,G,D |- !e : bool
+\Pi,G,D |- !e : bool, d
 ~
 
 ~ Infer
-Top,G,D |- e : bit<w>
+\Pi,G,D |- e : bit<w>, d
 -----------------------------[Bitwise-Not]
-Top,G,D |- {\texttt{\textasciitilde}e} : bit<w>
+\Pi,G,D |- {\texttt{\textasciitilde}e} : bit<w>, d
 ~
 
 ~ Infer
-Top,G,D |- e : t 
+\Pi,G,D |- e : t, d
 numeric(t)
 --------------------[Negate]
-Top,G,D |- {-e} : t
+\Pi,G,D |- {-e} : t, d
 ~
 
 ### Binary Operations
 
+```haskell
+  fun binaryDir In In = In
+    | binaryDir _  _  = none
+```
+
 ~ Infer
-Top,G,D |- e_1 : bool 
-Top,G,D |- e_2 : bool 
+\Pi,G,D |- e_1 : bool, d_1
+\Pi,G,D |- e_2 : bool, d_2
 \diamond \in \{ \& \&,|| \}
 --------------------------------------[Bool-Binary-Op]
-Top,G,D |- e_1 \diamond e_2 : bool
+\Pi,G,D |- e_1 \diamond e_2 : bool, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-Top,G,D |- e_1 : int 
-Top,G,D |- e_2 : int 
+\Pi,G,D |- e_1 : int, d_1
+\Pi,G,D |- e_2 : int, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
--------------------------------------[Int-Binary-Op]
-Top,G,D |- e_1 \diamond e_2 : int
+--------------------------------------------------------[Int-Binary-Op]
+\Pi,G,D |- e_1 \diamond e_2 : int, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-Top,G,D |- e_1 : int<w> 
-Top,G,D |- e_2 : int<w> 
+\Pi,G,D |- e_1 : int<w>, d_1
+\Pi,G,D |- e_2 : int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
--------------------------------------[Int-Signed-Binary-Op]
-Top,G,D |- e_1 \diamond e_2 : int<w>
+-----------------------------------------------------------[Int-Signed-Binary-Op]
+\Pi,G,D |- e_1 \diamond e_2 : int<w>, binaryDir(d_1, d_2)
 ~
 
 <!--
 having trouble with ^ symbol for xor
 -->
 
-~ Math
-Top,G,D |- e_1 : bit<w> 
-Top,G,D |- e_2 : bit<w> 
+~ Infer
+\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_2 : bit<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
-Top,G,D |- e_1 \diamond e_2 : bit<w>
+\Pi,G,D |- e_1 \diamond e_2 : bit<w>, binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -430,30 +439,29 @@ need to define has_equality
 -->
 
 ~ Infer
-Top,G,D |- e_1 : t_1 
-Top,G,D |- e_2 : t_2 
-t_1 = t_2 
-has\_equality(t_1)
+\Pi,G,D |- e_1 : t, d_1
+\Pi,G,D |- e_2 : t, d_2
+has\_equality(t)
 \diamond \in \{ ==,!= \}
 ----------------------------------------------------------[Equality-Op]
-Top,G,D |- e_1 \diamond e_2 : bool
+\Pi,G,D |- e_1 \diamond e_2 : bool, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-Top,G,D |- e_1 : bit<l> 
-Top,G,D |- e_2 : bit<r> 
+\Pi,G,D |- e_1 : bit<l>, d_1
+\Pi,G,D |- e_2 : bit<r>, d_2
 ---------------------------------[Bit-Concat-Op]
-Top,G,D |- e_1 ++ e_2 : bit<l+r>
+\Pi,G,D |- e_1 ++ e_2 : bit<l+r>, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-Top,G,D |- e_1 : t_1 
-Top,G,D |- e_2 : t_2 
+\Pi,G,D |- e_1 : t_1, d_1
+\Pi,G,D |- e_2 : t_2, d_2
 numeric(t_1) 
 t_2 = bit<\_> \lor t_2 int 
 \diamond \in \{<<,>>\}
 ---------------------------------[Shift-Op]
-Top,G,D |- e_1 \diamond e_2 : t_1
+\Pi,G,D |- e_1 \diamond e_2 : t_1, binaryDir(d_1, d_2)
 ~
 
 ### Casts
@@ -463,62 +471,79 @@ need to legal casts
 -->
 
 ~ Infer
-Top,G,D |- e : t' 
+\Pi,G,D |- e : t', d
 legal\_cast(t',t)
 --------------------[Cast]
-Top,G,D |- (t) e : t
+\Pi,G,D |- (t) e : t, d
 ~
 
 ### Member expressions
 
 ~ Infer
+\Delta(X) = enum \, X: t \, \{m_1,...,m_n \}
+m_i = name
+--------------------[Error-Member]
+\Pi, G, D |- X.name : t, none
+~
+
+~ Infer
 ERROR.name \in dom(G)
 --------------------[Error-Member]
-Top,G,D |- ERROR.name : Error
+\Pi,G,D |- ERROR.name : Error, none
 ~
 
 ~ Infer
-Top,G,D |- e : H[n] \{f_1 : t_1, ... , f_n : t_n\} 
+\Pi,G,D |- e : H[n] \{f_1 : t_1, ... , f_n : t_n\}, d
 \exists f_i = name
 ---------------------------------------------------[Header-Member]
-Top,G,D |- e.name : t_i
+\Pi,G,D |- e.name : t_i, d
 ~
 
 ~ Infer
-Top,G,D |- e : HU \{f_1 : t_1, ... , f_n : t_n\} 
+\Pi,G,D |- e : HU \{f_1 : t_1, ... , f_n : t_n\}, d
 \exists f_i = name
 ---------------------------------------------------[Header-Union-Member]
-Top,G,D |- e.name : t_i
+\Pi,G,D |- e.name : t_i, d
 ~
 
 ~ Infer
-Top,G,D |- e : struct X \{f_1 : t_1, ... , f_n : t_n\} 
+\Pi,G,D |- e : struct X \{f_1 : t_1, ... , f_n : t_n\}, d
 \exists f_i = name
 ---------------------------------------------------[Struct-Member]
-Top,G,D |- e.name : t_i
+\Pi,G,D |- e.name : t_i, d
 ~
 
 ~ Infer
-Top,G,D |- e : extern X \{...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...\} 
+\Pi,G,D |- e : extern X \{...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...\}, d
 \exists m_i = name
 ---------------------------------------------------[Extern-Member]
-Top,G,D |- e.name : m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t
+\Pi,G,D |- e.name : m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t, d
 ~
 
 ### Ternary Expression
 
 ~ Infer
-Top,G,D |- e_1 : bool 
-Top,G,D |- e_2 : t 
-Top,G,D |- e_3 : t 
+\Pi,G,D |- e_1 : bool, \_
+\Pi,G,D |- e_2 : t, \_
+\Pi,G,D |- e_3 : t, \_
 --------------------------------[Ternary-Op]
-Top,G,D |- e_1 ? e_2 : e_3 : t
+\Pi,G,D |- e_1 ? e_2 : e_3 : t, none
 ~
 
-<!--
-~ Math
-\infer{}{}[function \, calls: \, named \, arguments]
+### Function Calls
+
+~ Infer
+\Pi, G, D |- f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+----------------------------------------------------------------------------[Function-Call-Nameless]
+\Pi,G,D |- f<...,\tau_i,...>(...,e_j,...) : \tau, none
 ~
--->
+
+~ Infer
+\Pi,G,D |- f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+----------------------------------------------------------------------------[Function-Call-Named]
+\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,none
+~
 
 # Dynamic Semantics { #sec-dynamic }

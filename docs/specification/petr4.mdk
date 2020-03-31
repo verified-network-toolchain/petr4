@@ -348,72 +348,79 @@ d = in
 where does this belong in the doc?
 
 TODO:
-- decl and stmt already defined?
 - lvalues?
+- lists vs tuples
 -->
-We assume the existence of the sets name and loc, for variable names and memory locations respectively.
+We assume the existence of the sets $name$ and $loc$, for variable names and memory locations respectively.
 
 $a \in \mathbb{Z}$
 
 $n \in \mathbb{N}$
 
-$u^n \in \mathbb{Z}_n$ <!-- integers mod n, ax - should be mod 2^n? -->
+$\mathbb{Z}_n ::= m \% 2^n | m \in \mathbb{Z}$
 
-$w^n \in \mathbb{Z}_{n-1} \cup \{ x | -x\in \mathbb{Z}_n\}$
+$u^n \in \mathbb{Z}_n$
 
-~ Begin P4Grammar
+$w^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
 
-// values
+Values
+~ Begin P4MathGrammar
+
 v ::= null // TODO: do we need? stp - probably not
-    | b // bool
-    | a // arbitrary-width integer
-    | (n, u^n) // bit-width integer, n <> 0
-    | (n, w^n) // int-width integer, n <> 0
-    | (n, n’, u^n’) // variable-size bitstring, n’ <= n
-    | s // string
-    | (v1,...,vn) // tuple
-    | S // set
-    | \texttt{error}.name // error
-    | (p1,...,pn) => block // function, action TODO: define block
-    | name // builtin function
-    | action ?? // stp - should be able to overload the function case
-    | name \rightharpoonup v // struct
-    | (name \rightharpoonup v, b) // header
-    | (name \rightharpoonup b, v) // union
-    | (v1,...,vn, n1, n2) //stack
+    | b // booleans
+    | a // arbitrary-width integers
+    | (n, u^n) // unsigned integers, n not zero
+    | (n, w^n) // signed integers, n not zero
+    | (n, n', u^{n'}) // variable-size bitstrings, n less than n'
+    | s // strings
+    | (v1,...,vn) // tuples
+    | S // sets
+    | error.name // errors
+    | (p1,...,pn) => block // functions, actions TODO: define block
+    | name // builtin functions
+    | action \dots // stp - should be able to overload the fn case
+    | name \rightharpoonup v // structs
+    | (name \rightharpoonup v, b) // headers
+    | (name \rightharpoonup b, v) // unions
+    | (v1,...,vn, n1, n2) // stacks
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
     | loc // stateful runtime
-    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm],
-      [\delta1;...;\deltan]) // parsers
-    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm], block)
-      //block
-    | name \upharpoonright v // package
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], [\delta_1;...;\delta_n]) // parsers
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], block) // block
+    | name \rightharpoonup v // packages
     | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
-      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // table, best way to clean up the numbering?
+      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // tables, best way to clean up the numbering?
     | extern name // externfun
 
-// sets
-S ::=  _ // universal
+~ End P4MathGrammar
+
+Sets
+~ Begin P4MathGrammar
+S ::=  \_ // universal
     | v // singleton
-    | v1 &&& v2 // mask
+    | v1 \texttt{\&\&\&} v2 // mask
     | v1 .. v2 // range
     | (S1,...,Sn) // product
     | lpm v // lpm, TODO: separate sets and matchkinds? nbits is runtime value so this is same as singleton
     | ?? // TODO: value set
+~ End P4MathGrammar
 
-// parameters
+Parameters
+~ Begin P4MathGrammar
 p ::= (d, \tau, v)
+~ End P4MathGrammar
 
-// transitions
-t ::= name // transitions
+Transitions
+~ Begin P4MathGrammar
+t ::= name
     | ((e1,...,en), S \rightharpoonup name)
+~ End P4MathGrammar
 
-// parser state
+Parser state
+~ Begin P4MathGrammar
 \delta ::= (name, [stmt1;...;stmtn], t)
-
-
-~ End P4Grammar
+~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
 

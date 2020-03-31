@@ -15,10 +15,29 @@ Package: textcomp
   replace: "/-\>/\to{}/g";
   replace: "/\bG\b/\Gamma{}/g";
   replace: "/\bD\b/\Delta{}/g";
-  replace: "/\bt\b/\tau{}/g";
-  replace: "/\bint<([^>]+)>/\texttt{int}\langle{}\1\rangle{}/g";
-  replace: "/\bbit<([^>]+)>/\texttt{bit}\langle{}\1\rangle{}/g";
+  replace: "/\bt([^a-z])/\tau{}\1/g";
   replace: "/\bint\b/\texttt{int}/g";
+  replace: "/\bbit\b/\texttt{bit}/g";
+  replace: "/\bvarbit\b/\texttt{varbit}/g";
+  replace: "/\btuple\b/\texttt{tuple}/g";
+  replace: "/\bset\b/\texttt{set}/g";
+  replace: "/\berror\b/\texttt{error}/g";
+  replace: "/\bmatch_kind\b/\texttt{match\_kind}/g";
+  replace: "/\bset\b/\texttt{set}/g";
+  replace: "/\bvoid\b/\texttt{void}/g";
+  replace: "/\bheader union\b/\texttt{header union}/g";
+  replace: "/\bheader(?! union)\b/\texttt{header}/g";
+  replace: "/\bstruct\b/\texttt{struct}/g";
+  replace: "/\benum\b/\texttt{enum}/g";
+  replace: "/\bpackage\b/\texttt{package}/g";
+  replace: "/\bcontrol\b/\texttt{control}/g";
+  replace: "/\bparser\b/\texttt{parser}/g";
+  replace: "/\bextern\b/\texttt{extern}/g";
+  replace: "/\bfunction\b/\texttt{function}/g";
+  replace: "/\baction\b/\texttt{action}/g";
+  replace: "/\btable\b/\texttt{table}/g";
+  replace: "/</\langle{}/g";
+  replace: "/>/\rangle{}/g";
   replace: "/\bbool\b/\texttt{bool}/g";
   replace: "/\btrue\b/\texttt{true}/g";
   replace: "/\bfalse\b/\texttt{false}/g";
@@ -161,6 +180,20 @@ p4grammar {
 }
 }
 
+p4mathgrammar {
+  replace:"/\/\/(.*)/\/\/ &\text{\1}/g";
+  replace: "~ Begin P4MathGrammarBlock&nl;\
+                 ~ Begin MathPre&nl;&source;&nl;~ End MathPre&nl;\
+                 ~ End P4MathGrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+
 [TITLE]
 
 ~ Begin Abstract
@@ -175,34 +208,33 @@ P4 Programming Language.
 
 ## Expressions
 
-
-~ Begin P4Grammar
-
-// expressions
+~ Begin P4MathGrammar
 e = true
   | false
   | a // arbitrary width integer literal
-  | nwa // bit-width integer literal
-  | nsa // int-width integer literal
-  | uvw // string literal
+  | nwa // unsigned integer literal
+  | nsa // signed integer literal
+  | u // strings
   | x // name
-  | .x //toplevel name
+  | .x // top level name
   | e1[e2] // array access
-  | e1[e2:e3] // bit-string access
+  | e1[e2:e3] // bitslice
   | {e1,...,en} // list
   | uop e
   | e1 binop e2
-  | (tau) e // explicit cast
-  | tau.name // type member
-  | ERROR.name // error member
-  | e.name // expression member
+  | (t) e // explicit cast
+  | X.name // type member
+  | error.name // errors
+  | e.name // expression member 
   | e1 ? e2 : e3 // ternary operator
   | f<...,\tau_j,...>(...,ei,...)
   | f<...,\tau_j,...>(...,xi=ei,...)
-  | tau(e1,...,en) // nameless instantiation
-  | e1 &&& e2 // mask
+  | t(e1,...,en) // nameless instantiation
+  | e1 \texttt{\&\&\&} e2 // mask
   | e1 .. e2 // range
+~ End P4MathGrammar
 
+~ Begin P4Grammar
 // unary operators
 uop = ! // not
     | - // unary minus
@@ -230,29 +262,38 @@ binop = +
       | ++
       | &&
       | ||
+~ End P4Grammar
 
-
-// expression types
-tau = bool
-    | Error
-    | int
-    | int<e>
-    | bit<e>
-    | varbit<e>
-    | topleveltype
-    | f<...,X_j,...>(...,x_i:\tau_i,...) : \tau
-    | X // type name
-    | tau(tau1,...,taun) // specialized type
-    | H[e] {f_1 : \tau_1, ... , f_n : \tau_n} // header stack
-    | HU {f_1 : \tau_1, ... , f_n : \tau_n} // header union
-    | enum X:\tau {m_1,...,m_n} // enum type
-    | struct X {f_1 : \tau_1, ... , f_n : \tau_n}
-    | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
-    | \{\tau_1,...,\tau_n\} // list type
-    | tuple<\tau_1,...,\tau_n>
-    | string
-    | void
-    | _ // don't care type
+~ Begin P4MathGrammar
+// types
+t = bool
+  | string
+  | int
+  | int<a>
+  | bit<a>
+  | varbit<a>
+  | \tau[a]
+  | tuple<\tau_1, ..., \tau_n>
+  | \{\tau_1,...,\tau_n\}
+  | set<\tau>
+  | error
+  | match_kind
+  | X  // type name
+  | .X // top level type reference
+  | void
+  | header X {f_1: \tau_1, ..., f_n: \tau_n}
+  | header union X {f_1: \tau_1, ..., f_n: \tau_n}
+  | struct X {f_1: \tau_1, ..., f_n: \tau_n}
+  | enum X {m_1, ..., m_n}
+  | enum \tau X {m_1, ..., m_n}
+  | t<t_1, ..., t_n) // specialized type
+  | package(x_1: t_1, ..., x_n: t_n)
+  | control (...)
+  | parser (...)
+  | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+  | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+  | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+  | table (...)
 
 // directions
 d = in
@@ -260,7 +301,7 @@ d = in
   | inout
   | none
 
-~ End P4Grammar
+~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
 
@@ -293,51 +334,51 @@ false & \text{otherwise}
 ~ Infer
 
 ------------------------[Bool-True]
- \Pi,G,D |- true, none : bool
+ \Pi,G,D |- true : bool, none
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- \Pi,G,D |- false, none : bool
+ \Pi,G,D |- false : bool, none
 ~
 
 ~ Infer
 
 ------------------------[String]
- \Pi,G,D |- u, none : string
+ \Pi,G,D |- u : string, none
 ~
 
 ~ Infer
 
 ------------------------[Int-Constant]
-\Pi,G,D |- a, none : int
+\Pi,G,D |- a : int, none
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-\Pi,G,D |- nsa, none : int<w>
+\Pi,G,D |- nsa : int<w>, none
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-\Pi,G,D |- nwa, none : bit<a>
+\Pi,G,D |- nwa : bit<a>, none
 ~
 
 ### Variables
 
 ~ Infer
-  G(x) = t
+G(x) = t, d
 -------------------[Var]
-\Pi,G,D |- x : t
+\Pi,G,D |- x : t, d
 ~
 
 ~ Infer
-  \Pi(x_{top}) = t
+\Pi(x) = t, d 
 ----------------------[Var-Top]
-\Pi,G,D |- x_{top} : t
+\Pi,G,D |- .x : t, d
 ~
 
 ### Accesses
@@ -352,14 +393,14 @@ numeric(t_2)
 
 ~ Infer
 \Pi,G,D |- e_1 : bit<w>, d_1
-\Pi,G,D |- e_2  : t_2 
+\Pi,G,D |- e_2  : t_2, \_
 numeric(t_2) 
-\Pi,G,D |- e_3  : t_3 
+\Pi,G,D |- e_3  : t_3, \_
 numeric(t_3) 
 0 \leq e_2 
-e_2 < w 
+e_2 \lt w 
 e_2 \leq e_3 
-e_3 < w
+e_3 \lt w
 ------------------------[Slice]
 \Pi,G,D |- e1[e2:e3] : t_1, d_1
 ~
@@ -403,7 +444,7 @@ numeric(t)
 \Pi,G,D |- e_2 : bool, d_2
 \diamond \in \{ \& \&,|| \}
 --------------------------------------[Bool-Binary-Op]
-\Pi,G,D |- e_1 \diamond e_2 : bool, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
@@ -411,7 +452,7 @@ numeric(t)
 \Pi,G,D |- e_2 : int, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
 --------------------------------------------------------[Int-Binary-Op]
-\Pi,G,D |- e_1 \diamond e_2 : int, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
@@ -419,7 +460,7 @@ numeric(t)
 \Pi,G,D |- e_2 : int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
-\Pi,G,D |- e_1 \diamond e_2 : int<w>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int<w>, binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -431,7 +472,7 @@ having trouble with ^ symbol for xor
 \Pi,G,D |- e_2 : bit<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
-\Pi,G,D |- e_1 \diamond e_2 : bit<w>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bit<w>, binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -444,24 +485,24 @@ need to define has_equality
 has\_equality(t)
 \diamond \in \{ ==,!= \}
 ----------------------------------------------------------[Equality-Op]
-\Pi,G,D |- e_1 \diamond e_2 : bool, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
 \Pi,G,D |- e_1 : bit<l>, d_1
 \Pi,G,D |- e_2 : bit<r>, d_2
 ---------------------------------[Bit-Concat-Op]
-\Pi,G,D |- e_1 ++ e_2 : bit<l+r>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{++} e_2 : bit<l+r>, binaryDir(d_1, d_2)
 ~
 
 ~ Infer
 \Pi,G,D |- e_1 : t_1, d_1
 \Pi,G,D |- e_2 : t_2, d_2
 numeric(t_1) 
-t_2 = bit<\_> \lor t_2 int 
-\diamond \in \{<<,>>\}
+t_2 = bit<\_> \lor t_2 = int 
+\diamond \in \{\ll, \gg\}
 ---------------------------------[Shift-Op]
-\Pi,G,D |- e_1 \diamond e_2 : t_1, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, binaryDir(d_1, d_2)
 ~
 
 ### Casts
@@ -471,9 +512,9 @@ need to legal casts
 -->
 
 ~ Infer
-\Pi,G,D |- e : t', d
-legal\_cast(t',t)
---------------------[Cast]
+\Pi,G,D |- e : t_0, d
+legal\_cast(t_0,t)
+------------------------[Cast]
 \Pi,G,D |- (t) e : t, d
 ~
 
@@ -482,14 +523,14 @@ legal\_cast(t',t)
 ~ Infer
 \Delta(X) = enum \, X: t \, \{m_1,...,m_n \}
 m_i = name
---------------------[Error-Member]
+--------------------[Type-Member]
 \Pi, G, D |- X.name : t, none
 ~
 
 ~ Infer
-ERROR.name \in dom(G)
+error.name \in dom(G)
 --------------------[Error-Member]
-\Pi,G,D |- ERROR.name : Error, none
+\Pi,G,D |- error.name : error, none
 ~
 
 ~ Infer
@@ -533,10 +574,10 @@ ERROR.name \in dom(G)
 ### Function Calls
 
 ~ Infer
-\Pi, G, D |- f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
-\forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+\Pi, G, D |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
+\Pi,\Gamma,\Delta[\overline{X \to \rho}] \vdash \overline{e : t}
 ----------------------------------------------------------------------------[Function-Call-Nameless]
-\Pi,G,D |- f<...,\tau_i,...>(...,e_j,...) : \tau, none
+\Pi,G,D |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, none
 ~
 
 ~ Infer

@@ -42,6 +42,7 @@ Package: textcomp
   replace: "/\btrue\b/\texttt{true}/g";
   replace: "/\bfalse\b/\texttt{false}/g";
   replace: "/\bstring\b/\texttt{string}/g";
+  replace: "/\bhas_field\b/\textsf{has\_field}/g";
 }
 
 Infer {
@@ -645,7 +646,6 @@ legal\_cast(t_0,t)
 ~
 
 ### Member expressions
-
 ~ Infer
 \Delta(X) = enum \, X: t \, \{m_1,...,m_n \}
 m_i = name
@@ -659,33 +659,118 @@ error.name \in dom(G)
 \Pi,G,D |- error.name : error, none
 ~
 
+Field and method lookups on expressions are delegated to another
+judgment $\textsf{has\_field}\ t\ name\ t_{name}$.
 ~ Infer
-\Pi,G,D |- e : H[n] \{f_1 : t_1, ... , f_n : t_n\}, d
-\exists f_i = name
----------------------------------------------------[Header-Member]
-\Pi,G,D |- e.name : t_i, d
+\Pi,G,D, |- e : t
+has_field t f t_{name}
+----------------------------------[Expression-Member]
+\Pi,G,D |- e.name : t_{name}
 ~
 
 ~ Infer
-\Pi,G,D |- e : HU \{f_1 : t_1, ... , f_n : t_n\}, d
-\exists f_i = name
----------------------------------------------------[Header-Union-Member]
-\Pi,G,D |- e.name : t_i, d
+
+-------------------------------------------------------------------[Header-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
 ~
 
 ~ Infer
-\Pi,G,D |- e : struct X \{f_1 : t_1, ... , f_n : t_n\}, d
-\exists f_i = name
----------------------------------------------------[Struct-Member]
-\Pi,G,D |- e.name : t_i, d
+
+-------------------------------------------------------------------[Header-Union-Field]
+has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
 ~
 
 ~ Infer
-\Pi,G,D |- e : extern X \{...,m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t,...\}, d
-\exists m_i = name
----------------------------------------------------[Extern-Member]
-\Pi,G,D |- e.name : m_i<X_1,...,X_n>(x_1:t_1,...,x_n:t_n) : t, d
+
+-------------------------------------------------------------------[Struct-Field]
+has_field (struct \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
 ~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-IsValid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-SetValid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setValid (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-SetInvalid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setInvalid (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[HeaderUnion-IsValid-Field]
+has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+~
+
+
+~ Infer
+
+-------------------------------------------------------------------[Control-Apply-Field]
+has_field (control \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Parser-Apply-Field]
+has_field (parser \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------[Table-Apply-Field]
+has_field (table ...) apply (() -> t_res)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-Size-Field]
+has_field t[a] size bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-NextIndex-Field]
+has_field t[a] nextIndex bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-LastIndex-Field]
+has_field t[a] lastIndex bit<32>
+~
+
+~ Infer
+
+-------------------------------[Array-Next-Field]
+has_field t[a] next t
+~
+
+~ Infer
+
+-------------------------------[Array-Last-Field]
+has_field t[a] last t
+~
+
+~ Infer
+
+-------------------------------[Array-PushFront-Field]
+has_field t[a] push_front ((count: int) -> void)
+~
+
+~ Infer
+
+-------------------------------[Array-PopFront-Field]
+has_field t[a] pop_front ((count: int) -> void)
+~
+
 
 ### Ternary Expression
 
@@ -742,7 +827,7 @@ and diverges from the type checker's implementation
 \Pi,G,D |- e_1 : bit<w>, \_
 \Pi,G,D |- e_2 : bit<w>, \_
 ------------------------------------------------[Masks]
-\Pi,G,D |- e_1 &&& e_2 : set<bit<w>>,none
+\Pi,G,D |- e_1 \texttt{\&\&\&} e_2 : set<bit<w>>,none
 ~
 
 ~ Infer

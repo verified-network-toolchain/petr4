@@ -265,6 +265,14 @@ binop = +
 ~ End P4Grammar
 
 ~ Begin P4MathGrammar
+// constructors
+C = PackageType 
+  | Parser
+  | Control
+  | Extern
+~ End P4MathGrammar
+
+~ Begin P4MathGrammar
 // types
 t = bool
   | string

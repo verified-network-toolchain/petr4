@@ -303,6 +303,79 @@ d = in
 
 ~ End P4MathGrammar
 
+## Values
+
+<!--
+where does this belong in the doc?
+
+TODO: 
+- decl and stmt already defined?
+- lvalues?
+-->
+We assume the existence of the sets name and loc, for variable names and memory locations respectively.
+
+$a \in \mathbb{Z}$
+
+$n \in \mathbb{N}$
+
+$u^n \in \mathbb{Z}_n$ <!-- integers mod n, ax - should be mod 2^n? -->
+
+$w^n \in \mathbb{Z}_{n-1} \cup \{ x | -x\in \mathbb{Z}_n\}$
+
+~ Begin P4Grammar
+
+// values
+v ::= null // TODO: do we need? stp - probably not
+    | b // bool
+    | a // arbitrary-width integer
+    | (n, u^n) // bit-width integer, n <> 0
+    | (n, w^n) // int-width integer, n <> 0
+    | (n, n’, u^n’) // variable-size bitstring, n’ <= n
+    | s // string
+    | (v1,...,vn) // tuple
+    | S // set
+    | \texttt{error}.name // error
+    | (p1,...,pn) => block // function, action TODO: define block
+    | name // builtin function
+    | action ?? // stp - should be able to overload the function case
+    | name \rightharpoonup v // struct
+    | (name \rightharpoonup v, b) // header
+    | (name \rightharpoonup b, v) // union
+    | (v1,...,vn, n1, n2) //stack
+    | name1.name2 // enumfield
+    | (name1.name2, v) // senumfield
+    | loc // stateful runtime
+    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm],       
+      [\delta1;...;\deltan]) // parsers
+    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm], block)
+      //block
+    | name \upharpoonright v // package
+    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1, 
+      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // table, best way to clean up the numbering?
+    | extern name // externfun
+
+// sets
+S ::=  _ // universal
+    | v // singleton
+    | v1 &&& v2 // mask
+    | v1 .. v2 // range
+    | (S1,...,Sn) // product
+    | lpm v // lpm, TODO: separate sets and matchkinds? nbits is runtime value so this is same as singleton
+    | ?? // TODO: value set
+
+// parameters
+p ::= (d, \tau, v)
+
+// transitions
+t ::= name // transitions
+    | ((e1,...,en), S \rightharpoonup name)
+
+// parser state
+\delta ::= (name, [stmt1;...;stmtn], t)
+
+
+~ End P4Grammar
+
 # Static Semantics { #sec-static }
 
 ## Typing contexts
@@ -588,3 +661,7 @@ error.name \in dom(G)
 ~
 
 # Dynamic Semantics { #sec-dynamic }
+
+## Expressions
+
+$\langle e, ctrl, env, st \Downarrow_e env', st', v \rangle$

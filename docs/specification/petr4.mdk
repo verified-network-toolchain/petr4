@@ -266,7 +266,7 @@ binop = +
 
 ~ Begin P4MathGrammar
 // constructors
-C = PackageType 
+C = PackageType
   | Parser
   | Control
   | Extern
@@ -296,8 +296,8 @@ t = bool
   | enum \tau X {m_1, ..., m_n}
   | t<t_1, ..., t_n) // specialized type
   | package(x_1: t_1, ..., x_n: t_n)
-  | control (...)
-  | parser (...)
+  | control <t_1,...,t_n> (...)
+  | parser <t_1,...,t_n> (...)
   | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
   | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
   | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
@@ -682,6 +682,7 @@ C will refer to constructors
 -->
 
 <!--
+TODO
 this rule is incomplete
 -->
 
@@ -690,6 +691,23 @@ C \in dom(\Pi)
 \forall i, \Pi,G,D |- e_i : \tau_i
 ---------------------------------------------------[Specialized-Type-Instantiation]
 \Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),none
+~
+
+### Set Operations
+
+~ Infer
+\Pi,G,D |- e_1 : bit<w>, \_
+\Pi,G,D |- e_2 : bit<w>, \_
+------------------------------------------------[Masks]
+\Pi,G,D |- e_1 &&& e_2 : set<bit<w>>,none
+~
+
+~ Infer
+\Pi,G,D |- e_1 : \tau, \_
+\Pi,G,D |- e_2 : \tau, \_
+\tau = bit<w> \lor \tau = int<w>
+-------------------------[Ranges]
+\Pi,G,D |- e_1 .. e_2 : set<\tau>, none
 ~
 
 # Dynamic Semantics { #sec-dynamic }

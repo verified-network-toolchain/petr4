@@ -272,14 +272,45 @@ C = PackageType
   | Extern
 ~ End P4MathGrammar
 
+## Statements and Declarations
+<!--
+TODO define declarations
+-->
+~ Begin P4MathGrammar
+
+blk = \{ s_1; ... s_n; \} // block
+
+// statements
+s = m<...,\tau_j,...>(...,ei,...) // method call
+  | m<...,\tau_j,...>(...,xi=ei,...)
+  | x = e
+  | \tau(e_1,...,e_n) // direct application/direct type invocation
+  | if (e) s
+  | if (e) s_1 else s_2
+  | blk
+  | exit
+  | \emptyset // empty statement
+  | return
+  | return e
+  | switch (e) x_1: blk_1 ... x_n: blk_n
+  | switch (e) x_1: blk_1 ... x_n: blk_n default: blk_{default}
+  | d
+
+// declarations
+d = TODO
+
+~ End P4MathGrammar
+
+## Types
+
 ~ Begin P4MathGrammar
 // types
-t = bool
+\tau = bool
   | string
   | int
-  | int<a>
-  | bit<a>
-  | varbit<a>
+  | int<w>
+  | bit<w>
+  | varbit<w>
   | \tau[a]
   | tuple<\tau_1, ..., \tau_n>
   | \{\tau_1,...,\tau_n\}
@@ -294,10 +325,10 @@ t = bool
   | struct X {f_1: \tau_1, ..., f_n: \tau_n}
   | enum X {m_1, ..., m_n}
   | enum \tau X {m_1, ..., m_n}
-  | t<t_1, ..., t_n) // specialized type
+  | \tau<\tau_1, ..., \tau_n) // specialized type
   | package(x_1: t_1, ..., x_n: t_n)
-  | control <t_1,...,t_n> (...)
-  | parser <t_1,...,t_n> (...)
+  | control <\tau_1,...,\tau_n> (...)
+  | parser <\tau_1,...,\tau_n> (...)
   | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
   | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
   | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
@@ -694,6 +725,11 @@ C \in dom(\Pi)
 ~
 
 ### Set Operations
+
+<!--
+TODO: the Masks rule is based off of the spec
+and diverges from the type checker's implementation
+-->
 
 ~ Infer
 \Pi,G,D |- e_1 : bit<w>, \_

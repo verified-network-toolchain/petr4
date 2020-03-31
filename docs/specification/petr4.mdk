@@ -225,7 +225,7 @@ e = true
   | (t) e // explicit cast
   | X.name // type member
   | error.name // errors
-  | e.name // expression member 
+  | e.name // expression member
   | e1 ? e2 : e3 // ternary operator
   | f<...,\tau_j,...>(...,ei,...)
   | f<...,\tau_j,...>(...,xi=ei,...)
@@ -308,7 +308,7 @@ d = in
 <!--
 where does this belong in the doc?
 
-TODO: 
+TODO:
 - decl and stmt already defined?
 - lvalues?
 -->
@@ -345,12 +345,12 @@ v ::= null // TODO: do we need? stp - probably not
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
     | loc // stateful runtime
-    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm],       
+    | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm],
       [\delta1;...;\deltan]) // parsers
     | (name \upharpoonright v, (p1,...,pn), [decl1;...;declm], block)
       //block
     | name \upharpoonright v // package
-    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1, 
+    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
       ((S1,vn+m+2),...,(SN,vn+m+N+2)) // table, best way to clean up the numbering?
     | extern name // externfun
 
@@ -449,7 +449,7 @@ G(x) = t, d
 ~
 
 ~ Infer
-\Pi(x) = t, d 
+\Pi(x) = t, d
 ----------------------[Var-Top]
 \Pi,G,D |- .x : t, d
 ~
@@ -467,12 +467,12 @@ numeric(t_2)
 ~ Infer
 \Pi,G,D |- e_1 : bit<w>, d_1
 \Pi,G,D |- e_2  : t_2, \_
-numeric(t_2) 
+numeric(t_2)
 \Pi,G,D |- e_3  : t_3, \_
-numeric(t_3) 
-0 \leq e_2 
-e_2 \lt w 
-e_2 \leq e_3 
+numeric(t_3)
+0 \leq e_2
+e_2 \lt w
+e_2 \leq e_3
 e_3 \lt w
 ------------------------[Slice]
 \Pi,G,D |- e1[e2:e3] : t_1, d_1
@@ -510,6 +510,11 @@ numeric(t)
 ```haskell
   fun binaryDir In In = In
     | binaryDir _  _  = none
+
+  fun implicitCast bit<w> int = bit<w>
+    | implicitCast int<w> int = int<w>
+    | implicitCast int bit<w> = bit<w>
+    | implicitCast int int<w> = int<w>
 ```
 
 ~ Infer
@@ -529,8 +534,9 @@ numeric(t)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : int<w>, d_1
-\Pi,G,D |- e_2 : int<w>, d_2
+\Pi,G,D |- e_1 : \tau_1, d_1
+\Pi,G,D |- e_2 : \tau_2, d_2
+implicitCast(\tau_1,\tau_2) = int<w>
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int<w>, binaryDir(d_1, d_2)
@@ -541,8 +547,9 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : bit<w>, d_1
-\Pi,G,D |- e_2 : bit<w>, d_2
+\Pi,G,D |- e_1 : \tau_1, d_1
+\Pi,G,D |- e_2 : \tau_2, d_2
+implicitCast(\tau_1,\tau_2) = bit<w>
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bit<w>, binaryDir(d_1, d_2)
@@ -571,8 +578,8 @@ has\_equality(t)
 ~ Infer
 \Pi,G,D |- e_1 : t_1, d_1
 \Pi,G,D |- e_2 : t_2, d_2
-numeric(t_1) 
-t_2 = bit<\_> \lor t_2 = int 
+numeric(t_1)
+t_2 = bit<\_> \lor t_2 = int
 \diamond \in \{\ll, \gg\}
 ---------------------------------[Shift-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, binaryDir(d_1, d_2)
@@ -658,6 +665,23 @@ error.name \in dom(G)
 \forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
 ----------------------------------------------------------------------------[Function-Call-Named]
 \Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,none
+~
+
+### Nameless Instantiation
+
+<!--
+C will refer to constructors
+-->
+
+<!--
+this rule is incomplete
+-->
+
+~ Infer
+C \in dom(\Pi)
+\forall i, \Pi,G,D |- e_i : \tau_i
+---------------------------------------------------[Specialized-Type-Instantiation]
+\Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),none
 ~
 
 # Dynamic Semantics { #sec-dynamic }

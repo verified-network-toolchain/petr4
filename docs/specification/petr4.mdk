@@ -413,13 +413,13 @@ p ::= (d, \tau, v)
 
 Transitions
 ~ Begin P4MathGrammar
-t ::= name
+trsn ::= name
     | ((e1,...,en), S \rightharpoonup name)
 ~ End P4MathGrammar
 
 Parser state
 ~ Begin P4MathGrammar
-\delta ::= (name, [stmt1;...;stmtn], t)
+\delta ::= (name, [stmt1;...;stmtn], trsn)
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }

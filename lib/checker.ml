@@ -338,6 +338,7 @@ and solve_lists: 'a 'b.
     ~merge:(merge_solutions env)
     ~init:(Some (empty_constraints unknowns))
   |> option_collapse
+  |> option_map List.rev
 
 and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
   let open Typed.ConstructParam in

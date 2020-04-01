@@ -7,6 +7,53 @@ Pdf Latex: xelatex
 Document Class: [11pt]article
 Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
+Package: mathpartir
+Package: textcomp
+
+.mathpre {
+  replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/-\>/\to{}/g";
+  replace: "/\bG\b/\Gamma{}/g";
+  replace: "/\bD\b/\Delta{}/g";
+  replace: "/\bt([^a-z])/\tau{}\1/g";
+  replace: "/\bint\b/\texttt{int}/g";
+  replace: "/\bbit\b/\texttt{bit}/g";
+  replace: "/\bvarbit\b/\texttt{varbit}/g";
+  replace: "/\btuple\b/\texttt{tuple}/g";
+  replace: "/\bset\b/\texttt{set}/g";
+  replace: "/\berror\b/\texttt{error}/g";
+  replace: "/\bmatch_kind\b/\texttt{match\_kind}/g";
+  replace: "/\bset\b/\texttt{set}/g";
+  replace: "/\bvoid\b/\texttt{void}/g";
+  replace: "/\bheader union\b/\texttt{header union}/g";
+  replace: "/\bheader(?! union)\b/\texttt{header}/g";
+  replace: "/\bstruct\b/\texttt{struct}/g";
+  replace: "/\benum\b/\texttt{enum}/g";
+  replace: "/\bpackage\b/\texttt{package}/g";
+  replace: "/\bcontrol\b/\texttt{control}/g";
+  replace: "/\bparser\b/\texttt{parser}/g";
+  replace: "/\bextern\b/\texttt{extern}/g";
+  replace: "/\bfunction\b/\texttt{function}/g";
+  replace: "/\baction\b/\texttt{action}/g";
+  replace: "/\btable\b/\texttt{table}/g";
+  replace: "/</\langle{}/g";
+  replace: "/>/\rangle{}/g";
+  replace: "/\bbool\b/\texttt{bool}/g";
+  replace: "/\btrue\b/\texttt{true}/g";
+  replace: "/\bfalse\b/\texttt{false}/g";
+  replace: "/\bstring\b/\texttt{string}/g";
+  replace: "/\bhas_field\b/\textsf{has\_field}/g";
+  replace: "/\bcastable\b/\textsf{castable}/g";
+}
+
+Infer {
+  replace:"/(\n|^)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{{}}{\3}{\textsc{\2}}/m";
+  replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{\1}{\3}{\textsc{\2}}/m";
+  replace:"~ Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+           ~ End MathPre";
+}
 
 Tex Header:
   \setlength{\headheight}{30pt}
@@ -135,6 +182,20 @@ p4grammar {
 }
 }
 
+p4mathgrammar {
+  replace:"/\/\/(.*)/\/\/ &\text{\1}/g";
+  replace: "~ Begin P4MathGrammarBlock&nl;\
+                 ~ Begin MathPre&nl;&source;&nl;~ End MathPre&nl;\
+                 ~ End P4MathGrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+
 [TITLE]
 
 ~ Begin Abstract
@@ -146,5 +207,649 @@ P4 Programming Language.
 
 # Introduction { #sec-introduction }
 # Syntax { #sec-syntax }
+
+## Expressions
+
+~ Begin P4MathGrammar
+e = true
+  | false
+  | a // arbitrary width integer literal
+  | nwa // unsigned integer literal
+  | nsa // signed integer literal
+  | u // strings
+  | x // name
+  | .x // top level name
+  | e1[e2] // array access
+  | e1[e2:e3] // bitslice
+  | {e1,...,en} // list
+  | uop e
+  | e1 binop e2
+  | (t) e // explicit cast
+  | X.name // type member
+  | error.name // errors
+  | e.name // expression member
+  | e1 ? e2 : e3 // ternary operator
+  | f<...,\tau_j,...>(...,ei,...)
+  | f<...,\tau_j,...>(...,xi=ei,...)
+  | t(e1,...,en) // nameless instantiation
+  | e1 \texttt{\&\&\&} e2 // mask
+  | e1 .. e2 // range
+~ End P4MathGrammar
+
+~ Begin P4Grammar
+// unary operators
+uop = ! // not
+    | - // unary minus
+    | ~ // bitwise complement/not
+
+// binary operators
+binop = +
+      | |+|
+      | -
+      | |-|
+      | *
+      | /
+      | %
+      | <<
+      | >>
+      | <
+      | >
+      | <=
+      | >=
+      | ==
+      | !=
+      | &
+      | ^
+      | |
+      | ++
+      | &&
+      | ||
+~ End P4Grammar
+
+~ Begin P4MathGrammar
+// constructors
+C = PackageType
+  | Parser
+  | Control
+  | Extern
+~ End P4MathGrammar
+
+## Statements and Declarations
+<!--
+TODO define declarations
+-->
+~ Begin P4MathGrammar
+
+blk = \{ s_1; ... s_n; \} // block
+
+// statements
+s = m<...,\tau_j,...>(...,ei,...) // method call
+  | m<...,\tau_j,...>(...,xi=ei,...)
+  | x = e
+  | \tau(e_1,...,e_n) // direct application/direct type invocation
+  | if (e) s
+  | if (e) s_1 else s_2
+  | blk
+  | exit
+  | \emptyset // empty statement
+  | return
+  | return e
+  | switch (e) x_1: blk_1 ... x_n: blk_n
+  | switch (e) x_1: blk_1 ... x_n: blk_n default: blk_{default}
+  | d
+
+// declarations
+d = TODO
+
+~ End P4MathGrammar
+
+## Types
+
+~ Begin P4MathGrammar
+// types
+\tau = bool
+  | string
+  | int
+  | int<w>
+  | bit<w>
+  | varbit<w>
+  | \tau[a]
+  | tuple<\tau_1, ..., \tau_n>
+  | \{\tau_1,...,\tau_n\}
+  | set<\tau>
+  | error
+  | match_kind
+  | X  // type name
+  | .X // top level type reference
+  | void
+  | header X {f_1: \tau_1, ..., f_n: \tau_n}
+  | header union X {f_1: \tau_1, ..., f_n: \tau_n}
+  | struct X {f_1: \tau_1, ..., f_n: \tau_n}
+  | enum X {m_1, ..., m_n}
+  | enum \tau X {m_1, ..., m_n}
+  | \tau<\tau_1, ..., \tau_n) // specialized type
+  | package(x_1: t_1, ..., x_n: t_n)
+  | control <\tau_1,...,\tau_n> (...)
+  | parser <\tau_1,...,\tau_n> (...)
+  | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+  | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+  | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+  | table (...)
+
+// directions
+d = in
+  | out
+  | inout
+  | none
+
+~ End P4MathGrammar
+
+## Values
+
+<!--
+where does this belong in the doc?
+
+TODO:
+- lvalues?
+- lists vs tuples
+-->
+We assume the existence of the sets $name$ and $loc$, for variable names and memory locations respectively.
+
+$a \in \mathbb{Z}$
+
+$n \in \mathbb{N}$
+
+$\mathbb{Z}_n ::= m \% 2^n | m \in \mathbb{Z}$
+
+$u^n \in \mathbb{Z}_n$
+
+$w^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
+
+Values
+~ Begin P4MathGrammar
+
+v ::= null // TODO: do we need? stp - probably not
+    | b // booleans
+    | a // arbitrary-width integers
+    | (n, u^n) // unsigned integers, n not zero
+    | (n, w^n) // signed integers, n not zero
+    | (n, n', u^{n'}) // variable-size bitstrings, n less than n'
+    | s // strings
+    | (v1,...,vn) // tuples
+    | S // sets
+    | error.name // errors
+    | (p1,...,pn) => block // functions, actions TODO: define block
+    | name // builtin functions
+    | action \dots // stp - should be able to overload the fn case
+    | name \rightharpoonup v // structs
+    | (name \rightharpoonup v, b) // headers
+    | (name \rightharpoonup b, v) // unions
+    | (v1,...,vn, n1, n2) // stacks
+    | name1.name2 // enumfield
+    | (name1.name2, v) // senumfield
+    | loc // stateful runtime
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], [\delta_1;...;\delta_n]) // parsers
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], block) // block
+    | name \rightharpoonup v // packages
+    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
+      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // tables, best way to clean up the numbering?
+    | extern name // externfun
+
+~ End P4MathGrammar
+
+Sets
+~ Begin P4MathGrammar
+S ::=  \_ // universal
+    | v // singleton
+    | v1 \texttt{\&\&\&} v2 // mask
+    | v1 .. v2 // range
+    | (S1,...,Sn) // product
+    | lpm v // lpm, TODO: separate sets and matchkinds? nbits is runtime value so this is same as singleton
+    | ?? // TODO: value set
+~ End P4MathGrammar
+
+Parameters
+~ Begin P4MathGrammar
+p ::= (d, \tau, v)
+~ End P4MathGrammar
+
+Transitions
+~ Begin P4MathGrammar
+trsn ::= name
+    | ((e1,...,en), S \rightharpoonup name)
+~ End P4MathGrammar
+
+Parser state
+~ Begin P4MathGrammar
+\delta ::= (name, [stmt1;...;stmtn], trsn)
+~ End P4MathGrammar
+
 # Static Semantics { #sec-static }
+
+## Typing contexts
+
+~ MathPre
+\Pi : \mathsf{Var} -> \mathsf{Type}
+G : \mathsf{Var} -> \mathsf{Type}
+D : X -> t
+~
+
+## Typing judgments
+
+<!--
+need to add direction
+-->
+
+### Helper Rules
+
+~ MathPre
+numeric(t) = \begin{cases} true & t = int
+true & t = int<w>
+true & t = bit<w>
+false & \text{otherwise}
+\end{cases}
+~
+
+### Base Types
+
+~ Infer
+
+------------------------[Bool-True]
+ \Pi,G,D |- true : bool, none
+~
+
+~ Infer
+
+------------------------[Bool-False]
+ \Pi,G,D |- false : bool, none
+~
+
+~ Infer
+
+------------------------[String]
+ \Pi,G,D |- u : string, none
+~
+
+~ Infer
+
+------------------------[Int-Constant]
+\Pi,G,D |- a : int, none
+~
+
+~ Infer
+
+------------------------[Signed-Int-Constant]
+\Pi,G,D |- nsa : int<w>, none
+~
+
+~ Infer
+
+------------------------[Unsigned-Int-Constant]
+\Pi,G,D |- nwa : bit<a>, none
+~
+
+### Variables
+
+~ Infer
+G(x) = t, d
+-------------------[Var]
+\Pi,G,D |- x : t, d
+~
+
+~ Infer
+\Pi(x) = t, d
+----------------------[Var-Top]
+\Pi,G,D |- .x : t, d
+~
+
+### Accesses
+
+~ Infer
+\Pi,G,D |- e_1 : t_1[], d_1
+\Pi,G,D |- e_2  : t_2, \_
+numeric(t_2)
+----------------------[Array-Access]
+\Pi,G,D |- e_1[e_2] : t_1, d_1
+~
+
+~ Infer
+\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_2  : t_2, \_
+numeric(t_2)
+\Pi,G,D |- e_3  : t_3, \_
+numeric(t_3)
+0 \leq e_2
+e_2 \lt w
+e_2 \leq e_3
+e_3 \lt w
+------------------------[Slice]
+\Pi,G,D |- e1[e2:e3] : t_1, d_1
+~
+
+~ Infer
+\Pi,G,D |- \overline{e: \tau, none}
+-----------------------------------------------[List-Expression]
+\Pi,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+~
+
+### Unary Operations
+
+~ Infer
+\Pi,G,D |- e : bool, d
+-------------------[Not]
+\Pi,G,D |- !e : bool, d
+~
+
+~ Infer
+\Pi,G,D |- e : bit<w>, d
+-----------------------------[Bitwise-Not]
+\Pi,G,D |- {\texttt{\textasciitilde}e} : bit<w>, d
+~
+
+~ Infer
+\Pi,G,D |- e : t, d
+numeric(t)
+--------------------[Negate]
+\Pi,G,D |- {-e} : t, d
+~
+
+### Binary Operations
+
+```haskell
+  fun binaryDir In In = In
+    | binaryDir _  _  = none
+```
+
+~ Infer
+\Pi,G,D |- e_1 : bool, d_1
+\Pi,G,D |- e_2 : bool, d_2
+\diamond \in \{ \&\&, || \}
+--------------------------------------[Bool-Binary-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
+~
+
+~ Infer
+\Pi,G,D |- e_1 : int, d_1
+\Pi,G,D |- e_2 : int, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+--------------------------------------------------------[Int-Binary-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int, binaryDir(d_1, d_2)
+~
+
+~ Infer
+\Pi,G,D |- e_1 : int<w>, d_1
+\Pi,G,D |- e_2 : int<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+-----------------------------------------------------------[Int-Signed-Binary-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int<w>, binaryDir(d_1, d_2)
+~
+
+<!--
+having trouble with ^ symbol for xor
+-->
+
+~ Infer
+\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_2 : bit<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+----------------------------------------------------------[Int-Unsigned-Binary-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bit<w>, binaryDir(d_1, d_2)
+~
+
+<!--
+need to define has_equality
+-->
+
+~ Infer
+\Pi,G,D |- e_1 : t, d_1
+\Pi,G,D |- e_2 : t, d_2
+has\_equality(t)
+\diamond \in \{ ==,!= \}
+----------------------------------------------------------[Equality-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
+~
+
+~ Infer
+\Pi,G,D |- e_1 : bit<l>, d_1
+\Pi,G,D |- e_2 : bit<r>, d_2
+---------------------------------[Bit-Concat-Op]
+\Pi,G,D |- e_1 \mathbin{++} e_2 : bit<l+r>, binaryDir(d_1, d_2)
+~
+
+~ Infer
+\Pi,G,D |- e_1 : t_1, d_1
+\Pi,G,D |- e_2 : t_2, d_2
+numeric(t_1)
+t_2 = bit<\_> \lor t_2 = int
+\diamond \in \{\ll, \gg\}
+---------------------------------[Shift-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, binaryDir(d_1, d_2)
+~
+
+### Casts
+
+Casting from $\tau_0$ to $\tau$ is permitted by the
+$\tau \prec \tau'$ judgment.
+
+~ Infer
+
+---------------------[]
+int \prec int<w>
+~
+~ Infer
+
+---------------------[]
+int \mathrel{\prec} bit<w>
+~
+
+~ Infer
+
+----------------------------------------------------[]
+\{t_1, \dots, t_n\} \prec tuple<t_1, \dots, t_n>
+~
+
+~ Infer
+\Pi,G,D |- e : t_0, d
+t_0 \prec t
+------------------------[Cast]
+\Pi,G,D |- (t) e : t, d
+~
+
+### Member expressions
+~ Infer
+\Delta(X) = enum \, X: t \, \{m_1,...,m_n \}
+m_i = name
+--------------------[Type-Member]
+\Pi, G, D |- X.name : t, none
+~
+
+~ Infer
+error.name \in dom(G)
+--------------------[Error-Member]
+\Pi,G,D |- error.name : error, none
+~
+
+Field and method lookups on expressions are delegated to another
+judgment $\textsf{has\_field}\ t\ name\ t_{name}$.
+~ Infer
+\Pi,G,D, |- e : t
+has_field t f t_{name}
+----------------------------------[Expression-Member]
+\Pi,G,D |- e.name : t_{name}
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-Union-Field]
+has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Struct-Field]
+has_field (struct \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-IsValid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-SetValid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setValid (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Header-SetInvalid-Field]
+has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setInvalid (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[HeaderUnion-IsValid-Field]
+has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+~
+
+
+~ Infer
+
+-------------------------------------------------------------------[Control-Apply-Field]
+has_field (control \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Parser-Apply-Field]
+has_field (parser \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------[Table-Apply-Field]
+has_field (table ...) apply (() -> t_res)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-Size-Field]
+has_field t[a] size bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-NextIndex-Field]
+has_field t[a] nextIndex bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-LastIndex-Field]
+has_field t[a] lastIndex bit<32>
+~
+
+~ Infer
+
+-------------------------------[Array-Next-Field]
+has_field t[a] next t
+~
+
+~ Infer
+
+-------------------------------[Array-Last-Field]
+has_field t[a] last t
+~
+
+~ Infer
+
+-------------------------------[Array-PushFront-Field]
+has_field t[a] push_front ((count: int) -> void)
+~
+
+~ Infer
+
+-------------------------------[Array-PopFront-Field]
+has_field t[a] pop_front ((count: int) -> void)
+~
+
+
+### Ternary Expression
+
+~ Infer
+\Pi,G,D |- e_1 : bool, \_
+\Pi,G,D |- e_2 : t, \_
+\Pi,G,D |- e_3 : t, \_
+--------------------------------[Ternary-Op]
+\Pi,G,D |- e_1 ? e_2 : e_3 : t, none
+~
+
+### Function Calls
+
+~ Infer
+\Pi, G, D |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
+\Pi,\Gamma,\Delta[\overline{X \to \rho}] \vdash \overline{e : t}
+----------------------------------------------------------------------------[Function-Call-Nameless]
+\Pi,G,D |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, none
+~
+
+~ Infer
+\Pi,G,D |- f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+----------------------------------------------------------------------------[Function-Call-Named]
+\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,none
+~
+
+### Nameless Instantiation
+
+<!--
+C will refer to constructors
+-->
+
+<!--
+TODO
+this rule is incomplete
+-->
+
+~ Infer
+C \in dom(\Pi)
+\forall i, \Pi,G,D |- e_i : \tau_i
+---------------------------------------------------[Specialized-Type-Instantiation]
+\Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),none
+~
+
+### Set Operations
+
+<!--
+TODO: the Masks rule is based off of the spec
+and diverges from the type checker's implementation
+-->
+
+~ Infer
+\Pi,G,D |- e_1 : bit<w>, \_
+\Pi,G,D |- e_2 : bit<w>, \_
+------------------------------------------------[Masks]
+\Pi,G,D |- e_1 \texttt{\&\&\&} e_2 : set<bit<w>>,none
+~
+
+~ Infer
+\Pi,G,D |- e_1 : \tau, \_
+\Pi,G,D |- e_2 : \tau, \_
+\tau = bit<w> \lor \tau = int<w>
+-------------------------[Ranges]
+\Pi,G,D |- e_1 .. e_2 : set<\tau>, none
+~
+
 # Dynamic Semantics { #sec-dynamic }
+
+## Expressions
+
+$\langle e, ctrl, env, st \Downarrow_e env', st', v \rangle$

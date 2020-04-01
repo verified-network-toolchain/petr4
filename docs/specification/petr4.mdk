@@ -43,6 +43,7 @@ Package: textcomp
   replace: "/\bfalse\b/\texttt{false}/g";
   replace: "/\bstring\b/\texttt{string}/g";
   replace: "/\bhas_field\b/\textsf{has\_field}/g";
+  replace: "/\bcastable\b/\textsf{castable}/g";
 }
 
 Infer {
@@ -557,17 +558,12 @@ numeric(t)
 ```haskell
   fun binaryDir In In = In
     | binaryDir _  _  = none
-
-  fun implicitCast bit<w> int = bit<w>
-    | implicitCast int<w> int = int<w>
-    | implicitCast int bit<w> = bit<w>
-    | implicitCast int int<w> = int<w>
 ```
 
 ~ Infer
 \Pi,G,D |- e_1 : bool, d_1
 \Pi,G,D |- e_2 : bool, d_2
-\diamond \in \{ \& \&,|| \}
+\diamond \in \{ \&\&, || \}
 --------------------------------------[Bool-Binary-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
 ~
@@ -581,9 +577,8 @@ numeric(t)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : \tau_1, d_1
-\Pi,G,D |- e_2 : \tau_2, d_2
-implicitCast(\tau_1,\tau_2) = int<w>
+\Pi,G,D |- e_1 : int<w>, d_1
+\Pi,G,D |- e_2 : int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int<w>, binaryDir(d_1, d_2)
@@ -594,10 +589,9 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : \tau_1, d_1
-\Pi,G,D |- e_2 : \tau_2, d_2
-implicitCast(\tau_1,\tau_2) = bit<w>
-\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,|,\oplus \}
+\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_2 : bit<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
 \Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bit<w>, binaryDir(d_1, d_2)
 ~
@@ -634,13 +628,29 @@ t_2 = bit<\_> \lor t_2 = int
 
 ### Casts
 
-<!--
-need to legal casts
--->
+Casting from $\tau_0$ to $\tau$ is permitted by the
+$\tau \prec \tau'$ judgment.
+
+~ Infer
+
+---------------------[]
+int \prec int<w>
+~
+~ Infer
+
+---------------------[]
+int \mathrel{\prec} bit<w>
+~
+
+~ Infer
+
+----------------------------------------------------[]
+\{t_1, \dots, t_n\} \prec tuple<t_1, \dots, t_n>
+~
 
 ~ Infer
 \Pi,G,D |- e : t_0, d
-legal\_cast(t_0,t)
+t_0 \prec t
 ------------------------[Cast]
 \Pi,G,D |- (t) e : t, d
 ~

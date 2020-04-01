@@ -1327,10 +1327,18 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
     typ = typ;
     dir = dir }
 
+(* See section 8.9.2 "Explicit casts" *)
 and cast_ok original_type new_type =
-  (* TODO *)
+  let open Typed.Type in
   match original_type, new_type with
-  | _ -> true
+  | Bit { width = 1 }, Bool
+  | Bool, Bit { width = 1 }
+  | Int { width = _ }, Bit { width = _ }
+  | Bit { width = _ }, Int { width = _ }
+  | Integer, Bit { width = _ }
+  | Integer, Int { width = _ } ->
+     true
+  | _ -> original_type = new_type
 
 (* Section 8.9 *)
 and type_cast env typ expr : Prog.Expression.typed_t =

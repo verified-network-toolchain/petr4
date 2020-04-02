@@ -322,16 +322,16 @@ d = TODO
   | X  // type name
   | .X // top level type reference
   | void
-  | header X {f_1: \tau_1, ..., f_n: \tau_n}
-  | header union X {f_1: \tau_1, ..., f_n: \tau_n}
-  | struct X {f_1: \tau_1, ..., f_n: \tau_n}
-  | enum X {m_1, ..., m_n}
-  | enum \tau X {m_1, ..., m_n}
+  | header {f_1: \tau_1, ..., f_n: \tau_n}
+  | header union {f_1: \tau_1, ..., f_n: \tau_n}
+  | struct {f_1: \tau_1, ..., f_n: \tau_n}
+  | enum {m_1, ..., m_n}
+  | enum \tau {m_1, ..., m_n}
   | \tau<\tau_1, ..., \tau_n) // specialized type
   | package(x_1: t_1, ..., x_n: t_n)
   | control <\tau_1,...,\tau_n> (...)
   | parser <\tau_1,...,\tau_n> (...)
-  | extern X {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+  | extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
   | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
   | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
   | table (...)
@@ -672,13 +672,13 @@ int \mathrel{\prec} bit<w>
 ~ Infer
 
 ----------------------------------------------------[]
-t \mathrel{\prec} enum t X {m_1, ..., m_n}
+t \mathrel{\prec} enum t {m_1, ..., m_n}
 ~
 
 ~ Infer
 
 -------------------------------------------[]
-enum t X {m_1, ..., m_n} \mathrel{\prec} t
+enum t {m_1, ..., m_n} \mathrel{\prec} t
 ~
 
 ~ Infer
@@ -690,9 +690,9 @@ t_0 \prec t
 
 ### Member expressions
 ~ Infer
-\Delta(X) = enum \, X: t \, \{m_1,...,m_n \}
+\Delta(X) = enum t \{m_1, \dots, m_n\}
 m_i = name
---------------------[Type-Member]
+---------------------------------------[Type-Member]
 \Pi, G, D |- X.name : t, none
 ~
 

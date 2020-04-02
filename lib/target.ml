@@ -88,7 +88,10 @@ module V1Model : Target = struct
 
   type obj = 
     | CoreObject of Core.obj
-    (* | V1Object of unit *) (* TODO *)
+    (* | V1Object of v1object *)
+
+  (* and v1object = unit *)
+    (* | Counter of unit TODO *)
 
   type st = obj State.t
 

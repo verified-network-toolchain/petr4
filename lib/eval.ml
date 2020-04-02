@@ -1171,7 +1171,7 @@ module MakeInterpreter (T : Target) = struct
         | VAction{params; body}
         | VFun{params; body}            -> eval_funcall' ctrl env' st' params args body
         | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args ts
-        | VExternFun{name=n;caller=v} -> eval_externfun ctrl env' st' n v args ts
+        | VExternFun{name=n;caller=v}   -> eval_externfun ctrl env' st' n v args ts
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"

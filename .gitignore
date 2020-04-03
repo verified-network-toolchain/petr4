@@ -4,6 +4,7 @@ _build/
 petr4.install
 .merlin
 html_build/*bc.js
+docs/specification/build
 
 # LaTeX output
 *.aux

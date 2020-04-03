@@ -115,6 +115,18 @@ end = struct
     [@@deriving sexp,yojson]
 end
 
+and NewType : sig
+  type t =
+    { name: string;
+      typ: Type.t }
+  [@@deriving sexp,yojson]
+end = struct
+  type t =
+    { name: string;
+      typ: Type.t }
+  [@@deriving sexp,yojson]
+end
+
 and RecordType : sig
   type field =
     { name: string;
@@ -137,12 +149,14 @@ end
 
 and EnumType : sig
   type t =
-    { typ: Type.t option;
+    { name: string;
+      typ: Type.t option;
       members: string list; }
     [@@deriving sexp,yojson]
 end = struct
   type t =
-    { typ: Type.t option;
+    { name: string;
+      typ: Type.t option;
       members: string list; }
     [@@deriving sexp,yojson]
 end
@@ -237,6 +251,9 @@ and Type : sig
     (* References to other types in the top-level namespace *)
     | TopLevelType of string
 
+    (* "Opaque" type introduced by newtype *)
+    | NewType of NewType.t
+
     (* P4 void (acts like unit) *)
     | Void
 
@@ -249,7 +266,7 @@ and Type : sig
     (* struct { l1: t1, ..., ln : tn } *)
     | Struct of RecordType.t
 
-    (* enum { l1, ..., ln } *)
+    (* enum X { l1, ..., ln } *)
     | Enum of EnumType.t
 
     (* Type application *)
@@ -314,6 +331,9 @@ end = struct
   (* References to other types in the top-level namespace *)
   | TopLevelType of string
 
+  (* "Opaque" type introduced by newtype *)
+  | NewType of NewType.t
+
   (* P4 void (acts like unit) *)
   | Void
 
@@ -326,7 +346,7 @@ end = struct
   (* struct { l1: t1, ..., ln : tn } *)
   | Struct of RecordType.t
 
-  (* enum { l1, ..., ln } *)
+  (* enum X { l1, ..., ln } *)
   | Enum of EnumType.t
 
   (* Type application *)

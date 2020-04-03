@@ -205,6 +205,7 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   | Bool | String | Integer
   | Int _ | Bit _ | VarBit _
   | Error | MatchKind | Void
+  | NewType _
   | Table _ ->
       typ
   | Array arr ->
@@ -363,17 +364,10 @@ and solve_record_type_equality env equiv_vars unknowns (rec1: RecordType.t) (rec
 
 and solve_enum_type_equality env equiv_vars unknowns enum1 enum2 =
   let open EnumType in
-  let soln =
-    match enum1.typ, enum2.typ with
-    | Some typ1, Some typ2 ->
-        solve_types env equiv_vars unknowns typ1 typ2
-    | None, None -> Some (empty_constraints unknowns)
-    | _, _ -> None
-  in
-  let mems1 = List.sort ~compare:String.compare enum1.members in
-  let mems2 = List.sort ~compare:String.compare enum2.members in
-  if mems1 = mems2
-  then soln
+  (* could also check structural equality just to be sure but I don't
+     think that's necessary... - Ryan *)
+  if enum1.name = enum2.name
+  then Some (empty_constraints unknowns)
   else None
 
 and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
@@ -501,6 +495,11 @@ and solve_types (env: CheckerEnv.t)
        then Some (single_constraint unknowns tv typ)
        else None
 
+    | NewType nt1, NewType nt2 ->
+       if nt1.name = nt2.name
+       then Some (empty_constraints unknowns)
+       else None
+
     | Bool, Bool
     | String, String
     | Integer, Integer
@@ -595,6 +594,7 @@ and solve_types (env: CheckerEnv.t)
     | Set _, _
     | Header _, _
     | HeaderUnion _, _
+    | NewType _, _
     | Struct _, _
     | Enum _, _
     | Control _, _
@@ -876,6 +876,8 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     | None -> false
     | Some _ -> true (* Unsure of what to do in this case *)
     end
+  | NewType {name; typ} ->
+     is_well_formed_type env typ
 
   (* Polymorphic types *)
   | Function {type_params=tps; parameters=ps; return=rt} ->
@@ -1328,7 +1330,7 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
     dir = dir }
 
 (* See section 8.9.2 "Explicit casts" *)
-and cast_ok original_type new_type =
+and cast_ok env original_type new_type =
   let open Typed.Type in
   match original_type, new_type with
   | Bit { width = 1 }, Bool
@@ -1338,6 +1340,12 @@ and cast_ok original_type new_type =
   | Integer, Bit { width = _ }
   | Integer, Int { width = _ } ->
      true
+  | Enum { name; typ = Some t; members }, t'
+  | t', Enum { name; typ = Some t; members } ->
+     type_equality env t t'
+  | NewType { name; typ }, t
+  | t, NewType { name; typ } ->
+     type_equality env typ t
   | _ -> original_type = new_type
 
 (* Section 8.9 *)
@@ -1345,7 +1353,7 @@ and type_cast env typ expr : Prog.Expression.typed_t =
   let expr_typed = type_expression env expr in
   let expr_type = saturate_type env (snd expr_typed).typ in
   let new_type = translate_type env [] typ in
-  if cast_ok expr_type (saturate_type env new_type)
+  if cast_ok env expr_type (saturate_type env new_type)
   then { (snd expr_typed) with typ = new_type }
   else raise_s [%message "illegal explicit cast"
                    ~old_type:(expr_type: Typed.Type.t)
@@ -1358,7 +1366,7 @@ and type_type_member env typ name : Prog.Expression.typed_t =
   in
   let out_typ = 
     match full_typ with
-    | Enum { typ = carrier; members } ->
+    | Enum { name = _; typ = carrier; members } ->
        if List.mem ~equal:(fun x y -> x = y) members (snd name)
        then match carrier with
             | None -> typ
@@ -2600,14 +2608,19 @@ and type_table' env info annotations name key_types action_map entries_typed pro
     let open RecordType in
     (* Aggregate table information. *)
     let action_names = List.map ~f:fst action_map in
-    let action_enum_typ = Type.Enum {typ=None; members=action_names} in
+    let action_enum_name = "action_list_" ^ snd name in
+    let action_enum_typ =
+      Type.Enum { name=action_enum_name;
+                  typ=None;
+                  members=action_names }
+    in
     let key = match key_types with
       | Some ks -> ks
       | None -> failwith "no key property in table?"
     in
     (* Populate environment with action_enum *)
     (* names of action list enums are "action_list_<<table name>>" *)
-    let env = CheckerEnv.insert_type (name |> snd |> (^) "action_list_") action_enum_typ env in
+    let env = CheckerEnv.insert_type action_enum_name action_enum_typ env in
     let hit_field = {name="hit"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in
@@ -2701,8 +2714,11 @@ and type_match_kind env info members =
 
 (* Section 7.2.1 *)
 and type_enum env info annotations name members =
-  let members' = List.map ~f:snd members in
-  let enum_typ = Type.Enum { members = members'; typ = None } in
+  let enum_typ =
+    Type.Enum { name = snd name;
+                members = List.map ~f:snd members;
+                typ = None }
+  in
   let env = CheckerEnv.insert_type (snd name) enum_typ env in
   (info, Prog.Declaration.Enum { annotations; name; members }), env
 
@@ -2721,7 +2737,11 @@ and type_serializable_enum env info annotations typ name members =
        Prog.Declaration.SerializableEnum { annotations; typ; name; members }
      in
      let typ_members = List.map ~f:(fun m -> (snd (fst m))) members in
-     let enum_typ = Type.Enum {typ=Some(typ); members=typ_members} in
+     let enum_typ =
+       Type.Enum { name = snd name;
+                   typ= Some typ;
+                   members = typ_members }
+     in
      let env = CheckerEnv.insert_type (snd name) enum_typ env in
      (info, enum_typed), env
   | _ ->
@@ -2834,9 +2854,29 @@ and type_type_def env info annotations name typ_or_decl =
 
 (* ? *)
 and type_new_type env info annotations name typ_or_decl =
-  (* Turning newtypes into typedefs for now even though this defeats the
-   * purpose of newtypes *)
-  type_type_def env info annotations name typ_or_decl
+  match typ_or_decl with
+  | Left typ ->
+     let typ = translate_type env [] typ in
+     let typedef_typed =
+       Prog.Declaration.TypeDef
+         { annotations;
+           name;
+           typ_or_decl = Left typ }
+     in
+     let new_typ = Typed.Type.NewType { name = snd name; typ = typ } in
+     (info, typedef_typed), CheckerEnv.insert_type (snd name) new_typ env
+  | Right decl ->
+     let decl_typed, env' = type_declaration env decl in
+     let (_, decl_name) = Declaration.name decl in
+     let decl_typ = CheckerEnv.resolve_type_name decl_name env' in
+     let typedef_typed =
+       Prog.Declaration.TypeDef
+         { annotations;
+           name;
+           typ_or_decl = Right decl_typed }
+     in
+     let new_typ = Typed.Type.NewType { name = snd name; typ = decl_typ } in
+     (info, typedef_typed), CheckerEnv.insert_type (snd name) new_typ env'
 
 (* Section 7.2.11.2 *)
 and type_control_type env info annotations name t_params params =

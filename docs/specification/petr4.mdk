@@ -353,12 +353,13 @@ t ::= @bool
     | @match_kind
     | X  // type name
     | .X // top level type reference
+    | @newtype X t
     | @void
     | @header {f_1: \tau_1, ..., f_n: \tau_n}
     | \mathkw{header\ union} {f_1: \tau_1, ..., f_n: \tau_n}
     | @struct {f_1: \tau_1, ..., f_n: \tau_n}
-    | @enum {m_1, ..., m_n}
-    | @enum \tau {m_1, ..., m_n}
+    | @enum X {m_1, ..., m_n}
+    | @enum \tau X {m_1, ..., m_n}
     | \tau<\tau_1, ..., \tau_n) // specialized type
     | @package(x_1: t_1, ..., x_n: t_n)
     | @control <\tau_1,...,\tau_n> (...)
@@ -723,13 +724,25 @@ t \mathrel{\prec} t'
 ~ Infer
 
 ----------------------------------------------------[]
-t \mathrel{\prec} @enum t \{m_1, ..., m_n\}
+t \mathrel{\prec} @enum t X \{m_1, ..., m_n\}
 ~
 
 ~ Infer
 
 -------------------------------------------[]
-@enum t \{m_1, ..., m_n\} \mathrel{\prec} t
+@enum t X \{m_1, ..., m_n\} \mathrel{\prec} t
+~
+
+~ Infer
+
+-------------------------------[]
+@newtype X t \mathrel{\prec} t
+~
+
+~ Infer
+
+-------------------------------[]
+t \mathrel{\prec} @newtype X t
 ~
 
 ~ Infer

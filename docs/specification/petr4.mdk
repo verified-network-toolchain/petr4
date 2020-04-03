@@ -258,7 +258,7 @@ C ::= PackageType
 s ::= e<\overline{t}>(\overline{e})   // method calls (positional)
     | e<\overline{t}>(\overline{x=e}) // method calls (named)
     | e := e                          // assignment
-    | \tau(e_1,...,e_n)               // direct type invocation
+    | t.@apply(e_1,...,e_n)           // direct type invocation
     | @if (e) s_1 @else s_2           // conditional statement
     | blk                             // block statement
     | @exit                           // exit statement (only in controls)

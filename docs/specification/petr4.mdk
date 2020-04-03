@@ -303,10 +303,28 @@ d ::= @const t x := e
     | @parser X<\overline{X}>(\overline{x: t})
     | @package X<\overline{X}>(\overline{x: t})
 
-state ::= TODO
-ctor ::= TODO
-method ::= TODO
-prop ::= TODO
+state ::= @state x \{ \overline{s}; @transition state\_expr \}
+
+state\_expr ::= x
+              | @select (\overline{e}) \{ \overline{matches: x} \}
+
+matches = \overline{match}
+
+match ::= \mathkw{\_}
+        | e
+
+ctor ::= X(\overline{t x})
+
+method ::= @abstract t x<\overline{X}>(\overline{t x})
+         | t x<\overline{X}>(\overline{t x})
+
+prop ::= @key = \{ \overline{e : x} \}
+       | @actions = \{ \overline{action\_ref} \}
+       | @const @entries = \{ \overline{matches: action\_ref} \}
+       | x = e
+       | @const x = e
+
+action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
 ## Types

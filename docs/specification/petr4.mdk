@@ -9,6 +9,8 @@ Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
 Package: mathpartir
 Package: textcomp
+Package: mathtools
+Package: xspace
 
 .mathpre {
   replace: "/( +)\|-( +)/\1\vdash{}\2/g";
@@ -16,34 +18,9 @@ Package: textcomp
   replace: "/\bG\b/\Gamma{}/g";
   replace: "/\bD\b/\Delta{}/g";
   replace: "/\bt([^a-z])/\tau{}\1/g";
-  replace: "/\bint\b/\texttt{int}/g";
-  replace: "/\bbit\b/\texttt{bit}/g";
-  replace: "/\bvarbit\b/\texttt{varbit}/g";
-  replace: "/\btuple\b/\texttt{tuple}/g";
-  replace: "/\bset\b/\texttt{set}/g";
-  replace: "/\berror\b/\texttt{error}/g";
-  replace: "/\bmatch_kind\b/\texttt{match\_kind}/g";
-  replace: "/\bset\b/\texttt{set}/g";
-  replace: "/\bvoid\b/\texttt{void}/g";
-  replace: "/\bheader union\b/\texttt{header union}/g";
-  replace: "/\bheader(?! union)\b/\texttt{header}/g";
-  replace: "/\bstruct\b/\texttt{struct}/g";
-  replace: "/\benum\b/\texttt{enum}/g";
-  replace: "/\bpackage\b/\texttt{package}/g";
-  replace: "/\bcontrol\b/\texttt{control}/g";
-  replace: "/\bparser\b/\texttt{parser}/g";
-  replace: "/\bextern\b/\texttt{extern}/g";
-  replace: "/\bfunction\b/\texttt{function}/g";
-  replace: "/\baction\b/\texttt{action}/g";
-  replace: "/\btable\b/\texttt{table}/g";
   replace: "/</\langle{}/g";
   replace: "/>/\rangle{}/g";
-  replace: "/\bbool\b/\texttt{bool}/g";
-  replace: "/\btrue\b/\texttt{true}/g";
-  replace: "/\bfalse\b/\texttt{false}/g";
-  replace: "/\bstring\b/\texttt{string}/g";
-  replace: "/\bhas_field\b/\textsf{has\_field}/g";
-  replace: "/\bcastable\b/\textsf{castable}/g";
+  replace: "/\b:=\b/\coloneqq/g";
 }
 
 Infer {
@@ -211,137 +188,163 @@ P4 Programming Language.
 ## Expressions
 
 ~ Begin P4MathGrammar
-e = true
-  | false
-  | a // arbitrary width integer literal
-  | nwa // unsigned integer literal
-  | nsa // signed integer literal
-  | u // strings
-  | x // name
-  | .x // top level name
-  | e1[e2] // array access
-  | e1[e2:e3] // bitslice
-  | {e1,...,en} // list
-  | uop e
-  | e1 binop e2
-  | (t) e // explicit cast
-  | X.name // type member
-  | error.name // errors
-  | e.name // expression member
-  | e1 ? e2 : e3 // ternary operator
-  | f<...,\tau_j,...>(...,ei,...)
-  | f<...,\tau_j,...>(...,xi=ei,...)
-  | t(e1,...,en) // nameless instantiation
-  | e1 \texttt{\&\&\&} e2 // mask
-  | e1 .. e2 // range
+e ::= @true
+    | @false
+    | a // arbitrary width integer literal
+    | nwa // unsigned integer literal
+    | nsa // signed integer literal
+    | u // strings
+    | x // name
+    | .x // top level name
+    | e1[e2] // array access
+    | e1[e2:e3] // bitslice
+    | {e1,...,en} // list
+    | uop e
+    | e1 binop e2
+    | (t) e // explicit cast
+    | X.name // type member
+    | @error.name // errors
+    | e.name // expression member
+    | e1 ? e2 : e3 // ternary operator
+    | f<...,\tau_j,...>(...,ei,...)
+    | f<...,\tau_j,...>(...,xi=ei,...)
+    | t(e1,...,en) // nameless instantiation
+    | e1 \texttt{\&\&\&} e2 // mask
+    | e1 .. e2 // range
 ~ End P4MathGrammar
 
 ~ Begin P4Grammar
 // unary operators
-uop = ! // not
-    | - // unary minus
-    | ~ // bitwise complement/not
+uop ::= ! // not
+      | - // unary minus
+      | ~ // bitwise complement/not
 
 // binary operators
-binop = +
-      | |+|
-      | -
-      | |-|
-      | *
-      | /
-      | %
-      | <<
-      | >>
-      | <
-      | >
-      | <=
-      | >=
-      | ==
-      | !=
-      | &
-      | ^
-      | |
-      | ++
-      | &&
-      | ||
+binop ::= +
+        | |+|
+        | -
+        | |-|
+        | *
+        | /
+        | %
+        | <<
+        | >>
+        | <
+        | >
+        | <=
+        | >=
+        | ==
+        | !=
+        | &
+        | ^
+        | |
+        | ++
+        | &&
+        | ||
 ~ End P4Grammar
 
 ~ Begin P4MathGrammar
 // constructors
-C = PackageType
-  | Parser
-  | Control
-  | Extern
+C ::= PackageType
+    | Parser
+    | Control
+    | Extern
 ~ End P4MathGrammar
 
-## Statements and Declarations
-<!--
-TODO define declarations
--->
+## Statements and blocks
 ~ Begin P4MathGrammar
+s ::= e<\overline{t}>(\overline{e})   // method calls (positional)
+    | e<\overline{t}>(\overline{x=e}) // method calls (named)
+    | x := e                          // assignment
+    | \tau(e_1,...,e_n)               // direct type invocation
+    | @if (e) s_1 @else s_2           // conditional statement
+    | blk                             // block statement
+    | @exit                           // exit statement (only in controls)
+    | \mathkw{;}                      // empty statement
+    | @return                         // return (void)
+    | @return e                       // return (with value)
+    | @switch (e) \overline{case}     // switch statement
+    | d                               // declaration statement
 
-blk = \{ s_1; ... s_n; \} // block
+case ::= case\_lbl: blk  // label with block
+       | case\_lbl: {}   // fallthrough 
 
-// statements
-s = m<...,\tau_j,...>(...,ei,...) // method call
-  | m<...,\tau_j,...>(...,xi=ei,...)
-  | x = e
-  | \tau(e_1,...,e_n) // direct application/direct type invocation
-  | if (e) s
-  | if (e) s_1 else s_2
-  | blk
-  | exit
-  | \emptyset // empty statement
-  | return
-  | return e
-  | switch (e) x_1: blk_1 ... x_n: blk_n
-  | switch (e) x_1: blk_1 ... x_n: blk_n default: blk_{default}
-  | d
+case\_lbl ::= x                // name (of action)
+            | \texttt{default} // catch-all label
 
-// declarations
-d = TODO
+blk ::= \{ s_1; ... s_n; \} // blocks
+~ End P4MathGrammar
 
+## Declarations
+~ Begin P4MathGrammar
+d ::= @const t x := e
+    | t x(\overline{e})
+    | t x(\overline{e}) blk
+    | @parser X(\overline{x: t})(\overline{x: t}) \{ \overline{d} \overline{state} \}
+    | @control X(\overline{x: t})(\overline{x: t}) \{ \overline{d} @apply blk \}
+    | @function t x<\overline{X}>(\overline{x: t}) blk
+    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
+    | t x
+    | t x := e
+    | \mathkw{value\_set}<t>(e) x
+    | @action x (\overline{x: t}) blk
+    | @table x \{ \overline{prop} \}
+    | @header X \{ \overline{x: t} \}
+    | \mathkw{header\ union} X \{ \overline{x: t} \}
+    | @struct X \{ \overline{x: t} \}
+    | @error \{ \overline{x} \}
+    | \mathkw{match\_kind} \{ \overline{x} \}
+    | @enum X \{ \overline{x} \}
+    | @enum t X \{ \overline{x} \}
+    | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+    | @typedef t x
+    | @type t x
+    | @control X<\overline{X}>(\overline{x: t})
+    | @parser X<\overline{X}>(\overline{x: t})
+    | @package X<\overline{X}>(\overline{x: t})
+
+state ::= TODO
+ctor ::= TODO
+method ::= TODO
+prop ::= TODO
 ~ End P4MathGrammar
 
 ## Types
 
 ~ Begin P4MathGrammar
-// types
-\tau = bool
-  | string
-  | int
-  | int<w>
-  | bit<w>
-  | varbit<w>
-  | \tau[a]
-  | tuple<\tau_1, ..., \tau_n>
-  | \{\tau_1,...,\tau_n\}
-  | set<\tau>
-  | error
-  | match_kind
-  | X  // type name
-  | .X // top level type reference
-  | void
-  | header {f_1: \tau_1, ..., f_n: \tau_n}
-  | header union {f_1: \tau_1, ..., f_n: \tau_n}
-  | struct {f_1: \tau_1, ..., f_n: \tau_n}
-  | enum {m_1, ..., m_n}
-  | enum \tau {m_1, ..., m_n}
-  | \tau<\tau_1, ..., \tau_n) // specialized type
-  | package(x_1: t_1, ..., x_n: t_n)
-  | control <\tau_1,...,\tau_n> (...)
-  | parser <\tau_1,...,\tau_n> (...)
-  | extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
-  | function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
-  | action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
-  | table (...)
+t ::= @bool
+    | @string
+    | @int
+    | @int<w>
+    | @bit<w>
+    | @varbit<w>
+    | \tau[a]
+    | @tuple<\tau_1, ..., \tau_n>
+    | \{\tau_1,...,\tau_n\}
+    | @set<\tau>
+    | @error
+    | @match_kind
+    | X  // type name
+    | .X // top level type reference
+    | @void
+    | @header {f_1: \tau_1, ..., f_n: \tau_n}
+    | @{header union} {f_1: \tau_1, ..., f_n: \tau_n}
+    | @struct {f_1: \tau_1, ..., f_n: \tau_n}
+    | @enum {m_1, ..., m_n}
+    | @enum \tau {m_1, ..., m_n}
+    | \tau<\tau_1, ..., \tau_n) // specialized type
+    | @package(x_1: t_1, ..., x_n: t_n)
+    | @control <\tau_1,...,\tau_n> (...)
+    | @parser <\tau_1,...,\tau_n> (...)
+    | @extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+    | @function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+    | @action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+    | @table (...)
 
-// directions
-d = in
-  | out
-  | inout
-  | none
-
+d ::= @in
+    | @out
+    | @inout
+    | @none
 ~ End P4MathGrammar
 
 ## Values
@@ -367,8 +370,7 @@ $w^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
 
 Values
 ~ Begin P4MathGrammar
-
-v ::= null // TODO: do we need? stp - probably not
+v ::= @null // TODO: do we need? stp - probably not
     | b // booleans
     | a // arbitrary-width integers
     | (n, u^n) // unsigned integers, n not zero
@@ -377,10 +379,10 @@ v ::= null // TODO: do we need? stp - probably not
     | s // strings
     | (v1,...,vn) // tuples
     | S // sets
-    | error.name // errors
+    | @error.name // errors
     | (p1,...,pn) => block // functions, actions TODO: define block
     | name // builtin functions
-    | action \dots // stp - should be able to overload the fn case
+    | @action \dots // stp - should be able to overload the fn case
     | name \rightharpoonup v // structs
     | (name \rightharpoonup v, b) // headers
     | (name \rightharpoonup b, v) // unions
@@ -393,8 +395,7 @@ v ::= null // TODO: do we need? stp - probably not
     | name \rightharpoonup v // packages
     | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
       ((S1,vn+m+2),...,(SN,vn+m+N+2)) // tables, best way to clean up the numbering?
-    | extern name // externfun
-
+    | @extern name // externfun
 ~ End P4MathGrammar
 
 Sets

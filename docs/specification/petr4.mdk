@@ -327,6 +327,13 @@ prop ::= @key = \{ \overline{e : x} \}
 action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
+## Programs
+A program is a sequence of declarations.
+~ Begin P4MathGrammar
+prog ::= d prog
+       | ()
+~ End P4MathGrammar
+
 ## Types
 
 ~ Begin P4MathGrammar
@@ -346,7 +353,7 @@ t ::= @bool
     | .X // top level type reference
     | @void
     | @header {f_1: \tau_1, ..., f_n: \tau_n}
-    | @{header union} {f_1: \tau_1, ..., f_n: \tau_n}
+    | \mathkw{header\ union} {f_1: \tau_1, ..., f_n: \tau_n}
     | @struct {f_1: \tau_1, ..., f_n: \tau_n}
     | @enum {m_1, ..., m_n}
     | @enum \tau {m_1, ..., m_n}
@@ -469,45 +476,46 @@ false & \text{otherwise}
 \end{cases}
 ~
 
-### Base Types
+### Expression typing
+#### Constants
 
 ~ Infer
 
 ------------------------[Bool-True]
- \Pi,G,D |- true : bool, none
+ \Pi,G,D |- @true : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- \Pi,G,D |- false : bool, none
+ \Pi,G,D |- @false : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[String]
- \Pi,G,D |- u : string, none
+ \Pi,G,D |- u : @string, @none
 ~
 
 ~ Infer
 
 ------------------------[Int-Constant]
-\Pi,G,D |- a : int, none
+\Pi,G,D |- a : @int, @none
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-\Pi,G,D |- nsa : int<w>, none
+\Pi,G,D |- nsa : @int<w>, @none
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-\Pi,G,D |- nwa : bit<a>, none
+\Pi,G,D |- nwa : @bit<a>, @none
 ~
 
-### Variables
+#### Variables
 
 ~ Infer
 G(x) = t, d
@@ -521,22 +529,22 @@ G(x) = t, d
 \Pi,G,D |- .x : t, d
 ~
 
-### Accesses
+#### Accesses
 
 ~ Infer
 \Pi,G,D |- e_1 : t_1[], d_1
 \Pi,G,D |- e_2  : t_2, \_
-numeric(t_2)
+@numeric(t_2)
 ----------------------[Array-Access]
 \Pi,G,D |- e_1[e_2] : t_1, d_1
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : bit<w>, d_1
+\Pi,G,D |- e_1 : @bit<w>, d_1
 \Pi,G,D |- e_2  : t_2, \_
-numeric(t_2)
+@numeric(t_2)
 \Pi,G,D |- e_3  : t_3, \_
-numeric(t_3)
+@numeric(t_3)
 0 \leq e_2
 e_2 \lt w
 e_2 \leq e_3
@@ -551,28 +559,28 @@ e_3 \lt w
 \Pi,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
-### Unary Operations
+#### Unary Operations
 
 ~ Infer
-\Pi,G,D |- e : bool, d
+\Pi,G,D |- e : @bool, d
 -------------------[Not]
-\Pi,G,D |- !e : bool, d
+\Pi,G,D |- !e : @bool, d
 ~
 
 ~ Infer
-\Pi,G,D |- e : bit<w>, d
+\Pi,G,D |- e : @bit<w>, d
 -----------------------------[Bitwise-Not]
-\Pi,G,D |- {\texttt{\textasciitilde}e} : bit<w>, d
+\Pi,G,D |- {\texttt{\textasciitilde}e} : @bit<w>, d
 ~
 
 ~ Infer
 \Pi,G,D |- e : t, d
-numeric(t)
+@numeric(t)
 --------------------[Negate]
 \Pi,G,D |- {-e} : t, d
 ~
 
-### Binary Operations
+#### Binary Operations
 
 ```haskell
   fun binaryDir In In = In
@@ -580,27 +588,27 @@ numeric(t)
 ```
 
 ~ Infer
-\Pi,G,D |- e_1 : bool, d_1
-\Pi,G,D |- e_2 : bool, d_2
+\Pi,G,D |- e_1 : @bool, d_1
+\Pi,G,D |- e_2 : @bool, d_2
 \diamond \in \{ \&\&, || \}
---------------------------------------[Bool-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
+------------------------------------------------------------------[Bool-Binary-Op]
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : int, d_1
-\Pi,G,D |- e_2 : int, d_2
+\Pi,G,D |- e_1 : @int, d_1
+\Pi,G,D |- e_2 : @int, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
 --------------------------------------------------------[Int-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : int<w>, d_1
-\Pi,G,D |- e_2 : int<w>, d_2
+\Pi,G,D |- e_1 : @int<w>, d_1
+\Pi,G,D |- e_2 : @int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : int<w>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -608,11 +616,11 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : bit<w>, d_1
-\Pi,G,D |- e_2 : bit<w>, d_2
+\Pi,G,D |- e_1 : @bit<w>, d_1
+\Pi,G,D |- e_2 : @bit<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bit<w>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -622,30 +630,30 @@ need to define has_equality
 ~ Infer
 \Pi,G,D |- e_1 : t, d_1
 \Pi,G,D |- e_2 : t, d_2
-has\_equality(t)
+\mathkw{has\_equality}(t)
 \diamond \in \{ ==,!= \}
 ----------------------------------------------------------[Equality-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : bool, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : bit<l>, d_1
-\Pi,G,D |- e_2 : bit<r>, d_2
+\Pi,G,D |- e_1 : @bit<l>, d_1
+\Pi,G,D |- e_2 : @bit<r>, d_2
 ---------------------------------[Bit-Concat-Op]
-\Pi,G,D |- e_1 \mathbin{++} e_2 : bit<l+r>, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
 \Pi,G,D |- e_1 : t_1, d_1
 \Pi,G,D |- e_2 : t_2, d_2
-numeric(t_1)
-t_2 = bit<\_> \lor t_2 = int
+@numeric(t_1)
+t_2 = @bit<\_> \lor t_2 = @int
 \diamond \in \{\ll, \gg\}
 ---------------------------------[Shift-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, binaryDir(d_1, d_2)
+\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
 ~
 
-### Casts
+#### Casts
 
 Casting from $\tau_0$ to $\tau$ is permitted by the
 $\tau \prec \tau'$ judgment.
@@ -662,42 +670,42 @@ t \mathrel{\prec} t'
 ~ Infer
 
 ---------------------[]
-int \mathrel{\prec} int<w>
+@int \mathrel{\prec} @int<w>
 ~
 ~ Infer
 
 ---------------------[]
-int \mathrel{\prec} bit<w>
+@int \mathrel{\prec} @bit<w>
 ~
 
 ~ Infer
 
 ----------------------------------------------------[]
-\{t_1, \dots, t_n\} \mathrel{\prec} tuple<t_1, \dots, t_n>
+\{t_1, \dots, t_n\} \mathrel{\prec} @tuple<t_1, \dots, t_n>
 ~
 
 ~ Infer
 
 ----------------------------------------------------[]
-\{t_1, \dots, t_n\} \mathrel{\prec} header \{f_1: \tau_1, ..., f_n: \tau_n\}
+\{t_1, \dots, t_n\} \mathrel{\prec} @header \{f_1: \tau_1, ..., f_n: \tau_n\}
 ~
 
 ~ Infer
 
 ----------------------------------------------------[]
-\{t_1, \dots, t_n\} \mathrel{\prec} struct \{f_1: \tau_1, ..., f_n: \tau_n\}
+\{t_1, \dots, t_n\} \mathrel{\prec} @struct \{f_1: \tau_1, ..., f_n: \tau_n\}
 ~
 
 ~ Infer
 
 ----------------------------------------------------[]
-t \mathrel{\prec} enum t {m_1, ..., m_n}
+t \mathrel{\prec} @enum t \{m_1, ..., m_n\}
 ~
 
 ~ Infer
 
 -------------------------------------------[]
-enum t {m_1, ..., m_n} \mathrel{\prec} t
+@enum t \{m_1, ..., m_n\} \mathrel{\prec} t
 ~
 
 ~ Infer
@@ -707,160 +715,160 @@ t_0 \prec t
 \Pi,G,D |- (t) e : t, d
 ~
 
-### Member expressions
+#### Member expressions
 ~ Infer
-\Delta(X) = enum t \{m_1, \dots, m_n\}
+\Delta(X) = @enum t \{m_1, \dots, m_n\}
 m_i = name
 ---------------------------------------[Type-Member]
-\Pi, G, D |- X.name : t, none
+\Pi, G, D |- X.name : t, @none
 ~
 
 ~ Infer
-error.name \in dom(G)
---------------------[Error-Member]
-\Pi,G,D |- error.name : error, none
+@error.name \in dom(G)
+-------------------------------------[Error-Member]
+\Pi,G,D |- @error.name : error, @none
 ~
 
 Field and method lookups on expressions are delegated to another
-judgment $\textsf{has\_field}\ t\ name\ t_{name}$.
+judgment $\mathkw{has\_field}\ t\ name\ t_{name}$.
 ~ Infer
 \Pi,G,D, |- e : t
-has_field t f t_{name}
-----------------------------------[Expression-Member]
+\mathkw{has\_field} t name t_{name}
+------------------------------------[Expression-Member]
 \Pi,G,D |- e.name : t_{name}
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[Header-Field]
-has_field (header \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+---------------------------------------------------------------------[Header-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[Header-Union-Field]
-has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+--------------------------------------------------------------------------------[Header-Union-Field]
+\mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Struct-Field]
-has_field (struct \{f_1 : t_1, ... , f_n : t_n\}) f_i t_i
+\mathkw{has\_field} (@struct \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[Header-IsValid-Field]
-has_field (header \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+---------------------------------------------------------------------------------[Header-IsValid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[Header-SetValid-Field]
-has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setValid (() -> void)
+---------------------------------------------------------------------------------[Header-SetValid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @setValid (() -> @void)
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[Header-SetInvalid-Field]
-has_field (header \{f_1 : t_1, ... , f_n : t_n\}) setInvalid (() -> void)
+-----------------------------------------------------------------------------------[Header-SetInvalid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @setInvalid (() -> @void)
 ~
 
 ~ Infer
 
--------------------------------------------------------------------[HeaderUnion-IsValid-Field]
-has_field (header union \{f_1 : t_1, ... , f_n : t_n\}) isValid (() -> bool)
+---------------------------------------------------------------------------------------------[HeaderUnion-IsValid-Field]
+\mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
 ~
 
 
 ~ Infer
 
--------------------------------------------------------------------[Control-Apply-Field]
-has_field (control \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+--------------------------------------------------------------------------------[Control-Apply-Field]
+\mathkw{has\_field} (@control \{f_1:t_1, ... , f_n:t_n\}) @apply (() -> @void)
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Parser-Apply-Field]
-has_field (parser \{f_1 : t_1, ... , f_n : t_n\}) apply (() -> void)
+\mathkw{has\_field} (@parser \{f_1:t_1, ... , f_n:t_n\}) @apply (() -> @void)
 ~
 
 ~ Infer
 TODO
 -------------------------------------------------------------------[Table-Apply-Field]
-has_field (table ...) apply (() -> t_res)
+\mathkw{has\_field} (@table ...) @apply (() -> t_res)
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Array-Size-Field]
-has_field t[a] size bit<32>
+\mathkw{has\_field} t[a] @size @bit<32>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Array-NextIndex-Field]
-has_field t[a] nextIndex bit<32>
+\mathkw{has\_field} t[a] @nextIndex @bit<32>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Array-LastIndex-Field]
-has_field t[a] lastIndex bit<32>
+\mathkw{has\_field} t[a] @lastIndex @bit<32>
 ~
 
 ~ Infer
 
 -------------------------------[Array-Next-Field]
-has_field t[a] next t
+\mathkw{has\_field} t[a] @next t
 ~
 
 ~ Infer
 
 -------------------------------[Array-Last-Field]
-has_field t[a] last t
+\mathkw{has\_field} t[a] @last t
 ~
 
 ~ Infer
 
 -------------------------------[Array-PushFront-Field]
-has_field t[a] push_front ((count: int) -> void)
+\mathkw{has\_field} t[a] \mathkw{push\_front} ((count: @int) -> @void)
 ~
 
 ~ Infer
 
 -------------------------------[Array-PopFront-Field]
-has_field t[a] pop_front ((count: int) -> void)
+\mathkw{has\_field} t[a] \mathkw{pop\_front} ((count: @int) -> @void)
 ~
 
 
-### Ternary Expression
+#### Ternary Expression
 
 ~ Infer
-\Pi,G,D |- e_1 : bool, \_
+\Pi,G,D |- e_1 : @bool, \_
 \Pi,G,D |- e_2 : t, \_
 \Pi,G,D |- e_3 : t, \_
 --------------------------------[Ternary-Op]
-\Pi,G,D |- e_1 ? e_2 : e_3 : t, none
+\Pi,G,D |- e_1 ? e_2 : e_3 : t, @none
 ~
 
-### Function Calls
+#### Function Calls
 
 ~ Infer
 \Pi, G, D |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
 \Pi,\Gamma,\Delta[\overline{X \to \rho}] \vdash \overline{e : t}
 ----------------------------------------------------------------------------[Function-Call-Nameless]
-\Pi,G,D |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, none
+\Pi,G,D |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
 ~
 
 ~ Infer
-\Pi,G,D |- f : f<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\Pi,G,D |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
 \forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
 ----------------------------------------------------------------------------[Function-Call-Named]
-\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,none
+\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
 ~
 
-### Nameless Instantiation
+#### Nameless Instantiation
 
 <!--
 C will refer to constructors
@@ -874,11 +882,11 @@ this rule is incomplete
 ~ Infer
 C \in dom(\Pi)
 \forall i, \Pi,G,D |- e_i : \tau_i
----------------------------------------------------[Specialized-Type-Instantiation]
-\Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),none
+--------------------------------------------------------------------[Specialized-Type-Instantiation]
+\Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),@none
 ~
 
-### Set Operations
+#### Set Operations
 
 <!--
 TODO: the Masks rule is based off of the spec
@@ -886,19 +894,31 @@ and diverges from the type checker's implementation
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : bit<w>, \_
-\Pi,G,D |- e_2 : bit<w>, \_
+\Pi,G,D |- e_1 : @bit<w>, \_
+\Pi,G,D |- e_2 : @bit<w>, \_
 ------------------------------------------------[Masks]
-\Pi,G,D |- e_1 \texttt{\&\&\&} e_2 : set<bit<w>>,none
+\Pi,G,D |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
 ~
 
 ~ Infer
 \Pi,G,D |- e_1 : \tau, \_
 \Pi,G,D |- e_2 : \tau, \_
-\tau = bit<w> \lor \tau = int<w>
+\tau = @bit<w> \lor \tau = @int<w>
 -------------------------[Ranges]
-\Pi,G,D |- e_1 .. e_2 : set<\tau>, none
+\Pi,G,D |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
+
+## Statement typing
+
+TODO
+
+## Declaration typing
+
+TODO
+
+## Typing of complete programs
+
+TODO
 
 # Dynamic Semantics { #sec-dynamic }
 

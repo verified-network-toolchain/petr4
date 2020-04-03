@@ -17,6 +17,7 @@ Package: xspace
   replace: "/-\>/\to{}/g";
   replace: "/\bG\b/\Gamma{}/g";
   replace: "/\bD\b/\Delta{}/g";
+  replace: "/\bS\b/\Sigma{}/g";
   replace: "/\bt([^a-z])/\tau{}\1/g";
   replace: "/</\langle{}/g";
   replace: "/>/\rangle{}/g";
@@ -177,7 +178,7 @@ p4mathgrammar {
 
 ~ Begin Abstract
 The goal of the Petr4 project is to define a formal semantics for the
-P4 Programming Language.
+P4 Pramming Language.
 ~ End Abstract
 
 [TOC]
@@ -327,11 +328,11 @@ prop ::= @key = \{ \overline{e : x} \}
 action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
-## Programs
-A program is a sequence of declarations.
+## Prams
+A Pram is a sequence of declarations.
 ~ Begin P4MathGrammar
-prog ::= d prog
-       | ()
+P ::= P, d
+    | ()
 ~ End P4MathGrammar
 
 ## Types
@@ -454,22 +455,44 @@ Parser state
 
 ## Typing contexts
 
+All typing judgments include
+
+1. $P$, the program seen so far,
+2. $\Sigma$, the values of any compile-time-known constants,
+3. $\Delta$, the definitions of type names in scope, and
+4. $\Gamma$, the types of variables in scope.
+
+Type variables are tracked by mapping type names $X$ to themselves in
+the context $\Delta$. Equivalently there could be another context that
+was a list of lists of type variables, without them being mapped to
+anything. While $P$ is a list of declarations, it may also be treated
+as a mapping from type names to declarations for those declarations
+which have names.
+
 ~ MathPre
-\Pi : \mathsf{Var} -> \mathsf{Type}
-G : \mathsf{Var} -> \mathsf{Type}
-D : X -> t
+\sigma ::= \sigma, x=v | []
+
+S ::= S, \sigma{} | []
+
+\delta ::= \delta, X=t | []
+
+D ::= D, \delta{} | []
+
+\gamma ::= \gamma, x:t,d | []
+
+G ::= G, \gamma{} | []
 ~
 
-## Typing judgments
+In all contexts there is a lookup test $C(x) = y$ which searches from
+the outermost list of bindings inward and a top level lookup $C(.x) =
+y$ which only looks at the innermost list of bindings.
 
-<!--
-need to add direction
--->
+## Typing judgments
 
 ### Helper Rules
 
 ~ MathPre
-numeric(t) = \begin{cases} true & t = int
+@numeric(t) = \begin{cases} true & t = int
 true & t = int<w>
 true & t = bit<w>
 false & \text{otherwise}
@@ -482,37 +505,37 @@ false & \text{otherwise}
 ~ Infer
 
 ------------------------[Bool-True]
- \Pi,G,D |- @true : @bool, @none
+ P,S,D,G |- @true : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- \Pi,G,D |- @false : @bool, @none
+ P,S,D,G |- @false : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[String]
- \Pi,G,D |- u : @string, @none
+ P,S,D,G |- u : @string, @none
 ~
 
 ~ Infer
 
 ------------------------[Int-Constant]
-\Pi,G,D |- a : @int, @none
+P,S,D,G |- a : @int, @none
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-\Pi,G,D |- nsa : @int<w>, @none
+P,S,D,G |- nsa : @int<w>, @none
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-\Pi,G,D |- nwa : @bit<a>, @none
+P,S,D,G |- nwa : @bit<a>, @none
 ~
 
 #### Variables
@@ -520,64 +543,64 @@ false & \text{otherwise}
 ~ Infer
 G(x) = t, d
 -------------------[Var]
-\Pi,G,D |- x : t, d
+P,S,D,G |- x : t, d
 ~
 
 ~ Infer
-\Pi(x) = t, d
+G(.x) = t, d
 ----------------------[Var-Top]
-\Pi,G,D |- .x : t, d
+P,S,D,G |- .x : t, d
 ~
 
 #### Accesses
 
 ~ Infer
-\Pi,G,D |- e_1 : t_1[], d_1
-\Pi,G,D |- e_2  : t_2, \_
+P,S,D,G |- e_1 : t_1[], d_1
+P,S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
 ----------------------[Array-Access]
-\Pi,G,D |- e_1[e_2] : t_1, d_1
+P,S,D,G |- e_1[e_2] : t_1, d_1
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : @bit<w>, d_1
-\Pi,G,D |- e_2  : t_2, \_
+P,S,D,G |- e_1 : @bit<w>, d_1
+P,S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
-\Pi,G,D |- e_3  : t_3, \_
+P,S,D,G |- e_3  : t_3, \_
 @numeric(t_3)
 0 \leq e_2
 e_2 \lt w
 e_2 \leq e_3
 e_3 \lt w
 ------------------------[Slice]
-\Pi,G,D |- e1[e2:e3] : t_1, d_1
+P,S,D,G |- e1[e2:e3] : t_1, d_1
 ~
 
 ~ Infer
-\Pi,G,D |- \overline{e: \tau, none}
+P,S,D,G |- \overline{e: \tau, none}
 -----------------------------------------------[List-Expression]
-\Pi,G,D |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+P,S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
 #### Unary Operations
 
 ~ Infer
-\Pi,G,D |- e : @bool, d
+P,S,D,G |- e : @bool, d
 -------------------[Not]
-\Pi,G,D |- !e : @bool, d
+P,S,D,G |- !e : @bool, d
 ~
 
 ~ Infer
-\Pi,G,D |- e : @bit<w>, d
+P,S,D,G |- e : @bit<w>, d
 -----------------------------[Bitwise-Not]
-\Pi,G,D |- {\texttt{\textasciitilde}e} : @bit<w>, d
+P,S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
 ~
 
 ~ Infer
-\Pi,G,D |- e : t, d
+P,S,D,G |- e : t, d
 @numeric(t)
 --------------------[Negate]
-\Pi,G,D |- {-e} : t, d
+P,S,D,G |- {-e} : t, d
 ~
 
 #### Binary Operations
@@ -588,27 +611,27 @@ e_3 \lt w
 ```
 
 ~ Infer
-\Pi,G,D |- e_1 : @bool, d_1
-\Pi,G,D |- e_2 : @bool, d_2
+P,S,D,G |- e_1 : @bool, d_1
+P,S,D,G |- e_2 : @bool, d_2
 \diamond \in \{ \&\&, || \}
 ------------------------------------------------------------------[Bool-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : @int, d_1
-\Pi,G,D |- e_2 : @int, d_2
+P,S,D,G |- e_1 : @int, d_1
+P,S,D,G |- e_2 : @int, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
 --------------------------------------------------------[Int-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : @int<w>, d_1
-\Pi,G,D |- e_2 : @int<w>, d_2
+P,S,D,G |- e_1 : @int<w>, d_1
+P,S,D,G |- e_2 : @int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -616,11 +639,11 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : @bit<w>, d_1
-\Pi,G,D |- e_2 : @bit<w>, d_2
+P,S,D,G |- e_1 : @bit<w>, d_1
+P,S,D,G |- e_2 : @bit<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -628,29 +651,29 @@ need to define has_equality
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : t, d_1
-\Pi,G,D |- e_2 : t, d_2
+P,S,D,G |- e_1 : t, d_1
+P,S,D,G |- e_2 : t, d_2
 \mathkw{has\_equality}(t)
 \diamond \in \{ ==,!= \}
 ----------------------------------------------------------[Equality-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : @bit<l>, d_1
-\Pi,G,D |- e_2 : @bit<r>, d_2
+P,S,D,G |- e_1 : @bit<l>, d_1
+P,S,D,G |- e_2 : @bit<r>, d_2
 ---------------------------------[Bit-Concat-Op]
-\Pi,G,D |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : t_1, d_1
-\Pi,G,D |- e_2 : t_2, d_2
+P,S,D,G |- e_1 : t_1, d_1
+P,S,D,G |- e_2 : t_2, d_2
 @numeric(t_1)
 t_2 = @bit<\_> \lor t_2 = @int
 \diamond \in \{\ll, \gg\}
 ---------------------------------[Shift-Op]
-\Pi,G,D |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
 ~
 
 #### Casts
@@ -709,33 +732,33 @@ t \mathrel{\prec} @enum t \{m_1, ..., m_n\}
 ~
 
 ~ Infer
-\Pi,G,D |- e : t_0, d
+P,S,D,G |- e : t_0, d
 t_0 \prec t
 ------------------------[Cast]
-\Pi,G,D |- (t) e : t, d
+P,S,D,G |- (t) e : t, d
 ~
 
 #### Member expressions
 ~ Infer
-\Delta(X) = @enum t \{m_1, \dots, m_n\}
+D(X) = @enum t \{m_1, \dots, m_n\}
 m_i = name
 ---------------------------------------[Type-Member]
-\Pi, G, D |- X.name : t, @none
+P,S,D,G |- X.name : t, @none
 ~
 
 ~ Infer
-@error.name \in dom(G)
+G(@error.name) = @error
 -------------------------------------[Error-Member]
-\Pi,G,D |- @error.name : error, @none
+P,S,D,G |- @error.name : error, @none
 ~
 
 Field and method lookups on expressions are delegated to another
 judgment $\mathkw{has\_field}\ t\ name\ t_{name}$.
 ~ Infer
-\Pi,G,D, |- e : t
+P,S,D,G, |- e : t
 \mathkw{has\_field} t name t_{name}
 ------------------------------------[Expression-Member]
-\Pi,G,D |- e.name : t_{name}
+P,S,D,G |- e.name : t_{name}
 ~
 
 ~ Infer
@@ -845,25 +868,25 @@ TODO
 #### Ternary Expression
 
 ~ Infer
-\Pi,G,D |- e_1 : @bool, \_
-\Pi,G,D |- e_2 : t, \_
-\Pi,G,D |- e_3 : t, \_
+P,S,D,G |- e_1 : @bool, \_
+P,S,D,G |- e_2 : t, \_
+P,S,D,G |- e_3 : t, \_
 --------------------------------[Ternary-Op]
-\Pi,G,D |- e_1 ? e_2 : e_3 : t, @none
+P,S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
 #### Function Calls
 
 ~ Infer
-\Pi, G, D |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
-\Pi,\Gamma,\Delta[\overline{X \to \rho}] \vdash \overline{e : t}
+P,S,D,G |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e : t}
 ----------------------------------------------------------------------------[Function-Call-Nameless]
-\Pi,G,D |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
+P,S,D,G |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
 ~
 
 ~ Infer
-\Pi,G,D |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
-\forall j, \, \Pi,\Gamma,\Delta[...,X_i \to \tau_i,...] \vdash e_j : tau_j
+P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, P,S,D[\overline{X \to \rho}],G \vdash e_j:t_j
 ----------------------------------------------------------------------------[Function-Call-Named]
 \Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
 ~
@@ -880,10 +903,10 @@ this rule is incomplete
 -->
 
 ~ Infer
-C \in dom(\Pi)
-\forall i, \Pi,G,D |- e_i : \tau_i
+C \in P
+\forall i, P,S,D,G |- e_i : \tau_i
 --------------------------------------------------------------------[Specialized-Type-Instantiation]
-\Pi,G,D |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),@none
+P,S,D,G |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),@none
 ~
 
 #### Set Operations
@@ -894,18 +917,18 @@ and diverges from the type checker's implementation
 -->
 
 ~ Infer
-\Pi,G,D |- e_1 : @bit<w>, \_
-\Pi,G,D |- e_2 : @bit<w>, \_
+P,S,D,G |- e_1 : @bit<w>, \_
+P,S,D,G |- e_2 : @bit<w>, \_
 ------------------------------------------------[Masks]
-\Pi,G,D |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
+P,S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
 ~
 
 ~ Infer
-\Pi,G,D |- e_1 : \tau, \_
-\Pi,G,D |- e_2 : \tau, \_
+P,S,D,G |- e_1 : \tau, \_
+P,S,D,G |- e_2 : \tau, \_
 \tau = @bit<w> \lor \tau = @int<w>
 -------------------------[Ranges]
-\Pi,G,D |- e_1\mathbin{..}e_2 : @set<\tau>, @none
+P,S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
 
 ## Statement typing
@@ -916,7 +939,7 @@ TODO
 
 TODO
 
-## Typing of complete programs
+## Typing of complete Prams
 
 TODO
 

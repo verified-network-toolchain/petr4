@@ -178,7 +178,7 @@ p4mathgrammar {
 
 ~ Begin Abstract
 The goal of the Petr4 project is to define a formal semantics for the
-P4 Pramming Language.
+P4 Programming Language.
 ~ End Abstract
 
 [TOC]
@@ -328,8 +328,8 @@ prop ::= @key = \{ \overline{e : x} \}
 action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
-## Prams
-A Pram is a sequence of declarations.
+## Programs
+A program is a sequence of declarations.
 ~ Begin P4MathGrammar
 P ::= P, d
     | ()
@@ -939,7 +939,7 @@ TODO
 
 TODO
 
-## Typing of complete Prams
+## Typing of complete programs
 
 TODO
 

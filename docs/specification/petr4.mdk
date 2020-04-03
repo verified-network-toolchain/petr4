@@ -14,10 +14,11 @@ Package: xspace
 
 .mathpre {
   replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/( +)-\|( +)/\1\dashv{}\2/g";
   replace: "/-\>/\to{}/g";
-  replace: "/\bG\b/\Gamma{}/g";
-  replace: "/\bD\b/\Delta{}/g";
-  replace: "/\bS\b/\Sigma{}/g";
+  replace: "/\bG([^a-zA-Z])/\Gamma{}\1/g";
+  replace: "/\bD([^a-zA-Z])/\Delta{}\1/g";
+  replace: "/\bS([^a-zA-Z])/\Sigma{}\1/g";
   replace: "/\bt([^a-z])/\tau{}\1/g";
   replace: "/</\langle{}/g";
   replace: "/>/\rangle{}/g";
@@ -256,7 +257,7 @@ C ::= PackageType
 ~ Begin P4MathGrammar
 s ::= e<\overline{t}>(\overline{e})   // method calls (positional)
     | e<\overline{t}>(\overline{x=e}) // method calls (named)
-    | x := e                          // assignment
+    | e := e                          // assignment
     | \tau(e_1,...,e_n)               // direct type invocation
     | @if (e) s_1 @else s_2           // conditional statement
     | blk                             // block statement
@@ -331,7 +332,7 @@ action\_ref ::= x(\overline{e})
 ## Programs
 A program is a sequence of declarations.
 ~ Begin P4MathGrammar
-P ::= P, d
+P ::= d, P
     | ()
 ~ End P4MathGrammar
 
@@ -933,15 +934,278 @@ P,S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 
 ## Statement typing
 
+Statements are typed by a judgment of the form
+~ MathPre
+P,S,D,G |- s -| G'.
+~
+
+The judgment is defined inductively by the following rules.
+
+~ Infer
+P,S,D,G |- e:@function<X_1,\dots,X_n>(x_1:t_1,\dots,x_m:t_m) : t_{\mathsf{ret}}
+P,S,D[X_i=t_i]_{i=1}^n,G |- e_j:t_j \text{for $1\leq{}j\leq{}m$}
+--------------------------------------------------------------[Type-Stmt-Method-Call]
+P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m) -| G
+~
+
+TODO: LValues
+~ Infer
+\mathkw{lvalue}(e_l)
+P,S,D,G |- e_l: t
+P,S,D,G |- e_r: t
+---------------------------------------------------[Type-Stmt-Assignment]
+P,S,D,G |- e_l := e_r -| G
+~
+
+~ Infer
 TODO
+---------------------------------------------------[Type-Stmt-Direct-Application]
+TODO
+~
+
+~ Infer
+P,S,D,G |- e:@bool
+P,S,D,G |- s_1 -| G_1
+P,S,D,G |- s_2 -| G_2
+---------------------------------------------------[Type-Stmt-Conditional]
+P,S,D,G |- @if (e) s_1 @else s_2 -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Block-Empty]
+P,S,D,G |- \{\} -| G
+~
+
+~ Infer
+P,S,D,G |- s_0 -| G'
+P,S,D,G' |- \{\overline{s}\} -| G''
+---------------------------------------------------[Type-Stmt-Block-Step]
+P,S,D,G |- \{s_0; \overline{s}\} -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Exit]
+P,S,D,G |- @exit -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Empty]
+P,S,D,G |- \mathkw{;} -| G
+~
+
+Note: the type r in the context doesn't exist in the implementation right
+now or in any other rules. It should exist in the implementation and
+it should be set when checking the bodies of actions, functions, and
+controls. It might be possible to use it to deal with questions like
+"are we in a parser right now?"
+~ Infer
+P,S,D,G |- e:r
+---------------------------------------------------[Type-Stmt-Return-Value]
+P,S,D,G,r |- @return e -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Return-Void]
+P,S,D,G,@void |- @return -| G
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Stmt-Switch]
+TODO
+~
+
+XXX this doesn't need to exist, see
+https://github.com/cornell-netlab/petr4/issues/5
+~ Infer
+TODO
+---------------------------------------------------[Type-Stmt-Declaration-Statement]
+TODO
+~
 
 ## Declaration typing
 
-TODO
+Declarations are typed by a judgment of the form
+~ MathPre
+P,S,D,G |- d -| P',S',D',G'.
+~
 
-## Typing of complete programs
+The judgment is defined inductively by the following rules.
 
+~ Infer
+P,S,D,G |- e:t
+S, e \Downarrow v
+P' = P, @const x := e
+--------------------------------------------[Type-Decl-Const]
+P,S,D,G |- @const x := e -| P',S[x = v],D,G
+~
+
+~ Infer
 TODO
+-----------------------------------[Type-Decl-Instantiation]
+TODO
+~
+
+~ Infer
+TODO
+-----------------------------------[Type-Decl-Parser]
+TODO
+~
+
+~ Infer
+TODO
+-----------------------------------[Type-Decl-Control]
+TODO
+~
+
+~ Infer
+TODO
+-----------------------------------[Type-Decl-Function]
+TODO
+~
+
+~ Infer
+TODO
+-----------------------------------[Type-Decl-Extern-Function]
+TODO
+~
+
+~ Infer
+P' = P, t x := e
+---------------------------------------------------[Type-Decl-Variable]
+P,S,D,G |- t x -| P',S,D,G[x:t]
+~
+
+~ Infer
+P,S,D,G |- e:t
+P' = P, t x := e
+---------------------------------------------------[Type-Decl-Variable-Initialized]
+P,S,D,G |- t x := e -| P',S,D,G[x:t]
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Value-Set]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Action]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Table]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Header]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Header-Union]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Struct]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Error]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Match-Kind]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Enum]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Serializable-Enum]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Extern-Object]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-TypeDef]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-NewType]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Control-Type]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Parser-Type]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Package-Type]
+TODO
+~
+
+## Typing of programs
+Partial programs are checked by a judgment of the form
+~ MathPre
+P,S,D,G |- P0 -| P',S',D',G'.
+~
+Complete programs are checked by giving empty contexts on the left.
+
+The judgment only needs two rules.
+
+~ Infer
+
+--------------------------[]
+P,S,D,G |- [] -| P,S,D,G
+~
+
+~ Infer
+P,S,D,G |- d -| P',S',D',G'
+P',S',D',G' |- P0 -| P'',S'',D'',G''
+------------------------------------[]
+P,S,D,G |- d, P0 -| P'',S'',D'',G''
+~
+
+
 
 # Dynamic Semantics { #sec-dynamic }
 

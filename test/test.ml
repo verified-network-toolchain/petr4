@@ -30,32 +30,55 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   | `Ok prog ->
     let prog = Elaborate.elab prog in
     Checker.check_program prog |> ignore; true
-  | `Error (info, Lexer.Error s) ->
-    (*Format.eprintf "%s: %s@\n%!" (Info.to_string info) s;*) false
-  | `Error (info, Parser.Error) ->
-    (*Format.eprintf "%s: syntax error@\n%!" (Info.to_string info);*) false
-  | `Error (info, err) ->
-    (*Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err);*) false
+  | `Error (info, Lexer.Error s) -> false
+  | `Error (info, Parser.Error) -> false
+  | `Error (info, err) -> false
 
 let _ = 
   Sys.chdir Filename.parent_dir_name;
   Sys.chdir Filename.parent_dir_name;
-  Sys.chdir Filename.parent_dir_name; 
-  Sys.chdir "test"
+  Sys.chdir Filename.parent_dir_name
 
-let path file = Filename.concat "examples" file
+let get_files path =
+  Core__.Core_sys.ls_dir path
+  |> Base__.List.filter ~f:(fun name -> 
+      Core_kernel.Filename.check_suffix name ".p4")
 
-let file_lst = Core__.Core_sys.ls_dir "examples"
+let good_files = Filename.concat "examples" 
+    (Filename.concat "checker_tests" "good") |> get_files
+let bad_files = Filename.concat "examples" 
+    (Filename.concat "checker_tests" "bad") |> get_files
+let failing_files = Filename.concat "examples" 
+    (Filename.concat "checker_tests" 
+       (Filename.concat "good" "failing"))|> get_files
 
-let test f file () =
-  Alcotest.(check bool) "returns true" true (f ["examples"] (path file))
+let good_test f file () =
+  Alcotest.(check bool) "good test" true 
+    (f ["examples"] (Filename.concat "examples" 
+                       (Filename.concat "checker_tests" 
+                          (Filename.concat "good" file))))
+
+let bad_test f file () =
+  Alcotest.(check bool) "bad test" false 
+    (f ["examples"] (Filename.concat "examples" 
+                       (Filename.concat "checker_tests" 
+                          (Filename.concat "bad" file))))
+
+let failing_test f file () =
+  Alcotest.(check bool) "bad test" true
+    (f ["examples"] (Filename.concat "examples" 
+                       (Filename.concat "checker_tests"
+                          (Filename.concat "good" 
+                             (Filename.concat "failing" file)))))
 
 let () =
   let open Alcotest in
   run "Tests" [
-    "parser tests", 
+    "parser tests good", 
     (Stdlib.List.map (fun name -> 
-         test_case name `Quick (test parser_test name)) file_lst );
-    "typecheck tests", (Stdlib.List.map (fun name -> 
-        test_case name `Quick (test typecheck_test name)) file_lst );
+         test_case name `Quick (good_test parser_test name)) good_files );
+    "typecheck tests failing", (Stdlib.List.map (fun name -> 
+        test_case name `Quick (failing_test typecheck_test name)) failing_files );
+    "typecheck tests bad", (Stdlib.List.map (fun name -> 
+        test_case name `Quick (bad_test typecheck_test name)) bad_files );
   ] 

@@ -1246,4 +1246,120 @@ P,S,D,G |- d, P0 -| P'',S'',D'',G''
 
 ## Expressions
 
-$\langle e, ctrl, env, st \Downarrow_e env', st', v \rangle$
+$\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle$
+
+### Constants
+
+~ Infer
+
+-------------------------------------------------------------------------------[Bool-True]
+\langle ctrl, env, st, true \rangle \Downarrow_e \langle env, st, true \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Bool-False]
+\langle ctrl, env, st, false \rangle \Downarrow_e \langle env, st, false \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Int-Constant]
+\langle ctrl, env, st, a \rangle \Downarrow_e \langle env, st, a \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Unsigned-Int-Constant]
+\langle ctrl, env, st, nwa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Signed-Int-Constant]
+\langle ctrl, env, st, nsa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[String]
+\langle ctrl, env, st, u \rangle \Downarrow_e \langle env, st, u \rangle
+~
+
+### Variables
+
+~ Infer
+if x = "verify" then r = x else r = env(x)
+-------------------------------------------------------------------------------[Var]
+\langle ctrl, env, st, x \rangle \Downarrow_e \langle env, st, r \rangle
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------------------[Var-Top]
+\langle ctrl, env, st, .x \rangle \Downarrow_e \langle env, st,  \rangle
+~
+
+### Accesses
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+i = n1 % v2
+v1 = (...,vi,...,n1,n2)
+-------------------------------------------------------------------------------[Array-Access]
+\langle ctrl, env, st, e1[e2] \rangle \Downarrow_e \langle env'', st'', vi \rangle
+~
+
+<!-- not sure if this is valid -->
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\langle ctrl, env'', st'', e3 \Downarrow_e env''', st''', v3 \rangle
+w = v2 - v3 + 1
+n = v1 \% 2^{v2+1}
+if v3 \leq 0 then r = (w, n^w) else r = v1/2[v2-1:v3-1]
+-------------------------------------------------------------------------------[Bitslice]
+\langle ctrl, env, st, e1[e2:e3] \rangle \Downarrow_e \langle env''', st''', r \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+...
+\langle ctrl, env^{n-1}, st^{n-1}, en \Downarrow_e env^n, st^n, vn \rangle
+-------------------------------------------------------------------------------[List-Expression]
+\langle ctrl, env, st, {e1,...,en} \rangle \Downarrow_e \langle env^n, st^n, (v1,...,vn) \rangle
+~
+
+### Unary Operations
+
+<!--
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Not]
+\langle ctrl, env, st, !e \rangle \Downarrow_e \langle env', st', !v1 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Bitwise-Not]
+\langle ctrl, env, st, ~e \rangle \Downarrow_e \langle env', st', ~v1 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Negate]
+\langle ctrl, env, st, -e \rangle \Downarrow_e \langle env', st', -v1 \rangle
+~
+
+-->
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\diamond \in \{ !, ~, - \}
+-------------------------------------------------------------------------------[Unary-Op]
+\langle ctrl, env, st, \diamond e \rangle \Downarrow_e \langle env', st', \diamond v1 \rangle
+~
+
+### Binary Operations

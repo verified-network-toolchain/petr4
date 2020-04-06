@@ -2275,13 +2275,7 @@ and type_control env info name annotations type_params params constructor_params
                 locals = locals_typed;
                 apply = apply_typed }
     in
-    let control_typ : Typed.ControlType.t =
-      { type_params = [];
-        parameters = prog_params_to_typed_params params_typed }
-    in
-    let env = CheckerEnv.insert_type (snd name) (Control control_typ) env in
     (info, control), env
-
 
 (* Section 9
 

@@ -299,8 +299,8 @@ d ::= @const t x := e
     | @enum X \{ \overline{x} \}
     | @enum t X \{ \overline{x} \}
     | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
-    | @typedef t x
-    | @type t x
+    | @typedef t X
+    | @type t X
     | @control X<\overline{X}>(\overline{x: t})
     | @parser X<\overline{X}>(\overline{x: t})
     | @package X<\overline{X}>(\overline{x: t})
@@ -361,9 +361,9 @@ t ::= @bool
     | @enum X {m_1, ..., m_n}
     | @enum \tau X {m_1, ..., m_n}
     | \tau<\tau_1, ..., \tau_n) // specialized type
-    | @package(x_1: t_1, ..., x_n: t_n)
-    | @control <\tau_1,...,\tau_n> (...)
-    | @parser <\tau_1,...,\tau_n> (...)
+    | @package<\overline{X}>(\overline{x:t,d})
+    | @control<\overline{X}>(\overline{x:t,d})
+    | @parser<\overline{X}>(\overline{x:t})
     | @extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
     | @function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
     | @action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
@@ -1084,40 +1084,45 @@ TODO
 ~
 
 ~ Infer
-TODO
------------------------------------[Type-Decl-Control]
-TODO
+P,S,D,G[\overline{x: t}][\overline{x^{ctor}: t}] |- \overline{d} -| P',S',D',G'
+P',S',D',G',@void |- blk -| G''
+P' = P, @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \}
+--------------------------------------------------------------------------------------------------------[Type-Decl-Control]
+P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \} -| P',S,D,G
 ~
 
 ~ Infer
-TODO
------------------------------------[Type-Decl-Function]
-TODO
+P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+P' = P, @function t x<\overline{X}>(\overline{x: t}) blk
+-------------------------------------------------------------------------------[Type-Decl-Function]
+P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
 ~
 
 ~ Infer
-TODO
------------------------------------[Type-Decl-Extern-Function]
-TODO
+G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+P' = P, \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
+-----------------------------------------------------------------------------[Type-Decl-Extern-Function]
+P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
 ~
 
 ~ Infer
 P' = P, t x := e
----------------------------------------------------[Type-Decl-Variable]
+--------------------------------[Type-Decl-Variable]
 P,S,D,G |- t x -| P',S,D,G[x:t]
 ~
 
 ~ Infer
 P,S,D,G |- e:t
 P' = P, t x := e
----------------------------------------------------[Type-Decl-Variable-Initialized]
+-------------------------------------[Type-Decl-Variable-Initialized]
 P,S,D,G |- t x := e -| P',S,D,G[x:t]
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Value-Set]
-TODO
+P' = P, \mathkw{value\_set}<t>(e) x 
+-------------------------------------------------------[Type-Decl-Value-Set]
+P,S,D,G |- \mathkw{value\_set}<t>(e) x -| P',S,D,G[x:@set t]
 ~
 
 ~ Infer
@@ -1181,33 +1186,36 @@ TODO
 ~
 
 ~ Infer
-TODO
+P'=P,@typedef t X
 ---------------------------------------------------[Type-Decl-TypeDef]
-TODO
+P,S,D,G |- @typedef t X -| P',S,D[X=t],G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-NewType]
-TODO
+P'=P,@newtype t X
+---------------------------------------------------[Type-Decl-TypeDef]
+P,S,D,G |- @newtype t X -| P',S,D[X=@newtype X t],G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Control-Type]
-TODO
+D'=D[X=@control<\overline{X}>(\overline{x:t,d})
+P'=P,@control X<\overline{X}>(\overline{x:t,d})
+--------------------------------------------------------------------[Type-Decl-Control-Type]
+P,S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
 ~
 
 ~ Infer
-TODO
+D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
+P'=P,@parser X<\overline{X}>(\overline{x:t,d})
 ---------------------------------------------------[Type-Decl-Parser-Type]
-TODO
+P,S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Package-Type]
-TODO
+D'=D[X=@package<\overline{X}>(\overline{x:t})
+P'=P,@package X<\overline{X}>(\overline{x:t})
+-----------------------------------------------------------------[Type-Decl-Package-Type]
+P,S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| P',S,D',G
 ~
 
 ## Typing of programs

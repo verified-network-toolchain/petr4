@@ -1999,16 +1999,17 @@ and type_switch env expr cases =
   let expr_typed = type_expression env expr in
   let action_name_typ = reduce_type env (snd expr_typed).typ in
   let label_checker label =
-    match label with
+    match snd label with
     | Default ->
-       Prog.Statement.Default
+       fst label, Prog.Statement.Default
     | Name (name_info, name) ->
-       CheckerEnv.find_type_of name env |> ignore;
-       Prog.Statement.Name (name_info, name)
+       let lbl_typ = CheckerEnv.find_type_of name env |> fst in
+       assert_type_equality env (fst label) action_name_typ lbl_typ;
+       fst label, Prog.Statement.Name (name_info, name)
   in
   let case_checker (case_info, case) =
     match case with
-    | Action { label = (label_info, label); code = block } ->
+    | Action { label; code = block } ->
        let block_expr_typed, env = type_block_statement env block in
        let label_typed = label_checker label in
        let block_typed =
@@ -2018,12 +2019,12 @@ and type_switch env expr cases =
        in
        case_info,
        Prog.Statement.Action
-         { label = (label_info, label_typed);
+         { label = label_typed;
            code = block_typed }
-    | FallThrough { label = (label_info, label)} ->
+    | FallThrough { label } ->
        let label_typed = label_checker label in
        case_info,
-       Prog.Statement.FallThrough { label = (label_info, label_typed) }
+       Prog.Statement.FallThrough { label = label_typed }
   in
   match action_name_typ with
   | Enum _ -> 

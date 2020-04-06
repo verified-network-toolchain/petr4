@@ -255,18 +255,18 @@ C ::= PackageType
 
 ## Statements and blocks
 ~ Begin P4MathGrammar
-s ::= e<\overline{t}>(\overline{e})   // method calls (positional)
-    | e<\overline{t}>(\overline{x=e}) // method calls (named)
-    | e := e                          // assignment
-    | t.@apply(e_1,...,e_n)           // direct type invocation
-    | @if (e) s_1 @else s_2           // conditional statement
-    | blk                             // block statement
-    | @exit                           // exit statement (only in controls)
-    | \mathkw{;}                      // empty statement
-    | @return                         // return (void)
-    | @return e                       // return (with value)
-    | @switch (e) \overline{case}     // switch statement
-    | d                               // declaration statement
+s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
+    | e<\overline{t}>(\overline{x=e})   // method calls (named)
+    | e := e                            // assignment
+    | t.@apply(e_1,...,e_n)             // direct type invocation
+    | @if (e) s_1 @else s_2             // conditional statement
+    | blk                               // block statement
+    | @exit                             // exit statement (only in controls)
+    | \mathkw{;}                        // empty statement
+    | @return                           // return (void)
+    | @return e                         // return (with value)
+    | @switch (e) \{ \overline{case} \} // switch statement
+    | d                                 // declaration statement
 
 case ::= case\_lbl: blk  // label with block
        | case\_lbl: {}   // fallthrough 
@@ -957,7 +957,7 @@ The judgment is defined inductively by the following rules.
 ~ Infer
 P,S,D,G |- e:@function<X_1,\dots,X_n>(x_1:t_1,\dots,x_m:t_m) : t_{\mathsf{ret}}
 P,S,D[X_i=t_i]_{i=1}^n,G |- e_j:t_j \text{for $1\leq{}j\leq{}m$}
---------------------------------------------------------------[Type-Stmt-Method-Call]
+--------------------------------------------------------------------------------[Type-Stmt-Method-Call]
 P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m) -| G
 ~
 
@@ -966,14 +966,14 @@ TODO: LValues
 \mathkw{lvalue}(e_l)
 P,S,D,G |- e_l: t
 P,S,D,G |- e_r: t
----------------------------------------------------[Type-Stmt-Assignment]
+----------------------------[Type-Stmt-Assignment]
 P,S,D,G |- e_l := e_r -| G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Stmt-Direct-Application]
-TODO
+P,S,D,G |- t().@apply(\overline{e}) : t'
+----------------------------------------------[Type-Stmt-Direct-Application]
+P,S,D,G |- t.@apply(\overline{e}) -| G
 ~
 
 ~ Infer
@@ -1027,17 +1027,31 @@ P,S,D,G,@void |- @return -| G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Stmt-Switch]
-TODO
+P,S,D,G |- case\_lbl : \tau
+P,S,D,G |- blk -| G'
+---------------------------------------------------[Type-Case-Block]
+P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
 ~
 
-XXX this doesn't need to exist, see
+~ Infer
+P,S,D,G |- case\_lbl : \tau
+---------------------------------------------------[Type-Case-Fallthrough]
+P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
+~
+
+~ Infer
+P,S,D,G |- e : @enum X \{ \overline{m} \}
+\forall i. P,S,D,G |- \mathkw{case\_ok}_X case_i
+--------------------------------------------------------------------------[Type-Stmt-Switch]
+P,S,D,G |- @switch (e) \{ case1, \dots, case_n \} -| G
+~
+
+XXX DeclarationStatements don't need to exist, see
 https://github.com/cornell-netlab/petr4/issues/5
 ~ Infer
-TODO
+P,S,D,G |- d -| P',S',D',G'.
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-TODO
+P,S,D,G |- d -| G'
 ~
 
 ## Declaration typing

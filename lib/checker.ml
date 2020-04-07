@@ -2264,7 +2264,7 @@ and type_control env info name annotations type_params params constructor_params
     let apply_typed =
       match block_typed.stmt with
       | BlockStatement { block } -> block
-      | _ -> failwith "expected BlcokStatement"
+      | _ -> failwith "expected BlockStatement"
     in
     let control : Prog.Declaration.pre_t =
       Control { annotations = annotations;

@@ -48,9 +48,6 @@ let good_files = Filename.concat "examples"
     (Filename.concat "checker_tests" "good") |> get_files
 let bad_files = Filename.concat "examples" 
     (Filename.concat "checker_tests" "bad") |> get_files
-let failing_files = Filename.concat "examples" 
-    (Filename.concat "checker_tests" 
-       (Filename.concat "good" "failing"))|> get_files
 
 let good_test f file () =
   Alcotest.(check bool) "good test" true 
@@ -64,21 +61,12 @@ let bad_test f file () =
                        (Filename.concat "checker_tests" 
                           (Filename.concat "bad" file))))
 
-let failing_test f file () =
-  Alcotest.(check bool) "bad test" true
-    (f ["examples"] (Filename.concat "examples" 
-                       (Filename.concat "checker_tests"
-                          (Filename.concat "good" 
-                             (Filename.concat "failing" file)))))
-
 let () =
   let open Alcotest in
   run "Tests" [
     "parser tests good", 
     (Stdlib.List.map (fun name -> 
          test_case name `Quick (good_test parser_test name)) good_files );
-    "typecheck tests failing", (Stdlib.List.map (fun name -> 
-        test_case name `Quick (failing_test typecheck_test name)) failing_files );
     "typecheck tests bad", (Stdlib.List.map (fun name -> 
         test_case name `Quick (bad_test typecheck_test name)) bad_files );
   ] 

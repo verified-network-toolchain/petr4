@@ -6,7 +6,7 @@ open Sexplib.Conv
 exception BadEnvironment of string
 exception UnboundName of string
 
-type 'binding env = (string * 'binding) list list [@@deriving sexp]
+type 'binding env = (string * 'binding) list list [@@deriving sexp,yojson]
 
 let push (env: 'a env) : 'a env = [] :: env
 
@@ -205,28 +205,28 @@ end
 module CheckerEnv = struct
 
   type t =
-    { (* the program (top level declarations) so far *)
-      decl: Types.Declaration.t list;
+    { (* program so far *)
+      decl: Prog.Declaration.t list;
       (* types that type names refer to (or Typevar for vars in scope) *)
       typ: Typed.Type.t env;
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
       (* maps constants to their values *)
-      const: value env; }
-  [@@deriving sexp]
+      const: value env }
+  [@@deriving sexp,yojson]
 
   let empty_t : t =
     { decl = [];
       typ = empty_env;
       typ_of = empty_env;
-      const = empty_env; }
+      const = empty_env }
 
   let all_decls env =
     env.decl
 
   let find_decl_opt name env =
     let ok decl =
-      match Types.Declaration.name_opt decl with
+      match Prog.Declaration.name_opt decl with
       | Some decl_name ->
          name = snd decl_name
       | None -> false
@@ -235,7 +235,7 @@ module CheckerEnv = struct
 
   let find_decl name env =
     let ok decl =
-      name = snd (Types.Declaration.name decl)
+      name = snd (Prog.Declaration.name decl)
     in
     match List.find ~f:ok env.decl with
     | Some v -> v
@@ -271,9 +271,6 @@ module CheckerEnv = struct
   let find_const_opt name env =
     find_opt name env.const
 
-  let insert_decl d env =
-    { env with decl = d :: env.decl }
-
   let insert_type name typ env =
     { env with typ = insert_firstlevel name typ env.typ }
 
@@ -304,6 +301,9 @@ module CheckerEnv = struct
   let insert_const var value env =
     { env with const = insert var value env.const }
 
+  let insert_decl d env =
+    { env with decl = d :: env.decl }
+  
   let push_scope env =
     { decl = env.decl;
       typ = push env.typ;

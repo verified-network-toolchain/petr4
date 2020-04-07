@@ -14,6 +14,7 @@ build: [
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
+  "alcotest"
   "ocaml" {>= "4.09.0"}
   "dune" {build}
   "cstruct"
@@ -25,4 +26,8 @@ depends: [
   "ppx_jane" {>= "0.13.0" }
   "ppx_js_style" {>= "0.13.0" }
   "yojson" {>= "1.7.0"}
+  "js_of_ocaml"
+  "js_of_ocaml-lwt"
+  "js_of_ocaml-ppx"
+  "p4pp"
 ]

@@ -1,9 +1,12 @@
 open Types
 open Sexplib.Conv
 
-type packet_in = Cstruct_sexp.t [@@deriving sexp]
+type buf = Cstruct_sexp.t [@@deriving sexp]
+let buf_to_yojson b = failwith "unimplemented"
+let buf_of_yojson j = failwith "unimplemented"
 
-type packet_out = Cstruct_sexp.t * Cstruct_sexp.t [@@deriving sexp]
+type packet_in = buf [@@deriving sexp,yojson]
+type packet_out = buf * buf [@@deriving sexp,yojson]
 
 type entries = Table.pre_entry list
 
@@ -14,17 +17,17 @@ type ctrl = entries * value_sets
 type value =
   | VNull
   | VBool of bool
-  | VInteger of Bigint.t
+  | VInteger of Util.bigint
   | VBit of 
-      { w : Bigint.t;
-        v : Bigint.t; }
+      { w : Util.bigint;
+        v : Util.bigint; }
   | VInt of 
-      { w : Bigint.t;
-        v : Bigint.t; }
+      { w : Util.bigint;
+        v : Util.bigint; }
   | VVarbit of 
-      { max : Bigint.t;
-        w : Bigint.t;
-        v : Bigint.t; }
+      { max : Util.bigint;
+        w : Util.bigint;
+        v : Util.bigint; }
   | VString of string 
   | VTuple of value list
   | VSet of set
@@ -52,8 +55,8 @@ type value =
   | VStack of 
       { name : string;
         headers : value list;
-        size : Bigint.t;
-        next : Bigint.t; }
+        size : Util.bigint;
+        next : Util.bigint; }
   | VEnumField of 
       { typ_name : string;
         enum_name : string; }
@@ -68,7 +71,7 @@ type value =
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vparser = {
   pvs : (string * value) list;
@@ -76,7 +79,7 @@ and vparser = {
   plocals : Declaration.t list;
   states : Parser.state list;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vcontrol = {
   cvs : (string * value) list;
@@ -84,7 +87,7 @@ and vcontrol = {
   clocals : Declaration.t list;
   apply : Block.t;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vtable = {
   name : string;
@@ -93,7 +96,7 @@ and vtable = {
   default_action : Table.action_ref;
   const_entries : (set * Table.action_ref) list;
 }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and lvalue =
   | LName of string
@@ -108,12 +111,12 @@ and lvalue =
   | LArrayAccess of 
       { expr : lvalue;
         idx : Expression.t; }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and set =
   | SSingleton of 
-      { w : Bigint.t;
-        v : Bigint.t; }
+      { w : Util.bigint;
+        v : Util.bigint; }
   | SUniversal
   | SMask of 
       { v : value;
@@ -124,25 +127,25 @@ and set =
   | SProd of set list
   | SLpm of 
       { w : value;
-        nbits : Bigint.t;
+        nbits : Util.bigint;
         v : value; }
   | SValueSet of 
       { size : value;
         members : Match.t list list;
         sets : set list; }
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and signal =
   | SContinue
   | SReturn of value
   | SExit
   | SReject of string
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 and vruntime =
   | PacketIn of packet_in
   | PacketOut of packet_out
-[@@deriving sexp]
+[@@deriving sexp,yojson]
 
 let assert_bool v =
   match v with 

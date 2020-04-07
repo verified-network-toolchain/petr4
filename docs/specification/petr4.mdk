@@ -7,6 +7,32 @@ Pdf Latex: xelatex
 Document Class: [11pt]article
 Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
+Package: mathpartir
+Package: textcomp
+Package: mathtools
+Package: xspace
+
+.mathpre {
+  replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/( +)-\|( +)/\1\dashv{}\2/g";
+  replace: "/-\>/\to{}/g";
+  replace: "/\bG([^a-zA-Z])/\Gamma{}\1/g";
+  replace: "/\bD([^a-zA-Z])/\Delta{}\1/g";
+  replace: "/\bS([^a-zA-Z])/\Sigma{}\1/g";
+  replace: "/\bt([^a-z])/\tau{}\1/g";
+  replace: "/</\langle{}/g";
+  replace: "/>/\rangle{}/g";
+  replace: "/\b:=\b/\coloneqq{}/g";
+}
+
+Infer {
+  replace:"/(\n|^)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{{}}{\3}{\textsc{\2}}/m";
+  replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{\1}{\3}{\textsc{\2}}/m";
+  replace:"~ Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+           ~ End MathPre";
+}
 
 Tex Header:
   \setlength{\headheight}{30pt}
@@ -135,6 +161,20 @@ p4grammar {
 }
 }
 
+p4mathgrammar {
+  replace:"/\/\/(.*)/\/\/ &\text{\1}/g";
+  replace: "~ Begin P4MathGrammarBlock&nl;\
+                 ~ Begin MathPre&nl;&source;&nl;~ End MathPre&nl;\
+                 ~ End P4MathGrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+
 [TITLE]
 
 ~ Begin Abstract
@@ -146,5 +186,1174 @@ P4 Programming Language.
 
 # Introduction { #sec-introduction }
 # Syntax { #sec-syntax }
+
+## Expressions
+
+~ Begin P4MathGrammar
+e ::= @true
+    | @false
+    | a // arbitrary width integer literal
+    | nwa // unsigned integer literal
+    | nsa // signed integer literal
+    | u // strings
+    | x // name
+    | .x // top level name
+    | e1[e2] // array access
+    | e1[e2:e3] // bitslice
+    | {e1,...,en} // list
+    | uop e
+    | e1 binop e2
+    | (t) e // explicit cast
+    | X.name // type member
+    | @error.name // errors
+    | e.name // expression member
+    | e1 ? e2 : e3 // ternary operator
+    | f<\overline{t}>(\overline{e}) // function call (positional)
+    | f<\overline{t}>(\overline{x=e}) // function call (named)
+    | t(\overline{e}) // nameless instantiation
+    | e1 \texttt{\&\&\&} e2 // mask
+    | e1 .. e2 // range
+~ End P4MathGrammar
+
+~ Begin P4Grammar
+// unary operators
+uop ::= ! // not
+      | - // unary minus
+      | ~ // bitwise complement/not
+
+// binary operators
+binop ::= +
+        | |+|
+        | -
+        | |-|
+        | *
+        | /
+        | %
+        | <<
+        | >>
+        | <
+        | >
+        | <=
+        | >=
+        | ==
+        | !=
+        | &
+        | ^
+        | |
+        | ++
+        | &&
+        | ||
+~ End P4Grammar
+
+## Statements and blocks
+~ Begin P4MathGrammar
+s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
+    | e<\overline{t}>(\overline{x=e})   // method calls (named)
+    | e := e                            // assignment
+    | t.@apply(e_1,...,e_n)             // direct type invocation
+    | @if (e) s_1 @else s_2             // conditional statement
+    | blk                               // block statement
+    | @exit                             // exit statement (only in controls)
+    | \mathkw{;}                        // empty statement
+    | @return                           // return (void)
+    | @return e                         // return (with value)
+    | @switch (e) \{ \overline{case} \} // switch statement
+    | d                                 // declaration statement
+
+case ::= case\_lbl: blk  // label with block
+       | case\_lbl: {}   // fallthrough 
+
+case\_lbl ::= x                // name (of action)
+            | \texttt{default} // catch-all label
+
+blk ::= \{ s_1; ... s_n; \} // blocks
+~ End P4MathGrammar
+
+## Declarations
+~ Begin P4MathGrammar
+d ::= @const t x:=e
+    | t x(\overline{e})
+    | t x(\overline{e}) blk
+    | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} \}
+    | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} @apply blk \}
+    | @function t x<\overline{X}>(\overline{x:t, d}) blk
+    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t}) blk
+    | t x
+    | t x := e
+    | \mathkw{value\_set}<t>(e) x
+    | @action x (\overline{x:t,d_0},\overline{x:t}) blk
+    | @table x \{ \overline{prop} \}
+    | @header X \{ \overline{x:t} \}
+    | \mathkw{header\ union} X \{ \overline{x:t} \}
+    | @struct X \{ \overline{x:t} \}
+    | @error \{ \overline{x} \}
+    | \mathkw{match\_kind} \{ \overline{x} \}
+    | @enum X \{ \overline{x} \}
+    | @enum t X \{ \overline{x=e} \}
+    | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+    | @typedef t X
+    | @type t X
+    | @control X<\overline{X}>(\overline{x:t,d})
+    | @parser X<\overline{X}>(\overline{x:t,d})
+    | @package X<\overline{X}>(\overline{x:t})
+
+state ::= @state x \{ \overline{s}; @transition state\_expr \}
+
+state\_expr ::= x
+              | @select (\overline{e}) \{ \overline{matches:x} \}
+
+matches = \overline{match}
+
+match ::= \mathkw{\_}
+        | e
+
+ctor ::= X(\overline{x:t})
+
+method ::= @abstract t x<\overline{X}>(\overline{x:t,d})
+         | t x<\overline{X}>(\overline{x:t,d})
+
+prop ::= @key = \{ \overline{e:x} \}
+       | @actions = \{ \overline{action\_ref} \}
+       | @const @entries = \{ \overline{matches:action\_ref} \}
+       | x = e
+       | @const x = e
+
+action\_ref ::= x(\overline{e})
+~ End P4MathGrammar
+
+## Programs
+A program is a sequence of declarations.
+~ Begin P4MathGrammar
+P ::= d, P
+    | ()
+~ End P4MathGrammar
+
+## Types
+
+~ Begin P4MathGrammar
+t ::= @bool
+    | @string
+    | @int
+    | @int<w>
+    | @bit<w>
+    | @varbit<w>
+    | t[a]
+    | @tuple<\overline{t}>
+    | \{ \overline{t} \}
+    | @set<t>
+    | @error
+    | @match_kind
+    | X  // type name
+    | .X // top level type reference
+    | @newtype X t
+    | @void
+    | @header \{ \overline{f:t} \}
+    | \mathkw{header\ union} \{ \overline{f:t} \}
+    | @struct \{ \overline{f:t} \}
+    | @enum X \{ \overline{x} \}
+    | @enum t X \{ \overline{x=v} \}
+    | t<\overline{t}> // specialized type
+    | @package<\overline{X}>(\overline{x:t,d})
+    | @control<\overline{X}>(\overline{x:t,d})
+    | @parser<\overline{X}>(\overline{x:t})
+    | @extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+    | @function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+    | @action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+    | @table (...)
+
+d0 ::= @in
+     | @out
+     | @inout
+
+d ::= d0 | @none
+~ End P4MathGrammar
+
+## Values
+
+<!--
+where does this belong in the doc?
+
+TODO:
+- lvalues?
+- lists vs tuples
+-->
+We assume the existence of the sets $name$ and $loc$, for variable names and memory locations respectively.
+
+$a \in \mathbb{Z}$
+
+$n \in \mathbb{N}$
+
+$\mathbb{Z}_n ::= m \% 2^n | m \in \mathbb{Z}$
+
+$u^n \in \mathbb{Z}_n$
+
+$w^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
+
+Values
+~ Begin P4MathGrammar
+v ::= @null // TODO: do we need? stp - probably not
+    | b // booleans
+    | a // arbitrary-width integers
+    | (n, u^n) // unsigned integers, n not zero
+    | (n, w^n) // signed integers, n not zero
+    | (n, n', u^{n'}) // variable-size bitstrings, n less than n'
+    | s // strings
+    | (v1,...,vn) // tuples
+    | S // sets
+    | @error.name // errors
+    | (p1,...,pn) => block // functions, actions TODO: define block
+    | name // builtin functions
+    | @action \dots // stp - should be able to overload the fn case
+    | name \rightharpoonup v // structs
+    | (name \rightharpoonup v, b) // headers
+    | (name \rightharpoonup b, v) // unions
+    | (v1,...,vn, n1, n2) // stacks
+    | name1.name2 // enumfield
+    | (name1.name2, v) // senumfield
+    | loc // stateful runtime
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], [\delta_1;...;\delta_n]) // parsers
+    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], block) // block
+    | name \rightharpoonup v // packages
+    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
+      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // tables, best way to clean up the numbering?
+    | @extern name // externfun
+~ End P4MathGrammar
+
+Sets
+~ Begin P4MathGrammar
+S ::=  \_ // universal
+    | v // singleton
+    | v1 \texttt{\&\&\&} v2 // mask
+    | v1 .. v2 // range
+    | (S1,...,Sn) // product
+    | lpm v // lpm, TODO: separate sets and matchkinds? nbits is runtime value so this is same as singleton
+    | ?? // TODO: value set
+~ End P4MathGrammar
+
+Parameters
+~ Begin P4MathGrammar
+p ::= (d, \tau, v)
+~ End P4MathGrammar
+
+Transitions
+~ Begin P4MathGrammar
+trsn ::= name
+    | ((e1,...,en), S \rightharpoonup name)
+~ End P4MathGrammar
+
+Parser state
+~ Begin P4MathGrammar
+\delta ::= (name, [stmt1;...;stmtn], trsn)
+~ End P4MathGrammar
+
 # Static Semantics { #sec-static }
+
+## Typing contexts
+
+All typing judgments include
+
+1. $P$, the program seen so far,
+2. $\Sigma$, the values of any compile-time-known constants,
+3. $\Delta$, the definitions of type names in scope, and
+4. $\Gamma$, the types of variables in scope.
+
+Type variables are tracked by mapping type names $X$ to themselves in
+the context $\Delta$. Equivalently there could be another context that
+was a list of lists of type variables, without them being mapped to
+anything. While $P$ is a list of declarations, it may also be treated
+as a mapping from type names to declarations for those declarations
+which have names.
+
+~ MathPre
+\sigma ::= \sigma, x=v | []
+
+S ::= S, \sigma{} | []
+
+\delta ::= \delta, X=t | []
+
+D ::= D, \delta{} | []
+
+\gamma ::= \gamma, x:t,d | []
+
+G ::= G, \gamma{} | []
+~
+
+In all contexts there is a lookup test $C(x) = y$ which searches from
+the outermost list of bindings inward and a top level lookup $C(.x) =
+y$ which only looks at the innermost list of bindings.
+
+## Typing judgments
+
+### Helper Rules
+
+~ MathPre
+@numeric(t) = \begin{cases} true & t = int
+true & t = int<w>
+true & t = bit<w>
+false & \text{otherwise}
+\end{cases}
+~
+
+### Expression typing
+#### Constants
+
+~ Infer
+
+------------------------[Bool-True]
+ P,S,D,G |- @true : @bool, @none
+~
+
+~ Infer
+
+------------------------[Bool-False]
+ P,S,D,G |- @false : @bool, @none
+~
+
+~ Infer
+
+------------------------[String]
+ P,S,D,G |- u : @string, @none
+~
+
+~ Infer
+
+------------------------[Int-Constant]
+P,S,D,G |- a : @int, @none
+~
+
+~ Infer
+
+------------------------[Signed-Int-Constant]
+P,S,D,G |- nsa : @int<w>, @none
+~
+
+~ Infer
+
+------------------------[Unsigned-Int-Constant]
+P,S,D,G |- nwa : @bit<a>, @none
+~
+
+#### Variables
+
+~ Infer
+G(x) = t, d
+-------------------[Var]
+P,S,D,G |- x : t, d
+~
+
+~ Infer
+G(.x) = t, d
+----------------------[Var-Top]
+P,S,D,G |- .x : t, d
+~
+
+#### Accesses
+
+~ Infer
+P,S,D,G |- e_1 : t_1[], d_1
+P,S,D,G |- e_2  : t_2, \_
+@numeric(t_2)
+----------------------[Array-Access]
+P,S,D,G |- e_1[e_2] : t_1, d_1
+~
+
+~ Infer
+P,S,D,G |- e_1 : @bit<w>, d_1
+P,S,D,G |- e_2  : t_2, \_
+@numeric(t_2)
+P,S,D,G |- e_3  : t_3, \_
+@numeric(t_3)
+0 \leq e_2
+e_2 \lt w
+e_2 \leq e_3
+e_3 \lt w
+------------------------[Slice]
+P,S,D,G |- e1[e2:e3] : t_1, d_1
+~
+
+~ Infer
+P,S,D,G |- \overline{e: \tau, none}
+-----------------------------------------------[List-Expression]
+P,S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+~
+
+#### Unary Operations
+
+~ Infer
+P,S,D,G |- e : @bool, d
+-------------------[Not]
+P,S,D,G |- !e : @bool, d
+~
+
+~ Infer
+P,S,D,G |- e : @bit<w>, d
+-----------------------------[Bitwise-Not]
+P,S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
+~
+
+~ Infer
+P,S,D,G |- e : t, d
+@numeric(t)
+--------------------[Negate]
+P,S,D,G |- {-e} : t, d
+~
+
+#### Binary Operations
+
+```haskell
+  fun binaryDir In In = In
+    | binaryDir _  _  = none
+```
+
+~ Infer
+P,S,D,G |- e_1 : @bool, d_1
+P,S,D,G |- e_2 : @bool, d_2
+\diamond \in \{ \&\&, || \}
+------------------------------------------------------------------[Bool-Binary-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+~ Infer
+P,S,D,G |- e_1 : @int, d_1
+P,S,D,G |- e_2 : @int, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+--------------------------------------------------------[Int-Binary-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
+~
+
+~ Infer
+P,S,D,G |- e_1 : @int<w>, d_1
+P,S,D,G |- e_2 : @int<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+-----------------------------------------------------------[Int-Signed-Binary-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
+~
+
+<!--
+having trouble with ^ symbol for xor
+-->
+
+~ Infer
+P,S,D,G |- e_1 : @bit<w>, d_1
+P,S,D,G |- e_2 : @bit<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+----------------------------------------------------------[Int-Unsigned-Binary-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
+~
+
+<!--
+need to define has_equality
+-->
+
+~ Infer
+P,S,D,G |- e_1 : t, d_1
+P,S,D,G |- e_2 : t, d_2
+\mathkw{has\_equality}(t)
+\diamond \in \{ ==,!= \}
+----------------------------------------------------------[Equality-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+~ Infer
+P,S,D,G |- e_1 : @bit<l>, d_1
+P,S,D,G |- e_2 : @bit<r>, d_2
+---------------------------------[Bit-Concat-Op]
+P,S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+
+~ Infer
+P,S,D,G |- e_1 : t_1, d_1
+P,S,D,G |- e_2 : t_2, d_2
+@numeric(t_1)
+t_2 = @bit<\_> \lor t_2 = @int
+\diamond \in \{\ll, \gg\}
+---------------------------------[Shift-Op]
+P,S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
+~
+
+#### Casts
+
+Casting from $\tau_0$ to $\tau$ is permitted by the
+$\tau \prec \tau'$ judgment.
+
+The equality sign here hasn't been defined and probably won't make
+sense without adding a context for looking up variables and type
+names.
+~ Infer
+t = t'
+-------------------------------------------[]
+t \mathrel{\prec} t'
+~
+
+~ Infer
+
+---------------------[]
+@int \mathrel{\prec} @int<w>
+~
+~ Infer
+
+---------------------[]
+@int \mathrel{\prec} @bit<w>
+~
+
+~ Infer
+
+----------------------------------------------------[]
+\{t_1, \dots, t_n\} \mathrel{\prec} @tuple<t_1, \dots, t_n>
+~
+
+~ Infer
+
+----------------------------------------------------[]
+\{t_1, \dots, t_n\} \mathrel{\prec} @header \{f_1: \tau_1, ..., f_n: \tau_n\}
+~
+
+~ Infer
+
+----------------------------------------------------[]
+\{t_1, \dots, t_n\} \mathrel{\prec} @struct \{f_1: \tau_1, ..., f_n: \tau_n\}
+~
+
+~ Infer
+
+----------------------------------------------------[]
+t \mathrel{\prec} @enum t X \{m_1, ..., m_n\}
+~
+
+~ Infer
+
+-------------------------------------------[]
+@enum t X \{m_1, ..., m_n\} \mathrel{\prec} t
+~
+
+~ Infer
+
+-------------------------------[]
+@newtype X t \mathrel{\prec} t
+~
+
+~ Infer
+
+-------------------------------[]
+t \mathrel{\prec} @newtype X t
+~
+
+~ Infer
+P,S,D,G |- e : t_0, d
+t_0 \prec t
+------------------------[Cast]
+P,S,D,G |- (t) e : t, d
+~
+
+#### Member expressions
+~ Infer
+D(X) = @enum t \{m_1, \dots, m_n\}
+m_i = name
+---------------------------------------[Type-Member]
+P,S,D,G |- X.name : t, @none
+~
+
+~ Infer
+G(@error.name) = @error
+-------------------------------------[Error-Member]
+P,S,D,G |- @error.name : error, @none
+~
+
+Field and method lookups on expressions are delegated to another
+judgment $\mathkw{has\_field}\ t\ name\ t_{name}$.
+~ Infer
+P,S,D,G, |- e : t
+\mathkw{has\_field} t name t_{name}
+------------------------------------[Expression-Member]
+P,S,D,G |- e.name : t_{name}
+~
+
+~ Infer
+
+---------------------------------------------------------------------[Header-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
+~
+
+~ Infer
+
+--------------------------------------------------------------------------------[Header-Union-Field]
+\mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Struct-Field]
+\mathkw{has\_field} (@struct \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
+~
+
+~ Infer
+
+---------------------------------------------------------------------------------[Header-IsValid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
+~
+
+~ Infer
+
+---------------------------------------------------------------------------------[Header-SetValid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @setValid (() -> @void)
+~
+
+~ Infer
+
+-----------------------------------------------------------------------------------[Header-SetInvalid-Field]
+\mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @setInvalid (() -> @void)
+~
+
+~ Infer
+
+---------------------------------------------------------------------------------------------[HeaderUnion-IsValid-Field]
+\mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
+~
+
+
+~ Infer
+
+--------------------------------------------------------------------------------[Control-Apply-Field]
+\mathkw{has\_field} (@control \{f_1:t_1, ... , f_n:t_n\}) @apply (() -> @void)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Parser-Apply-Field]
+\mathkw{has\_field} (@parser \{f_1:t_1, ... , f_n:t_n\}) @apply (() -> @void)
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------[Table-Apply-Field]
+\mathkw{has\_field} (@table ...) @apply (() -> t_res)
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-Size-Field]
+\mathkw{has\_field} t[a] @size @bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-NextIndex-Field]
+\mathkw{has\_field} t[a] @nextIndex @bit<32>
+~
+
+~ Infer
+
+-------------------------------------------------------------------[Array-LastIndex-Field]
+\mathkw{has\_field} t[a] @lastIndex @bit<32>
+~
+
+~ Infer
+
+-------------------------------[Array-Next-Field]
+\mathkw{has\_field} t[a] @next t
+~
+
+~ Infer
+
+-------------------------------[Array-Last-Field]
+\mathkw{has\_field} t[a] @last t
+~
+
+~ Infer
+
+-------------------------------[Array-PushFront-Field]
+\mathkw{has\_field} t[a] \mathkw{push\_front} ((count: @int) -> @void)
+~
+
+~ Infer
+
+-------------------------------[Array-PopFront-Field]
+\mathkw{has\_field} t[a] \mathkw{pop\_front} ((count: @int) -> @void)
+~
+
+
+#### Ternary Expression
+
+~ Infer
+P,S,D,G |- e_1 : @bool, \_
+P,S,D,G |- e_2 : t, \_
+P,S,D,G |- e_3 : t, \_
+--------------------------------[Ternary-Op]
+P,S,D,G |- e_1 ? e_2 : e_3 : t, @none
+~
+
+#### Function Calls
+TODO: Check directions
+TODO: Handle overloads of extern functions
+~ Infer
+P,S,D,G |- f : f<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+----------------------------------------------------------------------------[Function-Call-Nameless]
+P,S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
+~
+
+~ Infer
+P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, P,S,D[\overline{X \to \rho}],G \vdash e_j:t_j
+----------------------------------------------------------------------------[Function-Call-Named]
+\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
+~
+
+#### Nameless Instantiation
+
+TODO: Fix these rules to handle overloading and not rely on control/parser declarations having types
+~ Infer
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+--------------------------------------------------------------------[Specialized-Type-Instantiation]
+P,S,D,G |- X<\overline{rho}>(\overline{e}) : X<\overline{rho}>
+~
+
+~ Infer
+P,S,D,G |- X<>(\overline{e}) : t
+----------------------------------[Simple-Type-Instantiation]
+P,S,D,G |- X(\overline{e}) : t
+~
+
+#### Set Operations
+
+TODO: the Masks rule is based off of the spec
+and diverges from the type checker's implementation
+
+~ Infer
+P,S,D,G |- e_1 : @bit<w>, \_
+P,S,D,G |- e_2 : @bit<w>, \_
+------------------------------------------------[Masks]
+P,S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
+~
+
+~ Infer
+P,S,D,G |- e_1 : \tau, \_
+P,S,D,G |- e_2 : \tau, \_
+\tau = @bit<w> \lor \tau = @int<w>
+-------------------------[Ranges]
+P,S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
+~
+
+## Statement typing
+
+Statements are typed by a judgment of the form
+~ MathPre
+P,S,D,G |- s -| G'.
+~
+
+The judgment is defined inductively by the following rules.
+
+~ Infer
+P,S,D,G |- e:@function<X_1,\dots,X_n>(x_1:t_1,\dots,x_m:t_m) : t_{\mathsf{ret}}
+P,S,D[X_i=t_i]_{i=1}^n,G |- e_j:t_j \text{for $1\leq{}j\leq{}m$}
+--------------------------------------------------------------------------------[Type-Stmt-Method-Call]
+P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m) -| G
+~
+
+TODO: LValues
+~ Infer
+\mathkw{lvalue}(e_l)
+P,S,D,G |- e_l: t
+P,S,D,G |- e_r: t
+----------------------------[Type-Stmt-Assignment]
+P,S,D,G |- e_l := e_r -| G
+~
+
+~ Infer
+P,S,D,G |- t().@apply(\overline{e}) : t'
+----------------------------------------------[Type-Stmt-Direct-Application]
+P,S,D,G |- t.@apply(\overline{e}) -| G
+~
+
+~ Infer
+P,S,D,G |- e:@bool
+P,S,D,G |- s_1 -| G_1
+P,S,D,G |- s_2 -| G_2
+---------------------------------------------------[Type-Stmt-Conditional]
+P,S,D,G |- @if (e) s_1 @else s_2 -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Block-Empty]
+P,S,D,G |- \{\} -| G
+~
+
+~ Infer
+P,S,D,G |- s_0 -| G'
+P,S,D,G' |- \{\overline{s}\} -| G''
+---------------------------------------------------[Type-Stmt-Block-Step]
+P,S,D,G |- \{s_0; \overline{s}\} -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Exit]
+P,S,D,G |- @exit -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Empty]
+P,S,D,G |- \mathkw{;} -| G
+~
+
+Note: the type r in the context doesn't exist in the implementation right
+now or in any other rules. It should exist in the implementation and
+it should be set when checking the bodies of actions, functions, and
+controls. It might be possible to use it to deal with questions like
+"are we in a parser right now?"
+~ Infer
+P,S,D,G |- e:r
+---------------------------------------------------[Type-Stmt-Return-Value]
+P,S,D,G,r |- @return e -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Return-Void]
+P,S,D,G,@void |- @return -| G
+~
+
+~ Infer
+P,S,D,G |- case\_lbl : \tau
+P,S,D,G |- blk -| G'
+---------------------------------------------------[Type-Case-Block]
+P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
+~
+
+~ Infer
+P,S,D,G |- case\_lbl : \tau
+---------------------------------------------------[Type-Case-Fallthrough]
+P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
+~
+
+~ Infer
+P,S,D,G |- e : @enum X \{ \overline{m} \}
+\forall i. P,S,D,G |- \mathkw{case\_ok}_X case_i
+--------------------------------------------------------------------------[Type-Stmt-Switch]
+P,S,D,G |- @switch (e) \{ case1, \dots, case_n \} -| G
+~
+
+XXX DeclarationStatements don't need to exist, see
+https://github.com/cornell-netlab/petr4/issues/5
+~ Infer
+P,S,D,G |- d -| P',S',D',G'.
+---------------------------------------------------[Type-Stmt-Declaration-Statement]
+P,S,D,G |- d -| G'
+~
+
+## Declaration typing
+
+Declarations are typed by a judgment of the form
+~ MathPre
+P,S,D,G |- d -| P',S',D',G'.
+~
+
+The judgment is defined inductively by the following rules.
+
+~ Infer
+P,S,D,G |- e:t
+S, e \Downarrow v
+P' = P, @const x := e
+--------------------------------------------[Type-Decl-Const]
+P,S,D,G |- @const x := e -| P',S[x = v],D,G
+~
+
+~ Infer
+P,S,D,G |- t(\overline{e}) : t_{inst}
+P' = P,t x(\overline{e}) 
+-----------------------------------[Type-Decl-Instantiation]
+P,S,D,G |- t x(\overline{e}) -| P',S,D,G[x:t_{inst}]
+~
+
+~ Infer
+TODO
+-----------------------------------[Type-Decl-Parser]
+TODO
+~
+
+~ Infer
+P,S,D,G[\overline{x: t}][\overline{x^{ctor}: t}] |- \overline{d} -| P',S',D',G'
+P',S',D',G',@void |- blk -| G''
+P' = P, @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \}
+--------------------------------------------------------------------------------------------------------[Type-Decl-Control]
+P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \} -| P',S,D,G
+~
+
+~ Infer
+P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+P' = P, @function t x<\overline{X}>(\overline{x: t}) blk
+-------------------------------------------------------------------------------[Type-Decl-Function]
+P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
+~
+
+~ Infer
+G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+P' = P, \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
+-----------------------------------------------------------------------------[Type-Decl-Extern-Function]
+P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
+~
+
+~ Infer
+P' = P, t x := e
+--------------------------------[Type-Decl-Variable]
+P,S,D,G |- t x -| P',S,D,G[x:t]
+~
+
+~ Infer
+P,S,D,G |- e:t
+P' = P, t x := e
+-------------------------------------[Type-Decl-Variable-Initialized]
+P,S,D,G |- t x := e -| P',S,D,G[x:t]
+~
+
+~ Infer
+P' = P, \mathkw{value\_set}<t>(e) x 
+-------------------------------------------------------[Type-Decl-Value-Set]
+P,S,D,G |- \mathkw{value\_set}<t>(e) x -| P',S,D,G[x:@set t]
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Action]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Table]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Header]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Header-Union]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Struct]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Error]
+TODO
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Match-Kind]
+TODO
+~
+
+~ Infer
+D' = D[X=@enum t X \{ \overline{x} \}]
+\overline{e} \Downarrow \overline{v}
+S' = S[\overline{x=v}]
+P' = P,@enum t X \{ \overline{x=e} \}
+---------------------------------------------------[Type-Decl-Enum]
+P,S,D,G |- @enum t X \{ \overline{x=e} \} -| P',S,D,G
+~
+
+~ Infer
+D' = D[X=@enum X \{ \overline{x} \}]
+P' = P,@enum X \{ \overline{x} \}
+---------------------------------------------------[Type-Decl-Serializable-Enum]
+P,S,D,G |- @enum X \{ \overline{x} \} -| P',S,D,G
+~
+
+~ Infer
+TODO
+---------------------------------------------------[Type-Decl-Extern-Object]
+TODO
+~
+
+~ Infer
+P'=P,@typedef t X
+---------------------------------------------------[Type-Decl-TypeDef]
+P,S,D,G |- @typedef t X -| P',S,D[X=t],G
+~
+
+~ Infer
+P'=P,@newtype t X
+---------------------------------------------------[Type-Decl-TypeDef]
+P,S,D,G |- @newtype t X -| P',S,D[X=@newtype X t],G
+~
+
+~ Infer
+D'=D[X=@control<\overline{X}>(\overline{x:t,d})
+P'=P,@control X<\overline{X}>(\overline{x:t,d})
+--------------------------------------------------------------------[Type-Decl-Control-Type]
+P,S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
+~
+
+~ Infer
+D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
+P'=P,@parser X<\overline{X}>(\overline{x:t,d})
+---------------------------------------------------[Type-Decl-Parser-Type]
+P,S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
+~
+
+~ Infer
+D'=D[X=@package<\overline{X}>(\overline{x:t})
+P'=P,@package X<\overline{X}>(\overline{x:t})
+-----------------------------------------------------------------[Type-Decl-Package-Type]
+P,S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| P',S,D',G
+~
+
+## Typing of programs
+Partial programs are checked by a judgment of the form
+~ MathPre
+P,S,D,G |- P0 -| P',S',D',G'.
+~
+Complete programs are checked by giving empty contexts on the left.
+
+The judgment only needs two rules.
+
+~ Infer
+
+--------------------------[]
+P,S,D,G |- [] -| P,S,D,G
+~
+
+~ Infer
+P,S,D,G |- d -| P',S',D',G'
+P',S',D',G' |- P0 -| P'',S'',D'',G''
+------------------------------------[]
+P,S,D,G |- d, P0 -| P'',S'',D'',G''
+~
+
+
+
 # Dynamic Semantics { #sec-dynamic }
+
+## Expressions
+
+$\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle$
+
+### Constants
+
+~ Infer
+
+-------------------------------------------------------------------------------[Bool-True]
+\langle ctrl, env, st, true \rangle \Downarrow_e \langle env, st, true \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Bool-False]
+\langle ctrl, env, st, false \rangle \Downarrow_e \langle env, st, false \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Int-Constant]
+\langle ctrl, env, st, a \rangle \Downarrow_e \langle env, st, a \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Unsigned-Int-Constant]
+\langle ctrl, env, st, nwa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[Signed-Int-Constant]
+\langle ctrl, env, st, nsa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+~
+
+~ Infer
+
+-------------------------------------------------------------------------------[String]
+\langle ctrl, env, st, u \rangle \Downarrow_e \langle env, st, u \rangle
+~
+
+### Variables
+
+~ Infer
+if x = "verify" then r = x else r = env(x)
+-------------------------------------------------------------------------------[Var]
+\langle ctrl, env, st, x \rangle \Downarrow_e \langle env, st, r \rangle
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------------------[Var-Top]
+\langle ctrl, env, st, .x \rangle \Downarrow_e \langle env, st,  \rangle
+~
+
+### Accesses
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+i = n1 % v2
+v1 = (...,vi,...,n1,n2)
+-------------------------------------------------------------------------------[Array-Access]
+\langle ctrl, env, st, e1[e2] \rangle \Downarrow_e \langle env'', st'', vi \rangle
+~
+
+<!-- not sure if this is valid -->
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\langle ctrl, env'', st'', e3 \Downarrow_e env''', st''', v3 \rangle
+w = v2 - v3 + 1
+n = v1 \% 2^{v2+1}
+if v3 \leq 0 then r = (w, n^w) else r = v1/2[v2-1:v3-1]
+-------------------------------------------------------------------------------[Bitslice]
+\langle ctrl, env, st, e1[e2:e3] \rangle \Downarrow_e \langle env''', st''', r \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+...
+\langle ctrl, env^{n-1}, st^{n-1}, en \Downarrow_e env^n, st^n, vn \rangle
+-------------------------------------------------------------------------------[List-Expression]
+\langle ctrl, env, st, {e1,...,en} \rangle \Downarrow_e \langle env^n, st^n, (v1,...,vn) \rangle
+~
+
+### Unary Operations
+
+<!--
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Not]
+\langle ctrl, env, st, !e \rangle \Downarrow_e \langle env', st', !v1 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Bitwise-Not]
+\langle ctrl, env, st, ~e \rangle \Downarrow_e \langle env', st', ~v1 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+-------------------------------------------------------------------------------[Negate]
+\langle ctrl, env, st, -e \rangle \Downarrow_e \langle env', st', -v1 \rangle
+~
+
+-->
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\diamond \in \{ !, ~, - \}
+-------------------------------------------------------------------------------[Unary-Op]
+\langle ctrl, env, st, \diamond e \rangle \Downarrow_e \langle env', st', \diamond v1 \rangle
+~
+
+### Binary Operations

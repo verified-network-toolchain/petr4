@@ -1,153 +1,164 @@
 open Sexplib.Conv
+                                   
 type direction =
   | In
   | Out
   | InOut
   | Directionless
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
+
+type 'a info = 'a Types.info [@@deriving sexp,yojson]
+
+module Annotation = Types.Annotation
+
+module Op = Types.Op
 
 module rec Parameter : sig
   type t =
-    { name: string;
+    { annotations: Annotation.t list;
+      direction: direction;
       typ: Type.t;
-      direction: direction}
-    [@@deriving sexp]
+      variable: Types.P4String.t }
+  [@@deriving sexp,yojson]
 end = struct
   type t =
-    { name: string;
+    { annotations: Annotation.t list;
+      direction: direction;
       typ: Type.t;
-      direction: direction}
-    [@@deriving sexp]
+      variable: Types.P4String.t }
+  [@@deriving sexp,yojson]
 end
 
 and ConstructParam : sig
   type t =
     { name: string;
-      typ: Type.t}
-    [@@deriving sexp]
+      typ: Type.t }
+  [@@deriving sexp, yojson]
 end = struct
   type t =
     { name: string;
-      typ: Type.t}
-    [@@deriving sexp]
+      typ: Type.t }
+  [@@deriving sexp, yojson]
 end
-
-(* and ActionParam : sig
-  type t 
-    { name: string;
-      typ: Type.t}
-      [@@deriving sexp]
-end = struct
-  type t =
-    { name: string;
-      typ: Type.t}
-      [@@deriving sexp]
-end *)
 
 and PackageType : sig
   type t = {type_params: string list;
             parameters: ConstructParam.t list}
-    [@@deriving sexp]
+             [@@deriving sexp,yojson]
 end = struct
   type t = {type_params: string list;
             parameters: ConstructParam.t list}
-    [@@deriving sexp]
+             [@@deriving sexp,yojson]
 end
 
 and ControlType : sig
   type t = {type_params: string list;
             parameters: Parameter.t list}
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t = {type_params: string list;
             parameters: Parameter.t list}
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and ExternType : sig
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 
   type t =
     { type_params: string list;
       methods: extern_method list }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 
   type t =
     { type_params: string list;
       methods: extern_method list }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and IntType : sig
   type t =
     { width: int }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
     { width: int }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and ArrayType : sig
   type t =
     { typ: Type.t;
       size: int; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
     { typ: Type.t;
       size: int; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and TupleType : sig
   type t =
     { types: Type.t list }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
     { types: Type.t list }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
+end
+
+and NewType : sig
+  type t =
+    { name: string;
+      typ: Type.t }
+  [@@deriving sexp,yojson]
+end = struct
+  type t =
+    { name: string;
+      typ: Type.t }
+  [@@deriving sexp,yojson]
 end
 
 and RecordType : sig
   type field =
     { name: string;
       typ: Type.t; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 
   type t =
     { fields: field list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type field =
     { name: string;
       typ: Type.t; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 
   type t =
     { fields: field list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and EnumType : sig
   type t =
-    { typ: Type.t option;
+    { name: string;
+      typ: Type.t option;
       members: string list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
-    { typ: Type.t option;
+    { name: string;
+      typ: Type.t option;
       members: string list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and FunctionType : sig
@@ -155,45 +166,45 @@ and FunctionType : sig
     { type_params: string list;
       parameters: Parameter.t list;
       return: Type.t}
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
     { type_params: string list;
       parameters: Parameter.t list;
       return: Type.t}
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and SpecializedType : sig
   type t =
     { base: Type.t;
       args: Type.t list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
     { base: Type.t;
       args: Type.t list; }
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end
 
 and ActionType : sig
   type t =
     { data_params: Parameter.t list;
       ctrl_params: ConstructParam.t list}
-      [@@deriving sexp]
+      [@@deriving sexp,yojson]
 end = struct
   type t =
   { data_params: Parameter.t list;
     ctrl_params: ConstructParam.t list}
-      [@@deriving sexp]
+      [@@deriving sexp,yojson]
 end
 
 and TableType : sig
   type t = {result_typ_name:string}
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 end = struct
   type t = {result_typ_name:string}
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 end
 
 and Type : sig
@@ -240,6 +251,9 @@ and Type : sig
     (* References to other types in the top-level namespace *)
     | TopLevelType of string
 
+    (* "Opaque" type introduced by newtype *)
+    | NewType of NewType.t
+
     (* P4 void (acts like unit) *)
     | Void
 
@@ -252,7 +266,7 @@ and Type : sig
     (* struct { l1: t1, ..., ln : tn } *)
     | Struct of RecordType.t
 
-    (* enum { l1, ..., ln } *)
+    (* enum X { l1, ..., ln } *)
     | Enum of EnumType.t
 
     (* Type application *)
@@ -272,7 +286,7 @@ and Type : sig
     | Action of ActionType.t
 
     | Table of TableType.t
-    [@@deriving sexp]
+    [@@deriving sexp,yojson]
 end = struct
   type t =
   (* bool *)
@@ -317,6 +331,9 @@ end = struct
   (* References to other types in the top-level namespace *)
   | TopLevelType of string
 
+  (* "Opaque" type introduced by newtype *)
+  | NewType of NewType.t
+
   (* P4 void (acts like unit) *)
   | Void
 
@@ -329,7 +346,7 @@ end = struct
   (* struct { l1: t1, ..., ln : tn } *)
   | Struct of RecordType.t
 
-  (* enum { l1, ..., ln } *)
+  (* enum X { l1, ..., ln } *)
   | Enum of EnumType.t
 
   (* Type application *)
@@ -349,17 +366,17 @@ end = struct
   | Action of ActionType.t
 
   | Table of TableType.t
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 end
 
-module rec StmType : sig
+and StmType : sig
   type t =
   | Unit
   | Void
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 end = struct
   type t =
   | Unit
   | Void
-  [@@deriving sexp]
+  [@@deriving sexp,yojson]
 end

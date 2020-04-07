@@ -261,7 +261,6 @@ let rec elab_decls' env gen decls =
   match decls with
   | decl :: decls ->
      let decl = elab_decl env gen decl in
-     let env = CheckerEnv.insert_decl decl env in
      decl :: elab_decls' env gen decls
   | [] -> []
 

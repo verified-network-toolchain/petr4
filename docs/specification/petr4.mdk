@@ -22,7 +22,7 @@ Package: xspace
   replace: "/\bt([^a-z])/\tau{}\1/g";
   replace: "/</\langle{}/g";
   replace: "/>/\rangle{}/g";
-  replace: "/\b:=\b/\coloneqq/g";
+  replace: "/\b:=\b/\coloneqq{}/g";
 }
 
 Infer {
@@ -208,9 +208,9 @@ e ::= @true
     | @error.name // errors
     | e.name // expression member
     | e1 ? e2 : e3 // ternary operator
-    | f<...,\tau_j,...>(...,ei,...)
-    | f<...,\tau_j,...>(...,xi=ei,...)
-    | t(e1,...,en) // nameless instantiation
+    | f<\overline{t}>(\overline{e}) // function call (positional)
+    | f<\overline{t}>(\overline{x=e}) // function call (named)
+    | t(\overline{e}) // nameless instantiation
     | e1 \texttt{\&\&\&} e2 // mask
     | e1 .. e2 // range
 ~ End P4MathGrammar
@@ -245,14 +245,6 @@ binop ::= +
         | ||
 ~ End P4Grammar
 
-~ Begin P4MathGrammar
-// constructors
-C ::= PackageType
-    | Parser
-    | Control
-    | Extern
-~ End P4MathGrammar
-
 ## Statements and blocks
 ~ Begin P4MathGrammar
 s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
@@ -279,50 +271,50 @@ blk ::= \{ s_1; ... s_n; \} // blocks
 
 ## Declarations
 ~ Begin P4MathGrammar
-d ::= @const t x := e
+d ::= @const t x:=e
     | t x(\overline{e})
     | t x(\overline{e}) blk
-    | @parser X(\overline{x: t})(\overline{x: t}) \{ \overline{d} \overline{state} \}
-    | @control X(\overline{x: t})(\overline{x: t}) \{ \overline{d} @apply blk \}
-    | @function t x<\overline{X}>(\overline{x: t}) blk
-    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
+    | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} \}
+    | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} @apply blk \}
+    | @function t x<\overline{X}>(\overline{x:t, d}) blk
+    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t}) blk
     | t x
     | t x := e
     | \mathkw{value\_set}<t>(e) x
-    | @action x (\overline{x: t}) blk
+    | @action x (\overline{x:t,d_0},\overline{x:t}) blk
     | @table x \{ \overline{prop} \}
-    | @header X \{ \overline{x: t} \}
-    | \mathkw{header\ union} X \{ \overline{x: t} \}
-    | @struct X \{ \overline{x: t} \}
+    | @header X \{ \overline{x:t} \}
+    | \mathkw{header\ union} X \{ \overline{x:t} \}
+    | @struct X \{ \overline{x:t} \}
     | @error \{ \overline{x} \}
     | \mathkw{match\_kind} \{ \overline{x} \}
     | @enum X \{ \overline{x} \}
-    | @enum t X \{ \overline{x} \}
+    | @enum t X \{ \overline{x=e} \}
     | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
     | @typedef t X
     | @type t X
-    | @control X<\overline{X}>(\overline{x: t})
-    | @parser X<\overline{X}>(\overline{x: t})
-    | @package X<\overline{X}>(\overline{x: t})
+    | @control X<\overline{X}>(\overline{x:t,d})
+    | @parser X<\overline{X}>(\overline{x:t,d})
+    | @package X<\overline{X}>(\overline{x:t})
 
 state ::= @state x \{ \overline{s}; @transition state\_expr \}
 
 state\_expr ::= x
-              | @select (\overline{e}) \{ \overline{matches: x} \}
+              | @select (\overline{e}) \{ \overline{matches:x} \}
 
 matches = \overline{match}
 
 match ::= \mathkw{\_}
         | e
 
-ctor ::= X(\overline{t x})
+ctor ::= X(\overline{x:t})
 
-method ::= @abstract t x<\overline{X}>(\overline{t x})
-         | t x<\overline{X}>(\overline{t x})
+method ::= @abstract t x<\overline{X}>(\overline{x:t,d})
+         | t x<\overline{X}>(\overline{x:t,d})
 
-prop ::= @key = \{ \overline{e : x} \}
+prop ::= @key = \{ \overline{e:x} \}
        | @actions = \{ \overline{action\_ref} \}
-       | @const @entries = \{ \overline{matches: action\_ref} \}
+       | @const @entries = \{ \overline{matches:action\_ref} \}
        | x = e
        | @const x = e
 
@@ -345,22 +337,22 @@ t ::= @bool
     | @int<w>
     | @bit<w>
     | @varbit<w>
-    | \tau[a]
-    | @tuple<\tau_1, ..., \tau_n>
-    | \{\tau_1,...,\tau_n\}
-    | @set<\tau>
+    | t[a]
+    | @tuple<\overline{t}>
+    | \{ \overline{t} \}
+    | @set<t>
     | @error
     | @match_kind
     | X  // type name
     | .X // top level type reference
     | @newtype X t
     | @void
-    | @header {f_1: \tau_1, ..., f_n: \tau_n}
-    | \mathkw{header\ union} {f_1: \tau_1, ..., f_n: \tau_n}
-    | @struct {f_1: \tau_1, ..., f_n: \tau_n}
-    | @enum X {m_1, ..., m_n}
-    | @enum \tau X {m_1, ..., m_n}
-    | \tau<\tau_1, ..., \tau_n) // specialized type
+    | @header \{ \overline{f:t} \}
+    | \mathkw{header\ union} \{ \overline{f:t} \}
+    | @struct \{ \overline{f:t} \}
+    | @enum X \{ \overline{x} \}
+    | @enum t X \{ \overline{x=v} \}
+    | t<\overline{t}> // specialized type
     | @package<\overline{X}>(\overline{x:t,d})
     | @control<\overline{X}>(\overline{x:t,d})
     | @parser<\overline{X}>(\overline{x:t})
@@ -369,10 +361,11 @@ t ::= @bool
     | @action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
     | @table (...)
 
-d ::= @in
-    | @out
-    | @inout
-    | @none
+d0 ::= @in
+     | @out
+     | @inout
+
+d ::= d0 | @none
 ~ End P4MathGrammar
 
 ## Values
@@ -890,12 +883,13 @@ P,S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
 #### Function Calls
-
+TODO: Check directions
+TODO: Handle overloads of extern functions
 ~ Infer
-P,S,D,G |- f : f<\overline{X}>(\overline{x: t}) : t_{\mathsf{ret}}, \_
-P,S,D[\overline{X \to \rho}],G \vdash \overline{e : t}
+P,S,D,G |- f : f<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 ----------------------------------------------------------------------------[Function-Call-Nameless]
-P,S,D,G |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
+P,S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
 
 ~ Infer
@@ -907,28 +901,23 @@ P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
 
 #### Nameless Instantiation
 
-<!--
-C will refer to constructors
--->
-
-<!--
-TODO
-this rule is incomplete
--->
+TODO: Fix these rules to handle overloading and not rely on control/parser declarations having types
+~ Infer
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+--------------------------------------------------------------------[Specialized-Type-Instantiation]
+P,S,D,G |- X<\overline{rho}>(\overline{e}) : X<\overline{rho}>
+~
 
 ~ Infer
-C \in P
-\forall i, P,S,D,G |- e_i : \tau_i
---------------------------------------------------------------------[Specialized-Type-Instantiation]
-P,S,D,G |- C(...,\tau_j,...)(...,e_i,...) : C(...,\tau_j,...),@none
+P,S,D,G |- X<>(\overline{e}) : t
+----------------------------------[Simple-Type-Instantiation]
+P,S,D,G |- X(\overline{e}) : t
 ~
 
 #### Set Operations
 
-<!--
 TODO: the Masks rule is based off of the spec
 and diverges from the type checker's implementation
--->
 
 ~ Infer
 P,S,D,G |- e_1 : @bit<w>, \_
@@ -1072,9 +1061,10 @@ P,S,D,G |- @const x := e -| P',S[x = v],D,G
 ~
 
 ~ Infer
-TODO
+P,S,D,G |- t(\overline{e}) : t_{inst}
+P' = P,t x(\overline{e}) 
 -----------------------------------[Type-Decl-Instantiation]
-TODO
+P,S,D,G |- t x(\overline{e}) -| P',S,D,G[x:t_{inst}]
 ~
 
 ~ Infer
@@ -1168,15 +1158,19 @@ TODO
 ~
 
 ~ Infer
-TODO
+D' = D[X=@enum t X \{ \overline{x} \}]
+\overline{e} \Downarrow \overline{v}
+S' = S[\overline{x=v}]
+P' = P,@enum t X \{ \overline{x=e} \}
 ---------------------------------------------------[Type-Decl-Enum]
-TODO
+P,S,D,G |- @enum t X \{ \overline{x=e} \} -| P',S,D,G
 ~
 
 ~ Infer
-TODO
+D' = D[X=@enum X \{ \overline{x} \}]
+P' = P,@enum X \{ \overline{x} \}
 ---------------------------------------------------[Type-Decl-Serializable-Enum]
-TODO
+P,S,D,G |- @enum X \{ \overline{x} \} -| P',S,D,G
 ~
 
 ~ Infer

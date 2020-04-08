@@ -357,8 +357,8 @@ t ::= @bool
     | @control<\overline{X}>(\overline{x:t,d})
     | @parser<\overline{X}>(\overline{x:t})
     | @extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
-    | @function<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
-    | @action<X_1, ..., X_m>(x_1: \tau_1, ..., x_n: \tau_n) : \tau
+    | @function<\overline{X}>(\overline{x:t}) : \tau
+    | @action(\overline{x:t,d_0}, \overline{x:t}) : @void
     | @table (...)
 
 d0 ::= @in
@@ -1116,9 +1116,11 @@ P,S,D,G |- \mathkw{value\_set}<t>(e) x -| P',S,D,G[x:@set t]
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Action]
-TODO
+P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
+P' = P,@action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk
+-------------------------------------------------------------------------------[Type-Decl-Action]
+P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| P',S,D,G'
 ~
 
 ~ Infer

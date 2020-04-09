@@ -7,5 +7,5 @@
 (library
   (public_name petr4)
   (name petr4)
-   (libraries core_kernel ppx_deriving_yojson.runtime yojson cstruct-sexp)
+   (libraries core_kernel bignum ppx_deriving_yojson.runtime yojson cstruct-sexp)
    (preprocess (pps ppx_jane -allow-unannotated-ignores ppx_deriving_yojson)))

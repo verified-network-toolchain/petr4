@@ -1060,84 +1060,76 @@ P,S,D,G |- d -| G'
 
 Declarations are typed by a judgment of the form
 ~ MathPre
-P,S,D,G |- d -| P',S',D',G'.
+P,S,D,G |- d -| S',D',G'.
 ~
 
-The judgment is defined inductively by the following rules.
+It is defined inductively by the following rules.
 
 ~ Infer
 P,S,D,G |- e:t
 S, e \Downarrow v
-P' = P, @const x := e
 --------------------------------------------[Type-Decl-Const]
-P,S,D,G |- @const x := e -| P',S[x = v],D,G
+P,S,D,G |- @const x := e -| S[x = v],D,G
 ~
 
 ~ Infer
 P,S,D,G |- t(\overline{e}) : t_{inst}
-P' = P,t x(\overline{e}) 
 -----------------------------------[Type-Decl-Instantiation]
-P,S,D,G |- t x(\overline{e}) -| P',S,D,G[x:t_{inst}]
+P,S,D,G |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
 ~
 
 ~ Infer
 \text{TODO: another judgment to use in a premise here for checking $\overline{state}$}
-P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| P',S',D',G'
-P' = P,@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state}
+P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| S',D',G'
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@parser(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
-P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} -| P',S,D,G[X:t_ctor]
+P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
 P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| P',S',D',G'
 P',S',D',G',@void |- blk -| G''
-P' = P,@control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \}
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@control(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
-P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{d} @apply blk \} -| P',S,D,G[X:t_ctor]
+P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{d} @apply blk \} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
 P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
-P' = P, @function t x<\overline{X}>(\overline{x: t}) blk
 ----------------------------------------------------[Type-Decl-Function]
-P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
+P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
 ~
 
 ~ Infer
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
-P' = P, \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
 ---------------------------------------------------------------[Type-Decl-Extern-Function]
-P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
+P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
 ~
 
 ~ Infer
-P' = P, t x := e
+t x := e
 --------------------------------[Type-Decl-Variable]
-P,S,D,G |- t x -| P',S,D,G[x:t]
+P,S,D,G |- t x -| S,D,G[x:t]
 ~
 
 ~ Infer
 P,S,D,G |- e:t
-P' = P, t x := e
 -------------------------------------[Type-Decl-Variable-Initialized]
-P,S,D,G |- t x := e -| P',S,D,G[x:t]
+P,S,D,G |- t x := e -| S,D,G[x:t]
 ~
 
 ~ Infer
-P' = P, \mathkw{value\_set}<t>(e) x 
+
 -------------------------------------------------------[Type-Decl-Value-Set]
-P,S,D,G |- \mathkw{value\_set}<t>(e) x -| P',S,D,G[x:@set t]
+P,S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
 ~
 
 ~ Infer
 P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
-P' = P,@action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk
 -------------------------------------------------------------------------------[Type-Decl-Action]
-P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| P',S,D,G'
+P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
 ~
 
 ~ Infer
@@ -1180,56 +1172,51 @@ TODO
 D' = D[X=@enum t X \{ \overline{x} \}]
 \overline{e} \Downarrow \overline{v}
 S' = S[\overline{x=v}]
-P' = P,@enum t X \{ \overline{x=e} \}
 ---------------------------------------------------[Type-Decl-Enum]
-P,S,D,G |- @enum t X \{ \overline{x=e} \} -| P',S,D,G
+P,S,D,G |- @enum t X \{ \overline{x=e} \} -| S,D,G
 ~
 
 ~ Infer
 D' = D[X=@enum X \{ \overline{x} \}]
-P' = P,@enum X \{ \overline{x} \}
 ---------------------------------------------------[Type-Decl-Serializable-Enum]
-P,S,D,G |- @enum X \{ \overline{x} \} -| P',S,D,G
+P,S,D,G |- @enum X \{ \overline{x} \} -| S,D,G
 ~
 
 ~ Infer
 \forall{}ctor_i=X(\overline{x:t}). {t_{ctor}}_i = @constructor<\overline{X}>(\overline{x_i:t_i}) : t_{extern}
 t_{extern} = @extern X \{ \overline{method} \}
 ---------------------------------------------------[Type-Decl-Extern-Object]
-P,S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| P',S,D,G[\overline{X:t_{ctor}}]
+P,S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D,G[\overline{X:t_{ctor}}]
 ~
 
 ~ Infer
-P'=P,@typedef t X
+
 ---------------------------------------------------[Type-Decl-TypeDef]
-P,S,D,G |- @typedef t X -| P',S,D[X=t],G
+P,S,D,G |- @typedef t X -| S,D[X=t],G
 ~
 
 ~ Infer
-P'=P,@newtype t X
+
 ---------------------------------------------------[Type-Decl-TypeDef]
-P,S,D,G |- @newtype t X -| P',S,D[X=@newtype X t],G
+P,S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~
 
 ~ Infer
 D'=D[X=@control<\overline{X}>(\overline{x:t,d})
-P'=P,@control X<\overline{X}>(\overline{x:t,d})
 --------------------------------------------------------------------[Type-Decl-Control-Type]
-P,S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
+P,S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
-P'=P,@parser X<\overline{X}>(\overline{x:t,d})
 ---------------------------------------------------[Type-Decl-Parser-Type]
-P,S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| P',S,D',G
+P,S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@package<\overline{X}>(\overline{x:t})
-P'=P,@package X<\overline{X}>(\overline{x:t})
 -----------------------------------------------------------------[Type-Decl-Package-Type]
-P,S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| P',S,D',G
+P,S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
 ~
 
 ## Typing of programs
@@ -1248,7 +1235,8 @@ P,S,D,G |- [] -| P,S,D,G
 ~
 
 ~ Infer
-P,S,D,G |- d -| P',S',D',G'
+P,S,D,G |- d -| S',D',G'
+P' = P,d
 P',S',D',G' |- P0 -| P'',S'',D'',G''
 ------------------------------------[]
 P,S,D,G |- d, P0 -| P'',S'',D'',G''

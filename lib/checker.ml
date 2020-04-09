@@ -1680,15 +1680,8 @@ and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
                       ~param:(snd param.variable)]
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
-  let func_typed = type_expression env func in
-  let func_type =
-    match find_extern_methods env func with
-    | Some method_types ->
-       resolve_extern_overload env method_types args
-    | None ->
-       (snd func_typed).typ
-  in
-  let func_typed = (fst func_typed, { (snd func_typed) with typ = func_type }) in
+  let func_typed = resolve_function_overload env func (List.length args) in
+  let func_type = (snd func_typed).typ in
   let type_params, params, return_type =
     match func_type with
     | Function { type_params; parameters; return } ->
@@ -1790,6 +1783,45 @@ and resolve_constructor_overload env type_name param_count =
   with
   | Some (Typed.Type.Constructor c) -> c
   | _ -> failwith "bad constructor type or no matching constructor"
+
+and resolve_function_overload env func param_count : Prog.Expression.t =
+  fst func,
+  match snd func with
+  | Name func_name ->
+     let ok : Typed.Type.t -> bool =
+       function
+       | Function { parameters; _ } -> param_count = List.length parameters
+       | _ -> false
+     in
+     begin match
+       CheckerEnv.find_types_of (snd func_name) env
+       |> List.map ~f:fst
+       |> List.find ~f:ok
+     with
+     | Some typ -> { expr = Name func_name; typ; dir = Directionless }
+     | _ -> snd @@ type_expression env func
+     end
+  | ExpressionMember { expr; name } ->
+     let expr_typed = type_expression env expr in
+     let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
+                                                          name = name }
+     in
+     begin match (snd expr_typed).typ with
+     | Extern { methods; _ } ->
+        let works (meth: Typed.ExternType.extern_method) =
+          meth.name = snd name &&
+            List.length meth.typ.parameters = param_count
+        in
+        begin match List.find ~f:works methods with
+        | Some p ->
+           { expr = prog_member;
+             typ = Function p.typ;
+             dir = Directionless }
+        | None -> failwith "couldn't find matching method"
+        end
+     | _ -> snd @@ type_expression env func
+     end
+  | _ -> snd @@ type_expression env func
 
 and type_constructor_invocation env info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in

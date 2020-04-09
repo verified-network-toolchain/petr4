@@ -1139,33 +1139,33 @@ TODO
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Header]
-TODO
+
+-----------------------------------------------------------------------------------[Type-Decl-Header]
+P,S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Header-Union]
-TODO
+
+----------------------------------------------------------------[Type-Decl-Header-Union]
+P,S,D,G |- \mathkw{header\ union} X \{ \overline{x:t} \} -| S,D[X=\mathkw{header\ union} \{ \overline{x:t} \}],G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Struct]
-TODO
+
+-------------------------------------------------------------------[Type-Decl-Struct]
+P,S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
 ~
 
 ~ Infer
-TODO
----------------------------------------------------[Type-Decl-Error]
-TODO
+
+-----------------------------------------------------------[Type-Decl-Error]
+P,S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------------[Type-Decl-Match-Kind]
-TODO
+P,S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{\mathkw{match\_kind}.x:\mathkw{match\_kind}}]
 ~
 
 ~ Infer

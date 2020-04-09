@@ -258,7 +258,7 @@ s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
     | @return                           // return (void)
     | @return e                         // return (with value)
     | @switch (e) \{ \overline{case} \} // switch statement
-    | d                                 // declaration statement
+    | decl                              // declaration statement
 
 case ::= case\_lbl: blk  // label with block
        | case\_lbl: {}   // fallthrough 
@@ -271,31 +271,31 @@ blk ::= \{ s_1; ... s_n; \} // blocks
 
 ## Declarations
 ~ Begin P4MathGrammar
-d ::= @const t x:=e
-    | t x(\overline{e})
-    | t x(\overline{e}) blk
-    | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} \}
-    | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} @apply blk \}
-    | @function t x<\overline{X}>(\overline{x:t,d}) blk
-    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
-    | t x
-    | t x := e
-    | \mathkw{value\_set}<t>(e) x
-    | @action x (\overline{x:t,d_0},\overline{x:t}) blk
-    | @table x \{ \overline{prop} \}
-    | @header X \{ \overline{x:t} \}
-    | \mathkw{header\ union} X \{ \overline{x:t} \}
-    | @struct X \{ \overline{x:t} \}
-    | @error \{ \overline{x} \}
-    | \mathkw{match\_kind} \{ \overline{x} \}
-    | @enum X \{ \overline{x} \}
-    | @enum t X \{ \overline{x=e} \}
-    | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
-    | @typedef t X
-    | @type t X
-    | @control X<\overline{X}>(\overline{x:t,d})
-    | @parser X<\overline{X}>(\overline{x:t,d})
-    | @package X<\overline{X}>(\overline{x:t})
+decl ::= @const t x:=e
+       | t x(\overline{e})
+       | t x(\overline{e}) blk
+       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}
+       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
+       | @function t x<\overline{X}>(\overline{x:t,d}) blk
+       | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
+       | t x
+       | t x := e
+       | \mathkw{value\_set}<t>(e) x
+       | @action x (\overline{x:t,d_0},\overline{x:t}) blk
+       | @table x \{ \overline{prop} \}
+       | @header X \{ \overline{x:t} \}
+       | \mathkw{header\ union} X \{ \overline{x:t} \}
+       | @struct X \{ \overline{x:t} \}
+       | @error \{ \overline{x} \}
+       | \mathkw{match\_kind} \{ \overline{x} \}
+       | @enum X \{ \overline{x} \}
+       | @enum t X \{ \overline{x=e} \}
+       | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+       | @typedef t X
+       | @type t X
+       | @control X<\overline{X}>(\overline{x:t,d})
+       | @parser X<\overline{X}>(\overline{x:t,d})
+       | @package X<\overline{X}>(\overline{x:t})
 
 state ::= @state x \{ \overline{s}; @transition state\_expr \}
 
@@ -324,7 +324,7 @@ action\_ref ::= x(\overline{e})
 ## Programs
 A program is a sequence of declarations.
 ~ Begin P4MathGrammar
-P ::= d, P
+P ::= decl, P
     | ()
 ~ End P4MathGrammar
 
@@ -1051,16 +1051,16 @@ P,S,D,G |- @switch (e) \{ case1, \dots, case_n \} -| G
 XXX DeclarationStatements don't need to exist, see
 https://github.com/cornell-netlab/petr4/issues/5
 ~ Infer
-P,S,D,G |- d -| P',S',D',G'.
+P,S,D,G |- decl -| P',S',D',G'.
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-P,S,D,G |- d -| G'
+P,S,D,G |- decl -| G'
 ~
 
 ## Declaration typing
 
 Declarations are typed by a judgment of the form
 ~ MathPre
-P,S,D,G |- d -| S',D',G'.
+P,S,D,G |- decl -| S',D',G'.
 ~
 
 It is defined inductively by the following rules.
@@ -1080,18 +1080,18 @@ P,S,D,G |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
 
 ~ Infer
 \text{TODO: another judgment to use in a premise here for checking $\overline{state}$}
-P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| S',D',G'
+P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@parser(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
-P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} -| S,D,G[X:t_ctor]
+P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
-P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| P',S',D',G'
+P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| P',S',D',G'
 P',S',D',G',@void |- blk -| G''
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@control(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
-P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{d} @apply blk \} -| S,D,G[X:t_ctor]
+P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{decl} @apply blk \} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
@@ -1235,14 +1235,12 @@ P,S,D,G |- [] -| P,S,D,G
 ~
 
 ~ Infer
-P,S,D,G |- d -| S',D',G'
+P,S,D,G |- decl -| S',D',G'
 P' = P,d
 P',S',D',G' |- P0 -| P'',S'',D'',G''
 ------------------------------------[]
-P,S,D,G |- d, P0 -| P'',S'',D'',G''
+P,S,D,G |- decl, P0 -| P'',S'',D'',G''
 ~
-
-
 
 # Dynamic Semantics { #sec-dynamic }
 

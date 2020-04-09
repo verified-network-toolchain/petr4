@@ -199,6 +199,20 @@ end = struct
       [@@deriving sexp,yojson]
 end
 
+and ConstructorType : sig
+  type t =
+    { type_params: string list;
+      parameters: ConstructParam.t list;
+      return: Type.t }
+    [@@deriving sexp,yojson]
+end = struct
+  type t =
+    { type_params: string list;
+      parameters: ConstructParam.t list;
+      return: Type.t }
+    [@@deriving sexp,yojson]
+end
+
 and TableType : sig
   type t = {result_typ_name:string}
   [@@deriving sexp,yojson]
@@ -285,6 +299,8 @@ and Type : sig
 
     | Action of ActionType.t
 
+    | Constructor of ConstructorType.t
+
     | Table of TableType.t
     [@@deriving sexp,yojson]
 end = struct
@@ -364,6 +380,8 @@ end = struct
   | Function of FunctionType.t
 
   | Action of ActionType.t
+
+  | Constructor of ConstructorType.t
 
   | Table of TableType.t
   [@@deriving sexp,yojson]

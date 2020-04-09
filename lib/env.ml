@@ -43,6 +43,16 @@ let rec find_opt (name: string) : 'a env -> 'a option = function
     | None              -> find_opt name t
     | Some (_, binding) -> Some binding
 
+let rec find_all (name: string) : 'a env -> 'a list = function
+  | [] -> []
+  | h :: t ->
+     let select acc (name', value) =
+       if name' = name
+       then value :: acc
+       else acc
+     in
+     List.fold h ~init:[] ~f:select @ find_all name t
+
 let opt_to_exn name v =
   match v with
   | Some v -> v
@@ -258,6 +268,9 @@ module CheckerEnv = struct
 
   let find_type_of name env =
     opt_to_exn name (find_type_of_opt name env)
+
+  let find_types_of name env =
+    find_all name env.typ_of
 
   let find_type_of_toplevel name env =
     find_toplevel name env.typ_of

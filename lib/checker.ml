@@ -188,6 +188,10 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   and saturate_action env (action: ActionType.t) : ActionType.t =
     { data_params = List.map ~f:(saturate_param env) action.data_params;
       ctrl_params = List.map ~f:(saturate_construct_param env) action.ctrl_params }
+  and saturate_constructor env (ctor: ConstructorType.t) : ConstructorType.t =
+    { type_params = ctor.type_params;
+      parameters = List.map ~f:(saturate_construct_param env) ctor.parameters;
+      return = saturate_type env ctor.return }
   in
   match typ with
   | TypeName t ->
@@ -239,6 +243,8 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
       Function (saturate_function env func)
   | Action action ->
     Action (saturate_action env action)
+  | Constructor ctor ->
+     Constructor (saturate_constructor env ctor)
 
 type var_constraint = string * Typed.Type.t option [@@deriving sexp]
 type var_constraints = var_constraint list [@@deriving sexp]
@@ -428,6 +434,16 @@ and solve_action_type_equality env equiv_vars unknowns action1 action2 =
     (solve_params_equality env equiv_vars unknowns action1.data_params action2.data_params)
     (solve_constructor_params_equality env equiv_vars unknowns action1.ctrl_params action2.ctrl_params)
 
+and solve_constructor_type_equality env equiv_vars unknowns ctor1 ctor2 =
+  let open ConstructorType in
+  match List.zip ctor1.type_params ctor2.type_params with
+  | Ok param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     merge_solutions env (solve_types env equiv_vars' unknowns ctor1.return ctor2.return)
+                         (solve_constructor_params_equality env equiv_vars' unknowns ctor1.parameters ctor2.parameters)
+  | Unequal_lengths -> None
+
+
 and type_vars_equal_under env equiv_vars tv1 tv2 =
   match equiv_vars with
   | (a, b)::rest ->
@@ -571,6 +587,9 @@ and solve_types (env: CheckerEnv.t)
     | Function func1, Function func2 ->
         solve_function_type_equality env equiv_vars unknowns func1 func2
 
+    | Constructor ctor1, Constructor ctor2 ->
+        solve_constructor_type_equality env equiv_vars unknowns ctor1 ctor2
+
     | Table table1, Table table2 ->
        if table1.result_typ_name = table2.result_typ_name
        then Some (empty_constraints unknowns)
@@ -603,6 +622,7 @@ and solve_types (env: CheckerEnv.t)
     | Extern _, _
     | Action _, _
     | Function _, _
+    | Constructor _, _
     | Table _, _ ->
       None
   end
@@ -883,6 +903,9 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Function {type_params=tps; parameters=ps; return=rt} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_param_types_well_formed env ps && is_well_formed_type env rt
+  | Constructor {type_params=tps; parameters=ps; return=rt} ->
+    let env = CheckerEnv.insert_type_vars tps env in
+    are_construct_params_types_well_formed env ps && is_well_formed_type env rt
   | Extern {type_params=tps; methods=methods} ->
     let env = CheckerEnv.insert_type_vars tps env in
     let open ExternType in
@@ -1754,15 +1777,40 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
      raise_s [%message "type does not have constructor for these arguments" 
                  ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
-and type_constructor_invocation env info decl type_args args : Prog.Expression.t list * Typed.Type.t =
+and resolve_constructor_overload env type_name param_count =
+  let ok : Typed.Type.t -> bool =
+    function
+    | Constructor { parameters; _ } -> param_count = List.length parameters
+    | _ -> false
+  in
+  match
+    CheckerEnv.find_types_of type_name env
+    |> List.map ~f:fst
+    |> List.find ~f:ok
+  with
+  | Some (Typed.Type.Constructor c) -> c
+  | _ -> failwith "bad constructor type or no matching constructor"
+
+and type_constructor_invocation env info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
+  let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
-  let t_params = get_decl_type_params decl in
-  let constructor_params = get_decl_constructor_params env info decl args in
-  let type_args, args = solve_constructor_invocation env (List.map ~f:snd t_params) constructor_params type_args args in
-  let decl_type = CheckerEnv.resolve_type_name (snd (Prog.Declaration.name decl)) env in
-  if List.length t_params > 0
-  then args, SpecializedType { base = decl_type; args = type_args }
-  else args, decl_type
+  let constructor_type = resolve_constructor_overload env decl_name (List.length args) in
+  let t_params = constructor_type.type_params in
+  let prog_params = constructor_params_to_prog_params constructor_type.parameters in
+  let params_args = match_params_to_args info prog_params args in
+  let type_params_args = infer_constructor_type_args env t_params params_args type_args in
+  let env' = CheckerEnv.insert_types type_params_args env in
+  let check_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
+    match arg with
+    | Some arg ->
+       let arg_typed = type_expression env' arg in
+       assert_type_equality env' info (snd param).typ (snd arg_typed).typ;
+       arg_typed
+    | None -> failwith "missing constructor argument"
+  in
+  let ret = saturate_type env' constructor_type.return in
+  let args_typed = List.map ~f:check_arg params_args in
+  args_typed, ret
 
 (* Section 14.1 *)
 and type_nameless_instantiation env info typ args =
@@ -1771,8 +1819,7 @@ and type_nameless_instantiation env info typ args =
   | SpecializedType { base; args = type_args } ->
      begin match snd base with
      | TypeName (_, decl_name) ->
-        let decl = CheckerEnv.find_decl decl_name env in
-        let out_args, out_typ = type_constructor_invocation env info decl type_args args in
+        let out_args, out_typ = type_constructor_invocation env info decl_name type_args args in
         let inst = NamelessInstantiation { typ = translate_type env [] typ;
                                            args = out_args }
         in
@@ -2106,7 +2153,17 @@ and prog_param_to_constructor_param (_, p: Prog.TypeParameter.t) : Typed.Constru
 and prog_params_to_constructor_params ps =
   List.map ~f:prog_param_to_constructor_param ps
 
-and solve_constructor_invocation env type_params params_args type_args args: Typed.Type.t list * Prog.Expression.t list =
+and constructor_param_to_prog_param (p: Typed.ConstructParam.t) : Prog.TypeParameter.t =
+  Info.dummy, { annotations = [];
+                direction = Directionless;
+                opt_value = None;
+                variable = Info.dummy, p.name;
+                typ = p.typ }
+
+and constructor_params_to_prog_params ps =
+  List.map ~f:constructor_param_to_prog_param ps
+
+and infer_constructor_type_args env type_params params_args type_args =
   let type_params_args =
     match List.zip type_params type_args with
     | Ok v -> v
@@ -2115,23 +2172,11 @@ and solve_constructor_invocation env type_params params_args type_args args: Typ
        then List.map ~f:(fun v -> v, None) type_params
        else failwith "mismatch in type arguments"
   in
-  let type_params_args =
-    let inference_params_args =
-      List.map params_args
-        ~f:(fun (cons_param, arg) -> prog_param_to_typed_param cons_param, arg)
-    in
-    infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
+  let inference_params_args =
+    List.map params_args
+      ~f:(fun (cons_param, arg) -> prog_param_to_typed_param cons_param, arg)
   in
-  let env = CheckerEnv.insert_types type_params_args env in
-  let param_matches_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
-    match arg with
-    | Some value ->
-       let value_typed = type_expression env value in
-       assert_type_equality env (fst value_typed) (snd value_typed).typ (snd param).typ;
-       value_typed
-    | None -> failwith "missing argument??"
-  in
-  List.map ~f:snd type_params_args, List.map ~f:param_matches_arg params_args
+  infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
 
 and type_select_case env state_names expr_types (case_info, case) : Prog.Parser.case =
   let open Typed.Type in
@@ -2206,7 +2251,6 @@ and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state 
      in
      (fst state, pre_state)
   | _ -> failwith "bug: expected BlockStatement"
-  
 
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
@@ -2241,7 +2285,12 @@ and type_parser env info name annotations params constructor_params locals state
     { type_params = [];
       parameters = prog_params_to_typed_params params_typed }
   in
-  let env = CheckerEnv.insert_type (snd name) (Parser parser_typ) env in
+  let ctor : Typed.ConstructorType.t =
+    { type_params = [];
+      parameters = List.map ~f:prog_param_to_constructor_param constructor_params_typed;
+      return = Parser parser_typ }
+  in
+  let env = CheckerEnv.insert_type (snd name) (Constructor ctor) env in
   (info, parser_typed), env
 
 and open_control_scope env params constructor_params locals =
@@ -2275,7 +2324,17 @@ and type_control env info name annotations type_params params constructor_params
                 locals = locals_typed;
                 apply = apply_typed }
     in
-    (info, control), env
+    let control_type =
+      Typed.Type.Control { type_params = [];
+                           parameters = List.map ~f:prog_param_to_typed_param params_typed }
+    in
+    let ctor : Typed.ConstructorType.t =
+      { type_params = [];
+        parameters = List.map ~f:prog_param_to_constructor_param constructor_params_typed;
+        return = control_type }
+    in
+    let env' = CheckerEnv.insert_type_of (snd name) (Constructor ctor) env in
+    (info, control), env'
 
 (* Section 9
 
@@ -2795,11 +2854,25 @@ and type_extern_object env info annotations name t_params methods =
   in
   let extern_typ: ExternType.t =
     { type_params = type_params';
-      methods = List.map
-                  ~f:(method_prototype_to_extern_method name)
-                  ms }
+      methods = List.map ms
+                  ~f:(method_prototype_to_extern_method name) }
+  in
+  let extern_ctors =
+    List.map cs ~f:(function
+        | _, Prog.MethodPrototype.Constructor
+              { annotations; name = cname; params = params_typed } ->
+           Type.Constructor
+             { type_params = type_params';
+               parameters = prog_params_to_constructor_params params_typed;
+               return = SpecializedType
+                          { base = Extern extern_typ;
+                            args = List.map ~f:(fun t -> Type.TypeName t) type_params' } }
+        | _ -> failwith "bug: expected constructor")
   in
   let env = CheckerEnv.insert_type (snd name) (Extern extern_typ) env in
+  let env = List.fold extern_ctors ~init:env
+              ~f:(fun env t -> CheckerEnv.insert_type_of (snd name) t env)
+  in
   (info, extern_decl), env
 
 and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
@@ -2887,7 +2960,7 @@ and type_control_type env info annotations name t_params params =
         params = params_typed }
   in
   let ctrl_typ = Type.Control { type_params = simple_t_params;
-                               parameters = params_for_type } in
+                                parameters = params_for_type } in
   (info, ctrl_decl), CheckerEnv.insert_type (snd name) ctrl_typ env
 
 (* Section 7.2.11 *)
@@ -2920,9 +2993,22 @@ and type_package_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let pkg_typ = Type.Package { type_params = simple_t_params;
-                               parameters = params_for_type } in
-  (info, pkg_decl), CheckerEnv.insert_type (snd name) pkg_typ env
+  let pkg_typ: Typed.PackageType.t =
+    { type_params = simple_t_params;
+      parameters = params_for_type }
+  in
+  let ret = Type.Package { pkg_typ with type_params = [] } in
+  let ctor_typ =
+    Type.Constructor { type_params = simple_t_params;
+                       parameters = params_for_type;
+                       return = ret }
+  in
+  let env' =
+    env
+    |> CheckerEnv.insert_type_of (snd name) ctor_typ
+    |> CheckerEnv.insert_type (snd name) (Type.Package pkg_typ)
+  in
+  (info, pkg_decl), env'
 
 and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   let (decl': Prog.Declaration.t), env =

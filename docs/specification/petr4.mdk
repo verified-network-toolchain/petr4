@@ -276,8 +276,8 @@ d ::= @const t x:=e
     | t x(\overline{e}) blk
     | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} \}
     | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} @apply blk \}
-    | @function t x<\overline{X}>(\overline{x:t, d}) blk
-    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t}) blk
+    | @function t x<\overline{X}>(\overline{x:t,d}) blk
+    | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
     | t x
     | t x := e
     | \mathkw{value\_set}<t>(e) x
@@ -342,7 +342,7 @@ t ::= @bool
     | \{ \overline{t} \}
     | @set<t>
     | @error
-    | @match_kind
+    | \mathkw{match\_kind}
     | X  // type name
     | .X // top level type reference
     | @newtype X t
@@ -356,9 +356,11 @@ t ::= @bool
     | @package<\overline{X}>(\overline{x:t,d})
     | @control<\overline{X}>(\overline{x:t,d})
     | @parser<\overline{X}>(\overline{x:t})
-    | @extern {...,m_i<X_1,...,X_n>(x_1:\tau_1,...,x_n:\tau_n) : \tau,...}
+    | @extern X \{ \overline{method} \}
     | @function<\overline{X}>(\overline{x:t}) : \tau
+    | \mathkw{extern\ function} x<\overline{X}>(\overline{x:t,d}):t
     | @action(\overline{x:t,d_0}, \overline{x:t}) : @void
+    | @constructor<\overline{X}>(\overline{x:t}): t
     | @table (...)
 
 d0 ::= @in
@@ -901,11 +903,22 @@ P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
 
 #### Nameless Instantiation
 
-TODO: Fix these rules to handle overloading and not rely on control/parser declarations having types
+We need a function to resolve overloads.
 ~ Infer
+t_{ctor} = @constructor<\overline{X}>(\overline{x:t}): t
+@length \overline{x:t} = n
+X:t_{ctor} \in G
+---------------------------------------------------------[Resolve-Constructor-Overload]
+\mathkw{resolve\_overload} G X n = t_{ctor}
+~
+
+~ Infer
+@length \overline{e} = n
+@length \overline{\rho} = @length \overline{X}
+\mathkw{resolve\_overload} G Y n = @constructor<\overline{X}>(\overline{x:t}): t_{ret}
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 --------------------------------------------------------------------[Specialized-Type-Instantiation]
-P,S,D,G |- X<\overline{rho}>(\overline{e}) : X<\overline{rho}>
+P,S,D,G |- Y<\overline{\rho}>(\overline{e}) : t_{ret}[\overline{\rho/X}]
 ~
 
 ~ Infer
@@ -1068,31 +1081,35 @@ P,S,D,G |- t x(\overline{e}) -| P',S,D,G[x:t_{inst}]
 ~
 
 ~ Infer
-TODO
------------------------------------[Type-Decl-Parser]
-TODO
+\text{TODO: another judgment to use in a premise here for checking $\overline{state}$}
+P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| P',S',D',G'
+P' = P,@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state}
+t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@parser(\overline{x:t})
+-------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
+P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{d} \overline{state} -| P',S,D,G[X:t_ctor]
 ~
 
 ~ Infer
-P,S,D,G[\overline{x: t}][\overline{x^{ctor}: t}] |- \overline{d} -| P',S',D',G'
+P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{d} -| P',S',D',G'
 P',S',D',G',@void |- blk -| G''
-P' = P, @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \}
---------------------------------------------------------------------------------------------------------[Type-Decl-Control]
-P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \} -| P',S,D,G
+P' = P,@control X(\overline{x: t})(\overline{x^{ctor}: t}) \{ \overline{d} @apply blk \}
+t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@control(\overline{x:t})
+-------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
+P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{d} @apply blk \} -| P',S,D,G[X:t_ctor]
 ~
 
 ~ Infer
 P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 P' = P, @function t x<\overline{X}>(\overline{x: t}) blk
--------------------------------------------------------------------------------[Type-Decl-Function]
+----------------------------------------------------[Type-Decl-Function]
 P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
 ~
 
 ~ Infer
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 P' = P, \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk
------------------------------------------------------------------------------[Type-Decl-Extern-Function]
+---------------------------------------------------------------[Type-Decl-Extern-Function]
 P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| P',S,D,G'
 ~
 
@@ -1176,9 +1193,10 @@ P,S,D,G |- @enum X \{ \overline{x} \} -| P',S,D,G
 ~
 
 ~ Infer
-TODO
+\forall{}ctor_i=X(\overline{x:t}). {t_{ctor}}_i = @constructor<\overline{X}>(\overline{x_i:t_i}) : t_{extern}
+t_{extern} = @extern X \{ \overline{method} \}
 ---------------------------------------------------[Type-Decl-Extern-Object]
-TODO
+P,S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| P',S,D,G[\overline{X:t_{ctor}}]
 ~
 
 ~ Infer

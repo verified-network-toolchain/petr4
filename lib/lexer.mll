@@ -33,6 +33,7 @@ type lexer_state =
                                 * emitted a [NAME] token. The next token will be
                                 * either [IDENTIFIER] or [TYPENAME], depending on
                                 * what kind of identifier this is. *)
+  | SRangle of Info.t
 
 let lexer_state = ref SRegular
     
@@ -383,13 +384,32 @@ let lexer : lexbuf -> token =
     | SIdent id ->
       lexer_state := SRegular;
       if is_typename id then TYPENAME else IDENTIFIER
+    | SRangle info1 -> 
+      begin 
+        let token = tokenize lexbuf in
+        match token with 
+        | R_ANGLE info2 when Info.follows info1 info2 -> 
+          lexer_state := SRegular;
+          R_ANGLE_SHIFT info2
+        | NAME id ->
+          lexer_state := SIdent id;
+          token
+        | _ -> 
+          lexer_state := SRegular;
+          token
+      end
     | SRegular ->
-      let token = tokenize lexbuf in
-      match token with
-      | NAME id ->
-        lexer_state := SIdent id;
-        token
-      | _ ->
-        lexer_state := SRegular;
-        token
+      begin 
+        let token = tokenize lexbuf in
+        match token with
+        | NAME id ->
+          lexer_state := SIdent id;
+          token
+        | R_ANGLE info -> 
+          lexer_state := SRangle info;
+          token
+        | _ ->
+          lexer_state := SRegular;
+          token
+     end
 }

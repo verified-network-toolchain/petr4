@@ -35,7 +35,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> LE GE SHL AND OR NE EQ
 %token<Info.t> PLUS MINUS PLUS_SAT MINUS_SAT MUL DIV MOD
 %token<Info.t> BIT_OR BIT_AND BIT_XOR COMPLEMENT
-%token<Info.t> L_BRACKET R_BRACKET L_BRACE R_BRACE L_ANGLE R_ANGLE L_PAREN R_PAREN
+%token<Info.t> L_BRACKET R_BRACKET L_BRACE R_BRACE L_ANGLE R_ANGLE R_ANGLE_SHIFT L_PAREN R_PAREN
 %token<Info.t> ASSIGN COLON COMMA QUESTION DOT NOT SEMICOLON
 %token<Info.t> AT PLUSPLUS
 %token<Info.t> DONTCARE
@@ -57,7 +57,7 @@ let declare_types types = List.iter types ~f:declare_type
 %left BIT_OR
 %left BIT_XOR
 %left BIT_AND
-%left SHL
+%left SHL R_ANGLE_SHIFT
 %left PLUSPLUS PLUS MINUS PLUS_SAT MINUS_SAT
 %left MUL DIV MOD
 %right PREFIX
@@ -464,13 +464,13 @@ simpleKeysetExpression
 
 valueSetDeclaration
 : annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = baseType R_ANGLE
+    info1 = VALUESET L_ANGLE typ = baseType r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
 | annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = tupleType R_ANGLE
+    info1 = VALUESET L_ANGLE typ = tupleType r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
 | annotations = optAnnotations
-    info1 = VALUESET L_ANGLE typ = typeName R_ANGLE
+    info1 = VALUESET L_ANGLE typ = typeName r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
       Declaration.ValueSet { annotations; typ; size; name } ) }
@@ -602,8 +602,8 @@ typeName
 ;
 
 tupleType
-: info1 = TUPLE L_ANGLE elements = typeArgumentList info2 = R_ANGLE
-    { (Info.merge info1 info2,
+: info1 = TUPLE L_ANGLE elements = typeArgumentList info_r = r_angle
+    { (Info.merge info1 info_r,
        Type.Tuple elements) }
 ;
 
@@ -614,8 +614,8 @@ headerStackType
 ;
 
 specializedType
-: base = prefixedType L_ANGLE args = typeArgumentList info2 = R_ANGLE
-    { (Info.merge (info base) info2,
+: base = prefixedType L_ANGLE args = typeArgumentList info_r = r_angle
+    { (Info.merge (info base) info_r,
       Type.SpecializedType { base; args }) }
 ;
 
@@ -628,26 +628,26 @@ baseType
     { let width = (info, Expression.Int (info, { value = Bigint.of_int 1;
                                                  width_signed = None })) in
       (info, Type.BitType width) }
-| info1 = BIT L_ANGLE value = INTEGER info2 = R_ANGLE
+| info1 = BIT L_ANGLE value = INTEGER info_r = r_angle
     { let width = (info value, Expression.Int value) in
-      let info = Info.merge info1 info2 in
+      let info = Info.merge info1 info_r in
       (info, Type.BitType width) }
-| info1 = INT L_ANGLE value = INTEGER info2 = R_ANGLE
+| info1 = INT L_ANGLE value = INTEGER info_r = r_angle
      { let width = (info value, Expression.Int value) in
-       let info = Info.merge info1 info2 in
+       let info = Info.merge info1 info_r in
       (info, Type.IntType width) }
-| info1 = VARBIT L_ANGLE value = INTEGER info2 = R_ANGLE
+| info1 = VARBIT L_ANGLE value = INTEGER info_r = r_angle
      { let max_width = (info value, Expression.Int value) in
-       let info = Info.merge info1 info2 in
+       let info = Info.merge info1 info_r in
       (info, Type.VarBit max_width) }
-| info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info2 = R_ANGLE
-    { (Info.merge info1 info2,
+| info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
+    { (Info.merge info1 info_r,
        Type.BitType width) }
-| info1 = INT L_ANGLE L_PAREN width = expression R_PAREN info2 = R_ANGLE
-    { (Info.merge info1 info2,
+| info1 = INT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
+    { (Info.merge info1 info_r,
        Type.IntType width) }
-| info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info2 = R_ANGLE
-    { (Info.merge info1 info2,
+| info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info_r = r_angle
+    { (Info.merge info1 info_r,
        Type.VarBit max_width) }
 | info = INT
     { (info, Type.Integer) }
@@ -666,7 +666,7 @@ typeOrVoid
 
 optTypeParameters
 : (* empty *) { [] }
-| L_ANGLE types = separated_list(COMMA, typeParameter) R_ANGLE
+| L_ANGLE types = separated_list(COMMA, typeParameter) r_angle
     { declare_types types;
       types }
 ;
@@ -754,7 +754,7 @@ enumDeclaration
     L_BRACE members = identifierList info2 = R_BRACE
     { (Info.merge info1 info2,
       Declaration.Enum { annotations; name; members }) }
-| annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER info3 = R_ANGLE
+| annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER r_angle
     name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
    { let width = (info value, Expression.Int value) in
      let typ = (Info.merge info2 info4, Type.BitType width) in
@@ -814,7 +814,7 @@ assignmentOrMethodCallStatement
     { let type_args = [] in
       (Info.merge (info func) info2,
        Statement.MethodCall { func; type_args; args }) }
-| func = lvalue L_ANGLE type_args = typeArgumentList R_ANGLE
+| func = lvalue L_ANGLE type_args = typeArgumentList r_angle
     L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
     { (Info.merge (info func) info2,
        Statement.MethodCall { func; type_args; args }) }
@@ -1126,7 +1126,7 @@ expression
 | cond = expression QUESTION tru = expression COLON fls = expression
    { (Info.merge (info cond) (info fls),
       Expression.Ternary { cond; tru; fls }) }
-| func = expression L_ANGLE type_args = realTypeArgumentList R_ANGLE
+| func = expression L_ANGLE type_args = realTypeArgumentList r_angle
     L_PAREN args = argumentList info2 = R_PAREN
    { (Info.merge (info func) info2,
       Expression.FunctionCall { func; type_args; args }) }
@@ -1156,16 +1156,16 @@ expression
     { (info, Op.MinusSat) }
 | info = SHL
     { (info, Op.Shl) }
-| info = R_ANGLE R_ANGLE   (* TODO: check that >> are adjacent *)
-    { (info, Op.Shr) }
+| info_r = r_angle info2 = R_ANGLE_SHIFT
+    { (Info.merge info_r info2, Op.Shr) }
 | info = LE
     { (info, Op.Le) }
 | info = GE
     { (info, Op.Ge) }
 | info = L_ANGLE
     { (info, Op.Lt) }
-| info = R_ANGLE
-    { (info, Op.Gt) }
+| info_r = r_angle
+    { (info_r, Op.Gt) }
 | info = NE
     { (info, Op.NotEq) }
 | info = EQ
@@ -1183,6 +1183,10 @@ expression
 | info = OR
     { (info, Op.Or) }
 ;
+
+%inline r_angle 
+: info_r = R_ANGLE { info_r } 
+| info_r = R_ANGLE_SHIFT { info_r }
 
 (* À jour avec le commit 45df9f41a2cf1af56f4fa1cfaa1f586adefd13b7
    de p4-spec; à dotPrefix et listes près *)

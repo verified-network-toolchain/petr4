@@ -1391,9 +1391,7 @@ and type_type_member env typ name : Prog.Expression.typed_t =
     match full_typ with
     | Enum { name = _; typ = carrier; members } ->
        if List.mem ~equal:(fun x y -> x = y) members (snd name)
-       then match carrier with
-            | None -> typ
-            | Some carrier -> carrier
+       then typ
        else raise_s [%message "enum has no such member"
                         ~enum:(full_typ: Typed.Type.t)
                         ~member:(snd name)]
@@ -2029,8 +2027,7 @@ and type_conditional env ctx cond tru fls =
      let typ =
        match tru_typ, (snd fls_typed).typ with
        | StmType.Void, StmType.Void -> StmType.Void
-       | StmType.Unit, _
-       | _, StmType.Unit -> StmType.Unit
+       | _ -> StmType.Unit
      in
      { stmt = stmt_out; typ = typ }, env
 
@@ -2038,11 +2035,14 @@ and type_statements env ctx statements =
   let open Prog.Statement in
   let fold (prev_type, stmts, env) statement =
     (* Cannot have statements after a void statement *)
-    match prev_type with
-    | StmType.Void -> raise_internal_error "UnreachableBlock"
-    | StmType.Unit ->
-       let stmt_typed, env = type_statement env ctx statement in
-       ((snd stmt_typed).typ, stmt_typed::stmts, env)
+    let stmt_typed, env = type_statement env ctx statement in
+    let next_typ =
+      match prev_type, (snd stmt_typed).typ with
+      | _, StmType.Void
+      | StmType.Void, _ -> StmType.Void
+      | _ -> StmType.Unit
+    in
+    (next_typ, stmt_typed::stmts, env)
   in
   List.fold_left ~f:fold ~init:(StmType.Unit, [], env) statements
 

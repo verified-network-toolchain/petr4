@@ -15,6 +15,7 @@ build: [
 ]
 depends: [
   "alcotest"
+  "bignum"
   "ocaml" {>= "4.09.0"}
   "dune" {build}
   "cstruct"

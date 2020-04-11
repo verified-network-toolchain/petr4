@@ -1907,20 +1907,20 @@ and type_range env lo hi : Prog.Expression.typed_t =
     typ = Set typ;
     dir = Directionless }
 
-and type_statement (env: CheckerEnv.t) (stm: Statement.t) : (Prog.Statement.t * CheckerEnv.t) =
+and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) : (Prog.Statement.t * CheckerEnv.t) =
   let open Prog.Statement in
   let typed_stm, env' =
     match snd stm with
     | MethodCall { func; type_args; args } ->
-       type_method_call env (fst stm) func type_args args
+       type_method_call env ctx (fst stm) func type_args args
     | Assignment { lhs; rhs } ->
-       type_assignment env lhs rhs
+       type_assignment env ctx lhs rhs
     | DirectApplication { typ; args } ->
-       type_direct_application env typ args
+       type_direct_application env ctx typ args
     | Conditional { cond; tru; fls } ->
-       type_conditional env cond tru fls
+       type_conditional env ctx cond tru fls
     | BlockStatement { block } ->
-       type_block_statement env block
+       type_block env ctx block
     | Exit ->
        { stmt = Exit;
          typ = StmType.Void },
@@ -1930,16 +1930,16 @@ and type_statement (env: CheckerEnv.t) (stm: Statement.t) : (Prog.Statement.t * 
          typ = StmType.Unit },
        env
     | Return { expr } ->
-       type_return env expr
+       type_return env ctx (fst stm) expr
     | Switch { expr; cases } ->
-       type_switch env expr cases
+       type_switch env ctx expr cases
     | DeclarationStatement { decl } ->
-       type_declaration_statement env decl
+       type_declaration_statement env ctx decl
   in
   ((fst stm, typed_stm), env')
   
 (* Section 8.17 *)
-and type_method_call env call_info func type_args args =
+and type_method_call env ctx call_info func type_args args =
   let call_typed = type_function_call env call_info func type_args args in
   match call_typed.expr with
   | FunctionCall call ->
@@ -1962,7 +1962,7 @@ and type_method_call env call_info func type_args args =
  * ---------------------------------------------
  *    Δ, T, Γ |- e1 = e2 : Δ, T, Γ
  *)
-and type_assignment env lhs rhs =
+and type_assignment env ctx lhs rhs =
   let open Prog.Statement in
   let lhs_typed = type_expression env lhs in
   let rhs_typed = type_expression env rhs in
@@ -1973,7 +1973,7 @@ and type_assignment env lhs rhs =
   env
 
 (* This belongs in an elaboration pass, really. - Ryan *)
-and type_direct_application env typ args =
+and type_direct_application env ctx typ args =
   let open Types.Expression in
   let instance = NamelessInstantiation { typ = typ; args = [] } in
   let apply = ExpressionMember { expr = Info.dummy, instance; name = (Info.dummy, "apply") } in
@@ -2009,11 +2009,11 @@ and type_direct_application env typ args =
  * ---------------------------------------------
  *    Δ, T, Γ |- if e1 then e2 else e3: Δ', T', Γ'
  *)
-and type_conditional env cond tru fls =
+and type_conditional env ctx cond tru fls =
   let open Prog.Statement in
   let expr_typed = type_expression env cond in
   assert_bool (info cond) (snd expr_typed).typ |> ignore;
-  let type' stmt = fst (type_statement env stmt) in
+  let type' stmt = fst (type_statement env ctx stmt) in
   let tru_typed = type' tru in
   let tru_typ = (snd tru_typed).typ in
   let fls_typed = option_map type' fls in
@@ -2034,21 +2034,20 @@ and type_conditional env cond tru fls =
      in
      { stmt = stmt_out; typ = typ }, env
 
-(* QUESTION: Why are we only allowing statements but not declarations *)
-(* A block execuete a sequence of statements sequentially*)
-and type_block_statement env block =
+and type_statements env ctx statements =
   let open Prog.Statement in
   let fold (prev_type, stmts, env) statement =
     (* Cannot have statements after a void statement *)
     match prev_type with
     | StmType.Void -> raise_internal_error "UnreachableBlock"
     | StmType.Unit ->
-       let stmt_typed, env = type_statement env statement in
+       let stmt_typed, env = type_statement env ctx statement in
        ((snd stmt_typed).typ, stmt_typed::stmts, env)
   in
-  let (typ, stmts, env) =
-    List.fold_left ~f:fold ~init:(StmType.Unit, [], env) (snd block).statements
-  in
+  List.fold_left ~f:fold ~init:(StmType.Unit, [], env) statements
+
+and type_block env ctx block =
+  let (typ, stmts, env') = type_statements env ctx (snd block).statements in
   let block : Prog.Block.pre_t = 
     { annotations = (snd block).annotations;
       statements = List.rev stmts }
@@ -2062,19 +2061,34 @@ and type_block_statement env block =
  * ---------------------------------------------
  *    Δ, T, Γ |- return e: void ,Δ, T, Γ
  *)
-and type_return env expr =
-  let stmt : Prog.Statement.pre_t = 
+and type_return env ctx info expr =
+  let (stmt, typ) : Prog.Statement.pre_t * Typed.Type.t = 
     match expr with
-    | None -> Return { expr = None }
+    | None -> Return { expr = None }, Typed.Type.Void
     | Some e ->
        let e_typed = type_expression env e in
-       Return { expr = Some e_typed }
+       Return { expr = Some e_typed }, (snd e_typed).typ
   in
-  { stmt = stmt; typ = StmType.Void }, env
+  let ret: Prog.Statement.typed_t * CheckerEnv.t =
+    { stmt = stmt; typ = StmType.Void }, env
+  in
+  match ctx, typ with
+  | ApplyBlock, Void
+  | Action, Void -> ret
+  | Function t, t' ->
+     assert_type_equality env info t t';
+     ret
+  | _ ->
+     raise_s [%message "return statements not allowed in context"
+                 ~info:(info: Info.t)
+                 ~ctx:(ctx: StmtContext.t)]
 
 (* Section 11.7 *)
-and type_switch env expr cases =
+and type_switch env ctx expr cases =
   let open Types.Statement in
+  if ctx <> ApplyBlock
+  then raise_s [%message "switch statements not allowed in context"
+                   ~ctx:(ctx: StmtContext.t)];
   let expr_typed = type_expression env expr in
   let action_name_typ = reduce_type env (snd expr_typed).typ in
   let label_checker label =
@@ -2089,7 +2103,7 @@ and type_switch env expr cases =
   let case_checker (case_info, case) =
     match case with
     | Action { label; code = block } ->
-       let block_expr_typed, env = type_block_statement env block in
+       let block_expr_typed, env = type_block env ctx block in
        let label_typed = label_checker label in
        let block_typed =
          match block_expr_typed.stmt with
@@ -2114,7 +2128,7 @@ and type_switch env expr cases =
   | _ -> failwith "Switch statement does not type check."
 
 (* Section 10.3 *)
-and type_declaration_statement env (decl: Declaration.t) : Prog.Statement.typed_t * CheckerEnv.t =
+and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.typed_t * CheckerEnv.t =
   let open Prog.Statement in
   match snd decl with
   | Constant _
@@ -2271,7 +2285,7 @@ and type_transition env state_names transition : Prog.Parser.transition =
 and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state =
   let open Block in
   let block = {annotations = []; statements = (snd state).statements} in
-  let (block_typed, env') = type_block_statement env (fst state, block) in
+  let (block_typed, env') = type_block env ParserState (fst state, block) in
   match block_typed.stmt with
   | BlockStatement { block } ->
      let transition_typed = type_transition env' state_names (snd state).transition in
@@ -2341,7 +2355,7 @@ and type_control env info name annotations type_params params constructor_params
     let env', params_typed, constructor_params_typed, locals_typed =
       open_control_scope env params constructor_params locals
     in
-    let block_typed, env'' = type_block_statement env' apply in
+    let block_typed, env'' = type_block env' ApplyBlock apply in
     let apply_typed =
       match block_typed.stmt with
       | BlockStatement { block } -> block
@@ -2379,34 +2393,23 @@ and type_control env info name annotations type_params params constructor_params
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
 and type_function env info return name type_params params body =
-  let open Block in
   let t_params = List.map ~f:snd type_params in
   let body_env = CheckerEnv.insert_type_vars t_params env in
   let params_typed = List.map ~f:(type_param body_env) params in
   let return_type = return |> translate_type env t_params in
   let typ_params = List.map ~f:prog_param_to_typed_param params_typed in
   let body_env = insert_params body_env params in
-  let check_statement (stmts, env) stmt =
-    let stmt_typed, env' = type_statement env stmt in
-    match (snd stmt_typed).stmt with
-    | Return { expr } ->
-       let expr_type =
-         match expr with
-         | Some e -> (snd e).typ
-         | None -> Void
-       in
-       assert_type_equality env (fst stmt_typed) return_type expr_type;
-       stmt_typed :: stmts, env'
-    | _ -> stmt_typed :: stmts, env'
-  in
-  let check_statements env (block: Block.t) =
-    let stmts, env = List.fold ~f:check_statement  ~init:([], env) (snd block).statements in
-    List.rev stmts
-  in
+  let body_stmt_typed, _ = type_block body_env (Function return_type) body in
   let body_typed : Prog.Block.t =
-    fst body,
-    { annotations = (snd body).annotations;
-      statements = check_statements body_env body }
+    match body_stmt_typed, return_type with
+    | { stmt = BlockStatement { block = blk }; _ }, Void
+    | { stmt = BlockStatement { block = blk }; typ = StmType.Void }, _ ->
+       blk
+    | { stmt = BlockStatement { block = blk}; typ = StmType.Unit }, non_void ->
+       raise_s [%message "function body does not return a value of the required type"
+              ~body:(blk: Prog.Block.t)
+              ~return_type:(return_type: Typed.Type.t)]
+    | _ -> failwith "bug: expected BlockStatement"
   in
   let funtype =
     Type.Function { parameters = typ_params;

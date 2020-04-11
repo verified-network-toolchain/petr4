@@ -398,3 +398,19 @@ end = struct
   | Void
   [@@deriving sexp,yojson]
 end
+
+and StmtContext : sig
+  type t =
+  | Function of Type.t
+  | Action
+  | ParserState
+  | ApplyBlock
+  [@@deriving sexp,yojson]
+end = struct
+  type t =
+  | Function of Type.t
+  | Action
+  | ParserState
+  | ApplyBlock
+  [@@deriving sexp,yojson]
+end

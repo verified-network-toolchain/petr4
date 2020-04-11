@@ -370,6 +370,20 @@ d0 ::= @in
 d ::= d0 | @none
 ~ End P4MathGrammar
 
+Signals are types for statements.
+~ P4MathGrammar
+sig := @returns // written ``Void" in the implementation
+     | \bot     // written ``Unit" in the implementation
+~
+
+Contexts indicate where a statement is being typechecked.
+~ P4MathGrammar
+ctx ::= @InFunction t
+      | @InControl
+      | @InParser
+      | @InAction
+~
+
 ## Values
 
 <!--
@@ -749,10 +763,15 @@ P,S,D,G |- (t) e : t, d
 
 #### Member expressions
 ~ Infer
-D(X) = @enum t \{m_1, \dots, m_n\}
-m_i = name
----------------------------------------[Type-Member]
-P,S,D,G |- X.name : t, @none
+D(X) = @enum t X \{m_1,\dots,m_n\}
+---------------------------------------[Type-Member-Serializable-Enum]
+P,S,D,G |- X.m_i:X,@none
+~
+
+~ Infer
+D(X) = @enum X \{m_1,\dots,m_n\}
+---------------------------------------[Type-Member-Enum]
+P,S,D,G |- X.m_i:X,@none
 ~
 
 ~ Infer
@@ -951,16 +970,15 @@ P,S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 
 Statements are typed by a judgment of the form
 ~ MathPre
-P,S,D,G |- s -| G'.
+P,S,D,G,ctx |- s:sig -| G'.
 ~
 
 The judgment is defined inductively by the following rules.
 
 ~ Infer
-P,S,D,G |- e:@function<X_1,\dots,X_n>(x_1:t_1,\dots,x_m:t_m) : t_{\mathsf{ret}}
-P,S,D[X_i=t_i]_{i=1}^n,G |- e_j:t_j \text{for $1\leq{}j\leq{}m$}
---------------------------------------------------------------------------------[Type-Stmt-Method-Call]
-P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m) -| G
+P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m):t
+-------------------------------------------------------[Type-Stmt-Method-Call]
+P,S,D,G,ctx |- e<t_1,\dots,t_n>(e_1,\dots,e_m):\bot -| G
 ~
 
 TODO: LValues
@@ -969,67 +987,89 @@ TODO: LValues
 P,S,D,G |- e_l: t
 P,S,D,G |- e_r: t
 ----------------------------[Type-Stmt-Assignment]
-P,S,D,G |- e_l := e_r -| G
+P,S,D,G,ctx |- e_l:=e_r:\bot -| G
 ~
 
 ~ Infer
 P,S,D,G |- t().@apply(\overline{e}) : t'
 ----------------------------------------------[Type-Stmt-Direct-Application]
-P,S,D,G |- t.@apply(\overline{e}) -| G
+P,S,D,G,ctx |- t.@apply(\overline{e}):bot -| G
 ~
 
+The $\wedge{}$ operator is $\mathkw{returns}$ if both of its arguments
+are $\mathkw{returns}$ and $\bot$ otherwise. The $\vee{}$ operator is
+$\mathkw{returns}$ if any of its arguments are $\mathkw{returns}$
+and $\bot$ otherwise.
 ~ Infer
 P,S,D,G |- e:@bool
-P,S,D,G |- s_1 -| G_1
-P,S,D,G |- s_2 -| G_2
----------------------------------------------------[Type-Stmt-Conditional]
-P,S,D,G |- @if (e) s_1 @else s_2 -| G
+P,S,D,G,ctx |- s_1:sig_1 -| G_1
+P,S,D,G,ctx |- s_2:sig_2 -| G_2
+----------------------------------------------[Type-Stmt-Conditional]
+P,S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
 ~
+
+We need another judgment for typing sequences $\overline{s}$ of
+statements. (Sorry about the empty sequence notation in the first
+rule...)
 
 ~ Infer
 
----------------------------------------------------[Type-Stmt-Block-Empty]
-P,S,D,G |- \{\} -| G
+---------------------------------------------------[Type-Stmts-Empty]
+P,S,D,G,ctx |- \overline{  } :\bot -| G
 ~
 
 ~ Infer
-P,S,D,G |- \overline{s} -| G'
+P,S,D,G,ctx  |- s:sig_1 -| G'
+P,S,D,G',ctx |- \overline{s}:sig_2 -| G'
+---------------------------------------------------[Type-Stmts-List]
+P,S,D,G,ctx |- s;\overline{s}:sig_1 \vee sig_2 -| G
+~
+
+~ Infer
+P,S,D,G,ctx |- \overline{s}:sig -| G'
 ---------------------------------------------------[Type-Stmt-Block]
-P,S,D,G |- \{\overline{s}\} -| G
+P,S,D,G,ctx |- \{\overline{s}\}:sig -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Exit]
-P,S,D,G |- @exit -| G
+P,S,D,G,@InParserState |- @exit:@returns -| G
 ~
 
 ~ Infer
 
----------------------------------------------------[Type-Stmt-Empty]
-P,S,D,G |- \mathkw{;} -| G
+------------------------------------------[Type-Stmt-Empty]
+P,S,D,G,ctx |- \mathkw{;}:\bot -| G
 ~
 
-Note: the type r in the context doesn't exist in the implementation right
-now or in any other rules. It should exist in the implementation and
-it should be set when checking the bodies of actions, functions, and
-controls. It might be possible to use it to deal with questions like
-"are we in a parser right now?"
 ~ Infer
-P,S,D,G |- e:r
+P,S,D,G |- e:t
 ---------------------------------------------------[Type-Stmt-Return-Value]
-P,S,D,G,r |- @return e -| G
+P,S,D,G,@InFunction t |- @return e:@returns -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Void]
-P,S,D,G,@void |- @return -| G
+P,S,D,G,@InFunction @void |- @return:@returns -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Return-Control]
+P,S,D,G,@InControl |- @return:@returns -| G
+~
+
+~ Infer
+
+---------------------------------------------------[Type-Stmt-Return-Action]
+P,S,D,G,@InAction |- @return:@returns -| G
 ~
 
 ~ Infer
 P,S,D,G |- case\_lbl : \tau
-P,S,D,G |- blk -| G'
+P,S,D,G,@InControl |- blk:sig -| G'
 ---------------------------------------------------[Type-Case-Block]
 P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
 ~
@@ -1040,19 +1080,28 @@ P,S,D,G |- case\_lbl : \tau
 P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
 ~
 
+There isn't a real reason to track signals in controls, seeing as
+controls only return void and there's no way for an apply block that
+typechecks in all other respects to fail to not return a value. Seeing
+as switch statements can only appear in controls, this rule just
+assigns them the signal $\bot$ to avoid having to track signals in
+each case and across fallthrough cases.
 ~ Infer
 P,S,D,G |- e : @enum X \{ \overline{m} \}
 \forall i. P,S,D,G |- \mathkw{case\_ok}_X case_i
 --------------------------------------------------------------------------[Type-Stmt-Switch]
-P,S,D,G |- @switch (e) \{ case1, \dots, case_n \} -| G
+P,S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
 ~
 
-XXX DeclarationStatements don't need to exist, see
+TODO: DeclarationStatements don't need to exist, see
 https://github.com/cornell-netlab/petr4/issues/5
+
+The implementation makes sure decl is a constant, instantiation, or
+variable, this rule doesn't bother.
 ~ Infer
 P,S,D,G |- decl -| P',S',D',G'.
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-P,S,D,G |- decl -| G'
+P,S,D,G,ctx |- decl:\bot -| G'
 ~
 
 ## Parser state typing
@@ -1214,23 +1263,22 @@ P,S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}]
 ~
 
 ~ Infer
-
+\overline{@error.x \notin G}
 -----------------------------------------------------------[Type-Decl-Error]
 P,S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
 ~
 
 ~ Infer
-TODO
+\overline{.x \notin G}
 ---------------------------------------------------[Type-Decl-Match-Kind]
-P,S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{\mathkw{match\_kind}.x:\mathkw{match\_kind}}]
+P,S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
 ~
 
 ~ Infer
 D' = D[X=@enum t X \{ \overline{x} \}]
 \overline{e} \Downarrow \overline{v}
-S' = S[\overline{x=v}]
 ---------------------------------------------------[Type-Decl-Enum]
-P,S,D,G |- @enum t X \{ \overline{x=e} \} -| S,D,G
+P,S,D,G |- @enum t X \{ \overline{x=e} \} -| S[\overline{x=v}],D,G
 ~
 
 ~ Infer

@@ -1464,15 +1464,13 @@ n != 1
 \langle ctrl, env, st, (bool) e \rangle \Downarrow_e \langle env', st', false \rangle
 ~
 
-<!-- Commenting this out temporarily because weird double subscript behavior
-
 ~ Infer
 \langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
 \langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
 v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
-v2 = a2 | {a2}_u^{n2} | {a2}_s^{n2}
+v2 = a2 | {a2}_u^{n3} | {a2}_s^{n4}
 w = a2
-n = of_twos_complement a1 (TODO)
+n = oftwoscomplement a1 (TODO)
 -------------------------------------------------------------------------------[Bit-Cast]
 \langle ctrl, env, st, (bit<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_u^w \rangle
 ~
@@ -1481,13 +1479,12 @@ n = of_twos_complement a1 (TODO)
 \langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
 \langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
 v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
-v2 = a2 | {a2}_u^{n2} | {a2}_s^{n2}
+v2 = a2 | {a2}_u^{n3} | {a2}_s^{n4}
 w = a2
-n = to_twos_complement a1 (TODO)
+n = totwoscomplement a1 (TODO)
 -------------------------------------------------------------------------------[Int-Cast]
 \langle ctrl, env, st, (int<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_s^w \rangle
 ~
--->
 
 ~ Infer
 \langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
@@ -1498,9 +1495,8 @@ n = to_twos_complement a1 (TODO)
 ### Member Expressions
 
 ~ Infer
-env(X) = @enum X \{m_1,...,m_n\}
-m_i = name
-n = TODO
+env(X) = @enum X \{...,name,...\}
+n = TODO: need name in decl
 -------------------------------------------------------------------------------[Type-Member-Enum]
 \langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env, st, n.name \rangle
 ~
@@ -1519,7 +1515,7 @@ env(X) = @enum t X \{m_1,...,m_n\}
 m_i = (name, e)
 \langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
 v = a
-v' = TODO
+v' = TODO: implicit cast
 -------------------------------------------------------------------------------[Type-Member-SEnum-Integer]
 \langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env', st', (n.name, v') \rangle
 ~

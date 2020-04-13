@@ -391,8 +391,6 @@ TODO:
 - lvalues?
 - lists vs tuples
 -->
-We assume the existence of the sets $name$ and $loc$, for variable names and memory locations respectively.
-
 $a \in \mathbb{Z}$
 
 $n \in \mathbb{N}$
@@ -411,15 +409,15 @@ v ::= b // booleans
     | m_s^n // signed integers, n not zero
     | (n, m_u^{n'}) // variable-size bitstrings, n less than n'
     | u // strings
-    | (v1,...,vn) // tuples
-    | @set // sets
-    | @error.name // errors
-    | (p1,...,pn) \Rightarrow blck // functions, actions
+    | (\overline{v}) // tuples
+    | @set 
+    | @error.name
+    | (\overline{p}) \Rightarrow blck // functions, actions
     | name // builtin functions
     | @struct \{ \overline{(name, v)} \}
     | (@header \{ \overline{(name, v)} \}, b)
     | (\mathkw{header\ union} \{ \overline{(name, b)} \}, v)
-    | (v1,...,vn, n1, n2) // stacks
+    | (\overline{v}, n_{size}, n_{next}) // stacks
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
     | loc // stateful runtime
@@ -436,7 +434,7 @@ Sets
     | v // singleton
     | v1 \texttt{\&\&\&} v2 // mask
     | v1 .. v2 // range
-    | (@set1,...,@setn) // product
+    | (\overline{@set}) // product
     | @lpm v // lpm
     | ?? // TODO: value set
 ~ End P4MathGrammar
@@ -1394,10 +1392,10 @@ TODO
 ~ Infer
 \langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
 \langle \zeta, \xi', \sigma', e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
-i = n1 % v2
-v1 = (...,vi,...,n1,n2)
+i = v2 \% n_{size}
+v1 = (...,v_i,...,n_{size},n_{next})
 -------------------------------------------------------------------------------[Array-Access]
-\langle \zeta, \xi, \sigma, e1[e2] \rangle \Downarrow_e \langle \xi'', \sigma'', vi \rangle
+\langle \zeta, \xi, \sigma, e1[e2] \rangle \Downarrow_e \langle \xi'', \sigma'', v_i \rangle
 ~
 
 <!-- not sure if this is valid -->
@@ -1415,9 +1413,9 @@ if v3 \leq 0 then r = (n_u^w) else r = v1/2[v2-1:v3-1]
 ~ Infer
 \langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
 ...
-\langle \zeta, \xi^{n-1}, \sigma^{n-1}, en \Downarrow_e \xi^n, \sigma^n, vn \rangle
+\langle \zeta, \xi^{n-1}, \sigma^{n-1}, e_n \Downarrow_e \xi^n, \sigma^n, v_n \rangle
 -------------------------------------------------------------------------------[List-Expression]
-\langle \zeta, \xi, \sigma, {e1,...,en} \rangle \Downarrow_e \langle \xi^n, \sigma^n, (v1,...,vn) \rangle
+\langle \zeta, \xi, \sigma, {e1,...,e_n} \rangle \Downarrow_e \langle \xi^n, \sigma^n, (v1,...,v_n) \rangle
 ~
 
 ### Unary Operations
@@ -1568,41 +1566,41 @@ v = (\mathkw{header\ union} \{ ... \}, v')
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next) 
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``size"
 -------------------------------------------------------------------------------[Array-Size-Field]
-\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', size_u^{32} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', {n_{size}}_u^{32} \rangle
 ~
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next) 
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``next"
-next < size
+n_{next} < n_{size}
 -------------------------------------------------------------------------------[Array-Next-Field]
-\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{next} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{n_{next}} \rangle
 ~
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next) 
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``last"
-1 \leq next \leq size
+1 \leq n_{next} \leq n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field]
-\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{next} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{n_{next}} \rangle
 ~
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next)
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``lastIndex" 
 -------------------------------------------------------------------------------[Array-LastIndex-Field]
-\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', (next - 1)_u^{32} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', (n_{next} - 1)_u^{32} \rangle
 ~
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next)
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``pop_front"
 -------------------------------------------------------------------------------[Array-PopFront-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
@@ -1610,7 +1608,7 @@ name = ``pop_front"
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,vn, size, next) 
+v = (v1,...,v_n, n_{size}, n_{next}) 
 name = ``push_front"
 -------------------------------------------------------------------------------[Array-PushFront-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma' name \rangle

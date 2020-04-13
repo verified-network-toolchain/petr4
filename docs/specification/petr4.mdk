@@ -378,8 +378,6 @@ d ::= @in
 ## Values
 
 <!--
-where does this belong in the doc?
-
 TODO:
 - lvalues?
 - lists vs tuples
@@ -392,48 +390,45 @@ $n \in \mathbb{N}$
 
 $\mathbb{Z}_n ::= m \% 2^n | m \in \mathbb{Z}$
 
-$u^n \in \mathbb{Z}_n$
+$m_u^n \in \mathbb{Z}_n$
 
-$w^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
+$m_s^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
 
 Values
 ~ Begin P4MathGrammar
-v ::= @null // TODO: do we need? stp - probably not
-    | b // booleans
+v ::= b // booleans
     | a // arbitrary-width integers
-    | (n, u^n) // unsigned integers, n not zero
-    | (n, w^n) // signed integers, n not zero
-    | (n, n', u^{n'}) // variable-size bitstrings, n less than n'
-    | s // strings
+    | m_u^n // unsigned integers, n not zero
+    | m_s^n // signed integers, n not zero
+    | (n, m_u^{n'}) // variable-size bitstrings, n less than n'
+    | u // strings
     | (v1,...,vn) // tuples
-    | S // sets
+    | @set // sets
     | @error.name // errors
-    | (p1,...,pn) => block // functions, actions TODO: define block
+    | (p1,...,pn) \Rightarrow blck // functions, actions
     | name // builtin functions
-    | @action \dots // stp - should be able to overload the fn case
-    | name \rightharpoonup v // structs
-    | (name \rightharpoonup v, b) // headers
-    | (name \rightharpoonup b, v) // unions
+    | @struct \{ \overline{(name, v)} \}
+    | (@header \{ \overline{(name, v)} \}, b)
+    | (\mathkw{header\ union} \{ \overline{(name, b)} \}, v)
     | (v1,...,vn, n1, n2) // stacks
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
     | loc // stateful runtime
-    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], [\delta_1;...;\delta_n]) // parsers
-    | (name \rightharpoonup v, (p1,...,pn), [decl1;...;declm], block) // block
-    | name \rightharpoonup v // packages
-    | (name, (v1,...,vn), (vn+1,...,vn+m), vn+m+1,
-      ((S1,vn+m+2),...,(SN,vn+m+N+2)) // tables, best way to clean up the numbering?
-    | @extern name // externfun
+    | @parser (\overline{(name, v)}, \overline{p}, \overline{decl}, \overline{state})
+    | @control (\overline{(name, v)}, \overline{p}, \overline{decl}, blck)
+    | @package (\overline{(name, v)})
+    | @table (name, \overline{v}, \overline{@action}, @action_default, \overline{@set})
+    | @extern name
 ~ End P4MathGrammar
 
 Sets
 ~ Begin P4MathGrammar
-S ::=  \_ // universal
+@set ::=  \_ // universal
     | v // singleton
     | v1 \texttt{\&\&\&} v2 // mask
     | v1 .. v2 // range
-    | (S1,...,Sn) // product
-    | lpm v // lpm, TODO: separate sets and matchkinds? nbits is runtime value so this is same as singleton
+    | (@set1,...,@setn) // product
+    | @lpm v // lpm
     | ?? // TODO: value set
 ~ End P4MathGrammar
 
@@ -445,12 +440,7 @@ p ::= (d, \tau, v)
 Transitions
 ~ Begin P4MathGrammar
 trsn ::= name
-    | ((e1,...,en), S \rightharpoonup name)
-~ End P4MathGrammar
-
-Parser state
-~ Begin P4MathGrammar
-\delta ::= (name, [stmt1;...;stmtn], trsn)
+    | ((e1,...,en), @set \rightharpoonup name)
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -1289,7 +1279,7 @@ $\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle$
 ### Variables
 
 ~ Infer
-if x = "verify" then r = x else r = env(x)
+if x = ``verify" then r = x else r = env(x)
 -------------------------------------------------------------------------------[Var]
 \langle ctrl, env, st, x \rangle \Downarrow_e \langle env, st, r \rangle
 ~
@@ -1318,7 +1308,7 @@ v1 = (...,vi,...,n1,n2)
 \langle ctrl, env'', st'', e3 \Downarrow_e env''', st''', v3 \rangle
 w = v2 - v3 + 1
 n = v1 \% 2^{v2+1}
-if v3 \leq 0 then r = (w, n^w) else r = v1/2[v2-1:v3-1]
+if v3 \leq 0 then r = (n_u^w) else r = v1/2[v2-1:v3-1]
 -------------------------------------------------------------------------------[Bitslice]
 \langle ctrl, env, st, e1[e2:e3] \rangle \Downarrow_e \langle env''', st''', r \rangle
 ~
@@ -1333,33 +1323,268 @@ if v3 \leq 0 then r = (w, n^w) else r = v1/2[v2-1:v3-1]
 
 ### Unary Operations
 
-<!--
-
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
--------------------------------------------------------------------------------[Not]
-\langle ctrl, env, st, !e \rangle \Downarrow_e \langle env', st', !v1 \rangle
-~
-
-~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
--------------------------------------------------------------------------------[Bitwise-Not]
-\langle ctrl, env, st, ~e \rangle \Downarrow_e \langle env', st', ~v1 \rangle
-~
-
-~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
--------------------------------------------------------------------------------[Negate]
-\langle ctrl, env, st, -e \rangle \Downarrow_e \langle env', st', -v1 \rangle
-~
-
--->
-
-~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\diamond \in \{ !, ~, - \}
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\diamond \in \{ !, \texttt{\textasciitilde}, - \}
 -------------------------------------------------------------------------------[Unary-Op]
-\langle ctrl, env, st, \diamond e \rangle \Downarrow_e \langle env', st', \diamond v1 \rangle
+\langle ctrl, env, st, \diamond e \rangle \Downarrow_e \langle env', st', \diamond v \rangle
 ~
 
 ### Binary Operations
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\diamond \in \{ +, |+|, -, |-|, *, /, \%, <<, >>, <, >, \leq, \geq, ==, !=, \&, \hat{}, |, ++, \&\&, || \}
+-------------------------------------------------------------------------------[Binary-Op]
+\langle ctrl, env, st, e1 \diamond e2 \rangle \Downarrow_e \langle env'', st'', v1 \diamond v2 \rangle
+~
+
+### Casts
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = n_u^w
+w = 1
+n = 1
+-------------------------------------------------------------------------------[Bool-Cast-True]
+\langle ctrl, env, st, (bool) e \rangle \Downarrow_e \langle env', st', true \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = n_u^w
+w = 1
+n != 1
+-------------------------------------------------------------------------------[Bool-Cast-False]
+\langle ctrl, env, st, (bool) e \rangle \Downarrow_e \langle env', st', false \rangle
+~
+
+<!-- Commenting this out temporarily because weird double subscript behavior
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
+v2 = a2 | {a2}_u^{n2} | {a2}_s^{n2}
+w = a2
+n = of_twos_complement a1 (TODO)
+-------------------------------------------------------------------------------[Bit-Cast]
+\langle ctrl, env, st, (bit<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_u^w \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
+v2 = a2 | {a2}_u^{n2} | {a2}_s^{n2}
+w = a2
+n = to_twos_complement a1 (TODO)
+-------------------------------------------------------------------------------[Int-Cast]
+\langle ctrl, env, st, (int<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_s^w \rangle
+~
+-->
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+-------------------------------------------------------------------------------[TypeName-Cast]
+\langle ctrl, env, st, (X) e \rangle \Downarrow_e \langle env', st', v \rangle
+~
+
+### Member Expressions
+
+~ Infer
+env(X) = @enum X \{m_1,...,m_n\}
+m_i = name
+n = TODO
+-------------------------------------------------------------------------------[Type-Member-Enum]
+\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env, st, n.name \rangle
+~
+
+~ Infer
+env(X) = @enum t X \{m_1,...,m_n\}
+m_i = (name, e)
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = a_u^w | a_s^w
+-------------------------------------------------------------------------------[Type-Member-SEnum]
+\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env', st', (n.name, v) \rangle
+~
+
+~ Infer
+env(X) = @enum t X \{m_1,...,m_n\}
+m_i = (name, e)
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = a
+v' = TODO
+-------------------------------------------------------------------------------[Type-Member-SEnum-Integer]
+\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env', st', (n.name, v') \rangle
+~
+
+<!-- why is it t in the code -->
+~ Infer
+
+-------------------------------------------------------------------------------[Error-Member]
+\langle ctrl, env, st, @error.name \rangle \Downarrow_e \langle env, st, @error.name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = @struct \{...,(name, v'),...\}
+-------------------------------------------------------------------------------[Struct-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (@header \{ ...,(name, v'),... \}, b)
+-------------------------------------------------------------------------------[Header-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (@header \{ ... \}, b)
+name = ``isValid"
+-------------------------------------------------------------------------------[Header-IsValid-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (@header \{ ... \}, b)
+name = ``setValid"
+-------------------------------------------------------------------------------[Header-SetValid-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (@header \{ ... \}, b)
+name = ``setInvalid"
+-------------------------------------------------------------------------------[Header-SetInvalid-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (\mathkw{header\ union} \{ ... \}, v')
+-------------------------------------------------------------------------------[Header-Union]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next) 
+name = ``size"
+-------------------------------------------------------------------------------[Array-Size-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', size_u^{32} \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next) 
+name = ``next"
+next < size
+-------------------------------------------------------------------------------[Array-Next-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v_{next} \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next) 
+name = ``last"
+1 \leq next \leq size
+-------------------------------------------------------------------------------[Array-Last-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v_{next} \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next)
+name = ``lastIndex" 
+-------------------------------------------------------------------------------[Array-LastIndex-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', (next - 1)_u^{32} \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next)
+name = ``pop_front"
+-------------------------------------------------------------------------------[Array-PopFront-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = (v1,...,vn, size, next) 
+name = ``push_front"
+-------------------------------------------------------------------------------[Array-PushFront-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st' name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = loc
+-------------------------------------------------------------------------------[Runtime]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', @extern name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = @parser ...
+-------------------------------------------------------------------------------[Parser-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = @control ...
+-------------------------------------------------------------------------------[Control-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+v = @table ...
+-------------------------------------------------------------------------------[Table-Field]
+\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+~
+
+
+### Ternary Expression
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+v1 = true
+-------------------------------------------------------------------------------[Ternary-Op-True]
+\langle ctrl, env, st, e1 ? e2 : e3 \rangle \Downarrow_e \langle env'', st'', v2 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st', e3 \Downarrow_e env'', st'', v3 \rangle
+v1 = false
+-------------------------------------------------------------------------------[Ternary-Op-False]
+\langle ctrl, env, st, e1 ? e2 : e3 \rangle \Downarrow_e \langle env'', st'', v3 \rangle
+~
+
+### Function Calls
+
+### Nameless Instantiation
+
+### Set Operations
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+-------------------------------------------------------------------------------[Masks]
+\langle ctrl, env, st, e1 \texttt{\&\&\&} e2 \rangle \Downarrow_e \langle env'', st'', v1 \texttt{\&\&\&} v2 \rangle
+~
+
+~ Infer
+\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+-------------------------------------------------------------------------------[Ranges]
+\langle ctrl, env, st, e1 \mathbin{..} e2 \rangle \Downarrow_e \langle env'', st'', v1 \mathbin{..} v2 \rangle
+~
+

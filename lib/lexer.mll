@@ -74,18 +74,20 @@ let info lexbuf : Info.t =
 let sanitize s =
   String.concat "" (String.split_on_char '_' s)
 
+let strip_prefix s =
+  let length = String.length s in
+  assert (length > 2);
+  String.sub s 2 (length - 2)
+
 let parse_int n info =
   let value = Bigint.of_string (sanitize n) in
   (info, P4Int.{ value; width_signed=None })
 
 let parse_width_int s n info =
   let l_s = String.length s in
-  let l_n = String.length n in
-  let _ : unit = assert(l_n > l_s) in
-  let number = String.sub n l_s (l_n - l_s) in
   let width = String.sub s 0 (l_s - 1) in
   let sign = String.sub s (l_s - 1) 1 in
-  let value = Bigint.of_string (sanitize number) in
+  let value = Bigint.of_string (sanitize n) in
   let width_signed = match sign with
       "s" ->
       if (int_of_string width < 2)
@@ -126,22 +128,22 @@ rule tokenize = parse
   | hex_number as n
     { INTEGER (parse_int n (info lexbuf)) }
   | dec_number as n
-    { INTEGER (parse_int n (info lexbuf)) }
+    { INTEGER (parse_int (strip_prefix n) (info lexbuf)) }
   | oct_number as n
     { INTEGER (parse_int n (info lexbuf)) }
   | bin_number as n
     { INTEGER (parse_int n (info lexbuf)) }
   | int as n
     { INTEGER (parse_int n (info lexbuf)) }
-  | sign as s hex_number as n
+  | (sign as s) (hex_number as n)
     { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s dec_number as n
+  | (sign as s) (dec_number as n)
+    { INTEGER (parse_width_int s (strip_prefix n) (info lexbuf)) }
+  | (sign as s) (oct_number as n)
     { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s oct_number as n
+  | (sign as s) (bin_number as n)
     { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s bin_number as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s int as n
+  | (sign as s) (int as n)
     { INTEGER (parse_width_int s n (info lexbuf)) }
   | "abstract"
       { ABSTRACT (info lexbuf) }

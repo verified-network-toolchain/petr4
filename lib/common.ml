@@ -24,9 +24,9 @@ module type Parse_config = sig
 end
 
 module Make_parse (Conf: Parse_config) = struct
-  let parse include_dirs p4_file_name p4_file verbose=
+  let parse_file include_dirs p4_file verbose =
     let () = Lexer.reset () in
-    let () = Lexer.set_filename p4_file_name in
+    let () = Lexer.set_filename p4_file in
     let p4_string = Conf.preprocess include_dirs p4_file in
     let lexbuf = Lexing.from_string p4_string in
     try
@@ -38,9 +38,9 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
-  let check_file (include_dirs : string list) (p4_file_name : string) (p4_file_contents: string)
+  let check_file (include_dirs : string list) (p4_file : string) 
       (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
-    match parse include_dirs p4_file_name p4_file_contents verbose with
+    match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog = Elaborate.elab prog in
       Checker.check_program prog |> ignore;
@@ -61,7 +61,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-    let eval_string include_dirs p4_file_name p4_file_contents verbose pkt_str ctrl_json =
+    let eval_file include_dirs p4_file verbose pkt_str ctrl_json =
       (* let pkt_str = Core_kernel.In_channel.read_all pkt_file in *)
       let pkt = Cstruct.of_hex pkt_str in
       let open Yojson.Safe in
@@ -75,7 +75,7 @@ module Make_parse (Conf: Parse_config) = struct
                     |> List.map ~f:Util.to_list in
       let vsets =
         List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
-      match parse include_dirs p4_file_name p4_file_contents verbose with
+      match parse_file include_dirs p4_file verbose with
       | `Ok prog -> Eval.eval_program prog (tbls, vsets) pkt
       | `Error (info, exn) ->
         let exn_msg = Exn.to_string exn in

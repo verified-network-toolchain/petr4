@@ -14,7 +14,7 @@
 
 NAME=petr4
 
-.PHONY: all build clean %.exe
+.PHONY: all build clean test
 
 all: build
 
@@ -29,6 +29,10 @@ run:
 
 install:
 	dune install
+
+
+test:
+	dune runtest
 
 clean:
 	dune clean

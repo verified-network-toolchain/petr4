@@ -5,7 +5,7 @@ open Types
 open Core
 module Info = I
 
-(* type extern = EvalEnv.t -> value list -> EvalEnv.t * value *)
+type 'st pre_extern = EvalEnv.t -> 'st -> value list -> EvalEnv.t * 'st * value
 
 module State = struct
 
@@ -29,7 +29,7 @@ module type Target = sig
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
+  type extern = st pre_extern
 
   val externs : (string * extern) list
 
@@ -48,45 +48,62 @@ module Core = struct
     | PacketIn of pkt
     | PacketOut of pkt_out
 
-  let eval_extract_fixed env pkt v =
+  type st = obj State.t
+
+  type extern = st pre_extern
+
+  let eval_extract_fixed env st pkt v =
     failwith "unimplemented"
   
-  let eval_extract_var env pkt v1 v2 =
+  let eval_extract_var env st pkt v1 v2 =
     failwith "unimplemented"
 
-  let eval_extract env args = 
+  let eval_extract : extern = fun env st args ->
     match args with 
-    | [pkt;v1] -> eval_extract_fixed env pkt v1 
-    | [pkt;v1;v2] -> eval_extract_var env pkt v1 v2 
+    | [pkt;v1] -> eval_extract_fixed env st pkt v1 
+    | [pkt;v1;v2] -> eval_extract_var env st pkt v1 v2 
     | _ -> failwith "wrong number of args for extract"
 
-  let eval_lookahead env args =
+  let eval_lookahead : extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_advance env args = 
+  let eval_advance : extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_length env args = 
+  let eval_length : extern = fun env st args ->
+    match args with
+    | [VRuntime {loc;_}] ->
+      let obj = State.find loc st in
+      let len = 
+        match obj with
+        | PacketIn pkt -> Cstruct.len pkt
+        | PacketOut _ -> failwith "expected packet_in" in
+      env, st, VBit {w= Bigint.of_int 3; v = Bigint.of_int len }
+    | _ -> failwith "unexpected args for length"
+
+  let eval_emit : extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_emit env args =
+  let eval_verify : extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_verify env args =
-    failwith "unimplemented"
+  let externs : (string * extern) list =
+    [ ("extract", eval_extract);
+      ("lookahead", eval_lookahead);
+      ("advance", eval_advance);
+      ("length", eval_length);
+      ("emit", eval_emit);
+      ("verify", eval_verify)]
 
-  let externs = [("extract", eval_extract);
-                 ("lookahead", eval_lookahead);
-                 ("advance", eval_advance);
-                 ("length", eval_length);
-                 ("emit", eval_emit);
-                 ("verify", eval_verify)]
+  let check_pipeline _ = ()
+
+  let eval_pipeline _ _ st _ _ _ _ = st, Cstruct.empty
 
 end 
 
 module V1Model : Target = struct
 
-  type obj = 
+  type obj =
     | CoreObject of Core.obj
     (* | V1Object of v1object *)
 
@@ -98,12 +115,32 @@ module V1Model : Target = struct
   type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
 
   let assert_pkt = function
-    | CoreObject (PacketIn pkt) -> pkt
     | _ -> failwith "not a packet"
+
+  let assert_core = function
+    | CoreObject o -> o
+    (* | _ -> failwith "expected core object" *)
+
+  let is_core = function
+    | CoreObject _ -> true
+    (* | _ -> false *)
 
   let v1externs = [ (* TODO *) ]
 
-  let externs = Core.externs @ v1externs
+  let corize_st (st : st) : Core.st =
+    st
+    |> List.filter ~f:(fun (_, o) -> is_core o)
+    |> List.map ~f:(fun (i, o) -> (i, assert_core o))
+
+  let targetize_st (st : Core.st) : st = 
+    st
+    |> List.map ~f:(fun (i, o) -> i, CoreObject o)
+
+  let targetize (ext : Core.extern) : extern = fun env st v ->
+    let (env', st', v) = ext env (corize_st st) v in
+    env', targetize_st st' @ st, v
+
+  let externs = v1externs @ (List.map Core.externs ~f:(fun (n, e) -> n, targetize e))
 
   let check_pipeline env = ()
 
@@ -112,7 +149,7 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st pkt app assign init =
+  let eval_pipeline ctrl env st (pkt : pkt) app assign init =
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
@@ -196,7 +233,8 @@ module V1Model : Target = struct
     | VRuntime {loc; _ } -> 
       begin match State.find loc st with 
         | CoreObject (PacketOut(p0,p1)) -> st, Cstruct.append p0 p1
-        | _ -> failwith "not a packet" end
+        | _ -> failwith "not a packet" 
+      end
     | _ -> failwith "pack not a packet"
 
 end

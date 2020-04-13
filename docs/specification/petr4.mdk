@@ -446,12 +446,6 @@ Parameters
 p ::= (d, \tau, v)
 ~ End P4MathGrammar
 
-Transitions
-~ Begin P4MathGrammar
-trsn ::= name
-    | ((e1,...,en), @set \rightharpoonup name)
-~ End P4MathGrammar
-
 # Static Semantics { #sec-static }
 
 ## Typing contexts
@@ -1341,332 +1335,332 @@ P,S,D,G |- decl, P0 -| P'',S'',D'',G''
 
 ## Expressions
 
-$\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle$
+$\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle$
 
 ### Constants
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Bool-True]
-\langle ctrl, env, st, true \rangle \Downarrow_e \langle env, st, true \rangle
+\langle \zeta, \xi, \sigma, true \rangle \Downarrow_e \langle \xi, \sigma, true \rangle
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Bool-False]
-\langle ctrl, env, st, false \rangle \Downarrow_e \langle env, st, false \rangle
+\langle \zeta, \xi, \sigma, false \rangle \Downarrow_e \langle \xi, \sigma, false \rangle
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Int-Constant]
-\langle ctrl, env, st, a \rangle \Downarrow_e \langle env, st, a \rangle
+\langle \zeta, \xi, \sigma, a \rangle \Downarrow_e \langle \xi, \sigma, a \rangle
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Unsigned-Int-Constant]
-\langle ctrl, env, st, nwa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+\langle \zeta, \xi, \sigma, nwa \rangle \Downarrow_e \langle \xi, \sigma, (n, a^n) \rangle
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Signed-Int-Constant]
-\langle ctrl, env, st, nsa \rangle \Downarrow_e \langle env, st, (n, a^n) \rangle
+\langle \zeta, \xi, \sigma, nsa \rangle \Downarrow_e \langle \xi, \sigma, (n, a^n) \rangle
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[String]
-\langle ctrl, env, st, u \rangle \Downarrow_e \langle env, st, u \rangle
+\langle \zeta, \xi, \sigma, u \rangle \Downarrow_e \langle \xi, \sigma, u \rangle
 ~
 
 ### Variables
 
 ~ Infer
-if x = ``verify" then r = x else r = env(x)
+if x = ``verify" then r = x else r = \xi(x)
 -------------------------------------------------------------------------------[Var]
-\langle ctrl, env, st, x \rangle \Downarrow_e \langle env, st, r \rangle
+\langle \zeta, \xi, \sigma, x \rangle \Downarrow_e \langle \xi, \sigma, r \rangle
 ~
 
 ~ Infer
 TODO
 -------------------------------------------------------------------------------[Var-Top]
-\langle ctrl, env, st, .x \rangle \Downarrow_e \langle env, st,  \rangle
+\langle \zeta, \xi, \sigma, .x \rangle \Downarrow_e \langle \xi, \sigma,  \rangle
 ~
 
 ### Accesses
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma', e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 i = n1 % v2
 v1 = (...,vi,...,n1,n2)
 -------------------------------------------------------------------------------[Array-Access]
-\langle ctrl, env, st, e1[e2] \rangle \Downarrow_e \langle env'', st'', vi \rangle
+\langle \zeta, \xi, \sigma, e1[e2] \rangle \Downarrow_e \langle \xi'', \sigma'', vi \rangle
 ~
 
 <!-- not sure if this is valid -->
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
-\langle ctrl, env'', st'', e3 \Downarrow_e env''', st''', v3 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma', e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
+\langle \zeta, \xi'', \sigma'', e3 \Downarrow_e \xi''', \sigma''', v3 \rangle
 w = v2 - v3 + 1
 n = v1 \% 2^{v2+1}
 if v3 \leq 0 then r = (n_u^w) else r = v1/2[v2-1:v3-1]
 -------------------------------------------------------------------------------[Bitslice]
-\langle ctrl, env, st, e1[e2:e3] \rangle \Downarrow_e \langle env''', st''', r \rangle
+\langle \zeta, \xi, \sigma, e1[e2:e3] \rangle \Downarrow_e \langle \xi''', \sigma''', r \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
 ...
-\langle ctrl, env^{n-1}, st^{n-1}, en \Downarrow_e env^n, st^n, vn \rangle
+\langle \zeta, \xi^{n-1}, \sigma^{n-1}, en \Downarrow_e \xi^n, \sigma^n, vn \rangle
 -------------------------------------------------------------------------------[List-Expression]
-\langle ctrl, env, st, {e1,...,en} \rangle \Downarrow_e \langle env^n, st^n, (v1,...,vn) \rangle
+\langle \zeta, \xi, \sigma, {e1,...,en} \rangle \Downarrow_e \langle \xi^n, \sigma^n, (v1,...,vn) \rangle
 ~
 
 ### Unary Operations
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 \diamond \in \{ !, \texttt{\textasciitilde}, - \}
 -------------------------------------------------------------------------------[Unary-Op]
-\langle ctrl, env, st, \diamond e \rangle \Downarrow_e \langle env', st', \diamond v \rangle
+\langle \zeta, \xi, \sigma, \diamond e \rangle \Downarrow_e \langle \xi', \sigma', \diamond v \rangle
 ~
 
 ### Binary Operations
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma', e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 \diamond \in \{ +, |+|, -, |-|, *, /, \%, <<, >>, <, >, \leq, \geq, ==, !=, \&, \hat{}, |, ++, \&\&, || \}
 -------------------------------------------------------------------------------[Binary-Op]
-\langle ctrl, env, st, e1 \diamond e2 \rangle \Downarrow_e \langle env'', st'', v1 \diamond v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \diamond e2 \rangle \Downarrow_e \langle \xi'', \sigma'', v1 \diamond v2 \rangle
 ~
 
 ### Casts
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = n_u^w
 w = 1
 n = 1
 -------------------------------------------------------------------------------[Bool-Cast-True]
-\langle ctrl, env, st, (bool) e \rangle \Downarrow_e \langle env', st', true \rangle
+\langle \zeta, \xi, \sigma, (bool) e \rangle \Downarrow_e \langle \xi', \sigma', true \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = n_u^w
 w = 1
 n != 1
 -------------------------------------------------------------------------------[Bool-Cast-False]
-\langle ctrl, env, st, (bool) e \rangle \Downarrow_e \langle env', st', false \rangle
+\langle \zeta, \xi, \sigma, (bool) e \rangle \Downarrow_e \langle \xi', \sigma', false \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma, e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
 v2 = a2 | {a2}_u^{n3} | {a2}_s^{n4}
 w = a2
 n = oftwoscomplement a1 (TODO)
 -------------------------------------------------------------------------------[Bit-Cast]
-\langle ctrl, env, st, (bit<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_u^w \rangle
+\langle \zeta, \xi, \sigma, (bit<e2>) e1 \rangle \Downarrow_e \langle \xi'', \sigma'', n_u^w \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma, e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 v1 = a1 | {a1}_u^{n1} | {a1}_s^{n2}
 v2 = a2 | {a2}_u^{n3} | {a2}_s^{n4}
 w = a2
 n = totwoscomplement a1 (TODO)
 -------------------------------------------------------------------------------[Int-Cast]
-\langle ctrl, env, st, (int<e2>) e1 \rangle \Downarrow_e \langle env'', st'', n_s^w \rangle
+\langle \zeta, \xi, \sigma, (int<e2>) e1 \rangle \Downarrow_e \langle \xi'', \sigma'', n_s^w \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 -------------------------------------------------------------------------------[TypeName-Cast]
-\langle ctrl, env, st, (X) e \rangle \Downarrow_e \langle env', st', v \rangle
+\langle \zeta, \xi, \sigma, (X) e \rangle \Downarrow_e \langle \xi', \sigma', v \rangle
 ~
 
 ### Member Expressions
 
 ~ Infer
-env(X) = @enum X \{...,name,...\}
+\xi(X) = @enum X \{...,name,...\}
 n = TODO: need name in decl
 -------------------------------------------------------------------------------[Type-Member-Enum]
-\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env, st, n.name \rangle
+\langle \zeta, \xi, \sigma, X.name \rangle \Downarrow_e \langle \xi, \sigma, n.name \rangle
 ~
 
 ~ Infer
-env(X) = @enum t X \{m_1,...,m_n\}
+\xi(X) = @enum t X \{m_1,...,m_n\}
 m_i = (name, e)
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = a_u^w | a_s^w
 -------------------------------------------------------------------------------[Type-Member-SEnum]
-\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env', st', (n.name, v) \rangle
+\langle \zeta, \xi, \sigma, X.name \rangle \Downarrow_e \langle \xi', \sigma', (n.name, v) \rangle
 ~
 
 ~ Infer
-env(X) = @enum t X \{m_1,...,m_n\}
+\xi(X) = @enum t X \{m_1,...,m_n\}
 m_i = (name, e)
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = a
 v' = TODO: implicit cast
 -------------------------------------------------------------------------------[Type-Member-SEnum-Integer]
-\langle ctrl, env, st, X.name \rangle \Downarrow_e \langle env', st', (n.name, v') \rangle
+\langle \zeta, \xi, \sigma, X.name \rangle \Downarrow_e \langle \xi', \sigma', (n.name, v') \rangle
 ~
 
 <!-- why is it t in the code -->
 ~ Infer
 
 -------------------------------------------------------------------------------[Error-Member]
-\langle ctrl, env, st, @error.name \rangle \Downarrow_e \langle env, st, @error.name \rangle
+\langle \zeta, \xi, \sigma, @error.name \rangle \Downarrow_e \langle \xi, \sigma, @error.name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = @struct \{...,(name, v'),...\}
 -------------------------------------------------------------------------------[Struct-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v' \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (@header \{ ...,(name, v'),... \}, b)
 -------------------------------------------------------------------------------[Header-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v' \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (@header \{ ... \}, b)
 name = ``isValid"
 -------------------------------------------------------------------------------[Header-IsValid-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (@header \{ ... \}, b)
 name = ``setValid"
 -------------------------------------------------------------------------------[Header-SetValid-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (@header \{ ... \}, b)
 name = ``setInvalid"
 -------------------------------------------------------------------------------[Header-SetInvalid-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (\mathkw{header\ union} \{ ... \}, v')
 -------------------------------------------------------------------------------[Header-Union]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v' \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v' \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next) 
 name = ``size"
 -------------------------------------------------------------------------------[Array-Size-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', size_u^{32} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', size_u^{32} \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next) 
 name = ``next"
 next < size
 -------------------------------------------------------------------------------[Array-Next-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v_{next} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{next} \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next) 
 name = ``last"
 1 \leq next \leq size
 -------------------------------------------------------------------------------[Array-Last-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', v_{next} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', v_{next} \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next)
 name = ``lastIndex" 
 -------------------------------------------------------------------------------[Array-LastIndex-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', (next - 1)_u^{32} \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', (next - 1)_u^{32} \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next)
 name = ``pop_front"
 -------------------------------------------------------------------------------[Array-PopFront-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = (v1,...,vn, size, next) 
 name = ``push_front"
 -------------------------------------------------------------------------------[Array-PushFront-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st' name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma' name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = loc
 -------------------------------------------------------------------------------[Runtime]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', @extern name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', @extern name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = @parser ...
 -------------------------------------------------------------------------------[Parser-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = @control ...
 -------------------------------------------------------------------------------[Control-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e \Downarrow_e env', st', v \rangle
+\langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
 v = @table ...
 -------------------------------------------------------------------------------[Table-Field]
-\langle ctrl, env, st, e.name \rangle \Downarrow_e \langle env', st', name \rangle
+\langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
 ~
 
 
 ### Ternary Expression
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st', e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma', e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 v1 = true
 -------------------------------------------------------------------------------[Ternary-Op-True]
-\langle ctrl, env, st, e1 ? e2 : e3 \rangle \Downarrow_e \langle env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 ? e2 : e3 \rangle \Downarrow_e \langle \xi'', \sigma'', v2 \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st', e3 \Downarrow_e env'', st'', v3 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma', e3 \Downarrow_e \xi'', \sigma'', v3 \rangle
 v1 = false
 -------------------------------------------------------------------------------[Ternary-Op-False]
-\langle ctrl, env, st, e1 ? e2 : e3 \rangle \Downarrow_e \langle env'', st'', v3 \rangle
+\langle \zeta, \xi, \sigma, e1 ? e2 : e3 \rangle \Downarrow_e \langle \xi'', \sigma'', v3 \rangle
 ~
 
 ### Function Calls
@@ -1738,17 +1732,17 @@ TODO
 ### Set Operations
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma, e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 -------------------------------------------------------------------------------[Masks]
-\langle ctrl, env, st, e1 \texttt{\&\&\&} e2 \rangle \Downarrow_e \langle env'', st'', v1 \texttt{\&\&\&} v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \texttt{\&\&\&} e2 \rangle \Downarrow_e \langle \xi'', \sigma'', v1 \texttt{\&\&\&} v2 \rangle
 ~
 
 ~ Infer
-\langle ctrl, env, st, e1 \Downarrow_e env', st', v1 \rangle
-\langle ctrl, env', st, e2 \Downarrow_e env'', st'', v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \Downarrow_e \xi', \sigma', v1 \rangle
+\langle \zeta, \xi', \sigma, e2 \Downarrow_e \xi'', \sigma'', v2 \rangle
 -------------------------------------------------------------------------------[Ranges]
-\langle ctrl, env, st, e1 \mathbin{..} e2 \rangle \Downarrow_e \langle env'', st'', v1 \mathbin{..} v2 \rangle
+\langle \zeta, \xi, \sigma, e1 \mathbin{..} e2 \rangle \Downarrow_e \langle \xi'', \sigma'', v1 \mathbin{..} v2 \rangle
 ~
 
 ## Statements

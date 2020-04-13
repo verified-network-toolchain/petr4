@@ -1718,13 +1718,12 @@ TODO: what about extract, emit, length, lookahead, advance, verify? also externf
 ### Nameless Instantiation
 
 ~ Infer
-
-~ Infer
 TODO
 -------------------------------------------------------------------------------[Control]
 TODO
 ~
 
+~ Infer
 TODO
 -------------------------------------------------------------------------------[Parser]
 TODO

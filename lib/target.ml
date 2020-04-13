@@ -29,7 +29,7 @@ module type Target = sig
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
 
   val externs : (string * extern) list
 
@@ -95,7 +95,7 @@ module V1Model : Target = struct
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
 
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
@@ -207,7 +207,7 @@ module EbpfFilter : Target = struct
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
 
   let externs = []
 

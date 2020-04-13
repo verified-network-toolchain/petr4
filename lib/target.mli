@@ -19,7 +19,7 @@ module type Target = sig
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t -> EvalEnv.t * st * value
+  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
 
   val externs : (string * extern) list
 

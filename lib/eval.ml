@@ -1170,7 +1170,7 @@ module MakeInterpreter (T : Target) = struct
         | VAction{params; body}
         | VFun{params; body}            -> eval_funcall' ctrl env' st' params args body
         | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args ts
-        | VExternFun{name=n;caller=v}   -> eval_externfun ctrl env' st' n v args ts
+        | VExternFun{name=n;caller=v}   -> eval_extern_call ctrl env' st' n v args ts
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
@@ -1674,17 +1674,46 @@ module MakeInterpreter (T : Target) = struct
   (* Function and Method Call Evaluation *)
   (*----------------------------------------------------------------------------*)
 
-  and eval_externfun (ctrl : ctrl) (env : env) (st : st) (name : string)
+  and eval_extern_call (ctrl : ctrl) (env : env) (st : st) (name : string)
       (v : (loc * string) option) (args : Argument.t list)
       (ts : Type.t list) : env * st * signal * value =
-    (* let params = 
+    let params = 
       match v with 
-      | Some (_,t) -> 
+      | Some (_, t) -> 
         EvalEnv.find_decl t env
         |> assert_extern_obj
-        |> (fun x -> x.methods)
-        |> List.map ~f:() *)
-    failwith "TODO"
+        |> List.map ~f:assert_abstract
+        |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
+        |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
+      | None -> EvalEnv.find_decl name env |> assert_extern_function in
+    let (tmpenv, st', signal) = copyin ctrl env st params args in
+    let env' = EvalEnv.pop_scope tmpenv in
+    match signal with
+    | SExit -> env', st', SExit, VNull
+    | SReject s -> env', st', SReject s, VNull
+    | SReturn _ | SContinue -> 
+    let vs = EvalEnv.get_val_firstlevel tmpenv |> List.map ~f:snd in
+    let vs' = match v with
+      | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
+      | None -> vs in
+    let extern = List.Assoc.find_exn T.externs name ~equal:String.equal in
+    let (env'', st'', v) = extern env' st' vs' in
+    env'', st'', SContinue, v
+
+  and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
+    match snd d with 
+    | ExternObject x -> x.methods
+    | _ -> failwith "expected extern object"
+
+  and assert_abstract (p : MethodPrototype.t) : P4String.t * Parameter.t list =
+    match snd p with
+    | AbstractMethod x -> (x.name, x.params)
+    | _ -> failwith "expected abstract method"
+
+  and assert_extern_function (d : Declaration.t) : Parameter.t list =
+    match snd d with
+    | ExternFunction x -> x.params
+    | _ -> failwith "expected extern function"
 
   and eval_funcall' (ctrl : ctrl) (env : env) (st : st) (params : Parameter.t list)
       (args : Argument.t list) (body : Block.t) : env * st * signal * value =

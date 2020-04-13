@@ -32,10 +32,12 @@ implementation.
     ```
     ocamlc -v
     ```
-    If the version is less than 4.08.0, upgrade:
+    If the version is less than 4.09.0, upgrade:
     ```
-    opam switch 4.08.0
+    opam switch 4.09.0
     ```
+
+1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
 
 1. Use OPAM to build and install Petr4. This will take a while the first time
    because it installs OPAM dependencies.

@@ -1227,6 +1227,13 @@ x \in dom(G)
 P,S,D,G |- @key = \{ \overline{e:x} \} -| S,D,G
 ~
 
+~Infer
+G(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
+S,D,G |- e : t,d_0
+-----------------------------------------------------------------[Type-Prop-Actions]
+P,S,D,G |- @actions = \{ \overline{x_a(\overline{e})} \} -| S,D,G
+~
+
 ~ Infer
 TODO
 ---------------------------------------------------[Type-Decl-Table]

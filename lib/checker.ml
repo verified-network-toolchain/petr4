@@ -1600,9 +1600,9 @@ and match_positional_args_to_params call_site_info params args =
   | Unequal_lengths ->
      raise_s [%message "wrong number of arguments provided at call site"
                  ~info:(call_site_info: Info.t)
-                 ~args:(args : Types.Argument.pre_t list)]
+                 ~args:(args: Types.Argument.pre_t list)
+                 ~params:(params: Prog.TypeParameter.t list)]
 
-     
 and match_named_args_to_params call_site_info (params: Prog.TypeParameter.t list) args =
   let open Types.Argument in
   let open Prog.TypeParameter in
@@ -1655,14 +1655,6 @@ and find_extern_methods env func : (FunctionType.t list) option =
      | _ -> None
      end
   | _ -> None
-
-and resolve_extern_overload env method_types args =
-  let works (method_type: FunctionType.t) =
-    try match_params_to_args' Info.dummy method_type.parameters args |> ignore;
-        true
-    with _ -> false
-  in
-  Typed.Type.Function (List.find_exn ~f:works method_types)
 
 (* Section 8.17: Typing Function Calls *)
 and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
@@ -1808,7 +1800,7 @@ and resolve_function_overload env func param_count : Prog.Expression.t =
      let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
                                                           name = name }
      in
-     begin match (snd expr_typed).typ with
+     begin match reduce_type env (snd expr_typed).typ with
      | Extern { methods; _ } ->
         let works (meth: Typed.ExternType.extern_method) =
           meth.name = snd name &&

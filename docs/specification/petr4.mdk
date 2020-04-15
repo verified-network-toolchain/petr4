@@ -1220,6 +1220,10 @@ G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
 P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
 ~
 
+### Table Typing
+
+TODO: should $props$ have their own unique judgment?
+
 ~ Infer
 S,D,G  |- e:t
 x \in dom(G)
@@ -1240,14 +1244,16 @@ TODO: how to formally write that the match in the entry is equal to the correspo
 S,D,G |- e_m : t_m, \_
 G(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
 S,D,G |- e_a : t, \_
--------------------------------------------------------------------------------[Type-Table-Entries]
+-------------------------------------------------------------------------------[Type-Prop-Entries]
 P,S,D,G |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| S,D,G
 ~
 
+TODO: how to insert new information into contexts?
+
 ~ Infer
-TODO
+P,S,D,G |- prop -| S,D,G
 ---------------------------------------------------[Type-Decl-Table]
-TODO
+P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G
 ~
 
 ~ Infer

@@ -1958,13 +1958,17 @@ and type_method_call env ctx call_info func type_args args =
  *)
 and type_assignment env ctx lhs rhs =
   let open Prog.Statement in
-  let lhs_typed = type_expression env lhs in
-  let rhs_typed = type_expression env rhs in
-  ignore (assert_same_type env (info lhs) (info rhs)
-            (snd lhs_typed).typ (snd rhs_typed).typ);
-  { stmt = Assignment { lhs = lhs_typed; rhs = rhs_typed };
-    typ = StmType.Unit },
-  env
+  if not @@ is_lvalue lhs
+  then raise_s [%message "Must be an lvalue"
+                   ~lhs:(lhs:Types.Expression.t)]
+  else 
+    let lhs_typed = type_expression env lhs in
+    let rhs_typed = type_expression env rhs in
+    ignore (assert_same_type env (info lhs) (info rhs)
+              (snd lhs_typed).typ (snd rhs_typed).typ);
+    { stmt = Assignment { lhs = lhs_typed; rhs = rhs_typed };
+      typ = StmType.Unit },
+    env
 
 (* This belongs in an elaboration pass, really. - Ryan *)
 and type_direct_application env ctx typ args =

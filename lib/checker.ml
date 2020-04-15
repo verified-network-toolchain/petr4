@@ -1774,13 +1774,17 @@ and resolve_constructor_overload env type_name param_count =
     | Constructor { parameters; _ } -> param_count = List.length parameters
     | _ -> false
   in
+  let candidates = CheckerEnv.find_types_of type_name env in
   match
-    CheckerEnv.find_types_of type_name env
+    candidates
     |> List.map ~f:fst
     |> List.find ~f:ok
   with
   | Some (Typed.Type.Constructor c) -> c
-  | _ -> failwith "bad constructor type or no matching constructor"
+  | ctor -> raise_s [%message "bad constructor type or no matching constructor"
+                     ~name:(type_name:string)
+                     ~ctor:(ctor:Typed.Type.t option)
+                     ~candidates:(candidates:(Typed.Type.t * Typed.direction) list)]
 
 and resolve_function_overload env func param_count : Prog.Expression.t =
   fst func,
@@ -2336,7 +2340,7 @@ and type_parser env info name annotations params constructor_params locals state
       parameters = List.map ~f:prog_param_to_constructor_param constructor_params_typed;
       return = Parser parser_typ }
   in
-  let env = CheckerEnv.insert_type (snd name) (Constructor ctor) env in
+  let env = CheckerEnv.insert_type_of (snd name) (Constructor ctor) env in
   (info, parser_typed), env
 
 and open_control_scope env params constructor_params locals =

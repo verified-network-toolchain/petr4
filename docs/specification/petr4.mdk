@@ -261,7 +261,7 @@ s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
     | decl                              // declaration statement
 
 case ::= case\_lbl: blk  // label with block
-       | case\_lbl: {}   // fallthrough 
+       | case\_lbl: {}   // fallthrough
 
 case\_lbl ::= x                // name (of action)
             | \texttt{default} // catch-all label
@@ -410,7 +410,7 @@ v ::= b // booleans
     | (n, m_u^{n'}) // variable-size bitstrings, n less than n'
     | u // strings
     | (\overline{v}) // tuples
-    | @set 
+    | @set
     | @error.name
     | (\overline{p}) \Rightarrow blck // functions, actions
     | name // builtin functions
@@ -1221,6 +1221,13 @@ P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D
 ~
 
 ~ Infer
+S,D,G  |- e:t
+x \in dom(G)
+-------------------------------------------------[Type-Prop-Keys]
+P,S,D,G |- @key = \{ \overline{e:x} \} -| S,D,G
+~
+
+~ Infer
 TODO
 ---------------------------------------------------[Type-Decl-Table]
 TODO
@@ -1566,7 +1573,7 @@ v = (\mathkw{header\ union} \{ ... \}, v')
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
+v = (v1,...,v_n, n_{size}, n_{next})
 name = ``size"
 -------------------------------------------------------------------------------[Array-Size-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', {n_{size}}_u^{32} \rangle
@@ -1574,7 +1581,7 @@ name = ``size"
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
+v = (v1,...,v_n, n_{size}, n_{next})
 name = ``next"
 n_{next} < n_{size}
 -------------------------------------------------------------------------------[Array-Next-Field]
@@ -1583,7 +1590,7 @@ n_{next} < n_{size}
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
+v = (v1,...,v_n, n_{size}, n_{next})
 name = ``last"
 1 \leq n_{next} \leq n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field]
@@ -1592,15 +1599,15 @@ name = ``last"
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
-name = ``lastIndex" 
+v = (v1,...,v_n, n_{size}, n_{next})
+name = ``lastIndex"
 -------------------------------------------------------------------------------[Array-LastIndex-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', (n_{next} - 1)_u^{32} \rangle
 ~
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
+v = (v1,...,v_n, n_{size}, n_{next})
 name = ``pop_front"
 -------------------------------------------------------------------------------[Array-PopFront-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma', name \rangle
@@ -1608,7 +1615,7 @@ name = ``pop_front"
 
 ~ Infer
 \langle \zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v \rangle
-v = (v1,...,v_n, n_{size}, n_{next}) 
+v = (v1,...,v_n, n_{size}, n_{next})
 name = ``push_front"
 -------------------------------------------------------------------------------[Array-PushFront-Field]
 \langle \zeta, \xi, \sigma, e.name \rangle \Downarrow_e \langle \xi', \sigma' name \rangle

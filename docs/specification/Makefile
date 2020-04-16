@@ -1,13 +1,20 @@
+OUTPUT=petr4 styleguide
+PDF_OUTPUTS=$(addsuffix .pdf,$(addprefix build/,${OUTPUT}))
+HTML_OUTPUTS=$(addsuffix .html,$(addprefix build/,${OUTPUT}))
 
-OUTPUT=petr4
+all: pdf html
 
-all: build/${OUTPUT}.pdf
+pdf: ${PDF_OUTPUTS}
 
-build/${OUTPUT}.pdf: ${OUTPUT}.mdk p4.json
+html: ${HTML_OUTPUTS} 
+
+build/%.pdf: %.mdk p4.json
 	madoko --pdf -vv --png --odir=build $<
 
-html: ${OUTPUT}.mdk p4.json
+build/%.html: %.mdk p4.json
 	madoko -vv --png --odir=build $<
 
 clean:
 	${RM} -rf build
+
+.PHONY: all html pdf clean

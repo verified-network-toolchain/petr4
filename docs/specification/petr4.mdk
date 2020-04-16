@@ -361,7 +361,7 @@ t ::= @bool
     | \mathkw{extern\ function} x<\overline{X}>(\overline{x:t,d}):t
     | @action(\overline{x:t,d_0}, \overline{x:t}) : @void
     | @constructor<\overline{X}>(\overline{x:t}): t
-    | @table (...)
+    | @table X
 
 d0 ::= @in
      | @out
@@ -865,9 +865,9 @@ P,S,D,G |- e.name : t_{name}
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------------------------------[Table-Apply-Field]
-\mathkw{has\_field} (@table ...) @apply (() -> t_res)
+\mathkw{has\_field} (@table X) @apply (() -> X)
 ~
 
 ~ Infer
@@ -1001,7 +1001,6 @@ P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m):t
 P,S,D,G,ctx |- e<t_1,\dots,t_n>(e_1,\dots,e_m):\bot -| G
 ~
 
-TODO: LValues
 ~ Infer
 \mathkw{lvalue}(e_l)
 P,S,D,G |- e_l: t
@@ -1260,13 +1259,18 @@ P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D
 
 ### Table Typing
 
+Table properties get their own judgment
+~ MathPre
+P,S,D,G; K,A |- prop -| K',A'
+~
+
 TODO: should $props$ have their own unique judgment?
 
 ~ Infer
-S,D,G  |- e:t
-x \in dom(G)
+P,S,D,G |- \overline{e:t}
+P,S,D,G |- \overline{x:\mathkw{match\_kind}}
 -------------------------------------------------[Type-Prop-Keys]
-P,S,D,G |- @key = \{ \overline{e:x} \} -| S,D,G
+P,S,D,G,\{\},A |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},A
 ~
 
 ~Infer
@@ -1294,6 +1298,14 @@ P,S,D,G |- prop -| S,D,G
 P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G
 ~
 
+~ Infer
+x \in A
+---------------------------------------------------[Type-Decl-Table]
+P,S,D,G,K,A |- \mathkw{default\_action}=x -| K,A
+~
+
+
+### Header and struct typing
 ~ Infer
 
 -----------------------------------------------------------------------------------[Type-Decl-Header]

@@ -286,7 +286,7 @@ annotation
        Annotation.{ name; body }) }
 
 | info1 = AT name = name info2 = L_BRACKET body = kvList info3 = R_BRACKET
-    { let body = (Info.merge info2 info3, Annotation.Expression(body)) in
+    { let body = (Info.merge info2 info3, Annotation.KeyValue(body)) in
       (Info.merge info1 info3, 
        Annotation.{ name; body }) }
 
@@ -1171,11 +1171,13 @@ kvPair
   { (Info.merge (info key) (info value),
      KeyValue.{ key; value }) }
 
-%inline kvList
-: kvs = separated_nonempty_list(COMMA, kvPair) { kvs };
+kvList
+: kvs = separated_nonempty_list(COMMA, kvPair) 
+  { kvs };
 
 expressionList
-: exprs = separated_list(COMMA, expression) { exprs };
+: exprs = separated_list(COMMA, expression) 
+  { exprs };
 
 member
 : n = name { n }

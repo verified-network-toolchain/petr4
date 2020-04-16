@@ -287,7 +287,7 @@ annotation
 
 | info1 = AT name = name info2 = L_BRACKET body = kvList info3 = R_BRACKET
     { let body = (Info.merge info2 info3, Annotation.KeyValue(body)) in
-      (Info.merge info1 info3, 
+      (Info.merge info1 info3,
        Annotation.{ name; body }) }
 
 | info1 = PRAGMA name = name body = annotationBody info2 = PRAGMA_END
@@ -1166,18 +1166,20 @@ argument
     { (info, Argument.Missing) }
 ;
 
-kvPair
-: key = name EQ value = expression 
+%inline kvPair
+: key = name ASSIGN value = expression 
   { (Info.merge (info key) (info value),
      KeyValue.{ key; value }) }
 
 kvList
-: kvs = separated_nonempty_list(COMMA, kvPair) 
-  { kvs };
+: kvs = separated_nonempty_list(COMMA, kvPair)
+  { kvs }
+;
 
 expressionList
 : exprs = separated_list(COMMA, expression) 
-  { exprs };
+  { exprs }
+;
 
 member
 : n = name { n }

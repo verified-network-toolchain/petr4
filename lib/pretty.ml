@@ -370,20 +370,44 @@ end = struct
         (format_list_sep P4String.format_t ",") l
 end
 
+and KeyValue : sig 
+  val format_t : Format.formatter -> P4.KeyValue.t -> unit
+end = struct
+  open P4.KeyValue
+  let format_t fmt kv = 
+    match snd kv with 
+    | { key; value } -> 
+       Format.fprintf fmt "%a = %a" 
+         P4String.format_t key 
+         Expression.format_t value 
+end
+
 and Annotation : sig
   val format_t : Format.formatter -> P4.Annotation.t -> unit
   val format_ts : Format.formatter -> P4.Annotation.t list -> unit
 end = struct
   open P4.Annotation
+  let format_body fmt body = 
+    match snd body with 
+    | Empty -> 
+       ()
+    | Unparsed strings -> 
+       Format.fprintf fmt "(%a)" 
+         (format_list_sep P4String.format_t " ") strings
+    | Expression exprs -> 
+       Format.fprintf fmt "[%a]" 
+         (format_list_sep Expression.format_t ",") exprs
+    | KeyValue kvs -> 
+       Format.fprintf fmt "{%a}" 
+         (format_list_sep KeyValue.format_t ",") kvs
+
   let format_t fmt e =
-    match snd e with
-    | { name; args = [] } ->
-      Format.fprintf fmt "@[@%a@]"
-        P4String.format_t name
-    | { name; args } ->
-      Format.fprintf fmt "@[%@%a(%a)@]"
-        P4String.format_t name
-        (format_list_sep Argument.format_t ",") args
+    match snd e with 
+    | { name; body } -> 
+       Format.fprintf fmt "@[%@%a(%a)@]"
+         P4String.format_t name
+         format_body body
+      
   let format_ts fmt l =
     match l with
     | [] ->

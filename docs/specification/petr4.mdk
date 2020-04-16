@@ -1263,45 +1263,42 @@ Table properties get their own judgment
 ~ MathPre
 P,S,D,G; K,A |- prop -| K',A'
 ~
-
-TODO: should $props$ have their own unique judgment?
+Where $K$ is defined as the types of keys defined in the table, and $A$ is defined as the names and types of actions in the table.
 
 ~ Infer
 P,S,D,G |- \overline{e:t}
 P,S,D,G |- \overline{x:\mathkw{match\_kind}}
--------------------------------------------------[Type-Prop-Keys]
-P,S,D,G,\{\},A |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},A
+------------------------------------------------------------------------------[Type-Prop-Keys]
+P,S,D,G; \{\},\{\} |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},\{\}
 ~
 
 ~Infer
-G(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
-S,D,G |- e : t, \_
------------------------------------------------------------------[Type-Prop-Actions]
-P,S,D,G |- @actions = \{ \overline{x_a(\overline{e})} \} -| S,D,G
+P(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
+P,S,D,G |- \overline{e:t}
+-------------------------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Actions]
+P,S,D,G; K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
 ~
 
-TODO: how to formally write that the match in the entry is equal to the corresponding key type?
-
 ~ Infer
-S,D,G |- e_m : t_m, \_
-G(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
-S,D,G |- e_a : t, \_
--------------------------------------------------------------------------------[Type-Prop-Entries]
-P,S,D,G |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| S,D,G
-~
-
-TODO: how to insert new information into contexts?
-
-~ Infer
-P,S,D,G |- prop -| S,D,G
----------------------------------------------------[Type-Decl-Table]
-P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G
+P,S,D,G |- \overline{e_m : t_k}
+A(x_a) = @action (\overline{x:t,d_0},\overline{x:t}) @void
+P,S,D,G |- \overline{e_a : t}
+---------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Entries]
+P,S,D,G; \{\overline{t_k}\},A |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| \{\overline{t_k}\},A
 ~
 
 ~ Infer
 x \in A
----------------------------------------------------[Type-Decl-Table]
+---------------------------------------------------[Type-Prop-Default]
 P,S,D,G,K,A |- \mathkw{default\_action}=x -| K,A
+~
+
+~ Infer
+P,S,D,G,\{\},\{\} |- \overline{prop} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
+D' = D[``action\_list\_<x>" \to @enum ``action\_list\_<x>" \{ \overline{x_a} \}]
+D'' = D'[``apply\_result\_<x>" \to @struct \{ ``hit" : @bool; ``action\_run" : @enum ``action\_list\_<x>" \{ \overline{x_a} \} \}]
+---------------------------------------------------[Type-Decl-Table]
+P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<x>"]
 ~
 
 

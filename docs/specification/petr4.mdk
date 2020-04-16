@@ -480,10 +480,9 @@ In all contexts there is a lookup test $C(x) = y$ which searches from
 the outermost list of bindings inward and a top level lookup $C(.x) =
 y$ which only looks at the innermost list of bindings.
 
-## Typing judgments
+## Helper judgments
 
-### Helper Rules
-
+### Numeric types
 ~ MathPre
 @numeric(t) = \begin{cases} true & t = int
 true & t = int<w>
@@ -492,8 +491,47 @@ false & \text{otherwise}
 \end{cases}
 ~
 
-### Expression typing
-#### Constants
+### Left-values
+
+Left-values or lvalues are expressions that can appear on the left
+side of an assignment $e:=e$.  The judgment has the form
+~ MathPre
+e @lvalue
+~
+and is defined inductively by the following rules.
+
+~ Infer
+
+-------------[Name-LValue]
+x @lvalue
+~
+
+~ Infer
+
+-------------[Top-Level-Name-LValue]
+.x @lvalue
+~
+
+~ Infer
+e @lvalue
+--------------[Member-LValue]
+e.x @lvalue
+~
+
+~ Infer
+e1 @lvalue
+----------------[Index-LValue]
+e1[e2] @lvalue
+~
+
+~ Infer
+e1 @lvalue
+----------------[Slice-LValue]
+e1[e2:e3] @lvalue
+~
+
+## Expression typing
+### Constants
 
 ~ Infer
 
@@ -531,7 +569,7 @@ P,S,D,G |- nsa : @int<w>, @none
 P,S,D,G |- nwa : @bit<a>, @none
 ~
 
-#### Variables
+### Variables
 
 ~ Infer
 G(x) = t, d
@@ -545,7 +583,7 @@ G(.x) = t, d
 P,S,D,G |- .x : t, d
 ~
 
-#### Accesses
+### Accesses
 
 ~ Infer
 P,S,D,G |- e_1 : t_1[], d_1
@@ -575,7 +613,7 @@ P,S,D,G |- \overline{e: \tau, none}
 P,S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
-#### Unary Operations
+### Unary Operations
 
 ~ Infer
 P,S,D,G |- e : @bool, d
@@ -596,7 +634,7 @@ P,S,D,G |- e : t, d
 P,S,D,G |- {-e} : t, d
 ~
 
-#### Binary Operations
+### Binary Operations
 
 ```haskell
   fun binaryDir In In = In
@@ -669,7 +707,7 @@ t_2 = @bit<\_> \lor t_2 = @int
 P,S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
 ~
 
-#### Casts
+### Casts
 
 Casting from $\tau_0$ to $\tau$ is permitted by the
 $\tau \prec \tau'$ judgment.
@@ -743,7 +781,7 @@ t_0 \prec t
 P,S,D,G |- (t) e : t, d
 ~
 
-#### Member expressions
+### Member expressions
 ~ Infer
 D(X) = @enum t X \{m_1,\dots,m_n\}
 ---------------------------------------[Type-Member-Serializable-Enum]
@@ -875,7 +913,7 @@ TODO
 ~
 
 
-#### Ternary Expression
+### Ternary Expression
 
 ~ Infer
 P,S,D,G |- e_1 : @bool, \_
@@ -885,7 +923,7 @@ P,S,D,G |- e_3 : t, \_
 P,S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
-#### Function Calls
+### Function Calls
 TODO: Check directions
 TODO: Handle overloads of extern functions
 ~ Infer
@@ -902,7 +940,7 @@ P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
 \Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
 ~
 
-#### Nameless Instantiation
+### Nameless Instantiation
 
 We need a function to resolve overloads.
 ~ Infer
@@ -928,7 +966,7 @@ P,S,D,G |- X<>(\overline{e}) : t
 P,S,D,G |- X(\overline{e}) : t
 ~
 
-#### Set Operations
+### Set Operations
 
 TODO: the Masks rule is based off of the spec
 and diverges from the type checker's implementation

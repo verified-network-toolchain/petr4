@@ -1388,13 +1388,13 @@ $<\zeta, \xi, \sigma, e \Downarrow_e \xi', \sigma', v>$
 ~ Infer
 
 -------------------------------------------------------------------------------[Unsigned-Int-Constant]
-<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, (n, a^n)>
+<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, a_u^n>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Signed-Int-Constant]
-<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, (n, a^n)>
+<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, a_s^n>
 ~
 
 ~ Infer

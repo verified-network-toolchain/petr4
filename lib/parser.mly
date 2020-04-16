@@ -31,7 +31,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> END
 %token TYPENAME IDENTIFIER
 %token<Types.P4String.t> NAME STRING_LITERAL
-%token<Types.P4Int.t> INTEGER
+%token<Types.P4Int.t * string> INTEGER
 %token<Info.t> LE GE SHL AND OR NE EQ
 %token<Info.t> PLUS MINUS PLUS_SAT MINUS_SAT MUL DIV MOD
 %token<Info.t> BIT_OR BIT_AND BIT_XOR COMPLEMENT
@@ -45,6 +45,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
 %token<Info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRING STRUCT
 %token<Info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
+%token<Info.t> PRAGMA PRAGMA_END
 
 (********************** PRIORITY AND ASSOCIATIVITY ************************)
 %right THEN ELSE   (* Precedence of THEN token is artificial *)
@@ -269,12 +270,126 @@ annotations
 
 annotation
 : info1 = AT name = name
-    { (Info.merge info1 (info name),
-       Annotation.{ name; args = [] }) }
+    { let info2 = info name in
+      let body = (info2, Annotation.Empty) in 
+      (Info.merge info1 info2,
+       Annotation.{ name; body } ) }
 
-| info1 = AT name = name L_PAREN args = argumentList info2 = R_PAREN
-    { (Info.merge info1 info2,
-       Annotation.{ name; args } ) }
+| info1 = AT name = name info2 = L_PAREN body = annotationBody info3 = R_PAREN
+    { let body = (Info.merge info2 info3, Annotation.Unparsed(body)) in
+      (Info.merge info1 info3, 
+       Annotation.{ name; body }) }
+
+| info1 = AT name = name info2 = L_BRACKET body = expressionList info3 = R_BRACKET
+    { let body = (Info.merge info2 info3, Annotation.Expression(body)) in
+      (Info.merge info1 info3, 
+       Annotation.{ name; body }) }
+
+| info1 = AT name = name info2 = L_BRACKET body = kvList info3 = R_BRACKET
+    { let body = (Info.merge info2 info3, Annotation.Expression(body)) in
+      (Info.merge info1 info3, 
+       Annotation.{ name; body }) }
+
+| info1 = PRAGMA name = name body = annotationBody info2 = PRAGMA_END
+    { let body = (Info.merge info2 info2, Annotation.Unparsed(body)) in
+       (Info.merge info1 info2, 
+       Annotation.{ name; body }) }
+;
+
+annotationBody
+: body = annotationToken*
+  { body }
+| body1 = annotationBody L_PAREN body2 = annotationBody R_PAREN
+  { body1 @ body2 }
+;
+
+annotationToken
+: ABSTRACT         { ($1, "abstract") }
+| ACTION           { ($1, "action") }
+| ACTIONS          { ($1, "actions") }
+| APPLY            { ($1, "apply") }
+| BOOL             { ($1, "bool") }
+| BIT              { ($1, "bit") }
+| CONST            { ($1, "const") }
+| CONTROL          { ($1, "control") }
+| DEFAULT          { ($1, "default") }
+| ELSE             { ($1, "else") }
+| ENTRIES          { ($1, "entries") }
+| ENUM             { ($1, "enum") }
+| ERROR            { ($1, "error") }
+| EXIT             { ($1, "exit") }
+| EXTERN           { ($1, "extern") }
+| FALSE            { ($1, "false") }
+| HEADER           { ($1, "header") }
+| HEADER_UNION     { ($1, "header_union") }
+| IF               { ($1, "if") }
+| IN               { ($1, "in") }
+| INOUT            { ($1, "inout") }
+| INT              { ($1, "int") }
+| KEY              { ($1, "key") }
+| MATCH_KIND       { ($1, "match_kind") }
+| TYPE             { ($1, "type") }
+| OUT              { ($1, "out") }
+| PARSER           { ($1, "parser") }
+| PACKAGE          { ($1, "package") }
+| PRAGMA           { ($1, "pragma") }
+| RETURN           { ($1, "return") }
+| SELECT           { ($1, "select") }
+| STATE            { ($1, "state") }
+| STRING           { ($1, "string") }
+| STRUCT           { ($1, "struct") }
+| SWITCH           { ($1, "switch") }
+| TABLE            { ($1, "table") }
+(* | THIS             { ($1, "this") } *)
+| TRANSITION       { ($1, "transition") }
+| TRUE             { ($1, "true") }
+| TUPLE            { ($1, "tuple") }
+| TYPEDEF          { ($1, "typedef") }
+| VARBIT           { ($1, "varbit") }
+| VALUESET         { ($1, "valueset") }
+| VOID             { ($1, "void") }
+| DONTCARE         { ($1, "_") }
+| NAME IDENTIFIER  { $1 }
+| NAME TYPENAME    { $1 }
+| STRING_LITERAL   { $1 }
+| INTEGER          { let n_int, n_str = $1 in 
+                     let info = fst n_int in 
+                     (info, n_str) }
+| MASK             { ($1, "&&&") }
+| RANGE            { ($1, "..") }
+| SHL              { ($1, "<<") }
+| AND              { ($1, "&&") }
+| OR               { ($1, "||") }
+| EQ               { ($1, "==") }
+| NE               { ($1, "!=") }
+| GE               { ($1, ">=") }
+| LE               { ($1, "<=") }
+| PLUSPLUS         { ($1, "++") }
+| PLUS             { ($1, "+") }
+| PLUS_SAT         { ($1, "|+|") }
+| MINUS            { ($1, "-") }
+| MINUS_SAT        { ($1, "|-|") }
+| MUL              { ($1, "*") }
+| DIV              { ($1, "/") }
+| MOD              { ($1, "%") }
+| BIT_OR           { ($1, "|") }
+| BIT_AND          { ($1, "&") }
+| BIT_XOR          { ($1, "^") }
+| COMPLEMENT       { ($1, "~") }
+| L_BRACKET        { ($1, "[") }
+| R_BRACKET        { ($1, "]") }
+| L_BRACE          { ($1, "{") }
+| R_BRACE          { ($1, "}") }
+| L_ANGLE          { ($1, "<") }
+| R_ANGLE          { ($1, ">") }
+| NOT              { ($1, "!") }
+| COLON            { ($1, ":") }
+| COMMA            { ($1, ",") }
+| QUESTION         { ($1, "?") }
+| DOT              { ($1, ".") }
+| ASSIGN           { ($1, "=") }
+| SEMICOLON        { ($1, ";") }
+| AT               { ($1, "@") }
 ;
 
 parameterList
@@ -629,15 +744,21 @@ baseType
                                                  width_signed = None })) in
       (info, Type.BitType width) }
 | info1 = BIT L_ANGLE value = INTEGER info2 = R_ANGLE
-    { let width = (info value, Expression.Int value) in
+    { let value_int = fst value in 
+      let value_info = fst value_int in
+      let width = (value_info, Expression.Int value_int) in
       let info = Info.merge info1 info2 in
       (info, Type.BitType width) }
 | info1 = INT L_ANGLE value = INTEGER info2 = R_ANGLE
-     { let width = (info value, Expression.Int value) in
+     { let value_int = fst value in 
+       let value_info = fst value_int in 
+       let width = (value_info, Expression.Int value_int) in
        let info = Info.merge info1 info2 in
       (info, Type.IntType width) }
 | info1 = VARBIT L_ANGLE value = INTEGER info2 = R_ANGLE
-     { let max_width = (info value, Expression.Int value) in
+     { let value_int = fst value in 
+       let value_info = fst value_int in
+       let max_width = (value_info, Expression.Int value_int) in
        let info = Info.merge info1 info2 in
       (info, Type.VarBit max_width) }
 | info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info2 = R_ANGLE
@@ -756,7 +877,9 @@ enumDeclaration
       Declaration.Enum { annotations; name; members }) }
 | annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER info3 = R_ANGLE
     name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
-   { let width = (info value, Expression.Int value) in
+   { let value_int = fst value in 
+     let value_info = fst value_int in 
+     let width = (value_info, Expression.Int value_int) in
      let typ = (Info.merge info2 info4, Type.BitType width) in
      (Info.merge info1 info4,
       Declaration.SerializableEnum { annotations; typ; name; members }) }
@@ -1043,7 +1166,16 @@ argument
     { (info, Argument.Missing) }
 ;
 
-expressionList: exprs = separated_list(COMMA, expression) { exprs };
+kvPair
+: key = name EQ value = expression 
+  { (Info.merge (info key) (info value),
+     KeyValue.{ key; value }) }
+
+%inline kvList
+: kvs = separated_nonempty_list(COMMA, kvPair) { kvs };
+
+expressionList
+: exprs = separated_list(COMMA, expression) { exprs };
 
 member
 : n = name { n }
@@ -1073,7 +1205,9 @@ lvalue
 
 expression
 : value = INTEGER
-  { (fst value, Expression.Int value) }
+  { let value_int = fst value in 
+    let info = fst value_int in 
+    (info, Expression.Int value_int) }
 | info1 = TRUE
   { (info1, Expression.True) }
 | info1 = FALSE

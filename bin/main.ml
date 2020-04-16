@@ -78,7 +78,9 @@ let parse_command =
     (fun verbose include_dir p4file () ->
        match parse_file include_dir p4file verbose with
        | `Ok _ -> print_endline "ok"; ()
-       | `Error (_, exn) -> raise exn)
+       | `Error (info, exn) -> 
+          Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
+
 
 let check_command =
   let open Command.Spec in

@@ -33,10 +33,28 @@ module P4String : sig
   [@@deriving sexp,yojson]
 end
 
-module rec Annotation : sig
+module rec KeyValue : sig
   type pre_t = 
-    { name: P4String.t; 
-      args: Argument.t list }
+    { key : P4String.t;
+      value : Expression.t } 
+  [@@deriving sexp,yojson]
+
+  type t = pre_t info [@@deriving sexp,yojson]
+end
+
+and Annotation : sig
+  type pre_body = 
+    | Empty
+    | Unparsed of P4String.t list
+    | Expression of Expression.t list
+    | KeyValue of KeyValue.t list
+  [@@deriving sexp,yojson]
+
+  type body = pre_body info [@@deriving sexp,yojson]
+
+  type pre_t =
+    { name: P4String.t;
+      body: body }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]

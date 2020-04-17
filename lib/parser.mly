@@ -807,6 +807,7 @@ typeArg
 : info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
 | name = nonTypeName { (info name, Type.TypeName name) }
+| info = VOID { (info, Type.Void) }
 ;
 
 typeArgumentList

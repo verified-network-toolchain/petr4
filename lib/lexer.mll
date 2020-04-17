@@ -318,7 +318,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { raise (Error (Printf.sprintf "Unexpected character: %s .\n" (lexeme lexbuf))) }
+      { UNEXPECTED_TOKEN(info lexbuf, lexeme lexbuf) }
       
 and string = parse
   | eof

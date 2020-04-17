@@ -121,7 +121,7 @@ rule tokenize = parse
   | "//"
       { singleline_comment lexbuf; tokenize lexbuf }
   | '\n'
-      { PRAGMA_END(info lexbuf) }
+      { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
         STRING_LITERAL (Info.merge (info lexbuf) end_info, str) }
@@ -377,7 +377,7 @@ and preprocessor_column = parse
 and multiline_comment opt = parse
   | "*/"   { opt }
   | eof    { failwith "unterminated comment" }
-  | '\n'   { multiline_comment (Some(info lexbuf)) lexbuf }
+  | '\n'   { newline lexbuf; multiline_comment (Some(info lexbuf)) lexbuf }
   | _      { multiline_comment opt lexbuf }
       
 (* Single-line comment terminated by a newline *)

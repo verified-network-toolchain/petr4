@@ -1869,6 +1869,8 @@ and type_mask env expr mask : Prog.Expression.typed_t =
   let mask_typed = type_expression env mask in
   let res_typ : Typed.Type.t =
     match (snd expr_typed).typ, (snd mask_typed).typ with
+    | Bit { width = w1 }, Bit { width = w2 } when w1 = w2 ->
+       Bit { width = w1 }
     | Bit { width }, Integer
     | Integer, Bit { width } ->
        Bit { width }

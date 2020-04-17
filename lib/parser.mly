@@ -46,6 +46,7 @@ let declare_types types = List.iter types ~f:declare_type
 %token<Info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRING STRUCT
 %token<Info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
 %token<Info.t> PRAGMA PRAGMA_END
+%token<Types.P4String.t> UNEXPECTED_TOKEN
 
 (********************** PRIORITY AND ASSOCIATIVITY ************************)
 %right THEN ELSE   (* Precedence of THEN token is artificial *)
@@ -306,7 +307,8 @@ annotationBody
 ;
 
 annotationToken
-: ABSTRACT         { ($1, "abstract") }
+: UNEXPECTED_TOKEN { $1 }
+| ABSTRACT         { ($1, "abstract") }
 | ACTION           { ($1, "action") }
 | ACTIONS          { ($1, "actions") }
 | APPLY            { ($1, "apply") }

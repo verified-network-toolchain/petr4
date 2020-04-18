@@ -410,7 +410,7 @@ let rec lexer (lexbuf:lexbuf) : token =
           lexer_state := SRegular;
           lexer lexbuf
         | NAME id as token ->
-          lexer_state := SIdent id;
+          lexer_state := SIdent (id, SRegular);
           token          
         | token -> 
           lexer_state := SRegular;
@@ -427,7 +427,7 @@ let rec lexer (lexbuf:lexbuf) : token =
           token
         | PRAGMA_END _ ->
           lexer lexbuf
-        | R_ANGLE info -> 
+        | R_ANGLE info as token -> 
           lexer_state := SRangle info;
           token
         | token ->

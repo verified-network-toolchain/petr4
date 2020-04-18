@@ -31,8 +31,15 @@ module Make_parse (Conf: Parse_config) = struct
     let lexbuf = Lexing.from_string p4_string in
     try
       let prog = Parser.p4program Lexer.lexer lexbuf in
-      if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
+      if verbose then 
+        begin 
+          Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
+          Format.printf "%a@\n%!" Pretty.format_program prog;
+          Format.printf "----------@\n";
+          Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
+        end;
       `Ok prog
+
     with
     | err ->
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;

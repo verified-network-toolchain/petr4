@@ -52,6 +52,7 @@ module CheckerEnv : sig
   val find_decl : string -> t -> Prog.Declaration.t
   val find_type_of_opt : string -> t -> (Typed.Type.t * Typed.direction) option
   val find_type_of : string -> t -> Typed.Type.t * Typed.direction
+  val find_types_of : string -> t -> (Typed.Type.t * Typed.direction) list
   val find_type_of_toplevel : string -> t -> Typed.Type.t * Typed.direction
 
   val insert_type : string -> Typed.Type.t -> t -> t

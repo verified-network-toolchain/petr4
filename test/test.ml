@@ -64,9 +64,10 @@ let bad_test f file () =
 let () =
   let open Alcotest in
   run "Tests" [
-    "parser tests good", 
-    (Stdlib.List.map (fun name -> 
-         test_case name `Quick (good_test parser_test name)) good_files );
-    "typecheck tests bad", (Stdlib.List.map (fun name -> 
-        test_case name `Quick (bad_test typecheck_test name)) bad_files );
+    "parser tests good", (Stdlib.List.map (fun name ->
+         test_case name `Quick (good_test parser_test name)) good_files);
+    "typecheck tests good", (Stdlib.List.map (fun name ->
+        test_case name `Quick (good_test typecheck_test name)) good_files);
+    "typecheck tests bad", (Stdlib.List.map (fun name ->
+        test_case name `Quick (bad_test typecheck_test name)) bad_files);
   ] 

@@ -77,10 +77,10 @@ let parse_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir p4file () ->
        match parse_file include_dir p4file verbose with
-       | `Ok prog -> 
-          print_endline "ok"; 
-          Format.printf "%a" Pretty.format_program prog
-       | `Error (_, exn) -> raise exn)
+       | `Ok _ -> 
+         ()
+       | `Error (info, exn) -> 
+          Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
 
 let check_command =
   let open Command.Spec in

@@ -1,0 +1,269 @@
+Title : Petr4 Semantics Style Guide
+Title Note: version 0.0.1
+Title Footer: &date;
+Author: The Petr4 Team
+Heading depth: 5
+Pdf Latex: xelatex
+Document Class: [11pt]article
+Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
+Package: fancyhdr
+Package: mathpartir
+Package: textcomp
+Package: mathtools
+Package: xspace
+
+.mathpre {
+  replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/( +)-\|( +)/\1\dashv{}\2/g";
+  replace: "/-\>/\to{}/g";
+  replace: "/\bG([^a-zA-Z])/\Gamma{}\1/g";
+  replace: "/\bD([^a-zA-Z])/\Delta{}\1/g";
+  replace: "/\bS([^a-zA-Z])/\Sigma{}\1/g";
+  replace: "/\bt([^a-z])/\tau{}\1/g";
+  replace: "/</\langle{}/g";
+  replace: "/>/\rangle{}/g";
+  replace: "/\b:=\b/\coloneqq{}/g";
+}
+
+Infer {
+  replace:"/(\n|^)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{{}}{\3}{\textsc{\2}}/m";
+  replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{\1}{\3}{\textsc{\2}}/m";
+  replace:"~ Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+           ~ End MathPre";
+}
+
+Tex Header:
+  \setlength{\headheight}{30pt}
+  \renewcommand{\footrulewidth}{0.5pt}
+
+@if html {
+body.madoko {
+  font-family: utopia-std, serif;
+}
+title,titlenote,titlefooter,authors,h1,h2,h3,h4,h5 {
+  font-family: helvetica, sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: monospace;
+  font-size: 10pt;
+}
+}
+
+@if tex {
+body.madoko {
+  font-family: UtopiaStd-Regular;
+}
+title,titlenote,titlefooter,authors {
+  font-family: sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: LuxiMono;
+  font-size: 75%;
+}
+}
+
+Colorizer: p4
+.token.keyword    {
+    font-weight: bold;
+}
+
+@if html {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  padding:6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  breakable: true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+
+@if html {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #e9fce9;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  breakable : true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  background-color: #e9fce9;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+@if html {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+p4mathgrammar {
+  replace:"/\/\/(.*)/\/\/ &\text{\1}/g";
+  replace: "~ Begin P4MathGrammarBlock&nl;\
+                 ~ Begin MathPre&nl;&source;&nl;~ End MathPre&nl;\
+                 ~ End P4MathGrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+
+[TITLE]
+
+~ Begin Abstract
+This document gives a few guidelines, tips, and tricks for writing clear
+inference rules in Madoko format.
+~ End Abstract
+
+[TOC]
+
+
+# Introduction
+## Tips for rules
+### Equations in premises
+If a rule has equations in its premises, it can usually be simplified by
+substituting one side of the equation for the other. To give an example, the
+second of these two rules is easier to read and reason about than the first.
+~ Infer
+t = @int
+G |- x:t_x[]
+-------------------[Size-Eq]
+G |- @size(x):t
+~
+~ Infer
+G |- x:t[]
+-------------------[Size-Easy]
+G |- @size(x):@int
+~
+
+### Introducing notation
+ 
+Before using a metavariable like $x$ or $stmt$, define what it ranges over. For
+metavariables like $e$ or $\tau$ which range over syntax, this means writing
+a grammar. For leaf nodes in the AST like variables or integer constants it's
+okay to describe them in text without, say, writing out a grammar for decimal
+literals. Most people reading the spec won't know the details of the P4 grammar,
+but everyone reading the spec will know what an integer literal looks like.
+
+Before writing rules for a judgment, make sure you define the "shape" of the
+judgment. This is like declaring a type signature. For example:
+
+> Expressions are typechecked by a judgment of the form $\Gamma\vdash{}e:\tau$.
+
+This can also be a chance to explain what the judgment is supposed to do, if
+it's something more obscure or complex than simple typechecking.
+
+### Using notation consistently
+
+After introducing notation, make sure it is used consistently. If you find
+yourself stretching notation to fit new situations, it may mean that you need to
+alter the original notation or introduce new notation. 
+
+It's perfectly fine to overload things, as long as you call attention to the
+fact that you are doing it. For example, having two judgments
+$\Gamma\vdash{}e:\tau$ and $\Gamma\vdash{}stmt:\tau$ would probably be easier on
+the eyes than giving them subscripts to distinguish them.
+
+### Conditionals
+If a rule has a logical or ($\vee$) or a conditional ($\mathkw{if}$) in its
+premises, it should probably be written as two separate rules or include an
+appeal to a separate judgment. For example, a rule should probably not say ``$\tau
+= \mathkw{int} \vee \tau = \mathkw{bit}\langle w \rangle \vee \tau
+= \mathkw{int}\langle w \rangle$.'' Instead, it could appeal to a judgment
+$numeric(\tau)$ that has a rule for each numeric type.
+
+### Avoid indexing
+Rather than writing indexed sequences $x_1, \dots, x_n$, use the LaTeX
+`\overline` macro like this: $\overline{x}$. If you need to check
+a judgment for a sequence of things, put a line over the part that varies. For
+example:
+~ Infer
+\Gamma |- \overline{e:t}
+--------------------------------[Tuple]
+\Gamma |- (\overline{e}):@tuple<\overline{t}>
+~
+
+## Tips for Madoko formatting
+
+### Significant whitespace
+This can be fixed easily in the proofreading stage, so don't worry about it too
+much. I wanted to call attention to it because I found it surprising. TeX
+collapses space in math mode so that `x+y` and `x + y` are rendered the same
+way. Madoko's `MathPre` environment, which is used in our `P4MathGrammar` and
+`Infer` Madoko environments, disables this behavior. This can be good if you
+want to align things horizontally using spaces, like when we write grammars. But
+it messes up the spacing of binary operators, and other things like that.
+Compare these two expressions:
+~ MathPre
+x + y
+~
+~ MathPre
+x+y
+~

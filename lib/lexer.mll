@@ -29,11 +29,13 @@ let line_start    = ref 1
 
 type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
-  | SIdent of Types.P4String.t (* We have seen an identifier: we have just
-                                * emitted a [NAME] token. The next token will be
-                                * either [IDENTIFIER] or [TYPENAME], depending on
-                                * what kind of identifier this is. *)
   | SRangle of Info.t
+  | SPragma
+  | SIdent of Types.P4String.t * lexer_state
+    (* We have seen an identifier: we have just
+     * emitted a [NAME] token. The next token will be
+     * either [IDENTIFIER] or [TYPENAME], depending on
+     * what kind of identifier this is. *)
 
 let lexer_state = ref SRegular
     
@@ -75,18 +77,20 @@ let info lexbuf : Info.t =
 let sanitize s =
   String.concat "" (String.split_on_char '_' s)
 
+let strip_prefix s =
+  let length = String.length s in
+  assert (length > 2);
+  String.sub s 2 (length - 2)
+
 let parse_int n info =
   let value = Bigint.of_string (sanitize n) in
   (info, P4Int.{ value; width_signed=None })
 
 let parse_width_int s n info =
   let l_s = String.length s in
-  let l_n = String.length n in
-  let _ : unit = assert(l_n > l_s) in
-  let number = String.sub n l_s (l_n - l_s) in
   let width = String.sub s 0 (l_s - 1) in
   let sign = String.sub s (l_s - 1) 1 in
-  let value = Bigint.of_string (sanitize number) in
+  let value = Bigint.of_string (sanitize n) in
   let width_signed = match sign with
       "s" ->
       if (int_of_string width < 2)
@@ -112,11 +116,13 @@ let whitespace = [' ' '\t' '\012' '\r']
 
 rule tokenize = parse
   | "/*"
-      { multiline_comment lexbuf; tokenize lexbuf }
+      { match multiline_comment None lexbuf with 
+         | None -> tokenize lexbuf
+         | Some info -> PRAGMA_END (info) }
   | "//"
       { singleline_comment lexbuf; tokenize lexbuf }
   | '\n'
-      { newline lexbuf ; tokenize lexbuf }
+      { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
         STRING_LITERAL (Info.merge (info lexbuf) end_info, str) }
@@ -124,26 +130,28 @@ rule tokenize = parse
       { tokenize lexbuf }
   | '#'
       { preprocessor lexbuf ; tokenize lexbuf }
+  | "@pragma"
+      { PRAGMA(info lexbuf) }
   | hex_number as n
-    { INTEGER (parse_int n (info lexbuf)) }
+    { INTEGER (parse_int n (info lexbuf), n) }
   | dec_number as n
-    { INTEGER (parse_int n (info lexbuf)) }
+    { INTEGER (parse_int (strip_prefix n) (info lexbuf), n) }
   | oct_number as n
-    { INTEGER (parse_int n (info lexbuf)) }
+    { INTEGER (parse_int n (info lexbuf), n) }
   | bin_number as n
-    { INTEGER (parse_int n (info lexbuf)) }
+    { INTEGER (parse_int n (info lexbuf), n) }
   | int as n
-    { INTEGER (parse_int n (info lexbuf)) }
-  | sign as s hex_number as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s dec_number as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s oct_number as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s bin_number as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
-  | sign as s int as n
-    { INTEGER (parse_width_int s n (info lexbuf)) }
+    { INTEGER (parse_int n (info lexbuf), n) }
+  | (sign as s) (hex_number as n)
+    { INTEGER (parse_width_int s n (info lexbuf), n) }
+  | (sign as s) (dec_number as n)
+    { INTEGER (parse_width_int s (strip_prefix n) (info lexbuf), n) }
+  | (sign as s) (oct_number as n)
+    { INTEGER (parse_width_int s n (info lexbuf), n) }
+  | (sign as s) (bin_number as n)
+    { INTEGER (parse_width_int s n (info lexbuf), n) }
+  | (sign as s) (int as n)
+    { INTEGER (parse_width_int s n (info lexbuf), n) }
   | "abstract"
       { ABSTRACT (info lexbuf) }
   | "action"
@@ -200,6 +208,8 @@ rule tokenize = parse
       { PARSER (info lexbuf) }
   | "package"
       { PACKAGE (info lexbuf) }
+  | "pragma" 
+      { PRAGMA (info lexbuf) }
   | "return"
       { RETURN (info lexbuf) }
   | "select"
@@ -309,7 +319,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { raise (Error (Printf.sprintf "Unexpected character: %s .\n" (lexeme lexbuf))) }
+      { UNEXPECTED_TOKEN(info lexbuf, lexeme lexbuf) }
       
 and string = parse
   | eof
@@ -365,51 +375,75 @@ and preprocessor_column = parse
       { preprocessor_column lexbuf }
       
 (* Multi-line comment terminated by "*/" *)
-and multiline_comment = parse
-  | "*/"   { () }
+and multiline_comment opt = parse
+  | "*/"   { opt }
   | eof    { failwith "unterminated comment" }
-  | '\n'   { new_line lexbuf; multiline_comment lexbuf }
-  | _      { multiline_comment lexbuf }
+  | '\n'   { newline lexbuf; multiline_comment (Some(info lexbuf)) lexbuf }
+  | _      { multiline_comment opt lexbuf }
       
 (* Single-line comment terminated by a newline *)
 and singleline_comment = parse
-  | '\n'   { new_line lexbuf }
+  | '\n'   { newline lexbuf }
   | eof    { () }
   | _      { singleline_comment lexbuf }
       
 {
-let lexer : lexbuf -> token =
-  fun lexbuf ->
-    match !lexer_state with
-    | SIdent id ->
-      lexer_state := SRegular;
-      if is_typename id then TYPENAME else IDENTIFIER
+
+let rec lexer (lexbuf:lexbuf) : token = 
+   match !lexer_state with
+    | SIdent(id,next) ->
+      lexer_state := next;
+      if is_typename id then 
+         TYPENAME
+      else 
+        IDENTIFIER
     | SRangle info1 -> 
       begin 
-        let token = tokenize lexbuf in
-        match token with 
+        match tokenize lexbuf with
         | R_ANGLE info2 when Info.follows info1 info2 -> 
           lexer_state := SRegular;
           R_ANGLE_SHIFT info2
-        | NAME id ->
-          lexer_state := SIdent id;
+        | PRAGMA _ as token ->
+          lexer_state := SPragma;
           token
-        | _ -> 
+        | PRAGMA_END _ -> 
+          lexer_state := SRegular;
+          lexer lexbuf
+        | NAME id as token ->
+          lexer_state := SIdent id;
+          token          
+        | token -> 
           lexer_state := SRegular;
           token
       end
     | SRegular ->
       begin 
-        let token = tokenize lexbuf in
-        match token with
-        | NAME id ->
-          lexer_state := SIdent id;
+        match tokenize lexbuf with
+        | NAME id as token ->
+          lexer_state := SIdent(id, SRegular);
           token
+       |  PRAGMA _ as token ->
+          lexer_state := SPragma;
+          token
+        | PRAGMA_END _ ->
+          lexer lexbuf
         | R_ANGLE info -> 
           lexer_state := SRangle info;
           token
-        | _ ->
+        | token ->
           lexer_state := SRegular;
           token
-     end
+       end
+    | SPragma -> 
+      begin 
+        match tokenize lexbuf with
+        | PRAGMA_END info as token -> 
+           lexer_state := SRegular;
+           token
+        | NAME id as token -> 
+           lexer_state := SIdent(id, SPragma);
+           token
+        | token -> 
+           token
+      end
 }

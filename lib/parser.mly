@@ -764,7 +764,7 @@ baseType
      { let value_int = fst value in 
        let value_info = fst value_int in
        let max_width = (value_info, Expression.Int value_int) in
-       let info = Info.merge info1 info-r in
+       let info = Info.merge info1 info_r in
       (info, Type.VarBit max_width) }
 | info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
     { (Info.merge info1 info_r,

@@ -76,11 +76,11 @@ let parse_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> anon ("p4file" %: string))
     (fun verbose include_dir p4file () ->
-       match parse_file include_dir p4file verbose with
-       | `Ok _ -> 
+      match parse_file include_dir p4file verbose with
+      | `Ok _ -> 
          ()
-       | `Error (info, exn) -> 
-          Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
+      | `Error (info, exn) -> 
+         Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
 
 let check_command =
   let open Command.Spec in

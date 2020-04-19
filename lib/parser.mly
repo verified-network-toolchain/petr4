@@ -75,46 +75,46 @@ let declare_types types = List.iter types ~f:declare_type
 
 (********************************** CONTEXTS ***********************************)
 
-push_scope
-: (* empty *)
+push_scope:
+| (* empty *)
     { push_scope() }
 ;
 
 (* Very similar to C++ driver.structure->pushContainerType(...) method *)
-push_name
-: n = name
+push_name:
+| n = name
      { push_scope();
        declare_type n;
        n}
 
-push_externName
-: n = externName
+push_externName:
+| n = externName
     { push_scope();
       declare_type n;
       n}
 
-pop_scope
-: (* empty *)
+pop_scope:
+| (* empty *)
     { pop_scope() }
 ;
 
 (*
-%inline scoped(X)
-: push x = X pop
+%inline scoped(X):
+| push x = X pop
     { x }
 ;
 *)
 
-go_toplevel
-: (* empty *)
+go_toplevel:
+| (* empty *)
     { go_toplevel () }
 
-go_local
-: (* empty *)
+go_local:
+| (* empty *)
     { go_local () }
 
-%inline toplevel(X)
-: go_toplevel x = X go_local
+%inline toplevel(X):
+| go_toplevel x = X go_local
     { x }
 
 (************************************ LISTS **************************************)
@@ -122,30 +122,30 @@ go_local
 (* We re-implement right-recursive versions of these standard functions to
    avoid some shift/reduce conflicts *)
 
-separated_nonempty_list_aux(sep, X)
-: x = X
+separated_nonempty_list_aux(sep, X):
+| x = X
     { [x] }
 | xs = separated_nonempty_list_aux(sep, X) sep x = X
     { x::xs }
 ;
 
-separated_nonempty_list(sep, X)
-: rev_list = separated_nonempty_list_aux(sep, X)
+separated_nonempty_list(sep, X):
+| rev_list = separated_nonempty_list_aux(sep, X)
     { List.rev rev_list }
 ;
 
-separated_atLeastTwo_list_aux(sep, X)
-: xs = separated_nonempty_list_aux(sep, X) sep x = X
+separated_atLeastTwo_list_aux(sep, X):
+| xs = separated_nonempty_list_aux(sep, X) sep x = X
     { x::xs }
 ;
 
-separated_atLeastTwo_list(sep, X)
-: rev_list = separated_atLeastTwo_list_aux(sep, X)
+separated_atLeastTwo_list(sep, X):
+| rev_list = separated_atLeastTwo_list_aux(sep, X)
       {List.rev rev_list}
 ;
 
-separated_list_aux(sep, X)
-: (* empty *)
+separated_list_aux(sep, X):
+| (* empty *)
     { [] }
 | x = X
     { [x] }
@@ -153,37 +153,37 @@ separated_list_aux(sep, X)
     { x::xs }
 ;
 
-separated_list(sep, X)
-: rev_list = separated_list_aux(sep, X)
+separated_list(sep, X):
+| rev_list = separated_list_aux(sep, X)
     { List.rev rev_list }
 ;
 
-nonempty_list_aux(X)
-: x = X
+nonempty_list_aux(X):
+| x = X
     { [x] }
 | xs = nonempty_list_aux(X) x=X
     {x::xs}
 ;
 
-nonempty_list(X)
-: rev_list = nonempty_list_aux(X)
+nonempty_list(X):
+| rev_list = nonempty_list_aux(X)
     { List.rev rev_list }
 ;
 
-list_aux(X)
-: (* empty *)
+list_aux(X):
+| (* empty *)
     { [] }
 | xs = list_aux(X) x=X
     { x::xs }
 ;
 
-list(X)
-: rev_list = list_aux(X)
+list(X):
+| rev_list = list_aux(X)
     {List.rev rev_list}
 ;
 
-%inline option(X)
-: (* empty *)
+%inline option(X):
+| (* empty *)
     { None   }
 | x = X
     { Some x }
@@ -193,13 +193,13 @@ list(X)
 
 p4program : ds = topDeclarationList END { Program(ds) };
 
-topDeclarationList
-: (* empty *) { [] }
+topDeclarationList:
+| (* empty *) { [] }
 | SEMICOLON ds = topDeclarationList { ds }
 | d = topDeclaration ds = topDeclarationList { d :: ds }
 
-topDeclaration
-: c = constantDeclaration
+topDeclaration:
+| c = constantDeclaration
     { declare_var (Declaration.name c);
       c }
 | e = externDeclaration
@@ -229,48 +229,48 @@ topDeclaration
       f }
 ;
 
-varName
-: id = NAME IDENTIFIER { id }
+varName:
+| id = NAME IDENTIFIER { id }
 ;
 
-tableKwName
-: info = KEY { (info, "key") }
+tableKwName:
+| info = KEY { (info, "key") }
 | info = ACTIONS { (info, "actions") }
 | info = ENTRIES { (info, "entries") }
 ;
 
-nonTableKwName
-: n = varName { n }
+nonTableKwName:
+| n = varName { n }
 | n = NAME TYPENAME { n }
 | info = APPLY { (info, "apply") }
 | info = STATE { (info, "state") }
 | info = TYPE { (info, "type") }
 ;
 
-nonTypeName
-: n = varName { n }
+nonTypeName:
+| n = varName { n }
 | n = tableKwName { n }
 | info = APPLY { (info, "apply") }
 | info = STATE { (info, "state") }
 | info = TYPE { (info, "type") }
 ;
 
-name
-: n = nonTypeName
+name:
+| n = nonTypeName
 | n = NAME TYPENAME   { n } ;
 
-%inline optAnnotations
-: (* empty *)  { [] }
+%inline optAnnotations:
+| (* empty *)  { [] }
 | annotations = annotations  { annotations }
 ;
 
 
-annotations
-: annotations = nonempty_list(annotation) { annotations }
+annotations:
+| annotations = nonempty_list(annotation) { annotations }
 ;
 
-annotation
-: info1 = AT name = name
+annotation:
+| info1 = AT name = name
     { let info2 = info name in
       let body = (info2, Annotation.Empty) in 
       (Info.merge info1 info2,
@@ -297,8 +297,8 @@ annotation
        Annotation.{ name; body }) }
 ;
 
-annotationBody
-: (* empty *) 
+annotationBody:
+| (* empty *) 
   { [] }
 | body1 = annotationBody L_PAREN body2 = annotationBody R_PAREN
   { body1 @ body2 }
@@ -306,8 +306,8 @@ annotationBody
   { body @ [token] }
 ;
 
-annotationToken
-: UNEXPECTED_TOKEN { $1 }
+annotationToken:
+| UNEXPECTED_TOKEN { $1 }
 | ABSTRACT         { ($1, "abstract") }
 | ACTION           { ($1, "action") }
 | ACTIONS          { ($1, "actions") }
@@ -396,14 +396,14 @@ annotationToken
 | AT               { ($1, "@") }
 ;
 
-parameterList
-: params = separated_list(COMMA, parameter)
+parameterList:
+| params = separated_list(COMMA, parameter)
     { let names = List.map ~f:(fun (_,p) -> p.Parameter.variable) params in
       declare_vars names; params }
 ;
 
-parameter
-: annotations = optAnnotations direction = direction typ = typeRef variable = name
+parameter:
+| annotations = optAnnotations direction = direction typ = typeRef variable = name
     { let info1 =
         match direction with
         | None -> info typ
@@ -420,15 +420,15 @@ parameter
        Parameter.{ annotations; direction; typ; variable; opt_value = Some value }) }
 ;
 
-direction
-: info = IN      { Some (info, Direction.In) }
+direction:
+| info = IN      { Some (info, Direction.In) }
 | info = OUT     { Some (info, Direction.Out) }
 | info = INOUT   { Some (info, Direction.InOut) }
 | (* empty *)    { None }
 ;
 
-packageTypeDeclaration
-:  annotations = optAnnotations info1 = PACKAGE
+packageTypeDeclaration:
+|  annotations = optAnnotations info1 = PACKAGE
    name = push_name
      type_params = optTypeParameters
      L_PAREN params = parameterList info2 = R_PAREN
@@ -436,8 +436,8 @@ packageTypeDeclaration
         Declaration.PackageType { annotations; name; type_params; params }) }
 ;
 
-instantiation
-: annotations = optAnnotations typ = typeRef
+instantiation:
+| annotations = optAnnotations typ = typeRef
     L_PAREN args = argumentList R_PAREN name = name info2 = SEMICOLON
     { (Info.merge (info typ) info2,
        Declaration.Instantiation { annotations; typ; args; name; init=None }) }
@@ -447,31 +447,31 @@ instantiation
        Declaration.Instantiation { annotations; typ; args; name; init=Some init }) }
 ;
 
-objInitializer
-: L_BRACE statements = list(objDeclaration) R_BRACE 
+objInitializer:
+| L_BRACE statements = list(objDeclaration) R_BRACE 
   { (Info.merge $1 $3, Block.{ annotations = []; statements }) }
 ;
 
-objDeclaration
-: decl = functionDeclaration
+objDeclaration:
+| decl = functionDeclaration
   { (info decl, Statement.DeclarationStatement { decl }) }
 | decl = instantiation 
   { (info decl, Statement.DeclarationStatement { decl }) }
 ;
 
-optConstructorParameters
-: (* empty *) { [] }
+optConstructorParameters:
+| (* empty *) { [] }
 | L_PAREN params = parameterList R_PAREN { params }
 ;
 
-dotPrefix
-: info = DOT { info }
+dotPrefix:
+| info = DOT { info }
 ;
 
 (**************************** PARSER ******************************)
 
-parserDeclaration
-: p_type = parserTypeDeclaration constructor_params = optConstructorParameters
+parserDeclaration:
+| p_type = parserTypeDeclaration constructor_params = optConstructorParameters
     L_BRACE locals = list_aux(parserLocalElement)
     states = nonempty_list(parserState) info2 = R_BRACE
     pop_scope
@@ -481,23 +481,23 @@ parserDeclaration
       (info, Parser { annotations; name; type_params; params; constructor_params; locals; states }) }
 ;
 
-parserLocalElement
-: c = constantDeclaration { c }
+parserLocalElement:
+| c = constantDeclaration { c }
 | v = variableDeclaration { v }
 | i = instantiation       { i }
 | vs = valueSetDeclaration { vs }
 ;
 
-parserTypeDeclaration
-: annotations = optAnnotations info1 = PARSER
+parserTypeDeclaration:
+| annotations = optAnnotations info1 = PARSER
     name = push_name
     type_params = optTypeParameters L_PAREN params = parameterList info2 = R_PAREN
     { let info = Info.merge info1 info2 in
       (info, annotations, name, type_params, params) }
 ;
 
-parserState
-:  annotations = optAnnotations info1 = STATE
+parserState:
+|  annotations = optAnnotations info1 = STATE
      name = push_name
        L_BRACE
        statements = list(parserStatement) transition = transitionStatement
@@ -507,8 +507,8 @@ parserState
 
 ;
 
-parserStatement
-: s = assignmentOrMethodCallStatement
+parserStatement:
+| s = assignmentOrMethodCallStatement
 | s = directApplication
 | s = parserBlockStatement
    { s }
@@ -517,16 +517,16 @@ parserStatement
   { (info decl, Statement.DeclarationStatement { decl }) }
 ;
 
-parserBlockStatement
-:  annotations = optAnnotations
+parserBlockStatement:
+|  annotations = optAnnotations
      info1 = L_BRACE statements = list(parserStatement) info2 = R_BRACE
      { let info = Info.merge info1 info2 in
        let block = (info, Block.{ annotations; statements }) in
        (info, Statement.BlockStatement { block = block }) }
 ;
 
-transitionStatement
-: (* empty *)
+transitionStatement:
+| (* empty *)
   { let info = Info.M "Compiler-generated reject transition" in
     (info, Parser.Direct { next = (info, "reject") }) }
 
@@ -535,23 +535,23 @@ transitionStatement
        snd transition) }
 ;
 
-stateExpression
-: next = name info2 = SEMICOLON
+stateExpression:
+| next = name info2 = SEMICOLON
     { (Info.merge (info next) info2,
        Parser.Direct { next = next }) }
 | select = selectExpression
     { select }
 ;
 
-selectExpression
-: info1 = SELECT L_PAREN exprs = expressionList R_PAREN
+selectExpression:
+| info1 = SELECT L_PAREN exprs = expressionList R_PAREN
     L_BRACE cases = list(selectCase) info2 = R_BRACE
     { (Info.merge info1 info2,
        Parser.Select { exprs; cases }) }
 ;
 
-selectCase
-: matches = keysetExpression COLON next = name info2 = SEMICOLON
+selectCase:
+| matches = keysetExpression COLON next = name info2 = SEMICOLON
   { let info1 = match matches with
       | expr::_ -> info expr
       | _ -> assert false in
@@ -559,18 +559,18 @@ selectCase
      Parser.{ matches; next }) }
 ;
 
-keysetExpression
-: exprs = tupleKeysetExpression { exprs }
+keysetExpression:
+| exprs = tupleKeysetExpression { exprs }
 | expr  = simpleKeysetExpression { [expr] }
 ;
 
-tupleKeysetExpression
-: L_PAREN exprs = separated_atLeastTwo_list(COMMA, simpleKeysetExpression) R_PAREN
+tupleKeysetExpression:
+| L_PAREN exprs = separated_atLeastTwo_list(COMMA, simpleKeysetExpression) R_PAREN
     { exprs }
 ;
 
-simpleKeysetExpression
-: expr = expression { (info expr, Match.Expression { expr }) }
+simpleKeysetExpression:
+| expr = expression { (info expr, Match.Expression { expr }) }
 | info = DONTCARE { (info, Match.DontCare) }
 | info = DEFAULT { (info, Match.Default) }
 | expr = expression MASK mask = expression
@@ -581,8 +581,8 @@ simpleKeysetExpression
       (info, Match.Expression {expr = (info, Expression.Range { lo; hi })})}
 ;
 
-valueSetDeclaration
-: annotations = optAnnotations
+valueSetDeclaration:
+| annotations = optAnnotations
     info1 = VALUESET L_ANGLE typ = baseType r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
 | annotations = optAnnotations
@@ -597,8 +597,8 @@ valueSetDeclaration
 
 (*************************** CONTROL ************************)
 
-controlDeclaration
-: ct_decl = controlTypeDeclaration constructor_params = optConstructorParameters
+controlDeclaration:
+| ct_decl = controlTypeDeclaration constructor_params = optConstructorParameters
     L_BRACE locals = list(controlLocalDeclaration) APPLY apply = controlBody
     info2 = R_BRACE
     pop_scope
@@ -609,16 +609,16 @@ controlDeclaration
                              locals; apply } ) }
 ;
 
-controlTypeDeclaration
-:  annotations = optAnnotations info1 = CONTROL
+controlTypeDeclaration:
+|  annotations = optAnnotations info1 = CONTROL
      name = push_name
      type_params = optTypeParameters
      L_PAREN params = parameterList info2 = R_PAREN
      { (Info.merge info1 info2, annotations, name, type_params, params) }
 ;
 
-controlLocalDeclaration
-: c = constantDeclaration
+controlLocalDeclaration:
+| c = constantDeclaration
     { c }
 | a = actionDeclaration
     { declare_var (Declaration.name a); a }
@@ -630,14 +630,14 @@ controlLocalDeclaration
     { v }
 ;
 
-controlBody (* scoped at an upper level *)
-: b = blockStatement { b }
+controlBody (* scoped at an upper level *):
+| b = blockStatement { b }
 ;
 
 (*************************** EXTERN *************************)
 
-externDeclaration
-:  annotations = optAnnotations info1 = EXTERN
+externDeclaration:
+|  annotations = optAnnotations info1 = EXTERN
      name = push_externName
        type_params = optTypeParameters
        L_BRACE methods = list(methodPrototype) info2 = R_BRACE
@@ -657,22 +657,22 @@ externDeclaration
        decl }
 ;
 
-externName
-: n = nonTypeName { declare_type n; n }
+externName:
+| n = nonTypeName { declare_type n; n }
 (* So that it is declared a typename before constructors are parsed
    Could use midrule instead x) *)
 ;
 
-functionPrototype
-: typ = typeOrVoid name = name
+functionPrototype:
+| typ = typeOrVoid name = name
     push_scope
       type_params = optTypeParameters
       L_PAREN params = parameterList info2 = R_PAREN
     { (Info.merge (info typ) info2, typ, name, type_params, params) }
 ;
 
-methodPrototype
-: annotations = optAnnotations
+methodPrototype:
+| annotations = optAnnotations
   func = functionPrototype pop_scope info2 = SEMICOLON
     { let (info1, return, name, type_params, params) = func in
       (Info.merge info1 info2,
@@ -693,8 +693,8 @@ methodPrototype
 
 (************************** TYPES ****************************)
 
-typeRef
-: t = baseType
+typeRef:
+| t = baseType
 | t = typeName
 | t = specializedType
 | t = headerStackType
@@ -702,44 +702,44 @@ typeRef
     { t }
 ;
 
-namedType
-: t = typeName
+namedType:
+| t = typeName
 | t = specializedType
     { t }
 ;
 
-prefixedType
-: name = NAME TYPENAME
+prefixedType:
+| name = NAME TYPENAME
     { (info name, Type.TypeName name) }
 | dotPrefix go_toplevel name = NAME TYPENAME go_local
     { (info name, Type.TopLevelType name) }
 ;
 
-typeName
-: typ = prefixedType
+typeName:
+| typ = prefixedType
     { typ }
 ;
 
-tupleType
-: info1 = TUPLE L_ANGLE elements = typeArgumentList info_r = r_angle
+tupleType:
+| info1 = TUPLE L_ANGLE elements = typeArgumentList info_r = r_angle
     { (Info.merge info1 info_r,
        Type.Tuple elements) }
 ;
 
-headerStackType
-: header = typeName L_BRACKET size = expression info2 = R_BRACKET
+headerStackType:
+| header = typeName L_BRACKET size = expression info2 = R_BRACKET
     { (Info.merge (info header) info2,
        Type.HeaderStack { header; size }) }
 ;
 
-specializedType
-: base = prefixedType L_ANGLE args = typeArgumentList info_r = r_angle
+specializedType:
+| base = prefixedType L_ANGLE args = typeArgumentList info_r = r_angle
     { (Info.merge (info base) info_r,
       Type.SpecializedType { base; args }) }
 ;
 
-baseType
-: info = BOOL
+baseType:
+| info = BOOL
     { (info, Type.Bool) }
 | info = ERROR
     { (info, Type.Error) }
@@ -781,8 +781,8 @@ baseType
     { (info, Type.String) }
 ;
 
-typeOrVoid
-: t = typeRef
+typeOrVoid:
+| t = typeRef
   { t }
 | info = VOID
   { (info, Type.Void) }
@@ -790,42 +790,42 @@ typeOrVoid
   { (info name, Type.TypeName name) }    (* may be a type variable *)
 ;
 
-optTypeParameters
-: (* empty *) { [] }
+optTypeParameters:
+| (* empty *) { [] }
 | L_ANGLE types = separated_list(COMMA, typeParameter) r_angle
     { declare_types types;
       types }
 ;
 
-typeParameter
-: name = name { name }
+typeParameter:
+| name = name { name }
 ;
 
-realTypeArg
-: info = DONTCARE
+realTypeArg:
+| info = DONTCARE
   { (info, Type.DontCare) }
 | t = typeRef
   { t }
 ;
 
-typeArg
-: info = DONTCARE { (info, Type.DontCare) }
+typeArg:
+| info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
 | name = nonTypeName { (info name, Type.TypeName name) }
 | info = VOID { (info, Type.Void) }
 ;
 
-typeArgumentList
-: ts = separated_list(COMMA, typeArg) {ts}
+typeArgumentList:
+| ts = separated_list(COMMA, typeArg) {ts}
 ;
 
-realTypeArgumentList
-: t = realTypeArg { [t] }
+realTypeArgumentList:
+| t = realTypeArg { [t] }
 | ts = realTypeArgumentList COMMA t = typeArg { t::ts }
 ;
 
-typeDeclaration
-: d = derivedTypeDeclaration
+typeDeclaration:
+| d = derivedTypeDeclaration
 | d = typedefDeclaration
 | d = packageTypeDeclaration pop_scope SEMICOLON
   { declare_type (Declaration.name d);
@@ -840,44 +840,44 @@ typeDeclaration
      Declaration.ParserType { annotations; name; type_params; params } ) }
 ;
 
-derivedTypeDeclaration
-: d = headerTypeDeclaration
+derivedTypeDeclaration:
+| d = headerTypeDeclaration
 | d = headerUnionDeclaration
 | d = structTypeDeclaration
 | d = enumDeclaration
   { d }
 ;
 
-headerTypeDeclaration
-:  annotations = optAnnotations info1 = HEADER name = name
+headerTypeDeclaration:
+|  annotations = optAnnotations info1 = HEADER name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
         Declaration.Header { annotations; name; fields }) }
 ;
 
-headerUnionDeclaration
-:  annotations = optAnnotations info1 = HEADER_UNION name = name
+headerUnionDeclaration:
+|  annotations = optAnnotations info1 = HEADER_UNION name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
         Declaration.HeaderUnion { annotations; name; fields }) }
 ;
 
-structTypeDeclaration
-:  annotations = optAnnotations info1 = STRUCT name = name
+structTypeDeclaration:
+|  annotations = optAnnotations info1 = STRUCT name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
      { (Info.merge info1 info2,
         Declaration.Struct { annotations; name; fields }) }
 ;
 
-structField
-:  annotations = optAnnotations typ = typeRef name = name info2 = SEMICOLON
+structField:
+|  annotations = optAnnotations typ = typeRef name = name info2 = SEMICOLON
      { (Info.merge (info typ) info2,
         { annotations; typ; name }) }
 ;
 
 (* TODO : add support for serializable enums *)
-enumDeclaration
-: annotations = optAnnotations info1 = ENUM name = name
+enumDeclaration:
+| annotations = optAnnotations info1 = ENUM name = name
     L_BRACE members = identifierList info2 = R_BRACE
     { (Info.merge info1 info2,
       Declaration.Enum { annotations; name; members }) }
@@ -891,34 +891,34 @@ enumDeclaration
       Declaration.SerializableEnum { annotations; typ; name; members }) }
 ;
 
-errorDeclaration
-: info1 = ERROR L_BRACE members = identifierList info2 = R_BRACE
+errorDeclaration:
+| info1 = ERROR L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
       (Info.merge info1 info2,
        Declaration.Error { members }) }
 ;
 
-matchKindDeclaration
-: info1 = MATCH_KIND L_BRACE members = identifierList info2 = R_BRACE
+matchKindDeclaration:
+| info1 = MATCH_KIND L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
       (Info.merge info1 info2,
        Declaration.MatchKind { members }) }
 ;
 
-identifierList
-: ids = separated_nonempty_list(COMMA, id = name {id})
+identifierList:
+| ids = separated_nonempty_list(COMMA, id = name {id})
     { ids };
 
-specifiedIdentifier
-: name = name ASSIGN init = expression
+specifiedIdentifier:
+| name = name ASSIGN init = expression
     { (name, init) }
 
-specifiedIdentifierList
-: specIds = separated_nonempty_list(COMMA, specId = specifiedIdentifier { specId })
+specifiedIdentifierList:
+| specIds = separated_nonempty_list(COMMA, specId = specifiedIdentifier { specId })
     { specIds };
 
-typedefDeclaration
-: annotations = optAnnotations info1 = TYPEDEF
+typedefDeclaration:
+| annotations = optAnnotations info1 = TYPEDEF
     typ = typeRef name = name info2 = SEMICOLON
     { (Info.merge info1 info2,
        Declaration.TypeDef { annotations; name; typ_or_decl = Left typ } ) }
@@ -938,8 +938,8 @@ typedefDeclaration
 
 (*************************** STATEMENTS *************************)
 
-assignmentOrMethodCallStatement
-: func = lvalue L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
+assignmentOrMethodCallStatement:
+| func = lvalue L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
     { let type_args = [] in
       (Info.merge (info func) info2,
        Statement.MethodCall { func; type_args; args }) }
@@ -952,12 +952,12 @@ assignmentOrMethodCallStatement
       Statement.Assignment { lhs; rhs }) }
 ;
 
-emptyStatement
-: info = SEMICOLON { (info, Statement.EmptyStatement) }
+emptyStatement:
+| info = SEMICOLON { (info, Statement.EmptyStatement) }
 ;
 
-returnStatement
-: info1 = RETURN info2 = SEMICOLON
+returnStatement:
+| info1 = RETURN info2 = SEMICOLON
     { (Info.merge info1 info2,
        Statement.Return { expr = None }) }
 | info1 = RETURN expr = expression info2 = SEMICOLON
@@ -965,14 +965,14 @@ returnStatement
        Statement.Return { expr = Some expr }) }
 ;
 
-exitStatement
-: info1 = EXIT info2 = SEMICOLON
+exitStatement:
+| info1 = EXIT info2 = SEMICOLON
     { (Info.merge info1 info2,
        Statement.Exit) }
 ;
 
-conditionalStatement
-: info1 = IF L_PAREN cond = expression R_PAREN tru = statement ELSE fls = statement
+conditionalStatement:
+| info1 = IF L_PAREN cond = expression R_PAREN tru = statement ELSE fls = statement
     { let info2 = info fls in
       let fls = Some fls in
       (Info.merge info1 info2,
@@ -984,14 +984,14 @@ conditionalStatement
 ;
 
 (* To support direct invocation of a control or parser without instantiation *)
-directApplication
-: typ = typeName DOT APPLY L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
+directApplication:
+| typ = typeName DOT APPLY L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
     { (Info.merge (info typ) info2,
       Statement.DirectApplication { typ; args }) }
 ;
 
-statement
-: s = assignmentOrMethodCallStatement
+statement:
+| s = assignmentOrMethodCallStatement
 | s = directApplication
 | s = conditionalStatement
 | s = emptyStatement
@@ -1003,8 +1003,8 @@ statement
     { (info block, Statement.BlockStatement { block }) }
 ;
 
-blockStatement
-:  annotations = optAnnotations
+blockStatement:
+|  annotations = optAnnotations
      info1 = L_BRACE
      push_scope
      statements = list(statementOrDeclaration) info2 = R_BRACE
@@ -1013,8 +1013,8 @@ blockStatement
        Block.{ annotations; statements }) }
 ;
 
-switchStatement
-: info1 = SWITCH L_PAREN expr = expression R_PAREN L_BRACE cases = switchCases
+switchStatement:
+| info1 = SWITCH L_PAREN expr = expression R_PAREN L_BRACE cases = switchCases
   info2 = R_BRACE
     { (Info.merge info1 info2,
        Statement.Switch { expr; cases }) }
@@ -1022,22 +1022,22 @@ switchStatement
 
 switchCases : cases = list(switchCase) { cases } ;
 
-switchCase
-: label = switchLabel COLON code = blockStatement
+switchCase:
+| label = switchLabel COLON code = blockStatement
     { (Info.merge (info label) (info code), Statement.Action { label; code } ) }
 | label = switchLabel info2 = COLON
     { (Info.merge (info label) info2, Statement.FallThrough { label }) }
 ;
 
-switchLabel
-: name = name
+switchLabel:
+| name = name
   { (info name, Statement.Name name) }
 | info = DEFAULT
   { (info, Statement.Default) }
 ;
 
-statementOrDeclaration
-: decl = variableDeclaration
+statementOrDeclaration:
+| decl = variableDeclaration
 | decl = constantDeclaration
 | decl = instantiation
   { (info decl, Statement.DeclarationStatement { decl = decl }) }
@@ -1046,20 +1046,20 @@ statementOrDeclaration
 ;
 
 (************ TABLES *************)
-tableDeclaration
-:  annotations = optAnnotations
+tableDeclaration:
+|  annotations = optAnnotations
      info1 = TABLE name = name L_BRACE properties = tablePropertyList
      info2 = R_BRACE
      { (Info.merge info1 info2,
         Declaration.Table { annotations; name; properties }) }
 ;
 
-tablePropertyList
-: props = nonempty_list(tableProperty) { props }
+tablePropertyList:
+| props = nonempty_list(tableProperty) { props }
 ;
 
-tableProperty
-: info1 = KEY ASSIGN L_BRACE elts = keyElementList info2 = R_BRACE
+tableProperty:
+| info1 = KEY ASSIGN L_BRACE elts = keyElementList info2 = R_BRACE
     { (Info.merge info1 info2,
        Table.Key { keys = elts }) }
 | info1 = ACTIONS ASSIGN L_BRACE acts = actionList info2 = R_BRACE
@@ -1080,33 +1080,33 @@ tableProperty
 
 keyElementList: elts = list(keyElement) { elts } ;
 
-keyElement
-: key = expression COLON match_kind = name annotations = optAnnotations
+keyElement:
+| key = expression COLON match_kind = name annotations = optAnnotations
     info2 = SEMICOLON
     { (Info.merge (info key) info2,
        Table.{ annotations; key; match_kind }) }
 ;
 
-actionList
-: (* empty *)
+actionList:
+| (* empty *)
   { [] }
 | acts = separated_nonempty_list_aux(SEMICOLON, actionRef) SEMICOLON
     { List.rev acts }
 ;
 
-entriesList
-: entries = list(entry) { entries }
+entriesList:
+| entries = list(entry) { entries }
 ;
 
-entry
-: matches = keysetExpression
+entry:
+| matches = keysetExpression
     info1 = COLON act = actionRef annos = optAnnotations info2 = SEMICOLON
     { let info = Info.merge info1 info2 in
       (info, { annotations = annos; matches = matches; action = act }) }
 ;
 
-actionRef
-:  annotations = optAnnotations name = name
+actionRef:
+|  annotations = optAnnotations name = name
      { (info name, { annotations; name; args = [] }) }
 |  annotations = optAnnotations name = name L_PAREN args = argumentList
      info2 = R_PAREN
@@ -1116,8 +1116,8 @@ actionRef
 
 (************************* ACTION ********************************)
 
-actionDeclaration
-:  annotations = optAnnotations
+actionDeclaration:
+|  annotations = optAnnotations
      info1 = ACTION name = name L_PAREN params = parameterList R_PAREN
      body = blockStatement
      { (Info.merge info1 (info body),
@@ -1126,35 +1126,35 @@ actionDeclaration
 
 (************************* VARIABLES *****************************)
 
-variableDeclaration
-: annotations = optAnnotations
+variableDeclaration:
+| annotations = optAnnotations
     typ = typeRef name = name init = optInitialValue info2 = SEMICOLON
     { declare_var name;
       (Info.merge (info typ) info2,
        Declaration.Variable { annotations; typ; name; init }) }
 ;
 
-constantDeclaration
-: annotations = optAnnotations
+constantDeclaration:
+| annotations = optAnnotations
     info1 = CONST typ = typeRef name = name ASSIGN value = initialValue
     info2 = SEMICOLON
     { (Info.merge info1 info2,
        Declaration.Constant { annotations; typ; name; value }) }
 ;
 
-optInitialValue
-: (* empty *) { None }
+optInitialValue:
+| (* empty *) { None }
 | ASSIGN v = initialValue { Some v }
 ;
 
-initialValue
-: v = expression { v }
+initialValue:
+| v = expression { v }
 ;
 
 (************************* Expressions ****************************)
 
-functionDeclaration
-: func = functionPrototype body = blockStatement pop_scope
+functionDeclaration:
+| func = functionPrototype body = blockStatement pop_scope
     { let (info1, return, name, type_params, params) = func in
       (Info.merge info1 (info body),
        Declaration.Function { return; name; type_params; params; body }) }
@@ -1162,8 +1162,8 @@ functionDeclaration
 
 argumentList: args = separated_list(COMMA, argument) { args } ;
 
-argument
-: value = expression
+argument:
+| value = expression
     { (info value, Argument.Expression { value }) }
 | key = name ASSIGN value = expression
     { (Info.merge (info key) (info value),
@@ -1172,35 +1172,35 @@ argument
     { (info, Argument.Missing) }
 ;
 
-%inline kvPair
-: key = name ASSIGN value = expression 
+%inline kvPair:
+| key = name ASSIGN value = expression 
   { (Info.merge (info key) (info value),
      KeyValue.{ key; value }) }
 
-kvList
-: kvs = separated_nonempty_list(COMMA, kvPair)
+kvList:
+| kvs = separated_nonempty_list(COMMA, kvPair)
   { kvs }
 ;
 
-expressionList
-: exprs = separated_list(COMMA, expression) 
+expressionList:
+| exprs = separated_list(COMMA, expression) 
   { exprs }
 ;
 
-member
-: n = name { n }
+member:
+| n = name { n }
 ;
 
-prefixedNonTypeName
-: name = nonTypeName
+prefixedNonTypeName:
+| name = nonTypeName
   { (info name, Expression.Name name) }
 | info1 = dotPrefix go_toplevel name = nonTypeName go_local
   { (Info.merge info1 (info name),
      Expression.TopLevel name) }
 ;
 
-lvalue
-: expr = prefixedNonTypeName { expr }
+lvalue:
+| expr = prefixedNonTypeName { expr }
 | expr = lvalue DOT name = member
   { (Info.merge (info expr) (info name),
      Expression.ExpressionMember { expr; name }) }
@@ -1213,8 +1213,8 @@ lvalue
        Expression.BitStringAccess { bits; lo; hi }) }
 ;
 
-expression
-: value = INTEGER
+expression:
+| value = INTEGER
   { let value_int = fst value in 
     let info = fst value_int in 
     (info, Expression.Int value_int) }
@@ -1238,6 +1238,9 @@ expression
 | info1 = L_BRACE values = expressionList info2 = R_BRACE
   { (Info.merge info1 info2,
      Expression.List { values }) }
+| info1 = L_BRACE entries = kvList info2 = R_BRACE 
+  { (Info.merge info1 info2, 
+     Expression.Struct { entries }) }
 | L_PAREN exp = expression R_PAREN
   { exp }
 | info1 = NOT arg = expression %prec PREFIX
@@ -1283,8 +1286,8 @@ expression
       Expression.NamelessInstantiation { typ; args }) }
 ;
 
-%inline binop
-: info = MUL
+%inline binop:
+| info = MUL
     { (info, Op.Mul) }
 | info = DIV
     { (info, Op.Div) }
@@ -1328,8 +1331,8 @@ expression
     { (info, Op.Or) }
 ;
 
-%inline r_angle 
-: info_r = R_ANGLE { info_r } 
+%inline r_angle:
+| info_r = R_ANGLE { info_r } 
 | info_r = R_ANGLE_SHIFT { info_r }
 
 (* À jour avec le commit 45df9f41a2cf1af56f4fa1cfaa1f586adefd13b7

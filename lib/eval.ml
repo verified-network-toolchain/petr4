@@ -937,6 +937,7 @@ and eval_expression' (env : EvalEnv.t) (ctrl : ctrl) (s : signal)
       | ArrayAccess{array=a; index=i}        -> eval_array_access env ctrl a i
       | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access env ctrl bits lo hi
       | List{values}                         -> eval_list env ctrl values
+      | Struct{entries}                      -> eval_struct env ctrl entries
       | UnaryOp{op;arg}                      -> eval_unary env ctrl op arg
       | BinaryOp{op; args=(l,r)}             -> eval_binop env ctrl op l r
       | Cast{typ;expr}                       -> eval_cast env ctrl typ expr
@@ -992,6 +993,10 @@ and eval_bitstring_access (env : EvalEnv.t) (ctrl : ctrl) (b : Expression.t)
   | _,SReject _,_ -> (env'', s',VNull)
   | _,_,SReject _ -> (env''', s'', VNull)
   | _ -> failwith "unreachable"
+
+and eval_struct (env : EvalEnv.t) (ctrl : ctrl) 
+  (entries : KeyValue.t list) : EvalEnv.t * signal * value = 
+  failwith "unimplemented"
 
 and eval_list (env : EvalEnv.t) (ctrl : ctrl)
     (values : Expression.t list) : EvalEnv.t * signal * value =

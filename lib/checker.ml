@@ -701,6 +701,8 @@ and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
        type_bit_string_access env bits lo hi
     | List { values } ->
        type_list env values
+    | Struct { entries } ->
+       type_struct_expr env entries
     | UnaryOp { op; arg } ->
        type_unary_op env op arg
     | BinaryOp { op; args } ->
@@ -1057,6 +1059,9 @@ and type_list env values : Prog.Expression.typed_t =
   { expr = List { values = typed_exprs };
     typ = Type.List { types };
     dir = Directionless }
+
+and type_struct_expr env entries : Prog.Expression.typed_t =
+  failwith "unimplemented"
 
 (* Sections 8.5-8.8
  * ----------------

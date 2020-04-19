@@ -355,10 +355,10 @@ annotationToken:
 | DONTCARE         { ($1, "_") }
 | NAME IDENTIFIER  { $1 }
 | NAME TYPENAME    { $1 }
-| STRING_LITERAL   { $1 }
-| INTEGER          { let n_int, n_str = $1 in 
-                     let info = fst n_int in 
-                     (info, n_str) }
+| STRING_LITERAL   { let info, str = $1 in
+                     (info, "\"" ^ str ^ "\"") }
+| INTEGER          { let (info,_), str = $1 in 
+                     (info, str) }
 | MASK             { ($1, "&&&") }
 | RANGE            { ($1, "..") }
 | SHL              { ($1, "<<") }

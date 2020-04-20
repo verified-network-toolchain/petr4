@@ -1,4 +1,10 @@
-(tests
-(names test)
-(libraries core p4pp petr4 alcotest)
-(action (run %{test} -e)))
+(menhir
+  (flags --explain)
+  (modules test_parser))
+
+(ocamllex (modules test_lexer))
+
+(executable
+  (libraries ANSITerminal core petr4 alcotest ounit2)
+  (name test)
+)

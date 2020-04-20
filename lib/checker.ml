@@ -1231,7 +1231,7 @@ and coerce_binary_op_args env l r =
  * (==) or inequality (!=).
  *)
 and type_has_equality_tests env (typ: Typed.Type.t) =
-  match typ with
+  match reduce_type env typ with
   | Bool
   | String
   | Integer
@@ -1252,6 +1252,8 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | HeaderUnion { fields }
   | Struct { fields } ->
      List.for_all ~f:(fun field -> type_has_equality_tests env field.typ) fields
+  | NewType { typ; _ } ->
+     type_has_equality_tests env typ
   | Enum { typ; _ } ->
      begin match typ with
      | Some typ -> type_has_equality_tests env typ

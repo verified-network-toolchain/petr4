@@ -54,6 +54,17 @@ let end_pos = function
      | None -> (line_start, col_end)
      | Some line_end -> (line_end, col_end))
 
+let follows i1 i2 = 
+  match i1, i2 with 
+    | M _, _
+    | _ ,M _ -> false
+    | I _, I _ -> 
+       begin 
+         let l1,c1 = end_pos i1 in 
+         let l2,c2 = start_pos i2 in
+         (l1 = l2 && c1 = c2)
+       end
+
 let file = function
     M _ -> ""
   | I  { filename; line_start; line_end; col_start; col_end } ->

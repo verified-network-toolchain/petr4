@@ -27,6 +27,8 @@ val dummy : t
 
 val merge : t -> t -> t
 
+val follows : t -> t -> bool
+
 val to_string : t -> string
 
 val header_union_info : t

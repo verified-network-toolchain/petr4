@@ -29,12 +29,13 @@ let line_start    = ref 1
 
 type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
+  | SRangle of Info.t
+  | SPragma
   | SIdent of Types.P4String.t * lexer_state
     (* We have seen an identifier: we have just
      * emitted a [NAME] token. The next token will be
      * either [IDENTIFIER] or [TYPENAME], depending on
      * what kind of identifier this is. *)
-  | SPragma
 
 let lexer_state = ref SRegular
     
@@ -387,6 +388,7 @@ and singleline_comment = parse
   | _      { singleline_comment lexbuf }
       
 {
+
 let rec lexer (lexbuf:lexbuf) : token = 
    match !lexer_state with
     | SIdent(id,next) ->
@@ -395,27 +397,53 @@ let rec lexer (lexbuf:lexbuf) : token =
          TYPENAME
       else 
         IDENTIFIER
-    | SRegular ->
-      (match tokenize lexbuf with
-       | NAME id as token ->
-         lexer_state := SIdent(id, SRegular);
-         token
-       | PRAGMA info as token ->
-         lexer_state := SPragma;
-         token
-       | PRAGMA_END info ->
-         lexer lexbuf
-       | token ->
-         lexer_state := SRegular;
-         token)
-    | SPragma -> 
-      (match tokenize lexbuf with
-       | PRAGMA_END info as token -> 
+    | SRangle info1 -> 
+      begin 
+        match tokenize lexbuf with
+        | R_ANGLE info2 when Info.follows info1 info2 -> 
+          lexer_state := SRegular;
+          R_ANGLE_SHIFT info2
+        | PRAGMA _ as token ->
+          lexer_state := SPragma;
+          token
+        | PRAGMA_END _ -> 
+          lexer_state := SRegular;
+          lexer lexbuf
+        | NAME id as token ->
+          lexer_state := SIdent (id, SRegular);
+          token          
+        | token -> 
           lexer_state := SRegular;
           token
-       | NAME id as token -> 
-          lexer_state := SIdent(id, SPragma);
+      end
+    | SRegular ->
+      begin 
+        match tokenize lexbuf with
+        | NAME id as token ->
+          lexer_state := SIdent(id, SRegular);
           token
-       | token -> 
-          token)
+       |  PRAGMA _ as token ->
+          lexer_state := SPragma;
+          token
+        | PRAGMA_END _ ->
+          lexer lexbuf
+        | R_ANGLE info as token -> 
+          lexer_state := SRangle info;
+          token
+        | token ->
+          lexer_state := SRegular;
+          token
+       end
+    | SPragma -> 
+      begin 
+        match tokenize lexbuf with
+        | PRAGMA_END info as token -> 
+           lexer_state := SRegular;
+           token
+        | NAME id as token -> 
+           lexer_state := SIdent(id, SPragma);
+           token
+        | token -> 
+           token
+      end
 }

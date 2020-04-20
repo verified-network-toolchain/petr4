@@ -13,6 +13,21 @@ type error =
   | UnreachableBlock
 [@@deriving sexp]
 
+let format_error fmt = function
+  | Unbound x -> 
+     Format.fprintf fmt "error: %s unbound" x
+  | Mismatch { expected; found } -> 
+     Format.fprintf fmt "error: type mismatch, expected %s but found <...>" 
+       expected
+  | UnfoundMember { expected_member } -> 
+     Format.fprintf fmt "error: no such member %s" expected_member
+  | Type_Difference(t1,t2) -> 
+     Format.fprintf fmt "error: different types <...> and <...>"
+  | Duplicate -> 
+     Format.fprintf fmt "error: duplicate"
+  | UnreachableBlock -> 
+     Format.fprintf fmt "error: unreachable block"
+     
 exception Internal of string [@@deriving sexp]
 exception Type of (Info.t * error) [@@deriving sexp]
 

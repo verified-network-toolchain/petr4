@@ -28,38 +28,44 @@ let parser_test include_dirs file =
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   match Parse.parse_file include_dirs p4_file false with
   | `Ok prog ->
-    let prog = Elaborate.elab prog in
-    Checker.check_program prog |> ignore; true
+     begin 
+       let prog = Elaborate.elab prog in
+       try
+         let _ = Checker.check_program prog in 
+         true
+       with 
+       | Error.Type(info, err) -> 
+          Format.eprintf "%s: %a" (Info.to_string info) Error.format_error err;
+          false         
+       | exn -> 
+          Format.eprintf "Unknown exception: %s" (Exn.to_string exn);
+          false
+     end
   | `Error (info, Lexer.Error s) -> false
   | `Error (info, Parser.Error) -> false
   | `Error (info, err) -> false
 
-let _ = 
-  Sys.chdir Filename.parent_dir_name;
-  Sys.chdir Filename.parent_dir_name;
-  Sys.chdir Filename.parent_dir_name
-
 let get_files path =
-  Core__.Core_sys.ls_dir path
-  |> Base__.List.filter ~f:(fun name -> 
+  Sys.ls_dir path
+  |> List.filter ~f:(fun name -> 
       Core_kernel.Filename.check_suffix name ".p4")
 
-let good_files = Filename.concat "examples" 
-    (Filename.concat "checker_tests" "good") |> get_files
-let bad_files = Filename.concat "examples" 
-    (Filename.concat "checker_tests" "bad") |> get_files
+let example_path l = 
+  let root = Filename.concat ".." "examples" in 
+  List.fold_left l ~init:root ~f:Filename.concat
+                                   
+
+let good_files = example_path ["checker_tests"; "good"] |> get_files
+
+let bad_files = example_path ["checker_tests"; "bad"] |> get_files
 
 let good_test f file () =
   Alcotest.(check bool) "good test" true 
-    (f ["examples"] (Filename.concat "examples" 
-                       (Filename.concat "checker_tests" 
-                          (Filename.concat "good" file))))
+    (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
 
 let bad_test f file () =
   Alcotest.(check bool) "bad test" false 
-    (f ["examples"] (Filename.concat "examples" 
-                       (Filename.concat "checker_tests" 
-                          (Filename.concat "bad" file))))
+    (f ["../examples"] (example_path ["checker_tests"; "bad"; file]))
 
 let () =
   let open Alcotest in

@@ -1365,6 +1365,8 @@ and cast_ok env original_type new_type =
   | Bool, Bit { width = 1 }
   | Int { width = _ }, Bit { width = _ }
   | Bit { width = _ }, Int { width = _ }
+  | Bit { width = _ }, Bit { width = _ }
+  | Int { width = _ }, Int { width = _ }
   | Integer, Bit { width = _ }
   | Integer, Int { width = _ } ->
      true

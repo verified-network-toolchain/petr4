@@ -2290,28 +2290,23 @@ and type_transition env state_names transition : Prog.Parser.transition =
       Select { exprs = exprs_typed; cases = cases_typed }
 
 and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state =
-  let open Block in
-  let block = {annotations = []; statements = (snd state).statements} in
-  let (block_typed, env') = type_block env ParserState (fst state, block) in
-  match block_typed.stmt with
-  | BlockStatement { block } ->
-     let transition_typed = type_transition env' state_names (snd state).transition in
-     let pre_state : Prog.Parser.pre_state =
-       { annotations = (snd state).annotations;
-         statements = (snd block).statements;
-         transition = transition_typed;
-         name = (snd state).name }
-     in
-     (fst state, pre_state)
-  | _ -> failwith "bug: expected BlockStatement"
+  let (_, stmts_typed, env) = type_statements env ParserState (snd state).statements in
+  let transition_typed = type_transition env state_names (snd state).transition in
+  let pre_state : Prog.Parser.pre_state =
+    { annotations = (snd state).annotations;
+      statements = stmts_typed;
+      transition = transition_typed;
+      name = (snd state).name }
+  in
+  (fst state, pre_state)
 
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
   let constructor_params_typed = type_constructor_params env constructor_params in
   let params_typed = type_params env params in
   let env = insert_params env constructor_params in
-  let locals_typed, env = type_declarations env locals in
   let env = insert_params env params in
+  let locals_typed, env = type_declarations env locals in
   let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)

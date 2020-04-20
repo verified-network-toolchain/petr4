@@ -16,7 +16,6 @@
 
 open Petr4.Common
 open Js_of_ocaml
-open Js_of_ocaml_lwt
 
 exception ParsingError of string
 

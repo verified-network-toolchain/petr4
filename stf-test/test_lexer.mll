@@ -32,7 +32,7 @@ let whitespace = white+
 let opt_whitespace = white*
 
 
-let identifier = ['$' '_' 'A'-'Z' 'a'-'z']['$' '_' 'A'-'Z' 'a'-'z' '0'-'9']*
+let identifier = ['$' '_' 'A'-'Z' 'a'-'z']['$' '_' 'A'-'Z' '.' 'a'-'z' '0'-'9']*
 
 let q_chars = [^ '"' '\n']+
 let h_chars = [^ '>' '\n']+
@@ -47,7 +47,6 @@ let hex_constant_body = hex_digits+
 let hex_constant = hex_prefix hex_constant_body
 let hex_tern = ['0'-'9' 'a'-'f' 'A'-'F' '*']+
 let hex_tern_constant = hex_prefix hex_tern
-let identifier = ['a'-'z' '$' 'A'-'Z' '_']['a'-'z' '$' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
   | ""
@@ -114,6 +113,10 @@ and keyword = parse
     { keyword lexbuf }
   | '#' [^'\n']* '\n'
     { newline(); lexer:= Keyword; keyword lexbuf }
+  | identifier
+      { ID(lexeme lexbuf) }
+  | digits
+    { INT_CONST_DEC(lexeme lexbuf) }
   | eof
     { END }
 
@@ -123,10 +126,10 @@ and packet_data = parse
   | hex_constant_body
     { DATA_HEX(lexeme lexbuf) }
   | '*'
-    { DATA_TERN }
+    { PACKET_WILDCARD }
   | '\n'+
     { lexer:= Keyword; keyword lexbuf }
-  | whitespace
+  | whitespace | '$'
     { packet_data lexbuf }
 
 {

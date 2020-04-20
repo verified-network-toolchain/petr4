@@ -1,7 +1,6 @@
 open Ast
 open Petr4
 open Common
-open OUnit2
 
 let stmt_string s =
   match s with
@@ -45,50 +44,53 @@ let ctrl_json = Yojson.Safe.from_string empty_ctrl
 
 let strip_spaces s = s |> String.split_on_char ' ' |> String.concat ""
 
-let evaler dir name pkt_in =
-  Petr4_parse.eval_file ("../examples":: dir) name false pkt_in ctrl_json
-  |> strip_spaces
+let evaler dirs name pkt_in =
+  Petr4_parse.eval_file ("../examples":: dirs) name false pkt_in ctrl_json |> strip_spaces
 
 let pp_string s = "\"" ^ s ^ "\""
 
-let run_test dirs name (results, pkt_out) stmt =
-    match stmt with
-  | Expect(port, Some(expect)) -> begin
-    match pkt_out with
-    | Some p -> (name >:: fun _ -> assert_equal expect p ~printer:pp_string)::results, pkt_out
-    | None -> (name >:: fun _ -> assert_string "no packet")::results, pkt_out
-  end
-  | Packet(port, packet) ->
-    results, Some(evaler dirs name packet)
-  | _ -> failwith "unimplemented"
-
-let main include_dir stf_file =
-    let f_name =
-      (match String.split_on_char '.' stf_file |> List.rev with
-      | h::t -> "p4" :: t
-      | [] -> failwith "must be stf file") |> List.rev |> String.concat "." in
-    let ic = open_in stf_file in
-    (* let lexbuf = Lexing.from_string str in *)
-    let lexbuf = Lexing.from_channel ic in
-    let stmts = Test_parser.statements Test_lexer.token lexbuf in
-    List.length stmts |> string_of_int |> print_endline;
-    stmts |> List.map stmt_string |> String.concat "\n" |> print_endline;
-    let tests = List.fold_left (run_test include_dir f_name) ([], None) stmts |> fst |> List.rev in
-    let suite = "suite" ^ stf_file >::: tests in
-    run_test_tt_main suite
+let unimplemented_stmt = function
+  | Packet(_, _) | Expect(_, _) -> false
+  | _ -> true
 
 
-let command =
-  let open Core in
-  let open Command.Spec in
-  Command.basic_spec
-    ~summary: "Foobar"
-    (empty
-    +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
-    +> anon ("stf_file" %: string)
+let packet_equal p_exp p =
+  let rec iter i =
+    i >= String.length p_exp ||
+    ((p_exp.[i] = p.[i] || p_exp.[i] = '*') && iter (i + 1))
+    in
+  String.(length p_exp = length p) && iter 0
+
+
+let run_test dirs name stmts =
+    match List.find_opt unimplemented_stmt stmts with
+    | Some _ -> failwith "unimplemented stf statement"
+    | None ->
+        let packets = List.filter_map (function Packet(port, packet)-> Some(packet) | _ -> None) stmts in
+        let results = List.map (evaler dirs name) packets in
+        let expected = List.filter_map (function Expect(port, Some(packet)) -> Some(packet) | _ -> None) stmts in
+        List.combine expected results |> List.iter (fun (p_exp, p) ->
+          Alcotest.(testable Fmt.string packet_equal |> check) "packet test" p_exp p)
+
+let get_stf_files path =
+  Core.Sys.ls_dir path |> Base.List.to_list |>
+  List.filter (fun x -> Core.Filename.check_suffix x ".stf")
+
+let stf_alco_test include_dir stf_file p4_file =
+    let test = Alcotest.test_case p4_file `Quick (fun () ->
+      let ic = open_in stf_file in
+      let lexbuf = Lexing.from_channel ic in
+      let stmts = Test_parser.statements Test_lexer.token lexbuf in
+      run_test include_dir p4_file stmts) in
+    Filename.basename stf_file, [test]
+
+let main include_dir stf_tests_dir =
+  get_stf_files stf_tests_dir
+  |> List.map ( fun x ->
+    let stf_file = Filename.concat stf_tests_dir x in
+    let p4_file = Filename.remove_extension stf_file ^ ".p4" in
+    stf_alco_test include_dir stf_file p4_file
     )
-    (fun include_dir stf_file () ->
-      print_endline stf_file;
-      main include_dir stf_file)
+  |> Alcotest.run "Stf-tests"
 
-let _ = Core.Command.run command
+let () = main ["examples/"] "./examples/checker_tests/good/"

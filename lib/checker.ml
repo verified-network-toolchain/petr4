@@ -550,7 +550,7 @@ and solve_types (env: CheckerEnv.t)
 
     | List {types = types1}, List {types = types2}
     | Tuple {types = types1}, List {types = types2} ->
-       solve_types env equiv_vars unknowns
+      solve_types env equiv_vars unknowns
          (Tuple {types = types1}) (Tuple {types = types2})
 
     | Struct {fields}, List {types}
@@ -2235,47 +2235,41 @@ and infer_constructor_type_args env type_params params_args type_args =
   in
   infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
 
-and type_select_case env state_names expr_types (case_info, case) : Prog.Parser.case =
-  let open Typed.Type in
-  let open Types.Parser in
-  let rec check' info match_type typ =
-    match match_type with
-    | Set element_type ->
-       begin match element_type, typ with
-       | Struct _, Struct _
-       | Tuple _, Tuple _
-       | List _, List _ ->
-          assert_type_equality env info element_type typ;
-       | Tuple _, _
-       | Struct _, _ ->
-          assert_type_equality env info
-            element_type
-            (List { types = [typ] })
-       | _, _ ->
-          assert_type_equality env info element_type typ
-       end
-    | non_set_type ->
-       check' info (Set non_set_type) typ
-  in
-  match List.zip expr_types case.matches with
-  | Ok matches_and_types ->
-    let check_match (typ, m) : Prog.Match.t =
-      fst m,
-      match snd m with
-      | Types.Match.Expression { expr } ->
-         let expr_typed = type_expression env expr in
-         let match_type = reduce_type env (snd expr_typed).typ in
-         check' (fst m) match_type typ;
-         Expression { expr = expr_typed }
-      | Default -> DontCare
-      | DontCare -> DontCare
-    in
-    let matches_typed = List.map ~f:check_match matches_and_types in
-    let name = snd case.next in
-    if List.mem ~equal:(=) state_names name
-    then case_info, { matches = matches_typed; next = case.next }
-    else raise @@ Env.UnboundName name
-  | Unequal_lengths -> failwith "mismatch between types and number of matches"
+and type_set_expression env (expr: Types.Expression.t) =
+  let (info, e_typed) = type_expression env expr in
+  match e_typed.typ with
+  | Set t ->
+     info, e_typed
+  | non_set_type ->
+     info, {e_typed with typ = Set non_set_type}
+    
+and check_match env (info, m: Types.Match.t) (expected_type: Type.t) : Prog.Match.t =
+  match m with
+  | Default
+  | DontCare -> 
+     let set = Type.Set expected_type in
+     info, { expr = DontCare; typ = set }
+  | Expression { expr } ->
+     let expr_typed = type_set_expression env expr in
+     let typ = (snd expr_typed).typ in
+     assert_type_equality env info typ (Set expected_type);
+     info, { expr = Expression {expr = expr_typed};
+             typ = Type.Set typ } 
+
+and check_match_product env (ms: Types.Match.t list) (expected_types: Type.t list) =
+  match ms, expected_types with
+  | [m], [t] ->
+     [check_match env m t]
+  | [m], types ->
+     [check_match env m (List { types })]
+  | ms, types ->
+     List.map ~f:(fun (m, t) -> check_match env m t) @@ List.zip_exn ms types
+
+and type_select_case env state_names expr_types ((case_info, case): Types.Parser.case) : Prog.Parser.case =
+  let matches_typed = check_match_product env case.matches expr_types in
+  if List.mem ~equal:(=) state_names (snd case.next)
+  then case_info, { matches = matches_typed; next = case.next }
+  else raise_s [%message "state name unknown" ~name:(snd case.next: string)]
 
 and type_transition env state_names transition : Prog.Parser.transition =
   let open Parser in
@@ -2582,17 +2576,7 @@ and type_table_actions env key_types actions =
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
-    let type_entry_key_vals (key_typ: Type.t) (match_info, key_match: Match.t) : Prog.Match.t =
-      match key_match with
-      | Default -> failwith "Default unimplemented"
-      | DontCare ->
-         (match_info, DontCare)
-      | Expression { expr = exp } ->
-         let exp_typed = type_expression env exp in
-         assert_type_equality env (fst exp) key_typ (snd exp_typed).typ;
-         (match_info, Expression { expr = exp_typed })
-    in
-    let matches_typed = List.map2_exn ~f:type_entry_key_vals key_typs entry.matches in
+    let matches_typed = check_match_product env entry.matches key_typs in
     match List.Assoc.find action_map ~equal:(=) (snd (snd entry.action).name) with
     | None ->
        failwith "Entry must call an action in the table."

@@ -115,6 +115,7 @@ and Expression : sig
   | NamelessInstantiation of
       { typ: Type.t [@key "type"];
         args: t list }
+  | DontCare
   | Mask of
       { expr: t;
         mask: t }
@@ -171,6 +172,7 @@ end = struct
   | NamelessInstantiation of
       { typ: Type.t [@key "type"];
         args: Expression.t list }
+  | DontCare
   | Mask of
       { expr: t;
         mask: t }
@@ -190,17 +192,25 @@ and Match : sig
     DontCare
   | Expression of
       { expr: Expression.t }
-        [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,yojson { exn = true }]
 
-  type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+  type typed_t = { expr: pre_t;
+                   typ: Type.t }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type t = typed_t info [@@deriving sexp,yojson { exn = true }]
 end = struct
   type pre_t =
     DontCare
   | Expression of
       { expr: Expression.t }
-        [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,yojson { exn = true }]
 
-  type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+  type typed_t = { expr: pre_t;
+                   typ: Type.t }
+  [@@deriving sexp,yojson { exn = true }]
+
+  type t = typed_t info [@@deriving sexp,yojson { exn = true }]
 end
 
 and Table : sig

@@ -1509,6 +1509,10 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      | "setValid"
      | "setInvalid" ->
         Function { type_params = []; parameters = []; return = Void }
+     | "minSizeInBits" ->
+        Function { type_params = []; parameters = []; return = Integer }
+     | "minSizeInBytes" ->
+        Function { type_params = []; parameters = []; return = Integer }
      | _ -> fail ()
      end
   | Array { typ; _ } ->
@@ -1535,6 +1539,10 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      begin match snd name with
      | "isValid" ->
         Function { type_params = []; parameters = []; return = Bool }
+     | "minSizeInBits" ->
+        Function { type_params = []; parameters = []; return = Integer }
+     | "minSizeInBytes" ->
+        Function { type_params = []; parameters = []; return = Integer }
      | _ -> fail ()
      end
   | _ -> fail ()

@@ -1697,9 +1697,13 @@ module MakeInterpreter (T : Target) = struct
     let vs' = match v with
       | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
       | None -> vs in
-    let extern = List.Assoc.find_exn T.externs name ~equal:String.equal in
-    let (env'', st'', v) = extern env' st' vs' in
-    env'', st'', SContinue, v
+    let lv = match List.hd args with
+      | None -> None
+      | Some (_, Expression {value}) -> Some (lvalue_of_expr value)
+      | Some (_, KeyValue _) -> None (* TODO: this case will be eliminated by refactor *)
+      | Some ( _, Missing) -> None in
+    let (env'', st'', s, v) = T.eval_extern eval_assign' ctrl env' st' vs' lv name in
+    env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
     match snd d with 

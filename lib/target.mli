@@ -2,7 +2,12 @@ open Value
 open Env
 open Types
 
-(* type extern = EvalEnv.t -> value list -> EvalEnv.t * value *)
+type 'st assign = 
+  ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
+
+type ('st1, 'st2) pre_extern =
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list -> lvalue option ->
+  EvalEnv.t * 'st2 * signal * value
 
 module State : sig
   type 'a t
@@ -19,15 +24,18 @@ module type Target = sig
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
+  type 'st extern = ('st, st) pre_extern
 
-  val externs : (string * extern) list
+  val externs : (string * st extern) list
+
+  val eval_extern : 'st assign -> ctrl -> EvalEnv.t -> st -> value list ->
+                    lvalue option -> string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit 
 
   val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
-  (ctrl -> EvalEnv.t -> st -> lvalue -> value -> EvalEnv.t * st * 'b) -> 
+  st assign -> 
   (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
 
 end

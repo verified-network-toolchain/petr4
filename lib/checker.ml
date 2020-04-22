@@ -95,7 +95,28 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : V
   | Cast { typ; expr } -> compile_time_eval_expr env expr
   | TypeMember {typ; name } -> failwith "unimplemented"
   | Ternary {cond; tru; fls } -> failwith "unimplemented"
+  | List { values } ->
+     begin match compile_time_eval_exprs env values with 
+     | Some vals -> Some (VTuple vals)
+     | None -> None
+     end
+  | Record { entries } ->
+     let opt_entries =
+       List.map ~f:(fun (_, {key; value}) ->
+           match compile_time_eval_expr env value with
+           | Some v -> Some (snd key, v)
+           | None -> None)
+         entries
+     in
+     begin match Util.list_option_flip opt_entries with
+     | Some es -> Some (Value.VStruct { name = ""; fields = es })
+     | None -> None
+     end
   | _ -> None
+
+and compile_time_eval_exprs env exprs : Value.value list option =
+  let options = List.map ~f:(compile_time_eval_expr env) exprs in
+  Util.list_option_flip options
 
 let compile_time_eval_bigint env expr: Bigint.t =
   match compile_time_eval_expr env expr with
@@ -218,6 +239,8 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
       Tuple {types = List.map ~f:(saturate_type env) types}
   | List {types} ->
       List {types = List.map ~f:(saturate_type env) types}
+  | Record rec_typ ->
+      Record (saturate_rec env rec_typ)
   | Set typ ->
       Set (saturate_type env typ)
   | Header rec_typ ->
@@ -553,6 +576,11 @@ and solve_types (env: CheckerEnv.t)
       solve_types env equiv_vars unknowns
          (Tuple {types = types1}) (Tuple {types = types2})
 
+    | Record rec1, Record rec2
+    | Struct rec1, Record rec2
+    | Header rec1, Record rec2 ->
+       solve_record_type_equality env equiv_vars unknowns rec1 rec2
+
     | Struct {fields}, List {types}
     | Header {fields}, List {types} ->
        let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
@@ -610,6 +638,7 @@ and solve_types (env: CheckerEnv.t)
     | Array _, _
     | Tuple _, _
     | List _, _
+    | Record _, _
     | Set _, _
     | Header _, _
     | HeaderUnion _, _
@@ -701,8 +730,8 @@ and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
        type_bit_string_access env bits lo hi
     | List { values } ->
        type_list env values
-    | Struct { entries } ->
-       type_struct_expr env entries
+    | Record { entries } ->
+       type_record env entries
     | UnaryOp { op; arg } ->
        type_unary_op env op arg
     | BinaryOp { op; args } ->
@@ -876,9 +905,10 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     | None -> true
     | Some t ->  is_well_formed_type env t
     end
-  | Header {fields=fields}
-  | HeaderUnion {fields=fields}
-  | Struct {fields=fields} ->
+  | Record {fields}
+  | Header {fields}
+  | HeaderUnion {fields}
+  | Struct {fields} ->
     let open RecordType in
     List.for_all ~f:(fun field -> field.typ |> is_well_formed_type env) fields
   | Action { data_params=dps; ctrl_params=cps } ->
@@ -1060,8 +1090,19 @@ and type_list env values : Prog.Expression.typed_t =
     typ = Type.List { types };
     dir = Directionless }
 
-and type_struct_expr env entries : Prog.Expression.typed_t =
-  failwith "unimplemented"
+and type_key_val env ((info, entry): Types.KeyValue.t) : Prog.KeyValue.t =
+  info,
+  { key = entry.key;
+    value = type_expression env entry.value }
+  
+and type_record env entries : Prog.Expression.typed_t =
+  let entries_typed = List.map ~f:(type_key_val env) entries in
+  let rec_typed = Prog.Expression.Record { entries = entries_typed } in
+  let kv_to_field (kv: Prog.KeyValue.t) : Typed.RecordType.field =
+    { name = snd (snd kv).key; typ = (snd (snd kv).value).typ }
+  in
+  let fields = List.map ~f:kv_to_field entries_typed in
+  { expr = rec_typed; typ = Record { fields }; dir = Directionless }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -1378,6 +1419,9 @@ and cast_ok env original_type new_type =
   | NewType { name; typ }, t
   | t, NewType { name; typ } ->
      type_equality env typ t
+  | Record rec1, Header rec2
+  | Record rec1, Struct rec2 ->
+     type_equality env new_type original_type
   | _ -> original_type = new_type
 
 (* Section 8.9 *)

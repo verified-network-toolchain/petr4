@@ -113,7 +113,7 @@ end = struct
     | List x ->
       Format.fprintf fmt "@[<4>{%a}@]" 
         (format_list_sep format_t ",") x.values
-    | Struct x ->
+    | Record x ->
       Format.fprintf fmt "@[<4>{%a}@]"
         (format_list_sep KeyValue.format_t ",") x.entries
     | UnaryOp x ->

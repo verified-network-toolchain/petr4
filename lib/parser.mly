@@ -1240,7 +1240,7 @@ expression:
      Expression.List { values }) }
 | info1 = L_BRACE entries = kvList info2 = R_BRACE 
   { (Info.merge info1 info2, 
-     Expression.Struct { entries }) }
+     Expression.Record { entries }) }
 | L_PAREN exp = expression R_PAREN
   { exp }
 | info1 = NOT arg = expression %prec PREFIX

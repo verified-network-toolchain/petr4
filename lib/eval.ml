@@ -937,7 +937,7 @@ and eval_expression' (env : EvalEnv.t) (ctrl : ctrl) (s : signal)
       | ArrayAccess{array=a; index=i}        -> eval_array_access env ctrl a i
       | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access env ctrl bits lo hi
       | List{values}                         -> eval_list env ctrl values
-      | Struct{entries}                      -> eval_struct env ctrl entries
+      | Record{entries}                      -> eval_struct env ctrl entries
       | UnaryOp{op;arg}                      -> eval_unary env ctrl op arg
       | BinaryOp{op; args=(l,r)}             -> eval_binop env ctrl op l r
       | Cast{typ;expr}                       -> eval_cast env ctrl typ expr

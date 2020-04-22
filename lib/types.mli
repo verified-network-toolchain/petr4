@@ -196,7 +196,7 @@ and Expression : sig
           hi: t }
     | List of 
         { values: t list }
-    | Struct of
+    | Record of
         { entries: KeyValue.t list }
     | UnaryOp of 
         { op: Op.uni;

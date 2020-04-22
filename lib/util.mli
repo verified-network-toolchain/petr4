@@ -24,6 +24,8 @@ val option_map: ('a -> 'b) -> 'a option -> 'b option
 
 val option_collapse: 'a option option -> 'a option
 
+val list_option_flip: 'a option list -> 'a list option
+
 val uncurry: ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 
 val combine_opt: 'a list -> 'b list -> ('a option * 'b option) list

@@ -29,6 +29,15 @@ let option_collapse = function
   | Some (Some x) -> Some x
   | _ -> None
 
+let list_option_flip l =
+  let check checked x =
+    match checked, x with
+    | Some l, Some x -> Some (x :: l)
+    | _ -> None
+  in
+  List.fold ~f:check ~init:(Some []) l
+  |> option_map List.rev 
+
 let uncurry f (x, y) = f x y
 
 let rec combine_opt xs ys =

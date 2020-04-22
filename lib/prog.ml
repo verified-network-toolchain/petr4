@@ -71,6 +71,22 @@ end = struct
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
+and KeyValue : sig
+  type pre_t = 
+    { key : P4String.t;
+      value : Expression.t } 
+  [@@deriving sexp,yojson]
+
+  type t = pre_t info [@@deriving sexp,yojson]
+end = struct
+  type pre_t = 
+    { key : P4String.t;
+      value : Expression.t } 
+  [@@deriving sexp,yojson]
+
+  type t = pre_t info [@@deriving sexp,yojson]
+end
+
 and Expression : sig
   type pre_t =
     True
@@ -88,6 +104,8 @@ and Expression : sig
         hi: Util.bigint }
   | List of
       { values: t list }
+  | Record of
+      { entries: KeyValue.t list }
   | UnaryOp of
       { op: Op.uni;
         arg: t }
@@ -145,6 +163,8 @@ end = struct
         hi: bigint }
   | List of
       { values: t list }
+  | Record of
+      { entries: KeyValue.t list }
   | UnaryOp of
       { op: Op.uni;
         arg: t }

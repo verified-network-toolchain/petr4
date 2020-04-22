@@ -250,6 +250,9 @@ and Type : sig
     (* A list expression (can be used as a Tuple or struct/header) *)
     | List of TupleType.t
 
+    (* Struct initializers *)
+    | Record of RecordType.t
+
     (* set<t> *)
     | Set of t
 
@@ -331,6 +334,9 @@ end = struct
 
   (* A list expression (can be used as a Tuple or struct/header) *)
   | List of TupleType.t
+
+  (* Struct initializers *)
+  | Record of RecordType.t
 
   (* set<t> *)
   | Set of t

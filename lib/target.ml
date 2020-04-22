@@ -5,7 +5,12 @@ open Types
 open Core
 module Info = I
 
-type 'st pre_extern = EvalEnv.t -> 'st -> value list -> EvalEnv.t * 'st * value
+type 'st assign =
+  ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
+
+type ('st1, 'st2) pre_extern =
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list -> lvalue option ->
+  EvalEnv.t * 'st2 * signal * value
 
 module State = struct
 
@@ -29,16 +34,18 @@ module type Target = sig
 
   type st = obj State.t
 
-  type extern = st pre_extern
+  type 'st extern = ('st, st) pre_extern
 
-  val externs : (string * extern) list
+  val externs : (string * st extern) list
+
+  val eval_extern : 'st assign -> ctrl -> EvalEnv.t -> st -> value list ->
+                    lvalue option -> string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit
 
   val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
-  (ctrl -> EvalEnv.t -> st -> lvalue -> value -> EvalEnv.t * st * 'b) -> 
-  (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
+  st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
 
 end
 
@@ -50,7 +57,7 @@ module Core = struct
 
   type st = obj State.t
 
-  type extern = st pre_extern
+  type 'st extern = ('st, st) pre_extern
 
   let eval_extract_fixed env st pkt v =
     failwith "unimplemented"
@@ -58,19 +65,19 @@ module Core = struct
   let eval_extract_var env st pkt v1 v2 =
     failwith "unimplemented"
 
-  let eval_extract : extern = fun env st args ->
+  let eval_extract : 'st extern = fun assign env st args ->
     match args with 
     | [pkt;v1] -> eval_extract_fixed env st pkt v1 
     | [pkt;v1;v2] -> eval_extract_var env st pkt v1 v2 
     | _ -> failwith "wrong number of args for extract"
 
-  let eval_lookahead : extern = fun env st args ->
+  let eval_lookahead : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_advance : extern = fun env st args ->
+  let eval_advance : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_length : extern = fun env st args ->
+  let eval_length : 'st extern = fun _ _ env st args _ ->
     match args with
     | [VRuntime {loc;_}] ->
       let obj = State.find loc st in
@@ -78,16 +85,16 @@ module Core = struct
         match obj with
         | PacketIn pkt -> Cstruct.len pkt
         | PacketOut _ -> failwith "expected packet_in" in
-      env, st, VBit {w= Bigint.of_int 3; v = Bigint.of_int len }
+      env, st, SContinue, VBit {w= Bigint.of_int 3; v = Bigint.of_int len }
     | _ -> failwith "unexpected args for length"
 
-  let eval_emit : extern = fun env st args ->
+  let eval_emit : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_verify : extern = fun env st args ->
+  let eval_verify : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let externs : (string * extern) list =
+  let externs : (string * 'st extern) list =
     [ ("extract", eval_extract);
       ("lookahead", eval_lookahead);
       ("advance", eval_advance);
@@ -95,9 +102,11 @@ module Core = struct
       ("emit", eval_emit);
       ("verify", eval_verify)]
 
+  let eval_extern _ = failwith ""
+
   let check_pipeline _ = ()
 
-  let eval_pipeline _ _ st _ _ _ _ = st, Cstruct.empty
+  let eval_pipeline _ _ st pkt _ _ _ = st, pkt
 
 end 
 
@@ -112,10 +121,11 @@ module V1Model : Target = struct
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
+  type 'st extern = ('st, st) pre_extern
 
   let assert_pkt = function
-    | _ -> failwith "not a packet"
+    | CoreObject (PacketIn pkt) -> pkt
+    | CoreObject _ -> failwith "not a packet"
 
   let assert_core = function
     | CoreObject o -> o
@@ -136,11 +146,15 @@ module V1Model : Target = struct
     st
     |> List.map ~f:(fun (i, o) -> i, CoreObject o)
 
-  let targetize (ext : Core.extern) : extern = fun env st v ->
-    let (env', st', v) = ext env (corize_st st) v in
-    env', targetize_st st' @ st, v
+  let targetize (ext : 'st Core.extern) : 'st extern =
+    fun assign ctrl env st vs lv ->
+    let (env', st', s, v) = ext assign ctrl env (corize_st st) vs lv in
+    env', targetize_st st' @ st, s, v
 
-  let externs = v1externs @ (List.map Core.externs ~f:(fun (n, e) -> n, targetize e))
+  let externs =
+    v1externs @ (List.map Core.externs ~f:(fun (n, e) -> n, targetize e))
+
+  let eval_extern _ = failwith ""
 
   let check_pipeline env = ()
 
@@ -149,7 +163,7 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st (pkt : pkt) app assign init =
+  let eval_pipeline ctrl env st pkt app assign init =
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
@@ -245,9 +259,11 @@ module EbpfFilter : Target = struct
 
   type st = obj State.t
 
-  type extern = EvalEnv.t -> st -> value list -> EvalEnv.t * st * value
+  type 'st extern = ('st, st) pre_extern
 
   let externs = []
+
+  let eval_extern _ = failwith ""
 
   let check_pipeline env = failwith "unimplemented"
 

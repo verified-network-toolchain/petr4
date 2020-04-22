@@ -154,7 +154,7 @@ end = struct
         bop
         format_t (snd x.args)
     | Cast x ->
-      Format.fprintf fmt "@[<4>(%a) %a@]"
+      Format.fprintf fmt "@[<4>(%a)(%a)@]"
         Type.format_t x.typ
         format_t x.expr
     | TypeMember x ->

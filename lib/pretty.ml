@@ -407,7 +407,7 @@ end = struct
   let format_t fmt e =
     match snd e with 
     | { name; body } -> 
-       Format.fprintf fmt "@[%@%a(%a)@]"
+       Format.fprintf fmt "@[%@%a%a@]"
          P4String.format_t name
          format_body body
       

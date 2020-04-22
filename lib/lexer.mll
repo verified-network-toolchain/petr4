@@ -359,7 +359,8 @@ and preprocessor = parse
       
 and preprocessor_string = parse
   | [^ '"']* '"'
-    { let filename = (lexeme lexbuf) in
+    { let filename = lexeme lexbuf in 
+      let filename = String.sub filename 0 (String.length filename - 1) in
       set_filename filename;
       preprocessor_column lexbuf }
       

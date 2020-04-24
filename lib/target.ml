@@ -9,7 +9,7 @@ type 'st assign =
   ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list -> lvalue option ->
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list ->
   EvalEnv.t * 'st2 * signal * value
 
 module State = struct
@@ -39,7 +39,7 @@ module type Target = sig
   val externs : (string * st extern) list
 
   val eval_extern : 'st assign -> ctrl -> EvalEnv.t -> st -> value list ->
-                    lvalue option -> string -> EvalEnv.t * st * signal * value
+                    string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit
 
@@ -59,15 +59,15 @@ module Core = struct
 
   type 'st extern = ('st, st) pre_extern
 
-  let eval_extract_fixed env st pkt v =
+  let eval_extract_fixed assign ctrl env st pkt v =
     failwith "unimplemented"
   
   let eval_extract_var env st pkt v1 v2 =
     failwith "unimplemented"
 
-  let eval_extract : 'st extern = fun assign env st args ->
+  let eval_extract : 'st extern = fun assign ctrl env st args ->
     match args with 
-    | [pkt;v1] -> eval_extract_fixed env st pkt v1 
+    | [pkt;v1] -> eval_extract_fixed assign ctrl env st pkt v1 
     | [pkt;v1;v2] -> eval_extract_var env st pkt v1 v2 
     | _ -> failwith "wrong number of args for extract"
 
@@ -77,7 +77,7 @@ module Core = struct
   let eval_advance : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_length : 'st extern = fun _ _ env st args _ ->
+  let eval_length : 'st extern = fun _ _ env st args ->
     match args with
     | [VRuntime {loc;_}] ->
       let obj = State.find loc st in
@@ -91,8 +91,12 @@ module Core = struct
   let eval_emit : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_verify : 'st extern = fun env st args ->
-    failwith "unimplemented"
+  let eval_verify : 'st extern = fun _ _ env st args ->
+    let b, err = match args with
+      | [VBool b; VError err] -> b, err
+      | _ -> failwith "unexpected args for verify" in
+    if b then env, st, SContinue, VNull
+    else env, st, SReject err, VNull
 
   let externs : (string * 'st extern) list =
     [ ("extract", eval_extract);
@@ -102,7 +106,9 @@ module Core = struct
       ("emit", eval_emit);
       ("verify", eval_verify)]
 
-  let eval_extern _ = failwith ""
+  let eval_extern assign ctrl env st vs name =
+    let extern = List.Assoc.find_exn name externs in
+    extern assign ctrl env st vs
 
   let check_pipeline _ = ()
 
@@ -147,8 +153,8 @@ module V1Model : Target = struct
     |> List.map ~f:(fun (i, o) -> i, CoreObject o)
 
   let targetize (ext : 'st Core.extern) : 'st extern =
-    fun assign ctrl env st vs lv ->
-    let (env', st', s, v) = ext assign ctrl env (corize_st st) vs lv in
+    fun assign ctrl env st vs ->
+    let (env', st', s, v) = ext assign ctrl env (corize_st st) vs in
     env', targetize_st st' @ st, s, v
 
   let externs =

@@ -991,7 +991,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_name (ctrl : ctrl) (env : env) (st : st) (s : signal) (name : string)
       (exp : Expression.t) : env * st * signal * value =
-    if String.equal name "verify" then (env, st, s, VBuiltinFun {name;caller=lvalue_of_expr exp})
+    if String.equal name "verify" then (env, st, s, VExternFun {name;caller = None})
     else (env, st, s, EvalEnv.find_val name env)
 
   and eval_p4int (n : P4Int.pre_t) : value =
@@ -1686,22 +1686,18 @@ module MakeInterpreter (T : Target) = struct
         |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
         |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
-    let (tmpenv, st', signal) = copyin ctrl env st params args in
-    let env' = EvalEnv.pop_scope tmpenv in
+    let (fenv, st', signal) = copyin ctrl env st params args in
+    let env' = EvalEnv.pop_scope fenv in
     match signal with
     | SExit -> env', st', SExit, VNull
     | SReject s -> env', st', SReject s, VNull
     | SReturn _ | SContinue -> 
-    let vs = EvalEnv.get_val_firstlevel tmpenv |> List.map ~f:snd in
+    let vs = EvalEnv.get_val_firstlevel fenv |> List.map ~f:snd in
     let vs' = match v with
       | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
       | None -> vs in
-    let lv = match List.hd args with
-      | None -> None
-      | Some (_, Expression {value}) -> Some (lvalue_of_expr value)
-      | Some (_, KeyValue _) -> None (* TODO: this case will be eliminated by refactor *)
-      | Some ( _, Missing) -> None in
-    let (env'', st'', s, v) = T.eval_extern eval_assign' ctrl env' st' vs' lv name in
+    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' vs' name in
+    let env'' = copyout ctrl fenv' st params args in
     env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
@@ -1826,7 +1822,6 @@ module MakeInterpreter (T : Target) = struct
     | (* TODO *) "advance"    -> eval_advance ctrl env st lv args
     | "apply"      -> let (s,v) = value_of_lvalue ctrl env st lv in 
                       eval_app ctrl env st s v args
-    | (* TODO *) "verify"     -> eval_verify ctrl env st args
     | _ -> failwith "builtin unimplemented"
 
   and eval_isvalid (ctrl : ctrl) (env : env) (st : st) 
@@ -2017,26 +2012,6 @@ module MakeInterpreter (T : Target) = struct
     | SReject _ -> (env,st,s,VNull)
     | _ -> failwith "unreachable" *)
   failwith "TODO : move this code to target"
-
-  and eval_verify (ctrl : ctrl) (env : env) (st : st) 
-      (args : Argument.t list) : env * st * signal * value =
-    let exp_of_arg (arg : Argument.pre_t) =
-      match arg with
-      | Expression {value} -> value
-      | _ -> failwith "arg is not an expression" in
-    match args with
-    | b :: err :: [] -> 
-      let (env', st', _, v) = eval_expr ctrl env st SContinue (snd b |> exp_of_arg) in
-      begin match v with
-      | VBool true -> (env', st', SContinue, VNull)
-      | VBool false -> 
-        let (env'', st'', _, v') = eval_expr ctrl env' st' SContinue (snd err |> exp_of_arg) in
-        begin match v' with
-          | VError e -> (env'', st'', SReject e, VNull)
-          | _ -> failwith "verify expected error" end
-      | _ -> failwith "verify expected bool"
-      end
-    | _ -> failwith "verify improper args"
 
   and eval_push_pop (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) (b : bool) : env * st * signal * value =

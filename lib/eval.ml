@@ -1687,6 +1687,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : st) (name : string)
       (v : (loc * string) option) (args : Argument.t list)
       (ts : Type.t list) : env * st * signal * value =
+    let ts' = List.map ~f:(fun t -> t, width_of_typ ctrl env st t) ts in
     let params = 
       match v with 
       | Some (_, t) -> 
@@ -1709,7 +1710,7 @@ module MakeInterpreter (T : Target) = struct
     let vs' = match vs' with
       | _ :: VNull :: [] -> []
       | _ -> vs' in
-    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts vs' name in
+    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts' vs' name in
     let env'' = copyout ctrl fenv' st params args in
     env'', st'', s, v
 

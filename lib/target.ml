@@ -9,7 +9,7 @@ type 'st assign =
   ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> Type.t list -> value list ->
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> (Type.t * Bigint.t) list -> value list ->
   EvalEnv.t * 'st2 * signal * value
 
 module State = struct
@@ -38,7 +38,7 @@ module type Target = sig
 
   val externs : (string * st extern) list
 
-  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> Type.t list ->
+  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> (Type.t * Bigint.t) list ->
                     value list -> string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit
@@ -217,7 +217,6 @@ module Core = struct
     with Invalid_argument _ ->
       env, st, SReject "PacketTooShort", VNull
 
-
   let eval_extract : 'st extern = fun assign ctrl env st targs args ->
     match args with 
     | [pkt;v1] -> eval_extract' assign ctrl env st pkt v1 Bigint.zero
@@ -225,8 +224,22 @@ module Core = struct
     | [] -> eval_advance assign ctrl env st targs args
     | _ -> failwith "wrong number of args for extract"
 
-  let eval_lookahead : 'st extern = fun env st args ->
-    failwith "unimplemented"
+  let val_of_bigint _ _ = failwith "TODO: not really possible until the types refactor"
+
+  let eval_lookahead : 'st extern = fun _ _ env st targs args ->
+    let (t, w) = match targs with
+      | [(t, w)] -> t, w
+      | _ -> failwith "unexpected type args for lookahead" in
+    let pkt_loc = match args with
+      | [VRuntime {loc; _}] -> loc
+      | _ -> failwith "unexpected args for lookahead" in
+    let pkt = State.find pkt_loc st |> assert_in in
+    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    try
+      let (pkt_hd, _) = Cstruct.split ~start:0 pkt Bigint.(to_int_exn (w/eight)) in
+      let (_, n, _) = bytes_of_packet pkt_hd Bigint.(w/eight) in
+      env, st, SContinue, val_of_bigint t n
+    with Invalid_argument _ -> env, st, SReject "PacketTooShort", VNull
 
   let eval_length : 'st extern = fun _ _ env st _ args ->
     match args with

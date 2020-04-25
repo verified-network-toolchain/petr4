@@ -204,10 +204,21 @@ module Core = struct
           env', st'', SContinue, VNull
       end
 
-  let eval_advance : 'st extern = fun env st args ->
-    failwith "unimplemented"
+  let eval_advance : 'st extern = fun assign ctrl env st targs args ->
+    let (pkt_loc, v) = match args with
+      | [VRuntime {loc;_}; VBit{v;_}] -> loc, v
+      | _ -> failwith "unexpected args for advance" in
+    let pkt = State.find pkt_loc st |> assert_in in
+    try
+      let x = (Bigint.to_int_exn v) / 8 in
+      let pkt' = Cstruct.split pkt   x |> snd in
+      let st' = State.insert pkt_loc (PacketIn pkt') st in
+      env, st', SContinue, VNull
+    with Invalid_argument _ ->
+      env, st, SReject "PacketTooShort", VNull
 
-  let eval_extract : 'st extern = fun (assign : 'st assign) ctrl env st targs args ->
+
+  let eval_extract : 'st extern = fun assign ctrl env st targs args ->
     match args with 
     | [pkt;v1] -> eval_extract' assign ctrl env st pkt v1 Bigint.zero
     | [pkt;v1;v2] -> eval_extract' assign ctrl env st pkt v1 (assert_bit v2 |> snd)

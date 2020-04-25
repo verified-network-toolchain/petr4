@@ -5,14 +5,14 @@ type buf = Cstruct_sexp.t [@@deriving sexp]
 let buf_to_yojson b = failwith "unimplemented"
 let buf_of_yojson j = failwith "unimplemented"
 
-type packet_in = buf [@@deriving sexp,yojson]
-type packet_out = buf * buf [@@deriving sexp,yojson]
+type pkt = buf [@@deriving sexp,yojson]
+type pkt_out = buf * buf [@@deriving sexp,yojson]
 
 type entries = Table.pre_entry list
 
-type value_sets = Match.t list list
+type vsets = Match.t list list
 
-type ctrl = entries * value_sets
+type ctrl = entries * vsets
 
 type value =
   | VNull
@@ -143,8 +143,8 @@ and signal =
 [@@deriving sexp,yojson]
 
 and vruntime =
-  | PacketIn of packet_in
-  | PacketOut of packet_out
+  | PacketIn of pkt
+  | PacketOut of pkt_out
 [@@deriving sexp,yojson]
 
 let assert_bool v =
@@ -320,12 +320,12 @@ let assert_valueset s =
   | SValueSet {size; members; sets} -> (size, members, sets)
   | _ -> failwith "not a valueset"
 
-let assert_packet_in r = 
+let assert_pkt r = 
   match r with 
   | PacketIn p -> p
   | _ -> failwith "not a packet in"
 
-let assert_packet_out r = 
+let assert_pkt_out r = 
   match r with 
   | PacketOut p -> p 
   | _ -> failwith "not a packet out"

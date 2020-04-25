@@ -2,14 +2,14 @@ open Types
 
 type buf = Cstruct_sexp.t [@@deriving sexp,yojson]
 
-type packet_in = buf [@@deriving sexp,yojson]
-type packet_out = buf * buf [@@deriving sexp,yojson]
+type pkt = buf [@@deriving sexp,yojson]
+type pkt_out = buf * buf [@@deriving sexp,yojson]
 
 type entries = Table.pre_entry list 
 
-type value_sets = Match.t list list 
+type vsets = Match.t list list 
 
-type ctrl = entries * value_sets
+type ctrl = entries * vsets
 
 type value =
   | VNull
@@ -140,8 +140,8 @@ and signal =
 [@@deriving sexp,yojson]
 
 and vruntime =
-  | PacketIn of packet_in
-  | PacketOut of packet_out
+  | PacketIn of pkt
+  | PacketOut of pkt_out
 [@@deriving sexp,yojson]
 
 val assert_bool : value -> bool 
@@ -212,6 +212,6 @@ val assert_lpm : set -> value * Bigint.t * value
 
 val assert_valueset : set -> value * Match.t list list * set list 
 
-val assert_packet_in : vruntime -> packet_in 
+val assert_pkt : vruntime -> pkt 
 
-val assert_packet_out : vruntime -> packet_out
+val assert_pkt_out : vruntime -> pkt_out

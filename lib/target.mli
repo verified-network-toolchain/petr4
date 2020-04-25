@@ -6,14 +6,18 @@ type extern = EvalEnv.t -> value list -> EvalEnv.t * value
 
 module type Target = sig 
 
+  type st
+
+  val dummy_st : st
+
   val externs : (string * extern) list
 
   val check_pipeline : EvalEnv.t -> unit 
 
-  val eval_pipeline : EvalEnv.t -> ctrl -> packet_in -> 
-  (EvalEnv.t -> ctrl -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) -> 
-  (EvalEnv.t -> ctrl -> lvalue -> value -> EvalEnv.t * 'b) -> 
-  (EvalEnv.t -> ctrl -> string -> Type.t -> value) -> packet_in
+  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
+  (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
+  (ctrl -> EvalEnv.t -> st -> lvalue -> value -> EvalEnv.t * st * 'b) -> 
+  (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
 
 end
 

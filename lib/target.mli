@@ -6,7 +6,7 @@ type 'st assign =
   ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list ->
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> Type.t list -> value list ->
   EvalEnv.t * 'st2 * signal * value
 
 module State : sig
@@ -28,8 +28,8 @@ module type Target = sig
 
   val externs : (string * st extern) list
 
-  val eval_extern : 'st assign -> ctrl -> EvalEnv.t -> st -> value list ->
-                    string -> EvalEnv.t * st * signal * value
+  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> Type.t list ->
+                    value list -> string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit 
 

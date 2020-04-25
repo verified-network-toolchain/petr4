@@ -142,9 +142,7 @@ and signal =
   | SReject of string
 [@@deriving sexp,yojson]
 
-and vruntime =
-  | PacketIn of pkt
-  | PacketOut of pkt_out
+and vruntime = int
 [@@deriving sexp,yojson]
 
 let assert_bool v =
@@ -320,7 +318,7 @@ let assert_valueset s =
   | SValueSet {size; members; sets} -> (size, members, sets)
   | _ -> failwith "not a valueset"
 
-let assert_pkt r = 
+(* let assert_pkt r = 
   match r with 
   | PacketIn p -> p
   | _ -> failwith "not a packet in"
@@ -328,4 +326,4 @@ let assert_pkt r =
 let assert_pkt_out r = 
   match r with 
   | PacketOut p -> p 
-  | _ -> failwith "not a packet out"
+  | _ -> failwith "not a packet out" *)

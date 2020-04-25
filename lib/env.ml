@@ -197,10 +197,7 @@ module EvalEnv = struct
         | VStack _ -> "<stack>"
         | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
         | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
-        | VRuntime r ->
-          begin match r with
-            | PacketIn p -> Cstruct.to_string p
-            | PacketOut (p1,p2) -> Cstruct.to_string (Cstruct.append p1 p2) end
+        | VRuntime r -> "<location>"
         | VParser _ -> "<parser>"
         | VControl _ -> "<control>"
         | VPackage _ -> "<package>"

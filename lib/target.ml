@@ -9,7 +9,7 @@ type 'st assign =
   ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> value list ->
+  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> Type.t list -> value list ->
   EvalEnv.t * 'st2 * signal * value
 
 module State = struct
@@ -38,8 +38,8 @@ module type Target = sig
 
   val externs : (string * st extern) list
 
-  val eval_extern : 'st assign -> ctrl -> EvalEnv.t -> st -> value list ->
-                    string -> EvalEnv.t * st * signal * value
+  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> Type.t list ->
+                    value list -> string -> EvalEnv.t * st * signal * value
 
   val check_pipeline : EvalEnv.t -> unit
 
@@ -59,25 +59,149 @@ module Core = struct
 
   type 'st extern = ('st, st) pre_extern
 
-  let eval_extract_fixed assign ctrl env st pkt v =
-    failwith "unimplemented"
-  
-  let eval_extract_var env st pkt v1 v2 =
+  let rec shift_bigint_left (v : Bigint.t) (o : Bigint.t) : Bigint.t =
+    if Bigint.(o > zero)
+    then shift_bigint_left Bigint.(v * (one + one)) Bigint.(o - one)
+    else v
+
+  let power_of_two (w : Bigint.t) : Bigint.t =
+    shift_bigint_left Bigint.one w
+
+  let rec to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
+    let two = Bigint.(one + one) in
+    let w' = power_of_two w in
+    if Bigint.(n >= (w' / two))
+    then to_twos_complement Bigint.(n-w') w
+    else if Bigint.(n < -(w'/two))
+    then to_twos_complement Bigint.(n+w') w
+    else n
+
+  let rec bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
+    Bigint.(
+      if l > zero
+      then bitstring_slice (n/(one + one)) (m-one) (l-one)
+      else n % (power_of_two (m + one)))
+
+  let assert_in (pkt : obj) : pkt =
+    match pkt with
+    | PacketIn p -> p
+    | _ -> failwith "not a packetin"
+
+  let value_of_field (init_fs : (string * value) list) 
+      (f : Declaration.field) : string * value =
+    snd ((snd f).name),
+    List.Assoc.find_exn init_fs (snd (snd f).name) ~equal:String.equal
+
+  let width_of_val (v : value) : Bigint.t = 
+    match v with
+    | VBit {w; _} | VInt {w; _} -> w
+    | VVarbit _ -> Bigint.zero
+    | _ -> failwith "illegal header field type"
+
+  let nbytes_of_hdr (fs : (string * value) list) : Bigint.t =
+    fs
+    |> List.map ~f:snd
+    |> List.map ~f:width_of_val
+    |> List.fold_left ~init:Bigint.zero ~f:Bigint.(+)
+    |> fun x -> Bigint.(x / ((one + one) * (one + one) * (one + one)))
+
+  let bytes_of_packet (pkt : pkt) (nbytes : Bigint.t) : pkt * Bigint.t * signal =
     failwith "unimplemented"
 
-  let eval_extract : 'st extern = fun assign ctrl env st args ->
+  let rec extract_hdr_field (nvarbits : Bigint.t) (n, s : (Bigint.t * Bigint.t) * signal)
+      (v : value) : ((Bigint.t * Bigint.t) * signal) * value =
+    match s with
+    | SContinue ->
+      begin match v with
+        | VBit{w;_} -> extract_bit n w
+        | VInt{w;_} -> extract_int n w
+        | VVarbit{max;_} -> extract_varbit nvarbits n max
+        | _ -> failwith "invalid header field type" end
+    | SReject _ -> ((n,s),VNull)
+    | _ -> failwith "unreachable"
+
+  and extract_bit (n : Bigint.t * Bigint.t)
+      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    let (nw,nv) = n in
+    let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
+    let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
+    Bigint.(((nw-w, y), SContinue), VBit{w;v=x})
+
+  and extract_int (n : Bigint.t * Bigint.t)
+      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    let (nw,nv) = n in
+    let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
+    let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
+    Bigint.(((nw-w, y), SContinue), VInt{w;v=to_twos_complement x w})
+
+  and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
+      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    let (nw,nv) = n in
+    if Bigint.(nbits > w)
+    then ((n,SReject "HeaderTooShort"),VNull)
+    else
+      let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
+      let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
+      Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
+
+  let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : EvalEnv.t) (st : st)
+      (pkt : value) (v : value) (w : Bigint.t) : EvalEnv.t * st * signal * value =
+    let pkt_loc = 
+      pkt
+      |> assert_runtime in
+    let pkt = State.find pkt_loc st |> assert_in in
+    let (hdr_name, init_fs) = match v with
+      | VHeader {name; fields; is_valid} -> name, fields
+      | _ -> failwith "extract expects header" in
+    let t =
+      if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
+      else EvalEnv.find_typ "variableSizeHeader" env in
+    let d = match snd t with
+      | TypeName (_, s) -> EvalEnv.find_decl s env
+      | TopLevelType (_, s) -> EvalEnv.find_decl_toplevel s env
+      | _ -> failwith "unreachable" (* TODO: unguarded fail *) in
+    let fs = match snd d with
+      | Header {fields;_} -> List.map fields ~f:(value_of_field init_fs)
+      | _ -> failwith "extract expects header type" in
+    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
+    let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
+    let st' = State.insert pkt_loc (PacketIn pkt') st in
+    match s with
+    | SReject _ | SExit | SReturn _ -> env, st, s, VNull
+    | SContinue ->
+      let (ns, vs) = List.unzip fs in
+      let ((_,s), vs') =
+        List.fold_map vs 
+          ~init:(Bigint.(nbytes * eight, extraction), SContinue)
+          ~f:(extract_hdr_field w) in
+      begin match s with 
+        | SReject _ | SExit | SReturn _ -> env, st', s, VNull
+        | SContinue ->
+          let fs' = List.zip_exn ns vs' in
+          let h = VHeader {
+            name = hdr_name;
+            fields = fs';
+            is_valid = true;
+          } in
+          let (env', st'', _) = assign ctrl env st (LName "hdr") h in
+          env', st'', SContinue, VNull
+      end
+
+  let eval_advance : 'st extern = fun env st args ->
+    failwith "unimplemented"
+
+  let eval_extract : 'st extern = fun (assign : 'st assign) ctrl env st targs args ->
     match args with 
-    | [pkt;v1] -> eval_extract_fixed assign ctrl env st pkt v1 
-    | [pkt;v1;v2] -> eval_extract_var env st pkt v1 v2 
+    | [pkt;v1] -> eval_extract' assign ctrl env st pkt v1 Bigint.zero
+    | [pkt;v1;v2] -> eval_extract' assign ctrl env st pkt v1 (assert_bit v2 |> snd)
+    | [] -> eval_advance assign ctrl env st targs args
     | _ -> failwith "wrong number of args for extract"
 
   let eval_lookahead : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_advance : 'st extern = fun env st args ->
-    failwith "unimplemented"
-
-  let eval_length : 'st extern = fun _ _ env st args ->
+  let eval_length : 'st extern = fun _ _ env st _ args ->
     match args with
     | [VRuntime {loc;_}] ->
       let obj = State.find loc st in
@@ -85,13 +209,13 @@ module Core = struct
         match obj with
         | PacketIn pkt -> Cstruct.len pkt
         | PacketOut _ -> failwith "expected packet_in" in
-      env, st, SContinue, VBit {w= Bigint.of_int 3; v = Bigint.of_int len }
+      env, st, SContinue, VBit {w= Bigint.of_int 32; v = Bigint.of_int len }
     | _ -> failwith "unexpected args for length"
 
   let eval_emit : 'st extern = fun env st args ->
     failwith "unimplemented"
 
-  let eval_verify : 'st extern = fun _ _ env st args ->
+  let eval_verify : 'st extern = fun _ _ env st _ args ->
     let b, err = match args with
       | [VBool b; VError err] -> b, err
       | _ -> failwith "unexpected args for verify" in
@@ -152,13 +276,18 @@ module V1Model : Target = struct
     st
     |> List.map ~f:(fun (i, o) -> i, CoreObject o)
 
-  let targetize (ext : 'st Core.extern) : 'st extern =
-    fun assign ctrl env st vs ->
-    let (env', st', s, v) = ext assign ctrl env (corize_st st) vs in
+  let corize_assign (assign : st assign) : Core.st assign =
+    fun ctrl env st lv v ->
+    let (env, st, s) = assign ctrl env (targetize_st st) lv v in
+    env, corize_st st, s
+
+  let targetize (ext : Core.st Core.extern) : st extern =
+    fun assign ctrl env st ts vs ->
+    let (env', st', s, v) = ext (corize_assign assign) ctrl env (corize_st st) ts vs in
     env', targetize_st st' @ st, s, v
 
-  let externs =
-    v1externs @ (List.map Core.externs ~f:(fun (n, e) -> n, targetize e))
+  let externs : (string * st extern) list =
+    v1externs @ (List.map Core.externs ~f:(fun (n, e : string * 'st Core.extern) -> n, targetize e))
 
   let eval_extern _ = failwith ""
 

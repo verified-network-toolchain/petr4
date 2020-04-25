@@ -1697,7 +1697,7 @@ module MakeInterpreter (T : Target) = struct
     let vs' = match v with
       | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
       | None -> vs in
-    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' vs' name in
+    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts vs' name in
     let env'' = copyout ctrl fenv' st params args in
     env'', st'', s, v
 
@@ -1817,7 +1817,6 @@ module MakeInterpreter (T : Target) = struct
     | "setInvalid" -> eval_setbool ctrl env st lv false
     | "pop_front"  -> eval_popfront ctrl env st lv args
     | "push_front" -> eval_pushfront ctrl env st lv args
-    | (* TODO *) "extract"    -> eval_extract ctrl env st lv args ts
     | (* TODO *) "emit"       -> eval_emit ctrl env st lv args
     | (* TODO *) "lookahead"  -> eval_lookahead ctrl env st lv ts
     | (* TODO *) "advance"    -> eval_advance ctrl env st lv args
@@ -1915,29 +1914,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_pushfront (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) : env * st * signal * value =
     eval_push_pop ctrl env st lv args true
-
-  and eval_extract (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
-      (args : Argument.t list) (ts : Type.t list) : env * st * signal * value =
-    match args with
-    | [(_,Argument.Expression{value})]
-    | [(_,Argument.KeyValue{value;_})]-> eval_extract' ctrl env st lv value Bigint.zero
-    | [(_,Argument.Expression{value=e1}); (_,Argument.Expression{value=e2})]
-    | [(_,Argument.KeyValue{value=e1;key=(_,"variableSizeHeader")});
-      (_,Argument.KeyValue{value=e2;key=(_,"variableFieldSizeInBits")})]
-    | [(_,Argument.KeyValue{value=e2;key=(_,"variableFieldSizeInBits")});
-      (_,Argument.KeyValue{value=e1;key=(_,"variableSizeHeader")})] ->
-      let (env', st', s, b') = eval_expr ctrl env st SContinue e2 in
-      let n = bigint_of_val b' in
-      begin match s with
-        | SContinue -> eval_extract' ctrl env' st' lv e1 n
-        | SReject _ -> (env',st',s,VNull)
-        | _ -> failwith "unreachable" end
-    | [(_,Argument.Missing)] ->
-      let t = match ts with
-        | [x] -> x
-        | _ -> failwith "invalid type args for extract" in
-      eval_advance' ctrl env st lv (width_of_typ ctrl env st t)
-    | _ -> failwith "wrong number of args for extract"
 
   and eval_emit (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) : env * st * signal * value =
@@ -2048,86 +2024,6 @@ module MakeInterpreter (T : Target) = struct
         | SReject _ -> (env', st', s, Bigint.zero)
         | _ -> failwith "unreachable" end
     | _ -> failwith "invalid push or pop args"
-
-  and eval_extract' (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
-      (expr : Expression.t) (w : Bigint.t) : env * st * signal * value =
-    (* let (env', st', s, v) = eval_expr ctrl env st SContinue expr in
-    match s with
-    | SContinue ->
-      let lhdr = lvalue_of_expr expr in
-      let t = typ_of_lvalue ctrl env' st lhdr in
-      let d = decl_of_typ env' t in
-      let (name,_,_) = assert_header v in
-      let v' = init_val_of_typ ctrl env st name t in
-      let (s,v) = lv |> value_of_lvalue ctrl env' st' in
-      let p = v |> assert_runtime |> assert_pkt in
-      let eight = Bigint.((one + one) * (one + one) * (one + one)) in
-      let nbytes = Bigint.(nbytes_of_hdr ctrl env' st d + w / eight)in
-      let (p',n,s') = bytes_of_packet p nbytes in
-      begin match s with
-        | SContinue ->
-          begin match s' with
-            | SReject _ -> (env',st',s',VNull)
-            | SContinue ->
-              let (name,fs,_) = assert_header v' in
-              let (ns, vs) = List.unzip fs in
-              let ((_,s),vs') =
-                List.fold_map vs ~init:(Bigint.(nbytes * eight, n), SContinue) ~f:(extract_hdr_field w) in
-              begin match s with
-                | SReject _ -> (env',st',s,VNull)
-                | SContinue ->
-                  let fs' = List.zip_exn ns vs' in
-                  let h = VHeader{name;fields=fs';is_valid=true} in
-                  let (env'',st'',s') = eval_assign' ctrl env' st' lhdr h in
-                  begin match s' with
-                    | SContinue ->
-                      let (e,st,_) =  eval_assign' ctrl env'' st'' lv (VRuntime(PacketIn p')) in (e,st, s', VNull)
-                    | SReject _ -> (env', st'', s',VNull)
-                    | _ -> failwith "unreachable" end
-                | _ -> failwith "unreachable" end
-            | _ -> failwith "unreachable" end
-        | SReject _ -> (env', st', s, VNull)
-        | _ -> failwith "unreachable" end
-    | SReject _ -> (env',st',s,VNull)
-    | _ -> failwith "unreachable" *)
-  failwith "TODO: move this code to target"
-
-  and extract_hdr_field (nvarbits : Bigint.t) (x : (Bigint.t * Bigint.t) * signal)
-      (v : value) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (n,s) = x in
-    match s with
-    | SContinue ->
-      begin match v with
-        | VBit{w;_} -> extract_bit n w
-        | VInt{w;_} -> extract_int n w
-        | VVarbit{max;_} -> extract_varbit nvarbits n max
-        | _ -> failwith "invalid header field type" end
-    | SReject _ -> ((n,s),VNull)
-    | _ -> failwith "unreachable"
-
-  and extract_bit (n : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (nw,nv) = n in
-    let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
-    let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-    Bigint.(((nw-w, y), SContinue), VBit{w;v=x})
-
-  and extract_int (n : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (nw,nv) = n in
-    let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
-    let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-    Bigint.(((nw-w, y), SContinue), VInt{w;v=to_twos_complement x w})
-
-  and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (nw,nv) = n in
-    if Bigint.(nbits > w)
-    then ((n,SReject "HeaderTooShort"),VNull)
-    else
-      let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
-      let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
-      Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
 
   and emit_lval (ctrl : ctrl) (env : env) (st : st) (p : pkt_out)
       (lv : lvalue) : env * st * signal * pkt_out =
@@ -2728,7 +2624,7 @@ module MakeInterpreter (T : Target) = struct
 
   and nbytes_of_hdr (ctrl : ctrl) (env : env) (st : st)
       (d : Declaration.t) : Bigint.t =
-    match snd d with
+    (* match snd d with
     | Header{fields = fs;_} ->
       let ts = List.map fs ~f:(fun f -> snd (snd f).typ) in
       let ls = List.map ts
@@ -2740,7 +2636,8 @@ module MakeInterpreter (T : Target) = struct
       let n = List.fold_left ls ~init:Bigint.zero ~f:Bigint.(+) in
       let eight = Bigint.((one + one) * (one + one) * (one + one)) in
       Bigint.(n/eight)
-    | _ -> failwith "not a header"
+    | _ -> failwith "not a header" *)
+    failwith "TODO"
 
   and bytes_of_packet (p : pkt)
       (nbytes : Bigint.t) : pkt * Bigint.t * signal =

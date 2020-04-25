@@ -7,18 +7,9 @@ module Info = I
 
 type extern = EvalEnv.t -> value list -> EvalEnv.t * value
 
-(* module type State = sig
-  type loc = int
-  type 'a t
-  val empty : 'a t
-  val insert : loc -> 'a -> 'a t -> 'a t
-  val find : loc -> 'a t -> 'a
-  val fresh_loc : unit -> loc
-end *)
+module State = struct
 
-module State = struct 
-  type loc = int
-  type 'a t = (loc * 'a) list
+  type 'a t = (int * 'a) list
 
   let empty = []
 
@@ -35,14 +26,8 @@ end
 module type Target = sig
 
   type obj
-  type st
 
-  val empty_state : st
-  val insert : int -> obj -> st -> st
-  val find : int -> st -> obj
-  val fresh_loc : unit -> int
-
-  val obj_mem : obj -> string -> value
+  type st = obj State.t
 
   val externs : (string * extern) list
 
@@ -60,19 +45,6 @@ module Core = struct
   type obj = 
     | PacketIn of Cstruct_sexp.t
     | PacketOut of Cstruct_sexp.t * Cstruct_sexp.t
-
-  let pktin_mem mname = 
-    match mname with 
-    | _ -> failwith "TODO"
-
-  let pktout_mem mname = 
-    match mname with 
-    | _ -> failwith "TODO"
-
-  let obj_mem obj mname =
-    match obj with
-    | PacketIn _ -> pktin_mem mname
-    | PacketOut _ -> pktout_mem mname
 
   let eval_extract_fixed env pkt v =
     failwith "unimplemented"
@@ -108,11 +80,7 @@ module Core = struct
                  ("emit", eval_emit);
                  ("verify", eval_verify)]
 
-  let check_pipeline _ = failwith "core has no pipeline"
-
-  let eval_pipeline _ = failwith "core has no pipeline"
-
-end
+end 
 
 module V1Model : Target = struct
 
@@ -122,19 +90,9 @@ module V1Model : Target = struct
 
   type st = obj State.t
 
-  let empty_state = State.empty
-
-  let insert = State.insert
-  let find = State.find
-  let fresh_loc = State.fresh_loc
-
-  let obj_mem (obj : obj) (mname : string) : value = 
-    match obj with 
-    | CoreObject cobj -> Core.obj_mem cobj mname
-
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
-    | _ -> failwith "TODO"
+    | _ -> failwith "not a packet"
 
   let externs = []
 
@@ -236,9 +194,9 @@ end
 
 module EbpfFilter  = struct 
 
-  type st = unit
+  type obj = unit (* TODO *)
 
-  let empty_state = ()
+  type st = obj State.t
 
   let externs = []
 

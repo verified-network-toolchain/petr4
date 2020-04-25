@@ -34,7 +34,7 @@ module MakeInterpreter (T : Target) = struct
 
   type st = T.st
 
-  let empty_state = T.empty_state
+  let empty_state = State.empty
 
   (*----------------------------------------------------------------------------*)
   (* Declaration Evaluation *)
@@ -1141,6 +1141,7 @@ module MakeInterpreter (T : Target) = struct
         | VAction _
         | VEnumField _
         | VSenumField _
+        | VExternFun _
         | VPackage _                           -> failwith "expr member does not exist"
         | VStruct{fields=fs;_}                 -> eval_struct_mem env' st' (snd name) fs
         | VHeader{fields=fs;is_valid=vbit;_}   -> eval_header_mem env' st' (snd name) expr fs vbit
@@ -1170,6 +1171,7 @@ module MakeInterpreter (T : Target) = struct
         | VAction{params; body}
         | VFun{params; body}            -> eval_funcall' ctrl env' st' params args body
         | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args ts
+        | VExternFun{name=n;caller=v} -> eval_externfun ctrl env' st' n v args ts
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
@@ -1635,8 +1637,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_runtime_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
       (loc : int) : env * st * signal * value =
-    let v = T.find loc st in
-    env, st, SContinue, T.obj_mem v mname
+    env, st, SContinue, VExternFun {caller = Some loc; name = mname }
 
   and eval_stack_size (env : env) (st : st) 
       (size : Bigint.t) : env * st * signal * value =
@@ -1669,23 +1670,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_stack_builtin (env : env) (st : st) (fname : string)
       (e : Expression.t) : env * st * signal * value =
     (env, st, SContinue, VBuiltinFun{name=fname;caller=lvalue_of_expr e})
-
-  (* and eval_packet_in_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
-      (p : pkt) : env * st * signal * value =
-    match mname with
-    | "extract"   -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | "length"    -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | "lookahead" -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | "advance"   -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | _ -> failwith "packet member undefined" *)
-
-  (* TODO *)
-    
-  (* and eval_packet_out_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
-      (p : pkt_out) : env * st * signal * value =
-    match mname with
-    | "emit" -> (env, st, SContinue, VBuiltinFun{name=mname;caller=lvalue_of_expr expr})
-    | _ -> failwith "packet out member undefined" *)
 
   (*----------------------------------------------------------------------------*)
   (* Function and Method Call Evaluation *)
@@ -1783,6 +1767,11 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
   (*----------------------------------------------------------------------------*)
+
+  and eval_externfun (ctrl : ctrl) (env : env) (st : st) (name : string)
+      (v : loc option) (args : Argument.t list)
+      (ts : Type.t list) : env * st * signal * value =
+    failwith "TODO: extern function evaluation"
 
   and eval_builtin (ctrl : ctrl) (env : env) (st : st) (name : string) (lv : lvalue)
       (args : Argument.t list) (ts : Type.t list) : env * st * signal * value =
@@ -2284,7 +2273,8 @@ module MakeInterpreter (T : Target) = struct
     | VParser _
     | VControl _
     | VPackage _
-    | VTable _ -> failwith "value does not have a fixed width"
+    | VTable _ 
+    | VExternFun _ -> failwith "value does not have a fixed width"
 
   and tuple_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t)
       (n : Bigint.t) (t : Type.t) (l : value list) : value =

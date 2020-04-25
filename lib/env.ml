@@ -174,7 +174,7 @@ module EvalEnv = struct
         | VStruct {fields;_} ->
           print_endline "<struct>";
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
-        | VHeader {name;fields;is_valid} ->
+        | VHeader {name;typ_name;fields;is_valid} ->
           print_endline ("<header> with " ^ (string_of_bool is_valid));
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
         | VUnion {name;valid_header;valid_fields} ->

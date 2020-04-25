@@ -41,9 +41,11 @@ type value =
         body : Block.t; }
   | VStruct of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list; }
   | VHeader of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list;
         is_valid : bool }
   | VUnion of 

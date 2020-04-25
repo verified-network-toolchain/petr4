@@ -1832,7 +1832,6 @@ module MakeInterpreter (T : Target) = struct
     | "pop_front"  -> eval_popfront ctrl env st lv args
     | "push_front" -> eval_pushfront ctrl env st lv args
     | (* TODO *) "lookahead"  -> eval_lookahead ctrl env st lv ts
-    | (* TODO *) "advance"    -> eval_advance ctrl env st lv args
     | "apply"      -> let (s,v) = value_of_lvalue ctrl env st lv in 
                       eval_app ctrl env st s v args
     | _ -> failwith "builtin unimplemented"
@@ -1948,37 +1947,6 @@ module MakeInterpreter (T : Target) = struct
     | SReject _ -> (env, st, s, VNull)
     | _ -> failwith "unreachable" *)
   failwith "TODO: move this code to target"
-
-  and eval_advance (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
-      (args : Argument.t list) : env * st * signal * value =
-    let args' = List.map args ~f:snd in
-    let expr = match args' with
-      | [Argument.Expression{value}]
-      | [Argument.KeyValue{value;_}] -> value
-      | _ -> failwith "invalid advance args" in
-    let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
-    let n = v |> bigint_of_val in
-    match s with
-    | SContinue -> eval_advance' ctrl env' st' lv n
-    | SReject _ -> (env, st, s, VNull)
-    | _ -> failwith "unreachable"
-
-  and eval_advance' (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
-      (n : Bigint.t) : env * st * signal * value =
-    (* let (s,v) = value_of_lvalue ctrl env st lv in
-    let p = v |> assert_runtime |> assert_pkt in
-    match s with
-    | SContinue ->
-      begin try
-          let x = n |> Bigint.to_int_exn |> (/) 8 in
-          let p' = Cstruct.split p x |> snd in
-          let (env', st', _) = eval_assign' ctrl env st lv (VRuntime(PacketIn p')) in
-          (env', st', SContinue, VNull)
-        with Invalid_argument _ ->
-          (env, st, SReject "PacketTooShort", VNull) end
-    | SReject _ -> (env,st,s,VNull)
-    | _ -> failwith "unreachable" *)
-  failwith "TODO : move this code to target"
 
   and eval_push_pop (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) (b : bool) : env * st * signal * value =

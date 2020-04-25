@@ -1687,7 +1687,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : st) (name : string)
       (v : (loc * string) option) (args : Argument.t list)
       (ts : Type.t list) : env * st * signal * value =
-    let ts' = List.map ~f:(fun t -> t, width_of_typ ctrl env st t) ts in
     let params = 
       match v with 
       | Some (_, t) -> 
@@ -1710,7 +1709,7 @@ module MakeInterpreter (T : Target) = struct
     let vs' = match vs' with
       | _ :: VNull :: [] -> []
       | _ -> vs' in
-    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts' vs' name in
+    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts vs' name in
     let env'' = copyout ctrl fenv' st params args in
     env'', st'', s, v
 
@@ -1832,7 +1831,6 @@ module MakeInterpreter (T : Target) = struct
     | "setInvalid" -> eval_setbool ctrl env st lv false
     | "pop_front"  -> eval_popfront ctrl env st lv args
     | "push_front" -> eval_pushfront ctrl env st lv args
-    | (* TODO *) "lookahead"  -> eval_lookahead ctrl env st lv ts
     | "apply"      -> let (s,v) = value_of_lvalue ctrl env st lv in 
                       eval_app ctrl env st s v args
     | _ -> failwith "builtin unimplemented"
@@ -1928,27 +1926,6 @@ module MakeInterpreter (T : Target) = struct
       (args : Argument.t list) : env * st * signal * value =
     eval_push_pop ctrl env st lv args true
 
-  and eval_lookahead (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
-      (ts : Type.t list) : env * st * signal * value =
-    (* let t = match ts with
-      | [t] -> t
-      | _ -> failwith "invalid lookahead type args" in
-    let w = width_of_typ ctrl env st t in
-    let (s,v) = lv |> value_of_lvalue ctrl env st in
-    match s with
-    | SContinue ->
-      let p = v |> assert_runtime |> assert_pkt in
-      let eight = Bigint.((one + one) * (one + one) * (one + one)) in
-      begin try
-          let (p',_) = Cstruct.split ~start:0 p Bigint.(to_int_exn (w/eight)) in
-          let (_,n,_) = bytes_of_packet p' Bigint.(w/eight) in
-          (env, st, SContinue, val_of_bigint ctrl env st w n (init_val_of_typ ctrl env st "" t) t)
-        with Invalid_argument _ ->
-          (env, st, SReject "PacketTooShort", VNull) end
-    | SReject _ -> (env, st, s, VNull)
-    | _ -> failwith "unreachable" *)
-  failwith "TODO: move this code to target"
-
   and eval_push_pop (ctrl : ctrl) (env : env) (st : st) (lv : lvalue)
       (args : Argument.t list) (b : bool) : env * st * signal * value =
     let (env', st', s, a) = eval_push_pop_args ctrl env st args in
@@ -2035,96 +2012,6 @@ module MakeInterpreter (T : Target) = struct
     | VBit {w;v} | VInt {w;v} -> w
     | VInteger _ -> failwith "width of VInteger"
     | _ -> failwith "unimplemented"
-
-  and val_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t) (n : Bigint.t) 
-      (v : value) (t : Type.t) : value =
-    match v with
-    | VNull                                 -> VNull
-    | VBool _                               -> VBool Bigint.(bitstring_slice n one zero = one)
-    | VBit _                                -> VBit{w;v=n}
-    | VInt _                                -> VInt{w;v=to_twos_complement n w}
-    | VTuple l                              -> tuple_of_bigint ctrl env st w n t l
-    | VStruct{fields=fs;_}                  -> struct_of_bigint ctrl env st w n t fs
-    | VHeader{fields=fs;_}                  -> header_of_bigint ctrl env st w n t fs
-    | VStack{headers=vs;size=s;next=n;_}    -> stack_of_bigint ctrl env st w n t vs s n
-    | VSenumField{typ_name=a;enum_name=b;v} -> 
-      VSenumField{typ_name=a;enum_name=b;v=val_of_bigint ctrl env st w n v t}
-    | VInteger _
-    | VVarbit _
-    | VSet _
-    | VString _
-    | VError _
-    | VFun _
-    | VBuiltinFun _
-    | VAction _
-    | VUnion _
-    | VEnumField _
-    | VRuntime _
-    | VParser _
-    | VControl _
-    | VPackage _
-    | VTable _ 
-    | VExternFun _ -> failwith "value does not have a fixed width"
-
-  and tuple_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t)
-      (n : Bigint.t) (t : Type.t) (l : value list) : value =
-    let f i (w,n) v =
-      let t' = typ_of_tuple_field t i in
-      let wv = width_of_typ ctrl env st t' in
-      let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
-      let w' = Bigint.(w-wv) in
-      let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
-      let v' = val_of_bigint ctrl env st wv nv v t' in
-      ((w',n'), v') in
-    let l' = List.folding_mapi l ~init:(w,n) ~f:f in
-    VTuple l'
-
-  and struct_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t) (n : Bigint.t)
-      (t : Type.t) (fs : (string * value) list) : value =
-    let tname = match snd t with
-      | TypeName (_, n) | TopLevelType (_, n) -> n
-      | _ -> failwith "not a named type" in
-    let f (w,n) (s,v) =
-      let t' = typ_of_struct_field env t s in
-      let wv = width_of_typ ctrl env st t' in
-      let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
-      let w' = Bigint.(w-wv) in
-      let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
-      let v' = val_of_bigint ctrl env st wv nv v t' in
-      ((w',n'),(s,v')) in
-    let fs' = List.folding_map fs ~init:(w,n) ~f:f in
-    VStruct{name="";typ_name=tname;fields=fs'}
-
-  and header_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t)
-      (n : Bigint.t) (t : Type.t) (fs : (string * value) list) : value =
-    let tname = match snd t with
-      | TypeName (_, n) | TopLevelType (_, n) -> n
-      | _ -> failwith "not a named type" in
-    let f (w,n) (s,v) =
-      let t' = typ_of_header_field env t s in
-      let wv = width_of_typ ctrl env st t' in
-      let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
-      let w' = Bigint.(w-wv) in
-      let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
-      let v' = val_of_bigint ctrl env st wv nv v t' in
-      ((w',n'),(s,v')) in
-    let fs' = List.folding_map fs ~init:(w,n) ~f:f in
-    VHeader{name="";typ_name=tname;fields=fs';is_valid=true}
-
-  and stack_of_bigint (ctrl : ctrl) (env : env) (st : st) (w : Bigint.t) (n : Bigint.t)
-      (t : Type.t) (vs : value list) (size : Bigint.t) (next : Bigint.t) : value =
-    let t' = match snd t with
-      | HeaderStack{header;_} -> header
-      | _ -> failwith "not a header stack" in
-    let f (w,n) v =
-      let wv = width_of_typ ctrl env st t' in
-      let nv = bitstring_slice n Bigint.(w-one) Bigint.(w-wv) in
-      let w' = Bigint.(w-wv) in
-      let n' = bitstring_slice n Bigint.(w-wv-one) Bigint.zero in
-      let v' = val_of_bigint ctrl env st wv nv v t' in
-      ((w',n'),v') in
-    let vs' = List.folding_map vs ~init:(w,n) ~f:f in
-    VStack{name="";headers=vs';size;next}
 
   (*----------------------------------------------------------------------------*)
   (* Parser Evaluation *)
@@ -2518,20 +2405,6 @@ module MakeInterpreter (T : Target) = struct
         | Header _ -> header_of_list ctrl env st lv n l
         | _ -> VTuple l end
     | _ -> v
-
-  and bytes_of_packet (p : pkt)
-      (nbytes : Bigint.t) : pkt * Bigint.t * signal =
-    try
-      let (c1,c2) = Cstruct.split p (Bigint.to_int_exn nbytes) in
-      let s = Cstruct.to_string c1 in
-      let chars = String.to_list s in
-      let bytes = List.map chars ~f:Char.to_int in
-      let bytes' = List.map bytes ~f:Bigint.of_int in
-      let eight = Bigint.((one + one) * (one + one) * (one + one)) in
-      let f a n = Bigint.(a * power_of_two eight + n) in
-      let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
-      (c2,n,SContinue)
-    with Invalid_argument _ -> (p,Bigint.zero,SReject "PacketTooShort")
 
   and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool =
     match case with

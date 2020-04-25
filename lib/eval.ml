@@ -1819,7 +1819,6 @@ module MakeInterpreter (T : Target) = struct
     | "push_front" -> eval_pushfront ctrl env st lv args
     | (* TODO *) "extract"    -> eval_extract ctrl env st lv args ts
     | (* TODO *) "emit"       -> eval_emit ctrl env st lv args
-    | (* TODO *) "length"     -> eval_length ctrl env st lv
     | (* TODO *) "lookahead"  -> eval_lookahead ctrl env st lv ts
     | (* TODO *) "advance"    -> eval_advance ctrl env st lv args
     | "apply"      -> let (s,v) = value_of_lvalue ctrl env st lv in 
@@ -1961,17 +1960,6 @@ module MakeInterpreter (T : Target) = struct
     | SReject _,_,_ -> (env, st, s, VNull)
     | _,SReject _,_ -> (env', st', s',VNull)
     | _,_,SReject _ -> (env'', st'', s'',VNull)
-    | _ -> failwith "unreachable" *)
-  failwith "TODO: move this code to target"
-
-  and eval_length (ctrl : ctrl) (env : env) (st : st) 
-      (lv : lvalue) : env * st * signal * value =
-    (* let (s,v) = value_of_lvalue ctrl env st lv in
-    let p = v |> assert_runtime |> assert_pkt in
-    match s with
-    | SContinue ->
-      (env, st, s, VBit{w=Bigint.of_int 32;v=p |> Cstruct.len |> Bigint.of_int})
-    | SReject _ -> (env, st, s, VNull)
     | _ -> failwith "unreachable" *)
   failwith "TODO: move this code to target"
 

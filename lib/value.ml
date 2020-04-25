@@ -45,9 +45,11 @@ type value =
         body : Block.t; }
   | VStruct of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list; }
   | VHeader of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list;
         is_valid : bool }
   | VUnion of 
@@ -214,12 +216,12 @@ let assert_action v =
 
 let assert_struct v =
   match v with 
-  | VStruct {name;fields} -> (name, fields)
+  | VStruct {name;fields;_} -> (name, fields)
   | _ -> failwith "not a struct"
 
 let assert_header v = 
   match v with 
-  | VHeader {name;fields;is_valid} -> (name, fields, is_valid)
+  | VHeader {name;fields;is_valid;_} -> (name, fields, is_valid)
   | _ -> failwith "not a header"
 
 let assert_union v = 

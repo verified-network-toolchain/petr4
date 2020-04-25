@@ -106,7 +106,17 @@ module Core = struct
     |> fun x -> Bigint.(x / ((one + one) * (one + one) * (one + one)))
 
   let bytes_of_packet (pkt : pkt) (nbytes : Bigint.t) : pkt * Bigint.t * signal =
-    failwith "unimplemented"
+    try
+      let (c1,c2) = Cstruct.split pkt (Bigint.to_int_exn nbytes) in
+      let s = Cstruct.to_string c1 in
+      let chars = String.to_list s in
+      let bytes = List.map chars ~f:Char.to_int in
+      let bytes' = List.map bytes ~f:Bigint.of_int in
+      let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+      let f a n = Bigint.(a * power_of_two eight + n) in
+      let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
+      (c2,n,SContinue)
+    with Invalid_argument _ -> (pkt ,Bigint.zero,SReject "PacketTooShort")
 
   let rec extract_hdr_field (nvarbits : Bigint.t) (n, s : (Bigint.t * Bigint.t) * signal)
       (v : value) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -144,25 +154,30 @@ module Core = struct
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
       Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
 
+  let reset_fields (fs : (string * value) list)
+      (d : Declaration.t) : (string * value) list =
+    match snd d with
+    | Header {fields;_} | Struct {fields;_} ->
+      List.map fields ~f:(value_of_field fs)
+    | _ -> failwith "not resettable"
+
   let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : EvalEnv.t) (st : st)
       (pkt : value) (v : value) (w : Bigint.t) : EvalEnv.t * st * signal * value =
     let pkt_loc = 
       pkt
       |> assert_runtime in
     let pkt = State.find pkt_loc st |> assert_in in
-    let (hdr_name, init_fs) = match v with
-      | VHeader {name; fields; is_valid} -> name, fields
+    let (hdr_name, tname, init_fs) = match v with
+      | VHeader {name; typ_name; fields; is_valid} -> name, typ_name, fields
       | _ -> failwith "extract expects header" in
     let t =
-      if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
+      if Bigint.(w = zero) then EvalEnv.find_typ tname env
       else EvalEnv.find_typ "variableSizeHeader" env in
     let d = match snd t with
       | TypeName (_, s) -> EvalEnv.find_decl s env
       | TopLevelType (_, s) -> EvalEnv.find_decl_toplevel s env
       | _ -> failwith "unreachable" (* TODO: unguarded fail *) in
-    let fs = match snd d with
-      | Header {fields;_} -> List.map fields ~f:(value_of_field init_fs)
-      | _ -> failwith "extract expects header type" in
+    let fs = reset_fields init_fs d in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
@@ -181,6 +196,7 @@ module Core = struct
           let fs' = List.zip_exn ns vs' in
           let h = VHeader {
             name = hdr_name;
+            typ_name = tname;
             fields = fs';
             is_valid = true;
           } in
@@ -212,8 +228,74 @@ module Core = struct
       env, st, SContinue, VBit {w= Bigint.of_int 32; v = Bigint.of_int len }
     | _ -> failwith "unexpected args for length"
 
-  let eval_emit : 'st extern = fun env st args ->
-    failwith "unimplemented"
+  let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : pkt =
+    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let seven = Bigint.(eight - one) in
+    let rec h acc n w =
+      if Bigint.(w = zero) then acc else
+        let lsbyte = bitstring_slice n seven Bigint.zero in
+        let n' = bitstring_slice n Bigint.(w-one) eight in
+        h (lsbyte :: acc) n' Bigint.(w-eight) in
+    let bytes = h [] n w in
+    let ints = List.map bytes ~f:Bigint.to_int_exn in
+    let chars = List.map ints ~f:Char.of_int_exn in
+    let s = String.of_char_list chars in
+    Cstruct.of_string s
+
+  let rec of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
+    let w' = power_of_two w in
+    if Bigint.(n >= w')
+    then Bigint.(n % w')
+    else if Bigint.(n < zero)
+    then of_twos_complement Bigint.(n + w') w
+    else n
+
+  (* value returned is the number of bits emitted followed by the number to emit *)
+  let rec packet_of_value (env : EvalEnv.t) (v : value) : pkt =
+    match v with
+    | VBit {w; v} -> packet_of_bit w v
+    | VInt {w; v} -> packet_of_int w v
+    | VVarbit {max; w; v} -> packet_of_bit w v
+    | VStruct {name; typ_name; fields} -> packet_of_struct env typ_name fields
+    | VHeader {name; typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
+    | VUnion {name; valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
+    | _ -> failwith "emit undefined on type"
+
+  and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
+    packet_of_bytes v w
+
+  and packet_of_int (w : Bigint.t) (v : Bigint.t) : pkt =
+    packet_of_bytes (of_twos_complement v w) w
+
+  and packet_of_struct (env : EvalEnv.t) (tname : string)
+      (fields : (string * value) list) : pkt =
+    let d = EvalEnv.find_decl tname env in
+    let fs = reset_fields fields d in
+    let fs' = List.map ~f:snd fs in
+    let pkts = List.map ~f:(packet_of_value env) fs' in
+    List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
+
+  and packet_of_hdr (env : EvalEnv.t) (tname : string)
+      (fields : (string * value) list) (is_valid : bool) : pkt =
+    if is_valid then packet_of_struct env tname fields else Cstruct.empty
+
+  and packet_of_union (env : EvalEnv.t) (hdr : value)
+      (fs : (string * bool) list) : pkt =
+    if List.exists fs ~f:snd
+    then packet_of_value env hdr
+    else Cstruct.empty
+
+  let eval_emit : 'st extern = fun _ _ env st _ args ->
+    let (pkt_loc, v) = match args with
+      | [VRuntime {loc; _}; hdr] -> loc, hdr
+      | _ -> failwith "unexpected args for emit" in
+    let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
+      | PacketOut (h, t) -> h, t
+      | _ -> failwith "emit expected packet out" in
+    let pkt_add = packet_of_value env v in
+    let emitted = Cstruct.append pkt_hd pkt_add, pkt_tl in
+    let st' = State.insert pkt_loc (PacketOut emitted) st in
+    env, st', SContinue, VNull
 
   let eval_verify : 'st extern = fun _ _ env st _ args ->
     let b, err = match args with

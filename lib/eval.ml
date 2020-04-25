@@ -1147,7 +1147,7 @@ module MakeInterpreter (T : Target) = struct
         | VHeader{fields=fs;is_valid=vbit;_}   -> eval_header_mem env' st' (snd name) expr fs vbit
         | VUnion{valid_header=v;_}             -> (env', st', SContinue, v)
         | VStack{headers=hdrs;size=s;next=n;_} -> eval_stack_mem env' st' (snd name) expr hdrs s n
-        | VRuntime v                           -> eval_runtime_mem env' st' (snd name) expr v
+        | VRuntime {loc;typ_name}              -> eval_runtime_mem env' st' (snd name) expr loc typ_name
         | VParser _
         | VControl _                           -> (env', st', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr})
         | VTable _                             -> (env', st', s, VBuiltinFun{name=snd name;caller=lvalue_of_expr expr}) end
@@ -1636,8 +1636,8 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith "stack member unimplemented"
 
   and eval_runtime_mem (env : env) (st : st) (mname : string) (expr : Expression.t)
-      (loc : int) : env * st * signal * value =
-    env, st, SContinue, VExternFun {caller = Some loc; name = mname }
+      (loc : int) (typ_name : string) : env * st * signal * value =
+    env, st, SContinue, VExternFun {caller = Some (loc, typ_name); name = mname }
 
   and eval_stack_size (env : env) (st : st) 
       (size : Bigint.t) : env * st * signal * value =
@@ -1674,6 +1674,18 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
   (* Function and Method Call Evaluation *)
   (*----------------------------------------------------------------------------*)
+
+  and eval_externfun (ctrl : ctrl) (env : env) (st : st) (name : string)
+      (v : (loc * string) option) (args : Argument.t list)
+      (ts : Type.t list) : env * st * signal * value =
+    (* let params = 
+      match v with 
+      | Some (_,t) -> 
+        EvalEnv.find_decl t env
+        |> assert_extern_obj
+        |> (fun x -> x.methods)
+        |> List.map ~f:() *)
+    failwith "TODO"
 
   and eval_funcall' (ctrl : ctrl) (env : env) (st : st) (params : Parameter.t list)
       (args : Argument.t list) (body : Block.t) : env * st * signal * value =
@@ -1767,11 +1779,6 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
   (*----------------------------------------------------------------------------*)
-
-  and eval_externfun (ctrl : ctrl) (env : env) (st : st) (name : string)
-      (v : loc option) (args : Argument.t list)
-      (ts : Type.t list) : env * st * signal * value =
-    failwith "TODO: extern function evaluation"
 
   and eval_builtin (ctrl : ctrl) (env : env) (st : st) (name : string) (lv : lvalue)
       (args : Argument.t list) (ts : Type.t list) : env * st * signal * value =

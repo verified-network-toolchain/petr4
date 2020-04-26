@@ -83,7 +83,10 @@ module Make_parse (Conf: Parse_config) = struct
       let vsets =
         List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
       match parse_file include_dirs p4_file verbose with
-      | `Ok prog -> Eval.eval_prog prog (tbls, vsets) pkt
+      | `Ok prog ->
+        begin match Eval.eval_prog prog (tbls, vsets) pkt with
+          |Some (pkt,_) -> pkt
+          | None -> "" end
       | `Error (info, exn) ->
         let exn_msg = Exn.to_string exn in
         let info_string = Info.to_string info in

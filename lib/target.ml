@@ -45,7 +45,7 @@ module type Target = sig
 
   val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
-  st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
+  st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
 
 end
 
@@ -490,7 +490,7 @@ module V1Model : Target = struct
     match EvalEnv.find_val "packet" env with
     | VRuntime {loc; _ } -> 
       begin match State.find loc st with 
-        | CoreObject (PacketOut(p0,p1)) -> st, Cstruct.append p0 p1
+        | CoreObject (PacketOut(p0,p1)) -> st, env, Cstruct.append p0 p1
         | _ -> failwith "not a packet" 
       end
     | _ -> failwith "pack not a packet"

@@ -36,7 +36,7 @@ module type Target = sig
   val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
   st assign -> 
-  (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * pkt
+  (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
 
 end
 

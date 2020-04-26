@@ -343,20 +343,19 @@ module Core = struct
     let extern = List.Assoc.find_exn name externs in
     extern assign ctrl env st vs
 
-  let check_pipeline _ = ()
-
-  let eval_pipeline _ _ st pkt _ _ _ = st, pkt
-
 end 
 
 module V1Model : Target = struct
 
   type obj =
     | CoreObject of Core.obj
-    (* | V1Object of v1object *)
+    | V1Object of v1object
 
-  (* and v1object = unit *)
-    (* | Counter of unit TODO *)
+  and v1object =
+    | Counter of Bigint.t
+
+  let _ = Counter Bigint.zero
+  let _ = V1Object (Counter Bigint.zero)
 
   type st = obj State.t
 
@@ -364,17 +363,105 @@ module V1Model : Target = struct
 
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
-    | CoreObject _ -> failwith "not a packet"
+    | CoreObject _ | V1Object _ -> failwith "not a packet"
 
   let assert_core = function
     | CoreObject o -> o
-    (* | _ -> failwith "expected core object" *)
+    | V1Object _ -> failwith "expected core object"
 
   let is_core = function
     | CoreObject _ -> true
-    (* | _ -> false *)
+    | V1Object _ -> false
 
-  let v1externs = [ (* TODO *) ]
+  let eval_counter : st extern = fun _ -> failwith "TODO"
+
+  let eval_count : st extern = fun _ -> failwith "TODO"
+
+  let eval_direct_counter : st extern = fun _ -> failwith "TODO"
+
+  let eval_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_execute_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_direct_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_read : st extern = fun _ -> failwith "TODO"
+
+  let eval_register : st extern = fun _ -> failwith "TODO"
+
+  let eval_write : st extern = fun _ -> failwith "TODO"
+
+  let eval_action_profile : st extern = fun _ -> failwith "TODO"
+
+  let eval_random : st extern = fun _ -> failwith "TODO"
+
+  let eval_digest : st extern = fun _ -> failwith "TODO"
+
+  let eval_mark_to_drop : st extern = fun _ -> failwith "TODO"
+
+  let eval_hash : st extern = fun _ -> failwith "TODO"
+
+  let eval_action_selector : st extern = fun _ -> failwith "TODO"
+
+  let eval_checksum16 : st extern = fun _ -> failwith "TODO"
+
+  let eval_get : st extern = fun _ -> failwith "TODO"
+
+  let eval_verify_checksum : st extern = fun _ -> failwith "TODO"
+
+  let eval_update_checksum : st extern = fun _ -> failwith "TODO"
+
+  let eval_verify_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+
+  let eval_update_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+
+  let eval_resubmit : st extern = fun _ -> failwith "TODO"
+
+  let eval_recirculate : st extern = fun _ -> failwith "TODO"
+
+  let eval_clone : st extern = fun _ -> failwith "TODO"
+
+  let eval_clone3 : st extern = fun _ -> failwith "TODO"
+
+  let eval_truncate : st extern = fun _ -> failwith "TODO"
+
+  let eval_assert : st extern = fun _ -> failwith "TODO"
+
+  let eval_assume : st extern = fun _ -> failwith "TODO"
+
+  let eval_log_msg : st extern = fun _ -> failwith "TODO"
+
+  let v1externs = [
+    ("counter", eval_counter);
+    ("count", eval_count); (* overloaded *)
+    ("direct_counter", eval_direct_counter);
+    ("meter", eval_meter);
+    ("execute_meter", eval_execute_meter);
+    ("direct_meter", eval_direct_meter);
+    ("read", eval_read); (* overloaded*)
+    ("register", eval_register);
+    ("write", eval_write);
+    ("action_profile", eval_action_profile);
+    ("random", eval_random);
+    ("digest", eval_digest);
+    ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
+    ("hash", eval_hash);
+    ("action_selector", eval_action_selector);
+    ("Checksum16", eval_checksum16); (* deprecated *)
+    ("get", eval_get); (* deprecated *)
+    ("verify_checksum", eval_verify_checksum);
+    ("update_checksum", eval_update_checksum);
+    ("verify_checksum_with_payload", eval_verify_checksum_with_payload);
+    ("update_checksum_with_payload", eval_update_checksum_with_payload);
+    ("resubmit", eval_resubmit);
+    ("recirculate", eval_recirculate);
+    ("clone", eval_clone);
+    ("clone3", eval_clone3);
+    ("truncate", eval_truncate);
+    ("assert", eval_assert);
+    ("assume", eval_assume);
+    ("log_msg", eval_log_msg); (* overloaded *)
+  ]
 
   let corize_st (st : st) : Core.st =
     st
@@ -392,7 +479,8 @@ module V1Model : Target = struct
 
   let targetize (ext : Core.st Core.extern) : st extern =
     fun assign ctrl env st ts vs ->
-    let (env', st', s, v) = ext (corize_assign assign) ctrl env (corize_st st) ts vs in
+    let (env', st', s, v) =
+      ext (corize_assign assign) ctrl env (corize_st st) ts vs in
     env', targetize_st st' @ st, s, v
 
   let externs : (string * st extern) list =

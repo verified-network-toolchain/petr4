@@ -43,7 +43,7 @@ module type Target = sig
 
   val check_pipeline : EvalEnv.t -> unit
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
+  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> Bigint.t ->
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
   st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
 
@@ -407,7 +407,7 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st pkt app assign init =
+  let eval_pipeline ctrl env st pkt in_port app assign init =
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
@@ -452,6 +452,14 @@ module V1Model : Target = struct
               |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
               |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
+    let nine = Bigint.((one + one + one) * (one + one + one)) in
+    let (env, st, _) = 
+      assign 
+        ctrl
+        env
+        st
+        (LMember{expr=LName("std_meta"); name="ingress_port"})
+        (VBit{w=nine;v=in_port}) in
     let pkt_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
     let hdr_expr =

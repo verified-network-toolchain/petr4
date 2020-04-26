@@ -12,7 +12,7 @@ module type Interpreter = sig
 
   val empty_state : st
 
-  val eval : ctrl -> env -> st -> pkt -> st * env * pkt
+  val eval : ctrl -> env -> st -> pkt -> Bigint.t -> st * env * pkt
 
   val eval_decl : ctrl -> env -> st -> Declaration.t -> (env * st)
 
@@ -34,4 +34,4 @@ module V1Interpreter : Interpreter
 
 (* module EbpfInterpreter : Interpreter *)
 
-val eval_prog : program -> ctrl -> pkt -> (string * Bigint.t) option
+val eval_prog : program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option

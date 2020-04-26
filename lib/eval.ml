@@ -14,7 +14,7 @@ module type Interpreter = sig
   
   val empty_state : st
 
-  val eval : ctrl -> env -> st -> pkt -> st * env * pkt
+  val eval : ctrl -> env -> st -> pkt -> Bigint.t -> st * env * pkt
 
   val eval_decl : ctrl -> env -> st -> Declaration.t -> (env * st)
 
@@ -2420,8 +2420,9 @@ module MakeInterpreter (T : Target) = struct
   and eval_expression ctrl env st expr = 
     let (a,b,_,c) = eval_expr ctrl env st SContinue expr in (a,b,c)
 
-  and eval (ctrl : ctrl) (env : env) (st : st) (pkt : pkt) : st * env * pkt =
-    T.eval_pipeline ctrl env st pkt eval_app eval_assign' init_val_of_typ
+  and eval (ctrl : ctrl) (env : env) (st : st) (pkt : pkt)
+      (in_port : Bigint.t) : st * env * pkt =
+    T.eval_pipeline ctrl env st pkt in_port eval_app eval_assign' init_val_of_typ
 
 end
 
@@ -2465,14 +2466,15 @@ module V1Interpreter = MakeInterpreter(Target.V1Model)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 
-let eval_main (env : env) (ctrl : ctrl) (pkt : pkt) : pkt * Bigint.t =
+let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
+    (in_port : Bigint.t) : pkt * Bigint.t =
   let name =
     match env |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is not a package" in
   match name with
   | "V1Switch"     ->
-    let (_, env', pkt) = V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt in
+    let (_, env', pkt) = V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt in_port in
     begin match EvalEnv.find_val "std_meta" env' with
     | VStruct {fields;_} -> 
       pkt, 
@@ -2493,7 +2495,8 @@ let assert_main_pkg (d : Declaration.t) : string =
       | _ -> failwith "main instantiation not a typename" end
   | _ -> failwith "main not an instantiation"
 
-let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : (string * Bigint.t) option =
+let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt)
+    (in_port : Bigint.t) : (string * Bigint.t) option =
   match p with Program l ->
     let name = List.rev l |> List.hd_exn |> assert_main_pkg in
     let eval_decl = match name with 
@@ -2508,14 +2511,14 @@ let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : (string * Bigint.t
     in
     EvalEnv.print_env env;
     Format.printf "Done\n";
-    let pkt', port = eval_main env ctrl pkt in
+    let pkt', port = eval_main env ctrl pkt in_port in
     print_string "Resulting packet: ";
     Some begin
     pkt'
     |> Cstruct.to_string
     |> hex_of_string, port end
 
-let print_eval_program p ctrl pkt =
-  match eval_prog p ctrl pkt with
+let print_eval_program p ctrl pkt in_port =
+  match eval_prog p ctrl pkt in_port with
   | Some (pkt, _) -> pkt |> print_endline
   | None -> ()

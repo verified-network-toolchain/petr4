@@ -33,7 +33,7 @@ module type Target = sig
 
   val check_pipeline : EvalEnv.t -> unit 
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
+  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> Bigint.t ->
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
   st assign -> 
   (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt

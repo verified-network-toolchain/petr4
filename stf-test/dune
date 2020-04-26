@@ -1,0 +1,10 @@
+(menhir
+  (flags --explain)
+  (modules test_parser))
+
+(ocamllex (modules test_lexer))
+
+(executable
+  (libraries ANSITerminal core petr4 alcotest ounit2)
+  (name test)
+)

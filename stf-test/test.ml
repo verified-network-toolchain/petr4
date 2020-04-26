@@ -91,6 +91,8 @@ let main include_dir stf_tests_dir =
     let p4_file = Filename.remove_extension stf_file ^ ".p4" in
     stf_alco_test include_dir stf_file p4_file
     )
-  |> Alcotest.run "Stf-tests"
 
-let () = main ["examples/"] "./examples/checker_tests/good/"
+let () =
+  main ["examples/"] "./examples/checker_tests/good/" @
+  main ["examples/"] "./stf-test/custom-stf-tests/"
+  |> Alcotest.run "Stf-tests"

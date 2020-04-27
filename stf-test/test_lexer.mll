@@ -131,6 +131,8 @@ and packet_data = parse
     { lexer:= Keyword; keyword lexbuf }
   | whitespace | '$'
     { packet_data lexbuf }
+  | eof
+    { END }
 
 {
 }

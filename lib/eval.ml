@@ -210,20 +210,15 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * st * signal =
+    let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
     let env' = EvalEnv.insert_typ name typ env in
     match init with
     | None ->
-      let env'' = EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
+      let env'' =
+        EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
       (env'', st, SContinue)
     | Some e ->
-      let (env'', st', s, v) = eval_expr ctrl env' st SContinue e in
-      let v' = implicit_cast_from_rawint ctrl env'' st' v typ in
-      let v'' = implicit_cast_from_tuple ctrl env'' st' (LName name) name v' typ in
-      match s with
-      | SContinue -> (EvalEnv.insert_val name v'' env'', st', s)
-      | SReject _ -> (env, st', s)
-      | SReturn _ -> failwith "variable declaration should not return"
-      | SExit -> failwith "variable declaration should not exit"
+      eval_assign ctrl env' st SContinue name_expr e
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
       (size : Expression.t) : env * st * signal =

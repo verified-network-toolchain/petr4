@@ -43,7 +43,7 @@ module type Target = sig
 
   val check_pipeline : EvalEnv.t -> unit
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> 
+  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> Bigint.t ->
   (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
   st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
 
@@ -286,6 +286,7 @@ module Core = struct
     | VStruct {name; typ_name; fields} -> packet_of_struct env typ_name fields
     | VHeader {name; typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
     | VUnion {name; valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
+    | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
@@ -343,38 +344,135 @@ module Core = struct
     let extern = List.Assoc.find_exn name externs in
     extern assign ctrl env st vs
 
-  let check_pipeline _ = ()
-
-  let eval_pipeline _ _ st pkt _ _ _ = st, pkt
-
 end 
 
 module V1Model : Target = struct
 
   type obj =
     | CoreObject of Core.obj
-    (* | V1Object of v1object *)
+    | V1Object of v1object
 
-  (* and v1object = unit *)
-    (* | Counter of unit TODO *)
+  and v1object =
+    | Counter of {
+        states : Bigint.t list;
+        typ : counter_type;
+        size : Bigint.t;
+      }
+
+  and counter_type =
+    (* | Packets *)
+    (* | Bytes *)
+    | Both
+
+  let x = Counter {states = []; typ = Both; size = Bigint.zero}
+  let _ = V1Object x
 
   type st = obj State.t
-
   type 'st extern = ('st, st) pre_extern
 
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
-    | CoreObject _ -> failwith "not a packet"
+    | CoreObject _ | V1Object _ -> failwith "not a packet"
 
   let assert_core = function
     | CoreObject o -> o
-    (* | _ -> failwith "expected core object" *)
+    | V1Object _ -> failwith "expected core object"
 
   let is_core = function
     | CoreObject _ -> true
-    (* | _ -> false *)
+    | V1Object _ -> false
 
-  let v1externs = [ (* TODO *) ]
+  let eval_counter : st extern = fun assign ctrl env st targs args ->
+    (* let counter_loc = State.fresh_loc () in state persistence? *)
+    failwith "TODO"
+
+  let eval_count : st extern = fun _ -> failwith "TODO"
+
+  let eval_direct_counter : st extern = fun _ -> failwith "TODO"
+
+  let eval_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_execute_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_direct_meter : st extern = fun _ -> failwith "TODO"
+
+  let eval_read : st extern = fun _ -> failwith "TODO"
+
+  let eval_register : st extern = fun _ -> failwith "TODO"
+
+  let eval_write : st extern = fun _ -> failwith "TODO"
+
+  let eval_action_profile : st extern = fun _ -> failwith "TODO"
+
+  let eval_random : st extern = fun _ -> failwith "TODO"
+
+  let eval_digest : st extern = fun _ -> failwith "TODO"
+
+  let eval_mark_to_drop : st extern = fun _ -> failwith "TODO"
+
+  let eval_hash : st extern = fun _ -> failwith "TODO"
+
+  let eval_action_selector : st extern = fun _ -> failwith "TODO"
+
+  let eval_checksum16 : st extern = fun _ -> failwith "TODO"
+
+  let eval_get : st extern = fun _ -> failwith "TODO"
+
+  let eval_verify_checksum : st extern = fun _ -> failwith "TODO"
+
+  let eval_update_checksum : st extern = fun _ -> failwith "TODO"
+
+  let eval_verify_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+
+  let eval_update_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+
+  let eval_resubmit : st extern = fun _ -> failwith "TODO"
+
+  let eval_recirculate : st extern = fun _ -> failwith "TODO"
+
+  let eval_clone : st extern = fun _ -> failwith "TODO"
+
+  let eval_clone3 : st extern = fun _ -> failwith "TODO"
+
+  let eval_truncate : st extern = fun _ -> failwith "TODO"
+
+  let eval_assert : st extern = fun _ -> failwith "TODO"
+
+  let eval_assume : st extern = fun _ -> failwith "TODO"
+
+  let eval_log_msg : st extern = fun _ -> failwith "TODO"
+
+  let v1externs = [
+    ("counter", eval_counter);
+    ("count", eval_count); (* overloaded *)
+    ("direct_counter", eval_direct_counter);
+    ("meter", eval_meter);
+    ("execute_meter", eval_execute_meter);
+    ("direct_meter", eval_direct_meter);
+    ("read", eval_read); (* overloaded*)
+    ("register", eval_register);
+    ("write", eval_write);
+    ("action_profile", eval_action_profile);
+    ("random", eval_random);
+    ("digest", eval_digest);
+    ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
+    ("hash", eval_hash);
+    ("action_selector", eval_action_selector);
+    ("Checksum16", eval_checksum16); (* deprecated *)
+    ("get", eval_get); (* deprecated *)
+    ("verify_checksum", eval_verify_checksum);
+    ("update_checksum", eval_update_checksum);
+    ("verify_checksum_with_payload", eval_verify_checksum_with_payload);
+    ("update_checksum_with_payload", eval_update_checksum_with_payload);
+    ("resubmit", eval_resubmit);
+    ("recirculate", eval_recirculate);
+    ("clone", eval_clone);
+    ("clone3", eval_clone3);
+    ("truncate", eval_truncate);
+    ("assert", eval_assert);
+    ("assume", eval_assume);
+    ("log_msg", eval_log_msg); (* overloaded *)
+  ]
 
   let corize_st (st : st) : Core.st =
     st
@@ -392,13 +490,16 @@ module V1Model : Target = struct
 
   let targetize (ext : Core.st Core.extern) : st extern =
     fun assign ctrl env st ts vs ->
-    let (env', st', s, v) = ext (corize_assign assign) ctrl env (corize_st st) ts vs in
+    let (env', st', s, v) =
+      ext (corize_assign assign) ctrl env (corize_st st) ts vs in
     env', targetize_st st' @ st, s, v
 
   let externs : (string * st extern) list =
     v1externs @ (List.map Core.externs ~f:(fun (n, e : string * 'st Core.extern) -> n, targetize e))
 
-  let eval_extern _ = failwith ""
+  let eval_extern assign ctrl env st targs args name =
+    let extern = List.Assoc.find_exn externs name ~equal:String.equal in
+    extern assign ctrl env st targs args
 
   let check_pipeline env = ()
 
@@ -407,7 +508,7 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st pkt app assign init =
+  let eval_pipeline ctrl env st pkt in_port app assign init =
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
@@ -452,6 +553,14 @@ module V1Model : Target = struct
               |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
               |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
+    let nine = Bigint.((one + one + one) * (one + one + one)) in
+    let (env, st, _) = 
+      assign 
+        ctrl
+        env
+        st
+        (LMember{expr=LName("std_meta"); name="ingress_port"})
+        (VBit{w=nine;v=in_port}) in
     let pkt_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
     let hdr_expr =

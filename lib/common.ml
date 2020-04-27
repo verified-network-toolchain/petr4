@@ -84,7 +84,7 @@ module Make_parse (Conf: Parse_config) = struct
         List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
       match parse_file include_dirs p4_file verbose with
       | `Ok prog ->
-        begin match Eval.eval_prog prog (tbls, vsets) pkt with
+        begin match Eval.eval_prog prog (tbls, vsets) pkt Bigint.zero with
           |Some (pkt,_) -> pkt
           | None -> "" end
       | `Error (info, exn) ->

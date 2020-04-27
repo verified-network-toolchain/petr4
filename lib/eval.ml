@@ -14,7 +14,7 @@ module type Interpreter = sig
   
   val empty_state : st
 
-  val eval : ctrl -> env -> st -> pkt -> st * env * pkt
+  val eval : ctrl -> env -> st -> pkt -> Bigint.t -> st * env * pkt
 
   val eval_decl : ctrl -> env -> st -> Declaration.t -> (env * st)
 
@@ -210,18 +210,15 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * st * signal =
+    let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
     let env' = EvalEnv.insert_typ name typ env in
     match init with
     | None ->
-      let env'' = EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
+      let env'' =
+        EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
       (env'', st, SContinue)
     | Some e ->
-      let (env'', st', s, v) = eval_expr ctrl env' st SContinue e in
-      match s with
-      | SContinue -> (EvalEnv.insert_val name v env'', st', s)
-      | SReject _ -> (env, st', s)
-      | SReturn _ -> failwith "variable declaration should not return"
-      | SExit -> failwith "variable declaration should not exit"
+      eval_assign ctrl env' st SContinue name_expr e
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
       (size : Expression.t) : env * st * signal =
@@ -1692,7 +1689,7 @@ module MakeInterpreter (T : Target) = struct
       | Some (_, t) -> 
         EvalEnv.find_decl t env
         |> assert_extern_obj
-        |> List.map ~f:assert_abstract
+        |> List.map ~f:params_of_prototype
         |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
         |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
@@ -1718,10 +1715,12 @@ module MakeInterpreter (T : Target) = struct
     | ExternObject x -> x.methods
     | _ -> failwith "expected extern object"
 
-  and assert_abstract (p : MethodPrototype.t) : P4String.t * Parameter.t list =
+  and params_of_prototype (p : MethodPrototype.t) : P4String.t * Parameter.t list =
     match snd p with
     | AbstractMethod x -> (x.name, x.params)
-    | _ -> failwith "expected abstract method"
+    | Method x -> (x.name, x.params)
+    | Constructor x -> (x.name, x.params)
+    (* | _ -> failwith "expected abstract method" *)
 
   and assert_extern_function (d : Declaration.t) : Parameter.t list =
     match snd d with
@@ -2392,7 +2391,7 @@ module MakeInterpreter (T : Target) = struct
           |> assert_typ_def
           |> assert_typ
           |> implicit_cast_from_rawint ctrl env st v
-        | _ -> failwith "attempt to assign raw int to wrong type"
+        | _ -> v
         end
     | _ -> v
 
@@ -2420,8 +2419,9 @@ module MakeInterpreter (T : Target) = struct
   and eval_expression ctrl env st expr = 
     let (a,b,_,c) = eval_expr ctrl env st SContinue expr in (a,b,c)
 
-  and eval (ctrl : ctrl) (env : env) (st : st) (pkt : pkt) : st * env * pkt =
-    T.eval_pipeline ctrl env st pkt eval_app eval_assign' init_val_of_typ
+  and eval (ctrl : ctrl) (env : env) (st : st) (pkt : pkt)
+      (in_port : Bigint.t) : st * env * pkt =
+    T.eval_pipeline ctrl env st pkt in_port eval_app eval_assign' init_val_of_typ
 
 end
 
@@ -2465,14 +2465,15 @@ module V1Interpreter = MakeInterpreter(Target.V1Model)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 
-let eval_main (env : env) (ctrl : ctrl) (pkt : pkt) : pkt * Bigint.t =
+let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
+    (in_port : Bigint.t) : pkt * Bigint.t =
   let name =
     match env |> EvalEnv.find_val "main" |> assert_package |> fst |> snd with
     | Declaration.PackageType {name=(_,n);_} -> n
     | _ -> failwith "main is not a package" in
   match name with
   | "V1Switch"     ->
-    let (_, env', pkt) = V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt in
+    let (_, env', pkt) = V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt in_port in
     begin match EvalEnv.find_val "std_meta" env' with
     | VStruct {fields;_} -> 
       pkt, 
@@ -2493,7 +2494,8 @@ let assert_main_pkg (d : Declaration.t) : string =
       | _ -> failwith "main instantiation not a typename" end
   | _ -> failwith "main not an instantiation"
 
-let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : (string * Bigint.t) option =
+let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt)
+    (in_port : Bigint.t) : (string * Bigint.t) option =
   match p with Program l ->
     let name = List.rev l |> List.hd_exn |> assert_main_pkg in
     let eval_decl = match name with 
@@ -2508,14 +2510,14 @@ let eval_prog (p : Types.program) (ctrl : ctrl) (pkt : pkt) : (string * Bigint.t
     in
     EvalEnv.print_env env;
     Format.printf "Done\n";
-    let pkt', port = eval_main env ctrl pkt in
+    let pkt', port = eval_main env ctrl pkt in_port in
     print_string "Resulting packet: ";
     Some begin
     pkt'
     |> Cstruct.to_string
     |> hex_of_string, port end
 
-let print_eval_program p ctrl pkt =
-  match eval_prog p ctrl pkt with
+let print_eval_program p ctrl pkt in_port =
+  match eval_prog p ctrl pkt in_port with
   | Some (pkt, _) -> pkt |> print_endline
   | None -> ()

@@ -441,7 +441,17 @@ set ::=  \_ // universal
 
 Parameters
 ~ Begin P4MathGrammar
-p ::= (d, \tau, v)
+p ::= (d, \tau, v, e_{opt})
+e_{opt} ::= @None
+      | @Some e
+~ End P4MathGrammar
+
+## Signals
+~ Begin P4MathGrammar
+sig ::= @continue
+    | @return v
+    | @exit 
+    | @reject v
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -1425,6 +1435,8 @@ TODO: $\xi$ needs something like $P$, $\Gamma$, and $\Sigma$ (but for var-value 
 But can all of these be represented by one $\xi$ or does it need to be split out
 like Ryan did in typing contexts.
 
+$\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. $\mathkw{pop \xi}$ pops the first-level scope off $\xi$ if one exists.
+
 ## Helper rules
 
 <!-- Didn't know how to combine all these into one rule so I did something similar to numeric typing
@@ -1449,7 +1461,7 @@ like Ryan did in typing contexts.
 
 ### Numeric Values
 ~ MathPre
-\mathkw{extract\_num}(<\zeta, \xi, \sigma, e>) = \begin{cases} <\xi', \sigma', a> & <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', a>
+\mathkw{extract\_num} <\zeta, \xi, \sigma, e> = \begin{cases} <\xi', \sigma', a> & <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', a>
 <\xi', \sigma', a> & <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', {a}_u^{n}>
 <\xi', \sigma', a> & <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', {a}_s^{n}>
 \end{cases}
@@ -1457,13 +1469,105 @@ like Ryan did in typing contexts.
 
 ### Copy-In
 
-Supposed to eval individually and insert? 
+~ MathPre
+\mathkw{insert\_arg} \xi (d, t, v1, e_{opt}) v2 = \begin{cases} \xi & d = \mathkw{out}
+\xi[v2/v1] & otherwise
+\end{cases}
+~
+<!--
+- type also gets inserted. mapped to v1
+- weird business with headers
+-->
 
-positional, named, missing args
+~ Infer
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
+-------------------------------------------------------------------------------[CopyIn-Positional]
+<\zeta, \xi, \sigma, (d, t, v1, e_{opt}), e> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, e_{opt}) v2, \sigma'>
+~
 
-$\mathkw{insert\_arg()}$
+~ Infer
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
+-------------------------------------------------------------------------------[CopyIn-Named]
+<\zeta, \xi, \sigma, (d, t, v1, e_{opt}), x = e> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, e_{opt}) v2, \sigma'>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
+-------------------------------------------------------------------------------[CopyIn-Missing-Opt]
+<\zeta, \xi, \sigma, (d, t, v1, @Some e), ()> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, @Some e) v2, \sigma'>
+~
+
+~ Infer
+TODO
+-------------------------------------------------------------------------------[CopyIn-Missing-NoOpt]
+<\zeta, \xi, \sigma, (d, t, v1, @None), ()> \Downarrow TODO
+~
+
+~ Infer
+<\zeta, @push \xi, \sigma, p1, {arg}_1> \Downarrow <\xi', \sigma'>
+\dots
+<\zeta, \xi^{n-1}, \sigma^{n-1}, p_n, {arg}_n> \Downarrow <\xi^n, \sigma^n>
+----------------------------------------------------------------------[CopyIn]
+<\zeta, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow <\xi^n, \sigma^n>
+~
 
 ### Copy-Out
+
+~ MathPre
+\mathkw{copy\_arg\_out} \zeta \xi \sigma v arg = \begin{cases} \xi & arg = ()
+TODO: eval_assign' so something like e := v where e is from the arg ßbut that doesn't seem right & otherwise
+\end{cases}
+~
+
+~ Infer
+\xi_1(X) = @extern X \dots
+----------------------------------------------------------------------[NoDir-Extern-TypeName]
+<\zeta, \xi_1, \xi_2, \sigma, (@none, X, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+~
+
+~ Infer
+\xi_1(.X) = @extern X \dots
+----------------------------------------------------------------------[NoDir-Extern-TopLevelType]
+<\zeta, \xi_1, \xi_2, \sigma, (@none, .X, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+~
+
+~ Infer
+\xi_1(X) \neq @extern X \dots
+----------------------------------------------------------------------[NoDir-TypeName]
+<\zeta, \xi_1, \xi_2, \sigma, (@none, X, v, e_{opt}), arg> \Downarrow \xi_1
+~
+
+~ Infer
+\xi_1(.X) \neq @extern X \dots
+----------------------------------------------------------------------[NoDir-TopLevelType]
+<\zeta, \xi_1, \xi_2, \sigma, (@none, .X, v, e_{opt}), arg> \Downarrow \xi_1
+~
+
+~ Infer
+
+----------------------------------------------------------------------[Dir-In]
+<\zeta, \xi_1, \xi_2, \sigma, (@in, t, v, e_{opt}), arg> \Downarrow \xi_1
+~
+
+~ Infer
+
+----------------------------------------------------------------------[Dir-InOut]
+<\zeta, \xi_1, \xi_2, \sigma, (@inout, t, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+~
+
+~ Infer
+
+----------------------------------------------------------------------[Dir-Out]
+<\zeta, \xi_1, \xi_2, \sigma, (@out, t, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+~
+
+~ Infer
+<\zeta, @pop \xi, \xi, \sigma, p1, {arg}_1> \Downarrow \xi'
+\dots
+<\zeta, \xi^{n-1}, \xi, \sigma^{n-1}, p_n, {arg}_n> \Downarrow \xi^n
+----------------------------------------------------------------------[CopyOut]
+<\zeta, \xi, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow \xi^n
+~
 
 ## Expressions
 
@@ -1471,6 +1575,9 @@ Expressions are evaluated according to the following big-step relation:
 ~ Center
 $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', v \rangle$
 ~
+
+TODO: need to add signals after clarifying some things
+
 ### Constants
 
 ~ Infer
@@ -1532,8 +1639,8 @@ x \neq @verify
 ### Accesses
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', (...,v_i,...,n_{size},n_{next})>
-\mathkw{extract\_num(<\zeta, \xi', \sigma', e2>)} = <\xi'', \sigma'', a>
+<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', (\dots,v_i,\dots,n_{size},n_{next})>
+\mathkw{extract\_num} <\zeta, \xi', \sigma', e2> = <\xi'', \sigma'', a>
 i = a \% n_{size}
 -------------------------------------------------------------------------------[Array-Access]
 <\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', v_i>
@@ -1553,10 +1660,10 @@ if v3 \leq 0 then r = (n_u^w) else r = v1/2[v2-1:v3-1]
 
 ~ Infer
 <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1>
-...
+\dots
 <\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n>
 -------------------------------------------------------------------------------[List-Expression]
-<\zeta, \xi, \sigma, {e1,...,e_n}> \Downarrow_e <\xi^n, \sigma^n, (v1,...,v_n)>
+<\zeta, \xi, \sigma, {e1,\dots,e_n}> \Downarrow_e <\xi^n, \sigma^n, (v1,\dots,v_n)>
 ~
 
 ### Unary Operations
@@ -1595,15 +1702,15 @@ n \neq 1
 $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $\mathkw{to2s}(a)$ is the result of converting $a$ to two's complement.
 
 ~ Infer
-\mathkw{extract\_num(<\zeta, \xi, \sigma, e1>)} = <\xi', \sigma', a1>
-\mathkw{extract\_num(<\zeta, \xi', \sigma', e2>)} = <\xi'', \sigma'', a2>
+\mathkw{extract\_num} <\zeta, \xi, \sigma, e1> = <\xi', \sigma', a1>
+\mathkw{extract\_num} <\zeta, \xi', \sigma', e2> = <\xi'', \sigma'', a2>
 -------------------------------------------------------------------------------[Bit-Cast]
 <\zeta, \xi, \sigma, (bit\lt e2\gt) e1> \Downarrow_e <\xi'', \sigma'', {@of2s(a1)}_u^{a2}>
 ~
 
 ~ Infer
-\mathkw{extract\_num(<\zeta, \xi, \sigma, e1>)} = <\xi', \sigma', a1>
-\mathkw{extract\_num(<\zeta, \xi', \sigma', e2>)} = <\xi'', \sigma'', a2>
+\mathkw{extract\_num} <\zeta, \xi, \sigma, e1> = <\xi', \sigma', a1>
+\mathkw{extract\_num} <\zeta, \xi', \sigma', e2> = <\xi'', \sigma'', a2>
 -------------------------------------------------------------------------------[Int-Cast]
 <\zeta, \xi, \sigma, (int\lt e2\gt) e1> \Downarrow_e <\xi'', \sigma'', {@to2s(a1)}_s^{a2}>
 ~
@@ -1631,13 +1738,13 @@ TODO: how to differentiate value and set
 ### Member Expressions
 
 ~ Infer
-\xi(X) = @enum X \{...,name,...\}
+\xi(X) = @enum X \{\dots,name,\dots\}
 -------------------------------------------------------------------------------[Type-Member-Enum]
 <\zeta, \xi, \sigma, X.name> \Downarrow_e <\xi, \sigma, X.name>
 ~
 
 ~ Infer
-\xi(X) = @enum t X \{...,(name, e),...\}
+\xi(X) = @enum t X \{\dots,(name, e),\dots\}
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v>
 -------------------------------------------------------------------------------[Type-Member-SEnum]
 <\zeta, \xi, \sigma, X.name> \Downarrow_e <\xi', \sigma', (X.name, (t) v)>
@@ -1650,37 +1757,37 @@ TODO: how to differentiate value and set
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @struct \{...,(name, v),...\}>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @struct \{\dots,(name, v),\dots\}>
 -------------------------------------------------------------------------------[Struct-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ ...,(name, v),... \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ \dots,(name, v),\dots \}, b)>
 -------------------------------------------------------------------------------[Header-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ ... \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ \dots \}, b)>
 -------------------------------------------------------------------------------[Header-IsValid-Field]
 <\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi', \sigma', @builtin @isValid>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ ... \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ \dots \}, b)>
 -------------------------------------------------------------------------------[Header-SetValid-Field]
 <\zeta, \xi, \sigma, e.@setValid> \Downarrow_e <\xi', \sigma', @builtin @setValid>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ ... \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (@header \{ \dots \}, b)>
 -------------------------------------------------------------------------------[Header-SetInvalid-Field]
 <\zeta, \xi, \sigma, e.@setInvalid> \Downarrow_e <\xi', \sigma', @builtin @setInvalid>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (\mathkw{header\ union} \{ ... \}, v')>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (\mathkw{header\ union} \{ \dots \}, v')>
 -------------------------------------------------------------------------------[Header-Union]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', v'>
 ~
@@ -1730,19 +1837,19 @@ n_{next} \lt n_{size}
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @parser ...>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @parser \dots>
 -------------------------------------------------------------------------------[Parser-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', @builtin name>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @control ...>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @control \dots>
 -------------------------------------------------------------------------------[Control-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', @builtin name>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @table ...>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', @table \dots>
 -------------------------------------------------------------------------------[Table-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', @builtin name>
 ~
@@ -1848,3 +1955,115 @@ TODO
 
 ## Statements and Blocks
 
+Statements are evaluated according to the following big-step relation:
+~ Center
+$\langle \zeta, \xi, \sigma, sig, s \rangle \Downarrow_s \langle \xi', \sigma', sig' \rangle$
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig', v>
+-----------------------------------------------------------------------------------------------[Method-Call]
+<\zeta, \xi, \sigma, sig, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig'>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Assignment]
+<\zeta, \xi, \sigma, sig, e1 := e2> \Downarrow_s <TODO>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Direct-Application]
+<\zeta, \xi, \sigma, sig, t.@apply (e1, ..., e_n)> \Downarrow_s <TODO>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @reject v, v>
+------------------------------------------------------------------------------[Conditional-Reject]
+<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', @reject v>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, true>
+<\zeta, \xi', \sigma', @continue, s> \Downarrow_s <\xi'', \sigma'', sig'>
+------------------------------------------------------------------------------[If-True]
+<\zeta, \xi, \sigma, sig, @if (e) s> \Downarrow_s <\xi'', \sigma'', sig'>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, false>
+------------------------------------------------------------------------------[If-False]
+<\zeta, \xi, \sigma, sig, @if (e) s> \Downarrow_s  <\xi, \sigma, @continue>
+~
+TODO: why is it not the updated env and st
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, true>
+<\zeta, \xi', \sigma', @continue, s1> \Downarrow_s <\xi'', \sigma'', sig'>
+---------------------------------------------------------------------------------[If-Else-True]
+<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig'>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, false>
+<\zeta, \xi', \sigma', @continue, s2> \Downarrow_s <\xi'', \sigma'', sig'>
+---------------------------------------------------------------------------------[If-Else-False]
+<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig'>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, sig, s_1> \Downarrow_s <\xi', \sigma', sig'>
+\dots
+<\zeta, \xi^{n-1}, \sigma^{n-1}, sig^{n-1}, s_n> \Downarrow_s <\xi^n, \sigma^n, sig^n>
+-------------------------------------------------------------------------------------[Block]
+<\zeta, \xi, \sigma, sig, \{s1; ... s_n;\}> \Downarrow_s <\xi^n, \sigma^n, sig^n>
+~
+
+~ Infer
+
+---------------------------------------------------------------------[Exit-Continue]
+<\zeta, \xi, \sigma, @continue, @exit> \Downarrow_s <\xi, \sigma, @exit>
+~
+
+~ Infer
+
+--------------------------------------------------------------------[Exit-Return]
+<\zeta, \xi, \sigma, @return v, @exit> \Downarrow_s <\xi, \sigma, @return v>
+~
+
+~ Infer
+
+---------------------------------------------------------------------[Exit]
+<\zeta, \xi, \sigma, @exit, @exit> \Downarrow_s <\xi, \sigma, @exit>
+~
+
+~ Infer
+
+---------------------------------------------[Empty]
+<\zeta, \xi, \sigma, sig, ;> \Downarrow_s <\xi, \sigma, sig>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Return-Void]
+<\zeta, \xi, \sigma, sig, @return> \Downarrow_s <TODO>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Return-Value]
+<\zeta, \xi, \sigma, sig, @return v> \Downarrow_s <TODO>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Switch]
+<\zeta, \xi, \sigma, sig, @switch (e) \{\overline{case}\}> \Downarrow_s <TODO>
+~
+
+~ Infer
+TODO
+---------------------------------------------[Declaration-Statement]
+<\zeta, \xi, \sigma, sig, decl> \Downarrow_s <TODO>
+~

@@ -352,12 +352,24 @@ module V1Model : Target = struct
     | V1Object of v1object
 
   and v1object =
-    | Counter of Bigint.t
+    | Counter of {
+        states : Bigint.t list;
+        typ : counter_type;
+        size : Bigint.t;
+      }
+
+  and counter_type =
+    | Packets
+    | Bytes
+    | Both
 
   let _ = Counter Bigint.zero
   let _ = V1Object (Counter Bigint.zero)
 
-  type st = obj State.t
+  type st = {
+    memory : obj State.t;
+    persistent : (string * loc) list;
+  }
 
   type 'st extern = ('st, st) pre_extern
 
@@ -373,7 +385,9 @@ module V1Model : Target = struct
     | CoreObject _ -> true
     | V1Object _ -> false
 
-  let eval_counter : st extern = fun _ -> failwith "TODO"
+  let eval_counter : st extern = fun assign ctrl env st targs args ->
+    (* let counter_loc = State.fresh_loc () in state persistence? *)
+    failwith "TODO"
 
   let eval_count : st extern = fun _ -> failwith "TODO"
 

@@ -256,6 +256,8 @@ module Core = struct
     | _ -> failwith "unexpected args for length"
 
   let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : pkt =
+    print_endline "getting packet of bytes";
+    print_string "width is:"; print_endline (Bigint.to_string w);
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let seven = Bigint.(eight - one) in
     let rec h acc n w =
@@ -290,6 +292,7 @@ module Core = struct
     | _ -> failwith "emit undefined on type"
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
+    print_endline "got to packet_of_bit";
     packet_of_bytes v w
 
   and packet_of_int (w : Bigint.t) (v : Bigint.t) : pkt =
@@ -314,13 +317,19 @@ module Core = struct
     else Cstruct.empty
 
   let eval_emit : 'st extern = fun _ _ env st _ args ->
+    print_endline "doing emit";
     let (pkt_loc, v) = match args with
       | [VRuntime {loc; _}; hdr] -> loc, hdr
       | _ -> failwith "unexpected args for emit" in
     let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
       | PacketOut (h, t) -> h, t
       | _ -> failwith "emit expected packet out" in
+    print_endline "getting pkt_add";
+    begin match v with
+    | VBit {w;_} -> print_string "width is now: "; print_endline (Bigint.to_string w)
+    | _ -> () end ;
     let pkt_add = packet_of_value env v in
+    print_endline "got pkt_add";
     let emitted = Cstruct.append pkt_hd pkt_add, pkt_tl in
     let st' = State.insert pkt_loc (PacketOut emitted) st in
     env, st', SContinue, VNull

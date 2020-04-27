@@ -211,6 +211,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_var_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * st * signal =
     let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
+    print_endline ("initializing variable " ^ name);
     let env' = EvalEnv.insert_typ name typ env in
     match init with
     | None ->
@@ -218,6 +219,10 @@ module MakeInterpreter (T : Target) = struct
         EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
       (env'', st, SContinue)
     | Some e ->
+      let (_, _, _, v) = eval_expr ctrl env st SContinue e in
+      begin match v with
+      | VBit {w;_} -> print_string "variable init width is: "; print_endline (Bigint.to_string w)
+      | _ -> () end;
       eval_assign ctrl env' st SContinue name_expr e
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : st) (typ : Type.t) (name : string)
@@ -757,16 +762,20 @@ module MakeInterpreter (T : Target) = struct
       let lsb'' = bigint_of_val lsb' in
       let msb'' = bigint_of_val msb' in
       let w = Bigint.(msb'' - lsb'' + one) in
+      print_string "during assign msb is: "; print_endline (Bigint.to_string msb'');
+      print_string "during assign lsb is: "; print_endline (Bigint.to_string lsb'');
+      print_string "during assign w is: "; print_endline (Bigint.to_string w);
       let (s,v) = value_of_lvalue ctrl env st lv in
       begin match s with
         | SContinue ->
           let n = bigint_of_val v in
+          let nw = width_of_val v in 
           let rhs' = bit_of_rawint (bigint_of_val rhs) w |> bigint_of_val in
           let n0 = bitstring_slice n msb'' lsb'' in
           let diff = Bigint.(n0 - rhs') in
           let diff' = Bigint.(diff * (power_of_two lsb'')) in
           let final = Bigint.(n - diff') in
-          eval_assign' ctrl env'' st'' lv (VBit{w;v=final})
+          eval_assign' ctrl env'' st'' lv (VBit{w=nw;v=final})
         | SReject _ -> (env'',st'',s)
         | _ -> failwith "unreachable" end
     | SReject _, _ -> (env',st',s)
@@ -851,7 +860,7 @@ module MakeInterpreter (T : Target) = struct
     | Name(_,n) -> LName n
     | TopLevel(_,n) -> LTopName n
     | ExpressionMember{expr=e; name=(_,n)} -> LMember{expr=lvalue_of_expr e;name=n}
-    | BitStringAccess{bits;lo;hi} -> LBitAccess{expr=lvalue_of_expr bits;msb=lo;lsb=hi}
+    | BitStringAccess{bits;lo;hi} -> LBitAccess{expr=lvalue_of_expr bits;msb=hi;lsb=lo}
     | ArrayAccess{array;index} -> LArrayAccess{expr=lvalue_of_expr array;idx=index}
     | _ -> failwith "not an lvalue"
 
@@ -978,7 +987,7 @@ module MakeInterpreter (T : Target) = struct
         | Name (_,name)                        -> eval_name ctrl env st s name exp
         | TopLevel (_,name)                    -> (env, st, s, EvalEnv.find_val_toplevel name env)
         | ArrayAccess{array=a; index=i}        -> eval_array_access ctrl env st a i
-        | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access ctrl env st bits lo hi
+        | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access ctrl env st bits hi lo
         | Record _                             -> failwith "TODO"
         | List{values}                         -> eval_list ctrl env st values
         | UnaryOp{op;arg}                      -> eval_unary ctrl env st op arg
@@ -1684,6 +1693,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : st) (name : string)
       (v : (loc * string) option) (args : Argument.t list)
       (ts : Type.t list) : env * st * signal * value =
+    print_endline "got to emit";
     let params = 
       match v with 
       | Some (_, t) -> 
@@ -1733,7 +1743,10 @@ module MakeInterpreter (T : Target) = struct
     let (fenv', st'', sign) = eval_block ctrl fenv st SContinue body in
     let final_env = copyout ctrl fenv' st'' params args in
     match sign with
-    | SReturn v -> (final_env, st'', SContinue, v)
+    | SReturn v -> 
+      begin match v with 
+      | VBit {w;_} -> print_string "on return width is: " ; print_endline (Bigint.to_string w)
+      | _ -> () end; (final_env, st'', SContinue, v)
     | SReject _
     | SContinue
     | SExit     -> (final_env, st'', sign, VNull)
@@ -2294,6 +2307,7 @@ module MakeInterpreter (T : Target) = struct
 
   and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
     Bigint.(
+      print_endline "bitstring slice";
       if l > zero
       then bitstring_slice (n/(one + one)) (m-one) (l-one)
       else n % (power_of_two (m + one)))

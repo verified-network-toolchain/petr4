@@ -359,18 +359,14 @@ module V1Model : Target = struct
       }
 
   and counter_type =
-    | Packets
-    | Bytes
+    (* | Packets *)
+    (* | Bytes *)
     | Both
 
-  let _ = Counter Bigint.zero
-  let _ = V1Object (Counter Bigint.zero)
+  let x = Counter {states = []; typ = Both; size = Bigint.zero}
+  let _ = V1Object x
 
-  type st = {
-    memory : obj State.t;
-    persistent : (string * loc) list;
-  }
-
+  type st = obj State.t
   type 'st extern = ('st, st) pre_extern
 
   let assert_pkt = function

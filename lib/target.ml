@@ -286,6 +286,7 @@ module Core = struct
     | VStruct {name; typ_name; fields} -> packet_of_struct env typ_name fields
     | VHeader {name; typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
     | VUnion {name; valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
+    | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
@@ -496,7 +497,9 @@ module V1Model : Target = struct
   let externs : (string * st extern) list =
     v1externs @ (List.map Core.externs ~f:(fun (n, e : string * 'st Core.extern) -> n, targetize e))
 
-  let eval_extern _ = failwith ""
+  let eval_extern assign ctrl env st targs args name =
+    let extern = List.Assoc.find_exn externs name ~equal:String.equal in
+    extern assign ctrl env st targs args
 
   let check_pipeline env = ()
 

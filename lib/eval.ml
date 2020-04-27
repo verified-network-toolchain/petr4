@@ -217,8 +217,10 @@ module MakeInterpreter (T : Target) = struct
       (env'', st, SContinue)
     | Some e ->
       let (env'', st', s, v) = eval_expr ctrl env' st SContinue e in
+      let v' = implicit_cast_from_rawint ctrl env'' st' v typ in
+      let v'' = implicit_cast_from_tuple ctrl env'' st' (LName name) name v' typ in
       match s with
-      | SContinue -> (EvalEnv.insert_val name v env'', st', s)
+      | SContinue -> (EvalEnv.insert_val name v'' env'', st', s)
       | SReject _ -> (env, st', s)
       | SReturn _ -> failwith "variable declaration should not return"
       | SExit -> failwith "variable declaration should not exit"
@@ -1692,7 +1694,7 @@ module MakeInterpreter (T : Target) = struct
       | Some (_, t) -> 
         EvalEnv.find_decl t env
         |> assert_extern_obj
-        |> List.map ~f:assert_abstract
+        |> List.map ~f:params_of_prototype
         |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
         |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
@@ -1718,10 +1720,12 @@ module MakeInterpreter (T : Target) = struct
     | ExternObject x -> x.methods
     | _ -> failwith "expected extern object"
 
-  and assert_abstract (p : MethodPrototype.t) : P4String.t * Parameter.t list =
+  and params_of_prototype (p : MethodPrototype.t) : P4String.t * Parameter.t list =
     match snd p with
     | AbstractMethod x -> (x.name, x.params)
-    | _ -> failwith "expected abstract method"
+    | Method x -> (x.name, x.params)
+    | Constructor x -> (x.name, x.params)
+    (* | _ -> failwith "expected abstract method" *)
 
   and assert_extern_function (d : Declaration.t) : Parameter.t list =
     match snd d with
@@ -2392,7 +2396,7 @@ module MakeInterpreter (T : Target) = struct
           |> assert_typ_def
           |> assert_typ
           |> implicit_cast_from_rawint ctrl env st v
-        | _ -> failwith "attempt to assign raw int to wrong type"
+        | _ -> v
         end
     | _ -> v
 

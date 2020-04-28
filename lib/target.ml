@@ -5,12 +5,20 @@ open Types
 open Core_kernel
 module Info = I
 
+type env = EvalEnv.t
+
 type 'st assign =
-  ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
+  ctrl -> env -> 'st -> lvalue -> value -> env * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> Type.t list -> value list ->
-  EvalEnv.t * 'st2 * signal * value
+  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
+  env * 'st2 * signal * value
+
+type 'st apply =
+  ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
+
+type 'st init_typ = 
+  ctrl -> env -> 'st -> string -> Type.t -> value
 
 module State = struct
 
@@ -38,14 +46,16 @@ module type Target = sig
 
   val externs : (string * state extern) list
 
-  val eval_extern : state assign -> ctrl -> EvalEnv.t -> state -> Type.t list ->
-                    value list -> string -> EvalEnv.t * state * signal * value
+  val eval_extern : state assign -> ctrl -> env -> state -> Type.t list ->
+                    value list -> string -> env * state * signal * value
 
-  val check_pipeline : EvalEnv.t -> unit
+  val initialize_metadata : Bigint.t -> env -> env
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> state -> pkt -> Bigint.t ->
-  (ctrl -> EvalEnv.t -> state -> signal -> value -> Argument.t list -> EvalEnv.t * state * signal * 'a) -> 
-  state assign -> (ctrl -> EvalEnv.t -> state -> string -> Type.t -> value) -> state * EvalEnv.t * pkt
+  val check_pipeline : env -> unit
+
+  val eval_pipeline : ctrl -> env -> state -> pkt ->
+  state apply -> 
+  state assign -> state init_typ -> state * env * pkt
 
 end
 
@@ -161,8 +171,8 @@ module Core = struct
       List.map fields ~f:(value_of_field fs)
     | _ -> failwith "not resettable"
 
-  let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : EvalEnv.t) (st : state)
-      (pkt : value) (v : value) (w : Bigint.t) : EvalEnv.t * state * signal * value =
+  let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : env) (st : state)
+      (pkt : value) (v : value) (w : Bigint.t) : env * state * signal * value =
     let pkt_loc = 
       pkt
       |> assert_runtime in
@@ -280,7 +290,7 @@ module Core = struct
     else n
 
   (* value returned is the number of bits emitted followed by the number to emit *)
-  let rec packet_of_value (env : EvalEnv.t) (v : value) : pkt =
+  let rec packet_of_value (env : env) (v : value) : pkt =
     match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
@@ -298,7 +308,7 @@ module Core = struct
   and packet_of_int (w : Bigint.t) (v : Bigint.t) : pkt =
     packet_of_bytes (of_twos_complement v w) w
 
-  and packet_of_struct (env : EvalEnv.t) (tname : string)
+  and packet_of_struct (env : env) (tname : string)
       (fields : (string * value) list) : pkt =
     let d = EvalEnv.find_decl tname env in
     let fs = reset_fields fields d in
@@ -306,11 +316,11 @@ module Core = struct
     let pkts = List.map ~f:(packet_of_value env) fs' in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
-  and packet_of_hdr (env : EvalEnv.t) (tname : string)
+  and packet_of_hdr (env : env) (tname : string)
       (fields : (string * value) list) (is_valid : bool) : pkt =
     if is_valid then packet_of_struct env tname fields else Cstruct.empty
 
-  and packet_of_union (env : EvalEnv.t) (hdr : value)
+  and packet_of_union (env : env) (hdr : value)
       (fs : (string * bool) list) : pkt =
     if List.exists fs ~f:snd
     then packet_of_value env hdr
@@ -510,14 +520,19 @@ module V1Model : Target = struct
     let extern = List.Assoc.find_exn externs name ~equal:String.equal in
     extern assign ctrl env st targs args
 
+  let initialize_metadata meta env =
+    let nine = Bigint.of_int 9 in
+    EvalEnv.insert_val "ingress_port" (VBit{w=nine; v=meta}) env
+
   let check_pipeline env = ()
 
   let eval_v1control (ctrl : ctrl) (app) (control : value)
-      (args : Argument.t list) (env,st) : EvalEnv.t * state * signal =
+      (args : Argument.t list) (env,st) : env * state * signal =
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st pkt in_port app assign init =
+  let eval_pipeline ctrl env st pkt app assign init =
+    let in_port = EvalEnv.find_val "ingress_port" env |> assert_bit |> snd in 
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
     let vs = assert_package main |> snd in
@@ -627,10 +642,13 @@ module EbpfFilter : Target = struct
 
   let eval_extern _ = failwith ""
 
+  let initialize_metadata meta env =
+    env (* TODO *)
+
   let check_pipeline env = failwith "unimplemented"
 
   let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Argument.t list) app
-  (env,st) : EvalEnv.t * state * signal =
+  (env,st) : env * state * signal =
     let (env,st,s,_) = app ctrl env st SContinue control args in 
     (env,st,s)
 

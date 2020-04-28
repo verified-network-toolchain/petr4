@@ -2435,7 +2435,8 @@ module MakeInterpreter (T : Target) = struct
 
   and eval (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (in_port : Bigint.t) : state * env * pkt =
-    T.eval_pipeline ctrl env st pkt in_port eval_app eval_assign' init_val_of_typ
+    let env' = T.initialize_metadata in_port env in 
+    T.eval_pipeline ctrl env' st pkt eval_app eval_assign' init_val_of_typ
 
 end
 

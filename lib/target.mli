@@ -2,12 +2,20 @@ open Value
 open Env
 open Types
 
+type env = EvalEnv.t
+
 type 'st assign = 
-  ctrl -> EvalEnv.t -> 'st -> lvalue -> value -> EvalEnv.t * 'st * signal
+  ctrl -> env -> 'st -> lvalue -> value -> env * 'st * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> EvalEnv.t -> 'st2 -> Type.t list -> value list ->
-  EvalEnv.t * 'st2 * signal * value
+  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
+  env * 'st2 * signal * value
+
+type 'st apply =
+  ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
+
+type 'st init_typ = 
+  ctrl -> env -> 'st -> string -> Type.t -> value
 
 module State : sig
   type 'a t
@@ -28,15 +36,17 @@ module type Target = sig
 
   val externs : (string * state extern) list
 
-  val eval_extern : state assign -> ctrl -> EvalEnv.t -> state -> Type.t list ->
-                    value list -> string -> EvalEnv.t * state * signal * value
+  val eval_extern : state assign -> ctrl -> env -> state -> Type.t list ->
+                    value list -> string -> env * state * signal * value
 
-  val check_pipeline : EvalEnv.t -> unit 
+  val initialize_metadata : Bigint.t -> env -> env
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> state -> pkt -> Bigint.t ->
-  (ctrl -> EvalEnv.t -> state -> signal -> value -> Argument.t list -> EvalEnv.t * state * signal * 'a) -> 
+  val check_pipeline : env -> unit 
+
+  val eval_pipeline : ctrl -> env -> state -> pkt ->
+  state apply -> 
   state assign -> 
-  (ctrl -> EvalEnv.t -> state -> string -> Type.t -> value) -> state * EvalEnv.t * pkt
+  state init_typ -> state * env * pkt
 
 end
 

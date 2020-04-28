@@ -22,21 +22,21 @@ module type Target = sig
 
   type obj
 
-  type st = obj State.t
+  type state = obj State.t
 
-  type 'st extern = ('st, st) pre_extern
+  type 'st extern = ('st, state) pre_extern
 
-  val externs : (string * st extern) list
+  val externs : (string * state extern) list
 
-  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> Type.t list ->
-                    value list -> string -> EvalEnv.t * st * signal * value
+  val eval_extern : state assign -> ctrl -> EvalEnv.t -> state -> Type.t list ->
+                    value list -> string -> EvalEnv.t * state * signal * value
 
   val check_pipeline : EvalEnv.t -> unit 
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> Bigint.t ->
-  (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
-  st assign -> 
-  (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
+  val eval_pipeline : ctrl -> EvalEnv.t -> state -> pkt -> Bigint.t ->
+  (ctrl -> EvalEnv.t -> state -> signal -> value -> Argument.t list -> EvalEnv.t * state * signal * 'a) -> 
+  state assign -> 
+  (ctrl -> EvalEnv.t -> state -> string -> Type.t -> value) -> state * EvalEnv.t * pkt
 
 end
 

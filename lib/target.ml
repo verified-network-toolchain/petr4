@@ -32,20 +32,20 @@ module type Target = sig
 
   type obj
 
-  type st = obj State.t
+  type state = obj State.t
 
-  type 'st extern = ('st, st) pre_extern
+  type 'st extern = ('st, state) pre_extern
 
-  val externs : (string * st extern) list
+  val externs : (string * state extern) list
 
-  val eval_extern : st assign -> ctrl -> EvalEnv.t -> st -> Type.t list ->
-                    value list -> string -> EvalEnv.t * st * signal * value
+  val eval_extern : state assign -> ctrl -> EvalEnv.t -> state -> Type.t list ->
+                    value list -> string -> EvalEnv.t * state * signal * value
 
   val check_pipeline : EvalEnv.t -> unit
 
-  val eval_pipeline : ctrl -> EvalEnv.t -> st -> pkt -> Bigint.t ->
-  (ctrl -> EvalEnv.t -> st -> signal -> value -> Argument.t list -> EvalEnv.t * st * signal * 'a) -> 
-  st assign -> (ctrl -> EvalEnv.t -> st -> string -> Type.t -> value) -> st * EvalEnv.t * pkt
+  val eval_pipeline : ctrl -> EvalEnv.t -> state -> pkt -> Bigint.t ->
+  (ctrl -> EvalEnv.t -> state -> signal -> value -> Argument.t list -> EvalEnv.t * state * signal * 'a) -> 
+  state assign -> (ctrl -> EvalEnv.t -> state -> string -> Type.t -> value) -> state * EvalEnv.t * pkt
 
 end
 
@@ -55,9 +55,9 @@ module Core = struct
     | PacketIn of pkt
     | PacketOut of pkt_out
 
-  type st = obj State.t
+  type state = obj State.t
 
-  type 'st extern = ('st, st) pre_extern
+  type 'st extern = ('st, state) pre_extern
 
   let rec shift_bigint_left (v : Bigint.t) (o : Bigint.t) : Bigint.t =
     if Bigint.(o > zero)
@@ -161,8 +161,8 @@ module Core = struct
       List.map fields ~f:(value_of_field fs)
     | _ -> failwith "not resettable"
 
-  let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : EvalEnv.t) (st : st)
-      (pkt : value) (v : value) (w : Bigint.t) : EvalEnv.t * st * signal * value =
+  let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : EvalEnv.t) (st : state)
+      (pkt : value) (v : value) (w : Bigint.t) : EvalEnv.t * state * signal * value =
     let pkt_loc = 
       pkt
       |> assert_runtime in
@@ -376,8 +376,8 @@ module V1Model : Target = struct
   let x = Counter {states = []; typ = Both; size = Bigint.zero}
   let _ = V1Object x
 
-  type st = obj State.t
-  type 'st extern = ('st, st) pre_extern
+  type state = obj State.t
+  type 'st extern = ('st, state) pre_extern
 
   let assert_pkt = function
     | CoreObject (PacketIn pkt) -> pkt
@@ -391,65 +391,65 @@ module V1Model : Target = struct
     | CoreObject _ -> true
     | V1Object _ -> false
 
-  let eval_counter : st extern = fun assign ctrl env st targs args ->
+  let eval_counter : state extern = fun assign ctrl env st targs args ->
     (* let counter_loc = State.fresh_loc () in state persistence? *)
     failwith "TODO"
 
-  let eval_count : st extern = fun _ -> failwith "TODO"
+  let eval_count : state extern = fun _ -> failwith "TODO"
 
-  let eval_direct_counter : st extern = fun _ -> failwith "TODO"
+  let eval_direct_counter : state extern = fun _ -> failwith "TODO"
 
-  let eval_meter : st extern = fun _ -> failwith "TODO"
+  let eval_meter : state extern = fun _ -> failwith "TODO"
 
-  let eval_execute_meter : st extern = fun _ -> failwith "TODO"
+  let eval_execute_meter : state extern = fun _ -> failwith "TODO"
 
-  let eval_direct_meter : st extern = fun _ -> failwith "TODO"
+  let eval_direct_meter : state extern = fun _ -> failwith "TODO"
 
-  let eval_read : st extern = fun _ -> failwith "TODO"
+  let eval_read : state extern = fun _ -> failwith "TODO"
 
-  let eval_register : st extern = fun _ -> failwith "TODO"
+  let eval_register : state extern = fun _ -> failwith "TODO"
 
-  let eval_write : st extern = fun _ -> failwith "TODO"
+  let eval_write : state extern = fun _ -> failwith "TODO"
 
-  let eval_action_profile : st extern = fun _ -> failwith "TODO"
+  let eval_action_profile : state extern = fun _ -> failwith "TODO"
 
-  let eval_random : st extern = fun _ -> failwith "TODO"
+  let eval_random : state extern = fun _ -> failwith "TODO"
 
-  let eval_digest : st extern = fun _ -> failwith "TODO"
+  let eval_digest : state extern = fun _ -> failwith "TODO"
 
-  let eval_mark_to_drop : st extern = fun _ -> failwith "TODO"
+  let eval_mark_to_drop : state extern = fun _ -> failwith "TODO"
 
-  let eval_hash : st extern = fun _ -> failwith "TODO"
+  let eval_hash : state extern = fun _ -> failwith "TODO"
 
-  let eval_action_selector : st extern = fun _ -> failwith "TODO"
+  let eval_action_selector : state extern = fun _ -> failwith "TODO"
 
-  let eval_checksum16 : st extern = fun _ -> failwith "TODO"
+  let eval_checksum16 : state extern = fun _ -> failwith "TODO"
 
-  let eval_get : st extern = fun _ -> failwith "TODO"
+  let eval_get : state extern = fun _ -> failwith "TODO"
 
-  let eval_verify_checksum : st extern = fun _ -> failwith "TODO"
+  let eval_verify_checksum : state extern = fun _ -> failwith "TODO"
 
-  let eval_update_checksum : st extern = fun _ -> failwith "TODO"
+  let eval_update_checksum : state extern = fun _ -> failwith "TODO"
 
-  let eval_verify_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+  let eval_verify_checksum_with_payload : state extern = fun _ -> failwith "TODO"
 
-  let eval_update_checksum_with_payload : st extern = fun _ -> failwith "TODO"
+  let eval_update_checksum_with_payload : state extern = fun _ -> failwith "TODO"
 
-  let eval_resubmit : st extern = fun _ -> failwith "TODO"
+  let eval_resubmit : state extern = fun _ -> failwith "TODO"
 
-  let eval_recirculate : st extern = fun _ -> failwith "TODO"
+  let eval_recirculate : state extern = fun _ -> failwith "TODO"
 
-  let eval_clone : st extern = fun _ -> failwith "TODO"
+  let eval_clone : state extern = fun _ -> failwith "TODO"
 
-  let eval_clone3 : st extern = fun _ -> failwith "TODO"
+  let eval_clone3 : state extern = fun _ -> failwith "TODO"
 
-  let eval_truncate : st extern = fun _ -> failwith "TODO"
+  let eval_truncate : state extern = fun _ -> failwith "TODO"
 
-  let eval_assert : st extern = fun _ -> failwith "TODO"
+  let eval_assert : state extern = fun _ -> failwith "TODO"
 
-  let eval_assume : st extern = fun _ -> failwith "TODO"
+  let eval_assume : state extern = fun _ -> failwith "TODO"
 
-  let eval_log_msg : st extern = fun _ -> failwith "TODO"
+  let eval_log_msg : state extern = fun _ -> failwith "TODO"
 
   let v1externs = [
     ("counter", eval_counter);
@@ -483,27 +483,27 @@ module V1Model : Target = struct
     ("log_msg", eval_log_msg); (* overloaded *)
   ]
 
-  let corize_st (st : st) : Core.st =
+  let corize_st (st : state) : Core.state =
     st
     |> List.filter ~f:(fun (_, o) -> is_core o)
     |> List.map ~f:(fun (i, o) -> (i, assert_core o))
 
-  let targetize_st (st : Core.st) : st = 
+  let targetize_st (st : Core.state) : state = 
     st
     |> List.map ~f:(fun (i, o) -> i, CoreObject o)
 
-  let corize_assign (assign : st assign) : Core.st assign =
+  let corize_assign (assign : state assign) : Core.state assign =
     fun ctrl env st lv v ->
     let (env, st, s) = assign ctrl env (targetize_st st) lv v in
     env, corize_st st, s
 
-  let targetize (ext : Core.st Core.extern) : st extern =
+  let targetize (ext : Core.state Core.extern) : state extern =
     fun assign ctrl env st ts vs ->
     let (env', st', s, v) =
       ext (corize_assign assign) ctrl env (corize_st st) ts vs in
     env', targetize_st st' @ st, s, v
 
-  let externs : (string * st extern) list =
+  let externs : (string * state extern) list =
     v1externs @ (List.map Core.externs ~f:(fun (n, e : string * 'st Core.extern) -> n, targetize e))
 
   let eval_extern assign ctrl env st targs args name =
@@ -513,7 +513,7 @@ module V1Model : Target = struct
   let check_pipeline env = ()
 
   let eval_v1control (ctrl : ctrl) (app) (control : value)
-      (args : Argument.t list) (env,st) : EvalEnv.t * st * signal =
+      (args : Argument.t list) (env,st) : EvalEnv.t * state * signal =
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
@@ -619,9 +619,9 @@ module EbpfFilter : Target = struct
 
   type obj = unit (* TODO *)
 
-  type st = obj State.t
+  type state = obj State.t
 
-  type 'st extern = ('st, st) pre_extern
+  type 'st extern = ('st, state) pre_extern
 
   let externs = []
 
@@ -630,7 +630,7 @@ module EbpfFilter : Target = struct
   let check_pipeline env = failwith "unimplemented"
 
   let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Argument.t list) app
-  (env,st) : EvalEnv.t * st * signal =
+  (env,st) : EvalEnv.t * state * signal =
     let (env,st,s,_) = app ctrl env st SContinue control args in 
     (env,st,s)
 

@@ -60,11 +60,11 @@ module CheckerEnv : sig
   val find_const_opt : name -> t -> value option
 
   val insert_type : name -> Typed.Type.t -> t -> t
-  val insert_types : (name * Typed.Type.t) list -> t -> t
+  val insert_types : (string * Typed.Type.t) list -> t -> t
   val insert_type_of : name -> Typed.Type.t -> t -> t
   val insert_dir_type_of : name -> Typed.Type.t -> Typed.direction -> t -> t
   val insert_type_var : name -> t -> t
-  val insert_type_vars : name list -> t -> t
+  val insert_type_vars : string list -> t -> t
   val insert_const : name -> value -> t -> t
   val push_scope : t -> t
   val pop_scope : t -> t

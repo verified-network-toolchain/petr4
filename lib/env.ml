@@ -286,7 +286,7 @@ module CheckerEnv = struct
 
   let insert_types names_types env =
     let go env (name, typ) =
-      insert_type name typ env
+      insert_type (BareName (Info.dummy, name)) typ env
     in
     List.fold ~f:go ~init:env names_types
 
@@ -295,7 +295,7 @@ module CheckerEnv = struct
 
   let insert_type_vars vars env =
     let go env var =
-      insert_type_var var env
+      insert_type_var (BareName (Info.dummy, var)) env
     in
     List.fold ~f:go ~init:env vars
 

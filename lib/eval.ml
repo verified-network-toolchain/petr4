@@ -152,7 +152,7 @@ let rec eval_decl (env : EvalEnv.t) (ctrl : ctrl) (d : Declaration.t) : EvalEnv.
 
 and eval_const_decl (env : EvalEnv.t) (ctrl : ctrl) (typ : Type.t) (e : Expression.t)
     (name : string) : EvalEnv.t =
-  let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
+  let name_expr = (Info.dummy, Expression.Name (Info.dummy, name)) in
   let env' = EvalEnv.insert_typ name typ env in
   fst (eval_assign env' ctrl SContinue name_expr e)
 

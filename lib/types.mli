@@ -38,6 +38,8 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+val name_eq : name -> name -> bool
+
 module rec KeyValue : sig
   type pre_t = 
     { key : P4String.t;

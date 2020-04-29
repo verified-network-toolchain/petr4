@@ -48,6 +48,16 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+let name_eq n1 n2 = 
+  match n1, n2 with
+  | BareName (_, s1),
+    BareName (_, s2) ->
+     s1 = s2
+  | QualifiedName ([], (_, s1)),
+    QualifiedName ([], (_, s2)) ->
+     s1 = s2
+  | _ -> failwith "unimplemented"
+
 module rec KeyValue : sig
   type pre_t = 
     { key : P4String.t;

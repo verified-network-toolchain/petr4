@@ -74,7 +74,7 @@ module V1Model : Target = struct
     (env,s)
 
   let eval_pipeline env ctrl pkt app assign init =
-    let main = EvalEnv.find_val "main" env in
+    let main = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
     let vs = assert_package main |> snd in
     let parser =
       List.Assoc.find_exn vs "p"   ~equal:String.equal in

@@ -93,8 +93,7 @@ and Expression : sig
   | False
   | Int of Types.P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -152,8 +151,7 @@ end = struct
   | False
   | Int of Types.P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }

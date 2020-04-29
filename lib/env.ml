@@ -1,10 +1,12 @@
+module I = Info
 open Types
 open Value
 open Core_kernel
 open Sexplib.Conv
+module Info = I 
 
 exception BadEnvironment of string
-exception UnboundName of string
+exception UnboundName of Types.name
 
 type 'binding env = (string * 'binding) list list [@@deriving sexp,yojson]
 
@@ -17,57 +19,80 @@ let pop: 'a env -> 'a env = function
   | []        -> no_scopes ()
   | _ :: env' -> env'
 
-let rec insert (name: string) (value: 'a) : 'a env -> 'a env = function
-  | []     -> no_scopes ()
-  | h :: t ->
-    try
-      if List.Assoc.mem h ~equal:(=) name
-      then ((name, value) :: h) :: t
-      else h :: (insert name value t)
-    with BadEnvironment _ -> ((name, value) :: h) :: t
-
-let insert_firstlevel (name : string) (value : 'a) : 'a env -> 'a env = function
+let insert_bare name value env =
+  begin match env with
   | [] -> no_scopes ()
   | h :: t -> ((name, value) :: h) :: t
+  end
 
 let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
   let (env0,env1) = List.split_n env (List.length env - 1) in
-  let env1' = insert name value env1 in
+  let env1' = insert_bare name value env1 in
   env0 @ env1'
 
-let rec find_opt (name: string) : 'a env -> 'a option = function
+let insert name value env =
+  match name with
+  | BareName (_, name) -> insert_bare name value env
+  | QualifiedName ([], (_, name)) -> insert_toplevel name value env
+  | _ -> failwith "unimplemented"
+
+let rec find_bare_opt (name: string) : 'a env -> 'a option = function
   | [] -> None
   | h :: t ->
     let select (name', _) = name = name' in
     match List.find ~f:select h with
-    | None              -> find_opt name t
+    | None              -> find_bare_opt name t
     | Some (_, binding) -> Some binding
 
-let rec find_all (name: string) : 'a env -> 'a list = function
+let rec find_all_bare (name: string) : 'a env -> 'a list = function
   | [] -> []
-  | h :: t ->
+  | h :: t -> 
      let select acc (name', value) =
        if name' = name
        then value :: acc
        else acc
      in
-     List.fold h ~init:[] ~f:select @ find_all name t
+     List.fold h ~init:[] ~f:select @ find_all_bare name t
+
+let find_all name env =
+  match name with
+  | BareName (_, name) -> find_all_bare name env
+  | QualifiedName ([], (_, n)) ->
+     begin match List.last env with
+     | Some top -> find_all_bare n [top]
+     | None -> no_scopes ()
+     end
+  | _ -> failwith "unimplemented"
 
 let opt_to_exn name v =
   match v with
   | Some v -> v
   | None -> raise (UnboundName name)
 
-let find (name: string) (env: 'a env) : 'a =
-  opt_to_exn name (find_opt name env)
+let find_bare (name: string) (env: 'a env) : 'a =
+  opt_to_exn (BareName (Info.dummy, name)) (find_bare_opt name env)
 
-let find_toplevel (name: string) (env: 'a env) : 'a = match List.rev env with
+let find_toplevel (name: string) (env: 'a env) : 'a =
+  match List.rev env with
   | []       -> no_scopes ()
-  | env :: _ -> find name [env]
+  | env :: _ -> find_bare name [env]
 
-let find_toplevel_opt (name: string) (env: 'a env) : 'a option = match List.rev env with
-| []       -> None
-| env :: _ -> find_opt name [env]
+let find_toplevel_opt (name: string) (env: 'a env) : 'a option =
+  match List.rev env with
+  | []       -> None
+  | env :: _ -> find_bare_opt name [env]
+
+let find (name: name) (env: 'a env) : 'a =
+  match name with
+  | BareName (_, n) -> find_bare n env
+  | QualifiedName ([], (_, n)) -> find_toplevel n env
+  | _ -> failwith "unimplemented"
+
+let find_opt (name: name) (env: 'a env) : 'a option =
+  match name with
+  | BareName (_, n) -> find_bare_opt n env
+  | QualifiedName ([], (_, n)) -> find_toplevel_opt n env
+  | _ -> failwith "unimplemented"
 
 let empty_env : 'a env = [[]]
 
@@ -87,6 +112,11 @@ module EvalEnv = struct
     typ = [[]];
   }
 
+  let get_val_firstlevel (env: t) =
+    match env.vs with
+    | scope :: rest -> scope
+    | [] -> no_scopes ()
+
   let get_toplevel (env : t) : t =
     let get_last l =
       match List.rev l with
@@ -95,9 +125,6 @@ module EvalEnv = struct
     {decl = get_last env.decl;
      vs = get_last env.vs;
      typ = get_last env.typ;}
-
-  let get_val_firstlevel env =
-    List.hd_exn (env.vs)
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -125,27 +152,6 @@ module EvalEnv = struct
 
   let find_typ name e =
     find name e.typ
-
-  let insert_val_toplevel name v env =
-    {env with vs = insert_toplevel name v env.vs}
-
-  let find_val_toplevel name e =
-    find_toplevel name e.vs
-
-  let find_decl_toplevel name e =
-    find_toplevel name e.decl
-
-  let find_typ_toplevel name e =
-    find_toplevel name e.typ
-
-  let insert_val_firstlevel s v e =
-    {e with vs = insert_firstlevel s v e.vs}
-
-  let insert_decl_firstlevel s v e =
-    {e with decl = insert_firstlevel s v e.decl}
-
-  let insert_typ_firstlevel s v e =
-    {e with typ = insert_firstlevel s v e.typ}
 
   let push_scope (e : t) : t =
     {decl = push e.decl;
@@ -215,7 +221,7 @@ end
 module CheckerEnv = struct
 
   type t =
-    { (* program so far *)
+    { (* the program (top level declarations) so far *)
       decl: Prog.Declaration.t list;
       (* types that type names refer to (or Typevar for vars in scope) *)
       typ: Typed.Type.t env;
@@ -249,19 +255,13 @@ module CheckerEnv = struct
     in
     match List.find ~f:ok env.decl with
     | Some v -> v
-    | None -> raise (UnboundName name)
+    | None -> raise (UnboundName (BareName (Info.dummy, name)))
 
   let resolve_type_name_opt name env =
     find_opt name env.typ
 
-  let resolve_type_name name env =
+  let resolve_type_name (name: name) env =
     opt_to_exn name (resolve_type_name_opt name env)
-
-  let resolve_type_name_toplevel name env =
-    find_toplevel name env.typ
-
-  let resolve_type_name_toplevel_opt name env =
-    find_toplevel_opt name env.typ
 
   let find_type_of_opt name env =
     find_opt name env.typ_of
@@ -272,20 +272,17 @@ module CheckerEnv = struct
   let find_types_of name env =
     find_all name env.typ_of
 
-  let find_type_of_toplevel name env =
-    find_toplevel name env.typ_of
-
-  let find_type_of_toplevel_opt name env =
-    find_toplevel_opt name env.typ_of
-
   let find_const name env =
     find name env.const
 
   let find_const_opt name env =
     find_opt name env.const
 
+  let insert_decl d env =
+    { env with decl = d :: env.decl }
+
   let insert_type name typ env =
-    { env with typ = insert_firstlevel name typ env.typ }
+    { env with typ = insert name typ env.typ }
 
   let insert_types names_types env =
     let go env (name, typ) =
@@ -294,7 +291,7 @@ module CheckerEnv = struct
     List.fold ~f:go ~init:env names_types
 
   let insert_type_var var env =
-    { env with typ = insert_firstlevel var (Typed.Type.TypeName var) env.typ }
+    { env with typ = insert var (Typed.Type.TypeName var) env.typ }
 
   let insert_type_vars vars env =
     let go env var =
@@ -303,20 +300,14 @@ module CheckerEnv = struct
     List.fold ~f:go ~init:env vars
 
   let insert_type_of var typ env =
-    { env with typ_of = insert_firstlevel var (typ, Typed.Directionless) env.typ_of }
-
-  let insert_type_of_toplevel var typ env =
-    { env with typ_of = insert_toplevel var (typ, Typed.Directionless) env.typ_of }
+    { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
 
   let insert_dir_type_of var typ dir env =
-    { env with typ_of = insert_firstlevel var (typ, dir) env.typ_of }
+    { env with typ_of = insert var (typ, dir) env.typ_of }
 
   let insert_const var value env =
     { env with const = insert var value env.const }
 
-  let insert_decl d env =
-    { env with decl = d :: env.decl }
-  
   let push_scope env =
     { decl = env.decl;
       typ = push env.typ;

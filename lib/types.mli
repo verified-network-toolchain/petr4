@@ -33,6 +33,11 @@ module P4String : sig
   [@@deriving sexp,yojson]
 end
 
+type name =
+  | BareName of P4String.t
+  | QualifiedName of P4String.t list * P4String.t
+  [@@deriving sexp,yojson]
+
 module rec KeyValue : sig
   type pre_t = 
     { key : P4String.t;
@@ -116,8 +121,7 @@ and Type : sig
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
-    | TopLevelType of P4String.t
-    | TypeName of P4String.t
+    | TypeName of name
     | SpecializedType of
         { base: t; 
           args: t list }
@@ -185,8 +189,7 @@ and Expression : sig
     | False
     | Int of P4Int.t
     | String of P4String.t
-    | Name of P4String.t
-    | TopLevel of P4String.t
+    | Name of name
     | ArrayAccess of 
         { array: t;
           index: t }

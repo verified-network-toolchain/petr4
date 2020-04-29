@@ -1,5 +1,5 @@
 open Sexplib.Conv
-                                   
+
 type direction =
   | In
   | Out
@@ -262,11 +262,8 @@ and Type : sig
     (* match_kind *)
     | MatchKind
 
-    (* References to other types *)
-    | TypeName of string
-
-    (* References to other types in the top-level namespace *)
-    | TopLevelType of string
+    (* References to other types, including top level types *)
+    | TypeName of Types.name
 
     (* "Opaque" type introduced by newtype *)
     | NewType of NewType.t
@@ -347,11 +344,8 @@ end = struct
   (* match_kind *)
   | MatchKind
 
-  (* References to other types *)
-  | TypeName of string
-
-  (* References to other types in the top-level namespace *)
-  | TopLevelType of string
+  (* References to other types, including top level types *)
+  | TypeName of Types.name
 
   (* "Opaque" type introduced by newtype *)
   | NewType of NewType.t

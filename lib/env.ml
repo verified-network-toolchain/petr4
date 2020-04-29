@@ -129,6 +129,9 @@ module EvalEnv = struct
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
 
+  let insert_val_bare name binding e =
+    insert_val (BareName (Info.dummy, name))
+
   let insert_decl name binding e =
     {e with decl = insert name binding e.decl}
 

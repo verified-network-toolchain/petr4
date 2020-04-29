@@ -95,12 +95,14 @@ end = struct
     | String s ->
       Format.fprintf fmt "\"%a\""
         P4String.format_t s
-    | Name x ->
+    | Name (BareName x) ->
       Format.fprintf fmt "%a"
         P4String.format_t x
-    | TopLevel x ->
+    | Name (QualifiedName ([], x)) ->
       Format.fprintf fmt ".%a"
         P4String.format_t x
+    | Name _ ->
+       failwith "unimplemented"
     | ArrayAccess x ->
       Format.fprintf fmt "@[%a[%a]@]"
         format_t x.array
@@ -334,12 +336,14 @@ end = struct
     | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
-    | TopLevelType x ->
-      Format.fprintf fmt "@[.%s@]"
-        (snd x);
-    | TypeName x ->
+    | TypeName (BareName x) ->
       Format.fprintf fmt "@[%s@]"
         (snd x)
+    | TypeName (QualifiedName ([], x)) ->
+      Format.fprintf fmt "@[.%s@]"
+        (snd x);
+    | TypeName _ ->
+       failwith "unimplemented"
     | SpecializedType x ->
       Format.fprintf fmt "@[%a<%a>@]"
         format_t x.base

@@ -211,7 +211,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =
     let name_expr = (Info.dummy, Expression.Name(Info.dummy, name)) in
-    print_endline ("initializing variable " ^ name);
+    (* print_endline ("initializing variable " ^ name); *)
     let env' = EvalEnv.insert_typ name typ env in
     match init with
     | None ->
@@ -219,10 +219,10 @@ module MakeInterpreter (T : Target) = struct
         EvalEnv.insert_val name (init_val_of_typ ctrl env' st name typ) env' in
       (env'', st, SContinue)
     | Some e ->
-      let (_, _, _, v) = eval_expr ctrl env st SContinue e in
-      begin match v with
+      (* let (_, _, _, v) = eval_expr ctrl env st SContinue e in *)
+      (* begin match v with
       | VBit {w;_} -> print_string "variable init width is: "; print_endline (Bigint.to_string w)
-      | _ -> () end;
+      | _ -> () end; *)
       eval_assign ctrl env' st SContinue name_expr e
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
@@ -762,9 +762,9 @@ module MakeInterpreter (T : Target) = struct
       let lsb'' = bigint_of_val lsb' in
       let msb'' = bigint_of_val msb' in
       let w = Bigint.(msb'' - lsb'' + one) in
-      print_string "during assign msb is: "; print_endline (Bigint.to_string msb'');
+      (* print_string "during assign msb is: "; print_endline (Bigint.to_string msb'');
       print_string "during assign lsb is: "; print_endline (Bigint.to_string lsb'');
-      print_string "during assign w is: "; print_endline (Bigint.to_string w);
+      print_string "during assign w is: "; print_endline (Bigint.to_string w); *)
       let (s,v) = value_of_lvalue ctrl env st lv in
       begin match s with
         | SContinue ->
@@ -1579,6 +1579,7 @@ module MakeInterpreter (T : Target) = struct
       | VInt{v=n;_}
       | VBit{v=n;_}
       | VInteger n -> bit_of_rawint n w
+      | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
       | _ -> failwith "cast to bitstring undefined" in
     match s with
     | SContinue -> (env', st', s,v')
@@ -1693,7 +1694,11 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : state) (name : string)
       (v : (loc * string) option) (args : Argument.t list)
       (ts : Type.t list) : env * state * signal * value =
-    print_endline "got to emit";
+    (* print_endline "got to emit";
+    print_string "doing emit for: ";
+    begin match args with
+    | [ (_, Expression {value= (_, Name (_, n))})] -> print_endline n
+    | _ -> () end; *)
     let params = 
       match v with 
       | Some (_, t) -> 
@@ -1703,20 +1708,27 @@ module MakeInterpreter (T : Target) = struct
         |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
         |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
+    (* print_endline "got params"; *)
     let (fenv, st', signal) = copyin ctrl env st params args in
+    (* print_endline "did copy in"; *)
     let env' = EvalEnv.pop_scope fenv in
+    (* print_endline "popped"; *)
     match signal with
     | SExit -> env', st', SExit, VNull
     | SReject s -> env', st', SReject s, VNull
     | SReturn _ | SContinue -> 
     let vs = EvalEnv.get_val_firstlevel fenv |> List.map ~f:snd in
+    (* print_endline "got first level"; *)
     let vs' = match v with
       | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
       | None -> vs in
+    (* print_endline "prepended"; *)
     let vs' = match vs' with
       | _ :: VNull :: [] -> []
       | _ -> vs' in
+    (* print_endline "custom modification"; *)
     let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st' ts vs' name in
+    (* print_endline "called extern"; *)
     let env'' = copyout ctrl fenv' st params args in
     env'', st'', s, v
 
@@ -1744,9 +1756,10 @@ module MakeInterpreter (T : Target) = struct
     let final_env = copyout ctrl fenv' st'' params args in
     match sign with
     | SReturn v -> 
-      begin match v with 
+      (* begin match v with 
       | VBit {w;_} -> print_string "on return width is: " ; print_endline (Bigint.to_string w)
-      | _ -> () end; (final_env, st'', SContinue, v)
+      | _ -> () end; *)
+      (final_env, st'', SContinue, v)
     | SReject _
     | SContinue
     | SExit     -> (final_env, st'', sign, VNull)
@@ -2307,7 +2320,7 @@ module MakeInterpreter (T : Target) = struct
 
   and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
     Bigint.(
-      print_endline "bitstring slice";
+      (* print_endline "bitstring slice"; *)
       if l > zero
       then bitstring_slice (n/(one + one)) (m-one) (l-one)
       else n % (power_of_two (m + one)))

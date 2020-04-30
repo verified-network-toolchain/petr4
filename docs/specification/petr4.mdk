@@ -1467,17 +1467,23 @@ $\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. $\mathkw{pop \
 \end{cases}
 ~
 
-### Copy-In
+### Copy-In/Copy-Out
 
+~ MathPre
+\mathkw{copyin} \xi (d, t, v1, e_{opt}) v2 = \begin{cases} \mathkw{push} \xi & d = @out
+(\mathkw{push}\xi)[v2/v1] & otherwise
+\end{cases}
+~
+
+<!--
 ~ MathPre
 \mathkw{insert\_arg} \xi (d, t, v1, e_{opt}) v2 = \begin{cases} \xi & d = \mathkw{out}
 \xi[v2/v1] & otherwise
 \end{cases}
 ~
-<!--
+
 - type also gets inserted. mapped to v1
 - weird business with headers
--->
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
@@ -1510,9 +1516,17 @@ TODO
 ----------------------------------------------------------------------[CopyIn]
 <\zeta, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow <\xi^n, \sigma^n>
 ~
+-->
 
-### Copy-Out
+~ MathPre
+\mathkw{copyout} \xi (d, t, v, e_{opt}) e = \begin{cases} \mathkw{pop} \xi & d = @in
+\mathkw{pop} \xi & d = @none \land \xi(X) \neq @extern X \dots
+\mathkw{pop} \xi & d = @none \land \xi(.X) \neq @extern X \dots
+TODO: eval_assign' (\mathkw{pop} \xi)[\xi(v)/lvalue of e] & otherwise
+\end{cases}
+~
 
+<!--
 ~ MathPre
 \mathkw{copy\_arg\_out} \zeta \xi \sigma v arg = \begin{cases} \xi & arg = ()
 TODO: eval_assign' so something like e := v where e is from the arg ßbut that doesn't seem right & otherwise
@@ -1568,6 +1582,7 @@ TODO: eval_assign' so something like e := v where e is from the arg ßbut that d
 ----------------------------------------------------------------------[CopyOut]
 <\zeta, \xi, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow \xi^n
 ~
+-->
 
 ## Expressions
 

@@ -30,6 +30,8 @@ run:
 install:
 	dune install
 
+test-stf:
+	dune exec stf-test/test.exe
 
 test:
 	dune runtest

@@ -2,14 +2,16 @@ open Types
 
 type buf = Cstruct_sexp.t [@@deriving sexp,yojson]
 
-type packet_in = buf [@@deriving sexp,yojson]
-type packet_out = buf * buf [@@deriving sexp,yojson]
+type pkt = buf [@@deriving sexp,yojson]
+type pkt_out = buf * buf [@@deriving sexp,yojson]
 
 type entries = Table.pre_entry list 
 
-type value_sets = Match.t list list 
+type vsets = Match.t list list 
 
-type ctrl = entries * value_sets
+type ctrl = entries * vsets
+
+type loc = int [@@deriving sexp, yojson]
 
 type value =
   | VNull
@@ -39,9 +41,11 @@ type value =
       { params : Parameter.t list;
         body : Block.t; }
   | VStruct of 
-      { fields : (string * value) list; }
+      { typ_name : string;
+        fields : (string * value) list; }
   | VHeader of 
-      { fields : (string * value) list;
+      { typ_name : string;
+        fields : (string * value) list;
         is_valid : bool }
   | VUnion of 
       { valid_header : value;
@@ -57,13 +61,18 @@ type value =
       { typ_name : string;
         enum_name : string;
         v : value; }
-  | VRuntime of vruntime
+  | VRuntime of 
+      { loc : loc;
+        typ_name : string; }
   | VParser of vparser
   | VControl of vcontrol
   | VPackage of 
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
+  | VExternFun of 
+      { name : string;
+        caller : (loc * string) option; }
   [@@deriving sexp,yojson]
 
 and vparser = {
@@ -135,11 +144,6 @@ and signal =
   | SReject of string
 [@@deriving sexp,yojson]
 
-and vruntime =
-  | PacketIn of packet_in
-  | PacketOut of packet_out
-[@@deriving sexp,yojson]
-
 val assert_bool : value -> bool 
 
 val assert_rawint : value -> Bigint.t 
@@ -176,7 +180,7 @@ val assert_enum : value -> string * string
 
 val assert_senum : value -> string * string * value 
 
-val assert_runtime : value -> vruntime 
+val assert_runtime : value -> int
 
 val assert_parser : value -> vparser
 
@@ -206,8 +210,4 @@ val assert_prod : set -> set list
 
 val assert_lpm : set -> value * Bigint.t * value 
 
-val assert_valueset : set -> value * Match.t list list * set list 
-
-val assert_packet_in : vruntime -> packet_in 
-
-val assert_packet_out : vruntime -> packet_out
+val assert_valueset : set -> value * Match.t list list * set list

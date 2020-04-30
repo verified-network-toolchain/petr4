@@ -16,7 +16,6 @@
 
 open Petr4.Common
 open Js_of_ocaml
-open Js_of_ocaml_lwt
 
 exception ParsingError of string
 
@@ -38,27 +37,12 @@ open Parse
 let eval verbose packet_str ctrl_str p4_contents =
   let ctrl_json = Yojson.Safe.from_string ctrl_str in
   eval_file [] p4_contents verbose packet_str ctrl_json
-
-let () =
-   let form_submit = Dom_html.getElementById "form-submit" in
-   let text_area_of_string s  =
-      match Dom_html.getElementById s |> Dom_html.CoerceTo.textarea |> Js.Opt.to_option with
-      | Some x -> x
-      | _ -> failwith "bad html"
-    in
-    let area_input = text_area_of_string "code-area" in
-    let area_out = text_area_of_string "output" in
-    let area_packet = text_area_of_string "packet-area" in
-    let area_control_json = text_area_of_string "control-json-area" in
-    Lwt.async @@ fun () ->
-      Lwt_js_events.clicks form_submit @@ fun _ _ ->
-        let packet = area_packet##.value |> Js.to_string in
-        let control_json = area_control_json##.value |> Js.to_string in
-        area_input##.value |> Js.to_string |> print_endline;
-        let p4_content =
-          area_input##.value
-          |> Js.to_string
-        in
-        let out = eval true packet control_json p4_content |> Js.string in
-        area_out##.value := out;
-        Lwt.return ()
+let _ =
+  Js.export "Petr4"
+    (object%js
+       method eval packet control_string p4_content =
+        try
+          eval true (Js.to_string packet) (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
+        with e ->
+          Printexc.to_string e |> Js.string
+     end)

@@ -448,10 +448,10 @@ e_{opt} ::= @None
 
 ## Signals
 ~ Begin P4MathGrammar
-sig ::= @continue
-    | @return v
-    | @exit 
-    | @reject v
+sig ::= \mathkw{sig\_continue}
+    | \mathkw{sig\_return\ v}
+    | \mathkw{sig\_exit} 
+    | \mathkw{sig\_reject\ v}
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -1957,113 +1957,101 @@ TODO
 
 Statements are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, sig, s \rangle \Downarrow_s \langle \xi', \sigma', sig' \rangle$
+$\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \rangle$
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig', v>
+<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
 -----------------------------------------------------------------------------------------------[Method-Call]
-<\zeta, \xi, \sigma, sig, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig'>
+<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, sig, e1 := e2> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <TODO>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Direct-Application]
-<\zeta, \xi, \sigma, sig, t.@apply (e1, ..., e_n)> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <TODO>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @reject v, v>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
 ------------------------------------------------------------------------------[Conditional-Reject]
-<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', @reject v>
+<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, true>
-<\zeta, \xi', \sigma', @continue, s> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ------------------------------------------------------------------------------[If-True]
-<\zeta, \xi, \sigma, sig, @if (e) s> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, false>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
 ------------------------------------------------------------------------------[If-False]
-<\zeta, \xi, \sigma, sig, @if (e) s> \Downarrow_s  <\xi, \sigma, @continue>
+<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s  <\xi, \sigma, \mathkw{sig\_continue}>
 ~
 TODO: why is it not the updated env and st
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, true>
-<\zeta, \xi', \sigma', @continue, s1> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-True]
-<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, e> \Downarrow_e <\xi', \sigma', @continue, false>
-<\zeta, \xi', \sigma', @continue, s2> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\zeta, \xi', \sigma', s2> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-False]
-<\zeta, \xi, \sigma, sig, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig'>
+<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, sig, s_1> \Downarrow_s <\xi', \sigma', sig'>
+<\zeta, \xi, \sigma, s_1> \Downarrow_s <\xi', \sigma', sig'>
 \dots
-<\zeta, \xi^{n-1}, \sigma^{n-1}, sig^{n-1}, s_n> \Downarrow_s <\xi^n, \sigma^n, sig^n>
+<\zeta, \xi^{n-1}, \sigma^{n-1}, s_n> \Downarrow_s <\xi^n, \sigma^n, sig^n>
 -------------------------------------------------------------------------------------[Block]
-<\zeta, \xi, \sigma, sig, \{s1; ... s_n;\}> \Downarrow_s <\xi^n, \sigma^n, sig^n>
+<\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi^n, \sigma^n, sig^n>
 ~
 
 ~ Infer
 
 ---------------------------------------------------------------------[Exit-Continue]
-<\zeta, \xi, \sigma, @continue, @exit> \Downarrow_s <\xi, \sigma, @exit>
-~
-
-~ Infer
-
---------------------------------------------------------------------[Exit-Return]
-<\zeta, \xi, \sigma, @return v, @exit> \Downarrow_s <\xi, \sigma, @return v>
-~
-
-~ Infer
-
----------------------------------------------------------------------[Exit]
-<\zeta, \xi, \sigma, @exit, @exit> \Downarrow_s <\xi, \sigma, @exit>
+<\zeta, \xi, \sigma, @exit> \Downarrow_s <\xi, \sigma, \mathkw{sig\_exit}>
 ~
 
 ~ Infer
 
 ---------------------------------------------[Empty]
-<\zeta, \xi, \sigma, sig, ;> \Downarrow_s <\xi, \sigma, sig>
+<\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Return-Void]
-<\zeta, \xi, \sigma, sig, @return> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, @return> \Downarrow_s <TODO>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Return-Value]
-<\zeta, \xi, \sigma, sig, @return v> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, @return v> \Downarrow_s <TODO>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Switch]
-<\zeta, \xi, \sigma, sig, @switch (e) \{\overline{case}\}> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <TODO>
 ~
 
 ~ Infer
 TODO
 ---------------------------------------------[Declaration-Statement]
-<\zeta, \xi, \sigma, sig, decl> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, decl> \Downarrow_s <TODO>
 ~

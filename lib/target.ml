@@ -181,11 +181,11 @@ module Core = struct
       | VHeader {typ_name; fields; is_valid} -> typ_name, fields
       | _ -> failwith "extract expects header" in
     let t =
-      if Bigint.(w = zero) then EvalEnv.find_typ tname env
-      else EvalEnv.find_typ "variableSizeHeader" env in
+      if Bigint.(w = zero)
+      then EvalEnv.find_typ (BareName (Info.dummy, tname)) env
+      else EvalEnv.find_typ (BareName (Info.dummy, "variableSizeHeader")) env in
     let d = match snd t with
-      | TypeName (_, s) -> EvalEnv.find_decl s env
-      | TopLevelType (_, s) -> EvalEnv.find_decl_toplevel s env
+      | TypeName name -> EvalEnv.find_decl name env
       | _ -> failwith "unreachable" (* TODO: unguarded fail *) in
     let fs = reset_fields init_fs d in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
@@ -209,7 +209,9 @@ module Core = struct
             fields = fs';
             is_valid = true;
           } in
-          let (env', st'', _) = assign ctrl env st (LName "hdr") h in
+          let (env', st'', _) =
+            assign ctrl env st (LName (BareName (Info.dummy, "hdr"))) h
+          in
           env', st'', SContinue, VNull
       end
 
@@ -309,7 +311,7 @@ module Core = struct
 
   and packet_of_struct (env : env) (tname : string)
       (fields : (string * value) list) : pkt =
-    let d = EvalEnv.find_decl tname env in
+    let d = EvalEnv.find_decl (BareName (Info.dummy, tname)) env in
     let fs = reset_fields fields d in
     let fs' = List.map ~f:snd fs in
     let pkts = List.map ~f:(packet_of_value env) fs' in
@@ -521,7 +523,7 @@ module V1Model : Target = struct
 
   let initialize_metadata meta env =
     let nine = Bigint.of_int 9 in
-    EvalEnv.insert_val "ingress_port" (VBit{w=nine; v=meta}) env
+    EvalEnv.insert_val_bare "ingress_port" (VBit{w=nine; v=meta}) env
 
   let check_pipeline env = ()
 
@@ -530,17 +532,12 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline
-        (ctrl: ctrl)
-        (env: env)
-        (st: obj State.t)
-        (pkt: pkt)
-        (app: state apply )
-        (assign: state assign)
-        (init: state init_typ) =
-    let in_port = EvalEnv.find_val "ingress_port" env |> assert_bit |> snd in 
+  let eval_pipeline (ctrl: ctrl) (env: env) (st: obj State.t) (pkt: pkt)
+        (app: state apply ) (assign: state assign) (init: state init_typ) =
+    let in_port = EvalEnv.find_val (BareName (Info.dummy, "ingress_port")) env
+                  |> assert_bit |> snd in 
     let fst23 (a,b,_) = (a,b) in  
-    let main = EvalEnv.find_val "main" env in
+    let main = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
     let vs = assert_package main |> snd in
     let parser =
       List.Assoc.find_exn vs "p"   ~equal:String.equal in
@@ -558,6 +555,10 @@ module V1Model : Target = struct
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
+    let pkt_name = BareName (Info.dummy, "packet") in
+    let hdr_name = BareName (Info.dummy, "hdr") in
+    let meta_name = BareName (Info.dummy, "meta") in
+    let std_meta_name = BareName (Info.dummy, "std_meta") in
     let deparse_params = 
       match deparser with 
       | VControl {cparams=ps;_} -> ps
@@ -574,14 +575,15 @@ module V1Model : Target = struct
       init ctrl env st (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
-              |> insert_val "packet"   vpkt
-              |> insert_val "hdr"      hdr
-              |> insert_val "meta"     meta
-              |> insert_val "std_meta" std_meta
-              |> insert_typ "packet"   (snd (List.nth_exn params 0)).typ
-              |> insert_typ "hdr"      (snd (List.nth_exn params 1)).typ
-              |> insert_typ "meta"     (snd (List.nth_exn params 2)).typ
-              |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
+              |> insert_val pkt_name      vpkt
+              |> insert_val hdr_name      hdr
+              |> insert_val meta_name     meta
+              |> insert_val std_meta_name std_meta
+              |> insert_typ pkt_name      (snd (List.nth_exn params 0)).typ
+              |> insert_typ hdr_name      (snd (List.nth_exn params 1)).typ
+              |> insert_typ meta_name     (snd (List.nth_exn params 2)).typ
+              |> insert_typ std_meta_name (snd (List.nth_exn params 3)).typ)
+    in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
     let (env, st, _) = 
@@ -589,22 +591,22 @@ module V1Model : Target = struct
         ctrl
         env
         st
-        (LMember{expr=LName("std_meta"); name="ingress_port"})
+        (LMember{expr=LName std_meta_name; name="ingress_port"})
         (VBit{w=nine;v=in_port}) in
     let pkt_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
+      Info.dummy, Argument.Expression {value = Info.dummy, Name pkt_name} in
     let hdr_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
+      Info.dummy, Argument.Expression {value = Info.dummy, Name hdr_name} in
     let meta_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
+      Info.dummy, Argument.Expression {value = Info.dummy, Name meta_name} in
     let std_meta_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
+      (Info.dummy, Argument.Expression {value = (Info.dummy, Name std_meta_name)}) in
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let (env,st) = 
       match state with 
       | SReject err -> 
-        assign ctrl env st (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) 
+        assign ctrl env st (LMember{expr=LName std_meta_name;name="parser_error"}) (VError(err)) 
         |> fst23
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
@@ -615,8 +617,8 @@ module V1Model : Target = struct
         pktout_loc 
         (CoreObject (PacketOut (Cstruct.create 0, State.find pkt_loc st
                                                   |> assert_pkt))) st in
-    let env = EvalEnv.insert_val "packet" vpkt' env in
-    let env = EvalEnv.insert_typ "packet" (snd (List.nth_exn deparse_params 0)).typ env in (* TODO: add type to env here *)
+    let env = EvalEnv.insert_val pkt_name vpkt' env in
+    let env = EvalEnv.insert_typ pkt_name (snd (List.nth_exn deparse_params 0)).typ env in (* TODO: add type to env here *)
     let (env,st,_) = 
       (env,st)
       |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst23
@@ -626,7 +628,7 @@ module V1Model : Target = struct
       |> eval_v1control ctrl app deparser [pkt_expr; hdr_expr] in
     print_endline "After runtime evaluation";
     EvalEnv.print_env env;
-    match EvalEnv.find_val "packet" env with
+    match EvalEnv.find_val pkt_name env with
     | VRuntime {loc; _ } -> 
       begin match State.find loc st with 
         | CoreObject (PacketOut(p0,p1)) -> st, env, Cstruct.append p0 p1
@@ -671,18 +673,19 @@ module EbpfFilter : Target = struct
     let pckt = VRuntime (PacketIn pkt) in
     let hdr = init ctrl env st (snd (List.nth_exn params 1)).typ in
     let accept = VBool (false) in
+    let accept_name = BareName (Info.dummy, "accept") in
     let env =
       EvalEnv.(env
-               |> insert_val "packet" pckt
-               |> insert_val "hdr"    hdr
-               |> insert_val "accept" accept
-               |> insert_typ "packet" (snd (List.nth_exn params 0)).typ
-               |> insert_typ "hdr"    (snd (List.nth_exn params 1)).typ
-               |> insert_typ "accept" (Info.dummy, Type.Bool)) in
+               |> insert_val pkt_name    pckt
+               |> insert_val hdr_name    hdr
+               |> insert_val accept_name accept
+               |> insert_typ pkt_name    (snd (List.nth_exn params 0)).typ
+               |> insert_typ hdr_name    (snd (List.nth_exn params 1)).typ
+               |> insert_typ accept_name (Info.dummy, Type.Bool)) in
     let pckt_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
+      Info.dummy, Argument.Expression {value = Info.dummy, Name pkt_name} in
     let hdr_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
+      Info.dummy, Argument.Expression {value = Info.dummy, Name hdr_name} in
     let accept_expr =
       (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "accept"))}) in
     let (env, st,state, _) =

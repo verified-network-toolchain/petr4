@@ -104,8 +104,7 @@ and vtable = {
 [@@deriving sexp,yojson]
 
 and lvalue =
-  | LName of string
-  | LTopName of string
+  | LName of Types.name
   | LMember of 
     { expr : lvalue;
       name : string; }
@@ -269,11 +268,6 @@ let assert_lname l =
   match l with 
   | LName s -> s 
   | _ -> failwith "not an lvalue name"
-
-let assert_ltopname l = 
-  match l with 
-  | LTopName s -> s 
-  | _ -> failwith "not an lvalue top-leval name "
 
 let assert_lmember l =
   match l with 

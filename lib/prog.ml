@@ -93,8 +93,7 @@ and Expression : sig
   | False
   | Int of Types.P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -152,8 +151,7 @@ end = struct
   | False
   | Int of Types.P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -236,7 +234,7 @@ end
 and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -276,7 +274,7 @@ and Table : sig
     end = struct
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 

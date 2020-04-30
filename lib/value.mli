@@ -101,8 +101,7 @@ and vtable = {
 [@@deriving sexp,yojson]
 
 and lvalue =
-  | LName of string
-  | LTopName of string
+  | LName of Types.name
   | LMember of 
     { expr : lvalue;
       name : string; }
@@ -190,9 +189,7 @@ val assert_package : value -> Declaration.t * (string * value) list
 
 val assert_table : value -> vtable 
 
-val assert_lname : lvalue -> string 
-
-val assert_ltopname : lvalue -> string 
+val assert_lname : lvalue -> Types.name
 
 val assert_lmember : lvalue -> lvalue * string 
 

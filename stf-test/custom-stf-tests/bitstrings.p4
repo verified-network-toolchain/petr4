@@ -95,5 +95,3 @@ V1Switch(
     MyChecksum(),
     MyDeparser()
     ) main;
-
-/* lots of bugs */

@@ -45,8 +45,6 @@ module CheckerEnv : sig
 
   val resolve_type_name_opt : name -> t -> Typed.Type.t option
   val resolve_type_name : name -> t -> Typed.Type.t
-  val find_decl_opt : name -> t -> Prog.Declaration.t option
-  val find_decl : name -> t -> Prog.Declaration.t
   val find_type_of_opt : name -> t -> (Typed.Type.t * Typed.direction) option
   val find_type_of : name -> t -> Typed.Type.t * Typed.direction
   val find_types_of : name -> t -> (Typed.Type.t * Typed.direction) list
@@ -55,7 +53,6 @@ module CheckerEnv : sig
   val insert_type_of : name -> Typed.Type.t -> t -> t
   val insert_dir_type_of : name -> Typed.Type.t -> Typed.direction -> t -> t
   val insert_type_var : name -> t -> t
-  val insert_decl : Prog.Declaration.t -> t -> t
   val push_scope : t -> t
   val pop_scope : t -> t
 

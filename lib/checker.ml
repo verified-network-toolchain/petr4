@@ -12,6 +12,8 @@ module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
+module Eval = Eval.MakeInterpreter(Target.V1Model)
+
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
   | Some v -> v
@@ -91,7 +93,7 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : V
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Value.VStruct { fields = es })
+     | Some es -> Some (Value.VStruct { fields = es; typ_name = "" })
      | None -> None
      end
   | _ -> None
@@ -750,7 +752,8 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   fun env vars typ ->
   let open Types.Type in
   let eval e =
-    Eval.eval_expression (CheckerEnv.eval_env_of_t env) ([], []) e
+    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state e
+    |> fun (a,_,b) -> (a,b)
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with
@@ -2565,43 +2568,42 @@ and type_keys env keys =
 
 and type_table_actions env key_types actions =
   let type_table_action (call_info, action: Table.action_ref) =
-    match CheckerEnv.find_decl_opt action.name env with
-    | Some (_, Action action_decl) ->
-       (* Below should fail if there are control plane arguments *)
-       let params_args = match_params_to_args call_info action_decl.data_params action.args in
-       let type_param_arg env (param, expr: Prog.TypeParameter.t * Expression.t option) =
-         match expr with
-         | Some expr ->
-             let arg_typed = type_expression env expr in
-             check_direction env (snd param).direction expr (snd arg_typed).dir;
-             assert_type_equality env call_info (snd arg_typed).typ (snd param).typ;
-             Some arg_typed
-         | None ->
-            match (snd param).direction with
-            | Out -> None
-            | _ ->
-               raise_s [%message "don't care argument (underscore) provided for non-out parameter"
-                           ~call_site:(call_info: Info.t) ~param:(snd (snd param).variable)]
-       in
-       let args_typed = List.map ~f:(type_param_arg env) params_args in
-       let open Prog.Table in
-       (call_info,
-        { action =
-            { annotations = action.annotations;
-              name = action.name;
-              args = args_typed };
-          typ = fst @@ CheckerEnv.find_type_of action.name env })
-    | _ ->
-       raise_s [%message "invalid action" ~action:(action.name: Types.name)]
+    let data_params =
+      match CheckerEnv.find_type_of_opt action.name env with
+      | Some (Action action_typ, _) ->
+         action_typ.data_params
+      | _ ->
+         raise_s [%message "invalid action" ~action:(action.name: Types.name)]
+    in
+    (* Below should fail if there are control plane arguments *)
+    let params_args = match_params_to_args' call_info data_params action.args in
+    let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
+      match expr with
+      | Some expr ->
+         let arg_typed = type_expression env expr in
+         check_direction env param.direction expr (snd arg_typed).dir;
+         assert_type_equality env call_info (snd arg_typed).typ param.typ;
+         Some arg_typed
+      | None ->
+         match param.direction with
+         | Out -> None
+         | _ ->
+            raise_s [%message "don't care argument (underscore) provided for non-out parameter"
+                        ~call_site:(call_info: Info.t) ~param:(snd param.variable)]
+    in
+    let args_typed = List.map ~f:(type_param_arg env) params_args in
+    let open Prog.Table in
+    (call_info,
+     { action =
+         { annotations = action.annotations;
+           name = action.name;
+           args = args_typed };
+       typ = fst @@ CheckerEnv.find_type_of action.name env })
   in
   let action_typs = List.map ~f:type_table_action actions in
-  let action_names =
-    List.map actions
-      ~f:(fun (_, action) -> Types.name_only action.name)
-  in
-  match List.find_a_dup ~compare:String.compare action_names with
-  | Some a_name -> raise_s [%message "duplicated action name" ~a_name]
-  | None -> List.zip_exn action_names action_typs
+  (* Need to fail in the case of duplicate action names *)
+  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> name_only action.name) actions in
+  List.zip_exn action_names action_typs
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
@@ -3071,60 +3073,56 @@ and type_package_type env info annotations name t_params params =
   (info, pkg_decl), env'
 
 and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
-  let (decl': Prog.Declaration.t), env =
-    match snd decl with
-    | Constant { annotations; typ; name; value } ->
-      type_constant env (fst decl) annotations typ name value
-    | Instantiation { annotations; typ; args; name; init } ->
-       begin match init with
-       | Some init -> failwith "initializer block in instantiation unsupported"
-       | None -> type_instantiation env (fst decl) annotations typ args name
-       end
-    | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
-      type_parser env (fst decl) name annotations params constructor_params locals states
-    | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
-      type_control env (fst decl) name annotations type_params params constructor_params locals apply
-    | Function { return; name; type_params; params; body } ->
-      type_function env (fst decl) return name type_params params body
-    | ExternFunction { annotations; return; name; type_params; params } ->
-      type_extern_function env (fst decl) annotations return name type_params params
-    | Variable { annotations; typ; name; init } ->
-      type_variable env (fst decl) annotations typ name init
-    | ValueSet { annotations; typ; size; name } ->
-      type_value_set env (fst decl) annotations typ size name
-    | Action { annotations; name; params; body } ->
-      type_action env (fst decl) annotations name params body
-    | Table { annotations; name; properties } ->
-      type_table env (fst decl) annotations name properties
-    | Header { annotations; name; fields } ->
-      type_header env (fst decl) annotations name fields
-    | HeaderUnion { annotations; name; fields } ->
-      type_header_union env (fst decl) annotations name fields
-    | Struct { annotations; name; fields } ->
-      type_struct env (fst decl) annotations name fields
-    | Error { members } ->
-      type_error env (fst decl) members
-    | MatchKind { members } ->
-      type_match_kind env (fst decl) members
-    | Enum { annotations; name; members } ->
-      type_enum env (fst decl) annotations name members
-    | SerializableEnum { annotations; typ; name; members } ->
-      type_serializable_enum env (fst decl) annotations typ name members
-    | ExternObject { annotations; name; type_params; methods } ->
-      type_extern_object env (fst decl) annotations name type_params methods
-    | TypeDef { annotations; name; typ_or_decl } ->
-      type_type_def env (fst decl) annotations name typ_or_decl
-    | NewType { annotations; name; typ_or_decl } ->
-      type_new_type env (fst decl) annotations name typ_or_decl
-    | ControlType { annotations; name; type_params; params } ->
-      type_control_type env (fst decl) annotations name type_params params
-    | ParserType { annotations; name; type_params; params } ->
-      type_parser_type env (fst decl) annotations name type_params params
-    | PackageType { annotations; name; type_params; params } ->
-      type_package_type env (fst decl) annotations name type_params params
-  in
-  let env = compile_time_eval_decl env decl' in
-  decl', CheckerEnv.insert_decl decl' env
+  match snd decl with
+  | Constant { annotations; typ; name; value } ->
+     type_constant env (fst decl) annotations typ name value
+  | Instantiation { annotations; typ; args; name; init } ->
+     begin match init with
+     | Some init -> failwith "initializer block in instantiation unsupported"
+     | None -> type_instantiation env (fst decl) annotations typ args name
+     end
+  | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
+     type_parser env (fst decl) name annotations params constructor_params locals states
+  | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+     type_control env (fst decl) name annotations type_params params constructor_params locals apply
+  | Function { return; name; type_params; params; body } ->
+     type_function env (fst decl) return name type_params params body
+  | ExternFunction { annotations; return; name; type_params; params } ->
+     type_extern_function env (fst decl) annotations return name type_params params
+  | Variable { annotations; typ; name; init } ->
+     type_variable env (fst decl) annotations typ name init
+  | ValueSet { annotations; typ; size; name } ->
+     type_value_set env (fst decl) annotations typ size name
+  | Action { annotations; name; params; body } ->
+     type_action env (fst decl) annotations name params body
+  | Table { annotations; name; properties } ->
+     type_table env (fst decl) annotations name properties
+  | Header { annotations; name; fields } ->
+     type_header env (fst decl) annotations name fields
+  | HeaderUnion { annotations; name; fields } ->
+     type_header_union env (fst decl) annotations name fields
+  | Struct { annotations; name; fields } ->
+     type_struct env (fst decl) annotations name fields
+  | Error { members } ->
+     type_error env (fst decl) members
+  | MatchKind { members } ->
+     type_match_kind env (fst decl) members
+  | Enum { annotations; name; members } ->
+     type_enum env (fst decl) annotations name members
+  | SerializableEnum { annotations; typ; name; members } ->
+     type_serializable_enum env (fst decl) annotations typ name members
+  | ExternObject { annotations; name; type_params; methods } ->
+     type_extern_object env (fst decl) annotations name type_params methods
+  | TypeDef { annotations; name; typ_or_decl } ->
+     type_type_def env (fst decl) annotations name typ_or_decl
+  | NewType { annotations; name; typ_or_decl } ->
+     type_new_type env (fst decl) annotations name typ_or_decl
+  | ControlType { annotations; name; type_params; params } ->
+     type_control_type env (fst decl) annotations name type_params params
+  | ParserType { annotations; name; type_params; params } ->
+     type_parser_type env (fst decl) annotations name type_params params
+  | PackageType { annotations; name; type_params; params } ->
+     type_package_type env (fst decl) annotations name type_params params
 
 and type_declarations env decls =
   let f (decls_typed, env) decl =

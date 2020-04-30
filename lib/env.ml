@@ -212,7 +212,7 @@ module EvalEnv = struct
         | VStruct {fields;_} ->
           print_endline "<struct>";
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
-        | VHeader {fields;is_valid} ->
+        | VHeader {fields;is_valid;_} ->
           print_endline ("<header> with " ^ (string_of_bool is_valid));
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
         | VUnion {valid_header;valid_fields} ->
@@ -225,14 +225,12 @@ module EvalEnv = struct
         | VStack _ -> "<stack>"
         | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
         | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
-        | VRuntime r ->
-          begin match r with
-            | PacketIn p -> Cstruct.to_string p
-            | PacketOut (p1,p2) -> Cstruct.to_string (Cstruct.append p1 p2) end
+        | VRuntime r -> "<location>"
         | VParser _ -> "<parser>"
         | VControl _ -> "<control>"
         | VPackage _ -> "<package>"
-        | VTable _ -> "<table>" in
+        | VTable _ -> "<table>"
+        | VExternFun _ -> "<function>" in
       print_endline vstring in
     match e.vs with
     | [] -> ()
@@ -243,9 +241,7 @@ end
 module CheckerEnv = struct
 
   type t =
-    { (* the program (top level declarations) so far *)
-      decl: (Prog.Declaration.t list) list;
-      (* types that type names refer to (or Typevar for vars in scope) *)
+    { (* types that type names refer to (or Typevar for vars in scope) *)
       typ: Typed.Type.t env;
       (* maps variables to their types & directions *)
       typ_of: (Typed.Type.t * Typed.direction) env;
@@ -254,35 +250,9 @@ module CheckerEnv = struct
   [@@deriving sexp,yojson]
 
   let empty_t : t =
-    { decl = [[]];
-      typ = empty_env;
+    { typ = empty_env;
       typ_of = empty_env;
       const = empty_env }
-
-  let find_decl_opt_bare name decl_env =
-    let ok decl =
-      match Prog.Declaration.name_opt decl with
-      | Some decl_name ->
-         name = snd decl_name
-      | None -> false
-    in
-    List.find ~f:ok (List.concat decl_env)
-
-  let find_decl_opt_toplevel name decl_env =
-    find_decl_opt_bare name [List.last_exn decl_env]
-
-  let find_decl_opt name env =
-    match name with
-    | BareName name ->
-       find_decl_opt_bare (snd name) env.decl
-    | QualifiedName ([], name) ->
-       find_decl_opt_toplevel (snd name) env.decl
-    | _ -> failwith "unimplemented"
-
-  let find_decl name env =
-    match find_decl_opt name env with
-    | Some v -> v
-    | None -> raise (UnboundName name)
 
   let resolve_type_name_opt name env =
     find_opt name env.typ
@@ -304,12 +274,6 @@ module CheckerEnv = struct
 
   let find_const_opt name env =
     find_opt name env.const
-
-  let insert_decl d env =
-    match env.decl with
-    | scope :: rest ->
-       { env with decl = (d :: scope) :: rest }
-    | [] -> no_scopes ()
 
   let insert_type name typ env =
     { env with typ = insert name typ env.typ }
@@ -339,14 +303,12 @@ module CheckerEnv = struct
     { env with const = insert var value env.const }
 
   let push_scope env =
-    { decl = env.decl;
-      typ = push env.typ;
+    { typ = push env.typ;
       typ_of = push env.typ_of;
       const = push env.const }
 
   let pop_scope env =
-    { decl = env.decl;
-      typ = pop env.typ;
+    { typ = pop env.typ;
       typ_of = pop env.typ_of;
       const = pop env.const }
 

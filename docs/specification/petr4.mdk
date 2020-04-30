@@ -460,17 +460,14 @@ sig ::= \mathkw{sig\_continue}
 
 All typing judgments include
 
-1. $P$, the program seen so far,
-2. $\Sigma$, the values of any compile-time-known constants,
-3. $\Delta$, the definitions of type names in scope, and
-4. $\Gamma$, the types of variables in scope.
+1. $\Sigma$, the values of any compile-time-known constants,
+2. $\Delta$, the definitions of type names in scope, and
+3. $\Gamma$, the types of variables in scope.
 
 Type variables are tracked by mapping type names $X$ to themselves in
 the context $\Delta$. Equivalently there could be another context that
 was a list of lists of type variables, without them being mapped to
-anything. While $P$ is a list of declarations, it may also be treated
-as a mapping from type names to declarations for those declarations
-which have names.
+anything.
 
 ~ MathPre
 \sigma ::= \sigma, x=v | []
@@ -546,37 +543,37 @@ e1[e2:e3] @lvalue
 ~ Infer
 
 ------------------------[Bool-True]
- P,S,D,G |- @true : @bool, @none
+ S,D,G |- @true : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- P,S,D,G |- @false : @bool, @none
+ S,D,G |- @false : @bool, @none
 ~
 
 ~ Infer
 
 ------------------------[String]
- P,S,D,G |- u : @string, @none
+ S,D,G |- u : @string, @none
 ~
 
 ~ Infer
 
 ------------------------[Int-Constant]
-P,S,D,G |- a : @int, @none
+S,D,G |- a : @int, @none
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-P,S,D,G |- nsa : @int<w>, @none
+S,D,G |- nsa : @int<w>, @none
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-P,S,D,G |- nwa : @bit<a>, @none
+S,D,G |- nwa : @bit<a>, @none
 ~
 
 ### Variables
@@ -584,64 +581,64 @@ P,S,D,G |- nwa : @bit<a>, @none
 ~ Infer
 G(x) = t, d
 -------------------[Var]
-P,S,D,G |- x : t, d
+S,D,G |- x : t, d
 ~
 
 ~ Infer
 G(.x) = t, d
 ----------------------[Var-Top]
-P,S,D,G |- .x : t, d
+S,D,G |- .x : t, d
 ~
 
 ### Accesses
 
 ~ Infer
-P,S,D,G |- e_1 : t_1[], d_1
-P,S,D,G |- e_2  : t_2, \_
+S,D,G |- e_1 : t_1[], d_1
+S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
 ----------------------[Array-Access]
-P,S,D,G |- e_1[e_2] : t_1, d_1
+S,D,G |- e_1[e_2] : t_1, d_1
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : @bit<w>, d_1
-P,S,D,G |- e_2  : t_2, \_
+S,D,G |- e_1 : @bit<w>, d_1
+S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
-P,S,D,G |- e_3  : t_3, \_
+S,D,G |- e_3  : t_3, \_
 @numeric(t_3)
 0 \leq e_2
 e_2 \lt w
 e_2 \leq e_3
 e_3 \lt w
 ------------------------[Slice]
-P,S,D,G |- e1[e2:e3] : t_1, d_1
+S,D,G |- e1[e2:e3] : t_1, d_1
 ~
 
 ~ Infer
-P,S,D,G |- \overline{e: \tau, none}
+S,D,G |- \overline{e: \tau, none}
 -----------------------------------------------[List-Expression]
-P,S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
 ### Unary Operations
 
 ~ Infer
-P,S,D,G |- e : @bool, d
+S,D,G |- e : @bool, d
 -------------------[Not]
-P,S,D,G |- !e : @bool, d
+S,D,G |- !e : @bool, d
 ~
 
 ~ Infer
-P,S,D,G |- e : @bit<w>, d
+S,D,G |- e : @bit<w>, d
 -----------------------------[Bitwise-Not]
-P,S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
+S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
 ~
 
 ~ Infer
-P,S,D,G |- e : t, d
+S,D,G |- e : t, d
 @numeric(t)
 --------------------[Negate]
-P,S,D,G |- {-e} : t, d
+S,D,G |- {-e} : t, d
 ~
 
 ### Binary Operations
@@ -652,27 +649,27 @@ P,S,D,G |- {-e} : t, d
 ```
 
 ~ Infer
-P,S,D,G |- e_1 : @bool, d_1
-P,S,D,G |- e_2 : @bool, d_2
+S,D,G |- e_1 : @bool, d_1
+S,D,G |- e_2 : @bool, d_2
 \diamond \in \{ \&\&, || \}
 ------------------------------------------------------------------[Bool-Binary-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : @int, d_1
-P,S,D,G |- e_2 : @int, d_2
+S,D,G |- e_1 : @int, d_1
+S,D,G |- e_2 : @int, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
 --------------------------------------------------------[Int-Binary-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : @int<w>, d_1
-P,S,D,G |- e_2 : @int<w>, d_2
+S,D,G |- e_1 : @int<w>, d_1
+S,D,G |- e_2 : @int<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
 -----------------------------------------------------------[Int-Signed-Binary-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -680,11 +677,11 @@ having trouble with ^ symbol for xor
 -->
 
 ~ Infer
-P,S,D,G |- e_1 : @bit<w>, d_1
-P,S,D,G |- e_2 : @bit<w>, d_2
+S,D,G |- e_1 : @bit<w>, d_1
+S,D,G |- e_2 : @bit<w>, d_2
 \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
 ----------------------------------------------------------[Int-Unsigned-Binary-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
 ~
 
 <!--
@@ -692,29 +689,29 @@ need to define has_equality
 -->
 
 ~ Infer
-P,S,D,G |- e_1 : t, d_1
-P,S,D,G |- e_2 : t, d_2
+S,D,G |- e_1 : t, d_1
+S,D,G |- e_2 : t, d_2
 \mathkw{has\_equality}(t)
 \diamond \in \{ ==,!= \}
 ----------------------------------------------------------[Equality-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : @bit<l>, d_1
-P,S,D,G |- e_2 : @bit<r>, d_2
+S,D,G |- e_1 : @bit<l>, d_1
+S,D,G |- e_2 : @bit<r>, d_2
 ---------------------------------[Bit-Concat-Op]
-P,S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : t_1, d_1
-P,S,D,G |- e_2 : t_2, d_2
+S,D,G |- e_1 : t_1, d_1
+S,D,G |- e_2 : t_2, d_2
 @numeric(t_1)
 t_2 = @bit<\_> \lor t_2 = @int
 \diamond \in \{\ll, \gg\}
 ---------------------------------[Shift-Op]
-P,S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
+S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
 ~
 
 ### Casts
@@ -785,38 +782,38 @@ t \mathrel{\prec} @newtype X t
 ~
 
 ~ Infer
-P,S,D,G |- e : t_0, d
+S,D,G |- e : t_0, d
 t_0 \prec t
 ------------------------[Cast]
-P,S,D,G |- (t) e : t, d
+S,D,G |- (t) e : t, d
 ~
 
 ### Member expressions
 ~ Infer
 D(X) = @enum t X \{m_1,\dots,m_n\}
 ---------------------------------------[Type-Member-Serializable-Enum]
-P,S,D,G |- X.m_i:X,@none
+S,D,G |- X.m_i:X,@none
 ~
 
 ~ Infer
 D(X) = @enum X \{m_1,\dots,m_n\}
 ---------------------------------------[Type-Member-Enum]
-P,S,D,G |- X.m_i:X,@none
+S,D,G |- X.m_i:X,@none
 ~
 
 ~ Infer
 G(@error.name) = @error
 -------------------------------------[Error-Member]
-P,S,D,G |- @error.name : error, @none
+S,D,G |- @error.name : error, @none
 ~
 
 Field and method lookups on expressions are delegated to another
 judgment $\mathkw{has\_field}\ t\ name\ t_{name}$.
 ~ Infer
-P,S,D,G, |- e : t
+S,D,G, |- e : t
 \mathkw{has\_field} t name t_{name}
 ------------------------------------[Expression-Member]
-P,S,D,G |- e.name : t_{name}
+S,D,G |- e.name : t_{name}
 ~
 
 ~ Infer
@@ -926,26 +923,26 @@ P,S,D,G |- e.name : t_{name}
 ### Ternary Expression
 
 ~ Infer
-P,S,D,G |- e_1 : @bool, \_
-P,S,D,G |- e_2 : t, \_
-P,S,D,G |- e_3 : t, \_
+S,D,G |- e_1 : @bool, \_
+S,D,G |- e_2 : t, \_
+S,D,G |- e_3 : t, \_
 --------------------------------[Ternary-Op]
-P,S,D,G |- e_1 ? e_2 : e_3 : t, @none
+S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
 ### Function Calls
 TODO: Check directions
 TODO: Handle overloads of extern functions
 ~ Infer
-P,S,D,G |- f : f<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+S,D,G |- f : f<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 ----------------------------------------------------------------------------[Function-Call-Nameless]
-P,S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
+S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
 
 ~ Infer
-P,S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
-\forall j, \, P,S,D[\overline{X \to \rho}],G \vdash e_j:t_j
+S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
+\forall j, \, S,D[\overline{X \to \rho}],G \vdash e_j:t_j
 ----------------------------------------------------------------------------[Function-Call-Named]
 \Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
 ~
@@ -965,15 +962,15 @@ X:t_{ctor} \in G
 @length \overline{e} = n
 @length \overline{\rho} = @length \overline{X}
 \mathkw{resolve\_overload} G Y n = @constructor<\overline{X}>(\overline{x:t}): t_{ret}
-P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 --------------------------------------------------------------------[Specialized-Type-Instantiation]
-P,S,D,G |- Y<\overline{\rho}>(\overline{e}) : t_{ret}[\overline{\rho/X}]
+S,D,G |- Y<\overline{\rho}>(\overline{e}) : t_{ret}[\overline{\rho/X}]
 ~
 
 ~ Infer
-P,S,D,G |- X<>(\overline{e}) : t
+S,D,G |- X<>(\overline{e}) : t
 ----------------------------------[Simple-Type-Instantiation]
-P,S,D,G |- X(\overline{e}) : t
+S,D,G |- X(\overline{e}) : t
 ~
 
 ### Set Operations
@@ -982,47 +979,47 @@ TODO: the Masks rule is based off of the spec
 and diverges from the type checker's implementation
 
 ~ Infer
-P,S,D,G |- e_1 : @bit<w>, \_
-P,S,D,G |- e_2 : @bit<w>, \_
+S,D,G |- e_1 : @bit<w>, \_
+S,D,G |- e_2 : @bit<w>, \_
 ------------------------------------------------[Masks]
-P,S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
+S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
 ~
 
 ~ Infer
-P,S,D,G |- e_1 : \tau, \_
-P,S,D,G |- e_2 : \tau, \_
+S,D,G |- e_1 : \tau, \_
+S,D,G |- e_2 : \tau, \_
 \tau = @bit<w> \lor \tau = @int<w>
 -------------------------[Ranges]
-P,S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
+S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
 
 ## Statement typing
 
 Statements are typed by a judgment of the form
 ~ MathPre
-P,S,D,G,ctx |- s:sig -| G'.
+S,D,G,ctx |- s:sig -| G'.
 ~
 
 The judgment is defined inductively by the following rules.
 
 ~ Infer
-P,S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m):t
+S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m):t
 -------------------------------------------------------[Type-Stmt-Method-Call]
-P,S,D,G,ctx |- e<t_1,\dots,t_n>(e_1,\dots,e_m):\bot -| G
+S,D,G,ctx |- e<t_1,\dots,t_n>(e_1,\dots,e_m):\bot -| G
 ~
 
 ~ Infer
 \mathkw{lvalue}(e_l)
-P,S,D,G |- e_l: t
-P,S,D,G |- e_r: t
+S,D,G |- e_l: t
+S,D,G |- e_r: t
 ----------------------------[Type-Stmt-Assignment]
-P,S,D,G,ctx |- e_l:=e_r:\bot -| G
+S,D,G,ctx |- e_l:=e_r:\bot -| G
 ~
 
 ~ Infer
-P,S,D,G |- t().@apply(\overline{e}) : t'
+S,D,G |- t().@apply(\overline{e}) : t'
 ----------------------------------------------[Type-Stmt-Direct-Application]
-P,S,D,G,ctx |- t.@apply(\overline{e}):bot -| G
+S,D,G,ctx |- t.@apply(\overline{e}):bot -| G
 ~
 
 The $\wedge{}$ operator is $\mathkw{returns}$ if both of its arguments
@@ -1030,11 +1027,11 @@ are $\mathkw{returns}$ and $\bot$ otherwise. The $\vee{}$ operator is
 $\mathkw{returns}$ if any of its arguments are $\mathkw{returns}$
 and $\bot$ otherwise.
 ~ Infer
-P,S,D,G |- e:@bool
-P,S,D,G,ctx |- s_1:sig_1 -| G_1
-P,S,D,G,ctx |- s_2:sig_2 -| G_2
+S,D,G |- e:@bool
+S,D,G,ctx |- s_1:sig_1 -| G_1
+S,D,G,ctx |- s_2:sig_2 -| G_2
 ----------------------------------------------[Type-Stmt-Conditional]
-P,S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
 ~
 
 We need another judgment for typing sequences $\overline{s}$ of
@@ -1044,69 +1041,69 @@ rule...)
 ~ Infer
 
 ---------------------------------------------------[Type-Stmts-Empty]
-P,S,D,G,ctx |- \overline{  } :\bot -| G
+S,D,G,ctx |- \overline{  } :\bot -| G
 ~
 
 ~ Infer
-P,S,D,G,ctx  |- s:sig_1 -| G'
-P,S,D,G',ctx |- \overline{s}:sig_2 -| G'
+S,D,G,ctx  |- s:sig_1 -| G'
+S,D,G',ctx |- \overline{s}:sig_2 -| G'
 ---------------------------------------------------[Type-Stmts-List]
-P,S,D,G,ctx |- s;\overline{s}:sig_1 \vee sig_2 -| G
+S,D,G,ctx |- s;\overline{s}:sig_1 \vee sig_2 -| G
 ~
 
 ~ Infer
-P,S,D,G,ctx |- \overline{s}:sig -| G'
+S,D,G,ctx |- \overline{s}:sig -| G'
 ---------------------------------------------------[Type-Stmt-Block]
-P,S,D,G,ctx |- \{\overline{s}\}:sig -| G
+S,D,G,ctx |- \{\overline{s}\}:sig -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Exit]
-P,S,D,G,@InParserState |- @exit:@returns -| G
+S,D,G,@InParserState |- @exit:@returns -| G
 ~
 
 ~ Infer
 
 ------------------------------------------[Type-Stmt-Empty]
-P,S,D,G,ctx |- \mathkw{;}:\bot -| G
+S,D,G,ctx |- \mathkw{;}:\bot -| G
 ~
 
 ~ Infer
-P,S,D,G |- e:t
+S,D,G |- e:t
 ---------------------------------------------------[Type-Stmt-Return-Value]
-P,S,D,G,@InFunction t |- @return e:@returns -| G
+S,D,G,@InFunction t |- @return e:@returns -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Void]
-P,S,D,G,@InFunction @void |- @return:@returns -| G
+S,D,G,@InFunction @void |- @return:@returns -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Control]
-P,S,D,G,@InControl |- @return:@returns -| G
+S,D,G,@InControl |- @return:@returns -| G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Action]
-P,S,D,G,@InAction |- @return:@returns -| G
+S,D,G,@InAction |- @return:@returns -| G
 ~
 
 ~ Infer
-P,S,D,G |- case\_lbl : \tau
-P,S,D,G,@InControl |- blk:sig -| G'
+S,D,G |- case\_lbl : \tau
+S,D,G,@InControl |- blk:sig -| G'
 ---------------------------------------------------[Type-Case-Block]
-P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
+S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
 ~
 
 ~ Infer
-P,S,D,G |- case\_lbl : \tau
+S,D,G |- case\_lbl : \tau
 ---------------------------------------------------[Type-Case-Fallthrough]
-P,S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
+S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
 ~
 
 There isn't a real reason to track signals in controls, seeing as
@@ -1116,10 +1113,10 @@ as switch statements can only appear in controls, this rule just
 assigns them the signal $\bot$ to avoid having to track signals in
 each case and across fallthrough cases.
 ~ Infer
-P,S,D,G |- e : @enum X \{ \overline{m} \}
-\forall i. P,S,D,G |- \mathkw{case\_ok}_X case_i
+S,D,G |- e : @enum X \{ \overline{m} \}
+\forall i. S,D,G |- \mathkw{case\_ok}_X case_i
 --------------------------------------------------------------------------[Type-Stmt-Switch]
-P,S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
+S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
 ~
 
 TODO: DeclarationStatements don't need to exist, see
@@ -1128,32 +1125,32 @@ https://github.com/cornell-netlab/petr4/issues/5
 The implementation makes sure decl is a constant, instantiation, or
 variable, this rule doesn't bother.
 ~ Infer
-P,S,D,G |- decl -| P',S',D',G'.
+S,D,G |- decl -| S',D',G'.
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-P,S,D,G,ctx |- decl:\bot -| G'
+S,D,G,ctx |- decl:\bot -| G'
 ~
 
 ## Parser state typing
 
 Parser states need their own typing judgment to deal with state-machine control flow. It has the form
 ~ MathPre
-P,S,D,G,K |- state,
+S,D,G,K |- state,
 ~
 where K is a list of names of states used to check that the parser's
 transitions make sense. It is defined by two rules, which use another
 judgement $\mathkw{state\_expr\_ok}$.
 
 ~ Infer
-P,S,D,G,K |- \mathkw{state\_expr\_ok} state\_expr
+S,D,G,K |- \mathkw{state\_expr\_ok} state\_expr
 ------------------------------------------------------[Type-State-Transition]
-P,S,D,G,K |- @state x \{ ; @transition state\_expr \}
+S,D,G,K |- @state x \{ ; @transition state\_expr \}
 ~
 
 ~ Infer
-P,S,D,G |- s0 -| G'
-P,S,D,G' |- \{ \overline{s}; @transition state\_expr \}
+S,D,G |- s0 -| G'
+S,D,G' |- \{ \overline{s}; @transition state\_expr \}
 ----------------------------------------------------------[Type-State-Statement]
-P,S,D,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
+S,D,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
 ~
 
 The $\mathkw{state\_expr\_ok}$ judgment is defined by the following rules.
@@ -1164,48 +1161,48 @@ G,K |- \mathkw{state\_expr\_ok} x
 ~
 
 ~ Infer
-P,S,D,G |- \overline{e:t}
-P,S,D,G |- \overline{\mathkw{match\_ok} t match}
+S,D,G |- \overline{e:t}
+S,D,G |- \overline{\mathkw{match\_ok} t match}
 \overline{x\in{}K}
 -----------------------------------------------[State-Expr-OK-Select]
-P,S,D,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{\overline{match}:x} \}
+S,D,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{\overline{match}:x} \}
 ~
 
 TODO: there should be implicit casts inserted in matches so that they always have set type.
 TODO: Should matches be a separate kind of expression, or should we fold them into one type?
 ~ Infer
-P,S,D,G |- e : @set t_m
+S,D,G |- e : @set t_m
 t_m = t
 ----------------------------------------[Match-OK-Expr]
-P,S,D,G |- \mathkw{match\_ok} t e
+S,D,G |- \mathkw{match\_ok} t e
 ~
 
 ~ Infer
 
 -------------------------------------------[Match-OK-DontCare]
-P,S,D,G |- \mathkw{match\_ok} t \mathkw{\_}
+S,D,G |- \mathkw{match\_ok} t \mathkw{\_}
 ~
 
 ## Declaration typing
 
 Declarations are typed by a judgment of the form
 ~ MathPre
-P,S,D,G |- decl -| S',D',G'.
+S,D,G |- decl -| S',D',G'.
 ~
 
 It is defined inductively by the following rules.
 
 ~ Infer
-P,S,D,G |- e:t
+S,D,G |- e:t
 S, e \Downarrow v
 --------------------------------------------[Type-Decl-Const]
-P,S,D,G |- @const x := e -| S[x = v],D,G
+S,D,G |- @const x := e -| S[x = v],D,G
 ~
 
 ~ Infer
-P,S,D,G |- t(\overline{e}) : t_{inst}
+S,D,G |- t(\overline{e}) : t_{inst}
 -----------------------------------[Type-Decl-Instantiation]
-P,S,D,G |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
+S,D,G |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
 ~
 
 The function $\mathkw{names}(s_1, s_2, \dots)$ takes a list of states
@@ -1214,101 +1211,101 @@ and returns a list of their names.
 ~ Infer
 K = @names(\overline{state}),@accept,@reject
 @start \in K
-P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
-P,S',D',G',K |- \overline{state}
+S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
+S',D',G',K |- \overline{state}
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@parser(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
-P,S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
+S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
-P,S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| P',S',D',G'
-P',S',D',G',@void |- blk -| G''
+S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
+S',D',G',@void |- blk -| G''
 t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@control(\overline{x:t})
 -------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
-P,S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{decl} @apply blk \} -| S,D,G[X:t_ctor]
+S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{decl} @apply blk \} -| S,D,G[X:t_ctor]
 ~
 
 ~ Infer
-P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 ----------------------------------------------------[Type-Decl-Function]
-P,S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
+S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
 ~
 
 ~ Infer
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 ---------------------------------------------------------------[Type-Decl-Extern-Function]
-P,S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
+S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
 ~
 
 ~ Infer
 t x := e
 --------------------------------[Type-Decl-Variable]
-P,S,D,G |- t x -| S,D,G[x:t]
+S,D,G |- t x -| S,D,G[x:t]
 ~
 
 ~ Infer
-P,S,D,G |- e:t
+S,D,G |- e:t
 -------------------------------------[Type-Decl-Variable-Initialized]
-P,S,D,G |- t x := e -| S,D,G[x:t]
+S,D,G |- t x := e -| S,D,G[x:t]
 ~
 
 ~ Infer
 
 -------------------------------------------------------[Type-Decl-Value-Set]
-P,S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
+S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
 ~
 
 ~ Infer
-P,S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
 -------------------------------------------------------------------------------[Type-Decl-Action]
-P,S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
+S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
 ~
 
 ### Table Typing
 
 Table properties get their own judgment
 ~ MathPre
-P,S,D,G; K,A |- prop -| K',A'
+S,D,G; K,A |- prop -| K',A'
 ~
 Where $K$ is defined as the types of keys defined in the table, and $A$ is defined as the names and types of actions in the table.
 
 ~ Infer
-P,S,D,G |- \overline{e:t}
-P,S,D,G |- \overline{x:\mathkw{match\_kind}}
+S,D,G |- \overline{e:t}
+S,D,G |- \overline{x:\mathkw{match\_kind}}
 ------------------------------------------------------------------------------[Type-Prop-Keys]
-P,S,D,G; \{\},\{\} |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},\{\}
+S,D,G; \{\},\{\} |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},\{\}
 ~
 
 ~Infer
 P(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
-P,S,D,G |- \overline{e:t}
+S,D,G |- \overline{e:t}
 -------------------------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Actions]
-P,S,D,G; K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
+S,D,G; K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
 ~
 
 ~ Infer
-P,S,D,G |- \overline{e_m : t_k}
+S,D,G |- \overline{e_m : t_k}
 A(x_a) = @action (\overline{x:t,d_0},\overline{x:t}) @void
-P,S,D,G |- \overline{e_a : t}
+S,D,G |- \overline{e_a : t}
 ---------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Entries]
-P,S,D,G; \{\overline{t_k}\},A |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| \{\overline{t_k}\},A
+S,D,G; \{\overline{t_k}\},A |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| \{\overline{t_k}\},A
 ~
 
 ~ Infer
 x \in A
 ---------------------------------------------------[Type-Prop-Default]
-P,S,D,G,K,A |- \mathkw{default\_action}=x -| K,A
+S,D,G,K,A |- \mathkw{default\_action}=x -| K,A
 ~
 
 ~ Infer
-P,S,D,G,\{\},\{\} |- \overline{prop} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
+S,D,G,\{\},\{\} |- \overline{prop} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
 D' = D[``action\_list\_<x>" \to @enum ``action\_list\_<x>" \{ \overline{x_a} \}]
 D'' = D'[``apply\_result\_<x>" \to @struct \{ ``hit" : @bool; ``action\_run" : @enum ``action\_list\_<x>" \{ \overline{x_a} \} \}]
 ---------------------------------------------------[Type-Decl-Table]
-P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<x>"]
+S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<x>"]
 ~
 
 
@@ -1316,87 +1313,87 @@ P,S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\
 ~ Infer
 
 -----------------------------------------------------------------------------------[Type-Decl-Header]
-P,S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
+S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
 ~
 
 ~ Infer
 
 ----------------------------------------------------------------[Type-Decl-Header-Union]
-P,S,D,G |- \mathkw{header\ union} X \{ \overline{x:t} \} -| S,D[X=\mathkw{header\ union} \{ \overline{x:t} \}],G
+S,D,G |- \mathkw{header\ union} X \{ \overline{x:t} \} -| S,D[X=\mathkw{header\ union} \{ \overline{x:t} \}],G
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Type-Decl-Struct]
-P,S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
+S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
 ~
 
 ~ Infer
 \overline{@error.x \notin G}
 -----------------------------------------------------------[Type-Decl-Error]
-P,S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
+S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
 ~
 
 ~ Infer
 \overline{.x \notin G}
 ---------------------------------------------------[Type-Decl-Match-Kind]
-P,S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
+S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
 ~
 
 ~ Infer
 D' = D[X=@enum t X \{ \overline{x} \}]
 \overline{e} \Downarrow \overline{v}
 ---------------------------------------------------[Type-Decl-Enum]
-P,S,D,G |- @enum t X \{ \overline{x=e} \} -| S[\overline{x=v}],D,G
+S,D,G |- @enum t X \{ \overline{x=e} \} -| S[\overline{x=v}],D,G
 ~
 
 ~ Infer
 D' = D[X=@enum X \{ \overline{x} \}]
 ---------------------------------------------------[Type-Decl-Serializable-Enum]
-P,S,D,G |- @enum X \{ \overline{x} \} -| S,D,G
+S,D,G |- @enum X \{ \overline{x} \} -| S,D,G
 ~
 
 ~ Infer
 \forall{}ctor_i=X(\overline{x:t}). {t_{ctor}}_i = @constructor<\overline{X}>(\overline{x_i:t_i}) : t_{extern}
 t_{extern} = @extern X \{ \overline{method} \}
 ---------------------------------------------------[Type-Decl-Extern-Object]
-P,S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D,G[\overline{X:t_{ctor}}]
+S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D,G[\overline{X:t_{ctor}}]
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Decl-TypeDef]
-P,S,D,G |- @typedef t X -| S,D[X=t],G
+S,D,G |- @typedef t X -| S,D[X=t],G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Decl-TypeDef]
-P,S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
+S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~
 
 ~ Infer
 D'=D[X=@control<\overline{X}>(\overline{x:t,d})
 --------------------------------------------------------------------[Type-Decl-Control-Type]
-P,S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
+S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
 ---------------------------------------------------[Type-Decl-Parser-Type]
-P,S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
+S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@package<\overline{X}>(\overline{x:t})
 -----------------------------------------------------------------[Type-Decl-Package-Type]
-P,S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
+S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
 ~
 
 ## Typing of programs
 Partial programs are checked by a judgment of the form
 ~ MathPre
-P,S,D,G |- P0 -| P',S',D',G'.
+S,D,G |- P0 -| S',D',G'.
 ~
 Complete programs are checked by giving empty contexts on the left.
 
@@ -1405,15 +1402,14 @@ The judgment only needs two rules.
 ~ Infer
 
 --------------------------[]
-P,S,D,G |- [] -| P,S,D,G
+S,D,G |- [] -| S,D,G
 ~
 
 ~ Infer
-P,S,D,G |- decl -| S',D',G'
-P' = P,d
-P',S',D',G' |- P0 -| P'',S'',D'',G''
+S,D,G |- decl -| S',D',G'
+S',D',G' |- P0 -| S'',D'',G''
 ------------------------------------[]
-P,S,D,G |- decl, P0 -| P'',S'',D'',G''
+S,D,G |- decl, P0 -| S'',D'',G''
 ~
 
 # Dynamic Semantics { #sec-dynamic }

@@ -41,21 +41,17 @@ type value =
       { params : Parameter.t list;
         body : Block.t; }
   | VStruct of 
-      { name : string;
-        typ_name : string;
+      { typ_name : string;
         fields : (string * value) list; }
   | VHeader of 
-      { name : string;
-        typ_name : string;
+      { typ_name : string;
         fields : (string * value) list;
         is_valid : bool }
   | VUnion of 
-      { name : string;
-        valid_header : value;
+      { valid_header : value;
         valid_fields : (string * bool) list; }
   | VStack of 
-      { name : string;
-        headers : value list;
+      { headers : value list;
         size : Bigint.t;
         next : Bigint.t; }
   | VEnumField of 
@@ -172,13 +168,13 @@ val assert_builtin : value -> string * lvalue
 
 val assert_action : value -> Parameter.t list * Block.t 
 
-val assert_struct : value -> string * (string * value) list 
+val assert_struct : value -> (string * value) list 
 
-val assert_header : value -> string * (string * value) list * bool 
+val assert_header : value -> (string * value) list * bool 
 
-val assert_union : value -> string * value * (string * bool) list 
+val assert_union : value -> value * (string * bool) list 
 
-val assert_stack : value -> string * value list * Bigint.t * Bigint.t 
+val assert_stack : value -> value list * Bigint.t * Bigint.t 
 
 val assert_enum : value -> string * string 
 

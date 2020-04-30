@@ -15,7 +15,7 @@ type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
 
 type 'st init_typ = 
-  ctrl -> env -> 'st -> string -> Type.t -> value
+  ctrl -> env -> 'st -> Type.t -> value
 
 module State : sig
   type 'a t

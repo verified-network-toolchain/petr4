@@ -24,7 +24,7 @@ module type Interpreter = sig
 
   val eval_assign' : ctrl -> env -> state -> lvalue -> value -> env * state * signal
 
-  val init_val_of_typ : ctrl -> env -> state -> string -> Type.t -> value
+  val init_val_of_typ : ctrl -> env -> state -> Type.t -> value
 
 end
 

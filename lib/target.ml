@@ -18,7 +18,7 @@ type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
 
 type 'st init_typ = 
-  ctrl -> env -> 'st -> string -> Type.t -> value
+  ctrl -> env -> 'st -> Type.t -> value
 
 module State = struct
 
@@ -177,8 +177,8 @@ module Core = struct
       pkt
       |> assert_runtime in
     let pkt = State.find pkt_loc st |> assert_in in
-    let (hdr_name, tname, init_fs) = match v with
-      | VHeader {name; typ_name; fields; is_valid} -> name, typ_name, fields
+    let (tname, init_fs) = match v with
+      | VHeader {typ_name; fields; is_valid} -> typ_name, fields
       | _ -> failwith "extract expects header" in
     let t =
       if Bigint.(w = zero) then EvalEnv.find_typ tname env
@@ -205,7 +205,6 @@ module Core = struct
         | SContinue ->
           let fs' = List.zip_exn ns vs' in
           let h = VHeader {
-            name = hdr_name;
             typ_name = tname;
             fields = fs';
             is_valid = true;
@@ -295,9 +294,9 @@ module Core = struct
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
     | VVarbit {max; w; v} -> packet_of_bit w v
-    | VStruct {name; typ_name; fields} -> packet_of_struct env typ_name fields
-    | VHeader {name; typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
-    | VUnion {name; valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
+    | VStruct {typ_name; fields} -> packet_of_struct env typ_name fields
+    | VHeader {typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
+    | VUnion {valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
     | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
 
@@ -531,7 +530,14 @@ module V1Model : Target = struct
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
-  let eval_pipeline ctrl env st pkt app assign init =
+  let eval_pipeline
+        (ctrl: ctrl)
+        (env: env)
+        (st: obj State.t)
+        (pkt: pkt)
+        (app: state apply )
+        (assign: state assign)
+        (init: state init_typ) =
     let in_port = EvalEnv.find_val "ingress_port" env |> assert_bit |> snd in 
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val "main" env in
@@ -561,11 +567,11 @@ module V1Model : Target = struct
     let vpkt = VRuntime { loc = pkt_loc; typ_name = "packet_in"; } in
     let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
-      init ctrl env st "hdr"      (snd (List.nth_exn params 1)).typ in
+      init ctrl env st (snd (List.nth_exn params 1)).typ in
     let meta =
-      init ctrl env st "meta"     (snd (List.nth_exn params 2)).typ in
+      init ctrl env st (snd (List.nth_exn params 2)).typ in
     let std_meta =
-      init ctrl env st "std_meta" (snd (List.nth_exn params 3)).typ in
+      init ctrl env st (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
               |> insert_val "packet"   vpkt
@@ -663,7 +669,7 @@ module EbpfFilter : Target = struct
       | _ -> failwith "parser is not a parser object" in
     let 
     let pckt = VRuntime (PacketIn pkt) in
-    let hdr = init ctrl env st "hdr" (snd (List.nth_exn params 1)).typ in
+    let hdr = init ctrl env st (snd (List.nth_exn params 1)).typ in
     let accept = VBool (false) in
     let env =
       EvalEnv.(env

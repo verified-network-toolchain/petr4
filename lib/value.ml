@@ -44,21 +44,17 @@ type value =
       { params : Parameter.t list;
         body : Block.t; }
   | VStruct of 
-      { name : string;
-        typ_name : string;
+      { typ_name : string;
         fields : (string * value) list; }
   | VHeader of 
-      { name : string;
-        typ_name : string;
+      { typ_name : string;
         fields : (string * value) list;
         is_valid : bool }
   | VUnion of 
-      { name : string;
-        valid_header : value;
+      { valid_header : value;
         valid_fields : (string * bool) list; }
   | VStack of 
-      { name : string;
-        headers : value list;
+      { headers : value list;
         size : Util.bigint;
         next : Util.bigint; }
   | VEnumField of 
@@ -206,7 +202,7 @@ let assert_fun v =
 
 let assert_builtin v =
   match v with 
-  | VBuiltinFun {name;caller} -> (name, caller)
+  | VBuiltinFun {name; caller} -> name, caller
   | _ -> failwith "not a builtin function"
 
 let assert_action v = 
@@ -216,22 +212,22 @@ let assert_action v =
 
 let assert_struct v =
   match v with 
-  | VStruct {name;fields;_} -> (name, fields)
+  | VStruct {fields;_} -> fields
   | _ -> failwith "not a struct"
 
 let assert_header v = 
   match v with 
-  | VHeader {name;fields;is_valid;_} -> (name, fields, is_valid)
+  | VHeader {fields;is_valid;_} -> fields, is_valid
   | _ -> failwith "not a header"
 
 let assert_union v = 
   match v with 
-  | VUnion {name;valid_header;valid_fields} -> (name, valid_header, valid_fields)
+  | VUnion {valid_header;valid_fields} -> (valid_header, valid_fields)
   | _ -> failwith "not a union"
 
 let assert_stack v = 
   match v with 
-  | VStack {name;headers;size;next} -> (name, headers, size, next)
+  | VStack {headers;size;next} -> (headers, size, next)
   | _ -> failwith "not a stack"
 
 let assert_enum v = 

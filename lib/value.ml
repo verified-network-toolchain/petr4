@@ -5,14 +5,16 @@ type buf = Cstruct_sexp.t [@@deriving sexp]
 let buf_to_yojson b = failwith "unimplemented"
 let buf_of_yojson j = failwith "unimplemented"
 
-type packet_in = buf [@@deriving sexp,yojson]
-type packet_out = buf * buf [@@deriving sexp,yojson]
+type pkt = buf [@@deriving sexp,yojson]
+type pkt_out = buf * buf [@@deriving sexp,yojson]
 
 type entries = Table.pre_entry list
 
-type value_sets = Match.t list list
+type vsets = Match.t list list
 
-type ctrl = entries * value_sets
+type ctrl = entries * vsets
+
+type loc = int [@@deriving sexp, yojson]
 
 type value =
   | VNull
@@ -43,9 +45,11 @@ type value =
         body : Block.t; }
   | VStruct of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list; }
   | VHeader of 
       { name : string;
+        typ_name : string;
         fields : (string * value) list;
         is_valid : bool }
   | VUnion of 
@@ -64,14 +68,19 @@ type value =
       { typ_name : string;
         enum_name : string;
         v : value; }
-  | VRuntime of vruntime
+  | VRuntime of 
+      { loc : loc; 
+        typ_name : string; }
   | VParser of vparser
   | VControl of vcontrol
   | VPackage of 
       { decl : Declaration.t;
         args : (string * value) list; }
   | VTable of vtable
-[@@deriving sexp,yojson]
+  | VExternFun of
+      { name : string;
+        caller : (loc * string) option; }
+[@@deriving sexp, yojson]
 
 and vparser = {
   pvs : (string * value) list;
@@ -142,11 +151,6 @@ and signal =
   | SReject of string
 [@@deriving sexp,yojson]
 
-and vruntime =
-  | PacketIn of packet_in
-  | PacketOut of packet_out
-[@@deriving sexp,yojson]
-
 let assert_bool v =
   match v with 
   | VBool b -> b 
@@ -212,12 +216,12 @@ let assert_action v =
 
 let assert_struct v =
   match v with 
-  | VStruct {name;fields} -> (name, fields)
+  | VStruct {name;fields;_} -> (name, fields)
   | _ -> failwith "not a struct"
 
 let assert_header v = 
   match v with 
-  | VHeader {name;fields;is_valid} -> (name, fields, is_valid)
+  | VHeader {name;fields;is_valid;_} -> (name, fields, is_valid)
   | _ -> failwith "not a header"
 
 let assert_union v = 
@@ -242,7 +246,7 @@ let assert_senum v =
 
 let assert_runtime v = 
   match v with 
-  | VRuntime r -> r 
+  | VRuntime {loc; _ } -> loc 
   | _ -> failwith "not a runtime value"
 
 let assert_parser v = 
@@ -320,12 +324,12 @@ let assert_valueset s =
   | SValueSet {size; members; sets} -> (size, members, sets)
   | _ -> failwith "not a valueset"
 
-let assert_packet_in r = 
+(* let assert_pkt r = 
   match r with 
   | PacketIn p -> p
   | _ -> failwith "not a packet in"
 
-let assert_packet_out r = 
+let assert_pkt_out r = 
   match r with 
   | PacketOut p -> p 
-  | _ -> failwith "not a packet out"
+  | _ -> failwith "not a packet out" *)

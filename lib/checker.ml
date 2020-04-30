@@ -12,6 +12,25 @@ module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
+let find_decl_opt name decls =
+  let ok decl =
+    match Prog.Declaration.name_opt decl with
+    | Some decl_name ->
+       name = snd decl_name
+    | None -> false
+  in
+  List.find ~f:ok decls
+
+let find_decl name decls =
+  let ok decl =
+    name = snd (Prog.Declaration.name decl)
+  in
+  match List.find ~f:ok decls with
+  | Some v -> v
+  | None -> raise (UnboundName name)
+
+module Eval = Eval.MakeInterpreter(Target.V1Model)
+
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
   | Some v -> v
@@ -92,7 +111,7 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : V
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Value.VStruct { name = ""; fields = es })
+     | Some es -> Some (Value.VStruct { name = ""; typ_name = "";fields = es })
      | None -> None
      end
   | _ -> None
@@ -757,7 +776,8 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   fun env vars typ ->
   let open Types.Type in
   let eval e =
-    Eval.eval_expression (CheckerEnv.eval_env_of_t env) ([], []) e
+    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state e
+    |> fun (a,_,b) -> (a,b)
   in
   let get_int_from_bigint num =
     begin match Bigint.to_int num with

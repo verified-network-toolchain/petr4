@@ -184,7 +184,7 @@ module EvalEnv = struct
         | VStruct {fields;_} ->
           print_endline "<struct>";
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
-        | VHeader {name;fields;is_valid} ->
+        | VHeader {name;typ_name;fields;is_valid} ->
           print_endline ("<header> with " ^ (string_of_bool is_valid));
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
         | VUnion {name;valid_header;valid_fields} ->
@@ -197,14 +197,12 @@ module EvalEnv = struct
         | VStack _ -> "<stack>"
         | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
         | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
-        | VRuntime r ->
-          begin match r with
-            | PacketIn p -> Cstruct.to_string p
-            | PacketOut (p1,p2) -> Cstruct.to_string (Cstruct.append p1 p2) end
+        | VRuntime r -> "<location>"
         | VParser _ -> "<parser>"
         | VControl _ -> "<control>"
         | VPackage _ -> "<package>"
-        | VTable _ -> "<table>" in
+        | VTable _ -> "<table>"
+        | VExternFun _ -> "<function>" in
       print_endline vstring in
     match e.vs with
     | [] -> ()

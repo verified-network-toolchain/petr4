@@ -4,6 +4,18 @@
   <meta charset="UTF-8">
   <title>Petr4</title>
   <style>
+      .button {
+  background-color: #5bc0de;
+  border: none;
+  color: white;
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  cursor: pointer;
+}
     .grid-container {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -19,7 +31,7 @@
     }
     textarea {
     box-sizing: border-box; /* fit parent width */
-    height: 90%;
+    height: 70%;
     width: 100%;
     font-family: monospace;
     }
@@ -32,57 +44,59 @@
 </head>
 <body>
 <div class="grid-container">
-    <div class = "grid-item"><label>p4 program</label><textarea id="code-area">
-        #include <core.p4>
-        #include <v1model.p4>
+    <div class = "grid-item" ><label><h3>p4 program</h3></label><div id ="code-area" style="opacity:0">
 
-        struct metadata { }
-        struct headers { }
+        #include &lt;core.p4&gt;
+            #include &lt;v1model.p4&gt;
 
-        parser MyParser(packet_in packet,
-                        out headers hdr,
-                        inout metadata meta,
-                        inout standard_metadata_t standard_metadata) {
-            state start {
-                transition accept;
-            }
-        }
+            struct metadata { }
+            struct headers { }
 
-        control MyChecksum(inout headers hdr, inout metadata meta) {
-            apply { }
-        }
-
-        control MyIngress(inout headers hdr,
+            parser MyParser(packet_in packet,
+                            out headers hdr,
                             inout metadata meta,
                             inout standard_metadata_t standard_metadata) {
-            apply {
-                standard_metadata.egress_spec = 9;
+                state start {
+                    transition accept;
+                }
             }
-        }
 
-        control MyEgress(inout headers hdr,
-                            inout metadata meta,
-                            inout standard_metadata_t standard_metadata) {
-            apply { }
-        }
+            control MyChecksum(inout headers hdr, inout metadata meta) {
+                apply { }
+            }
 
-        control MyDeparser(packet_out packet, in headers hdr) {
-            apply { }
-        }
+            control MyIngress(inout headers hdr,
+                              inout metadata meta,
+                              inout standard_metadata_t standard_metadata) {
+                apply {
+                    standard_metadata.egress_spec = 9;
+                }
+            }
 
-        //this is declaration
-        V1Switch(
-            MyParser(),
-            MyChecksum(),
-            MyIngress(),
-            MyEgress(),
-            MyChecksum(),
-            MyDeparser()
-            )
-        main;
+            control MyEgress(inout headers hdr,
+                             inout metadata meta,
+                             inout standard_metadata_t standard_metadata) {
+                apply { }
+            }
 
-          </textarea></div>
-    <div class = "grid-item"><label>control</label><textarea rows="30" cols="50" id="control-json-area">
+            control MyDeparser(packet_out packet, in headers hdr) {
+                apply { }
+            }
+
+            //this is declaration
+            V1Switch(
+                MyParser(),
+                MyChecksum(),
+                MyIngress(),
+                MyEgress(),
+                MyChecksum(),
+                MyDeparser()
+                )
+            main;
+
+
+    </div></div>
+    <div class = "grid-item"><label><h3>control</h3></label><div id="control-json-area" style="opacity:0">
         {
             "pre_entries": [
                 {
@@ -222,16 +236,45 @@
                 ]
                 ]
             }
-          </textarea></div>
-    <div class = "grid-item"><label>packet in</label><textarea rows="4" cols="50" id="packet-area">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea></div>
-    <div class = "grid-item"><label>packet out</label><textarea rows="4" cols="50" id="output">out</textarea></div>
+        </div></div>
+    <div class = "grid-item"><label><h3>packet in</h3></label><textarea rows="4" cols="50" id="packet-area" spellcheck="false">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea></div>
+    <div class = "grid-item"><label><h3>packet out</h3></label><textarea rows="4" cols="50" id="output" readonly>out</textarea></div>
   </div>
 
 
 
-  <button id="form-submit">run</button>
+  <button id="form-submit" class = "button">run</button>
 
 
+  <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
   <script src="web.bc.js"></script>
+<script>
+
+    //ace.config.set("workerPath", "build/src-min");
+    var p4_editor = ace.edit("code-area");
+    var control_editor = ace.edit("control-json-area");
+
+    control_editor.container.style.opacity = "";
+    control_editor.setFontSize("14px");
+    control_editor.setOptions({
+        maxLines: 40,
+        mode: "ace/mode/json",
+        autoScrollEditorIntoView: true
+    });
+    p4_editor.container.style.opacity = "";
+    p4_editor.setFontSize("14px");
+    p4_editor.setOptions({
+        maxLines: 40,
+        mode: "ace/mode/c_cpp",
+        autoScrollEditorIntoView: true
+    });
+    const button = document.getElementById("form-submit")
+    var in_area = document.getElementById("packet-area")
+    var out_area = document.getElementById("output")
+    button.onclick = function () {
+        out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
+    }
+    </script>
 </body>
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />
 </html>

@@ -16,7 +16,7 @@ module type Target = sig
   val eval_pipeline : EvalEnv.t -> ctrl -> packet_in ->
   (EvalEnv.t -> ctrl -> signal -> value -> Argument.t list -> EvalEnv.t * signal * 'a) ->
   (EvalEnv.t -> ctrl -> lvalue -> value -> EvalEnv.t * 'b) ->
-  (EvalEnv.t -> ctrl -> string -> Type.t -> value) -> packet_in
+  (EvalEnv.t -> ctrl -> Type.t -> value) -> packet_in
 
 end
 
@@ -94,11 +94,11 @@ module V1Model : Target = struct
       | _ -> failwith "parser is not a parser object" in
     let vpkt = VRuntime (PacketIn pkt) in
     let hdr =
-      init env ctrl "hdr"      (snd (List.nth_exn params 1)).typ in
+      init env ctrl (snd (List.nth_exn params 1)).typ in
     let meta =
-      init env ctrl "meta"     (snd (List.nth_exn params 2)).typ in
+      init env ctrl (snd (List.nth_exn params 2)).typ in
     let std_meta =
-      init env ctrl "std_meta" (snd (List.nth_exn params 3)).typ in
+      init env ctrl (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
               |> insert_val "packet"   vpkt
@@ -167,7 +167,7 @@ module EbpfFilter : Target = struct
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
     let pckt = VRuntime (PacketIn pkt) in
-    let hdr = init env ctrl "hdr" (snd (List.nth_exn params 1)).typ in
+    let hdr = init env ctrl (snd (List.nth_exn params 1)).typ in
     let accept = VBool (false) in
     let env =
       EvalEnv.(env

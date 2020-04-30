@@ -109,7 +109,7 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : V
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Value.VStruct { name = ""; fields = es })
+     | Some es -> Some (Value.VStruct { fields = es })
      | None -> None
      end
   | _ -> None

@@ -234,7 +234,7 @@ end
 and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -274,7 +274,7 @@ and Table : sig
     end = struct
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 

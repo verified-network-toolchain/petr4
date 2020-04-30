@@ -12,16 +12,24 @@ module EvalEnv : sig
   val get_toplevel : t -> t
   val get_val_firstlevel : t -> (string * value) list
 
+  val insert_val_bare : string -> value -> t -> t
+  val insert_decl_bare : string -> Declaration.t -> t -> t
+  val insert_typ_bare : string -> Type.t -> t -> t
+
   val insert_val : name -> value -> t -> t
   val insert_decl: name -> Declaration.t -> t -> t
   val insert_typ : name -> Type.t -> t -> t
+
+  val insert_vals_bare : (string * value) list -> t -> t
+  val insert_decls_bare : (string  * Declaration.t) list -> t ->t
+  val insert_typs_bare : (string * Type.t) list -> t -> t
 
   val insert_vals : (name * value) list -> t -> t
   val insert_decls: (name * Declaration.t) list -> t ->t
   val insert_typs : (name * Type.t) list -> t -> t
 
   val find_val : name -> t -> value
-  val find_decl: name -> t -> Declaration.t
+  val find_decl : name -> t -> Declaration.t
   val find_typ : name -> t -> Type.t
 
   val push_scope : t -> t
@@ -37,9 +45,8 @@ module CheckerEnv : sig
 
   val resolve_type_name_opt : name -> t -> Typed.Type.t option
   val resolve_type_name : name -> t -> Typed.Type.t
-  val all_decls : t -> Prog.Declaration.t list
-  val find_decl_opt : string -> t -> Prog.Declaration.t option
-  val find_decl : string -> t -> Prog.Declaration.t
+  val find_decl_opt : name -> t -> Prog.Declaration.t option
+  val find_decl : name -> t -> Prog.Declaration.t
   val find_type_of_opt : name -> t -> (Typed.Type.t * Typed.direction) option
   val find_type_of : name -> t -> Typed.Type.t * Typed.direction
   val find_types_of : name -> t -> (Typed.Type.t * Typed.direction) list

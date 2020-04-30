@@ -79,6 +79,15 @@ module P4String = struct
     Format.fprintf fmt "%s" (snd e)
 end
 
+let name_format_t fmt (name: Types.name) =
+  match name with
+  | BareName str ->
+     P4String.format_t fmt str
+  | QualifiedName ([], str) ->
+     Format.fprintf fmt ".%a"
+       P4String.format_t str 
+  | _ -> failwith "unimplemented"
+
 module rec Expression : sig
   val format_t : Format.formatter -> P4.Expression.t -> unit
 end = struct
@@ -95,14 +104,9 @@ end = struct
     | String s ->
       Format.fprintf fmt "\"%a\""
         P4String.format_t s
-    | Name (BareName x) ->
+    | Name name ->
       Format.fprintf fmt "%a"
-        P4String.format_t x
-    | Name (QualifiedName ([], x)) ->
-      Format.fprintf fmt ".%a"
-        P4String.format_t x
-    | Name _ ->
-       failwith "unimplemented"
+        name_format_t name
     | ArrayAccess x ->
       Format.fprintf fmt "@[%a[%a]@]"
         format_t x.array
@@ -546,11 +550,11 @@ end = struct
     | { annotations; name; args = [] } ->
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%a@]"
-        P4String.format_t name
+        name_format_t name
     | { annotations; name; args } ->
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[%a(%a)@]"
-        P4String.format_t name
+        name_format_t name
         Argument.format_ts args
 
   let format_entry fmt e =

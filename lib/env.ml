@@ -129,23 +129,42 @@ module EvalEnv = struct
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
 
-  let insert_val_bare name binding e =
+  let insert_val_bare name =
     insert_val (BareName (Info.dummy, name))
 
   let insert_decl name binding e =
     {e with decl = insert name binding e.decl}
 
+  let insert_decl_bare name =
+    insert_decl (BareName (Info.dummy, name))
+
   let insert_typ name binding e =
     {e with typ = insert name binding e.typ}
+
+  let insert_typ_bare name =
+    insert_typ (BareName (Info.dummy, name))
 
   let insert_vals bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
+  let fix_bindings bindings = 
+    List.map bindings
+      ~f:(fun (name, v) -> BareName (Info.dummy, name), v)
+
+  let insert_vals_bare bindings =
+    insert_vals (fix_bindings bindings)
+
   let insert_decls bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_decl b c a)
 
+  let insert_decls_bare bindings =
+    insert_decls (fix_bindings bindings)
+
   let insert_typs bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
+
+  let insert_typs_bare bindings =
+    insert_typs (fix_bindings bindings)
 
   let find_val name e =
     find name e.vs
@@ -225,7 +244,7 @@ module CheckerEnv = struct
 
   type t =
     { (* the program (top level declarations) so far *)
-      decl: Prog.Declaration.t list;
+      decl: (Prog.Declaration.t list) list;
       (* types that type names refer to (or Typevar for vars in scope) *)
       typ: Typed.Type.t env;
       (* maps variables to their types & directions *)
@@ -235,30 +254,35 @@ module CheckerEnv = struct
   [@@deriving sexp,yojson]
 
   let empty_t : t =
-    { decl = [];
+    { decl = [[]];
       typ = empty_env;
       typ_of = empty_env;
       const = empty_env }
 
-  let all_decls env =
-    env.decl
-
-  let find_decl_opt name env =
+  let find_decl_opt_bare name decl_env =
     let ok decl =
       match Prog.Declaration.name_opt decl with
       | Some decl_name ->
          name = snd decl_name
       | None -> false
     in
-    List.find ~f:ok env.decl
+    List.find ~f:ok (List.concat decl_env)
+
+  let find_decl_opt_toplevel name decl_env =
+    find_decl_opt_bare name [List.last_exn decl_env]
+
+  let find_decl_opt name env =
+    match name with
+    | BareName name ->
+       find_decl_opt_bare (snd name) env.decl
+    | QualifiedName ([], name) ->
+       find_decl_opt_toplevel (snd name) env.decl
+    | _ -> failwith "unimplemented"
 
   let find_decl name env =
-    let ok decl =
-      name = snd (Prog.Declaration.name decl)
-    in
-    match List.find ~f:ok env.decl with
+    match find_decl_opt name env with
     | Some v -> v
-    | None -> raise (UnboundName (BareName (Info.dummy, name)))
+    | None -> raise (UnboundName name)
 
   let resolve_type_name_opt name env =
     find_opt name env.typ
@@ -282,7 +306,10 @@ module CheckerEnv = struct
     find_opt name env.const
 
   let insert_decl d env =
-    { env with decl = d :: env.decl }
+    match env.decl with
+    | scope :: rest ->
+       { env with decl = (d :: scope) :: rest }
+    | [] -> no_scopes ()
 
   let insert_type name typ env =
     { env with typ = insert name typ env.typ }

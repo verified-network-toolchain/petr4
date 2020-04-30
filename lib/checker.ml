@@ -2565,7 +2565,7 @@ and type_keys env keys =
 
 and type_table_actions env key_types actions =
   let type_table_action (call_info, action: Table.action_ref) =
-    match CheckerEnv.find_decl_opt (snd action.name) env with
+    match CheckerEnv.find_decl_opt action.name env with
     | Some (_, Action action_decl) ->
        (* Below should fail if there are control plane arguments *)
        let params_args = match_params_to_args call_info action_decl.data_params action.args in
@@ -2590,20 +2590,29 @@ and type_table_actions env key_types actions =
             { annotations = action.annotations;
               name = action.name;
               args = args_typed };
-          typ = fst @@ CheckerEnv.find_type_of (BareName action.name) env })
+          typ = fst @@ CheckerEnv.find_type_of action.name env })
     | _ ->
-       raise_s [%message "invalid action" ~action:(snd action.name)]
+       raise_s [%message "invalid action" ~action:(action.name: Types.name)]
   in
   let action_typs = List.map ~f:type_table_action actions in
-  (* Need to fail in the case of duplicate action names *)
-  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> snd action.name) actions in
-  List.zip_exn action_names action_typs
+  let action_names =
+    List.map actions
+      ~f:(fun (_, action) -> name_only action.name)
+  in
+  match List.find_a_dup ~compare:String.compare action_names with
+  | Some a_name -> raise_s [%message "duplicated action name" ~a_name]
+  | None -> List.zip_exn action_names action_typs
+
+and name_only n =
+  match n with
+  | BareName (_, s) -> s
+  | QualifiedName (_, (_, s)) -> s
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
     let matches_typed = check_match_product env entry.matches key_typs in
-    match List.Assoc.find action_map ~equal:(=) (snd (snd entry.action).name) with
+    match List.Assoc.find action_map ~equal:(=) (name_only (snd entry.action).name) with
     | None ->
        failwith "Entry must call an action in the table."
     | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->

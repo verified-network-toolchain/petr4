@@ -1102,16 +1102,24 @@ entry:
 | matches = keysetExpression
     info1 = COLON act = actionRef annos = optAnnotations info2 = SEMICOLON
     { let info = Info.merge info1 info2 in
-      (info, { annotations = annos; matches = matches; action = act }) }
+      (info, Table.{ annotations = annos; matches = matches; action = act }) }
 ;
 
 actionRef:
 |  annotations = optAnnotations name = name
-     { (info name, { annotations; name; args = [] }) }
+     { (info name, { annotations; name = BareName name; args = [] }) }
 |  annotations = optAnnotations name = name L_PAREN args = argumentList
      info2 = R_PAREN
      { (Info.merge (info name) info2,
-        { annotations; name; args }) }
+        { annotations; name = BareName name; args }) }
+|  annotations = optAnnotations
+   info1 = dotPrefix go_toplevel name = nonTypeName go_local
+     { (info name, { annotations; name = QualifiedName ([], name); args = [] }) }
+|  annotations = optAnnotations 
+   info1 = dotPrefix go_toplevel name = nonTypeName go_local
+   L_PAREN args = argumentList info2 = R_PAREN
+     { (Info.merge (info name) info2,
+        { annotations; name = QualifiedName ([], name); args }) }
 ;
 
 (************************* ACTION ********************************)

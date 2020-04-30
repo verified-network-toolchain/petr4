@@ -2597,16 +2597,11 @@ and type_table_actions env key_types actions =
   let action_typs = List.map ~f:type_table_action actions in
   let action_names =
     List.map actions
-      ~f:(fun (_, action) -> name_only action.name)
+      ~f:(fun (_, action) -> Types.name_only action.name)
   in
   match List.find_a_dup ~compare:String.compare action_names with
   | Some a_name -> raise_s [%message "duplicated action name" ~a_name]
   | None -> List.zip_exn action_names action_typs
-
-and name_only n =
-  match n with
-  | BareName (_, s) -> s
-  | QualifiedName (_, (_, s)) -> s
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in

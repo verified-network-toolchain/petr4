@@ -39,6 +39,7 @@ type name =
   [@@deriving sexp,yojson]
 
 val name_eq : name -> name -> bool
+val name_only : name -> string
 
 module rec KeyValue : sig
   type pre_t = 

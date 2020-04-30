@@ -58,6 +58,11 @@ let name_eq n1 n2 =
      s1 = s2
   | _ -> failwith "unimplemented"
 
+and name_only n =
+  match n with
+  | BareName (_, s) -> s
+  | QualifiedName (_, (_, s)) -> s
+
 module rec KeyValue : sig
   type pre_t = 
     { key : P4String.t;

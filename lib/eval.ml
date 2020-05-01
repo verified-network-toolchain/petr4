@@ -1697,27 +1697,35 @@ module MakeInterpreter (T : Target) = struct
     | _ -> () end; *)
     let params = 
       match v with 
-      | Some (_, t) -> 
+      | Some (_, t) ->
+        print_endline t;
         EvalEnv.find_decl t env
         |> assert_extern_obj
         |> List.map ~f:params_of_prototype
         |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
-        |> fun x -> List.Assoc.find_exn x name ~equal:String.equal
-      | None -> EvalEnv.find_decl name env |> assert_extern_function in
+        |> List.filter ~f:(fun (s,_) -> String.equal s name)
+        |> List.filter ~f:(fun (_,ps) -> Int.equal (List.length ps) (List.length args))
+        |> List.hd_exn
+        |> snd
+      | None -> print_endline name; EvalEnv.find_decl name env |> assert_extern_function in
+    let fenv = EvalEnv.push_scope env in
+    let (_, kvs) =
+      List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(fenv,st,SContinue) in
     (* print_endline "got params"; *)
     let (fenv, st', signal) = copyin ctrl env st params args in
     (* print_endline "did copy in"; *)
+    let vs = List.map ~f:snd kvs in
     let env' = EvalEnv.pop_scope fenv in
     (* print_endline "popped"; *)
     match signal with
     | SExit -> env', st', SExit, VNull
     | SReject s -> env', st', SReject s, VNull
     | SReturn _ | SContinue -> 
-    let vs = EvalEnv.get_val_firstlevel fenv |> List.map ~f:snd in
+    print_endline (vs |> List.length |> string_of_int);
     (* print_endline "got first level"; *)
     let vs' = match v with
-      | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
-      | None -> vs in
+      | Some (loc, t) -> print_endline "its some"; VRuntime {loc = loc; typ_name = t} :: vs
+      | None -> print_endline "its none"; vs in
     (* print_endline "prepended"; *)
     let vs' = match vs' with
       | _ :: VNull :: [] -> []
@@ -1766,6 +1774,8 @@ module MakeInterpreter (T : Target) = struct
     let ((fenv',st',s),arg_vals) = 
       List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(fenv,st,SContinue) in
     let fenv' = List.fold2_exn params arg_vals ~init:fenv' ~f:insert_arg in
+    let fenv_only = EvalEnv.get_val_firstlevel env in
+    print_endline (List.length fenv_only |> string_of_int);
     match s with
     | SContinue -> (fenv',st',s)
     | SReject _ -> (fenv',st',s)
@@ -1798,6 +1808,7 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith "unreachable"
     
   and insert_arg (e : env) (p : Parameter.t) ((name,v) : string * value) : env =
+    print_endline ("inserting arg into parameter: " ^ (snd (snd p).variable));
     let v' = match v with
       | VHeader{fields=l;typ_name;is_valid=b;_} -> VHeader{typ_name;fields=l;is_valid=b}
       | VStruct{fields=l;typ_name;_}            -> VStruct{typ_name;fields=l}
@@ -2295,7 +2306,7 @@ module MakeInterpreter (T : Target) = struct
 
   and decl_of_typ (e : env) (t : Type.t) : Declaration.t =
     match snd t with
-    | TypeName (_,s)                 -> (EvalEnv.find_decl s e)
+    | TypeName (_,s)                 -> print_endline s; (EvalEnv.find_decl s e)
     | TopLevelType (_,s)             -> (EvalEnv.find_decl_toplevel s e)
     | _ -> (Info.dummy, Error{members = []}) (* TODO: find better solution *)
 
@@ -2409,6 +2420,7 @@ module MakeInterpreter (T : Target) = struct
           |> bit_of_rawint n
         | Type.Bool -> failwith "is bool"
         | Type.TypeName (_,n) ->
+          print_endline n;
           EvalEnv.find_decl n env
           |> assert_typ_def
           |> assert_typ

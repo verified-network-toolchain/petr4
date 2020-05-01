@@ -181,10 +181,10 @@ module Core = struct
       | VHeader {typ_name; fields; is_valid} -> typ_name, fields
       | _ -> failwith "extract expects header" in
     let t =
-      if Bigint.(w = zero) then EvalEnv.find_typ tname env
+      if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
       else EvalEnv.find_typ "variableSizeHeader" env in
     let d = match snd t with
-      | TypeName (_, s) -> EvalEnv.find_decl s env
+      | TypeName (_, s) -> print_endline s; EvalEnv.find_decl s env
       | TopLevelType (_, s) -> EvalEnv.find_decl_toplevel s env
       | _ -> failwith "unreachable" (* TODO: unguarded fail *) in
     let fs = reset_fields init_fs d in
@@ -231,7 +231,7 @@ module Core = struct
     | [pkt;v1] -> eval_extract' assign ctrl env st pkt v1 Bigint.zero
     | [pkt;v1;v2] -> eval_extract' assign ctrl env st pkt v1 (assert_bit v2 |> snd)
     | [] -> eval_advance assign ctrl env st targs args
-    | _ -> failwith "wrong number of args for extract"
+    | _ -> print_endline (args |> List.length |> string_of_int); failwith "wrong number of args for extract"
 
   let val_of_bigint _ _ = failwith "TODO: not really possible until the types refactor"
 
@@ -309,6 +309,7 @@ module Core = struct
 
   and packet_of_struct (env : env) (tname : string)
       (fields : (string * value) list) : pkt =
+    print_endline tname;
     let d = EvalEnv.find_decl tname env in
     let fs = reset_fields fields d in
     let fs' = List.map ~f:snd fs in

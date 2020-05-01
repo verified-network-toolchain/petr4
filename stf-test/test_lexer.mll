@@ -118,7 +118,8 @@ and keyword = parse
   | digits
     { INT_CONST_DEC(lexeme lexbuf) }
   | eof
-    { END }
+    { lexer := Keyword; END }
+  | _ { print_endline (lexeme lexbuf); failwith "empty token thing" }
 
 and packet_data = parse
   | digits
@@ -132,7 +133,8 @@ and packet_data = parse
   | whitespace | '$'
     { packet_data lexbuf }
   | eof
-    { END }
+    { lexer:= Keyword; END }
+  | _ { print_endline (lexeme lexbuf); failwith "empty token thing alt" }
 
 {
 }

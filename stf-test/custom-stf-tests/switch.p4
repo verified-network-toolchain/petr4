@@ -25,7 +25,7 @@ control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-
+        standard_metadata.egress_port = 1;
     }
 }
 
@@ -33,17 +33,40 @@ control MyEgress(inout head[13] hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
+    action set_zero() {
+        hdr[0] = (bit<8>) 0;
+    }
+
     action set_one () {
         hdr[0] = (bit<8>) 1;
     }
+    
+    action set_two () {
+        hdr[0] = (bit<8>) 2;
+    }
+
+    action set_three () {
+        hdr[0] = (bit<8>) 3;
+    }
 
     table my_table {
-        key = { standard_metadata.egress_spec : exact;}
-        actions = { set_one;}
+        key = { standard_metadata.egress_port : exact;}
+        actions = { set_zero; set_one; set_two; set_three; }
+        const entries = {
+            0 : set_three;
+            1 : set_two;
+            2 : set_one;
+            3 : set_zero;
+        }
     }
 
     apply {
-        my_table.apply();
+        switch (my_table.apply().action_run) {
+            default : { hdr[1] = (bit<8>) 0; }
+            set_one : { hdr[1] = (bit<8>) 1; }
+            set_two : { hdr[1] = (bit<8>) 2; }
+            set_three : { hdr[1] = (bit<8>) 3; }
+        }
     }
 
 }
@@ -51,6 +74,7 @@ control MyEgress(inout head[13] hdr,
 control MyDeparser(packet_out packet, in head[13] hdr) {
     apply {
         packet.emit(hdr[0]);
+        packet.emit(hdr[1]);
     }
 }
 

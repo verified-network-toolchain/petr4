@@ -76,21 +76,21 @@ let rec is_lvalue (_, expr) =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Value.value option =
+let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
   match (snd expr).expr with
   | Name (_, var) ->
      CheckerEnv.find_const_opt var env
-  | True -> Some (Value.VBool true)
-  | False -> Some (Value.VBool false)
-  | String (_, str) -> Some (Value.VString str)
+  | True -> Some (Prog.Value.VBool true)
+  | False -> Some (Prog.Value.VBool false)
+  | String (_, str) -> Some (Prog.Value.VString str)
   | Int (_, i) ->
      begin match i.width_signed with
      | None ->
-        Some (Value.VInteger i.value)
+        Some (Prog.Value.VInteger i.value)
      | Some (width, signed) ->
         if signed
-        then Some (Value.VInt { w = Bigint.of_int width; v = i.value })
-        else Some (Value.VBit { w = Bigint.of_int width; v = i.value })
+        then Some (Prog.Value.VInt { w = Bigint.of_int width; v = i.value })
+        else Some (Prog.Value.VBit { w = Bigint.of_int width; v = i.value })
      end
   | UnaryOp { op; arg } -> failwith "unimplemented"
   | BinaryOp { op; args } -> failwith "unimplemented"
@@ -111,20 +111,20 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : V
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Value.VStruct { fields = es; typ_name = "" })
+     | Some es -> Some (Prog.Value.VStruct { fields = es; typ_name = "" })
      | None -> None
      end
   | _ -> None
 
-and compile_time_eval_exprs env exprs : Value.value list option =
+and compile_time_eval_exprs env exprs : Prog.Value.value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
 let compile_time_eval_bigint env expr: Bigint.t =
   match compile_time_eval_expr env expr with
-  | Some (Value.VInt { v; _})
-  | Some (Value.VBit { v; _})
-  | Some (Value.VInteger v) ->
+  | Some (Prog.Value.VInt { v; _})
+  | Some (Prog.Value.VBit { v; _})
+  | Some (Prog.Value.VInteger v) ->
      v
   | _ -> raise_s [%message "could not compute compile-time-known numerical value for expr"
                      ~expr:(expr: Prog.Expression.t)]
@@ -775,44 +775,38 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
   fun env vars typ ->
   let open Types.Type in
-  let eval e =
+  (* let eval e =
     Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state e
     |> fun (a,_,b) -> (a,b)
-  in
-  let get_int_from_bigint num =
+  in *)
+  (* let get_int_from_bigint num =
     begin match Bigint.to_int num with
       | Some n -> n;
       | None -> failwith "numeric type parameter is too large"
-    end in
+    end in *)
   match snd typ with
   | Bool -> Bool
   | Error -> Error
   | Integer -> Integer
   | String -> String
-  | IntType e ->
-    begin match snd (eval e) with
-      | Value.VInt {v; _}
-      | Value.VBit {v; _}
-      | Value.VInteger v ->
-         Int {width= get_int_from_bigint v}
-      | _ -> failwith "int type param must evaluate to an int"
-    end
-  | BitType e ->
-    begin match snd (eval e) with
-      | Value.VInt {v; _}
-      | Value.VBit {v; _}
-      | Value.VInteger v ->
-         Bit {width= get_int_from_bigint v}
-      | _ -> failwith "bit type param must evaluate to an int"
-    end
-  | VarBit e ->
-    begin match snd (eval e) with
-      | Value.VInt {v; _}
-      | Value.VBit {v; _}
-      | Value.VInteger v ->
-         VarBit {width= get_int_from_bigint v}
-      | _ -> failwith "bit type param must evaluate to an int"
-    end
+  | IntType e -> Int { width = 
+    e 
+    |> type_expression env
+    |> compile_time_eval_bigint env
+    |> Bigint.to_int_exn
+  }
+  | BitType e -> Bit {width = 
+    e
+    |> type_expression env
+    |> compile_time_eval_bigint env
+    |> Bigint.to_int_exn
+  }
+  | VarBit e -> VarBit {width = 
+    e
+    |> type_expression env
+    |> compile_time_eval_bigint env
+    |> Bigint.to_int_exn
+  }
   | TopLevelType ps -> TopLevelType (snd ps)
   | TypeName ps -> TypeName (snd ps)
   | SpecializedType {base; args} ->
@@ -820,14 +814,11 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
                        args = (List.map ~f:(translate_type env vars) args)}
   | HeaderStack {header=ht; size=e}
     -> let hdt = translate_type env vars ht in
-    let len =
-      begin match snd (eval e) with
-      | Value.VInt {v; _}
-      | Value.VBit {v; _}
-      | Value.VInteger v ->
-         get_int_from_bigint v
-      | _ -> failwith "header stack size must be a number"
-      end in
+    let len = 
+      e
+      |> type_expression env
+      |> compile_time_eval_bigint env
+      |> Bigint.to_int_exn in
     Array {typ=hdt; size=len}
   | Tuple tlist ->
     Tuple {types = List.map ~f:(translate_type env vars) tlist}

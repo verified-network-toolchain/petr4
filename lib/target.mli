@@ -1,21 +1,21 @@
+open Typed
+open Prog
 open Value
 open Env
-open Types
 
 type env = EvalEnv.t
 
-type 'st assign = 
-  ctrl -> env -> 'st -> lvalue -> value -> env * 'st * signal
+type 'st assign = env -> lvalue -> value -> env * signal
 
 type ('st1, 'st2) pre_extern =
   'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
   env * 'st2 * signal * value
 
 type 'st apply =
-  ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
+  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
 type 'st init_typ = 
-  ctrl -> env -> 'st -> Type.t -> value
+  Type.t -> value
 
 module State : sig
   type 'a t

@@ -1,24 +1,24 @@
 module I = Info
+open Typed
+open Prog
 open Value
 open Env
-open Types
 open Core_kernel
 module Info = I
 
 type env = EvalEnv.t
 
-type 'st assign =
-  ctrl -> env -> 'st -> lvalue -> value -> env * 'st * signal
+type 'st assign = env -> lvalue -> value -> env * signal
 
 type ('st1, 'st2) pre_extern =
   'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
   env * 'st2 * signal * value
 
 type 'st apply =
-  ctrl -> env -> 'st -> signal -> value -> Argument.t list -> env * 'st * signal * value
+  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
 type 'st init_typ = 
-  ctrl -> env -> 'st -> Type.t -> value
+  Type.t -> value
 
 module State = struct
 
@@ -165,11 +165,12 @@ module Core = struct
       Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
 
   let reset_fields (fs : (string * value) list)
-      (d : Declaration.t) : (string * value) list =
-    match snd d with
+      (t : Type.t) : (string * value) list =
+    failwith "TODO: reset fields on types"
+    (* match snd d with
     | Header {fields;_} | Struct {fields;_} ->
       List.map fields ~f:(value_of_field fs)
-    | _ -> failwith "not resettable"
+    | _ -> failwith "not resettable" *)
 
   let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : env) (st : state)
       (pkt : value) (v : value) (w : Bigint.t) : env * state * signal * value =
@@ -183,11 +184,7 @@ module Core = struct
     let t =
       if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
       else EvalEnv.find_typ "variableSizeHeader" env in
-    let d = match snd t with
-      | TypeName (_, s) -> print_endline s; EvalEnv.find_decl s env
-      | TopLevelType (_, s) -> EvalEnv.find_decl_toplevel s env
-      | _ -> failwith "unreachable" (* TODO: unguarded fail *) in
-    let fs = reset_fields init_fs d in
+    let fs = reset_fields init_fs t in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
@@ -209,8 +206,8 @@ module Core = struct
             fields = fs';
             is_valid = true;
           } in
-          let (env', st'', _) = assign ctrl env st (LName "hdr") h in
-          env', st'', SContinue, VNull
+          let (env', _) = assign env (LName "hdr") h in
+          env', st', SContinue, VNull
       end
 
   let eval_advance : 'st extern = fun assign ctrl env st targs args ->
@@ -290,15 +287,16 @@ module Core = struct
 
   (* value returned is the number of bits emitted followed by the number to emit *)
   let rec packet_of_value (env : env) (v : value) : pkt =
-    match v with
+    failwith "TOOD: reimplement"
+    (* match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
     | VVarbit {max; w; v} -> packet_of_bit w v
-    | VStruct {typ_name; fields} -> packet_of_struct env typ_name fields
-    | VHeader {typ_name; fields; is_valid} -> packet_of_hdr env typ_name fields is_valid
-    | VUnion {valid_header; valid_fields} -> packet_of_union env valid_header valid_fields
+    | VStruct {typ_name; fields} -> packet_of_struct env t fields
+    | VHeader {typ_name; fields; is_valid} -> packet_of_hdr env t fields is_valid
+    | VUnion {valid_header; valid_fields} -> packet_of_union env t valid_header valid_fields
     | VInteger _ -> failwith "it was integer"
-    | _ -> failwith "emit undefined on type"
+    | _ -> failwith "emit undefined on type" *)
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
     (* print_endline "got to packet_of_bit"; *)
@@ -310,8 +308,8 @@ module Core = struct
   and packet_of_struct (env : env) (tname : string)
       (fields : (string * value) list) : pkt =
     print_endline tname;
-    let d = EvalEnv.find_decl tname env in
-    let fs = reset_fields fields d in
+    (* let d = EvalEnv.find_decl tname env in *)
+    let fs = reset_fields fields Bool (* TODO *) in
     let fs' = List.map ~f:snd fs in
     let pkts = List.map ~f:(packet_of_value env) fs' in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
@@ -331,6 +329,10 @@ module Core = struct
     let (pkt_loc, v) = match args with
       | [VRuntime {loc; _}; hdr] -> loc, hdr
       | _ -> failwith "unexpected args for emit" in
+    (* let t = 
+      match targs with
+      | [t] -> t
+      | _ -> failwith "unexpected type args for emit" in *)
     let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
       | PacketOut (h, t) -> h, t
       | _ -> failwith "emit expected packet out" in
@@ -513,9 +515,9 @@ module V1Model : Target = struct
     |> List.map ~f:(fun (i, o) -> i, CoreObject o)
 
   let corize_assign (assign : state assign) : Core.state assign =
-    fun ctrl env st lv v ->
-    let (env, st, s) = assign ctrl env (targetize_st st) lv v in
-    env, corize_st st, s
+    fun env lv v ->
+    let (env, s) = assign env lv v in
+    env, s
 
   let targetize (ext : Core.state Core.extern) : state extern =
     fun assign ctrl env st ts vs ->
@@ -547,7 +549,7 @@ module V1Model : Target = struct
   let check_pipeline env = ()
 
   let eval_v1control (ctrl : ctrl) (app) (control : value)
-      (args : Argument.t list) (env,st) : env * state * signal =
+      (args : Expression.t option list) (env,st) : env * state * signal =
     let (env,st',s,_) = app ctrl env st SContinue control args in
     (env,st',s)
 
@@ -588,11 +590,11 @@ module V1Model : Target = struct
     let vpkt = VRuntime { loc = pkt_loc; typ_name = "packet_in"; } in
     let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
-      init ctrl env st (snd (List.nth_exn params 1)).typ in
+      init (snd (List.nth_exn params 1)).typ in
     let meta =
-      init ctrl env st (snd (List.nth_exn params 2)).typ in
+      init (snd (List.nth_exn params 2)).typ in
     let std_meta =
-      init ctrl env st (snd (List.nth_exn params 3)).typ in
+      init (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
               |> insert_val "packet"   vpkt
@@ -605,28 +607,27 @@ module V1Model : Target = struct
               |> insert_typ "std_meta" (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
-    let (env, st, _) = 
+    let (env, _) = 
       assign 
-        ctrl
         env
-        st
         (LMember{expr=LName("std_meta"); name="ingress_port"})
         (VBit{w=nine;v=in_port}) in
+    let open Expression in
     let pkt_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "packet"))}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "packet")); dir = InOut; typ = Void (* TODO *)}) in
     let hdr_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "hdr"))}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "hdr")); dir = InOut; typ = Void (* TODO *)}) in
     let meta_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "meta"))}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "meta")); dir = InOut; typ = Void (* TODO *)}) in
     let std_meta_expr =
-      (Info.dummy, Argument.Expression {value = (Info.dummy, Name (Info.dummy, "std_meta"))}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "std_meta")); dir = InOut; typ = Void (* TODO *)}) in
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
-    let (env,st) = 
+    let (env,st) =
       match state with 
       | SReject err -> 
-        assign ctrl env st (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err)) 
-        |> fst23
+        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err))
+        |> fst, st
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
     let pktout_loc = State.fresh_loc () in 
@@ -674,7 +675,7 @@ module EbpfFilter : Target = struct
 
   let check_pipeline env = failwith "unimplemented"
 
-  let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Argument.t list) app
+  let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
   (env,st) : env * state * signal =
     let (env,st,s,_) = app ctrl env st SContinue control args in 
     (env,st,s)

@@ -1,6 +1,7 @@
 module I = Info
 module Info = I (* JNF: ugly hack *)
-open Types
+open Prog
+open Typed
 open Value
 open Target
 
@@ -20,11 +21,11 @@ module type Interpreter = sig
 
   val eval_expression : ctrl -> env -> state -> Expression.t -> (env * state * value)
 
-  val eval_app : ctrl -> env -> state -> signal -> value -> Argument.t list -> env * state * signal * value
+  val eval_app : ctrl -> env -> state -> signal -> value -> Expression.t option list -> env * state * signal * value
 
-  val eval_assign' : ctrl -> env -> state -> lvalue -> value -> env * state * signal
+  val eval_assign' : env -> lvalue -> value -> env * signal
 
-  val init_val_of_typ : ctrl -> env -> state -> Type.t -> value
+  val init_val_of_typ : Type.t -> value
 
 end
 

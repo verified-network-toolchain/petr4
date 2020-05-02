@@ -1,4 +1,5 @@
-open Types
+open Typed
+open Prog
 open Value
 open Core_kernel
 open Sexplib.Conv
@@ -78,7 +79,7 @@ module EvalEnv = struct
     (* maps variables to their values *)
     vs : value env;
     (* map variables to their types; only needed in a few cases *)
-    typ : Types.Type.t env;
+    typ : Type.t env;
   }
 
   let empty_eval_env = {
@@ -178,6 +179,7 @@ module EvalEnv = struct
         | VTuple _ -> "<tuple>"
         | VSet _ -> "<set>"
         | VError s -> "Error: " ^ s
+        | VMatchKind s -> "Match Kind: " ^ s
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"
         | VAction _ -> "<action>"

@@ -1,4 +1,5 @@
-open Types
+open Typed
+open Prog
 open Value
 
 exception BadEnvironment of string

@@ -25,7 +25,7 @@ module type Interpreter = sig
 
   val eval_assign' : env -> lvalue -> value -> env * signal
 
-  val init_val_of_typ : Type.t -> value
+  val init_val_of_typ : env -> Type.t -> value
 
 end
 
@@ -35,4 +35,5 @@ module V1Interpreter : Interpreter
 
 (* module EbpfInterpreter : Interpreter *)
 
-val eval_prog : program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option
+(* TODO: final val should not take in the env *)
+val eval_prog : env -> program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option

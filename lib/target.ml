@@ -18,7 +18,7 @@ type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
 type 'st init_typ = 
-  Type.t -> value
+  env -> Type.t -> value
 
 module State = struct
 
@@ -178,8 +178,8 @@ module Core = struct
       pkt
       |> assert_runtime in
     let pkt = State.find pkt_loc st |> assert_in in
-    let (tname, init_fs) = match v with
-      | VHeader {typ_name; fields; is_valid} -> typ_name, fields
+    let init_fs = match v with
+      | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in
     let t =
       if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
@@ -202,11 +202,10 @@ module Core = struct
         | SContinue ->
           let fs' = List.zip_exn ns vs' in
           let h = VHeader {
-            typ_name = tname;
             fields = fs';
             is_valid = true;
           } in
-          let (env', _) = assign env (LName "hdr") h in
+          let env'= EvalEnv.insert_val "hdr" h env in
           env', st', SContinue, VNull
       end
 
@@ -262,8 +261,8 @@ module Core = struct
     | _ -> failwith "unexpected args for length"
 
   let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : pkt =
-    (* print_endline "getting packet of bytes"; *)
-    (* print_string "width is:"; print_endline (Bigint.to_string w); *)
+    print_endline "getting packet of bytes";
+    print_string "width is:"; print_endline (Bigint.to_string w);
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let seven = Bigint.(eight - one) in
     let rec h acc n w =
@@ -286,66 +285,66 @@ module Core = struct
     else n
 
   (* value returned is the number of bits emitted followed by the number to emit *)
-  let rec packet_of_value (env : env) (v : value) : pkt =
-    failwith "TOOD: reimplement"
-    (* match v with
+  let rec packet_of_value (env : env) (t : Type.t) (v : value) : pkt =
+    match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
     | VVarbit {max; w; v} -> packet_of_bit w v
-    | VStruct {typ_name; fields} -> packet_of_struct env t fields
-    | VHeader {typ_name; fields; is_valid} -> packet_of_hdr env t fields is_valid
+    | VStruct {fields} -> packet_of_struct env t fields
+    | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
     | VUnion {valid_header; valid_fields} -> packet_of_union env t valid_header valid_fields
     | VInteger _ -> failwith "it was integer"
-    | _ -> failwith "emit undefined on type" *)
+    | _ -> failwith "emit undefined on type"
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
-    (* print_endline "got to packet_of_bit"; *)
+    print_endline "got to packet_of_bit";
     packet_of_bytes v w
 
   and packet_of_int (w : Bigint.t) (v : Bigint.t) : pkt =
     packet_of_bytes (of_twos_complement v w) w
 
-  and packet_of_struct (env : env) (tname : string)
+  and packet_of_struct (env : env) (t : Type.t)
       (fields : (string * value) list) : pkt =
-    print_endline tname;
-    (* let d = EvalEnv.find_decl tname env in *)
-    let fs = reset_fields fields Bool (* TODO *) in
+    let fs = reset_fields fields t in
     let fs' = List.map ~f:snd fs in
-    let pkts = List.map ~f:(packet_of_value env) fs' in
+    let fts = match t with
+      | Header rt | Struct rt -> rt.fields |> List.map ~f:(fun f -> f.typ)
+      | _ -> failwith "not a struct type" in
+    let pkts = List.map2_exn ~f:(fun v t -> packet_of_value env t v) fs' fts in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
-  and packet_of_hdr (env : env) (tname : string)
+  and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : pkt =
-    if is_valid then packet_of_struct env tname fields else Cstruct.empty
+    if is_valid then packet_of_struct env t fields else Cstruct.empty
 
-  and packet_of_union (env : env) (hdr : value)
+  and packet_of_union (env : env) (t : Type.t) (hdr : value)
       (fs : (string * bool) list) : pkt =
     if List.exists fs ~f:snd
-    then packet_of_value env hdr
+    then packet_of_value env t hdr
     else Cstruct.empty
 
-  let eval_emit : 'st extern = fun _ _ env st _ args ->
-    (* print_endline "doing emit"; *)
+  let eval_emit : 'st extern = fun _ _ env st targs args ->
+    print_endline "doing emit";
     let (pkt_loc, v) = match args with
       | [VRuntime {loc; _}; hdr] -> loc, hdr
       | _ -> failwith "unexpected args for emit" in
-    (* let t = 
+    let t = 
       match targs with
       | [t] -> t
-      | _ -> failwith "unexpected type args for emit" in *)
+      | _ -> failwith "unexpected type args for emit" in
     let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
       | PacketOut (h, t) -> h, t
       | _ -> failwith "emit expected packet out" in
-    (* print_endline "getting pkt_add"; *)
+    print_endline "getting pkt_add";
     (* begin match v with
     | VBit {w;_} -> print_string "width is now: "; print_endline (Bigint.to_string w)
     | _ -> () end ; *)
-    let pkt_add = packet_of_value env v in
-    (* print_endline "got pkt_add"; *)
+    let pkt_add = packet_of_value env t v in
+    print_endline "got pkt_add";
     let emitted = Cstruct.append pkt_hd pkt_add, pkt_tl in
-    (* print_endline "appended"; *)
+    print_endline "appended";
     let st' = State.insert pkt_loc (PacketOut emitted) st in
-    (* print_endline "updated state"; *)
+    print_endline "updated state";
     env, st', SContinue, VNull
 
   let eval_verify : 'st extern = fun _ _ env st _ args ->
@@ -590,11 +589,11 @@ module V1Model : Target = struct
     let vpkt = VRuntime { loc = pkt_loc; typ_name = "packet_in"; } in
     let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
-      init (snd (List.nth_exn params 1)).typ in
+      init env (snd (List.nth_exn params 1)).typ in
     let meta =
-      init (snd (List.nth_exn params 2)).typ in
+      init env (snd (List.nth_exn params 2)).typ in
     let std_meta =
-      init (snd (List.nth_exn params 3)).typ in
+      init env (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
               |> insert_val "packet"   vpkt
@@ -610,23 +609,23 @@ module V1Model : Target = struct
     let (env, _) = 
       assign 
         env
-        (LMember{expr=LName("std_meta"); name="ingress_port"})
+        (LMember{expr=LName{name = "std_meta";typ = (snd (List.nth_exn params 3)).typ}; name="ingress_port"; typ = Bit {width = 9};})
         (VBit{w=nine;v=in_port}) in
     let open Expression in
     let pkt_expr =
-      Some (Info.dummy, {expr = (Name (Info.dummy, "packet")); dir = InOut; typ = Void (* TODO *)}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "packet")); dir = InOut; typ = (snd (List.nth_exn params 0)).typ}) in
     let hdr_expr =
-      Some (Info.dummy, {expr = (Name (Info.dummy, "hdr")); dir = InOut; typ = Void (* TODO *)}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "hdr")); dir = InOut; typ = (snd (List.nth_exn params 1)).typ}) in
     let meta_expr =
-      Some (Info.dummy, {expr = (Name (Info.dummy, "meta")); dir = InOut; typ = Void (* TODO *)}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "meta")); dir = InOut; typ = (snd (List.nth_exn params 2)).typ}) in
     let std_meta_expr =
-      Some (Info.dummy, {expr = (Name (Info.dummy, "std_meta")); dir = InOut; typ = Void (* TODO *)}) in
+      Some (Info.dummy, {expr = (Name (Info.dummy, "std_meta")); dir = InOut; typ = (snd (List.nth_exn params 3)).typ}) in
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let (env,st) =
       match state with 
       | SReject err -> 
-        assign env (LMember{expr=LName("std_meta");name="parser_error"}) (VError(err))
+        assign env (LMember{expr=LName{name = "std_meta"; typ = (snd (List.nth_exn params 3)).typ};name="parser_error"; typ = Error}) (VError(err))
         |> fst, st
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
@@ -638,7 +637,7 @@ module V1Model : Target = struct
         (CoreObject (PacketOut (Cstruct.create 0, State.find pkt_loc st
                                                   |> assert_pkt))) st in
     let env = EvalEnv.insert_val "packet" vpkt' env in
-    let env = EvalEnv.insert_typ "packet" (snd (List.nth_exn deparse_params 0)).typ env in (* TODO: add type to env here *)
+    let env = EvalEnv.insert_typ "packet" (snd (List.nth_exn deparse_params 0)).typ env in
     let (env,st,_) = 
       (env,st)
       |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst23

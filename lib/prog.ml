@@ -822,6 +822,7 @@ and Value : sig
           v : Bigint.t; }
     | VString of string
     | VTuple of value list
+    | VRecord of (string * value) list
     | VSet of set
     | VError of string
     | VMatchKind of string
@@ -835,11 +836,9 @@ and Value : sig
         { params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of 
-        { typ_name : string;
-          fields : (string * value) list; }
+        { fields : (string * value) list; }
     | VHeader of 
-        { typ_name : string;
-          fields : (string * value) list;
+        { fields : (string * value) list;
           is_valid : bool }
     | VUnion of 
         { valid_header : value;
@@ -895,18 +894,25 @@ and Value : sig
   [@@deriving sexp,yojson]
   
   and lvalue =
-    | LName of string
-    | LTopName of string
+    | LName of
+      { name : string;
+        typ : Type.t; }
+    | LTopName of 
+      { name : string;
+        typ : Type.t; }
     | LMember of 
       { expr : lvalue;
-        name : string; }
+        name : string;
+        typ : Type.t }
     | LBitAccess of 
         { expr : lvalue;
           msb : Bigint.t;
-          lsb : Bigint.t; }
+          lsb : Bigint.t;
+          typ : Type.t }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value; }
+          idx : value;
+          typ : Type.t; }
   [@@deriving sexp,yojson]
   
   and set =
@@ -1037,6 +1043,7 @@ end = struct
           v : Util.bigint; }
     | VString of string 
     | VTuple of value list
+    | VRecord of (string * value) list
     | VSet of set
     | VError of string
     | VMatchKind of string
@@ -1050,11 +1057,9 @@ end = struct
         { params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of 
-        { typ_name : string;
-          fields : (string * value) list; }
+        { fields : (string * value) list; }
     | VHeader of 
-        { typ_name : string;
-          fields : (string * value) list;
+        { fields : (string * value) list;
           is_valid : bool }
     | VUnion of 
         { valid_header : value;
@@ -1110,18 +1115,25 @@ end = struct
   [@@deriving sexp,yojson]
   
   and lvalue =
-    | LName of string
-    | LTopName of string
+    | LName of
+      { name : string;
+        typ : Type.t; }
+    | LTopName of 
+      { name : string;
+        typ : Type.t; }
     | LMember of 
       { expr : lvalue;
-        name : string; }
+        name : string;
+        typ : Type.t }
     | LBitAccess of 
         { expr : lvalue;
           msb : Util.bigint;
-          lsb : Util.bigint; }
+          lsb : Util.bigint;
+          typ : Type.t }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value; }
+          idx : value;
+          typ : Type.t; }
   [@@deriving sexp,yojson]
   
   and set =
@@ -1273,27 +1285,27 @@ end = struct
   
   let assert_lname l = 
     match l with 
-    | LName s -> s 
+    | LName {name; _} -> name 
     | _ -> failwith "not an lvalue name"
   
   let assert_ltopname l = 
     match l with 
-    | LTopName s -> s 
+    | LTopName {name;_} -> name 
     | _ -> failwith "not an lvalue top-leval name "
   
   let assert_lmember l =
     match l with 
-    | LMember {expr; name} -> (expr, name) 
+    | LMember {expr; name; _} -> (expr, name) 
     | _ -> failwith "not an lvalue member"
   
   let assert_lbitaccess l = 
     match l with 
-    | LBitAccess {expr; msb; lsb} -> (expr, msb, lsb)
+    | LBitAccess {expr; msb; lsb; _} -> (expr, msb, lsb)
     | _ -> failwith "not an lvalue bitaccess"
   
   let assert_larrayaccess l = 
     match l with 
-    | LArrayAccess {expr; idx} -> (expr, idx)
+    | LArrayAccess {expr; idx; _} -> (expr, idx)
     | _ -> failwith "not an lvalue array access"
   
   let assert_singleton s = 

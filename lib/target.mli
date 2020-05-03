@@ -8,7 +8,7 @@ type env = EvalEnv.t
 type 'st assign = env -> lvalue -> value -> env * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
+  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> (value * Type.t) list ->
   env * 'st2 * signal * value
 
 type 'st apply =
@@ -37,7 +37,7 @@ module type Target = sig
   val externs : (string * state extern) list
 
   val eval_extern : state assign -> ctrl -> env -> state -> Type.t list ->
-                    value list -> string -> env * state * signal * value
+                    (value * Type.t) list -> string -> env * state * signal * value
 
   val initialize_metadata : Bigint.t -> env -> env
 

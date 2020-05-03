@@ -190,8 +190,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (v : value) (name : string) : env * state =
     let name_expr = LName { name; typ } in
-    let env' = EvalEnv.insert_typ name typ env in
-    let (env, s) = eval_assign' env' name_expr v in env, st
+    let (env, s) = eval_assign' env name_expr v in env, st
 
   and eval_instantiation (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) (name : string) : env * state =
@@ -219,17 +218,16 @@ module MakeInterpreter (T : Target) = struct
       (init : Expression.t option) : env * state * signal =
     let open Expression in
     let name_expr = (Info.dummy, {expr = Expression.Name(Info.dummy, name); typ; dir = InOut}) in
-    let env' = EvalEnv.insert_typ name typ env in
     match init with
     | None ->
-      let env'' =
-        EvalEnv.insert_val name (init_val_of_typ env typ) env' in
-      (env'', st, SContinue)
-    | Some e -> eval_assign ctrl env' st SContinue name_expr e
+      let env' =
+        EvalEnv.insert_val name (init_val_of_typ env typ) env in
+      (env', st, SContinue)
+    | Some e -> eval_assign ctrl env st SContinue name_expr e
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (size : Expression.t) : env * state * signal =
-    let env' = EvalEnv.insert_typ name typ env in
+    let env' = EvalEnv.insert_typ name typ env in (* TODO *)
     let (env'', st', s, size') = eval_expr ctrl env' st SContinue size in
     let size'' = assert_rawint size' in
     match s with
@@ -483,7 +481,7 @@ module MakeInterpreter (T : Target) = struct
     init_val_of_typ env t
 
   and init_val_of_newtyp (env : env) (nt : NewType.t) : value = 
-    failwith "TODO: newtyp"
+    init_val_of_typ env nt.typ
 
   and init_val_of_header (env : env) (rt : RecordType.t) : value =
     let fs = List.map rt.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
@@ -553,11 +551,11 @@ module MakeInterpreter (T : Target) = struct
   and eval_stmt (ctrl : ctrl) (env : env) (st : state) (sign : signal)
       (stm : Statement.t) : (env * state * signal) =
     match (snd stm).stmt with
-    | MethodCall{func;type_args=ts;args} -> eval_method_call ctrl env st sign func args ts
-    | Assignment{lhs;rhs}                -> eval_assign ctrl env st sign lhs rhs
+    | MethodCall{func;type_args=ts;args} -> eval_method_call ctrl env st sign func ts args
+    | Assignment{lhs;rhs}                -> print_endline "doing assign"; eval_assign ctrl env st sign lhs rhs
     | DirectApplication{typ;args}        -> eval_app' ctrl env st sign args typ
-    | Conditional{cond;tru;fls}          -> eval_cond ctrl env st sign cond tru fls
-    | BlockStatement{block}              -> eval_block ctrl env st sign block
+    | Conditional{cond;tru;fls}          -> print_endline "doing conditional"; eval_cond ctrl env st sign cond tru fls
+    | BlockStatement{block}              -> print_endline "doing block"; eval_block ctrl env st sign block
     | Exit                               -> eval_exit env st sign
     | EmptyStatement                     -> (env, st, sign)
     | Return{expr}                       -> eval_return ctrl env st sign expr
@@ -565,10 +563,10 @@ module MakeInterpreter (T : Target) = struct
     | DeclarationStatement{decl}         -> eval_decl_stm ctrl env st sign decl
 
   and eval_method_call (ctrl : ctrl) (env : env) (st : state) (sign : signal)
-      (func : Expression.t) (args : Expression.t option list)
-      (ts : Type.t list) : env * state * signal =
+      (func : Expression.t) (targs : Type.t list)
+      (args : Expression.t option list) : env * state * signal =
     match sign with
-    | SContinue -> let (e,s,i,_) = eval_funcall ctrl env st func args ts in (e,s,i)
+    | SContinue -> let (e,s,i,_) = eval_funcall ctrl env st func targs args in (e,s,i)
     | SReject _
     | SReturn _
     | SExit     -> (env, st, sign)
@@ -579,6 +577,9 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
       let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st s lhs in
+      print_endline "assigning to lvalue: ";
+      print_lvalue lv;
+      print_endline "";
       begin match s',s'' with
         | SContinue, SContinue -> let (env, s) = eval_assign' env' lv v in env, st', s
         | SContinue, _         -> env'', st'', s''
@@ -586,6 +587,25 @@ module MakeInterpreter (T : Target) = struct
     | SReject _
     | SReturn _
     | SExit     -> (env, st, s)
+
+  and print_lvalue (lv : lvalue) : unit =
+    match lv with
+    | LName {name; _} -> print_string name
+    | LTopName {name;_} -> print_string ("." ^ name)
+    | LMember {expr;name;_} -> print_lvalue expr; print_string "."; print_string name
+    | LBitAccess {expr;msb;lsb;_} ->
+      print_lvalue expr;
+      print_string "[";
+      print_string (Bigint.to_string msb);
+      print_string ":";
+      print_string (Bigint.to_string lsb);
+      print_string "]"
+    | LArrayAccess {expr; idx; _} -> 
+      print_lvalue expr;
+      print_string "[";
+      print_string (Bigint.to_string (bigint_of_val idx));
+      print_string "]"
+
 
   and eval_app (ctrl : ctrl) (env : env) (st : state) (s : signal) (v : value)
     (args : Expression.t option list) : env * state * signal * value =
@@ -728,6 +748,9 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and eval_assign' (env : env) (lhs : lvalue) (rhs : value) : env * signal =
+    print_endline "assigning to lvalue: ";
+    print_lvalue lhs;
+    print_endline "";
     match lhs with
     | LName {name;typ} -> assign_name env name typ lhs rhs EvalEnv.insert_val, SContinue
     | LTopName {name;typ} -> assign_name env name typ lhs rhs EvalEnv.insert_val_toplevel, SContinue
@@ -754,13 +777,16 @@ module MakeInterpreter (T : Target) = struct
 
   and assign_member (env : env) (t : Type.t) (lv : lvalue) (mname : string)
       (rhs : value) : env * signal =
+    print_string "the prefix is: "; print_lvalue lv; print_endline "";
     let (s, v) = value_of_lvalue env lv in
     match s with 
     | SContinue -> 
       begin match v with
         | VStruct{fields=l} -> 
+          print_endline "doing struct member assign";
           assign_struct_mem env t lv rhs mname l
-        | VHeader{fields=l;is_valid=b} -> 
+        | VHeader{fields=l;is_valid=b} ->
+          print_endline "doing heade member assign";
           assign_header_mem env t lv rhs mname l b
         | VUnion{valid_header=vs;valid_fields=bs} -> 
           assign_union_mem env t lv rhs mname bs
@@ -771,13 +797,17 @@ module MakeInterpreter (T : Target) = struct
 
   and assign_bitaccess (env : env) (lv : lvalue) (msb : Bigint.t) (lsb : Bigint.t)
       (rhs : value) : env * signal =
+    print_endline "doing bitaccess assign";
     let w = Bigint.(msb - lsb + one) in
+    print_endline "got w";
     let (s, v) = value_of_lvalue env lv in
+    print_endline "got s and v";
     match s with
-    | SContinue -> 
+    | SContinue ->
       let n = bigint_of_val v in
       let nw = width_of_val v in 
       let rhs' = bit_of_rawint (bigint_of_val rhs) w |> bigint_of_val in
+      print_endline "got rhs'";
       let n0 = bitstring_slice n msb lsb in
       let diff = Bigint.(n0 - rhs') in
       let diff' = Bigint.(diff * (power_of_two lsb)) in
@@ -807,6 +837,9 @@ module MakeInterpreter (T : Target) = struct
   and assign_struct_mem (env : env) (t : Type.t) (lhs : lvalue)
       (rhs : value) (fname : string)
       (l : (string * value) list) : env * signal =
+    print_endline ("assigning struct mem: " ^ fname);
+    print_endline "pre-existing fields are:";
+    List.iter l ~f:(fun (x,_) -> print_endline x);
     (* let t = typ_of_struct_field env (typ_of_lvalue env lhs) fname in *)
     let rhs' = implicit_cast_from_rawint env rhs t in
     let rhs'' = implicit_cast_from_tuple env rhs' t in
@@ -815,6 +848,9 @@ module MakeInterpreter (T : Target) = struct
   and assign_header_mem (env : env) (t : Type.t) (lhs : lvalue)
       (rhs : value) (fname : string) (l : (string * value) list)
       (b : bool) : env * signal =
+    print_endline ("assigning header mem: " ^ fname);
+    print_endline "pre-existing fields are:";
+    List.iter l ~f:(fun (x,_) -> print_endline x);
     let rhs' = implicit_cast_from_rawint env rhs t in
     eval_assign' env lhs (VHeader{fields=(fname,rhs') :: l;is_valid=b})
 
@@ -854,7 +890,7 @@ module MakeInterpreter (T : Target) = struct
       | TopLevel(_,n) -> env, st, SContinue, LTopName {name = n; typ = (snd expr).typ }
       | ExpressionMember{expr=e; name=(_,n)} -> lvalue_of_expr_mem ctrl env st (snd expr).typ e n
       | BitStringAccess{bits;lo;hi} -> lvalue_of_expr_bsa ctrl env st (snd expr).typ bits lo hi
-      | ArrayAccess{array;index} -> lvalue_of_expr_ara ctrl env st (snd expr).typ array index
+      | ArrayAccess{array=a;index} -> lvalue_of_expr_ara ctrl env st (snd expr).typ a index
       | _ -> failwith "not an lvalue" end
     | SReject _ | SExit | SReturn _ -> env, st, signal, LName {name = ""; typ = Void}
 
@@ -889,10 +925,15 @@ module MakeInterpreter (T : Target) = struct
     | LArrayAccess{expr=lv;idx;_}         -> value_of_larray env lv idx
 
   and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
+    print_endline "getting lmember";
     let (s,v) = value_of_lvalue env lv in
+    print_endline "got lhs";
     let v' = match v with
       | VStruct{fields=l;_}
-      | VHeader{fields=l;_}              -> List.Assoc.find_exn l n ~equal:String.equal
+      | VHeader{fields=l;_}              -> 
+        List.iter ~f:(fun (x,_) -> print_endline x) l;
+        print_endline ("getting header member: " ^ n);
+        let ans = List.Assoc.find_exn l n ~equal:String.equal in print_endline "got header member"; ans
       | VUnion{valid_header=v;_}         -> v
       | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
       | _ -> failwith "no lvalue member" in
@@ -903,6 +944,7 @@ module MakeInterpreter (T : Target) = struct
 
   and value_of_lbit (env : env) (lv : lvalue) (hi : Bigint.t)
       (lo : Bigint.t) : signal * value =
+    print_endline "getting lbit";
     let (s,n) = value_of_lvalue env lv in
     let n' = bigint_of_val n in
     match s with
@@ -947,28 +989,28 @@ module MakeInterpreter (T : Target) = struct
     match s with
     | SContinue ->
       begin match (snd exp).expr with
-        | True                                 -> (env, st, s, VBool true)
-        | False                                -> (env, st, s, VBool false)
-        | Int(_,n)                             -> (env, st, s, eval_p4int n)
-        | String (_,value)                     -> (env, st, s, VString value)
-        | Name (_,name)                        -> eval_name ctrl env st s name exp
-        | TopLevel (_,name)                    -> (env, st, s, EvalEnv.find_val_toplevel name env)
-        | ArrayAccess{array=a; index=i}        -> eval_array_access ctrl env st a i
-        | BitStringAccess({bits;lo;hi})        -> eval_bitstring_access ctrl env st bits hi lo
-        | Record{entries}                      -> eval_record ctrl env st entries
-        | List{values}                         -> eval_list ctrl env st values
-        | UnaryOp{op;arg}                      -> eval_unary ctrl env st op arg
-        | BinaryOp{op; args=(l,r)}             -> eval_binop ctrl env st op l r
-        | Cast{typ;expr}                       -> eval_cast ctrl env st typ expr
-        | TypeMember{typ;name}                 -> eval_typ_mem ctrl env st typ (snd name)
-        | ErrorMember t                        -> (env, st, s, VError (snd t))
-        | ExpressionMember{expr;name}          -> eval_expr_mem ctrl env st expr name
-        | Ternary{cond;tru;fls}                -> eval_ternary ctrl env st cond tru fls
-        | FunctionCall{func;type_args=ts;args} -> eval_funcall ctrl env st func args ts
-        | NamelessInstantiation{typ;args}      -> eval_nameless ctrl env st typ args
-        | Mask{expr;mask}                      -> eval_mask ctrl env st expr mask
-        | Range{lo;hi}                         -> eval_range ctrl env st lo hi
-        | DontCare                             -> env, st, s, VNull end
+        | True                            -> (env, st, s, VBool true)
+        | False                           -> (env, st, s, VBool false)
+        | Int(_,n)                        -> (env, st, s, eval_p4int n)
+        | String (_,value)                -> (env, st, s, VString value)
+        | Name (_,name)                   -> eval_name ctrl env st s name exp
+        | TopLevel (_,name)               -> (env, st, s, EvalEnv.find_val_toplevel name env)
+        | ArrayAccess{array=a; index=i}   -> eval_array_access ctrl env st a i
+        | BitStringAccess({bits;lo;hi})   -> eval_bitstring_access ctrl env st bits hi lo
+        | Record{entries}                 -> eval_record ctrl env st entries
+        | List{values}                    -> eval_list ctrl env st values
+        | UnaryOp{op;arg}                 -> eval_unary ctrl env st op arg
+        | BinaryOp{op; args=(l,r)}        -> eval_binop ctrl env st op l r
+        | Cast{typ;expr}                  -> eval_cast ctrl env st typ expr
+        | TypeMember{typ;name}            -> eval_typ_mem ctrl env st typ (snd name)
+        | ErrorMember t                   -> (env, st, s, VError (snd t))
+        | ExpressionMember{expr;name}     -> eval_expr_mem ctrl env st expr name
+        | Ternary{cond;tru;fls}           -> eval_ternary ctrl env st cond tru fls
+        | FunctionCall{func;args;type_args=targs}       -> eval_funcall ctrl env st func targs args
+        | NamelessInstantiation{typ;args} -> eval_nameless ctrl env st typ args
+        | Mask{expr;mask}                 -> eval_mask ctrl env st expr mask
+        | Range{lo;hi}                    -> eval_range ctrl env st lo hi
+        | DontCare                        -> env, st, s, VNull end
     | SReject _ -> (env, st, s, VNull)
     | SReturn _ -> failwith "expression should not return"
     | SExit -> failwith "expresion should not exit"
@@ -1165,16 +1207,16 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith "ternary guard must be a bool"
 
   and eval_funcall (ctrl : ctrl) (env : env) (st : state) (func : Expression.t)
-      (args : Expression.t option list)
-      (ts : Type.t list) : env * state * signal * value =
+      (targs : Type.t list)
+      (args : Expression.t option list) : env * state * signal * value =
     let (env', st', s, cl) = eval_expr ctrl env st SContinue func in
     match s with
     | SContinue ->
       begin match cl with
         | VAction{params; body}
         | VFun{params; body}            -> eval_funcall' ctrl env' st' params args body
-        | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args ts
-        | VExternFun{name=n;caller=v}   -> eval_extern_call ctrl env' st' n v args ts
+        | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args
+        | VExternFun{name=n;caller=v}   -> eval_extern_call ctrl env' st' n v targs args
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
@@ -1687,13 +1729,15 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and eval_extern_call (ctrl : ctrl) (env : env) (st : state) (name : string)
-      (v : (loc * string) option) (args : Expression.t option list)
-      (ts : Type.t list) : env * state * signal * value =
-    (* print_endline "got to emit";
-    print_string "doing emit for: ";
+      (v : (loc * string) option) (targs : Type.t list)
+      (args : Expression.t option list) : env * state * signal * value =
+    print_endline "got to extract";
+    (* print_string "doing emit for: ";
     begin match args with
     | [ (_, Expression {value= (_, Name (_, n))})] -> print_endline n
     | _ -> () end; *)
+    let ts = args |> List.map ~f:(function Some e -> (snd e).typ | None -> Void) in
+    print_endline "got typ args";
     let params = 
       match v with 
       | Some (_, t) ->
@@ -1707,32 +1751,47 @@ module MakeInterpreter (T : Target) = struct
         |> List.hd_exn
         |> snd
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
+    print_endline "got params";
     let fenv = EvalEnv.push_scope env in
     let (_, kvs) =
       List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(fenv,st,SContinue) in
-    (* print_endline "got params"; *)
+    print_endline "got params";
     let (fenv, st', signal) = copyin ctrl env st params args in
-    (* print_endline "did copy in"; *)
+    print_endline "did copy in";
     let vs = List.map ~f:snd kvs in
     let env' = EvalEnv.pop_scope fenv in
-    (* print_endline "popped"; *)
+    print_endline "popped";
     match signal with
     | SExit -> env', st', SExit, VNull
     | SReject s -> env', st', SReject s, VNull
     | SReturn _ | SContinue -> 
     (* print_endline (vs |> List.length |> string_of_int); *)
     (* print_endline "got first level"; *)
-    let vs' = match v with
-      | Some (loc, t) -> VRuntime {loc = loc; typ_name = t} :: vs
-      | None -> vs in
+    let tvs = List.zip_exn vs ts in
+    let tvs' = match v with
+      | Some (loc, t) -> (VRuntime {loc = loc; typ_name = t}, Type.TypeName "packet") :: tvs
+      | None -> tvs in
     (* print_endline "prepended"; *)
-    let vs' = match vs' with
-      | _ :: VNull :: [] -> []
-      | _ -> vs' in
+    let tvs'' = match tvs' with
+      | _ :: (VNull,_) :: [] -> []
+      | _ -> tvs' in
     (* print_endline "custom modification"; *)
-    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st ts vs' name in
-    (* print_endline "called extern"; *)
-    let env'' = copyout ctrl fenv' st params args in
+    let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st targs tvs'' name in
+    print_endline "called extern";
+    begin match EvalEnv.find_val "hdr" (EvalEnv.pop_scope fenv') with
+      | VStruct {fields = fs} -> 
+        begin match List.Assoc.find fs "ethernet" ~equal:String.equal with
+        | None -> print_endline "ethernet was struct before copyout"
+        | Some _ -> print_endline "ethernet was struct before copyout" end
+      |  _ -> print_endline "ethernet was not struct before copyout" end;
+    let env'' = copyout ctrl fenv' st'' params args in
+    print_endline "copied out";
+    begin match EvalEnv.find_val "hdr" env'' with
+      | VStruct {fields = fs} -> 
+        begin match List.Assoc.find fs "ethernet" ~equal:String.equal with
+        | None -> print_endline "ethernet was not init"
+        | Some _ -> print_endline "ethernet was init" end
+      |  _ -> print_endline "ethernet was not init" end;
     env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
@@ -1810,11 +1869,10 @@ module MakeInterpreter (T : Target) = struct
       | _ -> v in
     let var = snd (snd p).variable in
     let f = EvalEnv.insert_val_firstlevel in
-    let g = EvalEnv.insert_typ_firstlevel in
     match (snd p).direction with
-    | Directionless -> e |> f var v' |> g var (snd p).typ
-    | InOut | In -> e |> f var v' |> g var (snd p).typ
-    | Out -> e
+    | Directionless -> e |> f var v'
+    | InOut | In -> e |> f var v'
+    | Out -> e |> f var v'
 
   and copy_arg_out (ctrl : ctrl) (st : state) (fenv : env) (e : env)
       (p : TypeParameter.t) (a : Expression.t option) : env =
@@ -1833,13 +1891,16 @@ module MakeInterpreter (T : Target) = struct
     | None -> e
     | Some expr -> 
       let (_, _, _, lv) = lvalue_of_expr ctrl e st SContinue expr in
+      print_endline "copying out to lvalue:";
+      print_lvalue lv;
+      print_endline "";
       (eval_assign' e lv v) |> fst
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
   (*----------------------------------------------------------------------------*)
 
   and eval_builtin (ctrl : ctrl) (env : env) (st : state) (name : string) (lv : lvalue)
-      (args : Expression.t option list) (ts : Type.t list) : env * state * signal * value =
+      (args : Expression.t option list) : env * state * signal * value =
     match name with
     | "isValid"    -> eval_isvalid ctrl env st lv
     | "setValid"   -> eval_setbool ctrl env st lv true

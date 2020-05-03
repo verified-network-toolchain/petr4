@@ -11,7 +11,7 @@ type env = EvalEnv.t
 type 'st assign = env -> lvalue -> value -> env * signal
 
 type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> value list ->
+  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> (value * Type.t) list ->
   env * 'st2 * signal * value
 
 type 'st apply =
@@ -46,8 +46,8 @@ module type Target = sig
 
   val externs : (string * state extern) list
 
-  val eval_extern : state assign -> ctrl -> env -> state -> Type.t list ->
-                    value list -> string -> env * state * signal * value
+  val eval_extern : state assign -> ctrl -> env -> state -> Type.t list -> 
+                    (value * Type.t) list -> string -> env * state * signal * value
 
   val initialize_metadata : Bigint.t -> env -> env
 
@@ -85,6 +85,14 @@ module Core = struct
     else if Bigint.(n < -(w'/two))
     then to_twos_complement Bigint.(n+w') w
     else n
+    
+  let rec of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
+    let w' = power_of_two w in
+    if Bigint.(n >= w')
+    then Bigint.(n % w')
+    else if Bigint.(n < zero)
+    then of_twos_complement Bigint.(n + w') w
+    else n
 
   let rec bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
     Bigint.(
@@ -98,9 +106,9 @@ module Core = struct
     | _ -> failwith "not a packetin"
 
   let value_of_field (init_fs : (string * value) list) 
-      (f : Declaration.field) : string * value =
-    snd ((snd f).name),
-    List.Assoc.find_exn init_fs (snd (snd f).name) ~equal:String.equal
+      (f : RecordType.field) : string * value =
+    f.name,
+    List.Assoc.find_exn init_fs f.name ~equal:String.equal
 
   let width_of_val (v : value) : Bigint.t = 
     match v with
@@ -164,16 +172,18 @@ module Core = struct
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
       Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
 
-  let reset_fields (fs : (string * value) list)
+  let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
-    failwith "TODO: reset fields on types"
-    (* match snd d with
-    | Header {fields;_} | Struct {fields;_} ->
-      List.map fields ~f:(value_of_field fs)
-    | _ -> failwith "not resettable" *)
+    match t with
+    | Struct rt | Header rt -> List.map rt.fields ~f:(value_of_field fs)
+    | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
+    | TopLevelType n -> reset_fields env fs (EvalEnv.find_typ_toplevel n env)
+    | NewType nt -> reset_fields env fs nt.typ
+    | _ -> failwith "not resettable"
 
   let eval_extract' (assign : 'st assign) (ctrl : ctrl) (env : env) (st : state)
-      (pkt : value) (v : value) (w : Bigint.t) : env * state * signal * value =
+      (t : Type.t) (pkt : value) (v : value) (w : Bigint.t)
+      (is_fixed : bool) : env * state * signal * value =
     let pkt_loc = 
       pkt
       |> assert_runtime in
@@ -181,10 +191,7 @@ module Core = struct
     let init_fs = match v with
       | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in
-    let t =
-      if Bigint.(w = zero) then EvalEnv.find_typ "hdr" env
-      else EvalEnv.find_typ "variableSizeHeader" env in
-    let fs = reset_fields init_fs t in
+    let fs = reset_fields env init_fs t in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
@@ -201,17 +208,23 @@ module Core = struct
         | SReject _ | SExit | SReturn _ -> env, st', s, VNull
         | SContinue ->
           let fs' = List.zip_exn ns vs' in
+          (* begin match List.Assoc.find fs' "ethernet" ~equal:String.equal with
+          | None -> print_endline "didnt get initialized by extract"
+          | Some _ -> print_endline "got initialized by extract" end; *)
           let h = VHeader {
             fields = fs';
             is_valid = true;
           } in
-          let env'= EvalEnv.insert_val "hdr" h env in
-          env', st', SContinue, VNull
+          let env'= 
+            EvalEnv.insert_val 
+              (if is_fixed then "hdr" else "variableSizeHeader")
+              h env in
+          print_endline "finished extract"; env', st', SContinue, VNull
       end
 
-  let eval_advance : 'st extern = fun assign ctrl env st targs args ->
+  let eval_advance : 'st extern = fun assign ctrl env st _ args ->
     let (pkt_loc, v) = match args with
-      | [VRuntime {loc;_}; VBit{v;_}] -> loc, v
+      | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
       | _ -> failwith "unexpected args for advance" in
     let pkt = State.find pkt_loc st |> assert_in in
     try
@@ -223,35 +236,71 @@ module Core = struct
       env, st, SReject "PacketTooShort", VNull
 
   let eval_extract : 'st extern = fun assign ctrl env st targs args ->
+    print_endline "doing extract";
     match args with 
-    | [pkt;v1] -> eval_extract' assign ctrl env st pkt v1 Bigint.zero
-    | [pkt;v1;v2] -> eval_extract' assign ctrl env st pkt v1 (assert_bit v2 |> snd)
+    | [(pkt, _);(v1, t)] -> eval_extract' assign ctrl env st t pkt v1 Bigint.zero true
+    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' assign ctrl env st t pkt v1 (assert_bit v2 |> snd) false
     | [] -> eval_advance assign ctrl env st targs args
     | _ -> print_endline (args |> List.length |> string_of_int); failwith "wrong number of args for extract"
 
-  let val_of_bigint _ _ = failwith "TODO: not really possible until the types refactor"
+  let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
+    match t with
+    | Bool -> Bigint.one
+    | Int {width} | Bit {width} -> Bigint.of_int width
+    | Array {typ;size} -> Bigint.(width_of_typ env typ * of_int size)
+    | Tuple {types} ->
+      types
+      |> List.map ~f:(width_of_typ env)
+      |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
+    | Record rt | Header rt | Struct rt ->
+      rt.fields
+      |> List.map ~f:(fun x -> x.typ)
+      |> List.map ~f:(width_of_typ env)
+      |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
+    | Enum {typ = Some t;_} -> width_of_typ env t
+    | TypeName n -> width_of_typ env (EvalEnv.find_typ n env)
+    | TopLevelType n -> width_of_typ env (EvalEnv.find_typ_toplevel n env)
+    | NewType nt -> width_of_typ env nt.typ
+    | _ -> failwith "not a fixed-width type"
 
-  let width_of_typ _ = failwith "TODO"
-
+  let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
+    match t with
+    | Bool -> if Bigint.(n = zero) then VBool false else VBool true
+    | Int {width} ->
+      VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
+    | Bit {width} ->
+      VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
+    | Array {typ;size} -> failwith "TODO: array of bigint"
+    | Tuple _ -> failwith "TODO: tuple of bigint"
+    | Record _ -> failwith "TODO: record_of_bigint"
+    | Header _ -> failwith "TODO: header of bigint"
+    | Struct _ -> failwith "TODO: struct of bigint"
+    | Enum {typ = Some t;_} -> val_of_bigint env t n
+    | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
+    | TopLevelType name -> val_of_bigint env (EvalEnv.find_typ_toplevel name env) n
+    | NewType nt -> val_of_bigint env nt.typ n
+    | _ -> failwith "not a fixed-width type"
+    
   let eval_lookahead : 'st extern = fun _ _ env st targs args ->
     let t = match targs with
       | [t] -> t
       | _ -> failwith "unexpected type args for lookahead" in
-    let w = width_of_typ t in
+    (* let t = Typed.Type.Void TODO in *)
+    let w = width_of_typ env t in
     let pkt_loc = match args with
-      | [VRuntime {loc; _}] -> loc
+      | [(VRuntime {loc; _}, _)] -> loc
       | _ -> failwith "unexpected args for lookahead" in
     let pkt = State.find pkt_loc st |> assert_in in
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     try
       let (pkt_hd, _) = Cstruct.split ~start:0 pkt Bigint.(to_int_exn (w/eight)) in
       let (_, n, _) = bytes_of_packet pkt_hd Bigint.(w/eight) in
-      env, st, SContinue, val_of_bigint t n
+      env, st, SContinue, val_of_bigint env t n
     with Invalid_argument _ -> env, st, SReject "PacketTooShort", VNull
 
   let eval_length : 'st extern = fun _ _ env st _ args ->
     match args with
-    | [VRuntime {loc;_}] ->
+    | [(VRuntime {loc;_}, _)] ->
       let obj = State.find loc st in
       let len = 
         match obj with
@@ -284,6 +333,14 @@ module Core = struct
     then of_twos_complement Bigint.(n + w') w
     else n
 
+  let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
+    match t with 
+    | Header rt | Record rt | Struct rt -> List.map rt.fields ~f:(fun x -> x.typ)
+    | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
+    | TopLevelType n -> field_types_of_typ env (EvalEnv.find_typ n env)
+    | NewType nt -> field_types_of_typ env nt.typ
+    | _ -> failwith "type does not have fields"
+
   (* value returned is the number of bits emitted followed by the number to emit *)
   let rec packet_of_value (env : env) (t : Type.t) (v : value) : pkt =
     match v with
@@ -293,6 +350,7 @@ module Core = struct
     | VStruct {fields} -> packet_of_struct env t fields
     | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
     | VUnion {valid_header; valid_fields} -> packet_of_union env t valid_header valid_fields
+    | VStack {headers; _} -> packet_of_stack env t headers
     | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
 
@@ -305,11 +363,9 @@ module Core = struct
 
   and packet_of_struct (env : env) (t : Type.t)
       (fields : (string * value) list) : pkt =
-    let fs = reset_fields fields t in
+    let fs = reset_fields env fields t in
     let fs' = List.map ~f:snd fs in
-    let fts = match t with
-      | Header rt | Struct rt -> rt.fields |> List.map ~f:(fun f -> f.typ)
-      | _ -> failwith "not a struct type" in
+    let fts = field_types_of_typ env t in
     let pkts = List.map2_exn ~f:(fun v t -> packet_of_value env t v) fs' fts in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
@@ -323,15 +379,18 @@ module Core = struct
     then packet_of_value env t hdr
     else Cstruct.empty
 
-  let eval_emit : 'st extern = fun _ _ env st targs args ->
+  and packet_of_stack (env : env) (t : Type.t) (headers : value list) : pkt =
+    let t' = match t with
+      | Array at -> at.typ
+      | _ -> failwith "expected array type" in
+    let pkts = List.map ~f:(packet_of_value env t') headers in
+    List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
+
+  let eval_emit : 'st extern = fun _ _ env st _ args ->
     print_endline "doing emit";
-    let (pkt_loc, v) = match args with
-      | [VRuntime {loc; _}; hdr] -> loc, hdr
+    let (pkt_loc, v, t) = match args with
+      | [(VRuntime {loc; _}, _); (hdr, t)] -> loc, hdr, t
       | _ -> failwith "unexpected args for emit" in
-    let t = 
-      match targs with
-      | [t] -> t
-      | _ -> failwith "unexpected type args for emit" in
     let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
       | PacketOut (h, t) -> h, t
       | _ -> failwith "emit expected packet out" in
@@ -349,7 +408,7 @@ module Core = struct
 
   let eval_verify : 'st extern = fun _ _ env st _ args ->
     let b, err = match args with
-      | [VBool b; VError err] -> b, err
+      | [(VBool b, _); (VError err,_)] -> b, err
       | _ -> failwith "unexpected args for verify" in
     if b then env, st, SContinue, VNull
     else env, st, SReject err, VNull
@@ -412,7 +471,7 @@ module V1Model : Target = struct
     | CoreObject _ -> true
     | V1Object _ -> false
 
-  let eval_counter : state extern = fun assign ctrl env st targs args ->
+  let eval_counter : state extern = fun assign ctrl env st args ->
     (* let counter_loc = State.fresh_loc () in state persistence? *)
     failwith "TODO"
 

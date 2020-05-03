@@ -1,10 +1,9 @@
 #include<core.p4>
 #include<v1model.p4>
 
-header ethernet_t {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
+header error_code_t {
+    bit<8> code;
+    bit<8> n_varbits;
 }
 
 header custom_var_len_t{
@@ -12,7 +11,7 @@ header custom_var_len_t{
 }
 
 struct headers_t {
-    ethernet_t ethernet;
+    error_code_t error_code;
     custom_var_len_t custom_var_len;
 }
 
@@ -24,13 +23,13 @@ parser parserImpl(packet_in packet,
                   inout standard_metadata_t stdmeta) {
 
     state start {
-        packet.extract(hdr.ethernet);
+        packet.extract(hdr.error_code);
         transition parse_custom_variable_len_hdr;
     }
 
     state parse_custom_variable_len_hdr {
         packet.extract(hdr.custom_var_len,
-            (bit<32>) hdr.ethernet.etherType[7:0]);
+            (bit<32>) hdr.error_code.n_varbits);
         transition accept;
     }
 }
@@ -70,7 +69,7 @@ control ingressImpl(inout headers_t hdr,
         else {
             error_as_int = 7;
         }
-        hdr.ethernet.dstAddr[7:0] = error_as_int;
+        hdr.error_code.code = error_as_int;
     }
 }
 
@@ -86,7 +85,7 @@ control updateChecksum(inout headers_t hdr, inout metadata_t meta) {
 
 control deparserImpl(packet_out packet, in headers_t hdr) {
     apply {
-        packet.emit(hdr.ethernet);
+        packet.emit(hdr);
     }
 }
 

@@ -177,6 +177,7 @@ module EvalEnv = struct
             | Some n -> string_of_int n end
         | VString s -> s
         | VTuple _ -> "<tuple>"
+        | VRecord _ -> "<record>"
         | VSet _ -> "<set>"
         | VError s -> "Error: " ^ s
         | VMatchKind s -> "Match Kind: " ^ s
@@ -304,5 +305,5 @@ module CheckerEnv = struct
   let eval_env_of_t (cenv: t) : EvalEnv.t =
     { decl = [[]];
       vs = cenv.const;
-      typ = [[]];}
+      typ = cenv.typ;}
 end

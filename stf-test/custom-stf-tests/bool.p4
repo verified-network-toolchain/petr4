@@ -51,8 +51,8 @@ control MyDeparser(packet_out packet, in headers hdr) {
       bool r = true != false;
       bool s = false != true;
       bool t = false != false;
-      bit<1> u = true ? 1 : 0;
-      bit<1> v = false ? 1 : 0;
+      bit<1> u = true ? 1w1 : 1w0;
+      bit<1> v = false ? 1w1 : 1w0;
       // packet.emit((bit<8>) ((bit) a));
       // packet.emit((bit<8>) ((bit) b));
       // packet.emit((bit<8>) ((bit) c));

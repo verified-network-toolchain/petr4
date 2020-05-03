@@ -23,21 +23,6 @@ my_other_struct f(in my_other_struct s) {
     return s;
 }
 
-const my_struct s1 = {0,false};
-const my_struct s2 = {1, true};
-const bit test1 = s1.first; //false
-const bool test2 = s1.second; //
-const bit test3 = s2.first;
-const bool test4 = s2.second;
-const my_other_struct s3 = {s1, s2};
-const my_other_struct s4 = f(s3);
-const my_other_struct s5 = {{0,false}, {1,true}};
-
-const bool a = error.NoError != error.MyError;
-const bool b = s3.first != s3.second;
-const bool c = s3 == s4;
-const bool d = s4 == s5;
-
 struct metadata { }
 struct headers { }
 
@@ -70,6 +55,20 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
+      my_struct s1 = {0,false};
+      my_struct s2 = {1, true};
+      bit test1 = s1.first; //false
+      bool test2 = s1.second; //
+      bit test3 = s2.first;
+      bool test4 = s2.second;
+      my_other_struct s3 = {s1, s2};
+      my_other_struct s4 = f(s3);
+      my_other_struct s5 = {{0,false}, {1,true}};
+  
+      bool a = error.NoError != error.MyError;
+      bool b = s3.first != s3.second;
+      bool c = s3 == s4;
+      bool d = s4 == s5;
       // packet.emit(s1);
       // packet.emit(s2);
       packet.emit((bit<8>) test1);

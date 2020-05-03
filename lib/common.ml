@@ -85,9 +85,10 @@ module Make_parse (Conf: Parse_config) = struct
       match parse_file include_dirs p4_file verbose with
       | `Ok prog ->
         let elab_prog = Elaborate.elab prog in
-        let (_, typed_prog) = Checker.check_program elab_prog in
+        let (cenv, typed_prog) = Checker.check_program elab_prog in
+        let env = Env.CheckerEnv.eval_env_of_t cenv in
         (* TODO - thread env information from checker to eval*)
-        begin match Eval.eval_prog typed_prog (tbls, vsets) pkt Bigint.zero with
+        begin match Eval.eval_prog env typed_prog (tbls, vsets) pkt Bigint.zero with
           |Some (pkt,_) -> pkt
           | None -> "" end
       | `Error (info, exn) ->

@@ -2025,7 +2025,7 @@ module MakeInterpreter (T : Target) = struct
                 |> List.map ~f:(fun ((b,env,st),c) -> (b,(env,st,c))) in
       let next = List.Assoc.find ms' true ~equal:Poly.(=) in
       begin match next with
-        | None -> (env'', st', SReject "NotMatch")
+        | None -> (env'', st', SReject "NoMatch")
         | Some (fenv,st,next) ->
           let next' = snd (snd next).next in
           eval_direct ctrl fenv st states next' end

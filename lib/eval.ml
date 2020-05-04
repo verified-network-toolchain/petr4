@@ -676,15 +676,17 @@ module MakeInterpreter (T : Target) = struct
       | SReject _ -> (env', st', s') 
       | SContinue -> 
         let s = assert_enum v |> snd in 
-        cases 
-        |> List.map ~f:snd
-        |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
-        |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s))
-        |> List.hd_exn
-        |> List.filter ~f:(function Action _ -> true | _ -> false) 
-        |> List.hd_exn 
-        |> (function Action{label;code} -> code | _ -> failwith "unreachable")
-        |> eval_block ctrl env' st' SContinue
+        let matches = cases 
+                      |> List.map ~f:snd
+                      |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
+                      |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s)) in
+        begin match matches with
+              | [] -> (env', st', s')
+              | hd::tl -> hd
+                        |> List.filter ~f:(function Action _ -> true | _ -> false) 
+                        |> List.hd_exn 
+                        |> (function Action{label;code} -> code | _ -> failwith "unreachable")
+                        |> eval_block ctrl env' st' SContinue end
       | _ -> failwith "unreachable" end
 
   and eval_decl_stm (ctrl : ctrl) (env : env) (st : state) (sign : signal)

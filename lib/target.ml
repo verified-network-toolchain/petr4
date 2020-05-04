@@ -448,6 +448,10 @@ module V1Model : Target = struct
         typ : counter_type;
         size : Bigint.t;
       }
+    | Register of {
+        states: Bigint.t array;
+        size: Bigint.t;
+      }
 
   and counter_type =
     (* | Packets *)
@@ -488,7 +492,16 @@ module V1Model : Target = struct
 
   let eval_read : state extern = fun _ -> failwith "TODO"
 
-  let eval_register : state extern = fun _ -> failwith "TODO"
+  let eval_register : state extern = fun _ _ env st _ args ->
+    match args with
+    | [(VRuntime {loc;typ_name}, _); (VBit{v;_}, _)] ->
+      let states = Array.create ~len:(Bigint.to_int_exn v) Bigint.zero in 
+      let reg = Register {states = states;
+                          size = v; } in
+      let ob = V1Object reg in
+      let st' = State.insert loc ob st in
+      env, st', SContinue, VRuntime {loc = loc; typ_name = typ_name}
+    | _ -> failwith "unexpected args for register instantiation"
 
   let eval_write : state extern = fun _ -> failwith "TODO"
 

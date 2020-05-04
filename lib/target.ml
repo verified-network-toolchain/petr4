@@ -743,16 +743,16 @@ module V1Model : Target = struct
   let eval_direct_meter : extern = fun _ -> failwith "TODO"
 
   let eval_read : extern = fun _ -> failwith "TODO"
-
-  let eval_register : state extern = fun _ _ env st _ args ->
+  
+  let eval_register : extern = fun _ env st _ args ->
     match args with
-    | [(VRuntime {loc;typ_name}, _); (VBit{v;_}, _)] ->
-      let states = Array.create ~len:(Bigint.to_int_exn v) Bigint.zero in 
+    | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] ->
+      let states = Array.create ~len:(Bigint.to_int_exn size) Bigint.zero in 
       let reg = Register {states = states;
-                          size = v; } in
-      let ob = V1Object reg in
-      let st' = State.insert loc ob st in
-      env, st', SContinue, VRuntime {loc = loc; typ_name = typ_name}
+                          size = size; } in
+      let v = V1Object reg in
+      let st' = State.insert loc v st in
+      env, st', SContinue, VRuntime {loc = loc; obj_name = obj_name}
     | _ -> failwith "unexpected args for register instantiation"
 
   let eval_write : extern = fun _ -> failwith "TODO"
@@ -856,6 +856,7 @@ module V1Model : Target = struct
       | "length" -> targetize Core.eval_length
       | "emit" -> targetize Core.eval_emit
       | "verify" -> targetize Core.eval_verify
+      | "register" -> eval_register
       | _ -> failwith "TODO" in
     extern ctrl env st targs args
 

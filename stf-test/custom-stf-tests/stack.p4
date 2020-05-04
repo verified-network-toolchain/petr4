@@ -31,31 +31,6 @@ MyHeader[5] pop2(in MyHeader[5] a) {
     return a;
 }
 
-const MyHeader[5] a = init();
-const MyHeader b = a[0];
-const MyHeader c = a[1];
-const MyHeader d = a[2];
-const MyHeader e = a[3];
-const MyHeader f = a[4];
-const bit<32> g = a.size; //5
-const MyHeader h = a.next;
-const MyHeader[5] i = set_next(a);
-const MyHeader j = i.next;
-const MyHeader[5] k = set_third(i);
-const MyHeader l = k[3];
-const MyHeader[5] m = push1(k);
-const MyHeader n = m[0];
-const MyHeader o = m[1];
-const MyHeader p = m[2];
-const MyHeader q = m[3];
-const MyHeader r = m[4];
-const MyHeader[5] s = pop2(m);
-const MyHeader t = s[0];
-const MyHeader u = s[1];
-const MyHeader v = s[2];
-const MyHeader w = s[3];
-const MyHeader x = s[4];
-
 struct metadata { }
 struct headers { }
 
@@ -86,6 +61,30 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
+      MyHeader[5] a = init();
+      MyHeader b = a[0];
+      MyHeader c = a[1];
+      MyHeader d = a[2];
+      MyHeader e = a[3];
+      MyHeader f = a[4];
+      bit<32> g = a.size; //5
+      MyHeader h = a.next;
+      MyHeader[5] i = set_next(a);
+      MyHeader j = i.next;
+      MyHeader[5] k = set_third(i);
+      MyHeader l = k[3];
+      MyHeader[5] m = push1(k);
+      MyHeader n = m[0];
+      MyHeader o = m[1];
+      MyHeader p = m[2];
+      MyHeader q = m[3];
+      MyHeader r = m[4];
+      MyHeader[5] s = pop2(m);
+      MyHeader t = s[0];
+      MyHeader u = s[1];
+      MyHeader v = s[2];
+      MyHeader w = s[3];
+      MyHeader x = s[4];
       packet.emit(b);
       packet.emit(c);
       packet.emit(d);

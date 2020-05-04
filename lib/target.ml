@@ -219,7 +219,7 @@ module Core = struct
             EvalEnv.insert_val 
               (if is_fixed then "hdr" else "variableSizeHeader")
               h env in
-          print_endline "finished extract"; env', st', SContinue, VNull
+          env', st', SContinue, VNull
       end
 
   let eval_advance : 'st extern = fun assign ctrl env st _ args ->
@@ -236,7 +236,7 @@ module Core = struct
       env, st, SReject "PacketTooShort", VNull
 
   let eval_extract : 'st extern = fun assign ctrl env st targs args ->
-    print_endline "doing extract";
+    (* print_endline "doing extract"; *)
     match args with 
     | [(pkt, _);(v1, t)] -> eval_extract' assign ctrl env st t pkt v1 Bigint.zero true
     | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' assign ctrl env st t pkt v1 (assert_bit v2 |> snd) false
@@ -310,8 +310,8 @@ module Core = struct
     | _ -> failwith "unexpected args for length"
 
   let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : pkt =
-    print_endline "getting packet of bytes";
-    print_string "width is:"; print_endline (Bigint.to_string w);
+    (* print_endline "getting packet of bytes"; *)
+    (* print_string "width is:"; print_endline (Bigint.to_string w); *)
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let seven = Bigint.(eight - one) in
     let rec h acc n w =
@@ -341,7 +341,6 @@ module Core = struct
     | NewType nt -> field_types_of_typ env nt.typ
     | _ -> failwith "type does not have fields"
 
-  (* value returned is the number of bits emitted followed by the number to emit *)
   let rec packet_of_value (env : env) (t : Type.t) (v : value) : pkt =
     match v with
     | VBit {w; v} -> packet_of_bit w v
@@ -355,7 +354,7 @@ module Core = struct
     | _ -> failwith "emit undefined on type"
 
   and packet_of_bit (w : Bigint.t) (v : Bigint.t) : pkt =
-    print_endline "got to packet_of_bit";
+    (* print_endline "got to packet_of_bit"; *)
     packet_of_bytes v w
 
   and packet_of_int (w : Bigint.t) (v : Bigint.t) : pkt =
@@ -394,16 +393,16 @@ module Core = struct
     let (pkt_hd, pkt_tl) = match State.find pkt_loc st with
       | PacketOut (h, t) -> h, t
       | _ -> failwith "emit expected packet out" in
-    print_endline "getting pkt_add";
+    (* print_endline "getting pkt_add"; *)
     (* begin match v with
     | VBit {w;_} -> print_string "width is now: "; print_endline (Bigint.to_string w)
     | _ -> () end ; *)
     let pkt_add = packet_of_value env t v in
-    print_endline "got pkt_add";
+    (* print_endline "got pkt_add"; *)
     let emitted = Cstruct.append pkt_hd pkt_add, pkt_tl in
-    print_endline "appended";
+    (* print_endline "appended"; *)
     let st' = State.insert pkt_loc (PacketOut emitted) st in
-    print_endline "updated state";
+    (* print_endline "updated state"; *)
     env, st', SContinue, VNull
 
   let eval_verify : 'st extern = fun _ _ env st _ args ->

@@ -11,9 +11,8 @@ void swap(inout bit a, inout bit b) {
   return;
 }
 
-bit<2> swapped(in bit<2> x) {
+void swapped(inout bit<2> x) {
   swap(x[1:1], x[0:0]);
-  return x;
 }
 
 parser MyParser(packet_in packet,
@@ -43,10 +42,14 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
-        bit<2> a = swapped((bit<2>) 0); //0
-        bit<2> b = swapped((bit<2>) 1); //2
-        bit<2> c = swapped((bit<2>) 2); //1
-        bit<2> d = swapped((bit<2>) 3); //3
+        bit<2> a = 0;
+        bit<2> b = 1;
+        bit<2> c = 2;
+        bit<2> d = 3;
+        swapped(a); //0
+        swapped(b); //2
+        swapped(c); //1
+        swapped(d); //3
         packet.emit((bit<8>) a);
         packet.emit((bit<8>) b);
         packet.emit((bit<8>) c);

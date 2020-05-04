@@ -19,21 +19,6 @@ my_header g(in my_header hdr) {
     return hdr;
 }
 
-const my_header head = { 1, 0 };
-const bool a = head.isValid(); //true; initializing with a list expression makes it valid
-const bit<2> b = head.first; // 1
-const bit<2> c = head.second; // 0
-
-const my_header head2 = g(head);
-const bool d = head2.isValid(); //false
-const bit<2> e = head2.first; //1
-const bit<2> h = head2.second;//0
-
-const my_header head3 = f(2,3);
-const bool i = head3.isValid(); //true
-const bit<2> j = head3.first; //2
-const bit<2> k = head3.second; //3
-
 struct metadata { }
 struct headers { }
 
@@ -64,6 +49,22 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
+
+        my_header head = { 1, 0 };
+        bool a = head.isValid(); //true; initializing with a list expression makes it valid
+        bit<2> b = head.first; // 1
+        bit<2> c = head.second; // 0
+
+        my_header head2 = g(head);
+        bool d = head2.isValid(); //false
+        bit<2> e = head2.first; //1
+        bit<2> h = head2.second;//0
+
+        my_header head3 = f(2,3);
+        bool i = head3.isValid(); //true
+        bit<2> j = head3.first; //2
+        bit<2> k = head3.second; //3
+
         packet.emit((bit<8>) ((bit) a));
         packet.emit((bit<8>) b);
         packet.emit((bit<8>) c);
@@ -73,7 +74,6 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit((bit<8>) ((bit) i));
         packet.emit((bit<8>) j);
         packet.emit((bit<8>) k);
-
     }
 }
 

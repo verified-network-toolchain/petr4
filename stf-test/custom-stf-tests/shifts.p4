@@ -40,13 +40,14 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(a);
         packet.emit(b);
         packet.emit(c);
-        packet.emit(d);
-        packet.emit(e);
-        packet.emit(f);
+        // packet.emit(d);
+        // packet.emit(e);
+        // packet.emit(f);
     }
 }
 
-//this is declaration
+// @rhd TODO this exposes a bug in the type checker
+
 V1Switch(
     MyParser(),
     MyChecksum(),

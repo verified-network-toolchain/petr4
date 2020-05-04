@@ -1389,6 +1389,7 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
        then match r_typ with
             |  Bit _ -> l_typ
             |  Integer -> l_typ (* TODO check the value of the rhs is non negative *)
+            |  Int _   -> l_typ (* TODO this is a temporary fix that is not correct *)
             | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
        else failwith "can only shift numbers"
   in

@@ -552,10 +552,10 @@ module MakeInterpreter (T : Target) = struct
       (stm : Statement.t) : (env * state * signal) =
     match (snd stm).stmt with
     | MethodCall{func;type_args=ts;args} -> eval_method_call ctrl env st sign func ts args
-    | Assignment{lhs;rhs}                -> print_endline "doing assign"; eval_assign ctrl env st sign lhs rhs
+    | Assignment{lhs;rhs}                -> eval_assign ctrl env st sign lhs rhs
     | DirectApplication{typ;args}        -> eval_app' ctrl env st sign args typ
-    | Conditional{cond;tru;fls}          -> print_endline "doing conditional"; eval_cond ctrl env st sign cond tru fls
-    | BlockStatement{block}              -> print_endline "doing block"; eval_block ctrl env st sign block
+    | Conditional{cond;tru;fls}          -> eval_cond ctrl env st sign cond tru fls
+    | BlockStatement{block}              -> eval_block ctrl env st sign block
     | Exit                               -> eval_exit env st sign
     | EmptyStatement                     -> (env, st, sign)
     | Return{expr}                       -> eval_return ctrl env st sign expr
@@ -577,9 +577,6 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
       let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st s lhs in
-      print_endline "assigning to lvalue: ";
-      print_lvalue lv;
-      print_endline "";
       begin match s',s'' with
         | SContinue, SContinue -> let (env, s) = eval_assign' env' lv v in env, st', s
         | SContinue, _         -> env'', st'', s''
@@ -748,9 +745,6 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and eval_assign' (env : env) (lhs : lvalue) (rhs : value) : env * signal =
-    print_endline "assigning to lvalue: ";
-    print_lvalue lhs;
-    print_endline "";
     match lhs with
     | LName {name;typ} -> assign_name env name typ lhs rhs EvalEnv.insert_val, SContinue
     | LTopName {name;typ} -> assign_name env name typ lhs rhs EvalEnv.insert_val_toplevel, SContinue
@@ -777,16 +771,13 @@ module MakeInterpreter (T : Target) = struct
 
   and assign_member (env : env) (t : Type.t) (lv : lvalue) (mname : string)
       (rhs : value) : env * signal =
-    print_string "the prefix is: "; print_lvalue lv; print_endline "";
     let (s, v) = value_of_lvalue env lv in
     match s with 
     | SContinue -> 
       begin match v with
         | VStruct{fields=l} -> 
-          print_endline "doing struct member assign";
           assign_struct_mem env t lv rhs mname l
         | VHeader{fields=l;is_valid=b} ->
-          print_endline "doing heade member assign";
           assign_header_mem env t lv rhs mname l b
         | VUnion{valid_header=vs;valid_fields=bs} -> 
           assign_union_mem env t lv rhs mname bs
@@ -797,17 +788,13 @@ module MakeInterpreter (T : Target) = struct
 
   and assign_bitaccess (env : env) (lv : lvalue) (msb : Bigint.t) (lsb : Bigint.t)
       (rhs : value) : env * signal =
-    print_endline "doing bitaccess assign";
     let w = Bigint.(msb - lsb + one) in
-    print_endline "got w";
     let (s, v) = value_of_lvalue env lv in
-    print_endline "got s and v";
     match s with
     | SContinue ->
       let n = bigint_of_val v in
       let nw = width_of_val v in 
       let rhs' = bit_of_rawint (bigint_of_val rhs) w |> bigint_of_val in
-      print_endline "got rhs'";
       let n0 = bitstring_slice n msb lsb in
       let diff = Bigint.(n0 - rhs') in
       let diff' = Bigint.(diff * (power_of_two lsb)) in
@@ -837,9 +824,9 @@ module MakeInterpreter (T : Target) = struct
   and assign_struct_mem (env : env) (t : Type.t) (lhs : lvalue)
       (rhs : value) (fname : string)
       (l : (string * value) list) : env * signal =
-    print_endline ("assigning struct mem: " ^ fname);
+    (* print_endline ("assigning struct mem: " ^ fname);
     print_endline "pre-existing fields are:";
-    List.iter l ~f:(fun (x,_) -> print_endline x);
+    List.iter l ~f:(fun (x,_) -> print_endline x); *)
     (* let t = typ_of_struct_field env (typ_of_lvalue env lhs) fname in *)
     let rhs' = implicit_cast_from_rawint env rhs t in
     let rhs'' = implicit_cast_from_tuple env rhs' t in
@@ -848,9 +835,9 @@ module MakeInterpreter (T : Target) = struct
   and assign_header_mem (env : env) (t : Type.t) (lhs : lvalue)
       (rhs : value) (fname : string) (l : (string * value) list)
       (b : bool) : env * signal =
-    print_endline ("assigning header mem: " ^ fname);
+    (* print_endline ("assigning header mem: " ^ fname);
     print_endline "pre-existing fields are:";
-    List.iter l ~f:(fun (x,_) -> print_endline x);
+    List.iter l ~f:(fun (x,_) -> print_endline x); *)
     let rhs' = implicit_cast_from_rawint env rhs t in
     eval_assign' env lhs (VHeader{fields=(fname,rhs') :: l;is_valid=b})
 
@@ -925,15 +912,13 @@ module MakeInterpreter (T : Target) = struct
     | LArrayAccess{expr=lv;idx;_}         -> value_of_larray env lv idx
 
   and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
-    print_endline "getting lmember";
     let (s,v) = value_of_lvalue env lv in
-    print_endline "got lhs";
     let v' = match v with
       | VStruct{fields=l;_}
       | VHeader{fields=l;_}              -> 
-        List.iter ~f:(fun (x,_) -> print_endline x) l;
-        print_endline ("getting header member: " ^ n);
-        let ans = List.Assoc.find_exn l n ~equal:String.equal in print_endline "got header member"; ans
+        (* List.iter ~f:(fun (x,_) -> print_endline x) l;
+        print_endline ("getting header member: " ^ n); *)
+        List.Assoc.find_exn l n ~equal:String.equal
       | VUnion{valid_header=v;_}         -> v
       | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
       | _ -> failwith "no lvalue member" in
@@ -944,7 +929,6 @@ module MakeInterpreter (T : Target) = struct
 
   and value_of_lbit (env : env) (lv : lvalue) (hi : Bigint.t)
       (lo : Bigint.t) : signal * value =
-    print_endline "getting lbit";
     let (s,n) = value_of_lvalue env lv in
     let n' = bigint_of_val n in
     match s with
@@ -1296,9 +1280,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_bitnot (env : env) (v : value) : env * value =
     match v with
     | VBit{w;v=n} -> (env, VBit{w;v=bitwise_neg_of_bigint n w})
-    | VInt{w;v=n} -> (env, VBit{w;v=((of_twos_complement n w
-                                      |> bitwise_neg_of_bigint) w
-                                      |> to_twos_complement) w})
     | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
   and bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
@@ -1391,6 +1372,8 @@ module MakeInterpreter (T : Target) = struct
     | VInt{w;v=v1}, VBit{v=v2;_}
     | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bigint_left v1 v2) w}
     | VInteger v1, VInteger v2  -> VInteger(shift_bigint_left v1 v2)
+    | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bigint_left v1 v2) w} (* TODO *)
+    | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bigint_left v2 v2) w} (* TODO *)
     | _ -> failwith "shift left operator not defined for these types"
 
   and eval_bshr (l : value) (r : value) : value =
@@ -1400,6 +1383,8 @@ module MakeInterpreter (T : Target) = struct
     | VInt{w;v=v1}, VBit{v=v2;_}
     | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bigint_right v1 v2) w}
     | VInteger v1,  VInteger v2 -> VInteger(shift_bigint_right v1 v2)
+    | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bigint_right v1 v2) w} (* TODO *)
+    | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bigint_right v2 v2) w} (* TODO *)
     | _ -> failwith "shift right operator not defined for these types"
 
   and eval_ble (l : value) (r : value) : value =
@@ -1482,9 +1467,6 @@ module MakeInterpreter (T : Target) = struct
     | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_and v1 v2}
     | VBit{w;v=v1}, VInteger n   -> eval_bitwise_and l (bit_of_rawint n w)
     | VInteger n, VBit{w;v=v2}   -> eval_bitwise_and (bit_of_rawint n w) r
-    | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_and v1 v2 w
-    | VInt{w;v=v1}, VInteger n   -> eval_bitwise_and l (bit_of_rawint n w)
-    | VInteger n, VInt{w;v=v2}   -> eval_bitwise_and (bit_of_rawint n w) r
     | _ -> failwith "bitwise and only defined on fixed width ints"
 
   and eval_bitwise_xor (l : value) (r : value) : value =
@@ -1492,9 +1474,6 @@ module MakeInterpreter (T : Target) = struct
     | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_xor v1 v2}
     | VBit{w;v=v1}, VInteger n   -> eval_bitwise_xor l (bit_of_rawint n w)
     | VInteger n,   VBit{w;v=v2} -> eval_bitwise_xor (bit_of_rawint n w) r
-    | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_xor v1 v2 w
-    | VInt{w;v=v1}, VInteger n   -> eval_bitwise_xor l (bit_of_rawint n w)
-    | VInteger n,   VInt{w;v=v2} -> eval_bitwise_xor (bit_of_rawint n w) r
     | _ -> failwith "bitwise xor only defined on fixed width ints"
 
   and eval_bitwise_or (l : value) (r : value) : value =
@@ -1502,9 +1481,6 @@ module MakeInterpreter (T : Target) = struct
     | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_or v1 v2}
     | VBit{w;v=v1}, VInteger n   -> eval_bitwise_or l (bit_of_rawint n w)
     | VInteger n, VBit{w;v=v2}   -> eval_bitwise_or (bit_of_rawint n w) r
-    | VInt{w;v=v1}, VInt{v=v2;_} -> bitwise_op_of_signeds Bigint.bit_or v1 v2 w
-    | VInt{w;v=v1}, VInteger n   -> eval_bitwise_or l (bit_of_rawint n w)
-    | VInteger n, VInt{w;v=v2}   -> eval_bitwise_or (bit_of_rawint n w) r
     | _ -> failwith "bitwise or only defined on fixed width ints"
 
   and eval_concat (l : value) (r : value) : value =
@@ -1731,17 +1707,10 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : state) (name : string)
       (v : (loc * string) option) (targs : Type.t list)
       (args : Expression.t option list) : env * state * signal * value =
-    print_endline "got to extract";
-    (* print_string "doing emit for: ";
-    begin match args with
-    | [ (_, Expression {value= (_, Name (_, n))})] -> print_endline n
-    | _ -> () end; *)
     let ts = args |> List.map ~f:(function Some e -> (snd e).typ | None -> Void) in
-    print_endline "got typ args";
     let params = 
       match v with 
       | Some (_, t) ->
-        (* print_endline t; *)
         EvalEnv.find_decl t env
         |> assert_extern_obj
         |> List.map ~f:params_of_prototype
@@ -1751,16 +1720,15 @@ module MakeInterpreter (T : Target) = struct
         |> List.hd_exn
         |> snd
       | None -> EvalEnv.find_decl name env |> assert_extern_function in
-    print_endline "got params";
     let fenv = EvalEnv.push_scope env in
     let (_, kvs) =
       List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(fenv,st,SContinue) in
-    print_endline "got params";
+    (* print_endline "got params"; *)
     let (fenv, st', signal) = copyin ctrl env st params args in
-    print_endline "did copy in";
+    (* print_endline "did copy in"; *)
     let vs = List.map ~f:snd kvs in
     let env' = EvalEnv.pop_scope fenv in
-    print_endline "popped";
+    (* print_endline "popped"; *)
     match signal with
     | SExit -> env', st', SExit, VNull
     | SReject s -> env', st', SReject s, VNull
@@ -1777,21 +1745,21 @@ module MakeInterpreter (T : Target) = struct
       | _ -> tvs' in
     (* print_endline "custom modification"; *)
     let (fenv', st'', s, v) = T.eval_extern eval_assign' ctrl fenv st targs tvs'' name in
-    print_endline "called extern";
-    begin match EvalEnv.find_val "hdr" (EvalEnv.pop_scope fenv') with
+    (* print_endline "called extern"; *)
+    (* begin match EvalEnv.find_val "hdr" (EvalEnv.pop_scope fenv') with
       | VStruct {fields = fs} -> 
         begin match List.Assoc.find fs "ethernet" ~equal:String.equal with
         | None -> print_endline "ethernet was struct before copyout"
         | Some _ -> print_endline "ethernet was struct before copyout" end
-      |  _ -> print_endline "ethernet was not struct before copyout" end;
+      |  _ -> print_endline "ethernet was not struct before copyout" end; *)
     let env'' = copyout ctrl fenv' st'' params args in
-    print_endline "copied out";
-    begin match EvalEnv.find_val "hdr" env'' with
+    (* print_endline "copied out"; *)
+    (* begin match EvalEnv.find_val "hdr" env'' with
       | VStruct {fields = fs} -> 
         begin match List.Assoc.find fs "ethernet" ~equal:String.equal with
         | None -> print_endline "ethernet was not init"
         | Some _ -> print_endline "ethernet was init" end
-      |  _ -> print_endline "ethernet was not init" end;
+      |  _ -> print_endline "ethernet was not init" end; *)
     env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
@@ -1891,9 +1859,6 @@ module MakeInterpreter (T : Target) = struct
     | None -> e
     | Some expr -> 
       let (_, _, _, lv) = lvalue_of_expr ctrl e st SContinue expr in
-      print_endline "copying out to lvalue:";
-      print_lvalue lv;
-      print_endline "";
       (eval_assign' e lv v) |> fst
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
@@ -2323,7 +2288,6 @@ module MakeInterpreter (T : Target) = struct
 
   and bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
     Bigint.(
-      (* print_endline "bitstring slice"; *)
       if l > zero
       then bitstring_slice (n/(one + one)) (m-one) (l-one)
       else n % (power_of_two (m + one)))
@@ -2375,9 +2339,15 @@ module MakeInterpreter (T : Target) = struct
         | Struct rt -> 
           rt.fields
           |> fun x -> List.zip_exn x l
-          |> List.map ~f:(fun (f,v : RecordType.field * value) -> f.name, implicit_cast_from_tuple env v f.typ)
+          |> List.map ~f:(fun (f,v : RecordType.field * value) -> f, implicit_cast_from_tuple env v f.typ)
+          |> List.map ~f:(fun (f,v : RecordType.field * value) -> f.name, implicit_cast_from_rawint env v f.typ)
           |> fun fields -> VStruct {fields}
-        | Header _ -> failwith "TODO: tuple to header"
+        | Header rt ->
+          rt.fields
+          |> fun x -> List.zip_exn x l
+          |> List.map ~f:(fun (f,v : RecordType.field * value) -> f, implicit_cast_from_tuple env v f.typ)
+          |> List.map ~f:(fun (f,v : RecordType.field * value) -> f.name, implicit_cast_from_rawint env v f.typ)
+          |> fun fields -> VHeader {fields; is_valid = true}
         | TypeName n -> implicit_cast_from_tuple env v (EvalEnv.find_typ n env)
         | TopLevelType n -> implicit_cast_from_tuple env v (EvalEnv.find_typ_toplevel n env)
         | _ -> VTuple l end

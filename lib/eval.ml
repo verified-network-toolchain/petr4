@@ -1854,8 +1854,8 @@ module MakeInterpreter (T : Target) = struct
 
   and struct_of_list (ctrl : ctrl) (env : env) (st : state) (t : Type.t)
       (l : value list) : value =
-    let (tname, fs) = match t with
-      | Struct s -> s.name, s.fields
+    let (fs) = match t with
+      | Struct s ->  s.fields
       | _ -> failwith "not a struct" in
     let ns = List.map fs ~f:(fun x -> x.name) in
     let ts = List.map fs ~f:(fun x -> x.typ) in
@@ -1866,8 +1866,8 @@ module MakeInterpreter (T : Target) = struct
 
   and header_of_list (ctrl : ctrl) (env : env) (st : state) (t : Type.t)
       (l : value list) : value =
-    let (tname, fs) = match t with
-      | Header h -> h.name, h.fields
+    let (fs) = match t with
+      | Header h -> h.fields
       | _ -> failwith "not a header" in
     let ns = List.map fs ~f:(fun x -> x.name) in
     let ts = List.map fs ~f:(fun x -> x.typ) in

@@ -787,29 +787,29 @@ module V1Model : Target = struct
   let v1externs = [
     ("counter", eval_counter);
     ("count", eval_count); (* overloaded *)
-    ("direct_counter", eval_direct_counter);
-    ("meter", eval_meter);
+    ("direct_counter", eval_direct_counter); (* low priority *)
+    ("meter", eval_meter);)
     ("execute_meter", eval_execute_meter);
-    ("direct_meter", eval_direct_meter);
+    ("direct_meter", eval_direct_meter); (* low priority *)
     ("read", eval_read); (* overloaded*)
     ("register", eval_register);
     ("write", eval_write);
-    ("action_profile", eval_action_profile);
+    ("action_profile", eval_action_profile); (* low priority *)
     ("random", eval_random);
     ("digest", eval_digest);
     ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
     ("hash", eval_hash);
-    ("action_selector", eval_action_selector);
+    ("action_selector", eval_action_selector); (* low priority *)
     ("Checksum16", eval_checksum16); (* deprecated *)
     ("get", eval_get); (* deprecated *)
     ("verify_checksum", eval_verify_checksum);
     ("update_checksum", eval_update_checksum);
     ("verify_checksum_with_payload", eval_verify_checksum_with_payload);
     ("update_checksum_with_payload", eval_update_checksum_with_payload);
-    ("resubmit", eval_resubmit);
-    ("recirculate", eval_recirculate);
-    ("clone", eval_clone);
-    ("clone3", eval_clone3);
+    ("resubmit", eval_resubmit); (* on demand from benchmark suite *)
+    ("recirculate", eval_recirculate); (* on demand from benchmark suite *)
+    ("clone", eval_clone); (* on demand from benchmark suite *)
+    ("clone3", eval_clone3); (* on demand from benchmark suite *)
     ("truncate", eval_truncate);
     ("assert", eval_assert);
     ("assume", eval_assume);

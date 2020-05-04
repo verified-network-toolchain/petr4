@@ -21,8 +21,10 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     register<bit<32>>(128) r;
+    bit<32> x;
     apply {
         standard_metadata.egress_spec = 9;
+        // r.read(x, 2);
     }
 }
 

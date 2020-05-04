@@ -701,7 +701,7 @@ module V1Model : Target = struct
         size : Bigint.t;
       }
     | Register of {
-        states: Bigint.t array;
+        states: Value.value list;
         size: Bigint.t;
       }
 
@@ -742,12 +742,16 @@ module V1Model : Target = struct
 
   let eval_direct_meter : extern = fun _ -> failwith "TODO"
 
-  let eval_read : extern = fun _ -> failwith "TODO"
-  
-  let eval_register : extern = fun _ env st _ args ->
+  let eval_read : extern = fun _ env st _ args -> failwith "TODO"
+      
+  let eval_register : extern = fun _ env st typs args ->
+    let width = match typs with
+                | [Typed.Type.Bit w] -> w.width
+                | _ -> 32 in
     match args with
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] ->
-      let states = Array.create ~len:(Bigint.to_int_exn size) Bigint.zero in 
+      let init_val = VBit {w = Bigint.of_int width; v = Bigint.zero} in
+      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
       let reg = Register {states = states;
                           size = size; } in
       let v = V1Object reg in
@@ -857,6 +861,7 @@ module V1Model : Target = struct
       | "emit" -> targetize Core.eval_emit
       | "verify" -> targetize Core.eval_verify
       | "register" -> eval_register
+      | "read" -> eval_read
       | _ -> failwith "TODO" in
     extern ctrl env st targs args
 

@@ -5,25 +5,31 @@ open Env
 
 type env = EvalEnv.t
 
-type 'st assign = env -> lvalue -> value -> env * signal
-
-type ('st1, 'st2) pre_extern =
-  'st1 assign -> ctrl -> env -> 'st2 -> Type.t list -> (value * Type.t) list ->
-  env * 'st2 * signal * value
+type 'st pre_extern =
+  ctrl -> env -> 'st -> Type.t list -> (value * Type.t) list ->
+  env * 'st * signal * value
 
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
-type 'st init_typ = 
-  env -> Type.t -> value
+val init_val_of_typ : env -> Type.t -> value
+
+val implicit_cast_from_rawint : env -> value -> Type.t -> value
+
+val implicit_cast_from_tuple : env -> value -> Type.t -> value
+
+val value_of_lvalue : env -> lvalue -> signal * value
+
+val assign_lvalue : env -> lvalue -> value -> env * signal
 
 module State : sig
   type 'a t
 
   val empty : 'a t
-  val insert : int -> 'a -> 'a t -> 'a t
-  val find : int -> 'a t -> 'a
-  val fresh_loc : unit -> int
+  val insert : loc -> 'a -> 'a t -> 'a t
+  val find : loc -> 'a t -> 'a
+  val is_initialized : loc -> 'a t -> bool
+  (* val fresh_loc : unit -> int *)
 end
 
 module type Target = sig 
@@ -32,11 +38,11 @@ module type Target = sig
 
   type state = obj State.t
 
-  type 'st extern = ('st, state) pre_extern
+  type extern = state pre_extern
 
-  val externs : (string * state extern) list
+  val externs : (string * extern) list
 
-  val eval_extern : state assign -> ctrl -> env -> state -> Type.t list ->
+  val eval_extern : ctrl -> env -> state -> Type.t list ->
                     (value * Type.t) list -> string -> env * state * signal * value
 
   val initialize_metadata : Bigint.t -> env -> env
@@ -44,9 +50,8 @@ module type Target = sig
   val check_pipeline : env -> unit 
 
   val eval_pipeline : ctrl -> env -> state -> pkt ->
-  state apply -> 
-  state assign -> 
-  state init_typ -> state * env * pkt
+  state apply ->
+  state * env * pkt
 
 end
 

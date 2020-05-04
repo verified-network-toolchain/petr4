@@ -80,12 +80,15 @@ module EvalEnv = struct
     vs : value env;
     (* map variables to their types; only needed in a few cases *)
     typ : Type.t env;
+    (* dynamically maintain the control-plane namespace *)
+    namespace : string;
   }
 
   let empty_eval_env = {
     decl = [[]];
     vs = [[]];
     typ = [[]];
+    namespace = "";
   }
 
   let get_toplevel (env : t) : t =
@@ -95,10 +98,17 @@ module EvalEnv = struct
       | h :: _ -> [h] in
     {decl = get_last env.decl;
      vs = get_last env.vs;
-     typ = get_last env.typ;}
+     typ = get_last env.typ;
+     namespace = "";}
 
   let get_val_firstlevel env =
     List.hd_exn (env.vs)
+
+  let get_namespace env =
+    env.namespace
+
+  let set_namespace name env =
+    {env with namespace = name}
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -151,12 +161,14 @@ module EvalEnv = struct
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;
-     typ = push e.typ;}
+     typ = push e.typ;
+     namespace = e.namespace;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
-     typ = pop e.typ;}
+     typ = pop e.typ;
+     namespace = e.namespace;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -305,5 +317,6 @@ module CheckerEnv = struct
   let eval_env_of_t (cenv: t) : EvalEnv.t =
     { decl = [[]];
       vs = cenv.const;
-      typ = cenv.typ;}
+      typ = cenv.typ;
+      namespace = "";}
 end

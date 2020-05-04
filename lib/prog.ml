@@ -804,7 +804,7 @@ and Value : sig
 
   type ctrl = entries * vsets
 
-  type loc = int [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, yojson]
 
   type value =
     | VNull
@@ -856,7 +856,7 @@ and Value : sig
           v : value; }
     | VRuntime of 
         { loc : loc;
-          typ_name : string; }
+          obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of 
@@ -952,6 +952,8 @@ and Value : sig
 
   val assert_int : value -> Bigint.t * Bigint.t 
 
+  val bigint_of_val : value -> Bigint.t
+
   val assert_varbit : value -> Bigint.t * Bigint.t * Bigint.t 
 
   val assert_string : value -> string 
@@ -980,7 +982,7 @@ and Value : sig
 
   val assert_senum : value -> string * string * value 
 
-  val assert_runtime : value -> int
+  val assert_runtime : value -> loc
 
   val assert_parser : value -> vparser
 
@@ -989,6 +991,8 @@ and Value : sig
   val assert_package : value -> Declaration.t * (string * value) list 
 
   val assert_table : value -> vtable 
+
+  val width_of_val : value -> Bigint.t
 
   val assert_lname : lvalue -> string 
 
@@ -1026,7 +1030,7 @@ end = struct
 
   type ctrl = entries * vsets
 
-  type loc = int [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, yojson]
   type value =
     | VNull
     | VBool of bool
@@ -1076,8 +1080,8 @@ end = struct
           enum_name : string;
           v : value; }
     | VRuntime of 
-        { loc : loc; 
-          typ_name : string; }
+        { loc : loc;
+          obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of 
@@ -1184,6 +1188,13 @@ end = struct
     match v with 
     | VInt {w;v} -> (w,v)
     | _ -> failwith "not an int"
+
+  let bigint_of_val v =
+    match v with
+    | VInt{v=n;_}
+    | VBit{v=n;_}
+    | VInteger n -> n
+    | _ -> failwith "value not representable as bigint"
   
   let assert_varbit v = 
     match v with 
@@ -1282,6 +1293,15 @@ end = struct
     match v with 
     | VTable t -> t 
     | _ -> failwith "not a table"
+
+  let width_of_val v =
+    match v with
+    | VBit {w;v} | VInt {w;v} -> w
+    | VNull | VVarbit _ -> Bigint.zero
+    | VInteger _ -> failwith "width of VInteger"
+    | VStruct _ -> failwith "width of struct unimplemented"
+    | VHeader _ -> failwith "width of header unimplemented"
+    | _ -> failwith "width of type unimplemented"
   
   let assert_lname l = 
     match l with 

@@ -241,7 +241,7 @@ module Core = struct
     | [(pkt, _);(v1, t)] -> eval_extract' assign ctrl env st t pkt v1 Bigint.zero true
     | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' assign ctrl env st t pkt v1 (assert_bit v2 |> snd) false
     | [] -> eval_advance assign ctrl env st targs args
-    | _ -> print_endline (args |> List.length |> string_of_int); failwith "wrong number of args for extract"
+    | _ -> failwith "wrong number of args for extract"
 
   let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
     match t with
@@ -266,7 +266,7 @@ module Core = struct
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true
-    | Int {width} ->
+    | Int {width} -> 
       VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Bit {width} ->
       VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
@@ -282,6 +282,7 @@ module Core = struct
     | _ -> failwith "not a fixed-width type"
     
   let eval_lookahead : 'st extern = fun _ _ env st targs args ->
+    (* print_endline "doing lookahead"; *)
     let t = match targs with
       | [t] -> t
       | _ -> failwith "unexpected type args for lookahead" in
@@ -370,7 +371,8 @@ module Core = struct
 
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : pkt =
-    if is_valid then packet_of_struct env t fields else Cstruct.empty
+    print_endline "emitting header";
+    if is_valid then (print_endline "was valid"; packet_of_struct env t fields) else Cstruct.empty
 
   and packet_of_union (env : env) (t : Type.t) (hdr : value)
       (fs : (string * bool) list) : pkt =

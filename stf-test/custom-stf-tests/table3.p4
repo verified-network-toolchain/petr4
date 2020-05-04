@@ -36,19 +36,19 @@ control MyEgress(inout head[13] hdr,
                  inout standard_metadata_t standard_metadata) {
 
     action set_one () {
-        hdr[0] = (bit<8>) 1;
+        hdr[0].v = (bit<8>) 1;
     }
 
     action set_two () {
-        hdr[0] = (bit<8>) 2;
+        hdr[0].v = (bit<8>) 2;
     }
 
     action set_three () {
-        hdr[0] = (bit<8>) 3;
+        hdr[0].v = (bit<8>) 3;
     }
 
     action set_four () {
-        hdr[0] = (bit<8>) 4;
+        hdr[0].v = (bit<8>) 4;
     }
 
 
@@ -77,6 +77,8 @@ control MyDeparser(packet_out packet, in head[13] hdr) {
         packet.emit(hdr[0]);
     }
 }
+
+//TODO: blocking on stf update
 
 V1Switch(
     MyParser(),

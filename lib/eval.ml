@@ -263,7 +263,9 @@ module MakeInterpreter (T : Target) = struct
             let w,x,y,z = eval_expr ctrl a b c k in ((w,x,y),z)) in
     let f ((v,w,x,y),z) = ((v,w,x),(y,z)) in
     let sort_mks = check_lpm_count mks in
+    print_endline "calling from table decl eval";
     let ws = List.map ks ~f:width_of_val in
+    print_endline "calling successful";
     let ((env''',st'',s'),entries) =
       match entries with
       | None -> List.fold_map ctrl_entries ~init:(env'',st',s)
@@ -793,7 +795,9 @@ module MakeInterpreter (T : Target) = struct
     match s with
     | SContinue ->
       let n = bigint_of_val v in
+      print_endline "calling from bitaccess assign";
       let nw = width_of_val v in 
+      print_endline "calling successful";
       let rhs' = bit_of_rawint (bigint_of_val rhs) w |> bigint_of_val in
       let n0 = bitstring_slice n msb lsb in
       let diff = Bigint.(n0 - rhs') in
@@ -1907,6 +1911,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_setbool (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (b : bool) : env * state * signal * value =
+    begin if b then print_endline "setValid" else print_endline "setInvalid" end;
     match lv with
     | LName {name = n; _ } ->
       begin match EvalEnv.find_val n env with
@@ -2000,58 +2005,14 @@ module MakeInterpreter (T : Target) = struct
         | _ -> failwith "unreachable" end
     | _ -> failwith "invalid push or pop args"
 
-  and width_of_typ (env : env) (t : Type.t) : Bigint.t =
-    failwith "TODO: width of typ"
-    (* match t with
-    | Bool -> Bigint.one
-    | IntType e -> e |> eval_expr ctrl env st SContinue |> fourth4 |> bigint_of_val
-    | BitType e -> e |> eval_expr ctrl env st SContinue |> fourth4 |> bigint_of_val
-    | TopLevelType _
-    | TypeName _ -> width_of_decl ctrl env st (decl_of_typ env t)
-    | HeaderStack{header=t';size=e} -> width_of_stack ctrl env st t' e
-    | Tuple l -> width_of_tuple ctrl env st l
-    | Void | DontCare -> Bigint.zero
-    | Error | VarBit _ | Integer | String -> failwith "type does not a have a fixed width"
-    | SpecializedType _ -> failwith "unimplemented" *)
-
-  and width_of_tuple (ctrl : ctrl) (env : env) (st : state)
-      (l : Type.t list) : Bigint.t =
-    let l' = List.map l ~f:(width_of_typ env) in
-    List.fold_left l' ~init:Bigint.zero ~f:Bigint.(+)
-
-  and width_of_stack (ctrl : ctrl) (env : env) (st : state) (t : Type.t)
-      (e : Expression.t) : Bigint.t =
-    Bigint.(
-      e
-      |> eval_expr ctrl env st SContinue
-      |> fourth4
-      |> bigint_of_val
-      |> ( * ) (width_of_typ env t))
-
-  and width_of_hdr (ctrl : ctrl) (env : env) (st : state) 
-      (fs : Declaration.field list) : Bigint.t =
-    let ts = List.map fs ~f:(fun f -> (snd f).typ) in
-    let ws = List.map ts ~f:(width_of_typ env) in
-    List.fold_left ws ~init:Bigint.zero ~f:Bigint.(+)
-
-  and width_of_decl (ctrl : ctrl) (env : env) (st : state) 
-      (d : Declaration.t) : Bigint.t =
-    match snd d with
-    | Header{fields;_} -> width_of_hdr ctrl env st fields
-    | Struct{fields;_} -> width_of_hdr ctrl env st fields
-    | SerializableEnum{typ;_} -> width_of_typ env typ
-    | TypeDef{typ_or_decl;_}
-    | NewType{typ_or_decl;_} ->
-      begin match typ_or_decl with
-        | Left t -> width_of_typ env t
-        | Right d -> width_of_decl ctrl env st d end
-    | _ -> failwith "decl does not have a fixed width"
-
   and width_of_val (v : value) : Bigint.t =
     match v with
     | VBit {w;v} | VInt {w;v} -> w
+    | VNull -> Bigint.zero
     | VInteger _ -> failwith "width of VInteger"
-    | _ -> failwith "unimplemented"
+    | VStruct _ -> failwith "width of struct unimplemented"
+    | VHeader _ -> failwith "width of header unimplemented"
+    | _ -> failwith "width of type unimplemented"
 
   (*----------------------------------------------------------------------------*)
   (* Parser Evaluation *)
@@ -2113,7 +2074,9 @@ module MakeInterpreter (T : Target) = struct
       let (a,b,c,d) = eval_expr ctrl env st s e in
       ((a,b,c),d) in
     let ((env', st', s), vs) = List.fold_map exprs ~init:(env,st,SContinue) ~f:f in
+    print_endline "calling from select";
     let ws = List.map vs ~f:width_of_val in
+    print_endline "calling successful";
     match s with
     | SContinue ->
       let g (e,st,s) set =
@@ -2225,6 +2188,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_control (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (vs : (string * value) list)
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
+    print_endline "starting new control";
     let open Statement in
     let (cenv,st',_) = copyin ctrl env st params args in
     let f a (x,y) = EvalEnv.insert_val x y a in
@@ -2434,6 +2398,7 @@ let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
   (* | "ebpfFilter"   -> EbpfInterpreter.eval ctrl env EbpfInterpreter.empty_state pkt |> snd *)
   | "EmptyPackage" -> pkt, Bigint.zero
   | _ -> failwith "architecture not supported"
+
 let eval_prog (env : env) (p : program) (ctrl : ctrl) (pkt : pkt)
     (in_port : Bigint.t) : (string * Bigint.t) option =
   match p with Program l ->

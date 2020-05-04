@@ -34,19 +34,19 @@ control MyEgress(inout head[13] hdr,
                  inout standard_metadata_t standard_metadata) {
 
     action set_zero() {
-        hdr[0] = (bit<8>) 0;
+        hdr[0].v = 0;
     }
 
     action set_one () {
-        hdr[0] = (bit<8>) 1;
+        hdr[0].v = 1;
     }
     
     action set_two () {
-        hdr[0] = (bit<8>) 2;
+        hdr[0].v = 2;
     }
 
     action set_three () {
-        hdr[0] = (bit<8>) 3;
+        hdr[0].v = 3;
     }
 
     table my_table {
@@ -62,10 +62,10 @@ control MyEgress(inout head[13] hdr,
 
     apply {
         switch (my_table.apply().action_run) {
-            default : { hdr[1] = (bit<8>) 0; }
-            set_one : { hdr[1] = (bit<8>) 1; }
-            set_two : { hdr[1] = (bit<8>) 2; }
-            set_three : { hdr[1] = (bit<8>) 3; }
+            set_one : { hdr[1].v = 1; }
+            set_two : { hdr[1].v = 2; }
+            set_three : { hdr[1].v = 3; }
+            default : { hdr[1].v = 0; }
         }
     }
 

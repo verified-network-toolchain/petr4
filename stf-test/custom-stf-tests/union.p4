@@ -20,7 +20,7 @@ Union f1(in bit<8> x) {
     return tmp;
 }
 
-Union f2(in bit<8> x) {
+Union f2(in bit<16> x) {
     Union tmp;
     tmp.h2 = {x};
     return tmp;
@@ -43,29 +43,6 @@ Union set3(in Union x) {
     x.h2.setInvalid();
     return x;
 }
-
-const Union a = f1(42);
-const Union b = f2(42);
-const bit<8> c = a.h1.u; //42
-const bool d = a.h1.isValid(); //true
-const bool e = a.h2.isValid(); //false
-const bit<16> f = b.h2.v; //42
-const bool g = b.h1.isValid(); //false
-const bool h = b.h2.isValid(); //true
-const Union i = set2(a);
-const Union j = set1(b);
-const bit<16> k = i.h2.v; //42
-const bool l = i.h1.isValid(); //false
-const bool m = i.h2.isValid(); //true
-const bit<8> n = j.h1.u; //42
-const bool o = j.h1.isValid(); //true
-const bool p = j.h2.isValid(); //false
-const Union q = set3(i);
-const Union r = set3(j);
-const bool s = q.h1.isValid(); //false
-const bool t = q.h2.isValid(); //false
-const bool u = r.h1.isValid(); //false
-const bool v = r.h2.isValid(); //false
 
 struct metadata { }
 struct headers { }
@@ -97,6 +74,29 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
+      Union a = f1(42);
+      Union b = f2(42);
+      bit<8> c = a.h1.u; //42
+      bool d = a.h1.isValid(); //true
+      bool e = a.h2.isValid(); //false
+      bit<16> f = b.h2.v; //42
+      bool g = b.h1.isValid(); //false
+      bool h = b.h2.isValid(); //true
+      Union i = set2(a);
+      Union j = set1(b);
+      bit<16> k = i.h2.v; //42
+      bool l = i.h1.isValid(); //false
+      bool m = i.h2.isValid(); //true
+      bit<8> n = j.h1.u; //42
+      bool o = j.h1.isValid(); //true
+      bool p = j.h2.isValid(); //false
+      Union q = set3(i);
+      Union r = set3(j);
+      bool s = q.h1.isValid(); //false
+      bool t = q.h2.isValid(); //false
+      bool u = r.h1.isValid(); //false
+      bool v = r.h2.isValid(); //false
+
       packet.emit(c);
       packet.emit((bit<8>) ((bit) d));
       packet.emit((bit<8>) ((bit) e));

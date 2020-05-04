@@ -34,7 +34,7 @@ control MyEgress(inout head[13] hdr,
                  inout standard_metadata_t standard_metadata) {
 
     action set_one () {
-        hdr[0] = (bit<8>) 1;
+        hdr[0].v = (bit<8>) 1;
     }
 
     table my_table {

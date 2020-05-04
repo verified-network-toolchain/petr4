@@ -33,8 +33,15 @@ control MyEgress(inout head[13] hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-  action a() { hdr[0] = (bit<8>) 0; }
-  action a_with_control_params(bit<8> x) { hdr[0]= (bit<8>) x; }
+  action a() { 
+      hdr[0].v = (bit<8>) 0;
+      hdr[0].setValid();
+  }
+
+  action a_with_control_params(bit<8> x) { 
+      hdr[0].v = (bit<8>) x;
+      hdr[0].setValid();
+  }
 
   table my_table {
     key = {standard_metadata.egress_spec : exact;
@@ -56,6 +63,8 @@ control MyEgress(inout head[13] hdr,
 
 
     apply {
+        standard_metadata.egress_spec = 6;
+        standard_metadata.ingress_port = 1;
         my_table.apply();
         exit;
     }
@@ -67,6 +76,8 @@ control MyDeparser(packet_out packet, in head[13] hdr) {
         packet.emit(hdr[0]);
     }
 }
+
+//TODO: blocking on stf update
 
 V1Switch(
     MyParser(),

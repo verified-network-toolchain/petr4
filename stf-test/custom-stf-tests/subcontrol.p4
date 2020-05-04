@@ -34,7 +34,8 @@ control MyIngress(inout bitehdr[11] hdr,
 
 control ChangeEgressSpec(inout bitehdr[11] hdr) {
     apply {
-        hdr[1] = (bit<8>) 7;
+        hdr[1].v = 8w7;
+        hdr[1].setValid();
         exit;
     }
 }
@@ -45,7 +46,8 @@ control MyEgress(inout bitehdr[11] hdr,
     ChangeEgressSpec() subcontrol;
     apply {
         subcontrol.apply(hdr);
-        hdr[0] = (bit<8>) 42;
+        hdr[0].setValid();
+        hdr[0].v = 8w42;
     }
 }
 
@@ -55,6 +57,8 @@ control MyDeparser(packet_out packet, in bitehdr[11] hdr) {
         packet.emit(hdr[1]);
     }
 }
+
+//TODO: blocking on the stf update
 
 V1Switch(
     MyParser(),

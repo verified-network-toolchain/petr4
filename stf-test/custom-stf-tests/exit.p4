@@ -14,7 +14,7 @@ parser MyParser(packet_in packet,
     state start {
         packet.extract(hdr[0]);
         transition select(packet.lookahead< bit<8> >()) {
-            42 : next;
+            8w42 : next;
             _ : reject;
         }
     }
@@ -23,8 +23,8 @@ parser MyParser(packet_in packet,
         hdr.push_front(1);
         packet.extract(hdr[0]);
         transition select(packet.lookahead< bit<8> >()) {
-            42 : next;
-            33 : final;
+            8w42 : next;
+            8w33 : final;
             _ : reject;
         }
     }
@@ -94,6 +94,8 @@ control MyDeparser(packet_out packet, in head[13] hdr) {
         packet.emit(hdr);
     }
 }
+
+//TODO: blocking this test on the stf update for tables
 
 V1Switch(
     MyParser(),

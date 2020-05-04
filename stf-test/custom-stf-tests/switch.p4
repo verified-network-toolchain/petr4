@@ -62,10 +62,10 @@ control MyEgress(inout head[13] hdr,
 
     apply {
         switch (my_table.apply().action_run) {
-            default : { hdr[1] = (bit<8>) 0; }
             set_one : { hdr[1] = (bit<8>) 1; }
             set_two : { hdr[1] = (bit<8>) 2; }
             set_three : { hdr[1] = (bit<8>) 3; }
+            default : { hdr[1] = (bit<8>) 0; }
         }
     }
 

@@ -1966,7 +1966,7 @@ and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) :
     | Return { expr } ->
        type_return env ctx (fst stm) expr
     | Switch { expr; cases } ->
-       type_switch env ctx expr cases
+       type_switch env ctx (fst stm) expr cases
     | DeclarationStatement { decl } ->
        type_declaration_statement env ctx decl
   in
@@ -2124,48 +2124,60 @@ and type_return env ctx info expr =
                  ~ctx:(ctx: StmtContext.t)]
 
 (* Section 11.7 *)
-and type_switch env ctx expr cases =
+and type_switch env ctx info expr cases =
   let open Types.Statement in
   if ctx <> ApplyBlock
   then raise_s [%message "switch statements not allowed in context"
                    ~ctx:(ctx: StmtContext.t)];
   let expr_typed = type_expression env expr in
-  let action_name_typ = reduce_type env (snd expr_typed).typ in
-  let label_checker label =
+  let action_name_typ =
+    match reduce_type env (snd expr_typed).typ with
+    | Enum e -> e
+    | _ -> raise_mismatch info "table action enum" (snd expr_typed).typ
+  in
+  let lbl_seen cases_done lbl =
+    let case_name_eq lbl ((_, case): Prog.Statement.switch_case) =
+      match case with
+      | Action { label; _ } 
+      | FallThrough { label } ->
+         match snd label, lbl with
+         | Default, Default -> true
+         | Name (_, n1), Name (_, n2) ->
+            n1 = n2
+         | _ -> false
+    in
+    List.exists ~f:(case_name_eq lbl) cases_done
+  in
+  let label_checker cases_done (label: Types.Statement.switch_label) =
+    if lbl_seen cases_done (snd label) then raise (Type ((fst label), Duplicate));
+    if lbl_seen cases_done Default then raise (Type ((fst label), UnreachableBlock));
     match snd label with
     | Default ->
        fst label, Prog.Statement.Default
-    | Name name ->
-       let lbl_typ = CheckerEnv.find_type_of (BareName name) env |> fst in
-       assert_type_equality env (fst label) action_name_typ lbl_typ;
-       fst label, Prog.Statement.Name name
+    | Name (info, name) ->
+       if List.mem ~equal:(=) action_name_typ.members name
+       then fst label, Prog.Statement.Name (info, name)
+       else raise_unfound_member info name
   in
-  let case_checker (case_info, case) =
+  let case_checker cases_done (case_info, case) =
     match case with
     | Action { label; code = block } ->
        let block_expr_typed, env = type_block env ctx block in
-       let label_typed = label_checker label in
+       let label_typed = label_checker cases_done label in
        let block_typed =
          match block_expr_typed.stmt with
          | BlockStatement { block } -> block
          | _ -> failwith "bug: expected block"
        in
-       case_info,
-       Prog.Statement.Action
-         { label = label_typed;
-           code = block_typed }
+       cases_done @ [case_info, Prog.Statement.Action { label = label_typed; code = block_typed }]
     | FallThrough { label } ->
-       let label_typed = label_checker label in
-       case_info,
-       Prog.Statement.FallThrough { label = label_typed }
+       let label_typed = label_checker cases_done label in
+       cases_done @ [case_info, Prog.Statement.FallThrough { label = label_typed }]
   in
-  match action_name_typ with
-  | Enum _ -> 
-     let cases = List.map ~f:case_checker cases in
-     { stmt = Switch { expr = expr_typed;
-                       cases = cases };
-       typ = StmType.Unit }, env
-  | _ -> failwith "Switch statement does not type check."
+  let cases = List.fold ~init:[] ~f:case_checker cases in
+  { stmt = Switch { expr = expr_typed;
+                    cases = cases };
+    typ = StmType.Unit }, env
 
 (* Section 10.3 *)
 and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.typed_t * CheckerEnv.t =

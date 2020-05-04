@@ -26,9 +26,10 @@ module State : sig
   type 'a t
 
   val empty : 'a t
-  val insert : int -> 'a -> 'a t -> 'a t
-  val find : int -> 'a t -> 'a
-  val fresh_loc : unit -> int
+  val insert : loc -> 'a -> 'a t -> 'a t
+  val find : loc -> 'a t -> 'a
+  val is_initialized : loc -> 'a t -> bool
+  (* val fresh_loc : unit -> int *)
 end
 
 module type Target = sig 

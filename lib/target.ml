@@ -338,17 +338,17 @@ and assign_stack_mem (env : env) (t : Type.t) (lhs : lvalue)
 
 module State = struct
 
-  type 'a t = (int * 'a) list
+  type 'a t = (string * 'a) list
+
+  let packet_location = "_PACKET_"
 
   let empty = []
 
   let insert loc v st = (loc, v) :: st
   
-  let find loc st = List.Assoc.find_exn (* TODO *) st loc ~equal:Int.equal
+  let find loc st = List.Assoc.find_exn (* TODO *) st loc ~equal:String.equal
 
-  let fresh_loc = 
-    let counter = ref 0 in
-    (fun () -> counter := !counter + 1; !counter)
+  let is_initialized loc st = List.exists st ~f:(fun (x,_) -> String.equal x loc)
 
 end
 
@@ -852,10 +852,11 @@ module V1Model : Target = struct
 
   let check_pipeline env = ()
 
-  let eval_v1control (ctrl : ctrl) (app) (control : value)
+  let eval_v1control (ctrl : ctrl) (app) (ctrl_name : string) (control : value)
       (args : Expression.t option list) (env,st) : env * state * signal =
+    let env = EvalEnv.set_namespace ctrl_name env in
     let (env,st',s,_) = app ctrl env st SContinue control args in
-    (env,st',s)
+    (EvalEnv.set_namespace "" env, st', s)
 
   let eval_pipeline
         (ctrl: ctrl)
@@ -888,8 +889,8 @@ module V1Model : Target = struct
       | VControl {cparams=ps;_} -> ps
       | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
-    let pkt_loc = State.fresh_loc () in
-    let vpkt = VRuntime { loc = pkt_loc; typ_name = "packet_in"; } in
+    let pkt_loc = State.packet_location in
+    let vpkt = VRuntime { loc = pkt_loc; obj_name = "packet_in"; } in
     let st = State.insert pkt_loc (CoreObject (PacketIn pkt)) st in
     let hdr =
       init_val_of_typ env (snd (List.nth_exn params 1)).typ in
@@ -923,8 +924,10 @@ module V1Model : Target = struct
       Some (Info.dummy, {expr = (Name (Info.dummy, "meta")); dir = InOut; typ = (snd (List.nth_exn params 2)).typ}) in
     let std_meta_expr =
       Some (Info.dummy, {expr = (Name (Info.dummy, "std_meta")); dir = InOut; typ = (snd (List.nth_exn params 3)).typ}) in
+    let env = EvalEnv.set_namespace "p." env in
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
+    let env = EvalEnv.set_namespace "" env in
     let (env,st) =
       match state with 
       | SReject err -> 
@@ -932,8 +935,8 @@ module V1Model : Target = struct
         |> fst, st
       | SContinue -> (env,st)
       | _ -> failwith "parser should not exit or return" in
-    let pktout_loc = State.fresh_loc () in 
-    let vpkt' = VRuntime { loc = pktout_loc; typ_name = "packet_out"; } in
+    let pktout_loc = State.packet_location in 
+    let vpkt' = VRuntime { loc = pktout_loc; obj_name = "packet_out"; } in
     let st = 
       State.insert 
         pktout_loc 
@@ -943,11 +946,11 @@ module V1Model : Target = struct
     let env = EvalEnv.insert_typ "packet" (snd (List.nth_exn deparse_params 0)).typ env in
     let (env,st,_) = 
       (env,st)
-      |> eval_v1control ctrl app verify   [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23
-      |> eval_v1control ctrl app egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
-      |> eval_v1control ctrl app compute  [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app deparser [pkt_expr; hdr_expr] in
+      |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] |> fst23
+      |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23
+      |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
+      |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
+      |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] in
     match EvalEnv.find_val "packet" env with
     | VRuntime {loc; _ } -> 
       begin match State.find loc st with 

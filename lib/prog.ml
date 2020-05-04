@@ -804,7 +804,7 @@ and Value : sig
 
   type ctrl = entries * vsets
 
-  type loc = int [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, yojson]
 
   type value =
     | VNull
@@ -856,7 +856,7 @@ and Value : sig
           v : value; }
     | VRuntime of 
         { loc : loc;
-          typ_name : string; }
+          obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of 
@@ -982,7 +982,7 @@ and Value : sig
 
   val assert_senum : value -> string * string * value 
 
-  val assert_runtime : value -> int
+  val assert_runtime : value -> loc
 
   val assert_parser : value -> vparser
 
@@ -1030,7 +1030,7 @@ end = struct
 
   type ctrl = entries * vsets
 
-  type loc = int [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, yojson]
   type value =
     | VNull
     | VBool of bool
@@ -1080,8 +1080,8 @@ end = struct
           enum_name : string;
           v : value; }
     | VRuntime of 
-        { loc : loc; 
-          typ_name : string; }
+        { loc : loc;
+          obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of 

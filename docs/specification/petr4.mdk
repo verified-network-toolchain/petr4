@@ -1933,9 +1933,11 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', v>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
+\mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
+---------------------------------------------------------------------------[Assignment]
+<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \st', sig>
 ~
 
 ~ Infer

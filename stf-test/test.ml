@@ -44,8 +44,8 @@ let ctrl_json = Yojson.Safe.from_string empty_ctrl
 
 let strip_spaces s = s |> String.split_on_char ' ' |> String.concat ""
 
-let evaler dirs name pkt_in =
-  Petr4_parse.eval_file ("../examples":: dirs) name false pkt_in ctrl_json |> strip_spaces
+let evaler dirs name pkt_in port =
+  Petr4_parse.eval_file ("../examples":: dirs) name false pkt_in ctrl_json port
 
 let pp_string s = "\"" ^ s ^ "\""
 
@@ -54,23 +54,36 @@ let unimplemented_stmt = function
   | _ -> true
 
 
-let packet_equal p_exp p =
+let packet_equal (port_exp, p_exp) (port, p) =
   let rec iter i =
     i >= String.length p_exp ||
     ((p_exp.[i] = p.[i] || p_exp.[i] = '*') && iter (i + 1))
     in
-  String.(length p_exp = length p) && iter 0
+  p_exp = p && String.(length p_exp = length p) && iter 0
 
 
 let run_test dirs name stmts =
     match List.find_opt unimplemented_stmt stmts with
     | Some _ -> failwith "unimplemented stf statement"
     | None ->
-        let packets = List.filter_map (function Packet(port, packet)-> Some(packet) | _ -> None) stmts in
-        let results = List.map (evaler dirs name) packets in
-        let expected = List.filter_map (function Expect(port, Some(packet)) -> Some(packet) | _ -> None) stmts in
+        let packets = List.filter_map (function Packet(port, packet)-> Some((int_of_string(port), packet |> String.lowercase_ascii)) | _ -> None) stmts in
+        let results = List.map (fun (port, pkt) -> evaler dirs name pkt port) packets |>
+        List.filter_map (
+          fun x -> match x with
+          | `NoPacket -> None
+          | `Error(info, exn) -> None
+          | `Ok(pkt, port) ->
+              let fixed =  pkt |> strip_spaces |> String.lowercase_ascii in
+              Some(fixed, Bigint.to_string port)
+        )
+          (* List.filter_map(fun x ->
+          match x with `No_packet -> None
+            | `Error(info, exn) -> Some("")
+            | `Ok(pkt, port) -> Some("")) *)
+        in
+        let expected = List.filter_map (function Expect(port, Some(packet)) -> Some(packet, port) | _ -> None) stmts in
         List.combine expected results |> List.iter (fun (p_exp, p) ->
-          Alcotest.(testable Fmt.string packet_equal |> check) "packet test" p_exp p)
+          Alcotest.(testable (Fmt.pair Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
 
 let get_stf_files path =
   Core.Sys.ls_dir path |> Base.List.to_list |>
@@ -93,6 +106,6 @@ let main include_dir stf_tests_dir =
     )
 
 let () =
-  (* main ["examples/"] "./examples/checker_tests/good/" @ *)
-  main ["examples/"] "./stf-test/custom-stf-tests/"
+  main ["examples/"] "./examples/checker_tests/good/"
+  (* main ["examples/"] "./stf-test/custom-stf-tests/" *)
   |> Alcotest.run "Stf-tests"

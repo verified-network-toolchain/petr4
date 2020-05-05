@@ -67,7 +67,7 @@ let check_dir include_dirs p4_dir verbose =
       loop () in
   loop ()
 
-let parse_command = 
+let parse_command =
   let open Command.Spec in
   Command.basic_spec
     ~summary: "Parse a P4 program"
@@ -77,9 +77,9 @@ let parse_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir p4file () ->
       match parse_file include_dir p4file verbose with
-      | `Ok _ -> 
+      | `Ok _ ->
          ()
-      | `Error (info, exn) -> 
+      | `Error (info, exn) ->
          Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
 
 let check_command =
@@ -104,9 +104,10 @@ let eval_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-pkt-str" (required string) ~doc: "<pkt_str> Add packet string"
      +> flag "-ctrl-json" (required string) ~doc: "<ctrl_json> Add control json"
+     +> flag "-port" (optional_with_default "0" string) ~doc: "<ctrl_json> Add control json"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir pkt_str ctrl_json p4file () ->
-       print_string (eval_file include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json)))
+    (fun verbose include_dir pkt_str ctrl_json port p4file () ->
+       print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port)))
 
 let command =
   Command.group

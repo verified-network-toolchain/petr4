@@ -152,12 +152,12 @@ module V1Model : Target = struct
   let eval_extern name =
     let extern =
       match name with
-      (* | "extract" -> targetize P4core.eval_extract
+      | "extract" -> targetize P4core.eval_extract
       | "lookahead" -> targetize P4core.eval_lookahead
       | "advance" -> targetize P4core.eval_advance
       | "length" -> targetize P4core.eval_length
       | "emit" -> targetize P4core.eval_emit
-      | "verify" -> targetize P4core.eval_verify *)
+      | "verify" -> targetize P4core.eval_verify
       | _ -> failwith "TODO" in
     extern
 

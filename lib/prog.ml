@@ -95,8 +95,7 @@ and Expression : sig
   | False
   | Int of P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -154,8 +153,7 @@ end = struct
   | False
   | Int of P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -238,7 +236,7 @@ end
 and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -278,7 +276,7 @@ and Table : sig
     end = struct
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -895,10 +893,7 @@ and Value : sig
   
   and lvalue =
     | LName of
-      { name : string;
-        typ : Type.t; }
-    | LTopName of 
-      { name : string;
+      { name : Types.name;
         typ : Type.t; }
     | LMember of 
       { expr : lvalue;
@@ -914,7 +909,7 @@ and Value : sig
           idx : value;
           typ : Type.t; }
   [@@deriving sexp,yojson]
-  
+
   and set =
     | SSingleton of 
         { w : Bigint.t;
@@ -943,6 +938,8 @@ and Value : sig
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
+
+  val lvalue_typ : lvalue -> Typed.Type.t
 
   val assert_bool : value -> bool 
 
@@ -994,9 +991,7 @@ and Value : sig
 
   val width_of_val : value -> Bigint.t
 
-  val assert_lname : lvalue -> string 
-
-  val assert_ltopname : lvalue -> string 
+  val assert_lname : lvalue -> Types.name
 
   val assert_lmember : lvalue -> lvalue * string 
 
@@ -1120,10 +1115,7 @@ end = struct
   
   and lvalue =
     | LName of
-      { name : string;
-        typ : Type.t; }
-    | LTopName of 
-      { name : string;
+      { name : Types.name;
         typ : Type.t; }
     | LMember of 
       { expr : lvalue;
@@ -1168,7 +1160,16 @@ end = struct
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
-  
+
+  (* TODO redesign lvalue type so this doesn't have to exist *)
+  let lvalue_typ lvalue =
+    match lvalue with
+    | LName {typ; _}
+    | LMember {typ; _}
+    | LBitAccess {typ; _}
+    | LArrayAccess {typ; _} ->
+       typ
+      
   let assert_bool v =
     match v with 
     | VBool b -> b 
@@ -1307,11 +1308,6 @@ end = struct
     match l with 
     | LName {name; _} -> name 
     | _ -> failwith "not an lvalue name"
-  
-  let assert_ltopname l = 
-    match l with 
-    | LTopName {name;_} -> name 
-    | _ -> failwith "not an lvalue top-leval name "
   
   let assert_lmember l =
     match l with 

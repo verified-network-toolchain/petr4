@@ -157,8 +157,8 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let saturate_field env (field: RecordType.field) =
     {field with typ = saturate_type env field.typ}
   in
-  let saturate_rec env ({fields;name} : RecordType.t) : RecordType.t =
-    {fields = List.map ~f:(saturate_field env) fields; name}
+  let saturate_rec env ({fields;} : RecordType.t) : RecordType.t =
+    {fields = List.map ~f:(saturate_field env) fields;}
   in
   let saturate_construct_param env (param: ConstructParam.t) =
     {param with typ = saturate_type env param.typ}
@@ -171,14 +171,12 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = CheckerEnv.insert_type_vars pkg.type_params env in
-    {name = pkg.name;
-     type_params = pkg.type_params;
+    {type_params = pkg.type_params;
      parameters = saturate_construct_params env pkg.parameters}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
     let env = CheckerEnv.insert_type_vars ctrl.type_params env in
-    {name = ctrl.name;
-     type_params = ctrl.type_params;
+    {type_params = ctrl.type_params;
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
@@ -1064,7 +1062,7 @@ and type_record env entries : Prog.Expression.typed_t =
     { name = snd (snd kv).key; typ = (snd (snd kv).value).typ }
   in
   let fields = List.map ~f:kv_to_field entries_typed in
-  { expr = rec_typed; typ = Record { fields; name ="" }; dir = Directionless }
+  { expr = rec_typed; typ = Record { fields; }; dir = Directionless }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -2354,7 +2352,7 @@ and type_parser env info name annotations params constructor_params locals state
              states = states_typed }
   in
   let parser_typ : Typed.ControlType.t =
-    { name = snd name; type_params = [];
+    { type_params = [];
       parameters = prog_params_to_typed_params params_typed }
   in
   let ctor : Typed.ConstructorType.t =
@@ -2397,7 +2395,7 @@ and type_control env info name annotations type_params params constructor_params
                 apply = apply_typed }
     in
     let control_type =
-      Typed.Type.Control { name = snd name; type_params = [];
+      Typed.Type.Control { type_params = [];
                            parameters = List.map ~f:prog_param_to_typed_param params_typed }
     in
     let ctor : Typed.ConstructorType.t =
@@ -2735,7 +2733,7 @@ and type_table' env info annotations name key_types action_map entries_typed pro
     let hit_field = {name="hit"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in
-    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]; name ="apply_result"} in
+    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]; } in
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = name |> snd |> (^) "apply_result_" in
     let env = CheckerEnv.insert_type (BareName (fst name, result_typ_name)) apply_result_typ env in
@@ -2756,7 +2754,7 @@ and type_table' env info annotations name key_types action_map entries_typed pro
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
-  let header_typ = Type.Header { fields = type_fields; name = snd name } in
+  let header_typ = Type.Header { fields = type_fields; } in
   let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
   (info, header), env
@@ -2786,7 +2784,7 @@ and type_header_union env info annotations name fields =
   let fields_typed, type_fields =
     List.unzip @@ List.map ~f:(type_header_union_field env) fields
   in
-  let header_typ = Type.HeaderUnion { fields = type_fields; name = snd name } in
+  let header_typ = Type.HeaderUnion { fields = type_fields; } in
   let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.HeaderUnion { annotations; name; fields = fields_typed } in
   (info, header), env
@@ -2794,7 +2792,7 @@ and type_header_union env info annotations name fields =
 (* Section 7.2.5 *)
 and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
-  let struct_typ = Type.Struct { fields = type_fields; name = snd name } in
+  let struct_typ = Type.Struct { fields = type_fields; } in
   let env = CheckerEnv.insert_type (BareName name) struct_typ env in
   let struct_decl = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
   (info, struct_decl), env
@@ -3018,7 +3016,7 @@ and type_control_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let ctrl_typ = Type.Control { name = snd name; type_params = simple_t_params;
+  let ctrl_typ = Type.Control { type_params = simple_t_params;
                                 parameters = params_for_type } in
   (info, ctrl_decl), CheckerEnv.insert_type (BareName name) ctrl_typ env
 
@@ -3035,7 +3033,7 @@ and type_parser_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let parser_typ = Type.Parser { name = snd name; type_params = simple_t_params;
+  let parser_typ = Type.Parser { type_params = simple_t_params;
                                parameters = params_for_type } in
   (info, parser_decl), CheckerEnv.insert_type (BareName name) parser_typ env
 
@@ -3053,7 +3051,7 @@ and type_package_type env info annotations name t_params params =
         params = params_typed }
   in
   let pkg_typ: Typed.PackageType.t =
-    { name = snd name; type_params = simple_t_params;
+    { type_params = simple_t_params;
       parameters = params_for_type }
   in
   let ret = Type.Package { pkg_typ with type_params = [] } in

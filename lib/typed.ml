@@ -42,25 +42,21 @@ end = struct
 end
 
 and PackageType : sig
-  type t = {name : string;
-            type_params: string list;
+  type t = {type_params: string list;
             parameters: ConstructParam.t list}
              [@@deriving sexp,yojson]
 end = struct
-  type t = {name : string;
-            type_params: string list;
+  type t = {type_params: string list;
             parameters: ConstructParam.t list}
              [@@deriving sexp,yojson]
 end
 
 and ControlType : sig
-  type t = {name : string;
-            type_params: string list;
+  type t = {type_params: string list;
             parameters: Parameter.t list}
     [@@deriving sexp,yojson]
 end = struct
-  type t = {name : string;
-            type_params: string list;
+  type t = {type_params: string list;
             parameters: Parameter.t list}
     [@@deriving sexp,yojson]
 end
@@ -138,8 +134,7 @@ and RecordType : sig
     [@@deriving sexp,yojson]
 
   type t =
-    { fields: field list;
-      name : string; }
+    { fields: field list; }
     [@@deriving sexp,yojson]
 end = struct
   type field =
@@ -148,8 +143,7 @@ end = struct
     [@@deriving sexp,yojson]
 
   type t =
-    { fields: field list;
-      name : string; }
+    { fields: field list; }
     [@@deriving sexp,yojson]
 end
 

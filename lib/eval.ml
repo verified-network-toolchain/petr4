@@ -892,10 +892,7 @@ module MakeInterpreter (T : Target) = struct
     match t with
     | TypeName name -> name_only name
     | NewType nt -> nt.name
-    | Header rt | HeaderUnion rt | Struct rt -> rt.name
     | Enum et -> et.name
-    | Package pt -> pt.name
-    | Control ct | Parser ct -> ct.name
     | SpecializedType st -> name_of_typ st.base
     | _ -> failwith "unnamed type"
 

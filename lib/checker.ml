@@ -2765,7 +2765,7 @@ and type_table' env info annotations name key_types action_map entries_typed pro
               name;
               key = key;
               actions = List.map ~f:snd action_map;
-              entries = None;
+              entries = entries_typed;
               default_action = None;
               size = None;
               custom_properties = [] }

@@ -267,10 +267,11 @@ module MakeInterpreter (T : Target) = struct
       match entries with
       | None -> List.fold_map ctrl_entries ~init:(env'',st',s)
                 ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f)
-      | Some l -> l
-              |> List.map ~f:snd
-              |> List.fold_map ~init:(env'',st',s)
-                ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f) in
+      | Some l ->
+        l
+        |> List.map ~f:snd
+        |> List.fold_map ~init:(env'',st',s)
+          ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f) in
     let (final_entries, ks') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries, ks)
       else if sort_mks then filter_lpm_prod env''' mks ks entries
       else (entries, ks) in
@@ -476,6 +477,8 @@ module MakeInterpreter (T : Target) = struct
       (entries : (set * Table.action_ref) list)
       (name : string) (actions : Table.action_ref list)
       (default : Table.action_ref) : env * state * signal * value =
+    (* print_endline "eval table"; *)
+    (* begin match entries with [] -> print_endline "entries is empty" | _ -> () end; *)
     let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
     let action = match l with
                 | [] -> default

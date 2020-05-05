@@ -1,2 +1,2 @@
-packet 0 00
-expect 0 00
+packet 0 0000
+expect 0 0000

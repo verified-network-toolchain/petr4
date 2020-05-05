@@ -12,7 +12,7 @@ module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
-module Eval = Eval.MakeInterpreter(Target.V1Model)
+module Eval = Eval.MakeInterpreter(V1model)
 
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with

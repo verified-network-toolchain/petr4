@@ -1921,7 +1921,7 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-module V1Interpreter = MakeInterpreter(Target.V1Model)
+module V1Interpreter = MakeInterpreter(V1model)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 

@@ -25,9 +25,15 @@ val assign_lvalue : env -> lvalue -> value -> env * signal
 module State : sig
   type 'a t
 
+  val packet_location : string
+
   val empty : 'a t
+
   val insert : loc -> 'a -> 'a t -> 'a t
   val find : loc -> 'a t -> 'a
+  val filter : f:(loc * 'a -> bool) -> 'a t -> 'a t
+  val map : f:('a -> 'b) -> 'a t -> 'b t
+  val merge : 'a t -> 'a t -> 'a t
   val is_initialized : loc -> 'a t -> bool
   (* val fresh_loc : unit -> int *)
 end
@@ -54,7 +60,3 @@ module type Target = sig
   state * env * pkt
 
 end
-
-module V1Model : Target
-
-module EbpfFilter : Target

@@ -169,11 +169,11 @@ let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
   | _ -> v
 
 let rec value_of_lvalue (env : env) (lv : lvalue) : signal * value =
-  match lv with
-  | LName{name=n;_}                     -> SContinue, EvalEnv.find_val n env
-  | LMember{expr=lv;name=n;_}           -> value_of_lmember env lv n
-  | LBitAccess{expr=lv;msb=hi;lsb=lo;_} -> value_of_lbit env lv hi lo
-  | LArrayAccess{expr=lv;idx;_}         -> value_of_larray env lv idx
+  match lv.lvalue with
+  | LName{name=n;}                     -> SContinue, EvalEnv.find_val n env
+  | LMember{expr=lv;name=n;}           -> value_of_lmember env lv n
+  | LBitAccess{expr=lv;msb=hi;lsb=lo;} -> value_of_lbit env lv hi lo
+  | LArrayAccess{expr=lv;idx;}         -> value_of_larray env lv idx
 
 and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
   let (s,v) = value_of_lvalue env lv in
@@ -220,23 +220,23 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
 
 
 let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
-  let lhs_typ = lvalue_typ lhs in
+  let lhs_typ = lhs.typ in
   let rhs = 
     match rhs with
     | VTuple l -> implicit_cast_from_tuple env rhs lhs_typ
     | VInteger n -> implicit_cast_from_rawint env rhs lhs_typ
     | _ -> rhs
   in
-  match lhs with
-  | LName {name;_} ->
+  match lhs.lvalue with
+  | LName {name;} ->
      EvalEnv.insert_val name rhs env, SContinue
-  | LMember{expr=lv;name=mname;_} ->
+  | LMember{expr=lv;name=mname;} ->
      let _, record = value_of_lvalue env lv in
      assign_lvalue env  lv (update_member record mname rhs)
-  | LBitAccess{expr=lv;msb;lsb;_} ->
+  | LBitAccess{expr=lv;msb;lsb;} ->
      let _, bits = value_of_lvalue env lv in
      assign_lvalue env lv (update_slice bits msb lsb rhs)
-  | LArrayAccess{expr=lv;idx;_} ->
+  | LArrayAccess{expr=lv;idx;} ->
      let _, arr = value_of_lvalue env lv in
      let idx = bigint_of_val idx in
      assign_lvalue env  lv (update_idx arr idx rhs)
@@ -882,8 +882,8 @@ module V1Model : Target = struct
     let (env, _) = 
       assign_lvalue 
         env
-        (LMember{expr= LName {name = std_meta_name; typ = std_meta_type};
-                 name = "ingress_port";
+        ({lvalue = LMember{expr= {lvalue = LName {name = std_meta_name}; typ = std_meta_type};
+                 name = "ingress_port";};
                  typ = Bit {width = 9}})
         (VBit{w = nine;v = in_port}) in
     let open Expression in
@@ -903,8 +903,8 @@ module V1Model : Target = struct
       match state with 
       | SReject err -> 
          let err_field =
-           LMember {expr = LName {name = std_meta_name; typ = std_meta_type};
-                    name = "parser_error";
+           {lvalue = LMember {expr = {lvalue = LName {name = std_meta_name}; typ = std_meta_type};
+                    name = "parser_error"};
                     typ  = Error}
          in
          assign_lvalue env err_field (VError err)

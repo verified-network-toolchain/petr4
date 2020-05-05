@@ -891,24 +891,25 @@ and Value : sig
   }
   [@@deriving sexp,yojson]
   
-  and lvalue =
+  and pre_lvalue =
     | LName of
-      { name : Types.name;
-        typ : Type.t; }
+      { name : Types.name; }
     | LMember of 
       { expr : lvalue;
-        name : string;
-        typ : Type.t }
+        name : string; }
     | LBitAccess of 
         { expr : lvalue;
-          msb : Bigint.t;
-          lsb : Bigint.t;
-          typ : Type.t }
+          msb : Util.bigint;
+          lsb : Util.bigint; }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value;
-          typ : Type.t; }
+          idx : value; }
   [@@deriving sexp,yojson]
+
+  and lvalue = {
+    lvalue : pre_lvalue;
+    typ : Type.t
+  }
 
   and set =
     | SSingleton of 
@@ -938,8 +939,6 @@ and Value : sig
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
-
-  val lvalue_typ : lvalue -> Typed.Type.t
 
   val assert_bool : value -> bool 
 
@@ -1113,24 +1112,25 @@ end = struct
   }
   [@@deriving sexp,yojson]
   
-  and lvalue =
+  and pre_lvalue =
     | LName of
-      { name : Types.name;
-        typ : Type.t; }
+      { name : Types.name; }
     | LMember of 
       { expr : lvalue;
-        name : string;
-        typ : Type.t }
+        name : string; }
     | LBitAccess of 
         { expr : lvalue;
           msb : Util.bigint;
-          lsb : Util.bigint;
-          typ : Type.t }
+          lsb : Util.bigint; }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value;
-          typ : Type.t; }
+          idx : value; }
   [@@deriving sexp,yojson]
+
+  and lvalue = {
+    lvalue : pre_lvalue;
+    typ : Type.t
+  }
   
   and set =
     | SSingleton of 
@@ -1160,15 +1160,6 @@ end = struct
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
-
-  (* TODO redesign lvalue type so this doesn't have to exist *)
-  let lvalue_typ lvalue =
-    match lvalue with
-    | LName {typ; _}
-    | LMember {typ; _}
-    | LBitAccess {typ; _}
-    | LArrayAccess {typ; _} ->
-       typ
       
   let assert_bool v =
     match v with 
@@ -1305,22 +1296,22 @@ end = struct
     | _ -> failwith "width of type unimplemented"
   
   let assert_lname l = 
-    match l with 
+    match l.lvalue with 
     | LName {name; _} -> name 
     | _ -> failwith "not an lvalue name"
   
   let assert_lmember l =
-    match l with 
+    match l.lvalue with 
     | LMember {expr; name; _} -> (expr, name) 
     | _ -> failwith "not an lvalue member"
   
   let assert_lbitaccess l = 
-    match l with 
+    match l.lvalue with 
     | LBitAccess {expr; msb; lsb; _} -> (expr, msb, lsb)
     | _ -> failwith "not an lvalue bitaccess"
   
   let assert_larrayaccess l = 
-    match l with 
+    match l.lvalue with 
     | LArrayAccess {expr; idx; _} -> (expr, idx)
     | _ -> failwith "not an lvalue array access"
   

@@ -38,4 +38,8 @@ val find_and_drop: f:('a -> bool) -> 'a list -> 'a option * 'a list
 
 val find_map_and_drop: f:('a -> 'b option) -> 'a list -> 'b option * 'a list
 
+val sorted_eq: 'a list -> 'a list -> compare:('a -> 'a -> int) -> bool
+
+val sorted_eq_strings: string list -> string list -> bool
+
 type bigint = Bigint.t [@@deriving sexp,yojson]

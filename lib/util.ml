@@ -80,6 +80,14 @@ let rec find_map_and_drop ~f xs =
         let found, list = find_map_and_drop ~f xs in
         found, x :: list
 
+let sorted_eq xs ys ~compare =
+  let xs_sorted = List.sort ~compare xs in
+  let ys_sorted = List.sort ~compare ys in
+  let eq x y = compare x y = 0 in
+  List.equal eq xs_sorted ys_sorted
+
+let sorted_eq_strings xs ys =
+  sorted_eq xs ys ~compare:String.compare
 
 type bigint = Bigint.t [@@deriving sexp]
 

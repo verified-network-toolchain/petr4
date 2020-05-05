@@ -31,8 +31,8 @@ module Make_parse (Conf: Parse_config) = struct
     let lexbuf = Lexing.from_string p4_string in
     try
       let prog = Parser.p4program Lexer.lexer lexbuf in
-      if verbose then 
-        begin 
+      if verbose then
+        begin
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
           Format.printf "%a@\n%!" Pretty.format_program prog;
           Format.printf "----------@\n";
@@ -45,7 +45,7 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
-  let check_file (include_dirs : string list) (p4_file : string) 
+  let check_file (include_dirs : string list) (p4_file : string)
       (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
@@ -68,8 +68,9 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-    let eval_file include_dirs p4_file verbose pkt_str ctrl_json =
+    let eval_file include_dirs p4_file verbose pkt_str ctrl_json port =
       (* let pkt_str = Core_kernel.In_channel.read_all pkt_file in *)
+      let port = Bigint.of_int port in
       let pkt = Cstruct.of_hex pkt_str in
       let open Yojson.Safe in
       let pre_entries = ctrl_json
@@ -88,10 +89,16 @@ module Make_parse (Conf: Parse_config) = struct
         let (cenv, typed_prog) = Checker.check_program elab_prog in
         let env = Env.CheckerEnv.eval_env_of_t cenv in
         (* TODO - thread env information from checker to eval*)
-        begin match Eval.eval_prog env typed_prog (tbls, vsets) pkt Bigint.zero with
-          |Some (pkt,_) -> pkt
-          | None -> "" end
-      | `Error (info, exn) ->
+        begin match Eval.eval_prog env typed_prog (tbls, vsets) pkt port with
+          |Some (pkt,port) -> `Ok(pkt, port)
+          | None -> `NoPacket end
+      | `Error (info, exn) as e-> e
+
+    let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port =
+      match eval_file include_dirs p4_file verbose pkt_str ctrl_json port with
+      | `Ok (pkt, port) -> pkt ^ " port: " ^ Bigint.to_string port
+      | `NoPacket -> "No packet out"
+      | `Error(info, exn) ->
         let exn_msg = Exn.to_string exn in
         let info_string = Info.to_string info in
         info_string ^ "\n" ^ exn_msg

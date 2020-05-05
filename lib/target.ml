@@ -5,6 +5,7 @@ open Value
 open Env
 open Bitstring
 open Core_kernel
+open Util
 module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
@@ -180,7 +181,7 @@ and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
   let v' = match v with
     | VStruct{fields=l;_}
     | VHeader{fields=l;_}              ->
-      List.Assoc.find_exn l n ~equal:String.equal
+      find_exn l n
     | VUnion{valid_header=v;_}         -> v
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
     | _ -> failwith "no lvalue member" in
@@ -263,8 +264,11 @@ and update_member (value : value) (fname : string) (fvalue : value) : value =
 and set_only_valid fields (fname: string) =
   List.map fields ~f:(fun (name, _) -> name, name = fname)
 
-and update_field fields  field_name field_value =
-  List.Assoc.remove fields ~equal:(=) field_name 
+and update_field fields field_name field_value =
+  List.map fields ~f:(fun (name, old_value) ->
+      if name = field_name
+      then (name, field_value)
+      else (name, old_value))
 
 and update_nth l n x =
   let n = Bigint.to_int_exn n in
@@ -309,7 +313,8 @@ module State = struct
 
   let insert loc v st = (loc, v) :: st
   
-  let find loc st = List.Assoc.find_exn (* TODO *) st loc ~equal:String.equal
+  let find loc st =
+    List.Assoc.find_exn (* TODO *) st loc ~equal:String.equal
 
   let filter ~f st =
     List.filter ~f st

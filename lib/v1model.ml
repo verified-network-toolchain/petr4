@@ -10,7 +10,7 @@ let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
 type obj =
-  | CoreObject of Core.obj
+  | CoreObject of P4core.obj
   | V1Object of v1object
 
 and v1object =
@@ -135,32 +135,32 @@ let eval_digest : extern = fun _ -> failwith "TODO"
     ("log_msg", eval_log_msg); (* overloaded *)
   ]
 
-  let corize_st (st : state) : Core.state =
+  let corize_st (st : state) : P4core.state =
     st
     |> State.filter ~f:(fun (_, o) -> is_core o)
     |> State.map ~f:(fun o -> assert_core o)
 
-  let targetize_st (st : Core.state) : state = 
+  let targetize_st (st : P4core.state) : state = 
     State.map ~f:(fun o -> CoreObject o) st
 
-  let targetize (ext : Core.extern) : extern =
+  let targetize (ext : P4core.extern) : extern =
     fun ctrl env st ts vs ->
     let (env', st', s, v) =
       ext ctrl env (corize_st st) ts vs in
     env', State.merge (targetize_st st') st, s, v
 
   let externs : (string * extern) list =
-    v1externs @ (List.map Core.externs ~f:(fun (n, e : string * Core.extern) -> n, targetize e))
+    v1externs @ (List.map P4core.externs ~f:(fun (n, e : string * P4core.extern) -> n, targetize e))
 
   let eval_extern ctrl env st targs args name =
     let extern =
       match name with
-      | "extract" -> targetize Core.eval_extract
-      | "lookahead" -> targetize Core.eval_lookahead
-      | "advance" -> targetize Core.eval_advance
-      | "length" -> targetize Core.eval_length
-      | "emit" -> targetize Core.eval_emit
-      | "verify" -> targetize Core.eval_verify
+      | "extract" -> targetize P4core.eval_extract
+      | "lookahead" -> targetize P4core.eval_lookahead
+      | "advance" -> targetize P4core.eval_advance
+      | "length" -> targetize P4core.eval_length
+      | "emit" -> targetize P4core.eval_emit
+      | "verify" -> targetize P4core.eval_verify
       | _ -> failwith "TODO" in
     extern ctrl env st targs args
 

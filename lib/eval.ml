@@ -6,6 +6,7 @@ open Typed
 open Value
 open Target
 open Bitstring
+open Util
 module Info = I (* JNF: ugly hack *)
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
@@ -805,7 +806,7 @@ module MakeInterpreter (T : Target) = struct
       else raise (UnboundName (BareName (Info.dummy, name)))
     | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
       let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
-      let expr = List.Assoc.find_exn ms' ~equal:String.equal name in
+      let expr = find_exn ms' name in
       let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
       let v' = implicit_cast_from_rawint env' v typ in
       begin match s with
@@ -838,13 +839,13 @@ module MakeInterpreter (T : Target) = struct
         | VEnumField _
         | VSenumField _
         | VExternFun _
-        | VPackage _                           -> failwith "expr member does not exist"
-        | VStruct{fields=fs;_}                 -> eval_struct_mem env' st' (snd name) fs
-        | VHeader{fields=fs;is_valid=vbit;_}   -> eval_header_mem ctrl env' st' (snd name) expr fs vbit
-        | VUnion{valid_header=v;_}             -> (env', st', SContinue, v)
-        | VStack{headers=hdrs;size=s;next=n;_} -> eval_stack_mem ctrl env' st' (snd name) expr hdrs s n
-        | VRuntime {loc; obj_name}             -> eval_runtime_mem env' st' (snd name) expr loc obj_name
-        | VRecord fs                           -> env', st', s, List.Assoc.find_exn fs (snd name) ~equal:String.equal
+        | VPackage _                         -> failwith "expr member does not exist"
+        | VStruct{fields=fs}                 -> eval_struct_mem env' st' (snd name) fs
+        | VHeader{fields=fs;is_valid=vbit}   -> eval_header_mem ctrl env' st' (snd name) expr fs vbit
+        | VUnion{valid_header=v;_}           -> (env', st', SContinue, v)
+        | VStack{headers=hdrs;size=s;next=n} -> eval_stack_mem ctrl env' st' (snd name) expr hdrs s n
+        | VRuntime {loc; obj_name}           -> eval_runtime_mem env' st' (snd name) expr loc obj_name
+        | VRecord fs                         -> env', st', s, find_exn fs (snd name)
         | VParser _
         | VControl _ -> 
           env', st', s,
@@ -1281,7 +1282,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_struct_mem (env : env) (st : state) (name : string)
       (fs : (string * value) list) : env * state * signal * value =
-    (env, st, SContinue, List.Assoc.find_exn fs name ~equal:String.equal)
+    (env, st, SContinue, find_exn fs name)
 
   and eval_header_mem (ctrl : ctrl) (env : env) (st : state) (fname : string)
       (e : Expression.t) (fs : (string * value) list)
@@ -1294,7 +1295,7 @@ module MakeInterpreter (T : Target) = struct
       begin match signal with
         | SContinue -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
         | _ -> env', st', signal, VNull end
-    | _ -> (env, st, SContinue, List.Assoc.find_exn fs fname ~equal:String.equal)
+    | _ -> (env, st, SContinue, find_exn fs fname)
 
   and eval_stack_mem (ctrl : ctrl) (env : env) (st : state) (fname : string)
       (e : Expression.t) (hdrs : value list) (size : Bigint.t)
@@ -1514,7 +1515,7 @@ module MakeInterpreter (T : Target) = struct
             | SContinue ->
               begin match v' with
                 | VUnion{valid_fields=l;_} ->
-                  (env, st, s', VBool (List.Assoc.find_exn l n ~equal:String.equal))
+                  (env, st, s', VBool (find_exn l n))
                 | _ ->
                   begin match v with
                     | VHeader{is_valid=b;_} -> (env, st, s', VBool b)
@@ -1627,7 +1628,7 @@ module MakeInterpreter (T : Target) = struct
       let penv' = List.fold_left vs ~init:penv ~f:f in
       let (penv'', st'') = List.fold_left locals ~init:(penv',st') ~f:(fun (e,s) -> eval_decl ctrl e s) in
       let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
-      let start = List.Assoc.find_exn states' "start" ~equal:String.equal in
+      let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
       (copyout ctrl penv''' st''' params args, st''', final_state)
     | SReject _ -> (EvalEnv.pop_scope penv, st, s)
@@ -1663,7 +1664,7 @@ module MakeInterpreter (T : Target) = struct
     match next with
     | "accept" -> (env, st, SContinue)
     | "reject" -> (env, st, SReject "NoError")
-    | _ -> let state = List.Assoc.find_exn states next ~equal:String.equal in
+    | _ -> let state = find_exn states next in
           eval_state_machine ctrl env st states state
 
   and eval_select (ctrl : ctrl) (env : env) (st : state)
@@ -1937,7 +1938,7 @@ let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
     begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' with
     | VStruct {fields;_} -> 
       pkt, 
-      List.Assoc.find_exn fields "egress_port" ~equal:String.equal
+      find_exn fields "egress_port"
       |> assert_bit
       |> snd
     | _ -> failwith "TODO" end

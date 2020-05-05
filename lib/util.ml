@@ -88,3 +88,8 @@ let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
 
 let bigint_of_yojson (json:Yojson.Safe.t) =
   Ok (Bigint.of_string (Yojson.Safe.to_string json))
+
+let find_exn xs x =
+  match List.Assoc.find xs x ~equal:String.equal with
+  | Some v -> v
+  | None -> raise (Failure ("couldn't find name " ^ x))

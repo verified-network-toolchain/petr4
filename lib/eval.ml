@@ -509,7 +509,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_app' (ctrl : ctrl) (env : env) (st : state) (s : signal)
       (args : Expression.t list) (t : Type.t) : env * state * signal =
     let (env', st', sign', v) = eval_nameless ctrl env st t  [] in
-    let typname = name_of_typ t in 
+    let typname = name_only (name_of_type_ref t) in 
     let args' = List.map ~f:(fun arg -> Some arg) args in
     let env'' = EvalEnv.set_namespace (EvalEnv.get_namespace env' ^ typname) env' in
     let (env'', st'', sign'', _) = eval_app ctrl env'' st' sign' v args' in
@@ -882,21 +882,17 @@ module MakeInterpreter (T : Target) = struct
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
 
-  and name_of_typ (t : Type.t) : string =
-    match t with
-    | TypeName name -> name_only name
-    | NewType nt -> nt.name
-    | Header rt | HeaderUnion rt | Struct rt -> rt.name
-    | Enum et -> et.name
-    | Package pt -> pt.name
-    | Control ct | Parser ct -> ct.name
-    | SpecializedType st -> name_of_typ st.base
-    | _ -> failwith "unnamed type"
+  and name_of_type_ref (typ: Type.t) =
+    match typ with
+    | TypeName name -> name
+    | SpecializedType { base; args = _ } ->
+       name_of_type_ref base
+    | _ -> failwith "can't find name for this type"
 
   and eval_nameless (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) : env * state * signal * value =
-    let name = name_of_typ typ in
-    let decl = EvalEnv.find_decl (BareName (Info.dummy, name)) env in
+    let name = name_of_type_ref typ in
+    let decl = EvalEnv.find_decl name env in
     let args' = List.map ~f:(fun arg -> Some arg) args in
     let (env',st',s,v) = let open Declaration in match snd decl with
       | Control typ_decl ->

@@ -171,14 +171,12 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = CheckerEnv.insert_type_vars pkg.type_params env in
-    {name = pkg.name;
-     type_params = pkg.type_params;
+    {type_params = pkg.type_params;
      parameters = saturate_construct_params env pkg.parameters}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
     let env = CheckerEnv.insert_type_vars ctrl.type_params env in
-    {name = ctrl.name;
-     type_params = ctrl.type_params;
+    {type_params = ctrl.type_params;
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
@@ -2354,7 +2352,7 @@ and type_parser env info name annotations params constructor_params locals state
              states = states_typed }
   in
   let parser_typ : Typed.ControlType.t =
-    { name = snd name; type_params = [];
+    { type_params = [];
       parameters = prog_params_to_typed_params params_typed }
   in
   let ctor : Typed.ConstructorType.t =
@@ -2397,7 +2395,7 @@ and type_control env info name annotations type_params params constructor_params
                 apply = apply_typed }
     in
     let control_type =
-      Typed.Type.Control { name = snd name; type_params = [];
+      Typed.Type.Control { type_params = [];
                            parameters = List.map ~f:prog_param_to_typed_param params_typed }
     in
     let ctor : Typed.ConstructorType.t =
@@ -3018,7 +3016,7 @@ and type_control_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let ctrl_typ = Type.Control { name = snd name; type_params = simple_t_params;
+  let ctrl_typ = Type.Control { type_params = simple_t_params;
                                 parameters = params_for_type } in
   (info, ctrl_decl), CheckerEnv.insert_type (BareName name) ctrl_typ env
 
@@ -3035,8 +3033,8 @@ and type_parser_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let parser_typ = Type.Parser { name = snd name; type_params = simple_t_params;
-                               parameters = params_for_type } in
+  let parser_typ = Type.Parser { type_params = simple_t_params;
+                                 parameters = params_for_type } in
   (info, parser_decl), CheckerEnv.insert_type (BareName name) parser_typ env
 
 (* Section 7.2.12 *)
@@ -3053,7 +3051,7 @@ and type_package_type env info annotations name t_params params =
         params = params_typed }
   in
   let pkg_typ: Typed.PackageType.t =
-    { name = snd name; type_params = simple_t_params;
+    { type_params = simple_t_params;
       parameters = params_for_type }
   in
   let ret = Type.Package { pkg_typ with type_params = [] } in

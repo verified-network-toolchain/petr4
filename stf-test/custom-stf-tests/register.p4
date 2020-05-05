@@ -1,6 +1,8 @@
 #include <core.p4>
 #include <v1model.p4>
 
+const bit<32> reg_size = 128;
+
 struct metadata { }
 struct headers { }
 
@@ -19,13 +21,9 @@ control MyChecksum(inout headers hdr, inout metadata meta) {
 
 control MyIngress(inout headers hdr,
                   inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
-    register<bit<32>>(128) r;
-    bit<32> x;
-    apply {
-        standard_metadata.egress_spec = 9;
-        // r.read(x, 2);
-    }
+                  inout standard_metadata_t standard_metadata) { 
+
+    apply { }
 }
 
 control MyEgress(inout headers hdr,
@@ -35,7 +33,18 @@ control MyEgress(inout headers hdr,
 }
 
 control MyDeparser(packet_out packet, in headers hdr) {
-    apply { }
+    register<bit<32>>(reg_size) r;
+    bit<32> index;
+    bit<32> reg_read_val;
+    bit<32> reg_write_val;
+    apply {
+        index = 2;
+        reg_write_val = 15;
+        r.write(index, reg_write_val);
+        r.read(reg_read_val, index);
+
+        packet.emit(reg_read_val);
+    }
 }
 
 //this is declaration

@@ -742,14 +742,26 @@ module V1Model : Target = struct
 
   let eval_direct_meter : extern = fun _ -> failwith "TODO"
 
-  let eval_read : extern = fun _ env st _ args -> failwith "TODO"
-      
+  let eval_read : extern = fun _ env st _ args ->
+    match args with
+    | [(VRuntime {loc;_}, _); _ ; (VBit {w = w; v = v}, _)] ->
+      let reg_obj = State.find loc st in
+      let states = match reg_obj with
+                    | V1Object x -> ( match x with
+                        | Register {states; _} -> states
+                        | _ -> failwith "Reading from an object other than a v1 register")
+                    | _ -> failwith "Reading from an object other than a v1 register" in
+      let read_val = List.nth_exn states (Bigint.to_int_exn v) in
+      let env'= EvalEnv.insert_val "result" read_val env in 
+      env', st, SContinue, read_val
+    | _ -> failwith "unexpected args for register read"
+    
   let eval_register : extern = fun _ env st typs args ->
     let width = match typs with
                 | [Typed.Type.Bit w] -> w.width
                 | _ -> 32 in
     match args with
-    | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] ->
+    | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)] ->
       let init_val = VBit {w = Bigint.of_int width; v = Bigint.zero} in
       let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
       let reg = Register {states = states;
@@ -759,7 +771,25 @@ module V1Model : Target = struct
       env, st', SContinue, VRuntime {loc = loc; obj_name = obj_name}
     | _ -> failwith "unexpected args for register instantiation"
 
-  let eval_write : extern = fun _ -> failwith "TODO"
+  let eval_write : extern = fun _ env st _ args -> 
+    match args with
+    | [(VRuntime {loc;_}, _); 
+       (VBit {w = _; v = v_index}, _) ; 
+       (write_val, _)] ->
+      let reg_obj = State.find loc st in
+      let states, size = match reg_obj with
+                      | V1Object x -> ( match x with
+                          | Register {states; size} -> states, size
+                          | _ -> failwith "Reading from an object other than a v1 register")
+                      | _ -> failwith "Reading from an object other than a v1 register" in
+      let subs_f = fun i x -> if i = (Bigint.to_int_exn v_index) then write_val else x in 
+      let states' = List.mapi ~f:subs_f states in
+      let reg' = Register {states = states';
+                           size = size;} in
+      let reg_obj' = V1Object reg' in
+      let st' = State.insert loc reg_obj' st in
+      env, st', SContinue, write_val 
+    | _ -> failwith "unexpected args for register write"
 
   let eval_action_profile : extern = fun _ -> failwith "TODO"
 
@@ -862,6 +892,7 @@ module V1Model : Target = struct
       | "verify" -> targetize Core.eval_verify
       | "register" -> eval_register
       | "read" -> eval_read
+      | "write" -> eval_write
       | _ -> failwith "TODO" in
     extern ctrl env st targs args
 

@@ -1,14 +1,11 @@
-module I = Info
-open Target
+open Prog.Value
 open Typed
-open Prog
-open Value
-open Env
+open Target
 open Bitstring
+open Env
+module I = Info
 open Core_kernel
 module Info = I
-let (=) = Stdlib.(=)
-let (<>) = Stdlib.(<>)
 
 type obj = 
   | PacketIn of pkt
@@ -304,14 +301,26 @@ let externs : (string * extern) list =
     ("emit", eval_emit);
     ("verify", eval_verify)]
 
-let eval_extern ctrl env st vs name =
-  let extern =
-    match name with
-    | "extract" -> eval_extract
-    | "lookahead" -> eval_lookahead
-    | "advance" -> eval_advance
-    | "length" -> eval_length
-    | "emit" -> eval_emit
-    | "verify" -> eval_verify 
-    | _ -> failwith "extern undefined" in
-  extern ctrl env st vs
+let eval_extern name =
+  match name with
+  | "extract" -> eval_extract
+  | "lookahead" -> eval_lookahead
+  | "advance" -> eval_advance
+  | "length" -> eval_length
+  | "emit" -> eval_emit
+  | "verify" -> eval_verify 
+  | _ -> failwith "extern undefined"
+
+let initialize_metadata = fun _ -> failwith "core does not have metadata"
+
+let check_pipeline = fun _ -> failwith "core does not have a pipeline"
+
+let eval_pipeline = fun _ -> failwith "core does not have a pipeline"
+
+let make_pkt_in pkt = PacketIn pkt
+
+let make_pkt_out pkt1 pkt2 = PacketOut (pkt1, pkt2)
+
+let assert_pkt_in = function PacketIn pkt -> pkt | _ -> failwith "not a pkt in"
+
+let assert_pkt_out = function PacketOut pkt -> pkt | _ -> failwith "not a pkt out"

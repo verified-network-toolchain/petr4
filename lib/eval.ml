@@ -10,6 +10,7 @@ open Util
 module Info = I (* JNF: ugly hack *)
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
+let (>>|) v f = Option.map ~f:f v
 
 type env = EvalEnv.t
 
@@ -190,7 +191,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
     let name = Types.BareName (Info.dummy, name) in
-    let name_expr = {lval = LName {name}; typ} in
+    let name_expr = {lvalue = LName {name}; typ } in
     let (env, s) = assign_lvalue env name_expr v in env, st
 
   and eval_instantiation (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
@@ -450,10 +451,10 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
       let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st s lhs in
-      begin match s',s'' with
-        | SContinue, SContinue -> let (env, s) = assign_lvalue env' lv v in env, st', s
-        | SContinue, _         -> env'', st'', s''
-        | _, _                 -> (env', st', s')
+      begin match s',s'', lv with
+        | SContinue, SContinue, Some lv -> let (env, s) = assign_lvalue env' lv v in env, st', s
+        | SContinue, _, _               -> env'', st'', s''
+        | _, _, _                       -> (env', st', s')
       end
     | SReject _
     | SReturn _
@@ -611,35 +612,40 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and lvalue_of_expr (ctrl : ctrl) (env : env) (st : state) (signal : signal)
-      (expr : Expression.t) : env * state * signal * lvalue =
+      (expr : Expression.t) : env * state * signal * lvalue option =
     match signal with
     | SContinue -> begin match (snd expr).expr with
-      | Name name -> env, st, SContinue, {lval = LName {name}; typ = (snd expr).typ}
+      | Name name -> env, st, SContinue, Some {lvalue = LName {name}; typ = (snd expr).typ}
       | ExpressionMember{expr=e; name=(_,n)} -> lvalue_of_expr_mem ctrl env st (snd expr).typ e n
       | BitStringAccess{bits;lo;hi} -> lvalue_of_expr_bsa ctrl env st (snd expr).typ bits lo hi
       | ArrayAccess{array=a;index} -> lvalue_of_expr_ara ctrl env st (snd expr).typ a index
       | _ -> failwith "not an lvalue" end
-    | SReject _ | SExit | SReturn _ -> env, st, signal, {lval = LName {name = BareName (Info.dummy, "")}; typ = Void}
+    | SReject _ | SExit | SReturn _ -> env, st, signal, None
 
   and lvalue_of_expr_mem (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
-      (e : Expression.t) (n : string) : env * state * signal * lvalue =
+      (e : Expression.t) (n : string) : env * state * signal * lvalue option =
     let (env', st', signal, lv) = lvalue_of_expr ctrl env st SContinue e in
-    env', st', signal, {lval = LMember {expr = lv; name = n}; typ}
+    env', st', signal, 
+    lv >>| fun lv -> {lvalue = LMember {expr = lv; name = n}; typ }
 
   and lvalue_of_expr_bsa (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (n : Expression.t) (lsb : Bigint.t)
-      (msb : Bigint.t) : env * state * signal * lvalue =
+      (msb : Bigint.t) : env * state * signal * lvalue option =
     let (env', st', signal, lv) = lvalue_of_expr ctrl env st SContinue n in
     match signal with
     | SReject _ | SExit | SReturn _ -> env', st', signal, lv
-    | SContinue -> env', st', signal, {lval = LBitAccess{expr=lv; msb = msb; lsb = lsb}; typ}
+    | SContinue ->
+      env', st', signal,
+      lv >>| fun lv -> {lvalue = LBitAccess{expr=lv; msb = msb; lsb = lsb}; typ}   
 
   and lvalue_of_expr_ara (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) 
-      (a : Expression.t) (idx : Expression.t) : env * state * signal * lvalue =
+      (a : Expression.t) (idx : Expression.t) : env * state * signal * lvalue option =
     let (env', st', s, lv) = lvalue_of_expr ctrl env st SContinue a in
     let (env'', st'', s', idx') = eval_expr ctrl env st SContinue idx in
     match s, s' with
-    | SContinue, SContinue -> env'', st'', s', {lval = LArrayAccess{expr=lv; idx=idx'}; typ}
+    | SContinue, SContinue -> 
+      env'', st'', s',
+      lv >>| fun lv -> {lvalue = LArrayAccess{expr=lv; idx=idx'}; typ }
     | SContinue, _ -> env'', st'', s', lv
     | _, _ -> env', st', s, lv
 
@@ -851,12 +857,12 @@ module MakeInterpreter (T : Target) = struct
           env', st', s,
           VBuiltinFun {
             name = snd name;
-            caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 }
+            caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 |> Option.value_exn }
         | VTable _ -> 
           env', st', s,
           VBuiltinFun {
             name = snd name;
-            caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 } end
+            caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 |> Option.value_exn } end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
 
@@ -886,6 +892,8 @@ module MakeInterpreter (T : Target) = struct
   and name_of_type_ref (typ: Type.t) =
     match typ with
     | TypeName name -> name
+    | NewType nt -> BareName (Info.dummy, nt.name)
+    | Enum et -> BareName (Info.dummy, et.name)
     | SpecializedType { base; args = _ } ->
        name_of_type_ref base
     | _ -> failwith "can't find name for this type"
@@ -1292,9 +1300,9 @@ module MakeInterpreter (T : Target) = struct
     | "isValid"
     | "setValid"
     | "setInvalid" -> 
-      begin match signal with
-        | SContinue -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
-        | _ -> env', st', signal, VNull end
+      begin match signal, lv with
+        | SContinue, Some lv -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
+        | _, _ -> env', st', signal, VNull end
     | _ -> (env, st, SContinue, find_exn fs fname)
 
   and eval_stack_mem (ctrl : ctrl) (env : env) (st : state) (fname : string)
@@ -1344,7 +1352,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_stack_builtin (ctrl : ctrl) (env : env) (st : state) (fname : string)
       (e : Expression.t) : env * state * signal * value =
     let (env', st', signal, lv) = lvalue_of_expr ctrl env st SContinue e in
-    env', st', signal, VBuiltinFun{name=fname;caller=lv}
+    env', st', signal, VBuiltinFun{name=fname;caller=lv|>Option.value_exn}
 
   (*----------------------------------------------------------------------------*)
   (* Function and Method Call Evaluation *)
@@ -1385,7 +1393,7 @@ module MakeInterpreter (T : Target) = struct
     let tvs'' = match tvs' with
       | _ :: (VNull,_) :: [] -> []
       | _ -> tvs' in
-    let (fenv', st'', s, v) = T.eval_extern ctrl fenv st targs tvs'' name in
+    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs'' in
     let env'' = copyout ctrl fenv' st'' params args in
     env'', st'', s, v
 
@@ -1475,7 +1483,7 @@ module MakeInterpreter (T : Target) = struct
     | None -> e
     | Some expr -> 
       let (_, _, _, lv) = lvalue_of_expr ctrl e st SContinue expr in
-      (assign_lvalue e lv v) |> fst
+      (assign_lvalue e (Option.value_exn lv) v) |> fst
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
   (*----------------------------------------------------------------------------*)
@@ -1489,7 +1497,7 @@ module MakeInterpreter (T : Target) = struct
     | "pop_front"  -> eval_popfront ctrl env st lv args
     | "push_front" -> eval_pushfront ctrl env st lv args
     | "apply"      -> 
-      let lvname = match lv.lval with LName {name} -> name | _ -> failwith "bad apply" in
+      let lvname = match lv.lvalue with LName {name} -> name | _ -> failwith "bad apply" in
       let (s,v) = value_of_lvalue env lv in 
       let (env', st', s, v) =
         eval_app ctrl (EvalEnv.set_namespace (name_only lvname) env) st s v args
@@ -1502,7 +1510,7 @@ module MakeInterpreter (T : Target) = struct
     let (s,v) = value_of_lvalue env lv in
     match s with
     | SContinue ->
-      begin match lv.lval with
+      begin match lv.lvalue with
         | LName _
         | LBitAccess _
         | LArrayAccess _ ->
@@ -1527,7 +1535,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_setbool (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (b : bool) : env * state * signal * value =
-    match lv.lval with
+    match lv.lvalue with
     | LName {name = n} ->
       begin match EvalEnv.find_val n env with
         | VHeader{fields=fs;_} ->
@@ -1837,8 +1845,7 @@ module MakeInterpreter (T : Target) = struct
     snd (snd f).name, init_val_of_typ env (snd f).typ
 
   and typ_of_stack_mem (env : env) (lv : lvalue) : Type.t =
-    let t = lv.typ in
-    match t with
+    match lv.typ with
     | Array{typ;_} -> typ
     | _ -> failwith "not a header stack"
 

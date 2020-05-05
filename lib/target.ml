@@ -170,7 +170,7 @@ let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
   | _ -> v
 
 let rec value_of_lvalue (env : env) (lv : lvalue) : signal * value =
-  match lv.lval with
+  match lv.lvalue with
   | LName{name=n}                     -> SContinue, EvalEnv.find_val n env
   | LMember{expr=lv;name=n}           -> value_of_lmember env lv n
   | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit env lv hi lo
@@ -227,16 +227,16 @@ let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
     | VInteger n -> implicit_cast_from_rawint env rhs lhs.typ
     | _ -> rhs
   in
-  match lhs.lval with
-  | LName {name;_} ->
+  match lhs.lvalue with
+  | LName {name} ->
      EvalEnv.insert_val name rhs env, SContinue
-  | LMember{expr=lv;name=mname;_} ->
+  | LMember{expr=lv;name=mname;} ->
      let _, record = value_of_lvalue env lv in
      assign_lvalue env  lv (update_member record mname rhs)
-  | LBitAccess{expr=lv;msb;lsb;_} ->
+  | LBitAccess{expr=lv;msb;lsb;} ->
      let _, bits = value_of_lvalue env lv in
      assign_lvalue env lv (update_slice bits msb lsb rhs)
-  | LArrayAccess{expr=lv;idx;_} ->
+  | LArrayAccess{expr=lv;idx;} ->
      let _, arr = value_of_lvalue env lv in
      let idx = bigint_of_val idx in
      assign_lvalue env  lv (update_idx arr idx rhs)
@@ -302,7 +302,6 @@ and update_slice bits_val msb lsb rhs_val =
   let new_bits = (bits land mask) lxor rhs_shifted in
   VBit { w = width; v = new_bits }
 
-
 module State = struct
 
   type 'a t = (string * 'a) list
@@ -340,8 +339,9 @@ module type Target = sig
 
   val externs : (string * extern) list
 
-  val eval_extern : ctrl -> env -> state -> Type.t list -> 
-                    (value * Type.t) list -> string -> env * state * signal * value
+  val eval_extern : 
+    string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
+    env * state * signal * value
 
   val initialize_metadata : Bigint.t -> env -> env
 
@@ -351,4 +351,3 @@ module type Target = sig
   state apply -> state * env * pkt
 
 end
-

@@ -906,11 +906,12 @@ and Value : sig
           idx : value; }
   [@@deriving sexp,yojson]
 
-  and lvalue =
-    { lval: pre_lvalue;
-      typ: Typed.Type.t }
+  and lvalue = {
+    lvalue : pre_lvalue;
+    typ : Type.t
+  }
   [@@deriving sexp,yojson]
-  
+
   and set =
     | SSingleton of 
         { w : Bigint.t;
@@ -1128,10 +1129,10 @@ end = struct
   [@@deriving sexp,yojson]
 
   and lvalue =
-    { lval: pre_lvalue;
+    { lvalue: pre_lvalue;
       typ: Typed.Type.t }
   [@@deriving sexp,yojson]
-  
+
   and set =
     | SSingleton of 
         { w : Util.bigint;
@@ -1296,22 +1297,22 @@ end = struct
     | _ -> failwith "width of type unimplemented"
   
   let assert_lname l = 
-    match l.lval with 
+    match l.lvalue with 
     | LName {name; _} -> name 
     | _ -> failwith "not an lvalue name"
   
   let assert_lmember l =
-    match l.lval with 
+    match l.lvalue with 
     | LMember {expr; name; _} -> (expr, name) 
     | _ -> failwith "not an lvalue member"
   
   let assert_lbitaccess l = 
-    match l.lval with 
+    match l.lvalue with 
     | LBitAccess {expr; msb; lsb; _} -> (expr, msb, lsb)
     | _ -> failwith "not an lvalue bitaccess"
   
   let assert_larrayaccess l = 
-    match l.lval with 
+    match l.lvalue with 
     | LArrayAccess {expr; idx; _} -> (expr, idx)
     | _ -> failwith "not an lvalue array access"
   

@@ -134,8 +134,7 @@ and RecordType : sig
     [@@deriving sexp,yojson]
 
   type t =
-    { fields: field list;
-      name : string; }
+    { fields: field list; }
     [@@deriving sexp,yojson]
 end = struct
   type field =
@@ -144,8 +143,7 @@ end = struct
     [@@deriving sexp,yojson]
 
   type t =
-    { fields: field list;
-      name : string; }
+    { fields: field list; }
     [@@deriving sexp,yojson]
 end
 

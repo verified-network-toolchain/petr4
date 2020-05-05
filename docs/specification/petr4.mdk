@@ -388,7 +388,6 @@ ctx ::= @InFunction t
 
 <!--
 TODO:
-- lvalues?
 - lists vs tuples
 -->
 $a \in \mathbb{Z}$
@@ -437,6 +436,15 @@ set ::=  @universal
     | @product \overline{set}
     | @lpm v
     | \mathkw{value\_set} \overline{matches} \overline{set}
+~ End P4MathGrammar
+
+## L-values
+~ Begin P4MathGrammar
+lv ::=  @lvalue t x
+    | @lvalue t .x
+    | @lvalue t lv.x
+    | @lvalue t lv[n1:n2]
+    | @lvalue t lv[v]
 ~ End P4MathGrammar
 
 ## Signals
@@ -1521,6 +1529,26 @@ TODO:lpm
 \end{cases}
 ~
 
+### LValues
+$e$ has type $\tau$.
+~ MathPre
+\mathkw{lv\_of\_expr} \zeta \xi \sigma e = \begin{cases} (\xi, \sigma, @lvalue t x) & e = x
+(\xi, \sigma, @lvalue t .x) & e = .x
+(\xi', \sigma', @lvalue t lv.name) & e = e.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', lv)
+(\xi', \sigma', @lvalue t lv[n1:n2] ) & e = e1[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', lv)
+(\xi'', \sigma'', @lvalue t lv[v]) & e = e1[e2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = (\xi', \sigma', lv) \land <\zeta, \xi, \sigma, e2> \Downarrow_e <\xi'', \sigma'', v>
+\end{cases}
+
+
+\mathkw{value\_of\_lv} \xi lv = \begin{cases} \xi(x) & lv = @lvalue t x
+\xi(.x) & lv = @lvalue t .x
+v & lv = @lvalue t lv.name \land
+TODO
+\end{cases}
+
+\mathkw{assign\_lv} TODO
+~
+
 ## Expressions
 
 Expressions are evaluated according to the following big-step relation:
@@ -1937,7 +1965,7 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 \mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
 \mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
 ---------------------------------------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \st', sig>
+<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \sigma', sig>
 ~
 
 ~ Infer

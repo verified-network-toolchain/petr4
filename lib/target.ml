@@ -219,7 +219,6 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
   | "next" -> List.nth_exn vs Bigint.(to_int_exn (next % size))
   | _ -> failwith "not an lvalue"
 
-
 let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
   let rhs = 
     match rhs with
@@ -232,25 +231,35 @@ let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
      EvalEnv.insert_val name rhs env, SContinue
   | LMember{expr=lv;name=mname;} ->
      let _, record = value_of_lvalue env lv in
-     assign_lvalue env  lv (update_member record mname rhs)
+     let rhs', signal = update_member record mname rhs in
+     begin match signal with
+     | SContinue -> 
+        assign_lvalue env lv rhs'
+     | _ -> env, signal
+     end
   | LBitAccess{expr=lv;msb;lsb;} ->
      let _, bits = value_of_lvalue env lv in
      assign_lvalue env lv (update_slice bits msb lsb rhs)
   | LArrayAccess{expr=lv;idx;} ->
      let _, arr = value_of_lvalue env lv in
      let idx = bigint_of_val idx in
-     assign_lvalue env  lv (update_idx arr idx rhs)
+     let rhs', signal = update_idx arr idx rhs in
+     begin match signal with
+     | SContinue -> 
+        assign_lvalue env lv rhs'
+     | _ -> env, signal
+     end
 
-and update_member (value : value) (fname : string) (fvalue : value) : value =
+and update_member (value : value) (fname : string) (fvalue : value) : value * signal =
   match value with
   | VStruct v ->
-     VStruct {fields=update_field v.fields fname fvalue}
+     VStruct {fields=update_field v.fields fname fvalue}, SContinue
   | VHeader v ->
      VHeader {fields=update_field v.fields fname fvalue;
-              is_valid=true}
+              is_valid=true}, SContinue
   | VUnion v ->
      VUnion {valid_header=fvalue;
-             valid_fields=set_only_valid v.valid_fields fname}
+             valid_fields=set_only_valid v.valid_fields fname}, SContinue
   | VStack{headers=hdrs; size=s; next=i} ->
      let idx = 
        match fname with
@@ -281,10 +290,11 @@ and update_idx arr idx value =
   match arr with
   | VStack{headers; size; next} ->
      if Bigint.(idx < zero || idx >= size)
-     then failwith "out-of-bounds array access"
+     then VNull, SReject "StackOutOfBounds"
      else VStack { headers = update_nth headers idx value;
                    size = size;
-                   next = next }
+                   next = next },
+          SContinue
   | _ -> failwith "BUG: update_idx: expected a stack"
 
 and update_slice bits_val msb lsb rhs_val =

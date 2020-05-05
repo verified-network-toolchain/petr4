@@ -1691,7 +1691,8 @@ and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
                       ~param:(snd param.variable)]
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
-  let func_typed = resolve_function_overload env func (List.length args) in
+  let open Prog.Expression in
+  let func_typed = resolve_function_overload env func args in
   let func_type = (snd func_typed).typ in
   let type_params, params, return_type =
     match func_type with
@@ -1781,10 +1782,10 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
      raise_s [%message "type does not have constructor for these arguments" 
                  ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
-and resolve_constructor_overload env type_name param_count =
+and resolve_constructor_overload_by ~f env type_name =
   let ok : Typed.Type.t -> bool =
     function
-    | Constructor { parameters; _ } -> param_count = List.length parameters
+    | Constructor { parameters; _ } -> f parameters
     | _ -> false
   in
   let candidates = CheckerEnv.find_types_of type_name env in
@@ -1799,13 +1800,34 @@ and resolve_constructor_overload env type_name param_count =
                      ~ctor:(ctor:Typed.Type.t option)
                      ~candidates:(candidates:(Typed.Type.t * Typed.direction) list)]
 
-and resolve_function_overload env func param_count : Prog.Expression.t =
+and resolve_constructor_overload env type_name args : ConstructorType.t =
+  let arg_name arg =
+    match snd arg with
+    | Argument.KeyValue {key; _} -> Some (snd key)
+    | _ -> None
+  in
+  let param_name param = ConstructParam.(param.name) in
+  match list_option_flip (List.map ~f:arg_name args) with 
+  | Some arg_names ->
+     let param_names_ok params =
+       let param_names = List.map ~f:param_name params in
+       Util.sorted_eq_strings param_names arg_names
+     in
+     resolve_constructor_overload_by ~f:param_names_ok env type_name
+  | None -> 
+     let param_count_ok params =
+       List.length params = List.length args
+     in
+     resolve_constructor_overload_by ~f:param_count_ok env type_name
+
+and resolve_function_overload_by ~f env func : Prog.Expression.t =
+  let open Types.Expression in
   fst func,
   match snd func with
   | Name func_name ->
      let ok : Typed.Type.t -> bool =
        function
-       | Function { parameters; _ } -> param_count = List.length parameters
+       | Function { parameters; _ } -> f parameters
        | _ -> false
      in
      begin match
@@ -1824,8 +1846,7 @@ and resolve_function_overload env func param_count : Prog.Expression.t =
      begin match reduce_type env (snd expr_typed).typ with
      | Extern { methods; _ } ->
         let works (meth: Typed.ExternType.extern_method) =
-          meth.name = snd name &&
-            List.length meth.typ.parameters = param_count
+          meth.name = snd name && f meth.typ.parameters
         in
         begin match List.find ~f:works methods with
         | Some p ->
@@ -1838,10 +1859,30 @@ and resolve_function_overload env func param_count : Prog.Expression.t =
      end
   | _ -> snd @@ type_expression env func
 
+and resolve_function_overload env type_name args =
+  let arg_name arg =
+    match snd arg with
+    | Argument.KeyValue {key; _} -> Some (snd key)
+    | _ -> None
+  in
+  let param_name param = Parameter.(snd param.variable) in
+  match list_option_flip (List.map ~f:arg_name args) with 
+  | Some arg_names ->
+     let param_names_ok params =
+       let param_names = List.map ~f:param_name params in
+       Util.sorted_eq_strings param_names arg_names
+     in
+     resolve_function_overload_by ~f:param_names_ok env type_name
+  | None -> 
+     let param_count_ok params =
+       List.length params = List.length args
+     in
+     resolve_function_overload_by ~f:param_count_ok env type_name
+
 and type_constructor_invocation env info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
-  let constructor_type = resolve_constructor_overload env decl_name (List.length args) in
+  let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
   let prog_params = constructor_params_to_prog_params constructor_type.parameters in
   let params_args = match_params_to_args info prog_params args in

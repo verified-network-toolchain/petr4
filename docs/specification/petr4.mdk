@@ -412,7 +412,7 @@ v ::= b // booleans
     | (\overline{v}) // tuples
     | set
     | @error.name
-    | (\overline{p}) \Rightarrow blck // functions, actions
+    | (\overline{x:t,d}) \Rightarrow blk // functions, actions
     | @builtin name
     | @struct \{ \overline{(name, v)} \}
     | (@header \{ \overline{(name, v)} \}, b)
@@ -421,29 +421,22 @@ v ::= b // booleans
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
     | loc // stateful runtime
-    | @parser (\overline{(name, v)}, \overline{p}, \overline{decl}, \overline{state})
-    | @control (\overline{(name, v)}, \overline{p}, \overline{decl}, blck)
-    | @package (\overline{(name, v)})
-    | @table (name, \overline{v}, \overline{@action}, @action_default, \overline{set})
+    | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
+    | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
+    | @package \overline{(name, v)}
+    | @table name \overline{v} \overline{@action} @action_default \overline{set}
     | @extern name
 ~ End P4MathGrammar
 
 Sets
 ~ Begin P4MathGrammar
-set ::=  \_ // universal
-    | v // singleton
+set ::=  @universal
+    | @singleton v
     | v1 \texttt{\&\&\&} v2 // mask
     | v1 .. v2 // range
-    | (\overline{set}) // product
-    | @lpm v // lpm
-    | ?? // TODO: value set
-~ End P4MathGrammar
-
-Parameters
-~ Begin P4MathGrammar
-p ::= (d, \tau, v, e_{opt})
-e_{opt} ::= @None
-      | @Some e
+    | @product \overline{set}
+    | @lpm v
+    | \mathkw{value\_set} \overline{matches} \overline{set}
 ~ End P4MathGrammar
 
 ## Signals
@@ -1431,7 +1424,11 @@ TODO: $\xi$ needs something like $P$, $\Gamma$, and $\Sigma$ (but for var-value 
 But can all of these be represented by one $\xi$ or does it need to be split out
 like Ryan did in typing contexts.
 
-$\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. $\mathkw{pop \xi}$ pops the first-level scope off $\xi$ if one exists.
+$\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. 
+$\mathkw{pop} \xi$ pops the first-level scope off $\xi$ if one exists.
+$\mathkw{first\_lvl} \xi$ is the first-level scope of $\xi$ if one exists.
+$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$ 
+are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 
 ## Helper rules
 
@@ -1464,121 +1461,65 @@ $\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. $\mathkw{pop \
 ~
 
 ### Copy-In/Copy-Out
-
 ~ MathPre
-\mathkw{copyin} \xi (d, t, v1, e_{opt}) v2 = \begin{cases} \mathkw{push} \xi & d = @out
-(\mathkw{push}\xi)[v2/v1] & otherwise
+\mathkw{copyin} \xi (x:t,d) v = \begin{cases} \mathkw{push} \xi & d = @out
+(\mathkw{push}\xi)[v/x] & otherwise
 \end{cases}
 ~
 
-<!--
 ~ MathPre
-\mathkw{insert\_arg} \xi (d, t, v1, e_{opt}) v2 = \begin{cases} \xi & d = \mathkw{out}
-\xi[v2/v1] & otherwise
-\end{cases}
-~
-
-- type also gets inserted. mapped to v1
-- weird business with headers
-
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
--------------------------------------------------------------------------------[CopyIn-Positional]
-<\zeta, \xi, \sigma, (d, t, v1, e_{opt}), e> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, e_{opt}) v2, \sigma'>
-~
-
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
--------------------------------------------------------------------------------[CopyIn-Named]
-<\zeta, \xi, \sigma, (d, t, v1, e_{opt}), x = e> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, e_{opt}) v2, \sigma'>
-~
-
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v2>
--------------------------------------------------------------------------------[CopyIn-Missing-Opt]
-<\zeta, \xi, \sigma, (d, t, v1, @Some e), ()> \Downarrow <\mathkw{insert\_arg} \xi' (d, t, v1, @Some e) v2, \sigma'>
-~
-
-~ Infer
-TODO
--------------------------------------------------------------------------------[CopyIn-Missing-NoOpt]
-<\zeta, \xi, \sigma, (d, t, v1, @None), ()> \Downarrow TODO
-~
-
-~ Infer
-<\zeta, @push \xi, \sigma, p1, {arg}_1> \Downarrow <\xi', \sigma'>
-\dots
-<\zeta, \xi^{n-1}, \sigma^{n-1}, p_n, {arg}_n> \Downarrow <\xi^n, \sigma^n>
-----------------------------------------------------------------------[CopyIn]
-<\zeta, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow <\xi^n, \sigma^n>
-~
--->
-
-~ MathPre
-\mathkw{copyout} \xi (d, t, v, e_{opt}) e = \begin{cases} \mathkw{pop} \xi & d = @in
+\mathkw{copyout} \xi (x:t,d) e = \begin{cases} \mathkw{pop} \xi & d = @in
 \mathkw{pop} \xi & d = @none \land \xi(X) \neq @extern X \dots
 \mathkw{pop} \xi & d = @none \land \xi(.X) \neq @extern X \dots
-TODO: eval_assign' (\mathkw{pop} \xi)[\xi(v)/lvalue of e] & otherwise
+TODO: eval_assign' (\mathkw{pop} \xi)[\xi(x)/lvalue of e] & otherwise
 \end{cases}
 ~
 
-<!--
+### Match Switch Case
 ~ MathPre
-\mathkw{copy\_arg\_out} \zeta \xi \sigma v arg = \begin{cases} \xi & arg = ()
-TODO: eval_assign' so something like e := v where e is from the arg ßbut that doesn't seem right & otherwise
+\mathkw{match\_switch\_case} case_1...case_n name = \begin{cases} None & \forall i \text{ where } 1 \leq i \leq n, case\_lbl_i \neq name \land case\_lbl_i \neq \texttt{default}
+Some\ blk_i & case_i = case\_lbl_i : blk_i \land name = case\_lbl_i
+Some\ blk_j & case_i = case\_lbl_i :\ \land case_j = case\_lbl_j : blk_j \land name = case\_lbl_i \land \nexists case\_lbl_h : blk_h, i \lt h \lt j
 \end{cases}
 ~
 
-~ Infer
-\xi_1(X) = @extern X \dots
-----------------------------------------------------------------------[NoDir-Extern-TypeName]
-<\zeta, \xi_1, \xi_2, \sigma, (@none, X, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+### Match Sets
+~ MathPre
+\mathkw{set\_of\_matches} \zeta \xi \sigma \overline{match} = \begin{cases} (\xi, \sigma, @universal) & \overline{match} = (\_)
+(\xi', \sigma', @singleton (extract_num v)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v>
+(\xi', \sigma', \mathkw{value\_set} (matches_1,...,matches_n) (set_1,...,set_n)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{value\_set} (matches_1,...,matches_n) \overline{set}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' matches_1  = (\xi'', \sigma'', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^n \sigma^n matches_n  = (\xi^{n+1}, \sigma^{n+1}, set_n)
+(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', set> \land set \neq \mathkw{value\_set} ...
+(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) = (\xi^n, \sigma^n, set_n) 
+\end{cases}
+
+
+\mathkw{match\_set} \overline{v} set = \begin{cases} true & set = @universal
+true & set = @singleton v \land \overline{v} = (v)
+false & set = @singleton v1 \land \overline{v} = (v2) \land v1 \neq v2
+true & set = v1 \texttt{\&\&\&} v2 \land \overline{v} = (v3) \land v1 \& v2 = v3 \& v2
+false & set = v1 \texttt{\&\&\&} v2 \land \overline{v} = (v3) \land v1 \& v2 \neq v3 \& v2
+true & set = v1 .. v2 \land \overline{v} = (v3) \land v1 \leq v3 \leq v2
+false & set = v1 .. v2 \land \overline{v} = (v3) \land (v3 \lt v1 \lor v3 \gt v2)
+\mathkw{match\_set} (v1) set_1 \&\& ... \&\& \mathkw{match\_set} (v_n) set_n & set = @product (set_1,...,set_n) \land \overline{v} = (v1,...,v_n)
+\mathkw{match\_set} (v1) set_1 || ... || \mathkw{match\_set} (v_n) set_n & set = \mathkw{value\_set} \overline{matches} (set_1,...,set_n)
+TODO:lpm
+\end{cases}
 ~
 
-~ Infer
-\xi_1(.X) = @extern X \dots
-----------------------------------------------------------------------[NoDir-Extern-TopLevelType]
-<\zeta, \xi_1, \xi_2, \sigma, (@none, .X, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
+### Parser State machine
+~ MathPre
+\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi, \sigma, None) & <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1> \land ... \land <\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n> \land \mathkw{set\_of\_matches} \zeta \xi^n \sigma^n matches_1 = (\xi^{n+1}, \sigma^{n+1}, set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n+m-1} \sigma^{n+m-1} matches_m = (\xi^{n+m}, \sigma^{n+m}, set_m) \land \forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} (v1,...,v_n) set_i = false
+(\xi, \sigma, Some\ x_i) & <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1> \land ... \land <\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n> \land \mathkw{set\_of\_matches} \zeta \xi^n \sigma^n matches_1 = (\xi^{n+1}, \sigma^{n+1}, set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n+m-1} \sigma^{n+m-1} matches_m = (\xi^{n+m}, \sigma^{n+m}, set_m) \land \mathkw{match\_set} (v1,...,v_n) set_i = true \land \forall j \lt i, \mathkw{match\_set} (v1,...,v_n) set_j = false
+\end{cases}
+
+
+\mathkw{parser\_state\_machine} \zeta \xi \sigma \overline{state} (@state x \{\overline{s}; @transition state\_expr\}) = \begin{cases} (\xi', \sigma', \mathkw{sig\_continue}) & state\_expr = ``accept" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+(\xi', \sigma', \mathkw{sig\_reject} ``NoError") & state\_expr = ``reject" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \zeta \xi' \sigma' \overline{state} (@state x_{next} \{...\}) & @state x_{next} \{...\} \in \overline{state} \land state\_expr = x_{next} \land x_{next} \neq ``accept" \land x_{next} \neq ``reject" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \zeta \xi'' \sigma'' \overline{state} (@state x \{\overline{s}; @transition x_{next}\}) & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', Some\ x_{next})
+(\xi', \sigma', \mathkw{sig\_reject} ``NoMatch") & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', None)
+\end{cases}
 ~
-
-~ Infer
-\xi_1(X) \neq @extern X \dots
-----------------------------------------------------------------------[NoDir-TypeName]
-<\zeta, \xi_1, \xi_2, \sigma, (@none, X, v, e_{opt}), arg> \Downarrow \xi_1
-~
-
-~ Infer
-\xi_1(.X) \neq @extern X \dots
-----------------------------------------------------------------------[NoDir-TopLevelType]
-<\zeta, \xi_1, \xi_2, \sigma, (@none, .X, v, e_{opt}), arg> \Downarrow \xi_1
-~
-
-~ Infer
-
-----------------------------------------------------------------------[Dir-In]
-<\zeta, \xi_1, \xi_2, \sigma, (@in, t, v, e_{opt}), arg> \Downarrow \xi_1
-~
-
-~ Infer
-
-----------------------------------------------------------------------[Dir-InOut]
-<\zeta, \xi_1, \xi_2, \sigma, (@inout, t, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
-~
-
-~ Infer
-
-----------------------------------------------------------------------[Dir-Out]
-<\zeta, \xi_1, \xi_2, \sigma, (@out, t, v, e_{opt}), arg> \Downarrow \mathkw{copy\_arg\_out} \zeta \xi_1 \sigma \xi_2(v) arg 
-~
-
-~ Infer
-<\zeta, @pop \xi, \xi, \sigma, p1, {arg}_1> \Downarrow \xi'
-\dots
-<\zeta, \xi^{n-1}, \xi, \sigma^{n-1}, p_n, {arg}_n> \Downarrow \xi^n
-----------------------------------------------------------------------[CopyOut]
-<\zeta, \xi, \xi, \sigma, \overline{p}, \overline{arg}> \Downarrow \xi^n
-~
--->
 
 ## Expressions
 
@@ -1732,20 +1673,6 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 <\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', v>
 ~
 
-~ Infer
-TODO: how to differentiate value and set
-----------------------------------------------------------------[Set-Cast-Singleton]
-<\zeta, \xi, \sigma, (set) v> \Downarrow_e <\xi, \sigma, >
-~
-
-<!--
-~ Infer
-
-----------------------------------------------------------------[Set-Cast-Product]
-<\zeta, \xi, \sigma, (set) (\overline{v})> \Downarrow_e <\xi, \sigma, >
-~
--->
-
 ### Member Expressions
 
 ~ Infer
@@ -1820,7 +1747,7 @@ n_{next} \lt n_{size}
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', (\overline{v}, n_{size}, n_{next})>
 1 \leq n_{next} \leq n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', v_{n_{next}}>
+<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', v_{n_{next} - 1}>
 ~
 
 ~ Infer
@@ -1885,9 +1812,19 @@ n_{next} \lt n_{size}
 ### Function Calls
 
 ~ Infer
-TODO
--------------------------------------------------------------------------------[Function-Action-Positional]
-TODO
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', (\overline{x:t,d}) \Rightarrow blk>
+<\zeta, \xi', \sigma', e1> \Downarrow_e <\xi'', \sigma'', v1>
+\dots
+<\zeta, \xi^{n}, \sigma^{n}, e_n> \Downarrow_e <\xi^{n+1}, \sigma^{n+1}, v_n>
+@copyin \xi^{n+1} (x1:t_1,d_1) v1 = \xi^{n+2}
+\dots
+@copyin \xi^{2n} (x_n:t_n,d_n) v_n = \xi^{2n+1}
+<\zeta, \xi^{2n+1}, \sigma^{n+1}, blk> \Downarrow_s <\xi^{2n+2}, \sigma^{n+2}, \mathkw{sig\_return\ v}
+@copyout \xi^{2n+2} (x1:t_1,d_1) e_1 = \xi^{2n+3}
+\dots
+@copyout \xi^{3n+1} (x_n:t_n,d_n) e_n = \xi^{3n+2}
+-------------------------------------------------------------------------------[Function-Action]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi^{3n+1}, \sigma^{n+2}, v>
 ~
 
 ~ Infer
@@ -1931,21 +1868,39 @@ TODO: what about extract, emit, length, lookahead, advance, verify? also externf
 ### Nameless Instantiation
 
 ~ Infer
-TODO
--------------------------------------------------------------------------------[Control]
-TODO
+\xi(t) = @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
+<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1>
+\dots
+<\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n>
+@copyin \xi^n (x1:t_1,@none) v1 = \xi^{n+1}
+\dots
+@copyin \xi^{2n-1} (x_n:t_n,@none) v_n = \xi^{2n}
+---------------------------------------------------------------------------------------[Control]
+<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi^{2n}, \sigma^n, @control (\mathkw{first\_lvl} \xi^{2n}) (\overline{x:t,d}) \overline{decl} blk>
 ~
 
 ~ Infer
-TODO
+\xi(t) = @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}
+<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1>
+\dots
+<\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n>
+@copyin \xi^n (x1:t_1,@none) v1 = \xi^{n+1}
+\dots
+@copyin \xi^{2n-1} (x_n:t_n,@none) v_n = \xi^{2n}
 -------------------------------------------------------------------------------[Parser]
-TODO
+<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi^{2n}, \sigma^n, @parser (\mathkw{first\_lvl} \xi^{2n}) (\overline{x:t,d}) \overline{decl} \overline{state}>
 ~
 
 ~ Infer
-TODO
+\xi(t) = @package<\overline{X}>(\overline{x:t,d})
+<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', v1>
+\dots
+<\zeta, \xi^{n-1}, \sigma^{n-1}, e_n> \Downarrow_e <\xi^n, \sigma^n, v_n>
+@copyin \xi^n (x1:t_1,@none) v1 = \xi^{n+1}
+\dots
+@copyin \xi^{2n-1} (x_n:t_n,@none) v_n = \xi^{2n}
 -------------------------------------------------------------------------------[Package]
-TODO
+<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi^{2n}, \sigma^n, @package (\mathkw{first\_lvl} \xi^{2n})>
 ~
 
 ### Set Operations
@@ -1978,15 +1933,67 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', v>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
+\mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
+---------------------------------------------------------------------------[Assignment]
+<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \st', sig>
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Direct-Application]
-<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}>
+<\zeta, \xi', \sigma', e1> \Downarrow_e <\xi'', \sigma'', v1>
+\dots
+<\zeta, \xi^{n}, \sigma^{n}, e_n> \Downarrow_e <\xi^{n+1}, \sigma^{n+1}, v_n>
+@copyin \xi^{n+1} (x1:t_1,d_1) v1 = \xi^{n+2}
+\dots
+@copyin \xi^{2n} (x_n:t_n,d_n) v_n = \xi^{2n+1}
+<\zeta, \xi^{2n+1}[\overline{v}/\overline{name}], \sigma^{n+1}, decl_1> \Downarrow_d <\xi^{2n+2}, \sigma^{n+2}>
+\dots
+<\zeta, \xi^{2n+m}, \sigma^{n+m}, decl_m> \Downarrow_d <\xi^{2n+m+1}, \sigma^{n+m+1}>
+(@state ``start" \{...\}) \in \overline{state}
+\mathkw{parser\_state\_machine} \zeta \xi^{2n+m+1} \sigma^{n+m+1} \overline{state} (@state ``start" \{...\}) = (\xi^{2n+m+2}, \sigma{n+m+2}, sig)
+@copyout \xi^{2n+m+2}(x1:t_1,d_1) e_1 = \xi^{2n+m+3}
+\dots
+@copyout \xi^{3n+m+1} (x_n:t_n,d_n) e_n = \xi^{3n+m+2}
+--------------------------------------------------------------------------------------[Direct-Application-Parser]
+<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <\xi^{3n+m+2}, \sigma{n+m+2}, sig>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk>
+<\zeta, \xi', \sigma', e1> \Downarrow_e <\xi'', \sigma'', v1>
+\dots
+<\zeta, \xi^{n}, \sigma^{n}, e_n> \Downarrow_e <\xi^{n+1}, \sigma^{n+1}, v_n>
+@copyin \xi^{n+1} (x1:t_1,d_1) v1 = \xi^{n+2}
+\dots
+@copyin \xi^{2n} (x_n:t_n,d_n) v_n = \xi^{2n+1}
+<\zeta, \xi^{2n+1}[\overline{v}/\overline{name}], \sigma^{n+1}, decl_1> \Downarrow_d <\xi^{2n+2}, \sigma^{n+2}>
+\dots
+<\zeta, \xi^{2n+m}, \sigma^{n+m}, decl_m> \Downarrow_d <\xi^{2n+m+1}, \sigma^{n+m+1}>
+<\zeta, \xi^{2n+m+1}, \sigma^{n+m+1}, blk> \Downarrow_s <\xi^{2n+m+2}, \sigma^{n+m+2}, sig>
+@copyout \xi^{2n+m+2}(x1:t_1,d_1) e_1 = \xi^{2n+m+3}
+\dots
+@copyout \xi^{3n+m+1} (x_n:t_n,d_n) e_n = \xi^{3n+m+2}
+--------------------------------------------------------------------------------------------[Direct-Application-Control]
+<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <\xi^{3n+m+2}, \sigma^{n+m+2}, sig>
+~
+
+~ Infer
+TODO = @table name \overline{v} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
+\forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v} set_i = false
+<\zeta, \xi, \sigma, x_{default}(\overline{e})> \Downarrow_e <\xi', \sigma', v>
+---------------------------------------------[Direct-Application-Table-Default]
+<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <\xi', \sigma', \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
+~
+
+~ Infer
+TODO = @table name \overline{v} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
+\mathkw{match\_set} \overline{v} set_i = true
+\forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
+<\zeta, \xi, \sigma, x_i(\overline{e})> \Downarrow_e <\xi', \sigma', v>
+------------------------------------------------------------------------------[Direct-Application-Table]
+<\zeta, \xi, \sigma, t.@apply (e1, ..., e_n)> \Downarrow_s <\xi', \sigma', \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
 ~
 
 ~ Infer
@@ -2050,19 +2057,30 @@ TODO
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Return-Value]
-<\zeta, \xi, \sigma, @return v> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v>
+--------------------------------------------------------------------------[Return-Value]
+<\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Switch]
-<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', name_1.name_2>
+\mathkw{match\_switch\_case} \overline{case} name_2 = None
+---------------------------------------------------------------------------------[Switch-No-Match]
+<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ~ Infer
-TODO
----------------------------------------------[Declaration-Statement]
-<\zeta, \xi, \sigma, decl> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', name_1.name_2>
+\mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
+<\zeta, \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
+---------------------------------------------------------------------------------[Switch-Match]
+<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi'', \sigma'', sig>
 ~
+
+~ Infer
+<\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+--------------------------------------------------------------------[Declaration-Statement]
+<\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+~
+
+## Declarations

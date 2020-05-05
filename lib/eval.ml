@@ -1391,7 +1391,7 @@ module MakeInterpreter (T : Target) = struct
     let tvs'' = match tvs' with
       | _ :: (VNull,_) :: [] -> []
       | _ -> tvs' in
-    let (fenv', st'', s, v) = T.eval_extern ctrl fenv st targs tvs'' name in
+    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs'' in
     let env'' = copyout ctrl fenv' st'' params args in
     env'', st'', s, v
 
@@ -1927,7 +1927,7 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-module V1Interpreter = MakeInterpreter(Target.V1Model)
+module V1Interpreter = MakeInterpreter(V1Model.V1Model)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 

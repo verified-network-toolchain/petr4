@@ -22,6 +22,9 @@ module type Interpreter = sig
 
   val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt
 
+  val eval_prog : ctrl -> env -> state -> pkt -> Bigint.t -> program -> 
+    state * (pkt * Bigint.t) option
+
   val eval_decl : ctrl -> env -> state -> Declaration.t -> (env * state)
 
   val eval_statement : ctrl -> env -> state -> Statement.t -> (env * state)
@@ -1891,78 +1894,34 @@ module MakeInterpreter (T : Target) = struct
     let env' = T.initialize_metadata in_port env in 
     T.eval_pipeline ctrl env' st pkt eval_app
 
+  and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
+      (in_port : Bigint.t) : state * pkt * Bigint.t =
+    let (st', env', pkt) = eval ctrl env st pkt in_port in
+    begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' with
+    | VStruct {fields;_} -> 
+      st', pkt, 
+      find_exn fields "egress_port"
+      |> assert_bit
+      |> snd
+    | _ -> failwith "TODO" end
+
+  and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : pkt) 
+      (in_port : Bigint.t) (prog : program) : state * (pkt * Bigint.t) option =
+    match prog with Program l ->
+    let (env,st) = 
+      List.fold_left l 
+        ~init:(env, state)
+        ~f:(fun (e,s) -> eval_decl ctrl e s) 
+    in
+    let st', pkt', port = eval_main ctrl env st pkt in_port in
+    st', Some (pkt', port)
+
 end
 
 (*----------------------------------------------------------------------------*)
 (* Program Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let hex_of_nibble (i : int) : string =
-  match i with
-  | 0 -> "0"
-  | 1 -> "1"
-  | 2 -> "2"
-  | 3 -> "3"
-  | 4 -> "4"
-  | 5 -> "5"
-  | 6 -> "6"
-  | 7 -> "7"
-  | 8 -> "8"
-  | 9 -> "9"
-  | 10 -> "A"
-  | 11 -> "B"
-  | 12 -> "C"
-  | 13 -> "D"
-  | 14 -> "E"
-  | 15 -> "F"
-  | _ -> failwith "unreachable"
-
-let hex_of_int (i : int) : string =
-  hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
-
-let hex_of_char (c : char) : string =
-  c |> Char.to_int |> hex_of_int
-
-let hex_of_string (s : string) : string =
-  s
-  |> String.to_list
-  |> List.map ~f:hex_of_char
-  |> List.fold_left ~init:"" ~f:(^)
-
 module V1Interpreter = MakeInterpreter(V1model)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
-
-let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
-    (in_port : Bigint.t) : pkt * Bigint.t =
-  let name =
-    match env |> EvalEnv.find_val (BareName (Info.dummy, "main")) |> assert_package |> fst |> snd with
-    | Declaration.PackageType {name=(_,n);_} -> n
-    | _ -> failwith "main is not a package" in
-  match name with
-  | "V1Switch"     ->
-    let (_, env', pkt) = V1Interpreter.eval ctrl env V1Interpreter.empty_state pkt in_port in
-    begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' with
-    | VStruct {fields;_} -> 
-      pkt, 
-      find_exn fields "egress_port"
-      |> assert_bit
-      |> snd
-    | _ -> failwith "TODO" end
-  (* | "ebpfFilter"   -> EbpfInterpreter.eval ctrl env EbpfInterpreter.empty_state pkt |> snd *)
-  | "EmptyPackage" -> pkt, Bigint.zero
-  | _ -> failwith "architecture not supported"
-
-let eval_prog (env: env) (p: program) (ctrl: ctrl) (pkt: pkt)
-    (in_port : Bigint.t) : (string * Bigint.t) option =
-  match p with Program l ->
-    let (env,st) = 
-      List.fold_left l 
-        ~init:(env, V1Interpreter.empty_state)
-        ~f:(fun (e,s) -> V1Interpreter.eval_decl ctrl e s) 
-    in
-    let pkt', port = eval_main env ctrl pkt in_port in
-    Some begin
-    pkt'
-    |> Cstruct.to_string
-    |> hex_of_string, port end

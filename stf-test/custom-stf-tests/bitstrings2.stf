@@ -1,0 +1,2 @@
+packet 0 00
+expect 0 2A2A D5 2A2A2A2A2A FF002A2A01 00

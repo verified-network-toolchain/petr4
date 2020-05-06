@@ -1,4 +1,6 @@
 open Types
+open Typed
+open Prog
 open Value
 
 exception BadEnvironment of string
@@ -11,6 +13,9 @@ module EvalEnv : sig
 
   val get_toplevel : t -> t
   val get_val_firstlevel : t -> (string * value) list
+
+  val get_namespace : t -> string
+  val set_namespace : string -> t -> t
 
   val insert_val_bare : string -> value -> t -> t
   val insert_decl_bare : string -> Declaration.t -> t -> t

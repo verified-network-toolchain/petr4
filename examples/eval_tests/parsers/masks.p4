@@ -2,7 +2,13 @@
 #include <v1model.p4>
 
 struct metadata { }
-struct headers { }
+struct headers {
+    bit<9> first;
+    bit<9> second;
+    bit<9> third;
+    bit<9> fourth;
+    bit<9> fifth;
+}
 
 parser MyParser(packet_in packet,
                 out headers hdr,
@@ -21,7 +27,7 @@ parser MyParser(packet_in packet,
     }
 
     state first_state {
-        standard_metadata.egress_spec = 1;
+        headers.first = 1;
         transition select(8w0x7A) {
             b &&& 8w0x1A : accept;
             a &&& b : second_state;
@@ -30,7 +36,7 @@ parser MyParser(packet_in packet,
     }
 
     state second_state {
-        standard_metadata.egress_spec = 2;
+        headers.second = 2;
         transition select(8w0xDC) {
             b &&& c : accept;
             _ : third_state;
@@ -38,7 +44,7 @@ parser MyParser(packet_in packet,
     }
 
     state third_state {
-        standard_metadata.egress_spec = 3;
+        headers.third = 3;
         transition select(8w0xA5) {
             b &&& c : fourth_state;
             default : accept;
@@ -46,7 +52,7 @@ parser MyParser(packet_in packet,
     }
 
     state fourth_state {
-        standard_metadata.egress_spec = 4;
+        headers.fourth = 4;
         transition select(8w0x7A, 8w0xA5) {
             (a &&& b, a &&& b) : accept;
             (b &&& c, b &&& c) : accept;
@@ -57,7 +63,7 @@ parser MyParser(packet_in packet,
     }
 
     state fifth_state {
-        standard_metadata.egress_spec = 5;
+        headers.fifth = 5;
         transition accept;
     }
     // egress spec should be 0, 1, 2, 3, 4, then 5 in that order
@@ -80,7 +86,13 @@ control MyEgress(inout headers hdr,
 }
 
 control MyDeparser(packet_out packet, in headers hdr) {
-    apply { }
+    apply {
+        packet.emit(headers.first);
+        packet.emit(headers.second);
+        packet.emit(headers.third);
+        packet.emit(headers.fourth);
+        packet.emit(headers.fifth);
+    }
 }
 
 //this is declaration

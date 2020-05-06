@@ -1,5 +1,7 @@
 module I = Info
 open Types
+open Prog
+open Typed
 open Value
 open Core_kernel
 open Sexplib.Conv
@@ -103,13 +105,16 @@ module EvalEnv = struct
     (* maps variables to their values *)
     vs : value env;
     (* map variables to their types; only needed in a few cases *)
-    typ : Types.Type.t env;
+    typ : Type.t env;
+    (* dynamically maintain the control-plane namespace *)
+    namespace : string;
   }
 
   let empty_eval_env = {
     decl = [[]];
     vs = [[]];
     typ = [[]];
+    namespace = "";
   }
 
   let get_val_firstlevel (env: t) =
@@ -124,7 +129,17 @@ module EvalEnv = struct
       | h :: _ -> [h] in
     {decl = get_last env.decl;
      vs = get_last env.vs;
-     typ = get_last env.typ;}
+     typ = get_last env.typ;
+     namespace = "";}
+
+  let get_val_firstlevel env =
+    List.hd_exn (env.vs)
+
+  let get_namespace env =
+    env.namespace
+
+  let set_namespace name env =
+    {env with namespace = name}
 
   let insert_val name binding e =
     {e with vs = insert name binding e.vs}
@@ -178,12 +193,14 @@ module EvalEnv = struct
   let push_scope (e : t) : t =
     {decl = push e.decl;
      vs = push e.vs;
-     typ = push e.typ;}
+     typ = push e.typ;
+     namespace = e.namespace;}
 
   let pop_scope (e:t) : t =
     {decl = pop e.decl;
      vs = pop e.vs;
-     typ = pop e.typ;}
+     typ = pop e.typ;
+     namespace = e.namespace;}
 
   (* TODO: for the purpose of testing expressions and simple statements only*)
   let print_env (e:t) : unit =
@@ -204,8 +221,10 @@ module EvalEnv = struct
             | Some n -> string_of_int n end
         | VString s -> s
         | VTuple _ -> "<tuple>"
+        | VRecord _ -> "<record>"
         | VSet _ -> "<set>"
         | VError s -> "Error: " ^ s
+        | VMatchKind s -> "Match Kind: " ^ s
         | VFun _ -> "<function>"
         | VBuiltinFun _ -> "<function>"
         | VAction _ -> "<action>"
@@ -315,5 +334,6 @@ module CheckerEnv = struct
   let eval_env_of_t (cenv: t) : EvalEnv.t =
     { decl = [[]];
       vs = cenv.const;
-      typ = [[]];}
+      typ = cenv.typ;
+      namespace = "";}
 end

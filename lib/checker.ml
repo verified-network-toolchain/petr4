@@ -2721,7 +2721,6 @@ and type_default_action env action_map action_expr: Prog.Table.action_ref =
             typ = (snd action_expr_typed).typ }
      else failwith "couldn't find default action in action_map"
   | e ->
-     print_s [%message "bad value" (e: Prog.Expression.pre_t)];
      failwith "couldn't type default action as functioncall"
 
 and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =

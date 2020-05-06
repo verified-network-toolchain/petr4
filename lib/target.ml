@@ -274,10 +274,16 @@ and set_only_valid fields (fname: string) =
   List.map fields ~f:(fun (name, _) -> name, name = fname)
 
 and update_field fields field_name field_value =
-  List.map fields ~f:(fun (name, old_value) ->
-      if name = field_name
-      then (name, field_value)
-      else (name, old_value))
+  let rec update fields' fields =
+    match fields with
+    | [] ->
+       fields' @ [field_name, field_value]
+    | (name, value) :: fields ->
+       if name = field_name
+       then fields' @ (name, field_value) :: fields
+       else update (fields' @ [name, value]) fields
+  in
+  update [] fields
 
 and update_nth l n x =
   let n = Bigint.to_int_exn n in

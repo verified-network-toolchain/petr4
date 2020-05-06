@@ -74,11 +74,20 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
         then Some (Prog.Value.VInt { w = Bigint.of_int width; v = i.value })
         else Some (Prog.Value.VBit { w = Bigint.of_int width; v = i.value })
      end
-  | UnaryOp { op; arg } -> failwith "unimplemented"
-  | BinaryOp { op; args } -> failwith "unimplemented"
+  | UnaryOp { op; arg } ->
+     begin match compile_time_eval_expr env arg with
+     | Some arg ->
+        Some (Ops.interp_unary_op op arg)
+     | None -> None
+     end
+  | BinaryOp { op; args = (l, r) } ->
+     begin match compile_time_eval_expr env l,
+                 compile_time_eval_expr env r with
+     | Some l, Some r ->
+        Some (Ops.interp_binary_op op l r)
+     | _ -> None
+     end
   | Cast { typ; expr } -> compile_time_eval_expr env expr
-  | TypeMember {typ; name } -> failwith "unimplemented"
-  | Ternary {cond; tru; fls } -> failwith "unimplemented"
   | List { values } ->
      begin match compile_time_eval_exprs env values with 
      | Some vals -> Some (VTuple vals)

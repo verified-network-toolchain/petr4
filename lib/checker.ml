@@ -1338,9 +1338,13 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
     (* Bitstring concatentation is defined on any two bitstrings *)
     | PlusPlus ->
        begin match l_typ, r_typ with
-       | Bit { width = l }, Bit { width = r } -> Bit { width = l + r }
-       | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
-       | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
+       | Bit { width = l }, Bit { width = r }
+       | Int { width = l }, Bit { width = r }
+       | Bit { width = l }, Int { width = r }
+       | Int { width = l }, Int { width = r } -> Bit { width = l + r }
+       | Int { width = _ }, _
+       | Bit { width = _ }, _ -> raise_mismatch (info r) "bit<> or int<>" r_typ
+       | _, _ -> raise_mismatch (info l) "bit<> or int<>" l_typ
        end
     (* Comparison is defined on both arbitrary and fixed-width integers *)
     | Le | Ge | Lt | Gt ->

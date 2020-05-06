@@ -2604,7 +2604,7 @@ and type_action env info annotations name params body =
 
 (* Section 13.2 *)
 and type_table env info annotations name properties : Prog.Declaration.t * CheckerEnv.t =
-  type_table' env info annotations name None [] None (List.map ~f:snd properties)
+  type_table' env info annotations name None [] None None None (List.map ~f:snd properties)
 
 and type_keys env keys =
   let open Prog.Table in
@@ -2695,7 +2695,32 @@ and type_table_entries env entries key_typs action_map =
   in
   List.map ~f:type_table_entry entries
 
-and type_table' env info annotations name key_types action_map entries_typed properties =
+and type_default_action env action_map action_expr: Prog.Table.action_ref =
+  let action_expr_typed = type_expression env action_expr in
+  match (snd action_expr_typed).expr with
+  | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
+     let name = name_only action_name in
+     if List.Assoc.mem ~equal:String.equal action_map name
+     then fst action_expr,
+          { action = { annotations = [];
+                       name = action_name;
+                       args = args };
+            typ = (snd action_expr_typed).typ }
+     else failwith "couldn't find default action in action_map"
+  | Name action_name ->
+     let name = name_only action_name in
+     if List.Assoc.mem ~equal:String.equal action_map name
+     then fst action_expr,
+          { action = { annotations = [];
+                       name = action_name;
+                       args = [] };
+            typ = (snd action_expr_typed).typ }
+     else failwith "couldn't find default action in action_map"
+  | e ->
+     print_s [%message "bad value" (e: Prog.Expression.pre_t)];
+     failwith "couldn't type default action as functioncall"
+
+and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
   match properties with
   | Key { keys } :: rest ->
@@ -2706,6 +2731,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
           (Some (type_keys env keys))
           action_map
           entries_typed
+          size
+          default_typed
           rest
      | Some key_types ->
         raise_s [%message "multiple key properties in table?" ~name:(snd name)]
@@ -2721,6 +2748,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
              None
              action_map
              entries_typed
+             size
+             default_typed
              props
         | None, props ->
            type_table' env info annotations
@@ -2728,6 +2757,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
              (Some [])
              action_map
              entries_typed
+             size
+             default_typed
              props
         end
      | Some kts ->
@@ -2737,6 +2768,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
           key_types
           action_map
           entries_typed
+          size
+          default_typed
           rest
      end
   | Entries { entries } :: rest ->
@@ -2747,18 +2780,52 @@ and type_table' env info annotations name key_types action_map entries_typed pro
         | Some keys_typed ->
            let key_types' = List.map ~f:(fun k -> (snd (snd k).key).typ) keys_typed in
            let entries_typed = type_table_entries env entries key_types' action_map in
-           type_table' env info annotations name key_types action_map (Some entries_typed) rest
+           type_table' env info annotations name key_types action_map (Some entries_typed) size default_typed rest
         | None -> failwith "entries with no keys?"
         end
      end
-  | Custom { name = (_, "default_action"); _ } :: rest ->
-     type_table' env info annotations
-       name
-       key_types
-       action_map
-       entries_typed
-       rest
-  | Custom { name = (_, "size"); _ } :: rest
+  | Custom { name = (_, "default_action"); value; _ } :: rest ->
+     begin match default_typed with
+     | None ->
+        let default_typed = type_default_action env action_map value in
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          size
+          (Some default_typed)
+          rest
+     | Some _ -> failwith "multiple default_action properties in table"
+     end
+  | Custom { name = (_, "size"); value; _ } :: rest ->
+     if size <> None then failwith "duplicated size properties?";
+     let value_typed = type_expression env value in
+     let _ = assert_numeric (fst value) (snd value_typed).typ in
+     let size = compile_time_eval_expr env value_typed in
+     begin match size with
+     | Some (VInteger size) ->
+        let size: P4Int.t =
+          fst value, { value = size; width_signed = None }
+        in
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          (Some size)
+          default_typed
+          rest
+     | _ ->
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          None
+          default_typed
+          rest
+     end
   | Custom _ :: rest ->
      (* TODO *)
      type_table' env info annotations
@@ -2766,6 +2833,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
        key_types
        action_map
        entries_typed
+       size
+       default_typed
        rest
   | [] ->
     let open EnumType in
@@ -2801,9 +2870,9 @@ and type_table' env info annotations name key_types action_map entries_typed pro
               name;
               key = key;
               actions = List.map ~f:snd action_map;
-              entries = None;
-              default_action = None;
-              size = None;
+              entries = entries_typed;
+              default_action = default_typed;
+              size = size;
               custom_properties = [] }
     in
     let nm = BareName name in

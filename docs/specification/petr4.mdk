@@ -358,8 +358,7 @@ t ::= @bool
     | @control<\overline{X}>(\overline{x:t,d})
     | @parser<\overline{X}>(\overline{x:t})
     | @extern X \{ \overline{method} \}
-    | @function<\overline{X}>(\overline{x:t}) : \tau
-    | \mathkw{extern\ function} x<\overline{X}>(\overline{x:t,d}):t
+    | @function<\overline{X}>(\overline{x:t,d}) : \tau
     | @action(\overline{x:t,d_0}, \overline{x:t}) : @void
     | @constructor<\overline{X}>(\overline{x:t}): t
     | @table X
@@ -933,8 +932,16 @@ TODO: Check directions
 TODO: Handle overloads of extern functions
 ~ Infer
 S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+\overline{\mathkw{dir\_ok} e d}
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 ----------------------------------------------------------------------------[Function-Call]
+S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
+~
+
+~ Infer
+S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+----------------------------------------------------------------------------[Action-Call]
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
 
@@ -1221,13 +1228,13 @@ S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{
 S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 ----------------------------------------------------[Type-Decl-Function]
-S,D,G |- @function t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
+S,D,G |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
 ~
 
 ~ Infer
-G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+G' = G[x:@function<\overline{X}>(\overline{x: t,d}) : t]
 ---------------------------------------------------------------[Type-Decl-Extern-Function]
-S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t}) blk -| S,D,G'
+S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
 ~
 
 ~ Infer

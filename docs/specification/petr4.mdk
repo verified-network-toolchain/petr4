@@ -201,7 +201,7 @@ e ::= @true
     | e1[e2] // array access
     | e1[e2:e3] // bitslice
     | \{ \overline{e} \} // list
-    | \{ \overline{x:e} \} // records
+    | \{ \overline{name=e} \} // records
     | uop e
     | e1 binop e2
     | (t) e // explicit cast
@@ -1621,7 +1621,7 @@ x \neq @verify
 ~ Infer
 <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
 -------------------------------------------------------------------------------[Record]
-<\zeta, \xi, \sigma, \{ \overline{x:e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{x:v} \}>
+<\zeta, \xi, \sigma, \{ \overline{name=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{name=v} \}>
 ~
 
 ### Unary Operations
@@ -1796,7 +1796,7 @@ n_{next} < 1
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name:v;...\}>  
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>  
 --------------------------------------------------------------------------[Record-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~

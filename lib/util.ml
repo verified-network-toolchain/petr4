@@ -80,6 +80,11 @@ let rec find_map_and_drop ~f xs =
         let found, list = find_map_and_drop ~f xs in
         found, x :: list
 
+let find_exn xs x =
+  match List.Assoc.find xs x ~equal:String.equal with
+  | Some v -> v
+  | None -> raise (Failure ("couldn't find name " ^ x))
+
 let sorted_eq xs ys ~compare =
   let xs_sorted = List.sort ~compare xs in
   let ys_sorted = List.sort ~compare ys in
@@ -96,3 +101,4 @@ let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
 
 let bigint_of_yojson (json:Yojson.Safe.t) =
   Ok (Bigint.of_string (Yojson.Safe.to_string json))
+

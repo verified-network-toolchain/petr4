@@ -75,16 +75,20 @@ module Make_parse (Conf: Parse_config) = struct
       let pre_entries = ctrl_json
                         |> Util.member "pre_entries"
                         |> Util.to_list in
-      let tbls = List.map pre_entries ~f:Types.Table.pre_entry_of_yojson_exn in
+      let tbls = List.map pre_entries ~f:Prog.Table.pre_entry_of_yojson_exn in
       let matches = ctrl_json
                     |> Util.member "matches"
                     |> Util.to_list
                     |> List.map ~f:Util.to_list in
       let vsets =
-        List.map matches ~f:(fun l -> List.map l ~f:Types.Match.of_yojson_exn) in
+        List.map matches ~f:(fun l -> List.map l ~f:Prog.Match.of_yojson_exn) in
       match parse_file include_dirs p4_file verbose with
       | `Ok prog ->
-        begin match Eval.eval_prog prog (tbls, vsets) pkt Bigint.zero with
+        let elab_prog = Elaborate.elab prog in
+        let (cenv, typed_prog) = Checker.check_program elab_prog in
+        let env = Env.CheckerEnv.eval_env_of_t cenv in
+        (* TODO - thread env information from checker to eval*)
+        begin match Eval.eval_prog env typed_prog (tbls, vsets) pkt Bigint.zero with
           |Some (pkt,_) -> pkt
           | None -> "" end
       | `Error (info, exn) ->

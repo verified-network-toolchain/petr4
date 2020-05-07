@@ -819,14 +819,9 @@ typeArgumentList:
 | ts = separated_list(COMMA, typeArg) {ts}
 ;
 
-realTypeArgumentListAux:
-| t = realTypeArg { [t] }
-| ts = realTypeArgumentListAux COMMA t = typeArg { t::ts }
-;
-
 realTypeArgumentList:
-| rev_ts = realTypeArgumentListAux
-    { List.rev rev_ts }
+| t = realTypeArg { [t] }
+| t = realTypeArg COMMA ts = separated_list(COMMA, typeArg) { t :: ts }
 ;
 
 typeDeclaration:

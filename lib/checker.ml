@@ -93,6 +93,15 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
      | Some vals -> Some (VTuple vals)
      | None -> None
      end
+  | TypeMember{typ;name} ->
+     begin match typ with
+     | TypeName (BareName tn) ->
+        let qname = QualifiedName ([tn], name) in
+        CheckerEnv.find_const_opt qname env
+     | _ -> failwith "???"
+     end
+  | ErrorMember t ->
+     Some (VError (snd t))
   | Record { entries } ->
      let opt_entries =
        List.map ~f:(fun (_, {key; value}) ->
@@ -111,7 +120,7 @@ and compile_time_eval_exprs env exprs : Prog.Value.value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
-let compile_time_eval_bigint env expr: Bigint.t =
+and compile_time_eval_bigint env expr: Bigint.t =
   match compile_time_eval_expr env expr with
   | Some (Prog.Value.VInt { v; _})
   | Some (Prog.Value.VBit { v; _})
@@ -123,13 +132,13 @@ let compile_time_eval_bigint env expr: Bigint.t =
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
  * [decl] before trying to evaluate it! *)
-let compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
+and compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
   match snd decl with
   | Constant { name; value; _ } ->
      CheckerEnv.insert_const (BareName name) value env
   | _ -> env
 
-let get_type_params (t: Typed.Type.t) : string list =
+and get_type_params (t: Typed.Type.t) : string list =
   match t with
   | Package {type_params; _}
   | Control {type_params; _}
@@ -140,7 +149,7 @@ let get_type_params (t: Typed.Type.t) : string list =
   | _ ->
      []
 
-let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
+and drop_type_params (t: Typed.Type.t) : Typed.Type.t =
   match t with
   | Package p ->
      Package {p with type_params = []}
@@ -161,7 +170,7 @@ let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
  * Warning: this will loop forever if you give it an environment with circular
  * TypeName references.
  *)
-let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let open Type in
   let saturate_field env (field: RecordType.field) =
     {field with typ = saturate_type env field.typ}
@@ -1410,6 +1419,7 @@ and type_cast env typ expr : Prog.Expression.typed_t =
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =
+  
   let typ = translate_type env [] typ in
   let full_typ = saturate_type env typ
   in
@@ -2930,16 +2940,22 @@ and fold_unique members (_, member) =
 (* Section 7.1.2 *)
 (* called by type_type_declaration *)
 and type_error env info members =
-  let add_err env (_, e) =
-    CheckerEnv.insert_type_of (QualifiedName ([], (info, "error." ^ e))) Type.Error env
+  let add_err env e =
+    let name = QualifiedName ([info, "error"], e) in
+    env
+    |> CheckerEnv.insert_type_of name Type.Error
+    |> CheckerEnv.insert_const name (VError (snd e))
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   (info, Prog.Declaration.Error { members }), env
 
 (* Section 7.1.3 *)
 and type_match_kind env info members =
-  let add_mk env (_, m) =
-    CheckerEnv.insert_type_of (QualifiedName ([], (info, m))) Type.MatchKind env
+  let add_mk env e =
+    let name = QualifiedName ([], e) in
+    env
+    |> CheckerEnv.insert_type_of name Type.MatchKind
+    |> CheckerEnv.insert_const name (VMatchKind (snd e))
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
   (info, Prog.Declaration.MatchKind { members }), env
@@ -2951,35 +2967,52 @@ and type_enum env info annotations name members =
                 members = List.map ~f:snd members;
                 typ = None }
   in
-  let env = CheckerEnv.insert_type (BareName name) enum_typ env in
+  let add_member env member =
+    let member_name = QualifiedName ([name], member) in
+    env
+    |> CheckerEnv.insert_type_of member_name enum_typ
+    |> CheckerEnv.insert_const member_name
+         (VEnumField { typ_name = snd name;
+                       enum_name = snd member  })
+  in
+  let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_typ env in
+  let env = List.fold_left ~f:add_member ~init:env members in
   (info, Prog.Declaration.Enum { annotations; name; members }), env
 
-and type_enum_member env expected_typ (name, expr) =
-  let expr_typed = type_expression env expr in
-  assert_type_equality env (fst expr) expected_typ (snd expr_typed).typ;
-  (name, expr_typed)
-
 (* Section 8.3 *)
-and type_serializable_enum env info annotations typ name members =
-  let typ = translate_type env [] typ in
-  begin match saturate_type env typ with
-  | Int _ | Bit _ ->
-     let members = List.map ~f:(type_enum_member env typ) members in
-     let enum_typed =
-       Prog.Declaration.SerializableEnum { annotations; typ; name; members }
-     in
-     let typ_members = List.map ~f:(fun m -> (snd (fst m))) members in
-     let enum_typ =
-       Type.Enum { name = snd name;
-                   typ= Some typ;
-                   members = typ_members }
-     in
-     let env = CheckerEnv.insert_type (BareName name) enum_typ env in
-     (info, enum_typed), env
-  | _ ->
-     raise_s [%message "The underlying type of a serializable enum must be a fixed-width integer."
-                 ~typ:(typ:Typed.Type.t)]
-  end
+and type_serializable_enum env info annotations underlying_type name members =
+  let underlying_type =
+    underlying_type
+    |> translate_type env []
+    |> saturate_type env
+  in
+  let underlying_type =
+    match underlying_type with
+    | Int _ | Bit _ -> underlying_type
+    | _ -> raise_mismatch info "fixed width numeric type for enum" underlying_type
+  in
+  let enum_type: Typed.Type.t =
+    Enum { name = snd name; typ = Some underlying_type; members = [] }
+  in
+  let add_member (env, members_typed) (member, expr) =
+    let member_name = QualifiedName ([name], member) in
+    let expr_typed = type_expression env expr in
+    assert_type_equality env (fst expr) underlying_type (snd expr_typed).typ;
+    match compile_time_eval_expr env expr_typed with
+    | Some value ->
+       env
+       |> CheckerEnv.insert_type_of member_name enum_type
+       |> CheckerEnv.insert_const member_name
+            (VEnumField { typ_name = snd name;
+                          enum_name = snd member  }),
+       members_typed @ [ member ]
+    | None -> failwith "could not evaluate enum member"
+  in
+  let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_type env in
+  let env, member_names = List.fold_left ~f:add_member ~init:(env, []) members in
+  let enum_typed =
+    Prog.Declaration.Enum { annotations; name; members = member_names } in
+  (info, enum_typed), env
 
 (* Section 7.2.9.2 *)
 and type_extern_object env info annotations name t_params methods =

@@ -151,6 +151,7 @@ and EnumType : sig
   type t =
     { name: string;
       typ: Type.t option;
+      (* TODO remove this *)
       members: string list; }
     [@@deriving sexp,yojson]
 end = struct

@@ -1937,7 +1937,7 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 \mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
 \mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
 ---------------------------------------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \st', sig>
+<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \sigma', sig>
 ~
 
 ~ Infer

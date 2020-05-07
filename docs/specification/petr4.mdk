@@ -932,17 +932,10 @@ S,D,G |- e_1 ? e_2 : e_3 : t, @none
 TODO: Check directions
 TODO: Handle overloads of extern functions
 ~ Infer
-S,D,G |- f : f<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
-----------------------------------------------------------------------------[Function-Call-Nameless]
+----------------------------------------------------------------------------[Function-Call]
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
-~
-
-~ Infer
-S,D,G |- f : @function<...,X_i,...>(...,x_j:\tau_j,...) : \tau, \_
-\forall j, \, S,D[\overline{X \to \rho}],G \vdash e_j:t_j
-----------------------------------------------------------------------------[Function-Call-Named]
-\Pi,\Gamma,\Delta |- f<...,\tau_i,...>(...,x_j=e_j,...) : \tau,@none
 ~
 
 ### Nameless Instantiation
@@ -1001,9 +994,9 @@ S,D,G,ctx |- s:sig -| G'.
 The judgment is defined inductively by the following rules.
 
 ~ Infer
-S,D,G |- e<t_1,\dots,t_n>(e_1,\dots,e_m):t
+S,D,G |- e<\overline{t}>(\overline{e}):t
 -------------------------------------------------------[Type-Stmt-Method-Call]
-S,D,G,ctx |- e<t_1,\dots,t_n>(e_1,\dots,e_m):\bot -| G
+S,D,G,ctx |- e<\overline{t}>(\overline{e}):\bot -| G
 ~
 
 ~ Infer

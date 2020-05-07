@@ -26,4 +26,3 @@ const int<8> x = (-8s127 - 1) & -8s1; //-128
 package EmptyPackage();
 EmptyPackage() main;
 
-/* lots of bugs */

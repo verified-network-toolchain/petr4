@@ -928,11 +928,11 @@ S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
 ### Function Calls
+
 TODO: Check directions
 TODO: Handle overloads of extern functions
 ~ Infer
 S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-\overline{\mathkw{dir\_ok} e d}
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 ----------------------------------------------------------------------------[Function-Call]
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none

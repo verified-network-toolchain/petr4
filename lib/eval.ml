@@ -221,13 +221,17 @@ module MakeInterpreter (T : Target) = struct
       (init : Expression.t option) : env * state * signal =
     match init with
     | None ->
-      let env = EvalEnv.insert_val_bare name (init_val_of_typ env typ) env in
-      (env, st, SContinue)
-    | Some e ->
-      let (env, st', init_val) = eval_expression ctrl env st e in
-      let init_val = implicit_cast env init_val typ in
+      let init_val = init_val_of_typ env typ in
       let env = EvalEnv.insert_val_bare name init_val env in
-      (env, st', SContinue)
+      env, st, SContinue
+    | Some e ->
+      let env, st, signal, init_val = eval_expr ctrl env st SContinue e in
+      match signal with
+      | SContinue ->
+         let init_val = implicit_cast env init_val typ in
+         let env = EvalEnv.insert_val_bare name init_val env in
+         env, st, SContinue
+      | signal -> env, st, signal
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (size : Expression.t) : env * state * signal =

@@ -1,0 +1,204 @@
+Kind of test,Test p4 file,Explanation for failure
+checker,examples/checker_tests/good/constsigned.p4,bitslice of int<> values (bad test?)
+checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported)
+checker,examples/checker_tests/good/type-params.p4,don't care as type parameter
+checker,examples/checker_tests/good/issue1879-bmv2.p4,modulo undef for bit<> values
+checker,examples/checker_tests/good/psa-portid-using-newtype2.p4,binop typecheck isn't saturating types before running
+checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported)
+checker,examples/checker_tests/good/issue1937-3-bmv2.p4,default arguments (unsupported)
+checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context
+checker,examples/checker_tests/good/names.p4,cast to struct not being done in const list initializer
+checker,examples/checker_tests/good/unused.p4,don't care as type parameter
+checker,examples/checker_tests/good/arch1.p4,don't care as type parameter
+checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments
+checker,examples/checker_tests/good/default-package-argument.p4,default arguments
+checker,examples/checker_tests/good/virtual3.p4,abstract method implementations
+checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter
+checker,examples/checker_tests/good/functors8.p4,generic declarations
+checker,examples/checker_tests/good/issue1304.p4,optional parameters
+checker,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enum as match key
+checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match
+checker,examples/checker_tests/good/functors6.p4,generic declarations
+checker,examples/checker_tests/good/struct1.p4,cast to struct not being done in const list initializer
+checker,examples/checker_tests/good/precedence.p4,division undef for bit<> values
+checker,examples/checker_tests/good/virtual.p4,abstract method implementations
+checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations
+checker,examples/checker_tests/good/virtual2.p4,abstract method implementations
+checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed
+checker,examples/checker_tests/good/strength.p4,division undef for bit<> values
+checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter
+checker,examples/checker_tests/good/functors7.p4,generic declarations
+checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test)
+checker,examples/checker_tests/good/issue304-1.p4,abstract method implementations
+checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter
+checker,examples/checker_tests/good/functors9.p4,generic delcarations
+checker,examples/checker_tests/good/enum-folding.p4,type member getting saturated
+checker,examples/checker_tests/good/pvs-struct.p4,value set match against 1element struct
+checker,examples/checker_tests/good/issue1713-bmv2.p4,bit slice on integers
+checker,examples/checker_tests/good/named-arg1.p4,optional parameters
+checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed
+checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments
+checker,examples/checker_tests/good/list-compare.p4,equality for tuples
+checker,examples/checker_tests/good/struct.p4,cast to struct not being done in const list initializer
+checker,examples/checker_tests/good/constant_folding.p4,division for bit<>
+checker,examples/checker_tests/good/issue1937.p4,default value
+checker,examples/checker_tests/good/simple.p4,bad test
+checker,examples/checker_tests/good/issue1333.p4,default arguments
+checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls
+checker,examples/checker_tests/good/table-entries-range-bmv2.p4,range on integers
+checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts
+checker,examples/checker_tests/bad/extract1.p4,extract with size param should only work on variable sized headers
+checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected
+checker,examples/checker_tests/bad/nostart.p4,reject parser with no start state
+checker,examples/checker_tests/bad/issue1580.p4,respect @defaultonly and @tableonly action annotations
+checker,examples/checker_tests/bad/call-table.p4,reject table.apply() inside an action
+checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data
+checker,examples/checker_tests/bad/psa-type-hdr.p4,newtype restricted to base types (unnecessary restriction?)
+checker,examples/checker_tests/bad/issue818.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/issue600.p4,lookahead should not work on variable width headers
+checker,examples/checker_tests/bad/template_e.p4,type argument names should be distinct
+checker,examples/checker_tests/bad/persistent_e.p4,constructor args should be compile time known
+checker,examples/checker_tests/bad/typedef-and-type-definitions.p4,newtype restricted to base types (unnecessary restriction?)
+checker,examples/checker_tests/bad/function_e1.p4,reject function if it does not return on all paths
+checker,examples/checker_tests/bad/missing_actions.p4,reject table with no actions property
+checker,examples/checker_tests/bad/issue413.p4,do not allow action calls in parser
+checker,examples/checker_tests/bad/constructor_e.p4,reject extern constructor with return type
+checker,examples/checker_tests/bad/push_nonconstant.p4,push_front arg should be ctk
+checker,examples/checker_tests/bad/assign.p4,externs are never LValues
+checker,examples/checker_tests/bad/extract.p4,extract only defined for headers
+checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls
+checker,examples/checker_tests/bad/default_action1.p4,default action check should be scope-sensitive
+checker,examples/checker_tests/bad/issue816-1.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/issue1331.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/issue807.p4,return type restrictions in spec appendix F
+checker,examples/checker_tests/bad/issue1944.p4,bitstring too big
+checker,examples/checker_tests/bad/spec-ex32_e.p4,annotation (unsupported)
+checker,examples/checker_tests/bad/function_e2.p4,actions cannot be called from functions
+checker,examples/checker_tests/bad/issue388.p4,instantiation restrictions in spec appendix F
+checker,examples/checker_tests/bad/parser-arg.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/issue584.p4,hash parameter restrictions
+checker,examples/checker_tests/bad/accept_e.p4,parser states cannot be named accept
+checker,examples/checker_tests/bad/issue407-1.p4,header field type restrictions
+checker,examples/checker_tests/bad/header3.p4,header field type restrictions
+checker,examples/checker_tests/bad/issue477.p4,extract argument restrictions: no header stacks
+checker,examples/checker_tests/bad/stack_e.p4,no struct stacks
+checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers
+checker,examples/checker_tests/bad/extern.p4,extern params cannot have a direction
+checker,examples/checker_tests/bad/dup-param.p4,params cannot shadow constructor params
+checker,examples/checker_tests/bad/key-name.p4,complex key expressions need @name annotation
+checker,examples/checker_tests/bad/annotation.p4,p4c rejecting "@pkginfo" annotation in parser
+checker,examples/checker_tests/bad/width_e.p4,bitstring too big
+checker,examples/checker_tests/bad/issue473.p4,action args in default_action must be ctk
+checker,examples/checker_tests/bad/default-param.p4,no defalt values for out or optional params (unsupported)
+checker,examples/checker_tests/bad/div.p4,require nonnegative args for division and modulo
+checker,examples/checker_tests/bad/param.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/next.p4,header stack next/last only usable in parser
+checker,examples/checker_tests/bad/issue513.p4,no conditionals in actions (target dependent)
+checker,examples/checker_tests/bad/issue1777-bmv2.p4,v1model register only supports bit<w> elements
+checker,examples/checker_tests/bad/issue1732.p4,@match annotation arg must be match kind (unsupported)
+checker,examples/checker_tests/bad/issue1296.p4,no recursive type specialization allowed (unnecessary restriction?)
+checker,examples/checker_tests/bad/issue394.p4,variable declaration type restriction
+checker,examples/checker_tests/bad/issue478.p4,one-arg extract should not work on variable width headers
+checker,examples/checker_tests/bad/issue816.p4,parameter restrictions in spec appendix F
+checker,examples/checker_tests/bad/dupConst.p4,reject const shadowing
+checker,examples/checker_tests/bad/generic1_e.p4,well formed parameter type needs right number of type params
+checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (unnecessary restriction?)
+checker,examples/checker_tests/bad/inro.p4,in parameters are not LValues
+checker,examples/checker_tests/bad/width1_e.p4,int and bit types cannot have negative widths
+checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field
+checker,examples/checker_tests/bad/tuple-newtype.p4,newtype restricted to base types (unnecessary restriction?)
+checker,examples/checker_tests/bad/action-bind.p4,action_refs in default_action and entries should match any args bound in the actions property
+stf,examples/checker_tests/good/table-entries-lpm-bmv2.p4,
+stf,examples/checker_tests/good/action_call_ebpf.p4,
+stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,
+stf,examples/checker_tests/good/issue1097-2-bmv2.p4,
+stf,examples/checker_tests/good/parser_error-bmv2.p4,
+stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,
+stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,
+stf,examples/checker_tests/good/valid_ebpf.p4,
+stf,examples/checker_tests/good/test-parserinvalidargument-error-bmv2.p4,
+stf,examples/checker_tests/good/ternary2-bmv2.p4,
+stf,examples/checker_tests/good/issue447-2-bmv2.p4,
+stf,examples/checker_tests/good/checksum3-bmv2.p4,
+stf,examples/checker_tests/good/union1-bmv2.p4,
+stf,examples/checker_tests/good/flag_lost-bmv2.p4,
+stf,examples/checker_tests/good/issue1755-bmv2.p4,
+stf,examples/checker_tests/good/arith4-bmv2.p4,
+stf,examples/checker_tests/good/issue1755-1-bmv2.p4,
+stf,examples/checker_tests/good/issue655-bmv2.p4,
+stf,examples/checker_tests/good/table-entries-exact-ternary-bmv2.p4,
+stf,examples/checker_tests/good/union2-bmv2.p4,
+stf,examples/checker_tests/good/issue1566-bmv2.p4,
+stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,
+stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,
+stf,examples/checker_tests/good/stack_complex-bmv2.p4,
+stf,examples/checker_tests/good/bvec-hdr-bmv2.p4,
+stf,examples/checker_tests/good/subparser-with-header-stack-bmv2.p4,
+stf,examples/checker_tests/good/arith1-bmv2.p4,
+stf,examples/checker_tests/good/issue1824-bmv2.p4,
+stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,
+stf,examples/checker_tests/good/union-valid-bmv2.p4,
+stf,examples/checker_tests/good/issue561-5-bmv2.p4,
+stf,examples/checker_tests/good/issue447-5-bmv2.p4,
+stf,examples/checker_tests/good/issue561-6-bmv2.p4,
+stf,examples/checker_tests/good/issue561-4-bmv2.p4,
+stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,
+stf,examples/checker_tests/good/arith5-bmv2.p4,
+stf,examples/checker_tests/good/issue510-bmv2.p4,
+stf,examples/checker_tests/good/issue870_ebpf.p4,
+stf,examples/checker_tests/good/hit_ebpf.p4,
+stf,examples/checker_tests/good/key_ebpf.p4,
+stf,examples/checker_tests/good/union3-bmv2.p4,
+stf,examples/checker_tests/good/two_ebpf.p4,
+stf,examples/checker_tests/good/array-copy-bmv2.p4,
+stf,examples/checker_tests/good/issue447-1-bmv2.p4,
+stf,examples/checker_tests/good/issue561-3-bmv2.p4,
+stf,examples/checker_tests/good/header-bool-bmv2.p4,
+stf,examples/checker_tests/good/issue561-2-bmv2.p4,
+stf,examples/checker_tests/good/arith-bmv2.p4,
+stf,examples/checker_tests/good/issue447-3-bmv2.p4,
+stf,examples/checker_tests/good/equality-varbit-bmv2.p4,
+stf,examples/checker_tests/good/issue1768-bmv2.p4,
+stf,examples/checker_tests/good/count_ebpf.p4,
+stf,examples/checker_tests/good/equality-bmv2.p4,
+stf,examples/checker_tests/good/issue1814-1-bmv2.p4,
+stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,
+stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,
+stf,examples/checker_tests/good/table-entries-range-bmv2.p4,
+stf,examples/checker_tests/good/checksum1-bmv2.p4,
+stf,examples/checker_tests/good/header-stack-ops-bmv2.p4,
+stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,
+stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,
+stf,examples/checker_tests/good/issue447-4-bmv2.p4,
+stf,examples/checker_tests/good/issue447-bmv2.p4,
+stf,examples/checker_tests/good/issue1879-bmv2.p4,
+stf,examples/checker_tests/good/issue561-1-bmv2.p4,
+stf,examples/checker_tests/good/test_ebpf.p4,
+stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,
+stf,examples/checker_tests/good/extern-funcs-bmv2.p4,
+stf,examples/checker_tests/good/arith2-bmv2.p4,
+stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,
+stf,examples/checker_tests/good/issue995-bmv2.p4,
+stf,examples/checker_tests/good/default_action-bmv2.p4,
+stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,
+stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,
+stf,examples/checker_tests/good/switch_ebpf.p4,
+stf,examples/checker_tests/good/issue561-7-bmv2.p4,
+stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,
+stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,
+stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,
+stf,examples/checker_tests/good/arith3-bmv2.p4,
+stf,examples/checker_tests/good/issue1049-bmv2.p4,
+stf,examples/checker_tests/good/union-bmv2.p4,
+stf,examples/checker_tests/good/key-bmv2.p4,
+stf,examples/checker_tests/good/issue1000-bmv2.p4,
+stf,examples/checker_tests/good/issue774-4-bmv2.p4,
+stf,examples/checker_tests/good/checksum2-bmv2.p4,
+stf,examples/checker_tests/good/arith-inline-bmv2.p4,
+stf,examples/checker_tests/good/saturated-bmv2.p4,
+stf,examples/checker_tests/good/issue1025-bmv2.p4,
+stf,examples/checker_tests/good/action_call_table_ebpf.p4,
+stf,stf-test/custom-stf-tests/switch.p4,issue #118 assignment/scope mixup
+stf,stf-test/custom-stf-tests/table3.p4,issue #118 assignment/scope mixup
+stf,stf-test/custom-stf-tests/table2.p4,issue #118 assignment/scope mixup
+stf,stf-test/custom-stf-tests/value_set.p4,

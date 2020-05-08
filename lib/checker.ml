@@ -125,7 +125,16 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
      | Some es -> Some (Prog.Value.VStruct { fields = es })
      | None -> None
      end
-  | _ -> None
+  | BitStringAccess{bits; hi; lo} ->
+     begin match compile_time_eval_expr env bits with
+     | Some (VBit {w; v}) ->
+        let slice_width = Bigint.(hi - lo + one) in
+        let slice_val = Bitstring.bitstring_slice v hi lo in
+        Some (VBit {w = slice_width; v = slice_val})
+     | _ -> None
+     end
+  | _ ->
+     None
 
 and compile_time_eval_exprs env exprs : Prog.Value.value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
@@ -2256,7 +2265,9 @@ and type_constant env decl_info annotations typ name expr : Prog.Declaration.t *
   match compile_time_eval_expr env typed_expr with
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
-     CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In env
+     env
+     |> CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In
+     |> CheckerEnv.insert_const (BareName name) value
   | None ->
      failwith "expression not compile-time-known"
 

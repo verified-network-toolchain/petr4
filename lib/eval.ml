@@ -697,6 +697,8 @@ module MakeInterpreter (T : Target) = struct
     let (env', st', s, a') = eval_expr ctrl env st SContinue a in
     let (env'', st'', s', i') = eval_expr ctrl env' st' SContinue i in
     let idx = bigint_of_val i' in
+    print_s [%message "in eval_array_access" ~env:(env: EvalEnv.t) ~a:(a: Expression.t)
+                ~a':(a': Value.value)];
     let (hdrs,size,next) = assert_stack a' in
     let idx' = Bigint.(to_int_exn (idx % size)) in
     match (s,s') with

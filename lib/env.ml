@@ -21,11 +21,44 @@ let pop: 'a env -> 'a env = function
   | []        -> no_scopes ()
   | _ :: env' -> env'
 
+let split_at name scope =
+  let rec split_at' seen scope =
+  match scope with
+  | [] -> None
+  | (x, value) :: rest ->
+     if x = name
+     then Some (seen, (x, value), rest)
+     else split_at' (seen @ [x, value]) rest
+  in
+  split_at' [] scope
+
+let update_in_scope name value scope =
+  match split_at name scope with
+  | None -> None
+  | Some (xs, _, ys) ->
+     Some (xs @ (name, value) :: ys)
+
 let insert_bare name value env =
-  begin match env with
+  match env with
   | [] -> no_scopes ()
   | h :: t -> ((name, value) :: h) :: t
-  end
+
+let update_bare name value env =
+  let rec insert' env =
+    match env with
+    | [] -> None
+    | inner_scope :: scopes ->
+       match update_in_scope name value inner_scope with
+       | Some inner_scope -> Some (inner_scope :: scopes)
+       | None ->
+          match insert' scopes with
+          | Some env -> Some (inner_scope :: env)
+          | None -> None
+  in
+  match insert' env, env with
+  | Some env, _ -> env
+  | None, h :: t -> ((name, value) :: h) :: t
+  | None, [] -> no_scopes ()
 
 let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
   let (env0,env1) = List.split_n env (List.length env - 1) in
@@ -35,6 +68,12 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
 let insert name value env =
   match name with
   | BareName (_, name) -> insert_bare name value env
+  | QualifiedName ([], (_, name)) -> insert_toplevel name value env
+  | _ -> failwith "unimplemented"
+
+let update name value env =
+  match name with
+  | BareName (_, name) -> update_bare name value env
   | QualifiedName ([], (_, name)) -> insert_toplevel name value env
   | _ -> failwith "unimplemented"
 
@@ -109,6 +148,7 @@ module EvalEnv = struct
     (* dynamically maintain the control-plane namespace *)
     namespace : string;
   }
+  [@@deriving sexp,yojson]
 
   let empty_eval_env = {
     decl = [[]];
@@ -142,10 +182,10 @@ module EvalEnv = struct
     {env with namespace = name}
 
   let insert_val name binding e =
-    {e with vs = insert name binding e.vs}
+    {e with vs = update name binding e.vs}
 
-  let insert_val_bare name =
-    insert_val (BareName (Info.dummy, name))
+  let insert_val_bare name binding e =
+    {e with vs = update (BareName (Info.dummy, name)) binding e.vs}
 
   let insert_decl name binding e =
     {e with decl = insert name binding e.decl}

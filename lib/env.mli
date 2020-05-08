@@ -7,7 +7,7 @@ exception BadEnvironment of string
 exception UnboundName of name
 
 module EvalEnv : sig
-  type t
+  type t [@@deriving sexp,yojson]
 
   val empty_eval_env : t
 

@@ -1382,7 +1382,10 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
        | Integer, Integer -> Integer
        | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
        | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-       | _, _ -> failwith "this binop unimplemented" (* TODO: better error message here *)
+       | _, _ -> raise_s [%message "this binop unimplemented"
+                             ~l_typ:(l_typ:Typed.Type.t)
+                             ~r_typ:(r_typ:Typed.Type.t)]
+
        end
     | Eq | NotEq ->
        if type_equality env l_typ r_typ
@@ -1535,43 +1538,6 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
   let fail () =
     raise_unfound_member info (snd name) in
   match typ with
-  | Control { type_params = []; parameters = ps; _ }
-  | Parser { type_params = []; parameters = ps; _ } ->
-     begin match snd name with
-     | "apply" ->
-        Function { type_params = [];
-                   parameters = ps;
-                   return = Void }
-     | _ -> fail ()
-     end
-  | Table { result_typ_name } ->
-     begin match snd name with
-     | "apply" ->
-        Function { type_params = []; parameters = [];
-                   return = TypeName (BareName (Info.dummy, result_typ_name)) }
-     | _ -> fail ()
-     end
-  | Struct _ ->
-     begin match snd name with
-     | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | _ -> fail ()
-     end
-  | Header _ ->
-     begin match snd name with
-     | "isValid" ->
-        Function { type_params = []; parameters = []; return = Bool }
-     | "setValid"
-     | "setInvalid" ->
-        Function { type_params = []; parameters = []; return = Void }
-     | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | _ -> fail ()
-     end
   | Array { typ; _ } ->
      let idx_typ = Bit { width = 32 } in
      begin match snd name with
@@ -1582,31 +1548,78 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      | "next"
      | "last" ->
         typ
+     | _ -> fail ()
+     end
+  | _ -> fail ()
+
+and type_expression_member_function_builtin env info typ name : Typed.Type.t option =
+  let open Typed.Type in
+  match typ with
+  | Control { type_params = []; parameters = ps; _ }
+  | Parser { type_params = []; parameters = ps; _ } ->
+     begin match snd name with
+     | "apply" ->
+        Some (Function { type_params = [];
+                         parameters = ps;
+                         return = Void })
+     | _ -> None
+     end
+  | Table { result_typ_name } ->
+     begin match snd name with
+     | "apply" ->
+        Some (Function { type_params = []; parameters = [];
+                         return = TypeName (BareName (Info.dummy, result_typ_name)) })
+     | _ -> None
+     end
+  | Struct _ ->
+     begin match snd name with
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
+     end
+  | Header _ ->
+     begin match snd name with
+     | "isValid" ->
+        Some (Function { type_params = []; parameters = []; return = Bool })
+     | "setValid"
+     | "setInvalid" ->
+        Some (Function { type_params = []; parameters = []; return = Void })
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
+     end
+  | Array { typ; _ } ->
+     begin match snd name with
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
      | "push_front"
      | "pop_front" ->
-        Function { type_params = [];
-                   parameters = [{ variable = Info.dummy, "count";
-                                   typ = Integer;
-                                   direction = Directionless;
-                                   annotations = [] }];
-                   return = Void }
-     | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | _ -> fail ()
+        let parameters: Typed.Parameter.t list =
+          [{ variable = Info.dummy, "count";
+             typ = Integer;
+             direction = Directionless;
+             annotations = [] }]
+        in
+        Some (Function { type_params = []; parameters; return = Void })
+     | _ -> None
      end
   | HeaderUnion _ ->
      begin match snd name with
      | "isValid" ->
-        Function { type_params = []; parameters = []; return = Bool }
+        Some (Function { type_params = []; parameters = []; return = Bool })
      | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
+        Some (Function { type_params = []; parameters = []; return = Integer })
      | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | _ -> fail ()
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
      end
-  | _ -> fail ()
+  | _ -> None
 
 (* Sections 6.6, 8.14 *)
 and type_expression_member env expr name : Prog.Expression.typed_t =
@@ -1956,7 +1969,16 @@ and resolve_function_overload_by ~f env func : Prog.Expression.t =
              dir = Directionless }
         | None -> failwith "couldn't find matching method"
         end
-     | _ -> snd @@ type_expression env func
+     | _ ->
+        let typ = saturate_type env (snd expr_typed).typ in
+        begin match type_expression_member_function_builtin env info typ name with
+        | Some typ ->
+           { expr = prog_member;
+             typ;
+             dir = Directionless }
+        | None ->
+           snd @@ type_expression env func
+        end
      end
   | _ -> snd @@ type_expression env func
 

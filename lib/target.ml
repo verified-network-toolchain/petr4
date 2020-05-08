@@ -228,7 +228,10 @@ let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
   in
   match lhs.lvalue with
   | LName {name} ->
-     EvalEnv.insert_val name rhs env, SContinue
+     begin match EvalEnv.update_val name rhs env with
+     | Some env' -> env', SContinue
+     | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
+     end
   | LMember{expr=lv;name=mname;} ->
      let _, record = value_of_lvalue env lv in
      let rhs', signal = update_member record mname rhs in

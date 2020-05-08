@@ -33,6 +33,10 @@ module EvalEnv : sig
   val insert_decls: (name * Declaration.t) list -> t ->t
   val insert_typs : (name * Type.t) list -> t -> t
 
+  val update_val_bare : string -> value -> t -> t option
+
+  val update_val : name -> value -> t -> t option
+
   val find_val : name -> t -> value
   val find_decl : name -> t -> Declaration.t
   val find_typ : name -> t -> Type.t

@@ -43,22 +43,22 @@ let insert_bare name value env =
   | [] -> no_scopes ()
   | h :: t -> ((name, value) :: h) :: t
 
-let update_bare name value env =
-  let rec insert' env =
-    match env with
-    | [] -> None
-    | inner_scope :: scopes ->
-       match update_in_scope name value inner_scope with
-       | Some inner_scope -> Some (inner_scope :: scopes)
-       | None ->
-          match insert' scopes with
-          | Some env -> Some (inner_scope :: env)
-          | None -> None
-  in
-  match insert' env, env with
-  | Some env, _ -> env
-  | None, h :: t -> ((name, value) :: h) :: t
-  | None, [] -> no_scopes ()
+let rec update_bare name value env =
+  match env with
+  | [] -> no_scopes ()
+  | inner_scope :: scopes ->
+     match update_in_scope name value inner_scope with
+     | Some inner_scope -> Some (inner_scope :: scopes)
+     | None ->
+        match update_bare name value scopes with
+        | Some env -> Some (inner_scope :: env)
+        | None -> None
+
+let update_toplevel name value env =
+  let (env0,env1) = List.split_n env (List.length env - 1) in
+  match update_bare name value env1 with
+  | Some env1' -> Some (env0 @ env1')
+  | None -> None
 
 let insert_toplevel (name: string) (value: 'a) (env: 'a env) : 'a env =
   let (env0,env1) = List.split_n env (List.length env - 1) in
@@ -74,7 +74,7 @@ let insert name value env =
 let update name value env =
   match name with
   | BareName (_, name) -> update_bare name value env
-  | QualifiedName ([], (_, name)) -> insert_toplevel name value env
+  | QualifiedName ([], (_, name)) -> update_toplevel name value env
   | _ -> failwith "unimplemented"
 
 let rec find_bare_opt (name: string) : 'a env -> 'a option = function
@@ -182,10 +182,10 @@ module EvalEnv = struct
     {env with namespace = name}
 
   let insert_val name binding e =
-    {e with vs = update name binding e.vs}
+    {e with vs = insert name binding e.vs}
 
   let insert_val_bare name binding e =
-    {e with vs = update (BareName (Info.dummy, name)) binding e.vs}
+    {e with vs = insert (BareName (Info.dummy, name)) binding e.vs}
 
   let insert_decl name binding e =
     {e with decl = insert name binding e.decl}
@@ -201,6 +201,16 @@ module EvalEnv = struct
 
   let insert_vals bindings e =
     List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
+
+  let update_val name binding e =
+    match update name binding e.vs with
+    | Some vs' -> Some { e with vs = vs' }
+    | None -> None
+
+  let update_val_bare name binding e =
+    match update (BareName (Info.dummy, name)) binding e.vs with
+    | Some vs' -> Some { e with vs = vs' }
+    | None -> None
 
   let fix_bindings bindings = 
     List.map bindings

@@ -190,9 +190,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
-    let name = Types.BareName (Info.dummy, name) in
-    let name_expr = {lvalue = LName {name}; typ } in
-    let (env, s) = assign_lvalue env name_expr v in env, st
+    EvalEnv.insert_val_bare name v env, st
 
   and eval_instantiation (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) (name : string) : env * state =
@@ -220,14 +218,14 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =
-    let open Expression in
-    let name_expr = (Info.dummy, {expr = Expression.Name (BareName (Info.dummy, name)); typ; dir = InOut}) in
     match init with
     | None ->
       let env = EvalEnv.insert_val_bare name (init_val_of_typ env typ) env in
       (env, st, SContinue)
     | Some e ->
-       eval_assign ctrl env st SContinue name_expr e
+      let (env, st', init_val) = eval_expression ctrl env st e in
+      let env = EvalEnv.insert_val_bare name init_val env in
+      (env, st', SContinue)
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (size : Expression.t) : env * state * signal =

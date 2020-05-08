@@ -194,11 +194,11 @@ stf,examples/checker_tests/good/key-bmv2.p4,
 stf,examples/checker_tests/good/issue1000-bmv2.p4,
 stf,examples/checker_tests/good/issue774-4-bmv2.p4,
 stf,examples/checker_tests/good/checksum2-bmv2.p4,
-stf,examples/checker_tests/good/arith-inline-bmv2.p4,
-stf,examples/checker_tests/good/saturated-bmv2.p4,
-stf,examples/checker_tests/good/issue1025-bmv2.p4,
-stf,examples/checker_tests/good/action_call_table_ebpf.p4,
+stf,examples/checker_tests/good/arith-inline-bmv2.p4,issue #118 assignment/scope mixup
+stf,examples/checker_tests/good/saturated-bmv2.p4,issue #118 assignment/scope mixup
+stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types
+stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported)
 stf,stf-test/custom-stf-tests/switch.p4,issue #118 assignment/scope mixup
 stf,stf-test/custom-stf-tests/table3.p4,issue #118 assignment/scope mixup
 stf,stf-test/custom-stf-tests/table2.p4,issue #118 assignment/scope mixup
-stf,stf-test/custom-stf-tests/value_set.p4,
+stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker

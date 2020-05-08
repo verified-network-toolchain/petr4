@@ -95,8 +95,7 @@ and Expression : sig
   | False
   | Int of P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -154,8 +153,7 @@ end = struct
   | False
   | Int of P4Int.t
   | String of Types.P4String.t
-  | Name of Types.P4String.t
-  | TopLevel of Types.P4String.t
+  | Name of Types.name
   | ArrayAccess of
       { array: t;
         index: t }
@@ -238,7 +236,7 @@ end
 and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -278,7 +276,7 @@ and Table : sig
     end = struct
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: Types.P4String.t;
+          name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,yojson]
 
@@ -886,35 +884,34 @@ and Value : sig
   
   and vtable = {
     name : string;
-    keys : value list;
+    keys : Table.pre_key list;
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : (set * Table.action_ref) list;
+    const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
   
-  and lvalue =
+  and pre_lvalue =
     | LName of
-      { name : string;
-        typ : Type.t; }
-    | LTopName of 
-      { name : string;
-        typ : Type.t; }
+      { name : Types.name; }
     | LMember of 
       { expr : lvalue;
-        name : string;
-        typ : Type.t }
+        name : string; }
     | LBitAccess of 
         { expr : lvalue;
-          msb : Bigint.t;
-          lsb : Bigint.t;
-          typ : Type.t }
+          msb : Util.bigint;
+          lsb : Util.bigint; }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value;
-          typ : Type.t; }
+          idx : value; }
   [@@deriving sexp,yojson]
-  
+
+  and lvalue = {
+    lvalue : pre_lvalue;
+    typ : Type.t
+  }
+  [@@deriving sexp,yojson]
+
   and set =
     | SSingleton of 
         { w : Bigint.t;
@@ -994,9 +991,7 @@ and Value : sig
 
   val width_of_val : value -> Bigint.t
 
-  val assert_lname : lvalue -> string 
-
-  val assert_ltopname : lvalue -> string 
+  val assert_lname : lvalue -> Types.name
 
   val assert_lmember : lvalue -> lvalue * string 
 
@@ -1111,35 +1106,33 @@ end = struct
   
   and vtable = {
     name : string;
-    keys : value list;
+    keys : Table.pre_key list;
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : (set * Table.action_ref) list;
+    const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
   
-  and lvalue =
+  and pre_lvalue =
     | LName of
-      { name : string;
-        typ : Type.t; }
-    | LTopName of 
-      { name : string;
-        typ : Type.t; }
+      { name : Types.name; }
     | LMember of 
       { expr : lvalue;
-        name : string;
-        typ : Type.t }
+        name : string; }
     | LBitAccess of 
         { expr : lvalue;
           msb : Util.bigint;
-          lsb : Util.bigint;
-          typ : Type.t }
+          lsb : Util.bigint; }
     | LArrayAccess of 
         { expr : lvalue;
-          idx : value;
-          typ : Type.t; }
+          idx : value; }
   [@@deriving sexp,yojson]
-  
+
+  and lvalue =
+    { lvalue: pre_lvalue;
+      typ: Typed.Type.t }
+  [@@deriving sexp,yojson]
+
   and set =
     | SSingleton of 
         { w : Util.bigint;
@@ -1168,7 +1161,7 @@ end = struct
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
-  
+
   let assert_bool v =
     match v with 
     | VBool b -> b 
@@ -1304,27 +1297,22 @@ end = struct
     | _ -> failwith "width of type unimplemented"
   
   let assert_lname l = 
-    match l with 
+    match l.lvalue with 
     | LName {name; _} -> name 
     | _ -> failwith "not an lvalue name"
   
-  let assert_ltopname l = 
-    match l with 
-    | LTopName {name;_} -> name 
-    | _ -> failwith "not an lvalue top-leval name "
-  
   let assert_lmember l =
-    match l with 
+    match l.lvalue with 
     | LMember {expr; name; _} -> (expr, name) 
     | _ -> failwith "not an lvalue member"
   
   let assert_lbitaccess l = 
-    match l with 
+    match l.lvalue with 
     | LBitAccess {expr; msb; lsb; _} -> (expr, msb, lsb)
     | _ -> failwith "not an lvalue bitaccess"
   
   let assert_larrayaccess l = 
-    match l with 
+    match l.lvalue with 
     | LArrayAccess {expr; idx; _} -> (expr, idx)
     | _ -> failwith "not an lvalue array access"
   

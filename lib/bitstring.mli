@@ -23,3 +23,7 @@ val to_twos_complement : t -> t -> t
 val bit_of_rawint : t -> t -> Prog.Value.value
 
 val int_of_rawint : t -> t -> Prog.Value.value
+
+(* [bitwsie_neg_of_bigint n w] computes the bitwise negation of n as a
+   w-bit two's complement number. *)
+val bitwise_neg_of_bigint : t -> t -> t

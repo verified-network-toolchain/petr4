@@ -12,24 +12,21 @@ type 'st pre_extern =
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
-val init_val_of_typ : env -> Type.t -> value
-
-val implicit_cast_from_rawint : env -> value -> Type.t -> value
-
-val implicit_cast_from_tuple : env -> value -> Type.t -> value
-
-val value_of_lvalue : env -> lvalue -> signal * value
-
-val assign_lvalue : env -> lvalue -> value -> env * signal
-
 module State : sig
-  type 'a t
+  type 'a t = (string * 'a) list
+
+  val packet_location : loc
+
+  val packet_location : string
 
   val empty : 'a t
+
   val insert : loc -> 'a -> 'a t -> 'a t
   val find : loc -> 'a t -> 'a
+  val filter : f:(loc * 'a -> bool) -> 'a t -> 'a t
+  val map : f:('a -> 'b) -> 'a t -> 'b t
+  val merge : 'a t -> 'a t -> 'a t
   val is_initialized : loc -> 'a t -> bool
-  (* val fresh_loc : unit -> int *)
 end
 
 module type Target = sig 
@@ -42,19 +39,28 @@ module type Target = sig
 
   val externs : (string * extern) list
 
-  val eval_extern : ctrl -> env -> state -> Type.t list ->
-                    (value * Type.t) list -> string -> env * state * signal * value
+  val eval_extern : 
+    string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
+    env * state * signal * value
 
   val initialize_metadata : Bigint.t -> env -> env
 
   val check_pipeline : env -> unit 
 
-  val eval_pipeline : ctrl -> env -> state -> pkt ->
-  state apply ->
-  state * env * pkt
+  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt
 
 end
 
-module V1Model : Target
+val init_val_of_typ : env -> Type.t -> value
 
-module EbpfFilter : Target
+val implicit_cast_from_rawint : env -> value -> Type.t -> value
+
+val implicit_cast_from_tuple : env -> value -> Type.t -> value
+
+val value_of_lvalue : env -> lvalue -> signal * value
+
+val assign_lvalue : env -> lvalue -> value -> env * signal
+
+(* module Core : Core *)
+
+(* module Corize : functor Target -> Target *)

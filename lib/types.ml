@@ -43,6 +43,26 @@ module P4String = struct
   [@@deriving sexp,yojson]
 end
 
+type name =
+  | BareName of P4String.t
+  | QualifiedName of P4String.t list * P4String.t
+  [@@deriving sexp,yojson]
+
+let name_eq n1 n2 = 
+  match n1, n2 with
+  | BareName (_, s1),
+    BareName (_, s2) ->
+     s1 = s2
+  | QualifiedName ([], (_, s1)),
+    QualifiedName ([], (_, s2)) ->
+     s1 = s2
+  | _ -> failwith "unimplemented"
+
+and name_only n =
+  match n with
+  | BareName (_, s) -> s
+  | QualifiedName (_, (_, s)) -> s
+
 module rec KeyValue : sig
   type pre_t = 
     { key : P4String.t;
@@ -193,9 +213,8 @@ and Type : sig
     | IntType of Expression.t
     | BitType of Expression.t
     | VarBit of Expression.t
-    | TopLevelType of P4String.t
     (* this could be a typename or a type variable. *)
-    | TypeName of P4String.t
+    | TypeName of name
     | SpecializedType of
         { base: t;
           args: t list }
@@ -217,8 +236,7 @@ end = struct
     | IntType of Expression.t [@name "int"]
     | BitType of Expression.t  [@name "bit"]
     | VarBit of Expression.t  [@name "varbit"]
-    | TopLevelType of P4String.t [@name "top_level"]
-    | TypeName of P4String.t [@name "name"]
+    | TypeName of name [@name "name"]
     | SpecializedType of
         { base: t;
           args: t list } [@name "specialized"]
@@ -326,8 +344,7 @@ and Expression : sig
         | False
         | Int of P4Int.t
         | String of P4String.t
-        | Name of P4String.t
-        | TopLevel of P4String.t
+        | Name of name
         | ArrayAccess of
             { array: t;
               index: t }
@@ -381,8 +398,7 @@ end = struct
     | False  [@name "false"]
     | Int of P4Int.t  [@name "int"]
     | String of P4String.t [@name "string"]
-    | Name of P4String.t [@name "name"]
-    | TopLevel of P4String.t [@name "top_level"]
+    | Name of name [@name "name"]
     | ArrayAccess of
         { array: t;
           index: t } [@name "array_access"]
@@ -435,7 +451,7 @@ end
 and Table : sig
       type pre_action_ref =
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: name;
           args: Argument.t list }
       [@@deriving sexp,yojson]
 
@@ -477,7 +493,7 @@ and Table : sig
     end = struct
               type pre_action_ref =
                 { annotations: Annotation.t list;
-                  name: P4String.t;
+                  name: name;
                   args: Argument.t list }
               [@@deriving sexp,yojson]
 

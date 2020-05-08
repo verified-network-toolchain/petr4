@@ -45,3 +45,12 @@ let bit_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
 
 let int_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
   VInt{w;v=to_twos_complement n w}
+
+let rec bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
+  if Bigint.(w > zero) then
+    let w' = power_of_two Bigint.(w-one) in
+    let g = bitstring_slice n Bigint.(w - one) Bigint.(w - one) in
+    if Bigint.(g = zero)
+    then bitwise_neg_of_bigint Bigint.(n + w') Bigint.(w-one)
+    else bitwise_neg_of_bigint Bigint.(n - w') Bigint.(w-one)
+  else n

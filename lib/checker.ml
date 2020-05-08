@@ -12,24 +12,7 @@ module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
-let find_decl_opt name decls =
-  let ok decl =
-    match Prog.Declaration.name_opt decl with
-    | Some decl_name ->
-       name = snd decl_name
-    | None -> false
-  in
-  List.find ~f:ok decls
-
-let find_decl name decls =
-  let ok decl =
-    name = snd (Prog.Declaration.name decl)
-  in
-  match List.find ~f:ok decls with
-  | Some v -> v
-  | None -> raise (UnboundName name)
-
-module Eval = Eval.MakeInterpreter(Target.V1Model)
+module Eval = Eval.MakeInterpreter(V1model)
 
 let make_assert expected unwrap = fun info typ ->
   match unwrap typ with
@@ -66,8 +49,7 @@ let assert_numeric = make_assert "integer"
 let rec is_lvalue (_, expr) =
   let open Types.Expression in
   match expr with
-  | Name _
-  | TopLevel _ -> true
+  | Name _ -> true
   | ExpressionMember { expr = lvalue; _ }
   | ArrayAccess { array = lvalue; _ }
   | BitStringAccess { bits = lvalue; _ } ->
@@ -78,8 +60,8 @@ let rec is_lvalue (_, expr) =
  * typecheck the expression before trying to evaluate it! *)
 let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
   match (snd expr).expr with
-  | Name (_, var) ->
-     CheckerEnv.find_const_opt var env
+  | Name name ->
+     CheckerEnv.find_const_opt name env
   | True -> Some (Prog.Value.VBool true)
   | False -> Some (Prog.Value.VBool false)
   | String (_, str) -> Some (Prog.Value.VString str)
@@ -135,7 +117,7 @@ let compile_time_eval_bigint env expr: Bigint.t =
 let compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
   match snd decl with
   | Constant { name; value; _ } ->
-     CheckerEnv.insert_const (snd name) value env
+     CheckerEnv.insert_const (BareName name) value env
   | _ -> env
 
 let get_type_params (t: Typed.Type.t) : string list =
@@ -175,8 +157,8 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let saturate_field env (field: RecordType.field) =
     {field with typ = saturate_type env field.typ}
   in
-  let saturate_rec env ({fields;name} : RecordType.t) : RecordType.t =
-    {fields = List.map ~f:(saturate_field env) fields; name}
+  let saturate_rec env ({fields;} : RecordType.t) : RecordType.t =
+    {fields = List.map ~f:(saturate_field env) fields;}
   in
   let saturate_construct_param env (param: ConstructParam.t) =
     {param with typ = saturate_type env param.typ}
@@ -189,14 +171,12 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = CheckerEnv.insert_type_vars pkg.type_params env in
-    {name = pkg.name;
-     type_params = pkg.type_params;
+    {type_params = pkg.type_params;
      parameters = saturate_construct_params env pkg.parameters}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
     let env = CheckerEnv.insert_type_vars ctrl.type_params env in
-    {name = ctrl.name;
-     type_params = ctrl.type_params;
+    {type_params = ctrl.type_params;
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
   let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
@@ -223,14 +203,12 @@ let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
      begin match CheckerEnv.resolve_type_name_opt t env with
      | None -> typ
      | Some (TypeName t') ->
-        if t' = t
+        if Types.name_eq t' t
         then typ
         else saturate_type env (TypeName t')
      | Some typ' ->
         saturate_type env typ'
      end
-  | TopLevelType typ ->
-      saturate_type env (CheckerEnv.resolve_type_name_toplevel typ env)
   | Bool | String | Integer
   | Int _ | Bit _ | VarBit _
   | Error | MatchKind | Void
@@ -345,9 +323,9 @@ and infer_type_arguments env ret type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
     | Some arg ->
-       CheckerEnv.insert_type type_var arg env, (type_var, arg) :: args, unknowns
+       CheckerEnv.insert_type (BareName (Info.dummy, type_var)) arg env, (type_var, arg) :: args, unknowns
     | None ->
-       CheckerEnv.insert_type_var type_var env, args, type_var :: unknowns
+       CheckerEnv.insert_type_var (BareName (Info.dummy, type_var)) env, args, type_var :: unknowns
   in
   let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =
@@ -520,20 +498,21 @@ and solve_types (env: CheckerEnv.t)
   let t1 = reduce_type env t1 in
   let t2 = reduce_type env t2 in
   begin match t1, t2 with
-    | TopLevelType _, _
-    | _, TopLevelType _ ->
-        failwith "TopLevelType in saturated type?"
+    | TypeName (QualifiedName _), _
+    | _, TypeName (QualifiedName _) ->
+        failwith "Name in saturated type?"
 
     | SpecializedType _, _
     | _, SpecializedType _ ->
        raise_s [%message "Stuck specialized type?" ~t1:(t1: Typed.Type.t)
                                                    ~t2:(t2: Typed.Type.t)]
-    | TypeName tv1, TypeName tv2 ->
+
+    | TypeName (BareName (_, tv1)), TypeName (BareName (i2, tv2)) ->
         if type_vars_equal_under env equiv_vars tv1 tv2
         then Some (empty_constraints unknowns)
-        else Some (single_constraint unknowns tv1 (TypeName tv2))
+        else Some (single_constraint unknowns tv1 t2)
 
-    | TypeName tv, typ ->
+    | TypeName (BareName (_, tv)), typ ->
        if List.mem ~equal:(=) unknowns tv
        then Some (single_constraint unknowns tv typ)
        else None
@@ -719,13 +698,8 @@ and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
     | Int i ->
        type_int i
     | Name name ->
-       let typ, dir = CheckerEnv.find_type_of (snd name) env in
+       let typ, dir = CheckerEnv.find_type_of name env in
        { expr = E.Name name;
-         typ = typ;
-         dir = dir }
-    | TopLevel name ->
-       let typ, dir = CheckerEnv.find_type_of_toplevel (snd name) env in
-       { expr = E.TopLevel name;
          typ = typ;
          dir = dir }
     | ArrayAccess { array; index } ->
@@ -774,6 +748,12 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   | Some (_, InOut) -> InOut
   | None -> Directionless
 
+and eval_to_int env expr =
+  expr
+  |> type_expression env
+  |> compile_time_eval_bigint env
+  |> Bigint.to_int_exn
+
 and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
   fun env vars typ ->
   let open Types.Type in
@@ -791,26 +771,10 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   | Error -> Error
   | Integer -> Integer
   | String -> String
-  | IntType e -> Int { width = 
-    e 
-    |> type_expression env
-    |> compile_time_eval_bigint env
-    |> Bigint.to_int_exn
-  }
-  | BitType e -> Bit {width = 
-    e
-    |> type_expression env
-    |> compile_time_eval_bigint env
-    |> Bigint.to_int_exn
-  }
-  | VarBit e -> VarBit {width = 
-    e
-    |> type_expression env
-    |> compile_time_eval_bigint env
-    |> Bigint.to_int_exn
-  }
-  | TopLevelType ps -> TopLevelType (snd ps)
-  | TypeName ps -> TypeName (snd ps)
+  | IntType e -> Int {width = eval_to_int env e}
+  | BitType e -> Bit {width = eval_to_int env e}
+  | VarBit e -> VarBit {width = eval_to_int env e}
+  | TypeName ps -> TypeName ps
   | SpecializedType {base; args} ->
       SpecializedType {base = (translate_type env vars base);
                        args = (List.map ~f:(translate_type env vars) args)}
@@ -913,14 +877,13 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     res1 && res2
 
   (* Type names *)
-  | TypeName name
-  | Table {result_typ_name=name} ->
+  | TypeName name ->
     begin match CheckerEnv.resolve_type_name_opt name env with
     | None -> false
     | Some _ -> true (* Unsure of what to do in this case *)
     end
-  | TopLevelType name ->
-    begin match CheckerEnv.resolve_type_name_toplevel_opt name env with
+  | Table {result_typ_name=name} ->
+    begin match CheckerEnv.resolve_type_name_opt (BareName (Info.dummy, name)) env with
     | None -> false
     | Some _ -> true (* Unsure of what to do in this case *)
     end
@@ -939,7 +902,8 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     let open ExternType in
     let folder (env,result) m =
       if is_well_formed_type env (Type.Function m.typ) then
-      (CheckerEnv.insert_type_of m.name (Type.Function m.typ) env,result)
+        (CheckerEnv.insert_type_of (BareName (Info.dummy, m.name))
+           (Type.Function m.typ) env,result)
       else (env,false) in
     List.fold_left ~f:folder ~init:(env,true) methods |> snd
   | Parser {type_params=tps; parameters=ps;_}
@@ -1098,7 +1062,7 @@ and type_record env entries : Prog.Expression.typed_t =
     { name = snd (snd kv).key; typ = (snd (snd kv).value).typ }
   in
   let fields = List.map ~f:kv_to_field entries_typed in
-  { expr = rec_typed; typ = Record { fields; name ="" }; dir = Directionless }
+  { expr = rec_typed; typ = Record { fields; }; dir = Directionless }
 
 (* Sections 8.5-8.8
  * ----------------
@@ -1296,9 +1260,8 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
      | Some typ -> type_has_equality_tests env typ
      | None -> true
      end
-  | TypeName name
-  | TopLevelType name ->
-     failwith "type name?"
+  | TypeName name ->
+     failwith "type name in saturated type?"
   | _ ->
      false
 
@@ -1357,9 +1320,13 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
     (* Bitstring concatentation is defined on any two bitstrings *)
     | PlusPlus ->
        begin match l_typ, r_typ with
-       | Bit { width = l }, Bit { width = r } -> Bit { width = l + r }
-       | Bit { width = _ }, _ -> raise_mismatch (info r) "unsigned int" r_typ
-       | _, _ -> raise_mismatch (info l) "unsigned int" l_typ
+       | Bit { width = l }, Bit { width = r }
+       | Int { width = l }, Bit { width = r }
+       | Bit { width = l }, Int { width = r }
+       | Int { width = l }, Int { width = r } -> Bit { width = l + r }
+       | Int { width = _ }, _
+       | Bit { width = _ }, _ -> raise_mismatch (info r) "bit<> or int<>" r_typ
+       | _, _ -> raise_mismatch (info l) "bit<> or int<>" l_typ
        end
     (* Comparison is defined on both arbitrary and fixed-width integers *)
     | Le | Ge | Lt | Gt ->
@@ -1463,7 +1430,7 @@ and type_type_member env typ name : Prog.Expression.typed_t =
  *
  *)
 and type_error_member env name : Prog.Expression.typed_t =
-  let (e, _) = CheckerEnv.find_type_of ("error." ^ (snd name)) env in
+  let (e, _) = CheckerEnv.find_type_of (BareName (Info.dummy, "error." ^ (snd name))) env in
   if e <> Type.Error then failwith "Error member not an error?";
   { expr = ErrorMember name;
     typ = Type.Error;
@@ -1496,7 +1463,7 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      begin match snd name with
      | "apply" ->
         Function { type_params = []; parameters = [];
-                   return = TypeName result_typ_name }
+                   return = TypeName (BareName (Info.dummy, result_typ_name)) }
      | _ -> fail ()
      end
   | Header { fields; _ } ->
@@ -1728,7 +1695,8 @@ and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
                       ~param:(snd param.variable)]
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
-  let func_typed = resolve_function_overload env func (List.length args) in
+  let open Prog.Expression in
+  let func_typed = resolve_function_overload env func args in
   let func_type = (snd func_typed).typ in
   let type_params, params, return_type =
     match func_type with
@@ -1818,10 +1786,10 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
      raise_s [%message "type does not have constructor for these arguments" 
                  ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
-and resolve_constructor_overload env type_name param_count =
+and resolve_constructor_overload_by ~f env type_name =
   let ok : Typed.Type.t -> bool =
     function
-    | Constructor { parameters; _ } -> param_count = List.length parameters
+    | Constructor { parameters; _ } -> f parameters
     | _ -> false
   in
   let candidates = CheckerEnv.find_types_of type_name env in
@@ -1832,21 +1800,42 @@ and resolve_constructor_overload env type_name param_count =
   with
   | Some (Typed.Type.Constructor c) -> c
   | ctor -> raise_s [%message "bad constructor type or no matching constructor"
-                     ~name:(type_name:string)
+                     ~name:(type_name: Types.name)
                      ~ctor:(ctor:Typed.Type.t option)
                      ~candidates:(candidates:(Typed.Type.t * Typed.direction) list)]
 
-and resolve_function_overload env func param_count : Prog.Expression.t =
+and resolve_constructor_overload env type_name args : ConstructorType.t =
+  let arg_name arg =
+    match snd arg with
+    | Argument.KeyValue {key; _} -> Some (snd key)
+    | _ -> None
+  in
+  let param_name param = ConstructParam.(param.name) in
+  match list_option_flip (List.map ~f:arg_name args) with 
+  | Some arg_names ->
+     let param_names_ok params =
+       let param_names = List.map ~f:param_name params in
+       Util.sorted_eq_strings param_names arg_names
+     in
+     resolve_constructor_overload_by ~f:param_names_ok env type_name
+  | None -> 
+     let param_count_ok params =
+       List.length params = List.length args
+     in
+     resolve_constructor_overload_by ~f:param_count_ok env type_name
+
+and resolve_function_overload_by ~f env func : Prog.Expression.t =
+  let open Types.Expression in
   fst func,
   match snd func with
   | Name func_name ->
      let ok : Typed.Type.t -> bool =
        function
-       | Function { parameters; _ } -> param_count = List.length parameters
+       | Function { parameters; _ } -> f parameters
        | _ -> false
      in
      begin match
-       CheckerEnv.find_types_of (snd func_name) env
+       CheckerEnv.find_types_of func_name env
        |> List.map ~f:fst
        |> List.find ~f:ok
      with
@@ -1861,8 +1850,7 @@ and resolve_function_overload env func param_count : Prog.Expression.t =
      begin match reduce_type env (snd expr_typed).typ with
      | Extern { methods; _ } ->
         let works (meth: Typed.ExternType.extern_method) =
-          meth.name = snd name &&
-            List.length meth.typ.parameters = param_count
+          meth.name = snd name && f meth.typ.parameters
         in
         begin match List.find ~f:works methods with
         | Some p ->
@@ -1875,10 +1863,30 @@ and resolve_function_overload env func param_count : Prog.Expression.t =
      end
   | _ -> snd @@ type_expression env func
 
+and resolve_function_overload env type_name args =
+  let arg_name arg =
+    match snd arg with
+    | Argument.KeyValue {key; _} -> Some (snd key)
+    | _ -> None
+  in
+  let param_name param = Parameter.(snd param.variable) in
+  match list_option_flip (List.map ~f:arg_name args) with 
+  | Some arg_names ->
+     let param_names_ok params =
+       let param_names = List.map ~f:param_name params in
+       Util.sorted_eq_strings param_names arg_names
+     in
+     resolve_function_overload_by ~f:param_names_ok env type_name
+  | None -> 
+     let param_count_ok params =
+       List.length params = List.length args
+     in
+     resolve_function_overload_by ~f:param_count_ok env type_name
+
 and type_constructor_invocation env info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
-  let constructor_type = resolve_constructor_overload env decl_name (List.length args) in
+  let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
   let prog_params = constructor_params_to_prog_params constructor_type.parameters in
   let params_args = match_params_to_args info prog_params args in
@@ -1902,7 +1910,7 @@ and type_nameless_instantiation env info typ args =
   match snd typ with
   | SpecializedType { base; args = type_args } ->
      begin match snd base with
-     | TypeName (_, decl_name) ->
+     | TypeName decl_name ->
         let out_args, out_typ = type_constructor_invocation env info decl_name type_args args in
         let inst = NamelessInstantiation { typ = translate_type env [] typ;
                                            args = out_args }
@@ -1986,7 +1994,7 @@ and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) :
     | Return { expr } ->
        type_return env ctx (fst stm) expr
     | Switch { expr; cases } ->
-       type_switch env ctx expr cases
+       type_switch env ctx (fst stm) expr cases
     | DeclarationStatement { decl } ->
        type_declaration_statement env ctx decl
   in
@@ -2144,48 +2152,60 @@ and type_return env ctx info expr =
                  ~ctx:(ctx: StmtContext.t)]
 
 (* Section 11.7 *)
-and type_switch env ctx expr cases =
+and type_switch env ctx info expr cases =
   let open Types.Statement in
   if ctx <> ApplyBlock
   then raise_s [%message "switch statements not allowed in context"
                    ~ctx:(ctx: StmtContext.t)];
   let expr_typed = type_expression env expr in
-  let action_name_typ = reduce_type env (snd expr_typed).typ in
-  let label_checker label =
+  let action_name_typ =
+    match reduce_type env (snd expr_typed).typ with
+    | Enum e -> e
+    | _ -> raise_mismatch info "table action enum" (snd expr_typed).typ
+  in
+  let lbl_seen cases_done lbl =
+    let case_name_eq lbl ((_, case): Prog.Statement.switch_case) =
+      match case with
+      | Action { label; _ } 
+      | FallThrough { label } ->
+         match snd label, lbl with
+         | Default, Default -> true
+         | Name (_, n1), Name (_, n2) ->
+            n1 = n2
+         | _ -> false
+    in
+    List.exists ~f:(case_name_eq lbl) cases_done
+  in
+  let label_checker cases_done (label: Types.Statement.switch_label) =
+    if lbl_seen cases_done (snd label) then raise (Type ((fst label), Duplicate));
+    if lbl_seen cases_done Default then raise (Type ((fst label), UnreachableBlock));
     match snd label with
     | Default ->
        fst label, Prog.Statement.Default
-    | Name (name_info, name) ->
-       let lbl_typ = CheckerEnv.find_type_of name env |> fst in
-       assert_type_equality env (fst label) action_name_typ lbl_typ;
-       fst label, Prog.Statement.Name (name_info, name)
+    | Name (info, name) ->
+       if List.mem ~equal:(=) action_name_typ.members name
+       then fst label, Prog.Statement.Name (info, name)
+       else raise_unfound_member info name
   in
-  let case_checker (case_info, case) =
+  let case_checker cases_done (case_info, case) =
     match case with
     | Action { label; code = block } ->
        let block_expr_typed, env = type_block env ctx block in
-       let label_typed = label_checker label in
+       let label_typed = label_checker cases_done label in
        let block_typed =
          match block_expr_typed.stmt with
          | BlockStatement { block } -> block
          | _ -> failwith "bug: expected block"
        in
-       case_info,
-       Prog.Statement.Action
-         { label = label_typed;
-           code = block_typed }
+       cases_done @ [case_info, Prog.Statement.Action { label = label_typed; code = block_typed }]
     | FallThrough { label } ->
-       let label_typed = label_checker label in
-       case_info,
-       Prog.Statement.FallThrough { label = label_typed }
+       let label_typed = label_checker cases_done label in
+       cases_done @ [case_info, Prog.Statement.FallThrough { label = label_typed }]
   in
-  match action_name_typ with
-  | Enum _ -> 
-     let cases = List.map ~f:case_checker cases in
-     { stmt = Switch { expr = expr_typed;
-                       cases = cases };
-       typ = StmType.Unit }, env
-  | _ -> failwith "Switch statement does not type check."
+  let cases = List.fold ~init:[] ~f:case_checker cases in
+  { stmt = Switch { expr = expr_typed;
+                    cases = cases };
+    typ = StmType.Unit }, env
 
 (* Section 10.3 *)
 and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.typed_t * CheckerEnv.t =
@@ -2214,7 +2234,7 @@ and type_constant env decl_info annotations typ name expr : Prog.Declaration.t *
   match compile_time_eval_expr env typed_expr with
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
-     CheckerEnv.insert_dir_type_of (snd name) (snd typed_expr).typ In env
+     CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In env
   | None ->
      failwith "expression not compile-time-known"
 
@@ -2223,7 +2243,7 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
   let insert_param env (_, p) =
     let typ = translate_type env [] p.typ in
     let dir = translate_direction p.direction in
-    CheckerEnv.insert_dir_type_of (snd p.variable) typ dir env
+    CheckerEnv.insert_dir_type_of (BareName p.variable) typ dir env
   in
   List.fold_left ~f:insert_param ~init:env params
 
@@ -2240,7 +2260,7 @@ and type_instantiation env info annotations typ args name : Prog.Declaration.t *
           args = args;
           name = name;
           init = None }),
-     CheckerEnv.insert_type_of (snd name) instance_type env
+     CheckerEnv.insert_type_of (BareName name) instance_type env
   | _ -> failwith "BUG: expected NamelessInstantiation"
 
 and prog_param_to_typed_param (_, p: Prog.TypeParameter.t) : Typed.Parameter.t =
@@ -2327,7 +2347,7 @@ and type_transition env state_names transition : Prog.Parser.transition =
   | Direct {next = (name_info, name')} ->
       if List.mem ~equal:(=) state_names name'
       then Direct { next = (name_info, name') }
-      else raise @@ Env.UnboundName name'
+      else raise @@ Env.UnboundName (BareName (name_info, name'))
   | Select {exprs; cases} ->
       let exprs_typed = List.map ~f:(type_expression env) exprs in
       let expr_types = List.map ~f:(fun (_, e) -> e.typ) exprs_typed in
@@ -2377,7 +2397,7 @@ and type_parser env info name annotations params constructor_params locals state
              states = states_typed }
   in
   let parser_typ : Typed.ControlType.t =
-    { name = snd name; type_params = [];
+    { type_params = [];
       parameters = prog_params_to_typed_params params_typed }
   in
   let ctor : Typed.ConstructorType.t =
@@ -2385,7 +2405,7 @@ and type_parser env info name annotations params constructor_params locals state
       parameters = List.map ~f:prog_param_to_constructor_param constructor_params_typed;
       return = Parser parser_typ }
   in
-  let env = CheckerEnv.insert_type_of (snd name) (Constructor ctor) env in
+  let env = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
   (info, parser_typed), env
 
 and open_control_scope env params constructor_params locals =
@@ -2420,7 +2440,7 @@ and type_control env info name annotations type_params params constructor_params
                 apply = apply_typed }
     in
     let control_type =
-      Typed.Type.Control { name = snd name; type_params = [];
+      Typed.Type.Control { type_params = [];
                            parameters = List.map ~f:prog_param_to_typed_param params_typed }
     in
     let ctor : Typed.ConstructorType.t =
@@ -2428,7 +2448,7 @@ and type_control env info name annotations type_params params constructor_params
         parameters = List.map ~f:prog_param_to_constructor_param constructor_params_typed;
         return = control_type }
     in
-    let env' = CheckerEnv.insert_type_of (snd name) (Constructor ctor) env in
+    let env' = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
     (info, control), env'
 
 (* Section 9
@@ -2464,7 +2484,7 @@ and type_function env info return name type_params params body =
     Type.Function { parameters = typ_params;
                     type_params = List.map ~f:snd type_params;
                     return = return_type } in
-  let env = CheckerEnv.insert_type_of (snd name) funtype env in
+  let env = CheckerEnv.insert_type_of (BareName name) funtype env in
   let fn_typed : Prog.Declaration.pre_t =
     Function { return = return_type;
                name = name;
@@ -2493,7 +2513,7 @@ and type_extern_function env info annotations return name type_params params =
                      params = params_typed;
                      name = name }
   in
-  (info, fn_typed), CheckerEnv.insert_type_of (snd name) (Function typ) env
+  (info, fn_typed), CheckerEnv.insert_type_of (BareName name) (Function typ) env
 
 (* Section 10.2
  *
@@ -2520,14 +2540,14 @@ and type_variable env info annotations typ name init =
                name = name;
                init = init_typed }
   in
-  let env = CheckerEnv.insert_dir_type_of (snd name) expected_typ InOut env in
+  let env = CheckerEnv.insert_dir_type_of (BareName name) expected_typ InOut env in
   (info, var_typed), env
 
 (* Section 12.11 *)
 and type_value_set env info annotations typ size name =
   let element_type = translate_type env [] typ in
   let size_typed = type_expression env size in
-  let env = CheckerEnv.insert_type_of (snd name) (Set element_type) env in
+  let env = CheckerEnv.insert_type_of (BareName name) (Set element_type) env in
   let value_set : Prog.Declaration.pre_t =
     ValueSet { annotations;
                typ = element_type;
@@ -2567,17 +2587,17 @@ and type_action env info annotations name params body =
     | _ -> failwith "expected function declaration"
   in
   (info, action_typed),
-  CheckerEnv.insert_type_of (snd name) action_type env
+  CheckerEnv.insert_type_of (BareName name) action_type env
 
 (* Section 13.2 *)
 and type_table env info annotations name properties : Prog.Declaration.t * CheckerEnv.t =
-  type_table' env info annotations name None [] None (List.map ~f:snd properties)
+  type_table' env info annotations name None [] None None None (List.map ~f:snd properties)
 
 and type_keys env keys =
   let open Prog.Table in
   let type_key key =
     let {key; match_kind; annotations}: Table.pre_key = snd key in
-    match CheckerEnv.find_type_of_opt (snd match_kind) env with
+    match CheckerEnv.find_type_of_opt (BareName match_kind) env with
     | Some (MatchKind, _) ->
        let expr_typed = type_expression env key in
        (fst key, { annotations; key = expr_typed; match_kind })
@@ -2589,11 +2609,11 @@ and type_keys env keys =
 and type_table_actions env key_types actions =
   let type_table_action (call_info, action: Table.action_ref) =
     let data_params =
-      match CheckerEnv.find_type_of_opt (snd action.name) env with
+      match CheckerEnv.find_type_of_opt action.name env with
       | Some (Action action_typ, _) ->
          action_typ.data_params
       | _ ->
-         raise_s [%message "invalid action" ~action:(snd action.name)]
+         raise_s [%message "invalid action" ~action:(action.name: Types.name)]
     in
     (* Below should fail if there are control plane arguments *)
     let params_args = match_params_to_args' call_info data_params action.args in
@@ -2618,18 +2638,18 @@ and type_table_actions env key_types actions =
          { annotations = action.annotations;
            name = action.name;
            args = args_typed };
-       typ = fst @@ CheckerEnv.find_type_of (snd action.name) env })
+       typ = fst @@ CheckerEnv.find_type_of action.name env })
   in
   let action_typs = List.map ~f:type_table_action actions in
   (* Need to fail in the case of duplicate action names *)
-  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> snd action.name) actions in
+  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> name_only action.name) actions in
   List.zip_exn action_names action_typs
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
     let matches_typed = check_match_product env entry.matches key_typs in
-    match List.Assoc.find action_map ~equal:(=) (snd (snd entry.action).name) with
+    match List.Assoc.find action_map ~equal:(=) (name_only (snd entry.action).name) with
     | None ->
        failwith "Entry must call an action in the table."
     | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->
@@ -2662,7 +2682,31 @@ and type_table_entries env entries key_typs action_map =
   in
   List.map ~f:type_table_entry entries
 
-and type_table' env info annotations name key_types action_map entries_typed properties =
+and type_default_action env action_map action_expr: Prog.Table.action_ref =
+  let action_expr_typed = type_expression env action_expr in
+  match (snd action_expr_typed).expr with
+  | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
+     let name = name_only action_name in
+     if List.Assoc.mem ~equal:String.equal action_map name
+     then fst action_expr,
+          { action = { annotations = [];
+                       name = action_name;
+                       args = args };
+            typ = (snd action_expr_typed).typ }
+     else failwith "couldn't find default action in action_map"
+  | Name action_name ->
+     let name = name_only action_name in
+     if List.Assoc.mem ~equal:String.equal action_map name
+     then fst action_expr,
+          { action = { annotations = [];
+                       name = action_name;
+                       args = [] };
+            typ = (snd action_expr_typed).typ }
+     else failwith "couldn't find default action in action_map"
+  | e ->
+     failwith "couldn't type default action as functioncall"
+
+and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
   match properties with
   | Key { keys } :: rest ->
@@ -2673,6 +2717,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
           (Some (type_keys env keys))
           action_map
           entries_typed
+          size
+          default_typed
           rest
      | Some key_types ->
         raise_s [%message "multiple key properties in table?" ~name:(snd name)]
@@ -2688,6 +2734,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
              None
              action_map
              entries_typed
+             size
+             default_typed
              props
         | None, props ->
            type_table' env info annotations
@@ -2695,6 +2743,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
              (Some [])
              action_map
              entries_typed
+             size
+             default_typed
              props
         end
      | Some kts ->
@@ -2704,6 +2754,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
           key_types
           action_map
           entries_typed
+          size
+          default_typed
           rest
      end
   | Entries { entries } :: rest ->
@@ -2714,18 +2766,52 @@ and type_table' env info annotations name key_types action_map entries_typed pro
         | Some keys_typed ->
            let key_types' = List.map ~f:(fun k -> (snd (snd k).key).typ) keys_typed in
            let entries_typed = type_table_entries env entries key_types' action_map in
-           type_table' env info annotations name key_types action_map (Some entries_typed) rest
+           type_table' env info annotations name key_types action_map (Some entries_typed) size default_typed rest
         | None -> failwith "entries with no keys?"
         end
      end
-  | Custom { name = (_, "default_action"); _ } :: rest ->
-     type_table' env info annotations
-       name
-       key_types
-       action_map
-       entries_typed
-       rest
-  | Custom { name = (_, "size"); _ } :: rest
+  | Custom { name = (_, "default_action"); value; _ } :: rest ->
+     begin match default_typed with
+     | None ->
+        let default_typed = type_default_action env action_map value in
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          size
+          (Some default_typed)
+          rest
+     | Some _ -> failwith "multiple default_action properties in table"
+     end
+  | Custom { name = (_, "size"); value; _ } :: rest ->
+     if size <> None then failwith "duplicated size properties?";
+     let value_typed = type_expression env value in
+     let _ = assert_numeric (fst value) (snd value_typed).typ in
+     let size = compile_time_eval_expr env value_typed in
+     begin match size with
+     | Some (VInteger size) ->
+        let size: P4Int.t =
+          fst value, { value = size; width_signed = None }
+        in
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          (Some size)
+          default_typed
+          rest
+     | _ ->
+        type_table' env info annotations
+          name
+          key_types
+          action_map
+          entries_typed
+          None
+          default_typed
+          rest
+     end
   | Custom _ :: rest ->
      (* TODO *)
      type_table' env info annotations
@@ -2733,6 +2819,8 @@ and type_table' env info annotations name key_types action_map entries_typed pro
        key_types
        action_map
        entries_typed
+       size
+       default_typed
        rest
   | [] ->
     let open EnumType in
@@ -2751,14 +2839,17 @@ and type_table' env info annotations name key_types action_map entries_typed pro
     in
     (* Populate environment with action_enum *)
     (* names of action list enums are "action_list_<<table name>>" *)
-    let env = CheckerEnv.insert_type action_enum_name action_enum_typ env in
+    let env =
+      CheckerEnv.insert_type (BareName (Info.dummy, action_enum_name))
+                action_enum_typ env
+    in
     let hit_field = {name="hit"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in
-    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]; name ="apply_result"} in
+    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]; } in
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = name |> snd |> (^) "apply_result_" in
-    let env = CheckerEnv.insert_type result_typ_name apply_result_typ env in
+    let env = CheckerEnv.insert_type (BareName (fst name, result_typ_name)) apply_result_typ env in
     let table_typ = Type.Table {result_typ_name=result_typ_name} in
     let table_typed : Prog.Declaration.pre_t =
       Table { annotations;
@@ -2766,17 +2857,18 @@ and type_table' env info annotations name key_types action_map entries_typed pro
               key = key;
               actions = List.map ~f:snd action_map;
               entries = entries_typed;
-              default_action = None;
-              size = None;
+              default_action = default_typed;
+              size = size;
               custom_properties = [] }
     in
-    (info, table_typed), CheckerEnv.insert_type_of (snd name) table_typ env
+    let nm = BareName name in
+    (info, table_typed), CheckerEnv.insert_type_of nm table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
-  let header_typ = Type.Header { fields = type_fields; name = snd name } in
-  let env = CheckerEnv.insert_type (snd name) header_typ env in
+  let header_typ = Type.Header { fields = type_fields; } in
+  let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
   (info, header), env
 
@@ -2805,16 +2897,16 @@ and type_header_union env info annotations name fields =
   let fields_typed, type_fields =
     List.unzip @@ List.map ~f:(type_header_union_field env) fields
   in
-  let header_typ = Type.HeaderUnion { fields = type_fields; name = snd name; } in
-  let env = CheckerEnv.insert_type (snd name) header_typ env in
+  let header_typ = Type.HeaderUnion { fields = type_fields; } in
+  let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.HeaderUnion { annotations; name; fields = fields_typed } in
   (info, header), env
 
 (* Section 7.2.5 *)
 and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
-  let struct_typ = Type.Struct { fields = type_fields; name = snd name; } in
-  let env = CheckerEnv.insert_type (snd name) struct_typ env in
+  let struct_typ = Type.Struct { fields = type_fields; } in
+  let env = CheckerEnv.insert_type (BareName name) struct_typ env in
   let struct_decl = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
   (info, struct_decl), env
 
@@ -2830,7 +2922,7 @@ and fold_unique members (_, member) =
 (* called by type_type_declaration *)
 and type_error env info members =
   let add_err env (_, e) =
-    CheckerEnv.insert_type_of_toplevel ("error." ^ e) Type.Error env
+    CheckerEnv.insert_type_of (QualifiedName ([], (info, "error." ^ e))) Type.Error env
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   (info, Prog.Declaration.Error { members }), env
@@ -2838,7 +2930,7 @@ and type_error env info members =
 (* Section 7.1.3 *)
 and type_match_kind env info members =
   let add_mk env (_, m) =
-    CheckerEnv.insert_type_of_toplevel m Type.MatchKind env
+    CheckerEnv.insert_type_of (QualifiedName ([], (info, m))) Type.MatchKind env
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
   (info, Prog.Declaration.MatchKind { members }), env
@@ -2850,7 +2942,7 @@ and type_enum env info annotations name members =
                 members = List.map ~f:snd members;
                 typ = None }
   in
-  let env = CheckerEnv.insert_type (snd name) enum_typ env in
+  let env = CheckerEnv.insert_type (BareName name) enum_typ env in
   (info, Prog.Declaration.Enum { annotations; name; members }), env
 
 and type_enum_member env expected_typ (name, expr) =
@@ -2873,7 +2965,7 @@ and type_serializable_enum env info annotations typ name members =
                    typ= Some typ;
                    members = typ_members }
      in
-     let env = CheckerEnv.insert_type (snd name) enum_typ env in
+     let env = CheckerEnv.insert_type (BareName name) enum_typ env in
      (info, enum_typed), env
   | _ ->
      raise_s [%message "The underlying type of a serializable enum must be a fixed-width integer."
@@ -2934,6 +3026,7 @@ and type_extern_object env info annotations name t_params methods =
       methods = List.map ms
                   ~f:(method_prototype_to_extern_method name) }
   in
+  let to_typename s = Type.TypeName (BareName (Info.dummy, s)) in
   let extern_ctors =
     List.map cs ~f:(function
         | _, Prog.MethodPrototype.Constructor
@@ -2943,12 +3036,12 @@ and type_extern_object env info annotations name t_params methods =
                parameters = prog_params_to_constructor_params params_typed;
                return = SpecializedType
                           { base = Extern extern_typ;
-                            args = List.map ~f:(fun t -> Type.TypeName t) type_params' } }
+                            args = List.map ~f:to_typename type_params' } }
         | _ -> failwith "bug: expected constructor")
   in
-  let env = CheckerEnv.insert_type (snd name) (Extern extern_typ) env in
+  let env = CheckerEnv.insert_type (BareName name) (Extern extern_typ) env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> CheckerEnv.insert_type_of (snd name) t env)
+              ~f:(fun env t -> CheckerEnv.insert_type_of (BareName name) t env)
   in
   (info, extern_decl), env
 
@@ -2961,7 +3054,7 @@ and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
       | Constructor { annotations; name; params } ->
           name,
           { type_params = [];
-            return = TypeName (snd extern_name);
+            return = TypeName (BareName extern_name);
             parameters = prog_params_to_typed_params params }
       | AbstractMethod { annotations; return; name; type_params; params }
       | Method { annotations; return; name; type_params; params } ->
@@ -2984,18 +3077,18 @@ and type_type_def env info annotations name typ_or_decl =
            name;
            typ_or_decl = Left typ }
      in
-     (info, typedef_typed), CheckerEnv.insert_type (snd name) typ env
+     (info, typedef_typed), CheckerEnv.insert_type (BareName name) typ env
   | Right decl ->
      let decl_typed, env' = type_declaration env decl in
      let (_, decl_name) = Declaration.name decl in
-     let decl_typ = CheckerEnv.resolve_type_name decl_name env' in
+     let decl_typ = CheckerEnv.resolve_type_name (BareName (Info.dummy, decl_name)) env' in
      let typedef_typed =
        Prog.Declaration.TypeDef
          { annotations;
            name;
            typ_or_decl = Right decl_typed }
      in
-     (info, typedef_typed), CheckerEnv.insert_type (snd name) decl_typ env'
+     (info, typedef_typed), CheckerEnv.insert_type (BareName name) decl_typ env'
 
 (* ? *)
 and type_new_type env info annotations name typ_or_decl =
@@ -3009,11 +3102,11 @@ and type_new_type env info annotations name typ_or_decl =
            typ_or_decl = Left typ }
      in
      let new_typ = Typed.Type.NewType { name = snd name; typ = typ } in
-     (info, typedef_typed), CheckerEnv.insert_type (snd name) new_typ env
+     (info, typedef_typed), CheckerEnv.insert_type (BareName name) new_typ env
   | Right decl ->
      let decl_typed, env' = type_declaration env decl in
      let (_, decl_name) = Declaration.name decl in
-     let decl_typ = CheckerEnv.resolve_type_name decl_name env' in
+     let decl_typ = CheckerEnv.resolve_type_name (BareName (Info.dummy, decl_name)) env' in
      let typedef_typed =
        Prog.Declaration.TypeDef
          { annotations;
@@ -3021,7 +3114,7 @@ and type_new_type env info annotations name typ_or_decl =
            typ_or_decl = Right decl_typed }
      in
      let new_typ = Typed.Type.NewType { name = snd name; typ = decl_typ } in
-     (info, typedef_typed), CheckerEnv.insert_type (snd name) new_typ env'
+     (info, typedef_typed), CheckerEnv.insert_type (BareName name) new_typ env'
 
 (* Section 7.2.11.2 *)
 and type_control_type env info annotations name t_params params =
@@ -3036,9 +3129,9 @@ and type_control_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let ctrl_typ = Type.Control { name = snd name; type_params = simple_t_params;
+  let ctrl_typ = Type.Control { type_params = simple_t_params;
                                 parameters = params_for_type } in
-  (info, ctrl_decl), CheckerEnv.insert_type (snd name) ctrl_typ env
+  (info, ctrl_decl), CheckerEnv.insert_type (BareName name) ctrl_typ env
 
 (* Section 7.2.11 *)
 and type_parser_type env info annotations name t_params params =
@@ -3053,9 +3146,9 @@ and type_parser_type env info annotations name t_params params =
         type_params = t_params;
         params = params_typed }
   in
-  let parser_typ = Type.Parser { name = snd name; type_params = simple_t_params;
-                               parameters = params_for_type } in
-  (info, parser_decl), CheckerEnv.insert_type (snd name) parser_typ env
+  let parser_typ = Type.Parser { type_params = simple_t_params;
+                                 parameters = params_for_type } in
+  (info, parser_decl), CheckerEnv.insert_type (BareName name) parser_typ env
 
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =
@@ -3071,7 +3164,7 @@ and type_package_type env info annotations name t_params params =
         params = params_typed }
   in
   let pkg_typ: Typed.PackageType.t =
-    { name = snd name; type_params = simple_t_params;
+    { type_params = simple_t_params;
       parameters = params_for_type }
   in
   let ret = Type.Package { pkg_typ with type_params = [] } in
@@ -3082,8 +3175,8 @@ and type_package_type env info annotations name t_params params =
   in
   let env' =
     env
-    |> CheckerEnv.insert_type_of (snd name) ctor_typ
-    |> CheckerEnv.insert_type (snd name) (Type.Package pkg_typ)
+    |> CheckerEnv.insert_type_of (BareName name) ctor_typ
+    |> CheckerEnv.insert_type (BareName name) (Type.Package pkg_typ)
   in
   (info, pkg_decl), env'
 

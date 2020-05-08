@@ -710,9 +710,9 @@ namedType:
 
 prefixedType:
 | name = NAME TYPENAME
-    { (info name, Type.TypeName name) }
+    { (info name, Type.TypeName (BareName name)) }
 | dotPrefix go_toplevel name = NAME TYPENAME go_local
-    { (info name, Type.TopLevelType name) }
+    { (info name, Type.TypeName (QualifiedName ([], name))) }
 ;
 
 typeName:
@@ -787,7 +787,7 @@ typeOrVoid:
 | info = VOID
   { (info, Type.Void) }
 | name = varName
-  { (info name, Type.TypeName name) }    (* may be a type variable *)
+  { (info name, Type.TypeName (BareName name)) }    (* may be a type variable *)
 ;
 
 optTypeParameters:
@@ -811,7 +811,7 @@ realTypeArg:
 typeArg:
 | info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
-| name = nonTypeName { (info name, Type.TypeName name) }
+| name = nonTypeName { (info name, Type.TypeName (BareName name)) }
 | info = VOID { (info, Type.Void) }
 ;
 
@@ -821,7 +821,7 @@ typeArgumentList:
 
 realTypeArgumentList:
 | t = realTypeArg { [t] }
-| ts = realTypeArgumentList COMMA t = typeArg { t::ts }
+| t = realTypeArg COMMA ts = separated_list(COMMA, typeArg) { t :: ts }
 ;
 
 typeDeclaration:
@@ -1102,16 +1102,24 @@ entry:
 | matches = keysetExpression
     info1 = COLON act = actionRef annos = optAnnotations info2 = SEMICOLON
     { let info = Info.merge info1 info2 in
-      (info, { annotations = annos; matches = matches; action = act }) }
+      (info, Table.{ annotations = annos; matches = matches; action = act }) }
 ;
 
 actionRef:
 |  annotations = optAnnotations name = name
-     { (info name, { annotations; name; args = [] }) }
+     { (info name, { annotations; name = BareName name; args = [] }) }
 |  annotations = optAnnotations name = name L_PAREN args = argumentList
      info2 = R_PAREN
      { (Info.merge (info name) info2,
-        { annotations; name; args }) }
+        { annotations; name = BareName name; args }) }
+|  annotations = optAnnotations
+   info1 = dotPrefix go_toplevel name = nonTypeName go_local
+     { (info name, { annotations; name = QualifiedName ([], name); args = [] }) }
+|  annotations = optAnnotations 
+   info1 = dotPrefix go_toplevel name = nonTypeName go_local
+   L_PAREN args = argumentList info2 = R_PAREN
+     { (Info.merge (info name) info2,
+        { annotations; name = QualifiedName ([], name); args }) }
 ;
 
 (************************* ACTION ********************************)
@@ -1193,10 +1201,10 @@ member:
 
 prefixedNonTypeName:
 | name = nonTypeName
-  { (info name, Expression.Name name) }
+  { (info name, Expression.Name (BareName name)) }
 | info1 = dotPrefix go_toplevel name = nonTypeName go_local
   { (Info.merge info1 (info name),
-     Expression.TopLevel name) }
+     Expression.Name (QualifiedName ([], name))) }
 ;
 
 lvalue:
@@ -1225,9 +1233,9 @@ expression:
 | value = STRING_LITERAL
   { (fst value, Expression.String value) }
 | name = nonTypeName
-  { (info name, Expression.Name name) }
+  { (info name, Expression.Name (BareName name)) }
 | info1 = dotPrefix go_toplevel name = nonTypeName go_local
-  { (Info.merge info1 (fst name), Expression.TopLevel name) }
+  { (Info.merge info1 (fst name), Expression.Name (QualifiedName ([], name))) }
 | array = expression L_BRACKET index = expression info2 = R_BRACKET
   { (Info.merge (info array) info2,
      Expression.ArrayAccess { array; index }) }

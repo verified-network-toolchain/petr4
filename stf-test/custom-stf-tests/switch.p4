@@ -35,18 +35,22 @@ control MyEgress(inout head[13] hdr,
 
     action set_zero() {
         hdr[0].v = 0;
+        hdr[0].setValid();
     }
 
     action set_one () {
         hdr[0].v = 1;
+        hdr[0].setValid();
     }
     
     action set_two () {
         hdr[0].v = 2;
+        hdr[0].setValid();
     }
 
     action set_three () {
         hdr[0].v = 3;
+        hdr[0].setValid();
     }
 
     table my_table {

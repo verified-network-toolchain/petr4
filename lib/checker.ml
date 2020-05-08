@@ -56,6 +56,21 @@ let rec is_lvalue (_, expr) =
      is_lvalue lvalue
   | _ -> false
 
+(* Ugly hack *)
+let real_name_for_type_member env (typ: Typed.Type.t) name =
+  match typ with
+  | TypeName typ_name ->
+     begin match typ_name with
+     | QualifiedName (qs, typ_name) ->
+        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+        QualifiedName (qs, (fst name, prefixed_name))
+     | BareName typ_name ->
+        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+        BareName (fst name, prefixed_name)
+     end
+  | _ -> raise_s [%message "type members can only be type name members"
+                     ~typ:(typ: Typed.Type.t)]
+
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
 let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
@@ -94,12 +109,8 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
      | None -> None
      end
   | TypeMember{typ;name} ->
-     begin match typ with
-     | TypeName (BareName tn) ->
-        let qname = QualifiedName ([tn], name) in
-        CheckerEnv.find_const_opt qname env
-     | _ -> failwith "???"
-     end
+     let real_name = real_name_for_type_member env typ name in
+     CheckerEnv.find_const_opt real_name env
   | ErrorMember t ->
      Some (VError (snd t))
   | Record { entries } ->
@@ -1419,26 +1430,18 @@ and type_cast env typ expr : Prog.Expression.typed_t =
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =
-  
+   let typ = translate_type env [] typ in
+   let real_name = real_name_for_type_member env typ name in
+   let typ, dir = CheckerEnv.find_type_of real_name env in
+   { expr = TypeMember { typ = typ;
+                         name = name };
+     typ;
+     dir }
+     (*
   let typ = translate_type env [] typ in
   let full_typ = saturate_type env typ
   in
-  let out_typ = 
-    match full_typ with
-    | Enum { name = _; typ = carrier; members } ->
-       if List.mem ~equal:(fun x y -> x = y) members (snd name)
-       then typ
-       else raise_s [%message "enum has no such member"
-                        ~enum:(full_typ: Typed.Type.t)
-                        ~member:(snd name)]
-    | _ -> raise_s [%message "type_type_member unimplemented"
-                       ~typ:(full_typ: Typed.Type.t)
-                       ~name:(snd name)]
-  in
-  { expr = TypeMember { typ = typ;
-                        name = name };
-    typ = out_typ;
-    dir = Directionless }
+      *)
 
 (* Section 8.2
  * -----------
@@ -2940,11 +2943,11 @@ and fold_unique members (_, member) =
 (* Section 7.1.2 *)
 (* called by type_type_declaration *)
 and type_error env info members =
-  let add_err env e =
-    let name = QualifiedName ([info, "error"], e) in
+  let add_err env (e_info, e) =
+    let name = QualifiedName ([], (e_info, "error." ^ e)) in
     env
     |> CheckerEnv.insert_type_of name Type.Error
-    |> CheckerEnv.insert_const name (VError (snd e))
+    |> CheckerEnv.insert_const name (VError e)
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   (info, Prog.Declaration.Error { members }), env
@@ -2967,13 +2970,13 @@ and type_enum env info annotations name members =
                 members = List.map ~f:snd members;
                 typ = None }
   in
-  let add_member env member =
-    let member_name = QualifiedName ([name], member) in
+  let add_member env (member_info, member) =
+    let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
     env
     |> CheckerEnv.insert_type_of member_name enum_typ
     |> CheckerEnv.insert_const member_name
          (VEnumField { typ_name = snd name;
-                       enum_name = snd member  })
+                       enum_name = member  })
   in
   let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_typ env in
   let env = List.fold_left ~f:add_member ~init:env members in
@@ -2994,8 +2997,8 @@ and type_serializable_enum env info annotations underlying_type name members =
   let enum_type: Typed.Type.t =
     Enum { name = snd name; typ = Some underlying_type; members = [] }
   in
-  let add_member (env, members_typed) (member, expr) =
-    let member_name = QualifiedName ([name], member) in
+  let add_member (env, members_typed) ((member_info, member), expr) =
+    let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
     let expr_typed = type_expression env expr in
     assert_type_equality env (fst expr) underlying_type (snd expr_typed).typ;
     match compile_time_eval_expr env expr_typed with
@@ -3004,8 +3007,8 @@ and type_serializable_enum env info annotations underlying_type name members =
        |> CheckerEnv.insert_type_of member_name enum_type
        |> CheckerEnv.insert_const member_name
             (VEnumField { typ_name = snd name;
-                          enum_name = snd member  }),
-       members_typed @ [ member ]
+                          enum_name = member }),
+       members_typed @ [ member_info, member ]
     | None -> failwith "could not evaluate enum member"
   in
   let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_type env in

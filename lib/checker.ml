@@ -71,9 +71,45 @@ let real_name_for_type_member env (typ: Typed.Type.t) name =
   | _ -> raise_s [%message "type members can only be type name members"
                      ~typ:(typ: Typed.Type.t)]
 
+
+let rec min_size_in_bits' env (info: Info.t) (hdr_type: Typed.Type.t) : int =
+  match saturate_type env hdr_type with
+  | Bit { width } | Int { width } ->
+     width
+  | VarBit _ ->
+     0
+  | NewType { typ; _ }
+  | Enum { typ = Some typ; _ } ->
+     min_size_in_bits' env info typ
+  | Struct { fields }
+  | Header { fields } ->
+     fields
+     |> List.map ~f:(field_width_bits env info)
+     |> List.fold ~init:0 ~f:(+)
+  | HeaderUnion { fields } ->
+     let min_field_size (field: RecordType.field) =
+       min_size_in_bits' env info field.typ
+     in
+     fields
+     |> List.map ~f:min_field_size
+     |> List.fold ~init:0 ~f:min
+  | Array { typ; size } ->
+     size * min_size_in_bits' env info typ
+  | _ -> raise_mismatch info "header or header union" hdr_type
+
+and field_width_bits env info (field: Typed.RecordType.field) : int =
+  min_size_in_bits' env info field.typ
+
+and min_size_in_bits env (info: Info.t) (hdr_type: Typed.Type.t) : Bigint.t =
+  Bigint.of_int (min_size_in_bits' env info hdr_type)
+
+and min_size_in_bytes env info hdr_type =
+  let bits = min_size_in_bits' env info hdr_type in
+  Bigint.of_int ((bits + 7) asr 3)
+
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
+and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
   match (snd expr).expr with
   | Name name ->
      CheckerEnv.find_const_opt name env
@@ -131,6 +167,24 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
         let slice_width = Bigint.(hi - lo + one) in
         let slice_val = Bitstring.bitstring_slice v hi lo in
         Some (VBit {w = slice_width; v = slice_val})
+     | _ -> None
+     end
+  | DontCare -> Some (VSet (SUniversal))
+  | ExpressionMember {expr; name = (_, "size")} ->
+     begin match saturate_type env (snd expr).typ with
+     | Array {size; _} -> Some (VInteger (Bigint.of_int size))
+     | _ -> None
+     end
+  | FunctionCall { func; type_args = []; args = [] } ->
+     begin match (snd func).expr with
+     | ExpressionMember {expr; name = (_, "minSizeInBits")} ->
+        let typ = saturate_type env (snd expr).typ in
+        let size = min_size_in_bits env (fst expr) typ in
+        Some (VInteger size)
+     | ExpressionMember {expr; name = (_, "minSizeInBytes")} ->
+        let typ = saturate_type env (snd expr).typ in
+        let size = min_size_in_bytes env (fst expr) typ in
+        Some (VInteger size)
      | _ -> None
      end
   | _ ->
@@ -1497,7 +1551,15 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
                    return = TypeName (BareName (Info.dummy, result_typ_name)) }
      | _ -> fail ()
      end
-  | Header { fields; _ } ->
+  | Struct _ ->
+     begin match snd name with
+     | "minSizeInBits" ->
+        Function { type_params = []; parameters = []; return = Integer }
+     | "minSizeInBytes" ->
+        Function { type_params = []; parameters = []; return = Integer }
+     | _ -> fail ()
+     end
+  | Header _ ->
      begin match snd name with
      | "isValid" ->
         Function { type_params = []; parameters = []; return = Bool }
@@ -1528,9 +1590,13 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
                                    direction = Directionless;
                                    annotations = [] }];
                    return = Void }
+     | "minSizeInBits" ->
+        Function { type_params = []; parameters = []; return = Integer }
+     | "minSizeInBytes" ->
+        Function { type_params = []; parameters = []; return = Integer }
      | _ -> fail ()
      end
-  | HeaderUnion { fields; _ } ->
+  | HeaderUnion _ ->
      begin match snd name with
      | "isValid" ->
         Function { type_params = []; parameters = []; return = Bool }

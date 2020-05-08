@@ -169,6 +169,12 @@ let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
   | VRecord r -> failwith "TODO"
   | _ -> v
 
+let implicit_cast env value tgt_typ =
+  match value with
+  | VTuple l -> implicit_cast_from_tuple env value tgt_typ
+  | VInteger n -> implicit_cast_from_rawint env value tgt_typ
+  | _ -> value
+
 let rec value_of_lvalue (env : env) (lv : lvalue) : signal * value =
   match lv.lvalue with
   | LName{name=n}                     -> SContinue, EvalEnv.find_val n env
@@ -220,12 +226,7 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
   | _ -> failwith "not an lvalue"
 
 let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
-  let rhs = 
-    match rhs with
-    | VTuple l -> implicit_cast_from_tuple env rhs lhs.typ
-    | VInteger n -> implicit_cast_from_rawint env rhs lhs.typ
-    | _ -> rhs
-  in
+  let rhs = implicit_cast env rhs lhs.typ in
   match lhs.lvalue with
   | LName {name} ->
      begin match EvalEnv.update_val name rhs env with
@@ -311,7 +312,9 @@ and update_slice bits_val msb lsb rhs_val =
   let width =
     match bits_val with
     | VBit { w; _ } -> w
-    | _ -> failwith "BUG:expected bit<> type"
+    | _ ->
+       print_s [%message "got non-bit<> value" ~v:(bits_val:Value.value)];
+       failwith "BUG:expected bit<> type"
   in
   let bits = bigint_of_val bits_val in
   let rhs_shifted = bigint_of_val rhs_val lsl to_int_exn lsb in

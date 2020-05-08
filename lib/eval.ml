@@ -190,6 +190,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
+    let v = implicit_cast env v typ in
     EvalEnv.insert_val_bare name v env, st
 
   and eval_instantiation (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
@@ -224,6 +225,7 @@ module MakeInterpreter (T : Target) = struct
       (env, st, SContinue)
     | Some e ->
       let (env, st', init_val) = eval_expression ctrl env st e in
+      let init_val = implicit_cast env init_val typ in
       let env = EvalEnv.insert_val_bare name init_val env in
       (env, st', SContinue)
 

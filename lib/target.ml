@@ -312,9 +312,7 @@ and update_slice bits_val msb lsb rhs_val =
   let width =
     match bits_val with
     | VBit { w; _ } -> w
-    | _ ->
-       print_s [%message "got non-bit<> value" ~v:(bits_val:Value.value)];
-       failwith "BUG:expected bit<> type"
+    | _ -> failwith "BUG:expected bit<> type"
   in
   let bits = bigint_of_val bits_val in
   let rhs_shifted = bigint_of_val rhs_val lsl to_int_exn lsb in

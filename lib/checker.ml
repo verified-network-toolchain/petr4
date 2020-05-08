@@ -56,9 +56,60 @@ let rec is_lvalue (_, expr) =
      is_lvalue lvalue
   | _ -> false
 
+(* Ugly hack *)
+let real_name_for_type_member env (typ: Typed.Type.t) name =
+  match typ with
+  | TypeName typ_name ->
+     begin match typ_name with
+     | QualifiedName (qs, typ_name) ->
+        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+        QualifiedName (qs, (fst name, prefixed_name))
+     | BareName typ_name ->
+        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+        BareName (fst name, prefixed_name)
+     end
+  | _ -> raise_s [%message "type members can only be type name members"
+                     ~typ:(typ: Typed.Type.t)]
+
+
+let rec min_size_in_bits' env (info: Info.t) (hdr_type: Typed.Type.t) : int =
+  match saturate_type env hdr_type with
+  | Bit { width } | Int { width } ->
+     width
+  | VarBit _ ->
+     0
+  | NewType { typ; _ }
+  | Enum { typ = Some typ; _ } ->
+     min_size_in_bits' env info typ
+  | Struct { fields }
+  | Header { fields } ->
+     fields
+     |> List.map ~f:(field_width_bits env info)
+     |> List.fold ~init:0 ~f:(+)
+  | HeaderUnion { fields } ->
+     let min_field_size (field: RecordType.field) =
+       min_size_in_bits' env info field.typ
+     in
+     fields
+     |> List.map ~f:min_field_size
+     |> List.fold ~init:0 ~f:min
+  | Array { typ; size } ->
+     size * min_size_in_bits' env info typ
+  | _ -> raise_mismatch info "header or header union" hdr_type
+
+and field_width_bits env info (field: Typed.RecordType.field) : int =
+  min_size_in_bits' env info field.typ
+
+and min_size_in_bits env (info: Info.t) (hdr_type: Typed.Type.t) : Bigint.t =
+  Bigint.of_int (min_size_in_bits' env info hdr_type)
+
+and min_size_in_bytes env info hdr_type =
+  let bits = min_size_in_bits' env info hdr_type in
+  Bigint.of_int ((bits + 7) asr 3)
+
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
+and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.Value.value option =
   match (snd expr).expr with
   | Name name ->
      CheckerEnv.find_const_opt name env
@@ -74,16 +125,30 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
         then Some (Prog.Value.VInt { w = Bigint.of_int width; v = i.value })
         else Some (Prog.Value.VBit { w = Bigint.of_int width; v = i.value })
      end
-  | UnaryOp { op; arg } -> failwith "unimplemented"
-  | BinaryOp { op; args } -> failwith "unimplemented"
+  | UnaryOp { op; arg } ->
+     begin match compile_time_eval_expr env arg with
+     | Some arg ->
+        Some (Ops.interp_unary_op op arg)
+     | None -> None
+     end
+  | BinaryOp { op; args = (l, r) } ->
+     begin match compile_time_eval_expr env l,
+                 compile_time_eval_expr env r with
+     | Some l, Some r ->
+        Some (Ops.interp_binary_op op l r)
+     | _ -> None
+     end
   | Cast { typ; expr } -> compile_time_eval_expr env expr
-  | TypeMember {typ; name } -> failwith "unimplemented"
-  | Ternary {cond; tru; fls } -> failwith "unimplemented"
   | List { values } ->
      begin match compile_time_eval_exprs env values with 
      | Some vals -> Some (VTuple vals)
      | None -> None
      end
+  | TypeMember{typ;name} ->
+     let real_name = real_name_for_type_member env typ name in
+     CheckerEnv.find_const_opt real_name env
+  | ErrorMember t ->
+     Some (VError (snd t))
   | Record { entries } ->
      let opt_entries =
        List.map ~f:(fun (_, {key; value}) ->
@@ -96,13 +161,40 @@ let rec compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : P
      | Some es -> Some (Prog.Value.VStruct { fields = es })
      | None -> None
      end
-  | _ -> None
+  | BitStringAccess{bits; hi; lo} ->
+     begin match compile_time_eval_expr env bits with
+     | Some (VBit {w; v}) ->
+        let slice_width = Bigint.(hi - lo + one) in
+        let slice_val = Bitstring.bitstring_slice v hi lo in
+        Some (VBit {w = slice_width; v = slice_val})
+     | _ -> None
+     end
+  | DontCare -> Some (VSet (SUniversal))
+  | ExpressionMember {expr; name = (_, "size")} ->
+     begin match saturate_type env (snd expr).typ with
+     | Array {size; _} -> Some (VInteger (Bigint.of_int size))
+     | _ -> None
+     end
+  | FunctionCall { func; type_args = []; args = [] } ->
+     begin match (snd func).expr with
+     | ExpressionMember {expr; name = (_, "minSizeInBits")} ->
+        let typ = saturate_type env (snd expr).typ in
+        let size = min_size_in_bits env (fst expr) typ in
+        Some (VInteger size)
+     | ExpressionMember {expr; name = (_, "minSizeInBytes")} ->
+        let typ = saturate_type env (snd expr).typ in
+        let size = min_size_in_bytes env (fst expr) typ in
+        Some (VInteger size)
+     | _ -> None
+     end
+  | _ ->
+     None
 
 and compile_time_eval_exprs env exprs : Prog.Value.value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
-let compile_time_eval_bigint env expr: Bigint.t =
+and compile_time_eval_bigint env expr: Bigint.t =
   match compile_time_eval_expr env expr with
   | Some (Prog.Value.VInt { v; _})
   | Some (Prog.Value.VBit { v; _})
@@ -114,13 +206,13 @@ let compile_time_eval_bigint env expr: Bigint.t =
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
  * [decl] before trying to evaluate it! *)
-let compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
+and compile_time_eval_decl (env: CheckerEnv.t) (decl: Prog.Declaration.t) : CheckerEnv.t =
   match snd decl with
   | Constant { name; value; _ } ->
      CheckerEnv.insert_const (BareName name) value env
   | _ -> env
 
-let get_type_params (t: Typed.Type.t) : string list =
+and get_type_params (t: Typed.Type.t) : string list =
   match t with
   | Package {type_params; _}
   | Control {type_params; _}
@@ -131,7 +223,7 @@ let get_type_params (t: Typed.Type.t) : string list =
   | _ ->
      []
 
-let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
+and drop_type_params (t: Typed.Type.t) : Typed.Type.t =
   match t with
   | Package p ->
      Package {p with type_params = []}
@@ -152,7 +244,7 @@ let drop_type_params (t: Typed.Type.t) : Typed.Type.t =
  * Warning: this will loop forever if you give it an environment with circular
  * TypeName references.
  *)
-let rec saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let open Type in
   let saturate_field env (field: RecordType.field) =
     {field with typ = saturate_type env field.typ}
@@ -1290,7 +1382,10 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
        | Integer, Integer -> Integer
        | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
        | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
-       | _, _ -> failwith "this binop unimplemented" (* TODO: better error message here *)
+       | _, _ -> raise_s [%message "this binop unimplemented"
+                             ~l_typ:(l_typ:Typed.Type.t)
+                             ~r_typ:(r_typ:Typed.Type.t)]
+
        end
     | Eq | NotEq ->
        if type_equality env l_typ r_typ
@@ -1401,25 +1496,18 @@ and type_cast env typ expr : Prog.Expression.typed_t =
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =
+   let typ = translate_type env [] typ in
+   let real_name = real_name_for_type_member env typ name in
+   let typ, dir = CheckerEnv.find_type_of real_name env in
+   { expr = TypeMember { typ = typ;
+                         name = name };
+     typ;
+     dir }
+     (*
   let typ = translate_type env [] typ in
   let full_typ = saturate_type env typ
   in
-  let out_typ = 
-    match full_typ with
-    | Enum { name = _; typ = carrier; members } ->
-       if List.mem ~equal:(fun x y -> x = y) members (snd name)
-       then typ
-       else raise_s [%message "enum has no such member"
-                        ~enum:(full_typ: Typed.Type.t)
-                        ~member:(snd name)]
-    | _ -> raise_s [%message "type_type_member unimplemented"
-                       ~typ:(full_typ: Typed.Type.t)
-                       ~name:(snd name)]
-  in
-  { expr = TypeMember { typ = typ;
-                        name = name };
-    typ = out_typ;
-    dir = Directionless }
+      *)
 
 (* Section 8.2
  * -----------
@@ -1450,35 +1538,6 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
   let fail () =
     raise_unfound_member info (snd name) in
   match typ with
-  | Control { type_params = []; parameters = ps; _ }
-  | Parser { type_params = []; parameters = ps; _ } ->
-     begin match snd name with
-     | "apply" ->
-        Function { type_params = [];
-                   parameters = ps;
-                   return = Void }
-     | _ -> fail ()
-     end
-  | Table { result_typ_name } ->
-     begin match snd name with
-     | "apply" ->
-        Function { type_params = []; parameters = [];
-                   return = TypeName (BareName (Info.dummy, result_typ_name)) }
-     | _ -> fail ()
-     end
-  | Header { fields; _ } ->
-     begin match snd name with
-     | "isValid" ->
-        Function { type_params = []; parameters = []; return = Bool }
-     | "setValid"
-     | "setInvalid" ->
-        Function { type_params = []; parameters = []; return = Void }
-     | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | _ -> fail ()
-     end
   | Array { typ; _ } ->
      let idx_typ = Bit { width = 32 } in
      begin match snd name with
@@ -1489,27 +1548,78 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      | "next"
      | "last" ->
         typ
-     | "push_front"
-     | "pop_front" ->
-        Function { type_params = [];
-                   parameters = [{ variable = Info.dummy, "count";
-                                   typ = Integer;
-                                   direction = Directionless;
-                                   annotations = [] }];
-                   return = Void }
-     | _ -> fail ()
-     end
-  | HeaderUnion { fields; _ } ->
-     begin match snd name with
-     | "isValid" ->
-        Function { type_params = []; parameters = []; return = Bool }
-     | "minSizeInBits" ->
-        Function { type_params = []; parameters = []; return = Integer }
-     | "minSizeInBytes" ->
-        Function { type_params = []; parameters = []; return = Integer }
      | _ -> fail ()
      end
   | _ -> fail ()
+
+and type_expression_member_function_builtin env info typ name : Typed.Type.t option =
+  let open Typed.Type in
+  match typ with
+  | Control { type_params = []; parameters = ps; _ }
+  | Parser { type_params = []; parameters = ps; _ } ->
+     begin match snd name with
+     | "apply" ->
+        Some (Function { type_params = [];
+                         parameters = ps;
+                         return = Void })
+     | _ -> None
+     end
+  | Table { result_typ_name } ->
+     begin match snd name with
+     | "apply" ->
+        Some (Function { type_params = []; parameters = [];
+                         return = TypeName (BareName (Info.dummy, result_typ_name)) })
+     | _ -> None
+     end
+  | Struct _ ->
+     begin match snd name with
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
+     end
+  | Header _ ->
+     begin match snd name with
+     | "isValid" ->
+        Some (Function { type_params = []; parameters = []; return = Bool })
+     | "setValid"
+     | "setInvalid" ->
+        Some (Function { type_params = []; parameters = []; return = Void })
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
+     end
+  | Array { typ; _ } ->
+     begin match snd name with
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "push_front"
+     | "pop_front" ->
+        let parameters: Typed.Parameter.t list =
+          [{ variable = Info.dummy, "count";
+             typ = Integer;
+             direction = Directionless;
+             annotations = [] }]
+        in
+        Some (Function { type_params = []; parameters; return = Void })
+     | _ -> None
+     end
+  | HeaderUnion _ ->
+     begin match snd name with
+     | "isValid" ->
+        Some (Function { type_params = []; parameters = []; return = Bool })
+     | "minSizeInBits" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | "minSizeInBytes" ->
+        Some (Function { type_params = []; parameters = []; return = Integer })
+     | _ -> None
+     end
+  | _ -> None
 
 (* Sections 6.6, 8.14 *)
 and type_expression_member env expr name : Prog.Expression.typed_t =
@@ -1859,7 +1969,16 @@ and resolve_function_overload_by ~f env func : Prog.Expression.t =
              dir = Directionless }
         | None -> failwith "couldn't find matching method"
         end
-     | _ -> snd @@ type_expression env func
+     | _ ->
+        let typ = saturate_type env (snd expr_typed).typ in
+        begin match type_expression_member_function_builtin env info typ name with
+        | Some typ ->
+           { expr = prog_member;
+             typ;
+             dir = Directionless }
+        | None ->
+           snd @@ type_expression env func
+        end
      end
   | _ -> snd @@ type_expression env func
 
@@ -2234,7 +2353,9 @@ and type_constant env decl_info annotations typ name expr : Prog.Declaration.t *
   match compile_time_eval_expr env typed_expr with
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
-     CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In env
+     env
+     |> CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In
+     |> CheckerEnv.insert_const (BareName name) value
   | None ->
      failwith "expression not compile-time-known"
 
@@ -2921,16 +3042,22 @@ and fold_unique members (_, member) =
 (* Section 7.1.2 *)
 (* called by type_type_declaration *)
 and type_error env info members =
-  let add_err env (_, e) =
-    CheckerEnv.insert_type_of (QualifiedName ([], (info, "error." ^ e))) Type.Error env
+  let add_err env (e_info, e) =
+    let name = QualifiedName ([], (e_info, "error." ^ e)) in
+    env
+    |> CheckerEnv.insert_type_of name Type.Error
+    |> CheckerEnv.insert_const name (VError e)
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   (info, Prog.Declaration.Error { members }), env
 
 (* Section 7.1.3 *)
 and type_match_kind env info members =
-  let add_mk env (_, m) =
-    CheckerEnv.insert_type_of (QualifiedName ([], (info, m))) Type.MatchKind env
+  let add_mk env e =
+    let name = QualifiedName ([], e) in
+    env
+    |> CheckerEnv.insert_type_of name Type.MatchKind
+    |> CheckerEnv.insert_const name (VMatchKind (snd e))
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
   (info, Prog.Declaration.MatchKind { members }), env
@@ -2942,35 +3069,52 @@ and type_enum env info annotations name members =
                 members = List.map ~f:snd members;
                 typ = None }
   in
-  let env = CheckerEnv.insert_type (BareName name) enum_typ env in
+  let add_member env (member_info, member) =
+    let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
+    env
+    |> CheckerEnv.insert_type_of member_name enum_typ
+    |> CheckerEnv.insert_const member_name
+         (VEnumField { typ_name = snd name;
+                       enum_name = member  })
+  in
+  let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_typ env in
+  let env = List.fold_left ~f:add_member ~init:env members in
   (info, Prog.Declaration.Enum { annotations; name; members }), env
 
-and type_enum_member env expected_typ (name, expr) =
-  let expr_typed = type_expression env expr in
-  assert_type_equality env (fst expr) expected_typ (snd expr_typed).typ;
-  (name, expr_typed)
-
 (* Section 8.3 *)
-and type_serializable_enum env info annotations typ name members =
-  let typ = translate_type env [] typ in
-  begin match saturate_type env typ with
-  | Int _ | Bit _ ->
-     let members = List.map ~f:(type_enum_member env typ) members in
-     let enum_typed =
-       Prog.Declaration.SerializableEnum { annotations; typ; name; members }
-     in
-     let typ_members = List.map ~f:(fun m -> (snd (fst m))) members in
-     let enum_typ =
-       Type.Enum { name = snd name;
-                   typ= Some typ;
-                   members = typ_members }
-     in
-     let env = CheckerEnv.insert_type (BareName name) enum_typ env in
-     (info, enum_typed), env
-  | _ ->
-     raise_s [%message "The underlying type of a serializable enum must be a fixed-width integer."
-                 ~typ:(typ:Typed.Type.t)]
-  end
+and type_serializable_enum env info annotations underlying_type name members =
+  let underlying_type =
+    underlying_type
+    |> translate_type env []
+    |> saturate_type env
+  in
+  let underlying_type =
+    match underlying_type with
+    | Int _ | Bit _ -> underlying_type
+    | _ -> raise_mismatch info "fixed width numeric type for enum" underlying_type
+  in
+  let enum_type: Typed.Type.t =
+    Enum { name = snd name; typ = Some underlying_type; members = [] }
+  in
+  let add_member (env, members_typed) ((member_info, member), expr) =
+    let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
+    let expr_typed = type_expression env expr in
+    assert_type_equality env (fst expr) underlying_type (snd expr_typed).typ;
+    match compile_time_eval_expr env expr_typed with
+    | Some value ->
+       env
+       |> CheckerEnv.insert_type_of member_name enum_type
+       |> CheckerEnv.insert_const member_name
+            (VEnumField { typ_name = snd name;
+                          enum_name = member }),
+       members_typed @ [ member_info, member ]
+    | None -> failwith "could not evaluate enum member"
+  in
+  let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_type env in
+  let env, member_names = List.fold_left ~f:add_member ~init:(env, []) members in
+  let enum_typed =
+    Prog.Declaration.Enum { annotations; name; members = member_names } in
+  (info, enum_typed), env
 
 (* Section 7.2.9.2 *)
 and type_extern_object env info annotations name t_params methods =

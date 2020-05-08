@@ -1,5 +1,5 @@
 header H {
-    bit<32> is_valid;
+    bit<32> isValid;
 }
 
 type bit<32> T;
@@ -9,8 +9,8 @@ enum bit<16> E {
 
 header H1 {
     bit<16> f;
-    bit<8> min_size_in_bits;
-    bit<8> min_size_in_bytes;
+    bit<8> minSizeInBytes;
+    bit<8> minSizeInBits;
     T f1;
     E e;
 }
@@ -45,11 +45,11 @@ bool v(in HU h) {
     Nested n;
     S s;
     const bool b = h.minSizeInBits() == 32;
-    bool b1 = h.h2.min_size_in_bits == 32;
+    bool b1 = h.h2.minSizeInBits == 32;
     const bit<32> se = e.minSizeInBits() + n.minSizeInBits() + s.h3.minSizeInBytes();
     const bit<32> sz = h.h1.minSizeInBits() + h.h2.minSizeInBits() + h.h2.minSizeInBytes();
     return h.isValid() &&
-    h.h1.is_valid == 0 &&
+    h.h1.isValid == 0 &&
     b &&
     b1 &&
     h.h2.minSizeInBits() < (5 + h.h1.minSizeInBits()) &&

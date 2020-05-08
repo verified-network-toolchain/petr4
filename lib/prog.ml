@@ -884,10 +884,10 @@ and Value : sig
   
   and vtable = {
     name : string;
-    keys : value list;
+    keys : Table.pre_key list;
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : (set * Table.action_ref) list;
+    const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
   
@@ -1106,10 +1106,10 @@ end = struct
   
   and vtable = {
     name : string;
-    keys : value list;
+    keys : Table.pre_key list;
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : (set * Table.action_ref) list;
+    const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
   

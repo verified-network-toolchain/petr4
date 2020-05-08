@@ -259,32 +259,15 @@ module MakeInterpreter (T : Target) = struct
     let env' = EvalEnv.insert_decl_bare name decl env in
     let ctrl_entries = fst ctrl in
     let pre_ks = key |> List.map ~f:snd in
-    let key = pre_ks |> List.map ~f:(fun k -> k.key) in
-    let mks = pre_ks |> List.map ~f:(fun k -> snd k.match_kind) in
-    let ((env'',st',s), ks) = List.fold_map key ~init:(env', st, SContinue)
-        ~f:(fun (a, b, c) k ->
-
-            let w,x,y,z = eval_expr ctrl a b c k in ((w,x,y),z)) in
-    let f ((v,w,x,y),z) = ((v,w,x),(y,z)) in
-    let sort_mks = check_lpm_count mks in
-    let ws = List.map ks ~f:width_of_val in
-    let ((env''',st'',s'),entries) =
-      match entries with
-      | None -> List.fold_map ctrl_entries ~init:(env'',st',s)
-                ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f)
-      | Some l -> l
-              |> List.map ~f:snd
-              |> List.fold_map ~init:(env'',st',s)
-                ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f) in
-    let (final_entries, ks') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries, ks)
-      else if sort_mks then filter_lpm_prod env''' mks ks entries
-      else (entries, ks) in
+    let final_entries = match entries with
+                        | None -> ctrl_entries
+                        | Some entries -> entries |> List.map ~f:snd in
     let v = VTable { name = name;
-                    keys = ks';
+                    keys = pre_ks;
                     actions = actions;
                     default_action = default_of_defaults default;
                     const_entries = final_entries; } in
-    (EvalEnv.insert_val_bare name v env''', st')
+    (EvalEnv.insert_val_bare name v env', st)
 
   and eval_header_decl (env : env) (name : string)
       (decl : Declaration.t) : env =
@@ -339,74 +322,6 @@ module MakeInterpreter (T : Target) = struct
   (* -------------------------------------------------------------------------- *)
   (* Table Declaration Evaluation *)
   (* -------------------------------------------------------------------------- *)
-
-  and filter_lpm_prod (env : env) (mks : string list) (ks : value list)
-      (entries : (set * Table.action_ref) list)
-      : (set * Table.action_ref) list * (value list) =
-    let index = match List.findi mks ~f:(fun _ s -> String.equal s "lpm") with
-      | None -> failwith "unreachable, should have lpm"
-      | Some (i,_) -> i in
-    let f = function
-      | SProd l, a -> (List.nth_exn l index, a)
-      | _ -> failwith "not lpm prod" in
-    let entries =
-      entries
-      |> List.filter ~f:(fun (s,a) -> values_match_set ks s)
-      |> List.map ~f:f in
-    let ks' = [List.nth_exn ks index] in
-    (sort_lpm entries, ks')
-
-  and check_lpm_count (mks : string list) : bool =
-    let num_lpm =
-      mks
-      |> List.filter ~f:(fun s -> String.equal s "lpm")
-      |> List.length in
-    if num_lpm > 1
-    then failwith "more than one lpm"
-    else num_lpm = 1
-
-  and sort_lpm (entries : (set * Table.action_ref) list)
-      : (set * Table.action_ref) list =
-    let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
-    let (entries'', uni) =
-      match List.findi entries' ~f:(fun i (s,_) -> Poly.(s = SUniversal)) with
-      | None -> (entries', None)
-      | Some (i,_) ->
-        let es = List.filteri entries' ~f:(fun ind _ -> ind < i) in
-        let u = List.nth_exn entries' i in
-        (es, Some u) in
-    let compare (s1,_) (s2,_) =
-      let (_,n1,_) = assert_lpm s1 in
-      let (_,n2,_) = assert_lpm s2 in
-      if Bigint.(n1 = n2) then 0
-      else if Bigint.(n1 > n2) then -1
-      else 1 in
-    let sorted = List.sort entries'' ~compare:compare in
-    match uni with
-    | None -> sorted
-    | Some u -> sorted @ [u]
-
-  and lpm_set_of_set (s : set) : set =
-    match s with
-    | SSingleton{w;v} ->
-      let v' = bitwise_neg_of_bigint Bigint.zero w in
-      SLpm{w=VBit{w;v};nbits=w;v=VBit{w;v=v'}}
-    | SMask{v=v1;mask=v2} ->
-      SLpm{w=v1;nbits=v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false;v=v2}
-    | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
-    | SUniversal
-    | SLpm _ -> s
-    | SRange _
-    | SValueSet _ -> failwith "unreachable"
-
-  and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
-    let two = Bigint.(one + one) in
-    if Bigint.(v = zero)
-    then acc
-    else if Bigint.(v % two = zero)
-    then if b then failwith "bad lpm mask"
-          else bits_of_lpmmask acc b Bigint.(v / two)
-    else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two)
 
   and default_of_defaults (p : Table.action_ref option) : Table.action_ref =
     match p with
@@ -484,11 +399,25 @@ module MakeInterpreter (T : Target) = struct
     | Types.QualifiedName (_, s) ->
        snd s
 
-  and eval_table (ctrl : ctrl) (env : env) (st : state) (key : value list)
-      (entries : (set * Table.action_ref) list)
+  and eval_table (ctrl : ctrl) (env : env) (st : state) (key : Table.pre_key list)
+      (entries : Table.pre_entry list)
       (name : string) (actions : Table.action_ref list)
       (default : Table.action_ref) : env * state * signal * value =
-    let l = List.filter entries ~f:(fun (s,a) -> values_match_set key s) in
+    let ks = key |> List.map ~f:(fun k -> k.key) in
+    let mks = key |> List.map ~f:(fun k -> k.match_kind |> snd) in
+    let ((env',st',s), ks') = List.fold_map ks ~init:(env, st, SContinue)
+        ~f:(fun (a, b, c) k ->
+            let w,x,y,z = eval_expr ctrl a b c k in ((w,x,y),z)) in
+    let f ((v,w,x,y),z) = ((v,w,x),(y,z)) in
+    let sort_mks = check_lpm_count mks in
+    let ws = List.map ks' ~f:width_of_val in
+    let ((env'', st'', s'),entries') =
+      List.fold_map entries ~init:(env',st',s)
+        ~f:(fun (a,b,c) d -> (set_of_matches ctrl a b c d.matches ws, d.action) |> f) in
+    let (entries'', ks'') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries', ks')
+      else if sort_mks then filter_lpm_prod env'' mks ks' entries'
+      else (entries', ks') in
+    let l = List.filter entries'' ~f:(fun (s,a) -> let b = values_match_set ks'' s in print_endline (string_of_bool b); b) in
     let action = match l with
                 | [] -> default
                 | _ -> List.hd_exn l |> snd in
@@ -497,7 +426,7 @@ module MakeInterpreter (T : Target) = struct
     let args = Table.((snd action).action.args) in
     match action_value with
     | VAction{params;body}  ->
-      let (env',st',s,_) = eval_funcall' ctrl env st params args body in
+      let (env',st',s,_) = eval_funcall' ctrl env'' st'' params args body in
       let v = VStruct {fields=[
                             ("hit", VBool (not (List.is_empty l)));
                             ("action_run", VEnumField{typ_name=name;
@@ -506,7 +435,75 @@ module MakeInterpreter (T : Target) = struct
       (env',st',s,v)
     | _ -> failwith "table expects an action"
 
-    (* TODO: double check about scoping - actions before tables? *)
+  (* TODO: double check about scoping - actions before tables? *)
+
+  and filter_lpm_prod (env : env) (mks : string list) (ks : value list)
+      (entries : (set * Table.action_ref) list)
+      : (set * Table.action_ref) list * (value list) =
+    let index = match List.findi mks ~f:(fun _ s -> String.equal s "lpm") with
+      | None -> failwith "unreachable, should have lpm"
+      | Some (i,_) -> i in
+    let f = function
+      | SProd l, a -> (List.nth_exn l index, a)
+      | _ -> failwith "not lpm prod" in
+    let entries =
+      entries
+      |> List.filter ~f:(fun (s,a) -> values_match_set ks s)
+      |> List.map ~f:f in
+    let ks' = [List.nth_exn ks index] in
+    (sort_lpm entries, ks')
+
+  and check_lpm_count (mks : string list) : bool =
+    let num_lpm =
+      mks
+      |> List.filter ~f:(fun s -> String.equal s "lpm")
+      |> List.length in
+    if num_lpm > 1
+    then failwith "more than one lpm"
+    else num_lpm = 1
+
+  and sort_lpm (entries : (set * Table.action_ref) list)
+      : (set * Table.action_ref) list =
+    let entries' = List.map entries ~f:(fun (x,y) -> lpm_set_of_set x, y) in
+    let (entries'', uni) =
+      match List.findi entries' ~f:(fun i (s,_) -> Poly.(s = SUniversal)) with
+      | None -> (entries', None)
+      | Some (i,_) ->
+        let es = List.filteri entries' ~f:(fun ind _ -> ind < i) in
+        let u = List.nth_exn entries' i in
+        (es, Some u) in
+    let compare (s1,_) (s2,_) =
+      let (_,n1,_) = assert_lpm s1 in
+      let (_,n2,_) = assert_lpm s2 in
+      if Bigint.(n1 = n2) then 0
+      else if Bigint.(n1 > n2) then -1
+      else 1 in
+    let sorted = List.sort entries'' ~compare:compare in
+    match uni with
+    | None -> sorted
+    | Some u -> sorted @ [u]
+
+  and lpm_set_of_set (s : set) : set =
+    match s with
+    | SSingleton{w;v} ->
+      let v' = bitwise_neg_of_bigint Bigint.zero w in
+      SLpm{w=VBit{w;v};nbits=w;v=VBit{w;v=v'}}
+    | SMask{v=v1;mask=v2} ->
+      SLpm{w=v1;nbits=v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false;v=v2}
+    | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
+    | SUniversal
+    | SLpm _ -> s
+    | SRange _
+    | SValueSet _ -> failwith "unreachable"
+
+  and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
+    let two = Bigint.(one + one) in
+    if Bigint.(v = zero)
+    then acc
+    else if Bigint.(v % two = zero)
+    then if b then failwith "bad lpm mask"
+          else bits_of_lpmmask acc b Bigint.(v / two)
+    else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two)
 
   and eval_app' (ctrl : ctrl) (env : env) (st : state) (s : signal)
       (args : Expression.t list) (t : Type.t) : env * state * signal =
@@ -589,8 +586,8 @@ module MakeInterpreter (T : Target) = struct
                       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
                       |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s)) in
         begin match matches with
-              | [] -> (env', st', s')
-              | hd::tl -> hd
+              | [] -> print_endline "no matches switch"; (env', st', s')
+              | hd::tl -> print_endline "some match switch"; hd
                         |> List.filter ~f:(function Action _ -> true | _ -> false) 
                         |> List.hd_exn 
                         |> (function Action{label;code} -> code | _ -> failwith "unreachable")

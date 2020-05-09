@@ -153,7 +153,7 @@ stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to e
 stf,examples/checker_tests/good/issue1814-1-bmv2.p4,STF parser crash (add) and register extern unimplemented,
 stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create, etc),
 stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),
-stf,examples/checker_tests/good/table-entries-range-bmv2.p4,appears to pass but failing because of STF case sensitivity
+stf,examples/checker_tests/good/table-entries-range-bmv2.p4,appears to pass but failing because of STF case sensitivity,
 stf,examples/checker_tests/good/checksum1-bmv2.p4,verify-checksum extern unimplemented,
 stf,examples/checker_tests/good/header-stack-ops-bmv2.p4,,
 stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),

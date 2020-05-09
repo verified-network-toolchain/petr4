@@ -9,22 +9,16 @@ checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
 checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
 checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,80
-checker,examples/checker_tests/good/functors8.p4,generic declarations (unsupported),148
 checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
 checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
-checker,examples/checker_tests/good/functors6.p4,generic declarations,148
 checker,examples/checker_tests/good/struct1.p4,cast to struct not being done in const list initializer,126
 checker,examples/checker_tests/good/precedence.p4,binop typecheck isn't saturating types before running,124
 checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed,127
 checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,80
-checker,examples/checker_tests/good/functors7.p4,generic declarations,148
 checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),128
 checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
-checker,examples/checker_tests/good/functors9.p4,generic declarations,148
 checker,examples/checker_tests/good/enum-folding.y4,type member getting saturated,129
-checker,examples/checker_tests/good/pvs-struct.p4,value set match against 1 element struct (unsupported),81
 checker,examples/checker_tests/good/issue1713-bmv2.p4,bit slice on integers,123
-checker,examples/checker_tests/good/named-arg1.p4,optional parameters (unsupported),73
 checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed,130
 checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,73
 checker,examples/checker_tests/good/list-compare.p4,equality for tuples,131
@@ -38,7 +32,6 @@ checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject pr
 checker,examples/checker_tests/bad/extract1.p4,extract with size param should only work on variable sized headers,134
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,135
 checker,examples/checker_tests/bad/nostart.p4,reject parser with no start state,136
-checker,examples/checker_tests/bad/issue1580.p4,respect @defaultonly and @tableonly action annotations (unsupported),137
 checker,examples/checker_tests/bad/call-table.p4,reject table.apply() inside an action,138
 checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data,139
 checker,examples/checker_tests/bad/psa-type-hdr.p4,newtype restricted to base types (unnecessary restriction?),140

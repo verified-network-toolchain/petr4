@@ -55,6 +55,8 @@ let unimplemented_stmt = function
 
 
 let packet_equal p_exp p =
+  let p_exp = String.uppercase_ascii p_exp in
+  let p = String.uppercase_ascii p in
   let rec iter i =
     i >= String.length p_exp ||
     ((p_exp.[i] = p.[i] || p_exp.[i] = '*') && iter (i + 1))

@@ -66,10 +66,14 @@ let find_all name env =
      end
   | _ -> failwith "unimplemented"
 
+let string_of_name = function
+  | BareName (_, n) -> n
+  | _ -> ""
+
 let opt_to_exn name v =
   match v with
   | Some v -> v
-  | None -> raise (UnboundName name)
+  | None -> print_endline (string_of_name name); raise (UnboundName name)
 
 let find_bare (name: string) (env: 'a env) : 'a =
   opt_to_exn (BareName (Info.dummy, name)) (find_bare_opt name env)

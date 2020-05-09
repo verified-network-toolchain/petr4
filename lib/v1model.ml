@@ -11,7 +11,6 @@ module Info = I
 module PreV1Switch : Target = struct
   type obj =
     | Counter of {
-        states : Bigint.t list;
         typ : counter_type;
         size : Bigint.t;
       }
@@ -21,19 +20,64 @@ module PreV1Switch : Target = struct
       }
 
   and counter_type =
-    (* | Packets *)
-    (* | Bytes *)
-    | Both
-
-  let x = Counter {states = []; typ = Both; size = Bigint.zero}
+    | Packets of Bigint.t list
+    | Bytes of Bigint.t list
+    (* packet count, byte count *)
+    | Both of (Bigint.t * Bigint.t) list
 
   type state = obj State.t
   type extern = state pre_extern
 
-  let eval_counter : extern = fun ctrl env st args ->
+  let eval_counter : extern = fun ctrl env st ts args ->
+    let (loc, v, typ) = match args with 
+      | [(VRuntime {loc; _}, _);
+        (VBit {v; _},_);
+        (VEnumField{enum_name; _}, _)] -> loc, v, enum_name
+      | _ -> failwith "unexpected args for counter instantiation" in
+    let size = Bigint.to_int_exn v in
+    let ctr_typ = match typ with
+      | "packets" ->
+        Packets (List.init size ~f:(fun _ -> Bigint.zero))
+      | "bytes" ->
+        Bytes (List.init size ~f:(fun _ -> Bigint.zero))
+      | "packets_and_bytes" ->
+        Both (List.init size ~f:(fun _ -> Bigint.zero, Bigint.zero))
+      | _ -> failwith "unexpected field name for counter type" in
+    let ctr = Counter { typ = ctr_typ; size = Bigint.of_int size; } in
+    env, State.insert loc ctr st, SContinue, VRuntime {loc = loc; obj_name = "counter"}
+      
+  let eval_count_counter : extern = fun ctrl env st ts args ->
+    let (loc, v) = match args with
+      | [(VRuntime{loc;_},_); (VBit {v;_}, _)] -> loc, Bigint.to_int_exn v
+      | _ -> failwith "unexpected args for count counter" in
+    let pkt_len = (State.get_packet st).in_size |> Bigint.of_int in
+    let ctr = State.find loc st in
+    let ctr' = match ctr with
+      | Counter {size; typ = Packets l} ->
+        Counter {size; typ = Packets begin
+          List.mapi l ~f:(fun i n -> Bigint.(if Int.equal i v then n + one else n))
+        end }
+      | Counter {size; typ = Bytes l} ->
+        Counter {size; typ = Bytes begin
+          List.mapi l ~f:(fun i n -> Bigint.(if Int.equal i v then n + pkt_len else n))
+        end }
+      | Counter {size; typ = Both l} ->
+        Counter {size; typ = Both begin
+          List.mapi l
+            ~f:(fun i (p,b) -> Bigint.(if Int.equal i v then p+one, b + pkt_len else p, b))
+        end }
+      | _ -> failwith "cannot perform a count on a non-counter object" in
+    env, State.insert loc ctr' st, SContinue, VNull
+
+  let eval_count_direct_counter : extern = fun ctrl env st ts args ->
     failwith "TODO"
 
-  let eval_count : extern = fun _ -> failwith "TODO"
+  let eval_count : extern = fun ctrl env st ts args ->
+    match args with 
+    | [_;_] -> eval_count_counter ctrl env st ts args
+    | [_;] -> eval_count_direct_counter ctrl env st ts args
+    | _ -> failwith "unexpected args for count"
+
 
   let eval_direct_counter : extern = fun _ -> failwith "TODO"
 
@@ -163,6 +207,8 @@ module PreV1Switch : Target = struct
       | "register" -> eval_register
       | "read" -> eval_read
       | "write" -> eval_write
+      | "counter" -> eval_counter
+      | "count" -> eval_count
       | _ -> failwith "TODO: v1 extern unimplemented" in
     extern ctrl env st targs args
 

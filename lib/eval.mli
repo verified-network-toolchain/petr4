@@ -15,8 +15,8 @@ module type Interpreter = sig
 
   val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt
 
-  val eval_prog : ctrl -> env -> state -> pkt -> Bigint.t -> program -> 
-    state * (pkt * Bigint.t) option
+  val eval_prog : ctrl -> env -> state -> buf -> Bigint.t -> program -> 
+    state * (buf * Bigint.t) option
 
   val eval_decl : ctrl -> env -> state -> Declaration.t -> (env * state)
 

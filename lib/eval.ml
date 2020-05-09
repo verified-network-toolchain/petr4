@@ -22,8 +22,8 @@ module type Interpreter = sig
 
   val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt
 
-  val eval_prog : ctrl -> env -> state -> pkt -> Bigint.t -> program -> 
-    state * (pkt * Bigint.t) option
+  val eval_prog : ctrl -> env -> state -> buf -> Bigint.t -> program -> 
+    state * (buf * Bigint.t) option
 
   val eval_decl : ctrl -> env -> state -> Declaration.t -> (env * state)
 
@@ -777,25 +777,27 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_typ_mem (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (name : string) : env * state * signal * value =
-    let tname = match typ with
-      | Enum {name;_} -> name 
-      | _ -> failwith "type error" in
-    match EvalEnv.find_decl (BareName (Info.dummy, tname)) env |> snd with
-    | Declaration.Enum {members=ms;name=(_,n);_} ->
-      let mems = List.map ms ~f:snd in
-      if List.mem mems name ~equal:String.equal
-      then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
-      else raise (UnboundName (BareName (Info.dummy, name)))
-    | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
-      let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
-      let expr = find_exn ms' name in
-      let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
-      let v' = implicit_cast_from_rawint env' v typ in
-      begin match s with
-        | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v=v'})
-        | SReject _ -> (env',st',s,VNull)
-        | _ -> failwith "unreachable" end
-    | _ -> failwith "typ mem undefined"
+    match typ with
+    | TypeName tname -> eval_typ_mem ctrl env st (EvalEnv.find_typ tname env) name
+    | Enum {name=tname;_} ->
+      begin match EvalEnv.find_decl (BareName (Info.dummy, tname)) env |> snd with
+        | Declaration.Enum {members=ms;name=(_,n);_} ->
+          let mems = List.map ms ~f:snd in
+          if List.mem mems name ~equal:String.equal
+          then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
+          else raise (UnboundName (BareName (Info.dummy, name)))
+        | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
+          let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
+          let expr = find_exn ms' name in
+          let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
+          let v' = implicit_cast_from_rawint env' v typ in
+          begin match s with
+            | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v=v'})
+            | SReject _ -> (env',st',s,VNull)
+            | _ -> failwith "unreachable" end
+        | _ -> failwith "typ mem undefined"
+      end
+    | _ -> failwith "type error"
 
   and eval_expr_mem (ctrl : ctrl) (env : env) (st : state) (expr : Expression.t)
       (name : P4String.t) : env * state * signal * value =
@@ -1577,16 +1579,17 @@ module MakeInterpreter (T : Target) = struct
       |> snd
     | _ -> failwith "TODO" end
 
-  and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : pkt) 
-      (in_port : Bigint.t) (prog : program) : state * (pkt * Bigint.t) option =
+  and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : buf) 
+      (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
     match prog with Program l ->
     let (env,st) = 
       List.fold_left l 
         ~init:(env, state)
         ~f:(fun (e,s) -> eval_decl ctrl e s) 
     in
+    let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
     let st', pkt', port = eval_main ctrl env st pkt in_port in
-    st', Some (pkt', port)
+    st', Some (Cstruct.append pkt'.emitted pkt'.main, port)
 
 end
 

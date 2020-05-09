@@ -111,6 +111,6 @@ let main include_dir stf_tests_dir =
     )
 
 let () =
-  main ["examples/"] "./examples/checker_tests/good/"
-  (* main ["examples/"] "./stf-test/custom-stf-tests/" *)
+  main ["examples/"] "./examples/checker_tests/good/" @
+  main ["examples/"] "./stf-test/custom-stf-tests/"
   |> Alcotest.run "Stf-tests"

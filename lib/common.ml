@@ -15,7 +15,6 @@
 
 module P4Info = Info
 open Core_kernel
-open Prog.Value
 module Info = P4Info
 
 module type Parse_config = sig
@@ -105,8 +104,7 @@ module Make_parse (Conf: Parse_config) = struct
     (* let pkt_str = Core_kernel.In_channel.read_all pkt_file in *)
     let st = match st with None -> Eval.V1Interpreter.empty_state | Some st -> st in
     let port = Bigint.of_int port in
-    let buf = Cstruct.of_hex pkt_str in
-    let pkt = { emitted = Cstruct.empty; main = buf; in_size = Cstruct.len buf } in
+    let pkt = Cstruct.of_hex pkt_str in
     let open Yojson.Safe in
     let pre_entries = ctrl_json
                       |> Util.member "pre_entries"
@@ -133,7 +131,6 @@ module Make_parse (Conf: Parse_config) = struct
   let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port st =
     match eval_file include_dirs p4_file verbose pkt_str ctrl_json port st with
     | _, `Ok (pkt, port) ->
-      let pkt = Cstruct.append pkt.emitted pkt.main in
       (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
     | _, `NoPacket -> "No packet out"
     | _, `Error(info, exn) ->

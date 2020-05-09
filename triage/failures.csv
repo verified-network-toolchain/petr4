@@ -123,7 +123,6 @@ stf,examples/checker_tests/good/checksum3-bmv2.p4,
 stf,examples/checker_tests/good/union1-bmv2.p4,
 stf,examples/checker_tests/good/flag_lost-bmv2.p4,
 stf,examples/checker_tests/good/issue1755-bmv2.p4,
-stf,examples/checker_tests/good/arith4-bmv2.p4,
 stf,examples/checker_tests/good/issue1755-1-bmv2.p4,
 stf,examples/checker_tests/good/issue655-bmv2.p4,
 stf,examples/checker_tests/good/table-entries-exact-ternary-bmv2.p4,
@@ -134,7 +133,6 @@ stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,
 stf,examples/checker_tests/good/stack_complex-bmv2.p4,
 stf,examples/checker_tests/good/bvec-hdr-bmv2.p4,
 stf,examples/checker_tests/good/subparser-with-header-stack-bmv2.p4,
-stf,examples/checker_tests/good/arith1-bmv2.p4,
 stf,examples/checker_tests/good/issue1824-bmv2.p4,
 stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,
 stf,examples/checker_tests/good/union-valid-bmv2.p4,
@@ -155,7 +153,6 @@ stf,examples/checker_tests/good/issue447-1-bmv2.p4,
 stf,examples/checker_tests/good/issue561-3-bmv2.p4,
 stf,examples/checker_tests/good/header-bool-bmv2.p4,
 stf,examples/checker_tests/good/issue561-2-bmv2.p4,
-stf,examples/checker_tests/good/arith-bmv2.p4,
 stf,examples/checker_tests/good/issue447-3-bmv2.p4,
 stf,examples/checker_tests/good/equality-varbit-bmv2.p4,
 stf,examples/checker_tests/good/issue1768-bmv2.p4,
@@ -176,10 +173,8 @@ stf,examples/checker_tests/good/issue561-1-bmv2.p4,
 stf,examples/checker_tests/good/test_ebpf.p4,
 stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,
 stf,examples/checker_tests/good/extern-funcs-bmv2.p4,
-stf,examples/checker_tests/good/arith2-bmv2.p4,
 stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,
 stf,examples/checker_tests/good/issue995-bmv2.p4,
-stf,examples/checker_tests/good/default_action-bmv2.p4,
 stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,
 stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,
 stf,examples/checker_tests/good/switch_ebpf.p4,
@@ -187,18 +182,13 @@ stf,examples/checker_tests/good/issue561-7-bmv2.p4,
 stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,
 stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,
 stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,
-stf,examples/checker_tests/good/arith3-bmv2.p4,
 stf,examples/checker_tests/good/issue1049-bmv2.p4,
-stf,examples/checker_tests/good/union-bmv2.p4,
-stf,examples/checker_tests/good/key-bmv2.p4,
-stf,examples/checker_tests/good/issue1000-bmv2.p4,
-stf,examples/checker_tests/good/issue774-4-bmv2.p4,
-stf,examples/checker_tests/good/checksum2-bmv2.p4,
-stf,examples/checker_tests/good/arith-inline-bmv2.p4,issue #118 assignment/scope mixup
-stf,examples/checker_tests/good/saturated-bmv2.p4,issue #118 assignment/scope mixup
+stf,examples/checker_tests/good/union-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
+stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash
+stf,examples/checker_tests/good/issue1000-bmv2.p4,case sensitivity in STF hex equality check
+stf,examples/checker_tests/good/issue774-4-bmv2.p4,crashing on extract<Header>(_)
+stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum
+stf,examples/checker_tests/good/saturated-bmv2.p4,case sensitivity in STF hex equality check
 stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types
 stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported)
-stf,stf-test/custom-stf-tests/switch.p4,issue #118 assignment/scope mixup
-stf,stf-test/custom-stf-tests/table3.p4,issue #118 assignment/scope mixup
-stf,stf-test/custom-stf-tests/table2.p4,issue #118 assignment/scope mixup
 stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker

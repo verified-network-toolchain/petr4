@@ -3,13 +3,14 @@ open Prog
 open Value
 open Env
 open Target
+open Error
 module I = Info
 open Core_kernel
 module Info = I
 
 module PreV1Switch : Target = struct
 
-  let drop_spec = VBit { w = Bigint.of_int 9; v = Bigint.of_int 511}
+  let drop_spec = Bigint.of_int 511
 
   type obj =
     | Counter of {
@@ -25,7 +26,9 @@ module PreV1Switch : Target = struct
         states: Value.value list;
         size: Bigint.t;
       }
-    | ActionProfile of unit
+    | ActionProfile of unit (* TODO *)
+    | ActionSelector of unit (* TODO *)
+    | Checksum16 of unit (* TODO *)
 
   and counter_type =
     | Packets of Bigint.t list
@@ -112,8 +115,12 @@ module PreV1Switch : Target = struct
     env, st, SContinue, VNull (* TODO: actually implement *)
 
   let eval_direct_meter : extern = fun ctrl env st ts args ->
-    ignore (DirectMeter ());
-    env, st, SContinue, VNull (* TODO: actually implement *)
+    (* TODO: current implementation is trivial *)
+    let (loc, obj_name) = match args with
+      | [(VRuntime{loc;obj_name},_); _] -> loc,obj_name
+      | _ -> failwith "unexpected args for direct meter instantiation" in
+    let dmeter = DirectMeter () in
+    env, State.insert loc dmeter st, SContinue, VRuntime{loc;obj_name}
 
   let eval_register_read : extern = fun _ env st _ args ->
     match args with
@@ -171,6 +178,7 @@ module PreV1Switch : Target = struct
     | _ -> failwith "unexpected args for register write"
 
   let eval_action_profile : extern = fun ctrl env st ts args ->
+    (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with 
       | [(VRuntime{loc;obj_name},_); _] -> loc, obj_name
       | _ -> failwith "unexpected args for action profile" in
@@ -194,7 +202,9 @@ module PreV1Switch : Target = struct
     env, st, SContinue, VNull (* TODO: actually implement *)
 
   let eval_mark_to_drop : extern = fun ctrl env st ts args ->
-    (* TODO: do other specs have priority? *)
+    let _ = match args with
+      | [] -> failwith "deprecated version of mark to drop"
+      | _ -> () in
     let lv = {
       lvalue = LMember {
         expr = {
@@ -205,40 +215,64 @@ module PreV1Switch : Target = struct
       };
       typ = Bit{width=9};
     } in
-    let (env', _) = assign_lvalue env lv drop_spec in
+    let (env', _) =
+      assign_lvalue env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) in
     env', st, SContinue, VNull
 
-  let eval_hash : extern = fun ctrl env st ts args -> failwith "TODO"
+  let eval_hash : extern = fun ctrl env st ts args -> failwith "TODO: hash"
 
-  let eval_action_selector : extern = fun _ -> failwith "TODO"
+  let eval_action_selector : extern = fun ctrl env st ts args ->
+    (* TODO: current implementation is trivial *)
+    let (loc, obj_name) = match args with
+      | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
+      | _ -> failwith "unexpected args for action selector instantiation" in
+    let selector = ActionSelector () in
+    env, State.insert loc selector st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_checksum16 : extern = fun _ -> failwith "TODO"
+  let eval_checksum16 : extern = fun ctrl env st ts args ->
+    (* TODO: current implementation is trivial *)
+    let (loc, obj_name) = match args with
+      | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
+      | _ -> failwith "unexpected args for action selector instantiation" in
+    let obj = Checksum16 () in
+    env, State.insert loc obj st, SContinue, VRuntime{loc;obj_name}      
 
-  let eval_get : extern = fun _ -> failwith "TODO"
+  let eval_get : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
+    env, st, SContinue, VBit{w=Bigint.of_int 32; v=Bigint.zero}
 
-  let eval_verify_checksum : extern = fun _ -> failwith "TODO"
+  let eval_verify_checksum : extern = fun _ -> failwith "TODO: verify"
 
-  let eval_update_checksum : extern = fun _ -> failwith "TODO"
+  let eval_update_checksum : extern = fun _ -> failwith "TODO: update"
 
-  let eval_verify_checksum_with_payload : extern = fun _ -> failwith "TODO"
+  let eval_verify_checksum_with_payload : extern = fun _ -> failwith "TODO: verify with payload"
 
-  let eval_update_checksum_with_payload : extern = fun _ -> failwith "TODO"
+  let eval_update_checksum_with_payload : extern = fun _ -> failwith "TODO: update with payload"
 
-  let eval_resubmit : extern = fun _ -> failwith "TODO"
+  let eval_resubmit : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull
 
-  let eval_recirculate : extern = fun _ -> failwith "TODO"
+  let eval_recirculate : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull
 
-  let eval_clone : extern = fun _ -> failwith "TODO"
+  let eval_clone : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull
 
-  let eval_clone3 : extern = fun _ -> failwith "TODO"
+  let eval_clone3 : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull
 
   let eval_truncate : extern = fun _ -> failwith "TODO"
 
-  let eval_assert : extern = fun _ -> failwith "TODO"
+  let eval_assert : extern = fun ctrl env st ts args ->
+    match args with
+    | [(VBool true, _)] -> env, st, SContinue, VNull
+    | [(VBool false,_)] -> v1_assert () (* TODO: provide an info.t *)
+    | _ -> failwith "unexpected args for assert/assume"
 
-  let eval_assume : extern = fun _ -> failwith "TODO"
+  let eval_assume : extern = eval_assert
 
-  let eval_log_msg : extern = fun _ -> failwith "TODO"
+  let eval_log_msg : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull
 
   let externs = [
     ("counter", eval_counter);
@@ -256,20 +290,20 @@ module PreV1Switch : Target = struct
     ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
     ("hash", eval_hash);
     ("action_selector", eval_action_selector); (* unsupported *)
-    ("Checksum16", eval_checksum16); (* deprecated *)
-    ("get", eval_get); (* deprecated *)
+    ("Checksum16", eval_checksum16); (* deprecated; unsupported *)
+    ("get", eval_get); (* deprecated; unsupported *)
     ("verify_checksum", eval_verify_checksum);
     ("update_checksum", eval_update_checksum);
     ("verify_checksum_with_payload", eval_verify_checksum_with_payload);
     ("update_checksum_with_payload", eval_update_checksum_with_payload);
-    ("resubmit", eval_resubmit);
-    ("recirculate", eval_recirculate);
-    ("clone", eval_clone);
-    ("clone3", eval_clone3);
+    ("resubmit", eval_resubmit); (* unsupported *)
+    ("recirculate", eval_recirculate); (* unsupported *)
+    ("clone", eval_clone); (* unsupported *)
+    ("clone3", eval_clone3); (* unsupported *)
     ("truncate", eval_truncate);
     ("assert", eval_assert);
     ("assume", eval_assume);
-    ("log_msg", eval_log_msg); (* overloaded *)
+    ("log_msg", eval_log_msg); (* overloaded; unsupported *)
   ]
   let eval_extern name =
     match name with
@@ -407,14 +441,23 @@ module PreV1Switch : Target = struct
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let env = EvalEnv.insert_val (BareName (Info.dummy, "packet")) vpkt' env in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
-    let (env,st,_) = 
+    let (env,st) = 
       (env,st)
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23
+      |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
+    let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
+    let egress_spec = match struc with
+      | VStruct {fields} ->
+        List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
+        |> bigint_of_val
+      | _ -> failwith "std meta is not a struct after ingress" in
+    if Bigint.(egress_spec = drop_spec) then st, env, None else
+    let (env, st) =
+      (env, st)
       |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
       |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] in
-    st, env, State.get_packet st
+      |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
+    st, env, Some (State.get_packet st)
 
 end
 

@@ -30,6 +30,7 @@ let format_error fmt = function
      
 exception Internal of string [@@deriving sexp]
 exception Type of (Info.t * error) [@@deriving sexp]
+exception V1AssertionError
 
 let raise_mismatch info expected found =
   let err = Mismatch { expected; found } in
@@ -43,3 +44,5 @@ let raise_type_error info err =
   raise (Type (info, err))
 
 let raise_internal_error s = raise (Internal s)
+
+let v1_assert () = raise V1AssertionError

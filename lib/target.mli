@@ -47,7 +47,7 @@ module type Target = sig
 
   val check_pipeline : env -> unit 
 
-  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt
+  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt option
 
 end
 

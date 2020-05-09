@@ -20,7 +20,7 @@ module type Interpreter = sig
   
   val empty_state : state
 
-  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt
+  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt option
 
   val eval_prog : ctrl -> env -> state -> buf -> Bigint.t -> program -> 
     state * (buf * Bigint.t) option
@@ -1564,12 +1564,12 @@ module MakeInterpreter (T : Target) = struct
     let (a,b,_,c) = eval_expr ctrl env st SContinue expr in (a,b,c)
 
   and eval (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (in_port : Bigint.t) : state * env * pkt =
+      (in_port : Bigint.t) : state * env * pkt option =
     let env' = T.initialize_metadata in_port env in 
     T.eval_pipeline ctrl env' st pkt eval_app
 
   and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (in_port : Bigint.t) : state * pkt * Bigint.t =
+      (in_port : Bigint.t) : state * pkt option * Bigint.t =
     let (st', env', pkt) = eval ctrl env st pkt in_port in
     begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' with
     | VStruct {fields;_} -> 
@@ -1581,6 +1581,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : buf) 
       (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
+    let (>>|) = Option.(>>|) in
     match prog with Program l ->
     let (env,st) = 
       List.fold_left l 
@@ -1589,7 +1590,7 @@ module MakeInterpreter (T : Target) = struct
     in
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
     let st', pkt', port = eval_main ctrl env st pkt in_port in
-    st', Some (Cstruct.append pkt'.emitted pkt'.main, port)
+    st', pkt' >>| fun pkt' -> (Cstruct.append pkt'.emitted pkt'.main, port)
 
 end
 

@@ -43,7 +43,6 @@ checker,examples/checker_tests/good/issue1937.p4,default value,73
 checker,examples/checker_tests/good/simple.p4,bad test,92
 checker,examples/checker_tests/good/issue1333.p4,default arguments,73
 checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls,
-checker,examples/checker_tests/good/table-entries-range-bmv2.p4,range on integers,82
 checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts,
 checker,examples/checker_tests/bad/extract1.p4,extract with size param should only work on variable sized headers,
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,
@@ -154,7 +153,7 @@ stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to e
 stf,examples/checker_tests/good/issue1814-1-bmv2.p4,STF parser crash (add) and register extern unimplemented,
 stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create, etc),
 stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),
-stf,examples/checker_tests/good/table-entries-range-bmv2.p4,fails in typechecker,82
+stf,examples/checker_tests/good/table-entries-range-bmv2.p4,appears to pass but failing because of STF case sensitivity
 stf,examples/checker_tests/good/checksum1-bmv2.p4,verify-checksum extern unimplemented,
 stf,examples/checker_tests/good/header-stack-ops-bmv2.p4,,
 stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),

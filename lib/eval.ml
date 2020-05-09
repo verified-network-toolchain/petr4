@@ -1446,13 +1446,11 @@ module MakeInterpreter (T : Target) = struct
       else false in
     h a b c
 
-  and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
-    let v = assert_singleton vs in
-    match (v, v1, v2) with
-    | VBit{w=w0;v=b0}, VBit{w=w1;v=b1}, VBit{w=w2;v=b2}
-    | VInt{w=w0;v=b0}, VInt{w=w1;v=b1}, VInt{w=w2;v=b2} ->
-      Bigint.equal w0 w1 && Bigint.equal w1 w2 && Bigint.compare b1 b0 <= 0 && Bigint.compare b0 b2 <= 0
-    | _ -> failwith "implicit casts unimplemented"
+  and values_match_range (vs : value list) (low_bound : value) (high_bound : value) : bool =
+    let v = bigint_of_val (assert_singleton vs) in
+    let low_bound = bigint_of_val low_bound in
+    let high_bound = bigint_of_val high_bound in
+    Bigint.(low_bound <= v && v <= high_bound)
 
   and values_match_prod (vs : value list) (l : set list) : bool =
     let bs = List.mapi l ~f:(fun i x -> values_match_set [List.nth_exn vs i] x) in

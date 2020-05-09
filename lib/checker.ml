@@ -2090,6 +2090,7 @@ and type_range env lo hi : Prog.Expression.typed_t =
        Bit { width = l}
     | Int { width = l }, Int { width = r } when l = r ->
        Int { width = l }
+    | Integer, Integer -> Integer
     (* TODO: add pretty-printer and [to_string] for Typed module *)
     | Bit { width }, hi_typ ->
        raise_mismatch (info hi) ("bit<" ^ (string_of_int width) ^ ">") hi_typ

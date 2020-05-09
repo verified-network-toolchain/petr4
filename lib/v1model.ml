@@ -7,8 +7,10 @@ module I = Info
 open Core_kernel
 module Info = I
 
-
 module PreV1Switch : Target = struct
+
+  let drop_spec = VBit { w = Bigint.of_int 9; v = Bigint.zero}
+
   type obj =
     | Counter of {
         typ : counter_type;
@@ -33,6 +35,8 @@ module PreV1Switch : Target = struct
 
   type state = obj State.t
   type extern = state pre_extern
+
+  let () = Random.self_init ()
 
   let eval_counter : extern = fun ctrl env st ts args ->
     let (loc, v, typ) = match args with 
@@ -174,11 +178,35 @@ module PreV1Switch : Target = struct
     let prof = ActionProfile () in
     env, State.insert loc prof st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_random : extern = fun _ -> failwith "TODO"
+  let eval_random : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | [Bit{width}] -> Bigint.of_int width
+      | _ -> failwith "unexpected type args for random" in
+    let (lo,hi) = match args with
+      | [_; (VBit{v=lo;_}, _); (VBit{v=hi;_}, _)] ->
+        Bigint.to_int_exn lo, Bigint.to_int_exn hi
+      | _ -> failwith "unexpected args for random" in
+    let random_int = try Random.int_incl lo hi with _ -> 0 in
+    let random_val = VBit{w=width; v=Bigint.of_int random_int} in
+    let env' = EvalEnv.insert_val (BareName (Info.dummy, "result")) random_val env in
+    env', st, SContinue, VNull
+        
+  let eval_digest : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull (* TODO: actually implement *)
 
-  let eval_digest : extern = fun _ -> failwith "TODO"
-
-  let eval_mark_to_drop : extern = fun _ -> failwith "TODO"
+  let eval_mark_to_drop : extern = fun ctrl env st ts args ->
+    let lv = {
+      lvalue = LMember {
+        expr = {
+          lvalue = LName {name = BareName (Info.dummy, "standard_metadata")};
+          typ = TypeName (BareName (Info.dummy, "standard_metadata_t"));
+        };
+        name = "egress_spec";
+      };
+      typ = Bit{width=9};
+    } in
+    let (env', _) = assign_lvalue env lv drop_spec in
+    env', st, SContinue, VNull
 
   let eval_hash : extern = fun _ -> failwith "TODO"
 
@@ -215,16 +243,16 @@ module PreV1Switch : Target = struct
   let externs = [
     ("counter", eval_counter);
     ("count", eval_count); (* overloaded *)
-    ("direct_counter", eval_direct_counter);
-    ("meter", eval_meter);
-    ("execute_meter", eval_execute_meter);
-    ("direct_meter", eval_direct_meter);
+    ("direct_counter", eval_direct_counter); (* unsupported *)
+    ("meter", eval_meter); (* unsupported *)
+    ("execute_meter", eval_execute_meter); (* unsupported *)
+    ("direct_meter", eval_direct_meter); (* unsupported *)
     ("read", eval_read); (* overloaded*)
     ("register", eval_register);
     ("write", eval_write);
-    ("action_profile", eval_action_profile);
+    ("action_profile", eval_action_profile); (* unsupported *)
     ("random", eval_random);
-    ("digest", eval_digest);
+    ("digest", eval_digest); (* unsupported *)
     ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
     ("hash", eval_hash);
     ("action_selector", eval_action_selector);
@@ -243,16 +271,36 @@ module PreV1Switch : Target = struct
     ("assume", eval_assume);
     ("log_msg", eval_log_msg); (* overloaded *)
   ]
-  let eval_extern name ctrl env st targs args =
-    let extern =
-      match name with
-      | "register" -> eval_register
-      | "read" -> eval_read
-      | "write" -> eval_write
-      | "counter" -> eval_counter
-      | "count" -> eval_count
-      | _ -> failwith "TODO: v1 extern unimplemented" in
-    extern ctrl env st targs args
+  let eval_extern name =
+    match name with
+    | "counter" -> eval_counter
+    | "count" -> eval_count
+    | "direct_counter" -> eval_direct_counter
+    | "meter" -> eval_meter
+    | "read" -> eval_read
+    | "register" -> eval_register
+    | "write" -> eval_write
+    | "action_profile" -> eval_action_profile
+    | "random" -> eval_random
+    | "digest" -> eval_digest
+    | "mark_to_drop" -> eval_mark_to_drop
+    | "hash" -> eval_hash
+    | "action_selector" -> eval_action_selector
+    | "Checksum16" -> eval_checksum16
+    | "get" -> eval_get
+    | "verify_checksum" -> eval_verify_checksum
+    | "update_checksum" -> eval_update_checksum
+    | "verify_checksum_with_payload" -> eval_verify_checksum_with_payload
+    | "update_checksum_with_payload" -> eval_update_checksum_with_payload
+    | "resubmit" -> eval_resubmit
+    | "recirculate" -> eval_recirculate
+    | "clone" -> eval_clone
+    | "clone3" -> eval_clone3
+    | "truncate" -> eval_truncate
+    | "assert" -> eval_assert
+    | "assume" -> eval_assume
+    | "log_msg" -> eval_log_msg
+    | _ -> failwith "unknown v1 extern"
 
   let initialize_metadata meta env =
     let nine = Bigint.of_int 9 in
@@ -263,10 +311,14 @@ module PreV1Switch : Target = struct
 
   let check_pipeline env = () (* TODO: v1-dependent static analysis *)
     (** - checks that direct counters are associated with at most one table.
-        - checks that direct meters are associated with at most one table. 
+        - checks that direct meters are associated with at most one table.
+        - checks that execute_meter T is a bit<W> type.
+        - checks that the read meter T is a bit<W> type.
+        - checks that the read register T is a bit<W> type.
+        - checks that the write T is a bit<W> type.
+        - checks that the random T is a bit<W> type.
         - checks that verify and update checksum controls only do certain
-          kinds of statements/expressions.
-        -  *)
+          kinds of statements/expressions. *)
 
   let eval_v1control (ctrl : ctrl) (app) (ctrl_name : string) (control : value)
       (args : Expression.t option list) (env,st) : env * state * signal =

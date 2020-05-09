@@ -421,7 +421,7 @@ module MakeInterpreter (T : Target) = struct
     let (entries'', ks'') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries', ks')
       else if sort_mks then filter_lpm_prod env'' mks ks' entries'
       else (entries', ks') in
-    let l = List.filter entries'' ~f:(fun (s,a) -> let b = values_match_set ks'' s in print_endline (string_of_bool b); b) in
+    let l = List.filter entries'' ~f:(fun (s,a) -> values_match_set ks'' s) in
     let action = match l with
                 | [] -> default
                 | _ -> List.hd_exn l |> snd in
@@ -590,8 +590,8 @@ module MakeInterpreter (T : Target) = struct
                       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
                       |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s)) in
         begin match matches with
-              | [] -> print_endline "no matches switch"; (env', st', s')
-              | hd::tl -> print_endline "some match switch"; hd
+              | [] -> (env', st', s')
+              | hd::tl -> hd
                         |> List.filter ~f:(function Action _ -> true | _ -> false) 
                         |> List.hd_exn 
                         |> (function Action{label;code} -> code | _ -> failwith "unreachable")

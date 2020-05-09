@@ -14,10 +14,16 @@ module PreV1Switch : Target = struct
         typ : counter_type;
         size : Bigint.t;
       }
+    | DirectCounter of {
+      typ : counter_type;
+    }
+    | Meter of unit (* TODO *)
+    | DirectMeter of unit (* TODO *)
     | Register of {
         states: Value.value list;
         size: Bigint.t;
       }
+    | ActionProfile of unit
 
   and counter_type =
     | Packets of Bigint.t list
@@ -70,7 +76,8 @@ module PreV1Switch : Target = struct
     env, State.insert loc ctr' st, SContinue, VNull
 
   let eval_count_direct_counter : extern = fun ctrl env st ts args ->
-    failwith "TODO"
+    (* actual direct counting implemented in target-dependent table execution *)
+    env, st, SContinue, VNull
 
   let eval_count : extern = fun ctrl env st ts args ->
     match args with 
@@ -78,34 +85,63 @@ module PreV1Switch : Target = struct
     | [_;] -> eval_count_direct_counter ctrl env st ts args
     | _ -> failwith "unexpected args for count"
 
-
-  let eval_direct_counter : extern = fun _ -> failwith "TODO"
-
-  let eval_meter : extern = fun _ -> failwith "TODO"
-
-  let eval_execute_meter : extern = fun _ -> failwith "TODO"
-
-  let eval_direct_meter : extern = fun _ -> failwith "TODO"
-
-  let eval_read : extern = fun _ env st _ args ->
+  let eval_direct_counter : extern = fun ctrl env st ts args ->
     match args with
-    | [(VRuntime {loc;_}, _); _ ; (VBit {w = w; v = v}, _)] ->
+    | [(VRuntime{loc;obj_name}, _); (VEnumField{enum_name;_}, _);] ->
+      let dctr = match enum_name with
+        | "packets" -> DirectCounter {typ = Packets []}
+        | "bytes" -> DirectCounter {typ = Bytes []}
+        | "packets_and_bytes" -> DirectCounter {typ = Both []}
+        | _ -> failwith "unexpected field name for counter type" in
+      env, State.insert loc dctr st, SContinue, VRuntime{loc;obj_name}
+    | _ -> failwith "unexpected args for direct counter"
+
+  let eval_meter : extern = fun ctrl env st ts args ->
+    (* TODO: current implementation is trivial *)
+    let (loc, obj_name) = match args with
+      | [(VRuntime{loc;obj_name},_); _; _] -> loc, obj_name
+      | _ -> failwith "unexpected args for meter" in
+    let meter = Meter () in
+    env, State.insert loc meter st, SContinue, VRuntime{loc;obj_name}
+
+  let eval_execute_meter : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull (* TODO: actually implement *)
+
+  let eval_direct_meter : extern = fun ctrl env st ts args ->
+    ignore (DirectMeter ());
+    env, st, SContinue, VNull (* TODO: actually implement *)
+
+  let eval_register_read : extern = fun _ env st _ args ->
+    match args with
+    | [(VRuntime {loc;_}, _); (_,t) ; (VBit {w = w; v = v}, _)] ->
       let reg_obj = State.find loc st in
       let states = match reg_obj with
         | Register {states; _} -> states
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let read_val = List.nth_exn states (Bigint.to_int_exn v) in
+      let read_val =
+        Bigint.to_int_exn v
+        |> List.nth states 
+        |> Option.value ~default:(init_val_of_typ env t) in
       let env'= EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) read_val env in 
       env', st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
+  
+  let eval_meter_read : extern = fun ctrl env st ts args ->
+    env, st, SContinue, VNull (* TODO: actually implement *)
+
+  let eval_read : extern = fun ctrl env st ts args ->
+    match args with 
+    | [ _; _; _] -> eval_register_read ctrl env st ts args
+    | [ _; _;] -> eval_meter_read ctrl env st ts args
+    | _ -> failwith "unexpected read args"
     
   let eval_register : extern = fun _ env st typs args ->
-    let width = match typs with
-                | [Typed.Type.Bit w] -> w.width
-                | _ -> 32 in
+    let typ = match typs with
+      | [t] -> t
+      | _ -> failwith "unexpected typ args for register" in
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)] ->
-      let init_val = VBit {w = Bigint.of_int width; v = Bigint.zero} in
+      let init_val = init_val_of_typ env typ in
       let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
       let reg = Register {states = states;
                           size = size; } in
@@ -122,7 +158,8 @@ module PreV1Switch : Target = struct
       let states, size = match reg_obj with
         | Register {states; size} -> states, size
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let subs_f = fun i x -> if i = (Bigint.to_int_exn v_index) then write_val else x in 
+      let subs_f = fun i x -> 
+        if Bigint.(of_int i = v_index) then write_val else x in 
       let states' = List.mapi ~f:subs_f states in
       let reg' = Register {states = states';
                             size = size;} in
@@ -130,7 +167,12 @@ module PreV1Switch : Target = struct
       env, st', SContinue, write_val 
     | _ -> failwith "unexpected args for register write"
 
-  let eval_action_profile : extern = fun _ -> failwith "TODO"
+  let eval_action_profile : extern = fun ctrl env st ts args ->
+    let (loc, obj_name) = match args with 
+      | [(VRuntime{loc;obj_name},_); _] -> loc, obj_name
+      | _ -> failwith "unexpected args for action profile" in
+    let prof = ActionProfile () in
+    env, State.insert loc prof st, SContinue, VRuntime{loc;obj_name}
 
   let eval_random : extern = fun _ -> failwith "TODO"
 
@@ -220,6 +262,11 @@ module PreV1Switch : Target = struct
       env
 
   let check_pipeline env = () (* TODO: v1-dependent static analysis *)
+    (** - checks that direct counters are associated with at most one table.
+        - checks that direct meters are associated with at most one table. 
+        - checks that verify and update checksum controls only do certain
+          kinds of statements/expressions.
+        -  *)
 
   let eval_v1control (ctrl : ctrl) (app) (ctrl_name : string) (control : value)
       (args : Expression.t option list) (env,st) : env * state * signal =

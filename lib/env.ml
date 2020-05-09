@@ -8,7 +8,19 @@ open Sexplib.Conv
 module Info = I 
 
 exception BadEnvironment of string
-exception UnboundName of Types.name
+exception UnboundName of string
+
+let raise_unbound (name: Types.name) =
+  let str_name =
+    match name with
+    | QualifiedName (qs, name) ->
+       qs @ [name]
+       |> List.map ~f:snd
+       |> String.concat ~sep:"."
+    | BareName name ->
+       snd name
+  in
+  raise (UnboundName str_name)
 
 type 'binding env = (string * 'binding) list list [@@deriving sexp,yojson]
 
@@ -108,7 +120,7 @@ let find_all name env =
 let opt_to_exn name v =
   match v with
   | Some v -> v
-  | None -> raise (UnboundName name)
+  | None -> raise_unbound name
 
 let find_bare (name: string) (env: 'a env) : 'a =
   opt_to_exn (BareName (Info.dummy, name)) (find_bare_opt name env)
@@ -233,6 +245,9 @@ module EvalEnv = struct
 
   let find_val name e =
     find name e.vs
+
+  let find_val_opt name e =
+    find_opt name e.vs
 
   let find_decl name e =
     find name e.decl

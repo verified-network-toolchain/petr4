@@ -2468,7 +2468,7 @@ and type_transition env state_names transition : Prog.Parser.transition =
   | Direct {next = (name_info, name')} ->
       if List.mem ~equal:(=) state_names name'
       then Direct { next = (name_info, name') }
-      else raise @@ Env.UnboundName (BareName (name_info, name'))
+      else raise @@ Type (name_info, (Error.Unbound name'))
   | Select {exprs; cases} ->
       let exprs_typed = List.map ~f:(type_expression env) exprs in
       let expr_types = List.map ~f:(fun (_, e) -> e.typ) exprs_typed in

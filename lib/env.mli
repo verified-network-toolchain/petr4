@@ -4,7 +4,8 @@ open Prog
 open Value
 
 exception BadEnvironment of string
-exception UnboundName of name
+exception UnboundName of string
+val raise_unbound : Types.name -> unit
 
 module EvalEnv : sig
   type t [@@deriving sexp,yojson]
@@ -38,6 +39,7 @@ module EvalEnv : sig
   val update_val : name -> value -> t -> t option
 
   val find_val : name -> t -> value
+  val find_val_opt : name -> t -> value option
   val find_decl : name -> t -> Declaration.t
   val find_typ : name -> t -> Type.t
 

@@ -786,7 +786,7 @@ module MakeInterpreter (T : Target) = struct
       let mems = List.map ms ~f:snd in
       if List.mem mems name ~equal:String.equal
       then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
-      else raise (UnboundName (BareName (Info.dummy, name)))
+      else raise (UnboundName name)
     | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
       let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
       let expr = find_exn ms' name in

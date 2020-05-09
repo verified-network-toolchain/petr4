@@ -130,7 +130,10 @@ let eval_extract' (ctrl : ctrl) (env : env) (st : state)
 let eval_advance : extern = fun ctrl env st _ args ->
   let (pkt_loc, v) = match args with
     | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
-    | _ -> failwith "unexpected args for advance" in
+    | _ ->
+       raise_s [%message "unexpected args for advance"
+              ~args:(args: (value * Typed.Type.t) list)]
+  in
   let pkt = State.find pkt_loc st |> assert_in in
   try
     let x = (Bigint.to_int_exn v) / 8 in

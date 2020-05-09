@@ -1357,6 +1357,14 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | _ ->
      false
 
+and check_div_args env left_arg right_arg =
+  let right_val = compile_time_eval_bigint env right_arg in
+  if Bigint.(right_val <= zero)
+  then raise_s [%message "divisor must be strictly positive" ~divisor:(right_arg:Prog.Expression.t)];
+  let left_val = compile_time_eval_bigint env right_arg in
+  if Bigint.(left_val <= zero)
+  then raise_s [%message "dividend must be nonnegative" ~dividend:(left_arg:Prog.Expression.t)]
+
 and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
   let open Op in
   let open Typed.Type in
@@ -1434,7 +1442,12 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
     (* Division is only defined on compile-time known arbitrary-precision positive integers *)
     | Div | Mod ->
        begin match l_typ, r_typ with
-       | Integer, Integer -> Integer (* TODO: must be compile-time-known? *)
+       | Integer, Integer ->
+          check_div_args env typed_l typed_r;
+          Integer
+       | Bit { width = l_width }, Bit { width = r_width } when l_width = r_width ->
+          check_div_args env typed_l typed_r;
+          Bit { width = l_width }
        | Integer, _ -> raise_mismatch (info r) "arbitrary precision integer" r_typ
        | _, _ -> raise_mismatch (info l) "arbitrary precision integer" l_typ
        end

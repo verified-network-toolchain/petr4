@@ -8,7 +8,6 @@ checker,examples/checker_tests/good/unused.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
 checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
-checker,examples/checker_tests/good/virtual3.p4,abstract method implementations,75
 checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/functors8.p4,generic declarations,
 checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
@@ -16,14 +15,10 @@ checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in ma
 checker,examples/checker_tests/good/functors6.p4,generic declarations,
 checker,examples/checker_tests/good/struct1.p4,cast to struct not being done in const list initializer,
 checker,examples/checker_tests/good/precedence.p4,binop typecheck isn't saturating types before running,
-checker,examples/checker_tests/good/virtual.p4,abstract method implementations,75
-checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations,75
-checker,examples/checker_tests/good/virtual2.p4,abstract method implementations,75
 checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed,
 checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/functors7.p4,generic declarations,
 checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),
-checker,examples/checker_tests/good/issue304-1.p4,abstract method implementations,75
 checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/functors9.p4,generic delcarations,
 checker,examples/checker_tests/good/enum-folding.p4,type member getting saturated,

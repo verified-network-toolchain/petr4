@@ -109,13 +109,13 @@ checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one var
 checker,examples/checker_tests/bad/tuple-newtype.p4,newtype restricted to base types (unnecessary restriction?)
 checker,examples/checker_tests/bad/action-bind.p4,action_refs in default_action and entries should match any args bound in the actions property
 stf,examples/checker_tests/good/table-entries-lpm-bmv2.p4,
-stf,examples/checker_tests/good/action_call_ebpf.p4,
-stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,
+stf,examples/checker_tests/good/action_call_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported)
 stf,examples/checker_tests/good/issue1097-2-bmv2.p4,
 stf,examples/checker_tests/good/parser_error-bmv2.p4,
 stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,
 stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,
-stf,examples/checker_tests/good/valid_ebpf.p4,
+stf,examples/checker_tests/good/valid_ebpf.p4,eBPF arch (unsupported)
 stf,examples/checker_tests/good/test-parserinvalidargument-error-bmv2.p4,
 stf,examples/checker_tests/good/ternary2-bmv2.p4,
 stf,examples/checker_tests/good/issue447-2-bmv2.p4,
@@ -128,61 +128,61 @@ stf,examples/checker_tests/good/issue655-bmv2.p4,
 stf,examples/checker_tests/good/table-entries-exact-ternary-bmv2.p4,
 stf,examples/checker_tests/good/union2-bmv2.p4,
 stf,examples/checker_tests/good/issue1566-bmv2.p4,
-stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,
+stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,PSA arch (unsupported)
 stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,
 stf,examples/checker_tests/good/stack_complex-bmv2.p4,
 stf,examples/checker_tests/good/bvec-hdr-bmv2.p4,
 stf,examples/checker_tests/good/subparser-with-header-stack-bmv2.p4,
 stf,examples/checker_tests/good/issue1824-bmv2.p4,
-stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,
+stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,PSA arch (unsupported)
 stf,examples/checker_tests/good/union-valid-bmv2.p4,
-stf,examples/checker_tests/good/issue561-5-bmv2.p4,
+stf,examples/checker_tests/good/issue561-5-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
 stf,examples/checker_tests/good/issue447-5-bmv2.p4,
 stf,examples/checker_tests/good/issue561-6-bmv2.p4,
 stf,examples/checker_tests/good/issue561-4-bmv2.p4,
-stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,
+stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,PSA arch (unsupported)
 stf,examples/checker_tests/good/arith5-bmv2.p4,
 stf,examples/checker_tests/good/issue510-bmv2.p4,
-stf,examples/checker_tests/good/issue870_ebpf.p4,
-stf,examples/checker_tests/good/hit_ebpf.p4,
-stf,examples/checker_tests/good/key_ebpf.p4,
-stf,examples/checker_tests/good/union3-bmv2.p4,
-stf,examples/checker_tests/good/two_ebpf.p4,
-stf,examples/checker_tests/good/array-copy-bmv2.p4,
-stf,examples/checker_tests/good/issue447-1-bmv2.p4,
-stf,examples/checker_tests/good/issue561-3-bmv2.p4,
-stf,examples/checker_tests/good/header-bool-bmv2.p4,
-stf,examples/checker_tests/good/issue561-2-bmv2.p4,
+stf,examples/checker_tests/good/issue870_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/hit_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/key_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/union3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
+stf,examples/checker_tests/good/two_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/array-copy-bmv2.p4,emit problem (?)
+stf,examples/checker_tests/good/issue447-1-bmv2.p4,packet emit statements being run backwards (?)
+stf,examples/checker_tests/good/issue561-3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
+stf,examples/checker_tests/good/header-bool-bmv2.p4,width of bool and bool extraction unimplemented (spec 7.2.2 has a full list of fields allowed in hdrs)
+stf,examples/checker_tests/good/issue561-2-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
 stf,examples/checker_tests/good/issue447-3-bmv2.p4,
-stf,examples/checker_tests/good/equality-varbit-bmv2.p4,
-stf,examples/checker_tests/good/issue1768-bmv2.p4,
-stf,examples/checker_tests/good/count_ebpf.p4,
-stf,examples/checker_tests/good/equality-bmv2.p4,
-stf,examples/checker_tests/good/issue1814-1-bmv2.p4,
-stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,
-stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,
-stf,examples/checker_tests/good/table-entries-range-bmv2.p4,
-stf,examples/checker_tests/good/checksum1-bmv2.p4,
+stf,examples/checker_tests/good/equality-varbit-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit
+stf,examples/checker_tests/good/issue1768-bmv2.p4,mark_to_drop extern unimplemented
+stf,examples/checker_tests/good/count_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit
+stf,examples/checker_tests/good/issue1814-1-bmv2.p4,STF parser crash (add) and register extern unimplemented
+stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create, etc)
+stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported)
+stf,examples/checker_tests/good/table-entries-range-bmv2.p4,fails in typechecker
+stf,examples/checker_tests/good/checksum1-bmv2.p4,verify-checksum extern unimplemented
 stf,examples/checker_tests/good/header-stack-ops-bmv2.p4,
-stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,
-stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,
+stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported)
+stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit
 stf,examples/checker_tests/good/issue447-4-bmv2.p4,
-stf,examples/checker_tests/good/issue447-bmv2.p4,
-stf,examples/checker_tests/good/issue1879-bmv2.p4,
-stf,examples/checker_tests/good/issue561-1-bmv2.p4,
-stf,examples/checker_tests/good/test_ebpf.p4,
-stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,
-stf,examples/checker_tests/good/extern-funcs-bmv2.p4,
-stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,
+stf,examples/checker_tests/good/issue447-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit
+stf,examples/checker_tests/good/issue1879-bmv2.p4,fails in typechecker
+stf,examples/checker_tests/good/issue561-1-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
+stf,examples/checker_tests/good/test_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create, add)
+stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?)
+stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,PSA arch (unsupported)
 stf,examples/checker_tests/good/issue995-bmv2.p4,
-stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,
-stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,
-stf,examples/checker_tests/good/switch_ebpf.p4,
-stf,examples/checker_tests/good/issue561-7-bmv2.p4,
-stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,
-stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,
-stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,
-stf,examples/checker_tests/good/issue1049-bmv2.p4,
+stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,PSA arch (unsupported)
+stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented
+stf,examples/checker_tests/good/switch_ebpf.p4,eBPF arch (unsupported)
+stf,examples/checker_tests/good/issue561-7-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
+stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF arch (unsupported)
+stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported)
+stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported)
+stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented
 stf,examples/checker_tests/good/union-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
 stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash
 stf,examples/checker_tests/good/issue1000-bmv2.p4,case sensitivity in STF hex equality check

@@ -1601,7 +1601,7 @@ let hex_of_string (s : string) : string =
   |> List.map ~f:hex_of_char
   |> List.fold_left ~init:"" ~f:(^)
 
-module V1Interpreter = MakeInterpreter(V1model)
+module V1Interpreter = MakeInterpreter(V1model.V1Switch)
 
 (* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
 
@@ -1625,7 +1625,7 @@ let eval_main (env : env) (ctrl : ctrl) (pkt : pkt)
   | "EmptyPackage" -> pkt, Bigint.zero
   | _ -> failwith "architecture not supported"
 
-let eval_prog (env: env) (p: program) (ctrl: ctrl) (pkt: pkt)
+let eval_prog (env: env) (p: program) (ctrl: ctrl) (pkt: buf)
     (in_port : Bigint.t) : (string * Bigint.t) option =
   match p with Program l ->
     let (env,st) = 
@@ -1633,8 +1633,13 @@ let eval_prog (env: env) (p: program) (ctrl: ctrl) (pkt: pkt)
         ~init:(env, V1Interpreter.empty_state)
         ~f:(fun (e,s) -> V1Interpreter.eval_decl ctrl e s) 
     in
+    let pkt = {
+      emitted = Cstruct.empty;
+      main = pkt;
+      in_size = Cstruct.len pkt;
+    } in
     let pkt', port = eval_main env ctrl pkt in_port in
     Some begin
-    pkt'
+    Cstruct.append pkt'.emitted pkt'.main
     |> Cstruct.to_string
     |> hex_of_string, port end

@@ -32,4 +32,4 @@ module V1Interpreter : Interpreter
 (* module EbpfInterpreter : Interpreter *)
 
 (* TODO: final val should not take in the env *)
-val eval_prog : env -> program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option
+val eval_prog : env -> program -> ctrl -> buf -> Bigint.t -> (string * Bigint.t) option

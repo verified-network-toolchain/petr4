@@ -2229,7 +2229,7 @@ and type_statements env ctx statements =
       | StmType.Void, _ -> StmType.Void
       | _ -> StmType.Unit
     in
-    (next_typ, stmt_typed::stmts, env)
+    (next_typ, stmts @ [stmt_typed], env)
   in
   List.fold_left ~f:fold ~init:(StmType.Unit, [], env) statements
 
@@ -2237,7 +2237,7 @@ and type_block env ctx block =
   let (typ, stmts, env') = type_statements env ctx (snd block).statements in
   let block : Prog.Block.pre_t = 
     { annotations = (snd block).annotations;
-      statements = List.rev stmts }
+      statements = stmts }
   in
   { stmt = BlockStatement { block = Info.dummy, block }; typ = typ }, env
 
@@ -3379,10 +3379,10 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
 and type_declarations env decls =
   let f (decls_typed, env) decl =
     let decl_typed, env = type_declaration env decl in
-    decl_typed :: decls_typed, env
+    decls_typed @ [decl_typed], env
   in
   let decls, env = List.fold_left ~f ~init:([], env) decls in
-  List.rev decls, env
+  decls, env
 
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : CheckerEnv.t * Prog.program =

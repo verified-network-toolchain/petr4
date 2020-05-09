@@ -1,51 +1,51 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
 checker,examples/checker_tests/good/constsigned.p4,bitslice of int<> values (bad test?),
-checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported),
-checker,examples/checker_tests/good/type-params.p4,don't care as type parameter,
-checker,examples/checker_tests/good/issue1879-bmv2.p4,modulo undef for bit<> values,
+checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported),78
+checker,examples/checker_tests/good/type-params.p4,don't care as type parameter,80
+checker,examples/checker_tests/good/issue1879-bmv2.p4,modulo undef for bit<> values,66
 checker,examples/checker_tests/good/psa-portid-using-newtype2.p4,binop typecheck isn't saturating types before running,
-checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported),
-checker,examples/checker_tests/good/issue1937-3-bmv2.p4,default arguments (unsupported),
+checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported),78
+checker,examples/checker_tests/good/issue1937-3-bmv2.p4,default arguments (unsupported),73
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,
 checker,examples/checker_tests/good/names.p4,cast to struct not being done in const list initializer,
-checker,examples/checker_tests/good/unused.p4,don't care as type parameter,
-checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,
-checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,
-checker,examples/checker_tests/good/default-package-argument.p4,default arguments,
-checker,examples/checker_tests/good/virtual3.p4,abstract method implementations,
-checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,
+checker,examples/checker_tests/good/unused.p4,don't care as type parameter,80
+checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
+checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
+checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
+checker,examples/checker_tests/good/virtual3.p4,abstract method implementations,75
+checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/functors8.p4,generic declarations,
-checker,examples/checker_tests/good/issue1304.p4,optional parameters,
-checker,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enum as match key,
-checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,
+checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
+checker,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enum as match key,71
+checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
 checker,examples/checker_tests/good/functors6.p4,generic declarations,
 checker,examples/checker_tests/good/struct1.p4,cast to struct not being done in const list initializer,
-checker,examples/checker_tests/good/precedence.p4,division undef for bit<> values,
-checker,examples/checker_tests/good/virtual.p4,abstract method implementations,
-checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations,
-checker,examples/checker_tests/good/virtual2.p4,abstract method implementations,
+checker,examples/checker_tests/good/precedence.p4,division undef for bit<> values,66
+checker,examples/checker_tests/good/virtual.p4,abstract method implementations,75
+checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations,75
+checker,examples/checker_tests/good/virtual2.p4,abstract method implementations,75
 checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed,
-checker,examples/checker_tests/good/strength.p4,division undef for bit<> values,
-checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,
+checker,examples/checker_tests/good/strength.p4,division undef for bit<> values,66
+checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/functors7.p4,generic declarations,
 checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),
-checker,examples/checker_tests/good/issue304-1.p4,abstract method implementations,
-checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,
+checker,examples/checker_tests/good/issue304-1.p4,abstract method implementations,75
+checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/functors9.p4,generic delcarations,
 checker,examples/checker_tests/good/enum-folding.p4,type member getting saturated,
 checker,examples/checker_tests/good/pvs-struct.p4,value set match against 1element struct,
 checker,examples/checker_tests/good/issue1713-bmv2.p4,bit slice on integers,
-checker,examples/checker_tests/good/named-arg1.p4,optional parameters,
+checker,examples/checker_tests/good/named-arg1.p4,optional parameters,73
 checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed,
-checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,
+checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,73
 checker,examples/checker_tests/good/list-compare.p4,equality for tuples,
 checker,examples/checker_tests/good/struct.p4,cast to struct not being done in const list initializer,
-checker,examples/checker_tests/good/constant_folding.p4,division for bit<>,
-checker,examples/checker_tests/good/issue1937.p4,default value,
-checker,examples/checker_tests/good/simple.p4,bad test,
-checker,examples/checker_tests/good/issue1333.p4,default arguments,
+checker,examples/checker_tests/good/constant_folding.p4,division for bit<>,66
+checker,examples/checker_tests/good/issue1937.p4,default value,73
+checker,examples/checker_tests/good/simple.p4,bad test,92
+checker,examples/checker_tests/good/issue1333.p4,default arguments,73
 checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls,
-checker,examples/checker_tests/good/table-entries-range-bmv2.p4,range on integers,
+checker,examples/checker_tests/good/table-entries-range-bmv2.p4,range on integers,82
 checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts,
 checker,examples/checker_tests/bad/extract1.p4,extract with size param should only work on variable sized headers,
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,
@@ -89,7 +89,7 @@ checker,examples/checker_tests/bad/key-name.p4,complex key expressions need @nam
 checker,examples/checker_tests/bad/annotation.p4,p4c rejecting "@pkginfo" annotation in parser,
 checker,examples/checker_tests/bad/width_e.p4,bitstring too big,
 checker,examples/checker_tests/bad/issue473.p4,action args in default_action must be ctk,
-checker,examples/checker_tests/bad/default-param.p4,no defalt values for out or optional params (unsupported),
+checker,examples/checker_tests/bad/default-param.p4,no defalt values for out or optional params (unsupported),73
 checker,examples/checker_tests/bad/div.p4,require nonnegative args for division and modulo,
 checker,examples/checker_tests/bad/param.p4,parameter restrictions in spec appendix F,
 checker,examples/checker_tests/bad/next.p4,header stack next/last only usable in parser,
@@ -101,7 +101,7 @@ checker,examples/checker_tests/bad/issue394.p4,variable declaration type restric
 checker,examples/checker_tests/bad/issue478.p4,one-arg extract should not work on variable width headers,
 checker,examples/checker_tests/bad/issue816.p4,parameter restrictions in spec appendix F,
 checker,examples/checker_tests/bad/dupConst.p4,reject const shadowing,
-checker,examples/checker_tests/bad/generic1_e.p4,well formed parameter type needs right number of type params,
+checker,examples/checker_tests/bad/generic1_e.p4,well formed parameter type needs right number of type params,20
 checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (unnecessary restriction?),
 checker,examples/checker_tests/bad/inro.p4,in parameters are not LValues,
 checker,examples/checker_tests/bad/width1_e.p4,int and bit types cannot have negative widths,
@@ -114,7 +114,7 @@ stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/issue1097-2-bmv2.p4,register extern unimplemented,
 stf,examples/checker_tests/good/parser_error-bmv2.p4,struct.hdr_field.setValid() fails in eval_setbool,
 stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,implicit cast not done on args to &&&,
-stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,case sensitivity in STF hex equality check,
+stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,case sensitivity in STF hex equality check,120
 stf,examples/checker_tests/good/valid_ebpf.p4,eBPF arch (unsupported),
 stf,examples/checker_tests/good/test-parserinvalidargument-error-bmv2.p4,,
 stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error message in STF parser,
@@ -179,10 +179,10 @@ stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,
 stf,examples/checker_tests/good/union-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,
 stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash,
-stf,examples/checker_tests/good/issue1000-bmv2.p4,case sensitivity in STF hex equality check,
+stf,examples/checker_tests/good/issue1000-bmv2.p4,case sensitivity in STF hex equality check,120
 stf,examples/checker_tests/good/issue774-4-bmv2.p4,crashing on extract<Header>(_),
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum,
-stf,examples/checker_tests/good/saturated-bmv2.p4,case sensitivity in STF hex equality check,
+stf,examples/checker_tests/good/saturated-bmv2.p4,case sensitivity in STF hex equality check,120
 stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,
 stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),
 stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker,

@@ -1291,10 +1291,12 @@ end = struct
     match v with
     | VBit {w;v} | VInt {w;v} -> w
     | VNull | VVarbit _ -> Bigint.zero
+    | VBool _ -> Bigint.one
     | VInteger _ -> failwith "width of VInteger"
     | VStruct _ -> failwith "width of struct unimplemented"
     | VHeader _ -> failwith "width of header unimplemented"
-    | _ -> failwith "width of type unimplemented"
+    | VUnion _ -> failwith "width of header union unimplemented"
+    | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
   
   let assert_lname l = 
     match l.lvalue with 

@@ -142,7 +142,8 @@ module PreV1Switch : Target = struct
   let eval_register : extern = fun _ env st typs args ->
     let typ = Typed.Type.Bit {width = 32} in
     match args with
-    | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)] ->
+    | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
+    | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
       let init_val = init_val_of_typ env typ in
       let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
       let reg = Register {states = states;
@@ -254,7 +255,7 @@ module PreV1Switch : Target = struct
     ("digest", eval_digest); (* unsupported *)
     ("mark_to_drop", eval_mark_to_drop); (* overloaded, deprecated *)
     ("hash", eval_hash);
-    ("action_selector", eval_action_selector);
+    ("action_selector", eval_action_selector); (* unsupported *)
     ("Checksum16", eval_checksum16); (* deprecated *)
     ("get", eval_get); (* deprecated *)
     ("verify_checksum", eval_verify_checksum);

@@ -9,7 +9,7 @@ module Info = I
 
 module PreV1Switch : Target = struct
 
-  let drop_spec = VBit { w = Bigint.of_int 9; v = Bigint.zero}
+  let drop_spec = VBit { w = Bigint.of_int 9; v = Bigint.of_int 511}
 
   type obj =
     | Counter of {
@@ -140,9 +140,7 @@ module PreV1Switch : Target = struct
     | _ -> failwith "unexpected read args"
     
   let eval_register : extern = fun _ env st typs args ->
-    let typ = match typs with
-      | [t] -> t
-      | _ -> failwith "unexpected typ args for register" in
+    let typ = Typed.Type.Bit {width = 32} in
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)] ->
       let init_val = init_val_of_typ env typ in
@@ -195,6 +193,7 @@ module PreV1Switch : Target = struct
     env, st, SContinue, VNull (* TODO: actually implement *)
 
   let eval_mark_to_drop : extern = fun ctrl env st ts args ->
+    (* TODO: do other specs have priority? *)
     let lv = {
       lvalue = LMember {
         expr = {
@@ -208,7 +207,7 @@ module PreV1Switch : Target = struct
     let (env', _) = assign_lvalue env lv drop_spec in
     env', st, SContinue, VNull
 
-  let eval_hash : extern = fun _ -> failwith "TODO"
+  let eval_hash : extern = fun ctrl env st ts args -> failwith "TODO"
 
   let eval_action_selector : extern = fun _ -> failwith "TODO"
 
@@ -317,6 +316,7 @@ module PreV1Switch : Target = struct
         - checks that the read register T is a bit<W> type.
         - checks that the write T is a bit<W> type.
         - checks that the random T is a bit<W> type.
+        - checks all the constraints on the hash arg types.
         - checks that verify and update checksum controls only do certain
           kinds of statements/expressions. *)
 

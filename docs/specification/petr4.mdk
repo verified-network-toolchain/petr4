@@ -420,7 +420,7 @@ v ::= b // booleans
     | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
     | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
     | @package \overline{(name, v)}
-    | @table name \overline{e} \overline{action\_ref} action\_ref_default \overline{set}
+    | @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
     | @extern name
 ~ End P4MathGrammar
 
@@ -1423,7 +1423,7 @@ The control plane representation contains table entries and value sets. Since
 tables already populated with constant entries are immutable, the representation
 of the control plane treats entries like constant entries.
 
-$\zeta ::= (\overline{\mathkw{const\ entries}}, \overline{set})$
+$\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 
 TODO: $\xi$ needs something like $P$, $\Gamma$, and $\Sigma$ (but for var-value mappings).
 But can all of these be represented by one $\xi$ or does it need to be split out
@@ -1538,6 +1538,19 @@ TODO
 \end{cases}
 ~
 If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if $lv_1 = \mathkw{lvalue}\ \tau\ ...$.
+
+### Default Action
+~ MathPre
+@default \overline{prop} = \begin{cases} x(\overline{e}) & \mathkw{default\_action} = x \in \overline{prop}
+@NoAction() & \mathkw{default\_action} = x \not\in \overline{prop}
+\end{cases}
+~
+
+### Initial Value of Type
+~ MathPre
+\mathkw{init\_val} \xi t = \begin{cases} TODO
+\end{cases}
+~
 
 ## Expressions
 
@@ -1891,7 +1904,7 @@ TODO
 TODO
 ~
 
-<!-- @table name \overline{e} \overline{action\_ref} action\_ref_default \overline{set} -->
+<!-- @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \} -->
 ~ Infer
 TODO = @table name \overline{e} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
 \forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v} set_i = false
@@ -2102,145 +2115,157 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Constant-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <\xi[(t) v/x], \sigma>
 ~
 
 ~ Infer
 TODO
 -------------------------------------------[Instantiation-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, t x(\overline{e})> \Downarrow_d <TODO>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Parser-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Control-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}> \Downarrow_d <\xi[@control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Function-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <(\xi[(\overline{x:t,d}) \Rightarrow blk/x])[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Extern-Function-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Variable-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, t x> \Downarrow_d <\xi[(\mathkw{init\_val} \xi t)/x], \sigma>
 ~
 
 ~ Infer
-TODO
--------------------------------------------[Variable-Initialized-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+-------------------------------------------[Variable-Initialized-Decl-Success]
+<\zeta, \xi, \sigma, t x := e> \Downarrow_d <\xi'[(t) v/x], \sigma'>
 ~
 
 ~ Infer
-TODO
--------------------------------------------[Value-Set-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
+sig \neq \mathkw{sig\_continue}
+-------------------------------------------[Variable-Initialized-Decl-Fail]
+<\zeta, \xi, \sigma, t x := e> \Downarrow_d <\xi', \sigma'>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Action-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <(\xi[(\overline{x:t,d_0},\overline{x:t}) \Rightarrow blk/x])[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma>
 ~
 
 ~ Infer
-TODO
--------------------------------------------[Table-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+\mathkw{const\ entries} = \{ \overline{matches:action\_ref} \} \in \overline{prop}
+\{ \overline{matches:action\_ref} \} \neq \{\}
+@key = \{ \overline{e:x} \} \in \overline{prop}
+@actions = \{ \overline{action\_ref} \} \in \overline{prop}
+--------------------------------------------------------[Table-Decl-Constant-Entries]
+<\zeta, \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <(\xi[@table x \{ \overline{prop} \}/x])[@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \}/x], \sigma>
 ~
 
 ~ Infer
-TODO
+\mathkw{const\ entries} = \{\} \in \overline{prop}
+@key = \{ \overline{e:x} \} \in \overline{prop}
+@actions = \{ \overline{action\_ref} \} \in \overline{prop}
+--------------------------------------------------------[Table-Decl-Control-Plane-Entries]
+<(\{ \overline{matches:action\_ref} \}, \overline{set}), \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <(\xi[@table x \{ \overline{prop} \}/x])[@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \}/x], \sigma>
+~
+
+~ Infer
+
 -------------------------------------------[Header-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @header X \{ \overline{x:t} \}> \Downarrow_d <\xi[@header X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Header-Union-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, \mathkw{header\ union} X \{ \overline{x:t} \}> \Downarrow_d <\xi[\mathkw{header\ union} X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Struct-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @struct X \{ \overline{x:t} \}> \Downarrow_d <\xi[@struct X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Error-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Matchkind-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Enum-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @enum X \{ \overline{x} \}> \Downarrow_d <\xi[@enum X \{ \overline{x} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[SEnum-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @enum t X \{ \overline{x=e} \}> \Downarrow_d <\xi[@enum t X \{ \overline{x=e} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Extern-Object-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}> \Downarrow_d <\xi[@extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Type-Def-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @typedef t X> \Downarrow_d <\xi[@typedef t X/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[New-Type-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @type t X> \Downarrow_d <\xi[@type t X/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Control-Type-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @control X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@control X<\overline{X}>(\overline{x:t,d})/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Parser-Type-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @parser X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@parser X<\overline{X}>(\overline{x:t,d})/X], \sigma>
 ~
 
 ~ Infer
-TODO
+
 -------------------------------------------[Package-Type-Decl]
-<\zeta, \xi, \sigma, TODO> \Downarrow_d <TODO>
+<\zeta, \xi, \sigma, @package X<\overline{X}>(\overline{x:t})> \Downarrow_d <\xi[@package X<\overline{X}>(\overline{x:t})/X], \sigma>
 ~

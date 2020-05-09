@@ -1228,7 +1228,7 @@ module MakeInterpreter (T : Target) = struct
               let u = VUnion{valid_header=fs;valid_fields=vs'} in
               let (env',_) = assign_lvalue env lv' u in
               (env', st, SContinue, VNull)
-            | VStruct{fields=fs} -> failwith "unimplemented"
+            | VStruct{fields=fs} -> failwith "setbool in struct unimplemented"
             | _ -> failwith "not a union" end
         | SReject _ -> (env, st, s, VNull)
         | _ -> failwith "unreachable" end

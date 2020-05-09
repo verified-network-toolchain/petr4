@@ -156,7 +156,8 @@ let eval_extern name =
     | "length" -> targetize P4core.eval_length
     | "emit" -> targetize P4core.eval_emit
     | "verify" -> targetize P4core.eval_verify
-    | _ -> failwith "TODO" in
+    | _ -> failwith (Format.sprintf "TODO: extern %s" name)
+  in
   extern
 
 let initialize_metadata meta env =

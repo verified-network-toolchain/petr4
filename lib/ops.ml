@@ -57,7 +57,8 @@ let rec interp_bplus (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger n   -> interp_bplus l (int_of_rawint n w)
   | VInteger n,   VInt{w;v=v1} -> interp_bplus (int_of_rawint n w) r
   | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 + n2)
-  | _ -> failwith "binary plus operation only defined on ints"
+  | _ -> raise_s [%message "binary plus operation only defined on ints"
+                     ~l:(l: V.value) (r: V.value)]
 
 let rec interp_bplus_sat (l : V.value) (r : V.value) : V.value =
   match (l,r) with

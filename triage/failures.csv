@@ -149,7 +149,7 @@ stf,examples/checker_tests/good/key_ebpf.p4,eBPF arch (unsupported)
 stf,examples/checker_tests/good/union3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
 stf,examples/checker_tests/good/two_ebpf.p4,eBPF arch (unsupported)
 stf,examples/checker_tests/good/array-copy-bmv2.p4,emit problem (?)
-stf,examples/checker_tests/good/issue447-1-bmv2.p4,packet emit statements being run backwards (?)
+stf,examples/checker_tests/good/issue447-1-bmv2.p4,typechecker reversing contents of parser states
 stf,examples/checker_tests/good/issue561-3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails
 stf,examples/checker_tests/good/header-bool-bmv2.p4,width of bool and bool extraction unimplemented (spec 7.2.2 has a full list of fields allowed in hdrs)
 stf,examples/checker_tests/good/issue561-2-bmv2.p4,extract on uninitialized union tries to evaluate it and fails

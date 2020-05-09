@@ -2446,6 +2446,19 @@ and type_set_expression env (expr: Types.Expression.t) =
      info, e_typed
   | non_set_type ->
      info, {e_typed with typ = Set non_set_type}
+
+(* Terrible hack - Ryan *)
+and check_match_type_eq env info set_type element_type =
+  let open Typed.Type in
+  match set_type with
+  | Set (Enum { typ = Some carrier; _ }) ->
+     check_match_type_eq env info (Set carrier) element_type
+  | _ ->
+     match element_type with
+     | Enum { typ = Some elt_carrier; _ } ->
+        check_match_type_eq env info set_type elt_carrier
+     | _ ->
+        assert_type_equality env info set_type (Set element_type)
     
 and check_match env (info, m: Types.Match.t) (expected_type: Type.t) : Prog.Match.t =
   match m with
@@ -2456,7 +2469,7 @@ and check_match env (info, m: Types.Match.t) (expected_type: Type.t) : Prog.Matc
   | Expression { expr } ->
      let expr_typed = type_set_expression env expr in
      let typ = (snd expr_typed).typ in
-     assert_type_equality env info typ (Set expected_type);
+     check_match_type_eq env info typ expected_type;
      info, { expr = Expression {expr = expr_typed};
              typ = Type.Set typ } 
 
@@ -3107,8 +3120,9 @@ and type_serializable_enum env info annotations underlying_type name members =
     | Int _ | Bit _ -> underlying_type
     | _ -> raise_mismatch info "fixed width numeric type for enum" underlying_type
   in
+  let member_names = List.map ~f:(fun member -> snd (fst member)) members in
   let enum_type: Typed.Type.t =
-    Enum { name = snd name; typ = Some underlying_type; members = [] }
+    Enum { name = snd name; typ = Some underlying_type; members = member_names }
   in
   let add_member (env, members_typed) ((member_info, member), expr) =
     let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in

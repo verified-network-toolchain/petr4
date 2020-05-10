@@ -324,28 +324,41 @@ and update_slice bits_val msb lsb rhs_val =
 
 module State = struct
 
-  type 'a t = (string * 'a) list
+  type 'a t = {
+    target_state : (string * 'a) list;
+    packet : pkt;
+  }
 
-  let packet_location = "_PACKET_"
+  let empty = {
+    target_state = [];
+    packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; }
+  }
 
-  let empty = []
+  let packet_location = "__PACKET__"
 
-  let insert loc v st = (loc, v) :: st
+  let get_packet st = st.packet
+
+  let set_packet pkt st = { st with packet = pkt }
+
+  let insert loc v st = {
+    st with target_state = (loc,v) :: st.target_state }
   
   let find loc st =
-    List.Assoc.find_exn (* TODO *) st loc ~equal:String.equal
+    List.Assoc.find_exn st.target_state loc ~equal:String.equal
 
-  let filter ~f st =
-    List.filter ~f st
+  let filter ~f st = { st with
+    target_state = List.filter ~f st.target_state; }
 
-  let map ~f st =
-    let go (loc, x) = (loc, f x) in
-    List.map ~f:go st
+  let map ~f st = 
+    let go (loc, x) = loc, f x in { st with
+      target_state = List.map ~f:go st.target_state;
+    } 
 
   let merge s1 s2 =
-    s1 @ s2
+    { s1 with target_state = s1.target_state @ s2.target_state }
 
-  let is_initialized loc st = List.exists st ~f:(fun (x,_) -> String.equal x loc)
+  let is_initialized loc st =
+    List.exists st.target_state ~f:(fun (x,_) -> String.equal x loc)
 
 end
 
@@ -368,6 +381,6 @@ module type Target = sig
   val check_pipeline : env -> unit
 
   val eval_pipeline : ctrl -> env -> state -> pkt ->
-  state apply -> state * env * pkt
+  state apply -> state * env * pkt option
 
 end

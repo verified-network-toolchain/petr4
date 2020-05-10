@@ -67,6 +67,7 @@ control MyEgress(inout head[13] hdr,
 
     apply {
         my_table.apply();
+        standard_metadata.egress_port = 0;
         exit;
     }
 

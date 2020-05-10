@@ -54,7 +54,6 @@ let unimplemented_stmt = function
   | Packet(_, _) | Expect(_, _) -> false
   | _ -> true
 
-
 let packet_equal (port_exp, p_exp) (port, p) =
   let (=) = Char.equal in
   let rec iter i =
@@ -86,7 +85,7 @@ let run_test dirs name stmts =
             | `Error(info, exn) -> Some("")
             | `Ok(pkt, port) -> Some("")) *)
         in
-        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(packet, port) | _ -> None) stmts in
+        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(strip_spaces packet, port) | _ -> None) stmts in
         List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
           Alcotest.(testable (Fmt.pair Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
 

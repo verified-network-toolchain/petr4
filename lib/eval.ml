@@ -219,6 +219,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_fun (env : env) (name : string)
       (params : TypeParameter.t list) (decl : Declaration.t) : env =
     EvalEnv.insert_decl_bare name decl env
+    |> EvalEnv.insert_val_bare name (VExternFun {name; caller = None})
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =

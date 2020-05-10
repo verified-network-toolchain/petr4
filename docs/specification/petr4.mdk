@@ -418,12 +418,12 @@ v_o ::= b // booleans
     | (\overline{v}, n_{size}, n_{next}) // stacks
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
-    | loc // stateful runtime
+    | (loc, name_{object}) // stateful runtime
     | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
     | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
     | @package \overline{(name, v)}
     | @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
-    | @extern name
+    | @extern name v
 
 v ::= v_o | @None
 ~ End P4MathGrammar
@@ -1491,10 +1491,9 @@ converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant 
 ~
 
 ~ MathPre
-\mathkw{copyout} \xi (x:t,d) e = \begin{cases} \mathkw{pop} \xi & d = @in
-\mathkw{pop} \xi & d = @none \land \xi(X) \neq @extern X \dots
-\mathkw{pop} \xi & d = @none \land \xi(.X) \neq @extern X \dots
-TODO: \mathkw{assign\_lv} ... & otherwise
+\mathkw{copyout} \zeta \xi \sigma (x:t,d) e = \begin{cases} \mathkw{pop} \xi & d = @in
+\mathkw{pop} \xi & d = @none \land t \neq @extern ...
+\xi'' & otherwise, \text{where} \mathkw{lv\_of\_expr} \zeta (@pop \xi) \sigma e = (\xi', \sigma', sig, lv_o) \land \mathkw{assign\_lv} (@pop \xi) lv_o \xi(x) = (\xi'', sig')
 \end{cases}
 ~
 
@@ -1638,7 +1637,7 @@ x \neq @verify
 ~ Infer
 
 -------------------------------------------------------------------------------[Var-Verify]
-<\zeta, \xi, \sigma, @verify> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @extern @verify>
+<\zeta, \xi, \sigma, @verify> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @extern @verify @None>
 ~
 
 ~ Infer
@@ -1736,16 +1735,16 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 ### Member Expressions
 
 ~ Infer
-\xi(X) = @enum X \{\dots,name,\dots\}
+\xi(X_1) = @enum X_2 \{\dots,name,\dots\}
 -------------------------------------------------------------------------------[Type-Member-Enum]
-<\zeta, \xi, \sigma, X.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X.name>
+<\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
 ~
 
 ~ Infer
-\xi(X) = @enum t X \{\dots,(name, e),\dots\}
+\xi(X_1) = @enum t X_2 \{\dots,(name, e),\dots\}
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------[Type-Member-SEnum]
-<\zeta, \xi, \sigma, X.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (X.name, (t) v)>
+<\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (X_2.name, (t) v)>
 ~
 
 ~ Infer
@@ -1861,9 +1860,9 @@ n_{next} \lt 1
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, loc>
--------------------------------------------------------------------------------[Runtime]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (loc, name_{object})>
+-------------------------------------------------------------------------------[Runtime-Field]
+<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, name_{object})>
 ~
 
 ~ Infer
@@ -1946,6 +1945,18 @@ TODO
 TODO
 ~
 
+~ Infer
+TODO
+------------------------------------------------------------------------------[Apply-Parser]
+TODO
+~
+
+~ Infer
+TODO
+------------------------------------------------------------------------------[Apply-Control]
+TODO
+~
+
 <!-- @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \} -->
 ~ Infer
 TODO = @table name \overline{e} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
@@ -1964,7 +1975,11 @@ TODO = @table name \overline{e} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\ove
 <\zeta, \xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\xi', \sigma', TODO, \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
 ~
 
-TODO: what about extract, emit, length, lookahead, advance, verify? also externfun
+~ Infer
+TODO
+------------------------------------------------------------------------------[Extern-Function]
+TODO
+~
 
 ### Nameless Instantiation
 
@@ -2189,7 +2204,7 @@ TODO
 ~ Infer
 
 -------------------------------------------[Extern-Function-Decl]
-<\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x], \sigma>
+<\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x])[@extern x @None/x], \sigma>
 ~
 
 ~ Infer

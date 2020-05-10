@@ -264,7 +264,6 @@ module MakeInterpreter (T : Target) = struct
       (decl : Declaration.t) (key : Table.key list) (actions : Table.action_ref list)
       (entries : (Table.entry list) option) (default : Table.action_ref option)
       (size : P4Int.t option) (props : Table.property list) : env * state =
-    print_s [%message "eval_table_decl"];
     let env' = EvalEnv.insert_decl_bare name decl env in
     let ctrl_entries = fst ctrl in
     let pre_ks = key |> List.map ~f:snd in
@@ -418,7 +417,6 @@ module MakeInterpreter (T : Target) = struct
         ~f:(fun (a, b, c) k ->
             let w,x,y,z = eval_expr ctrl a b c k in ((w,x,y),z)) in
     let f ((v,w,x,y),z) = ((v,w,x),(y,z)) in
-    print_s [%message "eval_table" ~ks':(ks': value list)];
     let sort_mks = check_lpm_count mks in
     let ws = List.map ks' ~f:width_of_val in
     let ((env'', st'', s'),entries') =

@@ -1126,7 +1126,9 @@ and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
        typ = Bit { width = diff };
        dir = (snd bits_typed).dir }
   | typ ->
-     raise_s [%message "expected bit type, got" ~typ:(typ: Typed.Type.t)]
+     raise_s [%message "expected bit type, got"
+                 ~expr:(bits: Types.Expression.t)
+                 ~typ:(typ: Typed.Type.t)]
 
 (* Section 8.11
  * ------------
@@ -2374,10 +2376,11 @@ and type_constant env decl_info annotations typ name expr : Prog.Declaration.t *
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
      env
-     |> CheckerEnv.insert_dir_type_of (BareName name) (snd typed_expr).typ In
+     |> CheckerEnv.insert_dir_type_of (BareName name) expected_typ In
      |> CheckerEnv.insert_const (BareName name) value
   | None ->
-     failwith "expression not compile-time-known"
+     raise_s [%message "expression not compile-time-known"
+                 ~expr:(typed_expr:Prog.Expression.t)]
 
 and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : CheckerEnv.t =
   let open Types.Parameter in

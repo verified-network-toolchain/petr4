@@ -1673,36 +1673,40 @@ x \neq @verify
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 -------------------------------------------------------------------------------[Bool-Cast-True]
-<\zeta, \xi, \sigma, (bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
 n \neq 1
 -------------------------------------------------------------------------------[Bool-Cast-False]
-<\zeta, \xi, \sigma, (bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
 ~
 
 $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $\mathkw{to2s}(a)$ is the result of converting $a$ to two's complement.
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', TODO, v1>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', TODO, v2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------------[Bit-Cast]
-<\zeta, \xi, \sigma, (bit\lt e2\gt) e1> \Downarrow_e <\xi'', \sigma'', TODO, {@of2s(\mathkw{extract\_num} v1)}_u^{(\mathkw{extract\_num} v2)}>
+<\zeta, \xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', TODO, v1>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', TODO, v2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------------------[Int-Cast]
-<\zeta, \xi, \sigma, (int\lt e2\gt) e1> \Downarrow_e <\xi'', \sigma'', TODO, {@to2s(\mathkw{extract\_num} v1)}_s^{(\mathkw{extract\_num} v2)}>
+<\zeta, \xi, \sigma, (@int<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@to2s(\mathkw{extract\_num} v)}_s^{w}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', TODO, v>
+<\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
 -------------------------------------------------------------------------------[TypeName-Cast]
-<\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', TODO, v>
+<\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
+-------------------------------------------------------------------------------[NewType-Cast]
+<\zeta, \xi, \sigma, (@newtype X t) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 
 ### Member Expressions
@@ -1794,14 +1798,14 @@ n_{next} \geq n_{size}
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
-n_{next} > n_{size}
+n_{next} \gt n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-High]
 <\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
-n_{next} < 1
+n_{next} \lt 1
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-Low]
 <\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~

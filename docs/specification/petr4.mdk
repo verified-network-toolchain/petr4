@@ -1423,7 +1423,7 @@ All evaluation rules include
 
 1. $\zeta$, a representation of the control plane
 2. $\xi$, an evaluation context
-3. $\sigma$, TODO: Target.st? 
+3. $\sigma$, a context for stateful objects maintained by externs
 
 The control plane representation contains table entries and value sets. Since
 tables already populated with constant entries are immutable, the representation
@@ -1431,13 +1431,36 @@ of the control plane treats entries like constant entries.
 
 $\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 
-TODO: $\xi$ needs something like $P$, $\Gamma$, and $\Sigma$ (but for var-value mappings).
-But can all of these be represented by one $\xi$ or does it need to be split out
-like Ryan did in typing contexts.
+$\xi ::= P, E, \Delta, \upsilon$
 
-$\mathkw{push} \xi$ pushes an empty first-level scope onto $\xi$. 
-$\mathkw{pop} \xi$ pops the first-level scope off $\xi$ if one exists.
-$\mathkw{first\_lvl} \xi$ is the first-level scope of $\xi$ if one exists.
+$P$ is a declaration context representing the program seen so far mapping type names to declarations. 
+$E$ is a value context mapping names to values.
+$\Delta$ is the same as defined in the typing contexts.
+$\upsilon$ is a string namespace used to TODO.
+
+~ MathPre
+\rho ::= \rho, X=decl | []
+
+P ::= P, \rho{} | []
+
+\epsilon ::= \epsilon, x=v | []
+
+E ::= E, \epsilon{} | []
+
+\delta ::= \delta, X=t | []
+
+D ::= D, \delta{} | []
+~
+
+$\sigma ::= (\overline{name,object})$ where $object$ is defined by the target. 
+
+$\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$. 
+$\mathkw{pop} \xi$ pops the first-level scope off each context in $\xi$ if one exists.
+$\mathkw{first\_lvl} \xi$ is the first-level scope of each context in $\xi$ if one exists.
+
+$\xi[z/x]$ is syntactic sugar for $P[z/x]$, $E[z/x]$, or $\Delta[z/x]$ depending on whether
+$z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar 
+for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, value, or type, respectively.
 $\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$ 
 are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 

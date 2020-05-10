@@ -57,6 +57,8 @@ val implicit_cast_from_rawint : env -> value -> Type.t -> value
 
 val implicit_cast_from_tuple : env -> value -> Type.t -> value
 
+val implicit_cast : env -> value -> Type.t -> value
+
 val value_of_lvalue : env -> lvalue -> signal * value
 
 val assign_lvalue : env -> lvalue -> value -> env * signal

@@ -193,9 +193,8 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
-    let name = Types.BareName (Info.dummy, name) in
-    let name_expr = {lvalue = LName {name}; typ } in
-    let (env, s) = assign_lvalue env name_expr v in env, st
+    let v = implicit_cast env v typ in
+    EvalEnv.insert_val_bare name v env, st
 
   and eval_instantiation (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) (name : string) : env * state =
@@ -223,14 +222,19 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =
-    let open Expression in
-    let name_expr = (Info.dummy, {expr = Expression.Name (BareName (Info.dummy, name)); typ; dir = InOut}) in
     match init with
     | None ->
-      let env = EvalEnv.insert_val_bare name (init_val_of_typ env typ) env in
-      (env, st, SContinue)
+      let init_val = init_val_of_typ env typ in
+      let env = EvalEnv.insert_val_bare name init_val env in
+      env, st, SContinue
     | Some e ->
-       eval_assign ctrl env st SContinue name_expr e
+      let env, st, signal, init_val = eval_expr ctrl env st SContinue e in
+      match signal with
+      | SContinue ->
+         let init_val = implicit_cast env init_val typ in
+         let env = EvalEnv.insert_val_bare name init_val env in
+         env, st, SContinue
+      | signal -> env, st, signal
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (size : Expression.t) : env * state * signal =
@@ -420,7 +424,7 @@ module MakeInterpreter (T : Target) = struct
     let (entries'', ks'') = if List.equal String.equal mks ["lpm"] then (sort_lpm entries', ks')
       else if sort_mks then filter_lpm_prod env'' mks ks' entries'
       else (entries', ks') in
-    let l = List.filter entries'' ~f:(fun (s,a) -> let b = values_match_set ks'' s in print_endline (string_of_bool b); b) in
+    let l = List.filter entries'' ~f:(fun (s,a) -> values_match_set ks'' s) in
     let action = match l with
                 | [] -> default
                 | _ -> List.hd_exn l |> snd in
@@ -589,8 +593,8 @@ module MakeInterpreter (T : Target) = struct
                       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
                       |> List.filter ~f:(fun l -> List.exists l ~f:(label_matches_string s)) in
         begin match matches with
-              | [] -> print_endline "no matches switch"; (env', st', s')
-              | hd::tl -> print_endline "some match switch"; hd
+              | [] -> (env', st', s')
+              | hd::tl -> hd
                         |> List.filter ~f:(function Action _ -> true | _ -> false) 
                         |> List.hd_exn 
                         |> (function Action{label;code} -> code | _ -> failwith "unreachable")
@@ -785,7 +789,7 @@ module MakeInterpreter (T : Target) = struct
           let mems = List.map ms ~f:snd in
           if List.mem mems name ~equal:String.equal
           then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
-          else raise (UnboundName (BareName (Info.dummy, name)))
+          else raise (UnboundName name)
         | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
           let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
           let expr = find_exn ms' name in
@@ -1229,7 +1233,7 @@ module MakeInterpreter (T : Target) = struct
               let u = VUnion{valid_header=fs;valid_fields=vs'} in
               let (env',_) = assign_lvalue env lv' u in
               (env', st, SContinue, VNull)
-            | VStruct{fields=fs} -> failwith "unimplemented"
+            | VStruct{fields=fs} -> failwith "setbool in struct unimplemented"
             | _ -> failwith "not a union" end
         | SReject _ -> (env, st, s, VNull)
         | _ -> failwith "unreachable" end
@@ -1447,13 +1451,11 @@ module MakeInterpreter (T : Target) = struct
       else false in
     h a b c
 
-  and values_match_range (vs : value list) (v1 : value) (v2 : value) : bool =
-    let v = assert_singleton vs in
-    match (v, v1, v2) with
-    | VBit{w=w0;v=b0}, VBit{w=w1;v=b1}, VBit{w=w2;v=b2}
-    | VInt{w=w0;v=b0}, VInt{w=w1;v=b1}, VInt{w=w2;v=b2} ->
-      Bigint.equal w0 w1 && Bigint.equal w1 w2 && Bigint.compare b1 b0 <= 0 && Bigint.compare b0 b2 <= 0
-    | _ -> failwith "implicit casts unimplemented"
+  and values_match_range (vs : value list) (low_bound : value) (high_bound : value) : bool =
+    let v = bigint_of_val (assert_singleton vs) in
+    let low_bound = bigint_of_val low_bound in
+    let high_bound = bigint_of_val high_bound in
+    Bigint.(low_bound <= v && v <= high_bound)
 
   and values_match_prod (vs : value list) (l : set list) : bool =
     let bs = List.mapi l ~f:(fun i x -> values_match_set [List.nth_exn vs i] x) in

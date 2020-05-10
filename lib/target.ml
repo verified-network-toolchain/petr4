@@ -169,6 +169,12 @@ let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
   | VRecord r -> failwith "TODO"
   | _ -> v
 
+let implicit_cast env value tgt_typ =
+  match value with
+  | VTuple l -> implicit_cast_from_tuple env value tgt_typ
+  | VInteger n -> implicit_cast_from_rawint env value tgt_typ
+  | _ -> value
+
 let rec value_of_lvalue (env : env) (lv : lvalue) : signal * value =
   match lv.lvalue with
   | LName{name=n}                     -> SContinue, EvalEnv.find_val n env
@@ -220,15 +226,13 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
   | _ -> failwith "not an lvalue"
 
 let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
-  let rhs = 
-    match rhs with
-    | VTuple l -> implicit_cast_from_tuple env rhs lhs.typ
-    | VInteger n -> implicit_cast_from_rawint env rhs lhs.typ
-    | _ -> rhs
-  in
+  let rhs = implicit_cast env rhs lhs.typ in
   match lhs.lvalue with
   | LName {name} ->
-     EvalEnv.insert_val name rhs env, SContinue
+     begin match EvalEnv.update_val name rhs env with
+     | Some env' -> env', SContinue
+     | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
+     end
   | LMember{expr=lv;name=mname;} ->
      let _, record = value_of_lvalue env lv in
      let rhs', signal = update_member record mname rhs in

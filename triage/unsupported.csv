@@ -1,0 +1,40 @@
+checker,examples/checker_tests/good/functors6.p4,generic declarations,148
+checker,examples/checker_tests/good/functors7.p4,generic declarations,148
+checker,examples/checker_tests/good/functors8.p4,generic declarations (unsupported),148
+checker,examples/checker_tests/good/functors9.p4,generic declarations,148
+checker,examples/checker_tests/bad/issue1580.p4,respect @defaultonly and @tableonly action annotations (unsupported),137
+checker,examples/checker_tests/good/pvs-struct.p4,value set match against 1 element struct (unsupported),81
+checker,examples/checker_tests/good/named-arg1.p4,optional parameters (unsupported),73
+checker,examples/checker_tests/good/virtual3.p4,abstract method implementations,75
+checker,examples/checker_tests/good/virtual.p4,abstract method implementations,75
+checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations,75
+checker,examples/checker_tests/good/virtual2.p4,abstract method implementations,75
+checker,examples/checker_tests/good/issue304-1.p4,abstract method implementations,75
+checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported),78
+checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported),78
+checker,examples/checker_tests/good/issue1937-3-bmv2.p4,default arguments (unsupported),73
+checker,examples/checker_tests/bad/spec-ex32_e.p4,annotation (unsupported),
+checker,examples/checker_tests/bad/default-param.p4,no defalt values for out or optional params (unsupported),73
+checker,examples/checker_tests/bad/issue1732.p4,@match annotation arg must be match kind (unsupported),
+stf,examples/checker_tests/good/action_call_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/valid_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/issue870_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/hit_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/key_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/two_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/count_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),
+stf,examples/checker_tests/good/test_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/switch_ebpf.p4,eBPF arch (unsupported),
+stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF arch (unsupported),
+stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),
+stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),
+stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81

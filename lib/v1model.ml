@@ -345,7 +345,17 @@ module PreV1Switch : Target = struct
     env', st, SContinue, VNull
 
   let value_of_payload (st : state) : value = 
-    VBit { w = Bigint.zero; v = Bigint.zero }
+      st
+      |> State.get_packet
+      |> (fun x -> x.main)
+      |> Cstruct.to_string
+      |> String.to_list
+      |> List.map ~f:Char.to_int
+      |> List.map ~f:Bigint.of_int
+      |> List.map ~f:(fun x -> Bigint.of_int 8, x)
+      |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
+          Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
+      |> (fun (w,v) -> VBit { w; v })
 
   let eval_verify_checksum_with_payload : extern = fun ctrl env st ts args ->
     let width = match ts with

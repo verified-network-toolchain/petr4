@@ -1478,6 +1478,7 @@ TODO: \mathkw{assign\_lv} ... & otherwise
 ### Match Switch Case
 ~ MathPre
 \mathkw{match\_switch\_case} case_1...case_n name = \begin{cases} None & \forall i \text{ where } 1 \leq i \leq n, name \neq case\_lbl_i \land case\_lbl_i \neq \texttt{default}
+None & case_i = case\_lbl_i :\ \land \nexists case\_lbl_j : blk_j, i \lt j
 Some\ blk_i & case_i = case\_lbl_i : blk_i \land name = case\_lbl_i
 Some\ blk_j & case_i = case\_lbl_i :\ \land case_j = case\_lbl_j : blk_j \land name = case\_lbl_i \land \nexists case\_lbl_h : blk_h, i \lt h \lt j
 \end{cases}

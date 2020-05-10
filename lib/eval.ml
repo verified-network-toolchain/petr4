@@ -1072,10 +1072,7 @@ module MakeInterpreter (T : Target) = struct
       | Some (loc, t) -> (VRuntime {loc = loc; obj_name = t;},
                           Type.TypeName (BareName (Info.dummy, "packet"))) :: tvs
       | None -> tvs in
-    let tvs'' = match tvs' with
-      | _ :: (VNull,_) :: [] -> []
-      | _ -> tvs' in
-    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs'' in
+    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs' in
     let env'' = copyout ctrl fenv' st'' params args in
     env'', st'', s, v
 

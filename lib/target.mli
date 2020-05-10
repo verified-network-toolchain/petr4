@@ -51,6 +51,8 @@ module type Target = sig
 
 end
 
+val width_of_typ : env -> Type.t -> Bigint.t
+
 val init_val_of_typ : env -> Type.t -> value
 
 val implicit_cast_from_rawint : env -> value -> Type.t -> value

@@ -39,8 +39,6 @@ module PreV1Switch : Target = struct
   type state = obj State.t
   type extern = state pre_extern
 
-  let () = Random.self_init ()
-
   let eval_counter : extern = fun ctrl env st ts args ->
     let (loc, v, typ) = match args with 
       | [(VRuntime {loc; _}, _);
@@ -186,6 +184,7 @@ module PreV1Switch : Target = struct
     env, State.insert loc prof st, SContinue, VRuntime{loc;obj_name}
 
   let eval_random : extern = fun ctrl env st ts args ->
+    Random.self_init ();
     let width = match ts with
       | [Bit{width}] -> Bigint.of_int width
       | _ -> failwith "unexpected type args for random" in
@@ -219,7 +218,72 @@ module PreV1Switch : Target = struct
       assign_lvalue env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) in
     env', st, SContinue, VNull
 
-  let eval_hash : extern = fun ctrl env st ts args -> failwith "TODO: hash"
+  let hash_crc32 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash_crc32_custom (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash_crc16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash_crc16_custom (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash_random (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    Bigint.to_string v
+    |> String.to_list
+    |> List.map ~f:Char.to_int
+    |> List.to_array
+    |> Random.full_init; (* Obj.magic instead??? *)
+    Random.int 256 |> Bigint.of_int
+
+  let hash_identity (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    v
+
+  let hash_csum16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash_xor16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+    failwith "TODO: implement hash algorithm"
+
+  let hash (algo : string) : Bigint.t -> Bigint.t -> Bigint.t =
+    match algo with
+    | "crc32"        -> hash_crc32
+    | "crc32_custom" -> hash_crc32_custom
+    | "crc16"        -> hash_crc16
+    | "crc16_custom" -> hash_crc16_custom
+    | "random"       -> hash_random
+    | "identity"     -> hash_identity
+    | "csum16"       -> hash_csum16
+    | "xor16"        -> hash_xor16
+    | _              -> failwith "unknown hash algorithm"
+
+  let eval_hash : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | [o; _] -> width_of_typ env o
+      | _ -> failwith "unexpected type args for hash" in
+    let (algo, base, data, rmax) = match args with
+      | [_; (VEnumField {enum_name=algo;_}, _);
+        (VBit{w=base;_},_); (VTuple data, _); (VBit{v=max;_}, _)] ->
+        algo, base, data, max
+      | _ -> failwith "unexpected args for hash" in
+    let bigints = 
+      data
+      |> List.map ~f:bigint_of_val in
+    let widths = List.map ~f:width_of_val data in
+    let vs = List.zip_exn widths bigints in
+    let vs' = List.map vs ~f:(fun (w,v) -> w, Bitstring.of_twos_complement w v) in
+    let combined_width, combined_value = 
+      List.fold vs'
+        ~init:Bigint.(zero,zero)
+        ~f:(fun (accw, accv) (nw, nv) ->
+          Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv)) in
+    let result = hash algo combined_width combined_value in
+    let result_mod = Bigint.(result % rmax) in
+    let final_result = Bigint.(result_mod + base) in
+    let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=final_result}) env in
+    env, st, SContinue, VNull
 
   let eval_action_selector : extern = fun ctrl env st ts args ->
     (* TODO: current implementation is trivial *)
@@ -261,7 +325,9 @@ module PreV1Switch : Target = struct
   let eval_clone3 : extern = fun ctrl env st ts args ->
     env, st, SContinue, VNull
 
-  let eval_truncate : extern = fun _ -> failwith "TODO"
+  let eval_truncate : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
+    env, st, SContinue, VNull
 
   let eval_assert : extern = fun ctrl env st ts args ->
     match args with
@@ -300,7 +366,7 @@ module PreV1Switch : Target = struct
     ("recirculate", eval_recirculate); (* unsupported *)
     ("clone", eval_clone); (* unsupported *)
     ("clone3", eval_clone3); (* unsupported *)
-    ("truncate", eval_truncate);
+    ("truncate", eval_truncate); (* unsupported *)
     ("assert", eval_assert);
     ("assume", eval_assume);
     ("log_msg", eval_log_msg); (* overloaded; unsupported *)

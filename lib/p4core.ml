@@ -141,25 +141,6 @@ module Corize (T : Target) : Target = struct
     | [] -> eval_advance ctrl env st targs args
     | _ -> failwith "wrong number of args for extract"
 
-  let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
-    match t with
-    | Bool -> Bigint.one
-    | Int {width} | Bit {width} -> Bigint.of_int width
-    | Array {typ;size} -> Bigint.(width_of_typ env typ * of_int size)
-    | Tuple {types} ->
-      types
-      |> List.map ~f:(width_of_typ env)
-      |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
-    | Record rt | Header rt | Struct rt ->
-      rt.fields
-      |> List.map ~f:(fun x -> x.typ)
-      |> List.map ~f:(width_of_typ env)
-      |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
-    | Enum {typ = Some t;_} -> width_of_typ env t
-    | TypeName n -> width_of_typ env (EvalEnv.find_typ n env)
-    | NewType nt -> width_of_typ env nt.typ
-    | _ -> failwith "not a fixed-width type"
-
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true

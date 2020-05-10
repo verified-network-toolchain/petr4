@@ -1192,7 +1192,8 @@ end = struct
     match v with
     | VInt{v=n;_}
     | VBit{v=n;_}
-    | VInteger n -> n
+    | VInteger n 
+    | VVarbit{v=n;_} -> n
     | _ -> failwith "value not representable as bigint"
   
   let assert_varbit v = 
@@ -1295,8 +1296,8 @@ end = struct
 
   let width_of_val v =
     match v with
-    | VBit {w;v} | VInt {w;v} -> w
-    | VNull | VVarbit _ -> Bigint.zero
+    | VBit {w;_} | VInt {w;_} | VVarbit{w;_} -> w
+    | VNull -> Bigint.zero
     | VBool _ -> Bigint.one
     | VInteger _ -> failwith "width of VInteger"
     | VStruct _ -> failwith "width of struct unimplemented"

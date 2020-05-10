@@ -264,7 +264,7 @@ module PreV1Switch : Target = struct
   let package_for_hash (data : value list) : Bigint.t * Bigint.t =
     data
     |> List.map ~f:(fun v -> width_of_val v, bigint_of_val v)
-    |> List.map ~f:(fun (w,v) -> w, Bitstring.of_twos_complement w v)
+    |> List.map ~f:(fun (w,v) -> w, Bitstring.of_twos_complement v w)
     |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
         Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
 

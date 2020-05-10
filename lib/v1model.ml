@@ -446,12 +446,17 @@ module PreV1Switch : Target = struct
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] |> fst23
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
     let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
-    let egress_spec = match struc with
+    let egress_spec_val = match struc with
       | VStruct {fields} ->
         List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
-        |> bigint_of_val
       | _ -> failwith "std meta is not a struct after ingress" in
-    if Bigint.(egress_spec = drop_spec) then st, env, None else
+    if Bigint.(egress_spec_val |> bigint_of_val = drop_spec) then st, env, None else
+    let env,_ = 
+      assign_lvalue 
+        env
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+                name="egress_port"; }; typ = Bit {width = 9}}
+        egress_spec_val in
     let (env, st) =
       (env, st)
       |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23

@@ -1,2 +1,2 @@
 packet 0 00
-expect 0 0600
+expect 1 0600

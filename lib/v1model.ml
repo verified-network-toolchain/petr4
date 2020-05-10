@@ -273,8 +273,8 @@ module PreV1Switch : Target = struct
 
   let eval_hash : extern = fun ctrl env st ts args ->
     let width = match ts with
-      | [o; _] -> width_of_typ env o
-      | _ -> failwith "unexpected type args for hash" in
+      | o :: _ -> width_of_typ env o
+      | _ -> failwith "missing type args for hash" in
     let (algo, base, data, rmax) = match args with
       | [_; (VEnumField {enum_name=algo;_}, _);
         (VBit{w=base;_},_); (VTuple data, _); (VBit{v=max;_}, _)] ->

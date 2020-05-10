@@ -6,6 +6,8 @@ open Env
 module I = Info
 open Core_kernel
 module Info = I
+let (=) = Stdlib.(=)
+let (<>) = Stdlib.(<>)
 
 module Corize (T : Target) : Target = struct
 
@@ -79,21 +81,23 @@ module Corize (T : Target) : Target = struct
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
     match t with
-    | Struct rt | Header rt -> List.map rt.fields ~f:(value_of_field fs)
+    | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
     | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
     | NewType nt -> reset_fields env fs nt.typ
-    | _ -> failwith "not resettable"
+    | _ -> raise_s [%message "not resettable"
+                  ~t:(t:Type.t)]
 
   let eval_extract' (ctrl : ctrl) (env : env) (st : state)
-      (t : Type.t) (pkt : value) (v : value) (w : Bigint.t)
+      (t : Type.t) (pkt : value) (_ : value) (w : Bigint.t)
       (is_fixed : bool) : env * state * signal * value =
     let obj = State.get_packet st in
     let pkt = obj.main in
-    let init_fs = match v with
+    let init_v = init_val_of_typ env t in
+    let init_fs = match init_v with
       | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in
-    let fs = reset_fields env init_fs t in
-    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let fs = init_fs in
+    let eight = Bigint.of_int 8 in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
     let st' = State.set_packet {obj with main = pkt'} st in
@@ -196,7 +200,7 @@ module Corize (T : Target) : Target = struct
 
   let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
     match t with 
-    | Header rt | Record rt | Struct rt -> List.map rt.fields ~f:(fun x -> x.typ)
+    | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
     | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
     | NewType nt -> field_types_of_typ env nt.typ
     | _ -> failwith "type does not have fields"
@@ -208,7 +212,7 @@ module Corize (T : Target) : Target = struct
     | VVarbit {max; w; v} -> packet_of_bit w v
     | VStruct {fields} -> packet_of_struct env t fields
     | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
-    | VUnion {valid_header; valid_fields} -> packet_of_union env t valid_header valid_fields
+    | VUnion {fields} -> packet_of_struct env t fields
     | VStack {headers; _} -> packet_of_stack env t headers
     | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
@@ -230,12 +234,6 @@ module Corize (T : Target) : Target = struct
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : buf =
     if is_valid then packet_of_struct env t fields else Cstruct.empty
-
-  and packet_of_union (env : env) (t : Type.t) (hdr : value)
-      (fs : (string * bool) list) : buf =
-    if List.exists fs ~f:snd
-    then packet_of_value env t hdr
-    else Cstruct.empty
 
   and packet_of_stack (env : env) (t : Type.t) (headers : value list) : buf =
     let t' = match t with

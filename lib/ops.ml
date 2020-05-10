@@ -201,8 +201,8 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
     VHeader{fields=l2;is_valid=b2;_}          -> headers_equal l1 l2 b1 b2
   | VStack{headers=l1;_}, 
     VStack{headers=l2;_}                      -> stacks_equal l1 l2
-  | VUnion{valid_header=v1;valid_fields=l1;_}, 
-    VUnion{valid_header=v2;valid_fields=l2;_} -> unions_equal v1 v2 l1 l2
+  | VUnion{fields=l1}, 
+    VUnion{fields=l2}                         -> unions_equal l1 l2
   | VTuple l1, VTuple l2                      -> tuples_equal l1 l2
   | _ -> failwith "equality comparison undefined for given types"
 
@@ -231,15 +231,8 @@ and stacks_equal (l1 : V.value list) (l2 : V.value list) : V.value =
   let b = List.for_alli l1 ~f:f in
   VBool b
 
-and unions_equal (v1 : V.value) (v2 : V.value) (l1 : (string * bool) list)
-(l2 : (string * bool) list) : V.value =
-  let f = fun (_,x) -> not x in
-  let b1 = (List.for_all l1 ~f:f) && (List.for_all l2 ~f:f) in
-  let l1' = List.map l1 ~f:(fun (x,y) -> (y,x)) in
-  let l2' = List.map l2 ~f:(fun (x,y) -> (y,x)) in
-  let b2 = Poly.(=) (List.Assoc.find l1' true ~equal:Poly.(=)) (List.Assoc.find l2' true ~equal:Poly.(=)) in
-  let b3 = interp_beq v1 v2 |> V.assert_bool in
-  VBool (b1 || (b2 && b3))
+and unions_equal (l1 : (string * V.value) list) (l2 : (string * V.value) list) : V.value =
+  VBool (V.assert_bool (structs_equal l1 l2))
 
 and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
   let f v1 v2 acc =

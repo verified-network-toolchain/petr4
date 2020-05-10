@@ -793,8 +793,11 @@ and Value : sig
   (* let buf_to_yojson b = failwith "unimplemented"
   let buf_of_yojson j = failwith "unimplemented" *)
 
-  type pkt = buf [@@deriving sexp,yojson]
-  type pkt_out = buf * buf [@@deriving sexp,yojson]
+  type pkt = {
+    emitted : buf;
+    main : buf;
+    in_size : int;
+  } [@@deriving sexp,yojson]
 
   type entries = Table.pre_entry list
 
@@ -1016,8 +1019,11 @@ end = struct
   let buf_to_yojson b = failwith "unimplemented"
   let buf_of_yojson j = failwith "unimplemented"
 
-  type pkt = buf [@@deriving sexp,yojson]
-  type pkt_out = buf * buf [@@deriving sexp,yojson]
+  type pkt = {
+    emitted : buf;
+    main : buf;
+    in_size : int;
+  } [@@deriving sexp,yojson]
 
   type entries = Table.pre_entry list
 

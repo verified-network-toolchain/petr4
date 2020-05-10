@@ -203,7 +203,7 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
     VStack{headers=l2;_}                      -> stacks_equal l1 l2
   | VUnion{valid_header=v1;valid_fields=l1;_}, 
     VUnion{valid_header=v2;valid_fields=l2;_} -> unions_equal v1 v2 l1 l2
-  | VTuple _, _ -> failwith "got tuple"
+  | VTuple l1, VTuple l2                      -> tuples_equal l1 l2
   | _ -> failwith "equality comparison undefined for given types"
 
 and structs_equal (l1 : (string * V.value) list)
@@ -240,6 +240,14 @@ and unions_equal (v1 : V.value) (v2 : V.value) (l1 : (string * bool) list)
   let b2 = Poly.(=) (List.Assoc.find l1' true ~equal:Poly.(=)) (List.Assoc.find l2' true ~equal:Poly.(=)) in
   let b3 = interp_beq v1 v2 |> V.assert_bool in
   VBool (b1 || (b2 && b3))
+
+and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
+  let f v1 v2 acc =
+    let b = interp_beq v1 v2 in
+    V.VBool (acc |> V.assert_bool && b |> V.assert_bool) in
+  match List.fold2 ~init:(V.VBool true) ~f l1 l2 with
+  | Ok b -> b
+  | Unequal_lengths -> V.VBool false
 
 let interp_bne (l : V.value) (r : V.value) : V.value =
   interp_beq l r |> V.assert_bool |> not |> VBool

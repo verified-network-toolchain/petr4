@@ -117,6 +117,10 @@ let find_all name env =
      end
   | _ -> failwith "unimplemented"
 
+let string_of_name = function
+  | BareName (_, n) -> n
+  | _ -> ""
+
 let opt_to_exn name v =
   match v with
   | Some v -> v

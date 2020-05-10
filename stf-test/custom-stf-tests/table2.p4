@@ -25,6 +25,7 @@ control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
+        standard_metadata.egress_spec = 1;
 
     }
 }
@@ -34,12 +35,12 @@ control MyEgress(inout head[13] hdr,
                  inout standard_metadata_t standard_metadata) {
 
   action a() { 
-      hdr[0].v = (bit<8>) 0;
+      hdr[0].v = 0;
       hdr[0].setValid();
   }
 
   action a_with_control_params(bit<8> x) { 
-      hdr[0].v = (bit<8>) x;
+      hdr[0].v = x;
       hdr[0].setValid();
   }
 

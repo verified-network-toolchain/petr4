@@ -13,14 +13,14 @@ type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
 module State : sig
-  type 'a t = (string * 'a) list
-
-  val packet_location : loc
-
-  val packet_location : string
+  type 'a t
 
   val empty : 'a t
 
+  val packet_location : loc
+
+  val get_packet : 'a t -> pkt
+  val set_packet : pkt -> 'a t -> 'a t
   val insert : loc -> 'a -> 'a t -> 'a t
   val find : loc -> 'a t -> 'a
   val filter : f:(loc * 'a -> bool) -> 'a t -> 'a t
@@ -47,7 +47,7 @@ module type Target = sig
 
   val check_pipeline : env -> unit 
 
-  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt
+  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt option
 
 end
 

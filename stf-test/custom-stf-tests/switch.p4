@@ -25,7 +25,7 @@ control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        standard_metadata.egress_port = 1;
+        standard_metadata.egress_spec = 1;
     }
 }
 
@@ -54,7 +54,7 @@ control MyEgress(inout head[13] hdr,
     }
 
     table my_table {
-        key = { standard_metadata.egress_port : exact;}
+        key = { standard_metadata.egress_spec : exact;}
         actions = { set_zero; set_one; set_two; set_three; }
         const entries = {
             0 : set_three;

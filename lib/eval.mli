@@ -13,7 +13,10 @@ module type Interpreter = sig
 
   val empty_state : state
 
-  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt
+  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt option
+
+  val eval_prog : ctrl -> env -> state -> buf -> Bigint.t -> program -> 
+    state * (buf * Bigint.t) option
 
   val eval_decl : ctrl -> env -> state -> Declaration.t -> (env * state)
 
@@ -32,4 +35,4 @@ module V1Interpreter : Interpreter
 (* module EbpfInterpreter : Interpreter *)
 
 (* TODO: final val should not take in the env *)
-val eval_prog : env -> program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option
+(* val eval_prog : env -> program -> ctrl -> pkt -> Bigint.t -> (string * Bigint.t) option *)

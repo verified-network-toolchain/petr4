@@ -106,20 +106,6 @@ stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unim
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,109
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
 stf,examples/checker_tests/good/checksum1-bmv2.p4,verify_checksum extern unimplemented,109
-stf,examples/checker_tests/good/union1-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/union2-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/union-valid-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-5-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-6-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-4-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/union3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-3-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-2-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue1879-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-1-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue561-7-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/union-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
-stf,examples/checker_tests/good/issue774-4-bmv2.p4,extract on uninitialized union tries to evaluate it and fails,157
 stf,examples/checker_tests/good/parser_error-bmv2.p4,struct.hdr_field.setValid() fails in eval_setbool,158
 stf,examples/checker_tests/good/issue510-bmv2.p4,struct.hdr_field.setValid() fails in eval_setbool,158
 stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,width of serializable enum unimplemented,159
@@ -127,6 +113,8 @@ stf,examples/checker_tests/good/bvec-hdr-bmv2.p4,width of struct unimplemented,1
 stf,examples/checker_tests/good/header-bool-bmv2.p4,width of bool and bool extraction unimplemented (spec 7.2.2 has a full list of fields allowed in hdrs),159
 stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
 stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
+stf,examples/checker_tests/good/issue774-4-bmv2.p4,passing dontcare as an out argument causes crash,
+stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,
 stf,examples/checker_tests/good/subparser-with-header-stack-bmv2.p4,,
 stf,examples/checker_tests/good/header-stack-ops-bmv2.p4,,
 stf,examples/checker_tests/good/issue995-bmv2.p4,,

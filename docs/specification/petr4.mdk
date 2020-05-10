@@ -411,7 +411,7 @@ v_o ::= b // booleans
     | @error.name
     | @matchkind name
     | (\overline{x:t,d}) \Rightarrow blk // functions, actions
-    | @builtin name
+    | @builtin name lv
     | @struct \{ \overline{(name, v)} \}
     | @header b \{ \overline{(name, v)} \}
     | \mathkw{header\ union} v \{ \overline{(name, b)} \}
@@ -441,10 +441,12 @@ set ::=  @universal
 
 ## L-values
 ~ Begin P4MathGrammar
-lv ::=  @lvalue t x
+lv_o ::=  @lvalue t x
     | @lvalue t lv.x
     | @lvalue t lv[n1:n2]
     | @lvalue t lv[v]
+
+lv ::= lv_o | @None
 ~ End P4MathGrammar
 
 ## Signals
@@ -1522,10 +1524,10 @@ TODO:lpm
 ### LValues
 $e$ has type $\tau$.
 ~ MathPre
-\mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, @lvalue t x) & e1 = x
-(\xi', \sigma', @lvalue t lv.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv)
-(\xi', \sigma', @lvalue t lv[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv)
-(\xi'', \sigma'', @lvalue t lv[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', TODO, v>
+\mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, TODO, @lvalue t x) & e1 = x
+(\xi', \sigma', TODO, @lvalue t lv.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv)
+(\xi', \sigma', TODO, @lvalue t lv[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv)
+(\xi'', \sigma'', TODO, @lvalue t lv[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', TODO, v>
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
@@ -1737,21 +1739,24 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, (@header \{ \dots \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@header \{ \dots \}, b)>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-IsValid-Field]
-<\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi', \sigma', TODO, @builtin @isValid>
+<\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, (@header \{ \dots \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@header \{ \dots \}, b)>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-SetValid-Field]
-<\zeta, \xi, \sigma, e.@setValid> \Downarrow_e <\xi', \sigma', TODO, @builtin @setValid>
+<\zeta, \xi, \sigma, e.@setValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setValid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, (@header \{ \dots \}, b)>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@header \{ \dots \}, b)>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-SetInvalid-Field]
-<\zeta, \xi, \sigma, e.@setInvalid> \Downarrow_e <\xi', \sigma', TODO, @builtin @setInvalid>
+<\zeta, \xi, \sigma, e.@setInvalid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
 ~
 
 ~ Infer
@@ -1808,15 +1813,17 @@ n_{next} < 1
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, (\overline{v}, n_{size}, n_{next})>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Array-PopFront-Field]
-<\zeta, \xi, \sigma, e.\mathkw{pop\_front}> \Downarrow_e <\xi', \sigma', TODO, @builtin \mathkw{pop\_front}>
+<\zeta, \xi, \sigma, e.\mathkw{pop\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{pop\_front} lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, (\overline{v}, n_{size}, n_{next})>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Array-PushFront-Field]
-<\zeta, \xi, \sigma, e.\mathkw{push\_front}> \Downarrow_e <\xi', \sigma', TODO, @builtin \mathkw{push\_front}>
+<\zeta, \xi, \sigma, e.\mathkw{push\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{push\_front} lv_o>
 ~
 
 ~ Infer
@@ -1833,20 +1840,23 @@ n_{next} < 1
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @parser \dots>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Parser-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name>
+<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @control \dots>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Control-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name>
+<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @table \dots>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Table-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name>
+<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 
@@ -1996,8 +2006,8 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', TODO, v>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
+<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 \mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
 ---------------------------------------------------------------------------[Assignment]
 <\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \sigma', sig>

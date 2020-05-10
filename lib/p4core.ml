@@ -6,6 +6,8 @@ open Env
 module I = Info
 open Core_kernel
 module Info = I
+let (=) = Stdlib.(=)
+let (<>) = Stdlib.(<>)
 
 module Corize (T : Target) : Target = struct
 
@@ -79,7 +81,11 @@ module Corize (T : Target) : Target = struct
 
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
-    print_s [%message "reset_fields"];
+    print_s [%message "reset_fields"
+           ~fs:(fs : (string * value) list)
+      ~t:(t : Type.t) 
+
+      ];
     match t with
     | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
     | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
@@ -258,9 +264,18 @@ module Corize (T : Target) : Target = struct
 
   and packet_of_union (env : env) (t : Type.t) (hdr : value)
       (fs : (string * bool) list) : buf =
-    if List.exists fs ~f:snd
-    then packet_of_value env t hdr
-    else Cstruct.empty
+    print_s [%message "packet_of_union" ~fs:(fs: (string * bool) list) ~hdr:(hdr:value)];
+    match List.find fs ~f:snd with
+    | Some (field, _) ->
+       let field_type =
+         match t with
+         | HeaderUnion {fields; _} ->
+            let f = List.find_exn ~f:(fun f -> f.name = field) fields in
+            f.typ
+         | _ -> failwith "BUG: type safety violated"
+       in
+       packet_of_value env field_type hdr
+    | None -> Cstruct.empty
 
   and packet_of_stack (env : env) (t : Type.t) (headers : value list) : buf =
     let t' = match t with

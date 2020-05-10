@@ -17,6 +17,7 @@ module Corize (T : Target) : Target = struct
 
   let value_of_field (init_fs : (string * value) list) 
       (f : RecordType.field) : string * value =
+    print_s [%message "value_of_field" ~init_fs:(init_fs : (string * value) list) ~f:(f : RecordType.field)];
     f.name,
     List.Assoc.find_exn init_fs f.name ~equal:String.equal
 
@@ -78,22 +79,26 @@ module Corize (T : Target) : Target = struct
 
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
+    print_s [%message "reset_fields"];
     match t with
-    | Struct rt | Header rt -> List.map rt.fields ~f:(value_of_field fs)
+    | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
     | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
     | NewType nt -> reset_fields env fs nt.typ
-    | _ -> failwith "not resettable"
+    | _ -> raise_s [%message "not resettable"
+                  ~t:(t:Type.t)]
 
   let eval_extract' (ctrl : ctrl) (env : env) (st : state)
-      (t : Type.t) (pkt : value) (v : value) (w : Bigint.t)
+      (t : Type.t) (pkt : value) (_ : value) (w : Bigint.t)
       (is_fixed : bool) : env * state * signal * value =
+    print_s [%message "eval_extract'" ~t:(t:Type.t)];
     let obj = State.get_packet st in
     let pkt = obj.main in
-    let init_fs = match v with
+    let init_v = init_val_of_typ env t in
+    let init_fs = match init_v with
       | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in
-    let fs = reset_fields env init_fs t in
-    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let fs = init_fs in
+    let eight = Bigint.of_int 8 in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
     let st' = State.set_packet {obj with main = pkt'} st in
@@ -221,6 +226,7 @@ module Corize (T : Target) : Target = struct
 
   and packet_of_struct (env : env) (t : Type.t)
       (fields : (string * value) list) : buf =
+    print_s [%message "packet_of_struct" ~fs:(fields : (string * value) list)];
     let fs = reset_fields env fields t in
     let fs' = List.map ~f:snd fs in
     let fts = field_types_of_typ env t in
@@ -248,6 +254,7 @@ module Corize (T : Target) : Target = struct
     let (pkt_loc, v, t) = match args with
       | [(VRuntime {loc; _}, _); (hdr, t)] -> loc, hdr, t
       | _ -> failwith "unexpected args for emit" in
+    print_s [%message "eval_emit"];
     let obj = State.get_packet st in
     let (pkt_hd, pkt_tl) = obj.emitted, obj.main in
     let pkt_add = packet_of_value env t v in

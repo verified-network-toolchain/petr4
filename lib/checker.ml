@@ -1488,6 +1488,10 @@ and cast_ok env original_type new_type =
   | Enum { name; typ = Some t; members }, t'
   | t', Enum { name; typ = Some t; members } ->
      type_equality env t t'
+  | NewType { name = name1; typ = typ1 },
+    NewType { name = name2; typ = typ2 } ->
+     type_equality env typ1 new_type
+     || type_equality env original_type typ2
   | NewType { name; typ }, t
   | t, NewType { name; typ } ->
      type_equality env typ t
@@ -1501,11 +1505,12 @@ and type_cast env typ expr : Prog.Expression.typed_t =
   let expr_typed = type_expression env expr in
   let expr_type = saturate_type env (snd expr_typed).typ in
   let new_type = translate_type env [] typ in
-  if cast_ok env expr_type (saturate_type env new_type)
+  let new_type_sat = saturate_type env (translate_type env [] typ) in
+  if cast_ok env expr_type new_type_sat
   then { dir = Directionless; typ = new_type; expr = Cast {typ = new_type; expr = expr_typed} }
   else raise_s [%message "illegal explicit cast"
                    ~old_type:(expr_type: Typed.Type.t)
-                   ~new_type:(new_type: Typed.Type.t)]
+                   ~new_type:(new_type_sat: Typed.Type.t)]
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =

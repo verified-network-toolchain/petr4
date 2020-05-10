@@ -1103,6 +1103,7 @@ and is_numeric (typ: Typed.Type.t) : bool =
 and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
   let bits_typed = type_expression env bits in
   match reduce_type env (snd bits_typed).typ with
+  | Int { width }
   | Bit { width } ->
      let lo_typed = type_expression env lo in
      let typ_lo = saturate_type env (snd lo_typed).typ in

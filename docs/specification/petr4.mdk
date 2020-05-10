@@ -341,6 +341,7 @@ t ::= @bool
     | t[a]
     | @tuple<\overline{t}>
     | \{ \overline{t} \}
+    | \{ \overline{f:t} \}
     | @set<t>
     | @error
     | \mathkw{match\_kind}
@@ -398,7 +399,7 @@ $m_s^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
 
 Values
 ~ Begin P4MathGrammar
-v ::= b // booleans
+v_o ::= b // booleans
     | a // arbitrary-width integers
     | m_u^n // unsigned integers, n not zero
     | m_s^n // signed integers, n not zero
@@ -408,6 +409,7 @@ v ::= b // booleans
     | \{ \overline{x:v} \} // records
     | set
     | @error.name
+    | @matchkind name
     | (\overline{x:t,d}) \Rightarrow blk // functions, actions
     | @builtin name
     | @struct \{ \overline{(name, v)} \}
@@ -422,6 +424,8 @@ v ::= b // booleans
     | @package \overline{(name, v)}
     | @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
     | @extern name
+
+v ::= v_o | @None
 ~ End P4MathGrammar
 
 Sets
@@ -1480,9 +1484,9 @@ Some\ blk_j & case_i = case\_lbl_i :\ \land case_j = case\_lbl_j : blk_j \land n
 ### Match Sets
 ~ MathPre
 \mathkw{set\_of\_matches} \zeta \xi \sigma \overline{match} = \begin{cases} (\xi, \sigma, @universal) & \overline{match} = (\_)
-(\xi', \sigma', @singleton (\mathkw{extract\_num} v)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v>
-(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
-(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', set> \land set \neq \mathkw{value\_set} ...
+(\xi', \sigma', @singleton (\mathkw{extract\_num} v)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, v>
+(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
+(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, set> \land set \neq \mathkw{value\_set} ...
 (\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) = (\xi^n, \sigma^n, set_n) 
 \end{cases}
 
@@ -1502,8 +1506,8 @@ TODO:lpm
 
 ### Parser State machine
 ~ MathPre
-\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
-(\xi'', \sigma'', Some\ x_i) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
+\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', TODO, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
+(\xi'', \sigma'', Some\ x_i) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', TODO, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
 \end{cases}
 
 
@@ -1521,7 +1525,7 @@ $e$ has type $\tau$.
 \mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, @lvalue t x) & e1 = x
 (\xi', \sigma', @lvalue t lv.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv)
 (\xi', \sigma', @lvalue t lv[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv)
-(\xi'', \sigma'', @lvalue t lv[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', v>
+(\xi'', \sigma'', @lvalue t lv[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', lv) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', TODO, v>
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
@@ -1773,7 +1777,7 @@ n_{next} \lt n_{size}
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} \geq n_{size}
 -------------------------------------------------------------------------------[Array-Next-Field-OutOfBounds]
-<\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", TODO>
+<\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
@@ -1787,14 +1791,14 @@ n_{next} \geq n_{size}
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} > n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-High]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", TODO>
+<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} < 1
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-Low]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", TODO>
+<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
@@ -1865,8 +1869,8 @@ n_{next} < 1
 ### Function Calls
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', (\overline{x:t,d}) \Rightarrow blk>
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \overline{v}>
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', TODO, (\overline{x:t,d}) \Rightarrow blk>
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', TODO, \overline{v}>
 @copyin \xi'' (\overline{x:t,d}) \overline{v} = \xi'''
 <\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}
 @copyout \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
@@ -1992,7 +1996,7 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', v>
+<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', TODO, v>
 \mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', lv)
 \mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
 ---------------------------------------------------------------------------[Assignment]
@@ -2000,8 +2004,8 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}>
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \overline{v}>
+<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', TODO, @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}>
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', TODO, \overline{v}>
 @copyin \xi'' (\overline{x:t,d}) \overline{v} = \xi'''
 <\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
 (@state ``start" \{...\}) \in \overline{state}
@@ -2012,8 +2016,8 @@ $\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk>
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \overline{v}>
+<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', TODO, @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk>
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', TODO, \overline{v}>
 @copyin \xi'' (\overline{x:t,d}) \overline{v} = \xi'''
 <\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
 <\zeta, \xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig>
@@ -2075,26 +2079,26 @@ TODO: why is it not the updated env and st
 ~
 
 ~ Infer
-TODO
+
 ---------------------------------------------[Return-Void]
-<\zeta, \xi, \sigma, @return> \Downarrow_s <TODO>
+<\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', v>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, v>
 --------------------------------------------------------------------------[Return-Value]
 <\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', name_1.name_2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = None
 ---------------------------------------------------------------------------------[Switch-No-Match]
 <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', name_1.name_2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
 <\zeta, \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[Switch-Match]

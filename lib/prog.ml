@@ -842,8 +842,7 @@ and Value : sig
         { fields : (string * value) list;
           is_valid : bool }
     | VUnion of 
-        { valid_header : value;
-          valid_fields : (string * bool) list; }
+        { fields : (string * value) list; }
     | VStack of 
         { headers : value list;
           size : Bigint.t;
@@ -974,7 +973,7 @@ and Value : sig
 
   val assert_header : value -> (string * value) list * bool 
 
-  val assert_union : value -> value * (string * bool) list 
+  val assert_union : value -> (string * value) list 
 
   val assert_stack : value -> value list * Bigint.t * Bigint.t 
 
@@ -1067,8 +1066,7 @@ end = struct
         { fields : (string * value) list;
           is_valid : bool }
     | VUnion of 
-        { valid_header : value;
-          valid_fields : (string * bool) list; }
+        { fields : (string * value) list; }
     | VStack of 
         { headers : value list;
           size : Util.bigint;
@@ -1250,7 +1248,7 @@ end = struct
   
   let assert_union v = 
     match v with 
-    | VUnion {valid_header;valid_fields} -> (valid_header, valid_fields)
+    | VUnion {fields} -> fields
     | _ -> failwith "not a union"
   
   let assert_stack v = 

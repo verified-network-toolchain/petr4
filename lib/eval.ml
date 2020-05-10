@@ -831,7 +831,7 @@ module MakeInterpreter (T : Target) = struct
         | VPackage _                         -> failwith "expr member does not exist"
         | VStruct{fields=fs}                 -> eval_struct_mem env' st' (snd name) fs
         | VHeader{fields=fs;is_valid=vbit}   -> eval_header_mem ctrl env' st' (snd name) expr fs vbit
-        | VUnion{valid_header=v;_}           -> (env', st', SContinue, v)
+        | VUnion{fields=fs}                  -> eval_struct_mem env' st' (snd name) fs
         | VStack{headers=hdrs;size=s;next=n} -> eval_stack_mem ctrl env' st' (snd name) expr hdrs s n
         | VRuntime {loc; obj_name}           -> eval_runtime_mem env' st' (snd name) expr loc obj_name
         | VRecord fs                         -> env', st', s, find_exn fs (snd name)
@@ -1187,78 +1187,27 @@ module MakeInterpreter (T : Target) = struct
   and eval_isvalid (ctrl : ctrl) (env : env) (st : state) 
       (lv : lvalue) : env * state * signal * value =
     let (s,v) = value_of_lvalue env lv in
-    match s with
-    | SContinue ->
-      begin match lv.lvalue with
-        | LName _
-        | LBitAccess _
-        | LArrayAccess _ ->
-          begin match v with
-            | VHeader{is_valid=b;_} -> (env, st, s, VBool b)
-            | _ -> failwith "isvalid call is not a header" end
-        | LMember{expr=lv';name=n; _} ->
-          let (s',v') = value_of_lvalue env lv' in
-          begin match s' with
-            | SContinue ->
-              begin match v' with
-                | VUnion{valid_fields=l;_} ->
-                  (env, st, s', VBool (find_exn l n))
-                | _ ->
-                  begin match v with
-                    | VHeader{is_valid=b;_} -> (env, st, s', VBool b)
-                    | _ -> failwith "isvalid call is not a header" end end
-            | SReject _ -> (env, st, s', VNull)
-            | _ -> failwith "unreachable" end end
-    | SReject _ -> (env, st, s, VNull)
-    | _ -> failwith "unreachable"
+    match s, v with
+    | (SReturn _ | SExit | SReject _), _ -> (env, st, s, VNull)
+    | SContinue, VHeader{is_valid=b;_} ->
+       (env, st, s, VBool b)
+    | SContinue, VUnion{fields} ->
+       let field_valid (_, v) = snd (assert_header v) in
+       let valid = List.exists ~f:field_valid fields in
+       (env, st, s, VBool valid)
+    | SContinue, _ ->
+       failwith "isvalid call is not a header"
 
   and eval_setbool (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (b : bool) : env * state * signal * value =
-    match lv.lvalue with
-    | LName {name = n} ->
-      begin match EvalEnv.find_val n env with
-        | VHeader{fields=fs;_} ->
-          let (env', _) = assign_lvalue env lv (VHeader{fields=fs;is_valid=b}) in
-          (env', st, SContinue, VNull)
-        | _ -> failwith "not a header" end
-    | LMember{expr=lv';name=n2} ->
-      let (s,v') = value_of_lvalue env lv' in
-      begin match s with
-        | SContinue ->
-          begin match v' with
-            | VUnion{valid_header=fs;valid_fields=vs} ->
-              let vs' = List.map vs ~f:(fun (a,_) -> (a,if b then String.equal a n2 else b)) in
-              let u = VUnion{valid_header=fs;valid_fields=vs'} in
-              let (env',_) = assign_lvalue env lv' u in
-              (env', st, SContinue, VNull)
-            | VStruct{fields=fs} -> failwith "setbool in struct unimplemented"
-            | _ -> failwith "not a union" end
-        | SReject _ -> (env, st, s, VNull)
-        | _ -> failwith "unreachable" end
-    | LArrayAccess{expr=lv';idx=i} ->
-      let (s,v') = value_of_lvalue env lv' in
-      begin match s with
-        | SContinue ->
-          begin match v' with
-            | VStack{headers=hdrs;size;next} ->
-              (* let (env', st', s, i) = eval_expr ctrl env st SContinue e in *)
-              let i' = bigint_of_val i in
-              let (hdrs1, hdrs2) = List.split_n hdrs (Bigint.to_int_exn i') in
-              let hdrs' = match hdrs2 with
-                | VHeader{fields=vs;_} :: t -> 
-                  hdrs1 @ (VHeader{fields=vs;is_valid=b} :: t)
-                | _ -> failwith "not a header" in
-              begin match s with
-                | SContinue ->
-                  let s = VStack{headers=hdrs';size;next} in
-                  let (env'',_) = assign_lvalue env lv' s in
-                  (env'', st, SContinue, VNull)
-                | SReject _ -> (env, st, s, VNull)
-                | _ -> failwith "unreachable" end
-            | _ -> failwith "not a stack" end
-        | SReject _ -> (env, st, s , VNull)
-        | _ -> failwith "unreachable" end
-    | LBitAccess _ -> failwith "not a header"
+    let (s,v) = value_of_lvalue env lv in
+    match s, v with
+    | (SReturn _ | SExit | SReject _), _ -> (env, st, s, VNull)
+    | SContinue, VHeader hdr ->
+       let env, signal = assign_lvalue env lv (VHeader {hdr with is_valid = b}) in
+       (env, st, signal, VBool b)
+    | SContinue, _ ->
+       failwith "isvalid call is not a header"
 
   and eval_popfront (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (args : Expression.t option list) : env * state * signal * value =

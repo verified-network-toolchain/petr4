@@ -38,7 +38,7 @@ let rec init_val_of_typ (env : env) (typ : Type.t) : value =
   | NewType nt         -> init_val_of_newtyp env nt
   | Void               -> VNull
   | Header rt          -> init_val_of_header env rt
-  | HeaderUnion rt     -> init_val_of_union rt
+  | HeaderUnion rt     -> init_val_of_union env rt
   | Struct rt          -> init_val_of_struct env rt
   | Enum et            -> init_val_of_enum env et
   | SpecializedType st -> init_val_of_specialized st
@@ -83,11 +83,10 @@ and init_val_of_header (env : env) (rt : RecordType.t) : value =
     is_valid = false
   }
 
-and init_val_of_union (rt : RecordType.t) : value =
-  let bs = List.map rt.fields ~f:(fun f -> f.name, false) in
+and init_val_of_union (env: env) (rt : RecordType.t) : value =
+  let fs = List.map rt.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
   VUnion {
-    valid_header = VNull;
-    valid_fields = bs;
+    fields = fs;
   }
 
 and init_val_of_struct (env : env) (rt : RecordType.t) : value =
@@ -186,9 +185,9 @@ and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
   let (s,v) = value_of_lvalue env lv in
   let v' = match v with
     | VStruct{fields=l;_}
-    | VHeader{fields=l;_}              ->
+    | VHeader{fields=l;_}
+    | VUnion{fields=l;_} ->
       find_exn l n
-    | VUnion{valid_header=v;_}         -> v
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
     | _ -> failwith "no lvalue member" in
   match s with
@@ -261,9 +260,8 @@ and update_member (value : value) (fname : string) (fvalue : value) : value * si
   | VHeader v ->
      VHeader {fields=update_field v.fields fname fvalue;
               is_valid=true}, SContinue
-  | VUnion v ->
-     VUnion {valid_header=fvalue;
-             valid_fields=set_only_valid v.valid_fields fname}, SContinue
+  | VUnion {fields} ->
+     update_union_member fields fname fvalue
   | VStack{headers=hdrs; size=s; next=i} ->
      let idx = 
        match fname with
@@ -274,8 +272,21 @@ and update_member (value : value) (fname : string) (fvalue : value) : value * si
      update_idx value idx fvalue
   | _ -> failwith "member access undefined"
 
-and set_only_valid fields (fname: string) =
-  List.map fields ~f:(fun (name, _) -> name, name = fname)
+and update_union_member fields member_name new_value =
+  let new_fields, new_value_valid = assert_header new_value in
+  let set_validity value validity =
+    let value_fields, _ = assert_header value in
+    VHeader {fields = value_fields; is_valid = validity}
+  in
+  let update_field (name, value) =
+    name,
+    if new_value_valid
+    then if name = member_name
+         then new_value
+         else set_validity value false
+    else set_validity value false
+  in
+  VUnion {fields = List.map ~f:update_field fields}, SContinue
 
 and update_field fields field_name field_value =
   let rec update fields' fields =

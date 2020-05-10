@@ -303,13 +303,9 @@ module EvalEnv = struct
         | VHeader {fields;is_valid;_} ->
           print_endline ("<header> with " ^ (string_of_bool is_valid));
           List.iter fields ~f:(fun a -> print_string "    "; f a); ""
-        | VUnion {valid_header;valid_fields} ->
+        | VUnion {fields} ->
           print_endline "<union>";
-          f ("valid header", valid_header);
-          List.iter valid_fields ~f:(fun (a, b) -> print_string "     ";
-                           print_string a;
-                           print_string " -> ";
-                           print_string (string_of_bool b)); ""
+          List.iter fields ~f:(fun a -> print_string "    "; f a); ""
         | VStack _ -> "<stack>"
         | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
         | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"

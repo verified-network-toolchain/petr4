@@ -226,7 +226,7 @@ module Corize (T : Target) : Target = struct
 
   let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
     match t with 
-    | Header rt | Record rt | Struct rt -> List.map rt.fields ~f:(fun x -> x.typ)
+    | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
     | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
     | NewType nt -> field_types_of_typ env nt.typ
     | _ -> failwith "type does not have fields"
@@ -238,7 +238,7 @@ module Corize (T : Target) : Target = struct
     | VVarbit {max; w; v} -> packet_of_bit w v
     | VStruct {fields} -> packet_of_struct env t fields
     | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
-    | VUnion {valid_header; valid_fields} -> packet_of_union env t valid_header valid_fields
+    | VUnion {fields} -> packet_of_struct env t fields
     | VStack {headers; _} -> packet_of_stack env t headers
     | VInteger _ -> failwith "it was integer"
     | _ -> failwith "emit undefined on type"
@@ -261,21 +261,6 @@ module Corize (T : Target) : Target = struct
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : buf =
     if is_valid then packet_of_struct env t fields else Cstruct.empty
-
-  and packet_of_union (env : env) (t : Type.t) (hdr : value)
-      (fs : (string * bool) list) : buf =
-    print_s [%message "packet_of_union" ~fs:(fs: (string * bool) list) ~hdr:(hdr:value)];
-    match List.find fs ~f:snd with
-    | Some (field, _) ->
-       let field_type =
-         match t with
-         | HeaderUnion {fields; _} ->
-            let f = List.find_exn ~f:(fun f -> f.name = field) fields in
-            f.typ
-         | _ -> failwith "BUG: type safety violated"
-       in
-       packet_of_value env field_type hdr
-    | None -> Cstruct.empty
 
   and packet_of_stack (env : env) (t : Type.t) (headers : value list) : buf =
     let t' = match t with

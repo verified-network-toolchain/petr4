@@ -1,9 +1,8 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
-checker,examples/checker_tests/good/constsigned.p4,bitslice of int<> values (bad test?),123
+checker,examples/checker_tests/good/constsigned.p4,compile time eval not evaluating casts,126
 checker,examples/checker_tests/good/type-params.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/psa-portid-using-newtype2.p4,binop typecheck isn't saturating types before running,124
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
-checker,examples/checker_tests/good/names.p4,cast to struct not being done in const list initializer,126
 checker,examples/checker_tests/good/unused.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
@@ -18,7 +17,6 @@ checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter
 checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),128
 checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/enum-folding.y4,type member getting saturated,129
-checker,examples/checker_tests/good/issue1713-bmv2.p4,bit slice on integers,123
 checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed,130
 checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,73
 checker,examples/checker_tests/good/list-compare.p4,equality for tuples,131

@@ -5,8 +5,10 @@ open Env
 open Target
 open Error
 module I = Info
+module H = Hash
 open Core_kernel
 module Info = I
+module Hash = H
 
 module PreV1Switch : Target = struct
 
@@ -223,47 +225,6 @@ module PreV1Switch : Target = struct
       assign_lvalue env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) in
     env', st, SContinue, VNull
 
-  let hash_crc32 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash_crc16_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash_random (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    Bigint.to_string v
-    |> String.to_list
-    |> List.map ~f:Char.to_int
-    |> List.to_array
-    |> Random.full_init; (* Obj.magic instead??? *)
-    Random.int 256 |> Bigint.of_int
-
-  let hash_identity (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    v
-
-  let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash_xor16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-    failwith "TODO: implement hash algorithm"
-
-  let hash (algo : string) : (Bigint.t * Bigint.t) -> Bigint.t =
-    match algo with
-    | "crc32"        -> hash_crc32
-    | "crc32_custom" -> hash_crc32_custom
-    | "crc16"        -> hash_crc16
-    | "crc16_custom" -> hash_crc16_custom
-    | "random"       -> hash_random
-    | "identity"     -> hash_identity
-    | "csum16"       -> hash_csum16
-    | "xor16"        -> hash_xor16
-    | _              -> failwith "unknown hash algorithm"
-
   let package_for_hash (data : value list) : Bigint.t * Bigint.t =
     data
     |> List.map ~f:(fun v -> width_of_val v, bigint_of_val v)
@@ -286,7 +247,7 @@ module PreV1Switch : Target = struct
     let result = 
       data
       |> package_for_hash
-      |> hash algo
+      |> Hash.hash algo
       |> adjust_hash_value base rmax in
     let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=result}) env in
     env, st, SContinue, VNull
@@ -324,7 +285,7 @@ module PreV1Switch : Target = struct
     let result = 
       data
       |> package_for_hash
-      |> hash algo
+      |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
     else env, st, SReject "ChecksumError", VNull
@@ -342,7 +303,7 @@ module PreV1Switch : Target = struct
     let result = 
       data
       |> package_for_hash
-      |> hash algo
+      |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
     env', st, SContinue, VNull
@@ -375,7 +336,7 @@ module PreV1Switch : Target = struct
     let result = 
       data
       |> package_for_hash
-      |> hash algo
+      |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
     else env, st, SReject "ChecksumError", VNull
@@ -395,7 +356,7 @@ module PreV1Switch : Target = struct
     let result = 
       data
       |> package_for_hash
-      |> hash algo
+      |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
     env', st, SContinue, VNull

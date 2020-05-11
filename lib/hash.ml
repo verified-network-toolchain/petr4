@@ -37,6 +37,12 @@ let crc16_table = [|
 |]
 
 let hash_crc32 (length, v : Bigint.t * Bigint.t) : Bigint.t =
+  failwith "TODO: implement hash algorithm"
+
+let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
+  failwith "TODO: implement hash algorithm"
+
+let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   let rec partition_bytes len v =
     let msb = Bigint.(len-one) in
     let byte_lower = Bigint.(len - of_int 8) in
@@ -49,15 +55,9 @@ let hash_crc32 (length, v : Bigint.t * Bigint.t) : Bigint.t =
     let v1 = shift_bitstring_left crc (Bigint.of_int 8) in
     let l = Bigint.bit_and v1 Bigint.(power_of_two (of_int 16) - one) in
     let idx = Bigint.bit_xor (shift_bitstring_right crc (Bigint.of_int 8)) c in
-    (* let idx = bitwise_and v2 Bigint.(of_int 255) in *)
+    (* let idx = bitwise_and idx Bigint.(of_int 255) in *)
     Bigint.bit_xor l (crc16_table.(Bigint.to_int_exn idx) |> Bigint.of_int) in
   List.fold ~f ~init:Bigint.zero bytes
-
-let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
-
-let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  v
 
 let hash_crc16_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
   failwith "TODO: implement hash algorithm"

@@ -422,7 +422,7 @@ v_o ::= b // booleans
     | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
     | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
     | @package \overline{(name, v)}
-    | @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
+    | @table name \overline{e:x} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
     | @extern name v
 
 v ::= v_o | @None
@@ -1585,6 +1585,12 @@ If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if
 \end{cases}
 ~
 
+### LPM Entries
+~ MathPre
+\mathkw{lpm\_entries} \{ \overline{matches:action\_ref} \} \overline{x} = \begin{cases} \{ \overline{matches':x(\overline{e})} \} & TODO
+\end{cases}
+~
+
 ### Initial Value of Type
 ~ MathPre
 \mathkw{init\_val} \xi t_1 = \begin{cases} false & t_1 = @bool
@@ -1976,28 +1982,28 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
-\mathkw{value\_of\_lv} \xi' lv_o = (\mathkw{sig\_continue}, @header b \{\dots\})
+\mathkw{value\_of\_lv} \xi' lv_o = @header b \{\dots\}
 ----------------------------------------------------------------------------------------------[isValid-Header]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, b>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
-\mathkw{value\_of\_lv} \xi' lv_o = (\mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name, @header true \{\dots\}), \dots\})
+\mathkw{value\_of\_lv} \xi' lv_o = \mathkw{header\ union} \{ \dots,(name, @header true \{\dots\}), \dots\}
 -------------------------------------------------------------------------------[isValid-Header-Union-True]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
-\mathkw{value\_of\_lv} \xi' lv_o = (\mathkw{sig\_continue}, \mathkw{header\ union} \{ \overline{(name, @header false \{\dots\})}\})
+\mathkw{value\_of\_lv} \xi' lv_o = \mathkw{header\ union} \{ \overline{(name, @header false \{\dots\})}\}
 -------------------------------------------------------------------------------[isValid-Header-Union-False]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setValid lv_o>
-\mathkw{value\_of\_lv} \xi' lv_o = (\mathkw{sig\_continue}, @header b \{\overline{(name,v)}\})
+\mathkw{value\_of\_lv} \xi' lv_o = @header b \{\overline{(name,v)}\}
 \mathkw{assign\_lv} \xi' lv_o (@header true \{\overline{(name,v)}\}) = (\xi'',sig)
 ----------------------------------------------------------------------------------------------[setValid]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, true>
@@ -2005,7 +2011,7 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
-\mathkw{value\_of\_lv} \xi' lv_o = (\mathkw{sig\_continue}, @header b \{\overline{(name,v)}\})
+\mathkw{value\_of\_lv} \xi' lv_o = @header b \{\overline{(name,v)}\}
 \mathkw{assign\_lv} \xi' lv_o (@header false \{\overline{(name,v)}\}) = (\xi'',sig)
 ----------------------------------------------------------------------------------------------[setInvalid]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, false>
@@ -2014,7 +2020,7 @@ n_{next} \lt 1
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{pop\_front} (@lvalue t[a] ...)>
 <\zeta, \xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
-\mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next}))
+\mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\overline{v}, n_{size}, n_{next})
 \mathkw{assign\_lv} \xi' (@lvalue t[a] ...) (v_{(\mathkw{extract\_num} v)+1},...,v_{n_size}, (\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v}, n_{size}, n_{next} - \mathkw{extract\_num} v) = (\xi''',sig)
 --------------------------------------------------------------------------------------------------------[PopFront]
 <\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
@@ -2023,7 +2029,7 @@ n_{next} \lt 1
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{push\_front} (@lvalue t[a] ...)>
 <\zeta, \xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
-\mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next}))
+\mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\overline{v}, n_{size}, n_{next})
 \mathkw{assign\_lv} \xi' (@lvalue t[a] ...) ((\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v},v1,...,v_{n_{size} - \mathkw{extract\_num} v}, n_{size}, n_{next} + \mathkw{extract\_num} v) = (\xi''',sig)
 -------------------------------------------------------------------------------[PushFront]
 <\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
@@ -2031,7 +2037,7 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
-\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state})
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
 <\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
@@ -2044,7 +2050,7 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
-\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk)
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
 <\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
@@ -2054,26 +2060,29 @@ n_{next} \lt 1
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
 ~
 
-<!-- @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \} -->
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
-\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @table name \overline{e}_k \overline{action\_ref} x_{default}(\overline{e}) \{ \overline{matches:x(\overline{e})} \})
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
-TODO
-
+\mathkw{lpm\_entries} \{ \overline{matches:x(\overline{e})} \} \overline{x} = \{ \overline{matches':x(\overline{e})} \}
+\mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} = (\xi''', \sigma''', \overline{set})
 \forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v} set_i = false
-<\zeta, \xi, \sigma, x_{default}(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, v>
----------------------------------------------[Apply-Table-Default]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
+<\zeta, \xi''', \sigma''', x_{default}(\overline{e}_{default})> \Downarrow_e <\xi'''', \sigma'''', sig', v>
+----------------------------------------------------------------------------------------------------------------------------[Apply-Table-Default]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
 ~
 
 ~ Infer
-TODO
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
+<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
+\mathkw{lpm\_entries} \{ \overline{matches:x(\overline{e})} \} \overline{x} = \{ \overline{matches':x(\overline{e})} \}
+\mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} = (\xi''', \sigma''', \overline{set})
 \mathkw{match\_set} \overline{v} set_i = true
 \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
-<\zeta, \xi, \sigma, x_i(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, v>
+<\zeta, \xi''', \sigma''', x_i(\overline{e}_i)> \Downarrow_e <\xi'''', \sigma'''', sig', v>
 ------------------------------------------------------------------------------[Apply-Table]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
 ~
 
 ~ Infer

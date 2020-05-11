@@ -27,7 +27,7 @@ module Corize (T : Target) : Target = struct
     |> List.map ~f:snd
     |> List.map ~f:width_of_val
     |> List.fold_left ~init:Bigint.zero ~f:Bigint.(+)
-    |> fun x -> Bigint.(x / ((one + one) * (one + one) * (one + one)))
+    |> fun x -> Bigint.(x / of_int 8)
 
   let bytes_of_packet (pkt : buf) (nbytes : Bigint.t) : buf * Bigint.t * signal =
     try
@@ -48,9 +48,17 @@ module Corize (T : Target) : Target = struct
     | SContinue ->
       begin match v with
         | VBit{w;_} -> extract_bit n w
-        | VInt{w;_} -> extract_int n w
         | VVarbit{max;_} -> extract_varbit nvarbits n max
-        | _ -> failwith "invalid header field type" end
+        | VBool b -> extract_bool n
+        | VInt{w;_} -> extract_int n w
+        | VStruct {fields} ->
+           let field_names = List.map ~f:fst fields in
+           let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
+           let fields = List.zip_exn field_names field_vals in
+           (n, s), VStruct{fields}
+        | _ -> raise_s [%message "invalid header field type"
+                      ~v:(v:value)]
+      end
     | SReject _ -> ((n,s),VNull)
     | _ -> failwith "unreachable"
 
@@ -60,6 +68,13 @@ module Corize (T : Target) : Target = struct
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
     Bigint.(((nw-w, y), SContinue), VBit{w;v=x})
+
+  and extract_bool (buf : Bigint.t * Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    let open Bigint in
+    let (bufsize, buf) = buf in
+    let x = bitstring_slice buf (bufsize-one) (bufsize-one) in
+    let y = bitstring_slice buf (bufsize-of_int 2) zero in
+    ((bufsize-one, y), SContinue), VBool (x <> zero)
 
   and extract_int (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -77,6 +92,11 @@ module Corize (T : Target) : Target = struct
       let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
       Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
+
+  and extract_struct nvarbits (n, s) fields =
+    List.fold_map (List.map ~f:snd fields)
+      ~init:(n, s)
+      ~f:(extract_hdr_field nvarbits)
 
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
@@ -105,25 +125,28 @@ module Corize (T : Target) : Target = struct
     | SReject _ | SExit | SReturn _ -> env, st, s, VNull
     | SContinue ->
       let (ns, vs) = List.unzip fs in
-      let ((_,s), vs') =
-        List.fold_map vs 
-          ~init:(Bigint.(nbytes * eight, extraction), SContinue)
-          ~f:(extract_hdr_field w) in
-      begin match s with 
+      try
+        let ((_,s), vs') =
+          List.fold_map vs 
+            ~init:(Bigint.(nbytes * eight, extraction), SContinue)
+            ~f:(extract_hdr_field w) in
+        begin match s with 
         | SReject _ | SExit | SReturn _ -> env, st', s, VNull
         | SContinue ->
-          let fs' = List.zip_exn ns vs' in
-          let h = VHeader {
-            fields = fs';
-            is_valid = true;
-          } in
-          let env'= 
-            EvalEnv.insert_val_bare
-              (if is_fixed then "hdr" else "variableSizeHeader")
-              h env in
-          env', st', SContinue, VNull
-      end
-
+           let fs' = List.zip_exn ns vs' in
+           let h = VHeader {
+                       fields = fs';
+                       is_valid = true;
+                     } in
+           let env'= 
+             EvalEnv.insert_val_bare
+               (if is_fixed then "hdr" else "variableSizeHeader")
+               h env in
+           env', st', SContinue, VNull
+        end
+      with Invalid_argument _ ->
+        env, st, SReject "PacketTooShort", VNull
+        
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
@@ -187,6 +210,7 @@ module Corize (T : Target) : Target = struct
   let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : buf =
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let seven = Bigint.(eight - one) in
+    if Bigint.(w % eight <> zero) then failwith "packet_of_bytes: len must be byte-aligned";
     let rec h acc n w =
       if Bigint.(w = zero) then acc else
         let lsbyte = bitstring_slice n seven Bigint.zero in

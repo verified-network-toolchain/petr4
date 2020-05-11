@@ -1292,14 +1292,27 @@ end = struct
     | VTable t -> t 
     | _ -> failwith "not a table"
 
-  let width_of_val v =
+  let rec width_of_val v =
+    let field_width (name, value) =
+      width_of_val value
+    in
     match v with
-    | VBit {w;_} | VInt {w;_} | VVarbit{w;_} -> w
-    | VNull -> Bigint.zero
-    | VBool _ -> Bigint.one
+    | VBit {w;_}
+    | VInt {w;_}
+    | VVarbit{w;_} ->
+       w
+    | VNull ->
+       Bigint.zero
+    | VBool _ ->
+       Bigint.one
+    | VStruct {fields}
+    | VHeader {fields; _} ->
+       fields
+       |> List.map ~f:field_width
+       |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
+    | VSenumField {v; _} ->
+       width_of_val v
     | VInteger _ -> failwith "width of VInteger"
-    | VStruct _ -> failwith "width of struct unimplemented"
-    | VHeader _ -> failwith "width of header unimplemented"
     | VUnion _ -> failwith "width of header union unimplemented"
     | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
   

@@ -1,3 +1,4 @@
+open Core_kernel
 open Prog.Value
 
 type t = Bigint.t
@@ -17,11 +18,21 @@ let rec shift_bitstring_right (v : Bigint.t) (o : Bigint.t) : Bigint.t =
 let power_of_two (w : Bigint.t) : Bigint.t =
   shift_bitstring_left Bigint.one w  
 
-let rec bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
-  Bigint.(
-    if l > zero
-    then bitstring_slice (n/(one + one)) (m-one) (l-one)
-    else n % (power_of_two (m + one)))
+let rec width (n: Bigint.t) : int =
+  if Bigint.(n < zero)
+  then failwith "cannot get width of negative number"
+  else
+    if Bigint.(n = zero || n = one)
+    then 1
+    else 1 + width (Bigint.(n asr 1))
+
+let bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
+  let open Bigint in
+  let slice_width = m + one - l in
+  if l < zero then raise (Invalid_argument "bitslice x[y:z] must have y > z > 0");
+  let shifted = n asr to_int_exn l in
+  let mask = power_of_two slice_width - one in
+  bit_and shifted mask
 
 let rec of_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   let w' = power_of_two w in

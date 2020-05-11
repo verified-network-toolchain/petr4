@@ -1513,9 +1513,9 @@ Some\ blk_j & case_i = case\_lbl_i :\ \land case_j = case\_lbl_j : blk_j \land n
 ### Match Sets
 ~ MathPre
 \mathkw{set\_of\_matches} \zeta \xi \sigma \overline{match} = \begin{cases} (\xi, \sigma, @universal) & \overline{match} = (\_)
-(\xi', \sigma', @singleton (\mathkw{extract\_num} v)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, v>
-(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
-(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, set> \land set \neq \mathkw{value\_set} ...
+(\xi', \sigma', @singleton (\mathkw{extract\_num} v)) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
+(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, set> \land set \neq \mathkw{value\_set} ...
 (\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) = (\xi^n, \sigma^n, set_n) 
 \end{cases}
 
@@ -1535,8 +1535,8 @@ TODO:lpm
 
 ### Parser State machine
 ~ MathPre
-\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', TODO, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
-(\xi'', \sigma'', Some\ x_i) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', TODO, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
+\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
+(\xi'', \sigma'', Some\ x_i) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
 \end{cases}
 
 
@@ -1551,10 +1551,10 @@ TODO:lpm
 ### LValues
 $e$ has type $\tau$.
 ~ MathPre
-\mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, TODO, @lvalue t x) & e1 = x
-(\xi', \sigma', TODO, @lvalue t lv.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv)
-(\xi', \sigma', TODO, @lvalue t lv[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv)
-(\xi'', \sigma'', TODO, @lvalue t lv[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', TODO, lv) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', TODO, v>
+\mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e1 = x
+(\xi', \sigma', sig, @lvalue t lv_o.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', sig, lv_o)
+(\xi', \sigma', \mathkw{sig\_continue}, @lvalue t lv_o[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o)
+(\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv_o[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
@@ -1562,11 +1562,18 @@ v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct 
 v_{n_{next}\%n_{size}} & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
 (@bitslice (\mathkw{extract\_num} (\mathkw{value\_of\_lv} \xi lv_2)) n1 n2)_u^{(n1-n2+1)} & lv_1 = @lvalue t lv_2[n1:n2]
 v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
-TODO: out of bounds stack
 \end{cases}
 
 \mathkw{assign\_lv} \xi lv_1 v = \begin{cases} (\xi[v/x], \mathkw{sig\_continue}) &  lv_1 = @lvalue t x
-TODO
+\mathkw{assign\_lv} \xi lv_2 (@struct \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \}
+\mathkw{assign\_lv} \xi lv_2 (@header true \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \}
+\mathkw{assign\_lv} \xi lv_2 (\mathkw{header\ union} \{(name_i, @header false ...),...,(name, v)\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header true \{...\}
+\mathkw{assign\_lv} \xi lv_2 (\mathkw{header\ union} \{ \overline{(name, @header false ...)}\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header false \{...\}
+\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
+\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}-1}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@last \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
+\mathkw{assign\_lv} \xi lv_2 (TODO)_u^w & lv_1 = @lvalue t lv_2[n1:n2] \land \mathkw{value\_of\_lv} \xi lv_2 = n_u^w
+\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{index}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land 0 \leq \mathkw{extract\_num} v_{index} \lt n_{size}
+(\xi, \mathkw{sig\_reject} ``StackOutOfBounds") & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land (\mathkw{extract\_num} v_{index} \lt 0 \lor \mathkw{extract\_num} v_{index} \geq n_{size})
 \end{cases}
 ~
 If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if $lv_1 = \mathkw{lvalue}\ \tau\ ...$.

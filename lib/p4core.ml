@@ -51,6 +51,11 @@ module Corize (T : Target) : Target = struct
         | VVarbit{max;_} -> extract_varbit nvarbits n max
         | VBool b -> extract_bool n
         | VInt{w;_} -> extract_int n w
+        | VStruct {fields} ->
+           let field_names = List.map ~f:fst fields in
+           let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
+           let fields = List.zip_exn field_names field_vals in
+           (n, s), VStruct{fields}
         | _ -> raise_s [%message "invalid header field type"
                       ~v:(v:value)]
       end
@@ -87,6 +92,11 @@ module Corize (T : Target) : Target = struct
       let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
       Bigint.(((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x})
+
+  and extract_struct nvarbits (n, s) fields =
+    List.fold_map (List.map ~f:snd fields)
+      ~init:(n, s)
+      ~f:(extract_hdr_field nvarbits)
 
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =

@@ -15,8 +15,6 @@ module PreV1Switch : Target = struct
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
-  exception V1ChecksumError
-
   let drop_spec = Bigint.of_int 511
 
   type obj =

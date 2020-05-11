@@ -292,13 +292,12 @@ module Corize (T : Target) : Target = struct
       ("emit", eval_emit);
       ("verify", eval_verify)]
 
-  let corize_extern (textern : T.extern) : extern = failwith "TOD"
-    (* fun ctrl env core_st ts vs ->
-    let (env, targ_st, s, v) = textern ctrl env (targetize_st core_st) in *)
-
-
   let externs : (string * extern) list =
-    core_externs @ T.externs (* core has precedence of target *)
+    core_externs @ T.externs (* core has precedence over target *)
+
+  let write_header_field : Target.writer = T.write_header_field
+
+  let read_header_field : Target.reader = T.read_header_field
 
   let eval_extern name =
     match name with

@@ -10,6 +10,11 @@ module Info = I
 
 module PreV1Switch : Target = struct
 
+  include BasicReader
+  include BasicWriter
+
+  let assign_lvalue = assign_lvalue read_header_field write_header_field
+
   let drop_spec = Bigint.of_int 511
 
   type obj =

@@ -41,6 +41,10 @@ module MakeInterpreter (T : Target) = struct
 
   let empty_state = State.empty
 
+  let assign_lvalue = assign_lvalue T.read_header_field T.write_header_field
+
+  let value_of_lvalue = value_of_lvalue T.read_header_field
+
   (*----------------------------------------------------------------------------*)
   (* Declaration Evaluation *)
   (*----------------------------------------------------------------------------*)
@@ -947,7 +951,7 @@ module MakeInterpreter (T : Target) = struct
       begin match signal, lv with
         | SContinue, Some lv -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
         | _, _ -> env', st', signal, VNull end
-    | _ -> (env, st, SContinue, find_exn fs fname)
+    | _ -> (env, st, SContinue, T.read_header_field valid fs fname)
 
   and eval_union_mem (ctrl : ctrl) (env : env) (st : state)
     (fname : string) (e : Expression.t) (fs : (string * value) list)

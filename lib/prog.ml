@@ -1179,7 +1179,7 @@ end = struct
   let assert_bit v = 
     match v with 
     | VBit{w;v} -> (w,v) 
-    | _ -> failwith "not a bitstring"
+    | _ -> raise_s [%message "not a bitstring" ~v:(v:value)]
   
   let assert_int v = 
     match v with 

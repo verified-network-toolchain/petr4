@@ -114,5 +114,5 @@ stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unim
 stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
 stf,examples/checker_tests/good/issue774-4-bmv2.p4,passing dontcare as an out argument causes crash,173
 stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
-stf,examples/checker_tests/good/issue995-bmv2.p4,,
+stf,examples/checker_tests/good/issue995-bmv2.p4,missing implicit cast for integer,155
 stf,examples/checker_tests/good/stack_complex-bmv2.p4,,

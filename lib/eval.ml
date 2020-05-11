@@ -951,7 +951,7 @@ module MakeInterpreter (T : Target) = struct
       begin match signal, lv with
         | SContinue, Some lv -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
         | _, _ -> env', st', signal, VNull end
-    | _ -> (env, st, SContinue, find_exn fs fname)
+    | _ -> (env, st, SContinue, T.read_header_field valid fs fname)
 
   and eval_union_mem (ctrl : ctrl) (env : env) (st : state)
     (fname : string) (e : Expression.t) (fs : (string * value) list)

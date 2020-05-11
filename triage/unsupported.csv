@@ -5,6 +5,12 @@ checker,examples/checker_tests/good/functors9.p4,generic declarations,148
 checker,examples/checker_tests/bad/issue1580.p4,respect @defaultonly and @tableonly action annotations (unsupported),137
 checker,examples/checker_tests/good/pvs-struct.p4,value set match against 1 element struct (unsupported),81
 checker,examples/checker_tests/good/named-arg1.p4,optional parameters (unsupported),73
+checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
+checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
+checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
+checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,73
+checker,examples/checker_tests/good/issue1937.p4,default value,73
+checker,examples/checker_tests/good/issue1333.p4,default arguments,73
 checker,examples/checker_tests/good/virtual3.p4,abstract method implementations,75
 checker,examples/checker_tests/good/virtual.p4,abstract method implementations,75
 checker,examples/checker_tests/good/bfd_offload.p4,abstract method implementations,75

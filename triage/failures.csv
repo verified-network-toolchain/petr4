@@ -1,7 +1,7 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
-checker,examples/checker_tests/good/constsigned.p4,compile time eval not evaluating casts,126
-checker,examples/checker_tests/good/struct1.p4,cast to struct not being done in const list initializer,126
-checker,examples/checker_tests/good/struct.p4,cast to struct not being done in const list initializer,126
+checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
+checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155
+checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
 checker,examples/checker_tests/good/psa-portid-using-newtype2.p4,binop typecheck isn't saturating types before running,124
 checker,examples/checker_tests/good/precedence.p4,binop typecheck isn't saturating types before running,124
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125

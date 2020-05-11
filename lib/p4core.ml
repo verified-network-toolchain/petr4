@@ -119,9 +119,7 @@ module Corize (T : Target) : Target = struct
     let fs = init_fs in
     let eight = Bigint.of_int 8 in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
-    print_s [%message "eval_extract'" ~w:(w:Bigint.t)];
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
-    print_s [%message "eval_extract' after bytes_of_packet" ~w:(w:Bigint.t)];
     let st' = State.set_packet {obj with main = pkt'} st in
     match s with
     | SReject _ | SExit | SReturn _ -> env, st, s, VNull

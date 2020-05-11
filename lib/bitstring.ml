@@ -30,10 +30,6 @@ let bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
   let open Bigint in
   let slice_width = m + one - l in
   if l < zero then raise (Invalid_argument "bitslice x[y:z] must have y > z > 0");
-  print_s [%message "bitstring_slice"
-              ~m:(m:Bigint.t)
-              ~l:(l:Bigint.t)
-              ~slice_width:(slice_width:Bigint.t)];
   let shifted = n asr to_int_exn l in
   let mask = power_of_two slice_width - one in
   bit_and shifted mask

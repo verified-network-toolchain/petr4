@@ -48,6 +48,13 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+let name_info name : Info.t =
+  match name with
+  | BareName name -> fst name
+  | QualifiedName (prefix, name) ->
+     let infos = List.map fst prefix in
+     List.fold_right Info.merge infos (fst name)
+
 let name_eq n1 n2 = 
   match n1, n2 with
   | BareName (_, s1),
@@ -366,7 +373,7 @@ and Expression : sig
             { typ: Type.t;
               expr: t }
         | TypeMember of
-            { typ: Type.t;
+            { typ: name;
               name: P4String.t }
         | ErrorMember of P4String.t
         | ExpressionMember of
@@ -420,7 +427,7 @@ end = struct
         { typ: Type.t [@key "type"];
           expr: t }  [@name "cast"]
     | TypeMember of
-        { typ: Type.t [@key "type"];
+        { typ: name [@key "type"];
           name: P4String.t } [@name "type_member"]
     | ErrorMember of P4String.t [@name "error_member"]
     | ExpressionMember of

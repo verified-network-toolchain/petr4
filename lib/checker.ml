@@ -57,20 +57,15 @@ let rec is_lvalue (_, expr) =
   | _ -> false
 
 (* Ugly hack *)
-let real_name_for_type_member env (typ: Typed.Type.t) name =
-  match typ with
-  | TypeName typ_name ->
-     begin match typ_name with
-     | QualifiedName (qs, typ_name) ->
-        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
-        QualifiedName (qs, (fst name, prefixed_name))
-     | BareName typ_name ->
-        let prefixed_name = snd typ_name ^ "." ^ (snd name) in
-        BareName (fst name, prefixed_name)
-     end
-  | _ -> raise_s [%message "type members can only be type name members"
-                     ~typ:(typ: Typed.Type.t)]
-
+let real_name_for_type_member env (typ_name: Types.name) name =
+  begin match typ_name with
+  | QualifiedName (qs, typ_name) ->
+     let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+     QualifiedName (qs, (fst name, prefixed_name))
+  | BareName typ_name ->
+     let prefixed_name = snd typ_name ^ "." ^ (snd name) in
+     BareName (fst name, prefixed_name)
+  end
 
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: Typed.Type.t) : int =
   match saturate_type env hdr_type with
@@ -138,7 +133,10 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
         Some (Ops.interp_binary_op op l r)
      | _ -> None
      end
-  | Cast { typ; expr } -> compile_time_eval_expr env expr
+  | Cast { typ; expr } ->
+     let expr_val = compile_time_eval_expr env expr in
+     let type_lookup name = CheckerEnv.resolve_type_name name env in
+     option_map (Ops.interp_cast ~type_lookup typ) expr_val
   | List { values } ->
      begin match compile_time_eval_exprs env values with 
      | Some vals -> Some (VTuple vals)
@@ -1517,12 +1515,11 @@ and type_cast env typ expr : Prog.Expression.typed_t =
 
 (* ? *)
 and type_type_member env typ name : Prog.Expression.typed_t =
-   let typ = translate_type env [] typ in
    let real_name = real_name_for_type_member env typ name in
-   let typ, dir = CheckerEnv.find_type_of real_name env in
-   { expr = TypeMember { typ = typ;
+   let full_type, dir = CheckerEnv.find_type_of real_name env in
+   { expr = TypeMember { typ;
                          name = name };
-     typ;
+     typ = full_type;
      dir }
      (*
   let typ = translate_type env [] typ in

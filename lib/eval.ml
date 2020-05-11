@@ -766,43 +766,31 @@ module MakeInterpreter (T : Target) = struct
   and eval_cast (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (expr : Expression.t) : env * state * signal * value =
     let (env', st', s, v) = eval_expr ctrl env st SContinue expr in
-    let (env'',st'', s',v') =
-      match typ with
-      | Bool -> (env', st', s, bool_of_val v)
-      | Bit{width} -> (env', st', s, bit_of_val width v)
-      | Int{width} -> (env', st', s, int_of_val width v)
-      | TypeName n -> eval_cast ctrl env st (EvalEnv.find_typ n env) expr
-      | NewType nt -> eval_cast ctrl env st nt.typ expr
-      | _ -> failwith "type cast unimplemented" in
-    match (s,s') with
-    | SContinue,SContinue -> (env'',st'',s,v')
-    | SReject _,_ -> (env',st',s,VNull)
-    | _,SReject _ -> (env'',st'',s',VNull)
-    | _ -> failwith "unreachable"
+    let v' = Ops.interp_cast typ v
+               ~type_lookup:(fun name -> EvalEnv.find_typ name env)
+    in
+    match s with
+    | SContinue -> (env',st',s,v')
+    | _ -> (env',st',s,VNull)
 
-  and eval_typ_mem (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
+  and eval_typ_mem (ctrl : ctrl) (env : env) (st : state) (typ : Types.name)
       (name : string) : env * state * signal * value =
-    match typ with
-    | TypeName tname -> eval_typ_mem ctrl env st (EvalEnv.find_typ tname env) name
-    | Enum {name=tname;_} ->
-      begin match EvalEnv.find_decl (BareName (Info.dummy, tname)) env |> snd with
-        | Declaration.Enum {members=ms;name=(_,n);_} ->
-          let mems = List.map ms ~f:snd in
-          if List.mem mems name ~equal:String.equal
-          then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
-          else raise (UnboundName name)
-        | Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
-          let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
-          let expr = find_exn ms' name in
-          let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
-          let v' = implicit_cast_from_rawint env' v typ in
-          begin match s with
-            | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v=v'})
-            | SReject _ -> (env',st',s,VNull)
-            | _ -> failwith "unreachable" end
-        | _ -> failwith "typ mem undefined"
-      end
-    | _ -> failwith "type error"
+    match EvalEnv.find_decl typ env with
+    | info, Declaration.Enum {members=ms;name=(_,n);_} ->
+       let mems = List.map ms ~f:snd in
+       if List.mem mems name ~equal:String.equal
+       then (env, st, SContinue, VEnumField{typ_name=n;enum_name=name})
+       else raise (UnboundName name)
+    | info, Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
+       let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
+       let expr = find_exn ms' name in
+       let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
+       let v' = implicit_cast_from_rawint env' v typ in
+       begin match s with
+       | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v=v'})
+       | SReject _ -> (env',st',s,VNull)
+       | _ -> failwith "unreachable" end
+    | _ -> failwith "typ mem undefined"
 
   and eval_expr_mem (ctrl : ctrl) (env : env) (st : state) (expr : Expression.t)
       (name : P4String.t) : env * state * signal * value =
@@ -939,32 +927,6 @@ module MakeInterpreter (T : Target) = struct
     | SReject _,_ -> (env',st',s,VNull)
     | _,SReject _ -> (env'',st'',s',VNull)
     | _ -> failwith "unreachable"
-
-  (*----------------------------------------------------------------------------*)
-  (* Type Casting Evaluation *)
-  (*----------------------------------------------------------------------------*)
-
-  and bool_of_val (v : value) : value =
-    match v with
-    | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
-    | _ -> failwith "cast to bool undefined"
-
-  and bit_of_val (width : int) (v : value) : value =
-    let w = Bigint.of_int width in
-    match v with
-    | VInt{v=n;_}
-    | VBit{v=n;_}
-    | VInteger n -> bit_of_rawint n w
-    | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
-    | _ -> failwith "cast to bitstring undefined"
-
-  and int_of_val (width : int) (v : value) : value =
-    let w = Bigint.of_int width in
-    match v with
-    | VBit{v=n;_}
-    | VInt{v=n;_}
-    | VInteger n -> int_of_rawint n w
-    | _ -> failwith "cast to bitstring undefined"
 
   (*----------------------------------------------------------------------------*)
   (* Membership Evaluation *)
@@ -1442,8 +1404,8 @@ module MakeInterpreter (T : Target) = struct
     let (cenv''', st''', sign) = eval_stmt ctrl cenv'' st'' SContinue block in
     match sign with
     | SContinue
+    | SReject _
     | SExit     -> (copyout ctrl cenv''' st''' params args, st''', sign)
-    | SReject _ -> failwith "control should not reject"
     | SReturn _ -> failwith "control should not return"
 
   (*----------------------------------------------------------------------------*)

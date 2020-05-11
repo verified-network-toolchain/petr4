@@ -117,7 +117,7 @@ and Expression : sig
       { typ: Type.t;
         expr: t }
   | TypeMember of
-      { typ: Type.t;
+      { typ: Types.name;
         name: Types.P4String.t }
   | ErrorMember of Types.P4String.t
   | ExpressionMember of
@@ -175,7 +175,7 @@ end = struct
       { typ: Type.t;
         expr: t }
   | TypeMember of
-      { typ: Type.t;
+      { typ: Types.name;
         name: Types.P4String.t }
   | ErrorMember of Types.P4String.t
   | ExpressionMember of

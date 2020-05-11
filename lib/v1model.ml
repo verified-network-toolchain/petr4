@@ -10,8 +10,6 @@ module Info = I
 
 module PreV1Switch : Target = struct
 
-  exception V1ChecksumError
-
   let drop_spec = Bigint.of_int 511
 
   type obj =
@@ -324,7 +322,7 @@ module PreV1Switch : Target = struct
       |> hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
-    else raise V1ChecksumError
+    else env, st, SReject "ChecksumError", VNull
 
   let eval_update_checksum : extern = fun ctrl env st ts args ->
     let width = match ts with
@@ -375,7 +373,7 @@ module PreV1Switch : Target = struct
       |> hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
-    else raise V1ChecksumError
+    else env, st, SReject "ChecksumError", VNull
 
   let eval_update_checksum_with_payload : extern = fun ctrl env st ts args ->
     let width = match ts with
@@ -597,16 +595,17 @@ module PreV1Switch : Target = struct
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let env = EvalEnv.insert_val (BareName (Info.dummy, "packet")) vpkt' env in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
-    let (env,st) = try 
-      (env,st)
-      |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] |> fst23
-    with V1ChecksumError ->
-      assign_lvalue
-        env
-        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
-                name="checksum_error"; }; typ = Bit {width = 1}}
-        (VBit{v=Bigint.one;w=Bigint.one}) |> fst,
-      st in
+    let (env,st, s) = (env,st)
+      |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
+    let env = 
+      match s with
+      | SReject "ChecksumError" ->
+        assign_lvalue
+          env
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+                  name="checksum_error"; }; typ = Bit {width = 1}}
+          (VBit{v=Bigint.one;w=Bigint.one}) |> fst
+      | SContinue | SReturn _ | SExit | SReject _ -> env in
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
     let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in

@@ -58,3 +58,8 @@ parser Tcp_option_parser(packet_in b,
          transition start;
     }
 }
+
+parser pr<H>(packet_in b, out H h);
+package top<H>(pr<H> p);
+
+top(Tcp_option_parser()) main;

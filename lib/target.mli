@@ -12,6 +12,10 @@ type 'st pre_extern =
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
+type writer = bool -> (string * value) list -> string -> value -> value
+
+type reader = bool -> (string * value) list -> string -> value
+
 module State : sig
   type 'a t
 
@@ -29,7 +33,17 @@ module State : sig
   val is_initialized : loc -> 'a t -> bool
 end
 
-module type Target = sig 
+module type Reader = sig
+  val read_header_field : reader
+end
+
+module type Writer = sig
+  val write_header_field : writer
+end
+
+module type Target = sig
+  include Reader
+  include Writer
 
   type obj
 
@@ -51,6 +65,9 @@ module type Target = sig
 
 end
 
+module ReaderStub : Reader (* TODO *)
+module WriterStub : Writer (* TODO *)
+
 val width_of_typ : env -> Type.t -> Bigint.t
 
 val init_val_of_typ : env -> Type.t -> value
@@ -61,10 +78,6 @@ val implicit_cast_from_tuple : env -> value -> Type.t -> value
 
 val implicit_cast : env -> value -> Type.t -> value
 
-val value_of_lvalue : env -> lvalue -> signal * value
+val value_of_lvalue : reader -> env -> lvalue -> signal * value
 
-val assign_lvalue : env -> lvalue -> value -> env * signal
-
-(* module Core : Core *)
-
-(* module Corize : functor Target -> Target *)
+val assign_lvalue : reader -> writer -> env -> lvalue -> value -> env * signal

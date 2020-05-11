@@ -7,6 +7,9 @@ module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
+include ReaderStub
+include WriterStub
+
 type obj = unit (* TODO *)
 
 type state = obj State.t

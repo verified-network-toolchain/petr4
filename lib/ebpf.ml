@@ -7,8 +7,8 @@ module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
-include ReaderStub
-include WriterStub
+include BasicReader
+include BasicWriter
 
 type obj = unit (* TODO *)
 

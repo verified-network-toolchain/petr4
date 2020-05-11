@@ -10,8 +10,8 @@ module Info = I
 
 module PreV1Switch : Target = struct
 
-  include ReaderStub
-  include WriterStub
+  include BasicReader
+  include BasicWriter
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 

@@ -65,8 +65,9 @@ module type Target = sig
 
 end
 
-module ReaderStub : Reader (* TODO *)
-module WriterStub : Writer (* TODO *)
+(* BasicReader and BasicWriter ignore the validity bit *)
+module BasicReader : Reader
+module BasicWriter : Writer
 
 val width_of_typ : env -> Type.t -> Bigint.t
 

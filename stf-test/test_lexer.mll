@@ -111,8 +111,8 @@ and keyword = parse
     { newline (); keyword lexbuf }
   | whitespace
     { keyword lexbuf }
-  | '#' [^'\n']* '\n'
-    { newline(); lexer:= Keyword; keyword lexbuf }
+  | '#' [^'\n']*
+    { lexer:= Keyword; keyword lexbuf }
   | identifier
       { ID(lexeme lexbuf) }
   | digits

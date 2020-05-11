@@ -87,7 +87,6 @@ stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,integer passed as 
 stf,examples/checker_tests/good/issue447-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
 stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,STF parse error,156
 stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error message in STF parser,156
-stf,examples/checker_tests/good/flag_lost-bmv2.p4,"empty token thing" error message in STF parser,156
 stf,examples/checker_tests/good/issue1814-1-bmv2.p4,STF parser crash (add) and register extern unimplemented,156
 stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create, etc),156
 stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create, add),156

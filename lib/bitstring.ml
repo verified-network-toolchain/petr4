@@ -19,7 +19,6 @@ let power_of_two (w : Bigint.t) : Bigint.t =
   shift_bitstring_left Bigint.one w  
 
 let rec width (n: Bigint.t) : int =
-  print_s [%message "remove"];
   if Bigint.(n < zero)
   then failwith "cannot get width of negative number"
   else
@@ -28,7 +27,6 @@ let rec width (n: Bigint.t) : int =
     else 1 + width (Bigint.(n asr 1))
 
 let bitstring_slice (n : Bigint.t) (m : Bigint.t) (l : Bigint.t) : Bigint.t =
-  Core_kernel.print_s [%message "bitstring_slice" ~n:(n:Bigint.t) ~m:(m:Bigint.t)];
   let open Bigint in
   let slice_width = m - l in
   let shifted = n asr to_int_exn l in

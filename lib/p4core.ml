@@ -59,7 +59,6 @@ module Corize (T : Target) : Target = struct
 
   and extract_bit (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    print_s [%message "extract_bit"];
     let (nw,nv) = n in
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
@@ -218,7 +217,6 @@ module Corize (T : Target) : Target = struct
     | _ -> failwith "type does not have fields"
 
   let rec packet_of_value (env : env) (t : Type.t) (v : value) : buf =
-    print_s [%message "packet_of_value" ~v:(v:value)];
     match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
@@ -260,10 +258,8 @@ module Corize (T : Target) : Target = struct
       | [(VRuntime {loc; _}, _); (hdr, t)] -> loc, hdr, t
       | _ -> failwith "unexpected args for emit" in
     let obj = State.get_packet st in
-    print_s [%message "eval_emit" ~args:(args:(value * Type.t) list)];
     let (pkt_hd, pkt_tl) = obj.emitted, obj.main in
     let pkt_add = packet_of_value env t v in
-    print_s [%message "eval_emit" ~args:(args:(value * Type.t) list)];
     let emitted = Cstruct.append pkt_hd pkt_add in
     let st' = State.set_packet {obj with emitted = emitted} st in
     env, st', SContinue, VNull

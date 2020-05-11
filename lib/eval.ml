@@ -1054,7 +1054,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_call (ctrl : ctrl) (env : env) (st : state) (name : string)
       (v : (loc * string) option) (targs : Type.t list)
       (args : Expression.t option list) : env * state * signal * value =
-    print_s [%message "eval_extern_call"];
     let ts = args |> List.map ~f:(function Some e -> (snd e).typ | None -> Void) in
     let params = 
       match v with 
@@ -1080,14 +1079,12 @@ module MakeInterpreter (T : Target) = struct
     | SReject s -> env', st', SReject s, VNull
     | SReturn _ | SContinue ->
     let tvs = List.zip_exn vs ts in
-    print_s [%message "eval_extern_call nearly done"];
     let tvs' = match v with
       | Some (loc, t) -> (VRuntime {loc = loc; obj_name = t;},
                           Type.TypeName (BareName (Info.dummy, "packet"))) :: tvs
       | None -> tvs in
     let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs' in
     let env'' = copyout ctrl fenv' st'' params args in
-    print_s [%message "eval_extern_call done"];
     env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =

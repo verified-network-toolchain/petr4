@@ -98,8 +98,6 @@ stf,examples/checker_tests/good/issue1768-bmv2.p4,mark_to_drop extern unimplemen
 stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,109
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
-stf,examples/checker_tests/good/parser_error-bmv2.p4,struct.hdr_field.setValid() fails in eval_setbool,158
-stf,examples/checker_tests/good/issue510-bmv2.p4,struct.hdr_field.setValid() fails in eval_setbool,158
 stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enums broken,176
 stf,examples/checker_tests/good/header-bool-bmv2.p4,non byte aligned extract,174
 stf,examples/checker_tests/good/checksum1-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160

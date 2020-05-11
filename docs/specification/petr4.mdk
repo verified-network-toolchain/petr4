@@ -406,7 +406,7 @@ v_o ::= b // booleans
     | (n, m_u^{n'}) // variable-size bitstrings, n less than n'
     | u // strings
     | (\overline{v}) // tuples
-    | \{ \overline{x:v} \} // records
+    | \{ \overline{name=v} \} // records
     | set
     | @error.name
     | @matchkind name
@@ -1580,9 +1580,42 @@ If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if
 
 ### Initial Value of Type
 ~ MathPre
-\mathkw{init\_val} \xi t = \begin{cases} TODO
+\mathkw{init\_val} \xi t_1 = \begin{cases} false & t_1 = @bool
+``" & t_1 = @string
+0 & t_1 = @int
+0^w_u & t_1 = @bit<w>
+0^w_s & t_1 = @int<w>
+(w, 0^0_u) & t_1 = @varbit<w>
+((\mathkw{init\_val} \xi t)^a, a, 0) & t_1 = t_2[a]
+(\mathkw{init\_val} \xi \overline{t}) & t_1 = @tuple<\overline{t}>
+(\mathkw{init\_val} \xi \overline{t}) & t_1 = \{ \overline{t} \}
+\{\overline{f=\mathkw{init\_val} \xi t}\} & t_1 = \{ \overline{f:t} \}
+@universal & t_1 = @set<t>
+@error.@NoError & t_1 = @error
+@matchkind @exact & t_1 = \mathkw{match\_kind}
+\mathkw{init\_val} \xi (\xi(X)) & t_1 = X
+\mathkw{init\_val} \xi (\xi(.X)) & t_1 = .X
+\mathkw{init\_val} \xi t_2 & t_1 = @newtype X t_2
+@None & t_1 = @void
+@header false \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = @header \{ \overline{f:t} \}
+\mathkw{header\ union} \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = \mathkw{header\ union} \{ \overline{f:t} \}
+@struct \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = @struct \{ \overline{f:t} \}
+X.x_1 & t_1 = @enum X \{ \overline{x} \}
+(X.x_1, \mathkw{init\_val} \xi t_2)& t_1 = @enum t_2 X \{ \overline{x=v} \}
+TODO* & t_1 = t_2<\overline{t}>
+TODO* & t_1 = @package<\overline{X}>(\overline{x:t,d})
+TODO* & t_1 = @control<\overline{X}>(\overline{x:t,d})
+TODO* & t_1 = @parser<\overline{X}>(\overline{x:t})
+TODO* & t_1 = @extern X \{ \overline{method} \}
+TODO* & t_1 = @function<\overline{X}>(\overline{x:t,d}) : \tau_2
+TODO* & t_1 = @action(\overline{x:t,d_0}, \overline{x:t}) : @void
+TODO* & t_1 = @constructor<\overline{X}>(\overline{x:t}): t_2
+TODO* & t_1 = @table X
 \end{cases}
 ~
+$(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_val} \xi t$.
+
+$*$ currently unsupported
 
 ### Name of type
 ~ MathPre
@@ -1979,7 +2012,6 @@ n_{next} \lt 1
 --------------------------------------------------------------------------------------------------------[PopFront]
 <\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
 ~
-$(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_val} \xi t$.
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{push\_front} (@lvalue t[a] ...)>

@@ -25,7 +25,7 @@ and eval_uminus (v : V.value) : V.value =
   | _ -> failwith "unary minus on non-int type"
 
 (*----------------------------------------------------------------------------*)
-(* Binary Operator Interpuation *)
+(* binary operator interpuation *)
 (*----------------------------------------------------------------------------*)
 
 let unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
@@ -325,3 +325,39 @@ let interp_unary_op (op: Op.uni) (v: V.value) =
   | Not    -> eval_not v
   | BitNot -> eval_bitnot v
   | UMinus -> eval_uminus v
+
+(*----------------------------------------------------------------------------*)
+(* Cast evaluation                                                            *)
+(*----------------------------------------------------------------------------*)
+
+let bool_of_val (v : V.value) : V.value =
+  match v with
+  | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
+  | _ -> failwith "cast to bool undefined"
+
+let bit_of_val (width : int) (v : V.value) : V.value =
+  let w = Bigint.of_int width in
+  match v with
+  | VInt{v=n;_}
+  | VBit{v=n;_}
+  | VInteger n -> bit_of_rawint n w
+  | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
+  | _ -> failwith "cast to bitstring undefined"
+
+let int_of_val (width : int) (v : V.value) : V.value =
+  let w = Bigint.of_int width in
+  match v with
+  | VBit{v=n;_}
+  | VInt{v=n;_}
+  | VInteger n -> int_of_rawint n w
+  | _ -> failwith "cast to bitstring undefined"
+
+let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
+      (new_type: Typed.Type.t) (value: V.value) : V.value =
+  match new_type with
+  | Bool -> bool_of_val value
+  | Bit{width} -> bit_of_val width value
+  | Int{width} -> int_of_val width value
+  | NewType nt -> interp_cast ~type_lookup nt.typ value
+  | TypeName n -> interp_cast ~type_lookup (type_lookup n) value
+  | _ -> failwith "type cast unimplemented"

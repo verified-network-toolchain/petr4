@@ -766,19 +766,12 @@ module MakeInterpreter (T : Target) = struct
   and eval_cast (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (expr : Expression.t) : env * state * signal * value =
     let (env', st', s, v) = eval_expr ctrl env st SContinue expr in
-    let (env'',st'', s',v') =
-      match typ with
-      | Bool -> (env', st', s, bool_of_val v)
-      | Bit{width} -> (env', st', s, bit_of_val width v)
-      | Int{width} -> (env', st', s, int_of_val width v)
-      | TypeName n -> eval_cast ctrl env st (EvalEnv.find_typ n env) expr
-      | NewType nt -> eval_cast ctrl env st nt.typ expr
-      | _ -> failwith "type cast unimplemented" in
-    match (s,s') with
-    | SContinue,SContinue -> (env'',st'',s,v')
-    | SReject _,_ -> (env',st',s,VNull)
-    | _,SReject _ -> (env'',st'',s',VNull)
-    | _ -> failwith "unreachable"
+    let v' = Ops.interp_cast typ v
+               ~type_lookup:(fun name -> EvalEnv.find_typ name env)
+    in
+    match s with
+    | SContinue -> (env',st',s,v')
+    | _ -> (env',st',s,VNull)
 
   and eval_typ_mem (ctrl : ctrl) (env : env) (st : state) (typ : Types.name)
       (name : string) : env * state * signal * value =
@@ -934,32 +927,6 @@ module MakeInterpreter (T : Target) = struct
     | SReject _,_ -> (env',st',s,VNull)
     | _,SReject _ -> (env'',st'',s',VNull)
     | _ -> failwith "unreachable"
-
-  (*----------------------------------------------------------------------------*)
-  (* Type Casting Evaluation *)
-  (*----------------------------------------------------------------------------*)
-
-  and bool_of_val (v : value) : value =
-    match v with
-    | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
-    | _ -> failwith "cast to bool undefined"
-
-  and bit_of_val (width : int) (v : value) : value =
-    let w = Bigint.of_int width in
-    match v with
-    | VInt{v=n;_}
-    | VBit{v=n;_}
-    | VInteger n -> bit_of_rawint n w
-    | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
-    | _ -> failwith "cast to bitstring undefined"
-
-  and int_of_val (width : int) (v : value) : value =
-    let w = Bigint.of_int width in
-    match v with
-    | VBit{v=n;_}
-    | VInt{v=n;_}
-    | VInteger n -> int_of_rawint n w
-    | _ -> failwith "cast to bitstring undefined"
 
   (*----------------------------------------------------------------------------*)
   (* Membership Evaluation *)

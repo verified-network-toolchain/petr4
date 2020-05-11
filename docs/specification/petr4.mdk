@@ -2266,9 +2266,9 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~
 
 ~ Infer
-TODO
--------------------------------------------[Instantiation-Decl]
-<\zeta, \xi, \sigma, t x(\overline{e})> \Downarrow_d <TODO>
+<\zeta, \mathkw{set\_namespace} ((@namespace \xi) \char`\^ x) \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
+-----------------------------------------------------------------------------------------------------------------[Instantiation-Decl]
+<\zeta, \xi, \sigma, t x(\overline{e})> \Downarrow_d <(\mathkw{set\_namespace} (@namespace \xi) \xi')[v/x], \sigma'>
 ~
 
 ~ Infer

@@ -406,12 +406,19 @@ module type Writer = sig
   val write_header_field : writer
 end
 
-module ReaderStub = struct
-  let read_header_field = fun _ _ _ -> VNull (* TODO *)
+module BasicReader = struct
+  let read_header_field : reader = fun is_valid fields fname ->
+    List.Assoc.find_exn fields fname ~equal:String.equal
 end
 
-module WriterStub = struct
-  let write_header_field = fun _ _ _ _ -> VNull (* TODO *)
+module BasicWriter = struct
+  let write_header_field = fun is_valid fields fname fvalue ->
+    VHeader {
+      is_valid;
+      fields =
+        List.map fields
+          ~f:(fun (n, v) -> n, if String.equal fname n then fvalue else v);
+    }
 end
 
 module type Target = sig

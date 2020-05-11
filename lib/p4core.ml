@@ -119,31 +119,36 @@ module Corize (T : Target) : Target = struct
     let fs = init_fs in
     let eight = Bigint.of_int 8 in
     let nbytes = Bigint.(nbytes_of_hdr fs + w / eight) in
+    print_s [%message "eval_extract'" ~w:(w:Bigint.t)];
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
+    print_s [%message "eval_extract' after bytes_of_packet" ~w:(w:Bigint.t)];
     let st' = State.set_packet {obj with main = pkt'} st in
     match s with
     | SReject _ | SExit | SReturn _ -> env, st, s, VNull
     | SContinue ->
       let (ns, vs) = List.unzip fs in
-      let ((_,s), vs') =
-        List.fold_map vs 
-          ~init:(Bigint.(nbytes * eight, extraction), SContinue)
-          ~f:(extract_hdr_field w) in
-      begin match s with 
+      try
+        let ((_,s), vs') =
+          List.fold_map vs 
+            ~init:(Bigint.(nbytes * eight, extraction), SContinue)
+            ~f:(extract_hdr_field w) in
+        begin match s with 
         | SReject _ | SExit | SReturn _ -> env, st', s, VNull
         | SContinue ->
-          let fs' = List.zip_exn ns vs' in
-          let h = VHeader {
-            fields = fs';
-            is_valid = true;
-          } in
-          let env'= 
-            EvalEnv.insert_val_bare
-              (if is_fixed then "hdr" else "variableSizeHeader")
-              h env in
-          env', st', SContinue, VNull
-      end
-
+           let fs' = List.zip_exn ns vs' in
+           let h = VHeader {
+                       fields = fs';
+                       is_valid = true;
+                     } in
+           let env'= 
+             EvalEnv.insert_val_bare
+               (if is_fixed then "hdr" else "variableSizeHeader")
+               h env in
+           env', st', SContinue, VNull
+        end
+      with Invalid_argument _ ->
+        env, st, SReject "PacketTooShort", VNull
+        
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v

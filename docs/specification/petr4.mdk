@@ -2242,20 +2242,20 @@ TODO: why is it not the updated env and st
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, v>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------[Return-Value]
 <\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, name_1.name_2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = None
 ---------------------------------------------------------------------------------[Switch-No-Match]
 <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', TODO, name_1.name_2>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
 <\zeta, \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[Switch-Match]

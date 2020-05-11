@@ -1464,6 +1464,9 @@ for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, va
 $\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$ 
 are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 
+$\mathkw{set\_namespace} \xi x$ is $\xi$ with $\upsilon$ set to $x$ and $\mathkw{namespace} \xi$ is $\upsilon$.
+Since $\upsilon$ is a string, the string concatenation operator ^ is used in places. 
+
 ## Helper rules
 
 ### Sequences
@@ -1978,39 +1981,92 @@ $(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_va
 ~
 
 ~ Infer
-TODO
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state})
+<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+(@state ``start" \{...\}) \in \overline{state}
+\mathkw{parser\_state\_machine} \zeta \xi'''' \sigma''' \overline{state} (@state ``start" \{...\}) = (\xi''''', \sigma'''', sig')
+@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 ------------------------------------------------------------------------------[Apply-Parser]
-TODO
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
 ~
 
 ~ Infer
-TODO
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk)
+<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+<\zeta, \xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig'>
+@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 ------------------------------------------------------------------------------[Apply-Control]
-TODO
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
 ~
 
 <!-- @table name \overline{e} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \} -->
 ~ Infer
-TODO = @table name \overline{e} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = (sig, @table name \overline{e}_k \overline{action\_ref} x_{default}(\overline{e}) \{ \overline{matches:x(\overline{e})} \})
+<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
+TODO
+
 \forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v} set_i = false
 <\zeta, \xi, \sigma, x_{default}(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, v>
 ---------------------------------------------[Apply-Table-Default]
-<\zeta, \xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\xi', \sigma', TODO, \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
 ~
 
 ~ Infer
-TODO = @table name \overline{e} ((set_1, x_1(\overline{e})),...,(set_n, x_n(\overline{e}))) (x_{default}(\overline{e}))
+TODO
 \mathkw{match\_set} \overline{v} set_i = true
 \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
 <\zeta, \xi, \sigma, x_i(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, v>
 ------------------------------------------------------------------------------[Apply-Table]
-<\zeta, \xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\xi', \sigma', TODO, \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', TODO, \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
 ~
 
 ~ Infer
-TODO
-------------------------------------------------------------------------------[Extern-Function]
-TODO
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
+\xi'(x) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+t name <\overline{X}>(\overline{x:t,d}) \in \overline{method}
+@len \overline{x:t,d} = @len \overline{e}
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+------------------------------------------------------------------------------[Extern-Function-Some-Caller]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
+~
+
+$\mathkw{len} \overline{x}$ is defined as the number of elements in $\overline{x}$.
+$\mathkw{packet}$ is a type name.
+
+$\langle \zeta, \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{Target\_extern} \langle \xi', \sigma', sig, v \rangle$ is a relation defined by the target.
+
+~ Infer
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
+\xi'(x) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+@abstract t name <\overline{X}>(\overline{x:t,d}) \in \overline{method}
+@len \overline{x:t,d} = @len \overline{e}
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+------------------------------------------------------------------------------[Extern-Function-Some-Caller-Abstract]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name @None>
+\xi'(name) = \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
+<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+<\zeta, \xi''', \sigma', \overline{t}, (\overline{v,t})> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+----------------------------------------------------------------------------------------------[Extern-Function-No-Caller]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
 ### Nameless Instantiation

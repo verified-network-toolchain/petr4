@@ -1,5 +1,5 @@
 /*
-Copyright 2017 VMware, Inc.
+Copyright 2020 Intel, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,29 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 #include <core.p4>
 
-struct S {
-    bit<8> f0;
-    bit<8> f1;
-}
-
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
-
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
-        }
+control c(inout bit<16> x) {
+    action incx() { x = x + 1; }
+    action nop() { }
+    table x {
+        actions = { incx; nop; }
+    }
+    apply {
+        x.apply();
     }
 }
 
-parser s();
-package top(s _s);
+control C(inout bit<16> x);
 
-top(p()) main;
+package top(C _c);
+top(c()) main;

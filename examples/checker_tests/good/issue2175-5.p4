@@ -14,28 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <core.p4>
-
-struct S {
-    bit<8> f0;
-    bit<8> f1;
+extern X {
+    X();
+    abstract void a(inout bit<32> arg);
 }
 
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
-
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
+control c(inout bit<32> y) {
+    X() x = {
+        void a(inout bit<32> arg) {
+            arg = arg + 1;
         }
+    };
+    apply {
+        x.a(y);
     }
 }
 
-parser s();
-package top(s _s);
+control cs(inout bit<32> arg);
+package top(cs _ctrl);
 
-top(p()) main;
+top(c()) main;

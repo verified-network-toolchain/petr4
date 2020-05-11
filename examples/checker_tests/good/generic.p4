@@ -1,5 +1,5 @@
 /*
-Copyright 2017 VMware, Inc.
+Copyright 2013-present Barefoot Networks, Inc. 
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,28 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <core.p4>
+extern Crc16<T> 
+{}
 
-struct S {
-    bit<8> f0;
-    bit<8> f1;
+extern Checksum16 
+{
+    void initialize<T>();
 }
 
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
+extern void f<T>(in T dt);
 
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
-        }
+control q<S>(in S dt)
+{
+    apply {
+        f<bit<32>>(32w0);
+        f(32w0);
+        f<S>(dt);
     }
 }
 
-parser s();
-package top(s _s);
+extern X<D>
+{
+   T f<T>(in D d, in T t);
+}
 
-top(p()) main;
+control z<D1, T1>(in X<D1> x, in D1 v, in T1 t)
+{
+   // x's type is X<D1>
+   // x.f's type is T f<T>(D1 d, T t);
+
+    apply {
+        T1 r1 = x.f<T1>(v, t);
+        T1 r2 = x.f(v, t);
+    }
+}

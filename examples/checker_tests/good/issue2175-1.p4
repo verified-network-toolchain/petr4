@@ -1,5 +1,5 @@
 /*
-Copyright 2017 VMware, Inc.
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,28 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <core.p4>
+struct data {
+    bit<16>     a;
+};
 
-struct S {
-    bit<8> f0;
-    bit<8> f1;
+extern Virtual {
+    Virtual();
+    abstract bit<16> f();
+    abstract void g(inout data ix);
 }
 
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
-
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
+// User code
+control c(inout bit<16> p) {
+    Virtual() cntr = {
+        bit<16> f() {
+            return 1;
         }
+        void g(inout data x) {
+        }
+    };
+
+    apply {
     }
 }
 
-parser s();
-package top(s _s);
+control ctr(inout bit<16> x);
+package top(ctr ctrl);
 
-top(p()) main;
+top(c()) main;

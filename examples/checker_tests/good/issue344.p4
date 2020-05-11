@@ -14,28 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <core.p4>
-
-struct S {
-    bit<8> f0;
-    bit<8> f1;
+control C<H>() {
+  apply {}
 }
 
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
+control cproto();
+package top(cproto _c);
 
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
-        }
-    }
-}
-
-parser s();
-package top(s _s);
-
-top(p()) main;
+top(C()) c;

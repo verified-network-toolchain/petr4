@@ -1,5 +1,5 @@
 /*
-Copyright 2017 VMware, Inc.
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,28 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <core.p4>
-
-struct S {
-    bit<8> f0;
-    bit<8> f1;
+extern Generic<T> {
+    Generic(T sz);
+    R get<R>();
+    R get1<R, S>(in S value, in R data);
 }
 
-parser p() {
-    state start {
-        bit<8> x = 5;
-        S s = { 0, 0 };
+extern void f<T>(in T arg);
 
-        transition select(x, x, {x, x}, x) {
-            (0, 0, {0, 0}, 0): accept;
-            (1, 1, default, 1): accept;
-            (1, 1, {s.f0, s.f1}, 2): accept;
-            default: reject;
-        }
+control c<T>()(T size) {
+    Generic<T>(size) x;
+    apply {
+        bit<32> a = x.get<bit<32>>();
+        bit<5> b = x.get1(10w0, 5w0);
+        f(b);
     }
 }
 
-parser s();
-package top(s _s);
+control caller() {
+    c(8w9) cinst;
+    apply {
+        cinst.apply();
+    }
+}
 
-top(p()) main;
+control s();
+package p(s parg);
+p(caller()) main;

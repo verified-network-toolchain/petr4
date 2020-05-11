@@ -160,7 +160,7 @@ module Corize (T : Target) : Target = struct
     | Enum {typ = Some t;_} -> val_of_bigint env t n
     | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
     | NewType nt -> val_of_bigint env nt.typ n
-    | _ -> failwith "not a fixed-width type"
+    | _ -> raise_s [%message "not a fixed-width type" ~t:(t: Type.t)]
     
   let eval_lookahead : extern = fun _ env st targs args ->
     let t = match targs with

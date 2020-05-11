@@ -27,7 +27,7 @@ module Corize (T : Target) : Target = struct
     |> List.map ~f:snd
     |> List.map ~f:width_of_val
     |> List.fold_left ~init:Bigint.zero ~f:Bigint.(+)
-    |> fun x -> Bigint.(x / ((one + one) * (one + one) * (one + one)))
+    |> fun x -> Bigint.(x / of_int 8)
 
   let bytes_of_packet (pkt : buf) (nbytes : Bigint.t) : buf * Bigint.t * signal =
     try
@@ -48,18 +48,29 @@ module Corize (T : Target) : Target = struct
     | SContinue ->
       begin match v with
         | VBit{w;_} -> extract_bit n w
-        | VInt{w;_} -> extract_int n w
         | VVarbit{max;_} -> extract_varbit nvarbits n max
-        | _ -> failwith "invalid header field type" end
+        | VBool b -> extract_bool n
+        | VInt{w;_} -> extract_int n w
+        | _ -> raise_s [%message "invalid header field type"
+                      ~v:(v:value)]
+      end
     | SReject _ -> ((n,s),VNull)
     | _ -> failwith "unreachable"
 
   and extract_bit (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    print_s [%message "extract_bit"];
     let (nw,nv) = n in
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
     Bigint.(((nw-w, y), SContinue), VBit{w;v=x})
+
+  and extract_bool (buf : Bigint.t * Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+    let open Bigint in
+    let (bufsize, buf) = buf in
+    let x = bitstring_slice buf (bufsize-one) (bufsize-one) in
+    let y = bitstring_slice buf (bufsize-of_int 2) zero in
+    ((bufsize-one, y), SContinue), VBool (x <> zero)
 
   and extract_int (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -187,6 +198,7 @@ module Corize (T : Target) : Target = struct
   let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : buf =
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     let seven = Bigint.(eight - one) in
+    if Bigint.(w % eight <> zero) then failwith "packet_of_bytes: len must be byte-aligned";
     let rec h acc n w =
       if Bigint.(w = zero) then acc else
         let lsbyte = bitstring_slice n seven Bigint.zero in
@@ -206,6 +218,7 @@ module Corize (T : Target) : Target = struct
     | _ -> failwith "type does not have fields"
 
   let rec packet_of_value (env : env) (t : Type.t) (v : value) : buf =
+    print_s [%message "packet_of_value" ~v:(v:value)];
     match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
@@ -247,8 +260,10 @@ module Corize (T : Target) : Target = struct
       | [(VRuntime {loc; _}, _); (hdr, t)] -> loc, hdr, t
       | _ -> failwith "unexpected args for emit" in
     let obj = State.get_packet st in
+    print_s [%message "eval_emit" ~args:(args:(value * Type.t) list)];
     let (pkt_hd, pkt_tl) = obj.emitted, obj.main in
     let pkt_add = packet_of_value env t v in
+    print_s [%message "eval_emit" ~args:(args:(value * Type.t) list)];
     let emitted = Cstruct.append pkt_hd pkt_add in
     let st' = State.set_packet {obj with emitted = emitted} st in
     env, st', SContinue, VNull

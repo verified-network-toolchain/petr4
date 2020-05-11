@@ -41,6 +41,10 @@ module MakeInterpreter (T : Target) = struct
 
   let empty_state = State.empty
 
+  let assign_lvalue = assign_lvalue T.read_header_field T.write_header_field
+
+  let value_of_lvalue = value_of_lvalue T.read_header_field
+
   (*----------------------------------------------------------------------------*)
   (* Declaration Evaluation *)
   (*----------------------------------------------------------------------------*)

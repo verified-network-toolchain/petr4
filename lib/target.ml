@@ -19,6 +19,10 @@ type 'st pre_extern =
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
+type writer = bool -> (string * value) list -> string -> value -> value
+
+type reader = bool -> (string * value) list -> string -> value
+
 let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   match t with
   | Bool -> Bigint.one
@@ -194,18 +198,19 @@ let implicit_cast env value tgt_typ =
   | VInteger n -> implicit_cast_from_rawint env value tgt_typ
   | _ -> value
 
-let rec value_of_lvalue (env : env) (lv : lvalue) : signal * value =
+let rec value_of_lvalue (reader : reader) (env : env) (lv : lvalue) : signal * value =
   match lv.lvalue with
   | LName{name=n}                     -> SContinue, EvalEnv.find_val n env
-  | LMember{expr=lv;name=n}           -> value_of_lmember env lv n
-  | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit env lv hi lo
-  | LArrayAccess{expr=lv;idx}         -> value_of_larray env lv idx
+  | LMember{expr=lv;name=n}           -> value_of_lmember reader env lv n
+  | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit reader env lv hi lo
+  | LArrayAccess{expr=lv;idx}         -> value_of_larray reader env lv idx
 
-and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
-  let (s,v) = value_of_lvalue env lv in
+and value_of_lmember (reader : reader) (env : env) (lv : lvalue)
+    (n : string) : signal * value =
+  let (s,v) = value_of_lvalue reader env lv in
   let v' = match v with
+    | VHeader{fields=l;is_valid} -> reader is_valid l n 
     | VStruct{fields=l;_}
-    | VHeader{fields=l;_}
     | VUnion{fields=l;_} ->
       find_exn l n
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
@@ -215,18 +220,18 @@ and value_of_lmember (env : env) (lv : lvalue) (n : string) : signal * value =
   | SReject _ -> (s,VNull)
   | _ -> failwith "unreachable"
 
-and value_of_lbit (env : env) (lv : lvalue) (hi : Bigint.t)
+and value_of_lbit (reader : reader) (env : env) (lv : lvalue) (hi : Bigint.t)
     (lo : Bigint.t) : signal * value =
-  let (s,n) = value_of_lvalue env lv in
+  let (s,n) = value_of_lvalue reader env lv in
   let n' = bigint_of_val n in
   match s with
   | SContinue -> (s, VBit{w=Bigint.(hi - lo + one);v=bitstring_slice n' hi lo})
   | SReject _ -> (s, VNull)
   | _ -> failwith "unreachable"
 
-and value_of_larray (env : env) (lv : lvalue)
+and value_of_larray (reader : reader) (env : env) (lv : lvalue)
     (idx : value) : signal * value =
-  let (s,v) =  value_of_lvalue env lv in
+  let (s,v) = value_of_lvalue reader env lv in
   match s with
   | SContinue ->
     begin match v with
@@ -244,7 +249,8 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
   | "next" -> List.nth_exn vs Bigint.(to_int_exn (next % size))
   | _ -> failwith "not an lvalue"
 
-let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
+let rec assign_lvalue (reader : reader) (writer : writer) (env: env) (lhs : lvalue)
+    (rhs : value) : env * signal =
   let rhs = implicit_cast env rhs lhs.typ in
   match lhs.lvalue with
   | LName {name} ->
@@ -253,33 +259,32 @@ let rec assign_lvalue (env: env) (lhs : lvalue) (rhs : value) : env * signal =
      | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
      end
   | LMember{expr=lv;name=mname;} ->
-     let _, record = value_of_lvalue env lv in
-     let rhs', signal = update_member record mname rhs in
+     let _, record = value_of_lvalue reader env lv in
+     let rhs', signal = update_member writer record mname rhs in
      begin match signal with
      | SContinue -> 
-        assign_lvalue env lv rhs'
+        assign_lvalue reader writer env lv rhs'
      | _ -> env, signal
      end
   | LBitAccess{expr=lv;msb;lsb;} ->
-     let _, bits = value_of_lvalue env lv in
-     assign_lvalue env lv (update_slice bits msb lsb rhs)
+     let _, bits = value_of_lvalue reader env lv in
+     assign_lvalue reader writer env lv (update_slice bits msb lsb rhs)
   | LArrayAccess{expr=lv;idx;} ->
-     let _, arr = value_of_lvalue env lv in
+     let _, arr = value_of_lvalue reader env lv in
      let idx = bigint_of_val idx in
      let rhs', signal = update_idx arr idx rhs in
      begin match signal with
      | SContinue -> 
-        assign_lvalue env lv rhs'
+        assign_lvalue reader writer env lv rhs'
      | _ -> env, signal
      end
 
-and update_member (value : value) (fname : string) (fvalue : value) : value * signal =
+and update_member (writer : writer) (value : value) (fname : string)
+    (fvalue : value) : value * signal =
   match value with
   | VStruct v ->
      VStruct {fields=update_field v.fields fname fvalue}, SContinue
-  | VHeader v ->
-     VHeader {fields=update_field v.fields fname fvalue;
-              is_valid=true}, SContinue
+  | VHeader v -> writer v.is_valid v.fields fname fvalue, SContinue
   | VUnion {fields} ->
      update_union_member fields fname fvalue
   | VStack{headers=hdrs; size=s; next=i} ->
@@ -393,7 +398,25 @@ module State = struct
 
 end
 
+module type Reader = sig
+  val read_header_field : bool -> (string * value) list -> string -> value
+end
+
+module type Writer = sig
+  val write_header_field : writer
+end
+
+module ReaderStub = struct
+  let read_header_field = fun _ _ _ -> VNull (* TODO *)
+end
+
+module WriterStub = struct
+  let write_header_field = fun _ _ _ _ -> VNull (* TODO *)
+end
+
 module type Target = sig
+  include Reader
+  include Writer
 
   type obj
 

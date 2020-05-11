@@ -42,16 +42,19 @@ module Renamer = struct
 
 end
 
+let subst_vars_name env type_name =
+  begin match CheckerEnv.resolve_type_name_opt type_name env with
+  | Some (TypeName v) -> v
+  | Some _ -> failwith "unexpected type value during elaboration"
+  | None -> type_name
+  end
+
 let rec subst_vars_type env typ =
   let open Types.Type in
   fst typ,
   match snd typ with
   | TypeName name ->
-     begin match CheckerEnv.resolve_type_name_opt name env with
-     | Some (TypeName v) -> TypeName v
-     | Some _ -> failwith "unexpected type value during elaboration"
-     | None -> TypeName name
-     end
+     TypeName (subst_vars_name env name)
   | SpecializedType { base; args } ->
      let base = subst_vars_type env base in
      let args = List.map ~f:(subst_vars_type env) args in
@@ -86,7 +89,7 @@ let rec subst_vars_expression env expr =
   | Cast { typ; expr } ->
      Cast { typ = subst_vars_type env typ; expr = go expr }
   | TypeMember { typ; name } ->
-     TypeMember { typ = subst_vars_type env typ; name = name }
+     TypeMember { typ = subst_vars_name env typ; name = name }
   | ExpressionMember { expr; name } ->
      ExpressionMember { expr = go expr; name = name }
   | Ternary { cond; tru; fls } ->

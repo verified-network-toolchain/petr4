@@ -165,7 +165,7 @@ end = struct
         format_t x.expr
     | TypeMember x ->
       Format.fprintf fmt "@[<4>%a.%s@]"
-        Type.format_t x.typ
+        name_format_t x.typ
         (snd x.name)
     | ErrorMember x ->
       Format.fprintf fmt "@[<4>error.%s@]" (snd x)

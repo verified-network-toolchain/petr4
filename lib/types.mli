@@ -38,6 +38,7 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+val name_info: name -> Info.t
 val name_eq : name -> name -> bool
 val name_only : name -> string
 
@@ -214,7 +215,7 @@ and Expression : sig
         { typ: Type.t;
           expr: t }       
     | TypeMember of 
-        { typ: Type.t;
+        { typ: name;
           name: P4String.t }
     | ErrorMember of P4String.t
     | ExpressionMember of 

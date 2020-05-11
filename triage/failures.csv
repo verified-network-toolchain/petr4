@@ -14,7 +14,6 @@ checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parame
 checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
 checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed,127
 checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),128
-checker,examples/checker_tests/good/enum-folding.y4,type member getting saturated,129
 checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed,130
 checker,examples/checker_tests/good/list-compare.p4,equality for tuples,131
 checker,examples/checker_tests/good/constant_folding.p4,use of bitwise ops on ints (bad test),132

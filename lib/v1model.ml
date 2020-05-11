@@ -10,6 +10,8 @@ module Info = I
 
 module PreV1Switch : Target = struct
 
+  exception V1ChecksumError
+
   let drop_spec = Bigint.of_int 511
 
   type obj =
@@ -218,19 +220,19 @@ module PreV1Switch : Target = struct
       assign_lvalue env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) in
     env', st, SContinue, VNull
 
-  let hash_crc32 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_crc32 (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash_crc32_custom (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash_crc16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash_crc16_custom (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_crc16_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash_random (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_random (length, v : Bigint.t * Bigint.t) : Bigint.t =
     Bigint.to_string v
     |> String.to_list
     |> List.map ~f:Char.to_int
@@ -238,16 +240,16 @@ module PreV1Switch : Target = struct
     |> Random.full_init; (* Obj.magic instead??? *)
     Random.int 256 |> Bigint.of_int
 
-  let hash_identity (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_identity (length, v : Bigint.t * Bigint.t) : Bigint.t =
     v
 
-  let hash_csum16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash_xor16 (length : Bigint.t) (v : Bigint.t) : Bigint.t =
+  let hash_xor16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
     failwith "TODO: implement hash algorithm"
 
-  let hash (algo : string) : Bigint.t -> Bigint.t -> Bigint.t =
+  let hash (algo : string) : (Bigint.t * Bigint.t) -> Bigint.t =
     match algo with
     | "crc32"        -> hash_crc32
     | "crc32_custom" -> hash_crc32_custom
@@ -259,30 +261,31 @@ module PreV1Switch : Target = struct
     | "xor16"        -> hash_xor16
     | _              -> failwith "unknown hash algorithm"
 
+  let package_for_hash (data : value list) : Bigint.t * Bigint.t =
+    data
+    |> List.map ~f:(fun v -> width_of_val v, bigint_of_val v)
+    |> List.map ~f:(fun (w,v) -> w, Bitstring.of_twos_complement v w)
+    |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
+        Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
+
+  let adjust_hash_value : Bigint.t -> Bigint.t -> Bigint.t -> Bigint.t =
+    fun base rmax hv -> Bigint.(hv % rmax + base)
+
   let eval_hash : extern = fun ctrl env st ts args ->
     let width = match ts with
-      | [o; _] -> width_of_typ env o
-      | _ -> failwith "unexpected type args for hash" in
+      | o :: _ -> width_of_typ env o
+      | _ -> failwith "missing type args for hash" in
     let (algo, base, data, rmax) = match args with
       | [_; (VEnumField {enum_name=algo;_}, _);
         (VBit{w=base;_},_); (VTuple data, _); (VBit{v=max;_}, _)] ->
         algo, base, data, max
       | _ -> failwith "unexpected args for hash" in
-    let bigints = 
+    let result = 
       data
-      |> List.map ~f:bigint_of_val in
-    let widths = List.map ~f:width_of_val data in
-    let vs = List.zip_exn widths bigints in
-    let vs' = List.map vs ~f:(fun (w,v) -> w, Bitstring.of_twos_complement w v) in
-    let combined_width, combined_value = 
-      List.fold vs'
-        ~init:Bigint.(zero,zero)
-        ~f:(fun (accw, accv) (nw, nv) ->
-          Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv)) in
-    let result = hash algo combined_width combined_value in
-    let result_mod = Bigint.(result % rmax) in
-    let final_result = Bigint.(result_mod + base) in
-    let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=final_result}) env in
+      |> package_for_hash
+      |> hash algo
+      |> adjust_hash_value base rmax in
+    let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=result}) env in
     env, st, SContinue, VNull
 
   let eval_action_selector : extern = fun ctrl env st ts args ->
@@ -305,24 +308,109 @@ module PreV1Switch : Target = struct
     (* TODO: actually implement *)
     env, st, SContinue, VBit{w=Bigint.of_int 32; v=Bigint.zero}
 
-  let eval_verify_checksum : extern = fun _ -> failwith "TODO: verify"
+  let eval_verify_checksum : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | _ :: o :: _ -> width_of_typ env o
+      | _ -> failwith "unexpected type args for verify checksum" in
+    let (condition, data, checksum, algo) = match args with
+      | [(VBool condition,_); (VTuple data, _);
+        (VBit{v;_}, _); (VEnumField{enum_name;_},_)] ->
+        condition, data, v, enum_name
+      | _ -> failwith "unexpected args for verify checksum" in
+    if not condition then env, st, SContinue, VNull else
+    let result = 
+      data
+      |> package_for_hash
+      |> hash algo
+      |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
+    if Bigint.(checksum = result) then env, st, SContinue, VNull
+    else raise V1ChecksumError
 
-  let eval_update_checksum : extern = fun _ -> failwith "TODO: update"
+  let eval_update_checksum : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | _ :: o :: _ -> width_of_typ env o
+      | _ -> failwith "unexpected type args for verify checksum" in
+    let (condition, data, checksum, algo) = match args with
+      | [(VBool condition,_); (VTuple data, _);
+        (VBit{v;_}, _); (VEnumField{enum_name;_},_)] ->
+        condition, data, v, enum_name
+      | _ -> failwith "unexpected args for verify checksum" in
+    if not condition then env, st, SContinue, VNull else
+    let result = 
+      data
+      |> package_for_hash
+      |> hash algo
+      |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
+    let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
+    env', st, SContinue, VNull
 
-  let eval_verify_checksum_with_payload : extern = fun _ -> failwith "TODO: verify with payload"
+  let value_of_payload (st : state) : value = 
+      st
+      |> State.get_packet
+      |> (fun x -> x.main)
+      |> Cstruct.to_string
+      |> String.to_list
+      |> List.map ~f:Char.to_int
+      |> List.map ~f:Bigint.of_int
+      |> List.map ~f:(fun x -> Bigint.of_int 8, x)
+      |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
+          Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
+      |> (fun (w,v) -> VBit { w; v })
 
-  let eval_update_checksum_with_payload : extern = fun _ -> failwith "TODO: update with payload"
+  let eval_verify_checksum_with_payload : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | _ :: o :: _ -> width_of_typ env o
+      | _ -> failwith "unexpected type args for verify checksum" in
+    let (condition, data, checksum, algo) = match args with
+      | [(VBool condition,_); (VTuple data, _);
+        (VBit{v;_}, _); (VEnumField{enum_name;_},_)] ->
+        condition, data, v, enum_name
+      | _ -> failwith "unexpected args for verify checksum" in
+    if not condition then env, st, SContinue, VNull else
+    let payload_value = value_of_payload st in (* TODO *)
+    let data = payload_value :: data in
+    let result = 
+      data
+      |> package_for_hash
+      |> hash algo
+      |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
+    if Bigint.(checksum = result) then env, st, SContinue, VNull
+    else raise V1ChecksumError
+
+  let eval_update_checksum_with_payload : extern = fun ctrl env st ts args ->
+    let width = match ts with
+      | _ :: o :: _ -> width_of_typ env o
+      | _ -> failwith "unexpected type args for verify checksum" in
+    let (condition, data, checksum, algo) = match args with
+      | [(VBool condition,_); (VTuple data, _);
+        (VBit{v;_}, _); (VEnumField{enum_name;_},_)] ->
+        condition, data, v, enum_name
+      | _ -> failwith "unexpected args for verify checksum" in
+    if not condition then env, st, SContinue, VNull else
+    let payload_value = value_of_payload st in (* TODO *)
+    let data = payload_value :: data in
+    let result = 
+      data
+      |> package_for_hash
+      |> hash algo
+      |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
+    let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
+    env', st, SContinue, VNull
 
   let eval_resubmit : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
     env, st, SContinue, VNull
 
   let eval_recirculate : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
     env, st, SContinue, VNull
 
   let eval_clone : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
     env, st, SContinue, VNull
 
   let eval_clone3 : extern = fun ctrl env st ts args ->
+    (* TODO: actually implement *)
     env, st, SContinue, VNull
 
   let eval_truncate : extern = fun ctrl env st ts args ->
@@ -418,6 +506,8 @@ module PreV1Switch : Target = struct
         - checks that the write T is a bit<W> type.
         - checks that the random T is a bit<W> type.
         - checks all the constraints on the hash arg types.
+        - checks all the constraints on the verify_checksum(_with_payload) arg types.
+        - checks all the constraints on the update_checksum(_with_payload) arg types.
         - checks that verify and update checksum controls only do certain
           kinds of statements/expressions. *)
 
@@ -507,9 +597,17 @@ module PreV1Switch : Target = struct
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let env = EvalEnv.insert_val (BareName (Info.dummy, "packet")) vpkt' env in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
-    let (env,st) = 
+    let (env,st) = try 
       (env,st)
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] |> fst23
+    with V1ChecksumError ->
+      assign_lvalue
+        env
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+                name="checksum_error"; }; typ = Bit {width = 1}}
+        (VBit{v=Bigint.one;w=Bigint.one}) |> fst,
+      st in
+    let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
     let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
     let egress_spec_val = match struc with

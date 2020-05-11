@@ -24,6 +24,7 @@ let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   | Bool -> Bigint.one
   | Int {width} | Bit {width} -> Bigint.of_int width
   | Array {typ;size} -> Bigint.(width_of_typ env typ * of_int size)
+  | List {types}
   | Tuple {types} ->
     types
     |> List.map ~f:(width_of_typ env)
@@ -36,7 +37,7 @@ let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   | Enum {typ = Some t;_} -> width_of_typ env t
   | TypeName n -> width_of_typ env (EvalEnv.find_typ n env)
   | NewType nt -> width_of_typ env nt.typ
-  | _ -> failwith "not a fixed-width type"
+  | _ -> raise_s [%message "not a fixed-width type" ~t:(t:Type.t)]
 
 let rec init_val_of_typ (env : env) (typ : Type.t) : value =
   match typ with

@@ -1437,8 +1437,8 @@ module MakeInterpreter (T : Target) = struct
     let (cenv''', st''', sign) = eval_stmt ctrl cenv'' st'' SContinue block in
     match sign with
     | SContinue
+    | SReject _
     | SExit     -> (copyout ctrl cenv''' st''' params args, st''', sign)
-    | SReject _ -> failwith "control should not reject"
     | SReturn _ -> failwith "control should not return"
 
   (*----------------------------------------------------------------------------*)

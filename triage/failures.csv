@@ -1,10 +1,6 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
 checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174
-checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162
 checker,examples/checker_tests/bad/issue1672-bmv2.p4,parser parameter hdr should be a struct,141
-checker,examples/checker_tests/bad/issue1829-1-bmv2.p4,direct meter tables must have reads (unsupported),162
-checker,examples/checker_tests/bad/issue1829-2-bmv2.p4,direct meter must be associated with a table (unsupported),162
-checker,examples/checker_tests/bad/issue1829-3-bmv2.p4,direct meter is not associated with a table (unsupported),162
 checker,examples/checker_tests/bad/issue2206.p4,width of left side of shift has to be explicit,181
 checker,examples/checker_tests/bad/issue2332-1.p4,shift amount should be unsigned,181
 checker,examples/checker_tests/bad/issue2230-1-bmv2.p4,p4c treating structs nominally (bad test),182
@@ -17,13 +13,8 @@ checker,examples/checker_tests/bad/no-externs-bmv2.p4,BMv2-specific extern modul
 checker,examples/checker_tests/bad/string-e.p4,string params cannot have directions,141
 checker,examples/checker_tests/bad/string-e1.p4,struct fields cannot be strings,149
 checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,153
-checker,examples/checker_tests/bad/structured-annotation-e1.p4,annotations (unsupported),137
-checker,examples/checker_tests/bad/structured-annotation-e2.p4,annotations (unsupported),137
-checker,examples/checker_tests/bad/structured-annotation-e3.p4,annotations (unsupported),137
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29
-checker,examples/checker_tests/good/generic.p4,generic declarations (unsupported),148
-checker,examples/checker_tests/good/generic1.p4,generic declarations (unsupported),148
 checker,examples/checker_tests/good/issue1208-1.p4,psa (unsupported),187
 checker,examples/checker_tests/good/issue2044-bmv2.p4,miss field not present in table result struct,185
 checker,examples/checker_tests/good/issue2105.p4,possible inference bug?,186
@@ -33,12 +24,10 @@ checker,examples/checker_tests/good/issue2175-3.p4,initializer blocks (unsupport
 checker,examples/checker_tests/good/issue2175-4.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2175-5.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2220.p4,implicit casts for serializable enums,176
-checker,examples/checker_tests/good/issue2265.p4,generics (unsupported),148
 checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2287-bmv2.p4,petr4 doing compile time eval of a division in runtime code,189
 checker,examples/checker_tests/good/issue2303.p4,petr4 doing compile time eval of a division in runtime code,189
-checker,examples/checker_tests/good/issue344.p4,generics (unsupported),148
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,flattening structs in select (bad test),125
 checker,examples/checker_tests/good/strength.p4,compile time evaluation running inside apply block,189
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,implicit cast inside table match,155
@@ -51,7 +40,6 @@ checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,80
 checker,examples/checker_tests/good/type-params.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/unused.p4,don't care as type parameter,80
-checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
 checker,examples/checker_tests/good/simple.p4,bad test,92
 checker,examples/checker_tests/good/precedence.p4,binop typecheck isn't saturating types before running,124
 checker,examples/checker_tests/good/psa-portid-using-newtype2.p4,binop typecheck isn't saturating types before running,124
@@ -77,8 +65,6 @@ checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn shoul
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135
 checker,examples/checker_tests/bad/template_e.p4,type argument names should be distinct,135
 checker,examples/checker_tests/bad/nostart.p4,reject parser with no start state,136
-checker,examples/checker_tests/bad/annotation.p4,p4c rejecting "@pkginfo" annotation in parser,137
-checker,examples/checker_tests/bad/key-name.p4,complex key expressions need @name annotation,137
 checker,examples/checker_tests/bad/call-table.p4,reject table.apply() inside an action,138
 checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,138
 checker,examples/checker_tests/bad/function_e2.p4,actions cannot be called from functions,138
@@ -119,23 +105,13 @@ checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (
 checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155
-stf,examples/checker_tests/good/action_call_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/checksum3-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/csum_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ebpf_checksum_extern.p4,ebpf (unsupported),122
-stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),122
-stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
 stf,examples/checker_tests/good/issue2170-bmv2.p4,"control should not return" error,191
 stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
 stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156
-stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/stack_complex-bmv2.p4,,167
-stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,155
 stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,192
 stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66

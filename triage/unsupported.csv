@@ -43,4 +43,27 @@ stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF ar
 stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),
-stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81
+stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162
+checker,examples/checker_tests/bad/issue1829-1-bmv2.p4,direct meter tables must have reads (unsupported),162
+checker,examples/checker_tests/bad/issue1829-2-bmv2.p4,direct meter must be associated with a table (unsupported),162
+checker,examples/checker_tests/bad/issue1829-3-bmv2.p4,direct meter is not associated with a table (unsupported),162
+checker,examples/checker_tests/bad/structured-annotation-e1.p4,annotations (unsupported),137
+checker,examples/checker_tests/bad/structured-annotation-e2.p4,annotations (unsupported),137
+checker,examples/checker_tests/bad/structured-annotation-e3.p4,annotations (unsupported),137
+checker,examples/checker_tests/good/generic.p4,generic declarations (unsupported),148
+checker,examples/checker_tests/good/generic1.p4,generic declarations (unsupported),148
+checker,examples/checker_tests/good/issue2265.p4,generics (unsupported),148
+checker,examples/checker_tests/good/issue344.p4,generics (unsupported),148
+checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
+checker,examples/checker_tests/bad/annotation.p4,p4c rejecting "@pkginfo" annotation in parser,137
+checker,examples/checker_tests/bad/key-name.p4,complex key expressions need @name annotation,137
+stf,examples/checker_tests/good/action_call_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/csum_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ebpf_checksum_extern.p4,ebpf (unsupported),122
+stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),122
+stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122

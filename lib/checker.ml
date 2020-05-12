@@ -3178,13 +3178,13 @@ and type_serializable_enum env info annotations underlying_type name members =
   (info, enum_typed), env
 
 (* Section 7.2.9.2 *)
-and type_extern_object env info annotations name t_params methods =
+and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
   let env' = CheckerEnv.insert_type_vars type_params' env in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
-       assert (snd cname = snd name);
+       assert (snd cname = snd obj_name);
        let params_typed = type_constructor_params env' params in
        let constructor_typed =
          Prog.MethodPrototype.Constructor { annotations;
@@ -3194,6 +3194,9 @@ and type_extern_object env info annotations name t_params methods =
        ((fst m, constructor_typed) :: constructors, methods)
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }
     | MethodPrototype.AbstractMethod { annotations; return; name; type_params = t_params; params } ->
+       if snd name = snd obj_name
+       then raise_s [%message "extern method must have different name from extern"
+                        ~m:(m: MethodPrototype.t)];
        let method_type_params = List.map ~f:snd t_params in
        let env'' = CheckerEnv.insert_type_vars method_type_params env' in
        let params_typed = type_params env'' params in
@@ -3222,14 +3225,14 @@ and type_extern_object env info annotations name t_params methods =
   let extern_decl =
     Prog.Declaration.ExternObject
       { annotations;
-        name;
+        name = obj_name;
         type_params = t_params;
         methods = cs @ ms }
   in
   let extern_typ: ExternType.t =
     { type_params = type_params';
       methods = List.map ms
-                  ~f:(method_prototype_to_extern_method name) }
+                  ~f:(method_prototype_to_extern_method obj_name) }
   in
   let to_typename s = Type.TypeName (BareName (Info.dummy, s)) in
   let extern_ctors =
@@ -3244,9 +3247,9 @@ and type_extern_object env info annotations name t_params methods =
                             args = List.map ~f:to_typename type_params' } }
         | _ -> failwith "bug: expected constructor")
   in
-  let env = CheckerEnv.insert_type (BareName name) (Extern extern_typ) env in
+  let env = CheckerEnv.insert_type (BareName obj_name) (Extern extern_typ) env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> CheckerEnv.insert_type_of (BareName name) t env)
+              ~f:(fun env t -> CheckerEnv.insert_type_of (BareName obj_name) t env)
   in
   (info, extern_decl), env
 

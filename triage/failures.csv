@@ -127,17 +127,17 @@ stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),122
 stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
 stf,examples/checker_tests/good/issue2170-bmv2.p4,"control should not return" error,191
-stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,
+stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
 stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
 stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156
 stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/stack_complex-bmv2.p4,,
+stf,examples/checker_tests/good/stack_complex-bmv2.p4,,167
 stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,155
-stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,
+stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,192
 stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
 stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109

@@ -70,7 +70,6 @@ checker,examples/checker_tests/bad/issue407-1.p4,header field type restrictions,
 checker,examples/checker_tests/bad/stack_e.p4,no struct stacks,149
 checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field,149
 checker,examples/checker_tests/bad/extern.p4,extern params cannot have a direction,150
-checker,examples/checker_tests/bad/issue513.p4,no conditionals in actions (target dependent),151
 checker,examples/checker_tests/bad/issue394.p4,variable declaration type restriction,153
 checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct.p4,missing implicit cast,155

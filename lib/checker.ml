@@ -2136,8 +2136,20 @@ and type_range env lo hi : Prog.Expression.typed_t =
     typ = Set typ;
     dir = Directionless }
 
+and check_statement_legal_in (ctx: StmtContext.t) (stm: Statement.t) : unit =
+  match ctx, snd stm with
+  | Action, Switch _ ->
+     raise_s [%message "branching statement not allowed in action"
+                 ~stm:(stm: Statement.t)]
+  | ParserState, Conditional _
+  | ParserState, Switch _ ->
+     raise_s [%message "branching statement not allowed in parser"
+                 ~stm:(stm: Statement.t)]
+  | _ -> ()
+
 and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) : (Prog.Statement.t * CheckerEnv.t) =
   let open Prog.Statement in
+  check_statement_legal_in ctx stm;
   let typed_stm, env' =
     match snd stm with
     | MethodCall { func; type_args; args } ->
@@ -2653,14 +2665,14 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
-and type_function env info return name type_params params body =
+and type_function env ctx info return name type_params params body =
   let t_params = List.map ~f:snd type_params in
   let body_env = CheckerEnv.insert_type_vars t_params env in
   let params_typed = List.map ~f:(type_param body_env) params in
   let return_type = return |> translate_type env t_params in
   let typ_params = List.map ~f:prog_param_to_typed_param params_typed in
   let body_env = insert_params body_env params in
-  let body_stmt_typed, _ = type_block body_env (Function return_type) body in
+  let body_stmt_typed, _ = type_block body_env ctx body in
   let body_typed : Prog.Block.t =
     match body_stmt_typed, return_type with
     | { stmt = BlockStatement { block = blk }; _ }, Void
@@ -2751,7 +2763,7 @@ and type_value_set env info annotations typ size name =
 (* Section 13.1 *)
 and type_action env info annotations name params body =
   let fn_typed, fn_env =
-    type_function env info (Info.dummy, Types.Type.Void) name [] params body
+    type_function env Action info (Info.dummy, Types.Type.Void) name [] params body
   in
   let action_typed, action_type =
     match snd fn_typed with
@@ -3414,15 +3426,16 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
      type_control env (fst decl) name annotations type_params params constructor_params locals apply
   | Function { return; name; type_params; params; body } ->
-     type_function env (fst decl) return name type_params params body
+     let ctx: StmtContext.t = Function (translate_type env (List.map ~f:snd type_params) return) in
+     type_function env ctx (fst decl) return name type_params params body
+  | Action { annotations; name; params; body } ->
+     type_action env (fst decl) annotations name params body
   | ExternFunction { annotations; return; name; type_params; params } ->
      type_extern_function env (fst decl) annotations return name type_params params
   | Variable { annotations; typ; name; init } ->
      type_variable env (fst decl) annotations typ name init
   | ValueSet { annotations; typ; size; name } ->
      type_value_set env (fst decl) annotations typ size name
-  | Action { annotations; name; params; body } ->
-     type_action env (fst decl) annotations name params body
   | Table { annotations; name; properties } ->
      type_table env (fst decl) annotations name properties
   | Header { annotations; name; fields } ->

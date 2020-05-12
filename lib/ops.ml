@@ -239,7 +239,7 @@ and unions_equal (l1 : (string * V.value) list) (l2 : (string * V.value) list) :
   VBool (V.assert_bool (structs_equal l1 l2))
 
 and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
-  let f v1 v2 acc =
+  let f acc v1 v2 =
     let b = interp_beq v1 v2 in
     V.VBool (acc |> V.assert_bool && b |> V.assert_bool) in
   match List.fold2 ~init:(V.VBool true) ~f l1 l2 with

@@ -58,8 +58,6 @@ let good_files = example_path ["checker_tests"; "good"] |> get_files
 
 let bad_files = example_path ["checker_tests"; "bad"] |> get_files
 
-let p4c_files = example_path ["p4c_tests"] |> get_files
-
 let good_test f file () =
   Alcotest.(check bool) "good test" true 
     (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
@@ -67,10 +65,6 @@ let good_test f file () =
 let bad_test f file () =
   Alcotest.(check bool) "bad test" false 
     (f ["../examples"] (example_path ["checker_tests"; "bad"; file]))
-
-let p4c_test f file () =
-  Alcotest.(check bool) "p4c test" true
-    (f ["../examples"] (example_path ["p4c_tests"; file]))
 
 let () =
   let open Alcotest in
@@ -81,8 +75,4 @@ let () =
         test_case name `Quick (good_test typecheck_test name)) good_files);
     "typecheck tests bad", (Stdlib.List.map (fun name ->
         test_case name `Quick (bad_test typecheck_test name)) bad_files);
-    "p4c parser tests good", (Stdlib.List.map (fun name ->
-        test_case name `Quick (p4c_test parser_test name)) p4c_files);
-    "p4c typecheck tests good", (Stdlib.List.map (fun name ->
-        test_case name `Quick (p4c_test typecheck_test name)) p4c_files);
   ] 

@@ -22,13 +22,8 @@ checker,examples/checker_tests/bad/structured-annotation-e2.p4,annotations (unsu
 checker,examples/checker_tests/bad/structured-annotation-e3.p4,annotations (unsupported),137
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29
-checker,examples/checker_tests/good/action_call_ubpf.p4,ubpf (re run this),
-checker,examples/checker_tests/good/csum_ubpf.p4,ubpf (re run this),
 checker,examples/checker_tests/good/generic.p4,generic declarations (unsupported),148
 checker,examples/checker_tests/good/generic1.p4,generic declarations (unsupported),148
-checker,examples/checker_tests/good/hash_ubpf.p4,ubpf (re run this),
-checker,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (re run this),
-checker,examples/checker_tests/good/ipv6-actions_ubpf.p4,ubpf (re run this),
 checker,examples/checker_tests/good/issue1208-1.p4,psa (unsupported),187
 checker,examples/checker_tests/good/issue2044-bmv2.p4,miss field not present in table result struct,185
 checker,examples/checker_tests/good/issue2105.p4,possible inference bug?,186
@@ -44,15 +39,9 @@ checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported
 checker,examples/checker_tests/good/issue2287-bmv2.p4,petr4 doing compile time eval of a division in runtime code,189
 checker,examples/checker_tests/good/issue2303.p4,petr4 doing compile time eval of a division in runtime code,189
 checker,examples/checker_tests/good/issue344.p4,generics (unsupported),148
-checker,examples/checker_tests/good/metadata_ubpf.p4,ubpf (re run this),
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,flattening structs in select (bad test),125
-checker,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (re run this),
-checker,examples/checker_tests/good/simple-firewall_ubpf.p4,ubpf (re run this),
 checker,examples/checker_tests/good/strength.p4,compile time evaluation running inside apply block,189
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,implicit cast inside table match,155
-checker,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (re run this),
-checker,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (re run this),
-checker,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (re run this),
 checker,examples/checker_tests/bad/generic1_e.p4,well formed parameter type needs right number of type params,20
 checker,examples/checker_tests/bad/width1_e.p4,int and bit types cannot have negative widths,20
 checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls,69

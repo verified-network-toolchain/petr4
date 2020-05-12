@@ -510,6 +510,7 @@ parserState:
 parserStatement:
 | s = assignmentOrMethodCallStatement
 | s = directApplication
+| s = emptyStatement
 | s = parserBlockStatement
    { s }
 | decl = constantDeclaration

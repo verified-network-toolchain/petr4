@@ -41,13 +41,11 @@ checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <->
 checker,examples/checker_tests/good/newtype.p4,cast into new type not allowed,130
 checker,examples/checker_tests/good/list-compare.p4,equality for tuples,131
 checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts,133
-checker,examples/checker_tests/bad/accept_e.p4,parser states cannot be named accept,135
 checker,examples/checker_tests/bad/dup-param.p4,params cannot shadow constructor params,135
 checker,examples/checker_tests/bad/dupConst.p4,reject const shadowing,135
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,135
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135
 checker,examples/checker_tests/bad/template_e.p4,type argument names should be distinct,135
-checker,examples/checker_tests/bad/nostart.p4,reject parser with no start state,136
 checker,examples/checker_tests/bad/call-table.p4,reject table.apply() inside an action,138
 checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,138
 checker,examples/checker_tests/bad/function_e2.p4,actions cannot be called from functions,138

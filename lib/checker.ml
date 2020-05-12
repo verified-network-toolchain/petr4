@@ -2548,6 +2548,14 @@ and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state 
   in
   (fst state, pre_state)
 
+and check_state_names names =
+  match List.find_a_dup ~compare:String.compare names with
+  | Some duplicated -> raise_s [%message "duplicate state name in parser" ~state:duplicated]
+  | None ->
+     if List.mem ~equal:(=) names "start"
+     then ()
+     else raise_s [%message "parser is missing start state"];
+
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
   let constructor_params_typed = type_constructor_params env constructor_params in
@@ -2559,6 +2567,7 @@ and open_parser_scope env params constructor_params locals states =
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
   let state_names = program_state_names @ ["accept"; "reject"] in
+  check_state_names state_names;
   (env, state_names, constructor_params_typed, params_typed, locals_typed)
 
 (* Section 12.2 *)

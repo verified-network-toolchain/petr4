@@ -132,25 +132,25 @@ checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (
 checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155
-stf,examples/checker_tests/good/action_call_ubpf.p4,,
+stf,examples/checker_tests/good/action_call_ubpf.p4,ubpf (unsupported),
 stf,examples/checker_tests/good/checksum3-bmv2.p4,List not a fixed-width type,
 stf,examples/checker_tests/good/csum_ubpf.p4,ubpf (unsupported),
 stf,examples/checker_tests/good/ebpf_checksum_extern.p4,ebpf (unsupported),
 stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),
 stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),
-stf,examples/checker_tests/good/issue2153-bmv2.p4,,
-stf,examples/checker_tests/good/issue2170-bmv2.p4,,
-stf,examples/checker_tests/good/issue2287-bmv2.p4,,
+stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,
+stf,examples/checker_tests/good/issue2170-bmv2.p4,"control should not return" error,
+stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,
 stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,
 stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),
-stf,examples/checker_tests/good/runtime-index-bmv2.p4,,
+stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,
 stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),
 stf,examples/checker_tests/good/stack_complex-bmv2.p4,,
 stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),
 stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),
 stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),
-stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,,
-stf,stf-test/custom-stf-tests/hash_identity.p4,,
+stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,
+stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,
 stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
 stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109

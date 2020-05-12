@@ -1292,7 +1292,7 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
   | _, _ ->
      None, None
 
-and coerce_binary_op_args env l r =
+and coerce_binary_op_args env op l r =
   (* Implicit integer casts as per section 8.9.2
    *
    * Let implicit_cast(t1,t2) be defined as follows to describe
@@ -1319,7 +1319,9 @@ and coerce_binary_op_args env l r =
     | None -> fun e -> e
   in
   let cast_type_l, cast_type_r = implicit_cast env l_typed r_typed in
-  cast_opt cast_type_l l_typed, cast_opt cast_type_r r_typed
+  if op <> Op.Shl && op <> Op.Shr
+  then cast_opt cast_type_l l_typed, cast_opt cast_type_r r_typed
+  else l_typed, r_typed
 
 (* TODO: Checking if two values of this type be compared for equality
  * (==) or inequality (!=).
@@ -1365,10 +1367,18 @@ and check_div_args env left_arg right_arg =
   if Bigint.(left_val <= zero)
   then raise_s [%message "dividend must be nonnegative" ~dividend:(left_arg:Prog.Expression.t)]
 
+and is_nonnegative_numeric env (e: Prog.Expression.t) : bool =
+  match (snd e).typ with
+  | Integer ->
+     let e_value = compile_time_eval_bigint env e in
+     Bigint.(e_value >= zero)
+  | Bit _ -> true
+  | _ -> false
+
 and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
   let open Op in
   let open Typed.Type in
-  let typed_l, typed_r = coerce_binary_op_args env l r in
+  let typed_l, typed_r = coerce_binary_op_args env op l r in
   let l_typ = (snd typed_l).typ in
   let r_typ = (snd typed_r).typ in
   let dir =
@@ -1393,7 +1403,6 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
        | _, _ -> raise_s [%message "this binop unimplemented"
                              ~l_typ:(l_typ:Typed.Type.t)
                              ~r_typ:(r_typ:Typed.Type.t)]
-
        end
     | Eq | NotEq ->
        if type_equality env l_typ r_typ
@@ -1451,22 +1460,13 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
        | Integer, _ -> raise_mismatch (info r) "arbitrary precision integer" r_typ
        | _, _ -> raise_mismatch (info l) "arbitrary precision integer" l_typ
        end
-    (* Left and Right Shifts
-     * Shift operators:
-     * Δ, T, Γ |- e1 : t1     numeric(t1)
-     * Δ, T, Γ |- e2 : t2     t2 = int or t2 = bit<w>     e2 > 0
-     * ----------------------------------------------------------
-     * Δ, T, Γ |- e1 shift e2 : t1
-     * As of yet we assume that e2 > 0, but this must be updated.
-     *)
     | Shl | Shr ->
-       if is_numeric l_typ
-       then match r_typ with
-            |  Bit _ -> l_typ
-            |  Integer -> l_typ (* TODO check the value of the rhs is non negative *)
-            |  Int _   -> l_typ (* TODO this is a temporary fix that is not correct *)
-            | _ -> failwith "Shift operands have improper types" (*TODO better error handling*)
-       else failwith "can only shift numbers"
+       begin match l_typ, is_nonnegative_numeric env typed_r with
+       | Bit _, true
+       | Int _, true -> l_typ
+       | _, true -> raise_s [%message "bad left hand argument to shift" ~l_typ:(l_typ: Typed.Type.t)]
+       | _ -> raise_s [%message "bad right hand argument to shift" ~typed_r:(typed_r: Prog.Expression.t)]
+       end
   in
   { expr = BinaryOp { op = (op_info, op); args = (typed_l, typed_r) };
     typ = typ;

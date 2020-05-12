@@ -68,3 +68,17 @@ stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
+checker,examples/checker_tests/bad/issue2260-1.p4,p4c refusing to insert explicit casts on a generic function (bad test),183
+checker,examples/checker_tests/bad/issue2230-1-bmv2.p4,p4c treating structs nominally (bad test),182
+checker,examples/checker_tests/bad/no-externs-bmv2.p4,BMv2-specific extern module system test (unsupported),161
+checker,examples/checker_tests/good/simple.p4,bad test,92
+checker,examples/checker_tests/good/cast_noop.p4,int -> bool cast not allowed,127
+checker,examples/checker_tests/good/default-switch.p4,default allowed to not be last label (bad test),128
+checker,examples/checker_tests/good/constant_folding.p4,use of bitwise ops on ints (bad test),132
+checker,examples/checker_tests/bad/psa-type-hdr.p4,newtype restricted to base types (unnecessary restriction?),140
+checker,examples/checker_tests/bad/tuple-newtype.p4,newtype restricted to base types (unnecessary restriction?),140
+checker,examples/checker_tests/bad/typedef-and-type-definitions.p4,newtype restricted to base types (unnecessary restriction?),140
+checker,examples/checker_tests/bad/issue1944.p4,bitstring too big (unnecessary restriction?),147
+checker,examples/checker_tests/bad/width_e.p4,bitstring too big,147
+checker,examples/checker_tests/bad/issue1296.p4,no recursive type specialization allowed (unnecessary restriction?),152
+checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (unnecessary restriction?),154

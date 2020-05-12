@@ -441,6 +441,7 @@ module MakeInterpreter (T : Target) = struct
       let (env',st',s,_) = eval_funcall' ctrl env'' st'' params args body in
       let v = VStruct {fields=[
                             ("hit", VBool (not (List.is_empty l)));
+                            ("miss", VBool (List.is_empty l));
                             ("action_run", VEnumField{typ_name=name;
                                                       enum_name=name_only action_name})
                           ]} in

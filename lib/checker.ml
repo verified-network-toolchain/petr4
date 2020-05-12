@@ -3025,9 +3025,10 @@ and type_table' env info annotations name key_types action_map entries_typed siz
                 action_enum_typ env
     in
     let hit_field = {name="hit"; typ=Type.Bool} in
+    let miss_field = {name="miss"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in
-    let apply_result_typ = Type.Struct {fields=[hit_field; run_field]; } in
+    let apply_result_typ = Type.Struct {fields=[hit_field; miss_field; run_field]; } in
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = name |> snd |> (^) "apply_result_" in
     let env = CheckerEnv.insert_type (BareName (fst name, result_typ_name)) apply_result_typ env in

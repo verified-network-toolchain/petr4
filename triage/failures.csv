@@ -11,7 +11,6 @@ checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,153
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29
 checker,examples/checker_tests/good/issue1208-1.p4,psa (unsupported),187
-checker,examples/checker_tests/good/issue2044-bmv2.p4,miss field not present in table result struct,185
 checker,examples/checker_tests/good/issue2105.p4,possible inference bug?,186
 checker,examples/checker_tests/good/issue2175-1.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2175-2.p4,initializer blocks (unsupported),75

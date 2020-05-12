@@ -43,7 +43,8 @@ stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF ar
 stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),
 stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),
-stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162
+stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81
+checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162
 checker,examples/checker_tests/bad/issue1829-1-bmv2.p4,direct meter tables must have reads (unsupported),162
 checker,examples/checker_tests/bad/issue1829-2-bmv2.p4,direct meter must be associated with a table (unsupported),162
 checker,examples/checker_tests/bad/issue1829-3-bmv2.p4,direct meter is not associated with a table (unsupported),162
@@ -82,3 +83,11 @@ checker,examples/checker_tests/bad/issue1944.p4,bitstring too big (unnecessary r
 checker,examples/checker_tests/bad/width_e.p4,bitstring too big,147
 checker,examples/checker_tests/bad/issue1296.p4,no recursive type specialization allowed (unnecessary restriction?),152
 checker,examples/checker_tests/bad/issue532.p4,functions cannot return structs (unnecessary restriction?),154
+checker,examples/checker_tests/bad/extract.p4,extract only defined for headers,134
+checker,examples/checker_tests/bad/extract1.p4,extract with size param should only work on variable sized headers,134
+checker,examples/checker_tests/bad/issue1777-bmv2.p4,v1model register only supports bit<w> elements (unsupported),134
+checker,examples/checker_tests/bad/issue477.p4,extract argument restrictions: no header stacks,134
+checker,examples/checker_tests/bad/issue478.p4,one-arg extract should not work on variable width headers,134
+checker,examples/checker_tests/bad/issue584.p4,hash parameter restrictions,134
+checker,examples/checker_tests/bad/issue600.p4,lookahead should not work on variable width headers,134
+checker,examples/checker_tests/bad/push_nonconstant.p4,push_front arg should be ctk,134

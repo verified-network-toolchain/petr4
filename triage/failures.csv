@@ -21,8 +21,9 @@ checker,examples/checker_tests/good/issue2175-5.p4,initializer blocks (unsupport
 checker,examples/checker_tests/good/issue2220.p4,implicit casts for serializable enums,176
 checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2287-bmv2.p4,petr4 doing compile time eval of a division in runtime code,189
-checker,examples/checker_tests/good/issue2303.p4,petr4 doing compile time eval of a division in runtime code,189
+checker,examples/checker_tests/good/issue2303.p4,missing implicit cast on struct initializer,155
+checker,examples/checker_tests/bad/div1.p4,implicit cast on division turns negative argument into bit<>,
+checker,examples/checker_tests/bad/div3.p4,p4c rejects runtime division,
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,flattening structs in select (bad test),125
 checker,examples/checker_tests/good/strength.p4,compile time evaluation running inside apply block,189
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,implicit cast inside table match,155

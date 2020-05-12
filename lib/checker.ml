@@ -192,14 +192,25 @@ and compile_time_eval_exprs env exprs : Prog.Value.value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
+and bigint_of_value v =
+  match v with
+  | Prog.Value.VInt { v; _}
+  | Prog.Value.VBit { v; _}
+  | Prog.Value.VInteger v ->
+     Some v
+  | _ -> None
+
 and compile_time_eval_bigint env expr: Bigint.t =
-  match compile_time_eval_expr env expr with
-  | Some (Prog.Value.VInt { v; _})
-  | Some (Prog.Value.VBit { v; _})
-  | Some (Prog.Value.VInteger v) ->
-     v
-  | _ -> raise_s [%message "could not compute compile-time-known numerical value for expr"
-                     ~expr:(expr: Prog.Expression.t)]
+  match
+    compile_time_eval_expr env expr
+    |> option_map bigint_of_value
+    |> option_collapse
+  with
+  | Some bigint ->
+     bigint
+  | None ->
+     raise_s [%message "could not compute compile-time-known numerical value for expr"
+                 ~expr:(expr: Prog.Expression.t)]
 
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
@@ -1359,14 +1370,6 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | _ ->
      false
 
-and check_div_args env left_arg right_arg =
-  let right_val = compile_time_eval_bigint env right_arg in
-  if Bigint.(right_val <= zero)
-  then raise_s [%message "divisor must be strictly positive" ~divisor:(right_arg:Prog.Expression.t)];
-  let left_val = compile_time_eval_bigint env right_arg in
-  if Bigint.(left_val <= zero)
-  then raise_s [%message "dividend must be nonnegative" ~dividend:(left_arg:Prog.Expression.t)]
-
 and is_nonnegative_numeric env (e: Prog.Expression.t) : bool =
   match (snd e).typ with
   | Integer ->
@@ -1374,6 +1377,31 @@ and is_nonnegative_numeric env (e: Prog.Expression.t) : bool =
      Bigint.(e_value >= zero)
   | Bit _ -> true
   | _ -> false
+
+and is_positive_numeric env (e: Prog.Expression.t) : bool =
+  match (snd e).typ with
+  | Integer ->
+     let e_value = compile_time_eval_bigint env e in
+     Bigint.(e_value > zero)
+  | Bit _ ->
+     begin match compile_time_eval_expr env e with
+     | None ->
+        true (* XXX: bit<> values can be zero... *)
+     | Some value ->
+        match bigint_of_value value with
+        | Some e_value -> Bigint.(e_value > zero)
+        | None ->
+           raise_s [%message "bit<> evaluated to non numerical value?"
+                       ~expr:(e: Prog.Expression.t) ~value:(value: Prog.Value.value)]
+     end
+  | _ -> false
+
+and check_div_args env left_arg right_arg =
+  if is_positive_numeric env left_arg && is_positive_numeric env right_arg
+  then ()
+  else raise_s [%message "arguments to division must be positive"
+                   ~divisor:(right_arg:Prog.Expression.t)
+                   ~dividend:(left_arg:Prog.Expression.t)];
 
 and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
   let open Op in

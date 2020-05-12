@@ -137,7 +137,6 @@ stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error messa
 stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create and add),156
 stf,examples/checker_tests/good/checksum1-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
 stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
 stf,examples/checker_tests/good/issue774-4-bmv2.p4,passing dontcare as an out argument causes crash,173
 stf,examples/checker_tests/good/header-bool-bmv2.p4,non byte aligned extract,174
 stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enums broken,176

@@ -67,3 +67,4 @@ stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
 stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161

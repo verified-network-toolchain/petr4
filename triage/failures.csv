@@ -2,7 +2,6 @@ Kind of test,Test p4 file,Explanation for failure,Github issue number
 checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174
 checker,examples/checker_tests/bad/issue1672-bmv2.p4,parser parameter hdr should be a struct,141
 checker,examples/checker_tests/bad/issue2206.p4,width of left side of shift has to be explicit,181
-checker,examples/checker_tests/bad/issue2332-1.p4,shift amount should be unsigned,181
 checker,examples/checker_tests/bad/issue2267.p4,shadowing (unsupported),135
 checker,examples/checker_tests/bad/issue2290.p4,field type constraints,149
 checker,examples/checker_tests/bad/issue2335.p4,variable decl type restrictions (no int variables),153
@@ -107,7 +106,6 @@ stf,examples/checker_tests/good/table-entries-lpm-bmv2.p4,implicit cast not done
 stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,implicit cast not done on args to &&&,155
 stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
 stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create and others),156
-stf,examples/checker_tests/good/issue1814-1-bmv2.p4,STF parser crash (add) and register extern unimplemented,156
 stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash,156
 stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,STF parse error,156
 stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error message in STF parser,156

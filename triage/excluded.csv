@@ -91,3 +91,5 @@ checker,examples/checker_tests/bad/issue478.p4,one-arg extract should not work o
 checker,examples/checker_tests/bad/issue584.p4,hash parameter restrictions,134
 checker,examples/checker_tests/bad/issue600.p4,lookahead should not work on variable width headers,134
 checker,examples/checker_tests/bad/push_nonconstant.p4,push_front arg should be ctk,134
+checker,examples/checker_tests/good/issue1717.p4,bad left hand argument to shift,193
+checker,examples/checker_tests/good/shift_precendence.p4,bad left hand argument to shift,193

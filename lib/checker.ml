@@ -2255,7 +2255,7 @@ and type_conditional env ctx cond tru fls =
   in
   match fls_typed with
   | None ->
-     { stmt = stmt_out; typ = tru_typ }, env
+     { stmt = stmt_out; typ = StmType.Unit }, env
   | Some fls_typed ->
      let typ =
        match tru_typ, (snd fls_typed).typ with

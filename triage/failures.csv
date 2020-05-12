@@ -61,7 +61,6 @@ checker,examples/checker_tests/bad/issue818.p4,parameter restrictions in spec ap
 checker,examples/checker_tests/bad/param.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/parser-arg.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/persistent_e.p4,constructor args should be compile time known,142
-checker,examples/checker_tests/bad/function_e1.p4,reject function if it does not return on all paths,143
 checker,examples/checker_tests/bad/action-bind.p4,action_refs in default_action and entries should match any args bound in the actions property,144
 checker,examples/checker_tests/bad/default_action1.p4,default action check should be scope-sensitive,144
 checker,examples/checker_tests/bad/issue473.p4,action args in default_action must be ctk,144

@@ -1333,8 +1333,7 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | Bit _
   | VarBit _
   | Error
-  | MatchKind
-  | Void ->
+  | MatchKind ->
      true
   | Array { typ; _ }
   | Set typ ->

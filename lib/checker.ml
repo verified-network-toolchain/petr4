@@ -849,11 +849,16 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   | Some (_, InOut) -> InOut
   | None -> Directionless
 
-and eval_to_int env expr =
-  expr
-  |> type_expression env
-  |> compile_time_eval_bigint env
-  |> Bigint.to_int_exn
+and eval_to_positive_int env info expr =
+  let value =
+    expr
+    |> type_expression env
+    |> compile_time_eval_bigint env
+    |> Bigint.to_int_exn
+  in
+  if value > 0
+  then value
+  else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
 
 and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
   fun env vars typ ->
@@ -872,9 +877,9 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
   | Error -> Error
   | Integer -> Integer
   | String -> String
-  | IntType e -> Int {width = eval_to_int env e}
-  | BitType e -> Bit {width = eval_to_int env e}
-  | VarBit e -> VarBit {width = eval_to_int env e}
+  | IntType e -> Int {width = eval_to_positive_int env (fst typ) e}
+  | BitType e -> Bit {width = eval_to_positive_int env (fst typ) e}
+  | VarBit e -> VarBit {width = eval_to_positive_int env (fst typ) e}
   | TypeName ps -> TypeName ps
   | SpecializedType {base; args} ->
       SpecializedType {base = (translate_type env vars base);
@@ -940,11 +945,9 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
   | KeyValue { value; _ }
   | Expression { value } -> Some value
 
-(* Returns true if type typ is a well-formed type
-*)
+(* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
   match typ with
-
   (* Base types *)
   | Bool
   | String
@@ -955,7 +958,6 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Error
   | MatchKind
   | Void -> true
-
   (* Recursive types *)
   | Array {typ=t; _} -> is_well_formed_type env t
   | Tuple {types= typs}
@@ -976,7 +978,6 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     let res1 : bool = (are_param_types_well_formed env dps) in
     let res2 : bool = (are_construct_params_types_well_formed env cps) in
     res1 && res2
-
   (* Type names *)
   | TypeName name ->
     begin match CheckerEnv.resolve_type_name_opt name env with
@@ -990,7 +991,6 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     end
   | NewType {name; typ} ->
      is_well_formed_type env typ
-
   (* Polymorphic types *)
   | Function {type_params=tps; parameters=ps; return=rt} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1014,11 +1014,13 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Package {type_params=tps; parameters=cps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_construct_params_types_well_formed  env cps
-
   (* Type Application *)
   | SpecializedType {base=base_typ; args=typ_args} ->
+    let base_typ = saturate_type env base_typ in
+    let base_type_type_params = get_type_params base_typ in
     is_well_formed_type env base_typ
     && List.for_all ~f:(is_well_formed_type env) typ_args
+    && List.length base_type_type_params = List.length typ_args
 
 and are_param_types_well_formed env (params:Parameter.t list) : bool =
   let open Parameter in

@@ -1581,7 +1581,7 @@ v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index
 \mathkw{assign\_lv} \xi lv_2 (\mathkw{header\ union} \{ \overline{(name, @header false ...)}\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header false \{...\}
 \mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
 \mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}-1}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@last \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
-\mathkw{assign\_lv} \xi lv_2 (TODO)_u^w & lv_1 = @lvalue t lv_2[n1:n2] \land \mathkw{value\_of\_lv} \xi lv_2 = n_u^w
+\mathkw{assign\_lv} \xi lv_2 (n[n1:n2]:=\mathkw{extract\_num} v)_u^w & lv_1 = @lvalue t lv_2[n1:n2] \land \mathkw{value\_of\_lv} \xi lv_2 = n_u^w
 \mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{index}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land 0 \leq \mathkw{extract\_num} v_{index} \lt n_{size}
 (\xi, \mathkw{sig\_reject} ``StackOutOfBounds") & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land (\mathkw{extract\_num} v_{index} \lt 0 \lor \mathkw{extract\_num} v_{index} \geq n_{size})
 \end{cases}
@@ -1598,9 +1598,11 @@ If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if
 ### LPM Entries
 $\mathkw{sort\_lpm}\ \overline{set}\ n$ is $\overline{set}$ with elements up 
 until the first occurrence of $\mathkw{universal}$, if one exists, sorted in descending order by $w$.
-Elements can be of the form $\mathkw{lpm}\ w\ v_1\ v_2$ or $\mathkw{product}\ \overline{set}$ where $set_n = \mathkw{lpm}\ w\ v_1\ v_2$.
+Elements can be of the form $\mathkw{universal}$, $\mathkw{lpm}\ w\ v_1\ v_2$, or
+$\mathkw{product}\ \overline{set}'$. If an element $set_i = \mathkw{product}\ \overline{set}'$ then it 
+is replaced with $set'_n$ where $set'_n = \mathkw{lpm}\ w\ v_1\ v_2$ or $set'_n = \mathkw{universal}$.
 
-$\mathkw{bits}\ n$ is the required number of bits to represent $n$.
+$\mathkw{bits}\ n$ is the number of bits not masked by $n$.
 
 ~ MathPre
 \mathkw{lpm\_set} set = \begin{cases} @universal & set = @universal
@@ -1610,9 +1612,9 @@ $\mathkw{bits}\ n$ is the required number of bits to represent $n$.
 @product (\mathkw{lpm\_set} \overline{set}) & set = @product \overline{set}
 \end{cases}
 
-\mathkw{lpm\_entries} \overline{set} \overline{x} = \begin{cases} \mathkw{sort\_lpm} (\mathkw{lpm\_set} \overline{set}) n & \overline{x} = (@lpm)
-\mathkw{sort\_lpm} (\mathkw{lpm\_set} \overline{set}) i  & \overline{x} = (...,x_i = @lpm,...)
-\overline{set} & @lpm \not\in \overline{x}
+\mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = \begin{cases} (\mathkw{sort\_lpm} (\mathkw{lpm\_set} \overline{set}) n, \overline{v}) & \overline{x} = (@lpm)
+(\mathkw{sort\_lpm} (\mathkw{lpm\_set} \overline{set}') i, (v_i)) & \overline{x} = (...,x_i = @lpm,...) \land \forall set \in \overline{set} \text{ where } \mathkw{match\_set} \overline{v} set = true, set \in \overline{set}'
+(\overline{set}, \overline{v}) & @lpm \not\in \overline{x}
 \end{cases}
 ~
 
@@ -1640,20 +1642,9 @@ $\mathkw{bits}\ n$ is the required number of bits to represent $n$.
 @struct \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = @struct \{ \overline{f:t} \}
 X.x_1 & t_1 = @enum X \{ \overline{x} \}
 (X.x_1, \mathkw{init\_val} \xi t_2)& t_1 = @enum t_2 X \{ \overline{x=v} \}
-TODO* & t_1 = t_2<\overline{t}>
-TODO* & t_1 = @package<\overline{X}>(\overline{x:t,d})
-TODO* & t_1 = @control<\overline{X}>(\overline{x:t,d})
-TODO* & t_1 = @parser<\overline{X}>(\overline{x:t})
-TODO* & t_1 = @extern X \{ \overline{method} \}
-TODO* & t_1 = @function<\overline{X}>(\overline{x:t,d}) : \tau_2
-TODO* & t_1 = @action(\overline{x:t,d_0}, \overline{x:t}) : @void
-TODO* & t_1 = @constructor<\overline{X}>(\overline{x:t}): t_2
-TODO* & t_1 = @table X
 \end{cases}
 ~
 $(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_val} \xi t$.
-
-$*$ currently unsupported
 
 ### Name of type
 ~ MathPre
@@ -2090,8 +2081,8 @@ n_{next} \lt 1
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
 \mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
-\mathkw{lpm\_entries} \overline{set} \overline{x} = \overline{set}'
-\forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v} set'_i = false
+\mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
+\forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v}' set'_i = false
 <\zeta, \xi''', \sigma''', x_{default}(\overline{e}_{default})> \Downarrow_e <\xi'''', \sigma'''', sig', v>
 ----------------------------------------------------------------------------------------------------------------------------[Apply-Table-Default]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
@@ -2102,9 +2093,9 @@ n_{next} \lt 1
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
 \mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
-\mathkw{lpm\_entries} \overline{set} \overline{x} = \overline{set}'
+\mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
 \mathkw{match\_set} \overline{v} set'_i = true
-\forall j \lt i, \mathkw{match\_set} \overline{v} set'_j = false
+\forall j \lt i, \mathkw{match\_set} \overline{v}' set'_j = false
 <\zeta, \xi''', \sigma''', x_i(\overline{e}_i)> \Downarrow_e <\xi'''', \sigma'''', sig', v>
 ------------------------------------------------------------------------------[Apply-Table]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
@@ -2117,14 +2108,15 @@ t name <\overline{X}>(\overline{x:t,d}) \in \overline{method}
 @len \overline{x:t,d} = @len \overline{e}
 <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
 @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 ------------------------------------------------------------------------------[Extern-Function-Some-Caller]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
-$\mathkw{len} \overline{x}$ is defined as the number of elements in $\overline{x}$.
+$\mathkw{len}\ \overline{x}$ is defined as the number of elements in $\overline{x}$.
 $\mathkw{packet}$ is a type name.
+$\tau_i$ is the type of $e_i \in \overline{e}$
 
 $\langle \zeta, \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{Target\_extern} \langle \xi', \sigma', sig, v \rangle$ is a relation defined by the target.
 
@@ -2135,7 +2127,7 @@ $\langle \zeta, \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{
 @len \overline{x:t,d} = @len \overline{e}
 <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
 @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 ------------------------------------------------------------------------------[Extern-Function-Some-Caller-Abstract]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>

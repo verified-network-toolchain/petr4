@@ -1423,7 +1423,7 @@ All evaluation rules include
 
 1. $\zeta$, a representation of the control plane
 2. $\xi$, an evaluation context
-3. $\sigma$, a context for stateful objects maintained by externs
+3. $\sigma$, for maintaining state
 
 The control plane representation contains table entries and value sets. Since
 tables already populated with constant entries are immutable, the representation
@@ -1436,7 +1436,7 @@ $\xi ::= P, E, \Delta, \upsilon$
 $P$ is a declaration context representing the program seen so far mapping type names to declarations. 
 $E$ is a value context mapping names to values.
 $\Delta$ is the same as defined in the typing contexts.
-$\upsilon$ is a string namespace used to TODO.
+$\upsilon$ is a string namespace used for control plane names.
 
 ~ MathPre
 \rho ::= \rho, X=decl | []
@@ -1453,7 +1453,7 @@ D ::= D, \delta{} | []
 ~
 
 $\sigma ::= (packet, (\overline{name,object}))$ where $object$ is defined by the target. 
-TODO: define $packet$ and better description for state
+$packet$ is used to maintain the state of the packet and $(\overline{name,object})$ is for stateful objects maintained by externs.
 
 $\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$. 
 $\mathkw{pop} \xi$ pops the first-level scope off each context in $\xi$ if one exists.
@@ -1467,6 +1467,27 @@ are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 
 $\mathkw{set\_namespace} \xi x$ is $\xi$ with $\upsilon$ set to $x$ and $\mathkw{namespace} \xi$ is $\upsilon$.
 Since $\upsilon$ is a string, the string concatenation operator ^ is used in places. 
+
+## Control flow 
+Signals are threaded through expression and statement evaluation. 
+Unless otherwise stated, a signal that is not $\mathkw{sig\_continue}$ will result in
+a no-op that does not change $\xi$ or $\sigma$ and propagates the signal. In cases 
+where a value is needed, it will be $\mathkw{None}$ if the input signal is not $\mathkw{sig\_continue}$.
+
+<!--
+~ Infer
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig', v>
+sig = \mathkw{sig\_continue}
+----------------------------------------------------------------------------------
+<\zeta, \xi, \sigma, sig, e> \Downarrow_E <\xi', \sigma', sig', v>
+~
+
+~ Infer
+sig \neq \mathkw{sig\_continue}
+----------------------------------------------------------------------------------
+<\zeta, \xi, \sigma, sig, e> \Downarrow_E <\xi, \sigma, sig, @None>
+~
+-->
 
 ## Helper rules
 
@@ -2494,4 +2515,39 @@ sig \neq \mathkw{sig\_continue}
 
 -------------------------------------------[Package-Type-Decl]
 <\zeta, \xi, \sigma, @package X<\overline{X}>(\overline{x:t})> \Downarrow_d <\xi[@package X<\overline{X}>(\overline{x:t})/X], \sigma>
+~
+
+## Programs
+
+$r ::= (packet', n_{out\_port}) | \mathkw{None}$
+
+Programs are evaluated according to the following big-step relation:
+~ Center
+$\langle \zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl} \rangle \Downarrow \langle \sigma', r \rangle$
+~
+
+~ Infer
+<\zeta, \xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
+<\xi', n_{in\_port}> \Downarrow_{Target\_init} <\xi''>
+<\zeta, \xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', packet'>
+\xi'''(``std\_meta") = @struct \{...,(``egress\_port",n_u^w),...\}
+----------------------------------------------------------------------------------------[Some-Packet]
+<\zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', (packet', n)>
+~
+
+~ Infer
+<\zeta, \xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
+<\xi', n_{in\_port}> \Downarrow_{Target\_init} <\xi''>
+<\zeta, \xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', @None>
+----------------------------------------------------------------------------------------[No-Packet]
+<\zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', @None>
+~
+
+$p ::= packet | \mathkw{None}$
+
+These relations are defined by the target:
+~ Center
+$\langle \xi, n_{in\_port} \rangle \Downarrow_{Target\_init} \langle \xi' \rangle$
+
+$\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} \langle \sigma', \xi', p \rangle$
 ~

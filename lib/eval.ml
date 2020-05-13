@@ -1410,6 +1410,7 @@ module MakeInterpreter (T : Target) = struct
     match sign with
     | SContinue
     | SReject _
+    | SReturn VNull
     | SExit     -> (copyout ctrl cenv''' st''' params args, st''', sign)
     | SReturn _ -> failwith "control should not return"
 

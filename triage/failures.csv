@@ -76,7 +76,6 @@ checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155
 stf,examples/checker_tests/good/checksum3-bmv2.p4,List not a fixed-width type,160
 stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
-stf,examples/checker_tests/good/issue2170-bmv2.p4,"control should not return" error,191
 stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
 stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
 stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156

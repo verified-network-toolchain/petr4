@@ -17,7 +17,7 @@ depends: [
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.0"}
-  "dune" {build}
+  "dune" {>= "1.2"}
   "cstruct"
   "cstruct-sexp"
   "menhir"

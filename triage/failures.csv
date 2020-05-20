@@ -63,8 +63,6 @@ checker,examples/checker_tests/bad/action-bind.p4,action_refs in default_action 
 checker,examples/checker_tests/bad/default_action1.p4,default action check should be scope-sensitive,144
 checker,examples/checker_tests/bad/issue473.p4,action args in default_action must be ctk,144
 checker,examples/checker_tests/bad/missing_actions.p4,reject table with no actions property,144
-checker,examples/checker_tests/bad/assign.p4,externs are never LValues,146
-checker,examples/checker_tests/bad/inro.p4,in parameters are not LValues,146
 checker,examples/checker_tests/bad/header3.p4,header field type restrictions,149
 checker,examples/checker_tests/bad/issue407-1.p4,header field type restrictions,149
 checker,examples/checker_tests/bad/stack_e.p4,no struct stacks,149

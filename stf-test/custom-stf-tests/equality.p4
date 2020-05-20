@@ -13,7 +13,7 @@ struct my_other_struct {
     my_struct second;
 }
 
-my_other_struct f(in my_other_struct s) {
+my_other_struct f(inout my_other_struct s) {
     s.first = {1, true};
     s.second = {0, false};
     s.first.first = 0;

@@ -27,21 +27,24 @@ Union f2(in bit<16> x) {
 }
 
 Union set1(in Union x) {
-    x.h1.setValid();
-    x.h1.u = 42;
-    return x;
+    Union tmp = x;
+    tmp.h1.setValid();
+    tmp.h1.u = 42;
+    return tmp;
 }
 
 Union set2(in Union x) {
-    x.h2.setValid();
-    x.h2.v = 42;
-    return x;
+    Union tmp = x;
+    tmp.h2.setValid();
+    tmp.h2.v = 42;
+    return tmp;
 }
 
 Union set3(in Union x) {
-    x.h1.setInvalid();
-    x.h2.setInvalid();
-    return x;
+    Union tmp = x;
+    tmp.h1.setInvalid();
+    tmp.h2.setInvalid();
+    return tmp;
 }
 
 struct metadata { }

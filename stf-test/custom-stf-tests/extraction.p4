@@ -44,16 +44,6 @@ control MyChecksum(inout head[13] hdr, inout metadata meta) {
 control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-    apply { }
-}
-
-control MyEgress(inout head[13] hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply { }
-}
-
-control MyDeparser(packet_out packet, in head[13] hdr) {
     apply {
         hdr[0] = { 72 };
         hdr[1] = { 101 };
@@ -68,6 +58,17 @@ control MyDeparser(packet_out packet, in head[13] hdr) {
         hdr[10] = { 108 };
         hdr[11] = { 100 };
         hdr[12] = { 33 };
+    }
+}
+
+control MyEgress(inout head[13] hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
+    apply { }
+}
+
+control MyDeparser(packet_out packet, in head[13] hdr) {
+    apply {
         packet.emit(hdr[0]);
         packet.emit(hdr);
     }

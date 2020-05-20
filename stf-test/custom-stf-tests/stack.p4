@@ -12,13 +12,15 @@ MyHeader[5] init() {
 }
 
 MyHeader[5] set_next(in MyHeader[5] a) {
-    a.next = {42,42};
-    return a;
+    MyHeader[5] tmp = a;
+    tmp.next = {42,42};
+    return tmp;
 }
 
 MyHeader[5] set_third(in MyHeader[5] a) {
-    a[3] = {42,42};
-    return a;
+    MyHeader[5] tmp = a;
+    tmp[3] = {42,42};
+    return tmp;
 }
 
 MyHeader[5] push1(in MyHeader[5] a) {

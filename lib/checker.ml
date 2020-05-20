@@ -1811,7 +1811,8 @@ and is_lvalue env expr =
   match snd expr with
   | Name _ ->
      let expr_typed = type_expression env expr in
-     begin match (snd expr_typed).dir, (snd expr_typed).typ with
+     let typ = reduce_type env (snd expr_typed).typ in
+     begin match (snd expr_typed).dir, typ with
      | In, _ -> false
      | _, Extern _ -> false
      | _ -> true

@@ -46,16 +46,6 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
-let rec is_lvalue (_, expr) =
-  let open Types.Expression in
-  match expr with
-  | Name _ -> true
-  | ExpressionMember { expr = lvalue; _ }
-  | ArrayAccess { array = lvalue; _ }
-  | BitStringAccess { bits = lvalue; _ } ->
-     is_lvalue lvalue
-  | _ -> false
-
 (* Ugly hack *)
 let real_name_for_type_member env (typ_name: Types.name) name =
   begin match typ_name with
@@ -1815,6 +1805,23 @@ and match_named_args_to_params call_site_info (params: Prog.TypeParameter.t list
         raise_s [%message "too many arguments supplied at call site"
                     ~info:(call_site_info: Info.t)
                     ~unused_args:(args : Types.Argument.pre_t list)]
+
+and is_lvalue env expr =
+  let open Types.Expression in
+  match snd expr with
+  | Name _ ->
+     let expr_typed = type_expression env expr in
+     begin match (snd expr_typed).dir, (snd expr_typed).typ with
+     | In, _ -> false
+     | _, Extern _ -> false
+     | _ -> true
+     end
+  | ExpressionMember { expr = lvalue; _ }
+  | ArrayAccess { array = lvalue; _ }
+  | BitStringAccess { bits = lvalue; _ } ->
+     is_lvalue env lvalue
+  | _ -> false
+
      
 and check_direction env dir expr expr_dir =
   match dir with
@@ -1822,7 +1829,7 @@ and check_direction env dir expr expr_dir =
   | In -> ()
   | Out
   | InOut ->
-     if not @@ is_lvalue expr
+     if not @@ is_lvalue env expr
      then raise_s [%message "expected l-value, got expr:" ~expr:(expr: Expression.t)];
      if expr_dir = In
      then raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
@@ -2205,7 +2212,7 @@ and type_method_call env ctx call_info func type_args args =
  *)
 and type_assignment env ctx lhs rhs =
   let open Prog.Statement in
-  if not @@ is_lvalue lhs
+  if not @@ is_lvalue env lhs
   then raise_s [%message "Must be an lvalue"
                    ~lhs:(lhs:Types.Expression.t)]
   else 

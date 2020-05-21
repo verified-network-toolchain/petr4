@@ -1806,16 +1806,22 @@ and match_named_args_to_params call_site_info (params: Prog.TypeParameter.t list
                     ~info:(call_site_info: Info.t)
                     ~unused_args:(args : Types.Argument.pre_t list)]
 
-and is_lvalue env expr =
-  let open Types.Expression in
-  match snd expr with
-  | Name _ ->
-     let expr_typed = type_expression env expr in
+and is_lvalue env (expr_typed: Prog.Expression.t) =
+  match (snd expr_typed).expr with
+  | Name name ->
      let typ = reduce_type env (snd expr_typed).typ in
+     let const = CheckerEnv.find_const_opt name env in
      begin match (snd expr_typed).dir, typ with
-     | In, _ -> false
+     | In, _
+     | Directionless, _ -> false
      | _, Extern _ -> false
-     | _ -> true
+     | _, Integer -> false
+     | _, String -> false
+     | _ ->
+        begin match const with
+        | Some constant -> false
+        | _ -> true
+        end
      end
   | ExpressionMember { expr = lvalue; _ }
   | ArrayAccess { array = lvalue; _ }
@@ -1824,16 +1830,21 @@ and is_lvalue env expr =
   | _ -> false
 
      
-and check_direction env dir expr expr_dir =
+and check_direction env dir (arg_typed: Prog.Expression.t) =
   match dir with
-  | Directionless
-  | In -> ()
+  | Directionless -> ()
+  | In ->
+     begin match (snd arg_typed).typ with
+     | Extern _ ->
+        raise_s [%message "externs should always be directionless"]
+     | _ -> ()
+     end
   | Out
   | InOut ->
-     if not @@ is_lvalue env expr
-     then raise_s [%message "expected l-value, got expr:" ~expr:(expr: Expression.t)];
-     if expr_dir = In
-     then raise_s [%message "in parameter passed as out parameter" ~expr:(expr: Expression.t)]
+     if not @@ is_lvalue env arg_typed
+     then raise_s [%message "expected l-value, got expr:" ~expr:(arg_typed: Prog.Expression.t)];
+     if (snd arg_typed).dir = In
+     then raise_s [%message "in parameter passed as out parameter" ~expr:(arg_typed: Prog.Expression.t)]
 
 and find_extern_methods env func : (FunctionType.t list) option =
   match snd func with
@@ -1850,9 +1861,9 @@ and find_extern_methods env func : (FunctionType.t list) option =
 and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
   match expr with
   | Some expr ->
-     let info, typed_arg = type_expression env expr in
-     check_direction env param.direction expr typed_arg.dir;
-     assert_type_equality env call_info param.typ typed_arg.typ
+     let typed_arg = type_expression env expr in
+     check_direction env param.direction typed_arg;
+     assert_type_equality env call_info param.typ (snd typed_arg).typ
   | None ->
      if param.direction <> Out
      then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
@@ -2213,11 +2224,11 @@ and type_method_call env ctx call_info func type_args args =
  *)
 and type_assignment env ctx lhs rhs =
   let open Prog.Statement in
-  if not @@ is_lvalue env lhs
+  let lhs_typed = type_expression env lhs in
+  if not @@ is_lvalue env lhs_typed
   then raise_s [%message "Must be an lvalue"
                    ~lhs:(lhs:Types.Expression.t)]
   else 
-    let lhs_typed = type_expression env lhs in
     let rhs_typed = type_expression env rhs in
     ignore (assert_same_type env (info lhs) (info rhs)
               (snd lhs_typed).typ (snd rhs_typed).typ);
@@ -2422,7 +2433,7 @@ and type_constant env decl_info annotations typ name expr : Prog.Declaration.t *
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
      env
-     |> CheckerEnv.insert_dir_type_of (BareName name) expected_typ In
+     |> CheckerEnv.insert_dir_type_of (BareName name) expected_typ Directionless
      |> CheckerEnv.insert_const (BareName name) value
   | None ->
      raise_s [%message "expression not compile-time-known"
@@ -2833,7 +2844,7 @@ and type_table_actions env key_types actions =
       match expr with
       | Some expr ->
          let arg_typed = type_expression env expr in
-         check_direction env param.direction expr (snd arg_typed).dir;
+         check_direction env param.direction arg_typed;
          assert_type_equality env call_info (snd arg_typed).typ param.typ;
          Some arg_typed
       | None ->

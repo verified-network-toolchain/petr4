@@ -6,7 +6,6 @@ checker,examples/checker_tests/bad/issue2267.p4,shadowing (unsupported),135
 checker,examples/checker_tests/bad/issue2290.p4,field type constraints,149
 checker,examples/checker_tests/bad/issue2335.p4,variable decl type restrictions (no int variables),153
 checker,examples/checker_tests/bad/string-e.p4,string params cannot have directions,141
-checker,examples/checker_tests/bad/string-e1.p4,struct fields cannot be strings,149
 checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,153
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29

@@ -51,8 +51,6 @@ checker,examples/checker_tests/bad/next.p4,header stack next/last only usable in
 checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data,139
 checker,examples/checker_tests/bad/issue1331.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/issue388.p4,instantiation restrictions in spec appendix F,141
-checker,examples/checker_tests/bad/issue807.p4,return type restrictions in spec appendix F,141
-checker,examples/checker_tests/bad/issue816-1.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/issue816.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/issue818.p4,parameter restrictions in spec appendix F,141
 checker,examples/checker_tests/bad/param.p4,parameter restrictions in spec appendix F,141
@@ -67,7 +65,6 @@ checker,examples/checker_tests/bad/issue407-1.p4,header field type restrictions,
 checker,examples/checker_tests/bad/stack_e.p4,no struct stacks,149
 checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field,149
 checker,examples/checker_tests/bad/extern.p4,extern params cannot have a direction,150
-checker,examples/checker_tests/bad/issue394.p4,variable declaration type restriction,153
 checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
 checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155

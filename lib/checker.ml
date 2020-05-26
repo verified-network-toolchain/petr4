@@ -2738,6 +2738,43 @@ and type_extern_function env info annotations return name type_params params =
   in
   (info, fn_typed), CheckerEnv.insert_type_of (BareName name) (Function typ) env
 
+
+and is_variable_type env (typ: Typed.Type.t) =
+  let typ = saturate_type env typ in
+  match typ with
+  | TypeName name -> true
+  | NewType {typ; _} ->
+     is_variable_type env typ
+  | Bool
+  | String
+  | Integer
+  | Int _
+  | Bit _
+  | VarBit _
+  | Array _
+  | Tuple _
+  | Record _
+  | Error
+  | MatchKind
+  | Header _
+  | HeaderUnion _
+  | Struct _
+  | Enum _ ->
+     true
+  | List _
+  | Set _
+  | Void
+  | SpecializedType _
+  | Package _
+  | Control _
+  | Parser _
+  | Extern _
+  | Function _
+  | Action _
+  | Constructor _
+  | Table _ ->
+     false
+
 (* Section 10.2
  *
  *          Δ, T, Γ |- e : t' = t
@@ -2746,6 +2783,9 @@ and type_extern_function env info annotations return name type_params params =
  *)
 and type_variable env info annotations typ name init =
   let expected_typ = translate_type env [] typ in
+  if not (is_variable_type env expected_typ)
+  then raise_s [%message "Cannot declare variables of this type"
+              ~typ:(expected_typ: Typed.Type.t)];
   let init_typed =
     match init with
     | None ->

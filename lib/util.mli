@@ -44,4 +44,6 @@ val sorted_eq: 'a list -> 'a list -> compare:('a -> 'a -> int) -> bool
 
 val sorted_eq_strings: string list -> string list -> bool
 
+val eq_opt : f:('a -> 'a -> bool) -> 'a Option.t -> 'a Option.t -> bool
+
 type bigint = Bigint.t [@@deriving sexp,yojson]

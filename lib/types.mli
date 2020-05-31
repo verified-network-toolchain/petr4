@@ -6,11 +6,11 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software 
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations 
- * under the License. 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
  *)
 
 open Util
@@ -19,8 +19,8 @@ type 'a info = Info.t * 'a [@@deriving sexp, yojson]
 
 val info : 'a info -> Info.t
 
-module P4Int : sig 
-  type pre_t = 
+module P4Int : sig
+  type pre_t =
     { value: Bigint.t;
       width_signed: (int * bool) option }
   [@@deriving sexp,yojson]
@@ -43,16 +43,16 @@ val name_eq : name -> name -> bool
 val name_only : name -> string
 
 module rec KeyValue : sig
-  type pre_t = 
+  type pre_t =
     { key : P4String.t;
-      value : Expression.t } 
+      value : Expression.t }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
 and Annotation : sig
-  type pre_body = 
+  type pre_body =
     | Empty
     | Unparsed of P4String.t list
     | Expression of Expression.t list
@@ -69,8 +69,8 @@ and Annotation : sig
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-and Parameter : sig 
-  type pre_t = 
+and Parameter : sig
+  type pre_t =
     { annotations: Annotation.t list;
       direction: Direction.t option;
       typ: Type.t;
@@ -83,12 +83,14 @@ end
 
 and Op : sig
   type pre_uni =
-      Not 
+      Not
     | BitNot
     | UMinus
   [@@deriving sexp,yojson]
 
   type uni = pre_uni info [@@deriving sexp,yojson]
+
+  val eq_uni : uni -> uni -> bool
 
   type pre_bin =
       Plus
@@ -115,6 +117,8 @@ and Op : sig
   [@@deriving sexp,yojson]
 
   type bin = pre_bin info [@@deriving sexp,yojson]
+
+  val eq_bin : bin -> bin -> bool
 end
 
 and Type : sig
@@ -127,23 +131,25 @@ and Type : sig
     | VarBit of Expression.t
     | TypeName of name
     | SpecializedType of
-        { base: t; 
+        { base: t;
           args: t list }
     | HeaderStack of
-        { header: t; 
+        { header: t;
           size:  Expression.t }
     | Tuple of t list
     | String
     | Void
-    | DontCare 
+    | DontCare
   [@@deriving sexp,yojson]
 
   and t = pre_t info [@@deriving sexp,yojson]
+
+  val eq : t -> t -> bool
 end
 
 and MethodPrototype : sig
   type pre_t =
-      Constructor of 
+      Constructor of
         { annotations: Annotation.t list;
           name: P4String.t;
           params: Parameter.t list }
@@ -164,21 +170,21 @@ and MethodPrototype : sig
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-and Argument : sig 
+and Argument : sig
   type pre_t  =
-      Expression of 
+      Expression of
         { value: Expression.t }
     | KeyValue of
         { key: P4String.t;
           value: Expression.t }
     | Missing
   [@@deriving sexp,yojson]
-   
+
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-and Direction : sig 
-   type pre_t = 
+and Direction : sig
+   type pre_t =
        In
      | Out
      | InOut
@@ -187,55 +193,55 @@ and Direction : sig
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-and Expression : sig 
-  type pre_t = 
+and Expression : sig
+  type pre_t =
       True
     | False
     | Int of P4Int.t
     | String of P4String.t
     | Name of name
-    | ArrayAccess of 
+    | ArrayAccess of
         { array: t;
           index: t }
-    | BitStringAccess of 
+    | BitStringAccess of
         { bits: t;
           lo: t;
           hi: t }
-    | List of 
+    | List of
         { values: t list }
     | Record of
         { entries: KeyValue.t list }
-    | UnaryOp of 
+    | UnaryOp of
         { op: Op.uni;
           arg: t }
-    | BinaryOp of 
+    | BinaryOp of
         { op: Op.bin;
           args: (t * t) }
-    | Cast of 
+    | Cast of
         { typ: Type.t;
-          expr: t }       
-    | TypeMember of 
+          expr: t }
+    | TypeMember of
         { typ: name;
           name: P4String.t }
     | ErrorMember of P4String.t
-    | ExpressionMember of 
+    | ExpressionMember of
         { expr: t;
           name: P4String.t }
-    | Ternary of 
+    | Ternary of
         { cond: t;
           tru: t;
           fls: t }
-    | FunctionCall of 
+    | FunctionCall of
         { func: t;
           type_args: Type.t list;
           args: Argument.t list }
-    | NamelessInstantiation of 
+    | NamelessInstantiation of
         { typ: Type.t;
           args: Argument.t list }
     | Mask of
         { expr: t;
           mask: t }
-    | Range of 
+    | Range of
         { lo: t;
           hi: t }
   [@@deriving sexp,yojson]
@@ -244,7 +250,7 @@ and Expression : sig
 end
 
 and Table : sig
-  type pre_action_ref = 
+  type pre_action_ref =
     { annotations: Annotation.t list;
       name: name;
       args: Argument.t list }
@@ -252,29 +258,29 @@ and Table : sig
 
   type action_ref = pre_action_ref info [@@deriving sexp,yojson]
 
-  type pre_key = 
+  type pre_key =
     { annotations: Annotation.t list;
       key: Expression.t;
       match_kind: P4String.t }
-  [@@deriving sexp,yojson]                
+  [@@deriving sexp,yojson]
 
   type key = pre_key info [@@deriving sexp,yojson]
 
-  type pre_entry = 
+  type pre_entry =
     { annotations: Annotation.t list;
       matches: Match.t list;
       action: action_ref }
-  [@@deriving sexp,yojson { exn = true }]      
+  [@@deriving sexp,yojson { exn = true }]
 
   type entry = pre_entry info [@@deriving sexp,yojson]
 
-  type pre_property = 
-      Key of 
+  type pre_property =
+      Key of
         { keys: key list }
-    | Actions of 
+    | Actions of
         { actions: action_ref list }
-    | Entries of 
-        { entries: entry list }      
+    | Entries of
+        { entries: entry list }
     | Custom of
         { annotations: Annotation.t list;
           const: bool;
@@ -287,11 +293,11 @@ and Table : sig
   val name_of_property : property -> string
 end
 
-and Match : sig 
-  type pre_t =  
+and Match : sig
+  type pre_t =
       Default
     | DontCare
-    | Expression of 
+    | Expression of
         { expr: Expression.t }
   [@@deriving sexp,yojson { exn = true }]
 
@@ -300,29 +306,29 @@ end
 
 and Parser : sig
 
-  type pre_case = 
+  type pre_case =
     { matches: Match.t list;
       next: P4String.t }
-  [@@deriving sexp,yojson { exn = true }]      
+  [@@deriving sexp,yojson { exn = true }]
 
   type case = pre_case info [@@deriving sexp,yojson]
 
   type pre_transition =
       Direct of
         { next: P4String.t }
-    | Select of 
+    | Select of
         { exprs: Expression.t list;
           cases: case list }
-  [@@deriving sexp,yojson]      
+  [@@deriving sexp,yojson]
 
   type transition = pre_transition info
 
-  type pre_state = 
+  type pre_state =
     { annotations: Annotation.t list;
       name: P4String.t;
       statements: Statement.t list;
       transition: transition }
-  [@@deriving sexp,yojson]      
+  [@@deriving sexp,yojson]
 
   type state = pre_state info [@@deriving sexp,yojson]
 end
@@ -457,7 +463,7 @@ and Declaration : sig
 end
 
 and Statement : sig
-  type pre_switch_label = 
+  type pre_switch_label =
       Default
     | Name of P4String.t
   [@@deriving sexp,yojson]
@@ -465,7 +471,7 @@ and Statement : sig
   type switch_label = pre_switch_label info [@@deriving sexp,yojson]
 
   type pre_switch_case =
-    Action of 
+    Action of
       { label: switch_label;
         code: Block.t }
   | FallThrough of
@@ -474,14 +480,14 @@ and Statement : sig
 
   type switch_case = pre_switch_case info [@@deriving sexp,yojson]
 
-  type pre_t = 
+  type pre_t =
       MethodCall of
       { func: Expression.t;
         type_args: Type.t list;
         args: Argument.t list }
-    | Assignment of 
+    | Assignment of
         { lhs: Expression.t;
-          rhs: Expression.t }          
+          rhs: Expression.t }
     | DirectApplication of
         { typ: Type.t;
           args: Argument.t list }
@@ -489,24 +495,24 @@ and Statement : sig
         { cond: Expression.t;
           tru: t;
           fls: t option }
-    | BlockStatement of 
+    | BlockStatement of
         { block: Block.t }
     | Exit
-    | EmptyStatement 
-    | Return of 
+    | EmptyStatement
+    | Return of
         { expr: Expression.t option }
-    | Switch of 
+    | Switch of
         { expr: Expression.t;
           cases: switch_case list }
-    | DeclarationStatement of 
+    | DeclarationStatement of
         { decl: Declaration.t }
   [@@deriving sexp,yojson]
-  
+
   and t = pre_t info [@@deriving sexp,yojson]
 end
 
 and Block : sig
-  type pre_t = 
+  type pre_t =
     { annotations: Annotation.t list;
       statements: Statement.t list }
   [@@deriving sexp,yojson]
@@ -514,5 +520,5 @@ and Block : sig
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
-type program = 
+type program =
   Program of Declaration.t list [@@deriving sexp,yojson,yojson]

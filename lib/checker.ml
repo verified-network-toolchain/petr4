@@ -2945,18 +2945,42 @@ and type_table_entries env entries key_typs action_map =
   in
   List.map ~f:type_table_entry entries
 
-and type_default_action env action_map action_expr: Prog.Table.action_ref =
+and type_default_action
+  env (action_map : (string * (Info.t * Prog.Table.typed_action_ref)) list)
+  action_expr : Prog.Table.action_ref =
   let action_expr_typed = type_expression env action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
      let name = name_only action_name in
-     if List.Assoc.mem ~equal:String.equal action_map name
-     then fst action_expr,
-          { action = { annotations = [];
-                       name = action_name;
-                       args = args };
-            typ = (snd action_expr_typed).typ }
-     else failwith "couldn't find default action in action_map"
+     begin match List.Assoc.find ~equal:String.equal action_map name with
+     | None -> raise_s [%message "couldn't find default action in action_map"]
+     | Some (_, {action={args=prop_args; _}; _}) ->
+        (* compares the longest prefix that
+         * the default args are equal to the property args, and then
+         * the remainder of values must be compile-time known *)
+         let len = List.length prop_args in
+         let prefix,suffix = List.split_n args len in
+         if List.equal
+          begin Util.eq_opt ~f:Prog.Expression.eq end prop_args prefix
+          && suffix
+          |> List.filter_map ~f:(fun x -> x)
+          |> List.for_all
+            ~f:begin fun e ->
+                match compile_time_eval_expr env e with
+                | None -> raise_s
+                  [%message "default action argument is not compile-time known"]
+                (* is there a way to convert from values to expressions?
+                 * this seems wasteful... *)
+                | Some _ -> true
+              end
+         then
+           fst action_expr,
+               { action = { annotations = [];
+                            name = action_name;
+                            args = args };
+                 typ = (snd action_expr_typed).typ }
+         else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
+    end
   | Name action_name ->
      let name = name_only action_name in
      if List.Assoc.mem ~equal:String.equal action_map name
@@ -2968,6 +2992,30 @@ and type_default_action env action_map action_expr: Prog.Table.action_ref =
      else failwith "couldn't find default action in action_map"
   | e ->
      failwith "couldn't type default action as functioncall"
+
+(* and type_default_action env action_map action_expr: Prog.Table.action_ref =
+ let action_expr_typed = type_expression env action_expr in
+ match (snd action_expr_typed).expr with
+ | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
+    let name = name_only action_name in
+    if List.Assoc.mem ~equal:String.equal action_map name
+    then fst action_expr,
+         { action = { annotations = [];
+                      name = action_name;
+                      args = args };
+           typ = (snd action_expr_typed).typ }
+    else failwith "couldn't find default action in action_map"
+ | Name action_name ->
+    let name = name_only action_name in
+    if List.Assoc.mem ~equal:String.equal action_map name
+    then fst action_expr,
+         { action = { annotations = [];
+                      name = action_name;
+                      args = [] };
+           typ = (snd action_expr_typed).typ }
+    else failwith "couldn't find default action in action_map"
+ | e ->
+    failwith "couldn't type default action as functioncall" *)
 
 and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
@@ -3144,7 +3192,6 @@ and type_header env info annotations name fields =
  * -varbit<w>?
  * -enum<T>
  * -struct, and recursively holds
- * -header, and recursively holds
  *)
 and verify_header_fields
   env : Typed.RecordType.field list -> Typed.RecordType.field list =
@@ -3164,7 +3211,6 @@ and verify_header_fields
     | NewType nt ->
       NewType {nt with typ = verify_header_field_type env nt.typ}
     | Struct {fields} -> Struct {fields=verify_header_fields env fields}
-    | Header {fields} -> Header {fields=verify_header_fields env fields}
     | _ -> raise_s [%message "header or struct field has invalid type"
                     ~typ:(typ: Typed.Type.t)] in
   List.map

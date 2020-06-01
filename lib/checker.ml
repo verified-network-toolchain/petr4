@@ -46,6 +46,62 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
+(* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
+let rec is_some_type
+  env
+  (f:Typed.Type.t -> bool)
+  (t:Typed.Type.t) : bool =
+  if f t then true else begin match t with
+  | TypeName n ->
+    let ty = CheckerEnv.resolve_type_name n env in
+    if Typed.Type.eq ty t then false else is_some_type env f ty
+  | NewType {typ=ty; name=s} -> is_some_type env f ty
+  | SpecializedType {base=ty; _} -> is_some_type env f ty
+  | _ -> false
+  end
+
+let is_package env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Package _ -> true
+    | _         -> false
+    end t
+
+let is_parser env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Parser _ -> true
+    | _        -> false
+    end t
+
+let is_control env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Control _ -> true
+    | _         -> false
+    end t
+
+let is_extern env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Extern _ -> true
+    | _         -> false
+    end t
+
+let is_function env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Function _ -> true
+    | _          -> false
+    end t
+
+let is_table env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Table _ -> true
+    | _         -> false
+    end t
+
 (* Ugly hack *)
 let real_name_for_type_member env (typ_name: Types.name) name =
   begin match typ_name with
@@ -1022,17 +1078,6 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
   let check param = is_well_formed_type env param.typ in
   List.for_all ~f:check construct_params
 
-and is_extern env (t:Typed.Type.t) : bool =
-  begin match t with
-  | TypeName n ->
-    let ty = CheckerEnv.resolve_type_name n env in
-    if Typed.Type.eq ty t then false else is_extern env ty
-  | NewType {typ=ty; name=s} -> is_extern env ty
-  | SpecializedType {base=ty; _} -> is_extern env ty
-  | Extern _ -> true
-  | _ -> false
-  end
-
 and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
   let dir = translate_direction param.direction in
@@ -1065,8 +1110,17 @@ and type_constructor_param env (param: Types.Parameter.t) : Prog.TypeParameter.t
                    ~param:(param: Types.Parameter.t)]
   else type_param env param
 
-and type_constructor_params env params =
-  List.map ~f:(type_constructor_param env) params
+and type_constructor_params env params verboten =
+  params
+  |> List.map ~f:(type_constructor_param env)
+  |> List.map
+    ~f:begin fun ((_,{typ;_}) as cp) ->
+      if List.exists verboten ~f:(fun f -> f env typ)
+      then raise_s [%message "Invalid constructor parameter"]
+      else cp
+    end
+
+(* and verboten *)
 
 and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
@@ -2603,9 +2657,15 @@ and check_state_names names =
      then ()
      else raise_s [%message "parser is missing start state"];
 
+(* Verboten constructor parameters:
+ * - package
+ * - control
+ * - function
+ * - table *)
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
-  let constructor_params_typed = type_constructor_params env constructor_params in
+  let constructor_params_typed = type_constructor_params env
+    constructor_params [is_package;is_control;is_function;is_table] in
   let params_typed = type_params env params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
@@ -2645,9 +2705,15 @@ and type_parser env info name annotations params constructor_params locals state
   let env = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
   (info, parser_typed), env
 
+(* Verboten constructor parameters:
+ * - package
+ * - parser
+ * - function
+ * - table *)
 and open_control_scope env params constructor_params locals =
   let params_typed = type_params env params in
-  let constructor_params_typed = type_constructor_params env constructor_params in
+  let constructor_params_typed = type_constructor_params env
+    constructor_params [is_package;is_parser;is_function;is_table] in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
   let locals_typed, env = type_declarations env locals in
@@ -3339,7 +3405,13 @@ and type_serializable_enum env info annotations underlying_type name members =
     Prog.Declaration.Enum { annotations; name; members = member_names } in
   (info, enum_typed), env
 
-(* Section 7.2.9.2 *)
+(* Section 7.2.9.2
+ * Verboten constructor parameters:
+ * - package
+ * - parser
+ * - control
+ * - function
+ * - table *)
 and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
   let env' = CheckerEnv.insert_type_vars type_params' env in
@@ -3347,7 +3419,8 @@ and type_extern_object env info annotations obj_name t_params methods =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
        assert (snd cname = snd obj_name);
-       let params_typed = type_constructor_params env' params in
+       let params_typed = type_constructor_params env'
+        params [is_package;is_parser;is_control;is_function;is_table] in
        let constructor_typed =
          Prog.MethodPrototype.Constructor { annotations;
                                             name = cname;

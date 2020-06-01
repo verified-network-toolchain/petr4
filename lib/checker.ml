@@ -3114,7 +3114,13 @@ and type_table' env info annotations name key_types action_map entries_typed siz
     let open EnumType in
     let open RecordType in
     (* Aggregate table information. *)
-    let action_names = List.map ~f:fst action_map |> List.map ~f:name_only in
+    let action_names = action_map
+      |> begin fun l ->
+          if List.length l > 0 then l
+          else raise_s
+            [%message "Table must have a non-empty actions property"] end
+      |> List.map ~f:fst
+      |> List.map ~f:name_only in
     let action_enum_name = "action_list_" ^ snd name in
     let action_enum_typ =
       Type.Enum { name=action_enum_name;

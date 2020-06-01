@@ -2905,14 +2905,14 @@ and type_table_actions env key_types actions =
   in
   let action_typs = List.map ~f:type_table_action actions in
   (* Need to fail in the case of duplicate action names *)
-  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> name_only action.name) actions in
+  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> action.name) actions in
   List.zip_exn action_names action_typs
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
     let matches_typed = check_match_product env entry.matches key_typs in
-    match List.Assoc.find action_map ~equal:(=) (name_only (snd entry.action).name) with
+    match List.Assoc.find action_map ~equal:name_eq (snd entry.action).name with
     | None ->
        failwith "Entry must call an action in the table."
     | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->
@@ -2946,17 +2946,12 @@ and type_table_entries env entries key_typs action_map =
   List.map ~f:type_table_entry entries
 
 and type_default_action
-  env (action_map : (string * (Info.t * Prog.Table.typed_action_ref)) list)
+  env (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
   action_expr : Prog.Table.action_ref =
   let action_expr_typed = type_expression env action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
-     let name =
-      begin match action_name with
-      | BareName (_,s) -> s
-      | QualifiedName _ -> raise_s [%message "default action may not be toplevel"]
-      end in
-     begin match List.Assoc.find ~equal:String.equal action_map name with
+     begin match List.Assoc.find ~equal:name_eq action_map action_name with
      | None -> raise_s [%message "couldn't find default action in action_map"]
      | Some (_, {action={args=prop_args; _}; _}) ->
         (* compares the longest prefix that
@@ -2986,8 +2981,10 @@ and type_default_action
          else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
     end
   | Name action_name ->
-     let name = name_only action_name in
-     if List.Assoc.mem ~equal:String.equal action_map name
+     if List.Assoc.mem ~equal:name_eq action_map action_name
+     || List.Assoc.mem
+      ~equal:name_eq
+      begin List.map ~f:begin Tuple.T2.map_fst ~f:to_bare end action_map end action_name
      then fst action_expr,
           { action = { annotations = [];
                        name = action_name;
@@ -2996,30 +2993,6 @@ and type_default_action
      else failwith "couldn't find default action in action_map"
   | e ->
      failwith "couldn't type default action as functioncall"
-
-(* and type_default_action env action_map action_expr: Prog.Table.action_ref =
- let action_expr_typed = type_expression env action_expr in
- match (snd action_expr_typed).expr with
- | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
-    let name = name_only action_name in
-    if List.Assoc.mem ~equal:String.equal action_map name
-    then fst action_expr,
-         { action = { annotations = [];
-                      name = action_name;
-                      args = args };
-           typ = (snd action_expr_typed).typ }
-    else failwith "couldn't find default action in action_map"
- | Name action_name ->
-    let name = name_only action_name in
-    if List.Assoc.mem ~equal:String.equal action_map name
-    then fst action_expr,
-         { action = { annotations = [];
-                      name = action_name;
-                      args = [] };
-           typ = (snd action_expr_typed).typ }
-    else failwith "couldn't find default action in action_map"
- | e ->
-    failwith "couldn't type default action as functioncall" *)
 
 and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
@@ -3141,7 +3114,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
     let open EnumType in
     let open RecordType in
     (* Aggregate table information. *)
-    let action_names = List.map ~f:fst action_map in
+    let action_names = List.map ~f:fst action_map |> List.map ~f:name_only in
     let action_enum_name = "action_list_" ^ snd name in
     let action_enum_typ =
       Type.Enum { name=action_enum_name;

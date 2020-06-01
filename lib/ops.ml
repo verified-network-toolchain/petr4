@@ -105,12 +105,14 @@ let rec interp_bmult (l : V.value) (r : V.value) : V.value =
 let interp_bdiv (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 / n2)
-  | _ -> failwith "division only defined on raw ints"
+  | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 / v2)}
+  | _ -> failwith "division only defined on positive values"
 
 let interp_bmod (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 % n2)
-  | _ -> failwith "mod only defined on raw ints"
+  | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 % v2)}
+  | _ -> failwith "mod only defined on positive values"
 
 let interp_bshl (l : V.value) (r : V.value) : V.value =
   match (l,r) with

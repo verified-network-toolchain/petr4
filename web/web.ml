@@ -14,7 +14,7 @@
 *)
 
 
-(* open Petr4.Common
+open Petr4.Common
 open Js_of_ocaml
 
 exception ParsingError of string
@@ -45,4 +45,4 @@ let _ =
           eval true (Js.to_string packet) (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
         with e ->
           Printexc.to_string e |> Js.string
-     end) *)
+     end)

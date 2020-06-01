@@ -2951,7 +2951,11 @@ and type_default_action
   let action_expr_typed = type_expression env action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
-     let name = name_only action_name in
+     let name =
+      begin match action_name with
+      | BareName (_,s) -> s
+      | QualifiedName _ -> raise_s [%message "default action may not be toplevel"]
+      end in
      begin match List.Assoc.find ~equal:String.equal action_map name with
      | None -> raise_s [%message "couldn't find default action in action_map"]
      | Some (_, {action={args=prop_args; _}; _}) ->

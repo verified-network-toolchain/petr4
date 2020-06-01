@@ -1022,9 +1022,23 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
   let check param = is_well_formed_type env param.typ in
   List.for_all ~f:check construct_params
 
+and is_extern env (t:Typed.Type.t) : bool =
+  begin match t with
+  | TypeName n ->
+    let ty = CheckerEnv.resolve_type_name n env in
+    if Typed.Type.eq ty t then false else is_extern env ty
+  | NewType {typ=ty; name=s} -> is_extern env ty
+  | SpecializedType {base=ty; _} -> is_extern env ty
+  | Extern _ -> true
+  | _ -> false
+  end
+
 and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
-  if is_well_formed_type env typ
+  let dir = translate_direction param.direction in
+  if is_extern env typ && not (eq_dir dir Directionless)
+  then raise_s [%message "Externs as parameters must be directionless"]
+  else if is_well_formed_type env typ
   then
     let opt_value_typed =
       match param.opt_value with
@@ -1035,7 +1049,7 @@ and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.
       | None -> None
     in
     (Info.dummy, { annotations = param.annotations;
-                      direction = translate_direction param.direction;
+                      direction = dir;
                       typ = typ;
                       variable = param.variable;
                       opt_value = opt_value_typed })

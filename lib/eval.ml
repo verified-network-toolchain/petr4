@@ -1000,7 +1000,7 @@ module MakeInterpreter (T : Target) = struct
     let (env', st', s, hdr) =
       if Bigint.(next < one) || Bigint.(next > size)
       then (env, st, SReject "StackOutOfBounds", VNull)
-      else (env, st, SContinue, List.nth_exn hdrs Bigint.(to_int_exn next)) in
+      else (env, st, SContinue, List.nth_exn hdrs Bigint.(to_int_exn (next - one))) in
     (env', st', s, hdr)
 
   and eval_stack_lastindex (env : env) (st : state) 

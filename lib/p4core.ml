@@ -163,9 +163,11 @@ module Corize (T : Target) : Target = struct
 
   let eval_extract : extern = fun ctrl env st targs args ->
     match args with 
-    | [(pkt, _);(v1, t)] -> eval_extract' ctrl env st t pkt v1 Bigint.zero true
+    | [(pkt, _);(v1, t)] -> (match v1 with
+                            | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
+                              eval_advance ctrl env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
+                            | _ -> eval_extract' ctrl env st t pkt v1 Bigint.zero true)
     | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (assert_bit v2 |> snd) false
-    | [] -> eval_advance ctrl env st targs args
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =

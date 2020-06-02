@@ -46,6 +46,62 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
+(* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
+let rec is_some_type
+  env
+  (f:Typed.Type.t -> bool)
+  (t:Typed.Type.t) : bool =
+  if f t then true else begin match t with
+  | TypeName n ->
+    let ty = CheckerEnv.resolve_type_name n env in
+    if Typed.Type.eq ty t then false else is_some_type env f ty
+  | NewType {typ=ty; name=s} -> is_some_type env f ty
+  | SpecializedType {base=ty; _} -> is_some_type env f ty
+  | _ -> false
+  end
+
+let is_package env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Package _ -> true
+    | _         -> false
+    end t
+
+let is_parser env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Parser _ -> true
+    | _        -> false
+    end t
+
+let is_control env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Control _ -> true
+    | _         -> false
+    end t
+
+let is_extern env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Extern _ -> true
+    | _         -> false
+    end t
+
+let is_function env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Function _ -> true
+    | _          -> false
+    end t
+
+let is_table env (t:Typed.Type.t) : bool =
+  is_some_type env
+    begin function
+    | Table _ -> true
+    | _         -> false
+    end t
+
 (* Ugly hack *)
 let real_name_for_type_member env (typ_name: Types.name) name =
   begin match typ_name with
@@ -1024,7 +1080,10 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
 
 and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
-  if is_well_formed_type env typ
+  let dir = translate_direction param.direction in
+  if is_extern env typ && not (eq_dir dir Directionless)
+  then raise_s [%message "Externs as parameters must be directionless"]
+  else if is_well_formed_type env typ
   then
     let opt_value_typed =
       match param.opt_value with
@@ -1035,7 +1094,7 @@ and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.
       | None -> None
     in
     (Info.dummy, { annotations = param.annotations;
-                      direction = translate_direction param.direction;
+                      direction = dir;
                       typ = typ;
                       variable = param.variable;
                       opt_value = opt_value_typed })
@@ -1051,8 +1110,17 @@ and type_constructor_param env (param: Types.Parameter.t) : Prog.TypeParameter.t
                    ~param:(param: Types.Parameter.t)]
   else type_param env param
 
-and type_constructor_params env params =
-  List.map ~f:(type_constructor_param env) params
+and type_constructor_params env params verboten =
+  params
+  |> List.map ~f:(type_constructor_param env)
+  |> List.map
+    ~f:begin fun ((_,{typ;_}) as cp) ->
+      if List.exists verboten ~f:(fun f -> f env typ)
+      then raise_s [%message "Invalid constructor parameter"]
+      else cp
+    end
+
+(* and verboten *)
 
 and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
@@ -2589,9 +2657,15 @@ and check_state_names names =
      then ()
      else raise_s [%message "parser is missing start state"];
 
+(* Verboten constructor parameters:
+ * - package
+ * - control
+ * - function
+ * - table *)
 and open_parser_scope env params constructor_params locals states =
   let open Parser in
-  let constructor_params_typed = type_constructor_params env constructor_params in
+  let constructor_params_typed = type_constructor_params env
+    constructor_params [is_package;is_control;is_function;is_table] in
   let params_typed = type_params env params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
@@ -2631,9 +2705,15 @@ and type_parser env info name annotations params constructor_params locals state
   let env = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
   (info, parser_typed), env
 
+(* Verboten constructor parameters:
+ * - package
+ * - parser
+ * - function
+ * - table *)
 and open_control_scope env params constructor_params locals =
   let params_typed = type_params env params in
-  let constructor_params_typed = type_constructor_params env constructor_params in
+  let constructor_params_typed = type_constructor_params env
+    constructor_params [is_package;is_parser;is_function;is_table] in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
   let locals_typed, env = type_declarations env locals in
@@ -2905,14 +2985,14 @@ and type_table_actions env key_types actions =
   in
   let action_typs = List.map ~f:type_table_action actions in
   (* Need to fail in the case of duplicate action names *)
-  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> name_only action.name) actions in
+  let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> action.name) actions in
   List.zip_exn action_names action_typs
 
 and type_table_entries env entries key_typs action_map =
   let open Prog.Table in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
     let matches_typed = check_match_product env entry.matches key_typs in
-    match List.Assoc.find action_map ~equal:(=) (name_only (snd entry.action).name) with
+    match List.Assoc.find action_map ~equal:name_eq (snd entry.action).name with
     | None ->
        failwith "Entry must call an action in the table."
     | Some (action_info, { action; typ = Action { data_params; ctrl_params } }) ->
@@ -2946,13 +3026,12 @@ and type_table_entries env entries key_typs action_map =
   List.map ~f:type_table_entry entries
 
 and type_default_action
-  env (action_map : (string * (Info.t * Prog.Table.typed_action_ref)) list)
+  env (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
   action_expr : Prog.Table.action_ref =
   let action_expr_typed = type_expression env action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
-     let name = name_only action_name in
-     begin match List.Assoc.find ~equal:String.equal action_map name with
+     begin match List.Assoc.find ~equal:name_eq action_map action_name with
      | None -> raise_s [%message "couldn't find default action in action_map"]
      | Some (_, {action={args=prop_args; _}; _}) ->
         (* compares the longest prefix that
@@ -2982,8 +3061,10 @@ and type_default_action
          else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
     end
   | Name action_name ->
-     let name = name_only action_name in
-     if List.Assoc.mem ~equal:String.equal action_map name
+     if List.Assoc.mem ~equal:name_eq action_map action_name
+     || List.Assoc.mem
+      ~equal:name_eq
+      begin List.map ~f:begin Tuple.T2.map_fst ~f:to_bare end action_map end action_name
      then fst action_expr,
           { action = { annotations = [];
                        name = action_name;
@@ -2992,30 +3073,6 @@ and type_default_action
      else failwith "couldn't find default action in action_map"
   | e ->
      failwith "couldn't type default action as functioncall"
-
-(* and type_default_action env action_map action_expr: Prog.Table.action_ref =
- let action_expr_typed = type_expression env action_expr in
- match (snd action_expr_typed).expr with
- | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
-    let name = name_only action_name in
-    if List.Assoc.mem ~equal:String.equal action_map name
-    then fst action_expr,
-         { action = { annotations = [];
-                      name = action_name;
-                      args = args };
-           typ = (snd action_expr_typed).typ }
-    else failwith "couldn't find default action in action_map"
- | Name action_name ->
-    let name = name_only action_name in
-    if List.Assoc.mem ~equal:String.equal action_map name
-    then fst action_expr,
-         { action = { annotations = [];
-                      name = action_name;
-                      args = [] };
-           typ = (snd action_expr_typed).typ }
-    else failwith "couldn't find default action in action_map"
- | e ->
-    failwith "couldn't type default action as functioncall" *)
 
 and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
@@ -3137,7 +3194,13 @@ and type_table' env info annotations name key_types action_map entries_typed siz
     let open EnumType in
     let open RecordType in
     (* Aggregate table information. *)
-    let action_names = List.map ~f:fst action_map in
+    let action_names = action_map
+      |> begin fun l ->
+          if List.length l > 0 then l
+          else raise_s
+            [%message "Table must have a non-empty actions property"] end
+      |> List.map ~f:fst
+      |> List.map ~f:name_only in
     let action_enum_name = "action_list_" ^ snd name in
     let action_enum_typ =
       Type.Enum { name=action_enum_name;
@@ -3342,7 +3405,13 @@ and type_serializable_enum env info annotations underlying_type name members =
     Prog.Declaration.Enum { annotations; name; members = member_names } in
   (info, enum_typed), env
 
-(* Section 7.2.9.2 *)
+(* Section 7.2.9.2
+ * Verboten constructor parameters:
+ * - package
+ * - parser
+ * - control
+ * - function
+ * - table *)
 and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
   let env' = CheckerEnv.insert_type_vars type_params' env in
@@ -3350,7 +3419,8 @@ and type_extern_object env info annotations obj_name t_params methods =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
        assert (snd cname = snd obj_name);
-       let params_typed = type_constructor_params env' params in
+       let params_typed = type_constructor_params env'
+        params [is_package;is_parser;is_control;is_function;is_table] in
        let constructor_typed =
          Prog.MethodPrototype.Constructor { annotations;
                                             name = cname;

@@ -48,6 +48,10 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+let to_bare : name -> name = function
+  | BareName n
+  | QualifiedName (_,n) -> BareName n
+
 let name_info name : Info.t =
   match name with
   | BareName name -> fst name
@@ -63,7 +67,7 @@ let name_eq n1 n2 =
   | QualifiedName ([], (_, s1)),
     QualifiedName ([], (_, s2)) ->
      s1 = s2
-  | _ -> failwith "unimplemented"
+  | _ -> false
 
 and name_only n =
   match n with

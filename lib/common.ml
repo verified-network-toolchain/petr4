@@ -64,13 +64,13 @@ module Make_parse (Conf: Parse_config) = struct
     | 14 -> "E"
     | 15 -> "F"
     | _ -> failwith "unreachable"
-  
+
   let hex_of_int (i : int) : string =
     hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
-  
+
   let hex_of_char (c : char) : string =
     c |> Char.to_int |> hex_of_int
-  
+
   let hex_of_string (s : string) : string =
     s
     |> String.to_list
@@ -128,8 +128,8 @@ module Make_parse (Conf: Parse_config) = struct
         | st, None -> st, `NoPacket end
     | `Error (info, exn) as e-> st, e
 
-  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port st =
-    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port st with
+  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json st port =
+    match eval_file include_dirs p4_file verbose pkt_str ctrl_json st port with
     | _, `Ok (pkt, port) ->
       (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
     | _, `NoPacket -> "No packet out"

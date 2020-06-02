@@ -38,6 +38,7 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+val to_bare : name -> name
 val name_info: name -> Info.t
 val name_eq : name -> name -> bool
 val name_only : name -> string

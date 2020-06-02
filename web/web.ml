@@ -36,7 +36,7 @@ open Parse
 
 let eval verbose packet_str ctrl_str p4_contents =
   let ctrl_json = Yojson.Safe.from_string ctrl_str in
-  eval_file_string [] p4_contents verbose packet_str ctrl_json 0
+  eval_file_string [] p4_contents verbose packet_str ctrl_json None 0
 let _ =
   Js.export "Petr4"
     (object%js

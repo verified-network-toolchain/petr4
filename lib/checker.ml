@@ -1022,37 +1022,78 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
   let check param = is_well_formed_type env param.typ in
   List.for_all ~f:check construct_params
 
-and type_param env (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
+and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
+  match ctx with
+  | Constructor decl ->
+     begin match typ, decl with
+     | Package _, Package -> true
+     | Package _, _ -> false
+     | Parser _, Package
+     | Parser _, Parser -> true
+     | Parser _, _ -> false
+     | Control _, Package
+     | Control _, Control -> true
+     | Control _, _ -> false
+     | Extern _, Package
+     | Extern _, Parser
+     | Extern _, Control
+     | Extern _, Method -> true
+     | Extern _, _ -> false
+     | Function _, _ -> false
+     | Action _, _ -> false
+     | Table _, _ -> false
+     | Set _, _ -> false
+     | _ -> true
+     end
+  | Runtime decl ->
+     begin match typ, decl with
+     | Package _, _ -> false
+     | Parser _, _ -> false
+     | Control _, _ -> false
+     | Extern _, Parser
+     | Extern _, Control
+     | Extern _, Method -> true
+     | Extern _, _ -> false
+     | Table _, _ -> false
+     | Set _, _ -> false
+     | Action _, _ -> false
+     | Function _, _ -> false
+     | _ -> true
+     end
+          
+and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
-  if is_well_formed_type env typ
-  then
-    let opt_value_typed =
-      match param.opt_value with
-      | Some value ->
-         let value_typed = type_expression env value in
-         assert_type_equality env param_info (snd value_typed).typ typ;
-         Some value_typed
-      | None -> None
-    in
-    (Info.dummy, { annotations = param.annotations;
-                      direction = translate_direction param.direction;
-                      typ = typ;
-                      variable = param.variable;
-                      opt_value = opt_value_typed })
-  else raise_s [%message "Parameter type is not well-formed"
-                   ~param:((param_info, param): Types.Parameter.t)]
+  if not (is_well_formed_type env typ)
+  then raise_s [%message "Parameter type is not well-formed"
+                   ~param:((param_info, param): Types.Parameter.t)];
+  if not (is_valid_param_type env ctx typ)
+  then raise_s [%message "Type cannot be passed as a parameter"
+                   ~param:((param_info, param): Types.Parameter.t)];
+  let opt_value_typed =
+    match param.opt_value with
+    | Some value ->
+       let value_typed = type_expression env value in
+       assert_type_equality env param_info (snd value_typed).typ typ;
+       Some value_typed
+    | None -> None
+  in
+  (Info.dummy, { annotations = param.annotations;
+                    direction = translate_direction param.direction;
+                    typ = typ;
+                    variable = param.variable;
+                    opt_value = opt_value_typed })
 
-and type_params env params =
-  List.map ~f:(type_param env) params
+and type_params env ctx params =
+  List.map ~f:(type_param env ctx) params
 
-and type_constructor_param env (param: Types.Parameter.t) : Prog.TypeParameter.t =
+and type_constructor_param env decl_kind (param: Types.Parameter.t) : Prog.TypeParameter.t =
   if (snd param).direction <> None
   then raise_s [%message "Constructor parameters must be directionless"
-                   ~param:(param: Types.Parameter.t)]
-  else type_param env param
+                   ~param:(param: Types.Parameter.t)];
+  type_param env (Constructor decl_kind) param
 
-and type_constructor_params env params =
-  List.map ~f:(type_constructor_param env) params
+and type_constructor_params env ctx params =
+  List.map ~f:(type_constructor_param env ctx) params
 
 and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
@@ -2412,7 +2453,7 @@ and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.ty
   | Constant _
   | Instantiation _
   | Variable _ ->
-     let decl_typed, env' = type_declaration env decl in
+     let decl_typed, env' = type_declaration env (DeclContext.Statement ctx) decl in
      { stmt = DeclarationStatement { decl = decl_typed };
        typ = StmType.Unit },
      env'
@@ -2449,9 +2490,16 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
   List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)
-and type_instantiation env info annotations typ args name : Prog.Declaration.t * CheckerEnv.t =
+and type_instantiation env ctx info annotations typ args name : Prog.Declaration.t * CheckerEnv.t =
   let instance_typed = type_nameless_instantiation env info typ args in
   let instance_type = instance_typed.typ in
+  begin match instance_type, ctx with
+  | Control _, DeclContext.TopLevel ->
+     raise_s [%message "controls cannot be instantiated in the top level scope"]
+  | Parser _, DeclContext.TopLevel ->
+     raise_s [%message "parsers cannot be instantiated in the top level scope"]
+  | _ -> ()
+  end;
   match instance_typed.expr with
   | NamelessInstantiation { args; typ } ->
      (info, 
@@ -2589,13 +2637,13 @@ and check_state_names names =
      then ()
      else raise_s [%message "parser is missing start state"];
 
-and open_parser_scope env params constructor_params locals states =
+and open_parser_scope env ctx params constructor_params locals states =
   let open Parser in
-  let constructor_params_typed = type_constructor_params env constructor_params in
-  let params_typed = type_params env params in
+  let constructor_params_typed = type_constructor_params env ctx constructor_params in
+  let params_typed = type_params env (Runtime ctx) params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
-  let locals_typed, env = type_declarations env locals in
+  let locals_typed, env = type_declarations env DeclContext.Nested locals in
   let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
@@ -2607,7 +2655,7 @@ and open_parser_scope env params constructor_params locals states =
 and type_parser env info name annotations params constructor_params locals states =
   let (env', state_names,
        constructor_params_typed, params_typed, locals_typed) =
-    open_parser_scope env params constructor_params locals states
+    open_parser_scope env Parser params constructor_params locals states
   in
   let states_typed = List.map ~f:(type_parser_state env' state_names) states in
   let parser_typed : Prog.Declaration.pre_t =
@@ -2631,12 +2679,12 @@ and type_parser env info name annotations params constructor_params locals state
   let env = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
   (info, parser_typed), env
 
-and open_control_scope env params constructor_params locals =
-  let params_typed = type_params env params in
-  let constructor_params_typed = type_constructor_params env constructor_params in
+and open_control_scope env ctx params constructor_params locals =
+  let params_typed = type_params env (Runtime ctx) params in
+  let constructor_params_typed = type_constructor_params env ctx constructor_params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
-  let locals_typed, env = type_declarations env locals in
+  let locals_typed, env = type_declarations env DeclContext.Nested locals in
   env, params_typed, constructor_params_typed, locals_typed
 
 (* Section 13 *)
@@ -2645,7 +2693,7 @@ and type_control env info name annotations type_params params constructor_params
   then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
   else
     let env', params_typed, constructor_params_typed, locals_typed =
-      open_control_scope env params constructor_params locals
+      open_control_scope env Control params constructor_params locals
     in
     let block_typed, env'' = type_block env' ApplyBlock apply in
     let apply_typed =
@@ -2687,7 +2735,7 @@ and type_control env info name annotations type_params params constructor_params
 and type_function env ctx info return name type_params params body =
   let t_params = List.map ~f:snd type_params in
   let body_env = CheckerEnv.insert_type_vars t_params env in
-  let params_typed = List.map ~f:(type_param body_env) params in
+  let params_typed = List.map ~f:(type_param body_env (Runtime Function)) params in
   let return_type = return |> translate_type env t_params in
   let typ_params = List.map ~f:prog_param_to_typed_param params_typed in
   let body_env = insert_params body_env params in
@@ -2722,7 +2770,7 @@ and type_extern_function env info annotations return name type_params params =
   let t_params = type_params |> List.map ~f:snd in
   let return = return |> translate_type env t_params in
   let env' = CheckerEnv.insert_type_vars t_params env in
-  let params_typed = List.map ~f:(type_param env') params in
+  let params_typed = List.map ~f:(type_param env' (Runtime Function)) params in
   let params = List.map ~f:prog_param_to_typed_param params_typed in
   let typ: Typed.FunctionType.t =
     { type_params = t_params;
@@ -2781,11 +2829,13 @@ and is_variable_type env (typ: Typed.Type.t) =
  * ---------------------------------------------
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]
  *)
-and type_variable env info annotations typ name init =
+and type_variable env ctx info annotations typ name init =
   let expected_typ = translate_type env [] typ in
   if not (is_variable_type env expected_typ)
   then raise_s [%message "Cannot declare variables of this type"
               ~typ:(expected_typ: Typed.Type.t)];
+  if ctx = DeclContext.TopLevel
+  then raise_s [%message "variables cannot be declared at the top level"];
   let init_typed =
     match init with
     | None ->
@@ -3268,7 +3318,7 @@ and type_extern_object env info annotations obj_name t_params methods =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
        assert (snd cname = snd obj_name);
-       let params_typed = type_constructor_params env' params in
+       let params_typed = type_constructor_params env' Method params in
        let constructor_typed =
          Prog.MethodPrototype.Constructor { annotations;
                                             name = cname;
@@ -3282,7 +3332,7 @@ and type_extern_object env info annotations obj_name t_params methods =
                         ~m:(m: MethodPrototype.t)];
        let method_type_params = List.map ~f:snd t_params in
        let env'' = CheckerEnv.insert_type_vars method_type_params env' in
-       let params_typed = type_params env'' params in
+       let params_typed = type_params env'' (Runtime Method) params in
        let return_typed = translate_type env'' [] return in
        let method_typed = 
          match snd m with 
@@ -3358,7 +3408,7 @@ and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
       typ = fn }
 
 (* Section 7.3 *)
-and type_type_def env info annotations name typ_or_decl =
+and type_type_def env ctx info annotations name typ_or_decl =
   match typ_or_decl with
   | Left typ ->
      let typ = translate_type env [] typ in
@@ -3370,7 +3420,7 @@ and type_type_def env info annotations name typ_or_decl =
      in
      (info, typedef_typed), CheckerEnv.insert_type (BareName name) typ env
   | Right decl ->
-     let decl_typed, env' = type_declaration env decl in
+     let decl_typed, env' = type_declaration env ctx decl in
      let (_, decl_name) = Declaration.name decl in
      let decl_typ = CheckerEnv.resolve_type_name (BareName (Info.dummy, decl_name)) env' in
      let typedef_typed =
@@ -3382,7 +3432,7 @@ and type_type_def env info annotations name typ_or_decl =
      (info, typedef_typed), CheckerEnv.insert_type (BareName name) decl_typ env'
 
 (* ? *)
-and type_new_type env info annotations name typ_or_decl =
+and type_new_type env ctx info annotations name typ_or_decl =
   match typ_or_decl with
   | Left typ ->
      let typ = translate_type env [] typ in
@@ -3395,7 +3445,7 @@ and type_new_type env info annotations name typ_or_decl =
      let new_typ = Typed.Type.NewType { name = snd name; typ = typ } in
      (info, typedef_typed), CheckerEnv.insert_type (BareName name) new_typ env
   | Right decl ->
-     let decl_typed, env' = type_declaration env decl in
+     let decl_typed, env' = type_declaration env ctx decl in
      let (_, decl_name) = Declaration.name decl in
      let decl_typ = CheckerEnv.resolve_type_name (BareName (Info.dummy, decl_name)) env' in
      let typedef_typed =
@@ -3411,7 +3461,7 @@ and type_new_type env info annotations name typ_or_decl =
 and type_control_type env info annotations name t_params params =
   let simple_t_params = List.map ~f:snd t_params in
   let body_env = CheckerEnv.insert_type_vars simple_t_params env in
-  let params_typed = type_params body_env params in
+  let params_typed = type_params body_env (Runtime Control) params in
   let params_for_type = prog_params_to_typed_params params_typed in
   let ctrl_decl =
     Prog.Declaration.ControlType
@@ -3428,7 +3478,7 @@ and type_control_type env info annotations name t_params params =
 and type_parser_type env info annotations name t_params params =
   let simple_t_params = List.map ~f:snd t_params in
   let body_env = CheckerEnv.insert_type_vars simple_t_params env in
-  let params_typed = type_params body_env params in
+  let params_typed = type_params body_env (Runtime Parser) params in
   let params_for_type = prog_params_to_typed_params params_typed in
   let parser_decl =
     Prog.Declaration.ParserType
@@ -3445,7 +3495,7 @@ and type_parser_type env info annotations name t_params params =
 and type_package_type env info annotations name t_params params =
   let simple_t_params = List.map ~f:snd t_params in
   let body_env = CheckerEnv.insert_type_vars simple_t_params env in
-  let params_typed = type_params body_env params in
+  let params_typed = type_params body_env (Constructor Package) params in
   let params_for_type = prog_params_to_constructor_params params_typed in
   let pkg_decl =
     Prog.Declaration.PackageType
@@ -3471,14 +3521,14 @@ and type_package_type env info annotations name t_params params =
   in
   (info, pkg_decl), env'
 
-and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
+and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match snd decl with
   | Constant { annotations; typ; name; value } ->
      type_constant env (fst decl) annotations typ name value
   | Instantiation { annotations; typ; args; name; init } ->
      begin match init with
      | Some init -> failwith "initializer block in instantiation unsupported"
-     | None -> type_instantiation env (fst decl) annotations typ args name
+     | None -> type_instantiation env ctx (fst decl) annotations typ args name
      end
   | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
      type_parser env (fst decl) name annotations params constructor_params locals states
@@ -3492,7 +3542,7 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
   | ExternFunction { annotations; return; name; type_params; params } ->
      type_extern_function env (fst decl) annotations return name type_params params
   | Variable { annotations; typ; name; init } ->
-     type_variable env (fst decl) annotations typ name init
+     type_variable env ctx (fst decl) annotations typ name init
   | ValueSet { annotations; typ; size; name } ->
      type_value_set env (fst decl) annotations typ size name
   | Table { annotations; name; properties } ->
@@ -3514,9 +3564,9 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
   | ExternObject { annotations; name; type_params; methods } ->
      type_extern_object env (fst decl) annotations name type_params methods
   | TypeDef { annotations; name; typ_or_decl } ->
-     type_type_def env (fst decl) annotations name typ_or_decl
+     type_type_def env ctx (fst decl) annotations name typ_or_decl
   | NewType { annotations; name; typ_or_decl } ->
-     type_new_type env (fst decl) annotations name typ_or_decl
+     type_new_type env ctx (fst decl) annotations name typ_or_decl
   | ControlType { annotations; name; type_params; params } ->
      type_control_type env (fst decl) annotations name type_params params
   | ParserType { annotations; name; type_params; params } ->
@@ -3524,9 +3574,9 @@ and type_declaration (env: CheckerEnv.t) (decl: Types.Declaration.t) : Prog.Decl
   | PackageType { annotations; name; type_params; params } ->
      type_package_type env (fst decl) annotations name type_params params
 
-and type_declarations env decls =
+and type_declarations env ctx decls =
   let f (decls_typed, env) decl =
-    let decl_typed, env = type_declaration env decl in
+    let decl_typed, env = type_declaration env ctx decl in
     decls_typed @ [decl_typed], env
   in
   let decls, env = List.fold_left ~f ~init:([], env) decls in
@@ -3535,5 +3585,5 @@ and type_declarations env decls =
 (* Entry point function for type checker *)
 let check_program (program:Types.program) : CheckerEnv.t * Prog.program =
   let Program top_decls = program in
-  let prog, env = type_declarations CheckerEnv.empty_t top_decls in
+  let prog, env = type_declarations CheckerEnv.empty_t DeclContext.TopLevel top_decls in
   env, Prog.Program prog

@@ -415,3 +415,31 @@ end = struct
   | ApplyBlock
   [@@deriving sexp,yojson]
 end
+
+and DeclContext : sig
+  type t =
+  | TopLevel
+  | Nested
+  | Statement of StmtContext.t
+  [@@deriving sexp,yojson]
+end = struct
+  type t =
+  | TopLevel
+  | Nested
+  | Statement of StmtContext.t
+  [@@deriving sexp,yojson]
+end
+
+module ParamContext = struct
+  type decl =
+  | Parser
+  | Control
+  | Method
+  | Action
+  | Function
+  | Package
+
+  type t =
+  | Runtime of decl
+  | Constructor of decl
+end

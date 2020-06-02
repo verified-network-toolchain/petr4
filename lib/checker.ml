@@ -1023,6 +1023,7 @@ and are_construct_params_types_well_formed env (construct_params:ConstructParam.
   List.for_all ~f:check construct_params
 
 and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
+  let typ = reduce_type env typ in
   match ctx with
   | Constructor decl ->
      begin match typ, decl with
@@ -2732,10 +2733,16 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
-and type_function env ctx info return name type_params params body =
+and type_function env (ctx: Typed.StmtContext.t) info return name type_params params body =
+  let paramctx: Typed.ParamContext.decl =
+    match ctx with
+    | Function _ -> Function
+    | Action -> Action
+    | _ -> failwith "bad context for function"
+  in
   let t_params = List.map ~f:snd type_params in
   let body_env = CheckerEnv.insert_type_vars t_params env in
-  let params_typed = List.map ~f:(type_param body_env (Runtime Function)) params in
+  let params_typed = List.map ~f:(type_param body_env (Runtime paramctx)) params in
   let return_type = return |> translate_type env t_params in
   let typ_params = List.map ~f:prog_param_to_typed_param params_typed in
   let body_env = insert_params body_env params in

@@ -453,7 +453,7 @@ lv ::= lv_o | @None
 ~ Begin P4MathGrammar
 sig ::= \mathkw{sig\_continue}
     | \mathkw{sig\_return} v
-    | \mathkw{sig\_exit} 
+    | \mathkw{sig\_exit}
     | \mathkw{sig\_reject} v
 ~ End P4MathGrammar
 
@@ -1433,7 +1433,7 @@ $\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 
 $\xi ::= P, E, \Delta, \upsilon$
 
-$P$ is a declaration context representing the program seen so far mapping type names to declarations. 
+$P$ is a declaration context representing the program seen so far mapping type names to declarations.
 $E$ is a value context mapping names to values.
 $\Delta$ is the same as defined in the typing contexts.
 $\upsilon$ is a string namespace used for control plane names.
@@ -1452,26 +1452,26 @@ E ::= E, \epsilon{} | []
 D ::= D, \delta{} | []
 ~
 
-$\sigma ::= (packet, (\overline{name,object}))$ where $object$ is defined by the target. 
+$\sigma ::= (packet, (\overline{name,object}))$ where $object$ is defined by the target.
 $packet$ is used to maintain the state of the packet and $(\overline{name,object})$ is for stateful objects maintained by externs.
 
-$\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$. 
+$\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$.
 $\mathkw{pop} \xi$ pops the first-level scope off each context in $\xi$ if one exists.
 $\mathkw{first\_lvl} \xi$ is the first-level scope of each context in $\xi$ if one exists.
 
 $\xi[z/x]$ is syntactic sugar for $P[z/x]$, $E[z/x]$, or $\Delta[z/x]$ depending on whether
-$z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar 
+$z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar
 for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, value, or type, respectively.
-$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$ 
+$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$
 are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 
 $\mathkw{set\_namespace} \xi x$ is $\xi$ with $\upsilon$ set to $x$ and $\mathkw{namespace} \xi$ is $\upsilon$.
-Since $\upsilon$ is a string, the string concatenation operator ^ is used in places. 
+Since $\upsilon$ is a string, the string concatenation operator ^ is used in places.
 
-## Control flow 
-Signals are threaded through expression and statement evaluation. 
+## Control flow
+Signals are threaded through expression and statement evaluation.
 Unless otherwise stated, a signal that is not $\mathkw{sig\_continue}$ will result in
-a no-op that does not change $\xi$ or $\sigma$ and propagates the signal. In cases 
+a no-op that does not change $\xi$ or $\sigma$ and propagates the signal. In cases
 where a value is needed, it will be $\mathkw{None}$ if the input signal is not $\mathkw{sig\_continue}$.
 
 <!--
@@ -1493,7 +1493,7 @@ sig \neq \mathkw{sig\_continue}
 
 ### Sequences
 Evaluating sequences such as $\overline{e}$ implies the evaluation  is performed
-left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through. 
+left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through.
 
 ### Numeric Values
 ~ MathPre
@@ -1547,7 +1547,7 @@ n1 & v = (n1, {n2}_u^w)
 (\xi', \sigma', @singleton w (\mathkw{extract\_num} v)) & \overline{match} = (e) \land \overline{w} = w \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 (\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
 (\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, set> \land set \neq \mathkw{value\_set} ...
-(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n) 
+(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n)
 \end{cases}
 
 
@@ -1589,7 +1589,7 @@ $e$ has type $\tau$.
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
-v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \}) \land (x,v) \in \overline{(name,v)} 
+v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \}) \land (x,v) \in \overline{(name,v)}
 v_{n_{next}\%n_{size}} & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
 (@bitslice (\mathkw{extract\_num} (\mathkw{value\_of\_lv} \xi lv_2)) n1 n2)_u^{(n1-n2+1)} & lv_1 = @lvalue t lv_2[n1:n2]
 v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
@@ -1617,10 +1617,10 @@ If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if
 ~
 
 ### LPM Entries
-$\mathkw{sort\_lpm}\ \overline{set}\ n$ is $\overline{set}$ with elements up 
+$\mathkw{sort\_lpm}\ \overline{set}\ n$ is $\overline{set}$ with elements up
 until the first occurrence of $\mathkw{universal}$, if one exists, sorted in descending order by $w$.
 Elements can be of the form $\mathkw{universal}$, $\mathkw{lpm}\ w\ v_1\ v_2$, or
-$\mathkw{product}\ \overline{set}'$. If an element $set_i = \mathkw{product}\ \overline{set}'$ then it 
+$\mathkw{product}\ \overline{set}'$. If an element $set_i = \mathkw{product}\ \overline{set}'$ then it
 is replaced with $set'_n$ where $set'_n = \mathkw{lpm}\ w\ v_1\ v_2$ or $set'_n = \mathkw{universal}$.
 
 $\mathkw{bits}\ n$ is the number of bits not masked by $n$.
@@ -1956,7 +1956,7 @@ n_{next} \lt 1
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>  
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>
 --------------------------------------------------------------------------[Record-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
@@ -2202,7 +2202,7 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 
 ~ Infer
 \xi(@nametype t) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
-(@namespace \xi, object) \not\in \sigma 
+(@namespace \xi, object) \not\in \sigma
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern (@namespace \xi) ((@namespace \xi), X)>
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
 -------------------------------------------------------------------------------[Extern-Object-Uninitialized]
@@ -2551,3 +2551,120 @@ $\langle \xi, n_{in\_port} \rangle \Downarrow_{Target\_init} \langle \xi' \rangl
 
 $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} \langle \sigma', \xi', p \rangle$
 ~
+
+# Type Soundness
+
+## Type Soundness of Expressions
+
+### Expression Type Preservation Theorem Statement
+~ MathPre
+\forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
+S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G |- v : \tau,d
+~
+
+#### Substitution Lemma
+~ MathPre
+\forall e,x,v,S,D,G,\tau,\tau',d,d',
+S,D,G |- v : \tau,d \Rightarrow S,D,G[x:\tau] |- e : \tau',d' \Rightarrow S,D,G |- e\{ v/x \} : \tau',d'
+~
+
+### Type Preservation Proof
+Introducing variables
+~MathPre
+e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig
+~
+and assuming hypotheses
+~MathPre
+S,D,G |- e : \tau,d
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
+~
+we wish to prove the goal
+~MathPre
+S,D,G |- v : \tau,d
+~
+We induct on the structure of expression $e$.
+
+#### Case Bool-True
+We have hypotheses:
+~MathPre
+e = @true
+S,D,G |- @true : @bool, @none
+<\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+~
+We wish to show
+~MathPre
+S,D,G |- @true : @bool, @none
+~
+Our goal is true by assumption.
+
+#### Case Bool-False
+We have hypotheses:
+~MathPre
+e = @false
+S,D,G |- @false : @bool, @none
+<\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+~
+We wish to show
+~MathPre
+S,D,G |- @false : @bool, @none
+~
+Our goal is true by assumption.
+
+#### Case Int-Constant
+We have hypotheses:
+~MathPre
+e = a
+S,D,G |- a : @int, @none
+<\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
+~
+We wish to show
+~MathPre
+S,D,G |- a : @int, @none
+~
+Our goal is true by assumption.
+
+#### Case Unsigned Int-Constant
+We have hypotheses:
+~MathPre
+e = nwa
+S,D,G |- nwa : @bit<a>, @none
+<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
+~
+We wish to show
+~MathPre
+S,D,G |- nwa : @bit<a>, @none
+~
+Our goal is true by assumption.
+
+#### Case Signed Int-Constant
+~MathPre
+e = nsa
+S,D,G |- nsa : @int<w>, @none
+<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
+~
+We wish to show
+~MathPre
+S,D,G |- nsa : @int<w>, @none
+~
+Our goal is true by assumption.
+
+#### Case String
+~MathPre
+e = u
+S,D,G |- u : @string, @none
+<\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
+~
+We wish to show
+~MathPre
+S,D,G |- u : @string, @none
+~
+Our goal is true by assumption.
+
+
+## Type Soundness of Statements
+
+### Statement Type Preservation Theorem Statement
+TODO
+
+### Statement Type Preservation Proof
+TODO

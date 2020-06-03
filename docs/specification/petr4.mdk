@@ -2583,7 +2583,7 @@ S,D,G, x : t,d \models P,E,x=v,D
 ### Expression Type Preservation Theorem Statement
 ~ MathPre
 \forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
-S,D,G \models \xi \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G |- v : \tau,d
+S,D,G \models \xi \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
 ~
 
 ### Expression Type Preservation Proof
@@ -2599,7 +2599,7 @@ S,D,G |- e : \tau,d
 ~
 we wish to prove the goal
 ~MathPre
-S,D,G |- v : \tau,d
+S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
 ~
 We induct on the derivation of
 ~MathPre
@@ -2614,9 +2614,9 @@ S,D,G \models \xi
 S,D,G |- @true : @bool, @none
 <\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
-We wish to show
+We wish to prove subgoals:
 ~MathPre
-S,D,G |- @true : @bool, @none
+S,D,G \models \xi \wedge S,D,G |- @true : @bool, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2627,9 +2627,9 @@ S,D,G \models \xi
 S,D,G |- @false : @bool, @none
 <\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- @false : @bool, @none
+S,D,G \models \xi \wedge S,D,G |- @false : @bool, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2640,9 +2640,9 @@ S,D,G \models \xi
 S,D,G |- a : @int, @none
 <\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- a : @int, @none
+S,D,G \models \xi \wedge S,D,G |- a : @int, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2653,9 +2653,9 @@ S,D,G \models \xi
 S,D,G |- nwa : @bit<a>, @none
 <\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- nwa : @bit<a>, @none
+S,D,G \models \xi \wedge S,D,G |- nwa : @bit<a>, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2666,9 +2666,9 @@ S,D,G \models \xi
 S,D,G |- nsa : @int<w>, @none
 <\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- nsa : @int<w>, @none
+S,D,G \models \xi \wedge S,D,G |- nsa : @int<w>, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2679,9 +2679,9 @@ S,D,G \models \xi
 S,D,G |- u : @string, @none
 <\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- u : @string, @none
+S,D,G \models \xi \wedge S,D,G |- u : @string, @none
 ~
 Our subgoal is true by assumption.
 
@@ -2692,12 +2692,12 @@ H_0: S,D,G \models \xi
 H_1: S,D,G |- x : t, d
 H_2: <\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(x)>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- \xi(x) : t, d
+S,D,G \models \xi \wedge S,D,G |- \xi(x) : t, d
 ~
 
-By inversion on $H_0$ and our assumption of the absence of free variables, we know that
+By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
 ~MathPre
 S,D,G |- \xi(x) : t, d
 ~
@@ -2710,16 +2710,63 @@ H_0: S,D,G \models \xi
 H_1: S,D,G |- .x : t, d
 H_2: <\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(.x)>
 ~
-We wish to show
+We wish to prove subgoal:
 ~MathPre
-S,D,G |- \xi(.x) : t, d
+S,D,G \models \xi \wedge S,D,G |- \xi(.x) : t, d
 ~
 
-By inversion on $H_0$ and our assumption of the absence of free variables, we know that
+By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
 ~MathPre
 S,D,G |- \xi(.x) : t, d
 ~
 And thus our subgoal is true by assumption.
+
+#### Case Array-Access
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1[e_2] : t_1, d_1
+H_2: <\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+~
+From $e_1$ and $e_2$ we have respectively inductive hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1[], d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2  : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v  : t_2, d_2
+~
+
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_{(\mathkw{extract\_num} v) \% n_{size}} : t_1, d_1
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : t_1[], d_1
+H_4: S,D,G |- e_2  : t_2, d_2
+H_5: @numeric(t_2)
+~
+
+By inversion on $H_2$ we get hypotheses:
+~MathPre
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
+~
+
+Sketchy: By inversion on $H_9$ we may conclude $SG_2$.
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v  : t_2, d_2
+~
+thus by assumption $H_{10}$ subgoal $SG_1$ is proven.
 
 ## Type Soundness of Statements
 

@@ -2554,27 +2554,46 @@ $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} 
 
 # Type Soundness
 
+## The Satisifes Relation
+
+In order to prove type soundness under big-step semantics, we must define a relation
+~MathPre
+\models \subset (S,D,G) \times \xi
+~
+where
+~MathPre
+S,D,G \models \xi
+~
+means that the typing context satisfies the evaluation context. Intuitively, a typing context satisfies an evaluation context if all of the variables in the typing context have the same type as their respective values they map to in the evaluation context. Here is a formal definition:
+~ Infer
+
+----------------------[Satisifes-Empty]
+S,D,[] \models P,[],D
+~
+
+~Infer
+S,D,G \models P,E,D
+S,D,G |- v : t, d
+--------------------------------[Satisifes-Variable]
+S,D,G, x : t,d \models P,E,x=v,D
+~
+
 ## Type Soundness of Expressions
 
 ### Expression Type Preservation Theorem Statement
 ~ MathPre
 \forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
-S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G |- v : \tau,d
+S,D,G \models \xi \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G |- v : \tau,d
 ~
 
-#### Substitution Lemma
-~ MathPre
-\forall e,x,v,S,D,G,\tau,\tau',d,d',
-S,D,G |- v : \tau,d \Rightarrow S,D,G[x:\tau] |- e : \tau',d' \Rightarrow S,D,G |- e\{ v/x \} : \tau',d'
-~
-
-### Type Preservation Proof
+### Expression Type Preservation Proof
 Introducing variables
 ~MathPre
 e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig
 ~
 and assuming hypotheses
 ~MathPre
+S,D,G \models \xi
 S,D,G |- e : \tau,d
 \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
 ~
@@ -2582,12 +2601,16 @@ we wish to prove the goal
 ~MathPre
 S,D,G |- v : \tau,d
 ~
-We induct on the structure of expression $e$.
+We induct on the derivation of
+~MathPre
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
+~
+We assume freely $e$ is free-variable free.
 
 #### Case Bool-True
 We have hypotheses:
 ~MathPre
-e = @true
+S,D,G \models \xi
 S,D,G |- @true : @bool, @none
 <\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
@@ -2595,12 +2618,12 @@ We wish to show
 ~MathPre
 S,D,G |- @true : @bool, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
 #### Case Bool-False
 We have hypotheses:
 ~MathPre
-e = @false
+S,D,G \models \xi
 S,D,G |- @false : @bool, @none
 <\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
@@ -2608,12 +2631,12 @@ We wish to show
 ~MathPre
 S,D,G |- @false : @bool, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
 #### Case Int-Constant
 We have hypotheses:
 ~MathPre
-e = a
+S,D,G \models \xi
 S,D,G |- a : @int, @none
 <\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
 ~
@@ -2621,12 +2644,12 @@ We wish to show
 ~MathPre
 S,D,G |- a : @int, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
-#### Case Unsigned Int-Constant
+#### Case Unsigned-Int-Constant
 We have hypotheses:
 ~MathPre
-e = nwa
+S,D,G \models \xi
 S,D,G |- nwa : @bit<a>, @none
 <\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
 ~
@@ -2634,11 +2657,12 @@ We wish to show
 ~MathPre
 S,D,G |- nwa : @bit<a>, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
-#### Case Signed Int-Constant
+#### Case Signed-Int-Constant
+We have hypotheses:
 ~MathPre
-e = nsa
+S,D,G \models \xi
 S,D,G |- nsa : @int<w>, @none
 <\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
 ~
@@ -2646,11 +2670,12 @@ We wish to show
 ~MathPre
 S,D,G |- nsa : @int<w>, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
 #### Case String
+We have hypotheses:
 ~MathPre
-e = u
+S,D,G \models \xi
 S,D,G |- u : @string, @none
 <\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
 ~
@@ -2658,8 +2683,43 @@ We wish to show
 ~MathPre
 S,D,G |- u : @string, @none
 ~
-Our goal is true by assumption.
+Our subgoal is true by assumption.
 
+#### Case Var
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- x : t, d
+H_2: <\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(x)>
+~
+We wish to show
+~MathPre
+S,D,G |- \xi(x) : t, d
+~
+
+By inversion on $H_0$ and our assumption of the absence of free variables, we know that
+~MathPre
+S,D,G |- \xi(x) : t, d
+~
+And thus our subgoal is true by assumption.
+
+#### Case Var-Top
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- .x : t, d
+H_2: <\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(.x)>
+~
+We wish to show
+~MathPre
+S,D,G |- \xi(.x) : t, d
+~
+
+By inversion on $H_0$ and our assumption of the absence of free variables, we know that
+~MathPre
+S,D,G |- \xi(.x) : t, d
+~
+And thus our subgoal is true by assumption.
 
 ## Type Soundness of Statements
 

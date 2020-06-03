@@ -379,7 +379,7 @@ module MakeInterpreter (T : Target) = struct
       let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
       let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st s lhs in
       begin match s',s'', lv with
-        | SContinue, SContinue, Some lv -> let (env, s) = assign_lvalue env' lv v in env, st', s
+        | SContinue, SContinue, Some lv -> let (env, s) = assign_lvalue env' lv v false in env, st', s
         | SContinue, _, _               -> env'', st'', s''
         | _, _, _                       -> (env', st', s')
       end
@@ -1051,7 +1051,8 @@ module MakeInterpreter (T : Target) = struct
                           Type.TypeName (BareName (Info.dummy, "packet"))) :: tvs
       | None -> tvs in
     let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs' in
-    let env'' = copyout ctrl fenv' st'' params args in
+    let inc_next = String.equal name "extract" in (* TODO: violates abstraction *)
+    let env'' = copyout ctrl fenv' st'' params args inc_next in
     env'', st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
@@ -1074,7 +1075,7 @@ module MakeInterpreter (T : Target) = struct
       (args : Expression.t option list) (body : Block.t) : env * state * signal * value =
     let (fenv, st', s) = copyin ctrl env st params args in
     let (fenv', st'', sign) = eval_block ctrl fenv st SContinue body in
-    let final_env = copyout ctrl fenv' st'' params args in
+    let final_env = copyout ctrl fenv' st'' params args false in
     match sign with
     | SReturn v -> (final_env, st'', SContinue, v)
     | SReject _
@@ -1093,13 +1094,13 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith " unreachable"
 
   and copyout (ctrl : ctrl) (fenv : env) (st : state) (params : TypeParameter.t list)
-      (args : Expression.t option list) : env =
+      (args : Expression.t option list) (inc_next : bool) : env =
     let env = EvalEnv.pop_scope fenv in
     List.fold2_exn
       params
       args
       ~init:env
-      ~f:(copy_arg_out ctrl st fenv)
+      ~f:(copy_arg_out inc_next ctrl st fenv)
     
   and eval_nth_arg (ctrl : ctrl) (st : state) (params : TypeParameter.t list) (i : int) 
       ((env,st,sign) : env * state * signal)
@@ -1122,25 +1123,26 @@ module MakeInterpreter (T : Target) = struct
     let var = Types.BareName (snd p).variable in
     EvalEnv.insert_val var v e
 
-  and copy_arg_out (ctrl : ctrl) (st : state) (fenv : env) (e : env) p a : env =
+  and copy_arg_out (inc_next : bool) (ctrl : ctrl) (st : state) (fenv : env)
+      (e : env) (p : TypeParameter.t) (a : Expression.t option) : env =
     match (snd p).direction with
     | Directionless ->
       begin match (snd p).typ with 
-        | Extern _ -> copy_arg_out_h ctrl fenv st e p a
+        | Extern _ -> copy_arg_out_h inc_next ctrl fenv st e p a
         | _ -> e
       end
     | InOut
-    | Out -> copy_arg_out_h ctrl fenv st e p a
+    | Out -> copy_arg_out_h inc_next ctrl fenv st e p a
     | In -> e
 
-  and copy_arg_out_h (ctrl : ctrl) (fenv : env) (st : state) (e : env)
-      (p : TypeParameter.t) (a : Expression.t option) : env =
+  and copy_arg_out_h (inc_next : bool) (ctrl : ctrl) (fenv : env) (st : state)
+      (e : env) (p : TypeParameter.t) (a : Expression.t option) : env =
     let v = EvalEnv.find_val (BareName (snd p).variable) fenv in
     match a with
     | None -> e
     | Some expr -> 
       let (_, _, _, lv) = lvalue_of_expr ctrl e st SContinue expr in
-      (assign_lvalue e (Option.value_exn lv) v) |> fst
+      (assign_lvalue e (Option.value_exn lv) v inc_next) |> fst
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
   (*----------------------------------------------------------------------------*)
@@ -1182,7 +1184,7 @@ module MakeInterpreter (T : Target) = struct
     match s, v with
     | (SReturn _ | SExit | SReject _), _ -> (env, st, s, VNull)
     | SContinue, VHeader hdr ->
-       let env, signal = assign_lvalue env lv (VHeader {hdr with is_valid = b}) in
+       let env, signal = assign_lvalue env lv (VHeader {hdr with is_valid = b}) false in
        (env, st, signal, VBool b)
     | SContinue, _ ->
        failwith "isvalid call is not a header"
@@ -1212,7 +1214,7 @@ module MakeInterpreter (T : Target) = struct
     let v = VStack{headers=hdrs';size;next=y} in
     match s,s' with
     | SContinue, SContinue -> 
-      let (e,_) = assign_lvalue env lv v in (e,st', s, VNull)
+      let (e,_) = assign_lvalue env lv v false in (e,st', s, VNull)
     | SReject _, _ -> (env',st',s,VNull)
     | _, SReject _ -> (env',st',s',VNull)
     | _ -> failwith "unreachble"
@@ -1244,7 +1246,7 @@ module MakeInterpreter (T : Target) = struct
       let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
       let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
-      (copyout ctrl penv''' st''' params args, st''', final_state)
+      (copyout ctrl penv''' st''' params args false, st''', final_state)
     | SReject _ -> (EvalEnv.pop_scope penv, st, s)
     | _ -> failwith "unreachable"
 
@@ -1411,7 +1413,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue
     | SReject _
     | SReturn VNull
-    | SExit     -> (copyout ctrl cenv''' st''' params args, st''', sign)
+    | SExit     -> (copyout ctrl cenv''' st''' params args false, st''', sign)
     | SReturn _ -> failwith "control should not return"
 
   (*----------------------------------------------------------------------------*)

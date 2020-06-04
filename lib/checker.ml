@@ -1120,8 +1120,6 @@ and type_constructor_params env params verboten =
       else cp
     end
 
-(* and verboten *)
-
 and type_int (val_info, value) : Prog.Expression.typed_t =
   let open P4Int in
   { expr = Int (val_info, value);

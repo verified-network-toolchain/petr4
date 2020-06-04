@@ -609,12 +609,12 @@ S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
 S,D,G |- e_3  : t_3, \_
 @numeric(t_3)
-0 \leq e_2
-e_2 \lt w
-e_2 \geq e_3
-e_3 \lt w
+0 \leq S(e_2)
+S(e_2) \lt w
+S(e_2) \geq S(e_3)
+S(e_3) \lt w
 ------------------------[Slice]
-S,D,G |- e1[e2:e3] : t_1, d_1
+S,D,G |- e1[e2:e3] : bit<S(e_2) - S(e_3) + 1>, d_1
 ~
 
 ~ Infer
@@ -2728,7 +2728,7 @@ H_0: S,D,G \models \xi
 H_1: S,D,G |- e_1[e_2] : t_1, d_1
 H_2: <\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
-From $e_1$ and $e_2$ we have respectively inductive hypotheses:
+and inductive hypotheses:
 ~MathPre
 I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1[], d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
 I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2  : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v  : t_2, d_2
@@ -2767,6 +2767,190 @@ H_{10}: S,D,G \models \xi''
 H_{11}: S,D,G |- v  : t_2, d_2
 ~
 thus by assumption $H_{10}$ subgoal $SG_1$ is proven.
+
+#### Case Bitslice
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e[n_1:n_2] : S,D,G |- e1[e_2:e_3] : bit<n_1 - n_2 + 1>, d
+H_2: <\zeta, \xi, \sigma, e[n_1:n_2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
+~
+and inductive hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bit<w>, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)} : bit<n1 - n2 + 1>, d
+~
+
+By inversion on $H_1$ and $H_2$ respectively we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : @bit<w>, d
+H_4:  <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bit<w>, d
+~
+By $H_5$, subgoal $SG_1$ holds.
+
+Sketchy: By $H_6$ we know $v$ is numeric and thus $SG_2$ holds.
+
+#### Case List-Expression
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+H_2: <\zeta, \xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- \overline{e: \tau, none} \Rightarrow <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- \overline{v: \tau, none}
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
+~
+By inversion on $H_1$ and $H_2$ we respectively get hypotheses:
+~MathPre
+H_3: S,D,G |- \overline{e: \tau, none}
+H_4: <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- \overline{v: \tau, none}
+~
+By $H_5$, subgoal $SG_1$ holds.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- \overline{v: \tau, none}
+-----------------------------------------------[List-Expression]
+S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
+~
+we prove subgoal $SG_2$.
+
+#### Case Unary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- \diamond e : t, d
+H_2: <\zeta, \xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
+~
+and inductive hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : t, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- \diamond v : t, d
+~
+
+By inversion on $H_1$ and $H_2$ we get the following subcases:
+
+##### Subcase Not
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- !e : @bool, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bool, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bool, d
+H_3: S,D,G |- e : @bool, d
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- !v : @bool, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bool, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : @bool, d
+----------------------[Not]
+S,D,G |- !v : @bool, d
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Bitwise-Not
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bit<w>, d
+H_3: S,D,G |- e : @bit<w>, d
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- {\texttt{\textasciitilde}v} : @bit<w>, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bit<w>, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : @bit<w>, d
+-------------------------------------------------[Bitwise-Not]
+S,D,G |- {\texttt{\textasciitilde}v} : @bit<w>, d
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Negate
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- -e : t, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : t, d
+H_3: S,D,G |- e : t, d
+H_7: @numeric(t)
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- -v : t, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : t, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : t, d
+@numeric(t)
+----------------------[Negate]
+S,D,G |- -v : t, d
+~
+we prove subgoal $SG_2$.
+
+#### Case Binary-Op
+
+TODO
 
 ## Type Soundness of Statements
 

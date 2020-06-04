@@ -2949,8 +2949,330 @@ S,D,G |- -v : t, d
 we prove subgoal $SG_2$.
 
 #### Case Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t_2, d_2
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : t, @binaryDir(d_1, d_2)
+~
 
-TODO
+By inversion on $H_1$ and $H_2$ we get the following subcases:
+
+##### Subcase Bool-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bool, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bool, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bool, d_2
+H_3: S,D,G |- e_1 : @bool, d_1
+H_4: S,D,G |- e_2 : @bool, d_2
+H_5: \diamond \in \{ \&\&, || \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bool, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bool, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bool, d_1
+S,D,G |- v_2 : @bool, d_2
+\diamond \in \{ \&\&, || \}
+------------------------------------------------------------------[Bool-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @int, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @int, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @int, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @int, d_2
+H_3: S,D,G |- e_1 : @int, d_1
+H_4: S,D,G |- e_2 : @int, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @int, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @int, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @int, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @int, d_1
+S,D,G |- v_2 : @int, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+------------------------------------------------------------------[Int-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @int, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Signed-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @int<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @int<w>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @int<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @int<w>, d_2
+H_3: S,D,G |- e_1 : @int<w>, d_1
+H_4: S,D,G |- e_2 : @int<w>, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @int<w>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @int<w>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @int<w>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @int<w>, d_1
+S,D,G |- v_2 : @int<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+------------------------------------------------------------------[Int-Signed-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @int<w>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Unsigned-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<w>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<w>, d_2
+H_3: S,D,G |- e_1 : @bit<w>, d_1
+H_4: S,D,G |- e_2 : @bit<w>, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<w>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bit<w>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bit<w>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<w>, d_1
+S,D,G |- v_2 : @bit<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+------------------------------------------------------------------[Int-Unsigned-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<w>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Equality-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, d_2
+H_3: S,D,G |- e_1 : t, d_1
+H_4: S,D,G |- e_2 : t, d_2
+H_{12}: \mathkw{has\_equality}(t)
+H_5: \diamond \in \{ ==,!= \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : t, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : t, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : t, d_1
+S,D,G |- v_2 : t, d_2
+\diamond \in \{ ==,!= \}
+------------------------------------------------------------------[Equality-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Bit-Concat-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \mathbin{++} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{++} v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<l>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<l>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<r>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<r>, d_2
+H_3: S,D,G |- e_1 : @bit<l>, d_1
+H_4: S,D,G |- e_2 : @bit<r>, d_2
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{++} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bit<l>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bit<r>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<l>, d_1
+S,D,G |- v_2 : @bit<r>, d_2
+------------------------------------------------------------------[Bit-Concat-Op]
+S,D,G |- v_1 \mathbin{++} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Shift-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t_2, d_2
+H_3: S,D,G |- e_1 : t_1, d_1
+H_4: S,D,G |- e_2 : t_2, d_2
+H_{12}: @numeric(t_1)
+H_{13}: t_2 = @bit<\_> \lor t_2 = @int
+H_5: \diamond \in \{\ll, \gg\}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : t_1, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : t_2, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : t_1, d_1
+S,D,G |- v_2 : t_2, d_2
+@numeric(t_1)
+t_2 = @bit<\_> \lor t_2 = @int
+\diamond \in \{\ll, \gg\}
+------------------------------------------------------------------[Shift-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : t_1, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+#### Case Bool-Cast-True
 
 ## Type Soundness of Statements
 

@@ -73,14 +73,12 @@ stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
 stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
 stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
 stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156
-stf,examples/checker_tests/good/stack_complex-bmv2.p4,,167
 stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,155
 stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,192
 stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
 stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
 stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,109
-stf,examples/checker_tests/good/issue1768-bmv2.p4,mark_to_drop extern unimplemented,109
 stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
 stf,examples/checker_tests/good/equality-varbit-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
 stf,examples/checker_tests/good/issue1755-1-bmv2.p4,implicit cast not done on integer arguments to advance,155
@@ -98,6 +96,5 @@ stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error messa
 stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create and add),156
 stf,examples/checker_tests/good/checksum1-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
 stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/issue774-4-bmv2.p4,passing dontcare as an out argument causes crash,173
 stf,examples/checker_tests/good/header-bool-bmv2.p4,non byte aligned extract,174
 stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enums broken,176

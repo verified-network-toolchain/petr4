@@ -171,17 +171,33 @@ module Corize (T : Target) : Target = struct
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
+    let f n t = 
+      (Bigint.(n + width_of_typ env t), val_of_bigint env t (bitstring_slice n Bigint.(width_of_typ env t + n - one) n)) in
+    let fieldvals_of_recordtype (rt : RecordType.t) =
+      let names = List.map ~f:(fun x -> x.name) rt.fields in
+      let typs = List.map ~f:(fun x -> x.typ) rt.fields in
+      let vs = List.fold_map typs ~init:Bigint.zero ~f:f in
+      List.zip_exn names (snd vs) in
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true
     | Int {width} -> 
       VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Bit {width} ->
       VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
-    | Array {typ;size} -> failwith "TODO: array of bigint"
-    | Tuple _ -> failwith "TODO: tuple of bigint"
-    | Record _ -> failwith "TODO: record_of_bigint"
-    | Header _ -> failwith "TODO: header of bigint"
-    | Struct _ -> failwith "TODO: struct of bigint"
+    | Array {typ;size} ->
+      let init = List.init size ~f:(fun x -> x) in
+      let width = width_of_typ env typ in
+      let hdrs = 
+        List.fold_map init 
+        ~init:Bigint.zero 
+        ~f:(fun acc _ -> (Bigint.(acc + width), val_of_bigint env typ (bitstring_slice n Bigint.(width + acc - one) acc))) in
+      VStack {headers = snd hdrs;size=Bigint.of_int size;next=Bigint.zero}
+    | List {types} | Tuple {types} ->
+      let vs = List.fold_map types ~init:Bigint.zero ~f:f in
+      VTuple (snd vs)
+    | Record rt -> VRecord (fieldvals_of_recordtype rt)
+    | Header rt -> VHeader {fields=fieldvals_of_recordtype rt;is_valid=true}
+    | Struct rt -> VStruct {fields=fieldvals_of_recordtype rt}
     | Enum {typ = Some t;_} -> val_of_bigint env t n
     | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
     | NewType nt -> val_of_bigint env nt.typ n

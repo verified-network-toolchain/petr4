@@ -788,7 +788,7 @@ t \mathrel{\prec} @newtype X t
 S,D,G |- e : t_0, d
 t_0 \prec t
 ------------------------[Cast]
-S,D,G |- (t) e : t, d
+S,D,G |- (t) e : t, @none
 ~
 
 ### Member expressions
@@ -1791,14 +1791,14 @@ x \neq @verify
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 -------------------------------------------------------------------------------[Bool-Cast-True]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
 n \neq 1
 -------------------------------------------------------------------------------[Bool-Cast-False]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 
 $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $\mathkw{to2s}(a)$ is the result of converting $a$ to two's complement.
@@ -3273,6 +3273,88 @@ S,D,G |- v_1 \mathbin{\diamond} v_2 : t_1, @binaryDir(d_1, d_2)
 we prove subgoal $SG_2$.
 
 #### Case Bool-Cast-True
+We have hypotheses:
+~ MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@bool) e : @bool, @none
+H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1> \Rightarrow S,D,G \models \xi' \wedge \Rightarrow S,D,G |- 1_u^1 : t_0, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- @true : @bool, @none
+~
+
+$SG_2$ is true by constructing rule-instance:
+~ Infer
+
+------------------------[Bool-True]
+ S,D,G |- @true : @bool, @none
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : t_0, d
+H_4: t_0 \prec @bool
+~
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- 1_u^1 : t_0, d
+~
+By $H_6$ we prove subgoal $SG_1$.
+
+#### Case Bool-Cast-False
+We have hypotheses:
+~ MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@bool) e : @bool, @none
+H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1> \Rightarrow S,D,G \models \xi' \wedge \Rightarrow S,D,G |- n_u^1 : t_0, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- @false : @bool, @none
+~
+
+$SG_2$ is true by constructing rule-instance:
+~ Infer
+
+------------------------[Bool-False]
+ S,D,G |- @false : @bool, @none
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : t_0, d
+H_4: t_0 \prec @bool
+~
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- n_u^1 : t_0, d
+~
+By $H_6$ we prove subgoal $SG_1$.
 
 ## Type Soundness of Statements
 

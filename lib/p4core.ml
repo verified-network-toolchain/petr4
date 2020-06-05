@@ -275,7 +275,36 @@ module Corize (T : Target) : Target = struct
 
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : buf =
-    if is_valid then packet_of_struct env t fields else Cstruct.empty
+    let rec underlying_typ_of_enum env t =
+      match t with
+      | Typed.Type.Enum et -> Option.value_exn et.typ
+      | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
+      | NewType nt -> nt.typ |> underlying_typ_of_enum env
+      | _ -> failwith "no such underlying type" in
+    let f = fun (accw, accv) (w,v) ->
+      Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
+    let rec wv_of_val (v, t) = match v with
+      | VBit{w;v} -> w, v
+      | VInt{w;v} -> w, of_twos_complement v w
+      | VVarbit{max;w;v} -> w, v
+      | VBool true -> Bigint.one, Bigint.one
+      | VBool false -> Bigint.one, Bigint.zero
+      | VSenumField{v;_} -> wv_of_val (v, underlying_typ_of_enum env t)
+      | VStruct {fields;} ->
+        let fs = reset_fields env fields t in
+        let fs' = List.map ~f:snd fs in
+        let fts = field_types_of_typ env t in
+        List.zip_exn fs' fts |> List.map ~f:wv_of_val
+        |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f
+      | _ -> failwith "invalid type for header field" in
+    if not is_valid then Cstruct.empty else
+    let fts = field_types_of_typ env t in
+    let w, v = reset_fields env fields t
+      |> List.map ~f:snd
+      |> (fun a -> List.zip_exn a fts)
+      |> List.map ~f:wv_of_val
+      |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f in
+    packet_of_bit w v
 
   and packet_of_stack (env : env) (t : Type.t) (headers : value list) : buf =
     let t' = match t with

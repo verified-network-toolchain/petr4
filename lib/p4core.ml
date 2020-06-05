@@ -150,6 +150,7 @@ module Corize (T : Target) : Target = struct
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
+      | [(VRuntime {loc;_}, _); (VInteger v, _)] -> loc, v
       | _ -> failwith "unexpected args for advance" in
     let obj = State.get_packet st in
     let pkt = obj.main in 
@@ -167,7 +168,7 @@ module Corize (T : Target) : Target = struct
                             | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
                               eval_advance ctrl env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
                             | _ -> eval_extract' ctrl env st t pkt v1 Bigint.zero true)
-    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (assert_bit v2 |> snd) false
+    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (bigint_of_val v2) false
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =

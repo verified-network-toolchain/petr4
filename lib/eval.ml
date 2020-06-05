@@ -918,7 +918,10 @@ module MakeInterpreter (T : Target) = struct
     let (env', st', s, v1)  = eval_expr ctrl env st SContinue e in
     let (env'', st'', s', v2) = eval_expr ctrl env' st SContinue m in
     match (s,s') with
-    | SContinue, SContinue -> (env'', st'', s, VSet(SMask{v=v1;mask=v2}))
+    | SContinue, SContinue ->
+      let v1' = implicit_cast env v1 (snd e).typ in
+      let v2' = implicit_cast env v2 (snd m).typ in
+      (env'', st'', s, VSet(SMask{v=v1';mask=v2'}))
     | SReject _,_ -> (env',st',s,VNull)
     | _,SReject _ -> (env'',st'',s',VNull)
     | _ -> failwith "unreachable"
@@ -1368,9 +1371,17 @@ module MakeInterpreter (T : Target) = struct
     v |> bigint_of_val |> (Bigint.(=) n)
 
   and values_match_mask (vs : value list) (v1 : value) (v2 : value) : bool =
+    let implicit_cast v n =
+      implicit_cast EvalEnv.empty_eval_env v (Bit {width = n |> Bigint.to_int_exn}) in
     let two = Bigint.(one + one) in
     let v = assert_singleton vs in
-    let (a,b,c) = assert_bit v, assert_bit v1, assert_bit v2 in
+    print_endline "got to values match mask";
+    let (a,b,c) = match v, v1, v2 with
+      | VBit{w;_}, _, _ -> v, implicit_cast v1 w, implicit_cast v2 w
+      | _, VBit{w;_}, _ -> implicit_cast v w, v1, implicit_cast v2 w
+      | _, _, VBit{w;_} -> implicit_cast v w, implicit_cast v1 w, v2
+      | _ -> failwith "unable to infer type of mask" in
+    let (a,b,c) = assert_bit a, assert_bit b, assert_bit c in
     let rec h (w0,b0) (w1,b1) (w2,b2) =
       if not (Bigint.(w0 = w1) && Bigint.(w1 = w2))
       then false
@@ -1508,8 +1519,7 @@ module MakeInterpreter (T : Target) = struct
     | VStruct {fields;_} -> 
       st', pkt, 
       find_exn fields "egress_port"
-      |> assert_bit
-      |> snd
+      |> bigint_of_val
     | _ -> failwith "TODO" end
 
   and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : buf) 

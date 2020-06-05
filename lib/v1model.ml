@@ -237,7 +237,7 @@ module PreV1Switch : Target = struct
 
   let eval_hash : extern = fun ctrl env st ts args ->
     let width = match ts with
-      | o :: _ -> print_endline "width_of_typ called here"; width_of_typ env o
+      | o :: _ -> width_of_typ env o
       | _ -> failwith "missing type args for hash" in
     let (algo, base, data, rmax) = match args with
       | [_; (VEnumField {enum_name=algo;_}, _);
@@ -274,9 +274,8 @@ module PreV1Switch : Target = struct
 
   let eval_verify_checksum : extern = fun ctrl env st ts args ->
     let width = match ts with
-      | _ :: o :: _ -> print_endline "width_of_type called in verify"; width_of_typ env o
+      | _ :: o :: _ -> width_of_typ env o
       | _ -> failwith "unexpected type args for verify checksum" in
-    print_endline "call in verify successful";
     let (condition, data, checksum, algo) = match args with
       | [(VBool condition,_); (VTuple data, _);
         (VBit{v;_}, _); (VEnumField{enum_name;_},_)] ->

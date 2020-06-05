@@ -944,14 +944,17 @@ module MakeInterpreter (T : Target) = struct
   and eval_header_mem (ctrl : ctrl) (env : env) (st : state) (fname : string)
       (e : Expression.t) (fs : (string * value) list)
       (valid : bool) : env * state * signal * value =
-    let (env', st', signal, lv) = lvalue_of_expr ctrl env st SContinue e in
+    (* print_endline (Info.to_string (fst e)); *)
     match fname with
-    | "isValid"
     | "setValid"
     | "setInvalid" -> 
-      begin match signal, lv with
-        | SContinue, Some lv -> env', st', SContinue, VBuiltinFun{name=fname;caller=lv}
-        | _, _ -> env', st', signal, VNull end
+      let (_, _, _, lv) = lvalue_of_expr ctrl env st SContinue e in
+      env, st, SContinue, VBuiltinFun{name=fname;caller=Option.value_exn lv}
+    | "isValid" ->
+      begin try 
+        let (_, _, _, lv) = lvalue_of_expr ctrl env st SContinue e in
+        env, st, SContinue, VBuiltinFun{name=fname; caller=Option.value_exn lv}
+      with _ -> failwith "TODO: edge case with header isValid()" end 
     | _ -> (env, st, SContinue, T.read_header_field valid fs fname)
 
   and eval_union_mem (ctrl : ctrl) (env : env) (st : state)

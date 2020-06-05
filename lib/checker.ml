@@ -470,9 +470,9 @@ and infer_type_arguments env ret type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
     | Some arg ->
-       CheckerEnv.insert_type (BareName (Info.dummy, type_var)) arg env, (type_var, arg) :: args, unknowns
+       CheckerEnv.insert_type (BareName (Info.dummy, type_var)) arg env, args @ [(type_var, arg)], unknowns
     | None ->
-       CheckerEnv.insert_type_var (BareName (Info.dummy, type_var)) env, args, type_var :: unknowns
+       CheckerEnv.insert_type_var (BareName (Info.dummy, type_var)) env, args, unknowns @ [type_var]
   in
   let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =

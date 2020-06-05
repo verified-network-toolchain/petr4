@@ -44,11 +44,12 @@ let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
 
 let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   let rec partition_bytes len v =
+    if Bigint.(len = zero) then [] else
     let msb = Bigint.(len-one) in
     let byte_lower = Bigint.(len - of_int 8) in
     let hd = Bitstring.bitstring_slice v msb byte_lower in
     hd :: partition_bytes
-      Bigint.(byte_lower - one)
+      byte_lower
       (bitstring_slice v Bigint.(byte_lower-one) Bigint.zero) in
   let bytes = partition_bytes length v in
   let f crc c =

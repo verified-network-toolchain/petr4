@@ -2005,7 +2005,7 @@ n_{next} \lt 1
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk>
 <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}
+<\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}>
 @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 -------------------------------------------------------------------------------[Function-Action]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma''', \mathkw{sig\_continue}, v>
@@ -2223,7 +2223,7 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 
 Statements are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \rangle$
+$<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~
 
 ~ Infer
@@ -2578,9 +2578,45 @@ L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig, @lvalue t x,
 \mathkw{lv\_of\_expr} \zeta \xi \sigma = (\xi', \sigma', sig, @lvalue t x) \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi
 ~
 
-#### Proof of Lemma
+#### Proof
 
 TODO!
+
+### Lemma Copyin Sustains Entailment
+~MathPre
+L_2: \forall \xi,x,t,d,v,\xi',S,D,G
+\mathkw{copyin} \xi (x:t,d) v = \xi' \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi'
+~
+
+#### Proof
+
+TODO!
+
+### Lemma Copyout Sustains Entailment
+~MathPre
+L_3: \forall \zeta, \xi_1, \xi_2 \, \sigma, x, t, d, e, \xi_3, S, D, G,
+\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3
+~
+
+#### Proof
+
+TODO!
+
+### Lemma Push Sustains Entailment
+~MathPre
+L_4: \forall S,D,G,\xi,
+S,D,G \models \xi \Rightarrow S,D,G \models @push \xi
+~
+
+#### Proof
+
+TODO!
+
+### Lemma Pop Sustains Entailment
+~MathPre
+L_5: \forall S,D,G,\xi,
+S,D,G \models \xi \Rightarrow S,D,G \models @pop \xi
+~
 
 ## Type Soundness of Expressions
 
@@ -3845,10 +3881,58 @@ H_9: S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, \_
 ~
 which proves our subgoal $SG_1$.
 
+#### Case Function-Action
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
+H_2: <\zeta, \xi, \sigma, f<\overline{\rho}>(\overline{e})> \Downarrow_e <\xi''''', \sigma''', \mathkw{sig\_continue}, v>
+~
+We have induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_ \Rightarrow <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{x:t,d}) \Rightarrow blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+I_2: S,D,G \models \xi' \Rightarrow P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'' \wedge P,S,D[\overline{X \to \rho}],G \vdash \overline{v:t}
+I_3: S,D,G,ctx |- blk:\mathkw{sig\_return\ v} -| G' \Rightarrow <\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}> \Rightarrow S,D,G \models \xi''' \Rightarrow S,D,G' \models \xi''''
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'''''
+SG_2: S,D,G |- v : \tau_{\mathsf{ret}}, @none
+~
+By inversion on $H_1$ and $H_2$ we amass hypotheses:
+~MathPre
+H_3: S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+H_4: P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+H_5: <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk>
+H_6: <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+H_7: @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+H_8: <\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}>
+H_9: @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we score hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi'
+H_{11}: S,D,G |- (\overline{x:t,d}) \Rightarrow blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+~
+Via the application $I_2 \, H_{10} \, H_4 \, H_6$ we nab hypotheses:
+~MathPre
+H_{12}: S,D,G \models \xi''
+H_{13}: P,S,D[\overline{X \to \rho}],G \vdash \overline{v:t}
+~
+Via the application $L_2 \, H_7 \, (L_4 \, H_{12})$ we win hypothesis:
+~MathPre
+H_{14}: S,D,G \models \xi'''
+~
+TODO: stuck...how to show block $blk$ type checks?
+Then, how do I show that result $v$ type-checks?
+
 ## Type Soundness of Statements
 
 ### Statement Type Preservation Theorem Statement
-TODO
+~MathPre
+\forall S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma',
+S,D,G,ctx |- s:sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi \Rightarrow S,D,G' \models \xi'
+~
 
 ### Statement Type Preservation Proof
 TODO

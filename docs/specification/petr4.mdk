@@ -1738,10 +1738,10 @@ x \neq @verify
 ### Accesses
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------[Array-Access]
-<\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+<\zeta, \xi, \sigma, e_1[e_2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
 
 ~ Infer
@@ -1774,11 +1774,11 @@ x \neq @verify
 ### Binary Operations
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 \diamond \in \{ +, |+|, -, |-|, *, /, \%, \ll, \gg, \lt, \gt, \leq, \geq, ==, !=, \&, \hat{}, |, ++, \&\&, || \}
 -------------------------------------------------------------------------------[Binary-Op]
-<\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+<\zeta, \xi, \sigma, e_1 \diamond e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \diamond v_2>
 ~
 
 ### Casts
@@ -2206,17 +2206,17 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 ### Set Operations
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma, e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Masks]
-<\zeta, \xi, \sigma, e1 \texttt{\&\&\&} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \texttt{\&\&\&} v2>
+<\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma, e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Ranges]
-<\zeta, \xi, \sigma, e1 \mathbin{..} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{..} v2>
+<\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
 ~
 
 ## Statements and Blocks
@@ -2548,7 +2548,7 @@ $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} 
 
 # Type Soundness
 
-## The Satisifes Relation
+## Context Entailment
 
 In order to prove type soundness under big-step semantics, we must define a relation
 ~MathPre
@@ -2558,18 +2558,43 @@ where
 ~MathPre
 S,D,G \models \xi
 ~
-means that the typing context satisfies the evaluation context. Intuitively, a typing context satisfies an evaluation context if all of the variables in the typing context have the same type as their respective values they map to in the evaluation context. Here is a formal definition:
-~ Infer
+means that the typing context satisfies the evaluation context.
+Intuitively, a typing context satisfies an evaluation context if all of the variables in the typing context have the same type as their respective values they map to in the evaluation context.
 
-----------------------[Satisifes-Empty]
-S,D,[] \models P,[],D
+This entailment relation is defined in terms of a sub-relation
+~MathPre
+S,D,G \square \epsilon
+~
+which is $\models$ per-scope.
+
+Here is a formal definition:
+~Infer
+
+------------------[Entails-Empty-Scope]
+S,D,G \square []
 ~
 
 ~Infer
-S,D,G \models P,E,D
+S,D,(G,\gamma) \square \epsilon
+\exists x,t,d,\gamma, (x:t,d) \in \gamma \in G
 S,D,G |- v : t, d
---------------------------------[Satisifes-Variable]
-S,D,G, x : t,d \models P,E,x=v,D
+------------------------------------[Entails-Variable-Scope]
+S,D,G \square \epsilon,(x=v)
+~
+
+
+~ Infer
+
+----------------------[Entails-Empty-Environment]
+S,D,G \models P,[],D,\nu
+~
+
+
+~Infer
+S,D,G \models P,E,D,\nu
+S,D,G \square \epsilon
+--------------------------------------------[Entails-Environment]
+S,D,G \models P,(E,\epsilon),D,\nu
 ~
 
 ### Lemma $\mathkw{lv\_of\_expr}$ Sustains Entailment
@@ -2585,18 +2610,77 @@ TODO!
 ### Lemma Copyin Sustains Entailment
 ~MathPre
 L_2: \forall \xi,x,t,d,v,\xi',S,D,G
-\mathkw{copyin} \xi (x:t,d) v = \xi' \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi'
+S,D,G |- v : t, d \Rightarrow \mathkw{copyin} \xi (x:t,d) v = \xi' \Rightarrow S,D,G \models \xi \Rightarrow S,D,G[x:t,d] \models \xi'
 ~
+TODO...I am not sure this is provable...maybe should be a new typing context...
+adding $x:t$ to the empty context
+
 
 #### Proof
+Introducing variables:
+~MathPre
+\xi,x,t,d,v,\xi',S,D,G
+~
+and hypotheses
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi'
+H_2: S,D,G \models \xi
+~
+we wish to prove the goal:
+~MathPre
+S,D,G[x:t,d] \models \xi'
+~
+by case-analysis on $H_0$.
 
-TODO!
+##### Case $d = out$
+We have equation and hypotheses:
+~MathPre
+E_0: d = @out
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi
+H_2: S,D,G \models \xi
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models \xi
+~
+TODO...I am not sure this is possible...maybe should be a new typing context...
+
+##### Case $d \neq out$
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
+H_2: S,D,G \models \xi'
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models \xi[v/x]
+~
+TODO...I am not sure this is possible...maybe should be a new typing context...
+
+###### Subcase $E = []$
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
+H_2: S,D,G \models P,[],D,\nu
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models P,([],(x=v)),D,\nu
+~
+
+TODO...may not be provable...
 
 ### Lemma Copyout Sustains Entailment
 ~MathPre
 L_3: \forall \zeta, \xi_1, \xi_2 \, \sigma, x, t, d, e, \xi_3, S, D, G,
-\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3
+\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3[x:t,d]
 ~
+TODO...I think this is a malformed proposition...
+
 
 #### Proof
 
@@ -3925,6 +4009,98 @@ H_{14}: S,D,G \models \xi'''
 ~
 TODO: stuck...how to show block $blk$ type checks?
 Then, how do I show that result $v$ type-checks?
+
+#### Case Masks
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
+H_2: <\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<w>, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<w>, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<w>, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<w>, \_
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \texttt{\&\&\&} v_2 : @set<@bit<w>>,@none
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bit<w>, \_
+H_4: S,D,G |- e_2 : @bit<w>, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_6: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- v_1 : @bit<w>, \_
+~
+Under the aegis of application $I_2 \, H_7 \, H_4 \, H_6$ we secure hypotheses:
+~MathPre
+H_9: S,D,G \models \xi''
+H_{10}: S,D,G |- v_2 : @bit<w>, \_
+~
+$H_9$ proves $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<w>, \_
+S,D,G |- v_2 : @bit<w>, \_
+------------------------------------------------[Masks]
+S,D,G |- v_1 \texttt{\&\&\&} v_2 : @set<@bit<w>>,@none
+~
+we prove $SG_2$.
+
+#### Case Ranges
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
+H_2: <\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : \tau, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : \tau, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : \tau, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : \tau, \_
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1\mathbin{..}v_2 : @set<\tau>, @none
+~
+By inversion on hypotheses $H_1$ and $H_2$ we land hypotheses:
+~MathPre
+H_3: S,D,G |- v_1 : \tau, \_
+H_4: S,D,G |- v_2 : \tau, \_
+H_5: \tau = @bit<w> \lor \tau = @int<w>
+H_6: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_7: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+~
+By dint of application $I_1 \, H_0 \, H_3 \, H_6$ we obtain hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : \tau, \_
+~
+By virtue of application $I_2 \, H_8 \, H_4 \, H_7$ we get hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : \tau, \_
+~
+$H_{10}$ proves $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : \tau, \_
+S,D,G |- v_2 : \tau, \_
+\tau = @bit<w> \lor \tau = @int<w>
+-------------------------[Ranges]
+S,D,G |- v_1\mathbin{..}v_2 : @set<\tau>, @none
+~
+we prove $SG_2$.
 
 ## Type Soundness of Statements
 

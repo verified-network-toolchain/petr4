@@ -1375,7 +1375,6 @@ module MakeInterpreter (T : Target) = struct
       implicit_cast EvalEnv.empty_eval_env v (Bit {width = n |> Bigint.to_int_exn}) in
     let two = Bigint.(one + one) in
     let v = assert_singleton vs in
-    print_endline "got to values match mask";
     let (a,b,c) = match v, v1, v2 with
       | VBit{w;_}, _, _ -> v, implicit_cast v1 w, implicit_cast v2 w
       | _, VBit{w;_}, _ -> implicit_cast v w, v1, implicit_cast v2 w

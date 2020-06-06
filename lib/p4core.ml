@@ -56,11 +56,18 @@ module Corize (T : Target) : Target = struct
            let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
            let fields = List.zip_exn field_names field_vals in
            (n, s), VStruct{fields}
+        | VSenumField {typ_name; enum_name; v} ->
+          extract_senum typ_name enum_name v nvarbits (n, s)
         | _ -> raise_s [%message "invalid header field type"
                       ~v:(v:value)]
       end
     | SReject _ -> ((n,s),VNull)
     | _ -> failwith "unreachable"
+
+  and extract_senum (typ_name : string) (enum_name : string) (v : value)
+      (nvarbits : Bigint.t) (n, s) : ((Bigint.t * Bigint.t) * signal) * value =
+    let (x, v) = extract_hdr_field nvarbits (n, s) v in
+    x, VSenumField{typ_name; enum_name; v}
 
   and extract_bit (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =

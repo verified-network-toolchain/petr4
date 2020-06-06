@@ -1272,12 +1272,14 @@ end = struct
     | VTuple l -> l
     | _ -> failwith "not a tuple"
 
-  let assert_set v w =
+  let rec assert_set v w =
     match v with
     | VSet s -> s
     | VInteger i -> SSingleton{w;v=i}
     | VInt {v=i;_} -> SSingleton{w;v=i}
     | VBit{v=i;_} -> SSingleton{w;v=i}
+    | VSenumField{v;_} -> assert_set v w
+    | VEnumField _ -> failwith "enum field not a set"
     | _ -> failwith "not a set"
 
   let assert_error v =

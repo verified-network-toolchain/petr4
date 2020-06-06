@@ -1992,17 +1992,17 @@ n_{next} \lt 1
 ### Ternary Expression
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', sig_1, true>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', sig_2, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 -------------------------------------------------------------------------------[Ternary-Op-True]
-<\zeta, \xi, \sigma, e1 ? e2 : e3> \Downarrow_e <\xi'', \sigma'', sig_2, v2>
+<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', sig_1, false>
-<\zeta, \xi', \sigma', e3> \Downarrow_e <\xi'', \sigma'', sig_2, v3>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+<\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 -------------------------------------------------------------------------------[Ternary-Op-False]
-<\zeta, \xi, \sigma, e1 ? e2 : e3> \Downarrow_e <\xi'', \sigma'', sig_2, v3>
+<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 
 ### Function Calls
@@ -3677,6 +3677,179 @@ S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ uni
 S,D,G |- v : t_{name}, @none
 ~
 we prove subgoal $SG_2$.
+
+#### Case Array-Size-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@size : @bit<32>, @none
+H_2: <\zeta, \xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- {n_{size}}_u^{32} : @bit<32>, @none
+~
+By inversion on $H_1$ and $H_2$ we acquire hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @size @bit<32>
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we obtain the hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$SG_1$ is proven by $H_6$.
+
+TODO: maybe need to modify fixed-int type-checking...
+
+#### Case Array-Next-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@next : t, @none
+H_2: <\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v_{n_{next}} : t, @none
+~
+By inversion on $H_1$ and $H_2$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @next t
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$H_6$ proves subgoal $SG_1$.
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+\mathkw{has\_field} t[a] @next t
+------------------------------------[Expression-Member]
+S,D,G |- v_{n_{next}} : t, @none
+~
+$SG_2$ is proven.
+
+#### Case Array-Last-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@last : t, @none
+H_2: <\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v_{n_{next} - 1} : t, @none
+~
+By inversion on $H_1$ and $H_2$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @last t
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$H_6$ proves subgoal $SG_1$.
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+\mathkw{has\_field} t[a] @last t
+------------------------------------[Expression-Member]
+S,D,G |- v_{n_{next} - 1} : t, @none
+~
+$SG_2$ is proven.
+
+#### Case Ternary-Op-True
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
+H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @true : @bool, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG_1: S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, @none
+~
+By inversion on $H_1$ and $H_2$ we attain hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bool, \_
+H_4: S,D,G |- e_2 : t, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+H_6: <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- @true : @bool, \_
+~
+Via the application $I_2 \, H_7 \, H_4 \, H_6$ we gain hypothesis:
+~MathPre
+H_9: S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, \_
+~
+which proves our subgoal $SG_1$.
+
+#### Case Ternary-Op-False
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
+H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @false : @bool, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_3 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG_1: S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, @none
+~
+By inversion on $H_1$ and $H_2$ we attain hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bool, \_
+H_4: S,D,G |- e_3 : t, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+H_6: <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- @false : @bool, \_
+~
+Via the application $I_2 \, H_7 \, H_4 \, H_6$ we gain hypothesis:
+~MathPre
+H_9: S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, \_
+~
+which proves our subgoal $SG_1$.
 
 ## Type Soundness of Statements
 

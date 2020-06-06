@@ -888,12 +888,6 @@ S,D,G |- e.name : t_{name}, @none
 
 ~ Infer
 
--------------------------------------------------------------------[Array-NextIndex-Field]
-\mathkw{has\_field} t[a] @nextIndex @bit<32>
-~
-
-~ Infer
-
 -------------------------------------------------------------------[Array-LastIndex-Field]
 \mathkw{has\_field} t[a] @lastIndex @bit<32>
 ~

@@ -1645,7 +1645,6 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
      let idx_typ = Bit { width = 32 } in
      begin match snd name with
      | "size"
-     | "nextIndex"
      | "lastIndex" ->
         idx_typ
      | "next"

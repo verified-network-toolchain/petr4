@@ -3394,13 +3394,13 @@ and type_serializable_enum env info annotations underlying_type name members =
        |> CheckerEnv.insert_const member_name
             (VEnumField { typ_name = snd name;
                           enum_name = member }),
-       members_typed @ [ member_info, member ]
+       members_typed @ [ (member_info, member), expr_typed ]
     | None -> failwith "could not evaluate enum member"
   in
   let env = CheckerEnv.insert_type (QualifiedName ([], name)) enum_type env in
   let env, member_names = List.fold_left ~f:add_member ~init:(env, []) members in
   let enum_typed =
-    Prog.Declaration.Enum { annotations; name; members = member_names } in
+    Prog.Declaration.SerializableEnum { annotations; typ=enum_type; name; members = member_names } in
   (info, enum_typed), env
 
 (* Section 7.2.9.2

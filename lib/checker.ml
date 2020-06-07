@@ -1061,7 +1061,7 @@ and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
      | Function _, _ -> false
      | _ -> true
      end
-          
+
 and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
   if not (is_well_formed_type env typ)

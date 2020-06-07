@@ -337,21 +337,23 @@ let bool_of_val (v : V.value) : V.value =
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
   | _ -> failwith "cast to bool undefined"
 
-let bit_of_val (width : int) (v : V.value) : V.value =
+let rec bit_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VInt{v=n;_}
   | VBit{v=n;_}
   | VInteger n -> bit_of_rawint n w
   | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
+  | VSenumField{v;_} -> bit_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let int_of_val (width : int) (v : V.value) : V.value =
+let rec int_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VBit{v=n;_}
   | VInt{v=n;_}
   | VInteger n -> int_of_rawint n w
+  | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
 let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)

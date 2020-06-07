@@ -1239,9 +1239,10 @@ end = struct
     | VInteger n -> n
     | _ -> failwith "not an variable-size integer"
 
-  let assert_bit v =
+  let rec assert_bit v =
     match v with
     | VBit{w;v} -> (w,v)
+    | VSenumField{v;_} -> assert_bit v
     | _ -> raise_s [%message "not a bitstring" ~v:(v:value)]
 
   let assert_int v =
@@ -1249,12 +1250,13 @@ end = struct
     | VInt {w;v} -> (w,v)
     | _ -> failwith "not an int"
 
-  let bigint_of_val v =
+  let rec bigint_of_val v =
     match v with
     | VInt{v=n;_}
     | VBit{v=n;_}
     | VInteger n
     | VVarbit{v=n;_} -> n
+    | VSenumField{v;_} -> bigint_of_val v
     | _ -> failwith "value not representable as bigint"
 
   let assert_varbit v =

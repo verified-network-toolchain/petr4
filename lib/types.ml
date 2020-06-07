@@ -48,6 +48,10 @@ type name =
   | QualifiedName of P4String.t list * P4String.t
   [@@deriving sexp,yojson]
 
+let to_bare : name -> name = function
+  | BareName n
+  | QualifiedName (_,n) -> BareName n
+
 let name_info name : Info.t =
   match name with
   | BareName name -> fst name
@@ -55,7 +59,7 @@ let name_info name : Info.t =
      let infos = List.map fst prefix in
      List.fold_right Info.merge infos (fst name)
 
-let name_eq n1 n2 = 
+let name_eq n1 n2 =
   match n1, n2 with
   | BareName (_, s1),
     BareName (_, s2) ->
@@ -63,7 +67,7 @@ let name_eq n1 n2 =
   | QualifiedName ([], (_, s1)),
     QualifiedName ([], (_, s2)) ->
      s1 = s2
-  | _ -> failwith "unimplemented"
+  | _ -> false
 
 and name_only n =
   match n with
@@ -71,23 +75,23 @@ and name_only n =
   | QualifiedName (_, (_, s)) -> s
 
 module rec KeyValue : sig
-  type pre_t = 
+  type pre_t =
     { key : P4String.t;
-      value : Expression.t } 
+      value : Expression.t }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
 end = struct
-  type pre_t = 
+  type pre_t =
     { key : P4String.t;
-      value : Expression.t } 
+      value : Expression.t }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
 and Annotation : sig
-  type pre_body = 
+  type pre_body =
     | Empty
     | Unparsed of P4String.t list
     | Expression of Expression.t list
@@ -103,7 +107,7 @@ and Annotation : sig
 
   type t = pre_t info [@@deriving sexp,yojson]
 end = struct
-  type pre_body = 
+  type pre_body =
     | Empty
     | Unparsed of P4String.t list
     | Expression of Expression.t list
@@ -151,6 +155,8 @@ and Op : sig
 
   type uni = pre_uni info [@@deriving sexp,yojson]
 
+  val eq_uni : uni -> uni -> bool
+
   type pre_bin =
       Plus
     | PlusSat
@@ -176,6 +182,8 @@ and Op : sig
   [@@deriving sexp,yojson]
 
   type bin = pre_bin info [@@deriving sexp,yojson]
+
+  val eq_bin : bin -> bin -> bool
 end = struct
   type pre_uni =
       Not
@@ -185,6 +193,13 @@ end = struct
 
   type uni = pre_uni info [@@deriving sexp,yojson]
 
+  let eq_uni (_,u1) (_,u2) =
+    match u1,u2 with
+    | Not, Not
+    | BitNot, BitNot
+    | UMinus, UMinus -> true
+    | _ -> false
+
   type pre_bin =
       Plus
     | PlusSat
@@ -210,6 +225,31 @@ end = struct
   [@@deriving sexp,yojson]
 
   type bin = pre_bin info [@@deriving sexp,yojson]
+
+  let eq_bin (_,b1) (_,b2) =
+    match b1,b2 with
+    | Plus, Plus
+    | PlusSat, PlusSat
+    | Minus, Minus
+    | MinusSat, MinusSat
+    | Mul, Mul
+    | Div, Div
+    | Mod, Mod
+    | Shl, Shl
+    | Shr, Shr
+    | Le, Le
+    | Ge, Ge
+    | Lt, Lt
+    | Gt, Gt
+    | Eq, Eq
+    | NotEq, NotEq
+    | BitAnd, BitAnd
+    | BitXor, BitXor
+    | BitOr, BitOr
+    | PlusPlus, PlusPlus
+    | And, And
+    | Or, Or -> true
+    | _ -> false
 end
 
 and Type : sig
@@ -234,7 +274,9 @@ and Type : sig
     | DontCare
   [@@deriving sexp,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,yojson]
+
+  val eq : t -> t -> bool
 end = struct
   type pre_t =
       Bool [@name "bool"]
@@ -256,7 +298,37 @@ end = struct
     | DontCare [@name "dont_care"]
   [@@deriving sexp,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,yojson]
+
+  let rec eq (_,t1) (_,t2) =
+    match t1, t2 with
+    | Bool, Bool
+    | Error, Error
+    | Integer, Integer
+    | String, String
+    | Void, Void
+    | DontCare, DontCare -> true
+    | IntType e1, IntType e2 -> failwith "TODO"
+    | BitType e1, BitType e2 -> failwith "TODO"
+    | VarBit e1, VarBit e2 -> failwith "TODO"
+    | TypeName n1, TypeName n2 ->
+      name_eq n1 n2
+    | SpecializedType { base=b1; args=a1 },
+      SpecializedType { base=b2; args=a2 }
+      -> eq b1 b2 &&
+        begin match Base.List.for_all2 a1 a2 ~f:eq with
+        | Ok tf -> tf
+        | Unequal_lengths -> false
+        end
+    | HeaderStack { header=h1; size=s1 },
+      HeaderStack { header=h2; size=s2 }
+      -> eq h1 h2 && failwith "TODO"
+    | Tuple t1, Tuple t2 ->
+      begin match Base.List.for_all2 t1 t2 ~f:eq with
+      | Ok tf -> tf
+      | Unequal_lengths -> false
+      end
+    | _ -> false
 end
 
 and MethodPrototype : sig
@@ -278,7 +350,7 @@ and MethodPrototype : sig
         type_params: P4String.t list;
         params: Parameter.t list}
         [@@deriving sexp,yojson]
-    
+
   type t = pre_t info [@@deriving sexp,yojson]
 end = struct
   type pre_t =
@@ -299,10 +371,10 @@ end = struct
         type_params: P4String.t list;
         params: Parameter.t list}
     [@@deriving sexp,yojson]
-    
+
   type t = pre_t info [@@deriving sexp,yojson]
 end
-        
+
 and Argument : sig
       type pre_t  =
           Expression of

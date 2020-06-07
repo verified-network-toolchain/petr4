@@ -250,37 +250,40 @@ and value_of_stack_mem_lvalue (name : string) (vs : value list)
   | _ -> failwith "not an lvalue"
 
 let rec assign_lvalue (reader : reader) (writer : writer) (env: env) (lhs : lvalue)
-    (rhs : value) : env * signal =
+    (rhs : value) (inc_next : bool) : env * signal =
   let rhs = implicit_cast env rhs lhs.typ in
   match lhs.lvalue with
   | LName {name} ->
-     begin match EvalEnv.update_val name rhs env with
-     | Some env' -> env', SContinue
-     | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
-     end
+    begin match EvalEnv.update_val name rhs env with
+    | Some env' -> env', SContinue
+    | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
+    end
   | LMember{expr=lv;name=mname;} ->
-     let _, record = value_of_lvalue reader env lv in
-     let rhs', signal = update_member writer record mname rhs in
-     begin match signal with
-     | SContinue -> 
-        assign_lvalue reader writer env lv rhs'
-     | _ -> env, signal
-     end
+    let _, record = value_of_lvalue reader env lv in
+    let rhs', signal = update_member writer record mname rhs inc_next in
+    let rhs' = match rhs' with
+      | VStack{headers; size; next} -> Bigint.(VStack {headers; size; next = next + (if inc_next then one else zero)})
+      | _ -> rhs' in
+    begin match signal with
+      | SContinue ->
+        assign_lvalue reader writer env lv rhs' inc_next
+      | _ -> env, signal
+    end
   | LBitAccess{expr=lv;msb;lsb;} ->
-     let _, bits = value_of_lvalue reader env lv in
-     assign_lvalue reader writer env lv (update_slice bits msb lsb rhs)
+    let _, bits = value_of_lvalue reader env lv in
+    assign_lvalue reader writer env lv (update_slice bits msb lsb rhs) inc_next
   | LArrayAccess{expr=lv;idx;} ->
-     let _, arr = value_of_lvalue reader env lv in
-     let idx = bigint_of_val idx in
-     let rhs', signal = update_idx arr idx rhs in
-     begin match signal with
-     | SContinue -> 
-        assign_lvalue reader writer env lv rhs'
-     | _ -> env, signal
-     end
+    let _, arr = value_of_lvalue reader env lv in
+    let idx = bigint_of_val idx in
+    let rhs', signal = update_idx arr idx rhs in
+    begin match signal with
+      | SContinue -> 
+        assign_lvalue reader writer env lv rhs' inc_next
+      | _ -> env, signal
+    end
 
 and update_member (writer : writer) (value : value) (fname : string)
-    (fvalue : value) : value * signal =
+    (fvalue : value) (inc_next : bool) : value * signal =
   match value with
   | VStruct v ->
      VStruct {fields=update_field v.fields fname fvalue}, SContinue

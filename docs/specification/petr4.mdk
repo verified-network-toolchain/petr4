@@ -193,8 +193,8 @@ P4 Programming Language.
 e ::= @true
     | @false
     | a // arbitrary width integer literal
-    | nwa // unsigned integer literal
-    | nsa // signed integer literal
+    | nwa // unsigned integer literal of size n
+    | nsa // signed integer literal of size n
     | u // strings
     | x // name
     | .x // top level name
@@ -453,7 +453,7 @@ lv ::= lv_o | @None
 ~ Begin P4MathGrammar
 sig ::= \mathkw{sig\_continue}
     | \mathkw{sig\_return} v
-    | \mathkw{sig\_exit} 
+    | \mathkw{sig\_exit}
     | \mathkw{sig\_reject} v
 ~ End P4MathGrammar
 
@@ -570,13 +570,13 @@ S,D,G |- a : @int, @none
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-S,D,G |- nsa : @int<w>, @none
+S,D,G |- nsa : @int<n>, @none
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-S,D,G |- nwa : @bit<a>, @none
+S,D,G |- nwa : @bit<n>, @none
 ~
 
 ### Variables
@@ -609,12 +609,12 @@ S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
 S,D,G |- e_3  : t_3, \_
 @numeric(t_3)
-0 \leq e_2
-e_2 \lt w
-e_2 \geq e_3
-e_3 \lt w
+0 \leq S(e_2)
+S(e_2) \lt w
+S(e_2) \geq S(e_3)
+S(e_3) \lt w
 ------------------------[Slice]
-S,D,G |- e1[e2:e3] : t_1, d_1
+S,D,G |- e1[e2:e3] : bit<S(e_2) - S(e_3) + 1>, d_1
 ~
 
 ~ Infer
@@ -788,7 +788,7 @@ t \mathrel{\prec} @newtype X t
 S,D,G |- e : t_0, d
 t_0 \prec t
 ------------------------[Cast]
-S,D,G |- (t) e : t, d
+S,D,G |- (t) e : t, @none
 ~
 
 ### Member expressions
@@ -807,16 +807,16 @@ S,D,G |- X.m_i:X,@none
 ~ Infer
 G(@error.name) = @error
 -------------------------------------[Error-Member]
-S,D,G |- @error.name : error, @none
+S,D,G |- @error.name : @error, @none
 ~
 
 Field and method lookups on expressions are delegated to another
 judgment $\mathkw{has\_field}\ t\ name\ t_{name}$.
 ~ Infer
-S,D,G, |- e : t
+S,D,G, |- e : t, d
 \mathkw{has\_field} t name t_{name}
 ------------------------------------[Expression-Member]
-S,D,G |- e.name : t_{name}
+S,D,G |- e.name : t_{name}, @none
 ~
 
 ~ Infer
@@ -884,12 +884,6 @@ S,D,G |- e.name : t_{name}
 
 -------------------------------------------------------------------[Array-Size-Field]
 \mathkw{has\_field} t[a] @size @bit<32>
-~
-
-~ Infer
-
--------------------------------------------------------------------[Array-NextIndex-Field]
-\mathkw{has\_field} t[a] @nextIndex @bit<32>
 ~
 
 ~ Infer
@@ -1433,7 +1427,7 @@ $\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 
 $\xi ::= P, E, \Delta, \upsilon$
 
-$P$ is a declaration context representing the program seen so far mapping type names to declarations. 
+$P$ is a declaration context representing the program seen so far mapping type names to declarations.
 $E$ is a value context mapping names to values.
 $\Delta$ is the same as defined in the typing contexts.
 $\upsilon$ is a string namespace used for control plane names.
@@ -1452,26 +1446,26 @@ E ::= E, \epsilon{} | []
 D ::= D, \delta{} | []
 ~
 
-$\sigma ::= (packet, (\overline{name,object}))$ where $object$ is defined by the target. 
+$\sigma ::= (packet, (\overline{name,object}))$ where $object$ is defined by the target.
 $packet$ is used to maintain the state of the packet and $(\overline{name,object})$ is for stateful objects maintained by externs.
 
-$\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$. 
+$\mathkw{push} \xi$ pushes an empty first-level scope onto each context in $\xi$.
 $\mathkw{pop} \xi$ pops the first-level scope off each context in $\xi$ if one exists.
 $\mathkw{first\_lvl} \xi$ is the first-level scope of each context in $\xi$ if one exists.
 
 $\xi[z/x]$ is syntactic sugar for $P[z/x]$, $E[z/x]$, or $\Delta[z/x]$ depending on whether
-$z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar 
+$z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar
 for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, value, or type, respectively.
-$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$ 
+$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$
 are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
 
 $\mathkw{set\_namespace} \xi x$ is $\xi$ with $\upsilon$ set to $x$ and $\mathkw{namespace} \xi$ is $\upsilon$.
-Since $\upsilon$ is a string, the string concatenation operator ^ is used in places. 
+Since $\upsilon$ is a string, the string concatenation operator ^ is used in places.
 
-## Control flow 
-Signals are threaded through expression and statement evaluation. 
+## Control flow
+Signals are threaded through expression and statement evaluation.
 Unless otherwise stated, a signal that is not $\mathkw{sig\_continue}$ will result in
-a no-op that does not change $\xi$ or $\sigma$ and propagates the signal. In cases 
+a no-op that does not change $\xi$ or $\sigma$ and propagates the signal. In cases
 where a value is needed, it will be $\mathkw{None}$ if the input signal is not $\mathkw{sig\_continue}$.
 
 <!--
@@ -1493,7 +1487,7 @@ sig \neq \mathkw{sig\_continue}
 
 ### Sequences
 Evaluating sequences such as $\overline{e}$ implies the evaluation  is performed
-left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through. 
+left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through.
 
 ### Numeric Values
 ~ MathPre
@@ -1547,7 +1541,7 @@ n1 & v = (n1, {n2}_u^w)
 (\xi', \sigma', @singleton w (\mathkw{extract\_num} v)) & \overline{match} = (e) \land \overline{w} = w \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 (\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
 (\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, set> \land set \neq \mathkw{value\_set} ...
-(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n) 
+(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n)
 \end{cases}
 
 
@@ -1589,7 +1583,7 @@ $e$ has type $\tau$.
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
-v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \}) \land (x,v) \in \overline{(name,v)} 
+v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \}) \land (x,v) \in \overline{(name,v)}
 v_{n_{next}\%n_{size}} & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
 (@bitslice (\mathkw{extract\_num} (\mathkw{value\_of\_lv} \xi lv_2)) n1 n2)_u^{(n1-n2+1)} & lv_1 = @lvalue t lv_2[n1:n2]
 v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
@@ -1617,10 +1611,10 @@ If $v$ is a tuple or arbitrary-width integer, $v$ will be cast to type $\tau$ if
 ~
 
 ### LPM Entries
-$\mathkw{sort\_lpm}\ \overline{set}\ n$ is $\overline{set}$ with elements up 
+$\mathkw{sort\_lpm}\ \overline{set}\ n$ is $\overline{set}$ with elements up
 until the first occurrence of $\mathkw{universal}$, if one exists, sorted in descending order by $w$.
 Elements can be of the form $\mathkw{universal}$, $\mathkw{lpm}\ w\ v_1\ v_2$, or
-$\mathkw{product}\ \overline{set}'$. If an element $set_i = \mathkw{product}\ \overline{set}'$ then it 
+$\mathkw{product}\ \overline{set}'$. If an element $set_i = \mathkw{product}\ \overline{set}'$ then it
 is replaced with $set'_n$ where $set'_n = \mathkw{lpm}\ w\ v_1\ v_2$ or $set'_n = \mathkw{universal}$.
 
 $\mathkw{bits}\ n$ is the number of bits not masked by $n$.
@@ -1744,10 +1738,10 @@ x \neq @verify
 ### Accesses
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------[Array-Access]
-<\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+<\zeta, \xi, \sigma, e_1[e_2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
 
 ~ Infer
@@ -1780,25 +1774,25 @@ x \neq @verify
 ### Binary Operations
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 \diamond \in \{ +, |+|, -, |-|, *, /, \%, \ll, \gg, \lt, \gt, \leq, \geq, ==, !=, \&, \hat{}, |, ++, \&\&, || \}
 -------------------------------------------------------------------------------[Binary-Op]
-<\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+<\zeta, \xi, \sigma, e_1 \diamond e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \diamond v_2>
 ~
 
 ### Casts
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 -------------------------------------------------------------------------------[Bool-Cast-True]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
 n \neq 1
 -------------------------------------------------------------------------------[Bool-Cast-False]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 
 $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $\mathkw{to2s}(a)$ is the result of converting $a$ to two's complement.
@@ -1956,7 +1950,7 @@ n_{next} \lt 1
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>  
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>
 --------------------------------------------------------------------------[Record-Field]
 <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
@@ -1992,17 +1986,17 @@ n_{next} \lt 1
 ### Ternary Expression
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', sig_1, true>
-<\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', sig_2, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 -------------------------------------------------------------------------------[Ternary-Op-True]
-<\zeta, \xi, \sigma, e1 ? e2 : e3> \Downarrow_e <\xi'', \sigma'', sig_2, v2>
+<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', sig_1, false>
-<\zeta, \xi', \sigma', e3> \Downarrow_e <\xi'', \sigma'', sig_2, v3>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+<\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 -------------------------------------------------------------------------------[Ternary-Op-False]
-<\zeta, \xi, \sigma, e1 ? e2 : e3> \Downarrow_e <\xi'', \sigma'', sig_2, v3>
+<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 
 ### Function Calls
@@ -2011,7 +2005,7 @@ n_{next} \lt 1
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk>
 <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}
+<\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}>
 @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 -------------------------------------------------------------------------------[Function-Action]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma''', \mathkw{sig\_continue}, v>
@@ -2202,7 +2196,7 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 
 ~ Infer
 \xi(@nametype t) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
-(@namespace \xi, object) \not\in \sigma 
+(@namespace \xi, object) \not\in \sigma
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern (@namespace \xi) ((@namespace \xi), X)>
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
 -------------------------------------------------------------------------------[Extern-Object-Uninitialized]
@@ -2212,24 +2206,24 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 ### Set Operations
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma, e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Masks]
-<\zeta, \xi, \sigma, e1 \texttt{\&\&\&} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \texttt{\&\&\&} v2>
+<\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-<\zeta, \xi', \sigma, e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Ranges]
-<\zeta, \xi, \sigma, e1 \mathbin{..} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{..} v2>
+<\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
 ~
 
 ## Statements and Blocks
 
 Statements are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, s \rangle \Downarrow_s \langle \xi', \sigma', sig \rangle$
+$<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~
 
 ~ Infer
@@ -2551,3 +2545,1570 @@ $\langle \xi, n_{in\_port} \rangle \Downarrow_{Target\_init} \langle \xi' \rangl
 
 $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} \langle \sigma', \xi', p \rangle$
 ~
+
+# Type Soundness
+
+## Context Entailment
+
+In order to prove type soundness under big-step semantics, we must define a relation
+~MathPre
+\models \subset (S,D,G) \times \xi
+~
+where
+~MathPre
+S,D,G \models \xi
+~
+means that the typing context satisfies the evaluation context.
+Intuitively, a typing context satisfies an evaluation context if all of the variables in the typing context have the same type as their respective values they map to in the evaluation context.
+
+This entailment relation is defined in terms of a sub-relation
+~MathPre
+S,D,G \square \epsilon
+~
+which is $\models$ per-scope.
+
+Here is a formal definition:
+~Infer
+
+------------------[Entails-Empty-Scope]
+S,D,G \square []
+~
+
+~Infer
+S,D,(G,\gamma) \square \epsilon
+\exists x,t,d,\gamma, (x:t,d) \in \gamma \in G
+S,D,G |- v : t, d
+------------------------------------[Entails-Variable-Scope]
+S,D,G \square \epsilon,(x=v)
+~
+
+
+~ Infer
+
+----------------------[Entails-Empty-Environment]
+S,D,G \models P,[],D,\nu
+~
+
+
+~Infer
+S,D,G \models P,E,D,\nu
+S,D,G \square \epsilon
+--------------------------------------------[Entails-Environment]
+S,D,G \models P,(E,\epsilon),D,\nu
+~
+
+### Lemma $\mathkw{lv\_of\_expr}$ Sustains Entailment
+~MathPre
+L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig, @lvalue t x,
+\mathkw{lv\_of\_expr} \zeta \xi \sigma = (\xi', \sigma', sig, @lvalue t x) \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi
+~
+
+#### Proof
+
+TODO!
+
+### Lemma Copyin Sustains Entailment
+~MathPre
+L_2: \forall \xi,x,t,d,v,\xi',S,D,G
+S,D,G |- v : t, d \Rightarrow \mathkw{copyin} \xi (x:t,d) v = \xi' \Rightarrow S,D,G \models \xi \Rightarrow S,D,G[x:t,d] \models \xi'
+~
+TODO...I am not sure this is provable...maybe should be a new typing context...
+adding $x:t$ to the empty context
+
+
+#### Proof
+Introducing variables:
+~MathPre
+\xi,x,t,d,v,\xi',S,D,G
+~
+and hypotheses
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi'
+H_2: S,D,G \models \xi
+~
+we wish to prove the goal:
+~MathPre
+S,D,G[x:t,d] \models \xi'
+~
+by case-analysis on $H_0$.
+
+##### Case $d = out$
+We have equation and hypotheses:
+~MathPre
+E_0: d = @out
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi
+H_2: S,D,G \models \xi
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models \xi
+~
+TODO...I am not sure this is possible...maybe should be a new typing context...
+
+##### Case $d \neq out$
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
+H_2: S,D,G \models \xi'
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models \xi[v/x]
+~
+TODO...I am not sure this is possible...maybe should be a new typing context...
+
+###### Subcase $E = []$
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- v : t, d
+H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
+H_2: S,D,G \models P,[],D,\nu
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t,d] \models P,([],(x=v)),D,\nu
+~
+
+TODO...may not be provable...
+
+### Lemma Copyout Sustains Entailment
+~MathPre
+L_3: \forall \zeta, \xi_1, \xi_2 \, \sigma, x, t, d, e, \xi_3, S, D, G,
+\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3[x:t,d]
+~
+TODO...I think this is a malformed proposition...
+
+
+#### Proof
+
+TODO!
+
+### Lemma Push Sustains Entailment
+~MathPre
+L_4: \forall S,D,G,\xi,
+S,D,G \models \xi \Rightarrow S,D,G \models @push \xi
+~
+
+#### Proof
+
+TODO!
+
+### Lemma Pop Sustains Entailment
+~MathPre
+L_5: \forall S,D,G,\xi,
+S,D,G \models \xi \Rightarrow S,D,G \models @pop \xi
+~
+
+## Type Soundness of Expressions
+
+### Expression Type Preservation Theorem Statement
+~ MathPre
+\forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
+S,D,G \models \xi \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
+~
+
+### Expression Type Preservation Proof
+Introducing variables
+~MathPre
+e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig
+~
+and assuming hypotheses
+~MathPre
+S,D,G \models \xi
+S,D,G |- e : \tau,d
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
+~
+we wish to prove the goal
+~MathPre
+S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
+~
+We induct on the derivation of
+~MathPre
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
+~
+We assume freely $e$ is free-variable free.
+
+#### Case Bool-True
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- @true : @bool, @none
+<\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+~
+We wish to prove subgoals:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- @true : @bool, @none
+~
+Our subgoal is true by assumption.
+
+#### Case Bool-False
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- @false : @bool, @none
+<\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- @false : @bool, @none
+~
+Our subgoal is true by assumption.
+
+#### Case Int-Constant
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- a : @int, @none
+<\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- a : @int, @none
+~
+Our subgoal is true by assumption.
+
+#### Case Unsigned-Int-Constant
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- nwa : @bit<a>, @none
+<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- nwa : @bit<a>, @none
+~
+Our subgoal is true by assumption.
+
+#### Case Signed-Int-Constant
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- nsa : @int<w>, @none
+<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- nsa : @int<w>, @none
+~
+Our subgoal is true by assumption.
+
+#### Case String
+We have hypotheses:
+~MathPre
+S,D,G \models \xi
+S,D,G |- u : @string, @none
+<\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- u : @string, @none
+~
+Our subgoal is true by assumption.
+
+#### Case Var
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- x : t, d
+H_2: <\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(x)>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- \xi(x) : t, d
+~
+
+By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
+~MathPre
+S,D,G |- \xi(x) : t, d
+~
+And thus our subgoal is true by assumption.
+
+#### Case Var-Top
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- .x : t, d
+H_2: <\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(.x)>
+~
+We wish to prove subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- \xi(.x) : t, d
+~
+
+By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
+~MathPre
+S,D,G |- \xi(.x) : t, d
+~
+And thus our subgoal is true by assumption.
+
+#### Case Array-Access
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1[e_2] : t_1, d_1
+H_2: <\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+~
+and inductive hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1[], d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2  : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v  : t_2, d_2
+~
+
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_{(\mathkw{extract\_num} v) \% n_{size}} : t_1, d_1
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : t_1[], d_1
+H_4: S,D,G |- e_2  : t_2, d_2
+H_5: @numeric(t_2)
+~
+
+By inversion on $H_2$ we get hypotheses:
+~MathPre
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
+~
+
+Sketchy: By inversion on $H_9$ we may conclude $SG_2$.
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v  : t_2, d_2
+~
+thus by assumption $H_{10}$ subgoal $SG_1$ is proven.
+
+#### Case Bitslice
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e[n_1:n_2] : S,D,G |- e1[e_2:e_3] : bit<n_1 - n_2 + 1>, d
+H_2: <\zeta, \xi, \sigma, e[n_1:n_2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
+~
+and inductive hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bit<w>, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)} : bit<n1 - n2 + 1>, d
+~
+
+By inversion on $H_1$ and $H_2$ respectively we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : @bit<w>, d
+H_4:  <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bit<w>, d
+~
+By $H_5$, subgoal $SG_1$ holds.
+
+Sketchy: By $H_6$ we know $v$ is numeric and thus $SG_2$ holds.
+
+#### Case List-Expression
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
+H_2: <\zeta, \xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- \overline{e: \tau, none} \Rightarrow <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- \overline{v: \tau, none}
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
+~
+By inversion on $H_1$ and $H_2$ we respectively get hypotheses:
+~MathPre
+H_3: S,D,G |- \overline{e: \tau, none}
+H_4: <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- \overline{v: \tau, none}
+~
+By $H_5$, subgoal $SG_1$ holds.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- \overline{v: \tau, none}
+-----------------------------------------------[List-Expression]
+S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
+~
+we prove subgoal $SG_2$.
+
+#### Case Unary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- \diamond e : t, d
+H_2: <\zeta, \xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
+~
+and inductive hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : t, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- \diamond v : t, d
+~
+
+By inversion on $H_1$ and $H_2$ we get the following subcases:
+
+##### Subcase Not
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- !e : @bool, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bool, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bool, d
+H_3: S,D,G |- e : @bool, d
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- !v : @bool, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bool, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : @bool, d
+----------------------[Not]
+S,D,G |- !v : @bool, d
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Bitwise-Not
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : @bit<w>, d
+H_3: S,D,G |- e : @bit<w>, d
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- {\texttt{\textasciitilde}v} : @bit<w>, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : @bit<w>, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : @bit<w>, d
+-------------------------------------------------[Bitwise-Not]
+S,D,G |- {\texttt{\textasciitilde}v} : @bit<w>, d
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Negate
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- -e : t, d
+H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : t, d
+H_3: S,D,G |- e : t, d
+H_7: @numeric(t)
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- -v : t, d
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi'
+H_6: S,D,G |- v : t, d
+~
+By $H_5$, subgoal $SG_1$ is proven.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v : t, d
+@numeric(t)
+----------------------[Negate]
+S,D,G |- -v : t, d
+~
+we prove subgoal $SG_2$.
+
+#### Case Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t_2, d_2
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : t, @binaryDir(d_1, d_2)
+~
+
+By inversion on $H_1$ and $H_2$ we get the following subcases:
+
+##### Subcase Bool-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bool, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bool, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bool, d_2
+H_3: S,D,G |- e_1 : @bool, d_1
+H_4: S,D,G |- e_2 : @bool, d_2
+H_5: \diamond \in \{ \&\&, || \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bool, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bool, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bool, d_1
+S,D,G |- v_2 : @bool, d_2
+\diamond \in \{ \&\&, || \}
+------------------------------------------------------------------[Bool-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @int, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @int, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @int, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @int, d_2
+H_3: S,D,G |- e_1 : @int, d_1
+H_4: S,D,G |- e_2 : @int, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @int, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @int, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @int, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @int, d_1
+S,D,G |- v_2 : @int, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
+------------------------------------------------------------------[Int-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @int, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Signed-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @int<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @int<w>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @int<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @int<w>, d_2
+H_3: S,D,G |- e_1 : @int<w>, d_1
+H_4: S,D,G |- e_2 : @int<w>, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @int<w>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @int<w>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @int<w>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @int<w>, d_1
+S,D,G |- v_2 : @int<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
+------------------------------------------------------------------[Int-Signed-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @int<w>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Int-Unsigned-Binary-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<w>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<w>, d_2
+H_3: S,D,G |- e_1 : @bit<w>, d_1
+H_4: S,D,G |- e_2 : @bit<w>, d_2
+H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<w>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bit<w>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bit<w>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<w>, d_1
+S,D,G |- v_2 : @bit<w>, d_2
+\diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
+------------------------------------------------------------------[Int-Unsigned-Binary-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<w>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Equality-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, d_2
+H_3: S,D,G |- e_1 : t, d_1
+H_4: S,D,G |- e_2 : t, d_2
+H_{12}: \mathkw{has\_equality}(t)
+H_5: \diamond \in \{ ==,!= \}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : t, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : t, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : t, d_1
+S,D,G |- v_2 : t, d_2
+\diamond \in \{ ==,!= \}
+------------------------------------------------------------------[Equality-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : @bool, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Bit-Concat-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \mathbin{++} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{++} v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<l>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<l>, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<r>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<r>, d_2
+H_3: S,D,G |- e_1 : @bit<l>, d_1
+H_4: S,D,G |- e_2 : @bit<r>, d_2
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{++} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : @bit<l>, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : @bit<r>, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<l>, d_1
+S,D,G |- v_2 : @bit<r>, d_2
+------------------------------------------------------------------[Bit-Concat-Op]
+S,D,G |- v_1 \mathbin{++} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+##### Subcase Shift-Op
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
+H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t_2, d_2
+H_3: S,D,G |- e_1 : t_1, d_1
+H_4: S,D,G |- e_2 : t_2, d_2
+H_{12}: @numeric(t_1)
+H_{13}: t_2 = @bit<\_> \lor t_2 = @int
+H_5: \diamond \in \{\ll, \gg\}
+H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \mathbin{\diamond} v_2 : @bit<l+r>, @binaryDir(d_1, d_2)
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : t_1, d_1
+~
+
+Via the application $I_2 \, H_8 \, H_4 \, H_7$ we get the hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : t_2, d_2
+~
+By $H_{10}$ we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : t_1, d_1
+S,D,G |- v_2 : t_2, d_2
+@numeric(t_1)
+t_2 = @bit<\_> \lor t_2 = @int
+\diamond \in \{\ll, \gg\}
+------------------------------------------------------------------[Shift-Op]
+S,D,G |- v_1 \mathbin{\diamond} v_2 : t_1, @binaryDir(d_1, d_2)
+~
+we prove subgoal $SG_2$.
+
+#### Case Bool-Cast-True
+We have hypotheses:
+~ MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@bool) e : @bool, @none
+H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1> \Rightarrow S,D,G \models \xi' \wedge \Rightarrow S,D,G |- 1_u^1 : t_0, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- @true : @bool, @none
+~
+
+$SG_2$ is true by constructing rule-instance:
+~ Infer
+
+------------------------[Bool-True]
+ S,D,G |- @true : @bool, @none
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : t_0, d
+H_4: t_0 \prec @bool
+~
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- 1_u^1 : t_0, d
+~
+By $H_6$ we prove subgoal $SG_1$.
+
+#### Case Bool-Cast-False
+We have hypotheses:
+~ MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@bool) e : @bool, @none
+H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1> \Rightarrow S,D,G \models \xi' \wedge \Rightarrow S,D,G |- n_u^1 : t_0, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- @false : @bool, @none
+~
+
+$SG_2$ is true by constructing rule-instance:
+~ Infer
+
+------------------------[Bool-False]
+ S,D,G |- @false : @bool, @none
+~
+
+By inversion on $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : t_0, d
+H_4: t_0 \prec @bool
+~
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- n_u^1 : t_0, d
+~
+By $H_6$ we prove subgoal $SG_1$.
+
+#### Case Bit-Cast
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@bit<w>) e : @bit<w>, @none
+H_2: <\zeta, \xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi \wedge S,D,G |- v : t_0, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- {@of2s(\mathkw{extract\_num} v)}_u^{w} : @bit<w>, @none
+~
+
+TODO: maybe we need different typing rules for fixed sized ints?
+
+#### Case TypeName-Cast
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (X) e : X, @none
+H_2: <\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- (\xi(X)) e : \xi(X), @none \Rightarrow <\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : \xi(X), @none
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v : X, @none
+~
+By inversion on $H_1$ and $H_2$ we have hypotheses:
+~MathPre
+H_3: S,D,G |- (\xi(X)) e : \xi(X), @none
+H_4: \xi(X) \prec X
+H_5: <\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- v : \xi(X), @none
+~
+By $H_6$, we prove $SG_1$.
+
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- v : \xi(X), d
+\xi(X) \prec X
+-------------------------[Cast]
+S,D,G |- (X) v : X, @none
+~
+~Infer
+
+-----------------------[]
+S,D,G |- v : X, @none
+~
+we prove subgoal $SG_2$
+
+#### Case NewType-Cast
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- (@newtype X t) e : @newtype X t, @none
+H_2: <\zeta, \xi, \sigma, (@newtype X t) e> \Downarrow_e <\xi', \sigma', sig, v>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- (t) e : t, @none \Rightarrow <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : t, @none
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v : @newtype X t, @none
+~
+By inversion on $H_1$ and $H_2$ we have hypotheses:
+~MathPre
+H_3: S,D,G |- (t) e : t, d
+H_4: t \prec (@newtype X t)
+H_5: <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- v : t, @none
+~
+By $H_6$, we prove $SG_1$.
+
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- v : t, @none
+t \prec (@newtype X t)
+-------------------------[Cast]
+S,D,G |- (@newtype X t) v : @newtype X t, @none
+~
+~Infer
+
+--------------------------------[]
+S,D,G |- v : @newtype X t, @none
+~
+we prove subgoal $SG_2$
+
+#### Case Type-Member-Enum
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- X_1.name : X_1, @none
+H_2: <\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi
+SG_2: S,D,G |-  X_2.name : X_1, @none
+~
+$SG_1$ is proven by $H_0$.
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_3: \xi(X_1) = @enum X_2 \{\dots,name,\dots\}
+~
+Thus $X_2$ can be substituted for $X_1$ under $\xi$. Thus $SG_2$ is proven by $H_1$.
+
+
+#### Case Type-Member-SEnum
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |-  X_1.name : X_1, @none
+H_2: <\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi
+SG_2: S,D,G |-  X_2.name : X_1, @none
+~
+$SG_1$ is proven by $H_0$.
+
+By inversion on $H_2$ we get hypothesis:
+~MathPre
+H_3: \xi(X_1) = @enum t X_2 \{\dots,(name, e),\dots\}
+~
+Thus $X_2$ can be substituted for $X_1$ under $\xi$. Thus $SG_2$ is proven by $H_1$.
+
+#### Case Error-Member
+We have hypotheses:
+~ MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- @error.name : @error, @none
+H_2: <\zeta, \xi, \sigma, @error.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @error.name>
+~
+Our subgoal:
+~MathPre
+S,D,G \models \xi \wedge S,D,G |- @error.name : @error, @none
+~
+is true by our assumptions $H_0 \wedge H_1$.
+
+#### Case Struct-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.name : t_{name}, @none
+H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow  S,D,G |- e : @struct \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @struct \{\dots,(name, v),\dots\} : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v : t_{name}, @none
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
+H_4: \mathkw{has\_field} (@struct \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- @struct \{\dots,(name, v),\dots\} : @struct \{f_1:t_1, \dots, f_n:t_n\}
+~
+By $H_6$, we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- @struct \{\dots,(name, v),\dots\} : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
+\mathkw{has\_field} (@struct \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+-------------------------------------------------------------------[Expression-Member]
+S,D,G |- v : t_{name}, @none
+~
+we prove subgoal $SG_2$.
+
+#### Case Header-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.name : t_{name}, @none
+H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v : t_{name}, @none
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+H_4: \mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+By $H_6$, we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+\mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+------------------------------------------------------------------[Expression-Member]
+S,D,G |- v : t_{name}, @none
+~
+we prove subgoal $SG_2$.
+
+#### Case Header-IsValid-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@isValid : @bool
+H_2: <\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- @builtin @isValid lv_o : @bool
+~
+By inversion on $H_1$ and $H_2$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+H_4: \mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
+H_6: \mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+~
+Via application $I_1 \, H_0 \, H_3 \, H_5$ we acquire hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+Via application $L_1 \, H_6 \, H_7$ we get hypothesis:
+~MathPre
+H_9: S,D,G \models \xi''
+~
+which proves subgoal $SG_1$.
+
+TODO: I'm confused about these cases...
+
+#### Case Header-Union-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.name : t_{name}, @none
+H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow  S,D,G |- e : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name,v),\dots \}> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v : t_{name}, @none
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
+H_4: \mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
+~
+
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
+~
+By $H_6$, we prove subgoal $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
+\mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
+--------------------------------------------------------------------------------------[Expression-Member]
+S,D,G |- v : t_{name}, @none
+~
+we prove subgoal $SG_2$.
+
+#### Case Array-Size-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@size : @bit<32>, @none
+H_2: <\zeta, \xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- {n_{size}}_u^{32} : @bit<32>, @none
+~
+By inversion on $H_1$ and $H_2$ we acquire hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @size @bit<32>
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we obtain the hypotheses:
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$SG_1$ is proven by $H_6$.
+
+TODO: maybe need to modify fixed-int type-checking...
+
+#### Case Array-Next-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@next : t, @none
+H_2: <\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v_{n_{next}} : t, @none
+~
+By inversion on $H_1$ and $H_2$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @next t
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$H_6$ proves subgoal $SG_1$.
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+\mathkw{has\_field} t[a] @next t
+------------------------------------[Expression-Member]
+S,D,G |- v_{n_{next}} : t, @none
+~
+$SG_2$ is proven.
+
+#### Case Array-Last-Field
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e.@last : t, @none
+H_2: <\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'
+SG_2: S,D,G |- v_{n_{next} - 1} : t, @none
+~
+By inversion on $H_1$ and $H_2$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e : t[a], d
+H_4: \mathkw{has\_field} t[a] @last t
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$
+~MathPre
+H_6: S,D,G \models \xi'
+H_7: S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+~
+$H_6$ proves subgoal $SG_1$.
+Sketchy: By constructing the rule-instance:
+~ Infer
+S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+\mathkw{has\_field} t[a] @last t
+------------------------------------[Expression-Member]
+S,D,G |- v_{n_{next} - 1} : t, @none
+~
+$SG_2$ is proven.
+
+#### Case Ternary-Op-True
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
+H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @true : @bool, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG_1: S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, @none
+~
+By inversion on $H_1$ and $H_2$ we attain hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bool, \_
+H_4: S,D,G |- e_2 : t, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+H_6: <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- @true : @bool, \_
+~
+Via the application $I_2 \, H_7 \, H_4 \, H_6$ we gain hypothesis:
+~MathPre
+H_9: S,D,G \models \xi'' \wedge S,D,G |- v_2 : t, \_
+~
+which proves our subgoal $SG_1$.
+
+#### Case Ternary-Op-False
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
+H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- @false : @bool, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_3 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG_1: S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, @none
+~
+By inversion on $H_1$ and $H_2$ we attain hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bool, \_
+H_4: S,D,G |- e_3 : t, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+H_6: <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- @false : @bool, \_
+~
+Via the application $I_2 \, H_7 \, H_4 \, H_6$ we gain hypothesis:
+~MathPre
+H_9: S,D,G \models \xi'' \wedge S,D,G |- v_3 : t, \_
+~
+which proves our subgoal $SG_1$.
+
+#### Case Function-Action
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
+H_2: <\zeta, \xi, \sigma, f<\overline{\rho}>(\overline{e})> \Downarrow_e <\xi''''', \sigma''', \mathkw{sig\_continue}, v>
+~
+We have induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_ \Rightarrow <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{x:t,d}) \Rightarrow blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+I_2: S,D,G \models \xi' \Rightarrow P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'' \wedge P,S,D[\overline{X \to \rho}],G \vdash \overline{v:t}
+I_3: S,D,G,ctx |- blk:\mathkw{sig\_return\ v} -| G' \Rightarrow <\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}> \Rightarrow S,D,G \models \xi''' \Rightarrow S,D,G' \models \xi''''
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi'''''
+SG_2: S,D,G |- v : \tau_{\mathsf{ret}}, @none
+~
+By inversion on $H_1$ and $H_2$ we amass hypotheses:
+~MathPre
+H_3: S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+H_4: P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
+H_5: <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk>
+H_6: <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+H_7: @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
+H_8: <\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}>
+H_9: @copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we score hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi'
+H_{11}: S,D,G |- (\overline{x:t,d}) \Rightarrow blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+~
+Via the application $I_2 \, H_{10} \, H_4 \, H_6$ we nab hypotheses:
+~MathPre
+H_{12}: S,D,G \models \xi''
+H_{13}: P,S,D[\overline{X \to \rho}],G \vdash \overline{v:t}
+~
+Via the application $L_2 \, H_7 \, (L_4 \, H_{12})$ we win hypothesis:
+~MathPre
+H_{14}: S,D,G \models \xi'''
+~
+TODO: stuck...how to show block $blk$ type checks?
+Then, how do I show that result $v$ type-checks?
+
+#### Case Masks
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
+H_2: <\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : @bit<w>, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : @bit<w>, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : @bit<w>, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : @bit<w>, \_
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1 \texttt{\&\&\&} v_2 : @set<@bit<w>>,@none
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e_1 : @bit<w>, \_
+H_4: S,D,G |- e_2 : @bit<w>, \_
+H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_6: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+~
+Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_7: S,D,G \models \xi'
+H_8: S,D,G |- v_1 : @bit<w>, \_
+~
+Under the aegis of application $I_2 \, H_7 \, H_4 \, H_6$ we secure hypotheses:
+~MathPre
+H_9: S,D,G \models \xi''
+H_{10}: S,D,G |- v_2 : @bit<w>, \_
+~
+$H_9$ proves $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : @bit<w>, \_
+S,D,G |- v_2 : @bit<w>, \_
+------------------------------------------------[Masks]
+S,D,G |- v_1 \texttt{\&\&\&} v_2 : @set<@bit<w>>,@none
+~
+we prove $SG_2$.
+
+#### Case Ranges
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi
+H_1: S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
+H_2: <\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e_1 : \tau, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v_1 : \tau, \_
+I_2: S,D,G \models \xi' \Rightarrow S,D,G |- e_2 : \tau, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'' \wedge S,D,G |- v_2 : \tau, \_
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi''
+SG_2: S,D,G |- v_1\mathbin{..}v_2 : @set<\tau>, @none
+~
+By inversion on hypotheses $H_1$ and $H_2$ we land hypotheses:
+~MathPre
+H_3: S,D,G |- v_1 : \tau, \_
+H_4: S,D,G |- v_2 : \tau, \_
+H_5: \tau = @bit<w> \lor \tau = @int<w>
+H_6: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_7: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+~
+By dint of application $I_1 \, H_0 \, H_3 \, H_6$ we obtain hypotheses:
+~MathPre
+H_8: S,D,G \models \xi'
+H_9: S,D,G |- v_1 : \tau, \_
+~
+By virtue of application $I_2 \, H_8 \, H_4 \, H_7$ we get hypotheses:
+~MathPre
+H_{10}: S,D,G \models \xi''
+H_{11}: S,D,G |- v_2 : \tau, \_
+~
+$H_{10}$ proves $SG_1$.
+
+By constructing the rule-instance:
+~ Infer
+S,D,G |- v_1 : \tau, \_
+S,D,G |- v_2 : \tau, \_
+\tau = @bit<w> \lor \tau = @int<w>
+-------------------------[Ranges]
+S,D,G |- v_1\mathbin{..}v_2 : @set<\tau>, @none
+~
+we prove $SG_2$.
+
+## Type Soundness of Statements
+
+### Statement Type Preservation Theorem Statement
+~MathPre
+\forall S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma',
+S,D,G,ctx |- s:sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi \Rightarrow S,D,G' \models \xi'
+~
+
+### Statement Type Preservation Proof
+TODO

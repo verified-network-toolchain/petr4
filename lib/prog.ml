@@ -69,24 +69,29 @@ end = struct
         type_params: Types.P4String.t list;
         params: TypeParameter.t list}
     [@@deriving sexp,yojson]
-    
+
   type t = pre_t info [@@deriving sexp,yojson]
 end
 
 and KeyValue : sig
-  type pre_t = 
+  type pre_t =
     { key : P4String.t;
-      value : Expression.t } 
+      value : Expression.t }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
+
+  val eq : t -> t -> bool
 end = struct
-  type pre_t = 
+  type pre_t =
     { key : P4String.t;
-      value : Expression.t } 
+      value : Expression.t }
   [@@deriving sexp,yojson]
 
   type t = pre_t info [@@deriving sexp,yojson]
+
+  let eq (_,{ key=_,k1; value=v1 }) (_,{ key=_,k2; value=v2 }) =
+    String.equal k1 k2 && Expression.eq v1 v2
 end
 
 and Expression : sig
@@ -147,6 +152,9 @@ and Expression : sig
                   typ: Type.t;
                   dir: direction }
   and t = typed_t info [@@deriving sexp,yojson]
+
+  (* syntactic equality of expressions *)
+  val eq : t -> t -> bool
 end = struct
   type pre_t =
     True
@@ -205,6 +213,61 @@ end = struct
                   typ: Type.t;
                   dir: direction }
   and t = typed_t info [@@deriving sexp,yojson]
+
+  (* syntactic equality of expressions *)
+  let rec eq (_,{ expr=e1; _ }) (_,{ expr=e2; _ }) =
+    match e1, e2 with
+    | True,  True
+    | False, False
+    | DontCare, DontCare -> true
+    | Int (_,{value=v1; width_signed=w1}),
+      Int (_,{value=v2; width_signed=w2})
+      -> Bigint.equal v1 v2
+      && [%compare.equal: ((int * bool) option)] w1 w2
+    | String (_,s1), String (_,s2)
+      -> String.equal s1 s2
+    | Name n1, Name n2
+      -> Types.name_eq n1 n2
+    | ArrayAccess { array=a1; index=i1 },
+      ArrayAccess { array=a2; index=i2 }
+      -> eq a1 a2 && eq i1 i2
+    | BitStringAccess { bits=b1; lo=l1; hi=h1 },
+      BitStringAccess { bits=b2; lo=l2; hi=h2 }
+      -> eq b1 b2 && Bigint.equal l1 l2 && Bigint.equal h1 h2
+    | List { values=v1 }, List { values=v2 }
+      -> List.equal eq v1 v2
+    | Record { entries=kv1 }, Record { entries=kv2 }
+      -> List.equal KeyValue.eq kv1 kv2
+    | UnaryOp { op=o1; arg=e1 }, UnaryOp { op=o2; arg=e2 }
+      -> Op.eq_uni o1 o2 && eq e1 e2
+    | BinaryOp { op=b1; args=(l1,r1) }, BinaryOp { op=b2; args=(l2,r2) }
+      -> Op.eq_bin b1 b2 && eq l1 l2 && eq r1 r2
+    | Cast { typ=t1; expr=e1 }, Cast { typ=t2; expr=e2 }
+      -> Type.eq t1 t2 && eq e1 e2
+    | TypeMember { typ=n1; name=_,s1 },
+      TypeMember { typ=n2; name=_,s2 }
+      -> Types.name_eq n1 n2 && String.equal s1 s2
+    | ErrorMember (_,s1), ErrorMember (_,s2)
+      -> String.equal s1 s2
+    | ExpressionMember { expr=e1; name=_,s1 },
+      ExpressionMember { expr=e2; name=_,s2 }
+      -> eq e1 e2 && String.equal s1 s2
+    | Ternary { cond=c1; tru=t1; fls=f1 },
+      Ternary { cond=c2; tru=t2; fls=f2 }
+      -> eq c1 c2 && eq t1 t2 && eq f1 f2
+    | FunctionCall { func=e1; type_args=t1; args=l1 },
+      FunctionCall { func=e2; type_args=t2; args=l2 }
+      -> eq e1 e2 &&
+        List.equal Type.eq t1 t2 &&
+        List.equal begin Util.eq_opt ~f:eq end l1 l2
+    | NamelessInstantiation { typ=t1; args=e1 },
+      NamelessInstantiation { typ=t2; args=e2 }
+      -> Type.eq t1 t2 && List.equal eq e1 e2
+    | Mask { expr=e1; mask=m1 }, Mask { expr=e2; mask=m2 }
+      -> eq e1 e2 && eq m1 m2
+    | Range { lo=l1; hi=h1 }, Range { lo=l2; hi=h2 }
+      -> eq l1 l2 && eq h1 h2
+    | _ -> false
 end
 
 and Match : sig
@@ -416,7 +479,7 @@ end = struct
   and typed_t =
     { stmt: pre_t;
       typ: StmType.t }
-    
+
   and t = typed_t info [@@deriving sexp,yojson]
 end
 
@@ -489,7 +552,7 @@ end = struct
 
       type state = pre_state info [@@deriving sexp,yojson]
 end
-    
+
 and Declaration : sig
   type pre_t =
     Constant of
@@ -811,13 +874,13 @@ and Value : sig
     | VNull
     | VBool of bool
     | VInteger of Bigint.t
-    | VBit of 
+    | VBit of
         { w : Bigint.t;
           v : Bigint.t; }
-    | VInt of 
+    | VInt of
         { w : Bigint.t;
           v : Bigint.t; }
-    | VVarbit of 
+    | VVarbit of
         { max : Bigint.t;
           w : Bigint.t;
           v : Bigint.t; }
@@ -827,47 +890,47 @@ and Value : sig
     | VSet of set
     | VError of string
     | VMatchKind of string
-    | VFun of 
+    | VFun of
         { params : TypeParameter.t list;
           body : Block.t; }
-    | VBuiltinFun of 
+    | VBuiltinFun of
         { name : string;
           caller : lvalue; }
-    | VAction of 
+    | VAction of
         { params : TypeParameter.t list;
           body : Block.t; }
-    | VStruct of 
+    | VStruct of
         { fields : (string * value) list; }
-    | VHeader of 
+    | VHeader of
         { fields : (string * value) list;
           is_valid : bool }
-    | VUnion of 
+    | VUnion of
         { fields : (string * value) list; }
-    | VStack of 
+    | VStack of
         { headers : value list;
           size : Bigint.t;
           next : Bigint.t; }
-    | VEnumField of 
+    | VEnumField of
         { typ_name : string;
           enum_name : string; }
-    | VSenumField of 
+    | VSenumField of
         { typ_name : string;
           enum_name : string;
           v : value; }
-    | VRuntime of 
+    | VRuntime of
         { loc : loc;
           obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
-    | VPackage of 
+    | VPackage of
         { decl : Declaration.t;
           args : (string * value) list; }
     | VTable of vtable
-    | VExternFun of 
+    | VExternFun of
         { name : string;
           caller : (loc * string) option; }
     [@@deriving sexp,yojson]
-  
+
   and vparser = {
     pvs : (string * value) list;
     pparams : TypeParameter.t list;
@@ -875,7 +938,7 @@ and Value : sig
     states : Parser.state list;
   }
   [@@deriving sexp,yojson]
-  
+
   and vcontrol = {
     cvs : (string * value) list;
     cparams : TypeParameter.t list;
@@ -883,7 +946,7 @@ and Value : sig
     apply : Block.t;
   }
   [@@deriving sexp,yojson]
-  
+
   and vtable = {
     name : string;
     keys : Table.pre_key list;
@@ -892,18 +955,18 @@ and Value : sig
     const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
-  
+
   and pre_lvalue =
     | LName of
       { name : Types.name; }
-    | LMember of 
+    | LMember of
       { expr : lvalue;
         name : string; }
-    | LBitAccess of 
+    | LBitAccess of
         { expr : lvalue;
           msb : Util.bigint;
           lsb : Util.bigint; }
-    | LArrayAccess of 
+    | LArrayAccess of
         { expr : lvalue;
           idx : value; }
   [@@deriving sexp,yojson]
@@ -915,27 +978,27 @@ and Value : sig
   [@@deriving sexp,yojson]
 
   and set =
-    | SSingleton of 
+    | SSingleton of
         { w : Bigint.t;
           v : Bigint.t; }
     | SUniversal
-    | SMask of 
+    | SMask of
         { v : value;
           mask : value; }
-    | SRange of 
+    | SRange of
         { lo : value;
           hi : value; }
     | SProd of set list
-    | SLpm of 
+    | SLpm of
         { w : value;
           nbits : Bigint.t;
           v : value; }
-    | SValueSet of 
+    | SValueSet of
         { size : value;
           members : Match.t list list;
           sets : set list; }
   [@@deriving sexp,yojson]
-  
+
   and signal =
     | SContinue
     | SReturn of value
@@ -943,73 +1006,73 @@ and Value : sig
     | SReject of string
   [@@deriving sexp,yojson]
 
-  val assert_bool : value -> bool 
+  val assert_bool : value -> bool
 
-  val assert_rawint : value -> Bigint.t 
+  val assert_rawint : value -> Bigint.t
 
-  val assert_bit : value -> Bigint.t * Bigint.t 
+  val assert_bit : value -> Bigint.t * Bigint.t
 
-  val assert_int : value -> Bigint.t * Bigint.t 
+  val assert_int : value -> Bigint.t * Bigint.t
 
   val bigint_of_val : value -> Bigint.t
 
-  val assert_varbit : value -> Bigint.t * Bigint.t * Bigint.t 
+  val assert_varbit : value -> Bigint.t * Bigint.t * Bigint.t
 
-  val assert_string : value -> string 
+  val assert_string : value -> string
 
-  val assert_tuple : value -> value list 
+  val assert_tuple : value -> value list
 
-  val assert_set : value -> Bigint.t -> set 
+  val assert_set : value -> Bigint.t -> set
 
-  val assert_error : value -> string 
+  val assert_error : value -> string
 
   val assert_fun : value -> TypeParameter.t list * Block.t
 
-  val assert_builtin : value -> string * lvalue 
+  val assert_builtin : value -> string * lvalue
 
-  val assert_action : value -> TypeParameter.t list * Block.t 
+  val assert_action : value -> TypeParameter.t list * Block.t
 
-  val assert_struct : value -> (string * value) list 
+  val assert_struct : value -> (string * value) list
 
-  val assert_header : value -> (string * value) list * bool 
+  val assert_header : value -> (string * value) list * bool
 
-  val assert_union : value -> (string * value) list 
+  val assert_union : value -> (string * value) list
 
-  val assert_stack : value -> value list * Bigint.t * Bigint.t 
+  val assert_stack : value -> value list * Bigint.t * Bigint.t
 
-  val assert_enum : value -> string * string 
+  val assert_enum : value -> string * string
 
-  val assert_senum : value -> string * string * value 
+  val assert_senum : value -> string * string * value
 
   val assert_runtime : value -> loc
 
   val assert_parser : value -> vparser
 
-  val assert_control : value -> vcontrol 
+  val assert_control : value -> vcontrol
 
-  val assert_package : value -> Declaration.t * (string * value) list 
+  val assert_package : value -> Declaration.t * (string * value) list
 
-  val assert_table : value -> vtable 
+  val assert_table : value -> vtable
 
   val width_of_val : value -> Bigint.t
 
   val assert_lname : lvalue -> Types.name
 
-  val assert_lmember : lvalue -> lvalue * string 
+  val assert_lmember : lvalue -> lvalue * string
 
-  val assert_lbitaccess : lvalue -> lvalue * Util.bigint * Util.bigint 
+  val assert_lbitaccess : lvalue -> lvalue * Util.bigint * Util.bigint
 
-  val assert_larrayaccess : lvalue -> lvalue * value 
+  val assert_larrayaccess : lvalue -> lvalue * value
 
-  val assert_singleton : set -> Bigint.t * Bigint.t 
+  val assert_singleton : set -> Bigint.t * Bigint.t
 
-  val assert_mask : set -> value * value 
+  val assert_mask : set -> value * value
 
-  val assert_range : set -> value * value 
+  val assert_range : set -> value * value
 
-  val assert_prod : set -> set list 
+  val assert_prod : set -> set list
 
-  val assert_lpm : set -> value * Bigint.t * value 
+  val assert_lpm : set -> value * Bigint.t * value
 
   val assert_valueset : set -> value * Match.t list list * set list
 
@@ -1035,55 +1098,55 @@ end = struct
     | VNull
     | VBool of bool
     | VInteger of Util.bigint
-    | VBit of 
+    | VBit of
         { w : Util.bigint;
           v : Util.bigint; }
-    | VInt of 
+    | VInt of
         { w : Util.bigint;
           v : Util.bigint; }
-    | VVarbit of 
+    | VVarbit of
         { max : Util.bigint;
           w : Util.bigint;
           v : Util.bigint; }
-    | VString of string 
+    | VString of string
     | VTuple of value list
     | VRecord of (string * value) list
     | VSet of set
     | VError of string
     | VMatchKind of string
-    | VFun of 
+    | VFun of
         { params : TypeParameter.t list;
           body : Block.t; }
-    | VBuiltinFun of 
+    | VBuiltinFun of
         { name : string;
           caller : lvalue; }
-    | VAction of 
+    | VAction of
         { params : TypeParameter.t list;
           body : Block.t; }
-    | VStruct of 
+    | VStruct of
         { fields : (string * value) list; }
-    | VHeader of 
+    | VHeader of
         { fields : (string * value) list;
           is_valid : bool }
-    | VUnion of 
+    | VUnion of
         { fields : (string * value) list; }
-    | VStack of 
+    | VStack of
         { headers : value list;
           size : Util.bigint;
           next : Util.bigint; }
-    | VEnumField of 
+    | VEnumField of
         { typ_name : string;
           enum_name : string; }
-    | VSenumField of 
+    | VSenumField of
         { typ_name : string;
           enum_name : string;
           v : value; }
-    | VRuntime of 
+    | VRuntime of
         { loc : loc;
           obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
-    | VPackage of 
+    | VPackage of
         { decl : Declaration.t;
           args : (string * value) list; }
     | VTable of vtable
@@ -1091,7 +1154,7 @@ end = struct
         { name : string;
           caller : (loc * string) option; }
   [@@deriving sexp, yojson]
-  
+
   and vparser = {
     pvs : (string * value) list;
     pparams : TypeParameter.t list;
@@ -1099,7 +1162,7 @@ end = struct
     states : Parser.state list;
   }
   [@@deriving sexp,yojson]
-  
+
   and vcontrol = {
     cvs : (string * value) list;
     cparams : TypeParameter.t list;
@@ -1107,7 +1170,7 @@ end = struct
     apply : Block.t;
   }
   [@@deriving sexp,yojson]
-  
+
   and vtable = {
     name : string;
     keys : Table.pre_key list;
@@ -1116,18 +1179,18 @@ end = struct
     const_entries : Table.pre_entry list;
   }
   [@@deriving sexp,yojson]
-  
+
   and pre_lvalue =
     | LName of
       { name : Types.name; }
-    | LMember of 
+    | LMember of
       { expr : lvalue;
         name : string; }
-    | LBitAccess of 
+    | LBitAccess of
         { expr : lvalue;
           msb : Util.bigint;
           lsb : Util.bigint; }
-    | LArrayAccess of 
+    | LArrayAccess of
         { expr : lvalue;
           idx : value; }
   [@@deriving sexp,yojson]
@@ -1138,27 +1201,27 @@ end = struct
   [@@deriving sexp,yojson]
 
   and set =
-    | SSingleton of 
+    | SSingleton of
         { w : Util.bigint;
           v : Util.bigint; }
     | SUniversal
-    | SMask of 
+    | SMask of
         { v : value;
           mask : value; }
-    | SRange of 
+    | SRange of
         { lo : value;
           hi : value; }
     | SProd of set list
-    | SLpm of 
+    | SLpm of
         { w : value;
           nbits : Util.bigint;
           v : value; }
-    | SValueSet of 
+    | SValueSet of
         { size : value;
           members : Match.t list list;
           sets : set list; }
   [@@deriving sexp,yojson]
-  
+
   and signal =
     | SContinue
     | SReturn of value
@@ -1167,129 +1230,133 @@ end = struct
   [@@deriving sexp,yojson]
 
   let assert_bool v =
-    match v with 
-    | VBool b -> b 
+    match v with
+    | VBool b -> b
     | _ -> failwith "not a bool"
-  
-  let assert_rawint v = 
-    match v with 
-    | VInteger n -> n 
+
+  let assert_rawint v =
+    match v with
+    | VInteger n -> n
     | _ -> failwith "not an variable-size integer"
-  
-  let assert_bit v = 
-    match v with 
-    | VBit{w;v} -> (w,v) 
+
+  let rec assert_bit v =
+    match v with
+    | VBit{w;v} -> (w,v)
+    | VSenumField{v;_} -> assert_bit v
     | _ -> raise_s [%message "not a bitstring" ~v:(v:value)]
-  
-  let assert_int v = 
-    match v with 
+
+  let assert_int v =
+    match v with
     | VInt {w;v} -> (w,v)
     | _ -> failwith "not an int"
 
-  let bigint_of_val v =
+  let rec bigint_of_val v =
     match v with
     | VInt{v=n;_}
     | VBit{v=n;_}
-    | VInteger n 
+    | VInteger n
     | VVarbit{v=n;_} -> n
+    | VSenumField{v;_} -> bigint_of_val v
     | _ -> failwith "value not representable as bigint"
-  
-  let assert_varbit v = 
-    match v with 
-    | VVarbit {max;w;v} -> (max,w,v) 
+
+  let assert_varbit v =
+    match v with
+    | VVarbit {max;w;v} -> (max,w,v)
     | _ -> failwith "not a varbit"
-  
-  let assert_string v = 
-    match v with 
+
+  let assert_string v =
+    match v with
     | VString s -> s
     | _ -> failwith "not a string"
-  
-  let assert_tuple v = 
-    match v with 
-    | VTuple l -> l 
-    | _ -> failwith "not a tuple"
-  
-  let assert_set v w = 
+
+  let assert_tuple v =
     match v with
-    | VSet s -> s 
+    | VTuple l -> l
+    | _ -> failwith "not a tuple"
+
+  let rec assert_set v w =
+    match v with
+    | VSet s -> s
     | VInteger i -> SSingleton{w;v=i}
     | VInt {v=i;_} -> SSingleton{w;v=i}
     | VBit{v=i;_} -> SSingleton{w;v=i}
+    | VSenumField{v;_} -> assert_set v w
+    | VEnumField _ -> failwith "enum field not a set"
     | _ -> failwith "not a set"
-  
+
   let assert_error v =
-    match v with 
+    match v with
     | VError s -> s
     | _ -> failwith "not an error"
-  
+
   let assert_fun v =
-    match v with 
+    match v with
     | VFun {params;body} -> (params,body)
     | _ -> failwith "not a function"
-  
+
   let assert_builtin v =
-    match v with 
+    match v with
     | VBuiltinFun {name; caller} -> name, caller
     | _ -> failwith "not a builtin function"
-  
-  let assert_action v = 
-    match v with 
+
+  let assert_action v =
+    match v with
     | VAction {params;body} -> (params, body)
     | _ -> failwith "not an action"
-  
+
   let assert_struct v =
-    match v with 
+    match v with
     | VStruct {fields;_} -> fields
     | _ -> failwith "not a struct"
-  
-  let assert_header v = 
-    match v with 
+
+  let assert_header v =
+    match v with
     | VHeader {fields;is_valid;_} -> fields, is_valid
     | _ -> failwith "not a header"
-  
-  let assert_union v = 
-    match v with 
+
+  let assert_union v =
+    match v with
     | VUnion {fields} -> fields
     | _ -> failwith "not a union"
-  
-  let assert_stack v = 
-    match v with 
+
+  let assert_stack v =
+    match v with
     | VStack {headers;size;next} -> (headers, size, next)
     | _ -> failwith "not a stack"
-  
-  let assert_enum v = 
-    match v with 
+
+  let assert_enum v =
+    match v with
     | VEnumField {typ_name;enum_name} -> (typ_name, enum_name)
     | _ -> failwith "not an enum field"
-  
-  let assert_senum v = 
-    match v with 
+
+  let assert_senum v =
+    match v with
     | VSenumField {typ_name;enum_name;v} -> (typ_name, enum_name, v)
     | _ -> failwith "not an senum field"
-  
-  let assert_runtime v = 
-    match v with 
-    | VRuntime {loc; _ } -> loc 
+
+  let assert_runtime v =
+    match v with
+    | VRuntime {loc; _ } -> loc
     | _ -> failwith "not a runtime value"
-  
-  let assert_parser v = 
-    match v with 
-    | VParser p -> p 
+
+  let assert_parser v =
+    match v with
+    | VParser p -> p
     | _ -> failwith "not a parser"
-  
-  let assert_control v = 
-    match v with 
-    | VControl c -> c 
+
+  let assert_control v =
+    match v with
+    | VControl c -> c
     | _ -> failwith "not a control"
-  
-  let assert_package v = 
-    match v with 
-    | VPackage {decl;args} -> (decl, args) 
+
+  let assert_package v =
+    match v with
+    | VPackage {decl;args} -> (decl, args)
     | _ -> failwith "not a package"
-  
-  let assert_table v = 
-    match v with 
-    | VTable t -> t 
+
+  let assert_table v =
+    match v with
+    | VTable t -> t
     | _ -> failwith "not a table"
 
   let rec width_of_val v =
@@ -1315,54 +1382,54 @@ end = struct
     | VInteger _ -> failwith "width of VInteger"
     | VUnion _ -> failwith "width of header union unimplemented"
     | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
-  
-  let assert_lname l = 
-    match l.lvalue with 
-    | LName {name; _} -> name 
+
+  let assert_lname l =
+    match l.lvalue with
+    | LName {name; _} -> name
     | _ -> failwith "not an lvalue name"
-  
+
   let assert_lmember l =
-    match l.lvalue with 
-    | LMember {expr; name; _} -> (expr, name) 
+    match l.lvalue with
+    | LMember {expr; name; _} -> (expr, name)
     | _ -> failwith "not an lvalue member"
-  
-  let assert_lbitaccess l = 
-    match l.lvalue with 
+
+  let assert_lbitaccess l =
+    match l.lvalue with
     | LBitAccess {expr; msb; lsb; _} -> (expr, msb, lsb)
     | _ -> failwith "not an lvalue bitaccess"
-  
-  let assert_larrayaccess l = 
-    match l.lvalue with 
+
+  let assert_larrayaccess l =
+    match l.lvalue with
     | LArrayAccess {expr; idx; _} -> (expr, idx)
     | _ -> failwith "not an lvalue array access"
-  
-  let assert_singleton s = 
-    match s with 
-    | SSingleton {w; v} -> (w,v) 
+
+  let assert_singleton s =
+    match s with
+    | SSingleton {w; v} -> (w,v)
     | _ -> failwith "not a singleton set"
-  
-  let assert_mask s = 
-    match s with 
-    | SMask {v;mask} -> (v,mask) 
+
+  let assert_mask s =
+    match s with
+    | SMask {v;mask} -> (v,mask)
     | _ -> failwith "not a mask set"
-  
-  let assert_range s = 
-    match s with 
+
+  let assert_range s =
+    match s with
     | SRange{lo;hi} -> (lo,hi)
     | _ -> failwith "not a range set"
-  
-  let assert_prod s = 
-    match s with 
+
+  let assert_prod s =
+    match s with
     | SProd l -> l
     | _ -> failwith "not a product set"
-  
-  let assert_lpm s = 
-    match s with 
-    | SLpm {w; nbits; v} -> (w,nbits,v) 
+
+  let assert_lpm s =
+    match s with
+    | SLpm {w; nbits; v} -> (w,nbits,v)
     | _ -> failwith "not an lpm set"
-  
-  let assert_valueset s = 
-    match s with 
+
+  let assert_valueset s =
+    match s with
     | SValueSet {size; members; sets} -> (size, members, sets)
     | _ -> failwith "not a valueset"
 
@@ -1371,4 +1438,3 @@ end
 
 type program =
     Program of Declaration.t list [@name "program"]
-

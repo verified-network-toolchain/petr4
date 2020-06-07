@@ -56,11 +56,18 @@ module Corize (T : Target) : Target = struct
            let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
            let fields = List.zip_exn field_names field_vals in
            (n, s), VStruct{fields}
+        | VSenumField {typ_name; enum_name; v} ->
+          extract_senum typ_name enum_name v nvarbits (n, s)
         | _ -> raise_s [%message "invalid header field type"
                       ~v:(v:value)]
       end
     | SReject _ -> ((n,s),VNull)
     | _ -> failwith "unreachable"
+
+  and extract_senum (typ_name : string) (enum_name : string) (v : value)
+      (nvarbits : Bigint.t) (n, s) : ((Bigint.t * Bigint.t) * signal) * value =
+    let (x, v) = extract_hdr_field nvarbits (n, s) v in
+    x, VSenumField{typ_name; enum_name; v}
 
   and extract_bit (n : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
@@ -150,6 +157,7 @@ module Corize (T : Target) : Target = struct
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
+      | [(VRuntime {loc;_}, _); (VInteger v, _)] -> loc, v
       | _ -> failwith "unexpected args for advance" in
     let obj = State.get_packet st in
     let pkt = obj.main in 
@@ -163,23 +171,41 @@ module Corize (T : Target) : Target = struct
 
   let eval_extract : extern = fun ctrl env st targs args ->
     match args with 
-    | [(pkt, _);(v1, t)] -> eval_extract' ctrl env st t pkt v1 Bigint.zero true
-    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (assert_bit v2 |> snd) false
-    | [] -> eval_advance ctrl env st targs args
+    | [(pkt, _);(v1, t)] -> (match v1 with
+                            | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
+                              eval_advance ctrl env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
+                            | _ -> eval_extract' ctrl env st t pkt v1 Bigint.zero true)
+    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (bigint_of_val v2) false
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
+    let f n t = 
+      (Bigint.(n + width_of_typ env t), val_of_bigint env t (bitstring_slice n Bigint.(width_of_typ env t + n - one) n)) in
+    let fieldvals_of_recordtype (rt : RecordType.t) =
+      let names = List.map ~f:(fun x -> x.name) rt.fields in
+      let typs = List.map ~f:(fun x -> x.typ) rt.fields in
+      let vs = List.fold_map typs ~init:Bigint.zero ~f:f in
+      List.zip_exn names (snd vs) in
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true
     | Int {width} -> 
       VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Bit {width} ->
       VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
-    | Array {typ;size} -> failwith "TODO: array of bigint"
-    | Tuple _ -> failwith "TODO: tuple of bigint"
-    | Record _ -> failwith "TODO: record_of_bigint"
-    | Header _ -> failwith "TODO: header of bigint"
-    | Struct _ -> failwith "TODO: struct of bigint"
+    | Array {typ;size} ->
+      let init = List.init size ~f:(fun x -> x) in
+      let width = width_of_typ env typ in
+      let hdrs = 
+        List.fold_map init 
+        ~init:Bigint.zero 
+        ~f:(fun acc _ -> (Bigint.(acc + width), val_of_bigint env typ (bitstring_slice n Bigint.(width + acc - one) acc))) in
+      VStack {headers = snd hdrs;size=Bigint.of_int size;next=Bigint.zero}
+    | List {types} | Tuple {types} ->
+      let vs = List.fold_map types ~init:Bigint.zero ~f:f in
+      VTuple (snd vs)
+    | Record rt -> VRecord (fieldvals_of_recordtype rt)
+    | Header rt -> VHeader {fields=fieldvals_of_recordtype rt;is_valid=true}
+    | Struct rt -> VStruct {fields=fieldvals_of_recordtype rt}
     | Enum {typ = Some t;_} -> val_of_bigint env t n
     | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
     | NewType nt -> val_of_bigint env nt.typ n
@@ -257,7 +283,36 @@ module Corize (T : Target) : Target = struct
 
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : buf =
-    if is_valid then packet_of_struct env t fields else Cstruct.empty
+    let rec underlying_typ_of_enum env t =
+      match t with
+      | Typed.Type.Enum et -> Option.value_exn et.typ
+      | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
+      | NewType nt -> nt.typ |> underlying_typ_of_enum env
+      | _ -> failwith "no such underlying type" in
+    let f = fun (accw, accv) (w,v) ->
+      Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
+    let rec wv_of_val (v, t) = match v with
+      | VBit{w;v} -> w, v
+      | VInt{w;v} -> w, of_twos_complement v w
+      | VVarbit{max;w;v} -> w, v
+      | VBool true -> Bigint.one, Bigint.one
+      | VBool false -> Bigint.one, Bigint.zero
+      | VSenumField{v;_} -> wv_of_val (v, underlying_typ_of_enum env t)
+      | VStruct {fields;} ->
+        let fs = reset_fields env fields t in
+        let fs' = List.map ~f:snd fs in
+        let fts = field_types_of_typ env t in
+        List.zip_exn fs' fts |> List.map ~f:wv_of_val
+        |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f
+      | _ -> failwith "invalid type for header field" in
+    if not is_valid then Cstruct.empty else
+    let fts = field_types_of_typ env t in
+    let w, v = reset_fields env fields t
+      |> List.map ~f:snd
+      |> (fun a -> List.zip_exn a fts)
+      |> List.map ~f:wv_of_val
+      |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f in
+    packet_of_bit w v
 
   and packet_of_stack (env : env) (t : Type.t) (headers : value list) : buf =
     let t' = match t with

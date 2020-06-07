@@ -105,12 +105,14 @@ let rec interp_bmult (l : V.value) (r : V.value) : V.value =
 let interp_bdiv (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 / n2)
-  | _ -> failwith "division only defined on raw ints"
+  | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 / v2)}
+  | _ -> failwith "division only defined on positive values"
 
 let interp_bmod (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VInteger n1, VInteger n2 -> VInteger Bigint.(n1 % n2)
-  | _ -> failwith "mod only defined on raw ints"
+  | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 % v2)}
+  | _ -> failwith "mod only defined on positive values"
 
 let interp_bshl (l : V.value) (r : V.value) : V.value =
   match (l,r) with
@@ -335,21 +337,23 @@ let bool_of_val (v : V.value) : V.value =
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
   | _ -> failwith "cast to bool undefined"
 
-let bit_of_val (width : int) (v : V.value) : V.value =
+let rec bit_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VInt{v=n;_}
   | VBit{v=n;_}
   | VInteger n -> bit_of_rawint n w
   | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
+  | VSenumField{v;_} -> bit_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let int_of_val (width : int) (v : V.value) : V.value =
+let rec int_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VBit{v=n;_}
   | VInt{v=n;_}
   | VInteger n -> int_of_rawint n w
+  | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
 let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)

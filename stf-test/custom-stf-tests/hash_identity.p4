@@ -1,7 +1,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-const bit<121> max = 1 << 120;
+const bit<121> max = 121w1 << 120;
 
 header my_header {
   bit<8> first;
@@ -10,7 +10,7 @@ header my_header {
   bit<16> fourth;
 }
 
-header result_header {}
+header result_header {
   bit<120> first;
 }
 
@@ -49,7 +49,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
     result_header result;
     apply {
         hash(result.first, HashAlgorithm.identity, 8w0,
-              { hdr.first, hdr.second, hdr.third, hdr.fourth }, max)
+              { hdr.pkt_hdr.first, hdr.pkt_hdr.second, hdr.pkt_hdr.third, hdr.pkt_hdr.fourth }, max);
         packet.emit(result);
     }
 }

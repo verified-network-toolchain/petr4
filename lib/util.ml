@@ -101,3 +101,8 @@ let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
 let bigint_of_yojson (json:Yojson.Safe.t) =
   Ok (Bigint.of_string (Yojson.Safe.to_string json))
 
+let eq_opt ~f o1 o2 =
+  match o1, o2 with
+  | None, None -> true
+  | Some v1, Some v2 -> f v1 v2
+  | _ -> false

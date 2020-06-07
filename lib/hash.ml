@@ -37,18 +37,19 @@ let crc16_table = [|
 |]
 
 let hash_crc32 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
+  failwith "TODO: implement crc32 hash algorithm"
 
 let hash_crc32_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
+  failwith "TODO: implement crc32_custom hash algorithm"
 
 let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   let rec partition_bytes len v =
+    if Bigint.(len = zero) then [] else
     let msb = Bigint.(len-one) in
     let byte_lower = Bigint.(len - of_int 8) in
     let hd = Bitstring.bitstring_slice v msb byte_lower in
     hd :: partition_bytes
-      Bigint.(byte_lower - one)
+      byte_lower
       (bitstring_slice v Bigint.(byte_lower-one) Bigint.zero) in
   let bytes = partition_bytes length v in
   let f crc c =
@@ -60,7 +61,7 @@ let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   List.fold ~f ~init:Bigint.zero bytes
 
 let hash_crc16_custom (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
+  failwith "TODO: implement crc16_custom hash algorithm"
 
 let hash_random (length, v : Bigint.t * Bigint.t) : Bigint.t =
   Bigint.to_string v
@@ -73,11 +74,25 @@ let hash_random (length, v : Bigint.t * Bigint.t) : Bigint.t =
 let hash_identity (length, v : Bigint.t * Bigint.t) : Bigint.t =
   v
 
+let rec ones_comp_add (v1 : Bigint.t) (v2 : Bigint.t) : Bigint.t =
+  let mx = power_of_two Bigint.(of_int 16) in
+  let init_sum = Bigint.(v1 + v2) in
+  if Bigint.(init_sum < mx) then init_sum else
+  ones_comp_add (bitstring_slice Bigint.(mx+one) mx Bigint.zero) Bigint.one
+
 let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
+  if Bigint.(length % (of_int 16) = zero) then ()
+  else failwith "call to csum16 does not have 16-bit aligned input";
+  let rec h acc length v =
+    if Bigint.(length = zero) then acc else
+    let msb = Bigint.(length - one) in
+    let lsb = Bigint.(length - of_int 16) in
+    let acc' = ones_comp_add acc (bitstring_slice length msb lsb) in
+    h acc' lsb Bigint.(bitstring_slice length (msb-one) zero) in
+  bitwise_neg_of_bigint (h Bigint.zero length v) Bigint.(of_int 16)
 
 let hash_xor16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  failwith "TODO: implement hash algorithm"
+  failwith "TODO: implement xor16 hash algorithm"
 
 let hash (algo : string) : (Bigint.t * Bigint.t) -> Bigint.t =
   match algo with

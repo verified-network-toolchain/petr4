@@ -81,4 +81,4 @@ val implicit_cast : env -> value -> Type.t -> value
 
 val value_of_lvalue : reader -> env -> lvalue -> signal * value
 
-val assign_lvalue : reader -> writer -> env -> lvalue -> value -> env * signal
+val assign_lvalue : reader -> writer -> env -> lvalue -> value -> bool -> env * signal

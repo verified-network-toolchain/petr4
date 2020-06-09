@@ -1,7 +1,7 @@
 open Types
 open Typed
 open Util
-open Env
+open Prog.Env
 (* hack *)
 module Petr4Error = Error
 module Petr4Info = Info

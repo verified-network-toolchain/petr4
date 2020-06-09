@@ -1,9 +1,9 @@
 module I = Info
 open Core_kernel
-open Env
+open Prog.Env
 open Util
 open Types
-module Info = I 
+module Info = I
 
 module Renamer = struct
   type state = { counter : int;

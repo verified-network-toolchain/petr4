@@ -16,6 +16,7 @@
 module P4Info = Info
 open Core_kernel
 module Info = P4Info
+module Env = Prog.Env
 
 module type Parse_config = sig
   val red: string -> string

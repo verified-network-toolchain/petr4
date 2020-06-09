@@ -2,7 +2,7 @@ open Prog.Value
 open Typed
 open Target
 open Bitstring
-open Env
+open Prog.Env
 module I = Info
 open Core_kernel
 module Info = I
@@ -17,7 +17,7 @@ module Corize (T : Target) : Target = struct
 
   type extern = state pre_extern
 
-  let value_of_field (init_fs : (string * value) list) 
+  let value_of_field (init_fs : (string * value) list)
       (f : RecordType.field) : string * value =
     f.name,
     List.Assoc.find_exn init_fs f.name ~equal:String.equal
@@ -134,10 +134,10 @@ module Corize (T : Target) : Target = struct
       let (ns, vs) = List.unzip fs in
       try
         let ((_,s), vs') =
-          List.fold_map vs 
+          List.fold_map vs
             ~init:(Bigint.(nbytes * eight, extraction), SContinue)
             ~f:(extract_hdr_field w) in
-        begin match s with 
+        begin match s with
         | SReject _ | SExit | SReturn _ -> env, st', s, VNull
         | SContinue ->
            let fs' = List.zip_exn ns vs' in
@@ -145,7 +145,7 @@ module Corize (T : Target) : Target = struct
                        fields = fs';
                        is_valid = true;
                      } in
-           let env'= 
+           let env'=
              EvalEnv.insert_val_bare
                (if is_fixed then "hdr" else "variableSizeHeader")
                h env in
@@ -153,14 +153,14 @@ module Corize (T : Target) : Target = struct
         end
       with Invalid_argument _ ->
         env, st, SReject "PacketTooShort", VNull
-        
+
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
       | [(VRuntime {loc;_}, _); (VInteger v, _)] -> loc, v
       | _ -> failwith "unexpected args for advance" in
     let obj = State.get_packet st in
-    let pkt = obj.main in 
+    let pkt = obj.main in
     try
       let x = (Bigint.to_int_exn v) / 8 in
       let pkt' = Cstruct.split pkt x |> snd in
@@ -170,7 +170,7 @@ module Corize (T : Target) : Target = struct
       env, st, SReject "PacketTooShort", VNull
 
   let eval_extract : extern = fun ctrl env st targs args ->
-    match args with 
+    match args with
     | [(pkt, _);(v1, t)] -> (match v1 with
                             | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
                               eval_advance ctrl env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
@@ -179,7 +179,7 @@ module Corize (T : Target) : Target = struct
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
-    let f n t = 
+    let f n t =
       (Bigint.(n + width_of_typ env t), val_of_bigint env t (bitstring_slice n Bigint.(width_of_typ env t + n - one) n)) in
     let fieldvals_of_recordtype (rt : RecordType.t) =
       let names = List.map ~f:(fun x -> x.name) rt.fields in
@@ -188,16 +188,16 @@ module Corize (T : Target) : Target = struct
       List.zip_exn names (snd vs) in
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true
-    | Int {width} -> 
+    | Int {width} ->
       VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Bit {width} ->
       VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Array {typ;size} ->
       let init = List.init size ~f:(fun x -> x) in
       let width = width_of_typ env typ in
-      let hdrs = 
-        List.fold_map init 
-        ~init:Bigint.zero 
+      let hdrs =
+        List.fold_map init
+        ~init:Bigint.zero
         ~f:(fun acc _ -> (Bigint.(acc + width), val_of_bigint env typ (bitstring_slice n Bigint.(width + acc - one) acc))) in
       VStack {headers = snd hdrs;size=Bigint.of_int size;next=Bigint.zero}
     | List {types} | Tuple {types} ->
@@ -210,7 +210,7 @@ module Corize (T : Target) : Target = struct
     | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
     | NewType nt -> val_of_bigint env nt.typ n
     | _ -> raise_s [%message "not a fixed-width type" ~t:(t: Type.t)]
-    
+
   let eval_lookahead : extern = fun _ env st targs args ->
     let t = match targs with
       | [t] -> t
@@ -249,7 +249,7 @@ module Corize (T : Target) : Target = struct
     Cstruct.of_string s
 
   let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
-    match t with 
+    match t with
     | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
     | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
     | NewType nt -> field_types_of_typ env nt.typ
@@ -361,7 +361,7 @@ module Corize (T : Target) : Target = struct
     | "advance" -> eval_advance
     | "length" -> eval_length
     | "emit" -> eval_emit
-    | "verify" -> eval_verify 
+    | "verify" -> eval_verify
     | _ -> T.eval_extern name
 
   let initialize_metadata = T.initialize_metadata

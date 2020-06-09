@@ -54,14 +54,13 @@ let unimplemented_stmt = function
   | Packet(_, _) | Expect(_, _) -> false
   | _ -> true
 
-let packet_equal (port_exp, p_exp) (port, p) =
+let packet_equal (port_exp, pkt_exp) (port, pkt) =
   let (=) = Char.equal in
   let rec iter i =
-    i >= String.length p_exp ||
-    ((p_exp.[i] = p.[i] || p_exp.[i] = '*') && iter (i + 1))
+    i >= String.length pkt_exp ||
+    ((pkt_exp.[i] = pkt.[i] || pkt_exp.[i] = '*') && iter (i + 1))
     in
-  String.(p_exp = p) && Int.(String.length p_exp = String.length p) && iter 0
-
+    String.(port_exp = port) && Int.(String.length pkt_exp = String.length pkt) && iter 0
 
 let run_test dirs name stmts =
     match List.find ~f:unimplemented_stmt stmts with
@@ -78,16 +77,16 @@ let run_test dirs name stmts =
           | `Error(info, exn) -> None
           | `Ok(pkt, port) ->
               let fixed =  pkt |> Cstruct.to_string |> Petr4_parse.hex_of_string |> strip_spaces |> String.lowercase in
-              Some(fixed, Bigint.to_string port)
+              Some(Bigint.to_string port, fixed)
         )
           (* List.filter_map(fun x ->
           match x with `No_packet -> None
             | `Error(info, exn) -> Some("")
             | `Ok(pkt, port) -> Some("")) *)
         in
-        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(strip_spaces packet, port) | _ -> None) stmts in
+        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(port, strip_spaces packet) | _ -> None) stmts in
         List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
-          Alcotest.(testable (Fmt.pair Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
+          Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
 
 let get_stf_files path =
   Core.Sys.ls_dir path |> Base.List.to_list |>

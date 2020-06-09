@@ -84,7 +84,9 @@ let run_test dirs name stmts =
             | `Error(info, exn) -> Some("")
             | `Ok(pkt, port) -> Some("")) *)
         in
-        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(port, strip_spaces packet) | _ -> None) stmts in
+        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(port, strip_spaces packet |> String.lowercase) 
+                                                  | _ -> None
+                         ) stmts in
         List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
           Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
 

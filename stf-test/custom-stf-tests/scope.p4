@@ -2,15 +2,15 @@
 #include <v1model.p4>
 typedef standard_metadata_t std_meta_t;
 
-header h_t { 
+header h_t {
   bit<8> x;
 }
 
-struct H { 
+struct H {
   h_t h;
 }
 
-struct M { 
+struct M {
 }
 
 parser ParserI(packet_in pk, out H hdr, inout M meta, inout std_meta_t std_meta) {

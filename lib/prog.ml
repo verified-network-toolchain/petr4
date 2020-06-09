@@ -894,13 +894,15 @@ and Value : sig
     | VError of string
     | VMatchKind of string
     | VFun of
-        { params : TypeParameter.t list;
+        { scope : Env.EvalEnv.t;
+          params : TypeParameter.t list;
           body : Block.t; }
     | VBuiltinFun of
         { name : string;
           caller : lvalue; }
     | VAction of
-        { params : TypeParameter.t list;
+        { scope : Env.EvalEnv.t;
+          params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
         { fields : (string * value) list; }
@@ -930,7 +932,8 @@ and Value : sig
           args : (string * value) list; }
     | VTable of vtable
     | VExternFun of
-        { name : string;
+        { scope : Env.EvalEnv.t;
+          name : string;
           caller : (loc * string) option; }
     [@@deriving sexp,yojson]
 
@@ -1029,11 +1032,11 @@ and Value : sig
 
   val assert_error : value -> string
 
-  val assert_fun : value -> TypeParameter.t list * Block.t
+  val assert_fun : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
 
   val assert_builtin : value -> string * lvalue
 
-  val assert_action : value -> TypeParameter.t list * Block.t
+  val assert_action : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
 
   val assert_struct : value -> (string * value) list
 
@@ -1118,13 +1121,15 @@ end = struct
     | VError of string
     | VMatchKind of string
     | VFun of
-        { params : TypeParameter.t list;
+        { scope : Env.EvalEnv.t;
+          params : TypeParameter.t list;
           body : Block.t; }
     | VBuiltinFun of
         { name : string;
           caller : lvalue; }
     | VAction of
-        { params : TypeParameter.t list;
+        { scope : Env.EvalEnv.t;
+          params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
         { fields : (string * value) list; }
@@ -1154,7 +1159,8 @@ end = struct
           args : (string * value) list; }
     | VTable of vtable
     | VExternFun of
-        { name : string;
+        { scope : Env.EvalEnv.t;
+          name : string;
           caller : (loc * string) option; }
   [@@deriving sexp, yojson]
 
@@ -1294,7 +1300,7 @@ end = struct
 
   let assert_fun v =
     match v with
-    | VFun {params;body} -> (params,body)
+    | VFun {scope;params;body} -> (scope,params,body)
     | _ -> failwith "not a function"
 
   let assert_builtin v =
@@ -1304,7 +1310,7 @@ end = struct
 
   let assert_action v =
     match v with
-    | VAction {params;body} -> (params, body)
+    | VAction {scope;params;body} -> (scope, params, body)
     | _ -> failwith "not an action"
 
   let assert_struct v =

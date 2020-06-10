@@ -52,6 +52,8 @@ module MakeInterpreter (T : Target) = struct
 
   let rec eval_decl (ctrl : ctrl) (env : env) (st : state)
       (d : Declaration.t) : env * state =
+    let open Declaration in
+    let i = fst d in
     match snd d with
     | Constant {
         annotations = _;
@@ -86,13 +88,14 @@ module MakeInterpreter (T : Target) = struct
         locals = _;
         apply = _;
       } -> (eval_control_decl env n d, st)
-    | Function {
+    | Function ({
+        scope;
         return = _;
         name = (_,n);
         type_params = _;
         params = ps;
         body = b;
-      } -> (eval_fun_decl env n ps b d, st)
+      } as fd) -> (eval_fun_decl env n ps b (i, Function {fd with scope = env}), st)
     | ExternFunction {
         annotations = _;
         return = _;

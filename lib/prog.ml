@@ -609,7 +609,8 @@ and Declaration : sig
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { annotations: Annotation.t list;
+      { scope: Env.EvalEnv.t;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: TypeParameter.t list;
         ctrl_params: TypeParameter.t list;
@@ -744,7 +745,8 @@ end = struct
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { annotations: Annotation.t list;
+      { scope: Env.EvalEnv.t;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: TypeParameter.t list;
         ctrl_params: TypeParameter.t list;

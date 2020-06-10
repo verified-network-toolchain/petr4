@@ -593,7 +593,8 @@ and Declaration : sig
         params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
-      { annotations: Annotation.t list;
+      { scope: Env.EvalEnv.t;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
@@ -729,7 +730,8 @@ end = struct
         params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
-      { annotations: Annotation.t list;
+      { scope: Env.EvalEnv.t;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;

@@ -96,13 +96,16 @@ module MakeInterpreter (T : Target) = struct
         params = ps;
         body = b;
       } as fd) -> (eval_fun_decl env n ps b (i, Function {fd with scope = env}), st)
-    | ExternFunction {
+    | ExternFunction ({
+        scope = _;
         annotations = _;
         return = _;
         name = (_,n);
         type_params = _;
         params = ps;
-      } -> (eval_extern_fun env n ps d, st)
+      } as efd) -> (eval_extern_fun env n ps
+        (i, ExternFunction {efd with scope = env})
+        , st)
     | Variable {
         annotations = _;
         typ = t;

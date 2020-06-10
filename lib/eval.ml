@@ -115,13 +115,16 @@ module MakeInterpreter (T : Target) = struct
         size = s;
         name = (_,n);
       } -> let (a,b,_) = eval_set_decl ctrl env st t n s in (a,b)
-    | Action {
+    | Action ({
+        scope = _;
         annotations = _;
         name = (_,n);
         data_params;
         ctrl_params;
         body = b;
-      } -> (eval_action_decl env n data_params ctrl_params b d, st)
+      } as ad) -> (eval_action_decl env n data_params ctrl_params b
+          (i, Action {ad with scope = env})
+        , st)
     | Table {
         annotations = _;
         name = (_,n);

@@ -2960,7 +2960,7 @@ and type_action env info annotations name params body =
                   ctrl_params = prog_params_to_constructor_params ctrl_params; }
        in
        let action =
-         Prog.Declaration.Action { annotations; name; data_params; ctrl_params; body = body }
+         Prog.Declaration.Action { scope; annotations; name; data_params; ctrl_params; body = body }
        in
        action, action_type
     | _ -> failwith "expected function declaration"

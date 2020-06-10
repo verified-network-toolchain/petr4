@@ -586,7 +586,8 @@ and Declaration : sig
         locals: t list;
         apply: Block.t }
   | Function of
-      { return: Type.t;
+      { scope: Env.EvalEnv.t;
+        return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list;
@@ -720,7 +721,8 @@ end = struct
         locals: t list;
         apply: Block.t }
   | Function of
-      { return: Type.t;
+      { scope: Env.EvalEnv.t;
+        return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list;

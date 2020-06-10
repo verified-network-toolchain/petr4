@@ -2822,7 +2822,8 @@ and type_function env (ctx: Typed.StmtContext.t) info return name type_params pa
                     return = return_type } in
   let env = CheckerEnv.insert_type_of (BareName name) funtype env in
   let fn_typed : Prog.Declaration.pre_t =
-    Function { return = return_type;
+    Function { scope = EvalEnv.empty_eval_env;
+               return = return_type;
                name = name;
                type_params = type_params;
                params = params_typed;
@@ -2941,7 +2942,7 @@ and type_action env info annotations name params body =
   in
   let action_typed, action_type =
     match snd fn_typed with
-    | Function { return; name; type_params; params; body } ->
+    | Function { scope; return; name; type_params; params; body } ->
        let data_params, ctrl_params =
          List.split_while params
            ~f:(fun (_, p) -> p.direction <> Directionless)

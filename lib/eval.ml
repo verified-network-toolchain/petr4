@@ -1434,7 +1434,7 @@ module MakeInterpreter (T : Target) = struct
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
     let open Statement in
     (* TODO: I am unsure of correct environment *)
-    let (_,cenv,st',_) = copyin ctrl env st env params args in
+    let (callenv,cenv,st',_) = copyin ctrl env st env params args in
     let f a (x,y) = EvalEnv.insert_val_bare x y a in
     let cenv' = List.fold_left vs ~init:cenv ~f:f in
     let (cenv'',st'') = List.fold_left locals ~init:(cenv',st') ~f:(fun (e,st) s -> eval_decl ctrl e st s) in
@@ -1447,7 +1447,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue
     | SReject _
     | SReturn VNull
-    | SExit     -> (copyout ctrl cenv''' cenv''' st''' params args false, st''', sign)
+    | SExit     -> (copyout ctrl callenv cenv''' st''' params args false, st''', sign)
     | SReturn _ -> failwith "control should not return"
 
   (*----------------------------------------------------------------------------*)

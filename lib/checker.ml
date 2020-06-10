@@ -2844,7 +2844,8 @@ and type_extern_function env info annotations return name type_params params =
       return = return }
   in
   let fn_typed : Prog.Declaration.pre_t =
-    ExternFunction { annotations;
+    ExternFunction { scope = EvalEnv.empty_eval_env;
+                     annotations;
                      return;
                      type_params;
                      params = params_typed;

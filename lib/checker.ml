@@ -429,7 +429,7 @@ let rec merge_constraints env xs ys =
     | None, _ -> y_var, y_typ
     | _, None -> x_var, x_typ
     | Some x_typ, Some y_typ ->
-       if type_equality env x_typ y_typ
+       if type_equality env [] x_typ y_typ
        then (x_var, Some x_typ)
        else fail ()
   in
@@ -596,12 +596,12 @@ and solve_constructor_type_equality env equiv_vars unknowns ctor1 ctor2 =
   | Unequal_lengths -> None
 
 
-and type_vars_equal_under env equiv_vars tv1 tv2 =
+and type_vars_equal_under equiv_vars tv1 tv2 =
   match equiv_vars with
   | (a, b)::rest ->
       if tv1 = a || tv2 = b
       then tv1 = a && tv2 = b
-      else type_vars_equal_under env rest tv1 tv2
+      else type_vars_equal_under rest tv1 tv2
   | [] ->
       tv1 = tv2
 
@@ -628,13 +628,179 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
      end
   | _ -> typ
 
+and type_equality_lists: 'a 'b.
+                 CheckerEnv.t -> 
+                 f:('a * 'b -> bool) -> 'a list -> 'b list -> bool =
+  fun env ~f xs ys ->
+  match List.zip xs ys with
+  | Ok pairs -> List.for_all ~f:(fun is_eq -> is_eq) @@ List.map ~f pairs
+  | Unequal_lengths -> false
+
+and constructor_params_equality env equiv_vars ps1 ps2 =
+  let open Typed.ConstructParam in
+  let params_equality (p1, p2) =
+    type_equality env equiv_vars p1.typ p2.typ
+  in
+  type_equality_lists env ps1 ps2 ~f:params_equality
+
+and record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordType.t) =
+  let open RecordType in
+  let solve_fields (f1, f2 : field * field) =
+    f1.name = f2.name && type_equality env equiv_vars f1.typ f2.typ
+  in
+  let field_cmp (f1 : field) (f2 : field) =
+    String.compare f1.name f2.name
+  in
+  let fields1 = List.sort ~compare:field_cmp rec1.fields in
+  let fields2 = List.sort ~compare:field_cmp rec2.fields in
+  type_equality_lists env fields1 fields2 ~f:solve_fields
+
+and enum_type_equality env equiv_vars enum1 enum2 =
+  let open EnumType in
+  enum1.name = enum2.name
+
+and package_type_equality env equiv_vars pkg1 pkg2 =
+  let open PackageType in
+  match List.zip pkg1.type_params pkg2.type_params with
+  | Ok param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     constructor_params_equality env equiv_vars' pkg1.parameters pkg2.parameters
+  | Unequal_lengths -> false
+
+and params_equality env equiv_vars ps1 ps2 =
+  let open Parameter in
+  let param_eq (p1, p2) =
+    if p1.direction = p2.direction
+    then type_equality env equiv_vars p1.typ p2.typ
+    else false
+  in
+  type_equality_lists env ~f:param_eq ps1 ps2
+
+and control_type_equality env equiv_vars ctrl1 ctrl2 =
+  let open ControlType in
+  match List.zip ctrl1.type_params ctrl2.type_params with
+  | Ok param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     params_equality env equiv_vars' ctrl1.parameters ctrl2.parameters
+  | Unequal_lengths -> false
+
+and extern_type_equality env equiv_vars extern1 extern2 =
+  let open Typed.ExternType in
+  match List.zip extern1.type_params extern2.type_params with
+  | Ok param_pairs ->
+      let equiv_vars' = equiv_vars @ param_pairs in
+      let method_cmp m1 m2 =
+          String.compare m1.name m2.name
+      in
+      let method_eq (m1, m2) =
+        if m1.name = m2.name
+        then function_type_equality env equiv_vars' m1.typ m2.typ
+        else false
+      in
+      let methods1 = List.sort ~compare:method_cmp extern1.methods in
+      let methods2 = List.sort ~compare:method_cmp extern2.methods in
+      type_equality_lists env ~f:method_eq methods1 methods2
+  | Unequal_lengths -> false
+
+and function_type_equality env equiv_vars func1 func2 =
+  let open FunctionType in
+  match List.zip func1.type_params func2.type_params with
+  | Ok param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     type_equality env equiv_vars' func1.return func2.return
+     && params_equality env equiv_vars' func1.parameters func2.parameters
+  | Unequal_lengths -> false
+
+and action_type_equality env equiv_vars action1 action2 =
+  let open ActionType in
+  params_equality env equiv_vars action1.data_params action2.data_params
+  && constructor_params_equality env equiv_vars action1.ctrl_params action2.ctrl_params
+
+and constructor_type_equality env equiv_vars ctor1 ctor2 =
+  let open ConstructorType in
+  match List.zip ctor1.type_params ctor2.type_params with
+  | Ok param_pairs ->
+     let equiv_vars' = equiv_vars @ param_pairs in
+     type_equality env equiv_vars' ctor1.return ctor2.return
+     && constructor_params_equality env equiv_vars' ctor1.parameters ctor2.parameters
+  | Unequal_lengths -> false
+
+
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
-and type_equality env t1 t2 =
-  match solve_types env [] [] t1 t2 with
-  | Some solution -> true
-  | None -> false
+and type_equality env equiv_vars t1 t2 =
+  let t1 = reduce_type env t1 in
+  let t2 = reduce_type env t2 in
+  match t1, t2 with
+  | TypeName (QualifiedName _), _
+  | _, TypeName (QualifiedName _) ->
+      failwith "Name in saturated type?"
+  | SpecializedType _, _
+  | _, SpecializedType _ ->
+     raise_s [%message "Stuck specialized type?" ~t1:(t1: Typed.Type.t)
+                                                 ~t2:(t2: Typed.Type.t)]
+  | TypeName (BareName (_, tv1)), TypeName (BareName (i2, tv2)) ->
+      type_vars_equal_under equiv_vars tv1 tv2
+  | NewType nt1, NewType nt2 ->
+     nt1.name = nt2.name
+  | Bool, Bool
+  | String, String
+  | Integer, Integer
+  | Error, Error
+  | MatchKind, MatchKind
+  | Void, Void ->
+     true
+  | Bit { width = l}, Bit {width = r}
+  | Int { width = l}, Int {width = r}
+  | VarBit {width = l}, VarBit {width = r} ->
+     l = r
+  | Array {typ = lt; size = ls}, Array {typ = rt; size = rs} ->
+     if ls = rs
+     then type_equality env equiv_vars lt rt
+     else false
+  | Tuple {types = types1}, Tuple {types = types2} ->
+     let solve_type_pair (t1, t2) =
+       type_equality env equiv_vars t1 t2
+     in
+     type_equality_lists env ~f:solve_type_pair types1 types2
+  | List {types = types1}, List {types = types2}
+  | Tuple {types = types1}, List {types = types2} ->
+    type_equality env equiv_vars (Tuple {types = types1}) (Tuple {types = types2})
+  | Record rec1, Record rec2
+  | Struct rec1, Record rec2
+  | Header rec1, Record rec2 ->
+     record_type_equality env equiv_vars rec1 rec2
+  | Struct {fields; _}, List {types}
+  | Header {fields; _}, List {types} ->
+     let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
+       type_equality env equiv_vars struct_field.typ tuple_type
+     in
+     type_equality_lists env ~f:ok fields types
+  | Set ty1, Set ty2 ->
+      type_equality env equiv_vars ty1 ty2
+  | Header rec1, Header rec2
+  | HeaderUnion rec1, HeaderUnion rec2
+  | Struct rec1, Struct rec2 ->
+      record_type_equality env equiv_vars rec1 rec2
+  | Enum enum1, Enum enum2 ->
+      enum_type_equality env equiv_vars enum1 enum2
+  | Package pkg1, Package pkg2 ->
+      package_type_equality env equiv_vars pkg1 pkg2
+  | Control ctrl1, Control ctrl2
+  | Parser ctrl1, Parser ctrl2 ->
+      control_type_equality env equiv_vars ctrl1 ctrl2
+  | Extern extern1, Extern extern2 ->
+      extern_type_equality env equiv_vars extern1 extern2
+  | Action action1, Action action2 ->
+      action_type_equality env equiv_vars action1 action2
+  | Function func1, Function func2 ->
+      function_type_equality env equiv_vars func1 func2
+  | Constructor ctor1, Constructor ctor2 ->
+      constructor_type_equality env equiv_vars ctor1 ctor2
+  | Table table1, Table table2 ->
+     table1.result_typ_name = table2.result_typ_name
+  | _ -> false
 
 and solve_types (env: CheckerEnv.t)
                 (equiv_vars: (string * string) list)
@@ -655,7 +821,7 @@ and solve_types (env: CheckerEnv.t)
                                                    ~t2:(t2: Typed.Type.t)]
 
     | TypeName (BareName (_, tv1)), TypeName (BareName (i2, tv2)) ->
-        if type_vars_equal_under env equiv_vars tv1 tv2
+        if type_vars_equal_under equiv_vars tv1 tv2
         then Some (empty_constraints unknowns)
         else Some (single_constraint unknowns tv1 t2)
 
@@ -794,7 +960,7 @@ and param_equality env p1s p2s =
   let open Parameter in
   let check_params = fun (par1,par2) ->
     if par1.direction <> par2.direction then false
-    else type_equality env par1.typ par2.typ in
+    else type_equality env [] par1.typ par2.typ in
   eq_lists ~f:check_params p1s p2s
 
 (* Checks that a list of constructor parameters is type equivalent.
@@ -804,11 +970,11 @@ and param_equality env p1s p2s =
 and construct_param_equality env p1s p2s =
   let open ConstructParam in
   let check_params = fun (par1,par2) ->
-    type_equality env par1.typ par2.typ in
+    type_equality env [] par1.typ par2.typ in
   eq_lists ~f:check_params p1s p2s
 
 and assert_same_type (env: CheckerEnv.t) info1 info2 (typ1: Type.t) (typ2: Type.t) =
-  if type_equality env typ1 typ2
+  if type_equality env [] typ1 typ2
   then (typ1, typ2)
   else let info = Info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
@@ -816,7 +982,7 @@ and assert_same_type (env: CheckerEnv.t) info1 info2 (typ1: Type.t) (typ2: Type.
 and assert_type_equality env info (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
   let t1 = reduce_type env t1 in
   let t2 = reduce_type env t2 in
-  if type_equality env t1 t2
+  if type_equality env [] t1 t2
   then ()
   else raise @@ Error.Type (info, Type_Difference (t1, t2))
 
@@ -1526,7 +1692,7 @@ and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
                              ~r_typ:(r_typ:Typed.Type.t)]
        end
     | Eq | NotEq ->
-       if type_equality env l_typ r_typ
+       if type_equality env [] l_typ r_typ
        then if type_has_equality_tests env l_typ
             then Type.Bool
             else failwith "bad error message: type doesn't have equality tests (== and !=)"
@@ -1608,17 +1774,17 @@ and cast_ok env original_type new_type =
      true
   | Enum { name; typ = Some t; members }, t'
   | t', Enum { name; typ = Some t; members } ->
-     type_equality env t t'
+     type_equality env [] t t'
   | NewType { name = name1; typ = typ1 },
     NewType { name = name2; typ = typ2 } ->
-     type_equality env typ1 new_type
-     || type_equality env original_type typ2
+     type_equality env [] typ1 new_type
+     || type_equality env [] original_type typ2
   | NewType { name; typ }, t
   | t, NewType { name; typ } ->
-     type_equality env typ t
+     type_equality env [] typ t
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
-     type_equality env new_type original_type
+     type_equality env [] new_type original_type
   | _ -> original_type = new_type
 
 (* Section 8.9 *)

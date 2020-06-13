@@ -398,6 +398,28 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   | Constructor ctor ->
      Constructor (saturate_constructor env ctor)
 
+and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+  let typ = saturate_type env typ in
+  match typ with
+  | SpecializedType { base; args } ->
+     let base = reduce_type env base in
+     begin match get_type_params base with
+     | [] -> begin match args with
+             | [] -> base
+             | _ -> typ (* stuck type application *)
+             end
+     | t_params ->
+        let args = List.map ~f:(reduce_type env) args in
+        begin match List.zip t_params args with
+        | Ok pairs ->
+           let base = drop_type_params base in
+           reduce_type (CheckerEnv.insert_types pairs env) base
+        | Unequal_lengths ->
+           failwith "mismatch in # of type params and type args"
+        end
+     end
+  | _ -> typ
+
 type var_constraint = string * Typed.Type.t option [@@deriving sexp]
 type var_constraints = var_constraint list [@@deriving sexp]
 type soln = var_constraints option [@@deriving sexp]
@@ -499,103 +521,6 @@ and solve_lists: 'a 'b.
   |> option_collapse
   |> option_map List.rev
 
-and solve_constructor_params_equality env equiv_vars unknowns ps1 ps2 =
-  let open Typed.ConstructParam in
-  let solve_params (p1, p2) =
-    solve_types env equiv_vars unknowns p1.typ p2.typ
-  in
-  solve_lists env unknowns ps1 ps2 ~f:solve_params
-
-and solve_record_type_equality env equiv_vars unknowns (rec1: RecordType.t) (rec2: RecordType.t) =
-  let open RecordType in
-  let solve_fields (f1, f2 : field * field) =
-    if f1.name = f2.name
-    then solve_types env equiv_vars unknowns f1.typ f2.typ
-    else None
-  in
-  let field_cmp (f1 : field) (f2 : field) =
-    String.compare f1.name f2.name
-  in
-  let fields1 = List.sort ~compare:field_cmp rec1.fields in
-  let fields2 = List.sort ~compare:field_cmp rec2.fields in
-  solve_lists env unknowns fields1 fields2 ~f:solve_fields
-
-and solve_enum_type_equality env equiv_vars unknowns enum1 enum2 =
-  let open EnumType in
-  (* could also check structural equality just to be sure but I don't
-     think that's necessary... - Ryan *)
-  if enum1.name = enum2.name
-  then Some (empty_constraints unknowns)
-  else None
-
-and solve_package_type_equality env equiv_vars unknowns pkg1 pkg2 =
-  let open PackageType in
-  match List.zip pkg1.type_params pkg2.type_params with
-  | Ok param_pairs ->
-     let equiv_vars' = equiv_vars @ param_pairs in
-     solve_constructor_params_equality env equiv_vars' unknowns pkg1.parameters pkg2.parameters
-  | Unequal_lengths -> None
-
-and solve_params_equality env equiv_vars unknowns ps1 ps2 =
-  let open Parameter in
-  let param_eq (p1, p2) =
-    if p1.direction = p2.direction
-    then solve_types env equiv_vars unknowns p1.typ p2.typ
-    else None
-  in
-  solve_lists env unknowns ~f:param_eq ps1 ps2
-
-and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
-  let open ControlType in
-  match List.zip ctrl1.type_params ctrl2.type_params with
-  | Ok param_pairs ->
-     let equiv_vars' = equiv_vars @ param_pairs in
-     solve_params_equality env equiv_vars' unknowns ctrl1.parameters ctrl2.parameters
-  | Unequal_lengths -> None
-
-and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
-  let open Typed.ExternType in
-  match List.zip extern1.type_params extern2.type_params with
-  | Ok param_pairs ->
-      let equiv_vars' = equiv_vars @ param_pairs in
-      let method_cmp m1 m2 =
-          String.compare m1.name m2.name
-      in
-      let solve_method_eq (m1, m2) =
-        if m1.name = m2.name
-        then solve_function_type_equality env equiv_vars' unknowns m1.typ m2.typ
-        else None
-      in
-      let methods1 = List.sort ~compare:method_cmp extern1.methods in
-      let methods2 = List.sort ~compare:method_cmp extern2.methods in
-      solve_lists env unknowns ~f:solve_method_eq methods1 methods2
-  | Unequal_lengths -> None
-
-and solve_function_type_equality env equiv_vars unknowns func1 func2 =
-  let open FunctionType in
-  match List.zip func1.type_params func2.type_params with
-  | Ok param_pairs ->
-     let equiv_vars' = equiv_vars @ param_pairs in
-     merge_solutions env (solve_types env equiv_vars' unknowns func1.return func2.return)
-                         (solve_params_equality env equiv_vars' unknowns func1.parameters func2.parameters)
-  | Unequal_lengths -> None
-
-and solve_action_type_equality env equiv_vars unknowns action1 action2 =
-  let open ActionType in
-  merge_solutions env
-    (solve_params_equality env equiv_vars unknowns action1.data_params action2.data_params)
-    (solve_constructor_params_equality env equiv_vars unknowns action1.ctrl_params action2.ctrl_params)
-
-and solve_constructor_type_equality env equiv_vars unknowns ctor1 ctor2 =
-  let open ConstructorType in
-  match List.zip ctor1.type_params ctor2.type_params with
-  | Ok param_pairs ->
-     let equiv_vars' = equiv_vars @ param_pairs in
-     merge_solutions env (solve_types env equiv_vars' unknowns ctor1.return ctor2.return)
-                         (solve_constructor_params_equality env equiv_vars' unknowns ctor1.parameters ctor2.parameters)
-  | Unequal_lengths -> None
-
-
 and type_vars_equal_under equiv_vars tv1 tv2 =
   match equiv_vars with
   | (a, b)::rest ->
@@ -604,29 +529,6 @@ and type_vars_equal_under equiv_vars tv1 tv2 =
       else type_vars_equal_under rest tv1 tv2
   | [] ->
       tv1 = tv2
-
-and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
-  fun env typ ->
-  let typ = saturate_type env typ in
-  match typ with
-  | SpecializedType { base; args } ->
-     let base = reduce_type env base in
-     begin match get_type_params base with
-     | [] -> begin match args with
-             | [] -> base
-             | _ -> typ (* stuck type application *)
-             end
-     | t_params ->
-        let args = List.map ~f:(reduce_type env) args in
-        begin match List.zip t_params args with
-        | Ok pairs ->
-           let base = drop_type_params base in
-           reduce_type (CheckerEnv.insert_types pairs env) base
-        | Unequal_lengths ->
-           failwith "mismatch in # of type params and type args"
-        end
-     end
-  | _ -> typ
 
 and type_equality_lists: 'a 'b.
                  CheckerEnv.t -> 
@@ -643,16 +545,27 @@ and constructor_params_equality env equiv_vars ps1 ps2 =
   in
   type_equality_lists env ps1 ps2 ~f:params_equality
 
+and sort_fields fields =
+  let open RecordType in
+  let field_cmp (f1 : field) (f2 : field) =
+    String.compare f1.name f2.name
+  in
+  List.sort ~compare:field_cmp fields
+
+and sort_entries entries =
+  let open RecordType in
+  let entry_cmp (_, e1: KeyValue.t) (_, e2: KeyValue.t) =
+    String.compare (snd e1.key) (snd e2.key)
+  in
+  List.sort ~compare:entry_cmp entries
+
 and record_type_equality env equiv_vars (rec1: RecordType.t) (rec2: RecordType.t) =
   let open RecordType in
   let solve_fields (f1, f2 : field * field) =
     f1.name = f2.name && type_equality env equiv_vars f1.typ f2.typ
   in
-  let field_cmp (f1 : field) (f2 : field) =
-    String.compare f1.name f2.name
-  in
-  let fields1 = List.sort ~compare:field_cmp rec1.fields in
-  let fields2 = List.sort ~compare:field_cmp rec2.fields in
+  let fields1 = sort_fields rec1.fields in
+  let fields2 = sort_fields rec2.fields in
   type_equality_lists env fields1 fields2 ~f:solve_fields
 
 and enum_type_equality env equiv_vars enum1 enum2 =
@@ -725,7 +638,6 @@ and constructor_type_equality env equiv_vars ctor1 ctor2 =
      && constructor_params_equality env equiv_vars' ctor1.parameters ctor2.parameters
   | Unequal_lengths -> false
 
-
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
@@ -760,10 +672,10 @@ and type_equality env equiv_vars t1 t2 =
      then type_equality env equiv_vars lt rt
      else false
   | Tuple {types = types1}, Tuple {types = types2} ->
-     let solve_type_pair (t1, t2) =
+     let ok (t1, t2) =
        type_equality env equiv_vars t1 t2
      in
-     type_equality_lists env ~f:solve_type_pair types1 types2
+     type_equality_lists env ~f:ok types1 types2
   | List {types = types1}, List {types = types2}
   | Tuple {types = types1}, List {types = types2} ->
     type_equality env equiv_vars (Tuple {types = types1}) (Tuple {types = types2})
@@ -801,156 +713,6 @@ and type_equality env equiv_vars t1 t2 =
   | Table table1, Table table2 ->
      table1.result_typ_name = table2.result_typ_name
   | _ -> false
-
-and solve_types (env: CheckerEnv.t)
-                (equiv_vars: (string * string) list)
-                (unknowns: string list)
-                (t1: Typed.Type.t)
-                (t2: Typed.Type.t)
-  : soln =
-  let t1 = reduce_type env t1 in
-  let t2 = reduce_type env t2 in
-  begin match t1, t2 with
-    | TypeName (QualifiedName _), _
-    | _, TypeName (QualifiedName _) ->
-        failwith "Name in saturated type?"
-
-    | SpecializedType _, _
-    | _, SpecializedType _ ->
-       raise_s [%message "Stuck specialized type?" ~t1:(t1: Typed.Type.t)
-                                                   ~t2:(t2: Typed.Type.t)]
-
-    | TypeName (BareName (_, tv1)), TypeName (BareName (i2, tv2)) ->
-        if type_vars_equal_under equiv_vars tv1 tv2
-        then Some (empty_constraints unknowns)
-        else Some (single_constraint unknowns tv1 t2)
-
-    | TypeName (BareName (_, tv)), typ ->
-       if List.mem ~equal:(=) unknowns tv
-       then Some (single_constraint unknowns tv typ)
-       else None
-
-    | NewType nt1, NewType nt2 ->
-       if nt1.name = nt2.name
-       then Some (empty_constraints unknowns)
-       else None
-
-    | Bool, Bool
-    | String, String
-    | Integer, Integer
-    (* These false "equalities" should probably be handled by addding implicit
-     * casts as described in sec. 8.9.2 of the p4-16 spec. *)
-    | Integer, Int _
-    | Int _, Integer
-    | Integer, Bit _
-    | Bit _, Integer
-    | Error, Error
-    | MatchKind, MatchKind
-    | Void, Void ->
-        Some (empty_constraints unknowns)
-
-    | Bit { width = l}, Bit {width = r}
-    | Int { width = l}, Int {width = r}
-    | VarBit {width = l}, VarBit {width = r} ->
-        if l = r
-        then Some (empty_constraints unknowns)
-        else None
-
-    | Array {typ = lt; size = ls}, Array {typ = rt; size = rs} ->
-       if ls = rs
-       then solve_types env equiv_vars unknowns lt rt
-       else None
-
-    | Tuple {types = types1}, Tuple {types = types2} ->
-       let solve_type_pair (t1, t2) =
-         solve_types env equiv_vars unknowns t1 t2
-       in
-       solve_lists env unknowns ~f:solve_type_pair types1 types2
-
-    | List {types = types1}, List {types = types2}
-    | Tuple {types = types1}, List {types = types2} ->
-      solve_types env equiv_vars unknowns
-         (Tuple {types = types1}) (Tuple {types = types2})
-
-    | Record rec1, Record rec2
-    | Struct rec1, Record rec2
-    | Header rec1, Record rec2 ->
-       solve_record_type_equality env equiv_vars unknowns rec1 rec2
-
-    | Struct {fields; _}, List {types}
-    | Header {fields; _}, List {types} ->
-       let ok (struct_field, tuple_type: Typed.RecordType.field * Typed.Type.t) =
-         solve_types env equiv_vars unknowns struct_field.typ tuple_type
-       in
-       solve_lists env unknowns ~f:ok fields types
-
-    | Set ty1, Set ty2 ->
-        solve_types env equiv_vars unknowns ty1 ty2
-
-    | Header rec1, Header rec2
-    | HeaderUnion rec1, HeaderUnion rec2
-    | Struct rec1, Struct rec2 ->
-        solve_record_type_equality env equiv_vars unknowns rec1 rec2
-
-    | Enum enum1, Enum enum2 ->
-        solve_enum_type_equality env equiv_vars unknowns enum1 enum2
-
-    | Package pkg1, Package pkg2 ->
-        solve_package_type_equality env equiv_vars unknowns pkg1 pkg2
-
-    | Control ctrl1, Control ctrl2
-    | Parser ctrl1, Parser ctrl2 ->
-        solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2
-
-    | Extern extern1, Extern extern2 ->
-        solve_extern_type_equality env equiv_vars unknowns extern1 extern2
-
-    | Action action1, Action action2 ->
-        solve_action_type_equality env equiv_vars unknowns action1 action2
-
-    | Function func1, Function func2 ->
-        solve_function_type_equality env equiv_vars unknowns func1 func2
-
-    | Constructor ctor1, Constructor ctor2 ->
-        solve_constructor_type_equality env equiv_vars unknowns ctor1 ctor2
-
-    | Table table1, Table table2 ->
-       if table1.result_typ_name = table2.result_typ_name
-       then Some (empty_constraints unknowns)
-       else None
-
-    (* We could replace this all with | _, _ -> false. I am writing it this way
-     * because when I change Type.t I want Ocaml to warn me about missing match
-     * cases. *)
-    | Bool, _
-    | String, _
-    | Integer, _
-    | Error, _
-    | MatchKind, _
-    | Void, _
-    | Bit _, _
-    | Int _, _
-    | VarBit _, _
-    | Array _, _
-    | Tuple _, _
-    | List _, _
-    | Record _, _
-    | Set _, _
-    | Header _, _
-    | HeaderUnion _, _
-    | NewType _, _
-    | Struct _, _
-    | Enum _, _
-    | Control _, _
-    | Parser _, _
-    | Package _, _
-    | Extern _, _
-    | Action _, _
-    | Function _, _
-    | Constructor _, _
-    | Table _, _ ->
-      None
-  end
 
 (* Checks that a list of parameters is type equivalent.
  * True if equivalent, false otherwise.
@@ -1047,12 +809,152 @@ and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
        type_range env lo hi
   in
   (exp_info, pre_expr)
-  (*
-  | FunctionCall { func; type_args; args } ->
-     (type_function_call env exp_info func type_args args, Directionless)
+
+and add_cast env expr typ =
+  let expr_casted: Prog.Expression.t =
+    fst expr,
+    {expr = Cast {typ = typ; expr = expr};
+     typ = typ;
+     dir = (snd expr).dir}
   in
-  (typ, dir, (Info.dummy, pre_exp))
-   *)
+  if cast_ok env (snd expr).typ typ
+  then expr_casted
+  else failwith "cannot cast"
+
+and cast_if_needed env (expr: Prog.Expression.t) typ =
+  if type_equality env [] (snd expr).typ typ
+  then expr
+  else add_cast env expr typ
+
+and cast_to_same_type (env: CheckerEnv.t) (exp1: Expression.t) (exp2: Expression.t) =
+  let exp1 = type_expression env exp1 in
+  let typ1 = (snd exp1).typ in
+  let exp2 = type_expression env exp2 in
+  let typ2 = (snd exp2).typ in
+  if type_equality env [] typ1 typ2
+  then exp1, exp2
+  else if cast_ok env typ1 typ2
+  then add_cast env exp1 typ2, exp2
+  else if cast_ok env typ2 typ1
+  then exp1, add_cast env exp2 typ1
+  else failwith "cannot cast types so that they agree"
+
+and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expression.t) =
+  let module E = Prog.Expression in
+  match exp with
+  | True
+  | False
+  | String _
+  | Cast _ ->
+     let exp_typed = type_expression env (exp_info, exp) in
+     assert_type_equality env exp_info typ (snd exp_typed).typ;
+     exp_typed
+  | Int _
+  | Name _
+  | ArrayAccess _
+  | BitStringAccess _
+  | UnaryOp _
+  | TypeMember _
+  | ErrorMember _
+  | ExpressionMember _
+  | FunctionCall _
+  | NamelessInstantiation _ ->
+     let exp_typed = type_expression env (exp_info, exp) in
+     cast_if_needed env exp_typed typ
+  | List { values } ->
+     let types =
+       match typ with
+       | Tuple { types }
+       | List { types } ->
+          types
+       | Header { fields }
+       | Struct { fields } ->
+          List.map ~f:(fun f -> f.typ) fields
+       | _ -> failwith "cannot cast a list expression to this type"
+     in
+     let values_casted =
+       List.zip_exn types values
+       |> List.map ~f:(fun (t, v) -> cast_expression env t v)
+     in
+     let exp_typed: E.t =
+       exp_info,
+       {expr = List {values = values_casted};
+        typ = List {types};
+        dir = Directionless}
+     in
+     cast_if_needed env exp_typed typ
+  | Record { entries } ->
+     let entries = sort_entries entries in
+     let fields =
+       match typ with
+       | Record {fields}
+       | Header {fields}
+       | Struct {fields} ->
+          sort_fields fields
+       | _ -> failwith "can't cast record"
+     in
+     let cast_entry (field, entry: RecordType.field * KeyValue.t) : Prog.KeyValue.t =
+       if field.name <> (snd (snd entry).key)
+       then failwith "bad names";
+       let value_typed: Prog.Expression.t = 
+         cast_expression env field.typ (snd entry).value
+       in
+       fst entry,
+       {key = (snd entry).key;
+        value = value_typed}
+     in
+     let entries_casted =
+       List.zip_exn fields entries
+       |> List.map ~f:cast_entry
+     in
+     let exp_typed: E.t =
+       exp_info,
+       {expr = Record {entries = entries_casted};
+        typ = Record {fields};
+        dir = Directionless}
+     in
+     cast_if_needed env exp_typed typ
+  | BinaryOp {op; args = (left, right)} ->
+     let left_typed = cast_expression env typ left in
+     let right_typed =
+       if snd op <> Op.Shl && snd op <> Op.Shr
+       then cast_expression env typ right
+       else type_expression env right
+     in
+     exp_info, check_binary_op env op left_typed right_typed
+  | Ternary { cond; tru; fls } ->
+     let cond_typed = cast_expression env Bool cond in
+     let tru_typed = cast_expression env typ tru in
+     let fls_typed = cast_expression env typ fls in
+     exp_info,
+     {expr = Ternary {cond = cond_typed; tru = tru_typed; fls = fls_typed};
+      typ = typ;
+      dir = Directionless}
+  | Mask { expr; mask } ->
+     let elt_width =
+       match reduce_type env typ with
+       | Set (Bit {width}) -> width
+       | _ -> failwith "must be a set of bit<w>"
+     in
+     let elt_type = Typed.Type.Bit {width = elt_width} in
+     let expr_typed = cast_expression env elt_type expr in
+     let mask_typed = cast_expression env elt_type mask in
+     exp_info,
+     {expr = Mask {expr = expr_typed; mask = mask_typed};
+      typ = Set (elt_type);
+      dir = Directionless}
+  | Range { lo; hi } ->
+     let elt_typ =
+       match reduce_type env typ with
+       | Set typ -> typ
+       | _ -> failwith "must be a set"
+     in
+     let lo_typed = cast_expression env elt_typ lo in
+     let hi_typed = cast_expression env elt_typ hi in
+     exp_info,
+     {expr = Range {lo = lo_typed; hi = hi_typed};
+      typ = typ;
+      dir = Directionless}
 
 and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   match dir with
@@ -1663,9 +1565,14 @@ and check_div_args env left_arg right_arg =
                    ~dividend:(left_arg:Prog.Expression.t)];
 
 and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
-  let open Op in
   let open Typed.Type in
   let typed_l, typed_r = coerce_binary_op_args env op l r in
+  check_binary_op env (op_info, op) typed_l typed_r
+
+and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t =
+  let open Op in
+  let open Prog.Expression in
+  let open Typed.Type in
   let l_typ = (snd typed_l).typ in
   let r_typ = (snd typed_r).typ in
   let dir =
@@ -1807,11 +1714,6 @@ and type_type_member env typ name : Prog.Expression.typed_t =
                          name = name };
      typ = full_type;
      dir }
-     (*
-  let typ = translate_type env [] typ in
-  let full_typ = saturate_type env typ
-  in
-      *)
 
 (* Section 8.2
  * -----------

@@ -586,15 +586,13 @@ and Declaration : sig
         locals: t list;
         apply: Block.t }
   | Function of
-      { scope: Env.EvalEnv.t;
-        return: Type.t;
+      { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
-      { scope: Env.EvalEnv.t;
-        annotations: Annotation.t list;
+      { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
@@ -610,8 +608,7 @@ and Declaration : sig
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { scope: Env.EvalEnv.t;
-        annotations: Annotation.t list;
+      { annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: TypeParameter.t list;
         ctrl_params: TypeParameter.t list;
@@ -723,15 +720,13 @@ end = struct
         locals: t list;
         apply: Block.t }
   | Function of
-      { scope: Env.EvalEnv.t;
-        return: Type.t;
+      { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list;
         body: Block.t }
   | ExternFunction of
-      { scope: Env.EvalEnv.t;
-        annotations: Annotation.t list;
+      { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
@@ -747,8 +742,7 @@ end = struct
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { scope: Env.EvalEnv.t;
-        annotations: Annotation.t list;
+      { annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: TypeParameter.t list;
         ctrl_params: TypeParameter.t list;
@@ -938,8 +932,7 @@ and Value : sig
           args : (string * value) list; }
     | VTable of vtable
     | VExternFun of
-        { scope : Env.EvalEnv.t;
-          name : string;
+        { name : string;
           caller : (loc * string) option; }
     [@@deriving sexp,yojson]
 
@@ -1165,8 +1158,7 @@ end = struct
           args : (string * value) list; }
     | VTable of vtable
     | VExternFun of
-        { scope : Env.EvalEnv.t;
-          name : string;
+        { name : string;
           caller : (loc * string) option; }
   [@@deriving sexp, yojson]
 

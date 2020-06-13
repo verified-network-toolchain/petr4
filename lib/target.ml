@@ -364,12 +364,14 @@ and update_slice bits_val msb lsb rhs_val =
 module State = struct
 
   type 'a t = {
-    target_state : (string * 'a) list;
+    externs : (string * 'a) list;
+    heap : (string * value) list;
     packet : pkt;
   }
 
   let empty = {
-    target_state = [];
+    externs = [];
+    heap = [];
     packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; }
   }
 
@@ -380,24 +382,24 @@ module State = struct
   let set_packet pkt st = { st with packet = pkt }
 
   let insert loc v st = {
-    st with target_state = (loc,v) :: st.target_state }
+    st with externs = (loc,v) :: st.externs }
   
   let find loc st =
-    List.Assoc.find_exn st.target_state loc ~equal:String.equal
+    List.Assoc.find_exn st.externs loc ~equal:String.equal
 
   let filter ~f st = { st with
-    target_state = List.filter ~f st.target_state; }
+    externs = List.filter ~f st.externs; }
 
   let map ~f st = 
     let go (loc, x) = loc, f x in { st with
-      target_state = List.map ~f:go st.target_state;
+      externs = List.map ~f:go st.externs;
     } 
 
   let merge s1 s2 =
-    { s1 with target_state = s1.target_state @ s2.target_state }
+    { s1 with externs = s1.externs @ s2.externs }
 
   let is_initialized loc st =
-    List.exists st.target_state ~f:(fun (x,_) -> String.equal x loc)
+    List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
 
 end
 

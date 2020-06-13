@@ -53,7 +53,6 @@ module MakeInterpreter (T : Target) = struct
   let rec eval_decl (ctrl : ctrl) (env : env) (st : state)
       (d : Declaration.t) : env * state =
     let open Declaration in
-    let i = fst d in
     match snd d with
     | Constant {
         annotations = _;
@@ -88,24 +87,20 @@ module MakeInterpreter (T : Target) = struct
         locals = _;
         apply = _;
       } -> (eval_control_decl env n d, st)
-    | Function ({
-        scope;
+    | Function {
         return = _;
         name = (_,n);
         type_params = _;
         params = ps;
         body = b;
-      } as fd) -> (eval_fun_decl env n ps b (i, Function {fd with scope = env}), st)
-    | ExternFunction ({
-        scope = _;
+      } -> eval_fun_decl env n ps b d, st
+    | ExternFunction {
         annotations = _;
         return = _;
         name = (_,n);
         type_params = _;
         params = ps;
-      } as efd) -> (eval_extern_fun env n ps
-        (i, ExternFunction {efd with scope = env})
-        , st)
+      } -> eval_extern_fun env n ps d, st
     | Variable {
         annotations = _;
         typ = t;
@@ -118,16 +113,13 @@ module MakeInterpreter (T : Target) = struct
         size = s;
         name = (_,n);
       } -> let (a,b,_) = eval_set_decl ctrl env st t n s in (a,b)
-    | Action ({
-        scope = _;
+    | Action {
         annotations = _;
         name = (_,n);
         data_params;
         ctrl_params;
         body = b;
-      } as ad) -> (eval_action_decl env n data_params ctrl_params b
-          (i, Action {ad with scope = env})
-        , st)
+      } -> eval_action_decl env n data_params ctrl_params b d, st
     | Table {
         annotations = _;
         name = (_,n);
@@ -233,7 +225,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_fun (env : env) (name : string)
       (params : TypeParameter.t list) (decl : Declaration.t) : env =
     EvalEnv.insert_decl_bare name decl env
-    |> EvalEnv.insert_val_bare name (VExternFun {scope=env; name; caller = None})
+    |> EvalEnv.insert_val_bare name (VExternFun {name; caller = None})
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =
@@ -706,7 +698,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_name (ctrl : ctrl) (env : env) (st : state) (s : signal) (name : Types.name)
       (exp : Expression.t) : env * state * signal * value =
     if String.equal (name_only name) "verify"
-    then (env, st, s, VExternFun {scope=env; name = "verify"; caller = None})
+    then (env, st, s, VExternFun {name = "verify"; caller = None})
     else (env, st, s, EvalEnv.find_val name env)
 
   and eval_p4int (n : P4Int.pre_t) : value =
@@ -870,7 +862,7 @@ module MakeInterpreter (T : Target) = struct
         | VAction{scope;params; body}
         | VFun{scope;params; body}      -> eval_funcall' ctrl env' st' scope params args body
         | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env' st' n lv args
-        | VExternFun{scope; name=n;caller=v}   -> eval_extern_call ctrl env' st' scope n v targs args
+        | VExternFun{name=n;caller=v}   -> eval_extern_call ctrl env' st' n v targs args
         | _ -> failwith "unreachable" end
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
@@ -920,7 +912,7 @@ module MakeInterpreter (T : Target) = struct
         else
           let args' = List.map args ~f:(fun x -> Some x) in
           (* TODO: I am not sure what the correct lexical scope is... *)
-          eval_extern_call ctrl env st env (snd ext_decl.name) (Some (loc, snd ext_decl.name)) [] args'
+          eval_extern_call ctrl env st (snd ext_decl.name) (Some (loc, snd ext_decl.name)) [] args'
       | _ -> failwith "instantiation unimplemented" in
     match s with
     | SContinue -> (env',st',s,v)
@@ -999,7 +991,7 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_runtime_mem (env : env) (st : state) (mname : string) (expr : Expression.t)
       (loc : loc) (obj_name : string) : env * state * signal * value =
-    env, st, SContinue, VExternFun {scope=env; caller = Some (loc, obj_name); name = mname }
+    env, st, SContinue, VExternFun {caller = Some (loc, obj_name); name = mname }
 
   and eval_stack_size (env : env) (st : state)
       (size : Bigint.t) : env * state * signal * value =
@@ -1038,8 +1030,7 @@ module MakeInterpreter (T : Target) = struct
   (* Function and Method Call Evaluation *)
   (*----------------------------------------------------------------------------*)
 
-  and eval_extern_call (ctrl : ctrl) (callenv : env) (st : state)
-      (fscope : env) (name : string)
+  and eval_extern_call (ctrl : ctrl) (callenv : env) (st : state) (name : string)
       (v : (loc * string) option) (targs : Type.t list)
       (args : Expression.t option list) : env * state * signal * value =
     let ts = args |> List.map ~f:(function Some e -> (snd e).typ | None -> Void) in
@@ -1058,8 +1049,8 @@ module MakeInterpreter (T : Target) = struct
                 |> assert_extern_function in
     (* let fenv = EvalEnv.push_scope fscope in *)
     let (_, kvs) =
-      List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(fscope,st,SContinue) in
-    let (callenv,fenv, st', signal) = copyin ctrl callenv st fscope params args in
+      List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(callenv,st,SContinue) in
+    let (callenv,fenv, st', signal) = copyin ctrl callenv st callenv params args in
     let vs = List.map ~f:snd kvs in
     let env' = EvalEnv.pop_scope fenv in
     match signal with

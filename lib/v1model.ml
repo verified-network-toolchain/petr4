@@ -12,11 +12,6 @@ module Hash = H
 
 module PreV1Switch : Target = struct
 
-  include BasicReader
-  include BasicWriter
-
-  let assign_lvalue = assign_lvalue read_header_field write_header_field
-
   let drop_spec = Bigint.of_int 511
 
   type obj =
@@ -46,6 +41,16 @@ module PreV1Switch : Target = struct
   type state = obj State.t
   type extern = state pre_extern
 
+  let read_header_field : obj reader = fun st is_valid fields fname ->
+    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    State.find_heap l st
+
+  let write_header_field : obj writer = fun st is_valid fields fname fvalue ->
+    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    State.insert_heap l fvalue st  
+
+  let assign_lvalue = assign_lvalue read_header_field write_header_field
+
   let eval_counter : extern = fun ctrl env st ts args ->
     let (loc, v, typ) = match args with 
       | [(VRuntime {loc; _}, _);
@@ -62,14 +67,14 @@ module PreV1Switch : Target = struct
         Both (List.init size ~f:(fun _ -> Bigint.zero, Bigint.zero))
       | _ -> failwith "unexpected field name for counter type" in
     let ctr = Counter { typ = ctr_typ; size = Bigint.of_int size; } in
-    env, State.insert loc ctr st, SContinue, VRuntime {loc = loc; obj_name = "counter"}
+    env, State.insert_extern loc ctr st, SContinue, VRuntime {loc = loc; obj_name = "counter"}
       
   let eval_count_counter : extern = fun ctrl env st ts args ->
     let (loc, v) = match args with
       | [(VRuntime{loc;_},_); (VBit {v;_}, _)] -> loc, Bigint.to_int_exn v
       | _ -> failwith "unexpected args for count counter" in
     let pkt_len = (State.get_packet st).in_size |> Bigint.of_int in
-    let ctr = State.find loc st in
+    let ctr = State.find_extern loc st in
     let ctr' = match ctr with
       | Counter {size; typ = Packets l} ->
         Counter {size; typ = Packets begin
@@ -85,7 +90,7 @@ module PreV1Switch : Target = struct
             ~f:(fun i (p,b) -> Bigint.(if Int.equal i v then p+one, b + pkt_len else p, b))
         end }
       | _ -> failwith "cannot perform a count on a non-counter object" in
-    env, State.insert loc ctr' st, SContinue, VNull
+    env, State.insert_extern loc ctr' st, SContinue, VNull
 
   let eval_count_direct_counter : extern = fun ctrl env st ts args ->
     (* actual direct counting implemented in target-dependent table execution *)
@@ -105,7 +110,7 @@ module PreV1Switch : Target = struct
         | "bytes" -> DirectCounter {typ = Bytes []}
         | "packets_and_bytes" -> DirectCounter {typ = Both []}
         | _ -> failwith "unexpected field name for counter type" in
-      env, State.insert loc dctr st, SContinue, VRuntime{loc;obj_name}
+      env, State.insert_extern loc dctr st, SContinue, VRuntime{loc;obj_name}
     | _ -> failwith "unexpected args for direct counter"
 
   let eval_meter : extern = fun ctrl env st ts args ->
@@ -114,7 +119,7 @@ module PreV1Switch : Target = struct
       | [(VRuntime{loc;obj_name},_); _; _] -> loc, obj_name
       | _ -> failwith "unexpected args for meter" in
     let meter = Meter () in
-    env, State.insert loc meter st, SContinue, VRuntime{loc;obj_name}
+    env, State.insert_extern loc meter st, SContinue, VRuntime{loc;obj_name}
 
   let eval_execute_meter : extern = fun ctrl env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
@@ -125,19 +130,20 @@ module PreV1Switch : Target = struct
       | [(VRuntime{loc;obj_name},_); _] -> loc,obj_name
       | _ -> failwith "unexpected args for direct meter instantiation" in
     let dmeter = DirectMeter () in
-    env, State.insert loc dmeter st, SContinue, VRuntime{loc;obj_name}
+    env, State.insert_extern loc dmeter st, SContinue, VRuntime{loc;obj_name}
 
   let eval_register_read : extern = fun _ env st _ args ->
     match args with
     | [(VRuntime {loc;_}, _); (_,t) ; (VBit {w = w; v = v}, _)] ->
-      let reg_obj = State.find loc st in
+      let reg_obj = State.find_extern loc st in
       let states = match reg_obj with
         | Register {states; _} -> states
         | _ -> failwith "Reading from an object other than a v1 register" in
+      let st, default = init_val_of_typ st env t in
       let read_val =
         Bigint.to_int_exn v
         |> List.nth states 
-        |> Option.value ~default:(init_val_of_typ env t) in
+        |> Option.value ~default in
       let env'= EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) read_val env in 
       env', st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
@@ -156,11 +162,11 @@ module PreV1Switch : Target = struct
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
-      let init_val = init_val_of_typ env typ in
+      let st, init_val = init_val_of_typ st env typ in
       let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
       let reg = Register {states = states;
                           size = size; } in
-      let st' = State.insert loc reg st in
+      let st' = State.insert_extern loc reg st in
       env, st', SContinue, VRuntime {loc = loc; obj_name = obj_name}
     | _ -> failwith "unexpected args for register instantiation"
 
@@ -169,7 +175,7 @@ module PreV1Switch : Target = struct
     | [(VRuntime {loc;_}, _); 
         (VBit {w = _; v = v_index}, _) ; 
         (write_val, _)] ->
-      let reg_obj = State.find loc st in
+      let reg_obj = State.find_extern loc st in
       let states, size = match reg_obj with
         | Register {states; size} -> states, size
         | _ -> failwith "Reading from an object other than a v1 register" in
@@ -178,7 +184,7 @@ module PreV1Switch : Target = struct
       let states' = List.mapi ~f:subs_f states in
       let reg' = Register {states = states';
                             size = size;} in
-      let st' = State.insert loc reg' st in
+      let st' = State.insert_extern loc reg' st in
       env, st', SContinue, write_val 
     | _ -> failwith "unexpected args for register write"
 
@@ -188,7 +194,7 @@ module PreV1Switch : Target = struct
       | [(VRuntime{loc;obj_name},_); _] -> loc, obj_name
       | _ -> failwith "unexpected args for action profile" in
     let prof = ActionProfile () in
-    env, State.insert loc prof st, SContinue, VRuntime{loc;obj_name}
+    env, State.insert_extern loc prof st, SContinue, VRuntime{loc;obj_name}
 
   let eval_random : extern = fun ctrl env st ts args ->
     Random.self_init ();
@@ -221,13 +227,13 @@ module PreV1Switch : Target = struct
       };
       typ = Bit{width=9};
     } in
-    let (env', _) =
-      assign_lvalue env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) false in
+    let (st, env', _) =
+      assign_lvalue st env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) false in
     env', st, SContinue, VNull
 
-  let package_for_hash (data : value list) : Bigint.t * Bigint.t =
+  let package_for_hash (st : state) (data : value list) : Bigint.t * Bigint.t =
     data
-    |> List.map ~f:(fun v -> width_of_val v, bigint_of_val v)
+    |> List.map ~f:(fun v -> width_of_val st v, bigint_of_val v)
     |> List.map ~f:(fun (w,v) -> w, Bitstring.of_twos_complement v w)
     |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
         Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
@@ -246,7 +252,7 @@ module PreV1Switch : Target = struct
       | _ -> failwith "unexpected args for hash" in
     let result = 
       data
-      |> package_for_hash
+      |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value base rmax in
     let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=result}) env in
@@ -258,7 +264,7 @@ module PreV1Switch : Target = struct
       | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
       | _ -> failwith "unexpected args for action selector instantiation" in
     let selector = ActionSelector () in
-    env, State.insert loc selector st, SContinue, VRuntime{loc;obj_name}
+    env, State.insert_extern loc selector st, SContinue, VRuntime{loc;obj_name}
 
   let eval_checksum16 : extern = fun ctrl env st ts args ->
     (* TODO: current implementation is trivial *)
@@ -266,7 +272,7 @@ module PreV1Switch : Target = struct
       | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
       | _ -> failwith "unexpected args for action selector instantiation" in
     let obj = Checksum16 () in
-    env, State.insert loc obj st, SContinue, VRuntime{loc;obj_name}      
+    env, State.insert_extern loc obj st, SContinue, VRuntime{loc;obj_name}      
 
   let eval_get : extern = fun ctrl env st ts args ->
     (* TODO: actually implement *)
@@ -284,7 +290,7 @@ module PreV1Switch : Target = struct
     if not condition then env, st, SContinue, VNull else
     let result = 
       data
-      |> package_for_hash
+      |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
@@ -302,7 +308,7 @@ module PreV1Switch : Target = struct
     if not condition then env, st, SContinue, VNull else
     let result = 
       data
-      |> package_for_hash
+      |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
@@ -335,7 +341,7 @@ module PreV1Switch : Target = struct
     let data = payload_value :: data in
     let result = 
       data
-      |> package_for_hash
+      |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     if Bigint.(checksum = result) then env, st, SContinue, VNull
@@ -355,7 +361,7 @@ module PreV1Switch : Target = struct
     let data = payload_value :: data in
     let result = 
       data
-      |> package_for_hash
+      |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
     let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
@@ -514,12 +520,12 @@ module PreV1Switch : Target = struct
       | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
     let vpkt = VRuntime { loc = State.packet_location; obj_name = "packet_in"; } in
-    let hdr =
-      init_val_of_typ env (snd (List.nth_exn params 1)).typ in
-    let meta =
-      init_val_of_typ env (snd (List.nth_exn params 2)).typ in
-    let std_meta =
-      init_val_of_typ env (snd (List.nth_exn params 3)).typ in
+    let st, hdr =
+      init_val_of_typ st env (snd (List.nth_exn params 1)).typ in
+    let st, meta =
+      init_val_of_typ st env (snd (List.nth_exn params 2)).typ in
+    let st, std_meta =
+      init_val_of_typ st env (snd (List.nth_exn params 3)).typ in
     let env =
       EvalEnv.(env
               |> insert_val (BareName (Info.dummy, "packet"  )) vpkt
@@ -532,8 +538,9 @@ module PreV1Switch : Target = struct
               |> insert_typ (BareName (Info.dummy, "std_meta")) (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
-    let (env, _) = 
-      assign_lvalue 
+    let (st, env, _) = 
+      assign_lvalue
+        st
         env
         {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                 name="ingress_port"; }; typ = Bit {width = 9}}
@@ -552,37 +559,42 @@ module PreV1Switch : Target = struct
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let env = EvalEnv.set_namespace "" env in
-    let (env,st) =
+    let (st,env) =
       match state with 
       | SReject err -> 
-        assign_lvalue env {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (snd (List.nth_exn params 3)).typ;}; name="parser_error"}; typ = Error} (VError(err)) false
-        |> fst, st
-      | SContinue -> (env,st)
+        assign_lvalue st env
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (snd (List.nth_exn params 3)).typ;}; name="parser_error"}; typ = Error}
+          (VError(err)) false
+        |> fst23
+      | SContinue -> (st,env)
       | _ -> failwith "parser should not exit or return" in
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let env = EvalEnv.insert_val (BareName (Info.dummy, "packet")) vpkt' env in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
     let (env,st, s) = (env,st)
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
-    let env = 
+    let (st, env) = 
       match s with
       | SReject "ChecksumError" ->
         assign_lvalue
+          st
           env
           {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                   name="checksum_error"; }; typ = Bit {width = 1}}
-          (VBit{v=Bigint.one;w=Bigint.one}) false |> fst
-      | SContinue | SReturn _ | SExit | SReject _ -> env in
+          (VBit{v=Bigint.one;w=Bigint.one}) false |> fst23
+      | SContinue | SReturn _ | SExit | SReject _ -> st, env in
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
     let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
     let egress_spec_val = match struc with
       | VStruct {fields} ->
-        List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
+        let l = List.Assoc.find_exn fields "egress_spec" ~equal:String.equal in
+        State.find_heap l st
       | _ -> failwith "std meta is not a struct after ingress" in
     if Bigint.(egress_spec_val |> bigint_of_val = drop_spec) then st, env, None else
-    let env,_ = 
+    let st,env,_ = 
       assign_lvalue 
+        st
         env
         {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                 name="egress_port"; }; typ = Bit {width = 9}}

@@ -11,11 +11,6 @@ let (<>) = Stdlib.(<>)
 
 module PreEbpfFilter : Target = struct
 
-  include BasicReader
-  include BasicWriter
-
-  let assign_lvalue = assign_lvalue read_header_field write_header_field
-
   type obj = unit (* TODO *)
 
   type state = obj State.t
@@ -23,6 +18,16 @@ module PreEbpfFilter : Target = struct
   type extern = state pre_extern
 
   let externs = []
+
+  let read_header_field : obj reader = fun st is_valid fields fname ->
+    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    State.find_heap l st
+
+  let write_header_field : obj writer = fun st is_valid fields fname fvalue ->
+    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    State.insert_heap l fvalue st
+
+  let assign_lvalue = assign_lvalue read_header_field write_header_field
 
   let eval_extern _ = failwith ""
 
@@ -48,7 +53,7 @@ module PreEbpfFilter : Target = struct
       | _ -> failwith "parser is not a parser object" in
     let vpkt = VRuntime {loc = State.packet_location; obj_name = "packet_in"; } in
     let pkt_name = Types.BareName (Info.dummy, "packet") in
-    let hdr = init_val_of_typ env (snd (List.nth_exn params 1)).typ in
+    let st, hdr = init_val_of_typ st env (snd (List.nth_exn params 1)).typ in
     let hdr_name = Types.BareName (Info.dummy, "headers") in
     let accept = VBool (false) in
     let accept_name = Types.BareName (Info.dummy, "accept") in
@@ -71,13 +76,13 @@ module PreEbpfFilter : Target = struct
       app ctrl env st SContinue parser [pkt_expr; hdr_expr] in
     match state with 
     | SReject _ -> 
-      st,
-      assign_lvalue 
-        env
-        {lvalue = LName {name = accept_name}; typ = Bool}
-        (VBool(false)) false
-      |> fst,
-      None
+      let (st, env, _) =
+        assign_lvalue
+          st
+          env
+          {lvalue = LName {name = accept_name}; typ = Bool}
+          (VBool(false)) false in
+      st, env, None
     | SContinue | SExit | SReturn _ ->
       let (env,st,_) = 
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in

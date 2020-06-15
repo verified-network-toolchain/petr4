@@ -3181,12 +3181,8 @@ and type_table_entries env entries key_typs action_map =
        let type_arg (param:Typed.ConstructParam.t) (arg_info, arg:Argument.t) =
          begin match arg with
          (* Direction handling probably is incorrect here. *)
-         | Expression { value = exp } ->
-            let exp_typed = type_expression env exp in
-            assert_type_equality env (fst exp) param.typ (snd exp_typed).typ;
-            Some exp_typed
-         | _ ->
-            failwith "Actions in entries only support positional arguments."
+         | Expression { value = exp } -> Some (cast_expression env param.typ exp)
+         | _ -> failwith "Actions in entries only support positional arguments."
          end in
        let args_typed = List.map2_exn ~f:type_arg ctrl_params (snd entry.action).args in
        let action_ref_typed : Prog.Table.action_ref =
@@ -3194,7 +3190,7 @@ and type_table_entries env entries key_typs action_map =
          { action =
              { annotations = (snd entry.action).annotations;
                name = (snd entry.action).name;
-               args =  args_typed };
+               args = args_typed };
            typ = Action { data_params; ctrl_params } }
        in
        let pre_entry : Prog.Table.pre_entry =

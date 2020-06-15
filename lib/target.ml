@@ -232,6 +232,7 @@ let rec width_of_val st v =
     width_of_val st value
   in
   match v with
+  | VLoc l -> width_of_val st (State.find_heap l st)
   | VBit {w;_}
   | VInt {w;_}
   | VVarbit{w;_} ->
@@ -416,6 +417,7 @@ and update_member (writer : 'a writer) (st : 'a State.t) (value : value) (fname 
        | _ -> failwith "BUG: VStack has no such member"
      in
      update_idx st value idx fvalue
+  | VLoc l -> update_member writer st (State.find_heap l st) fname fvalue inc_next
   | _ -> failwith "member access undefined"
 
 and update_union_member (st : 'a State.t) (fields : (string * loc) list)

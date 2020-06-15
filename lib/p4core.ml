@@ -48,6 +48,7 @@ module Corize (T : Target) : Target = struct
     match s with
     | SContinue ->
       begin match v with
+        | VLoc l -> extract_hdr_field st nvarbits (n,s) (State.find_heap l st)
         | VBit{w;_} -> extract_bit st n w
         | VVarbit{max;_} -> extract_varbit st nvarbits n max
         | VBool b -> extract_bool st n
@@ -133,6 +134,9 @@ module Corize (T : Target) : Target = struct
     let obj = State.get_packet st in
     let pkt = obj.main in
     let st, init_v = init_val_of_typ st env t in
+    let init_v = match init_v with 
+      | VLoc l -> State.find_heap l st
+      | _ -> init_v in
     let init_fs = match init_v with
       | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in

@@ -937,7 +937,10 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
   | ErrorMember _
   | ExpressionMember _
   | FunctionCall _
-  | NamelessInstantiation _ ->
+  | NamelessInstantiation _
+  | BinaryOp {op = (_, Op.Shl); args = _}
+  | BinaryOp {op = (_, Op.Shr); args = _}
+  | BinaryOp {op = (_, Op.PlusPlus); args = _} ->
      let exp_typed = type_expression env (exp_info, exp) in
      cast_if_needed env exp_typed typ
   | List { values } ->
@@ -998,8 +1001,7 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
   | BinaryOp {op = (_, Op.Lt) as op; args = (left, right)}
   | BinaryOp {op = (_, Op.Le) as op; args = (left, right)}
   | BinaryOp {op = (_, Op.Gt) as op; args = (left, right)}
-  | BinaryOp {op = (_, Op.Ge) as op; args = (left, right)}
-  | BinaryOp {op = (_, Op.PlusPlus) as op; args = (left, right)} ->
+  | BinaryOp {op = (_, Op.Ge) as op; args = (left, right)} ->
      let left_typed, right_typed = cast_to_same_type env left right in
      let exp_typed = exp_info, check_binary_op env op left_typed right_typed in
      cast_if_needed env exp_typed typ
@@ -1791,11 +1793,11 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | List types1, Header rec2
   | List types1, Struct rec2 ->
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
-     type_equality env [] (List {types = types2}) original_type
+     not explicit && type_equality env [] (List {types = types2}) original_type
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
      type_equality env [] (Record rec1) (Record rec2)
-  | _ -> original_type = new_type
+  | _ -> not explicit && original_type = new_type
 
 (* Section 8.9 *)
 and type_cast env typ expr : Prog.Expression.typed_t =
@@ -2600,26 +2602,21 @@ and type_block env ctx block =
  *    Δ, T, Γ |- return e: void ,Δ, T, Γ
  *)
 and type_return env ctx info expr =
+  let ret_typ =
+    match ctx with
+    | ApplyBlock
+    | Action -> Typed.Type.Void
+    | Function t -> t
+    | ParserState -> failwith "return in parser state not allowed"
+  in
   let (stmt, typ) : Prog.Statement.pre_t * Typed.Type.t =
     match expr with
     | None -> Return { expr = None }, Typed.Type.Void
     | Some e ->
-       let e_typed = type_expression env e in
+       let e_typed = cast_expression env ret_typ e in
        Return { expr = Some e_typed }, (snd e_typed).typ
   in
-  let ret: Prog.Statement.typed_t * CheckerEnv.t =
-    { stmt = stmt; typ = StmType.Void }, env
-  in
-  match ctx, typ with
-  | ApplyBlock, Void
-  | Action, Void -> ret
-  | Function t, t' ->
-     assert_type_equality env info t t';
-     ret
-  | _ ->
-     raise_s [%message "return statements not allowed in context"
-                 ~info:(info: Info.t)
-                 ~ctx:(ctx: StmtContext.t)]
+  { stmt = stmt; typ = StmType.Void }, env
 
 (* Section 11.7 *)
 and type_switch env ctx info expr cases =

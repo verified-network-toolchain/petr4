@@ -862,7 +862,8 @@ and Value : sig
     in_size : int;
   } [@@deriving sexp,yojson]
 
-  type entries = Table.pre_entry list
+  (*type entries = Table.pre_entry list*)
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
 
   type vsets = Match.t list list
 
@@ -1087,7 +1088,8 @@ end = struct
     in_size : int;
   } [@@deriving sexp,yojson]
 
-  type entries = Table.pre_entry list
+  (*type entries = Table.pre_entry list*)
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
 
   type vsets = Match.t list list
 

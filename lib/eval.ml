@@ -269,11 +269,14 @@ module MakeInterpreter (T : Target) = struct
       (entries : (Table.entry list) option) (default : Table.action_ref option)
       (size : P4Int.t option) (props : Table.property list) : env * state =
     let env' = EvalEnv.insert_decl_bare name decl env in
-    let ctrl_entries = fst ctrl in
     let pre_ks = key |> List.map ~f:snd in
-    let final_entries = match entries with
-                        | None -> ctrl_entries
+    let ctrl_entries = match List.Assoc.find (fst ctrl) name ~equal:String.(=) with
+                       | None -> []
+                       | Some entries -> create_pre_entries env entries in
+    let entries' = match entries with
+                        | None ->  ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in
+    let final_entries = entries' (*sort_priority ctrl env st entries'*) in
     let v = VTable { name = name;
                     keys = pre_ks;
                     actions = actions;
@@ -344,7 +347,38 @@ module MakeInterpreter (T : Target) = struct
                   args = [] };
                 typ = Action { data_params = []; ctrl_params = []}}
       | Some action -> action
-  
+
+  and create_pre_entries env add = []
+    (*let convert (priority, match_list, (action_name, args), id) = 
+      let action_type = EvalEnv.find_typ action_name env in
+      let pre_action_ref = { annotations: [];
+          name: Types.name;
+          args: (Expression.t option) list }in
+      let action = {action = pre_action_ref; typ = action_type} in
+      {annotations = [];
+       matches = [];
+       action = action} in 
+    List.map add ~f:convert*)
+
+  (*and sort_priority (ctrl : ctrl) (env : env) (st : state) 
+    (entries : Table.pre_entry list) : Table.pre_entry list =
+    let priority_cmp (entry1 : Table.pre_entry) (entry2 : Table.pre_entry) =
+      let ann1 = List.find_exn entry1.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in 
+      let ann2 = List.find_exn entry2.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in
+      let body1 = (snd ann1).body |> snd in 
+      let body2 = (snd ann2).body |> snd in 
+      match body1,body2 with 
+      | Expression [e1], Expression [e2] -> 
+        let e1' = Checker.type_expression Env.CheckerEnv.empty_t e1 in
+        let e2' = Checker.type_expression Env.CheckerEnv.empty_t e2 in
+        let v1 = eval_expr ctrl env st SContinue e1' in 
+        let v2 = eval_expr ctrl env st SContinue e2' in 
+        v1 < v2
+      | _ -> failwith "wrong bodies for @priority" in
+    let (priority, no_priority) = List.partition_tf entries ~f:(fun e -> List.exists ~f:(fun a -> String.((snd a).name |> snd = "priority")) e.annotations) in
+    let sorted_priority = List.stable_sort priority ~cmp:priority_cmp in 
+    sorted_priority @ no_priority*)
+
   (*----------------------------------------------------------------------------*)
   (* Statement Evaluation *)
   (*----------------------------------------------------------------------------*)

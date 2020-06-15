@@ -379,11 +379,11 @@ module MakeInterpreter (T : Target) = struct
     match s with
     | SContinue ->
       let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
-      let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st s lhs in
+      let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st' s lhs in
       begin match s',s'', lv with
-        | SContinue, SContinue, Some lv -> let (st', env, s) = assign_lvalue st' env' lv v false in env, st', s
+        | SContinue, SContinue, Some lv -> let (st', env, s) = assign_lvalue st' env' lv v false in env, st'', s
         | SContinue, _, _               -> env'', st'', s''
-        | _, _, _                       -> (env', st', s')
+        | _, _, _                       -> (env', st'', s')
       end
     | SReject _
     | SReturn _
@@ -440,14 +440,14 @@ module MakeInterpreter (T : Target) = struct
     let args = Table.((snd action).action.args) in
     match action_value with
     | VAction{scope;params;body}  ->
-      let (env',st',s,_) = eval_funcall' ctrl env'' st'' scope params args body in
+      let (env',st''',s,_) = eval_funcall' ctrl env'' st'' scope params args body in
       let hit_bool = VBool (not (List.is_empty l)) in
       let hit_loc = State.fresh_loc () in
       let miss_bool = VBool (List.is_empty l) in
       let miss_loc = State.fresh_loc () in
       let run_enum = VEnumField{typ_name=name; enum_name=name_only action_name} in
       let run_loc = State.fresh_loc () in
-      let st' = st'
+      let st'''' = st'''
         |> State.insert_heap hit_loc hit_bool
         |> State.insert_heap miss_loc miss_bool
         |> State.insert_heap run_loc run_enum in
@@ -456,7 +456,7 @@ module MakeInterpreter (T : Target) = struct
                             ("miss", miss_loc);
                             ("action_run", run_loc)
                           ]} in
-      (env',st',s,v)
+      (env',st'''',s,v)
     | _ -> failwith "table expects an action"
 
   (* TODO: double check about scoping - actions before tables? *)
@@ -662,7 +662,7 @@ module MakeInterpreter (T : Target) = struct
   and lvalue_of_expr_ara (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (a : Expression.t) (idx : Expression.t) : env * state * signal * lvalue option =
     let (env', st', s, lv) = lvalue_of_expr ctrl env st SContinue a in
-    let (env'', st'', s', idx') = eval_expr ctrl env st SContinue idx in
+    let (env'', st'', s', idx') = eval_expr ctrl env st' SContinue idx in
     match s, s' with
     | SContinue, SContinue ->
       env'', st'', s',
@@ -815,9 +815,9 @@ module MakeInterpreter (T : Target) = struct
     let fourth4 (_,_,_,x) = x in
     match s with
     | SContinue ->
-      let rec h v = 
+      let rec h v =
         begin match v with
-          | VLoc l -> h (State.find_heap l st)
+          | VLoc l -> h (State.find_heap l st')
           | VTuple _ -> failwith "tuple member does not exist"
           | VNull
           | VBool _
@@ -847,12 +847,12 @@ module MakeInterpreter (T : Target) = struct
             env', st', s,
             VBuiltinFun {
               name = snd name;
-              caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 |> Option.value_exn }
+              caller = lvalue_of_expr ctrl env st' SContinue expr |> fourth4 |> Option.value_exn }
           | VTable _ ->
             env', st', s,
             VBuiltinFun {
               name = snd name;
-              caller = lvalue_of_expr ctrl env st SContinue expr |> fourth4 |> Option.value_exn } end in
+              caller = lvalue_of_expr ctrl env st' SContinue expr |> fourth4 |> Option.value_exn } end in
         h v
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"
@@ -935,7 +935,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_mask (ctrl : ctrl) (env : env) (st : state) (e : Expression.t)
       (m : Expression.t) : env * state * signal * value =
     let (env', st', s, v1)  = eval_expr ctrl env st SContinue e in
-    let (env'', st'', s', v2) = eval_expr ctrl env' st SContinue m in
+    let (env'', st'', s', v2) = eval_expr ctrl env' st' SContinue m in
     match (s,s') with
     | SContinue, SContinue ->
       let st'', v1' = implicit_cast st'' env v1 (snd e).typ in
@@ -948,7 +948,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_range (ctrl : ctrl) (env : env) (st : state) (lo : Expression.t)
       (hi : Expression.t) : env * state * signal * value =
     let (env', st',s, v1)  = eval_expr ctrl env st SContinue lo in
-    let (env'', st'',s', v2) = eval_expr ctrl env' st SContinue hi in
+    let (env'', st'',s', v2) = eval_expr ctrl env' st' SContinue hi in
     match (s,s') with
     | SContinue, SContinue -> (env'', st'', s, VSet(SRange{lo=v1;hi=v2}))
     | SReject _,_ -> (env',st',s,VNull)
@@ -1029,7 +1029,7 @@ module MakeInterpreter (T : Target) = struct
     let (env', st', s, hdr) =
       if Bigint.(next < one) || Bigint.(next > size)
       then (env, st, SReject "StackOutOfBounds", VNull)
-      else 
+      else
         (env,
         st,
         SContinue,
@@ -1083,7 +1083,7 @@ module MakeInterpreter (T : Target) = struct
       | Some (loc, t) -> (VRuntime {loc = loc; obj_name = t;},
                           Type.TypeName (BareName (Info.dummy, "packet"))) :: tvs
       | None -> tvs in
-    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st targs tvs' in
+    let (fenv', st'', s, v) = T.eval_extern name ctrl fenv st' targs tvs' in
     let inc_next = String.equal name "extract" in (* TODO: violates abstraction *)
     let env'', st'' = copyout ctrl callenv fenv' st'' params args inc_next in
     env'', st'', s, v
@@ -1109,7 +1109,7 @@ module MakeInterpreter (T : Target) = struct
       (args : Expression.t option list)
       (body : Block.t) : env * state * signal * value =
     let (callenv,fenv, st', s) = copyin ctrl callenv st fscope params args in
-    let (fenv', st'', sign) = eval_block ctrl fenv st SContinue body in
+    let (fenv', st'', sign) = eval_block ctrl fenv st' SContinue body in
     let final_env, st'' = copyout ctrl callenv fenv' st'' params args false in
     match sign with
     | SReturn v -> (final_env, st'', SContinue, v)
@@ -1246,23 +1246,23 @@ module MakeInterpreter (T : Target) = struct
     let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn x) in
     let t = typ_of_stack_mem env lv in
     let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> x) in
-    let st', hdrs0 =
+    let st'', hdrs0 =
       List.fold_map hdrs0 ~init:st' ~f:(fun st _ -> init_val_of_typ st env' t) in
     let ls = List.map hdrs0 ~f:(fun _ -> State.fresh_loc ()) in
-    let st' =
+    let st''' =
       List.fold2_exn
         ls
         hdrs0
-        ~init:st'
+        ~init:st''
         ~f:(fun st l h -> State.insert_heap l h st) in
     let hdrs' = if b then ls @ hdrs1 else hdrs2 @ ls in
     let y = if b then Bigint.(next + a) else Bigint.(next-a) in
     let v = VStack{headers=hdrs';size;next=y} in
     match s,s' with
     | SContinue, SContinue ->
-      let (st', e,_) = assign_lvalue st' env lv v false in (e,st', s, VNull)
-    | SReject _, _ -> (env',st',s,VNull)
-    | _, SReject _ -> (env',st',s',VNull)
+      let (st'''', e,_) = assign_lvalue st''' env lv v false in (e,st'''', s, VNull)
+    | SReject _, _ -> (env',st''',s,VNull)
+    | _, SReject _ -> (env',st''',s',VNull)
     | _ -> failwith "unreachble"
 
   and eval_push_pop_args (ctrl : ctrl) (env : env) (st : state)
@@ -1294,9 +1294,9 @@ module MakeInterpreter (T : Target) = struct
       let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
       (* TODO: I am unsure of correct environment... *)
-      let (last_env, st''') = copyout ctrl penv''' penv''' st''' params args false in
-      (last_env, st''', final_state)
-    | SReject _ -> (EvalEnv.pop_scope penv, st, s)
+      let (last_env, st'''') = copyout ctrl penv''' penv''' st''' params args false in
+      (last_env, st'''', final_state)
+    | SReject _ -> (EvalEnv.pop_scope penv, st', s)
     | _ -> failwith "unreachable"
 
   and eval_state_machine (ctrl : ctrl) (env : env) (st : state)
@@ -1356,12 +1356,12 @@ module MakeInterpreter (T : Target) = struct
           (SValueSet {size=si;members=ms;sets=ss},e',st')
         | x -> x in
       let ss' = List.map ss ~f:coerce_value_set in
-      let ms = List.map ss' ~f:(fun (x,y,z) -> (values_match_set st vs x, y,z)) in
+      let ms = List.map ss' ~f:(fun (x,y,z) -> (values_match_set st'' vs x, y,z)) in
       let ms' = List.zip_exn ms cases
                 |> List.map ~f:(fun ((b,env,st),c) -> (b,(env,st,c))) in
       let next = List.Assoc.find ms' true ~equal:Poly.(=) in
       begin match next with
-        | None -> (env'', st', SReject "NoMatch")
+        | None -> (env'', st'', SReject "NoMatch")
         | Some (fenv,st,next) ->
           let next' = snd (snd next).next in
           eval_direct ctrl fenv st states next' end
@@ -1471,7 +1471,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue
     | SReject _
     | SReturn VNull
-    | SExit     -> 
+    | SExit     ->
       let (env, st) = copyout ctrl callenv cenv''' st''' params args false in
       env, st, sign
     | SReturn _ -> failwith "control should not return"

@@ -456,6 +456,10 @@ let rec merge_constraints env xs ys =
     | Some x_typ, Some y_typ ->
        if type_equality env [] x_typ y_typ
        then (x_var, Some x_typ)
+       else if cast_ok env x_typ y_typ
+       then (x_var, Some y_typ)
+       else if cast_ok env y_typ x_typ
+       then (x_var, Some x_typ)
        else fail ()
   in
   match List.zip xs ys with
@@ -989,10 +993,20 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
         dir = Directionless}
      in
      cast_if_needed env exp_typed typ
-  | BinaryOp {op = op_info, Op.Eq; args = (left, right)} ->
-     let exp_typed = exp_info, type_binary_op env (op_info, Op.Eq) (left, right) in
-     assert_type_equality env exp_info typ (snd exp_typed).typ;
-     exp_typed
+  | BinaryOp {op = (_, Op.Eq) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.NotEq) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.Lt) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.Le) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.Gt) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.Ge) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.PlusPlus) as op; args = (left, right)} ->
+     let left_typed, right_typed = cast_to_same_type env left right in
+     let exp_typed = exp_info, check_binary_op env op left_typed right_typed in
+     cast_if_needed env exp_typed typ
+  | BinaryOp {op = (_, Op.Div) as op; args = (left, right)}
+  | BinaryOp {op = (_, Op.Mod) as op; args = (left, right)} ->
+     let exp_typed = exp_info, type_binary_op env op (left, right) in
+     cast_if_needed env exp_typed typ
   | BinaryOp {op; args = (left, right)} ->
      let left_typed = cast_expression env typ left in
      let right_typed =
@@ -1745,15 +1759,19 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
     dir = dir }
 
 (* See section 8.9.2 "Explicit casts" *)
-and cast_ok env original_type new_type =
+and cast_ok ?(explicit = false) env original_type new_type =
+  let original_type = saturate_type env original_type in
+  let new_type = saturate_type env new_type in
   let open Typed.Type in
   match original_type, new_type with
   | Bit { width = 1 }, Bool
   | Bool, Bit { width = 1 }
-  | Int { width = _ }, Bit { width = _ }
-  | Bit { width = _ }, Int { width = _ }
-  | Bit { width = _ }, Bit { width = _ }
-  | Int { width = _ }, Int { width = _ }
+  | Int _, Bit _
+  | Bit _, Int _ ->
+     explicit
+  | Bit { width = width1 }, Bit { width = width2 }
+  | Int { width = width1 }, Int { width = width2 } ->
+     width1 = width2 || explicit
   | Integer, Bit { width = _ }
   | Integer, Int { width = _ } ->
      true
@@ -1764,9 +1782,12 @@ and cast_ok env original_type new_type =
     NewType { name = name2; typ = typ2 } ->
      type_equality env [] typ1 new_type
      || type_equality env [] original_type typ2
-  | NewType { name; typ }, t
+  | NewType { name; typ }, t ->
+     cast_ok ~explicit env typ t
   | t, NewType { name; typ } ->
-     type_equality env [] typ t
+     cast_ok ~explicit env t typ
+  | List types1, Tuple types2 ->
+     type_equality env [] (Tuple types1) (Tuple types2)
   | List types1, Header rec2
   | List types1, Struct rec2 ->
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
@@ -1782,7 +1803,7 @@ and type_cast env typ expr : Prog.Expression.typed_t =
   let expr_type = saturate_type env (snd expr_typed).typ in
   let new_type = translate_type env [] typ in
   let new_type_sat = saturate_type env (translate_type env [] typ) in
-  if cast_ok env expr_type new_type_sat
+  if cast_ok ~explicit:true env expr_type new_type_sat
   then { dir = Directionless; typ = new_type; expr = Cast {typ = new_type; expr = expr_typed} }
   else raise_s [%message "illegal explicit cast"
                    ~old_type:(expr_type: Typed.Type.t)
@@ -2526,7 +2547,7 @@ and type_direct_application env ctx typ args =
  *)
 and type_conditional env ctx cond tru fls =
   let open Prog.Statement in
-  let expr_typed = type_expression env cond in
+  let expr_typed = cast_expression env Bool cond in
   assert_bool (info cond) (snd expr_typed).typ |> ignore;
   let type' stmt = fst (type_statement env ctx stmt) in
   let tru_typed = type' tru in
@@ -3145,9 +3166,8 @@ and type_table_actions env key_types actions =
     let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
       match expr with
       | Some expr ->
-         let arg_typed = type_expression env expr in
+         let arg_typed = cast_expression env param.typ expr in
          check_direction env param.direction arg_typed;
-         assert_type_equality env call_info (snd arg_typed).typ param.typ;
          Some arg_typed
       | None ->
          match param.direction with
@@ -3565,8 +3585,7 @@ and type_serializable_enum env info annotations underlying_type name members =
   in
   let add_member (env, members_typed) ((member_info, member), expr) =
     let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
-    let expr_typed = type_expression env expr in
-    assert_type_equality env (fst expr) underlying_type (snd expr_typed).typ;
+    let expr_typed = cast_expression env underlying_type expr in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
        env

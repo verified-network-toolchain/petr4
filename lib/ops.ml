@@ -376,4 +376,8 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
   | Header {fields} -> VHeader {is_valid = true;
                                 fields = fields_for_cast fields value}
   | Struct {fields} -> VStruct {fields = fields_for_cast fields value}
+  | Tuple types -> begin match value with
+                   | VTuple v -> VTuple v
+                   | _ -> failwith "cannot cast"
+                   end
   | _ -> failwith "type cast unimplemented"

@@ -764,7 +764,7 @@ module MakeInterpreter (T : Target) = struct
     let (env', st', s, v) = eval_expr ctrl env st SContinue e in
     match s with
     | SContinue ->
-       let v = Ops.interp_unary_op op v in
+       let v = Ops.interp_unary_op st op v in
       (env,st', s,v)
     | SReject _ -> (env',st',s,VNull)
     | _ -> failwith "unreachable"

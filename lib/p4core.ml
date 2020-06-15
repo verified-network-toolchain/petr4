@@ -303,6 +303,7 @@ module Corize (T : Target) : Target = struct
 
   let rec packet_of_value (st : state) (env : env) (t : Type.t) (v : value) : buf =
     match v with
+    | VLoc l      -> st |> State.find_heap l |> packet_of_value st env t
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
     | VVarbit {max; w; v} -> packet_of_bit w v
@@ -339,6 +340,7 @@ module Corize (T : Target) : Target = struct
     let f = fun (accw, accv) (w,v) ->
       Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
     let rec wv_of_val (v, t) = match v with
+      | VLoc l    -> wv_of_val (State.find_heap l st, t)
       | VBit{w;v} -> w, v
       | VInt{w;v} -> w, of_twos_complement v w
       | VVarbit{max;w;v} -> w, v

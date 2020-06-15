@@ -1547,7 +1547,7 @@ and type_unary_op env op arg =
 *)
 and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
   let open Prog.Expression in
-  match (snd l).typ, (snd r).typ with
+  match saturate_type env (snd l).typ, saturate_type env (snd r).typ with
   | Bit { width }, Integer ->
      None, Some (Bit { width })
   | Integer, Bit { width } ->
@@ -1667,8 +1667,8 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
   let open Op in
   let open Prog.Expression in
   let open Typed.Type in
-  let l_typ = (snd typed_l).typ in
-  let r_typ = (snd typed_r).typ in
+  let l_typ = saturate_type env (snd typed_l).typ in
+  let r_typ = saturate_type env (snd typed_r).typ in
   let dir =
     match (snd typed_l).dir, (snd typed_r).dir with
     | In, In -> In

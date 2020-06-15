@@ -2098,17 +2098,18 @@ and find_extern_methods env func : (FunctionType.t list) option =
   | _ -> None
 
 (* Section 8.17: Typing Function Calls *)
-and type_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
+and cast_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
   match expr with
   | Some expr ->
-     let typed_arg = type_expression env expr in
+     let typed_arg = cast_expression env param.typ expr in
      check_direction env param.direction typed_arg;
-     assert_type_equality env call_info param.typ (snd typed_arg).typ
+     param, Some typed_arg
   | None ->
      if param.direction <> Out
      then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
                       ~call_site:(call_info: Info.t)
                       ~param:(snd param.variable)]
+     else param, None
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
   let open Prog.Expression in
@@ -2142,10 +2143,13 @@ and type_function_call env call_info func type_args args : Prog.Expression.typed
     infer_type_arguments env return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
-  List.iter ~f:(type_param_arg env call_info) params_args;
+  let params_args' =
+    List.map params_args
+      ~f:(fun (p, a) -> {p with typ = saturate_type env p.typ}, a)
+  in
+  let typed_params_args = List.map ~f:(cast_param_arg env call_info) params_args' in
   let out_type_args = List.map ~f:snd type_params_args in
-  let out_args = List.map ~f:(fun (_, arg) -> option_map (type_expression env) arg)
-                   params_args in
+  let out_args = List.map ~f:snd typed_params_args in
   let typ = saturate_type env return_type in
   let call = Prog.Expression.FunctionCall { func = func_typed;
                                             type_args = out_type_args;
@@ -2317,16 +2321,13 @@ and type_constructor_invocation env info decl_name type_args args : Prog.Express
   let params_args = match_params_to_args info prog_params args in
   let type_params_args = infer_constructor_type_args env t_params params_args type_args in
   let env' = CheckerEnv.insert_types type_params_args env in
-  let check_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
-    match arg with
-    | Some arg ->
-       let arg_typed = type_expression env' arg in
-       assert_type_equality env' info (snd param).typ (snd arg_typed).typ;
-       arg_typed
-    | None -> failwith "missing constructor argument"
+  let cast_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
+    match cast_param_arg env' info (prog_param_to_typed_param param, arg) with
+    | _, Some e -> e
+    | _, None -> failwith "missing constructor argument"
   in
+  let args_typed = List.map ~f:cast_arg params_args in
   let ret = saturate_type env' constructor_type.return in
-  let args_typed = List.map ~f:check_arg params_args in
   args_typed, ret
 
 (* Section 14.1 *)

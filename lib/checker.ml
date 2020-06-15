@@ -892,7 +892,7 @@ and add_cast env expr typ =
   in
   if cast_ok env (snd expr).typ typ
   then expr_casted
-  else failwith "cannot cast"
+  else raise_s [%message "cannot cast" ~expr:(expr:Prog.Expression.t) ~typ:(typ: Typed.Type.t)]
 
 and cast_if_needed env (expr: Prog.Expression.t) typ =
   if type_equality env [] (snd expr).typ typ
@@ -987,6 +987,10 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
         dir = Directionless}
      in
      cast_if_needed env exp_typed typ
+  | BinaryOp {op = op_info, Op.Eq; args = (left, right)} ->
+     let exp_typed = exp_info, type_binary_op env (op_info, Op.Eq) (left, right) in
+     assert_type_equality env exp_info typ (snd exp_typed).typ;
+     exp_typed
   | BinaryOp {op; args = (left, right)} ->
      let left_typed = cast_expression env typ left in
      let right_typed =
@@ -1761,6 +1765,10 @@ and cast_ok env original_type new_type =
   | NewType { name; typ }, t
   | t, NewType { name; typ } ->
      type_equality env [] typ t
+  | List types1, Header rec2
+  | List types1, Struct rec2 ->
+     let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
+     type_equality env [] (List {types = types2}) original_type
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
      type_equality env [] new_type original_type

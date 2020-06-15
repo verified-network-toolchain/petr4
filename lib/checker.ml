@@ -202,7 +202,7 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Prog.Value.VStruct { fields = es })
+     | Some es -> Some (Prog.Value.VRecord es)
      | None -> None
      end
   | BitStringAccess{bits; hi; lo} ->
@@ -656,7 +656,8 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
-and solve_types (env: CheckerEnv.t)
+and solve_types ?(casts=true)
+                (env: CheckerEnv.t)
                 (equiv_vars: (string * string) list)
                 (unknowns: string list)
                 (t1: Typed.Type.t)
@@ -690,10 +691,6 @@ and solve_types (env: CheckerEnv.t)
     | Error, Error
     | MatchKind, MatchKind
     | Void, Void ->
-        Some (empty_constraints unknowns)
-    | x, y when cast_ok env x y ->
-        Some (empty_constraints unknowns)
-    | x, y when cast_ok env y x ->
         Some (empty_constraints unknowns)
     | Bit { width = l}, Bit {width = r}
     | Int { width = l}, Int {width = r}
@@ -735,6 +732,10 @@ and solve_types (env: CheckerEnv.t)
        if table1.result_typ_name = table2.result_typ_name
        then Some (empty_constraints unknowns)
        else None
+    | x, y when casts && cast_ok env x y ->
+        Some (empty_constraints unknowns)
+    | x, y when casts && cast_ok env y x ->
+        Some (empty_constraints unknowns)
     (* We could replace this all with | _, _ -> false. I am writing it this way
      * because when I change Type.t I want Ocaml to warn me about missing match
      * cases. *)
@@ -785,7 +786,7 @@ and sort_entries entries =
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
 and type_equality env equiv_vars t1 t2 : bool =
-  solve_types env equiv_vars [] t1 t2 <> None
+  solve_types ~casts:false env equiv_vars [] t1 t2 <> None
 
 (* Checks that a list of parameters is type equivalent.
  * True if equivalent, false otherwise.
@@ -914,6 +915,7 @@ and cast_to_same_type (env: CheckerEnv.t) (exp1: Expression.t) (exp2: Expression
 
 and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expression.t) =
   let module E = Prog.Expression in
+  let typ = reduce_type env typ in
   match exp with
   | True
   | False
@@ -1771,7 +1773,7 @@ and cast_ok env original_type new_type =
      type_equality env [] (List {types = types2}) original_type
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
-     type_equality env [] new_type original_type
+     type_equality env [] (Record rec1) (Record rec2)
   | _ -> original_type = new_type
 
 (* Section 8.9 *)
@@ -2478,7 +2480,7 @@ and type_assignment env ctx lhs rhs =
   then raise_s [%message "Must be an lvalue"
                    ~lhs:(lhs:Types.Expression.t)]
   else
-    let rhs_typed = type_expression env rhs in
+    let rhs_typed = cast_expression env (snd lhs_typed).typ rhs in
     ignore (assert_same_type env (info lhs) (info rhs)
               (snd lhs_typed).typ (snd rhs_typed).typ);
     { stmt = Assignment { lhs = lhs_typed; rhs = rhs_typed };
@@ -2675,9 +2677,7 @@ and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.ty
  *)
 and type_constant env decl_info annotations typ name expr : Prog.Declaration.t * CheckerEnv.t =
   let expected_typ = translate_type env [] typ in
-  let typed_expr = type_expression env expr in
-  assert_same_type env decl_info (fst expr)
-    expected_typ (snd typed_expr).typ |> ignore;
+  let typed_expr = cast_expression env expected_typ expr in
   match compile_time_eval_expr env typed_expr with
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
@@ -3056,9 +3056,7 @@ and type_variable env ctx info annotations typ name init =
        None
     | Some value ->
        let expected_typ = translate_type env [] typ in
-       let typed_expr = type_expression env value in
-       assert_same_type env info (fst value)
-         expected_typ (snd typed_expr).typ |> ignore;
+       let typed_expr = cast_expression env expected_typ value in
        Some typed_expr
   in
   let var_typed : Prog.Declaration.pre_t =

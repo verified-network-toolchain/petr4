@@ -20,33 +20,24 @@ end
 
 module Parse = Make_parse(Conf)
 
-let parser_test include_dirs file = 
-  match Parse.parse_file include_dirs file false with 
+let parser_test include_dirs file =
+  match Parse.parse_file include_dirs file false with
   | `Ok _ -> true
-  | `Error _ -> false
-
-let nate_test = 
-  match Parse.parse_file "scope.p4" with 
-  | `Ok prog -> 
-     let prog = Elaborate.elab prog in 
-     let prog = Checker.check_program prog in 
-     
-     
   | `Error _ -> false
 
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   match Parse.parse_file include_dirs p4_file false with
   | `Ok prog ->
-    begin 
+    begin
       let prog = Elaborate.elab prog in
       try
-        let _ = Checker.check_program prog in 
+        let _ = Checker.check_program prog in
         true
-      with 
-      | Error.Type(info, err) -> 
+      with
+      | Error.Type(info, err) ->
         Format.eprintf "%s: %a" (Info.to_string info) Error.format_error err;
-        false         
-      | exn -> 
+        false
+      | exn ->
         Format.eprintf "Unknown exception: %s" (Exn.to_string exn);
         false
     end
@@ -56,11 +47,11 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
 
 let get_files path =
   Sys.ls_dir path
-  |> List.filter ~f:(fun name -> 
+  |> List.filter ~f:(fun name ->
       Core_kernel.Filename.check_suffix name ".p4")
 
-let example_path l = 
-  let root = Filename.concat ".." "examples" in 
+let example_path l =
+  let root = Filename.concat ".." "examples" in
   List.fold_left l ~init:root ~f:Filename.concat
 
 let good_files = example_path ["checker_tests"; "good"] |> get_files
@@ -68,11 +59,11 @@ let good_files = example_path ["checker_tests"; "good"] |> get_files
 let bad_files = example_path ["checker_tests"; "bad"] |> get_files
 
 let good_test f file () =
-  Alcotest.(check bool) "good test" true 
+  Alcotest.(check bool) "good test" true
     (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
 
 let bad_test f file () =
-  Alcotest.(check bool) "bad test" false 
+  Alcotest.(check bool) "bad test" false
     (f ["../examples"] (example_path ["checker_tests"; "bad"; file]))
 
 let () =
@@ -84,4 +75,4 @@ let () =
         test_case name `Quick (good_test typecheck_test name)) good_files);
     "typecheck tests bad", (Stdlib.List.map (fun name ->
         test_case name `Quick (bad_test typecheck_test name)) bad_files);
-  ] 
+  ]

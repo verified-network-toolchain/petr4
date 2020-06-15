@@ -109,7 +109,7 @@ module Corize (T : Target) : Target = struct
     let fields = List.map fields ~f:(fun (x,y) -> x, State.find_heap y st) in
     let (st, n, s), vs = List.fold_map (List.map ~f:snd fields)
       ~init:(st, n, s)
-      ~f:(fun (st, n, s) v -> 
+      ~f:(fun (st, n, s) v ->
           let (st, (n,s), v) = extract_hdr_field st nvarbits (n,s) v in
           (st, n, s), v) in
     st, (n,s), vs
@@ -134,7 +134,7 @@ module Corize (T : Target) : Target = struct
     let obj = State.get_packet st in
     let pkt = obj.main in
     let st, init_v = init_val_of_typ st env t in
-    let init_v = match init_v with 
+    let init_v = match init_v with
       | VLoc l -> State.find_heap l st
       | _ -> init_v in
     let init_fs = match init_v with
@@ -146,21 +146,21 @@ module Corize (T : Target) : Target = struct
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
     let st' = State.set_packet {obj with main = pkt'} st in
     match s with
-    | SReject _ | SExit | SReturn _ -> env, st, s, VNull
+    | SReject _ | SExit | SReturn _ -> env, st', s, VNull
     | SContinue ->
       let (ns, vs) = List.unzip fs in
       try
-        let (st, _,s), vs' =
+        let (st'', _,s), vs' =
           List.fold_map vs
-            ~init:(st, Bigint.(nbytes * eight, extraction), SContinue)
+            ~init:(st', Bigint.(nbytes * eight, extraction), SContinue)
             ~f:(fun (st, n, s) v ->
                 let (st, (n,s), v) = extract_hdr_field st w (n,s) v in
                 (st, n,s), v) in
         begin match s with
-        | SReject _ | SExit | SReturn _ -> env, st', s, VNull
+        | SReject _ | SExit | SReturn _ -> env, st'', s, VNull
         | SContinue ->
           let ls = List.map vs' ~f:(fun _ -> State.fresh_loc ()) in
-          let st' = List.fold2_exn ls vs' ~init:st' ~f:(fun acc l v -> State.insert_heap l v acc) in
+          let st''' = List.fold2_exn ls vs' ~init:st'' ~f:(fun acc l v -> State.insert_heap l v acc) in
           let fs' = List.zip_exn ns ls in
           let h = VHeader {
                       fields = fs';
@@ -170,10 +170,10 @@ module Corize (T : Target) : Target = struct
             EvalEnv.insert_val_bare
               (if is_fixed then "hdr" else "variableSizeHeader")
               h env in
-          env', st', SContinue, VNull
+          env', st''', SContinue, VNull
         end
       with Invalid_argument _ ->
-        env, st, SReject "PacketTooShort", VNull
+        env, st', SReject "PacketTooShort", VNull
 
   let eval_advance : extern = fun ctrl env st _ args ->
     let (pkt_loc, v) = match args with
@@ -235,7 +235,7 @@ module Corize (T : Target) : Target = struct
       let (st,_), vs = List.fold_map types ~init:(st, Bigint.zero) ~f:f in
       st, VTuple vs
     | Record rt ->
-      let (st, fs) = fieldvals_of_recordtype rt in 
+      let (st, fs) = fieldvals_of_recordtype rt in
       st, VRecord fs
     | Header rt ->
       let (st, fs) = fieldvals_of_recordtype rt in

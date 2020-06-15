@@ -192,22 +192,23 @@ let rec interp_beq (st : 'a State.t) (l : V.value) (r : V.value) : V.value =
   | VBit{v=n1;_}, VBit{v=n2;_}
   | VInteger n1, VInteger n2
   | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
-  | VVarbit{w=w1;v=n1;_}, 
+  | VVarbit{w=w1;v=n1;_},
     VVarbit{w=w2;v=n2;_}                      -> VBool(Bigint.(n1 = n2 && w1 = w2))
   | VBit{w;v=n1}, VInteger n2                 -> interp_beq st l (bit_of_rawint n2 w)
   | VInteger n1, VBit{w;v=n2}                 -> interp_beq st (bit_of_rawint n1 w) r
   | VInt{w;v=n1}, VInteger n2                 -> interp_beq st l (int_of_rawint n2 w)
   | VInteger n1, VInt{w;v=n2}                 -> interp_beq st (int_of_rawint n1 w) r
-  | VStruct{fields=l1;_}, 
+  | VStruct{fields=l1;_},
     VStruct{fields=l2;_}                      -> structs_equal st l1 l2
-  | VHeader{fields=l1;is_valid=b1;_}, 
+  | VHeader{fields=l1;is_valid=b1;_},
     VHeader{fields=l2;is_valid=b2;_}          -> headers_equal st l1 l2 b1 b2
-  | VStack{headers=l1;_}, 
+  | VStack{headers=l1;_},
     VStack{headers=l2;_}                      -> stacks_equal st l1 l2
-  | VUnion{fields=l1}, 
+  | VUnion{fields=l1},
     VUnion{fields=l2}                         -> unions_equal st l1 l2
   | VTuple l1, VTuple l2                      -> tuples_equal st l1 l2
   | VNull, VNull -> VBool true
+  | VLoc l1, VLoc l2                          -> interp_beq st (State.find_heap l1 st) (State.find_heap l2 st)
   | VNull, _
   | _, VNull -> VBool false
   | _ -> raise_s [%message "equality comparison undefined for given types"
@@ -223,7 +224,7 @@ and structs_equal (st : 'a State.t) (l1 : (string * V.loc) list)
   let l2' = List.fold_left l2 ~init:[] ~f:f in
   let g (a,b) =
     let b = State.find_heap b st in
-    let h = (fun (x,y) -> 
+    let h = (fun (x,y) ->
       let y = State.find_heap y st in
       String.equal x a && V.assert_bool (interp_beq st y b)) in
     List.exists l2' ~f:h in
@@ -280,7 +281,7 @@ let rec interp_bitwise_or (l : V.value) (r : V.value) : V.value =
 
 let rec interp_concat (l : V.value) (r : V.value) : V.value =
   match (l,r) with
-  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} -> 
+  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} ->
      VBit{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
   | VBit{w;v},  VInteger n -> interp_concat l (bit_of_rawint n w)
   | VInteger n, VBit{w;v}  -> interp_concat (bit_of_rawint n w) r

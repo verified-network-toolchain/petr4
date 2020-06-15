@@ -2,6 +2,7 @@ open Core_kernel
 module V = Prog.Value
 module Op = Typed.Op
 open Bitstring
+open Target
 
 (*----------------------------------------------------------------------------*)
 (* Unary Operator Evaluation *)
@@ -180,76 +181,81 @@ let rec interp_bgt (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2  -> interp_bgt l (int_of_rawint v2 w)
   | _ -> failwith "gt operator only defined on int types"
 
-let rec interp_beq (l : V.value) (r : V.value) : V.value =
+let rec interp_beq (st : 'a State.t) (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VError s1, VError s2
   | VEnumField{enum_name=s1;_},
     VEnumField{enum_name=s2;_}                -> VBool Poly.(s1 = s2)
   | VSenumField{v=v1;_},
-    VSenumField{v=v2;_}                       -> interp_beq v1 v2
+    VSenumField{v=v2;_}                       -> interp_beq st v1 v2
   | VBool b1, VBool b2                        -> VBool Poly.(b1 = b2)
   | VBit{v=n1;_}, VBit{v=n2;_}
   | VInteger n1, VInteger n2
   | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
   | VVarbit{w=w1;v=n1;_}, 
     VVarbit{w=w2;v=n2;_}                      -> VBool(Bigint.(n1 = n2 && w1 = w2))
-  | VBit{w;v=n1}, VInteger n2                 -> interp_beq l (bit_of_rawint n2 w)
-  | VInteger n1, VBit{w;v=n2}                 -> interp_beq (bit_of_rawint n1 w) r
-  | VInt{w;v=n1}, VInteger n2                 -> interp_beq l (int_of_rawint n2 w)
-  | VInteger n1, VInt{w;v=n2}                 -> interp_beq (int_of_rawint n1 w) r
+  | VBit{w;v=n1}, VInteger n2                 -> interp_beq st l (bit_of_rawint n2 w)
+  | VInteger n1, VBit{w;v=n2}                 -> interp_beq st (bit_of_rawint n1 w) r
+  | VInt{w;v=n1}, VInteger n2                 -> interp_beq st l (int_of_rawint n2 w)
+  | VInteger n1, VInt{w;v=n2}                 -> interp_beq st (int_of_rawint n1 w) r
   | VStruct{fields=l1;_}, 
-    VStruct{fields=l2;_}                      -> structs_equal l1 l2
+    VStruct{fields=l2;_}                      -> structs_equal st l1 l2
   | VHeader{fields=l1;is_valid=b1;_}, 
-    VHeader{fields=l2;is_valid=b2;_}          -> headers_equal l1 l2 b1 b2
+    VHeader{fields=l2;is_valid=b2;_}          -> headers_equal st l1 l2 b1 b2
   | VStack{headers=l1;_}, 
-    VStack{headers=l2;_}                      -> stacks_equal l1 l2
+    VStack{headers=l2;_}                      -> stacks_equal st l1 l2
   | VUnion{fields=l1}, 
-    VUnion{fields=l2}                         -> unions_equal l1 l2
-  | VTuple l1, VTuple l2                      -> tuples_equal l1 l2
+    VUnion{fields=l2}                         -> unions_equal st l1 l2
+  | VTuple l1, VTuple l2                      -> tuples_equal st l1 l2
   | VNull, VNull -> VBool true
   | VNull, _
   | _, VNull -> VBool false
   | _ -> raise_s [%message "equality comparison undefined for given types"
                      ~l:(l:V.value) ~r:(r:V.value)]
 
-and structs_equal (l1 : (string * V.value) list)
-(l2 : (string * V.value) list) : V.value =
-  let f (a : (string * V.value) list) (b : string * V.value) =
+and structs_equal (st : 'a State.t) (l1 : (string * V.loc) list)
+(l2 : (string * V.loc) list) : V.value =
+  let f (a : (string * V.loc) list) (b : string * V.loc) =
     if List.Assoc.mem a ~equal:String.equal (fst b)
     then a
     else b :: a in
   let l1' = List.fold_left l1 ~init:[] ~f:f in
   let l2' = List.fold_left l2 ~init:[] ~f:f in
   let g (a,b) =
-    let h = (fun (x,y) -> String.equal x a && V.assert_bool (interp_beq y b)) in
+    let b = State.find_heap b st in
+    let h = (fun (x,y) -> 
+      let y = State.find_heap y st in
+      String.equal x a && V.assert_bool (interp_beq st y b)) in
     List.exists l2' ~f:h in
   let b = List.for_all l1' ~f:g in
   VBool b
 
-and headers_equal (l1 : (string * V.value) list) (l2 : (string * V.value) list)
-(b1 : bool) (b2 : bool) : V.value =
+and headers_equal (st : 'a State.t) (l1 : (string * V.loc) list)
+    (l2 : (string * V.loc) list) (b1 : bool) (b2 : bool) : V.value =
   let a = (not b1 && not b2) in
-  let b = (b1 && b2 && V.assert_bool (structs_equal l1 l2)) in
+  let b = (b1 && b2 && V.assert_bool (structs_equal st l1 l2)) in
   VBool (a || b)
 
-and stacks_equal (l1 : V.value list) (l2 : V.value list) : V.value =
-  let f = (fun i a -> a |> interp_beq (List.nth_exn l2 i) |> V.assert_bool) in
+and stacks_equal (st : 'a State.t) (l1 : V.loc list) (l2 : V.loc list) : V.value =
+  let l1 = List.map l1 ~f:(fun x -> State.find_heap x st) in
+  let l2 = List.map l2 ~f:(fun x -> State.find_heap x st) in
+  let f = (fun i a -> a |> interp_beq st (List.nth_exn l2 i) |> V.assert_bool) in
   let b = List.for_alli l1 ~f:f in
   VBool b
 
-and unions_equal (l1 : (string * V.value) list) (l2 : (string * V.value) list) : V.value =
-  VBool (V.assert_bool (structs_equal l1 l2))
+and unions_equal (st : 'a State.t) (l1 : (string * V.loc) list) (l2 : (string * V.loc) list) : V.value =
+  VBool (V.assert_bool (structs_equal st l1 l2))
 
-and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
+and tuples_equal (st : 'a State.t) (l1 : V.value list) (l2 : V.value list) : V.value =
   let f acc v1 v2 =
-    let b = interp_beq v1 v2 in
+    let b = interp_beq st v1 v2 in
     V.VBool (acc |> V.assert_bool && b |> V.assert_bool) in
   match List.fold2 ~init:(V.VBool true) ~f l1 l2 with
   | Ok b -> b
   | Unequal_lengths -> V.VBool false
 
-let interp_bne (l : V.value) (r : V.value) : V.value =
-  interp_beq l r |> V.assert_bool |> not |> VBool
+let interp_bne (st : 'a State.t) (l : V.value) (r : V.value) : V.value =
+  interp_beq st l r |> V.assert_bool |> not |> VBool
 
 let rec interp_bitwise_and (l : V.value) (r : V.value) : V.value =
   match (l,r) with
@@ -297,7 +303,7 @@ let bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
   let n = op v1' v2' in
   VBit{w;v=to_twos_complement n w}
 
-let interp_binary_op (op: Op.bin) (l: V.value) (r: V.value) =
+let interp_binary_op (st : 'a State.t) (op: Op.bin) (l: V.value) (r: V.value) =
   match snd op with
   | Plus     -> interp_bplus l r
   | PlusSat  -> interp_bplus_sat l r
@@ -312,8 +318,8 @@ let interp_binary_op (op: Op.bin) (l: V.value) (r: V.value) =
   | Ge       -> interp_bge l r
   | Lt       -> interp_blt l r
   | Gt       -> interp_bgt l r
-  | Eq       -> interp_beq l r
-  | NotEq    -> interp_bne l r
+  | Eq       -> interp_beq st l r
+  | NotEq    -> interp_bne st l r
   | BitAnd   -> interp_bitwise_and l r
   | BitXor   -> interp_bitwise_xor l r
   | BitOr    -> interp_bitwise_or l r

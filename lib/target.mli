@@ -12,10 +12,6 @@ type 'st pre_extern =
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
-type writer = bool -> (string * value) list -> string -> value -> value
-
-type reader = bool -> (string * value) list -> string -> value
-
 module State : sig
   type 'a t
 
@@ -23,27 +19,22 @@ module State : sig
 
   val packet_location : loc
 
+  val fresh_loc : unit -> loc
+
   val get_packet : 'a t -> pkt
   val set_packet : pkt -> 'a t -> 'a t
-  val insert : loc -> 'a -> 'a t -> 'a t
-  val find : loc -> 'a t -> 'a
-  val filter : f:(loc * 'a -> bool) -> 'a t -> 'a t
-  val map : f:('a -> 'b) -> 'a t -> 'b t
-  val merge : 'a t -> 'a t -> 'a t
+  val insert_extern : loc -> 'a -> 'a t -> 'a t
+  val find_extern : loc -> 'a t -> 'a
+  val insert_heap : loc -> value -> 'a t -> 'a t
+  val find_heap : loc -> 'a t -> value
   val is_initialized : loc -> 'a t -> bool
 end
 
-module type Reader = sig
-  val read_header_field : reader
-end
+type 'a writer = 'a State.t -> bool -> (string * loc) list -> string -> value -> 'a State.t
 
-module type Writer = sig
-  val write_header_field : writer
-end
+type 'a reader = 'a State.t -> bool -> (string * loc) list -> string -> value
 
 module type Target = sig
-  include Reader
-  include Writer
 
   type obj
 
@@ -52,6 +43,10 @@ module type Target = sig
   type extern = state pre_extern
 
   val externs : (string * extern) list
+
+  val write_header_field : obj writer
+
+  val read_header_field : obj reader
 
   val eval_extern : 
     string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
@@ -65,20 +60,18 @@ module type Target = sig
 
 end
 
-(* BasicReader and BasicWriter ignore the validity bit *)
-module BasicReader : Reader
-module BasicWriter : Writer
-
 val width_of_typ : env -> Type.t -> Bigint.t
 
-val init_val_of_typ : env -> Type.t -> value
+val init_val_of_typ : 'a State.t -> env -> Type.t -> 'a State.t * value
+
+val width_of_val : 'a State.t -> value -> Bigint.t
 
 val implicit_cast_from_rawint : env -> value -> Type.t -> value
 
-val implicit_cast_from_tuple : env -> value -> Type.t -> value
+val implicit_cast_from_tuple : 'a State.t -> env -> value -> Type.t -> 'a State.t * value
 
-val implicit_cast : env -> value -> Type.t -> value
+val implicit_cast : 'a State.t -> env -> value -> Type.t -> 'a State.t * value
 
-val value_of_lvalue : reader -> env -> lvalue -> signal * value
+val value_of_lvalue : 'a reader -> 'a State.t -> env -> lvalue -> signal * value
 
-val assign_lvalue : reader -> writer -> env -> lvalue -> value -> bool -> env * signal
+val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> bool -> 'a State.t * env * signal

@@ -176,7 +176,7 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
      begin match compile_time_eval_expr env l,
                  compile_time_eval_expr env r with
      | Some l, Some r ->
-        Some (Ops.interp_binary_op op l r)
+        Some (Ops.interp_binary_op Target.State.empty op l r)
      | _ -> None
      end
   | Cast { typ; expr } ->
@@ -202,7 +202,7 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
          entries
      in
      begin match Util.list_option_flip opt_entries with
-     | Some es -> Some (Prog.Value.VStruct { fields = es })
+     | Some es -> Some (Prog.Value.VRecord es)
      | None -> None
      end
   | BitStringAccess{bits; hi; lo} ->

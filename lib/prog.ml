@@ -874,6 +874,7 @@ and Value : sig
   type loc = string [@@deriving sexp, yojson]
 
   type value =
+    | VLoc of loc
     | VNull
     | VBool of bool
     | VInteger of Bigint.t
@@ -905,14 +906,14 @@ and Value : sig
           params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
-        { fields : (string * value) list; }
+        { fields : (string * loc) list; }
     | VHeader of
-        { fields : (string * value) list;
+        { fields : (string * loc) list;
           is_valid : bool }
     | VUnion of
-        { fields : (string * value) list; }
+        { fields : (string * loc) list; }
     | VStack of
-        { headers : value list;
+        { headers : loc list;
           size : Bigint.t;
           next : Bigint.t; }
     | VEnumField of
@@ -1037,13 +1038,13 @@ and Value : sig
 
   val assert_action : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
 
-  val assert_struct : value -> (string * value) list
+  val assert_struct : value -> (string * loc) list
 
-  val assert_header : value -> (string * value) list * bool
+  val assert_header : value -> (string * loc) list * bool
 
-  val assert_union : value -> (string * value) list
+  val assert_union : value -> (string * loc) list
 
-  val assert_stack : value -> value list * Bigint.t * Bigint.t
+  val assert_stack : value -> loc list * Bigint.t * Bigint.t
 
   val assert_enum : value -> string * string
 
@@ -1058,8 +1059,6 @@ and Value : sig
   val assert_package : value -> Declaration.t * (string * value) list
 
   val assert_table : value -> vtable
-
-  val width_of_val : value -> Bigint.t
 
   val assert_lname : lvalue -> Types.name
 
@@ -1099,7 +1098,9 @@ end = struct
   type ctrl = entries * vsets
 
   type loc = string [@@deriving sexp, yojson]
+
   type value =
+    | VLoc of loc
     | VNull
     | VBool of bool
     | VInteger of Util.bigint
@@ -1131,14 +1132,14 @@ end = struct
           params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
-        { fields : (string * value) list; }
+        { fields : (string * loc) list; }
     | VHeader of
-        { fields : (string * value) list;
+        { fields : (string * loc) list;
           is_valid : bool }
     | VUnion of
-        { fields : (string * value) list; }
+        { fields : (string * loc) list; }
     | VStack of
-        { headers : value list;
+        { headers : loc list;
           size : Util.bigint;
           next : Util.bigint; }
     | VEnumField of
@@ -1365,30 +1366,6 @@ end = struct
     match v with
     | VTable t -> t
     | _ -> failwith "not a table"
-
-  let rec width_of_val v =
-    let field_width (name, value) =
-      width_of_val value
-    in
-    match v with
-    | VBit {w;_}
-    | VInt {w;_}
-    | VVarbit{w;_} ->
-       w
-    | VNull ->
-       Bigint.zero
-    | VBool _ ->
-       Bigint.one
-    | VStruct {fields}
-    | VHeader {fields; _} ->
-       fields
-       |> List.map ~f:field_width
-       |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
-    | VSenumField {v; _} ->
-       width_of_val v
-    | VInteger _ -> failwith "width of VInteger"
-    | VUnion _ -> failwith "width of header union unimplemented"
-    | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
 
   let assert_lname l =
     match l.lvalue with
@@ -1801,12 +1778,13 @@ end = struct
     let print_env (e:t) : unit =
       let open Core_kernel in
       print_endline "First environment value mappings:";
-      let rec f (name, value) =
+      let f (name, value) =
         print_string "     ";
         print_string name;
         print_string " -> ";
         let open Value in
         let vstring = match value with
+          | VLoc _ -> "<location>"
           | VNull -> "null"
           | VBool b -> string_of_bool b
           | VInteger v
@@ -1824,15 +1802,13 @@ end = struct
           | VFun _ -> "<function>"
           | VBuiltinFun _ -> "<function>"
           | VAction _ -> "<action>"
-          | VStruct {fields;_} ->
-            print_endline "<struct>";
-            List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+          | VStruct {fields;_} -> "<struct>"
+            (* List.iter fields ~f:(fun a -> print_string "    "; f a); "" *)
           | VHeader {fields;is_valid;_} ->
-            print_endline ("<header> with " ^ (string_of_bool is_valid));
-            List.iter fields ~f:(fun a -> print_string "    "; f a); ""
-          | VUnion {fields} ->
-            print_endline "<union>";
-            List.iter fields ~f:(fun a -> print_string "    "; f a); ""
+            "<header> with " ^ (string_of_bool is_valid)
+            (* List.iter fields ~f:(fun a -> print_string "    "; f a); "" *)
+          | VUnion {fields} -> "<union>"
+            (* List.iter fields ~f:(fun a -> print_string "    "; f a); "" *)
           | VStack _ -> "<stack>"
           | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
           | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"

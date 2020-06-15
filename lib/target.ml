@@ -19,9 +19,51 @@ type 'st pre_extern =
 type 'st apply =
   ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
 
-type writer = bool -> (string * value) list -> string -> value -> value
+module State = struct
 
-type reader = bool -> (string * value) list -> string -> value
+  type 'a t = {
+    externs : (string * 'a) list;
+    heap : (string * value) list;
+    packet : pkt;
+  }
+
+  let empty = {
+    externs = [];
+    heap = [];
+    packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; }
+  }
+
+  let packet_location = "__PACKET__"
+
+  let counter = ref 0
+
+  let fresh_loc = fun () ->
+    counter := !counter + 1;
+    "_" ^ (string_of_int (!counter)) ^ "_" 
+
+  let get_packet st = st.packet
+
+  let set_packet pkt st = { st with packet = pkt }
+
+  let insert_extern loc v st = {
+    st with externs = (loc,v) :: st.externs }
+  
+  let find_extern loc st =
+    List.Assoc.find_exn st.externs loc ~equal:String.equal
+
+  let insert_heap loc v st = {
+    st with heap = (loc,v) :: st.heap}
+
+  let find_heap loc st = List.Assoc.find_exn st.heap loc ~equal:String.equal
+
+  let is_initialized loc st =
+    List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
+
+end
+
+type 'a writer = 'a State.t -> bool -> (string * loc) list -> string -> value -> 'a State.t
+
+type 'a reader = 'a State.t -> bool -> (string * loc) list -> string -> value
 
 let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   match t with
@@ -43,94 +85,119 @@ let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   | NewType nt -> width_of_typ env nt.typ
   | _ -> raise_s [%message "not a fixed-width type" ~t:(t:Type.t)]
 
-let rec init_val_of_typ (env : env) (typ : Type.t) : value =
-  match typ with
-  | Bool               -> VBool false
-  | String             -> VString ""
-  | Integer            -> VInteger Bigint.zero
-  | Int w              -> VInt{w=Bigint.of_int w.width; v=Bigint.zero}
-  | Bit w              -> VBit{w=Bigint.of_int w.width; v=Bigint.zero}
-  | VarBit w           -> VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero}
-  | Array arr          -> init_val_of_array env arr
-  | Tuple tup          -> init_val_of_tuple env tup
-  | List l             -> init_val_of_tuple env l
-  | Record r           -> init_val_of_record env r
-  | Set s              -> VSet SUniversal
-  | Error              -> VError "NoError"
-  | MatchKind          -> VMatchKind "exact"
-  | TypeName name      -> init_val_of_typname env name
-  | NewType nt         -> init_val_of_newtyp env nt
-  | Void               -> VNull
-  | Header rt          -> init_val_of_header env rt
-  | HeaderUnion rt     -> init_val_of_union env rt
-  | Struct rt          -> init_val_of_struct env rt
-  | Enum et            -> init_val_of_enum env et
-  | SpecializedType st -> init_val_of_specialized st
-  | Package pt         -> init_val_of_pkg pt
-  | Control ct         -> init_val_of_ctrl ct
-  | Parser pt          -> init_val_of_prsr pt
-  | Extern et          -> init_val_of_ext et
-  | Function ft        -> init_val_of_func ft
-  | Action at          -> init_val_of_act at
-  | Constructor ct     -> init_val_of_constr ct
-  | Table tt           -> init_val_of_table tt
+let rec init_val_of_typ (st : 'a State.t) (env : env) (typ : Type.t) : 'a State.t * value =
+  let st, v = match typ with
+    | Bool               -> st, VBool false
+    | String             -> st, VString ""
+    | Integer            -> st, VInteger Bigint.zero
+    | Int w              -> st, VInt{w=Bigint.of_int w.width; v=Bigint.zero}
+    | Bit w              -> st, VBit{w=Bigint.of_int w.width; v=Bigint.zero}
+    | VarBit w           -> st, VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero}
+    | Array arr          -> init_val_of_array st env arr
+    | Tuple tup          -> init_val_of_tuple st env tup
+    | List l             -> init_val_of_tuple st env l
+    | Record r           -> init_val_of_record st env r
+    | Set s              -> st, VSet SUniversal
+    | Error              -> st, VError "NoError"
+    | MatchKind          -> st, VMatchKind "exact"
+    | TypeName name      -> init_val_of_typname st env name
+    | NewType nt         -> init_val_of_newtyp st env nt
+    | Void               -> st, VNull
+    | Header rt          -> init_val_of_header st env rt
+    | HeaderUnion rt     -> init_val_of_union st env rt
+    | Struct rt          -> init_val_of_struct st env rt
+    | Enum et            -> init_val_of_enum st env et
+    | SpecializedType s  -> st, init_val_of_specialized s
+    | Package pt         -> st, init_val_of_pkg pt
+    | Control ct         -> st, init_val_of_ctrl ct
+    | Parser pt          -> st, init_val_of_prsr pt
+    | Extern et          -> st, init_val_of_ext et
+    | Function ft        -> st, init_val_of_func ft
+    | Action at          -> st, init_val_of_act at
+    | Constructor ct     -> st, init_val_of_constr ct
+    | Table tt           -> st, init_val_of_table tt in
+  let l = State.fresh_loc () in
+  State.insert_heap l v st, VLoc l
 
-and init_val_of_array (env : env) (arr : ArrayType.t) : value =
-  let hdrs =
+and init_val_of_array (st : 'a State.t) (env : env)
+    (arr : ArrayType.t) : 'a State.t * value =
+  let (st, hdrs) =
     arr.size
     |> List.init ~f:string_of_int
-    |> List.map ~f:(fun _ -> init_val_of_typ env arr.typ) in
-  VStack {
-    headers = hdrs;
+    |> List.fold_map ~init: st ~f:(fun st _ -> init_val_of_typ st env arr.typ) in
+  let ls = List.map hdrs ~f:(fun x -> State.fresh_loc ()) in
+  let st = List.fold2_exn ls hdrs ~init:st ~f:(fun acc l v -> State.insert_heap l v acc) in
+  st, VStack {
+    headers = ls;
     size = arr.size |> Bigint.of_int;
     next = Bigint.zero;
   }
 
-and init_val_of_tuple (env : env) (tup : TupleType.t) : value =
-  let vs = List.map tup.types ~f:(init_val_of_typ env) in
-  VTuple vs
+and init_val_of_tuple (st : 'a State.t) (env : env)
+    (tup : TupleType.t) : 'a State.t * value =
+  let (st, vs) = List.fold_map ~init:st tup.types
+    ~f:(fun st t -> init_val_of_typ st env t) in
+  st, VTuple vs
 
-and init_val_of_record (env : env) (r : RecordType.t) : value =
-  let vs = List.map r.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
-  VRecord vs
+and init_val_of_record (st : 'a State.t) (env : env)
+    (r : RecordType.t) : 'a State.t * value =
+  let (st, vs) = List.fold_map r.fields ~init:st
+    ~f:(fun st f -> let st, v = init_val_of_typ st env f.typ in st, (f.name, v)) in
+  st, VRecord vs
 
-and init_val_of_typname (env : env) (tname : Types.name) : value =
-  init_val_of_typ env (EvalEnv.find_typ tname env)
+and init_val_of_typname (st : 'a State.t) (env : env)
+    (tname : Types.name) : 'a State.t * value =
+  init_val_of_typ st env (EvalEnv.find_typ tname env)
 
-and init_val_of_newtyp (env : env) (nt : NewType.t) : value = 
-  init_val_of_typ env nt.typ
+and init_val_of_newtyp (st : 'a State.t) (env : env)
+    (nt : NewType.t) : 'a State.t * value = 
+  init_val_of_typ st env nt.typ
 
-and init_val_of_header (env : env) (rt : RecordType.t) : value =
-  let fs = List.map rt.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
-  VHeader {
-    fields = fs;
+and init_val_of_header (st : 'a State.t) (env : env)
+    (rt : RecordType.t) : 'a State.t * value =
+  let (st, fs) = List.fold_map rt.fields ~init:st
+    ~f:(fun st f -> let st, v = init_val_of_typ st env f.typ in st, (f.name, v)) in
+  let (ns, hs) = List.unzip fs in
+  let ls = List.map hs ~f:(fun _ -> State.fresh_loc ()) in
+  let st = List.fold2_exn ls hs ~init:st ~f:(fun acc l h -> State.insert_heap l h acc) in
+  st, VHeader {
+    fields = List.zip_exn ns ls;
     is_valid = false
   }
 
-and init_val_of_union (env: env) (rt : RecordType.t) : value =
-  let fs = List.map rt.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
-  VUnion {
-    fields = fs;
+and init_val_of_union (st : 'a State.t) (env: env) (rt : RecordType.t) : 'a State.t * value =
+  let st, fs = List.fold_map rt.fields ~init:st 
+    ~f:(fun st f -> let st, v = init_val_of_typ st env f.typ in st, (f.name, v)) in
+  let (ns, hs) = List.unzip fs in
+  let ls = List.map hs ~f:(fun _ -> State.fresh_loc ()) in
+  let st = List.fold2_exn ls hs ~init:st ~f:(fun acc l h -> State.insert_heap l h acc) in
+  st, VUnion {
+    fields = List.zip_exn ns ls;
   }
 
-and init_val_of_struct (env : env) (rt : RecordType.t) : value =
-  let fs = List.map rt.fields ~f:(fun f -> f.name, init_val_of_typ env f.typ) in
-  VStruct {
-    fields = fs;
+and init_val_of_struct (st : 'a State.t) (env : env) (rt : RecordType.t) : 'a State.t * value =
+  let (st, fs) = List.fold_map rt.fields ~init:st
+    ~f:(fun st f -> let st, v = init_val_of_typ st env f.typ in st, (f.name, v)) in
+  let (ns, hs) = List.unzip fs in
+  let ls = List.map hs ~f:(fun _ -> State.fresh_loc ()) in
+  let st = List.fold2_exn ls hs ~init:st ~f:(fun acc l h -> State.insert_heap l h acc) in
+  st, VStruct {
+    fields = List.zip_exn ns ls;
   }
 
-and init_val_of_enum (env : env) (et : EnumType.t) : value =
+and init_val_of_enum (st : 'a State.t) (env : env) (et : EnumType.t) : 'a State.t * value =
   match et.typ with
   | None ->
-    VEnumField {
+    st, VEnumField {
       typ_name = et.name;
       enum_name = List.hd_exn et.members
     }
   | Some t ->
-    VSenumField {
+    let (st,v) = init_val_of_typ st env t in
+    st, VSenumField {
       typ_name = et.name;
       enum_name = List.hd_exn et.members;
-      v = init_val_of_typ env t;
+      v;
     }
 
 and init_val_of_specialized (st : SpecializedType.t) : value =
@@ -160,6 +227,31 @@ and init_val_of_constr (ct : ConstructorType.t) : value =
 and init_val_of_table (tt : TableType.t) : value =
   failwith "init vals unimplemented for table  types"
 
+let rec width_of_val st v =
+  let field_width (name, value) =
+    width_of_val st value
+  in
+  match v with
+  | VBit {w;_}
+  | VInt {w;_}
+  | VVarbit{w;_} ->
+      w
+  | VNull ->
+      Bigint.zero
+  | VBool _ ->
+      Bigint.one
+  | VStruct {fields}
+  | VHeader {fields; _} ->
+      fields
+      |> List.map ~f:(fun (x, y) -> x, State.find_heap y st)
+      |> List.map ~f:field_width
+      |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
+  | VSenumField {v; _} ->
+      width_of_val st v
+  | VInteger _ -> failwith "width of VInteger"
+  | VUnion _ -> failwith "width of header union unimplemented"
+  | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
+
 let rec implicit_cast_from_rawint (env : env) (v : value) (t : Type.t) : value =
   match v with
   | VInteger n ->
@@ -171,125 +263,151 @@ let rec implicit_cast_from_rawint (env : env) (v : value) (t : Type.t) : value =
       end
   | _ -> v
 
-let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
+let rec implicit_cast_from_tuple (st : 'a State.t) (env : env) (v : value)
+    (t : Type.t) : 'a State.t * value =
   match v with
-  | VTuple l ->
+  | VTuple l -> let open RecordType in
     begin match t with
       | Struct rt -> 
-        rt.fields
-        |> fun x -> List.zip_exn x l
-        |> List.map ~f:(fun (f,v : RecordType.field * value) -> f, implicit_cast_from_tuple env v f.typ)
-        |> List.map ~f:(fun (f,v : RecordType.field * value) -> f.name, implicit_cast_from_rawint env v f.typ)
-        |> fun fields -> VStruct {fields}
+        let (st, vs) = rt.fields
+          |> fun x -> List.zip_exn x l
+          |> List.fold_map ~init:st 
+            ~f:(fun st (f,v) -> let st, v = implicit_cast_from_tuple st env v f.typ in st, (f,v)) in
+        let (ns, vs) = vs
+          |> List.map ~f:(fun (f,v) -> f.name, implicit_cast_from_rawint env v f.typ)
+          |> List.unzip in
+        let ls = List.map vs ~f:(fun _ -> State.fresh_loc ()) in
+        let st = List.fold2_exn ls vs ~init:st 
+          ~f:(fun acc l v -> State.insert_heap l v acc) in
+        st, VStruct {fields = List.zip_exn ns ls}
       | Header rt ->
-        rt.fields
-        |> fun x -> List.zip_exn x l
-        |> List.map ~f:(fun (f,v : RecordType.field * value) -> f, implicit_cast_from_tuple env v f.typ)
-        |> List.map ~f:(fun (f,v : RecordType.field * value) -> f.name, implicit_cast_from_rawint env v f.typ)
-        |> fun fields -> VHeader {fields; is_valid = true}
-      | TypeName n -> implicit_cast_from_tuple env v (EvalEnv.find_typ n env)
-      | _ -> VTuple l end
+        let (st, vs) = rt.fields
+          |> fun x -> List.zip_exn x l
+          |> List.fold_map ~init:st 
+            ~f:(fun st (f,v) -> let st, v = implicit_cast_from_tuple st env v f.typ in st, (f, v)) in
+        let (ns, vs) = vs
+          |> List.map ~f:(fun (f,v) -> f.name, implicit_cast_from_rawint env v f.typ)
+          |> List.unzip in
+        let ls = List.map vs ~f:(fun _ -> State.fresh_loc ()) in
+        let st = List.fold2_exn ls vs ~init:st 
+          ~f:(fun acc l v -> State.insert_heap l v acc) in
+        st, VHeader {fields = List.zip_exn ns ls; is_valid = true}
+      | TypeName n -> implicit_cast_from_tuple st env v (EvalEnv.find_typ n env)
+      | _ -> st, VTuple l end
   | VRecord r -> failwith "TODO"
-  | _ -> v
+  | _ -> st, v
 
-let implicit_cast env value tgt_typ =
+let rec implicit_cast st env value tgt_typ =
   match value with
-  | VTuple l -> implicit_cast_from_tuple env value tgt_typ
-  | VInteger n -> implicit_cast_from_rawint env value tgt_typ
-  | _ -> value
+  | VTuple l -> implicit_cast_from_tuple st env value tgt_typ
+  | VInteger n -> st, implicit_cast_from_rawint env value tgt_typ
+  | VLoc l -> 
+    let (st, v) = implicit_cast st env (State.find_heap l st) tgt_typ in
+    State.insert_heap l v st, VLoc l
+  | _ -> st, value
 
-let rec value_of_lvalue (reader : reader) (env : env) (lv : lvalue) : signal * value =
+let rec value_of_lvalue (reader : 'a reader) (st : 'a State.t) (env : env) 
+    (lv : lvalue) : signal * value =
   match lv.lvalue with
   | LName{name=n}                     -> SContinue, EvalEnv.find_val n env
-  | LMember{expr=lv;name=n}           -> value_of_lmember reader env lv n
-  | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit reader env lv hi lo
-  | LArrayAccess{expr=lv;idx}         -> value_of_larray reader env lv idx
+  | LMember{expr=lv;name=n}           -> value_of_lmember reader st env lv n
+  | LBitAccess{expr=lv;msb=hi;lsb=lo} -> value_of_lbit reader st env lv hi lo
+  | LArrayAccess{expr=lv;idx}         -> value_of_larray reader st env lv idx
 
-and value_of_lmember (reader : reader) (env : env) (lv : lvalue)
+and value_of_lmember (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalue)
     (n : string) : signal * value =
-  let (s,v) = value_of_lvalue reader env lv in
+  let (s,v) = value_of_lvalue reader st env lv in
   let v' = match v with
-    | VHeader{fields=l;is_valid} -> reader is_valid l n 
+    | VHeader{fields=l;is_valid} -> reader st is_valid l n 
     | VStruct{fields=l;_}
-    | VUnion{fields=l;_} ->
-      find_exn l n
-    | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue n vs s i
+    | VUnion{fields=l;_} -> State.find_heap (find_exn l n) st
+    | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue st n vs s i
     | _ -> failwith "no lvalue member" in
   match s with
   | SContinue -> (s,v')
   | SReject _ -> (s,VNull)
   | _ -> failwith "unreachable"
 
-and value_of_lbit (reader : reader) (env : env) (lv : lvalue) (hi : Bigint.t)
-    (lo : Bigint.t) : signal * value =
-  let (s,n) = value_of_lvalue reader env lv in
+and value_of_lbit (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalue)
+    (hi : Bigint.t) (lo : Bigint.t) : signal * value =
+  let (s,n) = value_of_lvalue reader st env lv in
   let n' = bigint_of_val n in
-  match s with
-  | SContinue -> (s, VBit{w=Bigint.(hi - lo + one);v=bitstring_slice n' hi lo})
-  | SReject _ -> (s, VNull)
-  | _ -> failwith "unreachable"
+  match s with 
+  | SContinue -> s, VBit{w=Bigint.(hi - lo + one);v=bitstring_slice n' hi lo}
+  | SReject _ | SReturn _ | SExit -> s, VNull
 
-and value_of_larray (reader : reader) (env : env) (lv : lvalue)
+and value_of_larray (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalue)
     (idx : value) : signal * value =
-  let (s,v) = value_of_lvalue reader env lv in
+  let (s,v) = value_of_lvalue reader st env lv in
   match s with
   | SContinue ->
     begin match v with
       | VStack{headers=vs;size=s;next=i} ->
         let idx' = bigint_of_val idx in
-        begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx' % s)))
+        begin try (SContinue, State.find_heap (List.nth_exn vs Bigint.(to_int_exn (idx' % s))) st)
           with Invalid_argument _ -> (SReject "StackOutOfBounds", VNull) end
       | _ -> failwith "array access is not a header stack" end
   | SReject _ -> (s,VNull)
   | _ -> failwith "unreachable"
 
-and value_of_stack_mem_lvalue (name : string) (vs : value list)
+and value_of_stack_mem_lvalue (st : 'a State.t) (name : string) (ls : loc list)
 (size : Bigint.t) (next : Bigint.t) : value =
   match name with
-  | "next" -> List.nth_exn vs Bigint.(to_int_exn (next % size))
+  | "next" -> State.find_heap (List.nth_exn ls Bigint.(to_int_exn (next % size))) st
   | _ -> failwith "not an lvalue"
 
-let rec assign_lvalue (reader : reader) (writer : writer) (env: env) (lhs : lvalue)
-    (rhs : value) (inc_next : bool) : env * signal =
-  let rhs = implicit_cast env rhs lhs.typ in
+let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t) 
+    (env : env) (lhs : lvalue) (rhs : value)
+    (inc_next : bool) : 'a State.t * env * signal =
+  let st, rhs = implicit_cast st env rhs lhs.typ in
   match lhs.lvalue with
   | LName {name} ->
-    begin match EvalEnv.update_val name rhs env with
-    | Some env' -> env', SContinue
-    | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
+    let v = EvalEnv.find_val name env in
+    begin match v with 
+      | VLoc l -> State.insert_heap l rhs st, env, SContinue
+      | _ -> begin match EvalEnv.update_val name rhs env with
+        | Some env' -> st, env', SContinue
+        | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
+      end
     end
   | LMember{expr=lv;name=mname;} ->
-    let _, record = value_of_lvalue reader env lv in
-    let rhs', signal = update_member writer record mname rhs inc_next in
-    let rhs' = match rhs' with
+    let signal1, record = value_of_lvalue reader st env lv in
+    let st, signal2 = update_member writer st record mname rhs inc_next in
+    let rhs = match rhs with
       | VStack{headers; size; next} -> Bigint.(VStack {headers; size; next = next + (if inc_next then one else zero)})
-      | _ -> rhs' in
-    begin match signal with
-      | SContinue ->
-        assign_lvalue reader writer env lv rhs' inc_next
-      | _ -> env, signal
+      | _ -> rhs in
+    begin match signal1, signal2 with
+      | SContinue, SContinue ->
+        assign_lvalue reader writer st env lv rhs inc_next
+      | SContinue, _ -> st, env, signal2
+      | _, _ -> st, env, signal1
     end
   | LBitAccess{expr=lv;msb;lsb;} ->
-    let _, bits = value_of_lvalue reader env lv in
-    assign_lvalue reader writer env lv (update_slice bits msb lsb rhs) inc_next
-  | LArrayAccess{expr=lv;idx;} ->
-    let _, arr = value_of_lvalue reader env lv in
-    let idx = bigint_of_val idx in
-    let rhs', signal = update_idx arr idx rhs in
+    let signal, bits = value_of_lvalue reader st env lv in
     begin match signal with
       | SContinue -> 
-        assign_lvalue reader writer env lv rhs' inc_next
-      | _ -> env, signal
+        assign_lvalue reader writer st env lv (update_slice bits msb lsb rhs) inc_next
+      | _ -> st, env, signal
+    end
+  | LArrayAccess{expr=lv;idx;} ->
+    let signal1, arr = value_of_lvalue reader st env lv in
+    let idx = bigint_of_val idx in
+    let st, signal2 = update_idx st arr idx rhs in
+    begin match signal1, signal2 with
+      | SContinue, SContinue -> 
+        assign_lvalue reader writer st env lv rhs inc_next
+      | SContinue, _ -> st, env, signal2
+      | _, _ -> st, env, signal1  
     end
 
-and update_member (writer : writer) (value : value) (fname : string)
-    (fvalue : value) (inc_next : bool) : value * signal =
+and update_member (writer : 'a writer) (st : 'a State.t) (value : value) (fname : string)
+    (fvalue : value) (inc_next : bool) : 'a State.t * signal =
   match value with
   | VStruct v ->
-     VStruct {fields=update_field v.fields fname fvalue}, SContinue
-  | VHeader v -> writer v.is_valid v.fields fname fvalue, SContinue
+     update_field st v.fields fname fvalue, SContinue
+  | VHeader v -> writer st v.is_valid v.fields fname fvalue, SContinue
   | VUnion {fields} ->
-     update_union_member fields fname fvalue
+     update_union_member st fields fname fvalue
   | VStack{headers=hdrs; size=s; next=i} ->
      let idx = 
        match fname with
@@ -297,53 +415,49 @@ and update_member (writer : writer) (value : value) (fname : string)
        | "last" -> Bigint.(i - one)
        | _ -> failwith "BUG: VStack has no such member"
      in
-     update_idx value idx fvalue
+     update_idx st value idx fvalue
   | _ -> failwith "member access undefined"
 
-and update_union_member fields member_name new_value =
+and update_union_member (st : 'a State.t) (fields : (string * loc) list)
+    (member_name : string) (new_value : value) : 'a State.t * signal =
   let new_fields, new_value_valid = assert_header new_value in
-  let set_validity value validity =
+  let set_validity st loc validity =
+    let value = State.find_heap loc st in
     let value_fields, _ = assert_header value in
-    VHeader {fields = value_fields; is_valid = validity}
+    State.insert_heap loc (VHeader {fields = value_fields; is_valid = validity}) st
   in
-  let update_field (name, value) =
-    name,
+  let update_field st (name, loc) =
     if new_value_valid
     then if name = member_name
-         then new_value
-         else set_validity value false
-    else set_validity value false
+         then State.insert_heap loc new_value st
+         else set_validity st loc false
+    else set_validity st loc false
   in
-  VUnion {fields = List.map ~f:update_field fields}, SContinue
+  List.fold ~init:st ~f:update_field fields, SContinue
 
-and update_field fields field_name field_value =
-  let rec update fields' fields =
-    match fields with
-    | [] ->
-       fields' @ [field_name, field_value]
-    | (name, value) :: fields ->
-       if name = field_name
-       then fields' @ (name, field_value) :: fields
-       else update (fields' @ [name, value]) fields
-  in
-  update [] fields
+and update_field (st : 'a State.t) (fields : (string * loc) list) (field_name : string)
+    (field_value : value) : 'a State.t =
+  let update st (n,l) =
+    if String.equal n field_name
+    then State.insert_heap l field_value st
+    else st in
+  List.fold fields ~init:st ~f:update
 
-and update_nth l n x =
+and update_nth (st : 'a State.t) (l : loc list) (n : Bigint.t)
+    (x : value) : 'a State.t =
   let n = Bigint.to_int_exn n in
   let xs, ys = List.split_n l n in
   match ys with
-  | y :: ys -> xs @ x :: ys
+  | y :: ys -> State.insert_heap y x st
   | [] -> failwith "update_nth: out of bounds"
 
-and update_idx arr idx value =
+and update_idx (st : 'a State.t) (arr : value) (idx : Bigint.t)
+    (value : value) : 'a State.t * signal =
   match arr with
   | VStack{headers; size; next} ->
      if Bigint.(idx < zero || idx >= size)
-     then VNull, SReject "StackOutOfBounds"
-     else VStack { headers = update_nth headers idx value;
-                   size = size;
-                   next = next },
-          SContinue
+     then st, SReject "StackOutOfBounds"
+     else update_nth st headers idx value, SContinue
   | _ -> failwith "BUG: update_idx: expected a stack"
 
 and update_slice bits_val msb lsb rhs_val =
@@ -361,74 +475,7 @@ and update_slice bits_val msb lsb rhs_val =
   let new_bits = (bits land mask) lxor rhs_shifted in
   VBit { w = width; v = new_bits }
 
-module State = struct
-
-  type 'a t = {
-    externs : (string * 'a) list;
-    heap : (string * value) list;
-    packet : pkt;
-  }
-
-  let empty = {
-    externs = [];
-    heap = [];
-    packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; }
-  }
-
-  let packet_location = "__PACKET__"
-
-  let get_packet st = st.packet
-
-  let set_packet pkt st = { st with packet = pkt }
-
-  let insert loc v st = {
-    st with externs = (loc,v) :: st.externs }
-  
-  let find loc st =
-    List.Assoc.find_exn st.externs loc ~equal:String.equal
-
-  let filter ~f st = { st with
-    externs = List.filter ~f st.externs; }
-
-  let map ~f st = 
-    let go (loc, x) = loc, f x in { st with
-      externs = List.map ~f:go st.externs;
-    } 
-
-  let merge s1 s2 =
-    { s1 with externs = s1.externs @ s2.externs }
-
-  let is_initialized loc st =
-    List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
-
-end
-
-module type Reader = sig
-  val read_header_field : bool -> (string * value) list -> string -> value
-end
-
-module type Writer = sig
-  val write_header_field : writer
-end
-
-module BasicReader = struct
-  let read_header_field : reader = fun is_valid fields fname ->
-    List.Assoc.find_exn fields fname ~equal:String.equal
-end
-
-module BasicWriter = struct
-  let write_header_field = fun is_valid fields fname fvalue ->
-    VHeader {
-      is_valid;
-      fields =
-        List.map fields
-          ~f:(fun (n, v) -> n, if String.equal fname n then fvalue else v);
-    }
-end
-
 module type Target = sig
-  include Reader
-  include Writer
 
   type obj
 
@@ -437,6 +484,10 @@ module type Target = sig
   type extern = state pre_extern
 
   val externs : (string * extern) list
+
+  val write_header_field : obj writer
+
+  val read_header_field : obj reader
 
   val eval_extern : 
     string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->

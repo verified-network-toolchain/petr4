@@ -541,7 +541,7 @@ e[n1:n2] @lvalue
 ~
 
 ## Expression typing
-### Constants
+### Type Constants
 
 ~ Infer
 
@@ -579,7 +579,7 @@ S,D,G |- nsa : @int<n>, @none
 S,D,G |- nwa : @bit<n>, @none
 ~
 
-### Variables
+### Type Variables
 
 ~ Infer
 G(x) = t, d
@@ -593,7 +593,7 @@ G(.x) = t, d
 S,D,G |- .x : t, d
 ~
 
-### Accesses
+### Type Accesses
 
 ~ Infer
 S,D,G |- e_1 : t_1[], d_1
@@ -623,7 +623,7 @@ S,D,G |- \overline{e: \tau, none}
 S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
-### Unary Operations
+### Type Unary Operations
 
 ~ Infer
 S,D,G |- e : @bool, d
@@ -644,7 +644,7 @@ S,D,G |- e : t, d
 S,D,G |- {-e} : t, d
 ~
 
-### Binary Operations
+### Type Binary Operations
 
 ```haskell
   fun binaryDir In In = In
@@ -717,7 +717,7 @@ t_2 = @bit<\_> \lor t_2 = @int
 S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
 ~
 
-### Casts
+### Type Casts
 
 Casting from $\tau_0$ to $\tau$ is permitted by the
 $\tau \prec \tau'$ judgment.
@@ -791,7 +791,7 @@ t_0 \prec t
 S,D,G |- (t) e : t, @none
 ~
 
-### Member expressions
+### Type Member expressions
 ~ Infer
 D(X) = @enum t X \{m_1,\dots,m_n\}
 ---------------------------------------[Type-Member-Serializable-Enum]
@@ -917,7 +917,7 @@ S,D,G |- e.name : t_{name}, @none
 ~
 
 
-### Ternary Expression
+### Type Ternary Expression
 
 ~ Infer
 S,D,G |- e_1 : @bool, \_
@@ -927,7 +927,7 @@ S,D,G |- e_3 : t, \_
 S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
-### Function Calls
+### Type Function Calls
 
 TODO: Check directions
 TODO: Handle overloads of extern functions
@@ -945,7 +945,7 @@ P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
 
-### Nameless Instantiation
+### Type Nameless Instantiation
 
 We need a function to resolve overloads.
 ~ Infer
@@ -971,7 +971,7 @@ S,D,G |- X<>(\overline{e}) : t
 S,D,G |- X(\overline{e}) : t
 ~
 
-### Set Operations
+### Type Set Operations
 
 TODO: the Masks rule is based off of the spec
 and diverges from the type checker's implementation

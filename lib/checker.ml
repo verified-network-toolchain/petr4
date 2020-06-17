@@ -169,14 +169,14 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
   | UnaryOp { op; arg } ->
      begin match compile_time_eval_expr env arg with
      | Some arg ->
-        Some (Ops.interp_unary_op Target.State.empty op arg)
+        Some (Ops.interp_unary_op op arg)
      | None -> None
      end
   | BinaryOp { op; args = (l, r) } ->
      begin match compile_time_eval_expr env l,
                  compile_time_eval_expr env r with
      | Some l, Some r ->
-        Some (Ops.interp_binary_op Target.State.empty op l r)
+        Some (Ops.interp_binary_op op l r)
      | _ -> None
      end
   | Cast { typ; expr } ->

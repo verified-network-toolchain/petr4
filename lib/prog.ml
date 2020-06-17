@@ -874,7 +874,6 @@ and Value : sig
   type loc = string [@@deriving sexp, yojson]
 
   type value =
-    | VLoc of loc
     | VNull
     | VBool of bool
     | VInteger of Bigint.t
@@ -906,14 +905,14 @@ and Value : sig
           params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
-        { fields : (string * loc) list; }
+        { fields : (string * value) list; }
     | VHeader of
-        { fields : (string * loc) list;
+        { fields : (string * value) list;
           is_valid : bool }
     | VUnion of
-        { fields : (string * loc) list; }
+        { fields : (string * value) list; }
     | VStack of
-        { headers : loc list;
+        { headers : value list;
           size : Bigint.t;
           next : Bigint.t; }
     | VEnumField of
@@ -938,7 +937,7 @@ and Value : sig
     [@@deriving sexp,yojson]
 
   and vparser = {
-    pvs : (string * value) list;
+    pvs : (string * loc) list;
     pparams : TypeParameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -946,7 +945,7 @@ and Value : sig
   [@@deriving sexp,yojson]
 
   and vcontrol = {
-    cvs : (string * value) list;
+    cvs : (string * loc) list;
     cparams : TypeParameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -1012,8 +1011,6 @@ and Value : sig
     | SReject of string
   [@@deriving sexp,yojson]
 
-  val assert_loc : value -> loc
-
   val assert_bool : value -> bool
 
   val assert_rawint : value -> Bigint.t
@@ -1040,13 +1037,13 @@ and Value : sig
 
   val assert_action : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
 
-  val assert_struct : value -> (string * loc) list
+  val assert_struct : value -> (string * value) list
 
-  val assert_header : value -> (string * loc) list * bool
+  val assert_header : value -> (string * value) list * bool
 
-  val assert_union : value -> (string * loc) list
+  val assert_union : value -> (string * value) list
 
-  val assert_stack : value -> loc list * Bigint.t * Bigint.t
+  val assert_stack : value -> value list * Bigint.t * Bigint.t
 
   val assert_enum : value -> string * string
 
@@ -1102,7 +1099,7 @@ end = struct
   type loc = string [@@deriving sexp, yojson]
 
   type value =
-    | VLoc of loc
+    (* | VLoc of loc *)
     | VNull
     | VBool of bool
     | VInteger of Util.bigint
@@ -1134,14 +1131,14 @@ end = struct
           params : TypeParameter.t list;
           body : Block.t; }
     | VStruct of
-        { fields : (string * loc) list; }
+        { fields : (string * value) list; }
     | VHeader of
-        { fields : (string * loc) list;
+        { fields : (string * value) list;
           is_valid : bool }
     | VUnion of
-        { fields : (string * loc) list; }
+        { fields : (string * value) list; }
     | VStack of
-        { headers : loc list;
+        { headers : value list;
           size : Util.bigint;
           next : Util.bigint; }
     | VEnumField of
@@ -1166,7 +1163,7 @@ end = struct
   [@@deriving sexp, yojson]
 
   and vparser = {
-    pvs : (string * value) list;
+    pvs : (string * loc) list;
     pparams : TypeParameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -1174,7 +1171,7 @@ end = struct
   [@@deriving sexp,yojson]
 
   and vcontrol = {
-    cvs : (string * value) list;
+    cvs : (string * loc) list;
     cparams : TypeParameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -1238,11 +1235,6 @@ end = struct
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
-
-  let assert_loc v =
-    match v with
-    | VLoc l -> l
-    | _ -> failwith "not a location"
 
   let assert_bool v =
     match v with
@@ -1438,33 +1430,33 @@ and Env : sig
     val empty_eval_env : t
 
     val get_toplevel : t -> t
-    val get_val_firstlevel : t -> (string * Value.value) list
+    val get_val_firstlevel : t -> (string * Value.loc) list
 
     val get_namespace : t -> string
     val set_namespace : string -> t -> t
 
-    val insert_val_bare : string -> Value.value -> t -> t
+    val insert_val_bare : string -> Value.loc -> t -> t
     val insert_decl_bare : string -> Declaration.t -> t -> t
     val insert_typ_bare : string -> Type.t -> t -> t
 
-    val insert_val : Types.name -> Value.value -> t -> t
+    val insert_val : Types.name -> Value.loc -> t -> t
     val insert_decl: Types.name -> Declaration.t -> t -> t
     val insert_typ : Types.name -> Type.t -> t -> t
 
-    val insert_vals_bare : (string * Value.value) list -> t -> t
+    val insert_vals_bare : (string * Value.loc) list -> t -> t
     val insert_decls_bare : (string  * Declaration.t) list -> t ->t
     val insert_typs_bare : (string * Type.t) list -> t -> t
 
-    val insert_vals : (Types.name * Value.value) list -> t -> t
+    val insert_vals : (Types.name * Value.loc) list -> t -> t
     val insert_decls: (Types.name * Declaration.t) list -> t ->t
     val insert_typs : (Types.name * Type.t) list -> t -> t
 
-    val update_val_bare : string -> Value.value -> t -> t option
+    val update_val_bare : string -> Value.loc -> t -> t option
 
-    val update_val : Types.name -> Value.value -> t -> t option
+    val update_val : Types.name -> Value.loc -> t -> t option
 
-    val find_val : Types.name -> t -> Value.value
-    val find_val_opt : Types.name -> t -> Value.value option
+    val find_val : Types.name -> t -> Value.loc
+    val find_val_opt : Types.name -> t -> Value.loc option
     val find_decl : Types.name -> t -> Declaration.t
     val find_typ : Types.name -> t -> Type.t
 
@@ -1667,8 +1659,8 @@ end = struct
     type t = {
       (* the program (top level declarations) so far *)
       decl : Declaration.t env;
-      (* maps variables to their values *)
-      vs : Value.value env;
+      (* maps variables to their locations in memory (state) *)
+      vs : Value.loc env;
       (* map variables to their types; only needed in a few cases *)
       typ : Type.t env;
       (* dynamically maintain the control-plane namespace *)
@@ -1729,15 +1721,10 @@ end = struct
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
     let update_val name binding e =
-      begin match name with
+      (* begin match name with
       | Types.BareName (_,name) -> if String.equal name "h" then print_endline "updating h with value:";
-        begin match binding with
-          | Value.VStruct _ -> print_endline "<struct>"
-          | Value.VHeader _ -> print_endline "<hdr>"
-          | _ -> () 
-        end;
       | _ -> ()
-      end;
+      end; *)
       match update name binding e.vs with
       | Some vs' -> Some { e with vs = vs' }
       | None -> None
@@ -1798,9 +1785,9 @@ end = struct
         print_string "     ";
         print_string name;
         print_string " -> ";
-        let open Value in
-        let vstring = match value with
-          | VLoc _ -> "<location>"
+        (* let open Value in *)
+        let vstring = "" in
+          (* match value with
           | VNull -> "null"
           | VBool b -> string_of_bool b
           | VInteger v
@@ -1833,7 +1820,7 @@ end = struct
           | VControl _ -> "<control>"
           | VPackage _ -> "<package>"
           | VTable _ -> "<table>"
-          | VExternFun _ -> "<function>" in
+          | VExternFun _ -> "<function>" in *)
         print_endline vstring in
       match e.vs with
       | [] -> ()
@@ -1917,7 +1904,7 @@ end = struct
 
     let eval_env_of_t (cenv: t) : EvalEnv.t =
       { decl = [[]];
-        vs = cenv.const;
+        vs = [[]];
         typ = cenv.typ;
         namespace = "";}
   end

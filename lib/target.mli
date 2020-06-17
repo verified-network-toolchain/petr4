@@ -30,9 +30,9 @@ module State : sig
   val is_initialized : loc -> 'a t -> bool
 end
 
-type 'a writer = 'a State.t -> bool -> (string * loc) list -> string -> value -> 'a State.t
+type 'a writer = bool -> (string * value) list -> string -> value -> value
 
-type 'a reader = 'a State.t -> bool -> (string * loc) list -> string -> value
+type 'a reader = bool -> (string * value) list -> string -> value
 
 module type Target = sig
 
@@ -52,7 +52,7 @@ module type Target = sig
     string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 
-  val initialize_metadata : Bigint.t -> env -> env
+  val initialize_metadata : Bigint.t -> state -> state
 
   val check_pipeline : env -> unit 
 
@@ -62,16 +62,16 @@ end
 
 val width_of_typ : env -> Type.t -> Bigint.t
 
-val init_val_of_typ : 'a State.t -> env -> Type.t -> 'a State.t * value
+val init_val_of_typ : env -> Type.t -> value
 
-val width_of_val : 'a State.t -> value -> Bigint.t
+val width_of_val : value -> Bigint.t
 
 val implicit_cast_from_rawint : env -> value -> Type.t -> value
 
-val implicit_cast_from_tuple : 'a State.t -> env -> value -> Type.t -> 'a State.t * value
+val implicit_cast_from_tuple : env -> value -> Type.t -> value
 
-val implicit_cast : 'a State.t -> env -> value -> Type.t -> 'a State.t * value
+val implicit_cast : env -> value -> Type.t -> value
 
-val value_of_lvalue : 'a reader -> 'a State.t -> env -> lvalue -> signal * value
+val value_of_lvalue : 'a reader -> env -> 'a State.t -> lvalue -> signal * value
 
-val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> bool -> 'a State.t * env * signal
+val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> bool -> 'a State.t * signal

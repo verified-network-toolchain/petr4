@@ -25,7 +25,7 @@ module PreV1Switch : Target = struct
     | Meter of unit (* TODO *)
     | DirectMeter of unit (* TODO *)
     | Register of {
-        states: Value.value list;
+        states: loc list;
         size: Bigint.t;
       }
     | ActionProfile of unit (* TODO *)
@@ -41,17 +41,16 @@ module PreV1Switch : Target = struct
   type state = obj State.t
   type extern = state pre_extern
 
-  let read_header_field : obj reader = fun st is_valid fields fname ->
+  let read_header_field : obj reader = fun is_valid fields fname ->
     print_endline "could be happening in read_header_field";
     let l = List.Assoc.find_exn fields fname ~equal:String.equal in
     print_endline "but its not";
-    State.find_heap l st
+    l
 
-  let write_header_field : obj writer = fun st is_valid fields fname fvalue ->
-    print_endline "could be happening in write header field";
-    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
-    print_endline "not, again";
-    State.insert_heap l fvalue st  
+  let write_header_field : obj writer = fun is_valid fields fname fvalue ->
+    let fs = List.map fields
+      ~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
+    VHeader {fields = fs; is_valid; }
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
@@ -143,15 +142,11 @@ module PreV1Switch : Target = struct
       let states = match reg_obj with
         | Register {states; _} -> states
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let st, default = init_val_of_typ st env t in
-      let l = State.fresh_loc () in
-      let st = State.insert_heap l default st in
-      let default = VLoc l in
-      let read_val =
+      let read_loc =
         Bigint.to_int_exn v
-        |> List.nth states 
-        |> Option.value ~default in
-      let env'= EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) read_val env in 
+        |> List.nth_exn states in
+      let read_val = State.find_heap read_loc st in
+      let env'= EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) read_loc env in 
       env', st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
   
@@ -169,10 +164,9 @@ module PreV1Switch : Target = struct
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
-      let st, init_val = init_val_of_typ st env typ in
+      let init_val = init_val_of_typ env typ in
       let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> State.fresh_loc ()) in 
       let st = List.fold states ~init:st ~f:(fun st l -> State.insert_heap l init_val st) in
-      let states = List.map states ~f:(fun x -> VLoc x) in
       let reg = Register {states = states;
                           size = size; } in
       let st' = State.insert_extern loc reg st in
@@ -188,12 +182,9 @@ module PreV1Switch : Target = struct
       let states, size = match reg_obj with
         | Register {states; size} -> states, size
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let subs_f = fun i x -> 
-        if Bigint.(of_int i = v_index) then write_val else x in 
-      let states' = List.mapi ~f:subs_f states in
-      let reg' = Register {states = states';
-                            size = size;} in
-      let st' = State.insert_extern loc reg' st in
+      let subs_f = fun i st x -> 
+        if Bigint.(of_int i = v_index) then State.insert_heap x write_val st else st in 
+      let st' = List.foldi ~init:st ~f:subs_f states in
       env, st', SContinue, write_val 
     | _ -> failwith "unexpected args for register write"
 
@@ -216,7 +207,9 @@ module PreV1Switch : Target = struct
       | _ -> failwith "unexpected args for random" in
     let random_int = try Random.int_incl lo hi with _ -> 0 in
     let random_val = VBit{w=width; v=Bigint.of_int random_int} in
-    let env' = EvalEnv.insert_val (BareName (Info.dummy, "result")) random_val env in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l random_val st in
+    let env' = EvalEnv.insert_val (BareName (Info.dummy, "result")) l env in
     env', st, SContinue, VNull
         
   let eval_digest : extern = fun ctrl env st ts args ->
@@ -236,13 +229,13 @@ module PreV1Switch : Target = struct
       };
       typ = Bit{width=9};
     } in
-    let (st, env', _) =
+    let (st, _) =
       assign_lvalue st env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) false in
-    env', st, SContinue, VNull
+    env, st, SContinue, VNull
 
   let package_for_hash (st : state) (data : value list) : Bigint.t * Bigint.t =
     data
-    |> List.map ~f:(fun v -> width_of_val st v, bigint_of_val v)
+    |> List.map ~f:(fun v -> width_of_val v, bigint_of_val v)
     |> List.map ~f:(fun (w,v) -> w, Bitstring.of_twos_complement v w)
     |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
         Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
@@ -264,7 +257,9 @@ module PreV1Switch : Target = struct
       |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value base rmax in
-    let env = EvalEnv.insert_val_bare "result" (VBit{w=width; v=result}) env in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l (VBit{w=width; v=result}) st in
+    let env = EvalEnv.insert_val_bare "result" l env in
     env, st, SContinue, VNull
 
   let eval_action_selector : extern = fun ctrl env st ts args ->
@@ -320,7 +315,9 @@ module PreV1Switch : Target = struct
       |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
-    let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l (VBit{w=width;v=result}) st in
+    let env' = EvalEnv.insert_val_bare "checksum" l env in
     env', st, SContinue, VNull
 
   let value_of_payload (st : state) : value = 
@@ -373,7 +370,9 @@ module PreV1Switch : Target = struct
       |> package_for_hash st
       |> Hash.hash algo
       |> adjust_hash_value Bigint.zero (Bitstring.power_of_two width) in
-    let env' = EvalEnv.insert_val_bare "checksum" (VBit{w=width;v=result}) env in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l (VBit{w=width;v=result}) st in
+    let env' = EvalEnv.insert_val_bare "checksum" l env in
     env', st, SContinue, VNull
 
   let eval_resubmit : extern = fun ctrl env st ts args ->
@@ -469,12 +468,12 @@ module PreV1Switch : Target = struct
     | "log_msg" -> eval_log_msg
     | _ -> failwith "unknown v1 extern"
 
-  let initialize_metadata meta env =
+  let initialize_metadata meta st =
     let nine = Bigint.of_int 9 in
-    EvalEnv.insert_val
-      (BareName (Info.dummy, "ingress_port"))
+    State.insert_heap
+      "__INGRESS_PORT__"
       (VBit{w=nine; v=meta})
-      env
+      st
 
   let check_pipeline env = () (* TODO: v1-dependent static analysis *)
     (** - checks that direct counters are associated with at most one table.
@@ -502,34 +501,29 @@ module PreV1Switch : Target = struct
         (st: obj State.t)
         (pkt: pkt)
         (app: state apply) =
-    let init_val_of_typ st env t = 
-      let st, v = init_val_of_typ st env t in
-      let l = State.fresh_loc () in
-      let st = State.insert_heap l v st in
-      st, VLoc l in
-    let in_port = EvalEnv.find_val (BareName (Info.dummy, "ingress_port")) env
+    let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in 
     let fst23 (a,b,_) = (a,b) in  
-    let main = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
+    let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
     let parser =
-      List.Assoc.find_exn vs "p"   ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "p"   ~equal:String.equal in
+      (* |> assert_loc  fun x -> State.find_heap x st in *)
     let verify =
-      List.Assoc.find_exn vs "vr"  ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "vr"  ~equal:String.equal in
+      (* |> assert_loc |> fun x -> State.find_heap x st in *)
     let ingress =
-      List.Assoc.find_exn vs "ig"  ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "ig"  ~equal:String.equal in
+      (* |> assert_loc |> fun x -> State.find_heap x st in *)
     let egress =
-      List.Assoc.find_exn vs "eg"  ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "eg"  ~equal:String.equal in
+      (* |> assert_loc |> fun x -> State.find_heap x st in *)
     let compute =
-      List.Assoc.find_exn vs "ck"  ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "ck"  ~equal:String.equal in
+      (* |> assert_loc |> fun x -> State.find_heap x st in *)
     let deparser =
-      List.Assoc.find_exn vs "dep" ~equal:String.equal
-      |> assert_loc |> fun x -> State.find_heap x st in
+      List.Assoc.find_exn vs "dep" ~equal:String.equal in
+      (* |> assert_loc |> fun x -> State.find_heap x st in *)
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
@@ -547,25 +541,32 @@ module PreV1Switch : Target = struct
           | _ -> print_endline "Headers is not a struct"
         end
       | _ -> () end;
-    let st, hdr =
-      init_val_of_typ st env (snd (List.nth_exn params 1)).typ in
-    let st, meta =
-      init_val_of_typ st env (snd (List.nth_exn params 2)).typ in
-    let st, std_meta =
-      init_val_of_typ st env (snd (List.nth_exn params 3)).typ in
+    let hdr =
+      init_val_of_typ env (snd (List.nth_exn params 1)).typ in
+    let meta =
+      init_val_of_typ env (snd (List.nth_exn params 2)).typ in
+    let std_meta =
+      init_val_of_typ env (snd (List.nth_exn params 3)).typ in
+    let vpkt_loc, hdr_loc, meta_loc, std_meta_loc =
+      State.fresh_loc (), State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
+    let st = st
+      |> State.insert_heap vpkt_loc vpkt
+      |> State.insert_heap hdr_loc hdr
+      |> State.insert_heap meta_loc meta
+      |> State.insert_heap std_meta_loc std_meta in
     let env =
       EvalEnv.(env
-              |> insert_val (BareName (Info.dummy, "packet"  )) vpkt
-              |> insert_val (BareName (Info.dummy, "hdr"     )) hdr
-              |> insert_val (BareName (Info.dummy, "meta"    )) meta
-              |> insert_val (BareName (Info.dummy, "std_meta")) std_meta
+              |> insert_val (BareName (Info.dummy, "packet"  )) vpkt_loc
+              |> insert_val (BareName (Info.dummy, "hdr"     )) hdr_loc
+              |> insert_val (BareName (Info.dummy, "meta"    )) meta_loc
+              |> insert_val (BareName (Info.dummy, "std_meta")) std_meta_loc
               |> insert_typ (BareName (Info.dummy, "packet"  )) (snd (List.nth_exn params 0)).typ
               |> insert_typ (BareName (Info.dummy, "hdr"     )) (snd (List.nth_exn params 1)).typ
               |> insert_typ (BareName (Info.dummy, "meta"    )) (snd (List.nth_exn params 2)).typ
               |> insert_typ (BareName (Info.dummy, "std_meta")) (snd (List.nth_exn params 3)).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
-    let (st, env, _) = 
+    let (st, _) = 
       assign_lvalue
         st
         env
@@ -586,21 +587,21 @@ module PreV1Switch : Target = struct
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let env = EvalEnv.set_namespace "" env in
-    let (st,env) =
+    let st =
       match state with 
       | SReject err -> 
         assign_lvalue st env
           {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (snd (List.nth_exn params 3)).typ;}; name="parser_error"}; typ = Error}
           (VError(err)) false
-        |> fst23
-      | SContinue -> (st,env)
+        |> fst
+      | SContinue -> st
       | _ -> failwith "parser should not exit or return" in
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
-    let env = EvalEnv.insert_val (BareName (Info.dummy, "packet")) vpkt' env in
+    let st = State.insert_heap vpkt_loc vpkt' st in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
     let (env,st, s) = (env,st)
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
-    let (st, env) = 
+    let st = 
       match s with
       | SReject "ChecksumError" ->
         assign_lvalue
@@ -608,18 +609,17 @@ module PreV1Switch : Target = struct
           env
           {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                   name="checksum_error"; }; typ = Bit {width = 1}}
-          (VBit{v=Bigint.one;w=Bigint.one}) false |> fst23
-      | SContinue | SReturn _ | SExit | SReject _ -> st, env in
+          (VBit{v=Bigint.one;w=Bigint.one}) false |> fst
+      | SContinue | SReturn _ | SExit | SReject _ -> st in
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
-    let struc = EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
+    let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
     let egress_spec_val = match struc with
       | VStruct {fields} ->
-        let l = List.Assoc.find_exn fields "egress_spec" ~equal:String.equal in
-        State.find_heap l st
+        List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
       | _ -> failwith "std meta is not a struct after ingress" in
     if Bigint.(egress_spec_val |> bigint_of_val = drop_spec) then st, env, None else
-    let st,env,_ = 
+    let st,_ = 
       assign_lvalue 
         st
         env

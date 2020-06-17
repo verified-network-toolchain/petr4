@@ -19,13 +19,13 @@ module PreEbpfFilter : Target = struct
 
   let externs = []
 
-  let read_header_field : obj reader = fun st is_valid fields fname ->
-    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
-    State.find_heap l st
+  let read_header_field : obj reader = fun is_valid fields fname ->
+    List.Assoc.find_exn fields fname ~equal:String.equal
 
-  let write_header_field : obj writer = fun st is_valid fields fname fvalue ->
-    let l = List.Assoc.find_exn fields fname ~equal:String.equal in
-    State.insert_heap l fvalue st
+  let write_header_field : obj writer = fun is_valid fields fname fvalue ->
+    let fs = List.map fields
+      ~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
+    VHeader {fields = fs; is_valid; }
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
@@ -43,7 +43,7 @@ module PreEbpfFilter : Target = struct
 
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
-    let main = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
+    let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
     let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal in
     let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal in
@@ -53,15 +53,21 @@ module PreEbpfFilter : Target = struct
       | _ -> failwith "parser is not a parser object" in
     let vpkt = VRuntime {loc = State.packet_location; obj_name = "packet_in"; } in
     let pkt_name = Types.BareName (Info.dummy, "packet") in
-    let st, hdr = init_val_of_typ st env (snd (List.nth_exn params 1)).typ in
+    let hdr = init_val_of_typ env (snd (List.nth_exn params 1)).typ in
     let hdr_name = Types.BareName (Info.dummy, "headers") in
     let accept = VBool (false) in
     let accept_name = Types.BareName (Info.dummy, "accept") in
+    let vpkt_loc, hdr_loc, accept_loc = 
+      State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
+    let st = st
+      |> State.insert_heap vpkt_loc vpkt
+      |> State.insert_heap hdr_loc hdr
+      |> State.insert_heap accept_loc accept in
     let env =
       EvalEnv.(env
-              |> insert_val pkt_name    vpkt
-              |> insert_val hdr_name    hdr
-              |> insert_val accept_name accept
+              |> insert_val pkt_name    vpkt_loc
+              |> insert_val hdr_name    hdr_loc
+              |> insert_val accept_name accept_loc
               |> insert_typ pkt_name    (snd (List.nth_exn params 0)).typ
               |> insert_typ hdr_name    (snd (List.nth_exn params 1)).typ
               |> insert_typ accept_name Type.Bool) in
@@ -76,7 +82,7 @@ module PreEbpfFilter : Target = struct
       app ctrl env st SContinue parser [pkt_expr; hdr_expr] in
     match state with 
     | SReject _ -> 
-      let (st, env, _) =
+      let (st, _) =
         assign_lvalue
           st
           env
@@ -87,7 +93,7 @@ module PreEbpfFilter : Target = struct
       let (env,st,_) = 
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
       st, env, 
-      if EvalEnv.find_val accept_name env |> assert_bool
+      if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
       then Some (State.get_packet st) else None
 
 end

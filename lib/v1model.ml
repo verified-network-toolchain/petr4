@@ -501,29 +501,33 @@ module PreV1Switch : Target = struct
         (st: obj State.t)
         (pkt: pkt)
         (app: state apply) =
+    print_endline "call to find heap on ingress port";
     let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in 
-    let fst23 (a,b,_) = (a,b) in  
+    print_endline "not ingress port";
+    let fst23 (a,b,_) = (a,b) in
+    print_endline "looking up main";
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
+    print_endline "not main";
     let vs = assert_package main |> snd in
     let parser =
-      List.Assoc.find_exn vs "p"   ~equal:String.equal in
-      (* |> assert_loc  fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "p"   ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let verify =
-      List.Assoc.find_exn vs "vr"  ~equal:String.equal in
-      (* |> assert_loc |> fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "vr"  ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let ingress =
-      List.Assoc.find_exn vs "ig"  ~equal:String.equal in
-      (* |> assert_loc |> fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "ig"  ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let egress =
-      List.Assoc.find_exn vs "eg"  ~equal:String.equal in
-      (* |> assert_loc |> fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "eg"  ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let compute =
-      List.Assoc.find_exn vs "ck"  ~equal:String.equal in
-      (* |> assert_loc |> fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "ck"  ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let deparser =
-      List.Assoc.find_exn vs "dep" ~equal:String.equal in
-      (* |> assert_loc |> fun x -> State.find_heap x st in *)
+      List.Assoc.find_exn vs "dep" ~equal:String.equal
+      |> fun x -> State.find_heap x st in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
@@ -613,7 +617,9 @@ module PreV1Switch : Target = struct
       | SContinue | SReturn _ | SExit | SReject _ -> st in
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
+    print_endline "got to egress spec updating";
     let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
+    print_endline "not that either";
     let egress_spec_val = match struc with
       | VStruct {fields} ->
         List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
@@ -632,6 +638,9 @@ module PreV1Switch : Target = struct
       |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
       |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
       |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
+    print_endline "finished pipeline";
+    ignore (State.find_heap "_28_" st);
+    print_endline "metadata is mapped in output state";
     st, env, Some (State.get_packet st)
 
 end

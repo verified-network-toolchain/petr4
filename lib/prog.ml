@@ -929,7 +929,7 @@ and Value : sig
     | VControl of vcontrol
     | VPackage of
         { decl : Declaration.t;
-          args : (string * value) list; }
+          args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
         { name : string;
@@ -1055,7 +1055,7 @@ and Value : sig
 
   val assert_control : value -> vcontrol
 
-  val assert_package : value -> Declaration.t * (string * value) list
+  val assert_package : value -> Declaration.t * (string * loc) list
 
   val assert_table : value -> vtable
 
@@ -1155,7 +1155,7 @@ end = struct
     | VControl of vcontrol
     | VPackage of
         { decl : Declaration.t;
-          args : (string * value) list; }
+          args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
         { name : string;

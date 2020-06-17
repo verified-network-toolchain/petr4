@@ -45,8 +45,8 @@ module PreEbpfFilter : Target = struct
       (app : state apply) : state * env * pkt option =
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
-    let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal in
-    let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal in
+    let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal |> fun x -> State.find_heap x st in
+    let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal |> fun x -> State.find_heap x st in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps

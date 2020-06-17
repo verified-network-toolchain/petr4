@@ -906,6 +906,7 @@ module MakeInterpreter (T : Target) = struct
     let (env',st',s,v) = let open Declaration in match snd decl with
       | Control typ_decl ->
         (* TODO: I am unsure of correct environment *)
+        print_endline "doing a control instantiation";
         let (_,env',st',s) = copyin ctrl env st env typ_decl.constructor_params args' in
         let state = env'
           |> EvalEnv.get_val_firstlevel
@@ -916,6 +917,7 @@ module MakeInterpreter (T : Target) = struct
                             apply = typ_decl.apply; } in
         (EvalEnv.pop_scope env',st',s,v')
       | Parser typ_decl ->
+        print_endline "doing a parser instantiation";
         (* TODO: I am unsure of correct environment *)
         let (_,env',st',s) = copyin ctrl env st env typ_decl.constructor_params args' in
         let state = env'
@@ -927,12 +929,12 @@ module MakeInterpreter (T : Target) = struct
                           states = typ_decl.states; } in
         (EvalEnv.pop_scope env',st',s,v')
       | PackageType pack_decl ->
+        print_endline "doing a package instantiation";
         (* TODO: I am unsure of correct environment *)
         let (_,env',st',s) = copyin ctrl env st env pack_decl.params args' in
         let state = env'
           |> EvalEnv.get_val_firstlevel
-          |> List.rev
-          |> List.map ~f:(fun (n,l) -> n, State.find_heap l st) in
+          |> List.rev in
         (EvalEnv.pop_scope env', st', s, VPackage{decl;args=state})
       | ExternObject ext_decl ->
         let loc = EvalEnv.get_namespace env in
@@ -1147,6 +1149,7 @@ module MakeInterpreter (T : Target) = struct
 
   and copyout (ctrl : ctrl) (callenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (inc_next : bool) : env * state =
+    print_endline "copying in";
     (* let env = EvalEnv.pop_scope fenv in *)
     List.fold2_exn
       params
@@ -1172,9 +1175,11 @@ module MakeInterpreter (T : Target) = struct
     | _ -> failwith "unreachable"
 
   and insert_arg (e, st : EvalEnv.t * state) (p : TypeParameter.t) ((name,v) : string * value) : env * state =
+    print_endline "inserting new args";
     let var = Types.BareName (snd p).variable in
     let l = State.fresh_loc () in
     let st = State.insert_heap l v st in
+    print_endline "finishing insert";
     EvalEnv.insert_val var l e, st
 
   and copy_arg_out (inc_next : bool) (ctrl : ctrl) (st : state) (fenv : env)
@@ -1575,7 +1580,8 @@ module MakeInterpreter (T : Target) = struct
   and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (in_port : Bigint.t) : state * pkt option * Bigint.t =
     let (st', env', pkt) = eval ctrl env st pkt in_port in
-    begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' |> extract_from_state st with
+    print_endline "finished eval";
+    begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' |> extract_from_state st' with
     | VStruct {fields;_} ->
       st', pkt,
       find_exn fields "egress_port"
@@ -1591,8 +1597,10 @@ module MakeInterpreter (T : Target) = struct
         ~init:(env, state)
         ~f:(fun (e,s) -> eval_decl ctrl e s)
     in
+    print_endline "finished decls";
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
     let st', pkt', port = eval_main ctrl env st pkt in_port in
+    print_endline "fiinished main";
     st', pkt' >>| fun pkt' -> (Cstruct.append pkt'.emitted pkt'.main, port)
 
 end

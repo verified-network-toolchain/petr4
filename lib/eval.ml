@@ -232,6 +232,8 @@ module MakeInterpreter (T : Target) = struct
     match init with
     | None ->
       let st, init_val = init_val_of_typ st env typ in
+      let l = State.fresh_loc () in
+      let st = State.insert_heap l init_val st in
       let env = EvalEnv.insert_val_bare name init_val env in
       env, st, SContinue
     | Some e ->
@@ -800,7 +802,9 @@ module MakeInterpreter (T : Target) = struct
        else raise (UnboundName name)
     | info, Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
        let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
+       print_endline "about to call it in eval_typ_mem";
        let expr = find_exn ms' name in
+       print_endline "didn't fail there either";
        let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
        let v' = implicit_cast_from_rawint env' v typ in
        begin match s with
@@ -841,7 +845,7 @@ module MakeInterpreter (T : Target) = struct
           | VUnion{fields=fs}                  -> eval_union_mem ctrl env' st' (snd name) expr fs
           | VStack{headers=hdrs;size=s;next=n} -> eval_stack_mem ctrl env' st' (snd name) expr hdrs s n
           | VRuntime {loc; obj_name}           -> eval_runtime_mem env' st' (snd name) expr loc obj_name
-          | VRecord fs                         -> env', st', s, find_exn fs (snd name)
+          | VRecord fs                         -> env', st', s, begin print_endline "calling in expr mem"; let x = find_exn fs (snd name) in print_endline "not in expr mem"; x end
           | VParser _
           | VControl _ ->
             env', st', s,
@@ -966,7 +970,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_header_mem (ctrl : ctrl) (env : env) (st : state) (fname : string)
       (e : Expression.t) (fs : (string * loc) list)
       (valid : bool) : env * state * signal * value =
-    (* print_endline (Info.to_string (fst e)); *)
+    print_endline (Info.to_string (fst e));
     match fname with
     | "setValid"
     | "setInvalid" ->
@@ -977,7 +981,7 @@ module MakeInterpreter (T : Target) = struct
         let (_, _, _, lv) = lvalue_of_expr ctrl env st SContinue e in
         env, st, SContinue, VBuiltinFun{name=fname; caller=Option.value_exn lv}
       with _ -> failwith "TODO: edge case with header isValid()" end
-    | _ -> (env, st, SContinue, T.read_header_field st valid fs fname)
+    | _ -> (env, st, SContinue, begin print_string "calling read from hdr_mem"; print_endline fname; let x = T.read_header_field st valid fs fname in print_endline "but didnt crash"; x end)
 
   and eval_union_mem (ctrl : ctrl) (env : env) (st : state)
     (fname : string) (e : Expression.t) (fs : (string * loc) list)
@@ -1123,7 +1127,7 @@ module MakeInterpreter (T : Target) = struct
     let fenv = EvalEnv.push_scope fscope in
     let ((callenv',st',s),arg_vals) =
       List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(callenv,st,SContinue) in
-    let fenv' = List.fold2_exn params arg_vals ~init:fenv ~f:insert_arg in
+    let fenv', st' = List.fold2_exn params arg_vals ~init:(fenv, st') ~f:insert_arg in
     match s with
     | SContinue -> (callenv',fenv',st',s)
     | SReject _ -> (callenv',fenv',st',s)
@@ -1155,9 +1159,11 @@ module MakeInterpreter (T : Target) = struct
     | _, SReject _ -> ((env',st',s),(n,VNull))
     | _ -> failwith "unreachable"
 
-  and insert_arg (e : EvalEnv.t) (p : TypeParameter.t) ((name,v) : string * value) : env =
+  and insert_arg (e, st : EvalEnv.t * state) (p : TypeParameter.t) ((name,v) : string * value) : env * state =
     let var = Types.BareName (snd p).variable in
-    EvalEnv.insert_val var v e
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l v st in
+    EvalEnv.insert_val var (VLoc l) e, st
 
   and copy_arg_out (inc_next : bool) (ctrl : ctrl) (st : state) (fenv : env)
       (e : env) (p : TypeParameter.t) (a : Expression.t option) : env * state =
@@ -1178,7 +1184,9 @@ module MakeInterpreter (T : Target) = struct
     | None -> e, st
     | Some expr ->
       let (_, _, _, lv) = lvalue_of_expr ctrl e st SContinue expr in
+      print_endline "assigning lvalue in copy out";
       let (st, env, _) = assign_lvalue st e (Option.value_exn lv) v inc_next in
+      print_endline "finished assign";
       env, st
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
@@ -1236,6 +1244,11 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_push_pop (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (args : Expression.t option list) (b : bool) : env * state * signal * value =
+    let init_val_of_typ st env t = 
+      let st, v = init_val_of_typ st env t in
+      let l = State.fresh_loc () in
+      let st = State.insert_heap l v st in
+      st, VLoc l in
     let (env', st', s, a) = eval_push_pop_args ctrl env st args in
     let (s',v) = value_of_lvalue st env lv in
     let (hdrs, size, next) =
@@ -1294,7 +1307,9 @@ module MakeInterpreter (T : Target) = struct
       let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
       (* TODO: I am unsure of correct environment... *)
+      print_endline "copy out from parser";
       let (last_env, st'''') = copyout ctrl penv''' penv''' st''' params args false in
+      print_endline "copy out from parser done";
       (last_env, st'''', final_state)
     | SReject _ -> (EvalEnv.pop_scope penv, st', s)
     | _ -> failwith "unreachable"
@@ -1511,10 +1526,6 @@ module MakeInterpreter (T : Target) = struct
     match snd d with
     | ExternObject _ -> true
     | _ -> false
-
-  and init_binding_of_field (ctrl : ctrl) (env : env) (st : state)
-      (f : Declaration.field) : string * (state * value) =
-    snd (snd f).name, init_val_of_typ st env (snd f).typ
 
   and typ_of_stack_mem (env : env) (lv : lvalue) : Type.t =
     match lv.typ with

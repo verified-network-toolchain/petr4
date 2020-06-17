@@ -134,9 +134,6 @@ module Corize (T : Target) : Target = struct
     let obj = State.get_packet st in
     let pkt = obj.main in
     let st, init_v = init_val_of_typ st env t in
-    let init_v = match init_v with
-      | VLoc l -> State.find_heap l st
-      | _ -> init_v in
     let init_fs = match init_v with
       | VHeader { fields; is_valid } -> fields
       | _ -> failwith "extract expects header" in
@@ -166,10 +163,12 @@ module Corize (T : Target) : Target = struct
                       fields = fs';
                       is_valid = true;
                     } in
+          let loc = State.fresh_loc () in
+          let st''' = State.insert_heap loc h st''' in
           let env'=
             EvalEnv.insert_val_bare
               (if is_fixed then "hdr" else "variableSizeHeader")
-              h env in
+              (VLoc loc) env in
           env', st''', SContinue, VNull
         end
       with Invalid_argument _ ->

@@ -42,11 +42,15 @@ module PreV1Switch : Target = struct
   type extern = state pre_extern
 
   let read_header_field : obj reader = fun st is_valid fields fname ->
+    print_endline "could be happening in read_header_field";
     let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    print_endline "but its not";
     State.find_heap l st
 
   let write_header_field : obj writer = fun st is_valid fields fname fvalue ->
+    print_endline "could be happening in write header field";
     let l = List.Assoc.find_exn fields fname ~equal:String.equal in
+    print_endline "not, again";
     State.insert_heap l fvalue st  
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
@@ -140,6 +144,9 @@ module PreV1Switch : Target = struct
         | Register {states; _} -> states
         | _ -> failwith "Reading from an object other than a v1 register" in
       let st, default = init_val_of_typ st env t in
+      let l = State.fresh_loc () in
+      let st = State.insert_heap l default st in
+      let default = VLoc l in
       let read_val =
         Bigint.to_int_exn v
         |> List.nth states 
@@ -163,7 +170,9 @@ module PreV1Switch : Target = struct
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
       let st, init_val = init_val_of_typ st env typ in
-      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
+      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> State.fresh_loc ()) in 
+      let st = List.fold states ~init:st ~f:(fun st l -> State.insert_heap l init_val st) in
+      let states = List.map states ~f:(fun x -> VLoc x) in
       let reg = Register {states = states;
                           size = size; } in
       let st' = State.insert_extern loc reg st in
@@ -493,23 +502,34 @@ module PreV1Switch : Target = struct
         (st: obj State.t)
         (pkt: pkt)
         (app: state apply) =
+    let init_val_of_typ st env t = 
+      let st, v = init_val_of_typ st env t in
+      let l = State.fresh_loc () in
+      let st = State.insert_heap l v st in
+      st, VLoc l in
     let in_port = EvalEnv.find_val (BareName (Info.dummy, "ingress_port")) env
       |> assert_bit |> snd in 
     let fst23 (a,b,_) = (a,b) in  
     let main = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
     let vs = assert_package main |> snd in
     let parser =
-      List.Assoc.find_exn vs "p"   ~equal:String.equal in
+      List.Assoc.find_exn vs "p"   ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let verify =
-      List.Assoc.find_exn vs "vr"  ~equal:String.equal in
+      List.Assoc.find_exn vs "vr"  ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let ingress =
-      List.Assoc.find_exn vs "ig"  ~equal:String.equal in
+      List.Assoc.find_exn vs "ig"  ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let egress =
-      List.Assoc.find_exn vs "eg"  ~equal:String.equal in
+      List.Assoc.find_exn vs "eg"  ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let compute =
-      List.Assoc.find_exn vs "ck"  ~equal:String.equal in
+      List.Assoc.find_exn vs "ck"  ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let deparser =
-      List.Assoc.find_exn vs "dep" ~equal:String.equal in
+      List.Assoc.find_exn vs "dep" ~equal:String.equal
+      |> assert_loc |> fun x -> State.find_heap x st in
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
@@ -520,6 +540,13 @@ module PreV1Switch : Target = struct
       | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
     let vpkt = VRuntime { loc = State.packet_location; obj_name = "packet_in"; } in
+    begin match (snd (List.nth_exn params 1)).typ with
+      | TypeName n -> 
+        begin match EvalEnv.find_typ n env with
+          | Struct _ -> print_endline "Headers is a struct"
+          | _ -> print_endline "Headers is not a struct"
+        end
+      | _ -> () end;
     let st, hdr =
       init_val_of_typ st env (snd (List.nth_exn params 1)).typ in
     let st, meta =

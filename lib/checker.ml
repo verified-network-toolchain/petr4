@@ -3351,7 +3351,7 @@ and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
   let struct_typ = Type.Struct { fields = type_fields; } in
   let env = CheckerEnv.insert_type (BareName name) struct_typ env in
-  let struct_decl = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
+  let struct_decl = Prog.Declaration.Struct { annotations; name; fields = fields_typed } in
   (info, struct_decl), env
 
 (* Auxillary function for [type_error] and [type_match_kind],

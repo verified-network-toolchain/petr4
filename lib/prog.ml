@@ -1012,6 +1012,8 @@ and Value : sig
     | SReject of string
   [@@deriving sexp,yojson]
 
+  val assert_loc : value -> loc
+
   val assert_bool : value -> bool
 
   val assert_rawint : value -> Bigint.t
@@ -1236,6 +1238,11 @@ end = struct
     | SExit
     | SReject of string
   [@@deriving sexp,yojson]
+
+  let assert_loc v =
+    match v with
+    | VLoc l -> l
+    | _ -> failwith "not a location"
 
   let assert_bool v =
     match v with
@@ -1722,6 +1729,15 @@ end = struct
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
     let update_val name binding e =
+      begin match name with
+      | Types.BareName (_,name) -> if String.equal name "h" then print_endline "updating h with value:";
+        begin match binding with
+          | Value.VStruct _ -> print_endline "<struct>"
+          | Value.VHeader _ -> print_endline "<hdr>"
+          | _ -> () 
+        end;
+      | _ -> ()
+      end;
       match update name binding e.vs with
       | Some vs' -> Some { e with vs = vs' }
       | None -> None

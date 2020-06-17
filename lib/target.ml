@@ -49,12 +49,22 @@ module State = struct
     st with externs = (loc,v) :: st.externs }
   
   let find_extern loc st =
-    List.Assoc.find_exn st.externs loc ~equal:String.equal
+    let x = List.Assoc.find_exn st.externs loc ~equal:String.equal in
+    x
 
-  let insert_heap loc v st = {
+  let insert_heap loc v st = 
+    print_endline "inserting into the heap";
+    print_endline (Sexp.to_string (sexp_of_value v));
+    print_endline "with location";
+    print_endline loc;
+    {
     st with heap = (loc,v) :: st.heap}
 
-  let find_heap loc st = List.Assoc.find_exn st.heap loc ~equal:String.equal
+  let find_heap loc st = 
+    (* print_endline "probably about to fail"; *)
+    let x = List.Assoc.find_exn st.heap loc ~equal:String.equal in
+    (* print_endline "didn't actually fail"; *)
+    x
 
   let is_initialized loc st =
     List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
@@ -64,6 +74,11 @@ end
 type 'a writer = 'a State.t -> bool -> (string * loc) list -> string -> value -> 'a State.t
 
 type 'a reader = 'a State.t -> bool -> (string * loc) list -> string -> value
+
+let rec extract_from_state (st : 'a State.t) (v : value) : value =
+  match v with
+  | VLoc l -> extract_from_state st (State.find_heap l st)
+  | _ -> v
 
 let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   match t with
@@ -86,38 +101,36 @@ let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
   | _ -> raise_s [%message "not a fixed-width type" ~t:(t:Type.t)]
 
 let rec init_val_of_typ (st : 'a State.t) (env : env) (typ : Type.t) : 'a State.t * value =
-  let st, v = match typ with
-    | Bool               -> st, VBool false
-    | String             -> st, VString ""
-    | Integer            -> st, VInteger Bigint.zero
-    | Int w              -> st, VInt{w=Bigint.of_int w.width; v=Bigint.zero}
-    | Bit w              -> st, VBit{w=Bigint.of_int w.width; v=Bigint.zero}
-    | VarBit w           -> st, VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero}
-    | Array arr          -> init_val_of_array st env arr
-    | Tuple tup          -> init_val_of_tuple st env tup
-    | List l             -> init_val_of_tuple st env l
-    | Record r           -> init_val_of_record st env r
-    | Set s              -> st, VSet SUniversal
-    | Error              -> st, VError "NoError"
-    | MatchKind          -> st, VMatchKind "exact"
-    | TypeName name      -> init_val_of_typname st env name
-    | NewType nt         -> init_val_of_newtyp st env nt
-    | Void               -> st, VNull
-    | Header rt          -> init_val_of_header st env rt
-    | HeaderUnion rt     -> init_val_of_union st env rt
-    | Struct rt          -> init_val_of_struct st env rt
-    | Enum et            -> init_val_of_enum st env et
-    | SpecializedType s  -> st, init_val_of_specialized s
-    | Package pt         -> st, init_val_of_pkg pt
-    | Control ct         -> st, init_val_of_ctrl ct
-    | Parser pt          -> st, init_val_of_prsr pt
-    | Extern et          -> st, init_val_of_ext et
-    | Function ft        -> st, init_val_of_func ft
-    | Action at          -> st, init_val_of_act at
-    | Constructor ct     -> st, init_val_of_constr ct
-    | Table tt           -> st, init_val_of_table tt in
-  let l = State.fresh_loc () in
-  State.insert_heap l v st, VLoc l
+  match typ with
+  | Bool               -> st, (VBool false)
+  | String             -> st, (VString "")
+  | Integer            -> st, (VInteger Bigint.zero)
+  | Int w              -> st, (VInt{w=Bigint.of_int w.width; v=Bigint.zero})
+  | Bit w              -> st, (VBit{w=Bigint.of_int w.width; v=Bigint.zero})
+  | VarBit w           -> st, (VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero})
+  | Array arr          -> (init_val_of_array st env arr)
+  | Tuple tup          -> (init_val_of_tuple st env tup)
+  | List l             -> (init_val_of_tuple st env l)
+  | Record r           -> (init_val_of_record st env r)
+  | Set s              -> st, (VSet SUniversal)
+  | Error              -> st, (VError "NoError")
+  | MatchKind          -> st, (VMatchKind "exact")
+  | TypeName name      -> init_val_of_typname st env name
+  | NewType nt         -> init_val_of_newtyp st env nt
+  | Void               -> st, VNull
+  | Header rt          -> (init_val_of_header st env rt)
+  | HeaderUnion rt     -> (init_val_of_union st env rt)
+  | Struct rt          -> (init_val_of_struct st env rt)
+  | Enum et            -> (init_val_of_enum st env et)
+  | SpecializedType s  -> st, init_val_of_specialized s
+  | Package pt         -> st, init_val_of_pkg pt
+  | Control ct         -> st, init_val_of_ctrl ct
+  | Parser pt          -> st, init_val_of_prsr pt
+  | Extern et          -> st, init_val_of_ext et
+  | Function ft        -> st, init_val_of_func ft
+  | Action at          -> st, init_val_of_act at
+  | Constructor ct     -> st, init_val_of_constr ct
+  | Table tt           -> st, init_val_of_table tt
 
 and init_val_of_array (st : 'a State.t) (env : env)
     (arr : ArrayType.t) : 'a State.t * value =
@@ -321,7 +334,11 @@ and value_of_lmember (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lv
   let v' = match v with
     | VHeader{fields=l;is_valid} -> reader st is_valid l n 
     | VStruct{fields=l;_}
-    | VUnion{fields=l;_} -> State.find_heap (find_exn l n) st
+    | VUnion{fields=l;_} ->
+      print_endline "only other option in target";
+      let x = State.find_heap (find_exn l n) st in
+      print_endline "also a bust";
+      x
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue st n vs s i
     | _ -> failwith "no lvalue member" in
   match s with
@@ -332,7 +349,7 @@ and value_of_lmember (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lv
 and value_of_lbit (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalue)
     (hi : Bigint.t) (lo : Bigint.t) : signal * value =
   let (s,n) = value_of_lvalue reader st env lv in
-  let n' = bigint_of_val n in
+  let n' = n |> bigint_of_val in
   match s with 
   | SContinue -> s, VBit{w=Bigint.(hi - lo + one);v=bitstring_slice n' hi lo}
   | SReject _ | SReturn _ | SExit -> s, VNull
@@ -365,21 +382,38 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
   | LName {name} ->
     let v = EvalEnv.find_val name env in
     begin match v with 
-      | VLoc l -> State.insert_heap l rhs st, env, SContinue
-      | _ -> begin match EvalEnv.update_val name rhs env with
+      | VLoc l ->
+        print_endline "assigning to name by inserting into heap";
+        print_endline ("the name is " ^ Types.name_only name);
+        State.insert_heap l rhs st, env, SContinue
+      | _ -> begin match (print_endline "call to update val"; let x = EvalEnv.update_val name rhs env in print_endline "updated"; x) with
         | Some env' -> st, env', SContinue
         | None -> raise_s [%message "name not found while assigning. Replace this with an insert_val call:" ~name:(name: Types.name)]
       end
     end
   | LMember{expr=lv;name=mname;} ->
+    print_endline "assigninig to a member";
+    print_endline ("member name is " ^ mname);
+    begin match lv with
+      | {lvalue = LName {name = BareName (_,"h")};_} -> print_endline "variable name is h"
+      | _ -> () end;
+    begin match EvalEnv.find_val (lv |> assert_lname) env with
+      | VHeader _ -> print_endline "its a damn header for some dumb reason"
+      | VLoc _ -> print_endline "its a fcking location like it should be"
+      | VStruct _ -> print_endline "its a struct which is in the middle"
+      | _ -> () end;
     let signal1, record = value_of_lvalue reader st env lv in
+    begin match record with 
+      | VStruct _ -> print_endline "<struct>"
+      | VLoc l -> print_endline ("<loc>" ^ l) 
+      | _ -> () end;
     let st, signal2 = update_member writer st record mname rhs inc_next in
-    let rhs = match rhs with
+    let record = match record with
       | VStack{headers; size; next} -> Bigint.(VStack {headers; size; next = next + (if inc_next then one else zero)})
       | _ -> rhs in
     begin match signal1, signal2 with
       | SContinue, SContinue ->
-        assign_lvalue reader writer st env lv rhs inc_next
+        assign_lvalue reader writer st env lv record inc_next
       | SContinue, _ -> st, env, signal2
       | _, _ -> st, env, signal1
     end
@@ -396,7 +430,7 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     let st, signal2 = update_idx st arr idx rhs in
     begin match signal1, signal2 with
       | SContinue, SContinue -> 
-        assign_lvalue reader writer st env lv rhs inc_next
+        assign_lvalue reader writer st env lv arr inc_next
       | SContinue, _ -> st, env, signal2
       | _, _ -> st, env, signal1  
     end
@@ -405,18 +439,19 @@ and update_member (writer : 'a writer) (st : 'a State.t) (value : value) (fname 
     (fvalue : value) (inc_next : bool) : 'a State.t * signal =
   match value with
   | VStruct v ->
-     update_field st v.fields fname fvalue, SContinue
+    print_endline "value is struct";
+    update_field st v.fields fname fvalue, SContinue
   | VHeader v -> writer st v.is_valid v.fields fname fvalue, SContinue
   | VUnion {fields} ->
-     update_union_member st fields fname fvalue
+    update_union_member st fields fname fvalue
   | VStack{headers=hdrs; size=s; next=i} ->
-     let idx = 
-       match fname with
-       | "next" -> i
-       | "last" -> Bigint.(i - one)
-       | _ -> failwith "BUG: VStack has no such member"
-     in
-     update_idx st value idx fvalue
+    let idx = 
+      match fname with
+      | "next" -> i
+      | "last" -> Bigint.(i - one)
+      | _ -> failwith "BUG: VStack has no such member"
+    in
+    update_idx st value idx fvalue
   | VLoc l -> update_member writer st (State.find_heap l st) fname fvalue inc_next
   | _ -> failwith "member access undefined"
 

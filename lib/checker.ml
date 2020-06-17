@@ -471,7 +471,7 @@ and constraints_to_type_args _ (cs: var_constraints) : (string * Typed.Type.t) l
   let constraint_to_type_arg (var, type_opt) =
     match type_opt with
     | Some t -> (var, t)
-    | None -> raise_s [%message "could not solve for type argument" ~var]
+    | None -> (var, Type.Void)
   in
   List.map ~f:constraint_to_type_arg cs
 
@@ -2142,6 +2142,8 @@ and cast_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
      then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
                       ~call_site:(call_info: Info.t)
                       ~param:(snd param.variable)]
+     else if param.typ = Type.Void
+     then raise_s [%message "could not infer valid type for don't care argument"]
      else param, None
 
 and type_function_call env call_info func type_args args : Prog.Expression.typed_t =

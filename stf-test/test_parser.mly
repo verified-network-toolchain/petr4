@@ -124,6 +124,8 @@ logical_cond:
 action:
   | qualified_name LPAREN args RPAREN
     { $1, $3 }
+  | qualified_name LPAREN RPAREN
+    { $1, [] }
 
 args:
   | arg

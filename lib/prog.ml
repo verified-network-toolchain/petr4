@@ -1708,6 +1708,8 @@ and Value : sig
 
   val assert_valueset : set -> value * Match.t list list * set list
 
+  val assert_action_decl : Declaration.t -> TypeParameter.t list
+
 end = struct
   type buf = Cstruct_sexp.t [@@deriving sexp]
   let buf_to_yojson b = failwith "unimplemented"
@@ -2065,6 +2067,11 @@ end = struct
     match s with
     | SValueSet {size; members; sets} -> (size, members, sets)
     | _ -> failwith "not a valueset"
+
+  let assert_action_decl (d : Declaration.t) : TypeParameter.t list = 
+    match snd d with
+    | Action {data_params;ctrl_params;_} -> data_params @ ctrl_params
+    | _ -> failwith "not an action declaration"
 end
 
 module ParamContext = struct

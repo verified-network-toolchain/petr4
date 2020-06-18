@@ -62,6 +62,13 @@ let packet_equal (port_exp, pkt_exp) (port, pkt) =
     in
     String.(port_exp = port) && Int.(String.length pkt_exp = String.length pkt) && iter 0
 
+let convert_qualified name =
+  match String.rindex name '.' with 
+  | None -> name
+  | Some idx -> 
+    let length = String.length name in
+    String.slice name (idx + 1) length
+
 let rec run_test' dirs name stmts add results expected st = 
   match stmts with
   | [] -> 
@@ -80,15 +87,17 @@ let rec run_test' dirs name stmts add results expected st =
       end in
       run_test' dirs name tl add results' expected st'
     | Expect (port, Some packet) -> run_test' dirs name tl add results ((port, strip_spaces packet |> String.lowercase) :: expected) st
-    | Add (tbl_name, priority, match_list, action, id) ->
+    | Add (tbl_name, priority, match_list, (action_name, args), id) ->
+      let tbl_name' = convert_qualified tbl_name in 
+      let action_name' = convert_qualified action_name in
       let add' =
-      begin match List.findi add ~f:(fun _ (n,_) -> String.(n = tbl_name)) with
+      begin match List.findi add ~f:(fun _ (n,_) -> String.(n = tbl_name')) with
       | None ->
-        (tbl_name, [(priority, match_list, action, id)]) :: add
+        (tbl_name', [(priority, match_list, (action_name', args), id)]) :: add
       | Some (index, entries_info) ->
         let xs, ys = List.split_n add index in
         match ys with
-        | y :: ys -> xs @ (tbl_name, (priority, match_list, action, id) :: snd entries_info) :: ys
+        | y :: ys -> xs @ (tbl_name', (priority, match_list, (action_name', args), id) :: snd entries_info) :: ys
         | [] -> failwith "unreachable: index out of bounds"
       end in 
       run_test' dirs name tl add' results expected st

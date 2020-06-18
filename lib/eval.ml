@@ -273,9 +273,9 @@ module MakeInterpreter (T : Target) = struct
                        | None -> []
                        | Some entries -> create_pre_entries env entries in
     let entries' = match entries with
-                        | None ->  ctrl_entries
+                        | None -> ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in
-    let final_entries = entries' (*sort_priority ctrl env st entries'*) in
+    let final_entries = sort_priority ctrl env st entries' in
     let v = VTable { name = name;
                     keys = pre_ks;
                     actions = actions;
@@ -347,36 +347,78 @@ module MakeInterpreter (T : Target) = struct
                 typ = Action { data_params = []; ctrl_params = []}}
       | Some action -> action
 
-  and create_pre_entries env add = []
-    (*let convert (priority, match_list, (action_name, args), id) = 
-      let action_type = EvalEnv.find_typ action_name env in
-      let pre_action_ref = { annotations: [];
-          name: Types.name;
-          args: (Expression.t option) list }in
-      let action = {action = pre_action_ref; typ = action_type} in
-      {annotations = [];
-       matches = [];
-       action = action} in 
-    List.map add ~f:convert*)
 
-  (*and sort_priority (ctrl : ctrl) (env : env) (st : state) 
+  and create_pre_entries env add =
+    let rec match_params_to_args (params : TypeParameter.t list) args : Ast.number option list = 
+      match params with
+      | p :: params ->
+        let right_arg (name, value) =
+          if snd (snd p).variable = name
+          then Some value
+          else None
+        in
+        let maybe_arg_for_p, other_args =
+          Util.find_map_and_drop ~f:right_arg args
+        in
+        begin match maybe_arg_for_p with
+        | Some arg_for_p ->
+            Some arg_for_p :: match_params_to_args params other_args
+        | None -> failwith "parameter has no matching arg"
+        end
+      | [] ->
+        match args with
+        | [] -> []
+        | a :: rest -> failwith "too many arguments supplied" in
+    let convert_expression (s : string option) : Expression.t option =
+      match s with
+      | None -> None 
+      | Some s -> 
+        let num = s |> int_of_string |> Bigint.of_int in
+        let pre_exp = Expression.Int (Info.dummy, {value = num; width_signed = None}) in 
+        let typed_exp : Expression.typed_t = {expr = pre_exp; typ = Integer; dir = Directionless} in
+        Some (Info.dummy, typed_exp) in
+    let convert_match (name, (num_or_lpm : Ast.number_or_lpm)) : Match.t =
+      match num_or_lpm with
+      | Num s ->
+        let e = match convert_expression (Some s) with
+                | Some e -> e
+                | None -> failwith "unreachable" in
+        let pre_match = Match.Expression {expr = e} in 
+        let typed_match : Match.typed_t = {expr = pre_match; typ = Integer} in 
+        (Info.dummy, typed_match)
+      | _ -> failwith "stf lpm unsupported" in
+    let convert_pre_entry (priority, match_list, (action_name, args), id) : Table.pre_entry =
+    (*TODO: priority and id are currently unsupported *)
+      let action_name' = Types.BareName (Info.dummy, action_name) in
+      (*let action_type = EvalEnv.find_typ action_name' env in*)
+      let type_params = EvalEnv.find_decl action_name' env |> assert_action_decl in
+      let final_args = match_params_to_args type_params args |> List.map ~f:convert_expression in
+      let pre_action_ref : Table.pre_action_ref = 
+        { annotations = [];
+          name = action_name';
+          args = final_args } in
+      let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (*type is a hack*)
+      { annotations = [];
+        matches = List.map match_list ~f:convert_match;
+        action = (Info.dummy, action) } in
+    List.map add ~f:convert_pre_entry
+
+  and sort_priority (ctrl : ctrl) (env : env) (st : state) 
     (entries : Table.pre_entry list) : Table.pre_entry list =
     let priority_cmp (entry1 : Table.pre_entry) (entry2 : Table.pre_entry) =
       let ann1 = List.find_exn entry1.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in 
       let ann2 = List.find_exn entry2.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in
       let body1 = (snd ann1).body |> snd in 
       let body2 = (snd ann2).body |> snd in 
-      match body1,body2 with 
-      | Expression [e1], Expression [e2] -> 
-        let e1' = Checker.type_expression Env.CheckerEnv.empty_t e1 in
-        let e2' = Checker.type_expression Env.CheckerEnv.empty_t e2 in
-        let v1 = eval_expr ctrl env st SContinue e1' in 
-        let v2 = eval_expr ctrl env st SContinue e2' in 
-        v1 < v2
+      match body1,body2 with
+      | Unparsed [s1], Unparsed [s2] ->
+        let n1 = s1 |> snd |> int_of_string in 
+        let n2 = s2 |> snd |> int_of_string in
+        if n1 = n2 then 0 else if n1 < n2 then -1 else 1
       | _ -> failwith "wrong bodies for @priority" in
     let (priority, no_priority) = List.partition_tf entries ~f:(fun e -> List.exists ~f:(fun a -> String.((snd a).name |> snd = "priority")) e.annotations) in
-    let sorted_priority = List.stable_sort priority ~cmp:priority_cmp in 
-    sorted_priority @ no_priority*)
+    let sorted_priority = List.stable_sort priority ~compare:priority_cmp in 
+    sorted_priority @ no_priority
 
   (*----------------------------------------------------------------------------*)
   (* Statement Evaluation *)

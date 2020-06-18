@@ -1762,7 +1762,6 @@ end = struct
       find_opt name e.vs
 
     let find_decl name e =
-      Format.printf "FIND %s@\n%!" (match name with Types.BareName s -> snd s | Types.QualifiedName (_,s) -> snd s);
       find name e.decl
 
     let find_typ name e =

@@ -61,10 +61,10 @@ module State = struct
     st with heap = (loc,v) :: st.heap}
 
   let find_heap loc st = 
-    print_endline "probably about to fail";
+    (* print_endline "probably about to fail"; *)
     print_endline ("looking for " ^ loc);
     let x = List.Assoc.find_exn st.heap loc ~equal:String.equal in
-    print_endline "didn't actually fail";
+    (* print_endline "didn't actually fail"; *)
     x
 
   let is_initialized loc st =

@@ -395,12 +395,12 @@ module MakeInterpreter (T : Target) = struct
       (rhs : Expression.t) : env * state * signal =
     match s with
     | SContinue ->
-      let (env', st', s', v) = eval_expr ctrl env st SContinue rhs in
-      let (env'', st'', s'', lv) = lvalue_of_expr ctrl env st' s lhs in
+      let (env', st, s', v) = eval_expr ctrl env st SContinue rhs in
+      let (env'', st, s'', lv) = lvalue_of_expr ctrl env st s lhs in
       begin match s',s'', lv with
-        | SContinue, SContinue, Some lv -> let (st', s) = assign_lvalue st' env' lv v false in env', st'', s
-        | SContinue, _, _               -> env'', st'', s''
-        | _, _, _                       -> (env', st'', s')
+        | SContinue, SContinue, Some lv -> let (st, s) = assign_lvalue st env' lv v false in env', st, s
+        | SContinue, _, _               -> env'', st, s''
+        | _, _, _                       -> (env', st, s')
       end
     | SReject _
     | SReturn _
@@ -1127,7 +1127,11 @@ module MakeInterpreter (T : Target) = struct
       (args : Expression.t option list)
       (body : Block.t) : env * state * signal * value =
     let (callenv,fenv, st', s) = copyin ctrl callenv st fscope params args in
+    begin try print_endline "h is in add action:"; State.find_heap (EvalEnv.find_val Types.(BareName (Info.dummy, "h")) fenv) st' |> sexp_of_value |> Sexp.to_string |> print_endline
+    with _ -> () end;
     let (fenv', st'', sign) = eval_block ctrl fenv st' SContinue body in
+    begin try print_endline "h is in add action:"; State.find_heap (EvalEnv.find_val Types.(BareName (Info.dummy, "h")) fenv) st' |> sexp_of_value |> Sexp.to_string |> print_endline
+    with _ -> () end;
     let final_env, st'' = copyout ctrl callenv fenv' st'' params args false in
     match sign with
     | SReturn v -> (final_env, st'', SContinue, v)
@@ -1138,6 +1142,7 @@ module MakeInterpreter (T : Target) = struct
   and copyin (ctrl : ctrl) (callenv : env) (st : state)
       (fscope : env) (params : TypeParameter.t list)
       (args : Expression.t option list) : env * env * state * signal =
+    print_endline "copying in";
     let fenv = EvalEnv.push_scope fscope in
     let ((callenv',st',s),arg_vals) =
       List.fold_mapi args ~f:(eval_nth_arg ctrl st params) ~init:(callenv,st,SContinue) in
@@ -1149,7 +1154,7 @@ module MakeInterpreter (T : Target) = struct
 
   and copyout (ctrl : ctrl) (callenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (inc_next : bool) : env * state =
-    print_endline "copying in";
+    print_endline "copying out";
     (* let env = EvalEnv.pop_scope fenv in *)
     List.fold2_exn
       params
@@ -1478,7 +1483,7 @@ module MakeInterpreter (T : Target) = struct
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
     let open Statement in
     (* TODO: I am unsure of correct environment *)
-    let (callenv,cenv,st',_) = copyin ctrl env st env params args in
+    let (_,cenv,st',_) = copyin ctrl env st env params args in
     let f a (x,y) = EvalEnv.insert_val_bare x y a in
     let cenv' = List.fold_left vs ~init:cenv ~f:f in
     let (cenv'',st'') = List.fold_left locals ~init:(cenv',st') ~f:(fun (e,st) s -> eval_decl ctrl e st s) in
@@ -1492,7 +1497,8 @@ module MakeInterpreter (T : Target) = struct
     | SReject _
     | SReturn VNull
     | SExit     ->
-      let (env, st) = copyout ctrl callenv cenv''' st''' params args false in
+      let (env, st) = copyout ctrl cenv''' cenv''' st''' params args false in
+      print_endline "finishing control evaluation";
       env, st, sign
     | SReturn _ -> failwith "control should not return"
 

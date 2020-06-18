@@ -1597,6 +1597,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : buf)
       (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
     let (>>|) = Option.(>>|) in
+    (* let state = State.reset_state state in *)
     match prog with Program l ->
     let (env,st) =
       List.fold_left l

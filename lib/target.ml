@@ -41,6 +41,11 @@ module State = struct
     counter := !counter + 1;
     "_" ^ (string_of_int (!counter)) ^ "_" 
 
+  let reset_state st = { st with 
+    packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; };
+    heap = [];
+  }
+
   let get_packet st = st.packet
 
   let set_packet pkt st = { st with packet = pkt }

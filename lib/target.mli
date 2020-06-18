@@ -21,6 +21,8 @@ module State : sig
 
   val fresh_loc : unit -> loc
 
+  val reset_state : 'a t -> 'a t
+
   val get_packet : 'a t -> pkt
   val set_packet : pkt -> 'a t -> 'a t
   val insert_extern : loc -> 'a -> 'a t -> 'a t

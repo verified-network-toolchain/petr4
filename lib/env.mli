@@ -1,5 +1,4 @@
 open Types
-open Typed
 open Prog
 open Value
 
@@ -54,30 +53,30 @@ module CheckerEnv : sig
 
   val empty_t : t
 
-  val resolve_type_name_opt : name -> t -> Typed.Type.t option
-  val resolve_type_name : name -> t -> Typed.Type.t
-  val find_type_of_opt : name -> t -> (Typed.Type.t * Typed.direction) option
-  val find_type_of : name -> t -> Typed.Type.t * Typed.direction
-  val find_types_of : name -> t -> (Typed.Type.t * Typed.direction) list
+  val resolve_type_name_opt : name -> t -> Prog.Type.t option
+  val resolve_type_name : name -> t -> Prog.Type.t
+  val find_type_of_opt : name -> t -> (Prog.Type.t * Prog.direction) option
+  val find_type_of : name -> t -> Prog.Type.t * Prog.direction
+  val find_types_of : name -> t -> (Prog.Type.t * Prog.direction) list
 
-  val insert_type : name -> Typed.Type.t -> t -> t
-  val insert_type_of : name -> Typed.Type.t -> t -> t
-  val insert_dir_type_of : name -> Typed.Type.t -> Typed.direction -> t -> t
+  val insert_type : name -> Prog.Type.t -> t -> t
+  val insert_type_of : name -> Prog.Type.t -> t -> t
+  val insert_dir_type_of : name -> Prog.Type.t -> Prog.direction -> t -> t
   val insert_type_var : name -> t -> t
   val push_scope : t -> t
   val pop_scope : t -> t
 
-  val resolve_type_name_opt : name -> t -> Typed.Type.t option
-  val resolve_type_name : name -> t -> Typed.Type.t
-  val find_type_of_opt : name -> t -> (Typed.Type.t * Typed.direction) option
-  val find_type_of : name -> t -> Typed.Type.t * Typed.direction
+  val resolve_type_name_opt : name -> t -> Prog.Type.t option
+  val resolve_type_name : name -> t -> Prog.Type.t
+  val find_type_of_opt : name -> t -> (Prog.Type.t * Prog.direction) option
+  val find_type_of : name -> t -> Prog.Type.t * Prog.direction
   val find_const : name -> t -> value
   val find_const_opt : name -> t -> value option
 
-  val insert_type : name -> Typed.Type.t -> t -> t
-  val insert_types : (string * Typed.Type.t) list -> t -> t
-  val insert_type_of : name -> Typed.Type.t -> t -> t
-  val insert_dir_type_of : name -> Typed.Type.t -> Typed.direction -> t -> t
+  val insert_type : name -> Prog.Type.t -> t -> t
+  val insert_types : (string * Prog.Type.t) list -> t -> t
+  val insert_type_of : name -> Prog.Type.t -> t -> t
+  val insert_dir_type_of : name -> Prog.Type.t -> Prog.direction -> t -> t
   val insert_type_var : name -> t -> t
   val insert_type_vars : string list -> t -> t
   val insert_const : name -> value -> t -> t

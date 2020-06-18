@@ -25,15 +25,6 @@ let parser_test include_dirs file =
   | `Ok _ -> true
   | `Error _ -> false
 
-let nate_test = 
-  match Parse.parse_file "scope.p4" with 
-  | `Ok prog -> 
-     let prog = Elaborate.elab prog in 
-     let prog = Checker.check_program prog in 
-     
-     
-  | `Error _ -> false
-
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   match Parse.parse_file include_dirs p4_file false with
   | `Ok prog ->

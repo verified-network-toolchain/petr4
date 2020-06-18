@@ -2,7 +2,6 @@ module I = Info
 open Core_kernel
 open Env
 open Prog
-open Typed
 open Value
 open Target
 open Bitstring

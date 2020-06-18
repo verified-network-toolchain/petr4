@@ -42,9 +42,9 @@ module PreV1Switch : Target = struct
   type extern = state pre_extern
 
   let read_header_field : obj reader = fun is_valid fields fname ->
-    print_endline "could be happening in read_header_field";
+    (* print_endline "could be happening in read_header_field"; *)
     let l = List.Assoc.find_exn fields fname ~equal:String.equal in
-    print_endline "but its not";
+    (* print_endline "but its not"; *)
     l
 
   let write_header_field : obj writer = fun is_valid fields fname fvalue ->
@@ -501,14 +501,14 @@ module PreV1Switch : Target = struct
         (st: obj State.t)
         (pkt: pkt)
         (app: state apply) =
-    print_endline "call to find heap on ingress port";
+    (* print_endline "call to find heap on ingress port"; *)
     let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in 
-    print_endline "not ingress port";
+    (* print_endline "not ingress port"; *)
     let fst23 (a,b,_) = (a,b) in
-    print_endline "looking up main";
+    (* print_endline "looking up main"; *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
-    print_endline "not main";
+    (* print_endline "not main"; *)
     let vs = assert_package main |> snd in
     let parser =
       List.Assoc.find_exn vs "p"   ~equal:String.equal
@@ -538,13 +538,13 @@ module PreV1Switch : Target = struct
       | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
     let vpkt = VRuntime { loc = State.packet_location; obj_name = "packet_in"; } in
-    begin match (snd (List.nth_exn params 1)).typ with
+    (* begin match (snd (List.nth_exn params 1)).typ with
       | TypeName n -> 
         begin match EvalEnv.find_typ n env with
           | Struct _ -> print_endline "Headers is a struct"
           | _ -> print_endline "Headers is not a struct"
         end
-      | _ -> () end;
+      | _ -> () end; *)
     let hdr =
       init_val_of_typ env (snd (List.nth_exn params 1)).typ in
     let meta =
@@ -615,11 +615,19 @@ module PreV1Switch : Target = struct
                   name="checksum_error"; }; typ = Bit {width = 1}}
           (VBit{v=Bigint.one;w=Bigint.one}) false |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
+    (* begin match State.find_heap hdr_loc st with
+      | VStruct _ -> print_endline "headers is a struct"
+      | VHeader _ -> print_endline "headers is a header like a stupid b*tch"
+      | _ -> print_endline "headers is so fcked up id even k wtf to do" end; *)
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
-    print_endline "got to egress spec updating";
+    (* print_endline "got to egress spec updating"; *)
     let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
-    print_endline "not that either";
+    (* print_endline "not that either"; *)
+    (* begin match State.find_heap hdr_loc st with
+      | VStruct _ -> print_endline "headers is a struct"
+      | VHeader _ -> print_endline "headers is a header like a stupid b*tch"
+      | _ -> print_endline "headers is so fcked up id even k wtf to do" end; *)
     let egress_spec_val = match struc with
       | VStruct {fields} ->
         List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
@@ -638,9 +646,9 @@ module PreV1Switch : Target = struct
       |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
       |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
       |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
-    print_endline "finished pipeline";
+    (* print_endline "finished pipeline"; *)
     (* ignore (State.find_heap "_28_" st); *)
-    print_endline "metadata is mapped in output state";
+    (* print_endline "metadata is mapped in output state"; *)
     st, env, Some (State.get_packet st)
 
 end

@@ -58,16 +58,16 @@ module State = struct
     x
 
   let insert_heap loc v st = 
-    print_endline "inserting into the heap";
-    print_endline (Sexp.to_string (sexp_of_value v));
-    print_endline "with location";
-    print_endline loc;
+    (* print_endline "inserting into the heap"; *)
+    (* print_endline (Sexp.to_string (sexp_of_value v)); *)
+    (* print_endline "with location"; *)
+    (* print_endline loc; *)
     {
     st with heap = (loc,v) :: st.heap}
 
   let find_heap loc st = 
     (* print_endline "probably about to fail"; *)
-    print_endline ("looking for " ^ loc);
+    (* print_endline ("looking for " ^ loc); *)
     let x = List.Assoc.find_exn st.heap loc ~equal:String.equal in
     (* print_endline "didn't actually fail"; *)
     x
@@ -344,11 +344,11 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     let l = EvalEnv.find_val name env in
     State.insert_heap l rhs st, SContinue
   | LMember{expr=lv;name=mname;} ->
-    print_endline "assigninig to a member";
-    print_endline ("member name is " ^ mname);
-    begin match lv with
+    (* print_endline "assigninig to a member"; *)
+    (* print_endline ("member name is " ^ mname); *)
+    (* begin match lv with
       | {lvalue = LName {name = BareName (_,"h")};_} -> print_endline "variable name is h"
-      | _ -> () end;
+      | _ -> () end; *)
     (* begin match EvalEnv.find_val (lv |> assert_lname) env with
       | VHeader _ -> print_endline "its a header for some dumb reason"
       | VLoc _ -> print_endline "its a location like it should be"
@@ -391,7 +391,7 @@ and update_member (writer : 'a writer) (value : value) (fname : string)
     (fvalue : value) (inc_next : bool) : value * signal =
   match value with
   | VStruct v ->
-    print_endline "value is struct";
+    (* print_endline "value is struct"; *)
     update_field v.fields fname fvalue, SContinue
   | VHeader v -> writer v.is_valid v.fields fname fvalue, SContinue
   | VUnion {fields} ->

@@ -251,7 +251,7 @@ module MakeInterpreter (T : Target) = struct
       | SContinue ->
          let init_val = implicit_cast env init_val typ in
          let st = State.insert_heap l init_val st in
-         env, st, SContinue
+         EvalEnv.insert_val_bare name l env, st, SContinue
       | signal -> env, st, signal
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)

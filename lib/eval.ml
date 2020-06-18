@@ -686,6 +686,8 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_expr (ctrl : ctrl) (env : env) (st : state) (s : signal)
       (exp : Expression.t) : env * state * signal * value =
+    print_endline "eval_expr:";
+    exp |> Expression.show |> print_endline;
     match s with
     | SContinue ->
       begin match (snd exp).expr with
@@ -703,7 +705,9 @@ module MakeInterpreter (T : Target) = struct
         | Cast{typ;expr}                  -> eval_cast ctrl env st typ expr
         | TypeMember{typ;name}            -> eval_typ_mem ctrl env st typ (snd name)
         | ErrorMember t                   -> (env, st, s, VError (snd t))
-        | ExpressionMember{expr;name}     -> eval_expr_mem ctrl env st expr name
+        | ExpressionMember{expr;name}     ->
+          print_endline "About to call Expression Member:"; 
+          eval_expr_mem ctrl env st expr name
         | Ternary{cond;tru;fls}           -> eval_ternary ctrl env st cond tru fls
         | FunctionCall{func;args;type_args=targs}       -> eval_funcall ctrl env st func targs args
         | NamelessInstantiation{typ;args} -> eval_nameless ctrl env st typ args
@@ -847,7 +851,10 @@ module MakeInterpreter (T : Target) = struct
         | VExternFun _
         | VPackage _                         -> failwith "expr member does not exist"
         | VStruct{fields=fs}                 -> eval_struct_mem env' st' (snd name) fs
-        | VHeader{fields=fs;is_valid=vbit}   -> eval_header_mem ctrl env' st' (snd name) expr fs vbit
+        | VHeader{fields=fs;is_valid=vbit}   ->
+          print_endline "about to call eval_header_mem";
+          expr |> Expression.show |> print_endline;
+          eval_header_mem ctrl env' st' (snd name) expr fs vbit
         | VUnion{fields=fs}                  -> eval_union_mem ctrl env' st' (snd name) expr fs
         | VStack{headers=hdrs;size=s;next=n} -> eval_stack_mem ctrl env' st' (snd name) expr hdrs s n
         | VRuntime {loc; obj_name}           -> eval_runtime_mem env' st' (snd name) expr loc obj_name

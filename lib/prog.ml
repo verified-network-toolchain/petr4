@@ -3,7 +3,6 @@ open Util
 open Core_kernel
 module Info = I
 
-
 open Typed
 
 module P4Int = Types.P4Int
@@ -1914,4 +1913,5 @@ end = struct
 end
 
 type program =
-    Program of Declaration.t list [@name "program"]
+    Program of Declaration.t list [@name "program"] 
+   [@@deriving sexp,show,yojson]

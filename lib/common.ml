@@ -84,6 +84,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `Ok prog ->
       let prog = Elaborate.elab prog in
       Checker.check_program prog |> ignore;
+      let () = Format.printf "%s\n" (Types.show_program prog) in 
       if print_json then
         let json = Types.program_to_yojson prog in
         let to_string j =

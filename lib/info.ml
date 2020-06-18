@@ -24,7 +24,10 @@ type t =
       col_start: int;
       col_end : int } [@name "info"]
   | M of string [@name "missing_info"]
-[@@deriving sexp,show,yojson]
+[@@deriving sexp,yojson]
+
+let pp fmt _ = ()
+let show _ = ""
 
 let dummy = M ""
 

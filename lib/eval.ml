@@ -411,11 +411,11 @@ module MakeInterpreter (T : Target) = struct
     match s with
     | SContinue ->
       begin match v with
-        | VParser {pvs;pparams;plocals;states} ->
-          let (env, s, st') = eval_parser ctrl env st pparams args pvs plocals states in
+        | VParser {pscope;pvs;pparams;plocals;states} ->
+          let (env, s, st') = eval_parser ctrl env st pparams args pscope pvs plocals states in
           (env,s, st', VNull)
-        | VControl {cvs;cparams;clocals;apply} ->
-          let (env,st,s) = eval_control ctrl env st cparams args cvs clocals apply in
+        | VControl {cscope;cvs;cparams;clocals;apply} ->
+          let (env,st,s) = eval_control ctrl env st cparams args cscope cvs clocals apply in
           (env,st,s,VNull)
         | VTable {keys;const_entries;name;actions;default_action} ->
           eval_table ctrl env st keys const_entries name actions default_action
@@ -918,7 +918,8 @@ module MakeInterpreter (T : Target) = struct
         let state = env'
           |> EvalEnv.get_val_firstlevel
           |> List.rev in
-        let v' = VControl { cvs = state;
+        let v' = VControl { cscope = env;
+                            cvs = state;
                             cparams = typ_decl.params;
                             clocals = typ_decl.locals;
                             apply = typ_decl.apply; } in
@@ -930,7 +931,8 @@ module MakeInterpreter (T : Target) = struct
         let state = env'
           |> EvalEnv.get_val_firstlevel
           |> List.rev in
-        let v' = VParser { pvs = state;
+        let v' = VParser {pscope = env; 
+                          pvs = state;
                           pparams = typ_decl.params;
                           plocals = typ_decl.locals;
                           states = typ_decl.states; } in
@@ -1322,9 +1324,9 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and eval_parser (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
-      (args : Expression.t option list) (ls : (string * loc) list)
+      (args : Expression.t option list) (pscope : env) (ls : (string * loc) list)
       (locals : Declaration.t list) (states : Parser.state list) : env * state * signal =
-    (* TODO: I am unsure of correct environment... *)
+    (* TODO: incorporate closure environment *)
     let (callenv,penv, st', s) = copyin ctrl env st env params args in
     match s with
     | SContinue ->
@@ -1334,7 +1336,6 @@ module MakeInterpreter (T : Target) = struct
       let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
       let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
-      (* TODO: I am unsure of correct environment... *)
       (* print_endline "copy out from parser"; *)
       let st'''' = copyout ctrl env penv''' st''' params args false in
       (* print_endline "copy out from parser done"; *)
@@ -1497,11 +1498,11 @@ module MakeInterpreter (T : Target) = struct
   (* -------------------------------------------------------------------------- *)
 
   and eval_control (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
-      (args : Expression.t option list) (vs : (string * loc) list)
+      (args : Expression.t option list) (cscope : env) (vs : (string * loc) list)
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
     (* print_endline "starting control evaluation"; *)
     let open Statement in
-    (* TODO: I am unsure of correct environment *)
+    (* TODO: incorporate closure environment *)
     let (callenv,cenv,st',_) = copyin ctrl env st env params args in
     let f a (x,y) = EvalEnv.insert_val_bare x y a in
     let cenv' = List.fold_left vs ~init:cenv ~f:f in

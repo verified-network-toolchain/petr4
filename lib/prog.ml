@@ -936,6 +936,7 @@ and Value : sig
     [@@deriving sexp,show,yojson]
 
   and vparser = {
+    pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
     pparams : TypeParameter.t list;
     plocals : Declaration.t list;
@@ -944,6 +945,7 @@ and Value : sig
   [@@deriving sexp,show,yojson]
 
   and vcontrol = {
+    cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
     cparams : TypeParameter.t list;
     clocals : Declaration.t list;
@@ -1164,6 +1166,7 @@ end = struct
   [@@deriving sexp, show,yojson]
 
   and vparser = {
+    pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
     pparams : TypeParameter.t list;
     plocals : Declaration.t list;
@@ -1172,6 +1175,7 @@ end = struct
   [@@deriving sexp,show,yojson]
 
   and vcontrol = {
+    cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
     cparams : TypeParameter.t list;
     clocals : Declaration.t list;

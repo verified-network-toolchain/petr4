@@ -639,7 +639,7 @@ module PreV1Switch : Target = struct
       |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
       |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
     print_endline "finished pipeline";
-    ignore (State.find_heap "_28_" st);
+    (* ignore (State.find_heap "_28_" st); *)
     print_endline "metadata is mapped in output state";
     st, env, Some (State.get_packet st)
 

@@ -1216,7 +1216,7 @@ module MakeInterpreter (T : Target) = struct
     let (fenv', st'', sign) = eval_block ctrl fenv st' SContinue body in
     (* begin try print_endline "h is in add action:"; State.find_heap (EvalEnv.find_val Types.(BareName (Info.dummy, "h")) fenv) st' |> sexp_of_value |> Sexp.to_string |> print_endline
     with _ -> () end; *)
-    let st'' = copyout ctrl fscope fenv' st'' params args false in
+    let st'' = copyout ctrl callenv fenv' st'' params args false in
     match sign with
     | SReturn v -> (callenv, st'', SContinue, v)
     | SReject _
@@ -1412,7 +1412,7 @@ module MakeInterpreter (T : Target) = struct
       let start = find_exn states' "start" in
       let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
       (* print_endline "copy out from parser"; *)
-      let st'''' = copyout ctrl env penv''' st''' params args false in
+      let st'''' = copyout ctrl callenv penv''' st''' params args false in
       (* print_endline "copy out from parser done"; *)
       (env, st'''', final_state)
     | SReject _ -> (env, st', s)
@@ -1592,7 +1592,7 @@ module MakeInterpreter (T : Target) = struct
     | SReject _
     | SReturn VNull
     | SExit     ->
-      let st = copyout ctrl env cenv''' st''' params args false in
+      let st = copyout ctrl callenv cenv''' st''' params args false in
       (* print_endline "finishing control evaluation"; *)
       (* begin try match State.find_heap "_30_" st with
         | VStruct _ -> print_endline "headers is a struct"

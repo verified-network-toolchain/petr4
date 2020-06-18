@@ -30,9 +30,11 @@ control ComputeChecksumI(inout H hdr, inout M meta) {
 
 
 control IngressI(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-  action a() { hdr.h.x = 0; }
+  bit<8> x = hdr.h.x;
+  action nop() { hdr.h.x = x; }
+  bool x;
   apply {
-    a();
+    nop();
     std_meta.egress_spec = 9;
   }
 }

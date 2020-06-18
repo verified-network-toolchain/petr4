@@ -107,7 +107,7 @@ let eval_command =
      +> flag "-port" (optional_with_default "0" string) ~doc: "<ctrl_json> Add control json"
      +> anon ("p4file" %: string))
     (fun verbose include_dir pkt_str ctrl_json port p4file () ->
-       print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) None (int_of_string port)))
+       print_string (eval_file_string include_dir p4file verbose pkt_str [] (Yojson.Safe.from_file ctrl_json) None (int_of_string port)))
 
 let command =
   Command.group

@@ -85,6 +85,8 @@ and keyword = parse
       { GEQ }
   | '/'
       { SLASH }
+  | hex_constant as n
+    { INT_CONST_HEX n }
   | "add"
     { ADD }
   | "all"

@@ -1,4 +1,4 @@
-open Typed
+open Prog
 open Sexplib.Conv
 
 type error =

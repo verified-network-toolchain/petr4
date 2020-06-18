@@ -1,7 +1,6 @@
 module I = Info
 open Types
 open Prog
-open Typed
 open Value
 open Core_kernel
 open Sexplib.Conv
@@ -326,9 +325,9 @@ module CheckerEnv = struct
 
   type t =
     { (* types that type names refer to (or Typevar for vars in scope) *)
-      typ: Typed.Type.t env;
+      typ: Prog.Type.t env;
       (* maps variables to their types & directions *)
-      typ_of: (Typed.Type.t * Typed.direction) env;
+      typ_of: (Prog.Type.t * Prog.direction) env;
       (* maps constants to their values *)
       const: value env }
   [@@deriving sexp,yojson]
@@ -369,7 +368,7 @@ module CheckerEnv = struct
     List.fold ~f:go ~init:env names_types
 
   let insert_type_var var env =
-    { env with typ = insert var (Typed.Type.TypeName var) env.typ }
+    { env with typ = insert var (Prog.Type.TypeName var) env.typ }
 
   let insert_type_vars vars env =
     let go env var =
@@ -378,7 +377,7 @@ module CheckerEnv = struct
     List.fold ~f:go ~init:env vars
 
   let insert_type_of var typ env =
-    { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
+    { env with typ_of = insert var (typ, Prog.Directionless) env.typ_of }
 
   let insert_dir_type_of var typ dir env =
     { env with typ_of = insert var (typ, dir) env.typ_of }

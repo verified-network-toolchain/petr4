@@ -1,6 +1,6 @@
 open Core_kernel
 module V = Prog.Value
-module Op = Typed.Op
+module Op = Types.Op
 open Bitstring
 
 (*----------------------------------------------------------------------------*)
@@ -356,7 +356,7 @@ let rec int_of_val (width : int) (v : V.value) : V.value =
   | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
+let fields_for_cast (fields: Prog.RecordType.field list) (value: V.value) =
   match value with
   | VTuple vals ->
      let fields_vals = List.zip_exn fields vals in
@@ -365,8 +365,8 @@ let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
   | _ -> raise_s [%message "cannot cast" ~value:(value:V.value)]
 
 
-let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
-      (new_type: Typed.Type.t) (value: V.value) : V.value =
+let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Prog.Type.t)
+      (new_type: Prog.Type.t) (value: V.value) : V.value =
   match new_type with
   | Bool -> bool_of_val value
   | Bit{width} -> bit_of_val width value

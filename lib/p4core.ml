@@ -1,5 +1,5 @@
 open Prog.Value
-open Typed
+open Prog
 open Target
 open Bitstring
 open Env
@@ -285,7 +285,7 @@ module Corize (T : Target) : Target = struct
       (fields : (string * value) list) (is_valid : bool) : buf =
     let rec underlying_typ_of_enum env t =
       match t with
-      | Typed.Type.Enum et -> Option.value_exn et.typ
+      | Prog.Type.Enum et -> Option.value_exn et.typ
       | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
       | NewType nt -> nt.typ |> underlying_typ_of_enum env
       | _ -> failwith "no such underlying type" in

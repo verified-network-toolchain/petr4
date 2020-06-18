@@ -26,8 +26,8 @@ type t =
   | M of string [@name "missing_info"]
 [@@deriving sexp,yojson]
 
-let pp fmt _ = ()
-let show _ = ""
+let pp fmt _ = Format.pp_print_string fmt "<info>"
+let show _ = "<info>"
 
 let dummy = M ""
 

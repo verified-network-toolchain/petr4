@@ -4,6 +4,7 @@ open Prog
 open Env
 open Value
 open Core_kernel
+open Typed
 module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)

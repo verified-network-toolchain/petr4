@@ -1,3 +1,4 @@
+open Typed
 open Prog
 open Value
 open Env
@@ -159,7 +160,7 @@ module PreV1Switch : Target = struct
     | _ -> failwith "unexpected read args"
     
   let eval_register : extern = fun _ env st typs args ->
-    let typ = Prog.Type.Bit {width = 32} in
+    let typ = Typed.Type.Bit {width = 32} in
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)

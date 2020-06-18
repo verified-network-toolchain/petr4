@@ -1,3 +1,4 @@
+open Typed
 open Prog
 open Value
 open Env

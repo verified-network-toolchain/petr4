@@ -14,7 +14,7 @@
  *)
 
 %{
-open Petr4.Ast
+open Ast
 %}
 
 %token END
@@ -25,7 +25,7 @@ open Petr4.Ast
 %token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ LBRACKET RBRACKET
 
 
-%start <Petr4.Ast.statement list> statements
+%start <Ast.statement list> statements
 
 %%
 
@@ -124,8 +124,6 @@ logical_cond:
 action:
   | qualified_name LPAREN args RPAREN
     { $1, $3 }
-  | qualified_name LPAREN RPAREN
-    { $1, [] }
 
 args:
   | arg

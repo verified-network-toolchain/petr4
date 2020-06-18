@@ -864,7 +864,7 @@ and Value : sig
     in_size : int;
   } [@@deriving sexp,show,yojson]
 
-  type entries = Table.pre_entry list
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
 
   type vsets = Match.t list list
 
@@ -1080,6 +1080,8 @@ and Value : sig
 
   val assert_valueset : set -> value * Match.t list list * set list
 
+  val assert_action_decl : Declaration.t -> TypeParameter.t list
+
 end = struct
   type buf = Cstruct_sexp.t [@@deriving sexp]
   let buf_to_yojson b = failwith "unimplemented"
@@ -1093,7 +1095,7 @@ end = struct
     in_size : int;
   } [@@deriving sexp,show,yojson]
 
-  type entries = Table.pre_entry list
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
 
   type vsets = Match.t list list
 
@@ -1420,6 +1422,11 @@ end = struct
     match s with
     | SValueSet {size; members; sets} -> (size, members, sets)
     | _ -> failwith "not a valueset"
+
+  let assert_action_decl (d : Declaration.t) : TypeParameter.t list = 
+    match snd d with
+    | Action {data_params;ctrl_params;_} -> data_params @ ctrl_params
+    | _ -> failwith "not an action declaration"
 
 end
 

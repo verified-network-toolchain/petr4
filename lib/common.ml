@@ -101,16 +101,12 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-  let eval_file include_dirs p4_file verbose pkt_str ctrl_json st port =
+  let eval_file include_dirs p4_file verbose pkt_str add ctrl_json st port =
     (* let pkt_str = Core_kernel.In_channel.read_all pkt_file in *)
     let st = match st with None -> Eval.V1Interpreter.empty_state | Some st -> st in
     let port = Bigint.of_int port in
     let pkt = Cstruct.of_hex pkt_str in
     let open Yojson.Safe in
-    let pre_entries = ctrl_json
-                      |> Util.member "pre_entries"
-                      |> Util.to_list in
-    let tbls = List.map pre_entries ~f:Prog.Table.pre_entry_of_yojson_exn in
     let matches = ctrl_json
                   |> Util.member "matches"
                   |> Util.to_list
@@ -124,13 +120,13 @@ module Make_parse (Conf: Parse_config) = struct
       let env = Env.CheckerEnv.eval_env_of_t cenv in
       (* TODO - thread env information from checker to eval*)
       let open Eval in
-      begin match V1Interpreter.eval_prog (tbls, vsets) env st pkt port typed_prog with
+      begin match V1Interpreter.eval_prog (add, vsets) env st pkt port typed_prog with
         | st, Some (pkt,port) -> st, `Ok(pkt, port)
         | st, None -> st, `NoPacket end
     | `Error (info, exn) as e-> st, e
 
-  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json st port =
-    match eval_file include_dirs p4_file verbose pkt_str ctrl_json st port with
+  let eval_file_string include_dirs p4_file verbose pkt_str add ctrl_json st port =
+    match eval_file include_dirs p4_file verbose pkt_str add ctrl_json st port with
     | _, `Ok (pkt, port) ->
       (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
     | _, `NoPacket -> "No packet out"

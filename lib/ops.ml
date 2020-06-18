@@ -356,6 +356,15 @@ let rec int_of_val (width : int) (v : V.value) : V.value =
   | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
+let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
+  match value with
+  | VTuple vals ->
+     let fields_vals = List.zip_exn fields vals in
+     List.map ~f:(fun (f, v) -> f.name, v) fields_vals
+  | VRecord fields -> fields
+  | _ -> raise_s [%message "cannot cast" ~value:(value:V.value)]
+
+
 let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
       (new_type: Typed.Type.t) (value: V.value) : V.value =
   match new_type with
@@ -364,4 +373,11 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
   | Int{width} -> int_of_val width value
   | NewType nt -> interp_cast ~type_lookup nt.typ value
   | TypeName n -> interp_cast ~type_lookup (type_lookup n) value
+  | Header {fields} -> VHeader {is_valid = true;
+                                fields = fields_for_cast fields value}
+  | Struct {fields} -> VStruct {fields = fields_for_cast fields value}
+  | Tuple types -> begin match value with
+                   | VTuple v -> VTuple v
+                   | _ -> failwith "cannot cast"
+                   end
   | _ -> failwith "type cast unimplemented"

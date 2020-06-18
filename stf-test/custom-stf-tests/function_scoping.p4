@@ -38,7 +38,7 @@ control MyEgress(inout headers hdr,
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
         bit<8> t = 8w4; //type check should reject variable name shadowing
-        bit<8> x = addt(8w34); //38, but not a well-formed program
+        bit<8> x = addt(8w34); //42, but not a well-formed program
         packet.emit((bit<8>) x);
     }
 }

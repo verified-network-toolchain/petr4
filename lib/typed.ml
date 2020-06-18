@@ -5,7 +5,7 @@ type direction =
   | Out
   | InOut
   | Directionless
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
 let eq_dir d1 d2 =
   match d1, d2 with
@@ -15,7 +15,7 @@ let eq_dir d1 d2 =
   | Directionless, Directionless -> true
   | _ -> false
 
-type 'a info = 'a Types.info [@@deriving sexp,yojson]
+type 'a info = 'a Types.info [@@deriving sexp,show,yojson]
 
 module Annotation = Types.Annotation
 
@@ -27,7 +27,7 @@ module rec Parameter : sig
       direction: direction;
       typ: Type.t;
       variable: Types.P4String.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
@@ -36,7 +36,7 @@ end = struct
       direction: direction;
       typ: Type.t;
       variable: Types.P4String.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   let eq
     (* ignoring annotations for now... *)
@@ -55,14 +55,14 @@ and ConstructParam : sig
   type t =
     { name: string;
       typ: Type.t }
-  [@@deriving sexp, yojson]
+  [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t =
     { name: string;
       typ: Type.t }
-  [@@deriving sexp, yojson]
+  [@@deriving sexp,show,yojson]
 
   let eq
     { name=s1; typ=t1 }
@@ -73,13 +73,13 @@ end
 and PackageType : sig
   type t = {type_params: string list;
             parameters: ConstructParam.t list}
-             [@@deriving sexp,yojson]
+             [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t = {type_params: string list;
             parameters: ConstructParam.t list}
-             [@@deriving sexp,yojson]
+             [@@deriving sexp,show,yojson]
 
   let eq
     {type_params=t1; parameters=p1}
@@ -91,13 +91,13 @@ end
 and ControlType : sig
   type t = {type_params: string list;
             parameters: Parameter.t list}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t = {type_params: string list;
             parameters: Parameter.t list}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq
     {type_params=s1; parameters=p1}
@@ -110,24 +110,24 @@ and ExternType : sig
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   type t =
     { type_params: string list;
       methods: extern_method list }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   type t =
     { type_params: string list;
       methods: extern_method list }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq_em
     { name=s1; typ=f1 }
@@ -145,13 +145,13 @@ end
 and IntType : sig
   type t =
     { width: int }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t =
     { width: int }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq {width=i1} {width=i2} = i1 = i2
 end
@@ -160,14 +160,14 @@ and ArrayType : sig
   type t =
     { typ: Type.t;
       size: int; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t =
     { typ: Type.t;
       size: int; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq { typ=t1; size=s1 } { typ=t2; size=s2 } =
     Type.eq t1 t2 && s1 = s2
@@ -176,13 +176,13 @@ end
 and TupleType : sig
   type t =
     { types: Type.t list }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t =
     { types: Type.t list }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq { types=t1 } { types=t2 } =
     Base.List.equal Type.eq t1 t2
@@ -192,14 +192,14 @@ and NewType : sig
   type t =
     { name: string;
       typ: Type.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
     val eq : t -> t -> bool
 end = struct
   type t =
     { name: string;
       typ: Type.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   let eq { name=s1; typ=t1 } { name=s2; typ=t2 } =
     Base.String.equal s1 s2 && Type.eq t1 t2
@@ -209,22 +209,22 @@ and RecordType : sig
   type field =
     { name: string;
       typ: Type.t; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   type t =
     { fields: field list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type field =
     { name: string;
       typ: Type.t; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   type t =
     { fields: field list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq_field
     { name=s1; typ=t1 }
@@ -241,7 +241,7 @@ and EnumType : sig
       typ: Type.t option;
       (* TODO remove this *)
       members: string list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
@@ -249,7 +249,7 @@ end = struct
     { name: string;
       typ: Type.t option;
       members: string list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq
     { name=s1; typ=t1; members=l1 }
@@ -265,7 +265,7 @@ and FunctionType : sig
     { type_params: string list;
       parameters: Parameter.t list;
       return: Type.t}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
@@ -273,7 +273,7 @@ end = struct
     { type_params: string list;
       parameters: Parameter.t list;
       return: Type.t}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq
     { type_params=s1; parameters=p1; return=t1}
@@ -287,14 +287,14 @@ and SpecializedType : sig
   type t =
     { base: Type.t;
       args: Type.t list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t =
     { base: Type.t;
       args: Type.t list; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   let eq { base=b1; args=a1 } { base=b2; args=a2 } =
     Type.eq b1 b2 && Base.List.equal Type.eq a1 a2
@@ -304,14 +304,14 @@ and ActionType : sig
   type t =
     { data_params: Parameter.t list;
       ctrl_params: ConstructParam.t list}
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
    val eq : t -> t -> bool
 end = struct
   type t =
   { data_params: Parameter.t list;
     ctrl_params: ConstructParam.t list}
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
    let eq
     { data_params=p1; ctrl_params=c1 }
@@ -325,7 +325,7 @@ and ConstructorType : sig
     { type_params: string list;
       parameters: ConstructParam.t list;
       return: Type.t }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
    val eq : t -> t -> bool
 end = struct
@@ -333,7 +333,7 @@ end = struct
     { type_params: string list;
       parameters: ConstructParam.t list;
       return: Type.t }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
    let eq
      { type_params=s1; parameters=c1; return=t1}
@@ -345,12 +345,12 @@ end
 
 and TableType : sig
   type t = {result_typ_name:string}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t = {result_typ_name:string}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   let eq {result_typ_name=s1} {result_typ_name=s2} =
     Base.String.equal s1 s2
@@ -437,7 +437,7 @@ and Type : sig
     | Constructor of ConstructorType.t
 
     | Table of TableType.t
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
     (* syntactic equality of types *)
     val eq : t -> t -> bool
@@ -522,7 +522,7 @@ end = struct
   | Constructor of ConstructorType.t
 
   | Table of TableType.t
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   (* syntactic equality of types *)
   let rec eq t1 t2 =
@@ -564,12 +564,12 @@ and StmType : sig
   type t =
   | Unit
   | Void
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end = struct
   type t =
   | Unit
   | Void
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end
 
 and StmtContext : sig
@@ -578,14 +578,14 @@ and StmtContext : sig
   | Action
   | ParserState
   | ApplyBlock
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end = struct
   type t =
   | Function of Type.t
   | Action
   | ParserState
   | ApplyBlock
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end
 
 and DeclContext : sig
@@ -593,13 +593,13 @@ and DeclContext : sig
   | TopLevel
   | Nested
   | Statement of StmtContext.t
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end = struct
   type t =
   | TopLevel
   | Nested
   | Statement of StmtContext.t
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end
 
 module ParamContext = struct

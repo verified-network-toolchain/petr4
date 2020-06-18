@@ -17,7 +17,7 @@ open Util
 
 open Sexplib.Conv
 
-type 'a info = Info.t * 'a [@@deriving sexp,yojson]
+type 'a info = Info.t * 'a [@@deriving sexp,show,yojson]
 
 let info (i,_) = i
 
@@ -33,20 +33,20 @@ module P4Int = struct
   type pre_t =
     { value: bigint;
       width_signed: (int * bool) option }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 module P4String = struct
   type t = string info
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 end
 
 type name =
   | BareName of P4String.t
   | QualifiedName of P4String.t list * P4String.t
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
 let to_bare : name -> name = function
   | BareName n
@@ -78,16 +78,16 @@ module rec KeyValue : sig
   type pre_t =
     { key : P4String.t;
       value : Expression.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     { key : P4String.t;
       value : Expression.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Annotation : sig
@@ -96,32 +96,32 @@ and Annotation : sig
     | Unparsed of P4String.t list
     | Expression of Expression.t list
     | KeyValue of KeyValue.t list
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type body = pre_body info [@@deriving sexp,yojson]
+  type body = pre_body info [@@deriving sexp,show,yojson]
 
   type pre_t =
     { name: P4String.t;
       body: body }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_body =
     | Empty
     | Unparsed of P4String.t list
     | Expression of Expression.t list
     | KeyValue of KeyValue.t list
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type body = pre_body info [@@deriving sexp,yojson]
+  type body = pre_body info [@@deriving sexp,show,yojson]
 
   type pre_t =
     { name: P4String.t;
       body: body }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Parameter : sig
@@ -131,9 +131,9 @@ and Parameter : sig
       typ: Type.t;
       variable: P4String.t;
       opt_value: Expression.t option}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     { annotations: Annotation.t list;
@@ -141,9 +141,9 @@ end = struct
       typ: Type.t [@name "type"];
       variable: P4String.t;
       opt_value: Expression.t option}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Op : sig
@@ -151,9 +151,9 @@ and Op : sig
       Not
     | BitNot
     | UMinus
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type uni = pre_uni info [@@deriving sexp,yojson]
+  type uni = pre_uni info [@@deriving sexp,show,yojson]
 
   val eq_uni : uni -> uni -> bool
 
@@ -179,9 +179,9 @@ and Op : sig
     | PlusPlus
     | And
     | Or
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type bin = pre_bin info [@@deriving sexp,yojson]
+  type bin = pre_bin info [@@deriving sexp,show,yojson]
 
   val eq_bin : bin -> bin -> bool
 end = struct
@@ -189,9 +189,9 @@ end = struct
       Not
     | BitNot
     | UMinus
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type uni = pre_uni info [@@deriving sexp,yojson]
+  type uni = pre_uni info [@@deriving sexp,show,yojson]
 
   let eq_uni (_,u1) (_,u2) =
     match u1,u2 with
@@ -222,9 +222,9 @@ end = struct
     | PlusPlus
     | And
     | Or
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type bin = pre_bin info [@@deriving sexp,yojson]
+  type bin = pre_bin info [@@deriving sexp,show,yojson]
 
   let eq_bin (_,b1) (_,b2) =
     match b1,b2 with
@@ -272,9 +272,9 @@ and Type : sig
     | String
     | Void
     | DontCare
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
@@ -296,9 +296,9 @@ end = struct
     | String [@name "string"]
     | Void [@name "void"]
     | DontCare [@name "dont_care"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,show,yojson]
 
   let rec eq (_,t1) (_,t2) =
     match t1, t2 with
@@ -349,9 +349,9 @@ and MethodPrototype : sig
         name: P4String.t;
         type_params: P4String.t list;
         params: Parameter.t list}
-        [@@deriving sexp,yojson]
+        [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     Constructor of
@@ -370,9 +370,9 @@ end = struct
         name: P4String.t;
         type_params: P4String.t list;
         params: Parameter.t list}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Argument : sig
@@ -383,9 +383,9 @@ and Argument : sig
             { key: P4String.t;
               value: Expression.t }
         | Missing
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type t = pre_t info [@@deriving sexp,yojson]
+      type t = pre_t info [@@deriving sexp,show,yojson]
     end = struct
                  type pre_t  =
                      Expression of
@@ -394,9 +394,9 @@ and Argument : sig
                        { key: P4String.t;
                          value: Expression.t }
                    | Missing
-                 [@@deriving sexp,yojson]
+                 [@@deriving sexp,show,yojson]
 
-                 type t = pre_t info [@@deriving sexp,yojson]
+                 type t = pre_t info [@@deriving sexp,show,yojson]
                end
 
 and Direction : sig
@@ -404,17 +404,17 @@ and Direction : sig
           In
         | Out
         | InOut
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type t = pre_t info [@@deriving sexp,yojson]
+      type t = pre_t info [@@deriving sexp,show,yojson]
     end = struct
                   type pre_t =
                       In
                     | Out
                     | InOut
-                  [@@deriving sexp,yojson]
+                  [@@deriving sexp,show,yojson]
 
-                  type t = pre_t info [@@deriving sexp,yojson]
+                  type t = pre_t info [@@deriving sexp,show,yojson]
                 end
 
 and Expression : sig
@@ -468,9 +468,9 @@ and Expression : sig
         | Range of
             { lo: t;
               hi: t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
       True [@name "true"]
@@ -522,9 +522,9 @@ end = struct
     | Range of
         { lo: t;
           hi: t } [@name "range"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Table : sig
@@ -532,25 +532,25 @@ and Table : sig
         { annotations: Annotation.t list;
           name: name;
           args: Argument.t list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+      type action_ref = pre_action_ref info [@@deriving sexp,show,yojson]
 
       type pre_key =
         { annotations: Annotation.t list;
           key: Expression.t;
           match_kind: P4String.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type key = pre_key info [@@deriving sexp,yojson]
+      type key = pre_key info [@@deriving sexp,show,yojson]
 
       type pre_entry =
         { annotations: Annotation.t list;
           matches: Match.t list;
           action: action_ref }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type entry = pre_entry info [@@deriving sexp,yojson]
+      type entry = pre_entry info [@@deriving sexp,show,yojson]
 
       type pre_property =
           Key of
@@ -564,9 +564,9 @@ and Table : sig
               const: bool;
               name: P4String.t;
               value: Expression.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type property = pre_property info [@@deriving sexp,yojson]
+      type property = pre_property info [@@deriving sexp,show,yojson]
 
       val name_of_property : property -> string
     end = struct
@@ -574,25 +574,25 @@ and Table : sig
                 { annotations: Annotation.t list;
                   name: name;
                   args: Argument.t list }
-              [@@deriving sexp,yojson]
+              [@@deriving sexp,show,yojson]
 
-              type action_ref = pre_action_ref info [@@deriving sexp,yojson]
+              type action_ref = pre_action_ref info [@@deriving sexp,show,yojson]
 
               type pre_key =
                 { annotations: Annotation.t list;
                   key: Expression.t;
                   match_kind: P4String.t }
-              [@@deriving sexp,yojson]
+              [@@deriving sexp,show,yojson]
 
-              type key = pre_key info [@@deriving sexp,yojson]
+              type key = pre_key info [@@deriving sexp,show,yojson]
 
               type pre_entry =
                 { annotations: Annotation.t list;
                   matches: Match.t list;
                   action: action_ref }
-              [@@deriving sexp,yojson { exn = true }]
+              [@@deriving sexp,show,yojson { exn = true }]
 
-              type entry = pre_entry info [@@deriving sexp,yojson]
+              type entry = pre_entry info [@@deriving sexp,show,yojson]
 
               type pre_property =
                   Key of
@@ -606,9 +606,9 @@ and Table : sig
                       const: bool;
                       name: P4String.t;
                       value: Expression.t }
-              [@@deriving sexp,yojson]
+              [@@deriving sexp,show,yojson]
 
-              type property = pre_property info [@@deriving sexp,yojson]
+              type property = pre_property info [@@deriving sexp,show,yojson]
 
               let name_of_property p =
                 match snd p with
@@ -624,27 +624,27 @@ and Match : sig
         | DontCare
         | Expression of
             { expr: Expression.t }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+      type t = pre_t info [@@deriving sexp,show,yojson { exn = true }]
     end = struct
               type pre_t =
                   Default
                 | DontCare
                 | Expression of
                     { expr: Expression.t }
-              [@@deriving sexp,yojson { exn = true }]
+              [@@deriving sexp,show,yojson { exn = true }]
 
-              type t = pre_t info [@@deriving sexp,yojson { exn = true }]
+              type t = pre_t info [@@deriving sexp,show,yojson { exn = true }]
             end
 
 and Parser : sig
       type pre_case =
         { matches: Match.t list;
           next: P4String.t }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type case = pre_case info [@@deriving sexp,yojson]
+      type case = pre_case info [@@deriving sexp,show,yojson]
 
       type pre_transition =
           Direct of
@@ -652,25 +652,25 @@ and Parser : sig
         | Select of
             { exprs: Expression.t list;
               cases: case list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type transition = pre_transition info [@@deriving sexp,yojson]
+      type transition = pre_transition info [@@deriving sexp,show,yojson]
 
       type pre_state =
         { annotations: Annotation.t list;
           name: P4String.t;
           statements: Statement.t list;
           transition: transition }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type state = pre_state info [@@deriving sexp,yojson]
+      type state = pre_state info [@@deriving sexp,show,yojson]
     end = struct
                type pre_case =
                  { matches: Match.t list;
                    next: P4String.t }
-               [@@deriving sexp,yojson { exn = true }]
+               [@@deriving sexp,show,yojson { exn = true }]
 
-               type case = pre_case info [@@deriving sexp,yojson]
+               type case = pre_case info [@@deriving sexp,show,yojson]
 
                type pre_transition =
                    Direct of
@@ -678,18 +678,18 @@ and Parser : sig
                  | Select of
                      { exprs: Expression.t list;
                        cases: case list }
-               [@@deriving sexp,yojson]
+               [@@deriving sexp,show,yojson]
 
-               type transition = pre_transition info [@@deriving sexp,yojson]
+               type transition = pre_transition info [@@deriving sexp,show,yojson]
 
                type pre_state =
                  { annotations: Annotation.t list;
                    name: P4String.t;
                    statements: Statement.t list;
                    transition: transition }
-               [@@deriving sexp,yojson]
+               [@@deriving sexp,show,yojson]
 
-               type state = pre_state info [@@deriving sexp,yojson]
+               type state = pre_state info [@@deriving sexp,show,yojson]
              end
 
 and Declaration : sig
@@ -805,16 +805,16 @@ and Declaration : sig
               name: P4String.t;
               type_params: P4String.t list;
               params: Parameter.t list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 
 and pre_field =
     { annotations: Annotation.t list;
       typ: Type.t [@key "type"];
-      name: P4String.t } [@@deriving sexp,yojson]
+      name: P4String.t } [@@deriving sexp,show,yojson]
 
-and field = pre_field info [@@deriving sexp,yojson]
+and field = pre_field info [@@deriving sexp,show,yojson]
 
 val name : t -> P4String.t
 
@@ -934,16 +934,16 @@ end = struct
           name: P4String.t;
           type_params: P4String.t list;
           params: Parameter.t list }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 
 and pre_field =
     { annotations: Annotation.t list;
       typ: Type.t [@key "type"];
-      name: P4String.t } [@@deriving sexp,yojson]
+      name: P4String.t } [@@deriving sexp,show,yojson]
 
-and field = pre_field info [@@deriving sexp,yojson]
+and field = pre_field info [@@deriving sexp,show,yojson]
 
 let name_opt d =
   match snd d with
@@ -983,9 +983,9 @@ and Statement : sig
       type pre_switch_label =
           Default
         | Name of P4String.t
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type switch_label = pre_switch_label info [@@deriving sexp,yojson]
+      type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
 
       type pre_switch_case =
           Action of
@@ -993,9 +993,9 @@ and Statement : sig
               code: Block.t }
         | FallThrough of
             { label: switch_label }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type switch_case = pre_switch_case info [@@deriving sexp,yojson]
+      type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
 
       type pre_t =
           MethodCall of
@@ -1023,16 +1023,16 @@ and Statement : sig
               cases: switch_case list }
         | DeclarationStatement of
             { decl: Declaration.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_switch_label =
       Default [@name "default"]
     | Name of P4String.t [@name "name"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type switch_label = pre_switch_label info [@@deriving sexp,yojson]
+  type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
 
   type pre_switch_case =
       Action of
@@ -1040,9 +1040,9 @@ end = struct
           code: Block.t }
     | FallThrough of
         { label: switch_label }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type switch_case = pre_switch_case info [@@deriving sexp,yojson]
+  type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
 
   type pre_t =
       MethodCall of
@@ -1070,27 +1070,27 @@ end = struct
           cases: switch_case list } [@name "switch"]
     | DeclarationStatement of
         { decl: Declaration.t } [@name "declaration"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-and t = pre_t info [@@deriving sexp,yojson]
+and t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Block : sig
       type pre_t =
         { annotations: Annotation.t list;
           statements: Statement.t list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type t = pre_t info [@@deriving sexp,yojson]
+      type t = pre_t info [@@deriving sexp,show,yojson]
     end = struct
               type pre_t =
                 { annotations: Annotation.t list;
                   statements: Statement.t list }
-              [@@deriving sexp,yojson]
+              [@@deriving sexp,show,yojson]
 
-              type t = pre_t info [@@deriving sexp,yojson]
+              type t = pre_t info [@@deriving sexp,show,yojson]
             end
 
 type program =
     Program of Declaration.t list [@name "program"]
-[@@deriving sexp,yojson]
+[@@deriving sexp,show,yojson]

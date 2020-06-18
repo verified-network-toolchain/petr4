@@ -17,9 +17,9 @@ module rec TypeParameter : sig
       typ: Typed.Type.t;
       variable: Types.P4String.t;
       opt_value: Expression.t option}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     { annotations: Annotation.t list;
@@ -27,9 +27,9 @@ end = struct
       typ: Type.t;
       variable: Types.P4String.t;
       opt_value: Expression.t option}
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and MethodPrototype : sig
@@ -50,9 +50,9 @@ and MethodPrototype : sig
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list}
-        [@@deriving sexp,yojson]
+        [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     Constructor of
@@ -71,27 +71,27 @@ end = struct
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list}
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and KeyValue : sig
   type pre_t =
     { key : P4String.t;
       value : Expression.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type pre_t =
     { key : P4String.t;
       value : Expression.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 
   let eq (_,{ key=_,k1; value=v1 }) (_,{ key=_,k2; value=v2 }) =
     String.equal k1 k2 && Expression.eq v1 v2
@@ -149,12 +149,12 @@ and Expression : sig
   | Range of
       { lo: t;
         hi: t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and typed_t = { expr: pre_t;
                   typ: Type.t;
                   dir: direction }
-  and t = typed_t info [@@deriving sexp,yojson]
+  and t = typed_t info [@@deriving sexp,show,yojson]
 
   (* syntactic equality of expressions *)
   val eq : t -> t -> bool
@@ -210,12 +210,12 @@ end = struct
   | Range of
       { lo: t;
         hi: t }
-        [@@deriving sexp,yojson]
+        [@@deriving sexp,show,yojson]
 
   and typed_t = { expr: pre_t;
                   typ: Type.t;
                   dir: direction }
-  and t = typed_t info [@@deriving sexp,yojson]
+  and t = typed_t info [@@deriving sexp,show,yojson]
 
   (* syntactic equality of expressions *)
   let rec eq (_,{ expr=e1; _ }) (_,{ expr=e2; _ }) =
@@ -278,25 +278,25 @@ and Match : sig
     DontCare
   | Expression of
       { expr: Expression.t }
-  [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,show,yojson { exn = true }]
 
   type typed_t = { expr: pre_t;
                    typ: Type.t }
-  [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,show,yojson { exn = true }]
 
-  type t = typed_t info [@@deriving sexp,yojson { exn = true }]
+  type t = typed_t info [@@deriving sexp,show,yojson { exn = true }]
 end = struct
   type pre_t =
     DontCare
   | Expression of
       { expr: Expression.t }
-  [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,show,yojson { exn = true }]
 
   type typed_t = { expr: pre_t;
                    typ: Type.t }
-  [@@deriving sexp,yojson { exn = true }]
+  [@@deriving sexp,show,yojson { exn = true }]
 
-  type t = typed_t info [@@deriving sexp,yojson { exn = true }]
+  type t = typed_t info [@@deriving sexp,show,yojson { exn = true }]
 end
 
 and Table : sig
@@ -304,39 +304,39 @@ and Table : sig
         { annotations: Annotation.t list;
           name: Types.name;
           args: (Expression.t option) list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
       type typed_action_ref =
         { action: pre_action_ref;
           typ: Typed.Type.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type action_ref = typed_action_ref info [@@deriving sexp,yojson]
+      type action_ref = typed_action_ref info [@@deriving sexp,show,yojson]
 
       type pre_key =
         { annotations: Annotation.t list;
           key: Expression.t;
           match_kind: Types.P4String.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type key = pre_key info [@@deriving sexp,yojson]
+      type key = pre_key info [@@deriving sexp,show,yojson]
 
       type pre_entry =
         { annotations: Annotation.t list;
           matches: Match.t list;
           action: action_ref }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type entry = pre_entry info [@@deriving sexp,yojson]
+      type entry = pre_entry info [@@deriving sexp,show,yojson]
 
       type pre_property =
         { annotations: Annotation.t list;
           const: bool;
           name: Types.P4String.t;
           value: Expression.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type property = pre_property info [@@deriving sexp,yojson]
+      type property = pre_property info [@@deriving sexp,show,yojson]
 
       val name_of_property : property -> string
     end = struct
@@ -344,39 +344,39 @@ and Table : sig
         { annotations: Annotation.t list;
           name: Types.name;
           args: (Expression.t option) list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
       type typed_action_ref =
         { action: pre_action_ref;
           typ: Typed.Type.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type action_ref = typed_action_ref info [@@deriving sexp,yojson]
+      type action_ref = typed_action_ref info [@@deriving sexp,show,yojson]
 
       type pre_key =
         { annotations: Annotation.t list;
           key: Expression.t;
           match_kind: Types.P4String.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type key = pre_key info [@@deriving sexp,yojson]
+      type key = pre_key info [@@deriving sexp,show,yojson]
 
       type pre_entry =
         { annotations: Annotation.t list;
           matches: Match.t list;
           action: action_ref }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type entry = pre_entry info [@@deriving sexp,yojson]
+      type entry = pre_entry info [@@deriving sexp,show,yojson]
 
       type pre_property =
         { annotations: Annotation.t list;
           const: bool;
           name: Types.P4String.t;
           value: Expression.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type property = pre_property info [@@deriving sexp,yojson]
+      type property = pre_property info [@@deriving sexp,show,yojson]
 
       let name_of_property (_, {name; _}) =
         snd name
@@ -386,9 +386,9 @@ and Statement : sig
       type pre_switch_label =
           Default
         | Name of Types.P4String.t
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type switch_label = pre_switch_label info [@@deriving sexp,yojson]
+      type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
 
       type pre_switch_case =
           Action of
@@ -396,9 +396,9 @@ and Statement : sig
               code: Block.t }
         | FallThrough of
             { label: switch_label }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type switch_case = pre_switch_case info [@@deriving sexp,yojson]
+      type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
 
       type pre_t =
           MethodCall of
@@ -426,20 +426,20 @@ and Statement : sig
               cases: switch_case list }
         | DeclarationStatement of
             { decl: Declaration.t }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
       and typed_t =
         { stmt: pre_t;
           typ: StmType.t }
 
-      and t = typed_t info [@@deriving sexp,yojson]
+      and t = typed_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_switch_label =
       Default [@name "default"]
     | Name of Types.P4String.t [@name "name"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type switch_label = pre_switch_label info [@@deriving sexp,yojson]
+  type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
 
   type pre_switch_case =
       Action of
@@ -447,9 +447,9 @@ end = struct
           code: Block.t }
     | FallThrough of
         { label: switch_label }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type switch_case = pre_switch_case info [@@deriving sexp,yojson]
+  type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
 
   type pre_t =
       MethodCall of
@@ -477,38 +477,38 @@ end = struct
           cases: switch_case list } [@name "switch"]
     | DeclarationStatement of
         { decl: Declaration.t } [@name "declaration"]
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and typed_t =
     { stmt: pre_t;
       typ: StmType.t }
 
-  and t = typed_t info [@@deriving sexp,yojson]
+  and t = typed_t info [@@deriving sexp,show,yojson]
 end
 
 and Block : sig
   type pre_t =
     { annotations: Annotation.t list;
       statements: Statement.t list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end = struct
   type pre_t =
     { annotations: Annotation.t list;
       statements: Statement.t list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,yojson]
+  type t = pre_t info [@@deriving sexp,show,yojson]
 end
 
 and Parser : sig
       type pre_case =
         { matches: Match.t list;
           next: Types.P4String.t }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type case = pre_case info [@@deriving sexp,yojson]
+      type case = pre_case info [@@deriving sexp,show,yojson]
 
       type pre_transition =
           Direct of
@@ -516,25 +516,25 @@ and Parser : sig
         | Select of
             { exprs: Expression.t list;
               cases: case list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type transition = pre_transition info [@@deriving sexp,yojson]
+      type transition = pre_transition info [@@deriving sexp,show,yojson]
 
       type pre_state =
         { annotations: Annotation.t list;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type state = pre_state info [@@deriving sexp,yojson]
+      type state = pre_state info [@@deriving sexp,show,yojson]
 end = struct
       type pre_case =
         { matches: Match.t list;
           next: Types.P4String.t }
-      [@@deriving sexp,yojson { exn = true }]
+      [@@deriving sexp,show,yojson { exn = true }]
 
-      type case = pre_case info [@@deriving sexp,yojson]
+      type case = pre_case info [@@deriving sexp,show,yojson]
 
       type pre_transition =
           Direct of
@@ -542,18 +542,18 @@ end = struct
         | Select of
             { exprs: Expression.t list;
               cases: case list }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type transition = pre_transition info [@@deriving sexp,yojson]
+      type transition = pre_transition info [@@deriving sexp,show,yojson]
 
       type pre_state =
         { annotations: Annotation.t list;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
-      [@@deriving sexp,yojson]
+      [@@deriving sexp,show,yojson]
 
-      type state = pre_state info [@@deriving sexp,yojson]
+      type state = pre_state info [@@deriving sexp,show,yojson]
 end
 
 and Declaration : sig
@@ -675,16 +675,16 @@ and Declaration : sig
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list }
-        [@@deriving sexp,yojson]
+        [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,show,yojson]
 
   and pre_field =
     { annotations: Annotation.t list;
       typ: Type.t [@key "type"];
-      name: Types.P4String.t } [@@deriving sexp,yojson]
+      name: Types.P4String.t } [@@deriving sexp,show,yojson]
 
-  and field = pre_field info [@@deriving sexp,yojson]
+  and field = pre_field info [@@deriving sexp,show,yojson]
 
   val name : t -> Types.P4String.t
 
@@ -809,16 +809,16 @@ end = struct
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: TypeParameter.t list }
-        [@@deriving sexp,yojson]
+        [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,yojson]
+  and t = pre_t info [@@deriving sexp,show,yojson]
 
   and pre_field =
     { annotations: Annotation.t list;
       typ: Type.t [@key "type"];
-      name: Types.P4String.t } [@@deriving sexp,yojson]
+      name: Types.P4String.t } [@@deriving sexp,show,yojson]
 
-  and field = pre_field info [@@deriving sexp,yojson]
+  and field = pre_field info [@@deriving sexp,show,yojson]
 
   let name_opt d =
     match snd d with
@@ -855,7 +855,7 @@ end = struct
 end
 
 and Value : sig
-  type buf = Cstruct_sexp.t [@@deriving sexp]
+  type buf = Cstruct_sexp.t [@@deriving sexp,show]
   (* let buf_to_yojson b = failwith "unimplemented"
   let buf_of_yojson j = failwith "unimplemented" *)
 
@@ -863,7 +863,7 @@ and Value : sig
     emitted : buf;
     main : buf;
     in_size : int;
-  } [@@deriving sexp,yojson]
+  } [@@deriving sexp,show,yojson]
 
   type entries = Table.pre_entry list
 
@@ -871,7 +871,7 @@ and Value : sig
 
   type ctrl = entries * vsets
 
-  type loc = string [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, show,yojson]
 
   type value =
     | VNull
@@ -934,7 +934,7 @@ and Value : sig
     | VExternFun of
         { name : string;
           caller : (loc * string) option; }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
   and vparser = {
     pvs : (string * loc) list;
@@ -942,7 +942,7 @@ and Value : sig
     plocals : Declaration.t list;
     states : Parser.state list;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and vcontrol = {
     cvs : (string * loc) list;
@@ -950,7 +950,7 @@ and Value : sig
     clocals : Declaration.t list;
     apply : Block.t;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and vtable = {
     name : string;
@@ -959,7 +959,7 @@ and Value : sig
     default_action : Table.action_ref;
     const_entries : Table.pre_entry list;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and pre_lvalue =
     | LName of
@@ -974,13 +974,13 @@ and Value : sig
     | LArrayAccess of
         { expr : lvalue;
           idx : value; }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and lvalue = {
     lvalue : pre_lvalue;
     typ : Type.t
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and set =
     | SSingleton of
@@ -1002,14 +1002,14 @@ and Value : sig
         { size : value;
           members : Match.t list list;
           sets : set list; }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and signal =
     | SContinue
     | SReturn of value
     | SExit
     | SReject of string
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   val assert_bool : value -> bool
 
@@ -1083,12 +1083,14 @@ end = struct
   type buf = Cstruct_sexp.t [@@deriving sexp]
   let buf_to_yojson b = failwith "unimplemented"
   let buf_of_yojson j = failwith "unimplemented"
+  let pp_buf fmt buf = Format.pp_print_string fmt "<buf>"
+  let show_buf buf = "<buf>"
 
   type pkt = {
     emitted : buf;
     main : buf;
     in_size : int;
-  } [@@deriving sexp,yojson]
+  } [@@deriving sexp,show,yojson]
 
   type entries = Table.pre_entry list
 
@@ -1096,7 +1098,7 @@ end = struct
 
   type ctrl = entries * vsets
 
-  type loc = string [@@deriving sexp, yojson]
+  type loc = string [@@deriving sexp, show,yojson]
 
   type value =
     (* | VLoc of loc *)
@@ -1160,7 +1162,7 @@ end = struct
     | VExternFun of
         { name : string;
           caller : (loc * string) option; }
-  [@@deriving sexp, yojson]
+  [@@deriving sexp, show,yojson]
 
   and vparser = {
     pvs : (string * loc) list;
@@ -1168,7 +1170,7 @@ end = struct
     plocals : Declaration.t list;
     states : Parser.state list;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and vcontrol = {
     cvs : (string * loc) list;
@@ -1176,7 +1178,7 @@ end = struct
     clocals : Declaration.t list;
     apply : Block.t;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and vtable = {
     name : string;
@@ -1185,7 +1187,7 @@ end = struct
     default_action : Table.action_ref;
     const_entries : Table.pre_entry list;
   }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and pre_lvalue =
     | LName of
@@ -1200,12 +1202,12 @@ end = struct
     | LArrayAccess of
         { expr : lvalue;
           idx : value; }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and lvalue =
     { lvalue: pre_lvalue;
       typ: Typed.Type.t }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and set =
     | SSingleton of
@@ -1227,14 +1229,14 @@ end = struct
         { size : value;
           members : Match.t list list;
           sets : set list; }
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   and signal =
     | SContinue
     | SReturn of value
     | SExit
     | SReject of string
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
   let assert_bool v =
     match v with
@@ -1425,7 +1427,7 @@ and Env : sig
   val raise_unbound : Types.name -> unit
 
   module EvalEnv : sig
-    type t [@@deriving sexp,yojson]
+    type t [@@deriving sexp,show,yojson]
 
     val empty_eval_env : t
 
@@ -1467,7 +1469,7 @@ and Env : sig
   end
 
   module CheckerEnv : sig
-    type t [@@deriving sexp,yojson]
+    type t [@@deriving sexp,show,yojson]
 
     val empty_t : t
 
@@ -1524,7 +1526,7 @@ end = struct
     in
     raise (UnboundName str_name)
 
-  type 'binding env = (string * 'binding) list list [@@deriving sexp,yojson]
+  type 'binding env = (string * 'binding) list list [@@deriving sexp,show,yojson]
 
   let push (env: 'a env) : 'a env = [] :: env
 
@@ -1666,7 +1668,7 @@ end = struct
       (* dynamically maintain the control-plane namespace *)
       namespace : string;
     }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
     let empty_eval_env = {
       decl = [[]];
@@ -1760,6 +1762,7 @@ end = struct
       find_opt name e.vs
 
     let find_decl name e =
+      Format.printf "FIND %s@\n%!" (match name with Types.BareName s -> snd s | Types.QualifiedName (_,s) -> snd s);
       find name e.decl
 
     let find_typ name e =
@@ -1837,7 +1840,7 @@ end = struct
         typ_of: (Typed.Type.t * Typed.direction) env;
         (* maps constants to their values *)
         const: Value.value env }
-    [@@deriving sexp,yojson]
+    [@@deriving sexp,show,yojson]
 
     let empty_t : t =
       { typ = empty_env;

@@ -19,7 +19,7 @@ module StringMap = Map.Make(String)
 type ('a,'b) alternative =
     Left of 'a
   | Right of 'b
-  [@@deriving sexp,yojson]
+  [@@deriving sexp,show,yojson]
 
 let option_map f = function
   | Some x -> Some (f x)
@@ -100,6 +100,12 @@ let bigint_to_yojson (b:bigint) : Yojson.Safe.t =
 
 let bigint_of_yojson (json:Yojson.Safe.t) =
   Ok (Bigint.of_string (Yojson.Safe.to_string json))
+
+let show_bigint (b:bigint) : string =
+  Bigint.to_string b
+
+let pp_bigint fmt b = 
+  Format.pp_print_string fmt (Bigint.to_string b)
 
 let eq_opt ~f o1 o2 =
   match o1, o2 with

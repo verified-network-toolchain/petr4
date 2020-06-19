@@ -1,6 +1,5 @@
 module I = Info
 open Core_kernel
-(* open Prog.Env *)
 open Prog
 open Env
 open Typed
@@ -256,8 +255,8 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_set_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (size : Expression.t) : env * state * signal =
-    let env' = EvalEnv.insert_typ_bare name typ env in
-    let (env'', st', s, size') = eval_expr ctrl env' st SContinue size in
+    let env = EvalEnv.insert_typ_bare name typ env in
+    let (env, st, s, size') = eval_expr ctrl env st SContinue size in
     let size'' = assert_rawint size' in
     match s with
     | SContinue ->
@@ -267,10 +266,10 @@ module MakeInterpreter (T : Target) = struct
       else
       let vset = VSet (SValueSet{size=size';members=ms;sets=[]}) in
       let l = State.fresh_loc () in
-      let st' = State.insert_heap l vset st' in
-      let env''' = EvalEnv.insert_val_bare name l env'' in
-      (env''', st', s)
-    | SReject _ -> (env, st', s)
+      let st = State.insert_heap l vset st in
+      let env = EvalEnv.insert_val_bare name l env in
+      (env, st, s)
+    | SReject _ -> (env, st, s)
     | _ -> failwith "value set declaration should not return or exit"
 
   and eval_action_decl (env : env) (st : state) (name : string) (data_params : TypeParameter.t list)
@@ -1377,18 +1376,18 @@ module MakeInterpreter (T : Target) = struct
       (args : Expression.t option list) (pscope : env) (ls : (string * loc) list)
       (locals : Declaration.t list) (states : Parser.state list) : env * state * signal =
     (* TODO: incorporate closure environment *)
-    let (callenv,penv, st', s) = copyin ctrl env st env params args in
+    let (callenv,penv, st, s) = copyin ctrl env st env params args in
     match s with
     | SContinue ->
       let f a (x,y) = EvalEnv.insert_val_bare x y a in
-      let penv' = List.fold ls ~init:penv ~f:f in
-      let (penv'', st'') = List.fold_left locals ~init:(penv',st') ~f:(fun (e,s) -> eval_decl ctrl e s) in
+      let penv = List.fold ls ~init:penv ~f:f in
+      let (penv, st) = List.fold_left locals ~init:(penv,st) ~f:(fun (e,s) -> eval_decl ctrl e s) in
       let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
       let start = find_exn states' "start" in
-      let (penv''', st''', final_state) = eval_state_machine ctrl penv'' st'' states' start in
-      let st'''' = copyout ctrl callenv penv''' st''' params args false in
-      (env, st'''', final_state)
-    | SReject _ -> (env, st', s)
+      let (penv, st, final_state) = eval_state_machine ctrl penv st states' start in
+      let st = copyout ctrl callenv penv st params args false in
+      (env, st, final_state)
+    | SReject _ -> (env, st, s)
     | _ -> failwith "unreachable"
 
   and eval_state_machine (ctrl : ctrl) (env : env) (st : state)
@@ -1550,21 +1549,21 @@ module MakeInterpreter (T : Target) = struct
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
     let open Statement in
     (* TODO: incorporate closure environment *)
-    let (callenv,cenv,st',_) = copyin ctrl env st env params args in
+    let (callenv,cenv,st,_) = copyin ctrl env st env params args in
     let f a (x,y) = EvalEnv.insert_val_bare x y a in
-    let cenv' = List.fold_left vs ~init:cenv ~f:f in
-    let (cenv'',st'') = List.fold_left locals ~init:(cenv',st') ~f:(fun (e,st) s -> eval_decl ctrl e st s) in
+    let cenv = List.fold_left vs ~init:cenv ~f:f in
+    let (cenv,st) = List.fold_left locals ~init:(cenv,st) ~f:(fun (e,st) s -> eval_decl ctrl e st s) in
     let block =
       (Info.dummy,
       {stmt = Statement.BlockStatement {block = apply};
       typ = Unit}) in
-    let (cenv''', st''', sign) = eval_stmt ctrl cenv'' st'' SContinue block in
+    let (cenv, st, sign) = eval_stmt ctrl cenv st SContinue block in
     match sign with
     | SContinue
     | SReject _
     | SReturn VNull
     | SExit     ->
-      let st = copyout ctrl callenv cenv''' st''' params args false in
+      let st = copyout ctrl callenv cenv st params args false in
       callenv, st, sign
     | SReturn _ -> failwith "control should not return"
 
@@ -1614,10 +1613,11 @@ module MakeInterpreter (T : Target) = struct
       | _ -> failwith "not a struct" in
     let ns = List.map fs ~f:(fun x -> x.name) in
     let ts = List.map fs ~f:(fun x -> x.typ) in
-    let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
-    let l'' = List.mapi l' ~f:(fun i v -> implicit_cast_from_tuple env v (List.nth_exn ts i)) in
-    let l''' = List.mapi l'' ~f:(fun i v -> (List.nth_exn ns i, v)) in
-    st, VStruct{fields=l'''}
+    let l = l
+      |> List.mapi ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i))
+      |> List.mapi ~f:(fun i v -> implicit_cast_from_tuple env v (List.nth_exn ts i))
+      |> List.mapi ~f:(fun i v -> (List.nth_exn ns i, v)) in
+    st, VStruct{fields=l}
 
   and header_of_list (ctrl : ctrl) (env : env) (st : state) (t : Type.t)
       (l : value list) : state * value =
@@ -1659,13 +1659,14 @@ module MakeInterpreter (T : Target) = struct
       |> bigint_of_val
     | _ -> failwith "TODO" end
 
-  and eval_prog (ctrl : ctrl) (env: env) (state : state) (pkt : buf)
+  and eval_prog (ctrl : ctrl) (env: env) (st : state) (pkt : buf)
       (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
     let (>>|) = Option.(>>|) in
+    let st = State.reset_state st in
     match prog with Program l ->
     let (env,st) =
       List.fold_left l
-        ~init:(env, state)
+        ~init:(env, st)
         ~f:(fun (e,s) -> eval_decl ctrl e s)
     in
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in

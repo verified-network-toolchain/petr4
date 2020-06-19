@@ -39,11 +39,11 @@ module State = struct
 
   let fresh_loc = fun () ->
     counter := !counter + 1;
-    "_" ^ (string_of_int (!counter)) ^ "_" 
+    "__fresh_loc__" ^ (string_of_int (!counter)) ^ "__fresh_loc__"
 
-  let reset_state st = { st with 
+  let reset_state st = counter := 0; { st with 
     packet = {emitted = Cstruct.empty; main = Cstruct.empty; in_size = 0; };
-    heap = [];
+    heap = List.filter st.heap ~f:(fun (x,_) -> String.is_prefix x ~prefix:"__fresh_loc__");
   }
 
   let get_packet st = st.packet
@@ -57,9 +57,7 @@ module State = struct
     let x = List.Assoc.find_exn st.externs loc ~equal:String.equal in
     x
 
-  let insert_heap loc v st =
-    {
-    st with heap = (loc,v) :: st.heap}
+  let insert_heap loc v st = { st with heap = (loc,v) :: st.heap }
 
   let find_heap loc st =
     List.Assoc.find_exn st.heap loc ~equal:String.equal
@@ -95,26 +93,26 @@ let rec width_of_typ (env : env) (t : Type.t) : Bigint.t =
 
 let rec init_val_of_typ (env : env) (typ : Type.t) : value =
   match typ with
-  | Bool               -> (VBool false)
-  | String             -> (VString "")
-  | Integer            -> (VInteger Bigint.zero)
-  | Int w              -> (VInt{w=Bigint.of_int w.width; v=Bigint.zero})
-  | Bit w              -> (VBit{w=Bigint.of_int w.width; v=Bigint.zero})
-  | VarBit w           -> (VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero})
-  | Array arr          -> (init_val_of_array env arr)
-  | Tuple tup          -> (init_val_of_tuple env tup)
-  | List l             -> (init_val_of_tuple env l)
-  | Record r           -> (init_val_of_record env r)
-  | Set s              -> (VSet SUniversal)
-  | Error              -> (VError "NoError")
-  | MatchKind          -> (VMatchKind "exact")
+  | Bool               -> VBool false
+  | String             -> VString ""
+  | Integer            -> VInteger Bigint.zero
+  | Int w              -> VInt{w=Bigint.of_int w.width; v=Bigint.zero}
+  | Bit w              -> VBit{w=Bigint.of_int w.width; v=Bigint.zero}
+  | VarBit w           -> VVarbit{max=Bigint.of_int w.width; w=Bigint.zero; v=Bigint.zero}
+  | Array arr          -> init_val_of_array env arr
+  | Tuple tup          -> init_val_of_tuple env tup
+  | List l             -> init_val_of_tuple env l
+  | Record r           -> init_val_of_record env r
+  | Set s              -> VSet SUniversal
+  | Error              -> VError "NoError"
+  | MatchKind          -> VMatchKind "exact"
   | TypeName name      -> init_val_of_typname env name
   | NewType nt         -> init_val_of_newtyp env nt
   | Void               -> VNull
-  | Header rt          -> (init_val_of_header env rt)
-  | HeaderUnion rt     -> (init_val_of_union env rt)
-  | Struct rt          -> (init_val_of_struct env rt)
-  | Enum et            -> (init_val_of_enum env et)
+  | Header rt          -> init_val_of_header env rt
+  | HeaderUnion rt     -> init_val_of_union env rt
+  | Struct rt          -> init_val_of_struct env rt
+  | Enum et            -> init_val_of_enum env et
   | SpecializedType s  -> init_val_of_specialized s
   | Package pt         -> init_val_of_pkg pt
   | Control ct         -> init_val_of_ctrl ct
@@ -397,10 +395,10 @@ and update_union_member (fields : (string * value) list)
 
 and update_field (fields : (string * value) list) (field_name : string)
     (field_value : value) : value =
-  let update (n,v) =
+  let update (n, v) =
     if String.equal n field_name
     then n, field_value
-    else n,v in
+    else n, v in
   VStruct {fields = List.map fields ~f:update}
 
 and update_nth (l : value list) (n : Bigint.t)

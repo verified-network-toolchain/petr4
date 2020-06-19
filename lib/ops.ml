@@ -122,18 +122,25 @@ let interp_bshl (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w}
   | VInteger v1, VInteger v2  -> VInteger(shift_bitstring_left v1 v2)
   | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
-  | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_left v2 v2) w} (* TODO *)
+  | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
   | _ -> failwith "shift left operator not defined for these types"
 
 let interp_bshr (l : V.value) (r : V.value) : V.value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_}
-  | VBit{w;v=v1}, VInteger v2 -> VBit{w;v=of_twos_complement (shift_bitstring_right v1 v2) w}
+  | VBit{w;v=v1}, VInteger v2 ->
+    VBit{w;v=of_twos_complement (shift_bitstring_right v1 v2 false Bigint.zero) w}
   | VInt{w;v=v1}, VBit{v=v2;_}
-  | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bitstring_right v1 v2) w}
-  | VInteger v1,  VInteger v2 -> VInteger(shift_bitstring_right v1 v2)
-  | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bitstring_right v1 v2) w} (* TODO *)
-  | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_right v2 v2) w} (* TODO *)
+  | VInt {w;v=v1}, VInt{v=v2;_}
+  | VInt{w;v=v1}, VInteger v2 ->
+    let v1 = of_twos_complement v1 w in
+    let exp = Bitstring.power_of_two Bigint.(w-one) in
+    let arith = Bigint.(v1 > exp) in
+    VInt{w;v=to_twos_complement (shift_bitstring_right v1 v2 arith exp) w}
+  | VInteger v1,  VInteger v2 ->
+    VInteger(shift_bitstring_right v1 v2 false Bigint.zero)
+  | VBit {w;v=v1}, VInt{v=v2;_} ->
+    VBit{w;v=of_twos_complement (shift_bitstring_right v1 v2 false Bigint.zero) w}
   | _ -> failwith "shift right operator not defined for these types"
 
 let rec interp_ble (l : V.value) (r : V.value) : V.value =

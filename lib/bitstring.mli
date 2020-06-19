@@ -4,7 +4,7 @@ type t = Bigint.t
 val shift_bitstring_left : t -> t -> t
 
 (** [shift_bitstring_right v o] is [v] shifted right by [o]. *)
-val shift_bitstring_right : t -> t -> t
+val shift_bitstring_right : t -> t -> bool -> t -> t
 
 (** [power_of_two n] is [2] raised to the power of [n]. *)
 val power_of_two : t -> t

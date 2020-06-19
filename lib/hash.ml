@@ -55,7 +55,7 @@ let hash_crc16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   let f crc c =
     let v1 = shift_bitstring_left crc (Bigint.of_int 8) in
     let l = Bigint.bit_and v1 Bigint.(power_of_two (of_int 16) - one) in
-    let idx = Bigint.bit_xor (shift_bitstring_right crc (Bigint.of_int 8)) c in
+    let idx = Bigint.bit_xor (shift_bitstring_right crc (Bigint.of_int 8) false Bigint.zero) c in
     (* let idx = bitwise_and idx Bigint.(of_int 255) in *)
     Bigint.bit_xor l (crc16_table.(Bigint.to_int_exn idx) |> Bigint.of_int) in
   List.fold ~f ~init:Bigint.zero bytes

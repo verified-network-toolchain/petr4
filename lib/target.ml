@@ -57,20 +57,12 @@ module State = struct
     let x = List.Assoc.find_exn st.externs loc ~equal:String.equal in
     x
 
-  let insert_heap loc v st = 
-    (* print_endline "inserting into the heap"; *)
-    (* print_endline (Sexp.to_string (sexp_of_value v)); *)
-    (* print_endline "with location"; *)
-    (* print_endline loc; *)
+  let insert_heap loc v st =
     {
     st with heap = (loc,v) :: st.heap}
 
-  let find_heap loc st = 
-    (* print_endline "probably about to fail"; *)
-    (* print_endline ("looking for " ^ loc); *)
-    let x = List.Assoc.find_exn st.heap loc ~equal:String.equal in
-    (* print_endline "didn't actually fail"; *)
-    x
+  let find_heap loc st =
+    List.Assoc.find_exn st.heap loc ~equal:String.equal
 
   let is_initialized loc st =
     List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
@@ -296,10 +288,6 @@ and value_of_lmember (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lv
     | VHeader{fields=l;is_valid} -> reader is_valid l n 
     | VStruct{fields=l;_}
     | VUnion{fields=l;_} -> find_exn l n
-      (* print_endline "only other option in target";
-      let x = State.find_heap (find_exn l n) st in
-      print_endline "also a bust";
-      x *)
     | VStack{headers=vs;size=s;next=i;_} -> value_of_stack_mem_lvalue st n vs s i
     | _ -> failwith "no lvalue member" in
   match s with
@@ -344,21 +332,7 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     let l = EvalEnv.find_val name env in
     State.insert_heap l rhs st, SContinue
   | LMember{expr=lv;name=mname;} ->
-    (* print_endline "assigninig to a member"; *)
-    (* print_endline ("member name is " ^ mname); *)
-    (* begin match lv with
-      | {lvalue = LName {name = BareName (_,"h")};_} -> print_endline "variable name is h"
-      | _ -> () end; *)
-    (* begin match EvalEnv.find_val (lv |> assert_lname) env with
-      | VHeader _ -> print_endline "its a header for some dumb reason"
-      | VLoc _ -> print_endline "its a location like it should be"
-      | VStruct _ -> print_endline "its a struct which is in the middle"
-      | _ -> () end; *)
     let signal1, record = value_of_lvalue reader env st lv in
-    (* begin match record with 
-      | VStruct _ -> print_endline "<struct>"
-      | VLoc l -> print_endline ("<loc>" ^ l) 
-      | _ -> () end; *)
     let rhs', signal2 = update_member writer record mname rhs inc_next in
     let rhs' = match rhs' with
       | VStack{headers; size; next} -> Bigint.(VStack {headers; size; next = next + (if inc_next then one else zero)})
@@ -391,7 +365,6 @@ and update_member (writer : 'a writer) (value : value) (fname : string)
     (fvalue : value) (inc_next : bool) : value * signal =
   match value with
   | VStruct v ->
-    (* print_endline "value is struct"; *)
     update_field v.fields fname fvalue, SContinue
   | VHeader v -> writer v.is_valid v.fields fname fvalue, SContinue
   | VUnion {fields} ->

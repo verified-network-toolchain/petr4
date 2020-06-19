@@ -132,7 +132,7 @@ module Corize (T : Target) : Target = struct
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
     let st' = State.set_packet {obj with main = pkt'} st in
     match s with
-    | SReject _ | SExit | SReturn _ -> env, st', s, VNull
+    | SReject _ | SExit | SReturn _ -> env, st, s, VNull
     | SContinue ->
       let (ns, vs) = List.unzip init_fs in
       try
@@ -143,7 +143,7 @@ module Corize (T : Target) : Target = struct
                 let ((n,s), v) = extract_hdr_field w (n,s) v in
                 (st, n,s), v) in
         begin match s with
-        | SReject _ | SExit | SReturn _ -> env, st'', s, VNull
+        | SReject _ | SExit | SReturn _ -> env, st, s, VNull
         | SContinue ->
           let fs' = List.zip_exn ns vs' in
           let h = VHeader {
@@ -230,9 +230,12 @@ module Corize (T : Target) : Target = struct
     let eight = Bigint.((one + one) * (one + one) * (one + one)) in
     try
       let (pkt_hd, _) = Cstruct.split ~start:0 pkt Bigint.(to_int_exn (w/eight)) in
-      let (_, n, _) = bytes_of_packet pkt_hd Bigint.(w/eight) in
-      let v = val_of_bigint env t n in
-      env, st, SContinue, v
+      let (_, n, s) = bytes_of_packet pkt_hd Bigint.(w/eight) in
+      begin match s with 
+      | SContinue -> 
+        let v = val_of_bigint env t n in
+        env, st, SContinue, v
+      | _ -> env, st, s, VNull end
     with Invalid_argument _ -> env, st, SReject "PacketTooShort", VNull
 
   let eval_length : extern = fun _ env st _ args ->

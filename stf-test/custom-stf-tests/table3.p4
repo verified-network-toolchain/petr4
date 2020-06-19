@@ -36,18 +36,22 @@ control MyEgress(inout head[13] hdr,
                  inout standard_metadata_t standard_metadata) {
 
     action set_one () {
+        hdr[0].setValid();
         hdr[0].v = 1;
     }
 
     action set_two () {
+        hdr[0].setValid();
         hdr[0].v = 2;
     }
 
     action set_three () {
+        hdr[0].setValid();
         hdr[0].v = 3;
     }
 
     action set_four () {
+        hdr[0].setValid();
         hdr[0].v = 4;
     }
 

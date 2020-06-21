@@ -1653,7 +1653,7 @@ and is_positive_numeric env (e: Prog.Expression.t) : bool =
   | _ -> false
 
 and check_div_args env left_arg right_arg =
-  if is_positive_numeric env left_arg && is_positive_numeric env right_arg
+  if is_nonnegative_numeric env left_arg && is_positive_numeric env right_arg
   then ()
   else raise_s [%message "arguments to division must be positive"
                    ~divisor:(right_arg:Prog.Expression.t)

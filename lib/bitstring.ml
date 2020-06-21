@@ -11,13 +11,11 @@ let rec shift_bitstring_left (v : Bigint.t) (o : Bigint.t) : Bigint.t =
 let rec shift_bitstring_right (v : Bigint.t) (o : Bigint.t)
     (arith : bool) (mx : Bigint.t) : Bigint.t =
   if not arith then begin
-    print_endline "not doing the arith thing";
     if Bigint.(o > zero)
     then shift_bitstring_right Bigint.(v / (one + one)) Bigint.(o - one) arith mx
     else v
   end
   else begin
-    print_endline "doing the arith thing";
     if Bigint.(o > zero)
     then shift_bitstring_right Bigint.((v / (one + one)) + mx) Bigint.(o - one) arith mx
     else v

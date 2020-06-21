@@ -141,13 +141,16 @@ module PreV1Switch : Target = struct
         | _ -> failwith "Reading from an object other than a v1 register" in
       let read_val =
         Bigint.to_int_exn v
-        |> List.nth_exn states in
+        |> List.nth_exn states
+        |> Ops.interp_cast ~type_lookup:(fun name -> EvalEnv.find_typ name env) t in
       (* let read_val = State.find_heap read_loc st in *)
       let l = State.fresh_loc () in
       let st = State.insert_heap l read_val st in
       let env = EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) l env in 
       env, st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
+
+  
   
   let eval_meter_read : extern = fun ctrl env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
@@ -164,8 +167,7 @@ module PreV1Switch : Target = struct
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
       let init_val = init_val_of_typ env typ in
-      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
-      (* let st = List.fold states ~init:st ~f:(fun st l -> State.insert_heap l init_val st) in *)
+      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in
       let reg = Register {states = states;
                           size = size; } in
       let st' = State.insert_extern loc reg st in

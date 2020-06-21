@@ -1271,6 +1271,7 @@ end = struct
     | VInteger n
     | VVarbit{v=n;_} -> n
     | VSenumField{v;_} -> bigint_of_val v
+    | VBool b -> if b then Bigint.one else Bigint.zero
     | _ -> failwith "value not representable as bigint"
 
   let assert_varbit v =

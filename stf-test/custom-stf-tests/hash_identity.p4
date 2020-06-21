@@ -50,6 +50,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         hash(result.first, HashAlgorithm.identity, 8w0,
               { hdr.pkt_hdr.first, hdr.pkt_hdr.second, hdr.pkt_hdr.third, hdr.pkt_hdr.fourth }, max);
+        result.setValid();
         packet.emit(result);
     }
 }

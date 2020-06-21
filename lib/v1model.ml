@@ -242,7 +242,12 @@ module PreV1Switch : Target = struct
         Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
 
   let adjust_hash_value : Bigint.t -> Bigint.t -> Bigint.t -> Bigint.t =
-    fun base rmax hv -> Bigint.(hv % rmax + base)
+    fun base rmax hv ->
+    if Bigint.(rmax = zero)
+    then base
+    else if Bigint.(rmax >= one)
+    then Bigint.((hv % (rmax - base)) + base)
+    else base (* TODO: behavior in this case is unspecified *)
 
   let eval_hash : extern = fun ctrl env st ts args ->
     let width = match ts with
@@ -250,7 +255,7 @@ module PreV1Switch : Target = struct
       | _ -> failwith "missing type args for hash" in
     let (algo, base, data, rmax) = match args with
       | [_; (VEnumField {enum_name=algo;_}, _);
-        (VBit{w=base;_},_); (VTuple data, _); (VBit{v=max;_}, _)] ->
+        (VBit{v=base;_},_); (VTuple data, _); (VBit{v=max;_}, _)] ->
         algo, base, data, max
       | _ -> failwith "unexpected args for hash" in
     let result = 
@@ -259,7 +264,7 @@ module PreV1Switch : Target = struct
       |> Hash.hash algo
       |> adjust_hash_value base rmax in
     let l = State.fresh_loc () in
-    let st = State.insert_heap l (VBit{w=width; v=result}) st in
+    let st = State.insert_heap l (VBit{w=width; v=Bitstring.of_twos_complement result width}) st in
     let env = EvalEnv.insert_val_bare "result" l env in
     env, st, SContinue, VNull
 

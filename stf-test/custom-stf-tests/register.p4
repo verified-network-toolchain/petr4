@@ -3,14 +3,21 @@
 
 const bit<32> reg_size = 128;
 
+header my_header_t {
+    bit<32> h;
+}
+
 struct metadata { }
-struct headers { }
+struct headers {
+    my_header_t h;
+}
 
 parser MyParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
+        packet.extract(hdr.h);
         transition accept;
     }
 }
@@ -39,9 +46,9 @@ control MyDeparser(packet_out packet, in headers hdr) {
     bit<32> reg_write_val;
     apply {
         index = 2;
-        reg_write_val = 15;
-        r.write(index, reg_write_val);
+        reg_write_val = hdr.h.h;
         r.read(reg_read_val, index);
+        r.write(index, reg_write_val);
 
         packet.emit(reg_read_val);
     }

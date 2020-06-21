@@ -25,7 +25,7 @@ module PreV1Switch : Target = struct
     | Meter of unit (* TODO *)
     | DirectMeter of unit (* TODO *)
     | Register of {
-        states: loc list;
+        states: value list;
         size: Bigint.t;
       }
     | ActionProfile of unit (* TODO *)
@@ -139,12 +139,14 @@ module PreV1Switch : Target = struct
       let states = match reg_obj with
         | Register {states; _} -> states
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let read_loc =
+      let read_val =
         Bigint.to_int_exn v
         |> List.nth_exn states in
-      let read_val = State.find_heap read_loc st in
-      let env'= EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) read_loc env in 
-      env', st, SContinue, read_val
+      (* let read_val = State.find_heap read_loc st in *)
+      let l = State.fresh_loc () in
+      let st = State.insert_heap l read_val st in
+      let env = EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) l env in 
+      env, st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
   
   let eval_meter_read : extern = fun ctrl env st ts args ->
@@ -162,8 +164,8 @@ module PreV1Switch : Target = struct
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
     | [(VRuntime {loc;obj_name}, _); (VInteger size, _)] -> (* TODO: shouldnt be needed*)
       let init_val = init_val_of_typ env typ in
-      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> State.fresh_loc ()) in 
-      let st = List.fold states ~init:st ~f:(fun st l -> State.insert_heap l init_val st) in
+      let states = List.init (Bigint.to_int_exn size) ~f:(fun _ -> init_val) in 
+      (* let st = List.fold states ~init:st ~f:(fun st l -> State.insert_heap l init_val st) in *)
       let reg = Register {states = states;
                           size = size; } in
       let st' = State.insert_extern loc reg st in
@@ -179,10 +181,12 @@ module PreV1Switch : Target = struct
       let states, size = match reg_obj with
         | Register {states; size} -> states, size
         | _ -> failwith "Reading from an object other than a v1 register" in
-      let subs_f = fun i st x -> 
-        if Bigint.(of_int i = v_index) then State.insert_heap x write_val st else st in 
-      let st' = List.foldi ~init:st ~f:subs_f states in
-      env, st', SContinue, write_val 
+      let subs_f = fun i v -> 
+        if Bigint.(of_int i = v_index) then write_val else v in 
+      let states = List.mapi ~f:subs_f states in
+      let reg_obj = Register {states; size} in
+      let st = State.insert_extern loc reg_obj st in
+      env, st, SContinue, write_val 
     | _ -> failwith "unexpected args for register write"
 
   let eval_action_profile : extern = fun ctrl env st ts args ->

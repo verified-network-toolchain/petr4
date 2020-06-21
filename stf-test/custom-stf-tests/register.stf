@@ -1,8 +1,8 @@
-packet 0 00
+packet 0 0000000F00
+expect 0 0000000000
+
+packet 0 0000001E00
 expect 0 0000000F00
 
-packet 0 00
+packet 0 0000002D00
 expect 0 0000001E00
-
-packet 0 00
-expect 0 0000002D00

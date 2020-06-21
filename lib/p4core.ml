@@ -86,11 +86,13 @@ module Corize (T : Target) : Target = struct
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
     Bigint.(((nw-w, y), SContinue)), VInt{w;v=to_twos_complement x w}
 
-  and extract_varbit (nbits : Bigint.t) (n : Bigint.t * Bigint.t)
+  and extract_varbit (nbits : Bigint.t) (nw,nv : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (nw,nv) = n in
+    (* let (nw,nv) = n in *)
     if Bigint.(nbits > w)
-    then ((n,SReject "HeaderTooShort"),VNull)
+    then (((nw,nv),SReject "HeaderTooShort"),VNull)
+    else if Bigint.(nbits > nw)
+    then (((nw,nv), SReject "ParserInvalidArgument"), VNull)
     else
       let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in

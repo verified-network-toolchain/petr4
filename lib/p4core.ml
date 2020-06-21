@@ -187,14 +187,16 @@ module Corize (T : Target) : Target = struct
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
-    let f n t =
+    let w = width_of_typ env t in
+    let f (w,n) t =
+      let rmax = width_of_typ env t in
       let v =
-        val_of_bigint env t (bitstring_slice n Bigint.(width_of_typ env t + n - one) n) in
-      (Bigint.(n + width_of_typ env t), v) in
+        val_of_bigint env t (bitstring_slice n Bigint.(w - one) Bigint.(w-rmax)) in
+      Bigint.(w - rmax, bitstring_slice n (w - rmax) zero), v in
     let fieldvals_of_recordtype (rt : RecordType.t) : (string * value) list =
       let names = List.map ~f:(fun x -> x.name) rt.fields in
       let typs = List.map ~f:(fun x -> x.typ) rt.fields in
-      let vs = List.fold_map typs ~init:(Bigint.zero) ~f:f in
+      let vs = List.fold_map typs ~init:(w,n) ~f:f in
       List.zip_exn names (snd vs) in
     match t with
     | Bool -> if Bigint.(n = zero) then VBool false else VBool true
@@ -203,15 +205,14 @@ module Corize (T : Target) : Target = struct
     | Bit {width} ->
       VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
     | Array {typ;size} ->
-      let init = List.init size ~f:(fun x -> x) in
-      let width = width_of_typ env typ in
+      let init = List.init size ~f:(fun x -> t) in
       let (_, hdrs) =
         List.fold_map init
-        ~init:Bigint.zero
-        ~f:(fun acc _ -> Bigint.(acc + width), val_of_bigint env typ (bitstring_slice n Bigint.(width + acc - one) acc)) in
+        ~init:(w,n)
+        ~f:f in
       VStack {headers = hdrs;size=Bigint.of_int size;next=Bigint.zero}
     | List {types} | Tuple {types} ->
-      let _, vs = List.fold_map types ~init:(Bigint.zero) ~f:f in
+      let _, vs = List.fold_map types ~init:(w,n) ~f:f in
       VTuple vs
     | Record rt -> VRecord (fieldvals_of_recordtype rt)
     | Header rt -> VHeader {fields=fieldvals_of_recordtype rt;is_valid=true}

@@ -45,19 +45,21 @@ control MyIngress(inout head[13] hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        hdr[0] = { 72 };
-        hdr[1] = { 101 };
-        hdr[2] = { 108 };
-        hdr[3] = { 108 };
-        hdr[4] = { 111 };
-        hdr[5] = { 44 };
-        hdr[6] = { 32 };
-        hdr[7] = { 87 };
-        hdr[8] = { 111 };
-        hdr[9] = { 114 };
-        hdr[10] = { 108 };
-        hdr[11] = { 100 };
-        hdr[12] = { 33 };
+        if (standard_metadata.parser_error == error.NoError) {
+            hdr[0] = { 72 };
+            hdr[1] = { 101 };
+            hdr[2] = { 108 };
+            hdr[3] = { 108 };
+            hdr[4] = { 111 };
+            hdr[5] = { 44 };
+            hdr[6] = { 32 };
+            hdr[7] = { 87 };
+            hdr[8] = { 111 };
+            hdr[9] = { 114 };
+            hdr[10] = { 108 };
+            hdr[11] = { 100 };
+            hdr[12] = { 33 };
+        }
     }
 }
 

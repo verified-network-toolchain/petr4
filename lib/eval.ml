@@ -856,14 +856,37 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_binop (ctrl : ctrl) (env : env) (st : state) (op : Op.bin) (l : Expression.t)
       (r : Expression.t) : env * state * signal * value =
-    let (env',st',s,l) = eval_expr ctrl env st SContinue l in
-    let (env'',st'',s',r) = eval_expr ctrl env' st' SContinue r in
-    let v = Ops.interp_binary_op op l r in
-    match (s,s') with
-    | SContinue, SContinue -> (env'', st'', SContinue, v)
-    | SReject _,_ -> (env',st',s,VNull)
-    | _,SReject _ -> (env'',st'',s',VNull)
-    | _ -> failwith "unreachable"
+    match snd op with 
+    | And -> shortcircuit_band ctrl env st l r 
+    | Or -> shortcircuit_bor ctrl env st l r
+    | _ ->
+      let (env',st',s,l) = eval_expr ctrl env st SContinue l in
+      let (env'',st'',s',r) = eval_expr ctrl env' st' SContinue r in
+      let v = Ops.interp_binary_op op l r in
+      begin match (s,s') with
+        | SContinue, SContinue -> (env'', st'', SContinue, v)
+        | SReject _,_ -> (env',st',s,VNull)
+        | _,SReject _ -> (env'',st'',s',VNull)
+        | _ -> failwith "unreachable"
+      end
+
+  and shortcircuit_band (ctrl : ctrl) (env : env) (st : state) (l : Expression.t)
+      (r : Expression.t) : env * state * signal * value =
+    let (env, st, s, l) = eval_expr ctrl env st SContinue l in
+    match s with 
+    | SReject _ | SReturn _ | SExit -> env, st, s, VNull
+    | SContinue ->
+      if l |> assert_bool |> not then env, st, s, l
+      else eval_expr ctrl env st SContinue r
+
+  and shortcircuit_bor (ctrl : ctrl) (env : env) (st : state) (l : Expression.t)
+      (r : Expression.t) : env * state * signal * value =
+    let (env, st, s, l) = eval_expr ctrl env st SContinue l in
+    match s with 
+    | SReject _ | SReturn _ | SExit -> env, st, s, VNull
+    | SContinue ->
+      if l |> assert_bool then env, st, s, l
+      else eval_expr ctrl env st SContinue r    
 
   and eval_cast (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (expr : Expression.t) : env * state * signal * value =

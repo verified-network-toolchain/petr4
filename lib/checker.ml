@@ -475,15 +475,15 @@ and constraints_to_type_args _ (cs: var_constraints) : (string * Typed.Type.t) l
   in
   List.map ~f:constraint_to_type_arg cs
 
-and gen_all_constraints (env: CheckerEnv.t) unknowns params_args constraints =
+and gen_all_constraints (env: CheckerEnv.t) ctx unknowns params_args constraints =
   match params_args with
   | (param, Some arg) :: more ->
-     let arg_typed = type_expression env arg in
+     let arg_typed = type_expression env ctx arg in
      let param_type = param.Parameter.typ in
      begin match solve_types env [] unknowns param_type (snd arg_typed).typ with
      | Some arg_constraints ->
         let constraints = merge_constraints env constraints arg_constraints in
-        gen_all_constraints env unknowns more constraints
+        gen_all_constraints env ctx unknowns more constraints
      | None -> raise_s [%message "could not solve type equality t1 = t2"
                            ~t1:(param_type: Typed.Type.t)
                            ~t2:((snd arg_typed).typ: Typed.Type.t)
@@ -491,11 +491,11 @@ and gen_all_constraints (env: CheckerEnv.t) unknowns params_args constraints =
                            ~env:(env: CheckerEnv.t)]
      end
   | (param_type, None) :: more ->
-     gen_all_constraints env unknowns more constraints
+     gen_all_constraints env ctx unknowns more constraints
   | [] ->
      constraints
 
-and infer_type_arguments env ret type_params_args params_args constraints =
+and infer_type_arguments env ctx ret type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
     | Some arg ->
@@ -506,7 +506,7 @@ and infer_type_arguments env ret type_params_args params_args constraints =
   let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =
     empty_constraints unknowns
-    |> gen_all_constraints env unknowns params_args
+    |> gen_all_constraints env ctx unknowns params_args
   in
   params_args' @ constraints_to_type_args ret constraints
 
@@ -831,7 +831,7 @@ and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool
   | Some _ -> true
   | None -> false
 
-and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
+and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp_info, exp: Expression.t)
     : Prog.Expression.t =
   let module E = Prog.Expression in
   let pre_expr : E.typed_t =
@@ -856,35 +856,35 @@ and type_expression (env: CheckerEnv.t) (exp_info, exp: Expression.t)
          typ = typ;
          dir = dir }
     | ArrayAccess { array; index } ->
-       type_array_access env array index
+       type_array_access env ctx array index
     | BitStringAccess { bits; lo; hi } ->
-       type_bit_string_access env bits lo hi
+       type_bit_string_access env ctx bits lo hi
     | List { values } ->
-       type_list env values
+       type_list env ctx values
     | Record { entries } ->
-       type_record env entries
+       type_record env ctx entries
     | UnaryOp { op; arg } ->
-       type_unary_op env op arg
+       type_unary_op env ctx op arg
     | BinaryOp { op; args } ->
-       type_binary_op env op args
+       type_binary_op env ctx op args
     | Cast { typ; expr } ->
-       type_cast env typ expr
+       type_cast env ctx typ expr
     | TypeMember { typ; name } ->
-       type_type_member env typ name
+       type_type_member env ctx typ name
     | ErrorMember name ->
-       type_error_member env name
+       type_error_member env ctx name
     | ExpressionMember { expr; name } ->
-       type_expression_member env expr name
+       type_expression_member env ctx expr name
     | Ternary { cond; tru; fls } ->
-       type_ternary env cond tru fls
+       type_ternary env ctx cond tru fls
     | FunctionCall { func; type_args; args } ->
-       type_function_call env exp_info func type_args args
+       type_function_call env ctx exp_info func type_args args
     | NamelessInstantiation { typ; args } ->
-       type_nameless_instantiation env exp_info typ args
+       type_nameless_instantiation env ctx exp_info typ args
     | Mask { expr; mask } ->
-       type_mask env expr mask
+       type_mask env ctx expr mask
     | Range { lo; hi } ->
-       type_range env lo hi
+       type_range env ctx lo hi
   in
   (exp_info, pre_expr)
 
@@ -904,10 +904,10 @@ and cast_if_needed env (expr: Prog.Expression.t) typ =
   then expr
   else add_cast env expr typ
 
-and cast_to_same_type (env: CheckerEnv.t) (exp1: Expression.t) (exp2: Expression.t) =
-  let exp1 = type_expression env exp1 in
+and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expression.t) (exp2: Expression.t) =
+  let exp1 = type_expression env ctx exp1 in
   let typ1 = (snd exp1).typ in
-  let exp2 = type_expression env exp2 in
+  let exp2 = type_expression env ctx exp2 in
   let typ2 = (snd exp2).typ in
   if type_equality env [] typ1 typ2
   then exp1, exp2
@@ -917,7 +917,7 @@ and cast_to_same_type (env: CheckerEnv.t) (exp1: Expression.t) (exp2: Expression
   then exp1, add_cast env exp2 typ1
   else failwith "cannot cast types so that they agree"
 
-and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expression.t) =
+and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: Expression.t) =
   let module E = Prog.Expression in
   let typ = reduce_type env typ in
   match exp with
@@ -925,7 +925,7 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
   | False
   | String _
   | Cast _ ->
-     let exp_typed = type_expression env (exp_info, exp) in
+     let exp_typed = type_expression env ctx (exp_info, exp) in
      assert_type_equality env exp_info typ (snd exp_typed).typ;
      exp_typed
   | Int _
@@ -941,7 +941,7 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
   | BinaryOp {op = (_, Op.Shl); args = _}
   | BinaryOp {op = (_, Op.Shr); args = _}
   | BinaryOp {op = (_, Op.PlusPlus); args = _} ->
-     let exp_typed = type_expression env (exp_info, exp) in
+     let exp_typed = type_expression env ctx (exp_info, exp) in
      cast_if_needed env exp_typed typ
   | List { values } ->
      let types =
@@ -956,7 +956,7 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
      in
      let values_casted =
        List.zip_exn types values
-       |> List.map ~f:(fun (t, v) -> cast_expression env t v)
+       |> List.map ~f:(fun (t, v) -> cast_expression env ctx t v)
      in
      let exp_typed: E.t =
        exp_info,
@@ -979,7 +979,7 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
        if field.name <> (snd (snd entry).key)
        then failwith "bad names";
        let value_typed: Prog.Expression.t = 
-         cast_expression env field.typ (snd entry).value
+         cast_expression env ctx field.typ (snd entry).value
        in
        fst entry,
        {key = (snd entry).key;
@@ -1002,25 +1002,25 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
   | BinaryOp {op = (_, Op.Le) as op; args = (left, right)}
   | BinaryOp {op = (_, Op.Gt) as op; args = (left, right)}
   | BinaryOp {op = (_, Op.Ge) as op; args = (left, right)} ->
-     let left_typed, right_typed = cast_to_same_type env left right in
+     let left_typed, right_typed = cast_to_same_type env ctx left right in
      let exp_typed = exp_info, check_binary_op env op left_typed right_typed in
      cast_if_needed env exp_typed typ
   | BinaryOp {op = (_, Op.Div) as op; args = (left, right)}
   | BinaryOp {op = (_, Op.Mod) as op; args = (left, right)} ->
-     let exp_typed = exp_info, type_binary_op env op (left, right) in
+     let exp_typed = exp_info, type_binary_op env ctx op (left, right) in
      cast_if_needed env exp_typed typ
   | BinaryOp {op; args = (left, right)} ->
-     let left_typed = cast_expression env typ left in
+     let left_typed = cast_expression env ctx typ left in
      let right_typed =
        if snd op <> Op.Shl && snd op <> Op.Shr
-       then cast_expression env typ right
-       else type_expression env right
+       then cast_expression env ctx typ right
+       else type_expression env ctx right
      in
      exp_info, check_binary_op env op left_typed right_typed
   | Ternary { cond; tru; fls } ->
-     let cond_typed = cast_expression env Bool cond in
-     let tru_typed = cast_expression env typ tru in
-     let fls_typed = cast_expression env typ fls in
+     let cond_typed = cast_expression env ctx Bool cond in
+     let tru_typed = cast_expression env ctx typ tru in
+     let fls_typed = cast_expression env ctx typ fls in
      exp_info,
      {expr = Ternary {cond = cond_typed; tru = tru_typed; fls = fls_typed};
       typ = typ;
@@ -1032,8 +1032,8 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
        | _ -> failwith "must be a set of bit<w>"
      in
      let elt_type = Typed.Type.Bit {width = elt_width} in
-     let expr_typed = cast_expression env elt_type expr in
-     let mask_typed = cast_expression env elt_type mask in
+     let expr_typed = cast_expression env ctx elt_type expr in
+     let mask_typed = cast_expression env ctx elt_type mask in
      exp_info,
      {expr = Mask {expr = expr_typed; mask = mask_typed};
       typ = Set (elt_type);
@@ -1044,8 +1044,8 @@ and cast_expression (env: CheckerEnv.t) (typ: Typed.Type.t) (exp_info, exp: Expr
        | Set typ -> typ
        | _ -> failwith "must be a set"
      in
-     let lo_typed = cast_expression env elt_typ lo in
-     let hi_typed = cast_expression env elt_typ hi in
+     let lo_typed = cast_expression env ctx elt_typ lo in
+     let hi_typed = cast_expression env ctx elt_typ hi in
      exp_info,
      {expr = Range {lo = lo_typed; hi = hi_typed};
       typ = typ;
@@ -1061,7 +1061,7 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and eval_to_positive_int env info expr =
   let value =
     expr
-    |> type_expression env
+    |> type_expression env Constant
     |> compile_time_eval_bigint env
     |> Bigint.to_int_exn
   in
@@ -1097,7 +1097,7 @@ and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t
     -> let hdt = translate_type env vars ht in
     let len =
       e
-      |> type_expression env
+      |> type_expression env Constant
       |> compile_time_eval_bigint env
       |> Bigint.to_int_exn in
     Array {typ=hdt; size=len}
@@ -1295,7 +1295,7 @@ and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parame
   let opt_value_typed =
     match param.opt_value with
     | Some value ->
-       let value_typed = type_expression env value in
+       let value_typed = type_expression env Constant value in
        assert_type_equality env param_info (snd value_typed).typ typ;
        Some value_typed
     | None -> None
@@ -1336,10 +1336,10 @@ and type_int (val_info, value) : Prog.Expression.typed_t =
  *
  * Some architectures may further require ctk(i).
  *)
-and type_array_access env (array: Types.Expression.t) index : Prog.Expression.typed_t =
-  let array_typed = type_expression env array in
+and type_array_access env ctx (array: Types.Expression.t) index : Prog.Expression.typed_t =
+  let array_typed = type_expression env ctx array in
   let array_typ = (snd array_typed).typ in
-  let idx_typed = type_expression env index in
+  let idx_typed = type_expression env ctx index in
   let element_typ = (assert_array (info array) array_typ).typ in
   assert_numeric (info index) (snd idx_typed).typ |> ignore;
   { expr = ArrayAccess { array = array_typed; index = idx_typed };
@@ -1365,14 +1365,14 @@ and is_numeric (typ: Typed.Type.t) : bool =
  * -------------------------------
  * Δ, T, Γ |- b[m:l] : bit<m - l>
  *)
-and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
-  let bits_typed = type_expression env bits in
+and type_bit_string_access env ctx bits lo hi : Prog.Expression.typed_t =
+  let bits_typed = type_expression env ctx bits in
   match reduce_type env (snd bits_typed).typ with
   | Int { width }
   | Bit { width } ->
-     let lo_typed = type_expression env lo in
+     let lo_typed = type_expression env Constant lo in
      let typ_lo = saturate_type env (snd lo_typed).typ in
-     let hi_typed = type_expression env hi in
+     let hi_typed = type_expression env Constant hi in
      let typ_hi = saturate_type env (snd hi_typed).typ in
      assert (is_numeric typ_lo);
      assert (is_numeric typ_hi);
@@ -1403,20 +1403,20 @@ and type_bit_string_access env bits lo hi : Prog.Expression.typed_t =
  * Δ, T, Γ |- { x1, ..., xn } : (t1, ..., tn)
  *
  *)
-and type_list env values : Prog.Expression.typed_t =
-  let typed_exprs = List.map ~f:(type_expression env) values in
+and type_list env ctx values : Prog.Expression.typed_t =
+  let typed_exprs = List.map ~f:(type_expression env ctx) values in
   let types = List.map ~f:(fun e -> (snd e).typ) typed_exprs in
   { expr = List { values = typed_exprs };
     typ = Type.List { types };
     dir = Directionless }
 
-and type_key_val env ((info, entry): Types.KeyValue.t) : Prog.KeyValue.t =
+and type_key_val env ctx ((info, entry): Types.KeyValue.t) : Prog.KeyValue.t =
   info,
   { key = entry.key;
-    value = type_expression env entry.value }
+    value = type_expression env ctx entry.value }
 
-and type_record env entries : Prog.Expression.typed_t =
-  let entries_typed = List.map ~f:(type_key_val env) entries in
+and type_record env ctx entries : Prog.Expression.typed_t =
+  let entries_typed = List.map ~f:(type_key_val env ctx) entries in
   let rec_typed = Prog.Expression.Record { entries = entries_typed } in
   let kv_to_field (kv: Prog.KeyValue.t) : Typed.RecordType.field =
     { name = snd (snd kv).key; typ = (snd (snd kv).value).typ }
@@ -1452,8 +1452,8 @@ and type_record env entries : Prog.Expression.typed_t =
  * ----------------------
  * Δ, T, Γ |- -e : int<n>
  *)
-and type_unary_op env op arg =
-  let arg_typed = type_expression env arg in
+and type_unary_op env ctx op arg =
+  let arg_typed = type_expression env ctx arg in
   let arg_typ = (snd arg_typed).typ in
   begin match snd op with
   | Not    -> assert_bool (info arg) arg_typ |> ignore
@@ -1559,7 +1559,7 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
   | _, _ ->
      None, None
 
-and coerce_binary_op_args env op l r =
+and coerce_binary_op_args env ctx op l r =
   (* Implicit integer casts as per section 8.9.2
    *
    * Let implicit_cast(t1,t2) be defined as follows to describe
@@ -1572,8 +1572,8 @@ and coerce_binary_op_args env op l r =
    * implicit_cast(_, _)              = None                    (no cast)
    *
    *)
-  let l_typed = type_expression env l in
-  let r_typed = type_expression env r in
+  let l_typed = type_expression env ctx l in
+  let r_typed = type_expression env ctx r in
   let cast typ (expr_info, expr : Prog.Expression.t) : Prog.Expression.t =
     expr_info,
     { expr = Cast { typ = typ;
@@ -1659,8 +1659,8 @@ and check_div_args env left_arg right_arg =
                    ~divisor:(right_arg:Prog.Expression.t)
                    ~dividend:(left_arg:Prog.Expression.t)];
 
-and type_binary_op env (op_info, op) (l, r) : Prog.Expression.typed_t =
-  let typed_l, typed_r = coerce_binary_op_args env op l r in
+and type_binary_op env ctx (op_info, op) (l, r) : Prog.Expression.typed_t =
+  let typed_l, typed_r = coerce_binary_op_args env ctx op l r in
   check_binary_op env (op_info, op) typed_l typed_r
 
 and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t =
@@ -1800,8 +1800,8 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | _ -> not explicit && original_type = new_type
 
 (* Section 8.9 *)
-and type_cast env typ expr : Prog.Expression.typed_t =
-  let expr_typed = type_expression env expr in
+and type_cast env ctx typ expr : Prog.Expression.typed_t =
+  let expr_typed = type_expression env ctx expr in
   let expr_type = saturate_type env (snd expr_typed).typ in
   let new_type = translate_type env [] typ in
   let new_type_sat = saturate_type env (translate_type env [] typ) in
@@ -1812,7 +1812,7 @@ and type_cast env typ expr : Prog.Expression.typed_t =
                    ~new_type:(new_type_sat: Typed.Type.t)]
 
 (* ? *)
-and type_type_member env typ name : Prog.Expression.typed_t =
+and type_type_member env ctx typ name : Prog.Expression.typed_t =
    let real_name = real_name_for_type_member env typ name in
    let full_type, dir = CheckerEnv.find_type_of real_name env in
    { expr = TypeMember { typ;
@@ -1828,7 +1828,7 @@ and type_type_member env typ name : Prog.Expression.typed_t =
  * Δ, T, Γ |- error.e : error
  *
  *)
-and type_error_member env name : Prog.Expression.typed_t =
+and type_error_member env ctx name : Prog.Expression.typed_t =
   let (e, _) = CheckerEnv.find_type_of (BareName (Info.dummy, "error." ^ (snd name))) env in
   if e <> Type.Error then failwith "Error member not an error?";
   { expr = ErrorMember name;
@@ -1932,8 +1932,8 @@ and type_expression_member_function_builtin env info typ name : Typed.Type.t opt
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
-and type_expression_member env expr name : Prog.Expression.typed_t =
-  let typed_expr = type_expression env expr in
+and type_expression_member env ctx expr name : Prog.Expression.typed_t =
+  let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env (snd typed_expr).typ in
   let open RecordType in
   let methods = header_methods (snd typed_expr).typ in
@@ -1969,11 +1969,11 @@ and type_expression_member env expr name : Prog.Expression.typed_t =
  * -------------------------------------------------------------------
  *              Δ, T, Γ |- cond ? tru : fls : t
  *)
-and type_ternary env cond tru fls : Prog.Expression.typed_t =
-  let cond_typed = type_expression env cond in
+and type_ternary env ctx cond tru fls : Prog.Expression.typed_t =
+  let cond_typed = type_expression env ctx cond in
   assert_bool (info cond) (snd cond_typed).typ |> ignore;
-  let fls_typed = type_expression env fls in
-  let tru_typed = type_expression env tru in
+  let fls_typed = type_expression env ctx fls in
+  let tru_typed = type_expression env ctx tru in
   assert_same_type env (info tru) (info fls) (snd tru_typed).typ (snd fls_typed).typ |> ignore;
   match (snd tru_typed).typ with
   | Type.Integer ->
@@ -2119,22 +2119,11 @@ and check_direction env dir (arg_typed: Prog.Expression.t) =
      if (snd arg_typed).dir = In
      then raise_s [%message "in parameter passed as out parameter" ~expr:(arg_typed: Prog.Expression.t)]
 
-and find_extern_methods env func : (FunctionType.t list) option =
-  match snd func with
-  | Expression.ExpressionMember { expr; name } ->
-     begin match reduce_type env @@ (snd (type_expression env expr)).typ with
-     | Extern e ->
-        let methods = List.filter ~f:(fun m -> m.name = snd name) e.methods in
-        Some (List.map ~f:(fun m -> m.typ) methods)
-     | _ -> None
-     end
-  | _ -> None
-
 (* Section 8.17: Typing Function Calls *)
-and cast_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t option) =
+and cast_param_arg env ctx call_info (param, expr: Typed.Parameter.t * Expression.t option) =
   match expr with
   | Some expr ->
-     let typed_arg = cast_expression env param.typ expr in
+     let typed_arg = cast_expression env ctx param.typ expr in
      check_direction env param.direction typed_arg;
      param, Some typed_arg
   | None ->
@@ -2146,9 +2135,9 @@ and cast_param_arg env call_info (param, expr: Typed.Parameter.t * Expression.t 
      then raise_s [%message "could not infer valid type for don't care argument"]
      else param, None
 
-and type_function_call env call_info func type_args args : Prog.Expression.typed_t =
+and type_function_call env ctx call_info func type_args args : Prog.Expression.typed_t =
   let open Prog.Expression in
-  let func_typed = resolve_function_overload env func args in
+  let func_typed = resolve_function_overload env ctx func args in
   let func_type = (snd func_typed).typ in
   let type_params, params, return_type =
     match func_type with
@@ -2175,14 +2164,14 @@ and type_function_call env call_info func type_args args : Prog.Expression.typed
        | _ -> failwith "mismatch in type arguments"
   in
   let type_params_args =
-    infer_type_arguments env return_type type_params_args params_args type_params_args
+    infer_type_arguments env ctx return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
   let params_args' =
     List.map params_args
       ~f:(fun (p, a) -> {p with typ = saturate_type env p.typ}, a)
   in
-  let typed_params_args = List.map ~f:(cast_param_arg env call_info) params_args' in
+  let typed_params_args = List.map ~f:(cast_param_arg env ctx call_info) params_args' in
   let out_type_args = List.map ~f:snd type_params_args in
   let out_args = List.map ~f:snd typed_params_args in
   let typ = saturate_type env return_type in
@@ -2279,7 +2268,7 @@ and resolve_constructor_overload env type_name args : ConstructorType.t =
      in
      resolve_constructor_overload_by ~f:param_count_ok env type_name
 
-and resolve_function_overload_by ~f env func : Prog.Expression.t =
+and resolve_function_overload_by ~f env ctx func : Prog.Expression.t =
   let open Types.Expression in
   fst func,
   match snd func with
@@ -2295,10 +2284,10 @@ and resolve_function_overload_by ~f env func : Prog.Expression.t =
        |> List.find ~f:ok
      with
      | Some typ -> { expr = Name func_name; typ; dir = Directionless }
-     | _ -> snd @@ type_expression env func
+     | _ -> snd @@ type_expression env ctx func
      end
   | ExpressionMember { expr; name } ->
-     let expr_typed = type_expression env expr in
+     let expr_typed = type_expression env ctx expr in
      let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
                                                           name = name }
      in
@@ -2322,12 +2311,12 @@ and resolve_function_overload_by ~f env func : Prog.Expression.t =
              typ;
              dir = Directionless }
         | None ->
-           snd @@ type_expression env func
+           snd @@ type_expression env ctx func
         end
      end
-  | _ -> snd @@ type_expression env func
+  | _ -> snd @@ type_expression env ctx func
 
-and resolve_function_overload env type_name args =
+and resolve_function_overload env ctx type_name args =
   let arg_name arg =
     match snd arg with
     | Argument.KeyValue {key; _} -> Some (snd key)
@@ -2340,24 +2329,24 @@ and resolve_function_overload env type_name args =
        let param_names = List.map ~f:param_name params in
        Util.sorted_eq_strings param_names arg_names
      in
-     resolve_function_overload_by ~f:param_names_ok env type_name
+     resolve_function_overload_by ~f:param_names_ok env ctx type_name
   | None ->
      let param_count_ok params =
        List.length params = List.length args
      in
-     resolve_function_overload_by ~f:param_count_ok env type_name
+     resolve_function_overload_by ~f:param_count_ok env ctx type_name
 
-and type_constructor_invocation env info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
+and type_constructor_invocation env ctx info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
   let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
   let prog_params = constructor_params_to_prog_params constructor_type.parameters in
   let params_args = match_params_to_args info prog_params args in
-  let type_params_args = infer_constructor_type_args env t_params params_args type_args in
+  let type_params_args = infer_constructor_type_args env ctx t_params params_args type_args in
   let env' = CheckerEnv.insert_types type_params_args env in
   let cast_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
-    match cast_param_arg env' info (prog_param_to_typed_param param, arg) with
+    match cast_param_arg env' ctx info (prog_param_to_typed_param param, arg) with
     | _, Some e -> e
     | _, None -> failwith "missing constructor argument"
   in
@@ -2366,13 +2355,13 @@ and type_constructor_invocation env info decl_name type_args args : Prog.Express
   args_typed, ret
 
 (* Section 14.1 *)
-and type_nameless_instantiation env info typ args =
+and type_nameless_instantiation env ctx info typ args =
   let open Prog.Expression in
   match snd typ with
   | SpecializedType { base; args = type_args } ->
      begin match snd base with
      | TypeName decl_name ->
-        let out_args, out_typ = type_constructor_invocation env info decl_name type_args args in
+        let out_args, out_typ = type_constructor_invocation env ctx info decl_name type_args args in
         let inst = NamelessInstantiation { typ = translate_type env [] typ;
                                            args = out_args }
         in
@@ -2385,15 +2374,15 @@ and type_nameless_instantiation env info typ args =
      end
   | TypeName tn ->
      let typ = fst typ, Types.Type.SpecializedType { base = typ; args = [] } in
-     type_nameless_instantiation env info typ args
+     type_nameless_instantiation env ctx info typ args
   | _ ->
      raise_s [%message "don't know how to instantiate this type"
                  ~typ:(typ: Types.Type.t)]
 
 (* Section 8.12.3 *)
-and type_mask env expr mask : Prog.Expression.typed_t =
-  let expr_typed = type_expression env expr in
-  let mask_typed = type_expression env mask in
+and type_mask env ctx expr mask : Prog.Expression.typed_t =
+  let expr_typed = type_expression env ctx expr in
+  let mask_typed = type_expression env ctx mask in
   let res_typ : Typed.Type.t =
     match (snd expr_typed).typ, (snd mask_typed).typ with
     | Bit { width = w1 }, Bit { width = w2 } when w1 = w2 ->
@@ -2410,9 +2399,9 @@ and type_mask env expr mask : Prog.Expression.typed_t =
     dir = Directionless }
 
 (* Section 8.12.4 *)
-and type_range env lo hi : Prog.Expression.typed_t =
-  let lo_typed = type_expression env lo in
-  let hi_typed = type_expression env hi in
+and type_range env ctx lo hi : Prog.Expression.typed_t =
+  let lo_typed = type_expression env ctx lo in
+  let hi_typed = type_expression env ctx hi in
   let typ : Typed.Type.t =
     match (snd lo_typed).typ, (snd hi_typed).typ with
     | Bit { width = l }, Bit { width = r } when l = r ->
@@ -2476,7 +2465,8 @@ and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) :
 
 (* Section 8.17 *)
 and type_method_call env ctx call_info func type_args args =
-  let call_typed = type_function_call env call_info func type_args args in
+  let expr_ctx = ExprContext.of_stmt_context ctx in
+  let call_typed = type_function_call env expr_ctx call_info func type_args args in
   match call_typed.expr with
   | FunctionCall call ->
      { stmt = MethodCall
@@ -2500,12 +2490,13 @@ and type_method_call env ctx call_info func type_args args =
  *)
 and type_assignment env ctx lhs rhs =
   let open Prog.Statement in
-  let lhs_typed = type_expression env lhs in
+  let expr_ctx = ExprContext.of_stmt_context ctx in
+  let lhs_typed = type_expression env expr_ctx lhs in
   if not @@ is_lvalue env lhs_typed
   then raise_s [%message "Must be an lvalue"
                    ~lhs:(lhs:Types.Expression.t)]
   else
-    let rhs_typed = cast_expression env (snd lhs_typed).typ rhs in
+    let rhs_typed = cast_expression env expr_ctx (snd lhs_typed).typ rhs in
     ignore (assert_same_type env (info lhs) (info rhs)
               (snd lhs_typed).typ (snd rhs_typed).typ);
     { stmt = Assignment { lhs = lhs_typed; rhs = rhs_typed };
@@ -2515,10 +2506,11 @@ and type_assignment env ctx lhs rhs =
 (* This belongs in an elaboration pass, really. - Ryan *)
 and type_direct_application env ctx typ args =
   let open Types.Expression in
+  let expr_ctx = ExprContext.of_stmt_context ctx in
   let instance = NamelessInstantiation { typ = typ; args = [] } in
   let apply = ExpressionMember { expr = Info.dummy, instance; name = (Info.dummy, "apply") } in
   let call = FunctionCall { func = Info.dummy, apply; type_args = []; args = args } in
-  let call_typed = type_expression env (Info.dummy, call) in
+  let call_typed = type_expression env expr_ctx (Info.dummy, call) in
   match (snd call_typed).expr with
   | FunctionCall call ->
      let args =
@@ -2551,7 +2543,8 @@ and type_direct_application env ctx typ args =
  *)
 and type_conditional env ctx cond tru fls =
   let open Prog.Statement in
-  let expr_typed = cast_expression env Bool cond in
+  let expr_ctx = ExprContext.of_stmt_context ctx in
+  let expr_typed = cast_expression env expr_ctx Bool cond in
   assert_bool (info cond) (snd expr_typed).typ |> ignore;
   let type' stmt = fst (type_statement env ctx stmt) in
   let tru_typed = type' tru in
@@ -2604,6 +2597,7 @@ and type_block env ctx block =
  *    Δ, T, Γ |- return e: void ,Δ, T, Γ
  *)
 and type_return env ctx info expr =
+  let expr_ctx = ExprContext.of_stmt_context ctx in
   let ret_typ =
     match ctx with
     | ApplyBlock
@@ -2615,7 +2609,7 @@ and type_return env ctx info expr =
     match expr with
     | None -> Return { expr = None }, Typed.Type.Void
     | Some e ->
-       let e_typed = cast_expression env ret_typ e in
+       let e_typed = cast_expression env expr_ctx ret_typ e in
        Return { expr = Some e_typed }, (snd e_typed).typ
   in
   { stmt = stmt; typ = StmType.Void }, env
@@ -2623,10 +2617,11 @@ and type_return env ctx info expr =
 (* Section 11.7 *)
 and type_switch env ctx info expr cases =
   let open Types.Statement in
+  let expr_ctx = ExprContext.of_stmt_context ctx in
   if ctx <> ApplyBlock
   then raise_s [%message "switch statements not allowed in context"
                    ~ctx:(ctx: StmtContext.t)];
-  let expr_typed = type_expression env expr in
+  let expr_typed = type_expression env expr_ctx expr in
   let action_name_typ =
     match reduce_type env (snd expr_typed).typ with
     | Enum e -> e
@@ -2695,9 +2690,10 @@ and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.ty
  * ---------------------------------------------
  *    Δ, T, Γ |- const t x = e : Δ, T, Γ[x -> t]
  *)
-and type_constant env decl_info annotations typ name expr : Prog.Declaration.t * CheckerEnv.t =
+and type_constant env ctx decl_info annotations typ name expr : Prog.Declaration.t * CheckerEnv.t =
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let expected_typ = translate_type env [] typ in
-  let typed_expr = cast_expression env expected_typ expr in
+  let typed_expr = cast_expression env expr_ctx expected_typ expr in
   match compile_time_eval_expr env typed_expr with
   | Some value ->
      (decl_info, Constant { annotations; typ = expected_typ; name = name; value = value }),
@@ -2719,7 +2715,8 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
 
 (* Section 10.3 *)
 and type_instantiation env ctx info annotations typ args name : Prog.Declaration.t * CheckerEnv.t =
-  let instance_typed = type_nameless_instantiation env info typ args in
+  let expr_ctx = ExprContext.of_decl_context ctx in
+  let instance_typed = type_nameless_instantiation env expr_ctx info typ args in
   let instance_type = instance_typed.typ in
   begin match instance_type, ctx with
   | Control _, DeclContext.TopLevel ->
@@ -2766,7 +2763,7 @@ and constructor_param_to_prog_param (p: Typed.ConstructParam.t) : Prog.TypeParam
 and constructor_params_to_prog_params ps =
   List.map ~f:constructor_param_to_prog_param ps
 
-and infer_constructor_type_args env type_params params_args type_args =
+and infer_constructor_type_args env ctx type_params params_args type_args =
   let type_params_args =
     match List.zip type_params type_args with
     | Ok v -> v
@@ -2779,10 +2776,10 @@ and infer_constructor_type_args env type_params params_args type_args =
     List.map params_args
       ~f:(fun (cons_param, arg) -> prog_param_to_typed_param cons_param, arg)
   in
-  infer_type_arguments env Typed.Type.Void type_params_args inference_params_args []
+  infer_type_arguments env ctx Typed.Type.Void type_params_args inference_params_args []
 
-and type_set_expression env (expr: Types.Expression.t) =
-  let (info, e_typed) = type_expression env expr in
+and type_set_expression env ctx (expr: Types.Expression.t) =
+  let (info, e_typed) = type_expression env ctx expr in
   match e_typed.typ with
   | Set t ->
      info, e_typed
@@ -2802,35 +2799,35 @@ and check_match_type_eq env info set_type element_type =
      | _ ->
         assert_type_equality env info set_type (Set element_type)
 
-and check_match env (info, m: Types.Match.t) (expected_type: Type.t) : Prog.Match.t =
+and check_match env ctx (info, m: Types.Match.t) (expected_type: Type.t) : Prog.Match.t =
   match m with
   | Default
   | DontCare ->
      let set = Type.Set expected_type in
      info, { expr = DontCare; typ = set }
   | Expression { expr } ->
-     let expr_typed = type_set_expression env expr in
+     let expr_typed = type_set_expression env ctx expr in
      let typ = (snd expr_typed).typ in
      check_match_type_eq env info typ expected_type;
      info, { expr = Expression {expr = expr_typed};
              typ = Type.Set typ }
 
-and check_match_product env (ms: Types.Match.t list) (expected_types: Type.t list) =
+and check_match_product env ctx (ms: Types.Match.t list) (expected_types: Type.t list) =
   match ms, expected_types with
   | [m], [t] ->
-     [check_match env m t]
+     [check_match env ctx m t]
   | [m], types ->
-     [check_match env m (List { types })]
+     [check_match env ctx m (List { types })]
   | ms, types ->
-     List.map ~f:(fun (m, t) -> check_match env m t) @@ List.zip_exn ms types
+     List.map ~f:(fun (m, t) -> check_match env ctx m t) @@ List.zip_exn ms types
 
-and type_select_case env state_names expr_types ((case_info, case): Types.Parser.case) : Prog.Parser.case =
-  let matches_typed = check_match_product env case.matches expr_types in
+and type_select_case env ctx state_names expr_types ((case_info, case): Types.Parser.case) : Prog.Parser.case =
+  let matches_typed = check_match_product env ctx case.matches expr_types in
   if List.mem ~equal:(=) state_names (snd case.next)
   then case_info, { matches = matches_typed; next = case.next }
   else raise_s [%message "state name unknown" ~name:(snd case.next: string)]
 
-and type_transition env state_names transition : Prog.Parser.transition =
+and type_transition env ctx state_names transition : Prog.Parser.transition =
   let open Parser in
   fst transition,
   match snd transition with
@@ -2839,16 +2836,16 @@ and type_transition env state_names transition : Prog.Parser.transition =
       then Direct { next = (name_info, name') }
       else raise @@ Type (name_info, (Error.Unbound name'))
   | Select {exprs; cases} ->
-      let exprs_typed = List.map ~f:(type_expression env) exprs in
+      let exprs_typed = List.map ~f:(type_expression env ctx) exprs in
       let expr_types = List.map ~f:(fun (_, e) -> e.typ) exprs_typed in
       let cases_typed =
-        List.map ~f:(type_select_case env state_names expr_types) cases
+        List.map ~f:(type_select_case env ctx state_names expr_types) cases
       in
       Select { exprs = exprs_typed; cases = cases_typed }
 
 and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state =
   let (_, stmts_typed, env) = type_statements env ParserState (snd state).statements in
-  let transition_typed = type_transition env state_names (snd state).transition in
+  let transition_typed = type_transition env ParserState state_names (snd state).transition in
   let pre_state : Prog.Parser.pre_state =
     { annotations = (snd state).annotations;
       statements = stmts_typed;
@@ -3064,6 +3061,7 @@ and is_variable_type env (typ: Typed.Type.t) =
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]
  *)
 and type_variable env ctx info annotations typ name init =
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let expected_typ = translate_type env [] typ in
   if not (is_variable_type env expected_typ)
   then raise_s [%message "Cannot declare variables of this type"
@@ -3076,7 +3074,7 @@ and type_variable env ctx info annotations typ name init =
        None
     | Some value ->
        let expected_typ = translate_type env [] typ in
-       let typed_expr = cast_expression env expected_typ value in
+       let typed_expr = cast_expression env expr_ctx expected_typ value in
        Some typed_expr
   in
   let var_typed : Prog.Declaration.pre_t =
@@ -3089,9 +3087,9 @@ and type_variable env ctx info annotations typ name init =
   (info, var_typed), env
 
 (* Section 12.11 *)
-and type_value_set env info annotations typ size name =
+and type_value_set env ctx info annotations typ size name =
   let element_type = translate_type env [] typ in
-  let size_typed = type_expression env size in
+  let size_typed = type_expression env Constant size in
   let env = CheckerEnv.insert_type_of (BareName name) (Set element_type) env in
   let value_set : Prog.Declaration.pre_t =
     ValueSet { annotations;
@@ -3135,23 +3133,25 @@ and type_action env info annotations name params body =
   CheckerEnv.insert_type_of (BareName name) action_type env
 
 (* Section 13.2 *)
-and type_table env info annotations name properties : Prog.Declaration.t * CheckerEnv.t =
-  type_table' env info annotations name None [] None None None (List.map ~f:snd properties)
+and type_table env ctx info annotations name properties : Prog.Declaration.t * CheckerEnv.t =
+  type_table' env ctx info annotations name None [] None None None (List.map ~f:snd properties)
 
-and type_keys env keys =
+and type_keys env ctx keys =
   let open Prog.Table in
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let type_key key =
     let {key; match_kind; annotations}: Table.pre_key = snd key in
     match CheckerEnv.find_type_of_opt (BareName match_kind) env with
     | Some (MatchKind, _) ->
-       let expr_typed = type_expression env key in
+       let expr_typed = type_expression env expr_ctx key in
        (fst key, { annotations; key = expr_typed; match_kind })
     | _ ->
        raise_s [%message "invalid match_kind" ~match_kind:(snd match_kind)]
   in
   List.map ~f:type_key keys
 
-and type_table_actions env key_types actions =
+and type_table_actions env ctx key_types actions =
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let type_table_action (call_info, action: Table.action_ref) =
     let data_params =
       match CheckerEnv.find_type_of_opt action.name env with
@@ -3165,7 +3165,7 @@ and type_table_actions env key_types actions =
     let type_param_arg env (param, expr: Typed.Parameter.t * Expression.t option) =
       match expr with
       | Some expr ->
-         let arg_typed = cast_expression env param.typ expr in
+         let arg_typed = cast_expression env expr_ctx param.typ expr in
          check_direction env param.direction arg_typed;
          Some arg_typed
       | None ->
@@ -3189,10 +3189,11 @@ and type_table_actions env key_types actions =
   let action_names = List.map ~f:(fun (_, action: Table.action_ref) -> action.name) actions in
   List.zip_exn action_names action_typs
 
-and type_table_entries env entries key_typs action_map =
+and type_table_entries env ctx entries key_typs action_map =
   let open Prog.Table in
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let type_table_entry (entry_info, entry: Table.entry) : Prog.Table.entry =
-    let matches_typed = check_match_product env entry.matches key_typs in
+    let matches_typed = check_match_product env expr_ctx entry.matches key_typs in
     match List.Assoc.find action_map ~equal:name_eq (snd entry.action).name with
     | None ->
        failwith "Entry must call an action in the table."
@@ -3200,7 +3201,7 @@ and type_table_entries env entries key_typs action_map =
        let type_arg (param:Typed.ConstructParam.t) (arg_info, arg:Argument.t) =
          begin match arg with
          (* Direction handling probably is incorrect here. *)
-         | Expression { value = exp } -> Some (cast_expression env param.typ exp)
+         | Expression { value = exp } -> Some (cast_expression env expr_ctx param.typ exp)
          | _ -> failwith "Actions in entries only support positional arguments."
          end in
        let args_typed = List.map2_exn ~f:type_arg ctrl_params (snd entry.action).args in
@@ -3223,9 +3224,10 @@ and type_table_entries env entries key_typs action_map =
   List.map ~f:type_table_entry entries
 
 and type_default_action
-  env (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
+  env ctx (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
   action_expr : Prog.Table.action_ref =
-  let action_expr_typed = type_expression env action_expr in
+  let expr_ctx = ExprContext.of_decl_context ctx in
+  let action_expr_typed = type_expression env expr_ctx action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->
      begin match List.Assoc.find ~equal:name_eq action_map action_name with
@@ -3271,15 +3273,15 @@ and type_default_action
   | e ->
      failwith "couldn't type default action as functioncall"
 
-and type_table' env info annotations name key_types action_map entries_typed size default_typed properties =
+and type_table' env ctx info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
   match properties with
   | Key { keys } :: rest ->
      begin match key_types with
      | None ->
-        type_table' env info annotations
+        type_table' env ctx info annotations
           name
-          (Some (type_keys env keys))
+          (Some (type_keys env ctx keys))
           action_map
           entries_typed
           size
@@ -3294,7 +3296,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
         begin match Util.find_and_drop ~f:(function Table.Key _ -> true | _ -> false) properties with
         | Some key_prop, other_props ->
            let props = key_prop :: other_props in
-           type_table' env info annotations
+           type_table' env ctx info annotations
              name
              None
              action_map
@@ -3303,7 +3305,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
              default_typed
              props
         | None, props ->
-           type_table' env info annotations
+           type_table' env ctx info annotations
              name
              (Some [])
              action_map
@@ -3313,8 +3315,8 @@ and type_table' env info annotations name key_types action_map entries_typed siz
              props
         end
      | Some kts ->
-        let action_map = type_table_actions env kts actions in
-        type_table' env info annotations
+        let action_map = type_table_actions env ctx kts actions in
+        type_table' env ctx info annotations
           name
           key_types
           action_map
@@ -3330,16 +3332,16 @@ and type_table' env info annotations name key_types action_map entries_typed siz
         begin match key_types with
         | Some keys_typed ->
            let key_types' = List.map ~f:(fun k -> (snd (snd k).key).typ) keys_typed in
-           let entries_typed = type_table_entries env entries key_types' action_map in
-           type_table' env info annotations name key_types action_map (Some entries_typed) size default_typed rest
+           let entries_typed = type_table_entries env ctx entries key_types' action_map in
+           type_table' env ctx info annotations name key_types action_map (Some entries_typed) size default_typed rest
         | None -> failwith "entries with no keys?"
         end
      end
   | Custom { name = (_, "default_action"); value; _ } :: rest ->
      begin match default_typed with
      | None ->
-        let default_typed = type_default_action env action_map value in
-        type_table' env info annotations
+        let default_typed = type_default_action env ctx action_map value in
+        type_table' env ctx info annotations
           name
           key_types
           action_map
@@ -3351,7 +3353,8 @@ and type_table' env info annotations name key_types action_map entries_typed siz
      end
   | Custom { name = (_, "size"); value; _ } :: rest ->
      if size <> None then failwith "duplicated size properties?";
-     let value_typed = type_expression env value in
+     let expr_ctx = ExprContext.of_decl_context ctx in
+     let value_typed = type_expression env expr_ctx value in
      let _ = assert_numeric (fst value) (snd value_typed).typ in
      let size = compile_time_eval_expr env value_typed in
      begin match size with
@@ -3359,7 +3362,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
         let size: P4Int.t =
           fst value, { value = size; width_signed = None }
         in
-        type_table' env info annotations
+        type_table' env ctx info annotations
           name
           key_types
           action_map
@@ -3368,7 +3371,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
           default_typed
           rest
      | _ ->
-        type_table' env info annotations
+        type_table' env ctx info annotations
           name
           key_types
           action_map
@@ -3379,7 +3382,7 @@ and type_table' env info annotations name key_types action_map entries_typed siz
      end
   | Custom _ :: rest ->
      (* TODO *)
-     type_table' env info annotations
+     type_table' env ctx info annotations
        name
        key_types
        action_map
@@ -3567,7 +3570,8 @@ and type_enum env info annotations name members =
   (info, Prog.Declaration.Enum { annotations; name; members }), env
 
 (* Section 8.3 *)
-and type_serializable_enum env info annotations underlying_type name members =
+and type_serializable_enum env ctx info annotations underlying_type name members =
+  let expr_ctx = ExprContext.of_decl_context ctx in
   let underlying_type =
     underlying_type
     |> translate_type env []
@@ -3584,7 +3588,7 @@ and type_serializable_enum env info annotations underlying_type name members =
   in
   let add_member (env, members_typed) ((member_info, member), expr) =
     let member_name = QualifiedName ([], (member_info, snd name ^ "." ^ member)) in
-    let expr_typed = cast_expression env underlying_type expr in
+    let expr_typed = cast_expression env expr_ctx underlying_type expr in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
        env
@@ -3821,7 +3825,7 @@ and type_package_type env info annotations name t_params params =
 and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match snd decl with
   | Constant { annotations; typ; name; value } ->
-     type_constant env (fst decl) annotations typ name value
+     type_constant env ctx (fst decl) annotations typ name value
   | Instantiation { annotations; typ; args; name; init } ->
      begin match init with
      | Some init -> failwith "initializer block in instantiation unsupported"
@@ -3841,9 +3845,9 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | Variable { annotations; typ; name; init } ->
      type_variable env ctx (fst decl) annotations typ name init
   | ValueSet { annotations; typ; size; name } ->
-     type_value_set env (fst decl) annotations typ size name
+     type_value_set env ctx (fst decl) annotations typ size name
   | Table { annotations; name; properties } ->
-     type_table env (fst decl) annotations name properties
+     type_table env ctx (fst decl) annotations name properties
   | Header { annotations; name; fields } ->
      type_header env (fst decl) annotations name fields
   | HeaderUnion { annotations; name; fields } ->
@@ -3857,7 +3861,7 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | Enum { annotations; name; members } ->
      type_enum env (fst decl) annotations name members
   | SerializableEnum { annotations; typ; name; members } ->
-     type_serializable_enum env (fst decl) annotations typ name members
+     type_serializable_enum env ctx (fst decl) annotations typ name members
   | ExternObject { annotations; name; type_params; methods } ->
      type_extern_object env (fst decl) annotations name type_params methods
   | TypeDef { annotations; name; typ_or_decl } ->

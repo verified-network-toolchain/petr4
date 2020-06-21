@@ -615,3 +615,26 @@ module ParamContext = struct
   | Runtime of decl
   | Constructor of decl
 end
+
+module ExprContext = struct
+  type t =
+    | ParserState
+    | ApplyBlock
+    | DeclLocals
+    | Action
+    | Function
+    | Constant
+
+  let of_stmt_context (s: StmtContext.t) : t =
+    match s with
+    | Function _ -> Function
+    | Action -> Action
+    | ParserState -> ParserState
+    | ApplyBlock -> ApplyBlock
+
+  let of_decl_context (d: DeclContext.t) : t =
+    match d with
+    | TopLevel -> Constant
+    | Nested -> DeclLocals
+    | Statement s -> of_stmt_context s
+end

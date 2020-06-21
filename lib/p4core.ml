@@ -30,17 +30,18 @@ module Corize (T : Target) : Target = struct
     |> fun x -> Bigint.(x / of_int 8)
 
   let bytes_of_packet (pkt : buf) (nbytes : Bigint.t) : buf * Bigint.t * signal =
-    try
-      let (c1,c2) = Cstruct.split pkt (Bigint.to_int_exn nbytes) in
-      let s = Cstruct.to_string c1 in
-      let chars = String.to_list s in
-      let bytes = List.map chars ~f:Char.to_int in
-      let bytes' = List.map bytes ~f:Bigint.of_int in
-      let eight = Bigint.((one + one) * (one + one) * (one + one)) in
-      let f a n = Bigint.(a * power_of_two eight + n) in
-      let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
-      (c2,n,SContinue)
-    with Invalid_argument _ -> (pkt ,Bigint.zero,SReject "PacketTooShort")
+    let (c1,c2), signal =
+      try Cstruct.split pkt (Bigint.to_int_exn nbytes), SContinue
+      with Invalid_argument  _ -> (pkt, Cstruct.empty), SReject "PacketTooShort"
+    in
+    let s = Cstruct.to_string c1 in
+    let chars = String.to_list s in
+    let bytes = List.map chars ~f:Char.to_int in
+    let bytes' = List.map bytes ~f:Bigint.of_int in
+    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+    let f a n = Bigint.(a * power_of_two eight + n) in
+    let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
+    (c2,n,signal)
 
   let rec extract_hdr_field (nvarbits : Bigint.t)
       (n, s : (Bigint.t * Bigint.t) * signal)
@@ -88,7 +89,6 @@ module Corize (T : Target) : Target = struct
 
   and extract_varbit (nbits : Bigint.t) (nw,nv : Bigint.t * Bigint.t)
       (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    (* let (nw,nv) = n in *)
     if Bigint.(nbits > w)
     then (((nw,nv),SReject "HeaderTooShort"),VNull)
     else if Bigint.(nbits > nw)
@@ -100,7 +100,6 @@ module Corize (T : Target) : Target = struct
 
   and extract_struct (nvarbits : Bigint.t) (n, s : (Bigint.t * Bigint.t) * signal)
       (fields : (string * value) list) : ((Bigint.t * Bigint.t) * signal) * value list =
-    (* let fields = List.map fields ~f:(fun (x,y) -> x, State.find_heap y st) in *)
     let (n, s), vs = List.fold_map (List.map ~f:snd fields)
       ~init:(n, s)
       ~f:(fun (n, s) v -> extract_hdr_field nvarbits (n,s) v) in

@@ -101,35 +101,8 @@ let rec run_test' dirs name stmts add results expected st =
         | [] -> failwith "unreachable: index out of bounds"
       end in 
       run_test' dirs name tl add' results expected st
+    | Wait -> Unix.sleep 1; run_test' dirs name tl add results expected st
     | _ -> failwith "unimplemented stf statement"
-
-(* let run_test dirs name stmts =
-    match List.find ~f:unimplemented_stmt stmts with
-    | Some _ -> failwith "unimplemented stf statement"
-    | None ->
-        let packets = List.filter_map ~f:(function Packet(port, packet)-> Some((int_of_string(port), packet |> String.lowercase)) | _ -> None) stmts in
-        let results =
-          List.fold_map
-            ~init:Eval.V1Interpreter.empty_state
-            ~f:(fun st (port, pkt) -> evaler dirs name pkt port st) packets |> snd |>
-        List.filter_map ~f:(
-          fun x -> match x with
-          | `NoPacket -> None
-          | `Error(info, exn) -> None
-          | `Ok(pkt, port) ->
-              let fixed =  pkt |> Cstruct.to_string |> Petr4_parse.hex_of_string |> strip_spaces |> String.lowercase in
-              Some(Bigint.to_string port, fixed)
-        )
-          (* List.filter_map(fun x ->
-          match x with `No_packet -> None
-            | `Error(info, exn) -> Some("")
-            | `Ok(pkt, port) -> Some("")) *)
-        in
-        let expected = List.filter_map ~f:(function Expect(port, Some(packet)) -> Some(port, strip_spaces packet |> String.lowercase) 
-                                                  | _ -> None
-                         ) stmts in
-        List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
-          Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p) *)
 
 let get_stf_files path =
   Core.Sys.ls_dir path |> Base.List.to_list |>

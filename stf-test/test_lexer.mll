@@ -42,7 +42,7 @@ let binary_constant = '0'['b' 'B']['*' '0' '1']+
 
 let hex_prefix = '0'['x' 'X']
 
-let hex_digits = ['0'-'9' 'a'-'f' 'A'-'F']
+let hex_digits = ['0'-'9' 'a'-'f' 'A'-'F' '*']
 let hex_constant_body = hex_digits+
 let hex_constant = hex_prefix hex_constant_body
 let hex_tern = ['0'-'9' 'a'-'f' 'A'-'F' '*']+

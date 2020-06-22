@@ -288,7 +288,7 @@ module MakeInterpreter (T : Target) = struct
     let pre_ks = key |> List.map ~f:snd in
     let ctrl_entries = match List.Assoc.find (fst ctrl) name ~equal:String.(=) with
                        | None -> []
-                       | Some entries -> create_pre_entries env entries in
+                       | Some entries -> create_pre_entries env actions entries in
     let entries' = match entries with
                         | None -> ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in
@@ -366,7 +366,7 @@ module MakeInterpreter (T : Target) = struct
                 typ = Action { data_params = []; ctrl_params = []}}
       | Some action -> action
 
-  and create_pre_entries env add =
+  and create_pre_entries env actions add =
     let rec match_params_to_args (params : TypeParameter.t list) args : Ast.number option list = 
       match params with
       | p :: params ->
@@ -381,20 +381,28 @@ module MakeInterpreter (T : Target) = struct
         begin match maybe_arg_for_p with
         | Some arg_for_p ->
             Some arg_for_p :: match_params_to_args params other_args
-        | None -> failwith "parameter has no matching arg"
+        | None -> match_params_to_args params other_args (* arg should already be supplied *)
         end
       | [] ->
         match args with
         | [] -> []
         | a :: rest -> failwith "too many arguments supplied" in
+    let replace_wildcard s =
+      String.map s ~f:(fun c -> if c = '*' then '0' else c) in
     let convert_expression (s : string option) : Expression.t option =
       match s with
       | None -> None 
-      | Some s -> 
-        let num = s |> int_of_string |> Bigint.of_int in
+      | Some s ->
+        let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
         let pre_exp = Expression.Int (Info.dummy, {value = num; width_signed = None}) in 
         let typed_exp : Expression.typed_t = {expr = pre_exp; typ = Integer; dir = Directionless} in
-        Some (Info.dummy, typed_exp) in
+        let exp = (Info.dummy, typed_exp) in
+        if String.contains s '*' 
+        then begin
+        let pre_exp' = Expression.Mask {expr = exp; mask = exp} in
+        let typed_exp' : Expression.typed_t = {expr = pre_exp'; typ = Void; dir = Directionless} in
+        Some (Info.dummy, typed_exp') end
+        else Some exp in
     let convert_match (name, (num_or_lpm : Ast.number_or_lpm)) : Match.t =
       match num_or_lpm with
       | Num s ->
@@ -406,15 +414,19 @@ module MakeInterpreter (T : Target) = struct
         (Info.dummy, typed_match)
       | _ -> failwith "stf lpm unsupported" in
     let convert_pre_entry (priority, match_list, (action_name, args), id) : Table.pre_entry =
-    (*TODO: priority and id are currently unsupported *)
       let action_name' = Types.BareName (Info.dummy, action_name) in
       (*let action_type = EvalEnv.find_typ action_name' env in*)
       let type_params = EvalEnv.find_decl action_name' env |> assert_action_decl in
-      let final_args = match_params_to_args type_params args |> List.map ~f:convert_expression in
+      let existing_args = List.fold_left actions 
+                          ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name' 
+                                          then (snd a).action.args 
+                                          else acc) 
+                          ~init:[] in
+      let ctrl_args = match_params_to_args type_params args |> List.map ~f:convert_expression in
       let pre_action_ref : Table.pre_action_ref = 
         { annotations = [];
           name = action_name';
-          args = final_args } in
+          args = existing_args @ ctrl_args } in
       let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (*type is a hack*)
       { annotations = [];
         matches = List.map match_list ~f:convert_match;

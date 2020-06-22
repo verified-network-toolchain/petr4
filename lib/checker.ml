@@ -3267,6 +3267,66 @@ and type_table_entries env ctx entries key_typs action_map =
   in
   List.map ~f:type_table_entry entries
 
+(* syntactic equality of expressions *)
+and expr_eq env (expr1: Prog.Expression.t) (expr2: Prog.Expression.t) : bool =
+  let key_val_eq (_, k1: Prog.KeyValue.t) (_, k2: Prog.KeyValue.t) : bool =
+    k1.key = k2.key && expr_eq env k1.value k2.value
+  in
+  let e1 = (snd expr1).expr in
+  let e2 = (snd expr2).expr in
+  match e1, e2 with
+  | True,  True
+  | False, False
+  | DontCare, DontCare -> true
+  | Int (_,{value=v1; width_signed=w1}),
+    Int (_,{value=v2; width_signed=w2})
+    -> Bigint.equal v1 v2
+       && [%compare.equal: ((int * bool) option)] w1 w2
+  | String (_,s1), String (_,s2)
+    -> String.equal s1 s2
+  | Name n1, Name n2
+    -> Types.name_eq n1 n2
+  | ArrayAccess { array=a1; index=i1 },
+    ArrayAccess { array=a2; index=i2 }
+    -> expr_eq env a1 a2 && expr_eq env i1 i2
+  | BitStringAccess { bits=b1; lo=l1; hi=h1 },
+    BitStringAccess { bits=b2; lo=l2; hi=h2 }
+    -> expr_eq env b1 b2 && Bigint.equal l1 l2 && Bigint.equal h1 h2
+  | List { values=v1 }, List { values=v2 }
+    -> List.equal (expr_eq env) v1 v2
+  | Record { entries=kv1 }, Record { entries=kv2 }
+    -> List.equal key_val_eq kv1 kv2
+  | UnaryOp { op=o1; arg=e1 }, UnaryOp { op=o2; arg=e2 }
+    -> Op.eq_uni o1 o2 && expr_eq env e1 e2
+  | BinaryOp { op=b1; args=(l1,r1) }, BinaryOp { op=b2; args=(l2,r2) }
+    -> Op.eq_bin b1 b2 && expr_eq env l1 l2 && expr_eq env r1 r2
+  | Cast { typ=t1; expr=e1 }, Cast { typ=t2; expr=e2 }
+    -> type_equality env [] t1 t2 && expr_eq env e1 e2
+  | TypeMember { typ=n1; name=_,s1 },
+    TypeMember { typ=n2; name=_,s2 }
+    -> Types.name_eq n1 n2 && String.equal s1 s2
+  | ErrorMember (_,s1), ErrorMember (_,s2)
+    -> String.equal s1 s2
+  | ExpressionMember { expr=e1; name=_,s1 },
+    ExpressionMember { expr=e2; name=_,s2 }
+    -> expr_eq env e1 e2 && String.equal s1 s2
+  | Ternary { cond=c1; tru=t1; fls=f1 },
+    Ternary { cond=c2; tru=t2; fls=f2 }
+    -> expr_eq env c1 c2 && expr_eq env t1 t2 && expr_eq env f1 f2
+  | FunctionCall { func=e1; type_args=t1; args=l1 },
+    FunctionCall { func=e2; type_args=t2; args=l2 }
+    -> expr_eq env e1 e2 &&
+         List.equal Type.eq t1 t2 &&
+           List.equal begin Util.eq_opt ~f:(expr_eq env) end l1 l2
+  | NamelessInstantiation { typ=t1; args=e1 },
+    NamelessInstantiation { typ=t2; args=e2 }
+    -> Type.eq t1 t2 && List.equal (expr_eq env) e1 e2
+  | Mask { expr=e1; mask=m1 }, Mask { expr=e2; mask=m2 }
+    -> expr_eq env e1 e2 && expr_eq env m1 m2
+  | Range { lo=l1; hi=h1 }, Range { lo=l2; hi=h2 }
+    -> expr_eq env l1 l2 && expr_eq env h1 h2
+  | _ -> false
+
 and type_default_action
   env ctx (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
   action_expr : Prog.Table.action_ref =
@@ -3283,7 +3343,7 @@ and type_default_action
          let len = List.length prop_args in
          let prefix,suffix = List.split_n args len in
          if List.equal
-          begin Util.eq_opt ~f:Prog.Expression.eq end prop_args prefix
+          begin Util.eq_opt ~f:(expr_eq env) end prop_args prefix
           && suffix
           |> List.filter_map ~f:(fun x -> x)
           |> List.for_all

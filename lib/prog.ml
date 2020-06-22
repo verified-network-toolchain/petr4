@@ -82,8 +82,6 @@ and KeyValue : sig
   [@@deriving sexp,show,yojson]
 
   type t = pre_t info [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
 end = struct
   type pre_t =
     { key : P4String.t;
@@ -91,9 +89,6 @@ end = struct
   [@@deriving sexp,show,yojson]
 
   type t = pre_t info [@@deriving sexp,show,yojson]
-
-  let eq (_,{ key=_,k1; value=v1 }) (_,{ key=_,k2; value=v2 }) =
-    String.equal k1 k2 && Expression.eq v1 v2
 end
 
 and Expression : sig
@@ -154,9 +149,6 @@ and Expression : sig
                   typ: Type.t;
                   dir: direction }
   and t = typed_t info [@@deriving sexp,show,yojson]
-
-  (* syntactic equality of expressions *)
-  val eq : t -> t -> bool
 end = struct
   type pre_t =
     True
@@ -215,61 +207,6 @@ end = struct
                   typ: Type.t;
                   dir: direction }
   and t = typed_t info [@@deriving sexp,show,yojson]
-
-  (* syntactic equality of expressions *)
-  let rec eq (_,{ expr=e1; _ }) (_,{ expr=e2; _ }) =
-    match e1, e2 with
-    | True,  True
-    | False, False
-    | DontCare, DontCare -> true
-    | Int (_,{value=v1; width_signed=w1}),
-      Int (_,{value=v2; width_signed=w2})
-      -> Bigint.equal v1 v2
-      && [%compare.equal: ((int * bool) option)] w1 w2
-    | String (_,s1), String (_,s2)
-      -> String.equal s1 s2
-    | Name n1, Name n2
-      -> Types.name_eq n1 n2
-    | ArrayAccess { array=a1; index=i1 },
-      ArrayAccess { array=a2; index=i2 }
-      -> eq a1 a2 && eq i1 i2
-    | BitStringAccess { bits=b1; lo=l1; hi=h1 },
-      BitStringAccess { bits=b2; lo=l2; hi=h2 }
-      -> eq b1 b2 && Bigint.equal l1 l2 && Bigint.equal h1 h2
-    | List { values=v1 }, List { values=v2 }
-      -> List.equal eq v1 v2
-    | Record { entries=kv1 }, Record { entries=kv2 }
-      -> List.equal KeyValue.eq kv1 kv2
-    | UnaryOp { op=o1; arg=e1 }, UnaryOp { op=o2; arg=e2 }
-      -> Op.eq_uni o1 o2 && eq e1 e2
-    | BinaryOp { op=b1; args=(l1,r1) }, BinaryOp { op=b2; args=(l2,r2) }
-      -> Op.eq_bin b1 b2 && eq l1 l2 && eq r1 r2
-    | Cast { typ=t1; expr=e1 }, Cast { typ=t2; expr=e2 }
-      -> Type.eq t1 t2 && eq e1 e2
-    | TypeMember { typ=n1; name=_,s1 },
-      TypeMember { typ=n2; name=_,s2 }
-      -> Types.name_eq n1 n2 && String.equal s1 s2
-    | ErrorMember (_,s1), ErrorMember (_,s2)
-      -> String.equal s1 s2
-    | ExpressionMember { expr=e1; name=_,s1 },
-      ExpressionMember { expr=e2; name=_,s2 }
-      -> eq e1 e2 && String.equal s1 s2
-    | Ternary { cond=c1; tru=t1; fls=f1 },
-      Ternary { cond=c2; tru=t2; fls=f2 }
-      -> eq c1 c2 && eq t1 t2 && eq f1 f2
-    | FunctionCall { func=e1; type_args=t1; args=l1 },
-      FunctionCall { func=e2; type_args=t2; args=l2 }
-      -> eq e1 e2 &&
-        List.equal Type.eq t1 t2 &&
-        List.equal begin Util.eq_opt ~f:eq end l1 l2
-    | NamelessInstantiation { typ=t1; args=e1 },
-      NamelessInstantiation { typ=t2; args=e2 }
-      -> Type.eq t1 t2 && List.equal eq e1 e2
-    | Mask { expr=e1; mask=m1 }, Mask { expr=e2; mask=m2 }
-      -> eq e1 e2 && eq m1 m2
-    | Range { lo=l1; hi=h1 }, Range { lo=l2; hi=h2 }
-      -> eq l1 l2 && eq h1 h2
-    | _ -> false
 end
 
 and Match : sig

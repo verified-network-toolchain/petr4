@@ -367,7 +367,7 @@ module MakeInterpreter (T : Target) = struct
       | Some action -> action
 
   and create_pre_entries env actions add =
-    let rec match_params_to_args (params : TypeParameter.t list) args : Ast.number option list = 
+    let rec match_params_to_args (params : TypeParameter.t list) args : Ast.number option list =
       match params with
       | p :: params ->
         let right_arg (name, value) =
@@ -391,13 +391,13 @@ module MakeInterpreter (T : Target) = struct
       String.map s ~f:(fun c -> if c = '*' then '0' else c) in
     let convert_expression (s : string option) : Expression.t option =
       match s with
-      | None -> None 
+      | None -> None
       | Some s ->
         let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
-        let pre_exp = Expression.Int (Info.dummy, {value = num; width_signed = None}) in 
+        let pre_exp = Expression.Int (Info.dummy, {value = num; width_signed = None}) in
         let typed_exp : Expression.typed_t = {expr = pre_exp; typ = Integer; dir = Directionless} in
         let exp = (Info.dummy, typed_exp) in
-        if String.contains s '*' 
+        if String.contains s '*'
         then begin
         let pre_exp' = Expression.Mask {expr = exp; mask = exp} in
         let typed_exp' : Expression.typed_t = {expr = pre_exp'; typ = Void; dir = Directionless} in
@@ -409,21 +409,21 @@ module MakeInterpreter (T : Target) = struct
         let e = match convert_expression (Some s) with
                 | Some e -> e
                 | None -> failwith "unreachable" in
-        let pre_match = Match.Expression {expr = e} in 
-        let typed_match : Match.typed_t = {expr = pre_match; typ = Integer} in 
+        let pre_match = Match.Expression {expr = e} in
+        let typed_match : Match.typed_t = {expr = pre_match; typ = Integer} in
         (Info.dummy, typed_match)
       | _ -> failwith "stf lpm unsupported" in
     let convert_pre_entry (priority, match_list, (action_name, args), id) : Table.pre_entry =
       let action_name' = Types.BareName (Info.dummy, action_name) in
       (*let action_type = EvalEnv.find_typ action_name' env in*)
       let type_params = EvalEnv.find_decl action_name' env |> assert_action_decl in
-      let existing_args = List.fold_left actions 
-                          ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name' 
-                                          then (snd a).action.args 
-                                          else acc) 
+      let existing_args = List.fold_left actions
+                          ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name'
+                                          then (snd a).action.args
+                                          else acc)
                           ~init:[] in
       let ctrl_args = match_params_to_args type_params args |> List.map ~f:convert_expression in
-      let pre_action_ref : Table.pre_action_ref = 
+      let pre_action_ref : Table.pre_action_ref =
         { annotations = [];
           name = action_name';
           args = existing_args @ ctrl_args } in
@@ -433,21 +433,21 @@ module MakeInterpreter (T : Target) = struct
         action = (Info.dummy, action) } in
     List.map add ~f:convert_pre_entry
 
-  and sort_priority (ctrl : ctrl) (env : env) (st : state) 
+  and sort_priority (ctrl : ctrl) (env : env) (st : state)
     (entries : Table.pre_entry list) : Table.pre_entry list =
     let priority_cmp (entry1 : Table.pre_entry) (entry2 : Table.pre_entry) =
-      let ann1 = List.find_exn entry1.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in 
+      let ann1 = List.find_exn entry1.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in
       let ann2 = List.find_exn entry2.annotations ~f:(fun a -> String.((snd a).name |> snd = "priority")) in
-      let body1 = (snd ann1).body |> snd in 
-      let body2 = (snd ann2).body |> snd in 
+      let body1 = (snd ann1).body |> snd in
+      let body2 = (snd ann2).body |> snd in
       match body1,body2 with
       | Unparsed [s1], Unparsed [s2] ->
-        let n1 = s1 |> snd |> int_of_string in 
+        let n1 = s1 |> snd |> int_of_string in
         let n2 = s2 |> snd |> int_of_string in
         if n1 = n2 then 0 else if n1 < n2 then -1 else 1
       | _ -> failwith "wrong bodies for @priority" in
     let (priority, no_priority) = List.partition_tf entries ~f:(fun e -> List.exists ~f:(fun a -> String.((snd a).name |> snd = "priority")) e.annotations) in
-    let sorted_priority = List.stable_sort priority ~compare:priority_cmp in 
+    let sorted_priority = List.stable_sort priority ~compare:priority_cmp in
     sorted_priority @ no_priority
 
   (*----------------------------------------------------------------------------*)
@@ -868,8 +868,8 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_binop (ctrl : ctrl) (env : env) (st : state) (op : Op.bin) (l : Expression.t)
       (r : Expression.t) : env * state * signal * value =
-    match snd op with 
-    | And -> shortcircuit_band ctrl env st l r 
+    match snd op with
+    | And -> shortcircuit_band ctrl env st l r
     | Or -> shortcircuit_bor ctrl env st l r
     | _ ->
       let (env',st',s,l) = eval_expr ctrl env st SContinue l in
@@ -885,7 +885,7 @@ module MakeInterpreter (T : Target) = struct
   and shortcircuit_band (ctrl : ctrl) (env : env) (st : state) (l : Expression.t)
       (r : Expression.t) : env * state * signal * value =
     let (env, st, s, l) = eval_expr ctrl env st SContinue l in
-    match s with 
+    match s with
     | SReject _ | SReturn _ | SExit -> env, st, s, VNull
     | SContinue ->
       if l |> assert_bool |> not then env, st, s, l
@@ -894,11 +894,11 @@ module MakeInterpreter (T : Target) = struct
   and shortcircuit_bor (ctrl : ctrl) (env : env) (st : state) (l : Expression.t)
       (r : Expression.t) : env * state * signal * value =
     let (env, st, s, l) = eval_expr ctrl env st SContinue l in
-    match s with 
+    match s with
     | SReject _ | SReturn _ | SExit -> env, st, s, VNull
     | SContinue ->
       if l |> assert_bool then env, st, s, l
-      else eval_expr ctrl env st SContinue r    
+      else eval_expr ctrl env st SContinue r
 
   and eval_cast (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (expr : Expression.t) : env * state * signal * value =
@@ -1029,7 +1029,7 @@ module MakeInterpreter (T : Target) = struct
         let state = env'
           |> EvalEnv.get_val_firstlevel
           |> List.rev in
-        let v' = VParser {pscope = env; 
+        let v' = VParser {pscope = env;
                           pvs = state;
                           pparams = typ_decl.params;
                           plocals = typ_decl.locals;
@@ -1238,10 +1238,10 @@ module MakeInterpreter (T : Target) = struct
     | SContinue
     | SExit     -> (callenv, st'', sign, VNull)
 
-  (** [copyin ctrl callenv st clenv params args] returns the following four values: 
+  (** [copyin ctrl callenv st clenv params args] returns the following four values:
       1) the call env [callenv'] resulting from evaluating the args in the [callenv]
-      2) the env [fenv] which is the closure environment with a fresh scope pushed on 
-         and the parameters inserted 
+      2) the env [fenv] which is the closure environment with a fresh scope pushed on
+         and the parameters inserted
       3) a new state in which to evaluate the body; corresponds to the new variable
          mappings in the new [fenv].
       4) a signal indicating the success or failure of evaluating the args *)
@@ -1259,15 +1259,15 @@ module MakeInterpreter (T : Target) = struct
 
   (** [copyout ctrl callenv fenv st params args inc_next] returns the updated state
       [st'] which is [st] with the out args copied into the corresponding lvalues.
-      [clenv] should be the original closure env before [copyin] and [fenv] should be the
+      [calllenv] should be the call env after [copyin] and [fenv] should be the
       resulting environment from copying in and evaluating the function body. *)
-  and copyout (ctrl : ctrl) (clenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
+  and copyout (ctrl : ctrl) (calllenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (inc_next : bool) : state =
     List.fold2_exn
       params
       args
       ~init: st
-      ~f:(fun st p a -> copy_arg_out inc_next ctrl st fenv clenv p a)
+      ~f:(fun st p a -> copy_arg_out inc_next ctrl st fenv callenv p a)
 
   and eval_nth_arg (ctrl : ctrl) (st : state) (params : TypeParameter.t list) (i : int)
       ((env,st,sign) : env * state * signal)
@@ -1294,25 +1294,25 @@ module MakeInterpreter (T : Target) = struct
     EvalEnv.insert_val var l e, st
 
   and copy_arg_out (inc_next : bool) (ctrl : ctrl) (st : state) (fenv : env)
-      (clenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
+      (callenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
     match (snd p).direction with
     | Directionless ->
       begin match (snd p).typ with
-        | Extern _ -> copy_arg_out_h inc_next ctrl fenv st clenv p a
+        | Extern _ -> copy_arg_out_h inc_next ctrl fenv st callenv p a
         | _ -> st
       end
     | InOut
-    | Out -> copy_arg_out_h inc_next ctrl fenv st clenv p a
+    | Out -> copy_arg_out_h inc_next ctrl fenv st callenv p a
     | In -> st
 
   and copy_arg_out_h (inc_next : bool) (ctrl : ctrl) (fenv : env) (st : state)
-      (clenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
+      (callenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
     let v = EvalEnv.find_val (BareName (snd p).variable) fenv |> extract_from_state st in
     match a with
     | None -> st
     | Some expr ->
-      let (_, _, _, lv) = lvalue_of_expr ctrl clenv st SContinue expr in
-      let (st, _) = assign_lvalue st clenv (Option.value_exn lv) v inc_next in
+      let (_, _, _, lv) = lvalue_of_expr ctrl callenv st SContinue expr in
+      let (st, _) = assign_lvalue st callenv (Option.value_exn lv) v inc_next in
       st
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)

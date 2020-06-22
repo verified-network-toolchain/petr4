@@ -2643,6 +2643,9 @@ S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
 ~
 
 ### Lemma $\mathkw{lv\_of\_expr}$ Sustains Entailment
+
+TODO: need a good definition for this...
+
 ~MathPre
 L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig, @lvalue t x,
 \mathkw{lv\_of\_expr} \zeta \xi \sigma = (\xi', \sigma', sig, @lvalue t x) \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi
@@ -2659,64 +2662,13 @@ S,D,G |- v : t, d \Rightarrow @copyin \, \xi \, \sigma (x:t,d) v = \xi',\sigma' 
 ~
 
 #### Proof
-Introducing variables:
-~MathPre
-\xi,x,t,d,v,\xi',S,D,G,\sigma,\sigma'
-~
-and hypotheses
-~MathPre
-H_0: S,D,G |- v : t, d
-H_1: @copyin \, \xi \, \sigma \, (x:t,d) \, v = \xi',\sigma'
-H_2: S,D,G \models \xi,\sigma
-~
-we wish to prove the goal:
-~MathPre
-S,D,G[x:t,d] \models \xi',\sigma'
-~
-by case-analysis on $H_0$.
 
-##### Case $d = out$
-We have equation and hypotheses:
-~MathPre
-E_0: d = @out
-H_0: S,D,G |- v : t, d
-H_1: \mathkw{copyin} \xi (x:t,d) v = \xi
-H_2: S,D,G \models \xi
-~
-We wish to prove subgoal:
-~MathPre
-SG: S,D,G[x:t,d] \models \xi
-~
-TODO...I am not sure this is possible...maybe should be a new typing context...
-
-##### Case $d \neq out$
-We have hypotheses:
-~MathPre
-H_0: S,D,G |- v : t, d
-H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
-H_2: S,D,G \models \xi'
-~
-We wish to prove subgoal:
-~MathPre
-SG: S,D,G[x:t,d] \models \xi[v/x]
-~
-TODO...I am not sure this is possible...maybe should be a new typing context...
-
-###### Subcase $E = []$
-We have hypotheses:
-~MathPre
-H_0: S,D,G |- v : t, d
-H_1: \mathkw{copyin} \xi (x:t,d) v = \xi[v/x]
-H_2: S,D,G \models P,[],D,\nu
-~
-We wish to prove subgoal:
-~MathPre
-SG: S,D,G[x:t,d] \models P,([],(x=v)),D,\nu
-~
-
-TODO...may not be provable...
+TODO!
 
 ### Lemma Copyout Sustains Entailment
+
+TODO: probably need a better definition for this...
+
 ~MathPre
 L_3: \forall \zeta, \xi_1, \xi_2 \, \sigma, x, t, d, e, \xi_3, S, D, G,
 \mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3[x:t,d]
@@ -2744,12 +2696,16 @@ L_5: \forall S,D,G,\xi,
 S,D,G \models \xi \Rightarrow S,D,G \models @pop \xi
 ~
 
+#### Proof
+
+TODO!
+
 ## Type Soundness of Expressions
 
 ### Expression Type Preservation Theorem Statement
 ~ MathPre
 \forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
-S,D,G \models \xi \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
+S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
 ~
 
 ### Expression Type Preservation Proof
@@ -2759,13 +2715,13 @@ e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig
 ~
 and assuming hypotheses
 ~MathPre
-S,D,G \models \xi
+S,D,G \models \xi,\sigma
 S,D,G |- e : \tau,d
 \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
 ~
 we wish to prove the goal
 ~MathPre
-S,D,G \models \xi' \wedge S,D,G |- v : \tau,d
+S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
 ~
 We induct on the derivation of
 ~MathPre
@@ -2776,20 +2732,20 @@ We assume freely $e$ is free-variable free.
 #### Case Bool-True
 We have hypotheses:
 ~MathPre
-S,D,G \models \xi
+S,D,G \models \xi, \sigma
 S,D,G |- @true : @bool, @none
 <\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
 We wish to prove subgoals:
 ~MathPre
-S,D,G \models \xi \wedge S,D,G |- @true : @bool, @none
+S,D,G \models \xi,\sigma \wedge S,D,G |- @true : @bool, @none
 ~
 Our subgoal is true by assumption.
 
 #### Case Bool-False
 We have hypotheses:
 ~MathPre
-S,D,G \models \xi
+S,D,G \models \xi, \sigma
 S,D,G |- @false : @bool, @none
 <\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~

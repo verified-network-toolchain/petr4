@@ -1261,7 +1261,7 @@ module MakeInterpreter (T : Target) = struct
       [st'] which is [st] with the out args copied into the corresponding lvalues.
       [calllenv] should be the call env after [copyin] and [fenv] should be the
       resulting environment from copying in and evaluating the function body. *)
-  and copyout (ctrl : ctrl) (calllenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
+  and copyout (ctrl : ctrl) (callenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (inc_next : bool) : state =
     List.fold2_exn
       params

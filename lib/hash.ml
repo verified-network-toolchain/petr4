@@ -75,7 +75,11 @@ let hash_identity (length, v : Bigint.t * Bigint.t) : Bigint.t =
   v
 
 let ones_comp_add (v1 : Bigint.t) (v2 : Bigint.t) : Bigint.t =
-  Bigint.((v1 + v2) % (power_of_two (of_int 16)))
+  let tmp = Bigint.(v1 + v2) in
+  let rmax = power_of_two (Bigint.of_int 16) in
+  if Bigint.(tmp >= rmax)
+  then Bigint.((tmp % rmax) + one)
+  else Bigint.((tmp % rmax))
 
 let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   if Bigint.(length % (of_int 16) = zero) then ()

@@ -1615,15 +1615,15 @@ v_{n_{next}\%n_{size}} & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv
 v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
 \end{cases}
 
-\mathkw{assign\_lv} \xi lv_1 v = \begin{cases} (\xi[v/x], \mathkw{sig\_continue}) &  lv_1 = @lvalue t x
-\mathkw{assign\_lv} \xi lv_2 (@struct \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \}
-\mathkw{assign\_lv} \xi lv_2 (@header true \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \}
-\mathkw{assign\_lv} \xi lv_2 (\mathkw{header\ union} \{(name_i, @header false ...),...,(name, v)\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header true \{...\}
-\mathkw{assign\_lv} \xi lv_2 (\mathkw{header\ union} \{ \overline{(name, @header false ...)}\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header false \{...\}
-\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
-\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{n_{next}-1}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@last \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
-\mathkw{assign\_lv} \xi lv_2 (n[n1:n2]:=\mathkw{extract\_num} v)_u^w & lv_1 = @lvalue t lv_2[n1:n2] \land \mathkw{value\_of\_lv} \xi lv_2 = n_u^w
-\mathkw{assign\_lv} \xi lv_2 (v_i,...,v_{index}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land 0 \leq \mathkw{extract\_num} v_{index} \lt n_{size}
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_1 \, v = \begin{cases} (\sigma[v/(\xi(x))], \mathkw{sig\_continue}) &  lv_1 = @lvalue t x
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (@struct \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \}
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (@header true \{...,(name, v),...\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \}
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (\mathkw{header\ union} \{(name_i, @header false ...),...,(name, v)\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header true \{...\}
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (\mathkw{header\ union} \{ \overline{(name, @header false ...)}\}) & lv_1 = @lvalue t lv_2.name \land \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \} \land v = @header false \{...\}
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (v_i,...,v_{n_{next}}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (v_i,...,v_{n_{next}-1}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2.@last \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next})
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (n[n1:n2]:=\mathkw{extract\_num} v)_u^w & lv_1 = @lvalue t lv_2[n1:n2] \land \mathkw{value\_of\_lv} \xi lv_2 = n_u^w
+\mathkw{assign\_lv} \, \xi \, \sigma \, lv_2 \, (v_i,...,v_{index}:=v, n_{size}, n_{next}) & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land 0 \leq \mathkw{extract\_num} v_{index} \lt n_{size}
 (\xi, \mathkw{sig\_reject} ``StackOutOfBounds") & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v}, n_{size}, n_{next}) \land (\mathkw{extract\_num} v_{index} \lt 0 \lor \mathkw{extract\_num} v_{index} \geq n_{size})
 \end{cases}
 ~
@@ -2259,11 +2259,11 @@ $<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e2> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e1 = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
-\mathkw{assign\_lv} \xi' lv v = (\xi''', sig)
+<\zeta, \xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+\mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
+\mathkw{assign\_lv} \xi' \sigma'' lv v = (\sigma''', sig)
 ---------------------------------------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e1 := e2> \Downarrow_s <\xi''', \sigma', sig>
+<\zeta, \xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
 ~
 
 ~ Infer
@@ -2636,13 +2636,19 @@ S,D,G \models_{scope} \epsilon,\sigma
 S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
 ~
 
+### Lemma Entailment is Contravariant with respect to State
+~MathPre
+L_0: \forall S,D,G,\xi,\sigma,\sigma',
+\sigma \subseteq \sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi,\sigma'
+~
+
 ### Lemma $\mathkw{lv\_of\_expr}$ Sustains Entailment
 
 TODO: need a good definition for this...
 
 ~MathPre
-L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig, @lvalue t x,
-\mathkw{lv\_of\_expr} \zeta \xi \sigma = (\xi', \sigma', sig, @lvalue t x) \Rightarrow S,D,G \models \xi \Rightarrow S,D,G \models \xi
+L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
+S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- lv : t,\_
 ~
 
 #### Proof
@@ -2664,8 +2670,8 @@ TODO!
 TODO: probably need a better definition for this...
 
 ~MathPre
-L_3: \forall \zeta, \xi_1, \xi_2 \, \sigma, x, t, d, e, \xi_3, S, D, G,
-\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \xi_3 \Rightarrow S,D,G \models \xi_1 \Rightarrow S,D,G \models \xi_2 \Rightarrow S,D,G \models \xi_3[x:t,d]
+L_3: \forall \zeta, \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G,
+S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D,G \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma'
 ~
 TODO...I think this is a malformed proposition...
 
@@ -2676,8 +2682,8 @@ TODO!
 
 ### Lemma Push Sustains Entailment
 ~MathPre
-L_4: \forall S,D,G,\xi,
-S,D,G \models \xi \Rightarrow S,D,G \models @push \xi
+L_4: \forall S,D,G,\xi, \sigma,
+S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @push \xi,\sigma
 ~
 
 #### Proof
@@ -2686,8 +2692,21 @@ TODO!
 
 ### Lemma Pop Sustains Entailment
 ~MathPre
-L_5: \forall S,D,G,\xi,
-S,D,G \models \xi \Rightarrow S,D,G \models @pop \xi
+L_5: \forall S,D,G,\xi,\sigma,
+S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @pop \xi,\sigma
+~
+
+#### Proof
+
+TODO!
+
+### Lemma $\mathkw{assign\_lv}$ Sustains Entailment
+
+Need better definition...
+
+~MathPre
+L_6: \forall S,D,G,\xi,\sigma,lv,v,\sigma',sig,
+S,D,G |- v : t,d \Rightarrow S,D,G |- lv : t,d \Rightarrow \mathkw{assign\_lvalue} \, \xi \, \sigma \, lv \, v = \sigma',sig \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi,\sigma'
 ~
 
 #### Proof
@@ -4107,4 +4126,80 @@ S,D,G,ctx |- s:sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi',
 ~
 
 ### Statement Type Preservation Proof
-TODO
+
+Introducing variables:
+~MathPre
+S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma'
+~
+and assuming hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- s:sig -| G'
+H_1: <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+we wish to prove the goal:
+~MathPre
+S,D,G \models \xi',\sigma'
+~
+We induct on the derivation of:
+~MathPre
+H_1: <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
+~
+We assume freely $s$ is free-variable free.
+
+#### Case Assignment
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- e_l:=e_r:\bot -| G
+H_1: <\zeta, \xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_r : t,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', \mathkw{sig\_continue}, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma'''
+~
+
+By inversion on $H_0$ and $H_1$ we amass hypotheses:
+~MathPre
+H_3: \mathkw{lvalue}(e_l)
+H_4: S,D,G |- e_l: t,\_
+H_5: S,D,G |- e_r: t,\_
+H_6: <\zeta, \xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_7: \mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
+H_8: \mathkw{assign\_lv} \xi' \sigma'' lv v = (\sigma''', sig)
+~
+
+Via the application $I_1 \, H_2 \, H_5 \, H_6$ we obtain hypotheses
+~MathPre
+H_9: S,D,G \models \xi',\sigma'
+H_{10}: S,D,G |- v : t,d
+~
+We may instantiate Lemma 1 as:
+~MathPre
+L_1: S,D,G \models \xi,\sigma' \Rightarrow S,D,G |- e_l : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv) \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- lv : t,\_
+~
+
+TODO: how to prove that $\sigma \subseteq \sigma'$? Should that be part of the theorem statement itself?
+
+Via the application $L_1 \, (L_0 \, (\sigma \subseteq \sigma') \, H_2) \, H_5 \, H_7$ we acquire hypotheses:
+~MathPre
+H_{11}: S,D,G \models \xi'',\sigma''
+H_{12}: S,D,G |- lv : t,\_
+~
+
+We may instantiate Lemma 6 as:
+~MathPre
+L_6: S,D,G |- v : t,d \Rightarrow S,D,G |- lv : t,d \Rightarrow \mathkw{assign\_lvalue} \, \xi' \, \sigma'' \, lv \, v = \sigma''',sig \Rightarrow S,D,G \models \xi',\sigma'' \Rightarrow S,D,G \models \xi',\sigma'''
+~
+
+TODO: how to prove $\sigma' \subseteq \sigma''$?
+
+Via the application $L_6 \, H_{10} \, H_{12} \, H_8 \, (L_0 \, (\sigma' \subseteq \sigma'') \, H_9)$ we obtain hypotheses:
+~MathPre
+H_{13}: S,D,G \models \xi',\sigma'''
+~
+Subgoal $SG$ is thus proven by $H_{13}$.

@@ -1845,7 +1845,7 @@ and header_methods typ =
   | Type.Header { fields; _ } -> fake_fields
   | _ -> []
 
-and type_expression_member_builtin env info typ name : Typed.Type.t =
+and type_expression_member_builtin env (ctx: Typed.ExprContext.t) info typ name : Typed.Type.t =
   let open Typed.Type in
   let fail () =
     raise_unfound_member info (snd name) in
@@ -1858,7 +1858,11 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
         idx_typ
      | "next"
      | "last" ->
-        typ
+        begin match ctx with
+        | ParserState ->
+           typ
+        | _ -> failwith "can only use .last or .next within a parser"
+        end
      | _ -> fail ()
      end
   | _ -> fail ()
@@ -1958,16 +1962,16 @@ and type_expression_member env ctx expr name : Prog.Expression.typed_t =
        let matches (f : field) = f.name = snd name in
        begin match List.find ~f:matches fs with
        | Some field -> field.typ
-       | None -> type_expression_member_builtin env (info expr) expr_typ name
+       | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
        end
     | Extern {methods; _} ->
        let open ExternType in
        let matches m = m.name = snd name in
        begin match List.find ~f:matches methods with
        | Some m -> Type.Function m.typ
-       | None -> type_expression_member_builtin env (info expr) expr_typ name
+       | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
        end
-    | _ -> type_expression_member_builtin env (info expr) expr_typ name
+    | _ -> type_expression_member_builtin env ctx (info expr) expr_typ name
   in
   { expr = ExpressionMember { expr = typed_expr;
                               name = name };
@@ -2154,17 +2158,18 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | ApplyBlock, Control -> true
   | _, Control -> false
   | Function, Extern -> false
-  | Constant, Extern -> false
   | _, Extern -> true
   | ApplyBlock, Table -> true
   | _, Table -> false
   | ApplyBlock, Action -> true
   | Action, Action -> true
+  | TableAction, Action -> true
   | _, Action -> false
   | ParserState, Function -> true
   | ApplyBlock, Function -> true
   | Action, Function -> true
   | Function, Function -> true
+  | DeclLocals, Function -> true
   | _, Function -> false
   | _, Builtin -> true
   end
@@ -2213,7 +2218,10 @@ and type_function_call env ctx call_info func type_args args : Prog.Expression.t
                                             type_args = out_type_args;
                                             args = out_args }
   in
-  { expr = call; typ = typ; dir = Directionless }
+  if call_ok ctx kind
+  then { expr = call; typ = typ; dir = Directionless }
+  else raise_s [%message "call not allowed" ~call_info:(call_info: Info.t)
+         ~ctx:(ctx: ExprContext.t)]
 
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Prog.MethodPrototype.t) =
@@ -3262,7 +3270,7 @@ and type_table_entries env ctx entries key_typs action_map =
 and type_default_action
   env ctx (action_map : (Types.name * (Info.t * Prog.Table.typed_action_ref)) list)
   action_expr : Prog.Table.action_ref =
-  let expr_ctx = ExprContext.of_decl_context ctx in
+  let expr_ctx: Typed.ExprContext.t = TableAction in
   let action_expr_typed = type_expression env expr_ctx action_expr in
   match (snd action_expr_typed).expr with
   | FunctionCall { func = _, {expr = Name action_name; _}; type_args = []; args = args } ->

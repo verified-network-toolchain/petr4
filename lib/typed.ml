@@ -643,9 +643,11 @@ module ExprContext = struct
     | ParserState
     | ApplyBlock
     | DeclLocals
+    | TableAction
     | Action
     | Function
     | Constant
+  [@@deriving sexp,show,yojson]
 
   let of_stmt_context (s: StmtContext.t) : t =
     match s with

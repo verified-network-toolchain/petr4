@@ -261,23 +261,45 @@ end = struct
 end
 
 and FunctionType : sig
+  type kind =
+  | Parser
+  | Control
+  | Extern
+  | Table
+  | Action
+  | Function
+  | Builtin
+  [@@deriving sexp,show,yojson]
+
   type t =
     { type_params: string list;
       parameters: Parameter.t list;
+      kind: kind;
       return: Type.t}
     [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
+  type kind =
+  | Parser
+  | Control
+  | Extern
+  | Table
+  | Action
+  | Function
+  | Builtin
+  [@@deriving sexp,show,yojson]
+
   type t =
     { type_params: string list;
       parameters: Parameter.t list;
+      kind: kind;
       return: Type.t}
     [@@deriving sexp,show,yojson]
 
   let eq
-    { type_params=s1; parameters=p1; return=t1}
-    { type_params=s2; parameters=p2; return=t2} =
+    { type_params=s1; parameters=p1; kind=_; return=t1}
+    { type_params=s2; parameters=p2; kind=_; return=t2} =
     Base.List.equal Base.String.equal s1 s2 &&
     Base.List.equal Parameter.eq p1 p2 &&
     Type.eq t1 t2
@@ -614,4 +636,29 @@ module ParamContext = struct
   type t =
   | Runtime of decl
   | Constructor of decl
+end
+
+module ExprContext = struct
+  type t =
+    | ParserState
+    | ApplyBlock
+    | DeclLocals
+    | TableAction
+    | Action
+    | Function
+    | Constant
+  [@@deriving sexp,show,yojson]
+
+  let of_stmt_context (s: StmtContext.t) : t =
+    match s with
+    | Function _ -> Function
+    | Action -> Action
+    | ParserState -> ParserState
+    | ApplyBlock -> ApplyBlock
+
+  let of_decl_context (d: DeclContext.t) : t =
+    match d with
+    | TopLevel -> Constant
+    | Nested -> DeclLocals
+    | Statement s -> of_stmt_context s
 end

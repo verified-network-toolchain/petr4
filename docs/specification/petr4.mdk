@@ -412,7 +412,7 @@ v_o ::= b // booleans
     | set
     | @error.name
     | @matchkind name
-    | \xi_{closure} \times (\overline{x:t,d}) \Rightarrow blk // functions, actions
+    | \xi_{closure} \otimes (\overline{x:t,d}) \Rightarrow blk // functions, actions
     | @builtin name lv_o
     | @struct \{ \overline{(name, v)} \}
     | @header b \{ \overline{(name, v)} \}
@@ -1457,9 +1457,9 @@ $\mathkw{first\_lvl} \xi$ is the first-level scope of each context in $\xi$ if o
 
 $\xi[z/x]$ is syntactic sugar for $P[z/x]$, $E[z/x]$, or $\Delta[z/x]$ depending on whether
 $z$ is a declaration, value, or type, respectively. Similarly $\xi(x) = z$ is syntactic sugar
-for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, value, or type, respectively.
-$\xi[\overline{v}/\overline{name}]$ means the bindings $(name_i, v_i)$
-are inserted into $\xi$ in the order they appear in $(\overline{name,v})$.
+for $P(x)$, $E(x)$, or $\Delta(x)$ depending on whether $z$ is a declaration, location, or type, respectively.
+$\xi[\overline{\ell}/\overline{name}]$ means the bindings $(name_i, \ell_i)$
+are inserted into $\xi$ in the order they appear in $(\overline{name,\ell_i})$.
 
 $\mathkw{set\_namespace} \xi x$ is $\xi$ with $\upsilon$ set to $x$ and $\mathkw{namespace} \xi$ is $\upsilon$.
 Since $\upsilon$ is a string, the string concatenation operator ^ is used in places.
@@ -1487,6 +1487,26 @@ sig \neq \mathkw{sig\_continue}
 
 ## Helper rules
 
+### Dynamic Memory Allocation and Dereferencing
+
+$ \mathkw{new} \, \xi \, \sigma \, x \, v $ allocates memory for value $v$ and returns an updated state and environment.
+
+~MathPre
+@new \, \xi \, \sigma \, x \, v = \xi', \sigma'
+\text{where}
+\ell \text{ is a fresh location in memory}
+\sigma' = \sigma[v / \ell]
+\xi' = \xi[ \ell / x ]
+~
+
+$ \star \, \xi \, \sigma \, x $ finds the value associated with name $x$.
+
+~MathPre
+\star \, \xi \, \sigma \, x = (\sigma \circ \xi) (x)
+~
+
+NOTE: maybe the composition notation is better so I will just use that for now.
+
 ### Sequences
 Evaluating sequences such as $\overline{e}$ implies the evaluation  is performed
 left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through.
@@ -1506,15 +1526,15 @@ converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant 
 
 ### Copy-In/Copy-Out
 ~ MathPre
-\mathkw{copyin} \xi_{closure} (x:t,d) v = \begin{cases} \xi_{closure} & d = @out
-\xi_{closure}[v/x] & otherwise
+@copyin \, \xi_{closure} \, \sigma \, (x:t,d) \, v = \begin{cases} \xi_{closure},\sigma & d = @out
+@new \, \xi_{closure} \, \sigma \, x \, v & otherwise
 \end{cases}
 ~
 
 ~ MathPre
-\mathkw{copyout} \zeta \xi_{call} \xi_{closure} \sigma (x:t,d) e = \begin{cases} \sigma & d = @in
+@copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \begin{cases} \sigma & d = @in
 \sigma & d = @none \land t \neq @extern ...
-\sigma' & otherwise, \text{where} \mathkw{lv\_of\_expr} \zeta \xi_{call} \sigma e = (\_, \_, \_, lv_o) \land \mathkw{assign\_lv} \xi_{call} lv_o \xi_{closure}(x) = (\sigma', \_)
+\sigma' & otherwise, \text{where} \mathkw{lv\_of\_expr} \, \zeta \, \xi_{call} \, \sigma \, e = (\_, \_, \_, lv_o) \land \mathkw{assign\_lv} \, \xi_{call} \, lv_o \, (\sigma \circ \xi_{closure})(x) = (\sigma', \_)
 \end{cases}
 ~
 
@@ -1722,7 +1742,7 @@ $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, 
 ~ Infer
 x \neq @verify
 -------------------------------------------------------------------------------[Var]
-<\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(x)>
+<\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(x)>
 ~
 
 ~ Infer
@@ -1734,7 +1754,7 @@ x \neq @verify
 ~ Infer
 
 -------------------------------------------------------------------------------[Var-Top]
-<\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, \xi(.x)>
+<\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(.x)>
 ~
 
 ### Accesses
@@ -2004,13 +2024,13 @@ n_{next} \lt 1
 ### Function Calls
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \Rightarrow blk>
+<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \Rightarrow blk>
 <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
-@copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma'', blk> \Downarrow_s <\xi'''', \sigma''', \mathkw{sig\_return\ v}>
-@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+@copyin \, (@push \, \xi_{closure}) \, \sigma'' \, (\overline{x:t,d}) \, \overline{v} = \xi_{closure}',\sigma'''
+<\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>
+@copyout \, \zeta \, \xi'' \, \xi_{closure}'' \, \sigma'''' \, (\overline{x:t,d}) \, \overline{e} = \sigma'''''
 -------------------------------------------------------------------------------[Function-Action]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma''', \mathkw{sig\_continue}, v>
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma''''', \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer

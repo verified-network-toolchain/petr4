@@ -397,6 +397,8 @@ $m_u^n \in \mathbb{Z}_n$
 
 $m_s^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
 
+Locations in memory:  $\ell$
+
 Values
 ~ Begin P4MathGrammar
 v_o ::= b // booleans
@@ -410,7 +412,7 @@ v_o ::= b // booleans
     | set
     | @error.name
     | @matchkind name
-    | (\overline{x:t,d}) \Rightarrow blk // functions, actions
+    | \xi_{closure} \times (\overline{x:t,d}) \Rightarrow blk // functions, actions
     | @builtin name lv_o
     | @struct \{ \overline{(name, v)} \}
     | @header b \{ \overline{(name, v)} \}
@@ -418,7 +420,7 @@ v_o ::= b // booleans
     | (\overline{v}, n_{size}, n_{next}) // stacks
     | name1.name2 // enumfield
     | (name1.name2, v) // senumfield
-    | (loc, name_{object}) // stateful runtime
+    | (\ell, name_{object}) // stateful runtime
     | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
     | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
     | @package \overline{(name, v)}
@@ -1428,7 +1430,7 @@ $\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 $\xi ::= P, E, \Delta, \upsilon$
 
 $P$ is a declaration context representing the program seen so far mapping type names to declarations.
-$E$ is a value context mapping names to values.
+$E$ is a value context mapping names to locations $\ell$ in the state $\sigma$.
 $\Delta$ is the same as defined in the typing contexts.
 $\upsilon$ is a string namespace used for control plane names.
 
@@ -1437,7 +1439,7 @@ $\upsilon$ is a string namespace used for control plane names.
 
 P ::= P, \rho{} | []
 
-\epsilon ::= \epsilon, x=v | []
+\epsilon ::= \epsilon, x=\ell | []
 
 E ::= E, \epsilon{} | []
 
@@ -1504,15 +1506,15 @@ converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant 
 
 ### Copy-In/Copy-Out
 ~ MathPre
-\mathkw{copyin} \xi (x:t,d) v = \begin{cases} \xi & d = @out
-\xi[v/x] & otherwise
+\mathkw{copyin} \xi_{closure} (x:t,d) v = \begin{cases} \xi_{closure} & d = @out
+\xi_{closure}[v/x] & otherwise
 \end{cases}
 ~
 
 ~ MathPre
-\mathkw{copyout} \zeta \xi_1 \xi_2 \sigma (x:t,d) e = \begin{cases} \xi_1 & d = @in
-\xi_1 & d = @none \land t \neq @extern ...
-\xi_1'' & otherwise, \text{where} \mathkw{lv\_of\_expr} \zeta \xi_1 \sigma e = (\xi_1', \sigma', sig, lv_o) \land \mathkw{assign\_lv} \xi_1 lv_o \xi_2(x) = (\xi_1'', sig')
+\mathkw{copyout} \zeta \xi_{call} \xi_{closure} \sigma (x:t,d) e = \begin{cases} \sigma & d = @in
+\sigma & d = @none \land t \neq @extern ...
+\sigma' & otherwise, \text{where} \mathkw{lv\_of\_expr} \zeta \xi_{call} \sigma e = (\_, \_, \_, lv_o) \land \mathkw{assign\_lv} \xi_{call} lv_o \xi_{closure}(x) = (\sigma', \_)
 \end{cases}
 ~
 

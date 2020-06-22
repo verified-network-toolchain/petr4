@@ -336,6 +336,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
     let env = CheckerEnv.insert_type_vars fn.type_params env in
     {type_params = fn.type_params;
      parameters = List.map ~f:(saturate_param env) fn.parameters;
+     kind = fn.kind;
      return = saturate_type env fn.return}
   and saturate_action env (action: ActionType.t) : ActionType.t =
     { data_params = List.map ~f:(saturate_param env) action.data_params;
@@ -1201,7 +1202,7 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | NewType {name; typ} ->
      is_well_formed_type env typ
   (* Polymorphic types *)
-  | Function {type_params=tps; parameters=ps; return=rt} ->
+  | Function {type_params=tps; parameters=ps; return=rt; _} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_param_types_well_formed env ps && is_well_formed_type env rt
   | Constructor {type_params=tps; parameters=ps; return=rt} ->
@@ -1838,7 +1839,7 @@ and type_error_member env ctx name : Prog.Expression.typed_t =
 and header_methods typ =
   let fake_fields: RecordType.field list =
     [{name = "isValid";
-      typ = Function {type_params = []; parameters = []; return = Bool}}]
+      typ = Function {type_params = []; parameters = []; kind = Builtin; return = Bool}}]
   in
   match typ with
   | Type.Header { fields; _ } -> fake_fields
@@ -1865,49 +1866,60 @@ and type_expression_member_builtin env info typ name : Typed.Type.t =
 and type_expression_member_function_builtin env info typ name : Typed.Type.t option =
   let open Typed.Type in
   match typ with
-  | Control { type_params = []; parameters = ps; _ }
+  | Control { type_params = []; parameters = ps; _ } ->
+     begin match snd name with
+     | "apply" ->
+        Some (Function { type_params = [];
+                         parameters = ps;
+                         kind = Control;
+                         return = Void })
+     | _ -> None
+     end
   | Parser { type_params = []; parameters = ps; _ } ->
      begin match snd name with
      | "apply" ->
         Some (Function { type_params = [];
                          parameters = ps;
+                         kind = Parser;
                          return = Void })
      | _ -> None
      end
   | Table { result_typ_name } ->
      begin match snd name with
      | "apply" ->
-        Some (Function { type_params = []; parameters = [];
+        Some (Function { type_params = [];
+                         parameters = [];
+                         kind = Table;
                          return = TypeName (BareName (Info.dummy, result_typ_name)) })
      | _ -> None
      end
   | Struct _ ->
      begin match snd name with
      | "minSizeInBits" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | "minSizeInBytes" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | _ -> None
      end
   | Header _ ->
      begin match snd name with
      | "isValid" ->
-        Some (Function { type_params = []; parameters = []; return = Bool })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Bool })
      | "setValid"
      | "setInvalid" ->
-        Some (Function { type_params = []; parameters = []; return = Void })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Void })
      | "minSizeInBits" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | "minSizeInBytes" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | _ -> None
      end
   | Array { typ; _ } ->
      begin match snd name with
      | "minSizeInBits" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | "minSizeInBytes" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; kind = Builtin; parameters = []; return = Integer })
      | "push_front"
      | "pop_front" ->
         let parameters: Typed.Parameter.t list =
@@ -1916,17 +1928,17 @@ and type_expression_member_function_builtin env info typ name : Typed.Type.t opt
              direction = Directionless;
              annotations = [] }]
         in
-        Some (Function { type_params = []; parameters; return = Void })
+        Some (Function { type_params = []; kind = Builtin; parameters; return = Void })
      | _ -> None
      end
   | HeaderUnion _ ->
      begin match snd name with
      | "isValid" ->
-        Some (Function { type_params = []; parameters = []; return = Bool })
+        Some (Function { type_params = []; parameters = []; kind = Builtin; return = Bool })
      | "minSizeInBits" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; parameters = []; kind = Builtin; return = Integer })
      | "minSizeInBytes" ->
-        Some (Function { type_params = []; parameters = []; return = Integer })
+        Some (Function { type_params = []; parameters = []; kind = Builtin; return = Integer })
      | _ -> None
      end
   | _ -> None
@@ -2135,19 +2147,41 @@ and cast_param_arg env ctx call_info (param, expr: Typed.Parameter.t * Expressio
      then raise_s [%message "could not infer valid type for don't care argument"]
      else param, None
 
+and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
+  begin match ctx, fn_kind with
+  | ParserState, Parser -> true
+  | _, Parser -> false
+  | ApplyBlock, Control -> true
+  | _, Control -> false
+  | Function, Extern -> false
+  | Constant, Extern -> false
+  | _, Extern -> true
+  | ApplyBlock, Table -> true
+  | _, Table -> false
+  | ApplyBlock, Action -> true
+  | Action, Action -> true
+  | _, Action -> false
+  | ParserState, Function -> true
+  | ApplyBlock, Function -> true
+  | Action, Function -> true
+  | Function, Function -> true
+  | _, Function -> false
+  | _, Builtin -> true
+  end
+
 and type_function_call env ctx call_info func type_args args : Prog.Expression.typed_t =
   let open Prog.Expression in
   let func_typed = resolve_function_overload env ctx func args in
   let func_type = (snd func_typed).typ in
-  let type_params, params, return_type =
+  let type_params, params, kind, return_type =
     match func_type with
-    | Function { type_params; parameters; return } ->
-       type_params, parameters, return
+    | Function { type_params; parameters; kind; return } ->
+       type_params, parameters, kind, return
     | Action { data_params; ctrl_params } ->
        let params =
          data_params @ List.map ~f:control_param_as_param ctrl_params
        in
-       [], params, Type.Void
+       [], params, Action, Type.Void
     | _ ->
        raise_s [%message "don't know how to typecheck function call with function"
                    ~fn:(func: Types.Expression.t)
@@ -2958,10 +2992,10 @@ and type_control env info name annotations type_params params constructor_params
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
  *)
 and type_function env (ctx: Typed.StmtContext.t) info return name type_params params body =
-  let paramctx: Typed.ParamContext.decl =
+  let (paramctx: Typed.ParamContext.decl), (kind: Typed.FunctionType.kind) =
     match ctx with
-    | Function _ -> Function
-    | Action -> Action
+    | Function _ -> Function, Function
+    | Action -> Action, Action
     | _ -> failwith "bad context for function"
   in
   let t_params = List.map ~f:snd type_params in
@@ -2985,6 +3019,7 @@ and type_function env (ctx: Typed.StmtContext.t) info return name type_params pa
   let funtype =
     Type.Function { parameters = typ_params;
                     type_params = List.map ~f:snd type_params;
+                    kind;
                     return = return_type } in
   let env = CheckerEnv.insert_type_of (BareName name) funtype env in
   let fn_typed : Prog.Declaration.pre_t =
@@ -3006,6 +3041,7 @@ and type_extern_function env info annotations return name type_params params =
   let typ: Typed.FunctionType.t =
     { type_params = t_params;
       parameters = params;
+      kind = Extern;
       return = return }
   in
   let fn_typed : Prog.Declaration.pre_t =
@@ -3697,12 +3733,14 @@ and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
           name,
           { type_params = [];
             return = TypeName (BareName extern_name);
+            kind = Extern;
             parameters = prog_params_to_typed_params params }
       | AbstractMethod { annotations; return; name; type_params; params }
       | Method { annotations; return; name; type_params; params } ->
           name,
           { type_params = List.map ~f:snd type_params;
             return = return;
+            kind = Extern;
             parameters = prog_params_to_typed_params params }
     in
     { name = snd name;

@@ -673,7 +673,9 @@ module MakeInterpreter (T : Target) = struct
       | SReject _
       | SReturn _
       | SExit     -> (env, st, sign) in
-    List.fold_left block.statements ~init:(env,st,sign) ~f:f
+    block.statements
+    |> List.fold_left ~init:(EvalEnv.push_scope env,st,sign) ~f:f
+    |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
 
   and eval_exit (env : env) (st : state) (sign : signal) : (env * state * signal) =
       match sign with

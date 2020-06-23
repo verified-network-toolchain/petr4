@@ -286,7 +286,7 @@ module MakeInterpreter (T : Target) = struct
     let pre_ks = key |> List.map ~f:snd in
     let ctrl_entries = match List.Assoc.find (fst ctrl) name ~equal:String.(=) with
                        | None -> []
-                       | Some entries -> create_pre_entries env actions entries in
+                       | Some entries -> create_pre_entries env actions key entries in
     let entries' = match entries with
                         | None -> ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in
@@ -364,7 +364,7 @@ module MakeInterpreter (T : Target) = struct
                 typ = Action { data_params = []; ctrl_params = []}}
       | Some action -> action
 
-  and create_pre_entries env actions add =
+  and create_pre_entries env actions key add =
     let rec match_params_to_args (params : TypeParameter.t list) args : (Ast.number * Typed.Type.t) option list =
       match params with
       | p :: params ->
@@ -396,6 +396,7 @@ module MakeInterpreter (T : Target) = struct
                       | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None}) 
                       | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)}) 
                       | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
+                      | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None}) 
                       | _ -> failwith "unsupported type" in
         let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
         let exp = (Info.dummy, typed_exp) in
@@ -405,10 +406,10 @@ module MakeInterpreter (T : Target) = struct
         let typed_exp' : Expression.typed_t = {expr = pre_exp'; typ = Void; dir = Directionless} in
         Some (Info.dummy, typed_exp') end
         else Some exp in
-    let convert_match (name, (num_or_lpm : Ast.number_or_lpm)) : Match.t =
+    let convert_match ((name, (num_or_lpm : Ast.number_or_lpm)), t) : Match.t =
       match num_or_lpm with
       | Num s ->
-        let e = match convert_expression (Some (s, Integer)) with
+        let e = match convert_expression (Some (s, t)) with
                 | Some e -> e
                 | None -> failwith "unreachable" in
         let pre_match = Match.Expression {expr = e} in
@@ -418,6 +419,7 @@ module MakeInterpreter (T : Target) = struct
     let convert_pre_entry (priority, match_list, (action_name, args), id) : Table.pre_entry =
       let action_name' = Types.BareName (Info.dummy, action_name) in
       (*let action_type = EvalEnv.find_typ action_name' env in*)
+      let key_types = List.map key ~f:(fun k -> (snd (snd k).key).typ ) in
       let type_params = EvalEnv.find_decl action_name' env |> assert_action_decl in
       let existing_args = List.fold_left actions
                           ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name'
@@ -431,7 +433,7 @@ module MakeInterpreter (T : Target) = struct
           args = existing_args @ ctrl_args } in
       let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (*type is a hack*)
       { annotations = [];
-        matches = List.map match_list ~f:convert_match;
+        matches = List.map (List.zip_exn match_list key_types) ~f:convert_match;
         action = (Info.dummy, action) } in
     List.map add ~f:convert_pre_entry
 

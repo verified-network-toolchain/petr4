@@ -233,7 +233,7 @@ module PreV1Switch : Target = struct
       typ = Bit{width=9};
     } in
     let (st, _) =
-      assign_lvalue st env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) false in
+      assign_lvalue st env lv (VBit {v = drop_spec; w = Bigint.of_int 9}) in
     env, st, SContinue, VNull
 
   let package_for_hash (st : state) (data : value list) : Bigint.t * Bigint.t =
@@ -574,7 +574,7 @@ module PreV1Switch : Target = struct
         {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                 name="ingress_port"; }; typ = Bit {width = 9}}
         (VBit{w=nine;v=in_port})
-        false in
+        in
     let open Expression in
     let pkt_expr =
       Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "packet"))); dir = InOut; typ = (snd (List.nth_exn params 0)).typ}) in
@@ -593,7 +593,7 @@ module PreV1Switch : Target = struct
       | SReject err -> 
         assign_lvalue st env
           {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (snd (List.nth_exn params 3)).typ;}; name="parser_error"}; typ = Error}
-          (VError(err)) false
+          (VError(err))
         |> fst
       | SContinue -> st
       | _ -> failwith "parser should not exit or return" in
@@ -610,7 +610,7 @@ module PreV1Switch : Target = struct
           env
           {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                   name="checksum_error"; }; typ = Bit {width = 1}}
-          (VBit{v=Bigint.one;w=Bigint.one}) false |> fst
+          (VBit{v=Bigint.one;w=Bigint.one}) |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
     let env, st = (env, st)
       |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
@@ -627,7 +627,7 @@ module PreV1Switch : Target = struct
         {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
                 name="egress_port"; }; typ = Bit {width = 9}}
         egress_spec_val
-        false in
+        in
     let (env, st) =
       (env, st)
       |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23

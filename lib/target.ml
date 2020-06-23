@@ -282,21 +282,21 @@ and value_of_stack_mem_lvalue (st : 'a State.t) (name : string) (ls : value list
   | _ -> failwith "not an lvalue"
 
 let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t) 
-    (env : env) (lhs : lvalue) (rhs : value)
-    (inc_next : bool) : 'a State.t * signal =
+    (env : env) (lhs : lvalue) (rhs : value) : 'a State.t * signal =
   match lhs.lvalue with
   | LName {name} ->
     let l = EvalEnv.find_val name env in
     State.insert_heap l rhs st, SContinue
   | LMember{expr=lv;name=mname;} ->
     let signal1, record = value_of_lvalue reader env st lv in
-    let rhs', signal2 = update_member writer record mname rhs inc_next in
+    let rhs', signal2 = update_member writer record mname rhs in
+    let inc_next = String.equal mname "next" in
     let rhs' = match rhs' with
       | VStack{headers; size; next} -> Bigint.(VStack {headers; size; next = next + (if inc_next then one else zero)})
       | _ -> rhs' in
     begin match signal1, signal2 with
       | SContinue, SContinue ->
-        assign_lvalue reader writer st env lv rhs' inc_next
+        assign_lvalue reader writer st env lv rhs'
       | SContinue, _ -> st, signal2
       | _, _ -> st, signal1
     end
@@ -304,7 +304,7 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     let signal, bits = value_of_lvalue reader env st lv in
     begin match signal with
       | SContinue -> 
-        assign_lvalue reader writer st env lv (update_slice bits msb lsb rhs) inc_next
+        assign_lvalue reader writer st env lv (update_slice bits msb lsb rhs)
       | _ -> st, signal
     end
   | LArrayAccess{expr=lv;idx;} ->
@@ -313,13 +313,13 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     let rhs', signal2 = update_idx arr idx rhs in
     begin match signal1, signal2 with
       | SContinue, SContinue -> 
-        assign_lvalue reader writer st env lv rhs' inc_next
+        assign_lvalue reader writer st env lv rhs'
       | SContinue, _ -> st, signal2
       | _, _ -> st, signal1  
     end
 
 and update_member (writer : 'a writer) (value : value) (fname : string)
-    (fvalue : value) (inc_next : bool) : value * signal =
+    (fvalue : value) : value * signal =
   match value with
   | VStruct v ->
     update_field v.fields fname fvalue, SContinue

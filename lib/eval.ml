@@ -486,7 +486,7 @@ module MakeInterpreter (T : Target) = struct
       let (env', st, s', v) = eval_expr ctrl env st SContinue rhs in
       let (env'', st, s'', lv) = lvalue_of_expr ctrl env st s lhs in
       begin match s',s'', lv with
-        | SContinue, SContinue, Some lv -> let (st, s) = assign_lvalue st env' lv v false in env', st, s
+        | SContinue, SContinue, Some lv -> let (st, s) = assign_lvalue st env' lv v in env', st, s
         | SContinue, _, _               -> env'', st, s''
         | _, _, _                       -> (env', st, s')
       end
@@ -1320,7 +1320,7 @@ module MakeInterpreter (T : Target) = struct
     | None -> st
     | Some expr ->
       let (_, _, _, lv) = lvalue_of_expr ctrl callenv st SContinue expr in
-      let (st, _) = assign_lvalue st callenv (Option.value_exn lv) v inc_next in
+      let (st, _) = assign_lvalue st callenv (Option.value_exn lv) v in
       st
   (*----------------------------------------------------------------------------*)
   (* Built-in Function Evaluation *)
@@ -1363,7 +1363,7 @@ module MakeInterpreter (T : Target) = struct
     match s, v with
     | (SReturn _ | SExit | SReject _), _ -> (env, st, s, VNull)
     | SContinue, VHeader hdr ->
-       let st, signal = assign_lvalue st env lv (VHeader {hdr with is_valid = b}) false in
+       let st, signal = assign_lvalue st env lv (VHeader {hdr with is_valid = b}) in
        (env, st, signal, VBool b)
     | SContinue, _ ->
        failwith "isvalid call is not a header"
@@ -1395,7 +1395,7 @@ module MakeInterpreter (T : Target) = struct
     let v = VStack{headers=hdrs';size;next=y} in
     match s,s' with
     | SContinue, SContinue ->
-      let (st', _) = assign_lvalue st' env lv v false in (env,st', s, VNull)
+      let (st', _) = assign_lvalue st' env lv v in (env,st', s, VNull)
     | SReject _, _ -> (env',st',s,VNull)
     | _, SReject _ -> (env',st',s',VNull)
     | _ -> failwith "unreachble"

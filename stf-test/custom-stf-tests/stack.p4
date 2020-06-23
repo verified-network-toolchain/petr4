@@ -60,31 +60,31 @@ parser MyParser(packet_in packet,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
     state start {
-        hdr.a = init();
-        hdr.b = hdr.a[0];
-        hdr.c = hdr.a[1];
-        hdr.d = hdr.a[2];
-        hdr.e = hdr.a[3];
-        hdr.f = hdr.a[4];
+        hdr.a = init(); //5 invalid headers
+        hdr.b = hdr.a[0]; //one invalid header
+        hdr.c = hdr.a[1]; //one invalid header
+        hdr.d = hdr.a[2]; //one invlaid header
+        hdr.e = hdr.a[3]; //one invalid header
+        hdr.f = hdr.a[4]; //one invalid header
         hdr.g = hdr.a.size; //5
-        hdr.h = hdr.a.next;
-        hdr.i = hdr.a;
-        hdr.i.next = {42, 42};
-        hdr.j = hdr.i.next;
-        hdr.k = set_third(hdr.i);
-        hdr.l = hdr.k[3];
-        hdr.m = push1(hdr.k);
-        hdr.n = hdr.m[0];
-        hdr.o = hdr.m[1];
-        hdr.p = hdr.m[2];
-        hdr.q = hdr.m[3];
-        hdr.r = hdr.m[4];
-        hdr.s = pop2(hdr.m);
-        hdr.t = hdr.s[0];
-        hdr.u = hdr.s[1];
-        hdr.v = hdr.s[2];
-        hdr.w = hdr.s[3];
-        hdr.x = hdr.s[4];
+        hdr.h = hdr.a.next; //one invalid header
+        hdr.i = hdr.a; //copy a into i
+        hdr.i.next = {42, 42}; //set the first header in i to valid and inc next
+        hdr.j = hdr.i.next; //next should be 1; j is invalid
+        hdr.k = set_third(hdr.i); //next of k is 1, copies i and sets the third header
+        hdr.l = hdr.k[3]; // copies the newly init header into l
+        hdr.m = push1(hdr.k); //slide it back once, next is now 2
+        hdr.n = hdr.m[0]; // invalid
+        hdr.o = hdr.m[1]; // valid
+        hdr.p = hdr.m[2]; // invalid
+        hdr.q = hdr.m[3]; // invalid
+        hdr.r = hdr.m[4]; // valid
+        hdr.s = pop2(hdr.m); //slide it back once, next is now 0 again
+        hdr.t = hdr.s[0]; //invalid
+        hdr.u = hdr.s[1]; //invalid
+        hdr.v = hdr.s[2]; //valid
+        hdr.w = hdr.s[3]; //invalid
+        hdr.x = hdr.s[4]; //invalid
         transition accept;
     }
 }
@@ -107,25 +107,26 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
-      packet.emit(hdr.b);
-      packet.emit(hdr.c);
-      packet.emit(hdr.d);
-      packet.emit(hdr.e);
-      packet.emit(hdr.f);
-      packet.emit(hdr.g);
-      packet.emit(hdr.h);
-      packet.emit(hdr.j);
-      packet.emit(hdr.l);
-      packet.emit(hdr.n);
-      packet.emit(hdr.o);
-      packet.emit(hdr.p);
-      packet.emit(hdr.q);
-      packet.emit(hdr.r);
-      packet.emit(hdr.t);
-      packet.emit(hdr.u);
-      packet.emit(hdr.v);
-      packet.emit(hdr.w);
-      packet.emit(hdr.x);
+      packet.emit(hdr.b); //nop
+      packet.emit(hdr.c); //nop
+      packet.emit(hdr.d); //nop
+      packet.emit(hdr.e); //nop
+      packet.emit(hdr.f); //nop
+      packet.emit(hdr.g); //emit 0000 0005
+      packet.emit(hdr.h); //nop
+      packet.emit(hdr.j); //nop
+      packet.emit(hdr.l); //emit 2A2A
+      packet.emit(hdr.n); //nop
+      packet.emit(hdr.o); //emit 2A2A
+      packet.emit(hdr.p); //nop
+      packet.emit(hdr.q); //nop
+      packet.emit(hdr.r); //emit 2A2A
+      packet.emit(hdr.t); //nop
+      packet.emit(hdr.u); //nop
+      packet.emit(hdr.v); //emit 2A2A
+      packet.emit(hdr.w); //nop 
+      packet.emit(hdr.x); //nop
+      //final expected output 0000 0005 2A2A 2A2A 2A2A 2A2A
     }
 }
 

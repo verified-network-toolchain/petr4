@@ -87,7 +87,7 @@ module PreEbpfFilter : Target = struct
           st
           env
           {lvalue = LName {name = accept_name}; typ = Bool}
-          (VBool(false)) false in
+          (VBool(false)) in
       st, env, None
     | SContinue | SExit | SReturn _ ->
       let (env,st,_) = 

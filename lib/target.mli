@@ -70,4 +70,4 @@ val width_of_val : value -> Bigint.t
 
 val value_of_lvalue : 'a reader -> env -> 'a State.t -> lvalue -> signal * value
 
-val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> bool -> 'a State.t * signal
+val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> 'a State.t * signal

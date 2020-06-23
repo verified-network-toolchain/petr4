@@ -187,7 +187,7 @@ P4 Programming Language.
 # Introduction { #sec-introduction }
 # Syntax { #sec-syntax }
 
-## Expressions
+## Expression Syntax
 
 ~ Begin P4MathGrammar
 e ::= @true
@@ -246,7 +246,7 @@ binop ::= +
         | ||
 ~ End P4Grammar
 
-## Statements and blocks
+## Statement and Block Syntax
 ~ Begin P4MathGrammar
 s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
     | e<\overline{t}>(\overline{x=e})   // method calls (named)
@@ -270,7 +270,7 @@ case\_lbl ::= x                // name (of action)
 blk ::= \{ s_1; ... s_n; \} // blocks
 ~ End P4MathGrammar
 
-## Declarations
+## Declaration Syntax
 ~ Begin P4MathGrammar
 decl ::= @const t x:=e
        | t x(\overline{e})
@@ -322,14 +322,14 @@ prop ::= @key = \{ \overline{e:x} \}
 action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
-## Programs
+## Program Syntax
 A program is a sequence of declarations.
 ~ Begin P4MathGrammar
 P ::= decl, P
     | ()
 ~ End P4MathGrammar
 
-## Types
+## Type Syntax
 
 ~ Begin P4MathGrammar
 t ::= @bool
@@ -385,7 +385,7 @@ ctx ::= @InFunction t
       | @InAction
 ~
 
-## Values
+## Value Syntax
 
 $a \in \mathbb{Z}$
 
@@ -441,7 +441,7 @@ set ::=  @universal
     | \mathkw{value\_set} \overline{matches} \overline{set}
 ~ End P4MathGrammar
 
-## L-values
+## L-value Syntax
 ~ Begin P4MathGrammar
 lv_o ::=  @lvalue t x
     | @lvalue t lv.x
@@ -451,7 +451,7 @@ lv_o ::=  @lvalue t x
 lv ::= lv_o | @None
 ~ End P4MathGrammar
 
-## Signals
+## Signal Syntax
 ~ Begin P4MathGrammar
 sig ::= \mathkw{sig\_continue}
     | \mathkw{sig\_return} v
@@ -492,7 +492,7 @@ In all contexts there is a lookup test $C(x) = y$ which searches from
 the outermost list of bindings inward and a top level lookup $C(.x) =
 y$ which only looks at the innermost list of bindings.
 
-## Helper judgments
+## Helper Judgments
 
 ### Numeric types
 ~ MathPre
@@ -503,7 +503,7 @@ false & \text{otherwise}
 \end{cases}
 ~
 
-### Left-values
+### Left-value Judgment
 
 Left-values or lvalues are expressions that can appear on the left
 side of an assignment $e:=e$.  The judgment has the form
@@ -542,7 +542,7 @@ e @lvalue
 e[n1:n2] @lvalue
 ~
 
-## Expression typing
+## Expression Typing
 ### Type Constants
 
 ~ Infer
@@ -676,10 +676,6 @@ S,D,G |- e_2 : @int<w>, d_2
 -----------------------------------------------------------[Int-Signed-Binary-Op]
 S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
 ~
-
-<!--
-having trouble with ^ symbol for xor
--->
 
 ~ Infer
 S,D,G |- e_1 : @bit<w>, d_1
@@ -1003,7 +999,7 @@ S,D,G |- e_2 : \tau, \_
 S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
 
-## Statement typing
+## Statement Typing
 
 Statements are typed by a judgment of the form
 ~ MathPre
@@ -1133,7 +1129,7 @@ each case and across fallthrough cases.
 ~ Infer
 S,D,G |- e : @enum X \{ \overline{m} \}
 \forall i. S,D,G |- \mathkw{case\_ok}_X case_i
---------------------------------------------------------------------------[Type-Stmt-Switch]
+---------------------------------------------------------------------[Type-Stmt-Switch]
 S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
 ~
 
@@ -1148,7 +1144,7 @@ S,D,G |- decl -| S',D',G'.
 S,D,G,ctx |- decl:\bot -| G'
 ~
 
-## Parser state typing
+## Parser-State Typing
 
 Parser states need their own typing judgment to deal with state-machine control flow. It has the form
 ~ MathPre
@@ -1201,7 +1197,7 @@ S,D,G |- \mathkw{match\_ok} t e
 S,D,G |- \mathkw{match\_ok} t \mathkw{\_}
 ~
 
-## Declaration typing
+## Declaration Typing
 
 Declarations are typed by a judgment of the form
 ~ MathPre
@@ -1327,7 +1323,7 @@ S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<
 ~
 
 
-### Header and struct typing
+### Header and Struct Typing
 ~ Infer
 
 -----------------------------------------------------------------------------------[Type-Decl-Header]
@@ -1408,7 +1404,7 @@ D'=D[X=@package<\overline{X}>(\overline{x:t})
 S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
 ~
 
-## Typing of programs
+## Typing of Programs
 Partial programs are checked by a judgment of the form
 ~ MathPre
 S,D,G |- P0 -| S',D',G'.
@@ -1432,11 +1428,11 @@ S,D,G |- decl, P0 -| S'',D'',G''
 
 # Dynamic Semantics { #sec-dynamic }
 
-## Contexts
+## Evaluation Environment and State
 All evaluation rules include
 
 1. $\zeta$, a representation of the control plane
-2. $\xi$, an evaluation context
+2. $\xi$, an evaluation environment
 3. $\sigma$, for maintaining state
 
 The control plane representation contains table entries and value sets. Since
@@ -1503,9 +1499,9 @@ sig \neq \mathkw{sig\_continue}
 ~
 -->
 
-## Helper rules
+## Evaluation Helper Rules
 
-### Dynamic Memory Allocation and Dereferencing
+### Memory Allocation and Dereferencing
 
 $ \mathkw{new} \, \xi \, \sigma \, x \, v $ allocates memory for value $v$ and returns an updated state and environment.
 
@@ -1519,11 +1515,11 @@ $ \mathkw{new} \, \xi \, \sigma \, x \, v $ allocates memory for value $v$ and r
 
 $(\sigma \circ \xi)(x)$ finds the value associated with name $x$.
 
-### Sequences
+### Sequence Evaluation
 Evaluating sequences such as $\overline{e}$ implies the evaluation  is performed
 left-to-right and outputs such as $\xi$, $\sigma$, and $sig$ are threaded through.
 
-### Numeric Values
+### Numeric Value Evaluation
 ~ MathPre
 \mathkw{extract\_num} v = \begin{cases} a & v = a
 a & v = a_u^n
@@ -1531,7 +1527,7 @@ a & v = a_s^n
 \end{cases}
 ~
 
-### Bitslice
+### Bitslice Evaluation
 $\mathkw{bitslice} n_1 n_2 n_3$ is the decimal value obtained from interpreting $n_1$ in its binary representation and
 converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant than bit $n_3$.
 
@@ -1607,7 +1603,7 @@ false & set = v1 .. v2 \land \overline{v} = (v3) \land (v3 \lt v1 \lor v3 \gt v2
 \end{cases}
 ~
 
-### LValues
+### LValue Evaluation
 $e$ has type $\tau$.
 ~ MathPre
 \mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e1 = x
@@ -1695,7 +1691,7 @@ X.x_1 & t_1 = @enum X \{ \overline{x} \}
 ~
 $(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_val} \xi t$.
 
-### Name of type
+### Name of Type
 ~ MathPre
 @nametype t_1 = \begin{cases} X & t_1 = X
 X & t_1 = @newtype X t_2
@@ -1704,14 +1700,14 @@ X & t_1 = @enum X \{\overline{x}\}
 \end{cases}
 ~
 
-## Expressions
+## Expression Evaluation
 
 Expressions are evaluated according to the following big-step relation:
 ~ Center
 $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle$
 ~
 
-### Constants
+### Evaluation of Constants
 
 ~ Infer
 
@@ -1749,7 +1745,7 @@ $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, 
 <\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
 ~
 
-### Variables
+### Evaluation of Variables
 
 ~ Infer
 x \neq @verify
@@ -1769,7 +1765,7 @@ x \neq @verify
 <\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(.x)>
 ~
 
-### Accesses
+### Evaluation of Accessess
 
 ~ Infer
 <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
@@ -1796,7 +1792,7 @@ x \neq @verify
 <\zeta, \xi, \sigma, \{ \overline{name=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{name=v} \}>
 ~
 
-### Unary Operations
+### Unary Operation Evaluation
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
@@ -1805,7 +1801,7 @@ x \neq @verify
 <\zeta, \xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
 ~
 
-### Binary Operations
+### Binary Operation Evaluation
 
 ~ Infer
 <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
@@ -1815,7 +1811,7 @@ x \neq @verify
 <\zeta, \xi, \sigma, e_1 \diamond e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \diamond v_2>
 ~
 
-### Casts
+### Evaluation of Casts
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 -------------------------------------------------------------------------------[Bool-Cast-True]
@@ -1855,7 +1851,7 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 <\zeta, \xi, \sigma, (@newtype X t) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 
-### Member Expressions
+### Member Expression Evaluation
 
 ~ Infer
 \xi(X_1) = @enum X_2 \{\dots,name,\dots\}
@@ -2017,7 +2013,7 @@ n_{next} \lt 1
 ~
 
 
-### Ternary Expression
+### Ternary Expression Evaluation
 
 ~ Infer
 <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
@@ -2033,7 +2029,7 @@ n_{next} \lt 1
 <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 
-### Function Calls
+### Function Call Evaluation
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
@@ -2193,7 +2189,7 @@ $\langle \zeta, \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
-### Nameless Instantiation
+### Nameless Instantiation Evaluation
 
 ~ Infer
 \xi(@nametype t) = @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
@@ -2237,7 +2233,7 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 <\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
 ~
 
-### Set Operations
+### Set Operation Evaluation
 
 ~ Infer
 <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
@@ -2253,7 +2249,7 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 <\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
 ~
 
-## Statements and Blocks
+## Statements and Block Evaluation
 
 Statements are evaluated according to the following big-step relation:
 ~ Center
@@ -2370,9 +2366,9 @@ $<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
-<\zeta, \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, @push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[Switch-Match]
-<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
@@ -2381,7 +2377,7 @@ $<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 <\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
-## Declarations
+## Declaration Evaluation
 
 Declarations are evaluated according to the following big-step relation:
 ~ Center
@@ -2557,7 +2553,7 @@ sig \neq \mathkw{sig\_continue}
 <\zeta, \xi, \sigma, @package X<\overline{X}>(\overline{x:t})> \Downarrow_d <\xi[@package X<\overline{X}>(\overline{x:t})/X], \sigma>
 ~
 
-## Programs
+## Program Evaluation
 
 $r ::= (packet', n_{out\_port}) | \mathkw{None}$
 
@@ -2594,7 +2590,7 @@ $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} 
 
 # Type Soundness
 
-## Context Entailment
+## Environment Entailment
 
 In order to prove type soundness under big-step semantics, we must define a relation
 ~MathPre
@@ -2604,8 +2600,8 @@ where
 ~MathPre
 S,D,G \models \xi,\sigma
 ~
-means that the typing context satisfies the evaluation context.
-Intuitively, a typing context satisfies an evaluation context if all of the variables in the typing context have the same type as their respective values they map to in the evaluation context.
+means that the typing context satisfies the evaluation environment.
+Intuitively, a typing context satisfies an evaluation environment if all of the variables in the typing context have the same type as their respective values they map to in the evaluation environment.
 
 This entailment relation is defined in terms of a sub-relation
 ~MathPre
@@ -4242,6 +4238,35 @@ H_{13}: S,D,G \models \xi',\sigma'''
 ~
 Subgoal $SG$ is thus proven by $H_{13}$.
 
+#### Case Conditional-Reject
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_1: <\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v:@bool,\_
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma'
+~
+By inversion on $H_0$ and $H_1$ we collect hypotheses:
+~MathPre
+H_3: S,D,G |- e:@bool,\_
+H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
+H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
+~
+Through the agency of application $I_1 \, H_2 \, H_3 \, H_6$ we come by hypotheses:
+~MathPre
+H_7: S,D,G \models \xi',\sigma'
+H_8: S,D,G |- v:@bool,\_
+~
+and $H_7$ proves $SG$.
+
 #### Case If-True
 We inherit hypotheses:
 ~MathPre
@@ -4398,3 +4423,135 @@ By the application $L_0 \, (L_8 \, H_4) \, H_2$ we get hypothesis:
 ~MathPre
 H_5: S,D,G \models \xi,\sigma'
 ~
+
+#### Case Exit-Continue
+We have hypotheses:
+~MathPre
+H_0: S,D,G,@InParserState |- @exit:@returns -| G
+H_1: <\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi,\sigma
+~
+$H_2$ proves $SG$.
+
+#### Case Empty
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- \mathkw{;}:\bot -| G
+H_1: <\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi,\sigma
+~
+$H_2$ proves $SG$.
+
+#### Case Return-Void
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @return:@returns -| G
+H_1: <\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi,\sigma
+~
+$H_2$ proves $SG$.
+
+#### Case Return-Value
+We have hypotheses:
+~MathPre
+H_0: S,D,G,@InFunction t |- @return e:@returns -| G
+H_1: <\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t,\_
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma'
+~
+By inversion on $H_0$ and $H_1$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- e : t,\_
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+By virtue of the application $I_1 \, H_2 \, H_3 \, H_4$ we obtain hypotheses:
+~MathPre
+H_5: S,D,G \models \xi',\sigma'
+H_6: S,D,G |- v : t, \_
+~
+and $H_5$ proves $SG$.
+
+#### Case Switch-No-Match
+We have hypotheses:
+~MathPre
+H_0: S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
+H_1: <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma'
+~
+By inversion on hypotheses $H_0$ and $H_1$ we profit hypotheses:
+~MathPre
+H_3: S,D,G |- e : @enum X \{ \overline{m} \}, \_
+H_4: \forall i. S,D,G |- \mathkw{case\_ok}_X case_i
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+H_6: \mathkw{match\_switch\_case} \overline{case} name_2 = None
+~
+By means of application $I_1 \, H_2 \,H_3 \, H_5$ we procure hypotheses:
+~MathPre
+H_7: S,D,G \models \xi',\sigma'
+H_8: S,D,G |- e : @enum X \{ \overline{m} \}, \_
+~
+and $H_7$ proves $SG$.
+
+#### Case Switch-Match
+We have hypotheses:
+~MathPre
+H_0: S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
+H_1: <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma''
+~
+By inversion on $H_0$ and $H_1$ we garner hypotheses:
+~MathPre
+H_3: S,D,G |- e : @enum X \{ \overline{m} \}
+H_4: \forall i. S,D,G |- \mathkw{case\_ok}_X case_i
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+H_6: \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
+H_7: <\zeta, @push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
+~
+TODO: where is $\mathkw{case\_ok}$ defined?
+
+Via application $I_1 \, H_2 \, H_3 \, H_5$ we obtain hypotheses:
+~MathPre
+H_8: S,D,G \models \xi',\sigma'
+H_9: S,D,G |- v : @enum X \{ \overline{m} \}, \_
+~
+
+As a result of application $L_0 \, (L_8 \, H_7) \, H_8$ we secure hypothesis:
+~MathPre
+H_{10}: S,D,G \models \xi',\sigma''
+~
+and $H_{10}$ proves $SG$.

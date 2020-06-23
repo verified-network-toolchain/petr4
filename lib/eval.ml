@@ -393,10 +393,10 @@ module MakeInterpreter (T : Target) = struct
       | Some (s, t) ->
         let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
         let pre_exp = match t with
-                      | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None}) 
-                      | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)}) 
+                      | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None})
+                      | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)})
                       | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
-                      | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None}) 
+                      | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
                       | _ -> failwith "unsupported type" in
         let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
         let exp = (Info.dummy, typed_exp) in
@@ -649,14 +649,14 @@ module MakeInterpreter (T : Target) = struct
           | VBool true  ->
             tru
             |> eval_stmt ctrl (EvalEnv.push_scope env') st' SContinue
-            |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
+            |> Tuple.T3.map_fst ~f:(fun _ -> env')
           | VBool false ->
             begin match fls with
               | None -> (env', st', SContinue)
               | Some fls' ->
                 fls'
                 |> eval_stmt ctrl (EvalEnv.push_scope env') st' SContinue
-                |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
+                |> Tuple.T3.map_fst ~f:(fun _ -> env')
             end
           | _ -> failwith "conditional guard must be a bool" end
       | _ -> failwith "unreachable" in
@@ -677,7 +677,7 @@ module MakeInterpreter (T : Target) = struct
       | SExit     -> (env, st, sign) in
     block.statements
     |> List.fold_left ~init:(EvalEnv.push_scope env,st,sign) ~f:f
-    |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
+    |> Tuple.T3.map_fst ~f:(fun _ -> env)
 
   and eval_exit (env : env) (st : state) (sign : signal) : (env * state * signal) =
       match sign with

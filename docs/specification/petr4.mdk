@@ -1071,7 +1071,7 @@ S,D,G,ctx |- s;\overline{s}:sig_1 \vee sig_2 -| G
 
 ~ Infer
 S,D,G,ctx |- \overline{s}:sig -| G'
----------------------------------------------------[Type-Stmt-Block]
+---------------------------------------[Type-Stmt-Block]
 S,D,G,ctx |- \{\overline{s}\}:sig -| G
 ~
 
@@ -2304,37 +2304,36 @@ $<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ------------------------------------------------------------------------------[If-True]
-<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <@pop \xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ------------------------------------------------------------------------------[If-False]
 <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s  <\xi', \sigma', \mathkw{sig\_continue}>
 ~
-TODO: why is it not the updated env and st
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
-<\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+<\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-True]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <@pop \xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
-<\zeta, @push \xi', \sigma', s2> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+<\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-False]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <@pop \xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
--------------------------------------------------------------------------------------[Block]
-<\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', sig>
+<\zeta, @push \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
+--------------------------------------------------------------------------[Block]
+<\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi, \sigma', sig>
 ~
 
 ~ Infer
@@ -2656,7 +2655,7 @@ TODO: need a good definition for this...
 
 ~MathPre
 L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
-S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- lv : t,\_
+S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow S,D,G \models \xi',\sigma' \wedge \sigma \subseteq \sigma' \wedge S,D,G |- lv : t,\_
 ~
 
 #### Proof
@@ -2666,7 +2665,7 @@ TODO!
 ### Lemma Copyin Sustains Entailment
 ~MathPre
 L_2: \forall \xi,x,t,d,v,\xi',S,D,G,\sigma,\sigma'
-S,D,G |- v : t, d \Rightarrow @copyin \, \xi \, \sigma (x:t,d) v = \xi',\sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t,d] \models \xi',\sigma'
+S,D,G |- v : t, d \Rightarrow @copyin \, \xi \, \sigma (x:t,d) v = \xi',\sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t,d] \models \xi',\sigma' \wedge \sigma \subseteq \sigma'
 ~
 
 #### Proof
@@ -2679,7 +2678,7 @@ TODO: probably need a better definition for this...
 
 ~MathPre
 L_3: \forall \zeta, \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G,
-S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D,G \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma'
+S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D,G \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma' \wedge \sigma \subseteq \sigma'
 ~
 TODO...I think this is a malformed proposition...
 
@@ -2718,6 +2717,41 @@ S,D,G |- v : t,d \Rightarrow S,D,G |- lv : t,d \Rightarrow \mathkw{assign\_lvalu
 ~
 
 #### Proof
+
+TODO!
+
+### Lemmas: State is Monotonic
+
+These are (sketckily) used to prove statement type preservation.
+
+#### Expression Monotonicity
+~MathPre
+L_7:\forall \zeta,\xi,\sigma,e,\xi',\sigma',sig,v
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow \sigma \subseteq \sigma'
+~
+
+##### Proof
+
+TODO!
+
+#### Corollary: $\mathkw{lv\_of\_expr}$ is Monotonic
+~MathPre
+C_1: \forall \xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
+\mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow \sigma \subseteq \sigma'
+~
+
+##### Proof
+
+TODO!
+
+#### Statement Monotonicity
+~MathPre
+L_8: \zeta,\xi,\sigma,s,\xi',\sigma',sig,
+<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow \sigma \subseteq \sigma'
+~
+
+#### Proof
+
 
 TODO!
 
@@ -4191,9 +4225,7 @@ We may instantiate Lemma 1 as:
 L_1: S,D,G \models \xi,\sigma' \Rightarrow S,D,G |- e_l : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv) \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- lv : t,\_
 ~
 
-TODO: how to prove that $\sigma \subseteq \sigma'$? Should that be part of the theorem statement itself?
-
-Via the application $L_1 \, (L_0 \, (\sigma \subseteq \sigma') \, H_2) \, H_5 \, H_7$ we acquire hypotheses:
+Via the application $L_1 \, (L_0 \, (L_7 \, H_6) \, H_2) \, H_4 \, H_7$ we acquire hypotheses:
 ~MathPre
 H_{11}: S,D,G \models \xi'',\sigma''
 H_{12}: S,D,G |- lv : t,\_
@@ -4204,9 +4236,7 @@ We may instantiate Lemma 6 as:
 L_6: S,D,G |- v : t,d \Rightarrow S,D,G |- lv : t,d \Rightarrow \mathkw{assign\_lvalue} \, \xi' \, \sigma'' \, lv \, v = \sigma''',sig \Rightarrow S,D,G \models \xi',\sigma'' \Rightarrow S,D,G \models \xi',\sigma'''
 ~
 
-TODO: how to prove $\sigma' \subseteq \sigma''$?
-
-Via the application $L_6 \, H_{10} \, H_{12} \, H_8 \, (L_0 \, (\sigma' \subseteq \sigma'') \, H_9)$ we obtain hypotheses:
+Via the application $L_6 \, H_{10} \, H_{12} \, H_8 \, (L_0 \, (C_1 \, H_7) \, H_9)$ we obtain hypotheses:
 ~MathPre
 H_{13}: S,D,G \models \xi',\sigma'''
 ~
@@ -4216,17 +4246,17 @@ Subgoal $SG$ is thus proven by $H_{13}$.
 We inherit hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s :\bot -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <@pop \xi'', \sigma'', sig>
+H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bool,\_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @true \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
 I_2: S,D,G,ctx |- s:\bot -| G' \Rightarrow <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models @push \xi',\sigma' \Rightarrow S,D,G' \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
-SG: S,D,G \models \xi'',\sigma''
+SG: S,D,G \models \xi',\sigma''
 ~
 By inversion on $H_0$ and $H_1$ we obtain hypotheses:
 ~MathPre
@@ -4238,21 +4268,133 @@ H_6: <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 Under the aegis of application $I_1 \, H_2 \, H_3 \, H_5$ we get hypotheses:
 ~MathPre
 H_7: S,D,G \models \xi',\sigma'
-H_8: S,D,G |- v : @bool,\_
+H_8: S,D,G |- @true : @bool,\_
 ~
+By the application $L_0 \, (L_8 \, H_6)$ we acquire hypothesis:
+~MathPre
+H_9: S,D,G \models \xi',\sigma''
+~
+and by $H_9$ subgoal $SG$ is proven.
 
-TODO: Stuck...scoping issue maybe...
+#### Case If-False
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @if (e) s :\bot -| G
+H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @false \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
+~
+We wish to prove:
+~MathPre
+SG: S,D,G \models \xi',\sigma'
+~
+By inversion on hypotheses $H_0$ and $H_1$ we inherit hypotheses:
+~MathPre
+H_3: S,D,G |- e:@bool,\_
+H_4: S,D,G,ctx |- s:sig -| G'
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+~
+Via application $I_1 \, H_2 \, H_3 \, H_5$ we obtain hypotheses:
+~MathPre
+H_6: S,D,G \models \xi',\sigma'
+H_7: S,D,G |- @false : @bool,\_
+~
+and by $H_6$ we prove $SG$.
 
+#### Case If-Else-True
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
+I_2: S,D,G,ctx |- s_1:sig_1 -| G_1 \Rightarrow <\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_1 \models \xi'',\sigma''
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma''
+~
+By inversion on $H_0$ and $H_1$ we amass hypotheses:
+~MathPre
+H_3: S,D,G |- e:@bool,\_
+H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
+H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+H_7: <\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
+~
+Via the application $I_1 \, H_2 \, H_3 \, H_6$ we acquire hypotheses:
+~MathPre
+H_8: S,D,G \models \xi',\sigma'
+H_9: S,D,G |- @true : @bool, \_
+~
+By the application $L_0 \, (L_8 \, H_7) \, H_8$ we get hypothesis:
+~MathPre
+H_{10}: S,D,G \models \xi',\sigma''
+~
+and $H_{10}$ proves $SG$.
 
+#### Case If-Else-False
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
+I_2: S,D,G,ctx |- s_2:sig_2 -| G_2 \Rightarrow <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_2 \models \xi'',\sigma''
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi',\sigma''
+~
+By inversion on $H_0$ and $H_1$ we amass hypotheses:
+~MathPre
+H_3: S,D,G |- e:@bool,\_
+H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
+H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+H_7: <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
+~
+Via the application $I_1 \, H_2 \, H_3 \, H_6$ we acquire hypotheses:
+~MathPre
+H_8: S,D,G \models \xi',\sigma'
+H_9: S,D,G |- @true : @bool, \_
+~
+By the application $L_0 \, (L_8 \, H_7) \, H_8$ we get hypothesis:
+~MathPre
+H_{10}: S,D,G \models \xi',\sigma''
+~
+and $H_{10}$ proves $SG$.
 
-
-
-
-
-
-
-
-
-
-
-blip
+#### Case Block
+We have hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- \{\overline{s}\}:sig -| G
+H_1: <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: <\zeta, \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi',\sigma'
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi,\sigma'
+~
+By inversion on $H_0$ and $H_1$ we assemble hypotheses:
+~MathPre
+H_3: S,D,G,ctx |- \overline{s}:sig -| G'
+H_4: <\zeta, \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
+~
+By the application $L_0 \, (L_8 \, H_4) \, H_2$ we get hypothesis:
+~MathPre
+H_5: S,D,G \models \xi,\sigma'
+~

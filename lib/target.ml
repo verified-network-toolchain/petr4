@@ -242,32 +242,8 @@ let rec implicit_cast_from_rawint (env : env) (v : value) (t : Type.t) : value =
       end
   | _ -> v
 
-let rec implicit_cast_from_tuple (env : env) (v : value) (t : Type.t) : value =
-  match v with
-  | VTuple l -> let open RecordType in
-    begin match t with
-      | Struct rt -> 
-        let vs = rt.fields
-          |> fun x -> List.zip_exn x l
-          |> List.map ~f:(fun (f,v) -> f, implicit_cast_from_tuple env v f.typ) in
-        let fs = vs
-          |> List.map ~f:(fun (f,v) -> f.name, implicit_cast_from_rawint env v f.typ) in
-        VStruct {fields = fs}
-      | Header rt ->
-        let vs = rt.fields
-          |> fun x -> List.zip_exn x l
-          |> List.map ~f:(fun (f,v) -> f, implicit_cast_from_tuple env v f.typ) in
-        let fs = vs
-          |> List.map ~f:(fun (f,v) -> f.name, implicit_cast_from_rawint env v f.typ) in
-        VHeader {fields = fs; is_valid = true}
-      | TypeName n -> implicit_cast_from_tuple env v (EvalEnv.find_typ n env)
-      | _ -> VTuple l end
-  | VRecord r -> failwith "TODO"
-  | _ -> v
-
 let implicit_cast env value tgt_typ =
   match value with
-  | VTuple l -> implicit_cast_from_tuple env value tgt_typ
   | VInteger n -> implicit_cast_from_rawint env value tgt_typ
   | _ -> value
 
@@ -324,7 +300,8 @@ and value_of_stack_mem_lvalue (st : 'a State.t) (name : string) (ls : value list
 let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t) 
     (env : env) (lhs : lvalue) (rhs : value)
     (inc_next : bool) : 'a State.t * signal =
-  let rhs = implicit_cast env rhs lhs.typ in
+  (* let rhs = implicit_cast env rhs lhs.typ in *)
+  (* TODO: @axu this is the line that causes the regression *)
   match lhs.lvalue with
   | LName {name} ->
     let l = EvalEnv.find_val name env in

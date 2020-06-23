@@ -68,10 +68,6 @@ val init_val_of_typ : env -> Type.t -> value
 
 val width_of_val : value -> Bigint.t
 
-val implicit_cast_from_rawint : env -> value -> Type.t -> value
-
-val implicit_cast_from_tuple : env -> value -> Type.t -> value
-
 val implicit_cast : env -> value -> Type.t -> value
 
 val value_of_lvalue : 'a reader -> env -> 'a State.t -> lvalue -> signal * value

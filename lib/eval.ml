@@ -198,7 +198,6 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
-    let v = implicit_cast env v typ in
     let l = State.fresh_loc () in
     let st = State.insert_heap l v st in
     EvalEnv.insert_val_bare name l env, st
@@ -248,7 +247,6 @@ module MakeInterpreter (T : Target) = struct
       let env, st, signal, init_val = eval_expr ctrl env st SContinue e in
       match signal with
       | SContinue ->
-         let init_val = implicit_cast env init_val typ in
          let st = State.insert_heap l init_val st in
          EvalEnv.insert_val_bare name l env, st, SContinue
       | signal -> env, st, signal
@@ -922,9 +920,8 @@ module MakeInterpreter (T : Target) = struct
        let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
        let expr = find_exn ms' name in
        let (env',st',s,v) = eval_expr ctrl env st SContinue expr in
-       let v' = implicit_cast_from_rawint env' v typ in
        begin match s with
-       | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v=v'})
+       | SContinue -> (env',st',s,VSenumField{typ_name=n;enum_name=name;v})
        | SReject _ -> (env',st',s,VNull)
        | _ -> failwith "unreachable" end
     | _ -> failwith "typ mem undefined"
@@ -1060,9 +1057,7 @@ module MakeInterpreter (T : Target) = struct
     let (env'', st'', s', v2) = eval_expr ctrl env' st' SContinue m in
     match (s,s') with
     | SContinue, SContinue ->
-      let v1' = implicit_cast env v1 (snd e).typ in
-      let v2' = implicit_cast env v2 (snd m).typ in
-      (env'', st'', s, VSet(SMask{v=v1';mask=v2'}))
+      (env'', st'', s, VSet(SMask{v=v1;mask=v2}))
     | SReject _,_ -> (env',st',s,VNull)
     | _,SReject _ -> (env'',st'',s',VNull)
     | _ -> failwith "unreachable"
@@ -1647,11 +1642,7 @@ module MakeInterpreter (T : Target) = struct
       | Struct s ->  s.fields
       | _ -> failwith "not a struct" in
     let ns = List.map fs ~f:(fun x -> x.name) in
-    let ts = List.map fs ~f:(fun x -> x.typ) in
-    let l = l
-      |> List.mapi ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i))
-      |> List.mapi ~f:(fun i v -> implicit_cast_from_tuple env v (List.nth_exn ts i))
-      |> List.mapi ~f:(fun i v -> (List.nth_exn ns i, v)) in
+    let l = List.mapi l ~f:(fun i v -> (List.nth_exn ns i, v)) in
     st, VStruct{fields=l}
 
   and header_of_list (ctrl : ctrl) (env : env) (st : state) (t : Type.t)
@@ -1660,10 +1651,8 @@ module MakeInterpreter (T : Target) = struct
       | Header h -> h.fields
       | _ -> failwith "not a header" in
     let ns = List.map fs ~f:(fun x -> x.name) in
-    let ts = List.map fs ~f:(fun x -> x.typ) in
-    let l' = List.mapi l ~f:(fun i v -> implicit_cast_from_rawint env v (List.nth_exn ts i)) in
-    let l'' = List.mapi l' ~f:(fun i v -> (List.nth_exn ns i, v)) in
-    st, VHeader{fields=l'';is_valid=true}
+    let l = List.mapi l ~f:(fun i v -> (List.nth_exn ns i, v)) in
+    st, VHeader{fields=l;is_valid=true}
 
   and label_matches_string (s : string) (case : Statement.pre_switch_case) : bool =
     match case with

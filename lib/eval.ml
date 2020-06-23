@@ -640,11 +640,18 @@ module MakeInterpreter (T : Target) = struct
       | SReject _ -> (env', st', s')
       | SContinue ->
         begin match v with
-          | VBool true  -> eval_stmt ctrl env' st' SContinue tru
+          | VBool true  ->
+            tru
+            |> eval_stmt ctrl (EvalEnv.push_scope env') st' SContinue
+            |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
           | VBool false ->
             begin match fls with
-              | None -> (env, st, SContinue)
-              | Some fls' -> eval_stmt ctrl env' st' SContinue fls'  end
+              | None -> (env', st', SContinue)
+              | Some fls' ->
+                fls'
+                |> eval_stmt ctrl (EvalEnv.push_scope env') st' SContinue
+                |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
+            end
           | _ -> failwith "conditional guard must be a bool" end
       | _ -> failwith "unreachable" in
     match sign with

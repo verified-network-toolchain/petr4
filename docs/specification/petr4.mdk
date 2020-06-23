@@ -1036,11 +1036,19 @@ The $\wedge{}$ operator is $\mathkw{returns}$ if both of its arguments
 are $\mathkw{returns}$ and $\bot$ otherwise. The $\vee{}$ operator is
 $\mathkw{returns}$ if any of its arguments are $\mathkw{returns}$
 and $\bot$ otherwise.
+
+~ Infer
+S,D,G |- e:@bool,\_
+S,D,G,ctx |- s:sig -| G'
+----------------------------------[Type-Stmt-If]
+S,D,G,ctx |- @if (e) s :\bot -| G
+~
+
 ~ Infer
 S,D,G |- e:@bool
 S,D,G,ctx |- s_1:sig_1 -| G_1
 S,D,G,ctx |- s_2:sig_2 -| G_2
-----------------------------------------------[Type-Stmt-Conditional]
+----------------------------------------------[Type-Stmt-If-Else]
 S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
 ~
 
@@ -2297,30 +2305,30 @@ $<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
-<\zeta, \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ------------------------------------------------------------------------------[If-True]
-<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <@pop \xi'', \sigma'', sig>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
 ------------------------------------------------------------------------------[If-False]
-<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s  <\xi, \sigma, \mathkw{sig\_continue}>
+<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s  <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 TODO: why is it not the updated env and st
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
-<\zeta, \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-True]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <@pop \xi'', \sigma'', sig>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
-<\zeta, \xi', \sigma', s2> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, @push \xi', \sigma', s2> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-False]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi'', \sigma'', sig>
+<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <@pop \xi'', \sigma'', sig>
 ~
 
 ~ Infer
@@ -4203,3 +4211,48 @@ Via the application $L_6 \, H_{10} \, H_{12} \, H_8 \, (L_0 \, (\sigma' \subsete
 H_{13}: S,D,G \models \xi',\sigma'''
 ~
 Subgoal $SG$ is thus proven by $H_{13}$.
+
+#### Case If-True
+We inherit hypotheses:
+~MathPre
+H_0: S,D,G,ctx |- @if (e) s :\bot -| G
+H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <@pop \xi'', \sigma'', sig>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypotheses:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bool,\_
+I_2: S,D,G,ctx |- s:\bot -| G' \Rightarrow <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models @push \xi',\sigma' \Rightarrow S,D,G' \models \xi'',\sigma''
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi'',\sigma''
+~
+By inversion on $H_0$ and $H_1$ we obtain hypotheses:
+~MathPre
+H_3: S,D,G |- e:@bool,\_
+H_4: S,D,G,ctx |- s:sig -| G'
+H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+H_6: <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
+~
+Under the aegis of application $I_1 \, H_2 \, H_3 \, H_5$ we get hypotheses:
+~MathPre
+H_7: S,D,G \models \xi',\sigma'
+H_8: S,D,G |- v : @bool,\_
+~
+
+TODO: Stuck...scoping issue maybe...
+
+
+
+
+
+
+
+
+
+
+
+
+
+blip

@@ -387,4 +387,13 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
                    | VTuple v -> VTuple v
                    | _ -> failwith "cannot cast"
                    end
-  | _ -> failwith "type cast unimplemented"
+  | Set t ->
+     begin match value with
+     | VSet v -> VSet v
+     | VSenumField {v = VBit {w; v}; _}
+     | VSenumField {v = VInt {w; v}; _}
+     | VInt {w; v}
+     | VBit {w; v} -> VSet (SSingleton {w; v})
+     |_ -> raise_s [%message "cannot cast" ~value:(value:V.value) ~t:(t:Typed.Type.t)]
+     end
+  | _ -> raise_s [%message "cast unimplemented" ~value:(value:V.value) ~t:(new_type:Typed.Type.t)]

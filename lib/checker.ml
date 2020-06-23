@@ -903,7 +903,9 @@ and add_cast env expr typ =
 and cast_if_needed env (expr: Prog.Expression.t) typ =
   if type_equality env [] (snd expr).typ typ
   then expr
-  else add_cast env expr typ
+  else match typ with
+       | Set elt_typ -> add_cast env (cast_if_needed env expr elt_typ) typ 
+       | typ -> add_cast env expr typ
 
 and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expression.t) (exp2: Expression.t) =
   let exp1 = type_expression env ctx exp1 in
@@ -922,13 +924,13 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
   let module E = Prog.Expression in
   let typ = reduce_type env typ in
   match exp with
-  | True
-  | False
   | String _
   | Cast _ ->
      let exp_typed = type_expression env ctx (exp_info, exp) in
      assert_type_equality env exp_info typ (snd exp_typed).typ;
      exp_typed
+  | True
+  | False
   | Int _
   | Name _
   | ArrayAccess _
@@ -945,7 +947,7 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
      let exp_typed = type_expression env ctx (exp_info, exp) in
      cast_if_needed env exp_typed typ
   | List { values } ->
-     let types =
+     let rec get_types (typ: Typed.Type.t) =
        match typ with
        | Tuple { types }
        | List { types } ->
@@ -953,8 +955,11 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
        | Header { fields }
        | Struct { fields } ->
           List.map ~f:(fun f -> f.typ) fields
+       | Set t ->
+          get_types t
        | _ -> failwith "cannot cast a list expression to this type"
      in
+     let types = get_types typ in
      let values_casted =
        List.zip_exn types values
        |> List.map ~f:(fun (t, v) -> cast_expression env ctx t v)
@@ -1029,7 +1034,10 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
   | Mask { expr; mask } ->
      let elt_width =
        match reduce_type env typ with
-       | Set (Bit {width}) -> width
+       | Set (Bit {width})
+       | Set (NewType {typ = Bit {width}; _})
+       | Set (Enum {typ = Some (Bit {width}); _}) ->
+          width
        | _ -> failwith "must be a set of bit<w>"
      in
      let elt_type = Typed.Type.Bit {width = elt_width} in
@@ -1767,6 +1775,11 @@ and cast_ok ?(explicit = false) env original_type new_type =
   let new_type = saturate_type env new_type in
   let open Typed.Type in
   match original_type, new_type with
+  | Set t1, Set t2 ->
+     type_equality env [] t1 t2
+  | t1, Set t2 ->
+     not explicit &&
+     type_equality env [] t1 t2
   | Bit { width = 1 }, Bool
   | Bool, Bit { width = 1 }
   | Int _, Bit _
@@ -1778,6 +1791,7 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | Integer, Bit { width = _ }
   | Integer, Int { width = _ } ->
      true
+  | Enum { name; typ = Some t; members }, Enum {typ = Some t'; _}
   | Enum { name; typ = Some t; members }, t'
   | t', Enum { name; typ = Some t; members } ->
      type_equality env [] t t'
@@ -2820,14 +2834,6 @@ and infer_constructor_type_args env ctx type_params params_args type_args =
   in
   infer_type_arguments env ctx Typed.Type.Void type_params_args inference_params_args []
 
-and type_set_expression env ctx (expr: Types.Expression.t) =
-  let (info, e_typed) = type_expression env ctx expr in
-  match e_typed.typ with
-  | Set t ->
-     info, e_typed
-  | non_set_type ->
-     info, {e_typed with typ = Set non_set_type}
-
 (* Terrible hack - Ryan *)
 and check_match_type_eq env info set_type element_type =
   let open Typed.Type in
@@ -2848,7 +2854,7 @@ and check_match env ctx (info, m: Types.Match.t) (expected_type: Type.t) : Prog.
      let set = Type.Set expected_type in
      info, { expr = DontCare; typ = set }
   | Expression { expr } ->
-     let expr_typed = type_set_expression env ctx expr in
+     let expr_typed = cast_expression env ctx (Set expected_type) expr in
      let typ = (snd expr_typed).typ in
      check_match_type_eq env info typ expected_type;
      info, { expr = Expression {expr = expr_typed};

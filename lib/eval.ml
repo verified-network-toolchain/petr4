@@ -365,12 +365,12 @@ module MakeInterpreter (T : Target) = struct
       | Some action -> action
 
   and create_pre_entries env actions add =
-    let rec match_params_to_args (params : TypeParameter.t list) args : Ast.number option list =
+    let rec match_params_to_args (params : TypeParameter.t list) args : (Ast.number * Typed.Type.t) option list =
       match params with
       | p :: params ->
         let right_arg (name, value) =
           if snd (snd p).variable = name
-          then Some value
+          then Some (value, (snd p).typ)
           else None
         in
         let maybe_arg_for_p, other_args =
@@ -387,13 +387,17 @@ module MakeInterpreter (T : Target) = struct
         | a :: rest -> failwith "too many arguments supplied" in
     let replace_wildcard s =
       String.map s ~f:(fun c -> if c = '*' then '0' else c) in
-    let convert_expression (s : string option) : Expression.t option =
+    let convert_expression (s : (Ast.number * Typed.Type.t) option) : Expression.t option =
       match s with
       | None -> None
-      | Some s ->
+      | Some (s, t) ->
         let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
-        let pre_exp = Expression.Int (Info.dummy, {value = num; width_signed = None}) in
-        let typed_exp : Expression.typed_t = {expr = pre_exp; typ = Integer; dir = Directionless} in
+        let pre_exp = match t with
+                      | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None}) 
+                      | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)}) 
+                      | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
+                      | _ -> failwith "unsupported type" in
+        let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
         let exp = (Info.dummy, typed_exp) in
         if String.contains s '*'
         then begin
@@ -404,7 +408,7 @@ module MakeInterpreter (T : Target) = struct
     let convert_match (name, (num_or_lpm : Ast.number_or_lpm)) : Match.t =
       match num_or_lpm with
       | Num s ->
-        let e = match convert_expression (Some s) with
+        let e = match convert_expression (Some (s, Integer)) with
                 | Some e -> e
                 | None -> failwith "unreachable" in
         let pre_match = Match.Expression {expr = e} in

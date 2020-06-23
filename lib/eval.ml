@@ -1551,16 +1551,9 @@ module MakeInterpreter (T : Target) = struct
 
   and values_match_mask (st : state) (vs : value list) (v1 : value)
       (v2 : value) : bool =
-    let implicit_cast v n =
-      implicit_cast EvalEnv.empty_eval_env v (Bit {width = n |> Bigint.to_int_exn}) in
     let two = Bigint.(one + one) in
     let v = assert_singleton vs in
-    let (a,b,c) = match v, v1, v2 with
-      | VBit{w;_}, _, _ -> v, implicit_cast v1 w, implicit_cast v2 w
-      | _, VBit{w;_}, _ -> implicit_cast v w, v1, implicit_cast v2 w
-      | _, _, VBit{w;_} -> implicit_cast v w, implicit_cast v1 w, v2
-      | _ -> failwith "unable to infer type of mask" in
-    let (a,b,c) = assert_bit a, assert_bit b, assert_bit c in
+    let (a,b,c) = assert_bit v, assert_bit v1, assert_bit v2 in
     let rec h (w0,b0) (w1,b1) (w2,b2) =
       if not (Bigint.(w0 = w1) && Bigint.(w1 = w2))
       then false

@@ -231,22 +231,6 @@ let rec width_of_val v =
   | VUnion _ -> failwith "width of header union unimplemented"
   | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]
 
-let rec implicit_cast_from_rawint (env : env) (v : value) (t : Type.t) : value =
-  match v with
-  | VInteger n ->
-    begin match t with
-      | Int {width} -> int_of_rawint n (Bigint.of_int width)
-      | Bit {width} -> bit_of_rawint n (Bigint.of_int width)
-      | TypeName n -> implicit_cast_from_rawint env v (EvalEnv.find_typ n env)
-      | _ -> v
-      end
-  | _ -> v
-
-let implicit_cast env value tgt_typ =
-  match value with
-  | VInteger n -> implicit_cast_from_rawint env value tgt_typ
-  | _ -> value
-
 let rec value_of_lvalue (reader : 'a reader) (env : env) (st : 'a State.t)
     (lv : lvalue) : signal * value =
   match lv.lvalue with
@@ -300,8 +284,6 @@ and value_of_stack_mem_lvalue (st : 'a State.t) (name : string) (ls : value list
 let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t) 
     (env : env) (lhs : lvalue) (rhs : value)
     (inc_next : bool) : 'a State.t * signal =
-  (* let rhs = implicit_cast env rhs lhs.typ in *)
-  (* TODO: @axu this is the line that causes the regression *)
   match lhs.lvalue with
   | LName {name} ->
     let l = EvalEnv.find_val name env in

@@ -1798,6 +1798,9 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
      type_equality env [] (Record rec1) (Record rec2)
+  | t1, Set t2 ->
+     not explicit &&
+     type_equality env [] t1 t2
   | _ -> not explicit && original_type = new_type
 
 (* Section 8.9 *)
@@ -2821,12 +2824,12 @@ and infer_constructor_type_args env ctx type_params params_args type_args =
   infer_type_arguments env ctx Typed.Type.Void type_params_args inference_params_args []
 
 and type_set_expression env ctx (expr: Types.Expression.t) =
-  let (info, e_typed) = type_expression env ctx expr in
-  match e_typed.typ with
+  let e_typed = type_expression env ctx expr in
+  match (snd e_typed).typ with
   | Set t ->
-     info, e_typed
+     e_typed
   | non_set_type ->
-     info, {e_typed with typ = Set non_set_type}
+     add_cast env e_typed (Set non_set_type)
 
 (* Terrible hack - Ryan *)
 and check_match_type_eq env info set_type element_type =

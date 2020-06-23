@@ -1439,13 +1439,15 @@ module MakeInterpreter (T : Target) = struct
     let (stms, transition) =
       match snd state with
       | {statements=stms; transition=t;_} -> (stms, t) in
-    let open Statement in
-    let stms' = Info.dummy, {stmt = Statement.BlockStatement
-                  {block = (Info.dummy, {annotations = []; statements = stms})};
-                typ = Unit} in
-    let (env', st', sign) = eval_stmt ctrl env st SContinue stms' in
+    let f (env, st, sign) stm =
+      match sign with
+      | SContinue -> eval_stmt ctrl env st sign stm
+      | _ -> (env, st, sign) in
+    let (env', st', sign) = List.fold ~f ~init:(EvalEnv.push_scope env,st, SContinue) stms in
     match sign with
-    | SContinue -> eval_transition ctrl env' st' states transition
+    | SContinue ->
+      eval_transition ctrl env' st' states transition
+      |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
     | SReject _ -> (env', st', sign)
     | SReturn _ -> failwith "return statements not permitted in parsers"
     | SExit -> failwith "exit statements not permitted in parsers"

@@ -28,39 +28,10 @@ checker,examples/checker_tests/bad/dupConst.p4,reject const shadowing,135
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,135
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135
 checker,examples/checker_tests/bad/template_e.p4,type argument names should be distinct,135
-checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,138
+checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,134
 checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data,139
 checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field,149
 checker,examples/checker_tests/good/constsigned.p4,compile time eval not working for member lookups, 220
 checker,examples/checker_tests/good/struct.p4,compile time eval not working for member lookups, 220
 checker,examples/checker_tests/good/struct1.p4,compile time eval not working for member lookups, 220
-stf,examples/checker_tests/good/checksum3-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
-stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
-stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156
-stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,155
-stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,192
-stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
-stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
-stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,109
-stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/equality-varbit-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/issue1755-1-bmv2.p4,implicit cast not done on integer arguments to advance,155
-stf,examples/checker_tests/good/issue1755-bmv2.p4,implicit cast not done on integer arguments to advance,155
-stf,examples/checker_tests/good/issue447-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/issue995-bmv2.p4,missing implicit cast for integer,155
-stf,examples/checker_tests/good/table-entries-exact-ternary-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-lpm-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create and others),156
-stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash,156
-stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,STF parse error,156
-stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error message in STF parser,156
-stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create and add),156
-stf,examples/checker_tests/good/checksum1-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/header-bool-bmv2.p4,non byte aligned extract,174
-stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enums broken,176

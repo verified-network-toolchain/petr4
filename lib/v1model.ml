@@ -543,11 +543,11 @@ module PreV1Switch : Target = struct
     ignore deparse_params;
     let vpkt = VRuntime { loc = State.packet_location; obj_name = "packet_in"; } in
     let hdr =
-      init_val_of_typ env (snd (List.nth_exn params 1)).typ in
+      init_val_of_typ env (List.nth_exn params 1).typ in
     let meta =
-      init_val_of_typ env (snd (List.nth_exn params 2)).typ in
+      init_val_of_typ env (List.nth_exn params 2).typ in
     let std_meta =
-      init_val_of_typ env (snd (List.nth_exn params 3)).typ in
+      init_val_of_typ env (List.nth_exn params 3).typ in
     let vpkt_loc, hdr_loc, meta_loc, std_meta_loc =
       State.fresh_loc (), State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
     let st = st
@@ -561,29 +561,29 @@ module PreV1Switch : Target = struct
               |> insert_val (BareName (Info.dummy, "hdr"     )) hdr_loc
               |> insert_val (BareName (Info.dummy, "meta"    )) meta_loc
               |> insert_val (BareName (Info.dummy, "std_meta")) std_meta_loc
-              |> insert_typ (BareName (Info.dummy, "packet"  )) (snd (List.nth_exn params 0)).typ
-              |> insert_typ (BareName (Info.dummy, "hdr"     )) (snd (List.nth_exn params 1)).typ
-              |> insert_typ (BareName (Info.dummy, "meta"    )) (snd (List.nth_exn params 2)).typ
-              |> insert_typ (BareName (Info.dummy, "std_meta")) (snd (List.nth_exn params 3)).typ) in
+              |> insert_typ (BareName (Info.dummy, "packet"  )) (List.nth_exn params 0).typ
+              |> insert_typ (BareName (Info.dummy, "hdr"     )) (List.nth_exn params 1).typ
+              |> insert_typ (BareName (Info.dummy, "meta"    )) (List.nth_exn params 2).typ
+              |> insert_typ (BareName (Info.dummy, "std_meta")) (List.nth_exn params 3).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
     let (st, _) = 
       assign_lvalue
         st
         env
-        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
                 name="ingress_port"; }; typ = Bit {width = 9}}
         (VBit{w=nine;v=in_port})
         in
     let open Expression in
     let pkt_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "packet"))); dir = InOut; typ = (snd (List.nth_exn params 0)).typ}) in
+      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "packet"))); dir = InOut; typ = (List.nth_exn params 0).typ}) in
     let hdr_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "hdr"))); dir = InOut; typ = (snd (List.nth_exn params 1)).typ}) in
+      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "hdr"))); dir = InOut; typ = (List.nth_exn params 1).typ}) in
     let meta_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "meta"))); dir = InOut; typ = (snd (List.nth_exn params 2)).typ}) in
+      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "meta"))); dir = InOut; typ = (List.nth_exn params 2).typ}) in
     let std_meta_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "std_meta"))); dir = InOut; typ = (snd (List.nth_exn params 3)).typ}) in
+      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "std_meta"))); dir = InOut; typ = (List.nth_exn params 3).typ}) in
     let env = EvalEnv.set_namespace "p." env in
     let (env, st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
@@ -592,14 +592,14 @@ module PreV1Switch : Target = struct
       match state with 
       | SReject err -> 
         assign_lvalue st env
-          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (snd (List.nth_exn params 3)).typ;}; name="parser_error"}; typ = Error}
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (List.nth_exn params 3).typ;}; name="parser_error"}; typ = Error}
           (VError(err))
         |> fst
       | SContinue -> st
       | _ -> failwith "parser should not exit or return" in
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let st = State.insert_heap vpkt_loc vpkt' st in
-    let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (snd (List.nth_exn deparse_params 0)).typ env in
+    let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (List.nth_exn deparse_params 0).typ env in
     let (env,st, s) = (env,st)
       |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
     let st = 
@@ -608,7 +608,7 @@ module PreV1Switch : Target = struct
         assign_lvalue
           st
           env
-          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
                   name="checksum_error"; }; typ = Bit {width = 1}}
           (VBit{v=Bigint.one;w=Bigint.one}) |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
@@ -624,7 +624,7 @@ module PreV1Switch : Target = struct
       assign_lvalue 
         st
         env
-        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (snd (List.nth_exn params 3)).typ}; 
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
                 name="egress_port"; }; typ = Bit {width = 9}}
         egress_spec_val
         in

@@ -220,7 +220,7 @@ module MakeInterpreter (T : Target) = struct
     EvalEnv.insert_decl_bare name decl env
 
   and eval_fun_decl (env : env) (st : state) (name : string)
-      (params : TypeParameter.t list) (body : Block.t)
+      (params : Parameter.t list) (body : Block.t)
       (decl : Declaration.t) : env * state =
     let l = State.fresh_loc () in
     let st = State.insert_heap l (VFun{scope=env;params;body}) st in
@@ -228,7 +228,7 @@ module MakeInterpreter (T : Target) = struct
     |> EvalEnv.insert_decl_bare name decl, st
 
   and eval_extern_fun (env : env) (st : state) (name : string)
-      (params : TypeParameter.t list) (decl : Declaration.t) : env * state =
+      (params : Parameter.t list) (decl : Declaration.t) : env * state =
     let l = State.fresh_loc () in
     let st = State.insert_heap l (VExternFun {name; caller = None}) st in
     EvalEnv.insert_decl_bare name decl env
@@ -270,8 +270,8 @@ module MakeInterpreter (T : Target) = struct
     | SReject _ -> (env, st, s)
     | _ -> failwith "value set declaration should not return or exit"
 
-  and eval_action_decl (env : env) (st : state) (name : string) (data_params : TypeParameter.t list)
-      (ctrl_params : TypeParameter.t list) (body : Block.t)
+  and eval_action_decl (env : env) (st : state) (name : string) (data_params : Parameter.t list)
+      (ctrl_params : Parameter.t list) (body : Block.t)
       (decl : Declaration.t) : env * state =
       let l = State.fresh_loc () in
       let st = State.insert_heap l (VAction{scope=env; params = data_params @ ctrl_params; body}) st in
@@ -365,12 +365,12 @@ module MakeInterpreter (T : Target) = struct
       | Some action -> action
 
   and create_pre_entries env actions key add =
-    let rec match_params_to_args (params : TypeParameter.t list) args : (Ast.number * Typed.Type.t) option list =
+    let rec match_params_to_args (params : Parameter.t list) args : (Ast.number * Typed.Type.t) option list =
       match params with
       | p :: params ->
         let right_arg (name, value) =
-          if snd (snd p).variable = name
-          then Some (value, (snd p).typ)
+          if snd p.variable = name
+          then Some (value, p.typ)
           else None
         in
         let maybe_arg_for_p, other_args =
@@ -1224,19 +1224,19 @@ module MakeInterpreter (T : Target) = struct
     | ExternObject x -> x.methods
     | _ -> failwith "expected extern object"
 
-  and params_of_prototype (p : MethodPrototype.t) : P4String.t * TypeParameter.t list =
+  and params_of_prototype (p : MethodPrototype.t) : P4String.t * Parameter.t list =
     match snd p with
     | AbstractMethod x -> (x.name, x.params)
     | Method x -> (x.name, x.params)
     | Constructor x -> (x.name, x.params)
 
-  and assert_extern_function (d : Declaration.t) : TypeParameter.t list =
+  and assert_extern_function (d : Declaration.t) : Parameter.t list =
     match snd d with
     | ExternFunction x -> x.params
     | _ -> failwith "expected extern function"
 
   and eval_funcall' (ctrl : ctrl) (callenv : env) (st : state)
-      (fscope : env) (params : TypeParameter.t list)
+      (fscope : env) (params : Parameter.t list)
       (args : Expression.t option list)
       (body : Block.t) : env * state * signal * value =
     let (callenv,fenv, st', s) = copyin ctrl callenv st fscope params args in
@@ -1256,7 +1256,7 @@ module MakeInterpreter (T : Target) = struct
          mappings in the new [fenv].
       4) a signal indicating the success or failure of evaluating the args *)
   and copyin (ctrl : ctrl) (callenv : env) (st : state)
-      (fscope : env) (params : TypeParameter.t list)
+      (fscope : env) (params : Parameter.t list)
       (args : Expression.t option list) : env * env * state * signal =
     let fenv = EvalEnv.push_scope fscope in
     let ((callenv',st',s),arg_vals) =
@@ -1271,7 +1271,7 @@ module MakeInterpreter (T : Target) = struct
       [st'] which is [st] with the out args copied into the corresponding lvalues.
       [calllenv] should be the call env after [copyin] and [fenv] should be the
       resulting environment from copying in and evaluating the function body. *)
-  and copyout (ctrl : ctrl) (callenv:env) (fenv : env) (st : state) (params : TypeParameter.t list)
+  and copyout (ctrl : ctrl) (callenv:env) (fenv : env) (st : state) (params : Parameter.t list)
       (args : Expression.t option list) (inc_next : bool) : state =
     List.fold2_exn
       params
@@ -1279,35 +1279,33 @@ module MakeInterpreter (T : Target) = struct
       ~init: st
       ~f:(fun st p a -> copy_arg_out inc_next ctrl st fenv callenv p a)
 
-  and eval_nth_arg (ctrl : ctrl) (st : state) (params : TypeParameter.t list) (i : int)
+  and eval_nth_arg (ctrl : ctrl) (st : state) (params : Parameter.t list) (i : int)
       ((env,st,sign) : env * state * signal)
       (e : Expression.t option) : (env * state * signal) * (string * value) =
-    let p = snd (List.nth_exn params i) in
+    let p = List.nth_exn params i in
     let ((env',st',s,v), n) = match e with
       | Some expr ->
         (eval_expr ctrl env st SContinue expr, snd p.variable)
-      | None ->
-        match p.opt_value with
-        | Some v -> (eval_expr ctrl env st SContinue v, snd p.variable)
-        | None -> (env, st, SContinue, VNull), snd p.variable in
+      | None -> (env, st, SContinue, VNull), snd p.variable
+    in
     match (sign,s) with
     | SContinue,SContinue -> ((env',st',s), (n,v))
     | SReject _, _ -> ((env,st,sign),(n,VNull))
     | _, SReject _ -> ((env',st',s),(n,VNull))
     | _ -> failwith "unreachable"
 
-  and insert_arg (e, st : EvalEnv.t * state) (p : TypeParameter.t)
+  and insert_arg (e, st : EvalEnv.t * state) (p : Parameter.t)
       ((name,v) : string * value) : env * state =
-    let var = Types.BareName (snd p).variable in
+    let var = Types.BareName p.variable in
     let l = State.fresh_loc () in
     let st = State.insert_heap l v st in
     EvalEnv.insert_val var l e, st
 
   and copy_arg_out (inc_next : bool) (ctrl : ctrl) (st : state) (fenv : env)
-      (callenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
-    match (snd p).direction with
+      (callenv : env) (p : Parameter.t) (a : Expression.t option) : state =
+    match p.direction with
     | Directionless ->
-      begin match (snd p).typ with
+      begin match p.typ with
         | Extern _ -> copy_arg_out_h inc_next ctrl fenv st callenv p a
         | _ -> st
       end
@@ -1316,8 +1314,8 @@ module MakeInterpreter (T : Target) = struct
     | In -> st
 
   and copy_arg_out_h (inc_next : bool) (ctrl : ctrl) (fenv : env) (st : state)
-      (callenv : env) (p : TypeParameter.t) (a : Expression.t option) : state =
-    let v = EvalEnv.find_val (BareName (snd p).variable) fenv |> extract_from_state st in
+      (callenv : env) (p : Parameter.t) (a : Expression.t option) : state =
+    let v = EvalEnv.find_val (BareName p.variable) fenv |> extract_from_state st in
     match a with
     | None -> st
     | Some expr ->
@@ -1417,7 +1415,7 @@ module MakeInterpreter (T : Target) = struct
   (* Parser Evaluation *)
   (*----------------------------------------------------------------------------*)
 
-  and eval_parser (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
+  and eval_parser (ctrl : ctrl) (env : env) (st : state) (params : Parameter.t list)
       (args : Expression.t option list) (pscope : env) (ls : (string * loc) list)
       (locals : Declaration.t list) (states : Parser.state list) : env * state * signal =
     (* TODO: incorporate closure environment *)
@@ -1584,7 +1582,7 @@ module MakeInterpreter (T : Target) = struct
   (* Control Evaluation *)
   (* -------------------------------------------------------------------------- *)
 
-  and eval_control (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
+  and eval_control (ctrl : ctrl) (env : env) (st : state) (params : Parameter.t list)
       (args : Expression.t option list) (cscope : env) (vs : (string * loc) list)
       (locals : Declaration.t list) (apply : Block.t) : env * state * signal =
     let open Statement in

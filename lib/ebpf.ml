@@ -53,7 +53,7 @@ module PreEbpfFilter : Target = struct
       | _ -> failwith "parser is not a parser object" in
     let vpkt = VRuntime {loc = State.packet_location; obj_name = "packet_in"; } in
     let pkt_name = Types.BareName (Info.dummy, "packet") in
-    let hdr = init_val_of_typ env (snd (List.nth_exn params 1)).typ in
+    let hdr = init_val_of_typ env (List.nth_exn params 1).typ in
     let hdr_name = Types.BareName (Info.dummy, "headers") in
     let accept = VBool (false) in
     let accept_name = Types.BareName (Info.dummy, "accept") in
@@ -68,14 +68,14 @@ module PreEbpfFilter : Target = struct
               |> insert_val pkt_name    vpkt_loc
               |> insert_val hdr_name    hdr_loc
               |> insert_val accept_name accept_loc
-              |> insert_typ pkt_name    (snd (List.nth_exn params 0)).typ
-              |> insert_typ hdr_name    (snd (List.nth_exn params 1)).typ
+              |> insert_typ pkt_name    (List.nth_exn params 0).typ
+              |> insert_typ hdr_name    (List.nth_exn params 1).typ
               |> insert_typ accept_name Type.Bool) in
     let open Expression in
     let pkt_expr =
-      Some (Info.dummy, {expr = Name pkt_name; dir = InOut; typ = (snd (List.nth_exn params 0)).typ}) in
+      Some (Info.dummy, {expr = Name pkt_name; dir = InOut; typ = (List.nth_exn params 0).typ}) in
     let hdr_expr =
-      Some (Info.dummy, {expr = Name hdr_name; dir = InOut; typ = (snd (List.nth_exn params 1)).typ}) in
+      Some (Info.dummy, {expr = Name hdr_name; dir = InOut; typ = (List.nth_exn params 1).typ}) in
     let accept_expr =
       Some (Info.dummy, {expr = Name accept_name; dir = InOut; typ = Bool}) in
     let (env, st,state, _) =

@@ -26,7 +26,8 @@ module rec Parameter : sig
     { annotations: Annotation.t list;
       direction: direction;
       typ: Type.t;
-      variable: Types.P4String.t }
+      variable: Types.P4String.t;
+      opt_value: Types.Expression.t option }
   [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
@@ -35,7 +36,8 @@ end = struct
     { annotations: Annotation.t list;
       direction: direction;
       typ: Type.t;
-      variable: Types.P4String.t }
+      variable: Types.P4String.t;
+      opt_value: Types.Expression.t option }
   [@@deriving sexp,show,yojson]
 
   let eq
@@ -51,41 +53,22 @@ end = struct
       Base.String.equal s1 s2
 end
 
-and ConstructParam : sig
-  type t =
-    { name: string;
-      typ: Type.t }
-  [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { name: string;
-      typ: Type.t }
-  [@@deriving sexp,show,yojson]
-
-  let eq
-    { name=s1; typ=t1 }
-    { name=s2; typ=t2 } =
-    Base.String.equal s1 s2 && Type.eq t1 t2
-end
-
 and PackageType : sig
   type t = {type_params: string list;
-            parameters: ConstructParam.t list}
+            parameters: Parameter.t list}
              [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t = {type_params: string list;
-            parameters: ConstructParam.t list}
+            parameters: Parameter.t list}
              [@@deriving sexp,show,yojson]
 
   let eq
     {type_params=t1; parameters=p1}
     {type_params=t2; parameters=p2} =
     Base.List.equal Base.String.equal t1 t2 &&
-    Base.List.equal ConstructParam.eq p1 p2
+    Base.List.equal Parameter.eq p1 p2
 end
 
 and ControlType : sig
@@ -325,27 +308,27 @@ end
 and ActionType : sig
   type t =
     { data_params: Parameter.t list;
-      ctrl_params: ConstructParam.t list}
+      ctrl_params: Parameter.t list}
       [@@deriving sexp,show,yojson]
 
    val eq : t -> t -> bool
 end = struct
   type t =
   { data_params: Parameter.t list;
-    ctrl_params: ConstructParam.t list}
+    ctrl_params: Parameter.t list}
       [@@deriving sexp,show,yojson]
 
    let eq
     { data_params=p1; ctrl_params=c1 }
     { data_params=p2; ctrl_params=c2 } =
     Base.List.equal Parameter.eq p1 p2 &&
-    Base.List.equal ConstructParam.eq c1 c2
+    Base.List.equal Parameter.eq c1 c2
 end
 
 and ConstructorType : sig
   type t =
     { type_params: string list;
-      parameters: ConstructParam.t list;
+      parameters: Parameter.t list;
       return: Type.t }
     [@@deriving sexp,show,yojson]
 
@@ -353,7 +336,7 @@ and ConstructorType : sig
 end = struct
   type t =
     { type_params: string list;
-      parameters: ConstructParam.t list;
+      parameters: Parameter.t list;
       return: Type.t }
     [@@deriving sexp,show,yojson]
 
@@ -361,7 +344,7 @@ end = struct
      { type_params=s1; parameters=c1; return=t1}
      { type_params=s2; parameters=c2; return=t2} =
      Base.List.equal Base.String.equal s1 s2 &&
-     Base.List.equal ConstructParam.eq c1 c2 &&
+     Base.List.equal Parameter.eq c1 c2 &&
      Type.eq t1 t2
 end
 

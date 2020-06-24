@@ -9,46 +9,24 @@ module P4Int = Types.P4Int
 
 module P4String = Types.P4String
 
-module rec TypeParameter : sig
-  type pre_t =
-    { annotations: Annotation.t list;
-      direction: Typed.direction;
-      typ: Typed.Type.t;
-      variable: Types.P4String.t;
-      opt_value: Expression.t option}
-  [@@deriving sexp,show,yojson]
-
-  type t = pre_t info [@@deriving sexp,show,yojson]
-end = struct
-  type pre_t =
-    { annotations: Annotation.t list;
-      direction: direction;
-      typ: Type.t;
-      variable: Types.P4String.t;
-      opt_value: Expression.t option}
-  [@@deriving sexp,show,yojson]
-
-  type t = pre_t info [@@deriving sexp,show,yojson]
-end
-
-and MethodPrototype : sig
+module rec MethodPrototype : sig
   type pre_t =
     Constructor of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | AbstractMethod of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list}
+        params: Typed.Parameter.t list}
   | Method of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list}
+        params: Typed.Parameter.t list}
         [@@deriving sexp,show,yojson]
 
   type t = pre_t info [@@deriving sexp,show,yojson]
@@ -57,19 +35,19 @@ end = struct
     Constructor of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | AbstractMethod of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list}
+        params: Typed.Parameter.t list}
   | Method of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list}
+        params: Typed.Parameter.t list}
     [@@deriving sexp,show,yojson]
 
   type t = pre_t info [@@deriving sexp,show,yojson]
@@ -509,30 +487,30 @@ and Declaration : sig
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
-        constructor_params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
+        constructor_params: Typed.Parameter.t list;
         locals: t list;
         states: Parser.state list }
   | Control of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
-        constructor_params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
+        constructor_params: Typed.Parameter.t list;
         locals: t list;
         apply: Block.t }
   | Function of
       { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
         body: Block.t }
   | ExternFunction of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | Variable of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -546,8 +524,8 @@ and Declaration : sig
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        data_params: TypeParameter.t list;
-        ctrl_params: TypeParameter.t list;
+        data_params: Typed.Parameter.t list;
+        ctrl_params: Typed.Parameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;
@@ -600,17 +578,17 @@ and Declaration : sig
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | ParserType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | PackageType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
         [@@deriving sexp,show,yojson]
 
   and t = pre_t info [@@deriving sexp,show,yojson]
@@ -643,30 +621,30 @@ end = struct
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
-        constructor_params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
+        constructor_params: Typed.Parameter.t list;
         locals: t list;
         states: Parser.state list }
   | Control of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
-        constructor_params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
+        constructor_params: Typed.Parameter.t list;
         locals: t list;
         apply: Block.t }
   | Function of
       { return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list;
+        params: Typed.Parameter.t list;
         body: Block.t }
   | ExternFunction of
       { annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | Variable of
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
@@ -680,8 +658,8 @@ end = struct
   | Action of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
-        data_params: TypeParameter.t list;
-        ctrl_params: TypeParameter.t list;
+        data_params: Typed.Parameter.t list;
+        ctrl_params: Typed.Parameter.t list;
         body: Block.t }
   | Table of
       { annotations: Annotation.t list;
@@ -734,17 +712,17 @@ end = struct
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | ParserType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
   | PackageType of
       { annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
-        params: TypeParameter.t list }
+        params: Typed.Parameter.t list }
         [@@deriving sexp,show,yojson]
 
   and t = pre_t info [@@deriving sexp,show,yojson]
@@ -831,14 +809,14 @@ and Value : sig
     | VMatchKind of string
     | VFun of
         { scope : Env.EvalEnv.t;
-          params : TypeParameter.t list;
+          params : Typed.Parameter.t list;
           body : Block.t; }
     | VBuiltinFun of
         { name : string;
           caller : lvalue; }
     | VAction of
         { scope : Env.EvalEnv.t;
-          params : TypeParameter.t list;
+          params : Typed.Parameter.t list;
           body : Block.t; }
     | VStruct of
         { fields : (string * value) list; }
@@ -875,7 +853,7 @@ and Value : sig
   and vparser = {
     pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
-    pparams : TypeParameter.t list;
+    pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
   }
@@ -884,7 +862,7 @@ and Value : sig
   and vcontrol = {
     cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
-    cparams : TypeParameter.t list;
+    cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
   }
@@ -969,11 +947,11 @@ and Value : sig
 
   val assert_error : value -> string
 
-  val assert_fun : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
+  val assert_fun : value -> Env.EvalEnv.t * Typed.Parameter.t list * Block.t
 
   val assert_builtin : value -> string * lvalue
 
-  val assert_action : value -> Env.EvalEnv.t * TypeParameter.t list * Block.t
+  val assert_action : value -> Env.EvalEnv.t * Typed.Parameter.t list * Block.t
 
   val assert_struct : value -> (string * value) list
 
@@ -1017,7 +995,7 @@ and Value : sig
 
   val assert_valueset : set -> value * Match.t list list * set list
 
-  val assert_action_decl : Declaration.t -> TypeParameter.t list
+  val assert_action_decl : Declaration.t -> Typed.Parameter.t list
 
 end = struct
   type buf = Cstruct_sexp.t [@@deriving sexp]
@@ -1063,14 +1041,14 @@ end = struct
     | VMatchKind of string
     | VFun of
         { scope : Env.EvalEnv.t;
-          params : TypeParameter.t list;
+          params : Typed.Parameter.t list;
           body : Block.t; }
     | VBuiltinFun of
         { name : string;
           caller : lvalue; }
     | VAction of
         { scope : Env.EvalEnv.t;
-          params : TypeParameter.t list;
+          params : Typed.Parameter.t list;
           body : Block.t; }
     | VStruct of
         { fields : (string * value) list; }
@@ -1107,7 +1085,7 @@ end = struct
   and vparser = {
     pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
-    pparams : TypeParameter.t list;
+    pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
   }
@@ -1116,7 +1094,7 @@ end = struct
   and vcontrol = {
     cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
-    cparams : TypeParameter.t list;
+    cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
   }
@@ -1361,7 +1339,7 @@ end = struct
     | SValueSet {size; members; sets} -> (size, members, sets)
     | _ -> failwith "not a valueset"
 
-  let assert_action_decl (d : Declaration.t) : TypeParameter.t list = 
+  let assert_action_decl (d : Declaration.t) : Typed.Parameter.t list = 
     match snd d with
     | Action {data_params;ctrl_params;_} -> data_params @ ctrl_params
     | _ -> failwith "not an action declaration"

@@ -104,10 +104,11 @@ let eval_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-pkt-str" (required string) ~doc: "<pkt_str> Add packet string"
      +> flag "-ctrl-json" (required string) ~doc: "<ctrl_json> Add control json"
-     +> flag "-port" (optional_with_default "0" string) ~doc: "<ctrl_json> Add control json"
+     +> flag "-port" (optional_with_default "0" string) ~doc: "<port_number> Specify ingress port"
+     +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir pkt_str ctrl_json port p4file () ->
-       print_string (eval_file_string include_dir p4file verbose pkt_str [] (Yojson.Safe.from_file ctrl_json) None (int_of_string port)))
+    (fun verbose include_dir pkt_str ctrl_json port target p4file () ->
+       print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
 
 let command =
   Command.group

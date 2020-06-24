@@ -1359,6 +1359,7 @@ and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typ
   | Array _ ->
      begin match inner_type with
      | Header _ -> true
+     | HeaderUnion _ -> true
      | _ -> false
      end
   | _ -> false
@@ -3675,7 +3676,7 @@ and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
   let struct_typ = Type.Struct { fields = type_fields; } in
   if not (is_well_formed_type env struct_typ)
-  then raise_s [%message "bad struct type" ~typ:(struct_typ:Typed.Type.t)];
+  then raise_s [%message "bad struct type" ~name:(snd name) ~typ:(struct_typ:Typed.Type.t)];
   let env = CheckerEnv.insert_type (BareName name) struct_typ env in
   let struct_decl = Prog.Declaration.Struct { annotations; name; fields = fields_typed } in
   (info, struct_decl), env

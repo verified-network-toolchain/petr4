@@ -1363,12 +1363,20 @@ and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typ
      | _ -> false
      end
   | _ -> false
+
+and is_compile_time_only_type env typ =
+  match reduce_to_underlying_type env typ with
+  | Integer
+  | String -> true
+  | _ -> false
     
 and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
   let dir = translate_direction param.direction in
   if is_extern env typ && not (eq_dir dir Directionless)
   then raise_s [%message "Externs as parameters must be directionless"];
+  if is_compile_time_only_type env typ && not (eq_dir dir Directionless)
+  then raise_s [%message "parameters of this type must be directionless" ~typ:(typ: Typed.Type.t)];
   if not (is_well_formed_type env typ)
   then raise_s [%message "Parameter type is not well-formed"
                    ~param:((param_info, param): Types.Parameter.t)];

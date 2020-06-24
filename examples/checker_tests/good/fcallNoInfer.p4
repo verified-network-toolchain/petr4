@@ -10,7 +10,7 @@ T fun<T>(in T x){
 }
 
 
-int f(in int y){
+int<8> f(in int<8> y){
     return y;
 }
 
@@ -18,7 +18,7 @@ int f(in int y){
 
 
 void stuff(){
-    int a = f(6);
+    int<8> a = f(6);
     f(6);
     /* Needs type argument for function call. */
     fun(true);

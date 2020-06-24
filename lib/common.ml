@@ -101,9 +101,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-  let eval_file include_dirs p4_file verbose pkt_str add ctrl_json st port =
-    (* let pkt_str = Core_kernel.In_channel.read_all pkt_file in *)
-    let st = match st with None -> Eval.V1Interpreter.empty_state | Some st -> st in
+  let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     let port = Bigint.of_int port in
     let pkt = Cstruct.of_hex pkt_str in
     let open Yojson.Safe in
@@ -118,19 +116,30 @@ module Make_parse (Conf: Parse_config) = struct
       let elab_prog = Elaborate.elab prog in
       let (cenv, typed_prog) = Checker.check_program elab_prog in
       let env = Env.CheckerEnv.eval_env_of_t cenv in
-      (* TODO - thread env information from checker to eval*)
       let open Eval in
-      begin match V1Interpreter.eval_prog (add, vsets) env st pkt port typed_prog with
-        | st, Some (pkt,port) -> st, `Ok(pkt, port)
-        | st, None -> st, `NoPacket end
-    | `Error (info, exn) as e-> st, e
+      begin match target with
+        | "v1" ->
+          let st = V1Interpreter.empty_state in
+          begin match V1Interpreter.eval_prog ([], vsets) env st pkt port typed_prog |> snd with
+            | Some (pkt,port) -> `Ok(pkt, port)
+            | None -> `NoPacket
+          end
+        | "ebpf" ->
+          let st = EbpfInterpreter.empty_state in
+          begin match EbpfInterpreter.eval_prog ([], vsets) env st pkt port typed_prog |> snd with
+            | Some (pkt, port) -> `Ok(pkt,port)
+            | None -> `NoPacket
+          end
+        | _ -> Format.sprintf "Architecture %s unsupported" target |> failwith
+      end
+    | `Error (info, exn) as e-> e
 
-  let eval_file_string include_dirs p4_file verbose pkt_str add ctrl_json st port =
-    match eval_file include_dirs p4_file verbose pkt_str add ctrl_json st port with
-    | _, `Ok (pkt, port) ->
+  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port target =
+    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port target with
+    | `Ok (pkt, port) ->
       (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
-    | _, `NoPacket -> "No packet out"
-    | _, `Error(info, exn) ->
+    | `NoPacket -> "No packet out"
+    | `Error(info, exn) ->
       let exn_msg = Exn.to_string exn in
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg

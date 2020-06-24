@@ -1388,14 +1388,16 @@ and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parame
     | Some value ->
        let value_typed = type_expression env Constant value in
        assert_type_equality env param_info (snd value_typed).typ typ;
-       Some value_typed
+       if eq_dir dir Directionless || eq_dir dir In
+       then Some value_typed
+       else raise_s [%message "Only directionless and in parameters may have default arguments" ~param_info:(param_info:Info.t)]
     | None -> None
   in
   (Info.dummy, { annotations = param.annotations;
-                    direction = translate_direction param.direction;
-                    typ = typ;
-                    variable = param.variable;
-                    opt_value = opt_value_typed })
+                 direction = translate_direction param.direction;
+                 typ = typ;
+                 variable = param.variable;
+                 opt_value = opt_value_typed })
 
 and type_params env ctx params =
   List.map ~f:(type_param env ctx) params

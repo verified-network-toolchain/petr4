@@ -421,6 +421,13 @@ and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
      end
   | _ -> typ
 
+and reduce_to_underlying_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+  let typ = reduce_type env typ in
+  match typ with
+  | NewType {typ; _} -> reduce_to_underlying_type env typ
+  | Enum {typ = Some typ; _} -> reduce_to_underlying_type env typ
+  | _ -> typ
+
 type var_constraint = string * Typed.Type.t option [@@deriving sexp]
 type var_constraints = var_constraint list [@@deriving sexp]
 type soln = var_constraints option [@@deriving sexp]
@@ -963,7 +970,9 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
           List.map ~f:(fun f -> f.typ) fields
        | Set t ->
           get_types t
-       | _ -> failwith "cannot cast a list expression to this type"
+       | _ -> [typ]
+          (* raise_s [%message "cannot cast a list expression to this type" ~typ:(typ:Typed.Type.t)]
+          *)
      in
      let types = get_types typ in
      let values_casted =
@@ -1183,36 +1192,43 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | MatchKind
   | Void -> true
   (* Recursive types *)
-  | Array {typ=t; _} -> is_well_formed_type env t
-  | Tuple {types= typs}
-  | List {types= typs} -> List.for_all ~f:(is_well_formed_type env) typs
-  | Set t -> is_well_formed_type env t
-  | Enum {typ=maybe_typ; _} ->
-    begin match maybe_typ with
+  | Array {typ; _} as arr_typ ->
+     is_well_formed_type env typ &&
+       is_valid_nested_type env arr_typ typ
+  | Tuple {types}
+  | List {types} ->
+     List.for_all ~f:(is_well_formed_type env) types &&
+       is_valid_nested_type env (Tuple {types}) typ
+  | Set typ ->
+     is_well_formed_type env typ
+  | Enum {typ; _} ->
+    begin match typ with
     | None -> true
-    | Some t ->  is_well_formed_type env t
+    | Some typ ->  is_well_formed_type env typ
     end
   | Record {fields; _}
-  | Header {fields; _}
   | HeaderUnion {fields; _}
   | Struct {fields; _} ->
-    let open RecordType in
-    List.for_all ~f:(fun field -> field.typ |> is_well_formed_type env) fields
-  | Action { data_params=dps; ctrl_params=cps } ->
-    let res1 : bool = (are_param_types_well_formed env dps) in
-    let res2 : bool = (are_construct_params_types_well_formed env cps) in
+    let field_ok (field: RecordType.field) =
+      is_well_formed_type env field.typ &&
+        is_valid_nested_type env typ field.typ
+    in
+    List.for_all ~f:field_ok fields
+  | Header {fields; _} ->
+    let field_ok (field: RecordType.field) =
+      is_well_formed_type env field.typ &&
+        is_valid_nested_type ~in_header:true env typ field.typ
+    in
+    List.for_all ~f:field_ok fields
+  | Action {data_params; ctrl_params} ->
+    let res1 : bool = (are_param_types_well_formed env data_params) in
+    let res2 : bool = (are_construct_params_types_well_formed env ctrl_params) in
     res1 && res2
   (* Type names *)
   | TypeName name ->
-    begin match CheckerEnv.resolve_type_name_opt name env with
-    | None -> false
-    | Some _ -> true (* Unsure of what to do in this case *)
-    end
+     CheckerEnv.resolve_type_name_opt name env <> None
   | Table {result_typ_name=name} ->
-    begin match CheckerEnv.resolve_type_name_opt (BareName (Info.dummy, name)) env with
-    | None -> false
-    | Some _ -> true (* Unsure of what to do in this case *)
-    end
+    CheckerEnv.resolve_type_name_opt (BareName (Info.dummy, name)) env <> None
   | NewType {name; typ} ->
      is_well_formed_type env typ
   (* Polymorphic types *)
@@ -1296,6 +1312,57 @@ and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
      | _ -> true
      end
 
+and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typed.Type.t) (inner_type: Typed.Type.t) =
+  let inner_type = reduce_to_underlying_type env inner_type in
+  match outer_type with
+  | Header _ ->
+     begin match inner_type with
+     | Bit _
+     | Int _
+     | VarBit _
+     | Bool
+     | Enum {typ = Some _; _} ->
+        true
+     | Struct {fields} ->
+        List.for_all fields
+          ~f:(fun f -> is_valid_nested_type ~in_header:true env inner_type f.typ)
+     | _ ->
+        false
+     end
+  | HeaderUnion _ ->
+     begin match inner_type with
+     | Header _ -> true
+     | _ -> false
+     end
+  | Struct _
+  | Tuple _ ->
+     begin match inner_type with
+     | Bit _
+     | Int _
+     | Enum _
+     | Bool ->
+        true
+     | Struct {fields} ->
+        not in_header ||
+          List.for_all fields
+            ~f:(fun f -> is_valid_nested_type ~in_header env inner_type f.typ)
+     | Header _
+     | VarBit _
+     | Error
+     | Array _
+     | HeaderUnion _
+     | Tuple _ ->
+        not in_header
+     | _ ->
+        false
+     end
+  | Array _ ->
+     begin match inner_type with
+     | Header _ -> true
+     | _ -> false
+     end
+  | _ -> false
+    
 and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Prog.TypeParameter.t =
   let typ = translate_type env [] param.typ in
   let dir = translate_direction param.direction in
@@ -1825,7 +1892,9 @@ and type_cast env ctx typ expr : Prog.Expression.typed_t =
   let expr_typed = type_expression env ctx expr in
   let expr_type = saturate_type env (snd expr_typed).typ in
   let new_type = translate_type env [] typ in
-  let new_type_sat = saturate_type env (translate_type env [] typ) in
+  let new_type_sat = saturate_type env new_type in
+  if not (is_well_formed_type env new_type)
+  then raise_s [%message "ill-formed type" ~typ:(new_type:Typed.Type.t)];
   if cast_ok ~explicit:true env expr_type new_type_sat
   then { dir = Directionless; typ = new_type; expr = Cast {typ = new_type; expr = expr_typed} }
   else raise_s [%message "illegal explicit cast"
@@ -2137,7 +2206,6 @@ and is_lvalue env (expr_typed: Prog.Expression.t) =
   | BitStringAccess { bits = lvalue; _ } ->
      is_lvalue env lvalue
   | _ -> false
-
 
 and check_direction env dir (arg_typed: Prog.Expression.t) =
   match dir with
@@ -3125,6 +3193,8 @@ and type_variable env ctx info annotations typ name init =
   if not (is_variable_type env expected_typ)
   then raise_s [%message "Cannot declare variables of this type"
               ~typ:(expected_typ: Typed.Type.t)];
+  if not (is_well_formed_type env expected_typ)
+  then raise_s [%message "type is not well-formed" ~typ:(expected_typ:Typed.Type.t)];
   if ctx = DeclContext.TopLevel
   then raise_s [%message "variables cannot be declared at the top level"];
   let init_typed =
@@ -3561,44 +3631,12 @@ and type_table' env ctx info annotations name key_types action_map entries_typed
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
-  let type_fields = verify_header_fields env type_fields in
   let header_typ = Type.Header { fields = type_fields; } in
+  if not (is_well_formed_type env header_typ)
+  then raise_s [%message "bad header type" ~typ:(header_typ:Typed.Type.t)];
   let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.Header { annotations; name; fields = fields_typed } in
   (info, header), env
-
-(* Per 7.2.2 Verifies that the header field type is one of:
- * -bool
- * -bit<w>
- * -int<w>
- * -varbit<w>?
- * -enum<T>
- * -struct, and recursively holds
- *)
-and verify_header_fields
-  env : Typed.RecordType.field list -> Typed.RecordType.field list =
-  let open Typed.RecordType in
-  let rec verify_header_field_type env (typ: Typed.Type.t) : Typed.Type.t =
-    match typ with
-    | Bool
-    | Bit _
-    | Int _
-    | VarBit _
-    | Enum   _ -> typ
-    | TypeName name ->
-      let _ = env
-      |> CheckerEnv.resolve_type_name name
-      |> verify_header_field_type env in
-      TypeName name
-    | NewType nt ->
-      NewType {nt with typ = verify_header_field_type env nt.typ}
-    | Struct {fields} -> Struct {fields=verify_header_fields env fields}
-    | _ -> raise_s [%message "header or struct field has invalid type"
-                    ~typ:(typ: Typed.Type.t)] in
-  List.map
-    ~f:begin fun field ->
-      { field with typ = verify_header_field_type env field.typ}
-    end
 
 and type_field env (field_info, field) =
   let open Types.Declaration in
@@ -3626,6 +3664,8 @@ and type_header_union env info annotations name fields =
     List.unzip @@ List.map ~f:(type_header_union_field env) fields
   in
   let header_typ = Type.HeaderUnion { fields = type_fields; } in
+  if not (is_well_formed_type env header_typ)
+  then raise_s [%message "bad header type" ~typ:(header_typ:Typed.Type.t)];
   let env = CheckerEnv.insert_type (BareName name) header_typ env in
   let header = Prog.Declaration.HeaderUnion { annotations; name; fields = fields_typed } in
   (info, header), env
@@ -3634,6 +3674,8 @@ and type_header_union env info annotations name fields =
 and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
   let struct_typ = Type.Struct { fields = type_fields; } in
+  if not (is_well_formed_type env struct_typ)
+  then raise_s [%message "bad struct type" ~typ:(struct_typ:Typed.Type.t)];
   let env = CheckerEnv.insert_type (BareName name) struct_typ env in
   let struct_decl = Prog.Declaration.Struct { annotations; name; fields = fields_typed } in
   (info, struct_decl), env

@@ -1063,15 +1063,6 @@ and eval_to_positive_int env info expr =
 and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
   fun env vars typ ->
   let open Types.Type in
-  (* let eval e =
-    Eval.eval_expression ([],[]) (CheckerEnv.eval_env_of_t env) Eval.empty_state e
-    |> fun (a,_,b) -> (a,b)
-  in *)
-  (* let get_int_from_bigint num =
-    begin match Bigint.to_int num with
-      | Some n -> n;
-      | None -> failwith "numeric type parameter is too large"
-    end in *)
   match snd typ with
   | Bool -> Bool
   | Error -> Error
@@ -1328,8 +1319,6 @@ and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parame
   let opt_value =
     match param.opt_value with
     | Some value ->
-       let value_typed = type_expression env Constant value in
-       assert_type_equality env param_info (snd value_typed).typ typ;
        if eq_dir dir Directionless || eq_dir dir In
        then Some value
        else raise_s [%message "Only directionless and in parameters may have default arguments" ~param_info:(param_info:Info.t)]

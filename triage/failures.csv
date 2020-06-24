@@ -8,7 +8,6 @@ checker,examples/checker_tests/good/issue2175-2.p4,initializer blocks (unsupport
 checker,examples/checker_tests/good/issue2175-3.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2175-4.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2175-5.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2220.p4,implicit casts for serializable enums,176
 checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/good/issue2303.p4,missing implicit casts inside struct initializer,219

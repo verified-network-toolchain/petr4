@@ -1,4 +1,15 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
+checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported),78
+checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported),78
+checker,examples/checker_tests/good/issue1937-3-bmv2.p4,default arguments (unsupported),73
+checker,examples/checker_tests/bad/default-param.p4,no defalt values for out or optional params (unsupported),73
+checker,examples/checker_tests/good/named-arg1.p4,optional parameters (unsupported),73
+checker,examples/checker_tests/good/issue1937-2-bmv2.p4,optional arguments,73
+checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
+checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
+checker,examples/checker_tests/good/issue1937-1-bmv2.p4,default arguments,73
+checker,examples/checker_tests/good/issue1937.p4,default value,73
+checker,examples/checker_tests/good/issue1333.p4,default arguments,73
 checker,examples/checker_tests/bad/issue1672-bmv2.p4,V1Switch type argument H must be a struct,134
 checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,139
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29

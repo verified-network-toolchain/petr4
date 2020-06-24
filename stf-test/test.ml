@@ -57,7 +57,8 @@ let packet_equal (port_exp, pkt_exp) (port, pkt) =
     i >= String.length pkt_exp ||
     ((pkt_exp.[i] = pkt.[i] || pkt_exp.[i] = '*') && iter (i + 1))
     in
-    String.(port_exp = port) && iter 0
+    (* String.(port_exp = port) && *)
+    iter 0
 
 let convert_qualified name =
   match String.rindex name '.' with 
@@ -127,6 +128,14 @@ end
 
 module V1Runner = RunnerMaker(V1RunnerConfig)
 
+module EbpfRunnerConfig = struct
+  type st = Eval.EbpfInterpreter.state
+
+  let eval_prog = Eval.EbpfInterpreter.eval_prog
+end
+
+module EbpfRunner = RunnerMaker(EbpfRunnerConfig)
+
 let get_stf_files path =
   Core.Sys.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
@@ -150,6 +159,8 @@ let stf_alco_test include_dir stf_file p4_file =
       match target with
       | SpecializedType{base = TypeName (BareName(_, "V1Switch"));_} -> 
         V1Runner.run_test prog stmts [] [] [] env Eval.V1Interpreter.empty_state
+      | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
+        EbpfRunner.run_test prog stmts [] [] [] env Eval.EbpfInterpreter.empty_state
       | _ -> failwith "architecture unsupported") in
     Filename.basename stf_file, [test]
 

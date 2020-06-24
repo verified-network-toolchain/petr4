@@ -96,6 +96,12 @@ module PreEbpfFilter : Target = struct
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
       then Some (State.get_packet st) else None
 
+  let get_outport (st : state) (env : env) : Bigint.t =
+    match State.find_heap (EvalEnv.find_val (Types.BareName (Info.dummy, "accept")) env) st with
+    | VBool true -> Bigint.one
+    | _ -> Bigint.zero
+    (* failwith "ebpf lookup unimplemented" *)
+
 end
 
 module EbpfFilter : Target = P4core.Corize(PreEbpfFilter)

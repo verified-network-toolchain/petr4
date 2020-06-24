@@ -34,7 +34,7 @@ test-stf:
 	dune exec stf-test/test.exe
 
 test:
-	dune runtest
+	cd test && dune exec ./test.exe
 
 clean:
 	dune clean

@@ -830,7 +830,13 @@ and assert_type_equality env info (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
 and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
-  | None -> false
+  | None ->
+     match reduce_type env (snd expr).typ with
+     | Extern _
+     | Package _
+     | Control _
+     | Parser _ -> true
+     | _ -> false
 
 and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp_info, exp: Expression.t)
     : Prog.Expression.t =
@@ -2403,7 +2409,10 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.Exp
   let env' = CheckerEnv.insert_types type_params_args env in
   let cast_arg (param, arg: Prog.TypeParameter.t * Types.Expression.t option) =
     match cast_param_arg env' ctx info (prog_param_to_typed_param param, arg) with
-    | _, Some e -> e
+    | _, Some e ->
+       if compile_time_known_expr env e
+       then e
+       else raise_s [%message "constructor argument is not compile-time known" ~arg:(e: Prog.Expression.t)]
     | _, None -> failwith "missing constructor argument"
   in
   let args_typed = List.map ~f:cast_arg params_args in

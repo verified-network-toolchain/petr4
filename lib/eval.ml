@@ -20,7 +20,7 @@ module type Interpreter = sig
 
   val empty_state : state
 
-  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt option
+  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt option * Bigint.t
 
   val eval_prog : ctrl -> env -> state -> buf -> Bigint.t -> program ->
     state * (buf * Bigint.t) option
@@ -1679,19 +1679,15 @@ module MakeInterpreter (T : Target) = struct
     let (a,b,_,c) = eval_expr ctrl env st SContinue expr in (a,b,c)
 
   and eval (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (in_port : Bigint.t) : state * env * pkt option =
+      (in_port : Bigint.t) : state * env * pkt option * Bigint.t =
     let st' = T.initialize_metadata in_port st in
-    T.eval_pipeline ctrl env st' pkt eval_app
+    let (st, env, pkt) = T.eval_pipeline ctrl env st' pkt eval_app in
+    st, env, pkt, T.get_outport st env
 
   and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (in_port : Bigint.t) : state * pkt option * Bigint.t =
-    let (st', env', pkt) = eval ctrl env st pkt in_port in
-    begin match EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env' |> extract_from_state st' with
-    | VStruct {fields;_} ->
-      st', pkt,
-      find_exn fields "egress_port"
-      |> bigint_of_val
-    | _ -> failwith "TODO" end
+    let (st, _, pkt, out_port) = eval ctrl env st pkt in_port in
+    st, pkt, out_port
 
   and eval_prog (ctrl : ctrl) (env: env) (st : state) (pkt : buf)
       (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
@@ -1715,4 +1711,4 @@ end
 
 module V1Interpreter = MakeInterpreter(V1model.V1Switch)
 
-(* module EbpfInterpreter = MakeInterpreter(Target.EbpfFilter) *)
+module EbpfInterpreter = MakeInterpreter(Ebpf.EbpfFilter)

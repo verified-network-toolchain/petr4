@@ -635,6 +635,12 @@ module PreV1Switch : Target = struct
       |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
     st, env, Some (State.get_packet st)
 
+  let get_outport (st : state) (env : env) : Bigint.t =
+    match State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st with
+    | VStruct {fields;_} ->
+      List.Assoc.find_exn fields "egress_port" ~equal:String.equal |> bigint_of_val
+    | _ -> drop_spec
+
 end
 
 module V1Switch : Target = P4core.Corize(PreV1Switch)

@@ -94,3 +94,4 @@ checker,examples/checker_tests/bad/push_nonconstant.p4,push_front arg should be 
 checker,examples/checker_tests/good/issue1717.p4,bad left hand argument to shift,193
 checker,examples/checker_tests/good/shift_precendence.p4,bad left hand argument to shift,193
 checker,examples/checker_tests/bad/issue513.p4,no conditionals in actions (target dependent),151
+checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174

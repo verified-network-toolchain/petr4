@@ -1,5 +1,4 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
-checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174
 checker,examples/checker_tests/bad/issue1672-bmv2.p4,V1Switch type argument H must be a struct,134
 checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,139
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29

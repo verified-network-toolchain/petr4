@@ -95,3 +95,6 @@ checker,examples/checker_tests/good/issue1717.p4,bad left hand argument to shift
 checker,examples/checker_tests/good/shift_precendence.p4,bad left hand argument to shift,193
 checker,examples/checker_tests/bad/issue513.p4,no conditionals in actions (target dependent),151
 checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174
+checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field,149
+checker,examples/checker_tests/bad/issue513.p4,target-dependent behavior (conditionals in actions),151
+checker,examples/checker_tests/bad/div3.p4,p4c rejects runtime division,194

@@ -3161,8 +3161,6 @@ and is_variable_type env (typ: Typed.Type.t) =
   | NewType {typ; _} ->
      is_variable_type env typ
   | Bool
-  | String
-  | Integer
   | Int _
   | Bit _
   | VarBit _
@@ -3176,6 +3174,8 @@ and is_variable_type env (typ: Typed.Type.t) =
   | Struct _
   | Enum _ ->
      true
+  | String
+  | Integer
   | List _
   | Set _
   | Void

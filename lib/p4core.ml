@@ -386,4 +386,6 @@ module Corize (T : Target) : Target = struct
   let eval_pipeline ctrl env st pkt app =
     let st = State.set_packet pkt st in
     T.eval_pipeline ctrl env st pkt app
+
+  let get_outport = T.get_outport
 end

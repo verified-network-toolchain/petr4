@@ -46,10 +46,10 @@ parser prs(packet_in p, out Headers_t headers)
 
 control pipe(inout Headers_t headers, out bool pass)
 {
-    action Reject(IPv4Address add)
+    action Reject(IPv4Address addr)
     {
         pass = false;
-        headers.ipv4.srcAddr = add;
+        headers.ipv4.srcAddr = addr;
     }
 
     table Check_src_ip {

@@ -11,13 +11,81 @@ let (<>) = Stdlib.(<>)
 
 module PreEbpfFilter : Target = struct
 
-  type obj = unit (* TODO *)
+  type obj =
+    | CounterArray of Bigint.t list
+    | ArrayTable of unit (* TODO *)
+    | HashTable of unit (* TODO *)
+
+  let y = ArrayTable ()
+
+  let z = HashTable ()
 
   type state = obj State.t
 
   type extern = state pre_extern
 
-  let externs = []
+  let eval_counter_array : extern = fun ctrl env st ts args ->
+    let loc, max_idx = match args with
+      | [(VRuntime {loc;_}, _); (VBit{v;_},_);_] -> loc,v
+      | _ -> failwith "unexpected counter array init args" in
+    let init = Bigint.zero in
+    let arr = List.init (max_idx |> Bigint.to_int_exn) ~f:(fun _ -> init) in
+    let ctr = CounterArray arr in
+    env,
+    State.insert_extern loc ctr st,
+    SContinue,
+    VRuntime {loc = loc; obj_name = "CounterArray"}
+
+  let eval_increment : extern = fun ctrl env st ts args ->
+    let loc, v = match args with
+      | [(VRuntime{loc;_}, _); (VBit{v;_},_)] -> loc, Bigint.to_int_exn v
+      | _ -> failwith "unexpected counter array increment args" in
+    let ctr = State.find_extern loc st in
+    match ctr with
+    | CounterArray vs ->
+      let ctr' = CounterArray 
+        (List.mapi vs
+          ~f:(fun i elt -> if Int.(i = v) then Bigint.(elt + one) else elt)) in
+      env, State.insert_extern loc ctr' st, SContinue, VNull
+    | _ -> failwith "extern is not a counter array"
+
+  let eval_add : extern = fun ctrl env st ts args ->
+    let loc, idx, v = match args with
+      | [(VRuntime{loc;_}, _); (VBit{v=idx;_}, _); (VBit{v;_}, _)] ->
+        loc, Bigint.to_int_exn idx, v
+      | _ -> failwith "unexpected counter array add args" in
+    let ctr = State.find_extern loc st in
+    match ctr with
+    | CounterArray vs ->
+      let ctr' = CounterArray
+        (List.mapi vs
+          ~f:(fun i elt -> if Int.(i = idx) then Bigint.(elt + v) else elt)) in
+      env, State.insert_extern loc ctr' st, SContinue, VNull
+    | _ -> failwith "extern is not a counter array"
+
+  let eval_array_table : extern = fun _ env st _ args ->
+    (* TODO: actually implement*)
+    let loc = match args with
+      | [(VRuntime {loc;_}, _); _] -> loc
+      | _ -> failwith "unexpected array table init args" in
+    env, State.insert_extern loc (ArrayTable ()) st,
+    SContinue, VRuntime {loc;obj_name = "array_table"}
+
+  let eval_hash_table : extern = fun _ env st _ args ->
+    (* TODO: actually implement*)
+    let loc = match args with
+      | [(VRuntime {loc;_}, _); _] -> loc
+      | _ -> failwith "unexpected array table init args" in
+    env, State.insert_extern loc (HashTable ()) st,
+    SContinue, VRuntime {loc;obj_name = "hash_table"}
+
+  let externs = [
+    ("CounterArray", eval_counter_array);
+    ("increment", eval_increment);
+    ("add", eval_add);
+    ("array_table", eval_array_table); (* unsupported *)
+    ("hash_table", eval_hash_table); (* unsupported *)
+  ]
 
   let read_header_field : obj reader = fun is_valid fields fname ->
     List.Assoc.find_exn fields fname ~equal:String.equal
@@ -29,10 +97,17 @@ module PreEbpfFilter : Target = struct
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
-  let eval_extern _ = failwith ""
+  let eval_extern name =
+    match name with
+    | "CounterArray" -> eval_counter_array
+    | "increment" -> eval_increment
+    | "add" -> eval_add
+    | "array_table" -> eval_array_table
+    | "hash_table" -> eval_hash_table
+    | _ -> failwith "extern unknown in ebpf"
 
-  let initialize_metadata meta env =
-    env
+  let initialize_metadata meta st =
+    State.insert_heap "__INGRESS_PORT__" (VInteger meta) st
 
   let check_pipeline env = failwith "unimplemented"
 
@@ -94,7 +169,10 @@ module PreEbpfFilter : Target = struct
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
       st, env, 
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
-      then Some (State.get_packet st) else None
+      then Some pkt else None
+
+  let get_outport (st : state) (env : env) : Bigint.t =
+    State.find_heap "__INGRESS_PORT__" st |> bigint_of_val
 
 end
 

@@ -371,9 +371,9 @@ d0 ::= @in
 d ::= d0 | @none
 ~ End P4MathGrammar
 
-Signals are types for statements.
+"Results" $R$ are types for statements.
 ~ P4MathGrammar
-sig := @returns // written ``Void" in the implementation
+R := @returns // written ``Void" in the implementation
      | \bot     // written ``Unit" in the implementation
 ~
 
@@ -930,17 +930,18 @@ TODO: Handle overloads of extern functions
 
 Function Call Argument Predicate $P_{call}$:
 ~ MathPre
-@P_{call} = \forall e,t,d,
-  d = @in \Rightarrow t \neq @extern X \{ \overline{method} \} \wedge
-  d = @out \Rightarrow e @lvalue \wedge
-  d = @inout \Rightarrow e @lvalue \wedge
-  d = @none \Rightarrow @True
+@P_{call} : @direction \to @Prop
+\forall e,t
+@P_{call} @in    \mapsto t \neq @extern X \{ \overline{method} \}
+@P_{call} @out   \mapsto e @lvalue
+@P_{call} @inout \mapsto e @lvalue
+@P_{call} @none  \mapsto @True
 ~
 
 ~ Infer
 S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 P,S,D[\overline{X \to \rho}],G |- \overline{e:t,d}
-\overline{@P_{call} \, e \, d \, t}
+\overline{@P_{call} d}
 ----------------------------------------------------------------------------[Function-Call]
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
@@ -948,7 +949,7 @@ S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~ Infer
 S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
-\overline{@P_{call} \, e \, d \, t}
+\overline{@P_{call} d}
 ----------------------------------------------------------------------------[Action-Call]
 S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
 ~
@@ -1003,7 +1004,7 @@ S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 
 Statements are typed by a judgment of the form
 ~ MathPre
-S,D,G,ctx |- s:sig -| G'.
+S,D,G,ctx |- s:R -| G'.
 ~
 
 The judgment is defined inductively by the following rules.
@@ -1032,18 +1033,26 @@ The $\wedge{}$ operator is $\mathkw{returns}$ if both of its arguments
 are $\mathkw{returns}$ and $\bot$ otherwise. The $\vee{}$ operator is
 $\mathkw{returns}$ if any of its arguments are $\mathkw{returns}$
 and $\bot$ otherwise.
+~MathPre
+returns \wedge returns = returns
+   \bot \wedge R = \bot
+      R \wedge \bot = \bot
+   \bot \vee \bot = \bot
+returns \vee R = returns
+      R \vee returns = returns
+~
 
 ~ Infer
 S,D,G |- e:@bool,\_
-S,D,G,ctx |- s:sig -| G'
+S,D,G,ctx |- s:R -| G'
 ----------------------------------[Type-Stmt-If]
 S,D,G,ctx |- @if (e) s :\bot -| G
 ~
 
 ~ Infer
 S,D,G |- e:@bool
-S,D,G,ctx |- s_1:sig_1 -| G_1
-S,D,G,ctx |- s_2:sig_2 -| G_2
+S,D,G,ctx |- s_1:R_1 -| G_1
+S,D,G,ctx |- s_2:R_2 -| G_2
 ----------------------------------------------[Type-Stmt-If-Else]
 S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
 ~
@@ -1059,16 +1068,16 @@ S,D,G,ctx |- \overline{  } :\bot -| G
 ~
 
 ~ Infer
-S,D,G,ctx  |- s:sig_1 -| G'
-S,D,G',ctx |- \overline{s}:sig_2 -| G'
+S,D,G,ctx  |- s:R_1 -| G'
+S,D,G',ctx |- \overline{s}:R_2 -| G'
 ---------------------------------------------------[Type-Stmts-List]
-S,D,G,ctx |- s;\overline{s}:sig_1 \vee sig_2 -| G
+S,D,G,ctx |- s;\overline{s}:R_1 \vee R_2 -| G
 ~
 
 ~ Infer
-S,D,G,ctx |- \overline{s}:sig -| G'
+S,D,G,ctx |- \overline{s}:R -| G'
 ---------------------------------------[Type-Stmt-Block]
-S,D,G,ctx |- \{\overline{s}\}:sig -| G
+S,D,G,ctx |- \{\overline{s}\}:R -| G
 ~
 
 ~ Infer
@@ -1109,7 +1118,7 @@ S,D,G,@InAction |- @return:@returns -| G
 
 ~ Infer
 S,D,G |- case\_lbl : \tau
-S,D,G,@InControl |- blk:sig -| G'
+S,D,G,@InControl |- blk:R -| G'
 ---------------------------------------------------[Type-Case-Block]
 S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
 ~
@@ -1255,24 +1264,24 @@ S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S
 
 ~ Infer
 t x := e
---------------------------------[Type-Decl-Variable]
+---------------------------[Type-Decl-Variable]
 S,D,G |- t x -| S,D,G[x:t]
 ~
 
 ~ Infer
 S,D,G |- e:t
--------------------------------------[Type-Decl-Variable-Initialized]
+--------------------------------[Type-Decl-Variable-Initialized]
 S,D,G |- t x := e -| S,D,G[x:t]
 ~
 
 ~ Infer
 
--------------------------------------------------------[Type-Decl-Value-Set]
+--------------------------------------------------------[Type-Decl-Value-Set]
 S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
 ~
 
 ~ Infer
-S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+S,D[\overline{X=X}],G[\overline{x:t}],@InAction |- blk : @returns -| G_{blk}
 G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
 -------------------------------------------------------------------------------[Type-Decl-Action]
 S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
@@ -1376,31 +1385,31 @@ S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D
 
 ~ Infer
 
----------------------------------------------------[Type-Decl-TypeDef]
+-------------------------------------[Type-Decl-TypeDef]
 S,D,G |- @typedef t X -| S,D[X=t],G
 ~
 
 ~ Infer
 
----------------------------------------------------[Type-Decl-TypeDef]
+-----------------------------------------------[Type-Decl-TypeDef]
 S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~
 
 ~ Infer
 D'=D[X=@control<\overline{X}>(\overline{x:t,d})
---------------------------------------------------------------------[Type-Decl-Control-Type]
+--------------------------------------------------------------[Type-Decl-Control-Type]
 S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
----------------------------------------------------[Type-Decl-Parser-Type]
+-------------------------------------------------------------[Type-Decl-Parser-Type]
 S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
 ~
 
 ~ Infer
 D'=D[X=@package<\overline{X}>(\overline{x:t})
------------------------------------------------------------------[Type-Decl-Package-Type]
+------------------------------------------------------------[Type-Decl-Package-Type]
 S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
 ~
 
@@ -1576,15 +1585,15 @@ n1 & v = (n1, {n2}_u^w)
 
 
 \mathkw{match\_set} \overline{v} set = \begin{cases} true & set = @universal
-true & set = @singleton w v1 \land \overline{v} = (v2) \land v1 = \mathkw{extract\_num} v2
-false & set = @singleton w v1 \land \overline{v} = (v2) \land v1 \neq \mathkw{extract\_num} v2
-true & set = v1 \texttt{\&\&\&} v2 \land \overline{v} = (v3) \land v1 \& v2 = v3 \& v2
-false & set = v1 \texttt{\&\&\&} v2 \land \overline{v} = (v3) \land v1 \& v2 \neq v3 \& v2
-true & set = v1 .. v2 \land \overline{v} = (v3) \land v1 \leq v3 \leq v2
-false & set = v1 .. v2 \land \overline{v} = (v3) \land (v3 \lt v1 \lor v3 \gt v2)
-\mathkw{match\_set} (v1) set_1 \&\& ... \&\& \mathkw{match\_set} (v_n) set_n & set = @product (set_1,...,set_n) \land \overline{v} = (v1,...,v_n)
-\mathkw{match\_set} (v1) set_1 || ... || \mathkw{match\_set} (v_n) set_n & set = \mathkw{value\_set} \overline{matches} (set_1,...,set_n) \land \overline{v} = (v1,...,v_n)
-\mathkw{match\_set} \overline{v} (v1 \texttt{\&\&\&} v2) & set = @lpm w v1 v2
+true & set = @singleton w v_1 \land \overline{v} = (v_2) \land v_1 = \mathkw{extract\_num} v_2
+false & set = @singleton w v_1 \land \overline{v} = (v_2) \land v_1 \neq \mathkw{extract\_num} v_2
+true & set = v_1 \texttt{\&\&\&} v_2 \land \overline{v} = (v_3) \land v1 \& v_2 = v_3 \& v_2
+false & set = v_1 \texttt{\&\&\&} v_2 \land \overline{v} = (v_3) \land v_1 \& v_2 \neq v_3 \& v_2
+true & set = v_1 .. v_2 \land \overline{v} = (v_3) \land v_1 \leq v_3 \leq v_2
+false & set = v_1 .. v_2 \land \overline{v} = (v_3) \land (v_3 \lt v_1 \lor v_3 \gt v_2)
+\mathkw{match\_set} (v_1) set_1 \&\& ... \&\& \mathkw{match\_set} (v_n) set_n & set = @product (set_1,...,set_n) \land \overline{v} = (v_1,...,v_n)
+\mathkw{match\_set} (v_1) set_1 || ... || \mathkw{match\_set} (v_n) set_n & set = \mathkw{value\_set} \overline{matches} (set_1,...,set_n) \land \overline{v} = (v_1,...,v_n)
+\mathkw{match\_set} \overline{v} (v_1 \texttt{\&\&\&} v_2) & set = @lpm w v_1 v_2
 \end{cases}
 ~
 
@@ -1595,27 +1604,27 @@ false & set = v1 .. v2 \land \overline{v} = (v3) \land (v3 \lt v1 \lor v3 \gt v2
 \end{cases}
 
 
-\mathkw{parser\_state\_machine} \zeta \xi \sigma \overline{state} (@state x \{\overline{s}; @transition state\_expr\}) = \begin{cases} (\xi', \sigma', \mathkw{sig\_continue}) & state\_expr = ``accept" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \zeta \xi \sigma \overline{state} (@state x \{\overline{s}; @transition state\_expr\}) = \begin{cases} (\xi', \sigma', \mathkw{sig\_continue}) & state\_expr = ``accept" \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 (\xi', \sigma', \mathkw{sig\_reject} ``NoError") & state\_expr = ``reject" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
-\mathkw{parser\_state\_machine} \zeta \xi' \sigma' \overline{state} (@state x_{next} \{...\}) & @state x_{next} \{...\} \in \overline{state} \land state\_expr = x_{next} \land x_{next} \neq ``accept" \land x_{next} \neq ``reject" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
-\mathkw{parser\_state\_machine} \zeta \xi'' \sigma'' \overline{state} (@state x \{\overline{s}; @transition x_{next}\}) & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', Some\ x_{next})
-(\xi', \sigma', \mathkw{sig\_reject} ``NoMatch") & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', None)
+\mathkw{parser\_state\_machine} \zeta \xi' \sigma' \overline{state} (@state x_{next} \{...\}) & @state x_{next} \{...\} \in \overline{state} \land state\_expr = x_{next} \land x_{next} \neq ``accept" \land x_{next} \neq ``reject" \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \zeta \xi'' \sigma'' \overline{state} (@state x \{\overline{s}; @transition x_{next}\}) & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', Some\ x_{next})
+(\xi', \sigma', \mathkw{sig\_reject} ``NoMatch") & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', None)
 \end{cases}
 ~
 
 ### LValue Evaluation
 $e$ has type $\tau$.
 ~ MathPre
-\mathkw{lv\_of\_expr} \zeta \xi \sigma e1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e1 = x
-(\xi', \sigma', sig, @lvalue t lv_o.name) & e1 = e2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', sig, lv_o)
-(\xi', \sigma', \mathkw{sig\_continue}, @lvalue t lv_o[n1:n2] ) & e1 = e2[n1:n2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o)
-(\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv_o[v]) & e1 = e2[e3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o) \land <\zeta, \xi, \sigma, e3> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+\mathkw{lv\_of\_expr} \zeta \xi \sigma e_1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e_1 = x
+(\xi', \sigma', sig, @lvalue t lv_o.name) & e_1 = e_2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', sig, lv_o)
+(\xi', \sigma', \mathkw{sig\_continue}, @lvalue t lv_o[n_1:n_2] ) & e_1 = e_2[n_1:n_2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o)
+(\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv_o[v]) & e_1 = e_2[e_3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o) \land <\zeta, \xi, \sigma, e_3> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
 v & lv_1 = @lvalue t lv_2.name \land (\mathkw{value\_of\_lv} \xi lv_2 = @struct \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = @header b \{ \overline{(name, v)} \} \lor \mathkw{value\_of\_lv} \xi lv_2 = \mathkw{header\ union} \{ \overline{(name, v)} \}) \land (x,v) \in \overline{(name,v)}
 v_{n_{next}\%n_{size}} & lv_1 = @lvalue t lv_2.@next \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
-(@bitslice (\mathkw{extract\_num} (\mathkw{value\_of\_lv} \xi lv_2)) n1 n2)_u^{(n1-n2+1)} & lv_1 = @lvalue t lv_2[n1:n2]
+(@bitslice (\mathkw{extract\_num} (\mathkw{value\_of\_lv} \xi lv_2)) n_1 n_2)_u^{(n_1-n_2+1)} & lv_1 = @lvalue t lv_2[n1:n2]
 v_{(\mathkw{extract\_num} v_{index})\%n_{size}} & lv_1 = @lvalue t lv_2[v_{index}] \land \mathkw{value\_of\_lv} \xi lv_2 = (\overline{v},n_{size},n_{next})
 \end{cases}
 
@@ -1651,9 +1660,9 @@ $\mathkw{bits}\ n$ is the number of bits not masked by $n$.
 
 ~ MathPre
 \mathkw{lpm\_set} set = \begin{cases} @universal & set = @universal
-@lpm w v1 v2 & set = @lpm w v1 v2
+@lpm w v_1 v_2 & set = @lpm w v_1 v_2
 @lpm w v_u^w (\texttt{\textasciitilde} v)_u^w & set = @singleton w v
-@lpm (@bits (\mathkw{extract\_num} v2)) v1 v2 & set = v1 \texttt{\&\&\&} v2
+@lpm (@bits (\mathkw{extract\_num} v_2)) v_1 v_2 & set = v1 \texttt{\&\&\&} v_2
 @product (\mathkw{lpm\_set} \overline{set}) & set = @product \overline{set}
 \end{cases}
 
@@ -2091,7 +2100,7 @@ n_{next} \lt 1
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{push\_front} (@lvalue t[a] ...)>
 <\zeta, \xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\overline{v}, n_{size}, n_{next})
-\mathkw{assign\_lv} \xi' (@lvalue t[a] ...) ((\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v},v1,...,v_{n_{size} - \mathkw{extract\_num} v}, n_{size}, n_{next} + \mathkw{extract\_num} v) = (\xi''',sig)
+\mathkw{assign\_lv} \xi' (@lvalue t[a] ...) ((\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v},v_1,...,v_{n_{size} - \mathkw{extract\_num} v}, n_{size}, n_{next} + \mathkw{extract\_num} v) = (\xi''',sig)
 -------------------------------------------------------------------------------[PushFront]
 <\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
 ~
@@ -2823,6 +2832,8 @@ TODO!
 TODO: this is a stub.
 
 ## Type Soundness of Expressions
+
+NOTE: once the typing judgment on values is defined then this theorem may need to be stated slightly differently.
 
 ### Expression Type Preservation Theorem Statement
 ~ MathPre
@@ -4103,7 +4114,7 @@ We have induction hypotheses:
 ~MathPre
 I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_ \Rightarrow <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \to blk> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{x:t,d}) \to blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 I_2: S,D,G \models \xi',\sigma' \Rightarrow P,S,D,G |- \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge P,S,D,G \vdash \overline{v:t}
-I_3: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{\Psi}' \Rightarrow <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>\Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma''' \Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma'''' \wedge @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v v : \tau_{\mathsf{ret}}
+I_3: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns -| G_{\Psi}' \Rightarrow <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>\Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma''' \Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma'''' \wedge @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v v : \tau_{\mathsf{ret}}
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4276,34 +4287,34 @@ we prove $SG_2$.
 
 ### Statement Type Preservation Theorem Statement
 
-TODO: name for statement typing signals and evaluation signals needs to be different.
-
 Statement Preservation requires a predicate on contexts and signals:
 ~MathPre
 \Omega : ctx \to @Prop
 
-\forall @sig,sig
-\Omega @InAction \mapsto @sig = returns
-\Omega (@InFunction @void) \mapsto @sig = returns
-\Omega (@InFunction t) \mapsto @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
-\Omega \_ \mapsto @sig = @unit
+\forall R,sig
+\Omega @InAction \mapsto R = returns
+\Omega (@InFunction @void) \mapsto R = returns
+\Omega (@InFunction t) \mapsto R = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
+\Omega \_ \mapsto R = @unit
 ~
 TODO: definition of $\Omega$ may be incorrect or incomplete.
 
+NOTE: $\Omega$ was added recently so that the function-call case made sense, and as of yet none of the statement cases prove this property.
+
 ~MathPre
-\forall S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma',
-S,D,G,ctx |- s: @sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
+\forall S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
+S,D,G,ctx |- s: R -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
 ~
 
 ### Statement Type Preservation Proof
 
 Introducing variables:
 ~MathPre
-S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma'
+S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
 ~
 and assuming hypotheses:
 ~MathPre
-H_0: S,D,G,ctx |- s:sig -| G'
+H_0: S,D,G,ctx |- s:R -| G'
 H_1: <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
@@ -4373,7 +4384,7 @@ Subgoal $SG$ is thus proven by $H_{13}$.
 #### Case Conditional-Reject
 We have hypotheses:
 ~MathPre
-H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
 H_1: <\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
 H_2: S,D,G \models \xi,\sigma
 ~
@@ -4388,8 +4399,8 @@ SG: S,D,G \models \xi',\sigma'
 By inversion on $H_0$ and $H_1$ we collect hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
-H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
-H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_4: S,D,G,ctx |- s_1:R_1 -| G_1
+H_5: S,D,G,ctx |- s_2:R_2 -| G_2
 H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
 ~
 Through the agency of application $I_1 \, H_2 \, H_3 \, H_6$ we come by hypotheses:
@@ -4418,7 +4429,7 @@ SG: S,D,G \models \xi',\sigma''
 By inversion on $H_0$ and $H_1$ we obtain hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
-H_4: S,D,G,ctx |- s:sig -| G'
+H_4: S,D,G,ctx |- s:R -| G'
 H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
 H_6: <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ~
@@ -4451,7 +4462,7 @@ SG: S,D,G \models \xi',\sigma'
 By inversion on hypotheses $H_0$ and $H_1$ we inherit hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
-H_4: S,D,G,ctx |- s:sig -| G'
+H_4: S,D,G,ctx |- s:R -| G'
 H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 Via application $I_1 \, H_2 \, H_3 \, H_5$ we obtain hypotheses:
@@ -4464,14 +4475,14 @@ and by $H_6$ we prove $SG$.
 #### Case If-Else-True
 We have hypotheses:
 ~MathPre
-H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
 H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
 I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
-I_2: S,D,G,ctx |- s_1:sig_1 -| G_1 \Rightarrow <\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_1 \models \xi'',\sigma''
+I_2: S,D,G,ctx |- s_1:R_1 -| G_1 \Rightarrow <\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_1 \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4480,8 +4491,8 @@ SG: S,D,G \models \xi',\sigma''
 By inversion on $H_0$ and $H_1$ we amass hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
-H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
-H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_4: S,D,G,ctx |- s_1:R_1 -| G_1
+H_5: S,D,G,ctx |- s_2:R_2 -| G_2
 H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 H_7: <\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
 ~
@@ -4499,14 +4510,14 @@ and $H_{10}$ proves $SG$.
 #### Case If-Else-False
 We have hypotheses:
 ~MathPre
-H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
 H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
 I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
-I_2: S,D,G,ctx |- s_2:sig_2 -| G_2 \Rightarrow <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_2 \models \xi'',\sigma''
+I_2: S,D,G,ctx |- s_2:R_2 -| G_2 \Rightarrow <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_2 \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4515,8 +4526,8 @@ SG: S,D,G \models \xi',\sigma''
 By inversion on $H_0$ and $H_1$ we amass hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
-H_4: S,D,G,ctx |- s_1:sig_1 -| G_1
-H_5: S,D,G,ctx |- s_2:sig_2 -| G_2
+H_4: S,D,G,ctx |- s_1:R_1 -| G_1
+H_5: S,D,G,ctx |- s_2:R_2 -| G_2
 H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 H_7: <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
 ~

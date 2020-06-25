@@ -57,7 +57,7 @@ let packet_equal (port_exp, pkt_exp) (port, pkt) =
     i >= String.length pkt_exp ||
     ((pkt_exp.[i] = pkt.[i] || pkt_exp.[i] = '*') && iter (i + 1))
     in
-    (* String.(port_exp = port) && *)
+    Int.((port_exp |> Int.of_string) = (port |> Int.of_string)) &&
     iter 0
 
 let convert_qualified name =

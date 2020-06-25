@@ -392,12 +392,17 @@ module MakeInterpreter (T : Target) = struct
       | None -> None
       | Some (s, t) ->
         let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
-        let pre_exp = match t with
-                      | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None})
-                      | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)})
-                      | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
-                      | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
-                      | _ -> failwith "unsupported type" in
+        let rec pre_expr_of_typ env (t : Type.t) =
+          match t with
+          | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None})
+          | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)})
+          | NewType {typ;_} -> pre_expr_of_typ env typ
+          | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
+          | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
+          | TypeName n -> pre_expr_of_typ env (EvalEnv.find_typ n env)
+          | _ -> failwith "unsupported type" in
+        let pre_exp =
+          pre_expr_of_typ env t in
         let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
         let exp = (Info.dummy, typed_exp) in
         if String.contains s '*'
@@ -1420,7 +1425,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_parser (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (pscope : env) (ls : (string * loc) list)
       (locals : Declaration.t list) (states : Parser.state list) : env * state * signal =
-    (* TODO: incorporate closure environment *)
     let (callenv,penv, st, s) = copyin ctrl env st env params args in
     match s with
     | SContinue ->

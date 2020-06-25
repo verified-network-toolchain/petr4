@@ -2382,19 +2382,34 @@ and resolve_function_overload env ctx type_name args =
     | Argument.KeyValue {key; _} -> Some (snd key)
     | _ -> None
   in
-  let param_name param = Parameter.(snd param.variable) in
   match list_option_flip (List.map ~f:arg_name args) with
   | Some arg_names ->
-     let param_names_ok params =
-       let param_names = List.map ~f:param_name params in
-       Util.sorted_eq_strings param_names arg_names
+     let param_names_ok (params: Typed.Parameter.t list) =
+       let param_has_arg (param: Typed.Parameter.t) =
+         param.opt_value <> None ||
+         List.exists arg_names
+           ~f:(fun arg_name -> arg_name = snd param.variable)
+       in
+       let arg_has_param (arg_name: string) =
+         List.exists params
+           ~f:(fun param -> arg_name = snd param.variable)
+       in
+       List.for_all params ~f:param_has_arg && List.for_all arg_names ~f:arg_has_param
      in
      resolve_function_overload_by ~f:param_names_ok env ctx type_name
   | None ->
-     let param_count_ok params =
-       List.length params = List.length args
+     let rec param_count_ok args (params: Typed.Parameter.t list) =
+       match params, args with
+       | param :: params, arg :: args ->
+          param_count_ok args params
+       | param :: params, [] ->
+          param.opt_value <> None && param_count_ok [] params
+       | [], arg :: args ->
+          false
+       | [], [] ->
+          true
      in
-     resolve_function_overload_by ~f:param_count_ok env ctx type_name
+     resolve_function_overload_by ~f:(param_count_ok args) env ctx type_name
 
 and type_constructor_invocation env ctx info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in

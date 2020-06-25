@@ -3377,6 +3377,12 @@ and type_default_action
   | e ->
      failwith "couldn't type default action as functioncall"
 
+and keys_actions_ok keys actions =
+  match keys with
+  | Some [] -> true
+  | Some ks -> List.length actions > 0
+  | None -> List.length actions > 0
+
 and type_table' env ctx info annotations name key_types action_map entries_typed size default_typed properties =
   let open Types.Table in
   match properties with
@@ -3500,9 +3506,9 @@ and type_table' env ctx info annotations name key_types action_map entries_typed
     (* Aggregate table information. *)
     let action_names = action_map
       |> begin fun l ->
-          if List.length l > 0 then l
-          else raise_s
-            [%message "Table must have a non-empty actions property"] end
+         if keys_actions_ok key_types l
+         then l
+         else raise_s [%message "Table must have a non-empty actions property"] end
       |> List.map ~f:fst
       |> List.map ~f:name_only in
     let action_enum_name = "action_list_" ^ snd name in

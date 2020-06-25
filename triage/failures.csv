@@ -26,6 +26,5 @@ checker,examples/checker_tests/good/constsigned.p4,compile time eval not working
 checker,examples/checker_tests/good/struct.p4,compile time eval not working for member lookups,220
 checker,examples/checker_tests/good/struct1.p4,compile time eval not working for member lookups,220
 checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter typechecking restrictions,162
-checker,examples/checker_tests/good/issue638-1.p4,empty action lists are actually legal,221
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,value set typing bug,81
 stf,examples/checker_tests/good/issue1049-bmv2.p4,crc checksum problems,179

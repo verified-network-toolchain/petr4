@@ -2051,10 +2051,7 @@ and match_params_to_args call_site_info params args : (Typed.Parameter.t * Expre
   let args = List.map ~f:snd args in
   match get_mode None args with
   | None ->
-     begin match params with
-     | [] -> []
-     | _ -> raise_s [%message "not enough arguments supplied" ~info:(call_site_info: Info.t)]
-     end
+     match_positional_args_to_params call_site_info params args
   | Some `Positional ->
      match_positional_args_to_params call_site_info params args
   | Some `Named ->
@@ -2075,9 +2072,12 @@ and match_positional_args_to_params call_site_info params args =
     | param :: params, [] ->
        begin match param.opt_value with
        | Some expr -> conv param (Expression {value = expr}) :: go params args
-       | None -> raise_s [%message "missing argument for parameter"
-                             ~info:(call_site_info: Info.t)
-                             ~param:(param: Typed.Parameter.t)]
+       | None ->
+          if Parameter.is_optional param
+          then conv param Missing :: go params args
+          else raise_s [%message "missing argument for parameter"
+                           ~info:(call_site_info: Info.t)
+                           ~param:(param: Typed.Parameter.t)]
        end
     | [], arg :: args ->
        raise_s [%message "too many arguments"
@@ -2101,13 +2101,16 @@ and match_named_args_to_params call_site_info (params: Typed.Parameter.t list) a
      let maybe_arg_for_p, other_args =
        Util.find_map_and_drop ~f:right_arg args
      in
-     begin match maybe_arg_for_p with
-     | Some arg_for_p ->
+     begin match maybe_arg_for_p, p.opt_value with
+     | Some arg_for_p, _
+     | None, Some arg_for_p ->
         (p, Some arg_for_p) :: match_named_args_to_params call_site_info params other_args
-     | None ->
-        raise_s [%message "parameter has no matching argument"
-                    ~call_site:(call_site_info: Info.t)
-                    ~param:(p: Typed.Parameter.t)]
+     | None, None ->
+        if is_optional p
+        then (p, None) :: match_named_args_to_params call_site_info params other_args
+        else raise_s [%message "parameter has no matching argument"
+                         ~call_site:(call_site_info: Info.t)
+                         ~param:(p: Typed.Parameter.t)]
      end
   | [] ->
      match args with
@@ -2164,7 +2167,7 @@ and cast_param_arg env ctx call_info (param, expr: Typed.Parameter.t * Expressio
      check_direction env param.direction typed_arg;
      param, Some typed_arg
   | None ->
-     if param.direction <> Out
+     if param.direction <> Out && not (Parameter.is_optional param)
      then raise_s [%message "don't care argument (underscore) provided for non-out parameter"
                       ~call_site:(call_info: Info.t)
                       ~param:(snd param.variable)]
@@ -2291,6 +2294,31 @@ and get_decl_constructor_params env info (decl : Prog.Declaration.t) args =
      raise_s [%message "type does not have constructor for these arguments"
                  ~typ:(decl: Prog.Declaration.t) ~args:(args: Argument.t list)]
 
+and overload_param_count_ok (args: Argument.t list) (params: Typed.Parameter.t list) =
+  match params, args with
+  | param :: params, arg :: args ->
+     overload_param_count_ok args params
+  | param :: params, [] ->
+     (Typed.Parameter.is_optional param || param.opt_value <> None)
+     && overload_param_count_ok [] params
+  | [], arg :: args ->
+     false
+  | [], [] ->
+     true
+
+and overload_param_names_ok (arg_names: string list) (params: Typed.Parameter.t list) =
+  let param_has_arg (param: Typed.Parameter.t) =
+    Typed.Parameter.is_optional param ||
+    param.opt_value <> None ||
+      List.exists arg_names
+        ~f:(fun arg_name -> arg_name = snd param.variable)
+  in
+  let arg_has_param (arg_name: string) =
+    List.exists params
+      ~f:(fun param -> arg_name = snd param.variable)
+  in
+  List.for_all params ~f:param_has_arg && List.for_all arg_names ~f:arg_has_param
+
 and resolve_constructor_overload_by ~f:(f: Typed.Parameter.t list -> bool) env type_name =
   let ok : Typed.Type.t -> bool =
     function
@@ -2317,16 +2345,9 @@ and resolve_constructor_overload env type_name args : ConstructorType.t =
   in
   match list_option_flip (List.map ~f:arg_name args) with
   | Some arg_names ->
-     let param_names_ok (params: Typed.Parameter.t list) =
-       let param_names = List.map ~f:(fun p -> snd p.variable) params in
-       Util.sorted_eq_strings param_names arg_names
-     in
-     resolve_constructor_overload_by ~f:param_names_ok env type_name
+     resolve_constructor_overload_by ~f:(overload_param_names_ok arg_names) env type_name
   | None ->
-     let param_count_ok params =
-       List.length params = List.length args
-     in
-     resolve_constructor_overload_by ~f:param_count_ok env type_name
+     resolve_constructor_overload_by ~f:(overload_param_count_ok args) env type_name
 
 and resolve_function_overload_by ~f env ctx func : Prog.Expression.t =
   let open Types.Expression in
@@ -2384,32 +2405,9 @@ and resolve_function_overload env ctx type_name args =
   in
   match list_option_flip (List.map ~f:arg_name args) with
   | Some arg_names ->
-     let param_names_ok (params: Typed.Parameter.t list) =
-       let param_has_arg (param: Typed.Parameter.t) =
-         param.opt_value <> None ||
-         List.exists arg_names
-           ~f:(fun arg_name -> arg_name = snd param.variable)
-       in
-       let arg_has_param (arg_name: string) =
-         List.exists params
-           ~f:(fun param -> arg_name = snd param.variable)
-       in
-       List.for_all params ~f:param_has_arg && List.for_all arg_names ~f:arg_has_param
-     in
-     resolve_function_overload_by ~f:param_names_ok env ctx type_name
+     resolve_function_overload_by ~f:(overload_param_names_ok arg_names) env ctx type_name
   | None ->
-     let rec param_count_ok args (params: Typed.Parameter.t list) =
-       match params, args with
-       | param :: params, arg :: args ->
-          param_count_ok args params
-       | param :: params, [] ->
-          param.opt_value <> None && param_count_ok [] params
-       | [], arg :: args ->
-          false
-       | [], [] ->
-          true
-     in
-     resolve_function_overload_by ~f:(param_count_ok args) env ctx type_name
+     resolve_function_overload_by ~f:(overload_param_count_ok args) env ctx type_name
 
 and type_constructor_invocation env ctx info decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
@@ -2423,11 +2421,17 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.Exp
     match cast_param_arg env' ctx info (param, arg) with
     | _, Some e ->
        if compile_time_known_expr env e
-       then e
+       then Some e
        else raise_s [%message "constructor argument is not compile-time known" ~arg:(e: Prog.Expression.t)]
-    | _, None -> failwith "missing constructor argument"
+    | _, None ->
+       if Parameter.is_optional param
+       then None
+       else failwith "missing constructor argument"
   in
-  let args_typed = List.map ~f:cast_arg params_args in
+  let args_typed =
+    params_args
+    |> List.filter_map ~f:cast_arg
+  in
   let ret = saturate_type env' constructor_type.return in
   args_typed, ret
 

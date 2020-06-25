@@ -31,6 +31,7 @@ module rec Parameter : sig
   [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
+  val is_optional : t -> bool
 end = struct
   type t =
     { annotations: Annotation.t list;
@@ -51,6 +52,16 @@ end = struct
       eq_dir d1 d2 &&
       Type.eq t1 t2 &&
       Base.String.equal s1 s2
+
+  let is_optional {annotations; _} =
+    let open Annotation in
+    let is_opt ann =
+      match snd ann with
+      | {name = _, name; body = _, Empty} ->
+         name = "optional"
+      | _ -> false
+    in
+    List.exists is_opt annotations
 end
 
 and PackageType : sig

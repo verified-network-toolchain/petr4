@@ -801,7 +801,7 @@ and Value : sig
     in_size : int;
   } [@@deriving sexp,show,yojson]
 
-  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list * (Ast.qualified_name * Ast.action list) list
 
   type vsets = Match.t list list
 
@@ -1032,7 +1032,7 @@ end = struct
     in_size : int;
   } [@@deriving sexp,show,yojson]
 
-  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list
+  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list * (Ast.qualified_name * Ast.action list) list
 
   type vsets = Match.t list list
 

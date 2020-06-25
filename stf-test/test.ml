@@ -82,7 +82,17 @@ module RunnerMaker (C : RunnerConfig) = struct
     let port = Bigint.of_int port in
     C.eval_prog (add, []) env st pkt_in port prog
 
-  let rec run_test (prog : Prog.program) (stmts : statement list) add
+  let update lst name v =
+    match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with
+    | None ->
+      (name, [v]) :: lst
+    | Some (index, item) ->
+      let xs, ys = List.split_n lst index in
+      match ys with
+      | y :: ys -> xs @ (name, v :: snd item) :: ys
+      | [] -> failwith "unreachable: index out of bounds"
+
+  let rec run_test (prog : Prog.program) (stmts : statement list) (add, set_def)
       (results : (string * string) list) (expected : (string * string) list)
       (env : Prog.Env.EvalEnv.t) (st : C.st) : unit = 
     match stmts with
@@ -92,7 +102,7 @@ module RunnerMaker (C : RunnerConfig) = struct
     | hd :: tl -> 
       match hd with
       | Packet (port, packet) -> 
-        let (st', result) = evaler prog (packet |> String.lowercase) (int_of_string port) env st add in
+        let (st', result) = evaler prog (packet |> String.lowercase) (int_of_string port) env st (add,set_def) in
         let results' =
         begin match result with
         | Some (pkt, port) ->
@@ -100,23 +110,19 @@ module RunnerMaker (C : RunnerConfig) = struct
                 (Bigint.to_string port, fixed) :: results
         | None -> results
         end in
-        run_test prog tl add results' expected env st'
-      | Expect (port, Some packet) -> run_test prog tl add results ((port, strip_spaces packet |> String.lowercase) :: expected) env st
+        run_test prog tl (add,set_def) results' expected env st'
+      | Expect (port, Some packet) -> run_test prog tl (add,set_def) results ((port, strip_spaces packet |> String.lowercase) :: expected) env st
       | Add (tbl_name, priority, match_list, (action_name, args), id) ->
         let tbl_name' = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
-        let add' =
-        begin match List.findi add ~f:(fun _ (n,_) -> String.(n = tbl_name')) with
-        | None ->
-          (tbl_name', [(priority, match_list, (action_name', args), id)]) :: add
-        | Some (index, entries_info) ->
-          let xs, ys = List.split_n add index in
-          match ys with
-          | y :: ys -> xs @ (tbl_name', (priority, match_list, (action_name', args), id) :: snd entries_info) :: ys
-          | [] -> failwith "unreachable: index out of bounds"
-        end in 
-        run_test prog tl add' results expected env st
-      | Wait -> Unix.sleep 1; run_test prog tl add results expected env st
+        let add' = update add tbl_name' (priority, match_list, (action_name', args), id) in 
+        run_test prog tl (add',set_def) results expected env st
+      | Wait -> Unix.sleep 1; run_test prog tl (add,set_def) results expected env st
+      | Set_default (tbl_name, (action_name, args)) ->
+        let tbl_name' = convert_qualified tbl_name in 
+        let action_name' = convert_qualified action_name in
+        let set_def' = update set_def tbl_name' (action_name', args) in
+        run_test prog tl (add, set_def') results expected env st
       | _ -> failwith "unimplemented stf statement"
 end
 
@@ -158,9 +164,9 @@ let stf_alco_test include_dir stf_file p4_file =
            | _ -> failwith "unexpected main value" in
       match target with
       | SpecializedType{base = TypeName (BareName(_, "V1Switch"));_} -> 
-        V1Runner.run_test prog stmts [] [] [] env Eval.V1Interpreter.empty_state
+        V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
       | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
-        EbpfRunner.run_test prog stmts [] [] [] env Eval.EbpfInterpreter.empty_state
+        EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
       | _ -> failwith "architecture unsupported") in
     Filename.basename stf_file, [test]
 

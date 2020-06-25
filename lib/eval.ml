@@ -1428,7 +1428,6 @@ module MakeInterpreter (T : Target) = struct
   and eval_parser (ctrl : ctrl) (env : env) (st : state) (params : TypeParameter.t list)
       (args : Expression.t option list) (pscope : env) (ls : (string * loc) list)
       (locals : Declaration.t list) (states : Parser.state list) : env * state * signal =
-    (* TODO: incorporate closure environment *)
     let (callenv,penv, st, s) = copyin ctrl env st env params args in
     match s with
     | SContinue ->

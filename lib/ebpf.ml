@@ -49,15 +49,35 @@ module PreEbpfFilter : Target = struct
       env, State.insert_extern loc ctr' st, SContinue, VNull
     | _ -> failwith "extern is not a counter array"
 
-  let eval_add : extern =
-    fun _ -> failwith "TODO: implement add"
+  let eval_add : extern = fun ctrl env st ts args ->
+    let loc, idx, v = match args with
+      | [(VRuntime{loc;_}, _); (VBit{v=idx;_}, _); (VBit{v;_}, _)] ->
+        loc, Bigint.to_int_exn idx, v
+      | _ -> failwith "unexpected counter array add args" in
+    let ctr = State.find_extern loc st in
+    match ctr with
+    | CounterArray vs ->
+      let ctr' = CounterArray
+        (List.mapi vs
+          ~f:(fun i elt -> if Int.(i = idx) then Bigint.(elt + v) else elt)) in
+      env, State.insert_extern loc ctr' st, SContinue, VNull
+    | _ -> failwith "extern is not a counter array"
 
-  let eval_array_table : extern =
-    fun _ -> failwith "TODO: implement array table"
+  let eval_array_table : extern = fun _ env st _ args ->
+    (* TODO: actuall implement*)
+    let loc = match args with
+      | [(VRuntime {loc;_}, _); _] -> loc
+      | _ -> failwith "unexpected array table init args" in
+    env, State.insert_extern loc (ArrayTable ()) st,
+    SContinue, VRuntime {loc;obj_name = "array_table"}
 
-  let eval_hash_table : extern =
-    fun _ -> failwith "TODO: implement hash table"
-
+  let eval_hash_table : extern = fun _ env st _ args ->
+    (* TODO: actuall implement*)
+    let loc = match args with
+      | [(VRuntime {loc;_}, _); _] -> loc
+      | _ -> failwith "unexpected array table init args" in
+    env, State.insert_extern loc (HashTable ()) st,
+    SContinue, VRuntime {loc;obj_name = "hash_table"}
 
   let externs = [
     ("CounterArray", eval_counter_array);

@@ -7,12 +7,6 @@ checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width c
 checker,examples/checker_tests/bad/div1.p4,implicit cast on division turns negative argument into bit<>,195
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,missing implicit casts,219
 checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls,69
-checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
-checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
-checker,examples/checker_tests/good/spec-ex15.p4,don't care as type parameter,80
-checker,examples/checker_tests/good/twoPipe.p4,don't care type as type parameter,80
-checker,examples/checker_tests/good/type-params.p4,don't care as type parameter,80
-checker,examples/checker_tests/good/unused.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
 checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts,133
 checker,examples/checker_tests/bad/dup-param.p4,params cannot shadow constructor params,135

@@ -207,6 +207,7 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
      end
   | BitStringAccess{bits; hi; lo} ->
      begin match compile_time_eval_expr env bits with
+     | Some (VInt {w; v})
      | Some (VBit {w; v}) ->
         let slice_width = Bigint.(hi - lo + one) in
         let slice_val = Bitstring.bitstring_slice v hi lo in

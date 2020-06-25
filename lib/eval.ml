@@ -388,19 +388,22 @@ module MakeInterpreter (T : Target) = struct
       | [] -> []
       | a :: rest -> failwith "too many arguments supplied"
   
-  and convert_expression (s : (Ast.number * Typed.Type.t) option) : Expression.t option =
+  and convert_expression (env : env) (s : (Ast.number * Typed.Type.t) option) : Expression.t option =
     let replace_wildcard s =
       String.map s ~f:(fun c -> if c = '*' then '0' else c) in
     match s with
     | None -> None
     | Some (s, t) ->
       let num = s |> replace_wildcard |> int_of_string |> Bigint.of_int in
-      let pre_exp = match t with
-                    | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None})
-                    | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)})
-                    | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
-                    | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
-                    | _ -> failwith "unsupported type" in
+      let rec pre_expr_of_typ env (t : Type.t) =
+        match t with
+        | Integer -> Expression.Int (Info.dummy, {value = num; width_signed = None})
+        | Int {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,true)})
+        | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
+        | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
+        | TypeName n -> pre_expr_of_typ env (EvalEnv.find_typ n env)
+        | _ -> failwith "unsupported type" in
+      let pre_exp = pre_expr_of_typ env t in
       let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
       let exp = (Info.dummy, typed_exp) in
       if String.contains s '*'
@@ -419,7 +422,7 @@ module MakeInterpreter (T : Target) = struct
                                            then (snd a).action.args
                                            else acc)
                           ~init:[] in
-      let ctrl_args = match_params_to_args type_params args |> List.map ~f:convert_expression in
+      let ctrl_args = match_params_to_args type_params args |> List.map ~f:(convert_expression env) in
       let pre_action_ref : Table.pre_action_ref =
         { annotations = [];
           name = action_name';
@@ -431,7 +434,7 @@ module MakeInterpreter (T : Target) = struct
     let convert_match ((name, (num_or_lpm : Ast.number_or_lpm)), t) : Match.t =
       match num_or_lpm with
       | Num s ->
-        let e = match convert_expression (Some (s, t)) with
+        let e = match convert_expression env (Some (s, t)) with
                 | Some e -> e
                 | None -> failwith "unreachable" in
         let pre_match = Match.Expression {expr = e} in

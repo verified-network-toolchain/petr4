@@ -1241,7 +1241,7 @@ S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{
 ~
 
 ~ Infer
-S,D[\overline{X=X}],G[\overline{x:t}],t |- blk -| G_{blk}
+\exists \rho, S,D[\overline{X \to \rho}],G[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{blk}
 G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
 ----------------------------------------------------[Type-Decl-Function]
 S,D,G |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
@@ -2618,9 +2618,9 @@ S,D,G \models_{scope} [],\sigma
 
 ~Infer
 S,D,(G,\gamma) \models_{scope} \epsilon,\sigma
-\exists x,t,d,\gamma, (x:t,d) \in \gamma \in G
+G(x) = t,d
 S,D,G |- \sigma(\ell) : t, d
-------------------------------------[Entails-Variable-Scope]
+---------------------------------------------[Entails-Variable-Scope]
 S,D,G \models_{scope} \epsilon,(x=\ell),\sigma
 ~
 
@@ -2639,13 +2639,13 @@ S,D,G \models_{scope} \epsilon,\sigma
 S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
 ~
 
-### Lemma Entailment is Contravariant with respect to State
+### Lemma: Entailment is Contravariant with respect to State
 ~MathPre
 L_0: \forall S,D,G,\xi,\sigma,\sigma',
 \sigma \subseteq \sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi,\sigma'
 ~
 
-### Lemma $\mathkw{lv\_of\_expr}$ Sustains Entailment
+### Lemma: $\mathkw{lv\_of\_expr}$ Sustains Entailment
 
 TODO: need a good definition for this...
 
@@ -2658,32 +2658,74 @@ S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_o
 
 TODO!
 
-### Lemma Copyin Sustains Entailment
+### The Necromancer $\Psi$: Constructing $\Gamma$ from $\xi_{closure}$
+
+For function call expressions involving copyin and copyout, the type-preservation proof needs the typing context $\Gamma$ from the function's definition.
+We need a way to reverse engineer $\Gamma$ from the closure environment $\xi_{closure}$.
+Ergo, the need for a necromancer function:
 ~MathPre
-L_2: \forall \xi,x,t,d,v,\xi',S,D,G,\sigma,\sigma'
-S,D,G |- v : t, d \Rightarrow @copyin \, \xi \, \sigma (x:t,d) v = \xi',\sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t,d] \models \xi',\sigma' \wedge \sigma \subseteq \sigma'
+\Psi : \Sigma \times \Delta \times \xi_{closure} \times \sigma  \mapsto \Gamma
+~
+$\Psi$ is defined as follows:
+~Infer
+
+-------------------------------------------------[Necromance-Empty-Scope]
+\psi \, S \, D \, [] \, \sigma \mapsto_{scope} []
+~
+~Infer
+\psi \, S \, D \, \epsilon \, \sigma \mapsto_{scope} \gamma
+S \, D \, \gamma |- \sigma(\ell) : t, d
+----------------------------------------------------------------------------------[Necromance-Scope]
+\psi \, S \, D \, ((\epsilon,x=\ell),\nu) \, \sigma \mapsto_{scope} \gamma,(x:t,d)
+~
+~Infer
+
+---------------------------------------------------[Necromance-Empty-Environment]
+\Psi \, S \, D \, (P,[],D,\nu) \, \sigma \mapsto []
+~
+~Infer
+\Psi \, S \, D \, (P,E,D,\nu) \sigma \mapsto G
+\psi \, S \, D \, \epsilon \, \sigma \mapsto_{scope} \gamma
+-------------------------------------------------------------------[Necromance-Environment]
+\Psi \, S \, D \, (P,(E,\epsilon),D,\nu) \, \sigma \mapsto G,\gamma
+~
+
+#### Corollary: The Necromancer necromances an entailing Typing Context
+
+~MathPre
+C_0: \forall S,D,\xi,\sigma,G
+\Psi \, S \, D \, \xi \, \sigma \mapsto G \Rightarrow S,D,G \models \xi,\sigma
+~
+
+##### Proof
+
+TODO: By inspection on the definitions of $\models$ and $\Psi$.
+
+### Lemma: Copyin Preserves Entailment
+TODO: Is this the right definition?
+~MathPre
+L_2: \forall \xi_{closure},x,t,d,v,\xi_{closure}',S,D,G,D_{\Psi},G_{\Psi}\sigma,\sigma'
+S,D,G |- v : t, d \Rightarrow @copyin \, \xi_{closure} \, \sigma (x:t,d) v = \xi_{closure}',\sigma' \Rightarrow S,D_{\Psi},G_{\Psi} \models \xi_{closure},\sigma \Rightarrow S,D_{\Psi},G_{\Psi}[x:t,d] \models \xi_{closure}',\sigma' \wedge \sigma \subseteq \sigma'
 ~
 
 #### Proof
 
 TODO!
 
-### Lemma Copyout Sustains Entailment
+### Lemma: Copyout Preserves Entailment
 
 TODO: probably need a better definition for this...
 
 ~MathPre
-L_3: \forall \zeta, \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G,
-S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D,G \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma' \wedge \sigma \subseteq \sigma'
+L_3: \forall \zeta, \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G, D_{\Psi}, G_{\Psi}
+S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D_{\Psi},G_{\Psi} \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma' \wedge \sigma \subseteq \sigma'
 ~
-TODO...I think this is a malformed proposition...
-
 
 #### Proof
 
 TODO!
 
-### Lemma Push Sustains Entailment
+### Lemma: Push Preserves Entailment
 ~MathPre
 L_4: \forall S,D,G,\xi, \sigma,
 S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @push \xi,\sigma
@@ -2693,7 +2735,7 @@ S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @push \xi,\sigma
 
 TODO!
 
-### Lemma Pop Sustains Entailment
+### Lemma: Pop Preserves Entailment
 ~MathPre
 L_5: \forall S,D,G,\xi,\sigma,
 S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @pop \xi,\sigma
@@ -2718,7 +2760,7 @@ TODO!
 
 ### Lemmas: State is Monotonic
 
-These are (sketckily) used to prove statement type preservation.
+These are used to prove statement type preservation.
 
 #### Expression Monotonicity
 ~MathPre
@@ -2740,6 +2782,16 @@ C_1: \forall \xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
 
 TODO!
 
+#### Corollary: Copyin is Monotonic
+~MathPre
+C_2: \xi_{closure}, \sigma, x, t, d, v, \xi_{closure}',\sigma',
+@copyin \, \xi_{closure} \, \sigma (x:t,d) v = \xi_{closure}',\sigma' \Rightarrow \sigma \subseteq \sigma'
+~
+
+##### Proof
+
+TODO!
+
 #### Statement Monotonicity
 ~MathPre
 L_8: \zeta,\xi,\sigma,s,\xi',\sigma',sig,
@@ -2750,6 +2802,25 @@ L_8: \zeta,\xi,\sigma,s,\xi',\sigma',sig,
 
 
 TODO!
+
+### Lemma: Extending $\Delta$ Preserves Entailment
+
+TODO: Is this valid?
+
+~MathPre
+L_9: \forall
+S,D,G \models \xi,\sigma \Rightarrow S,D[X \to \rho],G \models \xi,\sigma
+~
+
+#### Proof:
+
+TODO!
+
+### Definition of Typing Judgment for Values
+~MathPre
+\vdash_v v : \tau
+~
+TODO: this is a stub.
 
 ## Type Soundness of Expressions
 
@@ -4018,7 +4089,10 @@ H_9: S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_3 : t, \_
 ~
 which proves our subgoal $SG_1$.
 
-#### Case Function-Action
+#### Case Function
+
+Question, when typing the function arguments does $\Delta$ get extended with type-arguments?
+
 We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
@@ -4028,18 +4102,18 @@ H_2: <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \s
 We have induction hypotheses:
 ~MathPre
 I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_ \Rightarrow <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \to blk> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{x:t,d}) \to blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow P,S,D[\overline{X \to \rho}],G |- \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge P,S,D[\overline{X \to \rho}],G \vdash \overline{v:t}
-I_3: S,D,G,ctx |- blk:\mathkw{sig\_return\ v} -| G' \Rightarrow <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>\Rightarrow S,D,G \models \xi_{closure}',\sigma''' \Rightarrow S,D,G' \models \xi_{closure}'',\sigma''''
+I_2: S,D,G \models \xi',\sigma' \Rightarrow P,S,D,G |- \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge P,S,D,G \vdash \overline{v:t}
+I_3: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{\Psi}' \Rightarrow <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>\Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma''' \Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma'''' \wedge @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v v : \tau_{\mathsf{ret}}
 ~
 We wish to prove subgoals:
 ~MathPre
 SG_1: S,D,G \models \xi'',\sigma'''''
-SG_2: S,D,G |- v : \tau_{\mathsf{ret}}, @none
+SG_2: \vdash_v v : \tau_{\mathsf{ret}}
 ~
 By inversion on $H_1$ and $H_2$ we amass hypotheses:
 ~MathPre
 H_3: S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-H_4: P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t,d}
+H_4: P,S,D,G \vdash \overline{e:t,d}
 H_5: \overline{@P_{call} \, e \, d \, t}
 H_6: <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
 H_7: <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
@@ -4055,13 +4129,56 @@ H_{12}: S,D,G |- \xi_{closure} \otimes (\overline{x:t,d}) \to blk : function<\ov
 Via the application $I_2 \, H_{11} \, H_4 \, H_7$ we nab hypotheses:
 ~MathPre
 H_{12}: S,D,G \models \xi'',\sigma''
-H_{13}: P,S,D[\overline{X \to \rho}],G |- \overline{v:t,d}
+H_{13}: P,S,D,G |- \overline{v:t,d}
 ~
+By means of application $L_9 \, H_{12}$ we obtain hypothesis:
+~MathPre
+H_{14}: P,S,D[\overline{X \to \rho}],G \models \xi'',\sigma''
+~
+Invoking the *Necromancer* we resurrect the typing context for the closure:
+~MathPre
+H_{15}: \Psi \, S \, D[\overline{X \to \rho}] \, G \, \xi_{closure} \, \sigma'' \mapsto G_{\Psi}
+~
+Under the aegis of application $L_4 \, (C_0 \, H_{15})$ we get hypothesis:
+~MathPre
+H_{16}: S,D[\overline{X \to \rho}],G_{\Gamma} \models @push \xi_{closure},\sigma''
+~
+By application $L_2 \, H_{13} \, H_8 \, H_{16}$ we procure hypothesis:
+~MathPre
+H_{17}: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma'''
+~
+Sketchy: By $H_3$ we know that variable $f \in \Gamma$.
+The only rule that inserts a function into the typing context is rule \textsc{Type-Decl-Function}.
+Thus by inspection on the typing judgments we obtain hypothesis:
+~MathPre
+H_{18}: S,D,G_{\Psi} |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G_{\Psi}'
+~
+and by inversion on $H_{18}$ we acquire hypothesis:
+~MathPre
+H_{19}: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{\Psi}'
+~
+By dint of application $I_3 \, H_{19} \, H_9 \, H_{17}$ we get hypotheses:
+~MathPre
+H_{20}: S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma''''
+H_{21}: @sig = returns
+H_{22}: sig = \mathkw{sig\_return\ v}
+H_{23} \vdash_v v : \tau_{\mathsf{ret}}
+~
+$H_{23}$ proves $SG_2$.
 
-TODO: need better lemmas for copyin and copyout...
-
-TODO: stuck...how to show block $blk$ type checks?
-Then, how do I show that result $v$ type-checks?
+We derive:
+~MathPre
+H_{24}: C_2 \, H_8 \, : \sigma'' \subseteq \sigma'''
+H_{25}: L_8 H_9 : \sigma''' \subseteq \sigma''''
+H_{26}: (\sigma'' \subseteq \sigma''' \Rightarrow \sigma''' \subseteq \sigma'''' \Rightarrow \sigma'' \subseteq \sigma'''') \, H_{24} \, H_{25} : \sigma'' \subseteq \sigma''''
+H_{27}: L_0 \, h_{26} \, H_{12} : S,D,G \models \xi'',\sigma''''
+~
+By application $L_3 \, H_4 \, H_{10} \, H_{27} \, H_{20}$ we acquire hypotheses:
+~MathPre
+H_{28}: S,D,G \models \xi'',\sigma'''''
+H_{29}: \sigma'''' \subseteq \sigma'''''
+~
+and $H_{28}$ proves $SG_1$.
 
 #### Case Masks
 We have hypotheses:
@@ -4158,9 +4275,24 @@ we prove $SG_2$.
 ## Type Soundness of Statements
 
 ### Statement Type Preservation Theorem Statement
+
+TODO: name for statement typing signals and evaluation signals needs to be different.
+
+Statement Preservation requires a predicate on contexts and signals:
+~MathPre
+\Omega : ctx \to @Prop
+
+\forall @sig,sig
+\Omega @InAction \mapsto @sig = returns
+\Omega (@InFunction @void) \mapsto @sig = returns
+\Omega (@InFunction t) \mapsto @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
+\Omega \_ \mapsto @sig = @unit
+~
+TODO: definition of $\Omega$ may be incorrect or incomplete.
+
 ~MathPre
 \forall S,D,G,ctx,s,sig,G',\zeta,\xi,\sigma,\xi',\sigma',
-S,D,G,ctx |- s:sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma'
+S,D,G,ctx |- s: @sig -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
 ~
 
 ### Statement Type Preservation Proof

@@ -2399,7 +2399,7 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~ Infer
 
 -------------------------------------------[Constant-Decl]
-<\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, ((t) v)>
+<\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
 ~
 
 ~ Infer
@@ -2421,7 +2421,7 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~
 
 ~ Infer
-@new \, \xi \, \sigma \, x \, (\xi \otimes \overline{x:t,d}) \to blk) = \xi', \sigma'
+@new \, \xi \, \sigma \, x \, (\xi \otimes (\overline{x:t,d}) \to blk) = \xi', \sigma'
 -------------------------------------------------------------------------[Function-Decl]
 <\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
 ~
@@ -2653,6 +2653,11 @@ S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
 
 ### Lemma: Entailment is Contravariant with respect to State
 ~MathPre
+L_{0_1}: \forall S,D,G,\epsilon,\sigma,\sigma',
+\sigma \subseteq \sigma' \Rightarrow S,D,G \models_{scope} \epsilon,\sigma \Rightarrow S,D,G \models_{scope} \epsilon,\sigma'
+~
+
+~MathPre
 L_0: \forall S,D,G,\xi,\sigma,\sigma',
 \sigma \subseteq \sigma' \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi,\sigma'
 ~
@@ -2860,7 +2865,92 @@ S,D,G |- v : t \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \mode
 ~
 
 #### Proof:
-TODO!
+Introducing variables:
+~MathPre
+S,D,G,v,t,\xi,\sigma,x
+~
+and hypotheses:
+~MathPre
+H_0: S,D,G |- v : t
+H_1: S,D,G \models \xi,\sigma
+~
+we wish to prove the goal:
+~MathPre
+S,D,G[x:t] \models @new \, \xi \, \sigma \, x \, v
+~
+By definition of $\mathkw{new} \, \xi \, \sigma \, x ((t) \, v)$
+~MathPre
+@new \, \xi \, \sigma \, x \, v = \xi', \sigma'
+\exists \ell,
+\xi' = \xi,(x=\ell) = P,(E,\epsilon(x=\ell)),D,\nu
+\sigma' = \sigma[v / \ell]
+~
+By inversion on $H_1$, we have the following case-analysis:
+
+##### Case Entails-Empty-Environment
+We have hypothesis:
+~MathPre
+H_0: S,D,G |- v : t
+H_1: S,D,G \models (P,[],D,\nu),\sigma
+~
+and we wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t] \models (P,([],(x=\ell)),D,\nu),\sigma'
+~
+Thus we may construct the rule-instance:
+
+Sketchy: there needs to be a typing judgment for values,
+so we can show extending $\Gamma$ preserves the typing judgment...
+~Infer
+S,D,G \models_{scope} [],\sigma'
+G[x:t](x) = t
+S,D,G[x:t] |- \sigma'(\ell) : t
+---------------------------------------------[Entails-Variable-Scope]
+S,D,G[x:t] \models_{scope} ([],(x=\ell)),\sigma'
+~
+as well as:
+~Infer
+S,D,G[x:t] \models (P,[],D,\nu),\sigma'
+S,D,G[x:t] \models_{scope} ([],(x=\ell)),\sigma'
+--------------------------------------------[Entails-Environment]
+S,D,G[x:t] \models (P,([],(x=\ell)),D,\nu),\sigma'
+~
+and we have proved $SG$.
+
+##### Case Entails-Environment
+We have hypothesis:
+~MathPre
+H_0: S,D,G |- v : t
+H_1: S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
+H_2: S,D,G \models (P,E,D,\nu),\sigma
+H_3: S,D,G \models_{scope} \epsilon,\sigma
+~
+and we wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma'
+~
+Sketchy, need to show extending $\Gamma$ is ok here...
+
+Via applications $L_0 \, (\sigma \subseteq \sigma') \, H_2$ and $L_{0_1} \, (\sigma \subseteq \sigma') \, H_3$ we acquire hypotheses:
+~MathPre
+H_4: S,D,G[x:t] \models (P,E,D,\nu),\sigma'
+H_5: S,D,G[x:t] \models_{scope} \epsilon,\sigma'
+~
+Thus we may construct the rule-instance:
+~Infer
+S,D,G[x:t] \models_{scope} \epsilon,\sigma'
+G[x:t](x) = t,d
+S,D,G[x:t] |- \sigma'(\ell) : t, d
+---------------------------------------------[Entails-Variable-Scope]
+S,D,G[x:t] \models_{scope} (\epsilon,(x=\ell)),\sigma'
+~
+as well as:
+~Infer
+S,D,G[x:t] \models (P,E,D,\nu),\sigma'
+S,D,G[x:t] \models_{scope} (\epsilon,(x=\ell)),\sigma'
+------------------------------------------------------------[Entails-Environment]
+S,D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma'
+~
 
 ### Definition of Typing Judgment for Values
 ~MathPre
@@ -4770,49 +4860,22 @@ We assumely freely $decl$ is free-variable free.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- @const t x := v -| S[x = v],D,G[x:t]
-H_1: <\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, ((t) v)>
+H_1: <\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
 ~MathPre
-SG: S[x=v],D,G[x:t] \models @new \, \xi \, \sigma \, x \, ((t) \, v)
+SG: S[x=v],D,G[x:t] \models @new \, \xi \, \sigma \, x \, v
 ~
-By definition of $\mathkw{new} \, \xi \, \sigma \, x ((t) \, v)$
+By inversion on $H_0$ we get hypothesis:
 ~MathPre
-@new \, \xi \, \sigma \, x \, v = \xi', \sigma'
-\exists \ell,
-\xi' = \xi,(x=\ell) = P,(E,\epsilon(x=\ell)),D,\nu
-\sigma' = \sigma[v / \ell]
+H_3: S,D,G |- v:t
 ~
-TODO: factor this out with $L_{13}$.
-
-Sketchy: I am just doing the non-empty case for now.
-
-By inversion on $H_2$ we get hypotheses:
+Via the application $L_{10} \, (L_{13} \, H_3 \, H_2)$ we acquire hypothesis:
 ~MathPre
-H_3: S,D,G \models (P,E,D,\nu),\sigma
-H_4: S,D,G \models_{scope} \epsilon,\sigma
+H_4: S[x=v],D,G[x:t] \models @new \, \xi \, \sigma \, x \, v
 ~
-Via applications $L_{10} \, H_3$ and $L_{11} \, H_4$ we acquire hypotheses:
-~MathPre
-H_3: S[x=v],D,G \models (P,E,D,\nu),\sigma
-H_4: S[x=v],D,G \models_{scope} \epsilon,\sigma
-~
-By the definition of $\models$ we may construct:
-~Infer
-S[x=v],D,G[x:t] \models_{scope} \epsilon,\sigma
-G[x=t](x) = t
-S[x=v],D,G[x:t] |- \sigma(\ell) : t, d
----------------------------------------------[Entails-Variable-Scope]
-S[x=v],D,G[x:t] \models_{scope} \epsilon,(x=\ell),\sigma
-~
-~Infer
-S[x=v],D,G[x:t] \models (P,E,D,\nu),\sigma
-S[x=v],D,G[x:t] \models_{scope} \epsilon,(x=\ell),\sigma
---------------------------------------------[Entails-Environment]
-S[x=v],D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma
-~
-and thus $SG$ is proven.
+and $H_4$ proves $SG$.
 
 #### Case Parser-Decl
 ~MathPre
@@ -4837,3 +4900,32 @@ Right now it only takes into account the variable to location mapping $E$.
 TODO: The dynamic semantics do not map the name $X$ to a value in $(\sigma \circ \xi)$.
 I am not sure how to show that preservation holds still, since theoretically $X$ may have been mapped to a value of a different type...
 This is a problem with several of the declaration rules...
+
+#### Case Function-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
+H_1: <\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
+H_2: S,D,G \models \xi,\sigma
+~
+and we wish to prove subgoal:
+~MathPre
+SG: S,D,G' \models \xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'
+~
+By inversion on $H_0$ and $H_1$ we get hypotheses:
+~MathPre
+H_3: \exists \rho, S,D[\overline{X \to \rho}],G[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{blk}
+H_4: G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
+H_5: @new \, \xi \, \sigma \, x \, (\xi \otimes (\overline{x:t,d}) \to blk) = \xi', \sigma'
+~
+Sketchy: need to define type-checking for values!
+
+By construction we have:
+~MathPre
+H_6: S,D,G |- \xi \otimes (\overline{x:t,d}) \to blk : @function<\overline{X}>(\overline{x: t}) : t
+~
+Via the application $L_{10} \, (L_{13} \, H_6 \, H_2)$ we acquire hypothesis:
+~MathPre
+H_7: S,D,G' \models \xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'
+~
+and $H_7$ proves $SG$.

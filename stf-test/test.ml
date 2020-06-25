@@ -155,7 +155,7 @@ let stf_alco_test include_dir stf_file p4_file =
         Petr4_parse.parse_file include_dir p4_file false
         |> (function `Ok p -> p | _ -> failwith "Petr4 parser error")
         |> Elaborate.elab
-        |> Checker.check_program
+        |> fun (prog, renamer) -> Checker.check_program renamer prog
         |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
       let target = match prog with Program l ->
         l

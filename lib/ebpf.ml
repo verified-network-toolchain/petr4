@@ -64,7 +64,7 @@ module PreEbpfFilter : Target = struct
     | _ -> failwith "extern is not a counter array"
 
   let eval_array_table : extern = fun _ env st _ args ->
-    (* TODO: actuall implement*)
+    (* TODO: actually implement*)
     let loc = match args with
       | [(VRuntime {loc;_}, _); _] -> loc
       | _ -> failwith "unexpected array table init args" in
@@ -72,7 +72,7 @@ module PreEbpfFilter : Target = struct
     SContinue, VRuntime {loc;obj_name = "array_table"}
 
   let eval_hash_table : extern = fun _ env st _ args ->
-    (* TODO: actuall implement*)
+    (* TODO: actually implement*)
     let loc = match args with
       | [(VRuntime {loc;_}, _); _] -> loc
       | _ -> failwith "unexpected array table init args" in
@@ -169,9 +169,7 @@ module PreEbpfFilter : Target = struct
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
       st, env, 
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
-      then Some pkt
-      (* (State.get_packet st) *)
-      else begin print_endline "ddropped"; None end
+      then Some pkt else None
 
   let get_outport (st : state) (env : env) : Bigint.t =
     State.find_heap "__INGRESS_PORT__" st |> bigint_of_val

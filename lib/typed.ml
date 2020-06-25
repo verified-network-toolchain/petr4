@@ -66,18 +66,20 @@ end
 
 and PackageType : sig
   type t = {type_params: string list;
+            wildcard_params: string list;
             parameters: Parameter.t list}
              [@@deriving sexp,show,yojson]
 
   val eq : t -> t -> bool
 end = struct
   type t = {type_params: string list;
+            wildcard_params: string list;
             parameters: Parameter.t list}
              [@@deriving sexp,show,yojson]
 
   let eq
-    {type_params=t1; parameters=p1}
-    {type_params=t2; parameters=p2} =
+    {type_params=t1; parameters=p1; _}
+    {type_params=t2; parameters=p2; _} =
     Base.List.equal Base.String.equal t1 t2 &&
     Base.List.equal Parameter.eq p1 p2
 end
@@ -339,6 +341,7 @@ end
 and ConstructorType : sig
   type t =
     { type_params: string list;
+      wildcard_params: string list;
       parameters: Parameter.t list;
       return: Type.t }
     [@@deriving sexp,show,yojson]
@@ -347,13 +350,14 @@ and ConstructorType : sig
 end = struct
   type t =
     { type_params: string list;
+      wildcard_params: string list;
       parameters: Parameter.t list;
       return: Type.t }
     [@@deriving sexp,show,yojson]
 
    let eq
-     { type_params=s1; parameters=c1; return=t1}
-     { type_params=s2; parameters=c2; return=t2} =
+     { type_params=s1; parameters=c1; return=t1; _}
+     { type_params=s2; parameters=c2; return=t2; _} =
      Base.List.equal Base.String.equal s1 s2 &&
      Base.List.equal Parameter.eq c1 c2 &&
      Type.eq t1 t2

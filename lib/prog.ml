@@ -1394,10 +1394,21 @@ and Env : sig
     val print_env : t -> unit
   end
 
+  module Renamer : sig
+    type t [@@deriving sexp,show,yojson]
+    val create : unit -> t
+    val seen_name : t -> string -> bool
+    val observe_name : t -> string -> unit
+    val freshen_name : t -> string -> string
+  end
+
   module CheckerEnv : sig
     type t [@@deriving sexp,show,yojson]
 
-    val empty_t : t
+    val empty_t : unit -> t
+    val empty_with_renamer : Renamer.t -> t
+
+    val renamer : t -> Renamer.t
 
     val resolve_type_name_opt : Types.name -> t -> Typed.Type.t option
     val resolve_type_name : Types.name -> t -> Typed.Type.t
@@ -1756,6 +1767,45 @@ end = struct
 
   end
 
+  module Renamer = struct
+    type state = { counter : int;
+                   seen : string list }
+    [@@deriving sexp,show,yojson]
+    type t = state ref
+    [@@deriving sexp,show,yojson]
+
+    let create () = ref { counter = 0; seen = [] }
+
+    let seen_name st name =
+      List.mem ~equal:String.equal !st.seen name
+
+    let observe_name st name =
+      if seen_name st name
+      then ()
+      else st := { !st with seen = name :: !st.seen }
+
+    let incr st =
+      st := {!st with counter = !st.counter + 1}
+
+    let rec gen_name st name =
+      let { counter = i; _ } = !st in
+      let new_name = Printf.sprintf "%s%d" name i in
+      incr st;
+      if seen_name st new_name
+      then gen_name st name
+      else new_name
+
+    let freshen_name st name =
+      let new_name =
+        if seen_name st name
+        then gen_name st name
+        else name
+      in
+      observe_name st new_name;
+      new_name
+
+  end
+
   module CheckerEnv = struct
 
     type t =
@@ -1764,13 +1814,25 @@ end = struct
         (* maps variables to their types & directions *)
         typ_of: (Typed.Type.t * Typed.direction) env;
         (* maps constants to their values *)
-        const: Value.value env }
+        const: Value.value env;
+        (* for generating fresh type variables *)
+        renamer: Renamer.t }
     [@@deriving sexp,show,yojson]
 
-    let empty_t : t =
+    let empty_t () : t =
       { typ = empty_env;
         typ_of = empty_env;
-        const = empty_env }
+        const = empty_env;
+        renamer = Renamer.create () }
+
+    let empty_with_renamer r : t =
+      { typ = empty_env;
+        typ_of = empty_env;
+        const = empty_env;
+        renamer = r }
+
+    let renamer env =
+      env.renamer
 
     let resolve_type_name_opt name env =
       find_opt name env.typ
@@ -1823,12 +1885,14 @@ end = struct
     let push_scope env =
       { typ = push env.typ;
         typ_of = push env.typ_of;
-        const = push env.const }
+        const = push env.const;
+        renamer = env.renamer }
 
     let pop_scope env =
       { typ = pop env.typ;
         typ_of = pop env.typ_of;
-        const = pop env.const }
+        const = pop env.const;
+        renamer = env.renamer }
 
     let eval_env_of_t (cenv: t) : EvalEnv.t =
       { decl = [[]];
@@ -1836,6 +1900,7 @@ end = struct
         typ = cenv.typ;
         namespace = "";}
   end
+
 
 end
 

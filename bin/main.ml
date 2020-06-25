@@ -54,8 +54,8 @@ let check_dir include_dirs p4_dir verbose =
           let p4_file = Filename.concat p4_dir file in
           match parse_file include_dirs p4_file verbose with
           | `Ok prog ->
-            let prog = Elaborate.elab prog in
-            Checker.check_program prog |> ignore;
+            let prog, renamer = Elaborate.elab prog in
+            Checker.check_program renamer prog |> ignore;
             Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
           | `Error (info, Lexer.Error s) ->
             Format.eprintf "%s: %s@\n%!" (Info.to_string info) s

@@ -5,43 +5,6 @@ open Util
 open Types
 module Info = I
 
-module Renamer = struct
-  type state = { counter : int;
-                 seen : string list }
-  type t = state ref
-
-  let create () = ref { counter = 0; seen = [] }
-
-  let seen_name st name =
-    List.mem ~equal:String.equal !st.seen name
-
-  let observe_name st name =
-    if seen_name st name
-    then ()
-    else st := { !st with seen = name :: !st.seen }
-
-  let incr st =
-    st := {!st with counter = !st.counter + 1}
-
-  let rec gen_name st name =
-    let { counter = i; _ } = !st in
-    let new_name = Printf.sprintf "%s%d" name i in
-    incr st;
-    if seen_name st new_name
-    then gen_name st name
-    else new_name
-
-  let freshen_name st name =
-    let new_name =
-      if seen_name st name
-      then gen_name st name
-      else name
-    in
-    observe_name st new_name;
-    new_name
-
-end
-
 let subst_vars_name env type_name =
   begin match CheckerEnv.resolve_type_name_opt type_name env with
   | Some (TypeName v) -> v
@@ -187,20 +150,20 @@ let subst_vars_param env param =
 let subst_vars_params env params =
   List.map ~f:(subst_vars_param env) params
 
-let freshen_param env gen param =
-  let param' = Renamer.freshen_name gen param in
+let freshen_param env param =
+  let param' = Renamer.freshen_name (CheckerEnv.renamer env) param in
   CheckerEnv.insert_type (BareName (Info.dummy, param)) (TypeName (BareName (Info.dummy, param'))) env, param'
 
-let rec freshen_params env gen params =
+let rec freshen_params env params =
   match params with
   | [] -> env, []
   | param :: params ->
      let info, pre_param = param in
-     let env, pre_param = freshen_param env gen pre_param in
-     let env, params = freshen_params env gen params in
+     let env, pre_param = freshen_param env pre_param in
+     let env, params = freshen_params env params in
      env, (info, pre_param) :: params
 
-let elab_method env gen m =
+let elab_method env m =
   let open Types.MethodPrototype in
   fst m,
   match snd m with
@@ -208,78 +171,77 @@ let elab_method env gen m =
      let params = subst_vars_params env params in
      Constructor { annotations; name; params }
   | Method { annotations; return; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      Method { annotations; return; name; type_params; params }
   | AbstractMethod { annotations; return; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      AbstractMethod { annotations; return; name; type_params; params }
 
-let elab_methods env gen ms =
-  List.map ~f:(elab_method env gen) ms
+let elab_methods env ms =
+  List.map ~f:(elab_method env) ms
 
-let elab_decl env gen decl =
+let elab_decl env decl =
   let open Declaration in
   fst decl,
   match snd decl with
   | Function { return; name; type_params; params; body } ->
 
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      let body = subst_vars_block env body in
      Function { return; name; type_params; params; body }
 
   | ExternFunction { annotations; return; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let return = subst_vars_type env return in
      let params = subst_vars_params env params in
      ExternFunction { annotations; return; name; type_params; params }
 
   | ExternObject { annotations; name; type_params; methods } ->
-     let env, type_params = freshen_params env gen type_params in
-     let methods = elab_methods env gen methods in
+     let env, type_params = freshen_params env type_params in
+     let methods = elab_methods env methods in
      ExternObject { annotations; name; type_params; methods }
 
   | ControlType { annotations; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let params = subst_vars_params env params in
      ControlType { annotations; name; type_params; params }
 
   | ParserType { annotations; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let params = subst_vars_params env params in
      ParserType { annotations; name; type_params; params }
 
   | PackageType { annotations; name; type_params; params } ->
-     let env, type_params = freshen_params env gen type_params in
+     let env, type_params = freshen_params env type_params in
      let params = subst_vars_params env params in
      PackageType { annotations; name; type_params; params }
 
   | d -> d
 
-let rec elab_decls' env gen decls =
+let rec elab_decls' env decls =
   match decls with
   | decl :: decls ->
-     let decl = elab_decl env gen decl in
-     decl :: elab_decls' env gen decls
+     let decl = elab_decl env decl in
+     decl :: elab_decls' env decls
   | [] -> []
 
-let elab_decls env gen decls =
+let elab_decls env decls =
   (* add decl names to renamer first, because they are _free_ and
      cannot be changed, unlike bound type variable names! *)
   let observe_decl_name d =
     match Declaration.name_opt d with
-    | Some (_, name) -> Renamer.observe_name gen name
+    | Some (_, name) -> Renamer.observe_name (CheckerEnv.renamer env) name
     | None -> ()
   in
   List.iter ~f:observe_decl_name decls;
-  elab_decls' env gen decls
+  elab_decls' env decls
 
 let elab (Program decls) =
-  let gen = Renamer.create () in
-  let env = CheckerEnv.empty_t in
-  Program (elab_decls env gen decls)
+  let env = CheckerEnv.empty_t () in
+  Program (elab_decls env decls), CheckerEnv.renamer env

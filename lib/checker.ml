@@ -326,8 +326,8 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   in
   let saturate_pkg env (pkg: PackageType.t) : PackageType.t =
     let env = CheckerEnv.insert_type_vars pkg.type_params env in
-    {type_params = pkg.type_params;
-     parameters = saturate_params env pkg.parameters}
+    let env = CheckerEnv.insert_type_vars pkg.wildcard_params env in
+    {pkg with parameters = saturate_params env pkg.parameters;}
   in
   let saturate_ctrl env (ctrl: ControlType.t) : ControlType.t =
     let env = CheckerEnv.insert_type_vars ctrl.type_params env in
@@ -351,6 +351,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
       ctrl_params = List.map ~f:(saturate_param env) action.ctrl_params }
   and saturate_constructor env (ctor: ConstructorType.t) : ConstructorType.t =
     { type_params = ctor.type_params;
+      wildcard_params = ctor.wildcard_params;
       parameters = List.map ~f:(saturate_param env) ctor.parameters;
       return = saturate_type env ctor.return }
   in
@@ -1071,33 +1072,46 @@ and eval_to_positive_int env info expr =
   then value
   else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
 
-and translate_type : CheckerEnv.t -> string list -> Types.Type.t -> Typed.Type.t =
-  fun env vars typ ->
+and gen_wildcard env =
+  Renamer.freshen_name (CheckerEnv.renamer env) "__wild"
+
+and translate_type' ?(gen_wildcards=false) (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t * string list =
   let open Types.Type in
+  let ret (t: Typed.Type.t) = t, [] in
   match snd typ with
-  | Bool -> Bool
-  | Error -> Error
-  | Integer -> Integer
-  | String -> String
-  | IntType e -> Int {width = eval_to_positive_int env (fst typ) e}
-  | BitType e -> Bit {width = eval_to_positive_int env (fst typ) e}
-  | VarBit e -> VarBit {width = eval_to_positive_int env (fst typ) e}
-  | TypeName ps -> TypeName ps
+  | Bool -> ret Bool
+  | Error -> ret Error
+  | Integer -> ret Integer
+  | String -> ret String
+  | IntType e -> ret @@ Int {width = eval_to_positive_int env (fst typ) e}
+  | BitType e -> ret @@ Bit {width = eval_to_positive_int env (fst typ) e}
+  | VarBit e -> ret @@ VarBit {width = eval_to_positive_int env (fst typ) e}
+  | TypeName ps -> ret @@ TypeName ps
   | SpecializedType {base; args} ->
-      SpecializedType {base = (translate_type env vars base);
-                       args = (List.map ~f:(translate_type env vars) args)}
-  | HeaderStack {header=ht; size=e}
-    -> let hdt = translate_type env vars ht in
-    let len =
-      e
-      |> type_expression env Constant
-      |> compile_time_eval_bigint env
-      |> Bigint.to_int_exn in
-    Array {typ=hdt; size=len}
+     let args, wildcards =
+       args
+       |> List.map ~f:(translate_type' ~gen_wildcards env vars)
+       |> List.unzip
+     in
+     SpecializedType {base = translate_type env vars base; args},
+     List.concat wildcards
+  | HeaderStack {header=ht; size=e} ->
+     let hdt = translate_type env vars ht in
+     let len =
+       e
+       |> type_expression env Constant
+       |> compile_time_eval_bigint env
+       |> Bigint.to_int_exn in
+     ret @@ Array {typ=hdt; size=len}
   | Tuple tlist ->
-    Tuple {types = List.map ~f:(translate_type env vars) tlist}
-  | Void -> Void
-  | DontCare -> failwith "TODO: type inference"
+     ret @@ Tuple {types = List.map ~f:(translate_type env vars) tlist}
+  | Void -> ret Void
+  | DontCare ->
+     let name = gen_wildcard env in
+     TypeName (BareName (fst typ, name)), [name]
+
+and translate_type (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t =
+  fst (translate_type' env vars typ)
 
 and translate_type_opt (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t option =
   match snd typ with
@@ -1178,7 +1192,7 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Function {type_params=tps; parameters=ps; return=rt; _} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_param_types_well_formed env ps && is_well_formed_type env rt
-  | Constructor {type_params=tps; parameters=ps; return=rt} ->
+  | Constructor {type_params=tps; wildcard_params=ws; parameters=ps; return=rt} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_construct_params_types_well_formed env ps && is_well_formed_type env rt
   | Extern {type_params=tps; methods=methods} ->
@@ -1313,9 +1327,10 @@ and is_compile_time_only_type env typ =
   | Integer
   | String -> true
   | _ -> false
-    
-and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t =
-  let typ = translate_type env [] param.typ in
+
+and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
+  let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
+  let env = CheckerEnv.insert_type_vars wildcards env in
   let dir = translate_direction param.direction in
   if is_extern env typ && not (eq_dir dir Directionless)
   then raise_s [%message "Externs as parameters must be directionless"];
@@ -1339,10 +1354,22 @@ and type_param env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parame
     direction = translate_direction param.direction;
     typ = typ;
     variable = param.variable;
-    opt_value = opt_value }
+    opt_value = opt_value },
+  wildcards
 
-and type_params env ctx params =
-  List.map ~f:(type_param env ctx) params
+and type_param env ctx param =
+  fst (type_param' env ctx param)
+
+and type_params' ?(gen_wildcards=false) env ctx params =
+  let params, wildcard_lists =
+    params
+    |> List.map ~f:(type_param' ~gen_wildcards env ctx)
+    |> List.unzip
+  in
+  params, List.concat wildcard_lists
+
+and type_params env ctx param =
+  fst (type_params' env ctx param)
 
 and type_constructor_param env decl_kind (param: Types.Parameter.t) : Typed.Parameter.t =
   if (snd param).direction <> None
@@ -2425,8 +2452,9 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.Exp
   let type_args = List.map ~f:(translate_type_opt env []) type_args in
   let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
+  let w_params = constructor_type.wildcard_params in
   let params_args = match_params_to_args info constructor_type.parameters args in
-  let type_params_args = infer_constructor_type_args env ctx t_params params_args type_args in
+  let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
   let env' = CheckerEnv.insert_types type_params_args env in
   let cast_arg (param, arg: Typed.Parameter.t * Types.Expression.t option) =
     match cast_param_arg env' ctx info (param, arg) with
@@ -2829,7 +2857,7 @@ and type_instantiation env ctx info annotations typ args name : Prog.Declaration
      CheckerEnv.insert_type_of (BareName name) instance_type env
   | _ -> failwith "BUG: expected NamelessInstantiation"
 
-and infer_constructor_type_args env ctx type_params params_args type_args =
+and infer_constructor_type_args env ctx type_params wildcard_params params_args type_args =
   let type_params_args =
     match List.zip type_params type_args with
     | Ok v -> v
@@ -2838,7 +2866,10 @@ and infer_constructor_type_args env ctx type_params params_args type_args =
        then List.map ~f:(fun v -> v, None) type_params
        else failwith "mismatch in type arguments"
   in
-  infer_type_arguments env ctx Typed.Type.Void type_params_args params_args []
+  let full_params_args =
+    type_params_args @ List.map ~f:(fun v -> v, None) wildcard_params
+  in
+  infer_type_arguments env ctx Typed.Type.Void full_params_args params_args []
 
 (* Terrible hack - Ryan *)
 and check_match_type_eq env info set_type element_type =
@@ -2952,6 +2983,7 @@ and type_parser env info name annotations params constructor_params locals state
   in
   let ctor : Typed.ConstructorType.t =
     { type_params = [];
+      wildcard_params = [];
       parameters = constructor_params_typed;
       return = Parser parser_typ }
   in
@@ -2995,6 +3027,7 @@ and type_control env info name annotations type_params params constructor_params
     in
     let ctor : Typed.ConstructorType.t =
       { type_params = [];
+        wildcard_params = [];
         parameters = constructor_params_typed;
         return = control_type }
     in
@@ -3768,6 +3801,7 @@ and type_extern_object env info annotations obj_name t_params methods =
               { annotations; name = cname; params = params_typed } ->
            Type.Constructor
              { type_params = type_params';
+               wildcard_params = [];
                parameters = params_typed;
                return = SpecializedType
                           { base = Extern extern_typ;
@@ -3890,8 +3924,8 @@ and type_parser_type env info annotations name t_params params =
 and type_package_type env info annotations name t_params params =
   let simple_t_params = List.map ~f:snd t_params in
   let body_env = CheckerEnv.insert_type_vars simple_t_params env in
-  let params_typed = type_params body_env (Constructor Package) params in
-  let params_for_type = params_typed in
+  let params_typed, wildcard_params =
+    type_params' ~gen_wildcards:true body_env (Constructor Package) params in
   let pkg_decl =
     Prog.Declaration.PackageType
       { annotations;
@@ -3901,12 +3935,14 @@ and type_package_type env info annotations name t_params params =
   in
   let pkg_typ: Typed.PackageType.t =
     { type_params = simple_t_params;
-      parameters = params_typed }
+      parameters = params_typed;
+      wildcard_params }
   in
   let ret = Type.Package { pkg_typ with type_params = [] } in
   let ctor_typ =
     Type.Constructor { type_params = simple_t_params;
-                       parameters = params_for_type;
+                       wildcard_params;
+                       parameters = params_typed;
                        return = ret }
   in
   let env' =
@@ -3978,7 +4014,8 @@ and type_declarations env ctx decls =
   decls, env
 
 (* Entry point function for type checker *)
-let check_program (program:Types.program) : CheckerEnv.t * Prog.program =
+let check_program renamer (program:Types.program) : CheckerEnv.t * Prog.program =
   let Program top_decls = program in
-  let prog, env = type_declarations CheckerEnv.empty_t DeclContext.TopLevel top_decls in
+  let initial_env = CheckerEnv.empty_with_renamer renamer in
+  let prog, env = type_declarations initial_env DeclContext.TopLevel top_decls in
   env, Prog.Program prog

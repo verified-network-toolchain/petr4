@@ -29,9 +29,9 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   match Parse.parse_file include_dirs p4_file false with
   | `Ok prog ->
     begin
-      let prog = Elaborate.elab prog in
+      let prog, renamer = Elaborate.elab prog in
       try
-        let _ = Checker.check_program prog in
+        let _ = Checker.check_program renamer prog in
         true
       with
       | Error.Type(info, err) ->

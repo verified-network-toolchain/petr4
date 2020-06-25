@@ -82,8 +82,8 @@ module Make_parse (Conf: Parse_config) = struct
       (print_json : bool) (pretty_json : bool) (verbose : bool) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
-      let prog = Elaborate.elab prog in
-      Checker.check_program prog |> ignore;
+      let prog, renamer = Elaborate.elab prog in
+      Checker.check_program renamer prog |> ignore;
       if print_json then
         let json = Types.program_to_yojson prog in
         let to_string j =
@@ -115,8 +115,8 @@ module Make_parse (Conf: Parse_config) = struct
       List.map matches ~f:(fun l -> List.map l ~f:Prog.Match.of_yojson_exn) in
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
-      let elab_prog = Elaborate.elab prog in
-      let (cenv, typed_prog) = Checker.check_program elab_prog in
+      let elab_prog, renamer = Elaborate.elab prog in
+      let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
       let env = Env.CheckerEnv.eval_env_of_t cenv in
       (* TODO - thread env information from checker to eval*)
       let open Eval in

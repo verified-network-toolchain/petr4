@@ -1,4 +1,4 @@
-OUTPUT=petr4 styleguide
+OUTPUT=petr4 petr4-full styleguide
 PDF_OUTPUTS=$(addsuffix .pdf,$(addprefix build/,${OUTPUT}))
 HTML_OUTPUTS=$(addsuffix .html,$(addprefix build/,${OUTPUT}))
 

@@ -194,18 +194,23 @@ e ::= @true
     | @false
     | a // arbitrary width integer literal
     | nwa // unsigned integer literal of size n
+    | nsa // signed integer literal of size n
+    | u // strings
     | x // name
     | .x // top level name
     | e1[e2] // array access
+    | e1[e2:e3] // bitslice
     | \{ \overline{e} \} // list
     | \{ \overline{name=e} \} // records
     | uop e
     | e1 binop e2
     | (t) e // explicit cast
     | X.name // type member
+    | @error.name // errors
     | e.name // expression member
     | e1 ? e2 : e3 // ternary operator
-    | f<\overline{t}>(\overline{e}) // function call
+    | f<\overline{t}>(\overline{e}) // function call (positional)
+    | f<\overline{t}>(\overline{x=e}) // function call (named)
     | t(\overline{e}) // nameless instantiation
     | e1 \texttt{\&\&\&} e2 // mask
     | e1 .. e2 // range
@@ -215,32 +220,42 @@ e ::= @true
 // unary operators
 uop ::= ! // not
       | - // unary minus
+      | ~ // bitwise complement/not
 
 // binary operators
 binop ::= +
+        | |+|
         | -
+        | |-|
         | *
-        | &
-        | ^
-        | |
+        | /
+        | %
+        | <<
+        | >>
         | <
         | >
-        | &&
-        | ||
         | <=
         | >=
         | ==
         | !=
+        | &
+        | ^
+        | |
+        | ++
+        | &&
+        | ||
 ~ End P4Grammar
 
 ## Statement and Block Syntax
 ~ Begin P4MathGrammar
 s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
+    | e<\overline{t}>(\overline{x=e})   // method calls (named)
     | e := e                            // assignment
     | t.@apply(\overline{e})             // direct type invocation
     | @if (e) s_1 @else s_2             // conditional statement
     | blk                               // block statement
     | @exit                             // exit statement (only in controls)
+    | \mathkw{;}                        // empty statement
     | @return                           // return (void)
     | @return e                         // return (with value)
     | @switch (e) \{ \overline{case} \} // switch statement
@@ -257,32 +272,38 @@ blk ::= \{ s_1; ... s_n; \} // blocks
 
 ## Declaration Syntax
 ~ Begin P4MathGrammar
-decl ::= @const t x:=e // constants
-       | t x(\overline{e}) // named instantiations
-       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \} // parsers
-       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // controls
-       | @function t x<\overline{X}>(\overline{x:t,d}) blk // functions
-       | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d}) // extern functions
-       | t x // variables
-       | t x := e // initialized variables
-       | @action x (\overline{x:t,d_0},\overline{x:t}) blk // actions
-       | @table x \{ \overline{prop} \} // tables
-       | @struct X \{ \overline{x:t} \} // structs
-       | @error \{ \overline{x} \} // errors
-       | \mathkw{match\_kind} \{ \overline{x} \} // match\_kinds
-       | @enum X \{ \overline{x} \} // enums
-       | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} // extern classes
-       | @type t X // newtypes
-       | @control X<\overline{X}>(\overline{x:t,d}) // control types
-       | @parser X<\overline{X}>(\overline{x:t,d}) // parser types
-       | @package X<\overline{X}>(\overline{x:t}) // package types
+decl ::= @const t x:=e
+       | t x(\overline{e})
+       | t x(\overline{e}) blk
+       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}
+       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
+       | @function t x<\overline{X}>(\overline{x:t,d}) blk
+       | \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
+       | t x
+       | t x := e
+       | \mathkw{value\_set}<t>(e) x
+       | @action x (\overline{x:t,d_0},\overline{x:t}) blk
+       | @table x \{ \overline{prop} \}
+       | @header X \{ \overline{x:t} \}
+       | \mathkw{header\ union} X \{ \overline{x:t} \}
+       | @struct X \{ \overline{x:t} \}
+       | @error \{ \overline{x} \}
+       | \mathkw{match\_kind} \{ \overline{x} \}
+       | @enum X \{ \overline{x} \}
+       | @enum t X \{ \overline{x=e} \}
+       | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
+       | @typedef t X
+       | @type t X
+       | @control X<\overline{X}>(\overline{x:t,d})
+       | @parser X<\overline{X}>(\overline{x:t,d})
+       | @package X<\overline{X}>(\overline{x:t})
 
 state ::= @state x \{ \overline{s}; @transition state\_expr \}
 
 state\_expr ::= x
               | @select (\overline{e}) \{ \overline{matches:x} \}
 
-matches ::= \overline{match}
+matches = \overline{match}
 
 match ::= \mathkw{\_}
         | e
@@ -293,12 +314,12 @@ method ::= @abstract t x<\overline{X}>(\overline{x:t,d})
          | t x<\overline{X}>(\overline{x:t,d})
 
 prop ::= @key = \{ \overline{e:x} \}
-       | @actions = \{ \overline{a\_ref} \}
-       | @const @entries = \{ \overline{matches:a\_ref} \}
+       | @actions = \{ \overline{action\_ref} \}
+       | @const @entries = \{ \overline{matches:action\_ref} \}
        | x = e
        | @const x = e
 
-a\_ref ::= x(\overline{e})
+action\_ref ::= x(\overline{e})
 ~ End P4MathGrammar
 
 ## Program Syntax
@@ -312,10 +333,15 @@ P ::= decl, P
 
 ~ Begin P4MathGrammar
 t ::= @bool
+    | @string
     | @int
+    | @int<w>
     | @bit<w>
+    | @varbit<w>
     | t[a]
     | @tuple<\overline{t}>
+    | \{ \overline{t} \}
+    | \{ \overline{f:t} \}  // record type
     | @set<t>
     | @error
     | \mathkw{match\_kind}
@@ -351,56 +377,54 @@ R := @returns // written ``Void" in the implementation
      | \bot     // written ``Unit" in the implementation
 ~
 
-Contexts indicate where a statement, declaration, parameter, or expression is
-being typechecked.
+Contexts indicate where a statement is being typechecked.
 ~ P4MathGrammar
-sctx ::= @InFunction t
-       | @InAction
-       | @InParser
-       | @InControl
-dctx ::= @InTopLevel
-       | @InDecl
-       | @InStatement sctx
-pctx ::= sctx
-       | @InExternMethod
-       | @InPackage
-ectx ::= @InFunction
-       | @InAction
-       | @InParserState
-       | @InApplyBlock
-       | @InDeclLocals
-       | @InTableAction
-       | @InConstant
+ctx ::= @InFunction t
+      | @InControl
+      | @InParser
+      | @InAction
 ~
 
 ## Value Syntax
 
+$a \in \mathbb{Z}$
+
+$n \in \mathbb{N}$
+
+$\mathbb{Z}_n ::= m \% 2^n | m \in \mathbb{Z}$
+
+$m_u^n \in \mathbb{Z}_n$
+
+$m_s^n \in \mathbb{Z}_{n-1} \cup \{ -x | x \in \mathbb{Z}_n\}$
+
+Locations in memory:  $\ell$
+
 Values
 ~ Begin P4MathGrammar
-v_o ::= @true // booleans
-    | @false
-    | a // arbitrary width integer literal
-    | n\mathkw{w}a // unsigned integer literal of size n
-    | n\mathkw{s}a // signed integer literal of size n
-    | n\mathkw{v}bits // varbits of max width n containing bitstring bits
+v_o ::= b // booleans
+    | a // arbitrary-width integers
+    | m_u^n // unsigned integers, n not zero
+    | m_s^n // signed integers, n not zero
+    | (n', m_u^{n}) // variable-size bitstrings, n less than n'
     | u // strings
-    | \{ \overline{v} \} // list or tuple
+    | (\overline{v}) // tuples
     | \{ \overline{name=v} \} // records
     | set
     | @error.name
     | @matchkind name
-    | X.name // enum member
-    | \xi \otimes (\overline{x:t,d}) blk // functions, actions
-    | @builtin name lv
-    | @struct \{ \overline{name=v} \}
-    | @header b \{ \overline{name=v} \}
-    | \mathkw{header\ union} \{ \overline{name=v} \}
-    | @stack_n n \overline{v} // stacks
-    | @runtime name \ell // stateful runtime
-    | @parser (\overline{name=v}) (\overline{x:t,d}) \overline{decl} \overline{state}
-    | @control (\overline{name=v}) (\overline{x:t,d}) \overline{decl} blk
-    | @package (\overline{name=v})
-    | @table name \overline{e:x} \overline{a\_ref} a\_ref \{ \overline{matches:a\_ref} \}
+    | \xi_{closure} \otimes (\overline{x:t,d}) \to blk // functions, actions
+    | @builtin name lv_o
+    | @struct \{ \overline{(name, v)} \}
+    | @header b \{ \overline{(name, v)} \}
+    | \mathkw{header\ union} \{ \overline{(name, v)} \}
+    | (\overline{v}, n_{size}, n_{next}) // stacks
+    | name1.name2 // enumfield
+    | (name1.name2, v) // senumfield
+    | (\ell, name_{object}) // stateful runtime
+    | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
+    | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
+    | @package \overline{(name, v)}
+    | @table name \overline{e:x} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
     | @extern name v
 
 v ::= v_o | @None
@@ -419,10 +443,12 @@ set ::=  @universal
 
 ## L-value Syntax
 ~ Begin P4MathGrammar
-lv ::=  @lvalue t x
+lv_o ::=  @lvalue t x
     | @lvalue t lv.x
     | @lvalue t lv[n1:n2]
     | @lvalue t lv[v]
+
+lv ::= lv_o | @None
 ~ End P4MathGrammar
 
 ## Signal Syntax
@@ -1425,7 +1451,7 @@ The control plane representation contains table entries and value sets. Since
 tables already populated with constant entries are immutable, the representation
 of the control plane treats entries like constant entries.
 
-$\zeta ::= (\{ \overline{matches:a\_ref} \}, \overline{set})$
+$\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
 
 $\xi ::= P, E, \Delta, \upsilon$
 
@@ -2109,7 +2135,7 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
-\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{a\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
 \mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
 \mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
@@ -2121,7 +2147,7 @@ n_{next} \lt 1
 
 ~ Infer
 <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
-\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{a\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
+\mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
 <\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
 \mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
 \mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
@@ -2445,20 +2471,20 @@ sig \neq \mathkw{sig\_continue}
 ~
 
 ~ Infer
-\mathkw{const\ entries} = \{ \overline{matches:a\_ref} \} \in \overline{prop}
-\{ \overline{matches:a\_ref} \} \neq \{\}
+\mathkw{const\ entries} = \{ \overline{matches:action\_ref} \} \in \overline{prop}
+\{ \overline{matches:action\_ref} \} \neq \{\}
 @key = \{ \overline{e:x} \} \in \overline{prop}
-@actions = \{ \overline{a\_ref} \} \in \overline{prop}
+@actions = \{ \overline{action\_ref} \} \in \overline{prop}
 --------------------------------------------------------[Table-Decl-Constant-Entries]
-<\zeta, \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{a\_ref} (@default \overline{prop}) \{ \overline{matches:a\_ref} \})>
+<\zeta, \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \})>
 ~
 
 ~ Infer
 \mathkw{const\ entries} = \{\} \in \overline{prop}
 @key = \{ \overline{e:x} \} \in \overline{prop}
-@actions = \{ \overline{a\_ref} \} \in \overline{prop}
+@actions = \{ \overline{action\_ref} \} \in \overline{prop}
 --------------------------------------------------------[Table-Decl-Control-Plane-Entries]
-<(\{ \overline{matches:a\_ref} \}, \overline{set}), \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{a\_ref} (@default \overline{prop}) \{ \overline{matches:a\_ref} \})>
+<(\{ \overline{matches:action\_ref} \}, \overline{set}), \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \})>
 ~
 
 ~ Infer

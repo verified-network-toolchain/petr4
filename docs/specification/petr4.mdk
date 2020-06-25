@@ -341,7 +341,7 @@ t ::= @bool
     | t[a]
     | @tuple<\overline{t}>
     | \{ \overline{t} \}
-    | \{ \overline{f:t} \}
+    | \{ \overline{f:t} \}  // record type
     | @set<t>
     | @error
     | \mathkw{match\_kind}
@@ -405,7 +405,7 @@ v_o ::= b // booleans
     | a // arbitrary-width integers
     | m_u^n // unsigned integers, n not zero
     | m_s^n // signed integers, n not zero
-    | (n, m_u^{n'}) // variable-size bitstrings, n less than n'
+    | (n', m_u^{n}) // variable-size bitstrings, n less than n'
     | u // strings
     | (\overline{v}) // tuples
     | \{ \overline{name=v} \} // records
@@ -611,11 +611,8 @@ S,D,G |- e_2  : t_2, \_
 @numeric(t_2)
 S,D,G |- e_3  : t_3, \_
 @numeric(t_3)
-0 \leq S(e_2)
-S(e_2) \lt w
-S(e_2) \geq S(e_3)
-S(e_3) \lt w
-------------------------[Slice]
+0 \leq S(e_3) \leq S(e_2) < w
+------------------------------[Slice]
 S,D,G |- e1[e2:e3] : bit<S(e_2) - S(e_3) + 1>, d_1
 ~
 
@@ -625,11 +622,17 @@ S,D,G |- \overline{e: \tau, none}
 S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
 ~
 
+~ Infer
+S,D,G |- \overline{e : t}
+----------------------------------------------------------[Record]
+S,D,G |- \{ \overline{f = e} \} : \{ \overline{f : t} \}
+~
+
 ### Type Unary Operations
 
 ~ Infer
 S,D,G |- e : @bool, d
--------------------[Not]
+----------------------[Not]
 S,D,G |- !e : @bool, d
 ~
 
@@ -1219,7 +1222,7 @@ It is defined inductively by the following rules.
 S,D,G |- e:t
 S, e \Downarrow v
 --------------------------------------------[Type-Decl-Const]
-S,D,G |- @const x := e -| S[x = v],D,G
+S,D,G |- @const t x := e -| S[x = v],D,G[x:t]
 ~
 
 ~ Infer
@@ -2626,7 +2629,7 @@ S,D,G \models_{scope} [],\sigma
 ~
 
 ~Infer
-S,D,(G,\gamma) \models_{scope} \epsilon,\sigma
+S,D,G \models_{scope} \epsilon,\sigma
 G(x) = t,d
 S,D,G |- \sigma(\ell) : t, d
 ---------------------------------------------[Entails-Variable-Scope]
@@ -2803,7 +2806,7 @@ TODO!
 
 #### Statement Monotonicity
 ~MathPre
-L_8: \zeta,\xi,\sigma,s,\xi',\sigma',sig,
+L_8: \forall \zeta,\xi,\sigma,s,\xi',\sigma',sig,
 <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow \sigma \subseteq \sigma'
 ~
 
@@ -2817,12 +2820,46 @@ TODO!
 TODO: Is this valid?
 
 ~MathPre
-L_9: \forall
+L_9: \forall \xi,\sigma,S,D,X,\rho,
 S,D,G \models \xi,\sigma \Rightarrow S,D[X \to \rho],G \models \xi,\sigma
 ~
 
 #### Proof:
 
+TODO!
+
+### Lemma: Extending $\Sigma$ Preserves Entailment
+~MathPre
+L_{10}: \forall S,D,G,\xi,\sigma,decl,
+S,D,G \models \xi,\sigma \Rightarrow S[decl],D,G \models \xi,\sigma
+~
+
+### Lemma Extending $\Sigma$ Preserves Per-Scope Entailment
+~MathPre
+L_{11}: \forall S,D,G,\epsilon,\sigma,decl,
+S,D,G \models_{scope} \epsilon,\sigma \Rightarrow S[decl],D,G \models_{scope} \epsilon,\sigma
+~
+
+#### Proof:
+
+TODO!
+
+### Sketchy? Lemma Extending $P$ Preserves Entailment
+~MathPre
+L_{12}: \forall S,D,G,P,E,\nu,\sigma,decl
+S,D,G \models (P,E,D,\nu),\sigma \Rightarrow S,D,G \models (P[decl],E),\sigma
+~
+
+#### Proof:
+TODO!
+
+### Lemma Extending $G, \, \xi, \, \sigma$ Preserves Entailment
+~MathPre
+L_{13}: \forall S,D,G,v,t,\xi,\sigma,x,
+S,D,G |- v : t \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models @new \, \xi \, \sigma \, x \, v
+~
+
+#### Proof:
 TODO!
 
 ### Definition of Typing Judgment for Values
@@ -4285,8 +4322,6 @@ we prove $SG_2$.
 
 ## Type Soundness of Statements
 
-### Statement Type Preservation Theorem Statement
-
 Statement Preservation requires a predicate on contexts and signals:
 ~MathPre
 \Omega : ctx \to @Prop
@@ -4301,6 +4336,7 @@ TODO: definition of $\Omega$ may be incorrect or incomplete.
 
 NOTE: $\Omega$ was added recently so that the function-call case made sense, and as of yet none of the statement cases prove this property.
 
+### Statement Type Preservation Theorem Statement
 ~MathPre
 \forall S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
 S,D,G,ctx |- s: R -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
@@ -4698,3 +4734,106 @@ As a result of application $L_0 \, (L_8 \, H_7) \, H_8$ we secure hypothesis:
 H_{10}: S,D,G \models \xi',\sigma''
 ~
 and $H_{10}$ proves $SG$.
+
+## Type Soundness of Declarations
+
+### Declaration Type Preservation Theorem Statement
+
+~MathPre
+\forall S,D,G,decl,S',D',G',\zeta,\xi,\sigma,\xi',\sigma',
+S,D,G |- decl -| S',D',G' \Rightarrow <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S',D',G' \models \xi',\sigma'
+~
+
+### Declaration Type Preservation Proof
+
+Introducing variables:
+~MathPre
+S,D,G,decl,S',D',G',\zeta,\xi,\sigma,\xi',\sigma'
+~
+and hypotheses:
+~MathPre
+H_0: S,D,G |- decl -| S',D',G'
+H_1: <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+H_2: S,D,G \models \xi,\sigma
+~
+we wish to prove the goal:
+~MathPre
+S',D',G' \models \xi',\sigma'
+~
+We induct on the derivation of:
+~MathPre
+H_1: <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+~
+We assumely freely $decl$ is free-variable free.
+
+#### Case Constant-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- @const t x := v -| S[x = v],D,G[x:t]
+H_1: <\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, ((t) v)>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S[x=v],D,G[x:t] \models @new \, \xi \, \sigma \, x \, ((t) \, v)
+~
+By definition of $\mathkw{new} \, \xi \, \sigma \, x ((t) \, v)$
+~MathPre
+@new \, \xi \, \sigma \, x \, v = \xi', \sigma'
+\exists \ell,
+\xi' = \xi,(x=\ell) = P,(E,\epsilon(x=\ell)),D,\nu
+\sigma' = \sigma[v / \ell]
+~
+TODO: factor this out with $L_{13}$.
+
+Sketchy: I am just doing the non-empty case for now.
+
+By inversion on $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G \models (P,E,D,\nu),\sigma
+H_4: S,D,G \models_{scope} \epsilon,\sigma
+~
+Via applications $L_{10} \, H_3$ and $L_{11} \, H_4$ we acquire hypotheses:
+~MathPre
+H_3: S[x=v],D,G \models (P,E,D,\nu),\sigma
+H_4: S[x=v],D,G \models_{scope} \epsilon,\sigma
+~
+By the definition of $\models$ we may construct:
+~Infer
+S[x=v],D,G[x:t] \models_{scope} \epsilon,\sigma
+G[x=t](x) = t
+S[x=v],D,G[x:t] |- \sigma(\ell) : t, d
+---------------------------------------------[Entails-Variable-Scope]
+S[x=v],D,G[x:t] \models_{scope} \epsilon,(x=\ell),\sigma
+~
+~Infer
+S[x=v],D,G[x:t] \models (P,E,D,\nu),\sigma
+S[x=v],D,G[x:t] \models_{scope} \epsilon,(x=\ell),\sigma
+--------------------------------------------[Entails-Environment]
+S[x=v],D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma
+~
+and thus $SG$ is proven.
+
+#### Case Parser-Decl
+~MathPre
+H_0: S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
+H_1: <\zeta, \xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[X:t_ctor] \models \xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma
+~
+Sketchy: I am just doing the non-empty case for now.
+
+By inversion on $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G \models (P,E,D,\nu),\sigma
+H_4: S,D,G \models_{scope} \epsilon,\sigma
+~
+Sketchy: $\models$ may need to take into account other constituents of $\xi$.
+Right now it only takes into account the variable to location mapping $E$.
+
+TODO: The dynamic semantics do not map the name $X$ to a value in $(\sigma \circ \xi)$.
+I am not sure how to show that preservation holds still, since theoretically $X$ may have been mapped to a value of a different type...
+This is a problem with several of the declaration rules...

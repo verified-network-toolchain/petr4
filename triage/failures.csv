@@ -1,23 +1,16 @@
 Kind of test,Test p4 file,Explanation for failure,Github issue number
-checker,examples/checker_tests/bad/header-not-multiple-of-bytes-bmv2.p4,typechecking that fields are byte aligned for the benefit of BMv2,174
-checker,examples/checker_tests/bad/issue1672-bmv2.p4,parser parameter hdr should be a struct,141
-checker,examples/checker_tests/bad/issue2335.p4,variable decl type restrictions (no int variables),153
-checker,examples/checker_tests/bad/string-e.p4,string params cannot have directions,141
-checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,153
+checker,examples/checker_tests/good/default-control-argument.p4,implicit cast in default argument (unsupported),78
+checker,examples/checker_tests/good/issue1638.p4,default argument implicit cast (unsupported),78
+checker,examples/checker_tests/good/named-arg1.p4,optional parameters (unsupported),73
+checker,examples/checker_tests/good/default-package-argument.p4,default arguments,73
+checker,examples/checker_tests/good/issue1304.p4,optional parameters,73
+checker,examples/checker_tests/good/issue1333.p4,default arguments,73
+checker,examples/checker_tests/bad/issue1672-bmv2.p4,V1Switch type argument H must be a struct,134
+checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,139
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29
-checker,examples/checker_tests/good/issue2175-1.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2175-2.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2175-3.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2175-4.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2175-5.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2220.p4,implicit casts for serializable enums,176
-checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
-checker,examples/checker_tests/good/issue2303.p4,missing implicit cast on struct initializer,155
 checker,examples/checker_tests/bad/div1.p4,implicit cast on division turns negative argument into bit<>,195
-checker,examples/checker_tests/bad/div3.p4,p4c rejects runtime division,194
-checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,implicit cast inside table match,155
+checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,missing implicit casts,219
 checker,examples/checker_tests/good/cast-call.p4,parser bug in casts of fn calls,69
 checker,examples/checker_tests/good/arch1.p4,don't care as type parameter,80
 checker,examples/checker_tests/good/issue803-2.p4,don't care type as type parameter,80
@@ -32,40 +25,12 @@ checker,examples/checker_tests/bad/dupConst.p4,reject const shadowing,135
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,135
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135
 checker,examples/checker_tests/bad/template_e.p4,type argument names should be distinct,135
-checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,138
+checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,134
 checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data,139
-checker,examples/checker_tests/bad/stack_e.p4,no struct stacks,149
-checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one variable width field,149
-checker,examples/checker_tests/good/constsigned.p4,missing implicit cast,155
-checker,examples/checker_tests/good/struct.p4,missing implicit cast,155
-checker,examples/checker_tests/good/struct1.p4,missing implicit cast,155
-stf,examples/checker_tests/good/checksum3-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/issue2153-bmv2.p4,stf parse error,156
-stf,examples/checker_tests/good/issue2287-bmv2.p4,failing in typechecker,189
-stf,examples/checker_tests/good/issue655-bmv2.p4,List not a fixed-width type,160
-stf,examples/checker_tests/good/runtime-index-bmv2.p4,stf parser error,156
-stf,examples/checker_tests/good/v1model-const-entries-bmv2.p4,missing implicit cast,155
-stf,stf-test/custom-stf-tests/hash_identity.p4,length mismatch in zip_exn: 1 <> 0,192
-stf,examples/checker_tests/good/issue1879-bmv2.p4,modulo unimplemented for bit<> values,66
-stf,examples/checker_tests/good/checksum2-bmv2.p4,verify_checksum extern unimplemented,109
-stf,examples/checker_tests/good/constant-in-calculation-bmv2.p4,hash extern unimplemented,109
+checker,examples/checker_tests/good/constsigned.p4,compile time eval not working for member lookups,220
+checker,examples/checker_tests/good/struct.p4,compile time eval not working for member lookups,220
+checker,examples/checker_tests/good/struct1.p4,compile time eval not working for member lookups,220
+checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter typechecking restrictions,162
+checker,examples/checker_tests/good/issue638-1.p4,empty action lists are actually legal,221
+checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,value set typing bug,81
 stf,examples/checker_tests/good/issue1049-bmv2.p4,hash extern unimplemented,109
-stf,examples/checker_tests/good/equality-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/equality-varbit-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/issue1755-1-bmv2.p4,implicit cast not done on integer arguments to advance,155
-stf,examples/checker_tests/good/issue1755-bmv2.p4,implicit cast not done on integer arguments to advance,155
-stf,examples/checker_tests/good/issue447-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/issue995-bmv2.p4,missing implicit cast for integer,155
-stf,examples/checker_tests/good/table-entries-exact-ternary-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-lpm-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-priority-bmv2.p4,implicit cast not done on args to &&&,155
-stf,examples/checker_tests/good/table-entries-ternary-bmv2.p4,integer passed as size arg to extract not implicitly casted to bit,155
-stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4,STF parser crash (mc_node_create and others),156
-stf,examples/checker_tests/good/key-bmv2.p4,STF parser crash,156
-stf,examples/checker_tests/good/match-on-exprs-bmv2.p4,STF parse error,156
-stf,examples/checker_tests/good/ternary2-bmv2.p4,"empty token thing" error message in STF parser,156
-stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,STF parser crash (mc_mgrp_create and add),156
-stf,examples/checker_tests/good/checksum1-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/issue1025-bmv2.p4,lookahead (val_of_bigint) unimplemented for header types,160
-stf,examples/checker_tests/good/header-bool-bmv2.p4,non byte aligned extract,174
-stf,examples/checker_tests/good/table-entries-ser-enum-bmv2.p4,serializable enums broken,176

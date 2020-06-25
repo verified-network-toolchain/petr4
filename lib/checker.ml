@@ -220,6 +220,16 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
      | Array {size; _} -> Some (VInteger (Bigint.of_int size))
      | _ -> None
      end
+  | ExpressionMember {expr; name} ->
+     begin match compile_time_eval_expr env expr with
+     | Some (VStruct {fields})
+     | Some (VHeader {fields; _})
+     | Some (VUnion {fields}) ->
+        fields
+        |> List.find ~f:(fun (n, _) -> n = snd name)
+        |> option_map snd
+     | _ -> None
+     end
   | FunctionCall { func; type_args = []; args = [] } ->
      begin match (snd func).expr with
      | ExpressionMember {expr; name = (_, "minSizeInBits")} ->

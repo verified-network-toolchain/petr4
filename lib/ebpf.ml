@@ -24,7 +24,7 @@ module PreEbpfFilter : Target = struct
 
   type extern = state pre_extern
 
-  let eval_counter_array : extern = fun ctrl env st ts args ->
+  let eval_counter_array : extern = fun env st ts args ->
     let loc, max_idx = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_},_);_] -> loc,v
       | _ -> failwith "unexpected counter array init args" in
@@ -36,7 +36,7 @@ module PreEbpfFilter : Target = struct
     SContinue,
     VRuntime {loc = loc; obj_name = "CounterArray"}
 
-  let eval_increment : extern = fun ctrl env st ts args ->
+  let eval_increment : extern = fun env st ts args ->
     let loc, v = match args with
       | [(VRuntime{loc;_}, _); (VBit{v;_},_)] -> loc, Bigint.to_int_exn v
       | _ -> failwith "unexpected counter array increment args" in
@@ -49,7 +49,7 @@ module PreEbpfFilter : Target = struct
       env, State.insert_extern loc ctr' st, SContinue, VNull
     | _ -> failwith "extern is not a counter array"
 
-  let eval_add : extern = fun ctrl env st ts args ->
+  let eval_add : extern = fun env st ts args ->
     let loc, idx, v = match args with
       | [(VRuntime{loc;_}, _); (VBit{v=idx;_}, _); (VBit{v;_}, _)] ->
         loc, Bigint.to_int_exn idx, v
@@ -63,7 +63,7 @@ module PreEbpfFilter : Target = struct
       env, State.insert_extern loc ctr' st, SContinue, VNull
     | _ -> failwith "extern is not a counter array"
 
-  let eval_array_table : extern = fun _ env st _ args ->
+  let eval_array_table : extern = fun env st _ args ->
     (* TODO: actually implement*)
     let loc = match args with
       | [(VRuntime {loc;_}, _); _] -> loc
@@ -71,7 +71,7 @@ module PreEbpfFilter : Target = struct
     env, State.insert_extern loc (ArrayTable ()) st,
     SContinue, VRuntime {loc;obj_name = "array_table"}
 
-  let eval_hash_table : extern = fun _ env st _ args ->
+  let eval_hash_table : extern = fun env st _ args ->
     (* TODO: actually implement*)
     let loc = match args with
       | [(VRuntime {loc;_}, _); _] -> loc

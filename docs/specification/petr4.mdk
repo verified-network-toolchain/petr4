@@ -4458,10 +4458,10 @@ Statement Preservation requires a predicate on contexts and signals:
 \Omega : ctx \to @Prop
 
 \forall R,sig
-\Omega @InAction \mapsto R = returns
-\Omega (@InFunction @void) \mapsto R = returns
-\Omega (@InFunction t) \mapsto R = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
-\Omega \_ \mapsto R = @unit
+\Omega \, @InAction \mapsto R = returns
+\Omega \, (@InFunction @void) \mapsto R = returns
+\Omega \, (@InFunction t) \mapsto R = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
+\Omega \, \_ \mapsto R = @unit
 ~
 TODO: definition of $\Omega$ may be incorrect or incomplete.
 
@@ -5078,3 +5078,32 @@ By dint of application $L_{13} \, (L_{14} \, H_6) \, H_6$ we acquire hypothesis:
 H_8: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)
 ~
 and $H_8$ proves $SG$.
+
+#### Case Action-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
+H_1: <\zeta, \xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G' \models \xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'
+~
+By inversion on $H_0$ and $H_1$ we obtain hypotheses:
+~MathPre
+H_3: S,D[\overline{X=X}],G[\overline{x:t}],@InAction |- blk : @returns -| G_{blk}
+H_4: G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
+H_5: @new \, \xi \, \sigma \, x \, (\xi \otimes (\overline{x:t,d_0},\overline{x:t}) \to blk) = \xi',\sigma'
+~
+Sketchy: we need to define type-checking for values!
+
+By construction we have that:
+~MathPre
+H_6: S,D,G' |- \xi \otimes (\overline{x:t,d_0},\overline{x:t}) \to blk : @action<\overline{X}>(\overline{x:t,d0},\overline{x:t})
+~
+Via application $L_{12} \, (L_{13} \, H_6 \, H_2)$ we get hypothesis:
+~MathPre
+H_7: S,D,G' \models \xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'
+~
+and $H_7$ proves $SG$.

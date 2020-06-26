@@ -1266,13 +1266,13 @@ S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S
 ~
 
 ~ Infer
-t x := e
+
 ---------------------------[Type-Decl-Variable]
 S,D,G |- t x -| S,D,G[x:t]
 ~
 
 ~ Infer
-S,D,G |- e:t
+S,D,G |- e : t
 --------------------------------[Type-Decl-Variable-Initialized]
 S,D,G |- t x := e -| S,D,G[x:t]
 ~
@@ -2435,20 +2435,20 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~ Infer
 
 -------------------------------------------[Variable-Decl]
-<\zeta, \xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val})>
+<\zeta, \xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------------[Variable-Initialized-Decl-Success]
-<\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, ((t) v)>
+<\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
 ~
 
 ~ Infer
 <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
 sig \neq \mathkw{sig\_continue}
 -------------------------------------------[Variable-Initialized-Decl-Fail]
-<\zeta, \xi, \sigma, t x := e> \Downarrow_d <\xi', \sigma'>
+<\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
 ~
 
 ~Infer
@@ -2852,7 +2852,7 @@ TODO!
 ### Sketchy? Lemma Extending $P$ Preserves Entailment
 ~MathPre
 L_{12}: \forall S,D,G,P,E,\nu,\sigma,decl
-S,D,G \models (P,E,D,\nu),\sigma \Rightarrow S,D,G \models (P[decl],E),\sigma
+S,D,G \models (P,E,D,\nu),\sigma \Rightarrow S,D,G \models (P[decl],E,D,\nu),\sigma
 ~
 
 #### Proof:
@@ -2950,6 +2950,12 @@ S,D,G[x:t] \models (P,E,D,\nu),\sigma'
 S,D,G[x:t] \models_{scope} (\epsilon,(x=\ell)),\sigma'
 ------------------------------------------------------------[Entails-Environment]
 S,D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma'
+~
+
+### Lemma: $\mathkw{init\_val}$ is Sound
+~MathPre
+L_{14}: \forall S,D,G,\xi,\sigma,t,
+S,D,G \models \xi,\sigma \Rightarrow S,D,G |- \mathkw{init\_val} \, \xi \, t : t
 ~
 
 ### Definition of Typing Judgment for Values
@@ -3222,6 +3228,41 @@ S,D,G |- \overline{v: \tau, none}
 S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
 ~
 we prove subgoal $SG_2$.
+
+#### Case Record
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models \xi, \sigma
+H_1: <\zeta, \xi, \sigma, \{ \overline{f=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{f=v} \}>
+H_2: S,D,G |- \{ \overline{f = e} \} : \{ \overline{f : t} \}
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- \overline{e : t} \Rightarrow <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G |- \xi',\sigma' \wedge S,D,G |- \overline{v : t}
+~
+We wish to prove subgoals:
+~MathPre
+SG_1: S,D,G \models \xi',\sigma'
+SG_2: S,D,G |- \{ \overline{f=v} \} : \{ \overline{f : t} \}
+~
+By inversion on $H_1$ and $H_2$ we get hypotheses:
+~MathPre
+H_3: S,D,G |- \overline{e : t}
+H_4: <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+~
+Under the aegis of application $I_1 \, H_0 \, H_3 \, H_4$ we obtain hypotheses:
+~MathPre
+H_5: S,D,G |- \xi',\sigma'
+H_6: S,D,G |- \overline{v : t}
+~
+and $H_5$ proves $SG_1$.
+We may construct the rule-instance:
+~ Infer
+S,D,G |- \overline{v : t}
+----------------------------------------------------------[Record]
+S,D,G |- \{ \overline{f = v} \} : \{ \overline{v : t} \}
+~
+which proves $SG_2$.
 
 #### Case Unary-Op
 We have hypotheses:
@@ -4922,10 +4963,118 @@ Sketchy: need to define type-checking for values!
 
 By construction we have:
 ~MathPre
-H_6: S,D,G |- \xi \otimes (\overline{x:t,d}) \to blk : @function<\overline{X}>(\overline{x: t}) : t
+H_6: S,D,G' |- \xi \otimes (\overline{x:t,d}) \to blk : @function<\overline{X}>(\overline{x: t}) : t
 ~
-Via the application $L_{10} \, (L_{13} \, H_6 \, H_2)$ we acquire hypothesis:
+Via the application $L_{12} \, (L_{13} \, H_6 \, H_2)$ we acquire hypothesis:
 ~MathPre
 H_7: S,D,G' \models \xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'
 ~
 and $H_7$ proves $SG$.
+
+#### Case Extern-Function-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
+H_1: <\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G' \models (\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'
+~
+By inversion on $H_0$ and $H_1$ we obtain hypotheses:
+~MathPre
+H_3: G' = G[x:@function<\overline{X}>(\overline{x: t,d}) : t]
+H_4: @new \, \xi \, \sigma \, x \, (@extern x @None) = \xi',\sigma'
+~
+Sketchy: need to define type-checking for values!
+
+By construction we have:
+~MathPre
+H_5: S,D,G' |- (@extern x @None) : x:@function<\overline{X}>(\overline{x: t,d}) : t
+~
+Via the application $L_{12} \, (L_{13} \, H_5 \, H_2)$ we acquire hypothesis:
+~MathPre
+H_6: S,D,G' \models (\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'
+~
+and $H_6$ proves $SG$.
+
+#### Case Variable-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- t x -| S,D,G[x:t]
+H_1: <\zeta, \xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t] \models @new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)
+~
+By dint of application $L_{13} \, (L_{14} \, H_2) \, H_2$ we acquire hypothesis:
+~MathPre
+H_3: S,D,G[x:t] \models @new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \, \xi \, t)
+~
+and $H_3$ proves $SG$.
+
+#### Case Variable-Initialized-Decl-Success
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- t x := e -| S,D,G[x:t]
+H_1: <\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, v
+~
+By inversion on $H_0$ and $H_1$ we secure hypotheses:
+~MathPre
+H_3: S,D,G |- e : t
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+~
+Via application $I_1 \, H_2 \, H_3 \, H_4$ we acquire hypotheses:
+~MathPre
+H_5: S,D,G \models \xi',\sigma'
+H_6: S,D,G |- v : \tau
+~
+By application $L_{13} \, H_6 \, H_5$ we get hypothesis:
+~MathPre
+H_7: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, v
+~
+and $H_7$ proves $SG$.
+
+#### Case Variable-Initialized-Decl-Fail
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- t x := e -| S,D,G[x:t]
+H_1: <\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)
+~
+By inversion on hypotheses $H_0$ we procure hypotheses:
+~MathPre
+H_3: S,D,G |- e : t
+H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
+H_5: sig \neq \mathkw{sig\_continue}
+~
+By application $I_1 \, H_2 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_6: S,D,G \models \xi',\sigma'
+H_7: S,D,G |- v : \tau
+~
+By dint of application $L_{13} \, (L_{14} \, H_6) \, H_6$ we acquire hypothesis:
+~MathPre
+H_8: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)
+~
+and $H_8$ proves $SG$.

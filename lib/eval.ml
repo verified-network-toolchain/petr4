@@ -159,8 +159,8 @@ module MakeInterpreter (T : Target) = struct
         annotations = _;
         typ = _;
         name = (_,n);
-        members = _;
-      } -> (eval_senum_decl env n d, st)
+        members = ms;
+      } -> eval_senum_decl env st n ms
     | ExternObject {
         annotations = _;
         name = (_,n);
@@ -317,12 +317,16 @@ module MakeInterpreter (T : Target) = struct
     env
 
   and eval_enum_decl (env : env) (name : string)
-      (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
-  and eval_senum_decl (env : env) (name : string)
-      (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+  and eval_senum_decl (env : env) (st : state) (name : string)
+      (ms : (P4String.t * Expression.t) list) : env * state =
+    let ((st,_),es) = List.fold_map ms ~init:(st,SContinue)
+      ~f:(fun (st,s) (n,e) -> let (st,s,v) = eval_expr env st s e in (st,s), (snd n,v)) in
+    let v = VSenum es in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l v st in
+    EvalEnv.insert_val_bare name l env, st
 
   and eval_extern_obj (env : env) (name : string)
       (methods : MethodPrototype.t list) (decl : Declaration.t) : env = (* TODO *)
@@ -715,7 +719,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue -> begin match s' with
       | SReject _ -> (env, st', s')
       | SContinue ->
-        let s = assert_enum v |> snd in
+        let s = assert_enum_field v |> snd in
         let matches = cases
                       |> List.map ~f:snd
                       |> List.group ~break:(fun x _ -> match x with Action _ -> true | _ -> false)
@@ -928,22 +932,20 @@ module MakeInterpreter (T : Target) = struct
     | _ -> (st',s,VNull)
 
   and eval_typ_mem (env : env) (st : state) (typ : Types.name)
-      (name : string) : state * signal * value =
-    match EvalEnv.find_decl typ env with
-    | info, Declaration.Enum {members=ms;name=(_,n);_} ->
-       let mems = List.map ms ~f:snd in
-       if List.mem mems name ~equal:String.equal
-       then (st, SContinue, VEnumField{typ_name=n;enum_name=name})
-       else raise (UnboundName name)
-    | info, Declaration.SerializableEnum {members=ms;name=(_,n);typ;_ } ->
-       let ms' = List.map ms ~f:(fun (a,b) -> (snd a, b)) in
-       let expr = find_exn ms' name in
-       let (st',s,v) = eval_expr env st SContinue expr in
-       begin match s with
-       | SContinue -> (st',s,VSenumField{typ_name=n;enum_name=name;v})
-       | SReject _ -> (st',s,VNull)
-       | _ -> failwith "unreachable" end
-    | _ -> failwith "typ mem undefined"
+      (enum_name : string) : state * signal * value =
+    match EvalEnv.find_typ typ env with
+    | Enum {name; typ = None; members} ->
+      if List.mem members enum_name ~equal:String.equal
+      then (st, SContinue, VEnumField{typ_name=name;enum_name})
+      else raise (UnboundName name)
+    | Enum {name; typ = Some _; members} ->
+      begin match EvalEnv.find_val typ env |> extract_from_state st with
+        | VSenum fs ->
+          let v = find_exn fs enum_name in
+          st, SContinue, VSenumField{typ_name=name;enum_name;v}
+        | _ -> failwith "typ mem undefined"
+      end
+    | _ -> failwith "type mem undefined"
 
   and eval_expr_mem (env : env) (st : state) (expr : Expression.t)
       (name : P4String.t) : state * signal * value =
@@ -969,6 +971,7 @@ module MakeInterpreter (T : Target) = struct
         | VEnumField _
         | VSenumField _
         | VExternFun _
+        | VSenum _
         | VPackage _                         -> failwith "expr member does not exist"
         | VStruct{fields=fs}                 -> eval_struct_mem env st' (snd name) fs
         | VHeader{fields=fs;is_valid=vbit}   ->

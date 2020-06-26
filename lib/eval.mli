@@ -22,9 +22,9 @@ module type Interpreter = sig
 
   val eval_statement : ctrl -> env -> state -> Statement.t -> (env * state)
 
-  val eval_expression : ctrl -> env -> state -> Expression.t -> (env * state * value)
+  val eval_expression : env -> state -> Expression.t -> (state * value)
 
-  val eval_app : ctrl -> env -> state -> signal -> value -> Expression.t option list -> env * state * signal * value
+  val eval_app : ctrl -> env -> state -> signal -> value -> Expression.t option list -> state * signal * value
 
 end
 

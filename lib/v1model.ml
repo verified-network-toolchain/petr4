@@ -497,11 +497,11 @@ module PreV1Switch : Target = struct
         - checks that verify and update checksum controls only do certain
           kinds of statements/expressions. *)
 
-  let eval_v1control (ctrl : ctrl) (app) (ctrl_name : string) (control : value)
-      (args : Expression.t option list) (env,st) : env * state * signal =
+  let eval_v1control (ctrl : ctrl) (env : env) (app) (ctrl_name : string) (control : value)
+      (args : Expression.t option list) (st : state) : state * signal =
     let env = EvalEnv.set_namespace ctrl_name env in
-    let (env,st',s,_) = app ctrl env st SContinue control args in
-    (EvalEnv.set_namespace "" env, st', s)
+    let (st',s,_) = app ctrl env st SContinue control args in
+    (st', s)
 
   let eval_pipeline
         (ctrl: ctrl)
@@ -511,7 +511,7 @@ module PreV1Switch : Target = struct
         (app: state apply) =
     let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in
-    let fst23 (a,b,_) = (a,b) in
+    (* let fst (a,b,_) = (a,b) in *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
     let parser =
@@ -585,7 +585,7 @@ module PreV1Switch : Target = struct
     let std_meta_expr =
       Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "std_meta"))); dir = InOut; typ = (List.nth_exn params 3).typ}) in
     let env = EvalEnv.set_namespace "p." env in
-    let (env, st, state,_) =
+    let (st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let env = EvalEnv.set_namespace "" env in
     let st =
@@ -600,8 +600,8 @@ module PreV1Switch : Target = struct
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let st = State.insert_heap vpkt_loc vpkt' st in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (List.nth_exn deparse_params 0).typ env in
-    let (env,st, s) = (env,st)
-      |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
+    let (st, s) = st
+      |> eval_v1control ctrl env app "vr."  verify   [hdr_expr; meta_expr] in
     let st = 
       match s with
       | SReject "ChecksumError" ->
@@ -612,8 +612,8 @@ module PreV1Switch : Target = struct
                   name="checksum_error"; }; typ = Bit {width = 1}}
           (VBit{v=Bigint.one;w=Bigint.one}) |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
-    let env, st = (env, st)
-      |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
+    let st = st
+      |> eval_v1control ctrl env app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst in
     let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
     let egress_spec_val = match struc with
       | VStruct {fields} ->
@@ -628,11 +628,11 @@ module PreV1Switch : Target = struct
                 name="egress_port"; }; typ = Bit {width = 9}}
         egress_spec_val
         in
-    let (env, st) =
-      (env, st)
-      |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
-      |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
+    let st =
+      st
+      |> eval_v1control ctrl env app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
+      |> eval_v1control ctrl env app "ck."  compute  [hdr_expr; meta_expr] |> fst
+      |> eval_v1control ctrl env app "dep." deparser [pkt_expr; hdr_expr] |> fst in
     st, env, Some (State.get_packet st)
 
   let get_outport (st : state) (env : env) : Bigint.t =

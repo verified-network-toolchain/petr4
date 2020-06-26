@@ -836,6 +836,7 @@ and Value : sig
         { typ_name : string;
           enum_name : string;
           v : value; }
+    | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
           obj_name : string; }
@@ -961,9 +962,11 @@ and Value : sig
 
   val assert_stack : value -> value list * Bigint.t * Bigint.t
 
-  val assert_enum : value -> string * string
+  val assert_enum_field : value -> string * string
 
-  val assert_senum : value -> string * string * value
+  val assert_senum_field : value -> string * string * value
+
+  val assert_senum : value -> (string * value) list
 
   val assert_runtime : value -> loc
 
@@ -1068,6 +1071,7 @@ end = struct
         { typ_name : string;
           enum_name : string;
           v : value; }
+    | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
           obj_name : string; }
@@ -1254,15 +1258,20 @@ end = struct
     | VStack {headers;size;next} -> (headers, size, next)
     | _ -> failwith "not a stack"
 
-  let assert_enum v =
+  let assert_enum_field v =
     match v with
     | VEnumField {typ_name;enum_name} -> (typ_name, enum_name)
     | _ -> failwith "not an enum field"
 
-  let assert_senum v =
+  let assert_senum_field v =
     match v with
     | VSenumField {typ_name;enum_name;v} -> (typ_name, enum_name, v)
     | _ -> failwith "not an senum field"
+
+  let assert_senum v =
+    match v with
+    | VSenum l -> l
+    | _ -> failwith "not an senum"
 
   let assert_runtime v =
     match v with

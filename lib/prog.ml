@@ -1395,28 +1395,19 @@ and Env : sig
     val set_namespace : string -> t -> t
 
     val insert_val_bare : string -> Value.loc -> t -> t
-    val insert_decl_bare : string -> Declaration.t -> t -> t
     val insert_typ_bare : string -> Type.t -> t -> t
 
     val insert_val : Types.name -> Value.loc -> t -> t
-    val insert_decl: Types.name -> Declaration.t -> t -> t
     val insert_typ : Types.name -> Type.t -> t -> t
 
     val insert_vals_bare : (string * Value.loc) list -> t -> t
-    val insert_decls_bare : (string  * Declaration.t) list -> t ->t
     val insert_typs_bare : (string * Type.t) list -> t -> t
 
     val insert_vals : (Types.name * Value.loc) list -> t -> t
-    val insert_decls: (Types.name * Declaration.t) list -> t ->t
     val insert_typs : (Types.name * Type.t) list -> t -> t
-
-    val update_val_bare : string -> Value.loc -> t -> t option
-
-    val update_val : Types.name -> Value.loc -> t -> t option
 
     val find_val : Types.name -> t -> Value.loc
     val find_val_opt : Types.name -> t -> Value.loc option
-    val find_decl : Types.name -> t -> Declaration.t
     val find_typ : Types.name -> t -> Type.t
 
     val push_scope : t -> t
@@ -1627,8 +1618,6 @@ end = struct
 
   module EvalEnv = struct
     type t = {
-      (* the program (top level declarations) so far *)
-      decl : Declaration.t env;
       (* maps variables to their locations in memory (state) *)
       vs : Value.loc env;
       (* map variables to their types; only needed in a few cases *)
@@ -1639,7 +1628,6 @@ end = struct
     [@@deriving sexp,show,yojson]
 
     let empty_eval_env = {
-      decl = [[]];
       vs = [[]];
       typ = [[]];
       namespace = "";
@@ -1655,8 +1643,7 @@ end = struct
         match List.rev l with
         | [] -> raise (BadEnvironment "no toplevel")
         | h :: _ -> [h] in
-      {decl = get_last env.decl;
-       vs = get_last env.vs;
+      {vs = get_last env.vs;
        typ = get_last env.typ;
        namespace = "";}
 
@@ -1675,12 +1662,6 @@ end = struct
     let insert_val_bare name binding e =
       {e with vs = insert (Types.BareName (Info.dummy, name)) binding e.vs}
 
-    let insert_decl name binding e =
-      {e with decl = insert name binding e.decl}
-
-    let insert_decl_bare name =
-      insert_decl (Types.BareName (Info.dummy, name))
-
     let insert_typ name binding e =
       {e with typ = insert name binding e.typ}
 
@@ -1690,28 +1671,12 @@ end = struct
     let insert_vals bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-    let update_val name binding e =
-      match update name binding e.vs with
-      | Some vs' -> Some { e with vs = vs' }
-      | None -> None
-
-    let update_val_bare name binding e =
-      match update (Types.BareName (Info.dummy, name)) binding e.vs with
-      | Some vs' -> Some { e with vs = vs' }
-      | None -> None
-
     let fix_bindings bindings =
       List.map bindings
         ~f:(fun (name, v) -> Types.BareName (Info.dummy, name), v)
 
     let insert_vals_bare bindings =
       insert_vals (fix_bindings bindings)
-
-    let insert_decls bindings e =
-      List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_decl b c a)
-
-    let insert_decls_bare bindings =
-      insert_decls (fix_bindings bindings)
 
     let insert_typs bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
@@ -1725,21 +1690,16 @@ end = struct
     let find_val_opt name e =
       find_opt name e.vs
 
-    let find_decl name e =
-      find name e.decl
-
     let find_typ name e =
       find name e.typ
 
     let push_scope (e : t) : t =
-      {decl = push e.decl;
-       vs = push e.vs;
+      {vs = push e.vs;
        typ = push e.typ;
        namespace = e.namespace;}
 
     let pop_scope (e:t) : t =
-      {decl = pop e.decl;
-       vs = pop e.vs;
+      {vs = pop e.vs;
        typ = pop e.typ;
        namespace = e.namespace;}
 
@@ -1922,8 +1882,7 @@ end = struct
         renamer = env.renamer }
 
     let eval_env_of_t (cenv: t) : EvalEnv.t =
-      { decl = [[]];
-        vs = [[]];
+      { vs = [[]];
         typ = cenv.typ;
         namespace = "";}
   end

@@ -843,7 +843,7 @@ and Value : sig
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of
-        { decl : Declaration.t;
+        { params : Parameter.t list;
           args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
@@ -856,6 +856,7 @@ and Value : sig
   and vparser = {
     pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
+    pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -865,6 +866,7 @@ and Value : sig
   and vcontrol = {
     cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
+    cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -976,7 +978,7 @@ and Value : sig
 
   val assert_control : value -> vcontrol
 
-  val assert_package : value -> Declaration.t * (string * loc) list
+  val assert_package : value -> Parameter.t list * (string * loc) list
 
   val assert_table : value -> vtable
 
@@ -1084,7 +1086,7 @@ end = struct
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of
-        { decl : Declaration.t;
+        { params : Parameter.t list;
           args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
@@ -1097,6 +1099,7 @@ end = struct
   and vparser = {
     pscope : Env.EvalEnv.t;
     pvs : (string * loc) list;
+    pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -1106,6 +1109,7 @@ end = struct
   and vcontrol = {
     cscope : Env.EvalEnv.t;
     cvs : (string * loc) list;
+    cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -1298,7 +1302,7 @@ end = struct
 
   let assert_package v =
     match v with
-    | VPackage {decl;args} -> (decl, args)
+    | VPackage {params;args} -> (params, args)
     | _ -> failwith "not a package"
 
   let assert_table v =
@@ -1687,10 +1691,6 @@ end = struct
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
     let update_val name binding e =
-      (* begin match name with
-      | Types.BareName (_,name) -> if String.equal name "h" then print_endline "updating h with value:";
-      | _ -> ()
-      end; *)
       match update name binding e.vs with
       | Some vs' -> Some { e with vs = vs' }
       | None -> None

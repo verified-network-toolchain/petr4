@@ -212,11 +212,11 @@ module MakeInterpreter (T : Target) = struct
     (EvalEnv.insert_val_bare name l env', st')
 
   and eval_parser_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
+      (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   and eval_control_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
+      (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   and eval_fun_decl (env : env) (st : state) (name : string)
@@ -224,14 +224,13 @@ module MakeInterpreter (T : Target) = struct
       (decl : Declaration.t) : env * state =
     let l = State.fresh_loc () in
     let st = State.insert_heap l (VFun{scope=env;params;body}) st in
-    EvalEnv.insert_val_bare name l env
-    |> EvalEnv.insert_decl_bare name decl, st
+    EvalEnv.insert_val_bare name l env, st
 
   and eval_extern_fun (env : env) (st : state) (name : string)
       (params : Parameter.t list) (decl : Declaration.t) : env * state =
     let l = State.fresh_loc () in
     let st = State.insert_heap l (VExternFun {name; caller = None}) st in
-    EvalEnv.insert_decl_bare name decl env
+    EvalEnv.insert_decl_bare name decl env (* TODO *)
     |> EvalEnv.insert_val_bare name l, st
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
@@ -275,14 +274,13 @@ module MakeInterpreter (T : Target) = struct
       (decl : Declaration.t) : env * state =
       let l = State.fresh_loc () in
       let st = State.insert_heap l (VAction{scope=env; params = data_params @ ctrl_params; body}) st in
-    EvalEnv.insert_val_bare name l env
+    EvalEnv.insert_val_bare name l env (* TODO *)
     |> EvalEnv.insert_decl_bare name decl, st
 
   and eval_table_decl (ctrl : ctrl) (env : env) (st : state) (name : string)
       (decl : Declaration.t) (key : Table.key list) (actions : Table.action_ref list)
       (entries : (Table.entry list) option) (default : Table.action_ref option)
       (size : P4Int.t option) (props : Table.property list) : env * state =
-    let env' = EvalEnv.insert_decl_bare name decl env in
     let pre_ks = key |> List.map ~f:snd in
     let ctrl_entries = match List.Assoc.find (fst (fst ctrl)) name ~equal:String.(=) with
                        | None -> []
@@ -301,19 +299,16 @@ module MakeInterpreter (T : Target) = struct
                     const_entries = final_entries; } in
     let l = State.fresh_loc () in
     let st = State.insert_heap l v st in
-    (EvalEnv.insert_val_bare name l env', st)
+    (EvalEnv.insert_val_bare name l env, st)
 
   and eval_header_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_union_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_struct_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_error_decl (env : env) (errs : P4String.t list) : env =
     env
@@ -322,35 +317,31 @@ module MakeInterpreter (T : Target) = struct
     env
 
   and eval_enum_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
+      (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   and eval_senum_decl (env : env) (name : string)
-      (decl : Declaration.t) :env =
+      (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   and eval_extern_obj (env : env) (name : string)
-      (methods : MethodPrototype.t list) (decl : Declaration.t) : env =
+      (methods : MethodPrototype.t list) (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   and eval_type_def (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_type_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_ctrltyp_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_prsrtyp_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
-    EvalEnv.insert_decl_bare name decl env
+      (decl : Declaration.t) : env = env
 
   and eval_pkgtyp_decl (env : env) (name : string)
-      (decl : Declaration.t) : env =
+      (decl : Declaration.t) : env = (* TODO *)
     EvalEnv.insert_decl_bare name decl env
 
   (* -------------------------------------------------------------------------- *)

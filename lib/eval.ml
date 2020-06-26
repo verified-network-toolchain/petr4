@@ -166,7 +166,7 @@ module MakeInterpreter (T : Target) = struct
         name = (_,n);
         type_params = tps;
         methods = ms;
-      } -> (eval_extern_obj env n ms d, st)
+      } -> (eval_extern_obj env st n ms d)
     | TypeDef {
         annotations = _;
         name = (_,n);
@@ -229,9 +229,8 @@ module MakeInterpreter (T : Target) = struct
   and eval_extern_fun (env : env) (st : state) (name : string)
       (params : Parameter.t list) (decl : Declaration.t) : env * state =
     let l = State.fresh_loc () in
-    let st = State.insert_heap l (VExternFun {name; caller = None}) st in
-    EvalEnv.insert_decl_bare name decl env (* TODO *)
-    |> EvalEnv.insert_val_bare name l, st
+    let st = State.insert_heap l (VExternFun {name; caller = None; params;}) st in
+    EvalEnv.insert_val_bare name l env, st
 
   and eval_var_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (name : string)
       (init : Expression.t option) : env * state * signal =
@@ -328,9 +327,17 @@ module MakeInterpreter (T : Target) = struct
     let st = State.insert_heap l v st in
     EvalEnv.insert_val_bare name l env, st
 
-  and eval_extern_obj (env : env) (name : string)
-      (methods : MethodPrototype.t list) (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+  and eval_extern_obj (env : env) (st : state) (name : string)
+      (methods : MethodPrototype.t list) (decl : Declaration.t) : env * state =
+    let v = let open MethodPrototype in methods
+      |> List.map ~f:snd
+      |> List.map ~f:(function Constructor {name; params;_}
+          | AbstractMethod {name; params; _}
+          | Method {name; params; _} -> snd name, params ) in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l (VExternObj v) st in
+    let env = EvalEnv.insert_val_bare name l env in
+    EvalEnv.insert_decl_bare name decl env, st
 
   and eval_type_def (env : env) (name : string)
       (decl : Declaration.t) : env = env
@@ -826,9 +833,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_name (env : env) (st : state) (name : Types.name)
       (exp : Expression.t) : state * signal * value =
     let s = SContinue in
-    if String.equal (name_only name) "verify"
-    then (st, s, VExternFun {name = "verify"; caller = None})
-    else (st, s, EvalEnv.find_val name env |> extract_from_state st)
+    (st, s, EvalEnv.find_val name env |> extract_from_state st)
 
   and eval_p4int (n : P4Int.pre_t) : value =
     match n.width_signed with
@@ -973,6 +978,7 @@ module MakeInterpreter (T : Target) = struct
         | VEnumField _
         | VSenumField _
         | VExternFun _
+        | VExternObj _
         | VSenum _
         | VPackage _                         -> failwith "expr member does not exist"
         | VStruct{fields=fs}                 -> eval_struct_mem env st' (snd name) fs
@@ -1012,9 +1018,9 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       begin match cl with
         | VAction{scope;params; body}
-        | VFun{scope;params; body}      -> eval_funcall' env st' scope params args body
-        | VBuiltinFun{name=n;caller=lv} -> eval_builtin ctrl env st' n lv args
-        | VExternFun{name=n;caller=v}   -> eval_extern_call env st' n v targs args
+        | VFun{scope;params; body}           -> eval_funcall' env st' scope params args body
+        | VBuiltinFun{name=n;caller=lv}      -> eval_builtin ctrl env st' n lv args
+        | VExternFun{name=n;caller=v;params} -> eval_extern_call env st' n v params targs args
         | _ -> failwith "unreachable" end
     | SReject _ -> (st',s,VNull)
     | _ -> failwith "unreachable"
@@ -1068,7 +1074,12 @@ module MakeInterpreter (T : Target) = struct
         then st, SContinue, VRuntime {loc = loc; obj_name = (snd ext_decl.name);}
         else
           let args' = List.map args ~f:(fun x -> Some x) in
-          eval_extern_call env st (snd ext_decl.name) (Some (loc, snd ext_decl.name)) [] args'
+          let params = let  open MethodPrototype in
+          ext_decl.methods
+            |> List.map ~f:snd
+            |> List.find_exn ~f:(function Constructor _ -> true | _ -> false)
+            |> (function Constructor {params;_} -> params | _ -> failwith "unreachable") in
+          eval_extern_call env st (snd ext_decl.name) (Some (loc, snd ext_decl.name)) params [] args'
       | _ -> failwith "instantiation unimplemented" in
     match s with
     | SContinue -> (st',s,v)
@@ -1144,7 +1155,11 @@ module MakeInterpreter (T : Target) = struct
 
   and eval_runtime_mem (env : env) (st : state) (mname : string) (expr : Expression.t)
       (loc : loc) (obj_name : string) : state * signal * value =
-    st, SContinue, VExternFun {caller = Some (loc, obj_name); name = mname }
+    let params = EvalEnv.find_val (BareName (Info.dummy, obj_name)) env
+      |> (fun l -> State.find_heap l st)
+      |> assert_externobj
+      |> fun l -> List.Assoc.find_exn l mname ~equal:String.equal in
+    st, SContinue, VExternFun {caller = Some (loc, obj_name); name = mname; params }
 
   and eval_stack_size (env : env) (st : state)
       (size : Bigint.t) : state * signal * value =
@@ -1190,22 +1205,23 @@ module MakeInterpreter (T : Target) = struct
   (*----------------------------------------------------------------------------*)
 
   and eval_extern_call (callenv : env) (st : state) (name : string)
-      (v : (loc * string) option) (targs : Type.t list)
+      (v : (loc * string) option) (params : Parameter.t list) (targs : Type.t list)
       (args : Expression.t option list) : state * signal * value =
     let ts = args |> List.map ~f:(function Some e -> (snd e).typ | None -> Void) in
     let params =
       match v with
       | Some (_,t) ->
-        EvalEnv.find_decl (BareName (Info.dummy, t)) callenv
-        |> assert_extern_obj
-        |> List.map ~f:params_of_prototype
-        |> List.map ~f:(fun ((_, n), ps) -> (n,ps))
+        EvalEnv.find_val (BareName (Info.dummy, t)) callenv
+        |> extract_from_state st
+        |> assert_externobj
         |> List.filter ~f:(fun (s,_) -> String.equal s name)
         |> List.filter ~f:(fun (_,ps) -> Int.equal (List.length ps) (List.length args))
         |> List.hd_exn
         |> snd
-      | None -> EvalEnv.find_decl (BareName (Info.dummy, name)) callenv
-                |> assert_extern_function in
+      | None ->
+        EvalEnv.find_val (BareName (Info.dummy, name)) callenv
+        |> extract_from_state st
+        |> assert_externfun in
     let (_,kvs) =
       List.fold_mapi args ~f:(eval_nth_arg callenv st params) ~init:(st,SContinue) in
     let (fenv, st', signal) = copyin callenv st callenv params args in
@@ -1222,22 +1238,6 @@ module MakeInterpreter (T : Target) = struct
     let (fenv', st'', s, v) = T.eval_extern name fenv st' targs tvs' in
     let st'' = copyout callenv fenv' st'' params args in
     st'', s, v
-
-  and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
-    match snd d with
-    | ExternObject x -> x.methods
-    | _ -> failwith "expected extern object"
-
-  and params_of_prototype (p : MethodPrototype.t) : P4String.t * Parameter.t list =
-    match snd p with
-    | AbstractMethod x -> (x.name, x.params)
-    | Method x -> (x.name, x.params)
-    | Constructor x -> (x.name, x.params)
-
-  and assert_extern_function (d : Declaration.t) : Parameter.t list =
-    match snd d with
-    | ExternFunction x -> x.params
-    | _ -> failwith "expected extern function"
 
   and eval_funcall' (callenv : env) (st : state)
       (fscope : env) (params : Parameter.t list)

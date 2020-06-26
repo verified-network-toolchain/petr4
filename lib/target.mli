@@ -6,7 +6,7 @@ open Env
 type env = EvalEnv.t
 
 type 'st pre_extern =
-  ctrl -> env -> 'st -> Type.t list -> (value * Type.t) list ->
+  env -> 'st -> Type.t list -> (value * Type.t) list ->
   env * 'st * signal * value
 
 type 'st apply =
@@ -51,7 +51,7 @@ module type Target = sig
   val read_header_field : obj reader
 
   val eval_extern : 
-    string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
+    string -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 
   val initialize_metadata : Bigint.t -> state -> state

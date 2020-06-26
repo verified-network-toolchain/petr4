@@ -272,10 +272,11 @@ module MakeInterpreter (T : Target) = struct
   and eval_action_decl (env : env) (st : state) (name : string) (data_params : Parameter.t list)
       (ctrl_params : Parameter.t list) (body : Block.t)
       (decl : Declaration.t) : env * state =
-      let l = State.fresh_loc () in
-      let st = State.insert_heap l (VAction{scope=env; params = data_params @ ctrl_params; body}) st in
-    EvalEnv.insert_val_bare name l env (* TODO *)
-    |> EvalEnv.insert_decl_bare name decl, st
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l
+        (VAction{scope=env; params = data_params @ ctrl_params; body}) st in
+    EvalEnv.insert_val_bare name l env
+    |> EvalEnv.insert_typ_bare name (Action {data_params;ctrl_params}), st
 
   and eval_table_decl (ctrl : ctrl) (env : env) (st : state) (name : string)
       (decl : Declaration.t) (key : Table.key list) (actions : Table.action_ref list)
@@ -410,8 +411,10 @@ module MakeInterpreter (T : Target) = struct
   
   and convert_action env actions (name, args) =
       let action_name' = Types.BareName (Info.dummy, name) in
-      (*let action_type = EvalEnv.find_typ action_name' env in*)
-      let type_params = EvalEnv.find_decl action_name' env |> assert_action_decl in
+      let action_type = EvalEnv.find_typ action_name' env in
+      let type_params = match action_type with
+        | Action {data_params; ctrl_params} -> data_params @ ctrl_params
+        | _ -> failwith "not an action type" in
       let existing_args = List.fold_left actions
                           ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name'
                                            then (snd a).action.args

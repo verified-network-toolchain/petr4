@@ -1224,8 +1224,7 @@ module MakeInterpreter (T : Target) = struct
                           Type.TypeName (BareName (Info.dummy, "packet"))) :: tvs
       | None -> tvs in
     let (fenv', st'', s, v) = T.eval_extern name fenv st' targs tvs' in
-    let inc_next = String.equal name "extract" in (* TODO: violates abstraction *)
-    let st'' = copyout callenv fenv' st'' params args inc_next in
+    let st'' = copyout callenv fenv' st'' params args in
     st'', s, v
 
   and assert_extern_obj (d : Declaration.t) : MethodPrototype.t list =
@@ -1250,7 +1249,7 @@ module MakeInterpreter (T : Target) = struct
       (body : Block.t) : state * signal * value =
     let (fenv, st', s) = copyin callenv st fscope params args in
     let (fenv', st'', sign) = eval_block (([],[]),[]) fenv st' SContinue body in
-    let st'' = copyout callenv fenv' st'' params args false in
+    let st'' = copyout callenv fenv' st'' params args in
     match sign with
     | SReturn v -> (st'', SContinue, v)
     | SReject _
@@ -1281,12 +1280,12 @@ module MakeInterpreter (T : Target) = struct
       [calllenv] should be the call env after [copyin] and [fenv] should be the
       resulting environment from copying in and evaluating the function body. *)
   and copyout (callenv:env) (fenv : env) (st : state) (params : Parameter.t list)
-      (args : Expression.t option list) (inc_next : bool) : state =
+      (args : Expression.t option list) : state =
     List.fold2_exn
       params
       args
       ~init: st
-      ~f:(fun st p a -> copy_arg_out inc_next st fenv callenv p a)
+      ~f:(fun st p a -> copy_arg_out st fenv callenv p a)
 
   and eval_nth_arg (env : env) (st : state) (params : Parameter.t list) (i : int)
       (st,sign : state * signal)
@@ -1310,19 +1309,19 @@ module MakeInterpreter (T : Target) = struct
     let st = State.insert_heap l v st in
     EvalEnv.insert_val var l e, st
 
-  and copy_arg_out (inc_next : bool) (st : state) (fenv : env)
+  and copy_arg_out (st : state) (fenv : env)
       (callenv : env) (p : Parameter.t) (a : Expression.t option) : state =
     match p.direction with
     | Directionless ->
       begin match p.typ with
-        | Extern _ -> copy_arg_out_h inc_next fenv st callenv p a
+        | Extern _ -> copy_arg_out_h fenv st callenv p a
         | _ -> st
       end
     | InOut
-    | Out -> copy_arg_out_h inc_next fenv st callenv p a
+    | Out -> copy_arg_out_h fenv st callenv p a
     | In -> st
 
-  and copy_arg_out_h (inc_next : bool) (fenv : env) (st : state)
+  and copy_arg_out_h (fenv : env) (st : state)
       (callenv : env) (p : Parameter.t) (a : Expression.t option) : state =
     let v = EvalEnv.find_val (BareName p.variable) fenv |> extract_from_state st in
     match a with
@@ -1436,7 +1435,7 @@ module MakeInterpreter (T : Target) = struct
       let states' = List.map states ~f:(fun s -> snd (snd s).name, s) in
       let start = find_exn states' "start" in
       let (penv, st, final_state) = eval_state_machine ctrl penv st states' start in
-      let st = copyout env penv st params args false in
+      let st = copyout env penv st params args in
       (st, final_state)
     | SReject _ -> (st, s)
     | _ -> failwith "unreachable"
@@ -1608,7 +1607,7 @@ module MakeInterpreter (T : Target) = struct
     | SReject _
     | SReturn VNull
     | SExit     ->
-      let st = copyout env cenv st params args false in
+      let st = copyout env cenv st params args in
       st, sign
     | SReturn _ -> failwith "control should not return"
 

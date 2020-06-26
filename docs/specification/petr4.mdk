@@ -2824,6 +2824,9 @@ TODO!
 
 TODO: Is this valid?
 
+The validity of this lemma may heavily depend upon how
+reliant the typing judgment for values is upon the typing contexts.
+
 ~MathPre
 L_9: \forall \xi,\sigma,S,D,X,\rho,
 S,D,G \models \xi,\sigma \Rightarrow S,D[X \to \rho],G \models \xi,\sigma
@@ -2956,6 +2959,12 @@ S,D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma'
 ~MathPre
 L_{14}: \forall S,D,G,\xi,\sigma,t,
 S,D,G \models \xi,\sigma \Rightarrow S,D,G |- \mathkw{init\_val} \, \xi \, t : t
+~
+
+### Lemma: Extending $\Gamma$ with Previously Unbound Name Preserves Entailment
+~MathPre
+L_{15}: S,D,G,\xi,\sigma,x,t
+x \notin G \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models \xi,\sigma
 ~
 
 ### Definition of Typing Judgment for Values
@@ -5107,3 +5116,45 @@ Via application $L_{12} \, (L_{13} \, H_6 \, H_2)$ we get hypothesis:
 H_7: S,D,G' \models \xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'
 ~
 and $H_7$ proves $SG$.
+
+#### Case Error-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
+H_1: <\zeta, \xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[\overline{@error.x:@error}] \models \xi,\sigma
+~
+By inversion on $H_0$ we get hypothesis:
+~MathPre
+H_3: \overline{@error.x \notin G}
+~
+Via application $L_{15} \, H_3 \, H_2$ we procure hypothesis:
+~MathPre
+H_4: S,D,G[\overline{@error.x:@error}] \models \xi,\sigma
+~
+and $H_4$ proves $SG$.
+
+#### Case Matchkind-Decl
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
+H_1: <\zeta, \xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[\overline{.x:\mathkw{match\_kind}}] \models \xi,\sigma
+~
+By inversion on $H_0$ we obtain hypothesis:
+~MathPre
+H_3: \overline{.x \notin G}
+~
+Via application $L_{15} \, H_3 \, H_2$ we acquire hypothesis:
+~MathPre
+H_4: S,D,G[\overline{.x:\mathkw{match\_kind}}] \models \xi,\sigma
+~
+and $H_4$ proves $SG$.

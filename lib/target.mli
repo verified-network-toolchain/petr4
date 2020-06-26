@@ -10,7 +10,7 @@ type 'st pre_extern =
   env * 'st * signal * value
 
 type 'st apply =
-  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
+  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> 'st * signal * value
 
 module State : sig
   type 'a t

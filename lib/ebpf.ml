@@ -112,9 +112,9 @@ module PreEbpfFilter : Target = struct
   let check_pipeline env = failwith "unimplemented"
 
   let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
-  (env,st) : env * state * signal =
-    let (env,st,s,_) = app ctrl env st SContinue control args in 
-    (env,st,s)
+  (env,st) : state * signal =
+    let (st,s,_) = app ctrl env st SContinue control args in 
+    (st,s)
 
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
@@ -153,7 +153,7 @@ module PreEbpfFilter : Target = struct
       Some (Info.dummy, {expr = Name hdr_name; dir = InOut; typ = (List.nth_exn params 1).typ}) in
     let accept_expr =
       Some (Info.dummy, {expr = Name accept_name; dir = InOut; typ = Bool}) in
-    let (env, st,state, _) =
+    let (st,state, _) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr] in
     match state with 
     | SReject _ -> 
@@ -165,7 +165,7 @@ module PreEbpfFilter : Target = struct
           (VBool(false)) in
       st, env, None
     | SContinue | SExit | SReturn _ ->
-      let (env,st,_) = 
+      let (st,_) = 
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
       st, env, 
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool

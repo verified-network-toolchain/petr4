@@ -72,20 +72,20 @@ module MakeInterpreter (T : Target) = struct
         annotations = _;
         name = (_,n);
         type_params = _;
-        params = _;
-        constructor_params = _;
-        locals = _;
-        states = _;
-      } -> (eval_parser_decl env n d, st)
+        params;
+        constructor_params;
+        locals;
+        states;
+      } -> (eval_parser_decl env st n constructor_params params locals states)
     | Control {
         annotations = _;
         name = (_,n);
         type_params = _;
-        params = _;
-        constructor_params = _;
-        locals = _;
-        apply = _;
-      } -> (eval_control_decl env n d, st)
+        params;
+        constructor_params;
+        locals;
+        apply;
+      } -> (eval_control_decl env st n constructor_params params locals apply)
     | Function {
         return = _;
         name = (_,n);
@@ -193,8 +193,8 @@ module MakeInterpreter (T : Target) = struct
         annotations = _;
         name = (_,n);
         type_params = _;
-        params = _;
-      } -> (eval_pkgtyp_decl env n d, st)
+        params;
+      } -> (eval_pkgtyp_decl env st n params)
 
   and eval_const_decl (ctrl : ctrl) (env : env) (st : state) (typ : Type.t) (v : value)
       (name : string) : env * state =
@@ -211,13 +211,37 @@ module MakeInterpreter (T : Target) = struct
     let st' = State.insert_heap l obj st' in
     (EvalEnv.insert_val_bare name l env', st')
 
-  and eval_parser_decl (env : env) (name : string)
-      (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+  and eval_parser_decl (env : env) (st : state) (name : string)
+      (constructor_params : Parameter.t list) (params : Parameter.t list)
+      (locals : Declaration.t list) (states : Parser.state list) : env * state =
+    let v = VParser {
+      pscope = env;
+      pvs = [];
+      pconstructor_params = constructor_params;
+      pparams = params;
+      plocals = locals;
+      states;
+    } in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l v st in 
+    let env = EvalEnv.insert_val_bare name l env in
+    env, st
 
-  and eval_control_decl (env : env) (name : string)
-      (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+  and eval_control_decl (env : env) (st : state) (name : string)
+      (constructor_params : Parameter.t list) (params : Parameter.t list)
+      (locals : Declaration.t list) (apply : Block.t) : env * state =
+    let v = VControl {
+      cscope = env;
+      cvs = [];
+      cconstructor_params = constructor_params;
+      cparams = params;
+      clocals = locals;
+      apply = apply;
+    } in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l v st in
+    let env = EvalEnv.insert_val_bare name l env in
+    env, st
 
   and eval_fun_decl (env : env) (st : state) (name : string)
       (params : Parameter.t list) (body : Block.t)
@@ -337,7 +361,7 @@ module MakeInterpreter (T : Target) = struct
     let l = State.fresh_loc () in
     let st = State.insert_heap l (VExternObj v) st in
     let env = EvalEnv.insert_val_bare name l env in
-    EvalEnv.insert_decl_bare name decl env, st
+    env, st
 
   and eval_type_def (env : env) (name : string)
       (decl : Declaration.t) : env = env
@@ -351,9 +375,12 @@ module MakeInterpreter (T : Target) = struct
   and eval_prsrtyp_decl (env : env) (name : string)
       (decl : Declaration.t) : env = env
 
-  and eval_pkgtyp_decl (env : env) (name : string)
-      (decl : Declaration.t) : env = (* TODO *)
-    EvalEnv.insert_decl_bare name decl env
+  and eval_pkgtyp_decl (env : env) (st : state) (name : string)
+      (params : Parameter.t list) : env * state =
+    let v = VPackage {params; args = []} in
+    let l = State.fresh_loc () in
+    let st = State.insert_heap l v st in
+    EvalEnv.insert_val_bare name l env, st
 
   (* -------------------------------------------------------------------------- *)
   (* Table Declaration Evaluation *)
@@ -516,10 +543,10 @@ module MakeInterpreter (T : Target) = struct
     match s with
     | SContinue ->
       begin match v with
-        | VParser {pscope;pvs;pparams;plocals;states} ->
+        | VParser {pscope;pvs;pparams;plocals;states;_} ->
           let (s, st') = eval_parser ctrl env st pparams args pscope pvs plocals states in
           (s, st', VNull)
-        | VControl {cscope;cvs;cparams;clocals;apply} ->
+        | VControl {cscope;cvs;cparams;clocals;apply;_} ->
           let (st,s) = eval_control ctrl env st cparams args cscope cvs clocals apply in
           (st,s,VNull)
         | VTable {keys;const_entries;name;actions;default_action} ->
@@ -1037,49 +1064,46 @@ module MakeInterpreter (T : Target) = struct
   and eval_nameless (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) : state * signal * value =
     let name = name_of_type_ref typ in
-    let decl = EvalEnv.find_decl name env in
     let args' = List.map ~f:(fun arg -> Some arg) args in
-    let (st',s,v) = let open Declaration in match snd decl with
-      | Control typ_decl ->
-        let (env',st',s) = copyin env st env typ_decl.constructor_params args' in
+    let (st',s,v) = match EvalEnv.find_val name env |> extract_from_state st with
+      | VPackage {params;_} ->
+        let (env',st',s) = copyin env st env params args' in
         let state = env'
           |> EvalEnv.get_val_firstlevel
           |> List.rev in
-        let v' = VControl { cscope = env;
+        (st', s, VPackage{params;args=state})
+      | VControl {cscope;cconstructor_params;cparams;clocals;apply;_} ->
+        let (env',st',s) = copyin env st env cconstructor_params args' in
+        let state = env'
+          |> EvalEnv.get_val_firstlevel
+          |> List.rev in
+        let v' = VControl { cscope = cscope;
                             cvs = state;
-                            cparams = typ_decl.params;
-                            clocals = typ_decl.locals;
-                            apply = typ_decl.apply; } in
+                            cconstructor_params = cconstructor_params;
+                            cparams = cparams;
+                            clocals = clocals;
+                            apply = apply; } in
         (st',s,v')
-      | Parser typ_decl ->
-        let (env',st',s) = copyin env st env typ_decl.constructor_params args' in
+      | VParser {pscope;pconstructor_params;pparams;plocals;states;_} ->
+        let (env',st',s) = copyin env st env pconstructor_params args' in
         let state = env'
           |> EvalEnv.get_val_firstlevel
           |> List.rev in
-        let v' = VParser {pscope = env;
+        let v' = VParser {pscope = pscope;
                           pvs = state;
-                          pparams = typ_decl.params;
-                          plocals = typ_decl.locals;
-                          states = typ_decl.states; } in
+                          pconstructor_params = pconstructor_params;
+                          pparams = pparams;
+                          plocals = plocals;
+                          states = states; } in
         (st',s,v')
-      | PackageType pack_decl ->
-        let (env',st',s) = copyin env st env pack_decl.params args' in
-        let state = env'
-          |> EvalEnv.get_val_firstlevel
-          |> List.rev in
-        (st', s, VPackage{decl;args=state})
-      | ExternObject ext_decl ->
+      | VExternObj ps ->
         let loc = EvalEnv.get_namespace env in
         if State.is_initialized loc st
-        then st, SContinue, VRuntime {loc = loc; obj_name = (snd ext_decl.name);}
-        else
+        then st, SContinue, VRuntime {loc = loc; obj_name = name_only name; }
+        else 
           let args' = List.map args ~f:(fun x -> Some x) in
-          let params = let  open MethodPrototype in
-          ext_decl.methods
-            |> List.map ~f:snd
-            |> List.find_exn ~f:(function Constructor _ -> true | _ -> false)
-            |> (function Constructor {params;_} -> params | _ -> failwith "unreachable") in
-          eval_extern_call env st (snd ext_decl.name) (Some (loc, snd ext_decl.name)) params [] args'
+          let params = List.Assoc.find_exn ps (name_only name) ~equal:String.equal in
+          eval_extern_call env st (name_only name) (Some (loc, name_only name)) params [] args'
       | _ -> failwith "instantiation unimplemented" in
     match s with
     | SContinue -> (st',s,v)

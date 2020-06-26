@@ -848,7 +848,9 @@ and Value : sig
     | VTable of vtable
     | VExternFun of
         { name : string;
-          caller : (loc * string) option; }
+          caller : (loc * string) option;
+          params : Typed.Parameter.t list; }
+    | VExternObj of (string * Parameter.t list) list
     [@@deriving sexp,show,yojson]
 
   and vparser = {
@@ -978,6 +980,10 @@ and Value : sig
 
   val assert_table : value -> vtable
 
+  val assert_externfun : value -> Parameter.t list
+
+  val assert_externobj : value -> (string * Parameter.t list) list
+
   val assert_lname : lvalue -> Types.name
 
   val assert_lmember : lvalue -> lvalue * string
@@ -1083,7 +1089,9 @@ end = struct
     | VTable of vtable
     | VExternFun of
         { name : string;
-          caller : (loc * string) option; }
+          caller : (loc * string) option;
+          params : Typed.Parameter.t list; }
+    | VExternObj of (string * Parameter.t list) list
   [@@deriving sexp, show,yojson]
 
   and vparser = {
@@ -1297,6 +1305,16 @@ end = struct
     match v with
     | VTable t -> t
     | _ -> failwith "not a table"
+
+  let assert_externfun v =
+    match v with
+    | VExternFun {params;_} -> params
+    | _ -> failwith "not an extern function"
+
+  let assert_externobj v =
+    match v with
+    | VExternObj l -> l
+    | _ -> failwith "not an extern object"
 
   let assert_lname l =
     match l.lvalue with

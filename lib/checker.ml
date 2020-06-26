@@ -898,7 +898,7 @@ and cast_if_needed env (expr: Prog.Expression.t) typ =
   if type_equality env [] (snd expr).typ typ
   then expr
   else match typ with
-       | Set elt_typ -> add_cast env (cast_if_needed env expr elt_typ) typ 
+       | Set elt_typ -> add_cast env (cast_if_needed env expr elt_typ) typ
        | typ -> add_cast env expr typ
 
 and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expression.t) (exp2: Expression.t) =
@@ -978,7 +978,7 @@ and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp_info, exp: 
      let cast_entry (field, entry: RecordType.field * KeyValue.t) : Prog.KeyValue.t =
        if field.name <> (snd (snd entry).key)
        then failwith "bad names";
-       let value_typed: Prog.Expression.t = 
+       let value_typed: Prog.Expression.t =
          cast_expression env ctx field.typ (snd entry).value
        in
        fst entry,

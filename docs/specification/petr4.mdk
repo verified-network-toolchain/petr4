@@ -1277,6 +1277,8 @@ S,D,G |- e : t
 S,D,G |- t x := e -| S,D,G[x:t]
 ~
 
+
+TODO: should $e$ be forced to be numeric for value set declarations?
 ~ Infer
 
 --------------------------------------------------------[Type-Decl-Value-Set]
@@ -5087,6 +5089,48 @@ By dint of application $L_{13} \, (L_{14} \, H_6) \, H_6$ we acquire hypothesis:
 H_8: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)
 ~
 and $H_8$ proves $SG$.
+
+#### Case Value-Set-Decl-Success
+TODO: currently I am not sure how we are checking the size $e$ is numeric...
+
+We have hypotheses:
+~MathPre
+H_0: S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
+H_1: <\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <@new \, \xi' \, \sigma' \, x \, v>
+H_2: S,D,G \models \xi,\sigma
+~
+and induction hypothesis:
+~MathPre
+I_1: S,D,G \models \xi,\sigma \Rightarrow ??? \Rightarrow <\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge ???
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G[x:@set t] \models @new \, \xi' \, \sigma' \, x \, v
+~
+By inversion on $H_0$ and $H_1$ we score hypothesis:
+~MathPre
+H_3: \textit{I need some hypothesis about e but one currently does not exist...}
+H_4: <\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v>
+~
+By application $I_1 \, H_2 \, H_3 \, H_4$ we get hypotheses:
+~MathPre
+H_5: S,D,G \models \xi',\sigma'
+H_6: ???
+~
+TODO: Type-Decl-Value-Set needs a hypothesis for $e$.
+
+#### Case Value-Set-Decl-Fail
+We have hypothesis:
+~MathPre
+H_0: S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
+H_1: <\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <\xi, \sigma>
+H_2: S,D,G \models \xi,\sigma
+~
+We wish to prove subgoal:
+~MathPre
+SG: S,D,G \models \xi,\sigma
+~
+$H_2$ proves $SG$.
 
 #### Case Action-Decl
 We have hypotheses:

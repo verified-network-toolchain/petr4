@@ -1339,7 +1339,7 @@ end = struct
     | SValueSet {size; members; sets} -> (size, members, sets)
     | _ -> failwith "not a valueset"
 
-  let assert_action_decl (d : Declaration.t) : Typed.Parameter.t list = 
+  let assert_action_decl (d : Declaration.t) : Typed.Parameter.t list =
     match snd d with
     | Action {data_params;ctrl_params;_} -> data_params @ ctrl_params
     | _ -> failwith "not an action declaration"

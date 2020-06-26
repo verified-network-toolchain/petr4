@@ -1353,9 +1353,21 @@ and Env : sig
   val raise_unbound : Types.name -> unit
 
   module EvalEnv : sig
+    
+    type trace_elt =
+      | TraceTable of
+          { name : string;
+            key : Value.set;
+            action_ref : Table.action_ref }
+      
+    type trace = trace_elt list
+               
     type t [@@deriving sexp,show,yojson]
 
     val empty_eval_env : t
+
+    val get_trace : t -> trace
+    val set_trace : trace -> t -> t
 
     val get_toplevel : t -> t
     val get_val_firstlevel : t -> (string * Value.loc) list
@@ -1595,6 +1607,15 @@ end = struct
   let empty_env : 'a env = [[]]
 
   module EvalEnv = struct
+
+    type trace_elt =
+      | TraceTable of
+          { name : string;
+            key : Value.set;
+            action_ref : Table.action_ref } [@@deriving sexp,show,yojson]
+
+    type trace = trace_elt list [@@deriving sexp,show,yojson]
+    
     type t = {
       (* the program (top level declarations) so far *)
       decl : Declaration.t env;
@@ -1604,6 +1625,8 @@ end = struct
       typ : Type.t env;
       (* dynamically maintain the control-plane namespace *)
       namespace : string;
+      (* Neptune trace *)
+      trace : trace;
     }
     [@@deriving sexp,show,yojson]
 
@@ -1612,7 +1635,11 @@ end = struct
       vs = [[]];
       typ = [[]];
       namespace = "";
-    }
+      trace=[];
+      }
+
+    let get_trace env = env.trace
+    let set_trace trace env = {env with trace}
 
     let get_val_firstlevel (env: t) =
       match env.vs with
@@ -1627,7 +1654,8 @@ end = struct
       {decl = get_last env.decl;
        vs = get_last env.vs;
        typ = get_last env.typ;
-       namespace = "";}
+       namespace = "";
+       trace = get_last env.trace;}
 
     let get_val_firstlevel env =
       List.hd_exn (env.vs)
@@ -1705,13 +1733,14 @@ end = struct
       find name e.typ
 
     let push_scope (e : t) : t =
-      {decl = push e.decl;
+      {e with decl = push e.decl;
        vs = push e.vs;
        typ = push e.typ;
-       namespace = e.namespace;}
+       namespace = e.namespace;
+      }
 
     let pop_scope (e:t) : t =
-      {decl = pop e.decl;
+      {e with decl = pop e.decl;
        vs = pop e.vs;
        typ = pop e.typ;
        namespace = e.namespace;}
@@ -1898,7 +1927,8 @@ end = struct
       { decl = [[]];
         vs = [[]];
         typ = cenv.typ;
-        namespace = "";}
+        namespace = "";
+        trace = [];}
   end
 
 

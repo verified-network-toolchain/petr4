@@ -556,6 +556,14 @@ module MakeInterpreter (T : Target) = struct
     let action_name = Table.((snd action).action.name) in
     let action_value = EvalEnv.find_val action_name env |> extract_from_state st'' in
     let args = Table.((snd action).action.args) in
+    (* add trace to environment *)
+    let env'' =
+      let trace = EvalEnv.get_trace env in
+      match l with
+      | [] -> env
+      | (key,action_ref)::_ ->
+         let trace_elt = EvalEnv.TraceTable {name; key; action_ref} in
+         EvalEnv.set_trace (trace_elt :: trace) env in
     match action_value with
     | VAction{scope;params;body}  ->
       let (env',st''',s,_) = eval_funcall' ctrl env'' st'' scope params args body in

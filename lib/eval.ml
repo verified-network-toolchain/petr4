@@ -275,8 +275,7 @@ module MakeInterpreter (T : Target) = struct
     let l = State.fresh_loc () in
     let st = State.insert_heap l
         (VAction{scope=env; params = data_params @ ctrl_params; body}) st in
-    EvalEnv.insert_val_bare name l env
-    |> EvalEnv.insert_typ_bare name (Action {data_params;ctrl_params}), st
+    EvalEnv.insert_val_bare name l env, st
 
   and eval_table_decl (ctrl : ctrl) (env : env) (st : state) (name : string)
       (decl : Declaration.t) (key : Table.key list) (actions : Table.action_ref list)
@@ -285,14 +284,14 @@ module MakeInterpreter (T : Target) = struct
     let pre_ks = key |> List.map ~f:snd in
     let ctrl_entries = match List.Assoc.find (fst (fst ctrl)) name ~equal:String.(=) with
                        | None -> []
-                       | Some entries -> create_pre_entries env actions key entries in
+                       | Some entries -> create_pre_entries env st actions key entries in
     let entries' = match entries with
                         | None -> ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in
     let final_entries = sort_priority ctrl env st entries' in
     let ctrl_default = match List.Assoc.find (snd (fst ctrl)) name ~equal:String.(=) with
                        | None -> default
-                       | Some actions' -> Some (convert_action env actions (List.hd_exn actions')) in
+                       | Some actions' -> Some (convert_action env st   actions (List.hd_exn actions')) in
     let v = VTable { name = name;
                     keys = pre_ks;
                     actions = actions;
@@ -409,11 +408,11 @@ module MakeInterpreter (T : Target) = struct
       Some (Info.dummy, typed_exp') end
       else Some exp
   
-  and convert_action env actions (name, args) =
+  and convert_action env st actions (name, args) =
       let action_name' = Types.BareName (Info.dummy, name) in
-      let action_type = EvalEnv.find_typ action_name' env in
-      let type_params = match action_type with
-        | Action {data_params; ctrl_params} -> data_params @ ctrl_params
+      let action_type = EvalEnv.find_val action_name' env in
+      let type_params = match action_type |> extract_from_state st with
+        | VAction {params;_} -> params
         | _ -> failwith "not an action type" in
       let existing_args = List.fold_left actions
                           ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name'
@@ -428,7 +427,7 @@ module MakeInterpreter (T : Target) = struct
       let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (*type is a hack*)
       (Info.dummy, action)
 
-  and create_pre_entries env actions key add =
+  and create_pre_entries env st actions key add =
     let convert_match ((name, (num_or_lpm : Ast.number_or_lpm)), t) : Match.t =
       match num_or_lpm with
       | Num s ->
@@ -443,7 +442,7 @@ module MakeInterpreter (T : Target) = struct
       let key_types = List.map key ~f:(fun k -> (snd (snd k).key).typ ) in
       { annotations = [];
         matches = List.map (List.zip_exn match_list key_types) ~f:convert_match;
-        action = convert_action env actions (action_name, args) } in
+        action = convert_action env st actions (action_name, args) } in
     List.map add ~f:convert_pre_entry
 
   and sort_priority (ctrl : ctrl) (env : env) (st : state)

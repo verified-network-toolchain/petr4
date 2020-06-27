@@ -200,7 +200,7 @@ e ::= @true
     | uop e
     | e1 binop e2
     | (t) e // explicit cast
-    | X.name // type member
+    | @error.name // error member
     | e.name // expression member
     | f<\overline{t}>(\overline{e}) // function call
     | t(\overline{e}) // nameless instantiation
@@ -263,29 +263,28 @@ decl ::= @const t x:=e // constants
        | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \} // parsers
        | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // controls
        | @action x (\overline{x:t,d_0},\overline{x:t}) blk // actions
-       | @table x \{ \overline{prop} \} // tables
-       | @struct X \{ \overline{x:t} \} // struct types
-       | @error \{ \overline{x} \} // errors
-       | \mathkw{match\_kind} \{ \overline{x} \} // match\_kinds
-       | @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} // extern classes
+       | @table x \{\overline{prop}\} // tables
+       | @struct X \{\overline{x:t}\} // struct types
+       | @error \{\overline{x}\} // errors
+       | \mathkw{match\_kind} \{\overline{x}\} // match\_kinds
+       | @extern X<\overline{X}> \{\overline{ctor}\ \overline{method}\} // extern classes
        | @control X<\overline{X}>(\overline{t,d}) // control types
        | @parser X<\overline{X}>(\overline{t,d}) // parser types
        | @typedef t X // typedefs (transparent)
        | @type t X // newtypes (opaque)
 
-state ::= @state x \{ \overline{s}; @transition state\_expr \}
+state ::= @state x \{\overline{s}; @transition state\_expr\}
 
 state\_expr ::= x
-              | @select (\overline{e}) \{ \overline{e:x} \}
+              | @select (\overline{e}) \{\overline{e:x}\}
 
-ctor ::= X(\overline{x:t})
+ctor ::= @constructor<\overline{X}>(\overline{t})
 
-method ::= @abstract t x<\overline{X}>(\overline{x:t,d})
-         | t x<\overline{X}>(\overline{x:t,d})
+method ::= @method t x<\overline{X}>(\overline{t,d})
 
-prop ::= @key = \{ \overline{e:x} \}
-       | @actions = \{ \overline{a\_ref} \}
-       | @const @entries = \{ \overline{e:a\_ref(\overline{e})} \}
+prop ::= @key = \{\overline{e:x}\}
+       | @actions = \{\overline{a\_ref}\}
+       | @const @entries = \{\overline{e:a\_ref(\overline{e})}\}
        | x = e
        | @const x = e
 
@@ -307,22 +306,23 @@ t ::= @bool
     | @bit<w>
     | t[a]
     | @tuple<\overline{t}>
-    | \{ \overline{f:t} \}  // record type
+    | \{\overline{f:t}\}  // record type
+    | \mathkw{header\ union} \{\overline{f:t}\}
+    | @struct \{\overline{f:t}\}
+    | @header \{\overline{f:t}\}
     | @set<t>
     | @error
     | \mathkw{match\_kind}
     | X // type name
     | @newtype X t
     | @void
-    | \mathkw{header\ union} \{ \overline{f:t} \}
-    | @struct \{ \overline{f:t} \}
     | t<\overline{t}> // specialized type
     | @package<\overline{X}>(\overline{t,d})
     | @control<\overline{X}>(\overline{t,d})
     | @parser<\overline{X}>(\overline{t})
     | @extern X \{ \overline{method} \}
     | <\overline{X}>(\overline{t,d})\longrightarrow_F{}\tau
-    | (\overline{t,d_0}, \overline{t})\longrightarrow_A{}@void
+    | (\overline{t,d_0},\overline{t})\longrightarrow_A{}@void
     | <\overline{X}>(\overline{t})\longrightarrow_C{}t
     | @table
 
@@ -351,7 +351,8 @@ sctx ::= @InFunction t
        | @InParser
        | @InControl
 dctx ::= @InTopLevel
-       | @InDecl
+       | @InControl
+       | @InParser
        | @InStatement sctx
 pctx ::= sctx
        | @InExternMethod
@@ -374,14 +375,15 @@ v_o ::= @true // booleans
     | a // arbitrary width integer literal
     | n\mathkw{w}a // unsigned integer literal of size n
     | u // strings
-    | \{ \overline{v} \} // tuple
-    | \{ \overline{name=v} \} // records
+    | \{\overline{v}\} // tuple
+    | \{\overline{name=v}\} // records
+    | @struct \{\overline{name=v}\}
+    | @header \{\overline{name=v}\}
     | set
     | @error.name
     | @matchkind.name
     | \xi \otimes (\overline{x:t,d}) blk // functions, actions
     | @builtin name lv
-    | @struct \{ \overline{name=v} \}
     | \mathkw{header\ union} \{ \overline{name=v} \}
     | @stack_n n \overline{v} // stacks
     | @runtime name \ell // stateful runtime
@@ -390,8 +392,6 @@ v_o ::= @true // booleans
     | @package (\overline{name=v})
     | @table name \overline{e:x} \overline{a\_ref} a\_ref \{ \overline{e:a\_ref} \}
     | @extern name v
-
-v ::= v_o | @None
 ~ End P4MathGrammar
 
 Sets
@@ -408,6 +408,7 @@ set ::=  @universal
 ~ Begin P4MathGrammar
 sig ::= \mathkw{sig\_continue}
     | \mathkw{sig\_return} v
+    | \mathkw{sig\_return}
     | \mathkw{sig\_exit}
     | \mathkw{sig\_reject} v
 ~ End P4MathGrammar
@@ -697,6 +698,23 @@ S,D,G |- e_m:@set<@tuple<\overline{t}>>
 S,D,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{e_m:x} \}
 ~
 
+### Extern constructor and method typing
+
+There are single-rule judgments for checking the constructor and
+method signatures that appear in extern object declarations. Both
+judgments are extended to lists by threading $\Gamma$ through.
+~ Infer
+
+--------------------------------------------------------------------------------------------------------------[Type-Ctor]
+S,D,G,\tau |- @constructor<\overline{X}>(\overline{t}) -| G[X:<\overline{X}>(\overline{t})\longrightarrow_{C}\tau]
+~
+
+~ Infer
+
+-----------------------------------------------------------------------------------------------------------------[Type-Method]
+S,D,G |- @method t x<\overline{X}>(\overline{t,d}) -| G[x:<\overline{X}>(\overline{t,d})\longrightarrow_{F}t]
+~
+
 ### Declaration typing judgment
 
 Declarations are typed by a judgment of the form
@@ -759,6 +777,7 @@ S,D,G,dctx |- t x:=e -| S,D,G[x:t]
 
 ~ Infer
 S,D,G[\overline{x:t,d0}][\overline{x':t'}],@InAction |- blk:@returns @void -| G_{blk}
+dctx \in \{@InControl,@TopLevel\}
 ----------------------------------------------------------------------------------------------------------------------------------------[Type-Decl-Action]
 S,D,G,dctx |- @action act(\overline{x:t,d_0},\overline{x':t'}) blk -| S,D,G[act:(\overline{t,d0},\overline{t}) \longrightarrow_{A} @void]
 ~
@@ -766,45 +785,39 @@ S,D,G,dctx |- @action act(\overline{x:t,d_0},\overline{x':t'}) blk -| S,D,G[act:
 ~ Infer
 S,D,G,\{\},\{\} |- \overline{prop} -| K,A
 --------------------------------------------------------------------[Type-Decl-Table]
-S,D,G,dctx |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table]
+S,D,G,@InControl |- @table x \{\overline{prop}\} -| S,D,G[x \to @table]
 ~
 
 ### Header and Struct Typing
 ~ Infer
 
 -----------------------------------------------------------------------------------[Type-Decl-Header]
-S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
-~
-
-~ Infer
-
-----------------------------------------------------------------[Type-Decl-Header-Union]
-S,D,G |- \mathkw{header\ union} X \{ \overline{x:t} \} -| S,D[X=\mathkw{header\ union} \{ \overline{x:t} \}],G
+S,D,G,@TopLevel |- @header X \{\overline{x:t}\} -| S,D[X=@header \{\overline{x:t}\}],G
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------[Type-Decl-Struct]
-S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
+S,D,G,@TopLevel |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
 ~
 
 ~ Infer
 \overline{@error.x \notin G}
 -----------------------------------------------------------[Type-Decl-Error]
-S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
+S,D,G,@TopLevel |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
 ~
 
 ~ Infer
 \overline{.x \notin G}
 ---------------------------------------------------[Type-Decl-Match-Kind]
-S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
+S,D,G,@TopLevel |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
 ~
 
 ~ Infer
-\forall{}ctor_i=X(\overline{x:t}). {t_{ctor}}_i = @constructor<\overline{X}>(\overline{x_i:t_i}) : t_{extern}
-t_{extern} = @extern X \{ \overline{method} \}
----------------------------------------------------[Type-Decl-Extern-Object]
-S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D,G[\overline{X:t_{ctor}}]
+S,D,G,X |- \overline{ctor:\tau_c} -| G'
+S,D,G',X |- \overline{method:\tau_m} -| G''
+---------------------------------------------------------------------------------------------------------------------[Type-Decl-Extern-Object]
+S,D,G,@TopLevel |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D,G''
 ~
 
 ~ Infer
@@ -818,27 +831,6 @@ S,D,G |- @typedef t X -| S,D[X=t],G
 -----------------------------------------------[Type-Decl-TypeDef]
 S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~
-
-~ Infer
-D'=D[X=@control<\overline{X}>(\overline{x:t,d})
---------------------------------------------------------------[Type-Decl-Control-Type]
-S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
-~
-
-~ Infer
-D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
--------------------------------------------------------------[Type-Decl-Parser-Type]
-S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
-~
-
-~ Infer
-D'=D[X=@package<\overline{X}>(\overline{x:t})
-------------------------------------------------------------[Type-Decl-Package-Type]
-S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
-~
-
-
-See [petr4-full](petr4-full.html) for details.
 
 # Dynamic Semantics
 ## Evaluation Environment and State
@@ -912,7 +904,7 @@ $\langle\zeta, \xi, \sigma, s\rangle \Downarrow_s \langle\xi', \sigma', sig\rang
 ~ Infer
 
 ---------------------------------------------[Return-Void]
-<\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
+<\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return}>
 ~
 
 ~ Infer

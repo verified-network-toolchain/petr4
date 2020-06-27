@@ -120,13 +120,13 @@ module Make_parse (Conf: Parse_config) = struct
       begin match target with
         | "v1" ->
           let st = V1Interpreter.empty_state in
-          begin match V1Interpreter.eval_prog (([],[]), vsets) env st pkt port typed_prog |> snd with
+          begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
             | Some (pkt,port) -> `Ok(pkt, port)
             | None -> `NoPacket
           end
         | "ebpf" ->
           let st = EbpfInterpreter.empty_state in
-          begin match EbpfInterpreter.eval_prog (([],[]), vsets) env st pkt port typed_prog |> snd with
+          begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
             | Some (pkt, port) -> `Ok(pkt,port)
             | None -> `NoPacket
           end

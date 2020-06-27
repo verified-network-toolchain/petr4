@@ -264,7 +264,6 @@ decl ::= @const t x:=e // constants
        | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // controls
        | @action x (\overline{x:t,d_0},\overline{x:t}) blk // actions
        | @table x \{\overline{prop}\} // tables
-       | @struct X \{\overline{x:t}\} // struct types
        | @error \{\overline{x}\} // errors
        | \mathkw{match\_kind} \{\overline{x}\} // match\_kinds
        | @extern X<\overline{X}> \{\overline{ctor}\ \overline{method}\} // extern classes
@@ -786,19 +785,6 @@ S,D,G,dctx |- @action act(\overline{x:t,d_0},\overline{x':t'}) blk -| S,D,G[act:
 S,D,G,\{\},\{\} |- \overline{prop} -| K,A
 --------------------------------------------------------------------[Type-Decl-Table]
 S,D,G,@InControl |- @table x \{\overline{prop}\} -| S,D,G[x \to @table]
-~
-
-### Header and Struct Typing
-~ Infer
-
------------------------------------------------------------------------------------[Type-Decl-Header]
-S,D,G,@TopLevel |- @header X \{\overline{x:t}\} -| S,D[X=@header \{\overline{x:t}\}],G
-~
-
-~ Infer
-
--------------------------------------------------------------------[Type-Decl-Struct]
-S,D,G,@TopLevel |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
 ~
 
 ~ Infer

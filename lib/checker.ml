@@ -1674,7 +1674,8 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
      List.for_all ~f:(type_has_equality_tests env) types
   | Header { fields; _ }
   | HeaderUnion { fields; _ }
-  | Struct { fields; _ } ->
+  | Struct { fields; _ }
+  | Record { fields; _ } ->
      List.for_all ~f:(fun field -> type_has_equality_tests env field.typ) fields
   | NewType { typ; _ } ->
      type_has_equality_tests env typ

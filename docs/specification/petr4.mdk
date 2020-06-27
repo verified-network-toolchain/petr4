@@ -395,19 +395,16 @@ v ::= @true // booleans
 
 Set values
 ~ Begin P4MathGrammar
-set::=\_
-    | \{v\}
-    | v\mathbin{\texttt{\&\&\&}}v
-    | \prod\overline{set}
+set::=\_ // universal set
+    | \{v\} // singleton set
+    | v\mathbin{\texttt{\&\&\&}}v // bitmask set
+    | \prod\overline{set} // set product
 ~ End P4MathGrammar
 
 ## Signal Syntax
 ~ Begin P4MathGrammar
-sig ::= \mathkw{sig\_continue}
-    | \mathkw{sig\_return} v
-    | \mathkw{sig\_return}
-    | \mathkw{sig\_exit}
-    | \mathkw{sig\_reject} v
+sig ::= @go | @stop exn
+exn ::= @ret | @ret v | @reject v | @exit
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -816,7 +813,12 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~
 
 # Dynamic Semantics
+
 ## Evaluation Environment and State
+
+
+
+
 ## Control flow
 ## Evaluation Helper Rules
 ## Expression Evaluation

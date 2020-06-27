@@ -190,12 +190,12 @@ P4 Programming Language.
 ## Expression Syntax
 
 ~ Begin P4MathGrammar
-e ::= @true
+e::=@true
     | @false
     | a // arbitrary width integer literal
     | x // variable
     | e1[e2] // array access
-    | \{ \overline{e} \} // list
+    | (\overline{e}) // tuple
     | \{ \overline{name=e} \} // records
     | uop e
     | e1 binop e2
@@ -204,9 +204,8 @@ e ::= @true
     | e.name // expression member
     | f<\overline{t}>(\overline{e}) // function call
     | t(\overline{e}) // nameless instantiation
-    | e1 \texttt{\&\&\&} e2 // mask
-    | e1 .. e2 // range
     | (\_)_{\tau} // universal set for type $t$
+    | \prod{}\overline{e} // finite set product
 ~ End P4MathGrammar
 
 ~ Begin P4MathGrammar
@@ -231,6 +230,7 @@ binop ::= +
         | >=
         | ==
         | !=
+	| &&& // mask
 ~ End P4Grammar
 
 ## Statement and Block Syntax
@@ -369,7 +369,7 @@ ectx ::= @InFunction
 
 Values
 ~ Begin P4MathGrammar
-v_o ::= @true // booleans
+v ::= @true // booleans
     | @false
     | a // arbitrary width integer literal
     | n\mathkw{w}a // unsigned integer literal of size n
@@ -393,14 +393,12 @@ v_o ::= @true // booleans
     | @extern name v
 ~ End P4MathGrammar
 
-Sets
+Set values
 ~ Begin P4MathGrammar
-set ::=  @universal
-    | @singleton w v
-    | v1 \texttt{\&\&\&} v2 // mask
-    | v1 .. v2 // range
-    | @product \overline{set}
-    | @lpm w v1 v2
+set::=\_
+    | \{v\}
+    | v\mathbin{\texttt{\&\&\&}}v
+    | \prod\overline{set}
 ~ End P4MathGrammar
 
 ## Signal Syntax
@@ -417,6 +415,7 @@ sig ::= \mathkw{sig\_continue}
 ## Typing contexts
 
 All typing judgments include
+
 1. $\Sigma$, the values of any compile-time-known constants,
 2. $\Delta$, the definitions of type names in scope, and
 3. $\Gamma$, the types of variables in scope.
@@ -428,25 +427,23 @@ anything.
 
 ~ MathPre
 \sigma ::= \sigma, x=v | []
-
 S ::= S, \sigma{} | []
 
 \delta ::= \delta, X=t | []
-
 D ::= D, \delta{} | []
 
 \gamma ::= \gamma, x:t,d | []
-
 G ::= G, \gamma{} | []
 ~
 
-In all contexts there is a lookup test $C(name) = y$ which searches from
+For all contexts there is a lookup test $C(name) = y$ which searches from
 the outermost list of bindings inward and a top level lookup $C(.name) =
 y$ which only looks at the innermost list of bindings.
 
 ## Context conversions
 
-Contexts can be converted using maps $[-]_E$, $[-]_S$, and $[-]_D$.
+Contexts (not the typing contexts, but the $\mathkw{InFunction}$ ones)
+can be converted using maps $[-]_E,$ $[-]_S,$ and $[-]_D.$
 
 ## Expression Typing
 

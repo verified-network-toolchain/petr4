@@ -403,9 +403,12 @@ set::=\_ // universal set
 
 ## Signal Syntax
 ~ Begin P4MathGrammar
-sig ::= @go | @stop exn
+ssig ::= @go | @stop exn
+esig ::= @go v | @stop exn
+lsig ::= @go e | @stop exn
 exn ::= @ret | @ret v | @reject v | @exit
 ~ End P4MathGrammar
+There are signal conversions $[-]_{ssig}$, $[-]_{esig}$, and $[-]_{lsig}$.
 
 # Static Semantics { #sec-static }
 
@@ -822,11 +825,14 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ## Control flow
 ## Evaluation Helper Rules
 ## Expression Evaluation
+~ MathPre
+<\zeta, \xi, \sigma', e> \Downarrow_e <\sigma', esig>
+~
 ## Lvalue evaluation
 Expressions on the left hand side of things have to be simplified but
 not fully evaluated.
 ~ MathPre
-<\zeta, \xi, \sigma', e> \Downarrow_\ell <\xi', \sigma', sig, e_lv>
+<\zeta, \xi, \sigma', e> \Downarrow_\ell <\sigma', lsig>
 ~
 
 Rules: TODO
@@ -841,51 +847,71 @@ along with a signal.
 $\langle\zeta, \xi, \sigma, s\rangle \Downarrow_s \langle\xi', \sigma', sig\rangle$
 ~
 
+### Method calls
 ~ Infer
-<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
------------------------------------------------------------------------------------------------[Method-Call]
-<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig>
+<\zeta,\xi,\sigma,e<\overline{t}>(\overline{e})>\Downarrow_e<\xi',\sigma',esig>
+---------------------------------------------------------------------------------[Method-Call]
+<\zeta,\xi,\sigma,e<\overline{t}>(\overline{e})>\Downarrow_s<\xi',\sigma',[esig]_{ssig}>
 ~
 
-~ Infer
-<\zeta, \xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-<\zeta, \xi, \sigma', e_l> \Downarrow_\ell <\xi'', \sigma'', sig, e_lv>
+###Assignment
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@stop exn>
+----------------------------------------------------------------------------------[Assignment-Stop-Left]
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<\xi,\sigma',@go>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@go e_lv>
+<\zeta',\xi',\sigma,e_r>\Downarrow_e<\xi'',\sigma'',@stop exn>
+----------------------------------------------------------------------------------[Assignment-Stop-Right]
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<\xi,\sigma'',@stop exn>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@go e_lv>
+<\zeta',\xi',\sigma,e_r>\Downarrow_e<\xi'',\sigma'',@go v>
 ----------------------------------------------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e_l:=e_r> \Downarrow_s <\xi', <\xi',\sigma''>[v/e_lv]>
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<<\xi,\sigma''>[e_lv:=v],@go>
 ~
 
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
-------------------------------------------------------------------------------[Conditional-Reject]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
+### Conditionals
+
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@go @true>
+<\zeta,@push\xi',\sigma',s_1>\Downarrow_s<\xi'',\sigma'',sig>
+---------------------------------------------------------------------------------[If-True]
+<\zeta,\xi,\sigma,@if(e)s_1@elses_2>\Downarrow_s<\xi',\sigma'',sig>
 ~
 
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
-<\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
----------------------------------------------------------------------------------[If-Else-True]
-<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@go @false>
+<\zeta,@push\xi',\sigma',s_2>\Downarrow_s<\xi'',\sigma'',sig>
+---------------------------------------------------------------------------------[If-False]
+<\zeta,\xi,\sigma,@if(e)s_1@elses_2>\Downarrow_s<\xi',\sigma'',sig>
 ~
 
-~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
-<\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
----------------------------------------------------------------------------------[If-Else-False]
-<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@stop exn>
+------------------------------------------------------------------------------------------------[If-Stop]
+<\zeta,\xi,\sigma,@if(e)s1@elses2>\Downarrow_s<\xi',\sigma',@stop exn>
 ~
 
-~ Infer
-<\zeta, @push \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
+###Blocks
+~Infer
+<\zeta,@push\xi,\sigma,\overline{s}>\Downarrow_s<\xi',\sigma',sig>
 --------------------------------------------------------------------------[Block]
-<\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi, \sigma', sig>
+<\zeta,\xi,\sigma,\{s_1;...s_n;\}>\Downarrow_s<\xi,\sigma',sig>
 ~
 
+### Exit
 ~ Infer
 
 ---------------------------------------------------------------------[Exit-Continue]
 <\zeta, \xi, \sigma, @exit> \Downarrow_s <\xi, \sigma, \mathkw{sig\_exit}>
 ~
 
+### Return
 ~ Infer
 
 ---------------------------------------------[Return-Void]
@@ -898,10 +924,11 @@ $\langle\zeta, \xi, \sigma, s\rangle \Downarrow_s \langle\xi', \sigma', sig\rang
 <\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
+### Declaration statements
 ~ Infer
 <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
 --------------------------------------------------------------------[Declaration-Statement]
-<\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+<\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', @go>
 ~
 
 

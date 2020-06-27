@@ -7,8 +7,6 @@ checker,examples/checker_tests/bad/string-e2.p4,variables cannot be strings,139
 checker,examples/checker_tests/bad/table-entries-lpm-2.p4,safe width checking,29
 checker,examples/checker_tests/bad/table-entries-optional-2-bmv2.p4,safe width checking,29
 checker,examples/checker_tests/bad/div1.p4,implicit cast on division turns negative argument into bit<>,195
-checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,apparent coercion t <-> tuple<t> in set context,125
-checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
 checker,examples/checker_tests/bad/issue1803_same_table_name.p4,should reject programs with control plane name conflicts,133
 checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn should be rejected,135
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135

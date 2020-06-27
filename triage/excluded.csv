@@ -39,6 +39,8 @@ stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF ar
 stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),122
+checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,apparent coercion t <-> tuple<t> in set context,125
+checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
 stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81
 stf,examples/checker_tests/good/issue1049-bmv2.p4,crc checksum problems,179
 checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162

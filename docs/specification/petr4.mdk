@@ -418,8 +418,8 @@ v_o ::= b // booleans
     | @header b \{ \overline{(name, v)} \}
     | \mathkw{header\ union} \{ \overline{(name, v)} \}
     | (\overline{v}, n_{size}, n_{next}) // stacks
-    | name1.name2 // enumfield
-    | (name1.name2, v) // senumfield
+    | name_1.name_2 // enumfield
+    | (name_1.name_2, v) // senumfield
     | (\ell, name_{object}) // stateful runtime
     | @parser \overline{(name, v)} (\overline{x:t,d}) \overline{decl} \overline{state}
     | @control \overline{(name, v)} (\overline{x:t,d}) \overline{decl} blk
@@ -825,6 +825,8 @@ S,D,G |- e.name : t_{name}, @none
 ---------------------------------------------------------------------[Header-Field]
 \mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) f_i t_i
 ~
+
+TODO: need to make sure all types in a header union are headers.
 
 ~ Infer
 
@@ -1343,6 +1345,8 @@ S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<
 -----------------------------------------------------------------------------------[Type-Decl-Header]
 S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
 ~
+
+TODO: need to restrict header union fields to be headers.
 
 ~ Infer
 
@@ -2973,7 +2977,98 @@ x \notin G \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models \
 ~MathPre
 \vdash_v v : \tau
 ~
-TODO: this is a stub.
+
+~Infer
+
+--------------------[Judge-Integer]
+\vdash_v a : @int
+~
+
+~Infer
+
+---------------------[Judge-Unsigned-Integer]
+\vdash_v nwa : @bit<n>
+~
+
+~Infer
+
+---------------------[Judge-Signed-Integer]
+\vdash_v nsa : @bit<n>
+~
+
+
+~Infer
+\vdash_v \overline{v} : \overline{t}
+----------------------------------------------[Judge-Tuple]
+\vdash_v (\overline{v}) : @tuple<\overline{t}>
+~
+
+~Infer
+\overline{\vdash_v  v : \tau}
+-------------------------------------------------------[Judge-Record]
+\vdash_v \{ \overline{name=v} \} : \{ \overline{f:t} \}
+~
+
+~Infer
+
+------------------------------[Judge-Error]
+\vdash_v @error.name : @error
+~
+
+~Infer
+
+-----------------------------------------------[Judge-Matchkind]
+\vdash_v @matchkind name : \mathkw{match\_kind}
+~
+
+~Infer
+\overline{\vdash_v  v : \tau}
+-----------------------------------------------------------------------[Judge-Struct]
+\vdash_v @struct \{ \overline{(f, v)} \} : @struct \{ \overline{f:t} \}
+~
+
+~Infer
+\overline{\vdash_v  v : \tau}
+-----------------------------------------------------------------------[Judge-Struct]
+\vdash_v @struct \{ \overline{(f, v)} \} : @struct \{ \overline{f:t} \}
+~
+
+~Infer
+\overline{\vdash_v  v : \tau}
+-------------------------------------------------------------------------[Judge-Header]
+\vdash_v @header b \{ \overline{(f, v)} \} : @header \{ \overline{f:t} \}
+~
+
+TODO: enum member judging is sketcky: may need some context...
+~Infer
+y \in \overline{x}
+------------------------------------------[Judge-Enum-Field]
+\vdash_v X.y : @enum X \{ \overline{x} \}
+~
+
+TODO: parser judging is probably sketchy...
+Do we need to check the innards?
+~Infer
+\overline{ \vdash_v v : \tau_c }
+---------------------------------------------------------------------------------------------------------------------------------[Judge-Parser]
+\vdash_v @parser \overline{(x, v)} (\overline{x:t,d}) \overline{decl} \overline{state} : @parser<\overline{X}>(\overline{x:t_c})
+~
+
+TODO: control judging is probably sketchy...
+Do we need to check the block?
+~Infer
+\overline{ \vdash_v v : \tau_c }
+----------------------------------------------------------------------------------------------------------------[Judge-Control]
+\vdash_v @control \overline{(x, v)} (\overline{x:t,d}) \overline{decl} blk : @control<\overline{X}>(\overline{x:t_c,d})
+~
+
+~Infer
+\overline{ \vdash_v v : t }
+------------------------------------------------------------------------------[Judge-Package]
+\vdash_v @package \overline{(x, v)} : @package<\overline{X}>(\overline{x:t,d})
+~
+
+TODO: how to type table, extern, or function values without contexts...maybe impossible...
 
 ## Type Soundness of Expressions
 

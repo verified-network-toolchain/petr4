@@ -1863,7 +1863,10 @@ end = struct
       { env with typ_of = insert var (typ, dir) env.typ_of }
 
     let insert_const var value env =
-      { env with const = insert var value env.const }
+      match find_const_opt var env with
+      | Some _ -> raise_s [%message "constant already defined!"
+                              ~name:(var:Types.name)]
+      | None -> { env with const = insert var value env.const }
 
     let push_scope env =
       { typ = push env.typ;

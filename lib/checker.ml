@@ -518,7 +518,7 @@ and infer_type_arguments env ctx ret type_params_args params_args constraints =
     | Some arg ->
        CheckerEnv.insert_type (BareName (Info.dummy, type_var)) arg env, args @ [(type_var, arg)], unknowns
     | None ->
-       CheckerEnv.insert_type_var (BareName (Info.dummy, type_var)) env, args, unknowns @ [type_var]
+       env, args, unknowns @ [type_var]
   in
   let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =
@@ -3795,7 +3795,7 @@ and type_extern_object env info annotations obj_name t_params methods =
       methods = List.map ms
                   ~f:(method_prototype_to_extern_method obj_name) }
   in
-  let to_typename s = Type.TypeName (BareName (Info.dummy, s)) in
+  let extern_typ_ret: ExternType.t = { extern_typ with type_params = [] } in
   let extern_ctors =
     List.map cs ~f:(function
         | _, Prog.MethodPrototype.Constructor
@@ -3804,9 +3804,7 @@ and type_extern_object env info annotations obj_name t_params methods =
              { type_params = type_params';
                wildcard_params = [];
                parameters = params_typed;
-               return = SpecializedType
-                          { base = Extern extern_typ;
-                            args = List.map ~f:to_typename type_params' } }
+               return = Extern extern_typ_ret; }
         | _ -> failwith "bug: expected constructor")
   in
   let env = CheckerEnv.insert_type (BareName obj_name) (Extern extern_typ) env in

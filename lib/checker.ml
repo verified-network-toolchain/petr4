@@ -3947,6 +3947,14 @@ and type_package_type env info annotations name t_params params =
   in
   (info, pkg_decl), env'
 
+and check_param_shadowing params constructor_params =
+  let open Types.Parameter in 
+  let all_params = params @ constructor_params in
+  let names = List.map ~f:(fun (_, p) -> snd p.variable) all_params in
+  match List.find_a_dup ~compare:String.compare names with
+  | Some dup -> raise_s [%message "duplicate parameter" ~dup]
+  | None -> ()
+
 and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match snd decl with
   | Constant { annotations; typ; name; value } ->
@@ -3957,15 +3965,20 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
      | None -> type_instantiation env ctx (fst decl) annotations typ args name
      end
   | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
+     check_param_shadowing params constructor_params;
      type_parser env (fst decl) name annotations params constructor_params locals states
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+     check_param_shadowing params constructor_params;
      type_control env (fst decl) name annotations type_params params constructor_params locals apply
   | Function { return; name; type_params; params; body } ->
+     check_param_shadowing params [];
      let ctx: StmtContext.t = Function (translate_type env (List.map ~f:snd type_params) return) in
      type_function env ctx (fst decl) return name type_params params body
   | Action { annotations; name; params; body } ->
+     check_param_shadowing params [];
      type_action env (fst decl) annotations name params body
   | ExternFunction { annotations; return; name; type_params; params } ->
+     check_param_shadowing params [];
      type_extern_function env (fst decl) annotations return name type_params params
   | Variable { annotations; typ; name; init } ->
      type_variable env ctx (fst decl) annotations typ name init
@@ -3994,10 +4007,13 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | NewType { annotations; name; typ_or_decl } ->
      type_new_type env ctx (fst decl) annotations name typ_or_decl
   | ControlType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_control_type env (fst decl) annotations name type_params params
   | ParserType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_parser_type env (fst decl) annotations name type_params params
   | PackageType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_package_type env (fst decl) annotations name type_params params
 
 and type_declarations env ctx decls =

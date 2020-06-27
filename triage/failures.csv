@@ -13,6 +13,5 @@ checker,examples/checker_tests/bad/issue1541.p4,action shadowing extern fn shoul
 checker,examples/checker_tests/bad/issue1932.p4,functions cannot shadow controls,135
 checker,examples/checker_tests/bad/control-verify.p4,verify can only be called in parsers,134
 checker,examples/checker_tests/bad/issue764.p4,int as type parameter allows it to be used as runtime data,139
-checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter typechecking restrictions,162
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,value set typing bug,81
 stf,examples/checker_tests/good/issue1049-bmv2.p4,crc checksum problems,179

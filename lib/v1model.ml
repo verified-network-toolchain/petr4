@@ -51,7 +51,7 @@ module PreV1Switch : Target = struct
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
-  let eval_counter : extern = fun ctrl env st ts args ->
+  let eval_counter : extern = fun env st ts args ->
     let (loc, v, typ) = match args with 
       | [(VRuntime {loc; _}, _);
         (VBit {v; _},_);
@@ -69,7 +69,7 @@ module PreV1Switch : Target = struct
     let ctr = Counter { typ = ctr_typ; size = Bigint.of_int size; } in
     env, State.insert_extern loc ctr st, SContinue, VRuntime {loc = loc; obj_name = "counter"}
       
-  let eval_count_counter : extern = fun ctrl env st ts args ->
+  let eval_count_counter : extern = fun env st ts args ->
     let (loc, v) = match args with
       | [(VRuntime{loc;_},_); (VBit {v;_}, _)] -> loc, Bigint.to_int_exn v
       | _ -> failwith "unexpected args for count counter" in
@@ -92,17 +92,17 @@ module PreV1Switch : Target = struct
       | _ -> failwith "cannot perform a count on a non-counter object" in
     env, State.insert_extern loc ctr' st, SContinue, VNull
 
-  let eval_count_direct_counter : extern = fun ctrl env st ts args ->
+  let eval_count_direct_counter : extern = fun env st ts args ->
     (* actual direct counting implemented in target-dependent table execution *)
     env, st, SContinue, VNull
 
-  let eval_count : extern = fun ctrl env st ts args ->
+  let eval_count : extern = fun env st ts args ->
     match args with 
-    | [_;_] -> eval_count_counter ctrl env st ts args
-    | [_;] -> eval_count_direct_counter ctrl env st ts args
+    | [_;_] -> eval_count_counter env st ts args
+    | [_;] -> eval_count_direct_counter env st ts args
     | _ -> failwith "unexpected args for count"
 
-  let eval_direct_counter : extern = fun ctrl env st ts args ->
+  let eval_direct_counter : extern = fun env st ts args ->
     match args with
     | [(VRuntime{loc;obj_name}, _); (VEnumField{enum_name;_}, _);] ->
       let dctr = match enum_name with
@@ -113,7 +113,7 @@ module PreV1Switch : Target = struct
       env, State.insert_extern loc dctr st, SContinue, VRuntime{loc;obj_name}
     | _ -> failwith "unexpected args for direct counter"
 
-  let eval_meter : extern = fun ctrl env st ts args ->
+  let eval_meter : extern = fun env st ts args ->
     (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with
       | [(VRuntime{loc;obj_name},_); _; _] -> loc, obj_name
@@ -121,10 +121,10 @@ module PreV1Switch : Target = struct
     let meter = Meter () in
     env, State.insert_extern loc meter st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_execute_meter : extern = fun ctrl env st ts args ->
+  let eval_execute_meter : extern = fun env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
 
-  let eval_direct_meter : extern = fun ctrl env st ts args ->
+  let eval_direct_meter : extern = fun env st ts args ->
     (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with
       | [(VRuntime{loc;obj_name},_); _] -> loc,obj_name
@@ -132,7 +132,7 @@ module PreV1Switch : Target = struct
     let dmeter = DirectMeter () in
     env, State.insert_extern loc dmeter st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_register_read : extern = fun _ env st _ args ->
+  let eval_register_read : extern = fun env st _ args ->
     match args with
     | [(VRuntime {loc;_}, _); (_,t) ; (VBit {w = w; v = v}, _)] ->
       let reg_obj = State.find_extern loc st in
@@ -152,16 +152,16 @@ module PreV1Switch : Target = struct
 
   
   
-  let eval_meter_read : extern = fun ctrl env st ts args ->
+  let eval_meter_read : extern = fun env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
 
-  let eval_read : extern = fun ctrl env st ts args ->
+  let eval_read : extern = fun env st ts args ->
     match args with 
-    | [ _; _; _] -> eval_register_read ctrl env st ts args
-    | [ _; _;] -> eval_meter_read ctrl env st ts args
+    | [ _; _; _] -> eval_register_read env st ts args
+    | [ _; _;] -> eval_meter_read env st ts args
     | _ -> failwith "unexpected read args"
     
-  let eval_register : extern = fun _ env st typs args ->
+  let eval_register : extern = fun env st typs args ->
     let typ = Typed.Type.Bit {width = 32} in
     match args with
     | [(VRuntime {loc;obj_name}, _); (VBit {w = _; v = size}, _)]
@@ -174,7 +174,7 @@ module PreV1Switch : Target = struct
       env, st', SContinue, VRuntime {loc = loc; obj_name = obj_name}
     | _ -> failwith "unexpected args for register instantiation"
 
-  let eval_write : extern = fun _ env st _ args -> 
+  let eval_write : extern = fun env st _ args -> 
     match args with
     | [(VRuntime {loc;_}, _); 
         (VBit {w = _; v = v_index}, _) ; 
@@ -191,7 +191,7 @@ module PreV1Switch : Target = struct
       env, st, SContinue, write_val 
     | _ -> failwith "unexpected args for register write"
 
-  let eval_action_profile : extern = fun ctrl env st ts args ->
+  let eval_action_profile : extern = fun env st ts args ->
     (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with 
       | [(VRuntime{loc;obj_name},_); _] -> loc, obj_name
@@ -199,7 +199,7 @@ module PreV1Switch : Target = struct
     let prof = ActionProfile () in
     env, State.insert_extern loc prof st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_random : extern = fun ctrl env st ts args ->
+  let eval_random : extern = fun env st ts args ->
     Random.self_init ();
     let width = match ts with
       | [Bit{width}] -> Bigint.of_int width
@@ -215,10 +215,10 @@ module PreV1Switch : Target = struct
     let env' = EvalEnv.insert_val (BareName (Info.dummy, "result")) l env in
     env', st, SContinue, VNull
         
-  let eval_digest : extern = fun ctrl env st ts args ->
+  let eval_digest : extern = fun env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
 
-  let eval_mark_to_drop : extern = fun ctrl env st ts args ->
+  let eval_mark_to_drop : extern = fun env st ts args ->
     let _ = match args with
       | [] -> failwith "deprecated version of mark to drop"
       | _ -> () in
@@ -251,7 +251,7 @@ module PreV1Switch : Target = struct
     then Bigint.((hv % (rmax - base)) + base)
     else base (* TODO: behavior in this case is unspecified *)
 
-  let eval_hash : extern = fun ctrl env st ts args ->
+  let eval_hash : extern = fun env st ts args ->
     let width = match ts with
       | o :: _ -> width_of_typ env o
       | _ -> failwith "missing type args for hash" in
@@ -270,7 +270,7 @@ module PreV1Switch : Target = struct
     let env = EvalEnv.insert_val_bare "result" l env in
     env, st, SContinue, VNull
 
-  let eval_action_selector : extern = fun ctrl env st ts args ->
+  let eval_action_selector : extern = fun env st ts args ->
     (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with
       | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
@@ -278,7 +278,7 @@ module PreV1Switch : Target = struct
     let selector = ActionSelector () in
     env, State.insert_extern loc selector st, SContinue, VRuntime{loc;obj_name}
 
-  let eval_checksum16 : extern = fun ctrl env st ts args ->
+  let eval_checksum16 : extern = fun env st ts args ->
     (* TODO: current implementation is trivial *)
     let (loc, obj_name) = match args with
       | [(VRuntime{loc;obj_name}, _); _; _; _] -> loc, obj_name
@@ -286,11 +286,11 @@ module PreV1Switch : Target = struct
     let obj = Checksum16 () in
     env, State.insert_extern loc obj st, SContinue, VRuntime{loc;obj_name}      
 
-  let eval_get : extern = fun ctrl env st ts args ->
+  let eval_get : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VBit{w=Bigint.of_int 32; v=Bigint.zero}
 
-  let eval_verify_checksum : extern = fun ctrl env st ts args ->
+  let eval_verify_checksum : extern = fun env st ts args ->
     let width = match ts with
       | _ :: o :: _ -> width_of_typ env o
       | _ -> failwith "unexpected type args for verify checksum" in
@@ -308,7 +308,7 @@ module PreV1Switch : Target = struct
     if Bigint.(checksum = result) then env, st, SContinue, VNull
     else env, st, SReject "ChecksumError", VNull
 
-  let eval_update_checksum : extern = fun ctrl env st ts args ->
+  let eval_update_checksum : extern = fun env st ts args ->
     let width = match ts with
       | _ :: o :: _ -> width_of_typ env o
       | _ -> failwith "unexpected type args for verify checksum" in
@@ -341,7 +341,7 @@ module PreV1Switch : Target = struct
           Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
       |> (fun (w,v) -> VBit { w; v })
 
-  let eval_verify_checksum_with_payload : extern = fun ctrl env st ts args ->
+  let eval_verify_checksum_with_payload : extern = fun env st ts args ->
     let width = match ts with
       | _ :: o :: _ -> width_of_typ env o
       | _ -> failwith "unexpected type args for verify checksum" in
@@ -361,7 +361,7 @@ module PreV1Switch : Target = struct
     if Bigint.(checksum = result) then env, st, SContinue, VNull
     else env, st, SReject "ChecksumError", VNull
 
-  let eval_update_checksum_with_payload : extern = fun ctrl env st ts args ->
+  let eval_update_checksum_with_payload : extern = fun env st ts args ->
     let width = match ts with
       | _ :: o :: _ -> width_of_typ env o
       | _ -> failwith "unexpected type args for verify checksum" in
@@ -383,27 +383,27 @@ module PreV1Switch : Target = struct
     let env' = EvalEnv.insert_val_bare "checksum" l env in
     env', st, SContinue, VNull
 
-  let eval_resubmit : extern = fun ctrl env st ts args ->
+  let eval_resubmit : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VNull
 
-  let eval_recirculate : extern = fun ctrl env st ts args ->
+  let eval_recirculate : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VNull
 
-  let eval_clone : extern = fun ctrl env st ts args ->
+  let eval_clone : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VNull
 
-  let eval_clone3 : extern = fun ctrl env st ts args ->
+  let eval_clone3 : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VNull
 
-  let eval_truncate : extern = fun ctrl env st ts args ->
+  let eval_truncate : extern = fun env st ts args ->
     (* TODO: actually implement *)
     env, st, SContinue, VNull
 
-  let eval_assert : extern = fun ctrl env st ts args ->
+  let eval_assert : extern = fun env st ts args ->
     match args with
     | [(VBool true, _)] -> env, st, SContinue, VNull
     | [(VBool false,_)] -> v1_assert () (* TODO: provide an info.t *)
@@ -411,7 +411,7 @@ module PreV1Switch : Target = struct
 
   let eval_assume : extern = eval_assert
 
-  let eval_log_msg : extern = fun ctrl env st ts args ->
+  let eval_log_msg : extern = fun env st ts args ->
     env, st, SContinue, VNull
 
   let externs = [
@@ -497,11 +497,11 @@ module PreV1Switch : Target = struct
         - checks that verify and update checksum controls only do certain
           kinds of statements/expressions. *)
 
-  let eval_v1control (ctrl : ctrl) (app) (ctrl_name : string) (control : value)
-      (args : Expression.t option list) (env,st) : env * state * signal =
+  let eval_v1control (ctrl : ctrl) (env : env) (app) (ctrl_name : string) (control : value)
+      (args : Expression.t option list) (st : state) : state * signal =
     let env = EvalEnv.set_namespace ctrl_name env in
-    let (env,st',s,_) = app ctrl env st SContinue control args in
-    (EvalEnv.set_namespace "" env, st', s)
+    let (st',s,_) = app ctrl env st SContinue control args in
+    (st', s)
 
   let eval_pipeline
         (ctrl: ctrl)
@@ -511,7 +511,7 @@ module PreV1Switch : Target = struct
         (app: state apply) =
     let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in
-    let fst23 (a,b,_) = (a,b) in
+    (* let fst (a,b,_) = (a,b) in *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
     let parser =
@@ -585,7 +585,7 @@ module PreV1Switch : Target = struct
     let std_meta_expr =
       Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "std_meta"))); dir = InOut; typ = (List.nth_exn params 3).typ}) in
     let env = EvalEnv.set_namespace "p." env in
-    let (env, st, state,_) =
+    let (st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
     let env = EvalEnv.set_namespace "" env in
     let st =
@@ -600,8 +600,8 @@ module PreV1Switch : Target = struct
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let st = State.insert_heap vpkt_loc vpkt' st in
     let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (List.nth_exn deparse_params 0).typ env in
-    let (env,st, s) = (env,st)
-      |> eval_v1control ctrl app "vr."  verify   [hdr_expr; meta_expr] in
+    let (st, s) = st
+      |> eval_v1control ctrl env app "vr."  verify   [hdr_expr; meta_expr] in
     let st = 
       match s with
       | SReject "ChecksumError" ->
@@ -612,8 +612,8 @@ module PreV1Switch : Target = struct
                   name="checksum_error"; }; typ = Bit {width = 1}}
           (VBit{v=Bigint.one;w=Bigint.one}) |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
-    let env, st = (env, st)
-      |> eval_v1control ctrl app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst23 in
+    let st = st
+      |> eval_v1control ctrl env app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst in
     let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
     let egress_spec_val = match struc with
       | VStruct {fields} ->
@@ -628,11 +628,11 @@ module PreV1Switch : Target = struct
                 name="egress_port"; }; typ = Bit {width = 9}}
         egress_spec_val
         in
-    let (env, st) =
-      (env, st)
-      |> eval_v1control ctrl app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst23
-      |> eval_v1control ctrl app "ck."  compute  [hdr_expr; meta_expr] |> fst23
-      |> eval_v1control ctrl app "dep." deparser [pkt_expr; hdr_expr] |> fst23 in
+    let st =
+      st
+      |> eval_v1control ctrl env app "eg."  egress   [hdr_expr; meta_expr; std_meta_expr] |> fst
+      |> eval_v1control ctrl env app "ck."  compute  [hdr_expr; meta_expr] |> fst
+      |> eval_v1control ctrl env app "dep." deparser [pkt_expr; hdr_expr] |> fst in
     st, env, Some (State.get_packet st)
 
   let get_outport (st : state) (env : env) : Bigint.t =

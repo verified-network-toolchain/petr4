@@ -836,23 +836,26 @@ and Value : sig
         { typ_name : string;
           enum_name : string;
           v : value; }
+    | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
           obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of
-        { decl : Declaration.t;
+        { params : Parameter.t list;
           args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
         { name : string;
-          caller : (loc * string) option; }
+          caller : (loc * string) option;
+          params : Typed.Parameter.t list; }
+    | VExternObj of (string * Parameter.t list) list
     [@@deriving sexp,show,yojson]
 
   and vparser = {
     pscope : Env.EvalEnv.t;
-    pvs : (string * loc) list;
+    pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -861,7 +864,7 @@ and Value : sig
 
   and vcontrol = {
     cscope : Env.EvalEnv.t;
-    cvs : (string * loc) list;
+    cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -961,9 +964,11 @@ and Value : sig
 
   val assert_stack : value -> value list * Bigint.t * Bigint.t
 
-  val assert_enum : value -> string * string
+  val assert_enum_field : value -> string * string
 
-  val assert_senum : value -> string * string * value
+  val assert_senum_field : value -> string * string * value
+
+  val assert_senum : value -> (string * value) list
 
   val assert_runtime : value -> loc
 
@@ -971,9 +976,13 @@ and Value : sig
 
   val assert_control : value -> vcontrol
 
-  val assert_package : value -> Declaration.t * (string * loc) list
+  val assert_package : value -> Parameter.t list * (string * loc) list
 
   val assert_table : value -> vtable
+
+  val assert_externfun : value -> Parameter.t list
+
+  val assert_externobj : value -> (string * Parameter.t list) list
 
   val assert_lname : lvalue -> Types.name
 
@@ -1068,23 +1077,26 @@ end = struct
         { typ_name : string;
           enum_name : string;
           v : value; }
+    | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
           obj_name : string; }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of
-        { decl : Declaration.t;
+        { params : Parameter.t list;
           args : (string * loc) list; }
     | VTable of vtable
     | VExternFun of
         { name : string;
-          caller : (loc * string) option; }
+          caller : (loc * string) option;
+          params : Typed.Parameter.t list; }
+    | VExternObj of (string * Parameter.t list) list
   [@@deriving sexp, show,yojson]
 
   and vparser = {
     pscope : Env.EvalEnv.t;
-    pvs : (string * loc) list;
+    pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
     states : Parser.state list;
@@ -1093,7 +1105,7 @@ end = struct
 
   and vcontrol = {
     cscope : Env.EvalEnv.t;
-    cvs : (string * loc) list;
+    cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
     apply : Block.t;
@@ -1254,15 +1266,20 @@ end = struct
     | VStack {headers;size;next} -> (headers, size, next)
     | _ -> failwith "not a stack"
 
-  let assert_enum v =
+  let assert_enum_field v =
     match v with
     | VEnumField {typ_name;enum_name} -> (typ_name, enum_name)
     | _ -> failwith "not an enum field"
 
-  let assert_senum v =
+  let assert_senum_field v =
     match v with
     | VSenumField {typ_name;enum_name;v} -> (typ_name, enum_name, v)
     | _ -> failwith "not an senum field"
+
+  let assert_senum v =
+    match v with
+    | VSenum l -> l
+    | _ -> failwith "not an senum"
 
   let assert_runtime v =
     match v with
@@ -1281,13 +1298,23 @@ end = struct
 
   let assert_package v =
     match v with
-    | VPackage {decl;args} -> (decl, args)
+    | VPackage {params;args} -> (params, args)
     | _ -> failwith "not a package"
 
   let assert_table v =
     match v with
     | VTable t -> t
     | _ -> failwith "not a table"
+
+  let assert_externfun v =
+    match v with
+    | VExternFun {params;_} -> params
+    | _ -> failwith "not an extern function"
+
+  let assert_externobj v =
+    match v with
+    | VExternObj l -> l
+    | _ -> failwith "not an extern object"
 
   let assert_lname l =
     match l.lvalue with
@@ -1364,28 +1391,19 @@ and Env : sig
     val set_namespace : string -> t -> t
 
     val insert_val_bare : string -> Value.loc -> t -> t
-    val insert_decl_bare : string -> Declaration.t -> t -> t
     val insert_typ_bare : string -> Type.t -> t -> t
 
     val insert_val : Types.name -> Value.loc -> t -> t
-    val insert_decl: Types.name -> Declaration.t -> t -> t
     val insert_typ : Types.name -> Type.t -> t -> t
 
     val insert_vals_bare : (string * Value.loc) list -> t -> t
-    val insert_decls_bare : (string  * Declaration.t) list -> t ->t
     val insert_typs_bare : (string * Type.t) list -> t -> t
 
     val insert_vals : (Types.name * Value.loc) list -> t -> t
-    val insert_decls: (Types.name * Declaration.t) list -> t ->t
     val insert_typs : (Types.name * Type.t) list -> t -> t
-
-    val update_val_bare : string -> Value.loc -> t -> t option
-
-    val update_val : Types.name -> Value.loc -> t -> t option
 
     val find_val : Types.name -> t -> Value.loc
     val find_val_opt : Types.name -> t -> Value.loc option
-    val find_decl : Types.name -> t -> Declaration.t
     val find_typ : Types.name -> t -> Type.t
 
     val push_scope : t -> t
@@ -1596,8 +1614,6 @@ end = struct
 
   module EvalEnv = struct
     type t = {
-      (* the program (top level declarations) so far *)
-      decl : Declaration.t env;
       (* maps variables to their locations in memory (state) *)
       vs : Value.loc env;
       (* map variables to their types; only needed in a few cases *)
@@ -1608,7 +1624,6 @@ end = struct
     [@@deriving sexp,show,yojson]
 
     let empty_eval_env = {
-      decl = [[]];
       vs = [[]];
       typ = [[]];
       namespace = "";
@@ -1624,8 +1639,7 @@ end = struct
         match List.rev l with
         | [] -> raise (BadEnvironment "no toplevel")
         | h :: _ -> [h] in
-      {decl = get_last env.decl;
-       vs = get_last env.vs;
+      {vs = get_last env.vs;
        typ = get_last env.typ;
        namespace = "";}
 
@@ -1644,12 +1658,6 @@ end = struct
     let insert_val_bare name binding e =
       {e with vs = insert (Types.BareName (Info.dummy, name)) binding e.vs}
 
-    let insert_decl name binding e =
-      {e with decl = insert name binding e.decl}
-
-    let insert_decl_bare name =
-      insert_decl (Types.BareName (Info.dummy, name))
-
     let insert_typ name binding e =
       {e with typ = insert name binding e.typ}
 
@@ -1659,32 +1667,12 @@ end = struct
     let insert_vals bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-    let update_val name binding e =
-      (* begin match name with
-      | Types.BareName (_,name) -> if String.equal name "h" then print_endline "updating h with value:";
-      | _ -> ()
-      end; *)
-      match update name binding e.vs with
-      | Some vs' -> Some { e with vs = vs' }
-      | None -> None
-
-    let update_val_bare name binding e =
-      match update (Types.BareName (Info.dummy, name)) binding e.vs with
-      | Some vs' -> Some { e with vs = vs' }
-      | None -> None
-
     let fix_bindings bindings =
       List.map bindings
         ~f:(fun (name, v) -> Types.BareName (Info.dummy, name), v)
 
     let insert_vals_bare bindings =
       insert_vals (fix_bindings bindings)
-
-    let insert_decls bindings e =
-      List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_decl b c a)
-
-    let insert_decls_bare bindings =
-      insert_decls (fix_bindings bindings)
 
     let insert_typs bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_typ b c a)
@@ -1698,21 +1686,16 @@ end = struct
     let find_val_opt name e =
       find_opt name e.vs
 
-    let find_decl name e =
-      find name e.decl
-
     let find_typ name e =
       find name e.typ
 
     let push_scope (e : t) : t =
-      {decl = push e.decl;
-       vs = push e.vs;
+      {vs = push e.vs;
        typ = push e.typ;
        namespace = e.namespace;}
 
     let pop_scope (e:t) : t =
-      {decl = pop e.decl;
-       vs = pop e.vs;
+      {vs = pop e.vs;
        typ = pop e.typ;
        namespace = e.namespace;}
 
@@ -1895,8 +1878,7 @@ end = struct
         renamer = env.renamer }
 
     let eval_env_of_t (cenv: t) : EvalEnv.t =
-      { decl = [[]];
-        vs = [[]];
+      { vs = [[]];
         typ = cenv.typ;
         namespace = "";}
   end

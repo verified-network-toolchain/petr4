@@ -119,7 +119,7 @@ module Corize (T : Target) : Target = struct
     | _ -> raise_s [%message "not resettable"
                   ~t:(t:Type.t)]
 
-  let eval_extract' (ctrl : ctrl) (env : env) (st : state)
+  let eval_extract' (env : env) (st : state)
       (t : Type.t) (pkt : value) (_ : value) (w : Bigint.t)
       (is_fixed : bool) : env * state * signal * value =
     let obj = State.get_packet st in
@@ -162,7 +162,7 @@ module Corize (T : Target) : Target = struct
       with Invalid_argument _ ->
         env, st', SReject "PacketTooShort", VNull
 
-  let eval_advance : extern = fun ctrl env st _ args ->
+  let eval_advance : extern = fun env st _ args ->
     let (pkt_loc, v) = match args with
       | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
       | [(VRuntime {loc;_}, _); (VInteger v, _)] -> loc, v
@@ -177,13 +177,13 @@ module Corize (T : Target) : Target = struct
     with Invalid_argument _ ->
       env, st, SReject "PacketTooShort", VNull
 
-  let eval_extract : extern = fun ctrl env st targs args ->
+  let eval_extract : extern = fun env st targs args ->
     match args with
     | [(pkt, _);(v1, t)] -> (match v1 with
                             | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
-                              eval_advance ctrl env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
-                            | _ -> eval_extract' ctrl env st t pkt v1 Bigint.zero true)
-    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' ctrl env st t pkt v1 (bigint_of_val v2) false
+                              eval_advance env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
+                            | _ -> eval_extract' env st t pkt v1 Bigint.zero true)
+    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' env st t pkt v1 (bigint_of_val v2) false
     | _ -> failwith "wrong number of args for extract"
 
   let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
@@ -222,7 +222,7 @@ module Corize (T : Target) : Target = struct
     | NewType nt -> val_of_bigint env nt.typ n
     | _ -> raise_s [%message "not a fixed-width type" ~t:(t: Type.t)]
 
-  let eval_lookahead : extern = fun _ env st targs args ->
+  let eval_lookahead : extern = fun env st targs args ->
     let t = match targs with
       | [t] -> t
       | _ -> failwith "unexpected type args for lookahead" in
@@ -240,7 +240,7 @@ module Corize (T : Target) : Target = struct
       | _ -> env, st, s, VNull end
     with Invalid_argument _ -> env, st, SReject "PacketTooShort", VNull
 
-  let eval_length : extern = fun _ env st _ args ->
+  let eval_length : extern = fun env st _ args ->
     match args with
     | [(VRuntime {loc;_}, _)] ->
       let obj = State.get_packet st in
@@ -336,7 +336,7 @@ module Corize (T : Target) : Target = struct
     let pkts = List.map ~f:(packet_of_value env t') hdrs in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
-  let eval_emit : extern = fun _ env st _ args ->
+  let eval_emit : extern = fun env st _ args ->
     let (pkt_loc, v, t) = match args with
       | [(VRuntime {loc; _}, _); (hdr, t)] -> loc, hdr, t
       | _ -> failwith "unexpected args for emit" in
@@ -347,7 +347,7 @@ module Corize (T : Target) : Target = struct
     let st' = State.set_packet {obj with emitted = emitted} st in
     env, st', SContinue, VNull
 
-  let eval_verify : extern = fun _ env st _ args ->
+  let eval_verify : extern = fun env st _ args ->
     let b, err = match args with
       | [(VBool b, _); (VError err,_)] -> b, err
       | _ -> failwith "unexpected args for verify" in

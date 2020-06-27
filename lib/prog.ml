@@ -855,7 +855,6 @@ and Value : sig
 
   and vparser = {
     pscope : Env.EvalEnv.t;
-    pvs : (string * loc) list;
     pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
@@ -865,7 +864,6 @@ and Value : sig
 
   and vcontrol = {
     cscope : Env.EvalEnv.t;
-    cvs : (string * loc) list;
     cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
@@ -1098,7 +1096,6 @@ end = struct
 
   and vparser = {
     pscope : Env.EvalEnv.t;
-    pvs : (string * loc) list;
     pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
@@ -1108,7 +1105,6 @@ end = struct
 
   and vcontrol = {
     cscope : Env.EvalEnv.t;
-    cvs : (string * loc) list;
     cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;

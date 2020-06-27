@@ -70,7 +70,7 @@ let convert_qualified name =
 module type RunnerConfig = sig
   type st
 
-  val eval_prog : Prog.Value.ctrl -> Prog.Env.EvalEnv.t -> st -> Prog.Value.buf ->
+  val eval_program : Prog.Value.ctrl -> Prog.Env.EvalEnv.t -> st -> Prog.Value.buf ->
     Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) option
 end
 
@@ -80,7 +80,7 @@ module RunnerMaker (C : RunnerConfig) = struct
       (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) option =
     let pkt_in = Cstruct.of_hex pkt_in in
     let port = Bigint.of_int port in
-    C.eval_prog (add, []) env st pkt_in port prog
+    C.eval_program (add, []) env st pkt_in port prog
 
   let update lst name v =
     match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with
@@ -129,7 +129,7 @@ end
 module V1RunnerConfig = struct
   type st = Eval.V1Interpreter.state
 
-  let eval_prog = Eval.V1Interpreter.eval_prog
+  let eval_program = Eval.V1Interpreter.eval_program
 end
 
 module V1Runner = RunnerMaker(V1RunnerConfig)
@@ -137,7 +137,7 @@ module V1Runner = RunnerMaker(V1RunnerConfig)
 module EbpfRunnerConfig = struct
   type st = Eval.EbpfInterpreter.state
 
-  let eval_prog = Eval.EbpfInterpreter.eval_prog
+  let eval_program = Eval.EbpfInterpreter.eval_program
 end
 
 module EbpfRunner = RunnerMaker(EbpfRunnerConfig)

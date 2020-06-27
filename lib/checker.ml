@@ -1198,12 +1198,8 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Extern {type_params=tps; methods=methods} ->
     let env = CheckerEnv.insert_type_vars tps env in
     let open ExternType in
-    let folder (env,result) m =
-      if is_well_formed_type env (Type.Function m.typ) then
-        (CheckerEnv.insert_type_of (BareName (Info.dummy, m.name))
-           (Type.Function m.typ) env,result)
-      else (env,false) in
-    List.fold_left ~f:folder ~init:(env,true) methods |> snd
+    let method_ok m = is_well_formed_type env (Type.Function m.typ) in
+    List.for_all ~f:method_ok methods
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in

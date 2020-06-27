@@ -1433,18 +1433,6 @@ and Env : sig
     val find_type_of_opt : Types.name -> t -> (Typed.Type.t * Typed.direction) option
     val find_type_of : Types.name -> t -> Typed.Type.t * Typed.direction
     val find_types_of : Types.name -> t -> (Typed.Type.t * Typed.direction) list
-
-    val insert_type : Types.name -> Typed.Type.t -> t -> t
-    val insert_type_of : Types.name -> Typed.Type.t -> t -> t
-    val insert_dir_type_of : Types.name -> Typed.Type.t -> Typed.direction -> t -> t
-    val insert_type_var : Types.name -> t -> t
-    val push_scope : t -> t
-    val pop_scope : t -> t
-
-    val resolve_type_name_opt : Types.name -> t -> Typed.Type.t option
-    val resolve_type_name : Types.name -> t -> Typed.Type.t
-    val find_type_of_opt : Types.name -> t -> (Typed.Type.t * Typed.direction) option
-    val find_type_of : Types.name -> t -> Typed.Type.t * Typed.direction
     val find_const : Types.name -> t -> Value.value
     val find_const_opt : Types.name -> t -> Value.value option
 

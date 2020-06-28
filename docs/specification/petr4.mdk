@@ -202,37 +202,33 @@ e\in{}@Expr::=@true | @false                 // boolean literals
   | \{\overline{e}\}               // tuple
   | \{\overline{name=e}\}          // record
   | @header \{\overline{name=e}\}  // header
-  | set                            // set
+  | match                          // set
   | @error.x                       // error values
   | @matchkind.x                   // matchkind values
   | (t)e                           // explicit cast
   | x                              // variable
-  | (\overline{e})                 // tuple
   | e.name                         // expression member
   | f<\overline{t}>(\overline{e})  // function call
-  | t(\overline{e})                // nameless instantiation
-  | @extern \ell{} name                                            // extern functions
+  | t<\overline{t}>(\overline{e})  // nameless instantiation
+  | @externfn \ell{} name                                            // extern functions
+  | @extern name \ell                                           // extern objects
   | @builtin e name                                              // builtin functions
   | @stack_n n \overline{v}                                      // stacks
-  | @runtime name \ell                                           // stateful runtime
   | \lambda_p(\overline{x:t,d}).\overline{state}                 // parser objects
   | \lambda_c(\overline{x:t,d}).blk                              // control objects
   | @package(\overline{name=v})                                  // package objects
   | \lambda_{ctor}(\overline{x:t}).blk                           // constructor closures
-  | (N,\xi)\otimes{}e                                            // closures
-  | @table(\overline{\tau:@matchkind.x})\{\overline{set:aref}\}  // tables
+  | (N,E)\otimes{}e                                            // closures
+  | @table(\overline{\tau:@matchkind.x})\{\overline{match:aref}\}  // tables
   | @apply\{\overline{s}\}                                      // copy-in copy-out blocks
   | @parse\{state;\overline{state}\}                            // parser invocations
 
 match ::= @singleton_t e      // singleton set
         | (\_)_{\tau}         // universal set for type $t$
+    	| v\mathbin{\texttt{\&\&\&}}v // bitmask
         | \prod{}\overline{e} // finite set product
 uop   ::= ... // unary operators
 binop ::= ... // binary operators
-set::=\_                          // universal set
-    | \{v\}                       // singleton
-    | v\mathbin{\texttt{\&\&\&}}v // bitmask
-    | \prod\overline{set}         // finite product
 aref::=x(\overline{e})
 ~ End P4MathGrammar
 
@@ -405,7 +401,123 @@ can be converted using maps $[-]_E,$ $[-]_S,$ and $[-]_D.$
 
 ## Expression Typing
 
-See [petr4-full](petr4-full.html) for details.
+~ Infer
+
+---------------------[]
+L,G |- @true: @bool
+~
+
+~ Infer
+
+---------------------[]
+L,G |- @false: @bool
+~
+
+~ Infer
+
+---------------------[]
+L,G |- a: @int
+~
+
+~ Infer
+
+---------------------[]
+L,G |- w{@w}a: bit<w>
+~
+
+~ Infer
+L,G |- \overline{e:t}
+----------------------------------------[]
+L,G |- \{\overline{e}\}:tuple<\overline{t}>
+~
+
+~ Infer
+L,G |- \overline{e:t}
+@nodups \overline{name}
+--------------------------------------------------[]
+L,G |- \{\overline{name=e}\}:\{\overline{name:t}\}
+~
+
+~ Infer
+L,G |- \overline{e:t}
+@nodups \overline{name}
+-----------------------------------------------------------------[]
+L,G |- @header \{\overline{name=e}\}:@header \{\overline{name:t}\}
+~
+
+~ Infer
+L,G \vdash_{set} match:t
+-----------------------[]
+L,G |- match:@set<t>
+~
+
+~ Infer
+L,G(@error.x)=@error
+----------------------[]
+L,G |- @error.x:@error
+~
+
+~ Infer
+L,G(x)=@match\_kind
+--------------------------------[]
+L,G |- @match\_kind.x:@match\_kind
+~
+
+~ Infer
+L,G |- e:t_0
+@cast\_ok t_0 t
+------------------------------------[]
+L,G |- (t)e:t
+~
+
+~ Infer
+L,G(x)=t
+----------[]
+L,G |- x:t
+~
+
+~ Infer
+L,G |- e:t,d
+\mathkw{has\_field} t name t_{name}
+------------------------------------[]
+L,G |- e.name:t_{name}
+~
+
+The $\mathkw{dir\_ok}$ judgment checks that \(e\) can be used in
+copy-in copy-out mode $d$. The $\mathkw{param\_ok}$ judgment is here
+to make sure that the type arguments provided don't make the
+parameters have inappopriate types (e.g., a string parameter on a
+run-time function).
+~ Infer
+kind\neq{}ctor
+L,G |- f:<\overline{T}>(\overline{t,d})\longrightarrow_{kind}t_ret
+t_ret[\overline{\rho/T}] \Downarrow t_ret'
+\overline{t[\overline{\rho/t}]\Downarrow{}t'}
+L,G |- \overline{e:t'}
+L,G |- \overline{e d \mathkw{dir\_ok}}
+L,G |- \overline{kind t' \mathkw{param\_ok}}
+-----------------------------------------------------------------[]
+L,G |- f<\overline{\rho}>(\overline{e}) : t_ret'
+~
+
+~ Infer
+G |- X:<\overline{T}>(\overline{t})\longrightarrow_{ctor}t_ret
+t_ret[\overline{\rho/T}] \Downarrow t_ret'
+\overline{t[\overline{\rho/t}]\Downarrow{}t'}
+G |- \overline{e:t'}
+G |- \overline{e \mathkw{ctk}}
+G |- \overline{kind t' \mathkw{param\_ok}}
+-----------------------------------------------------------------[]
+L,G |- X<\overline{\rho}>(\overline{e}) : t_ret'
+~
+
+~ Infer
+L(\ell)=@extern X \{G_X\}
+G_X(name)=<\overline{T}>(\overline{\tau,d})\longrightarrow_M\tau_ret
+------------------------------------------------------------------------------------[]
+L,G |- @externfn \ell\ name:<\overline{T}>(\overline{\tau,d})\longrightarrow_M\tau_ret
+~
+
 
 ## Statement Typing
 

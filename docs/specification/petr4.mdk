@@ -2630,7 +2630,7 @@ which is $\models$ per-scope.
 Here is a formal definition:
 ~Infer
 
-------------------[Entails-Empty-Scope]
+-------------------------------[Entails-Empty-Scope]
 S,D,G \models_{scope} [],\sigma
 ~
 
@@ -2755,8 +2755,90 @@ S,D,G \models \xi,\sigma \Rightarrow S,D,G \models @push \xi,\sigma
 ~
 
 #### Proof
+Introducing variables:
+~MathPre
+S,D,G,\xi, \sigma
+~
+and hypothesis:
+~MathPre
+H_0: S,D,G \models \xi,\sigma
+~
+i.e:
+~MathPre
+H_0: S,D,G \models (E,D,\nu),\sigma
+~
+we wish to prove the goal:
+~MathPre
+S,D,G \models @push \xi,\sigma
+~
+By definition of $\mathkw{push}$ we may rewrite the goal as:
+~MathPre
+S,D,G \models ((E,[]),(D,[]),\nu),\sigma
+~
+We wish to show that:
+~MathPre
+SG_1: S,D,G \models (E,(D,[]),\nu),\sigma
+~
+By induction on $H_1$ we have the following case-analysis:
 
-TODO!
+##### Case Entails-Empty-Environment
+We have hypothesis:
+~MathPre
+H_0: S,D,G \models ([],D,\nu),\sigma
+~
+and we wish to show:
+~MathPre
+SG_1: S,D,G \models ([],(D,[]),\nu),\sigma
+~
+We may construct the rule-instance:
+~ Infer
+
+----------------------[Entails-Empty-Environment]
+S,D,G \models ([],(D,[]),\nu),\sigma
+~
+proving $SG_1$.
+
+##### Case Entails-Environment
+We have hypotheses:
+~MathPre
+H_0: S,D,G \models (P,(E,\epsilon),D,\nu),\sigma
+I_1: S,D,G \models (E,(D,[]),\nu),\sigma
+~
+and we wish to show:
+~MathPre
+SG_1: S,D,G \models ((E,\epsilon),(D,[]),\nu),\sigma
+~
+By inversion on $H_0$ we have hypothesis:
+~MathPre
+H_1: S,D,G \models_{scope} \epsilon,\sigma
+~
+We may construct the rule-instance:
+~Infer
+S,D,G \models (P,E,(D,[]),\nu),\sigma
+S,D,G \models_{scope} \epsilon,\sigma
+--------------------------------------------[Entails-Environment]
+S,D,G \models (P,(E,\epsilon),(D,[]),\nu),\sigma
+~
+proving $SG_1$.
+
+Returning to the top of the proof,
+having shown $SG_1$,
+we may construct the rule-instance:
+~Infer
+
+-------------------------------[Entails-Empty-Scope]
+S,D,G \models_{scope} [],\sigma
+~
+as well as:
+~Infer
+S,D,G \models (E,(D,[]),\nu),\sigma
+S,D,G \models_{scope} \epsilon,\sigma
+--------------------------------------------[Entails-Environment]
+S,D,G \models ((E,[]),(D,[]),\nu),\sigma
+~
+proving the goal.
+
+$\square$.
 
 ### Lemma: Pop Preserves Entailment
 ~MathPre
@@ -2960,6 +3042,8 @@ S,D,G[x:t] \models_{scope} (\epsilon,(x=\ell)),\sigma'
 ------------------------------------------------------------[Entails-Environment]
 S,D,G[x:t] \models (P,(E,(\epsilon,(x=\ell))),D,\nu),\sigma'
 ~
+
+$\square$.
 
 ### Lemma: $\mathkw{init\_val}$ is Sound
 ~MathPre

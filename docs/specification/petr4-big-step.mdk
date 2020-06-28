@@ -187,97 +187,88 @@ P4 Programming Language.
 # Introduction { #sec-introduction }
 # Syntax { #sec-syntax }
 
-## Value Syntax
-~ Begin P4MathGrammar
-v::=@true | @false                                               // booleans
-   | a                                                            // integer
-   | w\mathkw{w}a                                                 // unsigned int of width w
-   | \{\overline{v}\}                                             // tuple
-   | \{\overline{name=v}\}                                        // record
-   | @header v \{\overline{name=v}\}                              // header
-   | set                                                          // set
-   | @error.x                                                     // error value
-   | @matchkind.x                                                 // matchkind value
-   | \xi\otimes{}(\overline{x:t,d}) blk                           // function/action closures
-   | @builtin name lv                                             // builtin functions
-   | @stack_n n \overline{v}                                      // stacks
-   | @runtime name \ell                                           // stateful runtime
-   | \xi\otimes{}\lambda_P(\overline{x:t,d}).\overline{state}     // parser objects
-   | \xi\otimes{}\lambda_C(\overline{x:t,d}).blk                  // control objects
-   | @package(\overline{name=v})                                  // package objects
-   | @table(\overline{\tau:@matchkind.x})\{\overline{set:aref}\}  // tables
-   | @extern name v                                               // externs
-
-set::=\_                          // universal set
-    | \{v\}                       // singleton
-    | v\mathbin{\texttt{\&\&\&}}v // bitmask
-    | \prod\overline{set}         // finite product
-aref::=x(\overline{e})
-
-match\_kind
-~ End P4MathGrammar
-
 ## Expression Syntax
 
 ~ Begin P4MathGrammar
-e::=@true | @false                 // boolean literals
-  | a                              // arbitrary width integer literal
-  | w\mathkw{w}a                   // unsigned int of width w
-  | \{\overline{e}\}               // tuple
-  | \{\overline{name=e}\}          // record
-  | @header \{\overline{name=e}\}  // header
-  | set                            // set
-  | @error.x                       // error values
-  | @matchkind.x                   // matchkind values
-  | (t)e                           // explicit cast
-  | x                              // variable
-  | (\overline{e})                 // tuple
-  | e.name                         // expression member
-  | f<\overline{t}>(\overline{e})  // function call
-  | t(\overline{e})                // nameless instantiation
-  | \xi\otimes{}(\overline{x:t,d}) blk                           // function/action closures
-  | @extern \ell name                                            // extern function "closures"
-  | @builtin e name                                              // builtin function "closures"
-  | @stack_n n \overline{v}                                      // stacks
-  | @runtime name \ell                                           // stateful runtime
-  | \xi\otimes{}\lambda_p(\overline{x:t,d}).\overline{state}     // parser objects
-  | \xi\otimes{}\lambda_c(\overline{x:t,d}).blk                  // control objects
-  | @package(\overline{name=v})                                  // package objects
-  | @table(\overline{\tau:@matchkind.x})\{\overline{set:aref}\}  // tables
-
-match ::= @singleton_t e      // singleton set
-        | (\_)_{\tau}         // universal set for type $t$
-        | \prod{}\overline{e} // finite set product
-
-uop   ::= ... // unary operators
-binop ::= ... // binary operators
+e::=@true
+    | @false
+    | a // arbitrary width integer literal
+    | x // variable
+    | e1[e2] // array access
+    | (\overline{e}) // tuple
+    | \{ \overline{name=e} \} // records
+    | uop e
+    | e1 binop e2
+    | (t) e // explicit cast
+    | @error.name // error member
+    | e.name // expression member
+    | f<\overline{t}>(\overline{e}) // function call
+    | t(\overline{e}) // nameless instantiation
+    | (\_)_{\tau} // universal set for type $t$
+    | \prod{}\overline{e} // finite set product
 ~ End P4MathGrammar
 
-## Statement syntax
 ~ Begin P4MathGrammar
-s ::= e<\overline{t}>(\overline{e})  // method call
-    | \tau x                         // variable declaration
-    | e := e                         // assignment
-    | @if (e) s_1 @else s_2          // conditional statement
-    | \{\overline{s}\}               // block statement
-    | @exit                          // exit statement
-    | @return                        // return (void)
-    | @return e                      // return (with value)
-    | @emp                           // empty statement
-blk ::= \{\overline{s}\} // blocks
+\hat{x} ::= name // regular variable name
+          | .name // top-level variable name
+~ End P4MathGrammar
+
+~ Begin P4Grammar
+// unary operators
+uop ::= ! // not
+      | - // unary minus
+
+// binary operators
+binop ::= +
+        | -
+        | *
+        | <
+        | >
+        | &&
+        | ||
+        | <=
+        | >=
+        | ==
+        | !=
+	| &&& // mask
+~ End P4Grammar
+
+## Statement and Block Syntax
+~ Begin P4MathGrammar
+s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
+    | e := e                            // assignment
+    | @if (e) s_1 @else s_2             // conditional statement
+    | blk                               // block statement
+    | @exit                             // exit statement (only in controls)
+    | @return                           // return (void)
+    | @return e                         // return (with value)
+    | @switch (e) \{ \overline{case} \} // switch statement
+    | decl                              // declaration statement
+
+case ::= case\_lbl: blk  // label with block
+       | case\_lbl: {}   // fallthrough
+
+case\_lbl ::= x                // name (of action)
+            | \texttt{default} // catch-all label
+
+blk ::= \{ s_1; ... s_n; \} // blocks
 ~ End P4MathGrammar
 
 ## Declaration Syntax
 ~ Begin P4MathGrammar
-decl ::= t x // variable declaration
-       | t x(\overline{e}) // instantiation
-       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \} // parser
-       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // control
-       | @action x (\overline{x:t,d_0},\overline{x:t}) blk // action
-       | @table x \{\overline{prop}\} // table
-       | @error \{\overline{x}\} // error
-       | \mathkw{match\_kind} \{\overline{x}\} // match\_kind
-       | @extern X<\overline{X}> \{\overline{ctor}\ \overline{method}\} // extern class
+decl ::= @const t x:=e // constants
+       | t x // variables
+       | t x:=e // initialized variables
+       | t x(\overline{e}) // named instantiations
+       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \} // parsers
+       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // controls
+       | @action x (\overline{x:t,d_0},\overline{x:t}) blk // actions
+       | @table x \{\overline{prop}\} // tables
+       | @error \{\overline{x}\} // errors
+       | \mathkw{match\_kind} \{\overline{x}\} // match\_kinds
+       | @extern X<\overline{X}> \{\overline{ctor}\ \overline{method}\} // extern classes
+       | @control X<\overline{X}>(\overline{t,d}) // control types
+       | @parser X<\overline{X}>(\overline{t,d}) // parser types
        | @typedef t X // typedefs (transparent)
        | @type t X // newtypes (opaque)
 
@@ -307,6 +298,7 @@ P ::= decl, P
 ~ End P4MathGrammar
 
 ## Type Syntax
+
 ~ Begin P4MathGrammar
 t ::= @bool
     | @int
@@ -344,7 +336,7 @@ X ::= name // regular type name
 
 ~ End P4MathGrammar
 
-"Results" $R$ are types for statements.
+"eesults" $R$ are types for statements.
 ~ P4MathGrammar
 R := @returns // written ``Void" in the implementation
      | \bot     // written ``Unit" in the implementation
@@ -372,6 +364,42 @@ ectx ::= @InFunction
        | @InTableAction
        | @InConstant
 ~
+
+## Value Syntax
+
+Values
+~ Begin P4MathGrammar
+v ::= @true // booleans
+    | @false
+    | a // arbitrary width integer literal
+    | n\mathkw{w}a // unsigned integer literal of size n
+    | u // strings
+    | \{\overline{v}\} // tuple
+    | \{\overline{name=v}\} // records
+    | @struct \{\overline{name=v}\}
+    | @header \{\overline{name=v}\}
+    | set
+    | @error.name
+    | @matchkind.name
+    | \xi \otimes (\overline{x:t,d}) blk // functions, actions
+    | @builtin name lv
+    | \mathkw{header\ union} \{ \overline{name=v} \}
+    | @stack_n n \overline{v} // stacks
+    | @runtime name \ell // stateful runtime
+    | @parser (\overline{name=v}) (\overline{x:t,d}) \overline{decl} \overline{state}
+    | @control (\overline{name=v}) (\overline{x:t,d}) \overline{decl} blk
+    | @package (\overline{name=v})
+    | @table name \overline{e:x} \overline{a\_ref} a\_ref \{ \overline{e:a\_ref} \}
+    | @extern name v
+~ End P4MathGrammar
+
+Set values
+~ Begin P4MathGrammar
+set::=\_ // universal set
+    | \{v\} // singleton set
+    | v\mathbin{\texttt{\&\&\&}}v // bitmask set
+    | \prod\overline{set} // set product
+~ End P4MathGrammar
 
 ## Signal Syntax
 ~ Begin P4MathGrammar
@@ -789,21 +817,128 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 
 # Dynamic Semantics
 
-## Expression evaluation
+## Evaluation Environment and State
+
+
+
+
+## Control flow
+## Evaluation Helper Rules
+## Expression Evaluation
+~ MathPre
+<\zeta, \xi, \sigma', e> \Downarrow_e <\sigma', esig>
+~
+## Lvalue evaluation
+Expressions on the left hand side of things have to be simplified but
+not fully evaluated.
+~ MathPre
+<\zeta, \xi, \sigma', e> \Downarrow_\ell <\sigma', lsig>
+~
+
+Rules: TODO
+
+## Statements and Block Evaluation
+
+Statements run in a configuration with control plane data, the
+environment, and the heap. They produce a new environment and heap
+along with a signal.
+
+~ Center
+$\langle\zeta, \xi, \sigma, s\rangle \Downarrow_s \langle\xi', \sigma', sig\rangle$
+~
+
+### Method calls
 ~ Infer
-@copyin E_F H (\overline{x=v,d})=E',H'
-----------------------------------------------------------------------------------------------------------------------------[Expr-App-Fn]
-<R,E,H,N,S,(E_F\otimes{}\lambda_F(\overline{x:\tau,d}).blk)(\overline{v})>\mapsto<E',H',N,S;[(\overline{x,d}),E],@block blk>
+<\zeta,\xi,\sigma,e<\overline{t}>(\overline{e})>\Downarrow_e<\xi',\sigma',esig>
+---------------------------------------------------------------------------------[Method-Call]
+<\zeta,\xi,\sigma,e<\overline{t}>(\overline{e})>\Downarrow_s<\xi',\sigma',[esig]_{ssig}>
+~
+
+###Assignment
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@stop exn>
+----------------------------------------------------------------------------------[Assignment-Stop-Left]
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<\xi,\sigma',@go>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@go e_lv>
+<\zeta',\xi',\sigma,e_r>\Downarrow_e<\xi'',\sigma'',@stop exn>
+----------------------------------------------------------------------------------[Assignment-Stop-Right]
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<\xi,\sigma'',@stop exn>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e_l>\Downarrow_\ell<\xi',\sigma',@go e_lv>
+<\zeta',\xi',\sigma,e_r>\Downarrow_e<\xi'',\sigma'',@go v>
+----------------------------------------------------------------------------------[Assignment]
+<\zeta,\xi,\sigma,e_l:=e_r>\Downarrow_s<<\xi,\sigma''>[e_lv:=v],@go>
+~
+
+### Conditionals
+
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@go @true>
+<\zeta,@push\xi',\sigma',s_1>\Downarrow_s<\xi'',\sigma'',sig>
+---------------------------------------------------------------------------------[If-True]
+<\zeta,\xi,\sigma,@if(e)s_1@elses_2>\Downarrow_s<\xi',\sigma'',sig>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@go @false>
+<\zeta,@push\xi',\sigma',s_2>\Downarrow_s<\xi'',\sigma'',sig>
+---------------------------------------------------------------------------------[If-False]
+<\zeta,\xi,\sigma,@if(e)s_1@elses_2>\Downarrow_s<\xi',\sigma'',sig>
+~
+
+~Infer
+<\zeta,\xi,\sigma,e>\Downarrow_e<\xi',\sigma',@stop exn>
+------------------------------------------------------------------------------------------------[If-Stop]
+<\zeta,\xi,\sigma,@if(e)s1@elses2>\Downarrow_s<\xi',\sigma',@stop exn>
+~
+
+###Blocks
+~Infer
+<\zeta,@push\xi,\sigma,\overline{s}>\Downarrow_s<\xi',\sigma',sig>
+--------------------------------------------------------------------------[Block]
+<\zeta,\xi,\sigma,\{s_1;...s_n;\}>\Downarrow_s<\xi,\sigma',sig>
+~
+
+### Exit
+~ Infer
+
+---------------------------------------------------------------------[Exit-Continue]
+<\zeta, \xi, \sigma, @exit> \Downarrow_s <\xi, \sigma, \mathkw{sig\_exit}>
+~
+
+### Return
+~ Infer
+
+---------------------------------------------[Return-Void]
+<\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return}>
 ~
 
 ~ Infer
-@copyout H E_S E (\overline{x,d})=E',H'
---------------------------------------------------------------------------------------------------[Expr-Block-Ret]
-<R,E,H,N,S;[(\overline{x,d}),E_S],@block\{@return v\}>\mapsto<R,E',H',N,K,v>
+<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+--------------------------------------------------------------------------[Return-Value]
+<\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
+### Declaration statements
 ~ Infer
-@copyin E_F H (\overline{x=v,d})=E',H'
-----------------------------------------------------------------------------------------------------------------------------[Expr-App-Ctor]
-<R,E,H,N,S,(E_F\otimes{}\lambda_F(\overline{x:\tau,d}).blk)(\overline{v})>\mapsto<E',H',N,S;[(\overline{x,d}),E],@block blk>
+<\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+--------------------------------------------------------------------[Declaration-Statement]
+<\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', @go>
 ~
+
+
+## Declaration Evaluation
+
+Declarations are evaluated according to the following big-step relation:
+~ Center
+$\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \rangle$
+~
+
+## Program Evaluation
+
+# Type Soundness

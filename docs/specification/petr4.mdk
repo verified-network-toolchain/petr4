@@ -189,9 +189,10 @@ P4 Programming Language.
 
 ## Value Syntax
 ~ Begin P4MathGrammar
-v::=@true | @false                                               // booleans
+v::=@true | @false                                                // booleans
    | a                                                            // integer
    | w\mathkw{w}a                                                 // unsigned int of width w
+   | @ref \ell                                                    // heap reference
    | \{\overline{v}\}                                             // tuple
    | \{\overline{name=v}\}                                        // record
    | @header v \{\overline{name=v}\}                              // header
@@ -790,6 +791,8 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 # Dynamic Semantics
 
 ## Expression evaluation
+
+### Run-time calls
 ~ Infer
 @copyin E_F H (\overline{x=v,d})=E',H'
 ----------------------------------------------------------------------------------------------------------------------------[Expr-App-Fn]
@@ -802,8 +805,37 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 <R,E,H,N,S;[(\overline{x,d}),E_S],@block\{@return v\}>\mapsto<R,E',H',N,K,v>
 ~
 
+### Compile-time calls
 ~ Infer
-@copyin E_F H (\overline{x=v,d})=E',H'
-----------------------------------------------------------------------------------------------------------------------------[Expr-App-Ctor]
-<R,E,H,N,S,(E_F\otimes{}\lambda_F(\overline{x:\tau,d}).blk)(\overline{v})>\mapsto<E',H',N,S;[(\overline{x,d}),E],@block blk>
+
+----------------------------------------------------------------------------------------------------------------------[Expr-Cons-App]
+<R,E,H,N,S,((N',E')\otimes\lambda_{ctor}(\overline{x:t}).e)\ \overline{v}>\mapsto{}<E[x=v],H,@push N N',e>
 ~
+
+## Declaration evaluation
+
+### Variable declaration evaluation
+~ Infer
+@fresh H = \ell
+------------------------------------------------------[]
+<E,H,t x>\mapsto<E[x:=@ref \ell],H[\ell:=@initialize t]>
+~
+
+### Const evaluation
+~ Infer
+
+---------------------------------------------------[]
+<E,H,@const \tau x:=v>\mapsto<E[x:=v],H>
+~
+
+### Parser declaration evaluation
+
+
+### Control declaration evaluation
+### Extern class evaluation
+### Table declaration evaluation
+### Action declaration evaluation
+### Function declaration evaluation
+### Error and match_kind declaration evaluation
+### Typedef declarations
+TODO: no-op rules here

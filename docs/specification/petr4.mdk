@@ -192,7 +192,6 @@ P4 Programming Language.
 v::=@true | @false                                                // booleans
    | a                                                            // integer
    | w\mathkw{w}a                                                 // unsigned int of width w
-   | @ref \ell                                                    // heap reference
    | \{\overline{v}\}                                             // tuple
    | \{\overline{name=v}\}                                        // record
    | @header v \{\overline{name=v}\}                              // header
@@ -818,17 +817,22 @@ S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
 ~ Infer
 @fresh H = \ell
 ------------------------------------------------------[]
-<E,H,t x>\mapsto<E[x:=@ref \ell],H[\ell:=@initialize t]>
+<E,H,t x>\mapsto<E[x:=\ell],H[\ell:=@initialize t]>
 ~
 
 ### Const evaluation
 ~ Infer
-
+@fresh H = \ell
 ---------------------------------------------------[]
-<E,H,@const \tau x:=v>\mapsto<E[x:=v],H>
+<E,H,t x>\mapsto<E[x:=\ell],H[\ell:=v>
 ~
 
 ### Parser declaration evaluation
+~ Infer
+
+---------------------------------------------------[]
+
+~
 
 
 ### Control declaration evaluation

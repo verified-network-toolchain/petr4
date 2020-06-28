@@ -188,39 +188,15 @@ P4 Programming Language.
 # Syntax { #sec-syntax }
 
 ## Value Syntax
+
 ~ Begin P4MathGrammar
-v::=@true | @false                                                // booleans
-   | a                                                            // integer
-   | w\mathkw{w}a                                                 // unsigned int of width w
-   | \{\overline{v}\}                                             // tuple
-   | \{\overline{name=v}\}                                        // record
-   | @header v \{\overline{name=v}\}                              // header
-   | set                                                          // set
-   | @error.x                                                     // error value
-   | @matchkind.x                                                 // matchkind value
-   | \xi\otimes{}(\overline{x:t,d}) blk                           // function/action closures
-   | @builtin name lv                                             // builtin functions
-   | @stack_n n \overline{v}                                      // stacks
-   | @runtime name \ell                                           // stateful runtime
-   | \xi\otimes{}\lambda_P(\overline{x:t,d}).\overline{state}     // parser objects
-   | \xi\otimes{}\lambda_C(\overline{x:t,d}).blk                  // control objects
-   | @package(\overline{name=v})                                  // package objects
-   | @table(\overline{\tau:@matchkind.x})\{\overline{set:aref}\}  // tables
-   | @extern name v                                               // externs
-
-set::=\_                          // universal set
-    | \{v\}                       // singleton
-    | v\mathbin{\texttt{\&\&\&}}v // bitmask
-    | \prod\overline{set}         // finite product
-aref::=x(\overline{e})
-
-match\_kind
+v\in{}@Val::=\text{TODO once exprs stop changing so much}
 ~ End P4MathGrammar
 
 ## Expression Syntax
 
 ~ Begin P4MathGrammar
-e::=@true | @false                 // boolean literals
+e\in{}@Expr::=@true | @false                 // boolean literals
   | a                              // arbitrary width integer literal
   | w\mathkw{w}a                   // unsigned int of width w
   | \{\overline{e}\}               // tuple
@@ -235,22 +211,29 @@ e::=@true | @false                 // boolean literals
   | e.name                         // expression member
   | f<\overline{t}>(\overline{e})  // function call
   | t(\overline{e})                // nameless instantiation
-  | \xi\otimes{}(\overline{x:t,d}) blk                           // function/action closures
-  | @extern \ell name                                            // extern function "closures"
-  | @builtin e name                                              // builtin function "closures"
+  | @extern \ell{} name                                            // extern functions
+  | @builtin e name                                              // builtin functions
   | @stack_n n \overline{v}                                      // stacks
   | @runtime name \ell                                           // stateful runtime
-  | \xi\otimes{}\lambda_p(\overline{x:t,d}).\overline{state}     // parser objects
-  | \xi\otimes{}\lambda_c(\overline{x:t,d}).blk                  // control objects
+  | \lambda_p(\overline{x:t,d}).\overline{state}                 // parser objects
+  | \lambda_c(\overline{x:t,d}).blk                              // control objects
   | @package(\overline{name=v})                                  // package objects
+  | \lambda_{ctor}(\overline{x:t}).blk                           // constructor closures
+  | (N,\xi)\otimes{}e                                            // closures
   | @table(\overline{\tau:@matchkind.x})\{\overline{set:aref}\}  // tables
+  | @apply\{\overline{s}\}                                      // copy-in copy-out blocks
+  | @parse\{state;\overline{state}\}                            // parser invocations
 
 match ::= @singleton_t e      // singleton set
         | (\_)_{\tau}         // universal set for type $t$
         | \prod{}\overline{e} // finite set product
-
 uop   ::= ... // unary operators
 binop ::= ... // binary operators
+set::=\_                          // universal set
+    | \{v\}                       // singleton
+    | v\mathbin{\texttt{\&\&\&}}v // bitmask
+    | \prod\overline{set}         // finite product
+aref::=x(\overline{e})
 ~ End P4MathGrammar
 
 ## Statement syntax
@@ -259,21 +242,24 @@ s ::= e<\overline{t}>(\overline{e})  // method call
     | \tau x                         // variable declaration
     | e := e                         // assignment
     | @if (e) s_1 @else s_2          // conditional statement
-    | \{\overline{s}\}               // block statement
     | @exit                          // exit statement
     | @return                        // return (void)
     | @return e                      // return (with value)
     | @emp                           // empty statement
+    | blk // blocks
+    | @apply blk // copy-in copy-out blocks
+    | @parse\{state;\overline{state}\}  // parser invocations
 blk ::= \{\overline{s}\} // blocks
 ~ End P4MathGrammar
 
 ## Declaration Syntax
 ~ Begin P4MathGrammar
 decl ::= t x // variable declaration
-       | t x(\overline{e}) // instantiation
-       | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \} // parser
-       | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \} // control
-       | @action x (\overline{x:t,d_0},\overline{x:t}) blk // action
+       | X(\overline{e}) x // instantiation
+       | @parser X(\overline{x:t}) \{ \overline{decl} \lambda_P(\overline{x:t,d}).@parse \overline{state} \} // parser
+       | @control X(\overline{x:t}) \{ \overline{decl} \lambda_C(\overline{x:t,d}).@do blk \} // control
+       | @action a(\overline{x:t,d_0}).\lambda_A(\overline{x:t}).@apply blk // action
+       | @function f<T>(\overline{x:t,d}).@do blk // function
        | @table x \{\overline{prop}\} // table
        | @error \{\overline{x}\} // error
        | \mathkw{match\_kind} \{\overline{x}\} // match\_kind
@@ -281,10 +267,10 @@ decl ::= t x // variable declaration
        | @typedef t X // typedefs (transparent)
        | @type t X // newtypes (opaque)
 
-state ::= @state x \{\overline{s}; @transition state\_expr\}
+state ::= @state x \{blk; @transition state\_expr\}
 
 state\_expr ::= x
-              | @select (\overline{e}) \{\overline{e:x}\}
+              | @select (\overline{e}) \{\overline{match:x}\}
 
 ctor ::= @constructor<\overline{X}>(\overline{t})
 

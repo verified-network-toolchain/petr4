@@ -1,0 +1,474 @@
+Title : Core Petr4
+Title Note: version 0.0.1
+Title Footer: &date;
+Author: The Petr4 Team
+Heading depth: 5
+Pdf Latex: xelatex
+Document Class: [11pt]article
+Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
+Package: fancyhdr
+Package: mathpartir
+Package: textcomp
+Package: mathtools
+Package: xspace
+
+.mathpre {
+  replace: "/( +)\|-( +)/\1\vdash{}\2/g";
+  replace: "/( +)-\|( +)/\1\dashv{}\2/g";
+  replace: "/-\>/\to{}/g";
+  replace: "/\bG([^a-zA-Z])/\Gamma{}\1/g";
+  replace: "/\bD([^a-zA-Z])/\Delta{}\1/g";
+  replace: "/\bt([^a-z])/\tau{}\1/g";
+  replace: "/</\langle{}/g";
+  replace: "/>/\rangle{}/g";
+  replace: "/\b:=\b/\coloneqq{}/g";
+}
+
+Infer {
+  replace:"/(\n|^)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{{}}{\3}{\textsc{\2}}/m";
+  replace:"/([\s\S]*?)\n *----+ *\[([^\]]*)\] *\n([\s\S]*)/\
+           \\infer{\1}{\3}{\textsc{\2}}/m";
+  replace:"~ Begin MathPre {.infer}&nl;&nl;&source;&nl;\
+           ~ End MathPre";
+}
+
+Tex Header:
+  \setlength{\headheight}{30pt}
+  \renewcommand{\footrulewidth}{0.5pt}
+
+@if html {
+body.madoko {
+  font-family: utopia-std, serif;
+}
+title,titlenote,titlefooter,authors,h1,h2,h3,h4,h5 {
+  font-family: helvetica, sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: monospace;
+  font-size: 10pt;
+}
+}
+
+@if tex {
+body.madoko {
+  font-family: UtopiaStd-Regular;
+}
+title,titlenote,titlefooter,authors {
+  font-family: sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: LuxiMono;
+  font-size: 75%;
+}
+}
+
+Colorizer: p4
+.token.keyword    {
+    font-weight: bold;
+}
+
+@if html {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  padding:6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  breakable: true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+
+@if html {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #e9fce9;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  breakable : true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  background-color: #e9fce9;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+@if html {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+p4mathgrammar {
+  replace:"/\/\/(.*)/\/\/ &\text{\1}/g";
+  replace: "~ Begin P4MathGrammarBlock&nl;\
+                 ~ Begin MathPre&nl;&source;&nl;~ End MathPre&nl;\
+                 ~ End P4MathGrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+
+[TITLE]
+
+~ Begin Abstract
+The goal of the Petr4 project is to define a formal semantics for the
+P4 Programming Language.
+~ End Abstract
+
+[TOC]
+
+# Introduction { #sec-introduction }
+In no particular order, these are the most interesting things about
+the P4 programming language.
+
+1. Some nonstandard control flow
+1. Copy-in copy-out calling convention
+1. Target-dependent behavior (architecture "main" function, undefined values)
+   i. Architecture handling of program I/O
+   i. Undefined values
+   i. Optional semantic and syntactic restrictions
+1. Pattern matches configurable by the control plane
+   i. Tables
+   i. Value sets
+1. Externs
+1. Composite stateful objects (parsers, controls, packages)
+1. Constructors
+1. A state-machine language for packet parsing
+1. No loops, iteration, or recursion (outside parsing)
+1. Compile-time evaluation
+
+This document defines a core calculus which aims to show these
+features at work in as simple a setting as possible.
+
+# Syntax { #sec-syntax }
+
+## Names
+Variables $x,X\in\mathkw{Var}$
+
+Control-plane names
+~ P4MathGrammar
+name\in\mathkw{Name} ::= @Top | name.x
+~
+
+In keeping with the concrete syntax of P4 we may sometimes write $.$
+for $\mathkw{Top}$.
+
+Memory locations
+~ MathPre
+\ell\in\mathkw{Loc}
+~
+
+## Types
+The separation of type syntax here is an uneducated guess. In
+particular I think I probably need type application at each level or
+something like that if I want this to work.
+~ P4MathGrammar
+b\in{}@BaseType::=@int // infinite precision integer
+    | @bit<e>          // bitstring of width e
+    | @error           // error
+    | @void            // empty type
+
+t_0\in{}@Type_0::=b                   // base type
+    | @tuple<\overline{t_0}>          // tuple
+    | t_0[a]                          // header stack
+    | @header \{\overline{x:t_0}\}    // header
+    | @extern^{name} \{\overline{method}\} // extern
+    | X                               // type name or variable
+
+t_1\in{}@Type_1::=t_0                          // concrete type
+    | (\overline{t_0,d})\longrightarrow_S{}t_0 // stateful (control-plane) functions
+    | (\overline{t_0,d})\longrightarrow_R{}t_0 // run-time functions
+
+t\in{}@Type::=t_1                        // function type
+    | (\overline{t_1})\longrightarrow_C{}t_1 // compile-time functions
+    | <\overline{X}>t_2 // abstraction
+
+d\in{}@Dir::= @in | @out | @inout | @none
+~
+
+Field lists in headers may be freely reordered.
+
+We partially order $\mathkw{Dir}$ and give meaning to statements like
+$\mathkw{in}\in{}d$ by interpreting each direction $d$ as a powerset
+on the basis $\{\mathkw{in},\mathkw{out}\}$.
+
+## Expressions
+~ P4MathGrammar
+a\in\mathbb{Z}
+n,m\in\mathbb{N}
+\oplus{}\in\{+,-,\string^ ,\&\}
+e\in{}@Expr::=a                        // integer
+  | n\mathkw{w}m                       // bitstring of width n
+  | e\oplus{}e                         // arithmetic
+  | @error.x                           // error
+  | @stack_n m \{\overline{v}\}        // stack[n] with next=m
+  | \{\overline{e}\}                   // tuple
+  | @header \{\overline{name=e}\}      // header
+  | e.name                             // field lookup
+  | @extern^{name} \{\overline{method}\} // extern object
+  | f(\overline{e})                    // function application
+  | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
+  | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
+  | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
+  | <\overline{X}>e                    // type abstraction
+  | e<\overline{t}>                    // type application
+  | @do s                              // embedding of statements
+  | x                                  // variable
+method::=\tau x<\overline{X}>(\overline{x:t,d})
+~
+
+## Values
+~ P4MathGrammar
+v\in{}@Val::=a                         // integer
+  | n\mathkw{w}m                       // bitstring of width n
+  | @error.x                           // error
+  | \{\overline{v}\}                   // tuple
+  | @header \{\overline{name=v}\}      // header
+  | @header \{\overline{name=v}\}.@isValid // header methods
+  | @header \{\overline{name=v}\}.@setValid
+  | @stack_n m \{\overline{v}\}        // stack[n] with next=m
+  | @stack_n m \{\overline{v}\}.@pushFront // stack methods
+  | @stack_n m \{\overline{v}\}.@popFront
+  | @extern^name \{\overline{method}\} // extern object
+  | @extern^name \{\overline{method}\}.x // extern method (when x in methods)
+  | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
+  | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
+  | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
+  | <\overline{X}>e                    // type abstraction
+~
+
+## LValues
+~ P4MathGrammar
+lv\in{}@LVal::=\ell{} | lv.name | lv[v]
+~
+
+## Statements
+~ P4MathGrammar
+term::=@exit            // exit
+     | @return          // return (void)
+     | @return e        // return (value)
+     | @goto @reject x  // parser reject
+     | @goto @accept    // parser finish
+     | @goto x          // parser state change
+
+s::=e(\overline{e})                       // method call
+  | t_0 x                                 // variable declaration
+  | e:=e                                  // assignment
+  | blk                                   // block
+  | @parse\{state;\overline{state}\}      // parser with current state
+  | @emp                                  // empty
+  | term                                  // terminal statement
+  | @saved_{\overline{lv\Leftarrow{}l}} s // copy-out marker
+
+blk ::= \{\overline{s}\}
+state ::= @state x blk
+~
+
+## Statement types
+Signals $sig$ are types for statements. They've decided to form a
+lattice with $\mathkw{void}$ at the top and $\mathkw{unit}$ at the
+bottom.
+~ P4MathGrammar
+sig\in{}@Signal::=@void    // escapes, in any fashion
+    | @returns t           // returns a value or exits
+    | @jumps \overline{x}  // jumps to a state or exits
+    | @unit                // terminates at emp
+~
+
+## Contexts and environments
+A context is used in typechecking and contains types. An environment
+is used in evaluation and contains values.
+
+### Contexts
+~ P4MathGrammar
+D::=[] | D,X
+\Xi::=[] | \Xi,name:\tau
+\Sigma::=[] | \Sigma,\ell:\tau
+G::=[] | G,x:\tau
+~
+
+There is a binary merge operator $\mathkw{merge}_\Delta(\Xi_1,\Xi_2)$ which
+merges two control-plane contexts. If they both define a type for the
+same name, the types must be equal under $\Delta$. It is extended to
+$n$-ary merges in the obvious way.
+
+### Environments
+~ P4MathGrammar
+\sigma\in{}@Loc\xrightarrow{Fin}@Value
+\xi\in{}@Name\xrightarrow{Fin}@TableState\uplus{}@ExternState
+~
+
+# Static semantics { #sec-static }
+
+## Expression typing
+The typing judgment for expressions has the form
+~ MathPre
+D,\Xi,R,G |- e:t -| \Xi'
+~
+
+### Variables
+~ Infer
+G(x)=t
+------------------------[]
+D,\Xi,R,G |- x:t -| \Xi
+~
+
+### Do expression
+~ Infer
+D,\Xi,R,G |- s:@returns t -| \Xi'
+---------------------------------[]
+D,\Xi,R,G |- @do s:t -| \Xi'
+~
+
+### Type abstraction
+~ Infer
+D[\overline{X}],\Xi,R,G |- e:t -| \Xi'
+---------------------------------------------------------[]
+D,\Xi,R,G |- <\overline{X}>e:<\overline{X}>\tau -| \Xi'
+~
+
+The well-formedness condition here hasn't been defined yet but I'm
+putting it in as a reminder that it will probably be necessary.
+~ Infer
+D,\Xi,R,G |- e:<\overline{X}>t' -| \Xi'
+D |- @wf t'[\overline{t/X}]
+----------------------------------------------------[]
+D,\Xi,R,G |- e<\overline{t}>:t'[\overline{t/X}] -| \Xi'
+~
+
+### Constructor arrow
+~ Infer
+D,\Xi,R,G |- e:t_2' -| \Xi'
+---------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- \lambda_{C}(\overline{x:t_2}).e:(\overline{t_2})\longrightarrow_{C}t_2' -| \Xi'
+~
+
+~ Infer
+D,\Xi,R,G |- f:(\overline{t})\longrightarrow_{C}t' -| \Xi_f
+D,\Xi,R,G |- \overline{e:t} -| \overline{\Xi'}
+------------------------------------------------------------------[]
+D,\Xi,R,G |- f(\overline{e}):t' -| @merge_{D}(\Xi_f,\overline{\Xi'})
+~
+
+### Stateful arrow
+Not sure about this one.
+~ Infer
+D,\Xi,R,G |- \overline{e:t_0\longrightarrow_{R}t'}
+-------------------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]:(\overline{t})\longrightarrow_{S}t_0'
+~
+
+~ Infer
+D,\Xi,R,G |- f:(\overline{t_0})\longrightarrow_{R}t'
+D,\Xi,R,G |- \overline{e:t_0}
+------------------------------------------------------------------[]
+D,\Xi,R,G |- f(\overline{e}):t_0'
+~
+
+### Run-time arrow
+~ Infer
+D,\Xi,R,G[\overline{x:t}] |- e:t_0
+D |- (t_0,d) \mathkw{param\_ok}
+-----------------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- \lambda_{R}(\overline{x:t_0,d}).e:(\overline{t_0})\longrightarrow_{R}t_0
+~
+
+~ Infer
+D,\Xi,R,G |- f:(\overline{t_0,d})\longrightarrow_{R}t'
+D,\Xi,R,G |- \overline{e:t_0}
+------------------------------------------------------------------[]
+D,\Xi,R,G |- f(\overline{e}):t'
+~
+
+### Extern object typing
+~ Infer
+\Xi(name)=@extern^{name} \{\overline{method}\}
+----------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- @extern^{name} \{\overline{method}\}:@extern^{name} \{\overline{method}\} -| \Xi
+~
+
+~ Infer
+name \notin @dom \Xi
+---------------------------------------------------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- @extern^{name} \{\overline{method}\}:@extern^{name} \{\overline{method}\} -| \Xi,name:@extern^{name} \{\overline{method}\}
+~
+
+
+### Header typing
+
+### Tuple typing
+standard
+### Stack typing
+standard
+### Error typing
+standard
+### Base type typing
+standard
+
+# Dynamic semantics { #sec-dynamic }

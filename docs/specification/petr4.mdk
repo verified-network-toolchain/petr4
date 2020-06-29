@@ -209,8 +209,7 @@ e ::= @true
     | @error.name // errors
     | e.name // expression member
     | e1 ? e2 : e3 // ternary operator
-    | f<\overline{t}>(\overline{e}) // function call (positional)
-    | f<\overline{t}>(\overline{x=e}) // function call (named)
+    | f<\overline{t}>(\overline{e}) // function call
     | t(\overline{e}) // nameless instantiation
     | e1 \texttt{\&\&\&} e2 // mask
     | e1 .. e2 // range
@@ -469,6 +468,8 @@ All typing judgments include
 2. $\Delta$, the definitions of type names in scope, and
 3. $\Gamma$, the types of variables in scope.
 
+Some judgments need a store typing $\Xi$.
+
 Type variables are tracked by mapping type names $X$ to themselves in
 the context $\Delta$. Equivalently there could be another context that
 was a list of lists of type variables, without them being mapped to
@@ -486,6 +487,8 @@ D ::= D, \delta{} | []
 \gamma ::= \gamma, x:t,d | []
 
 G ::= G, \gamma{} | []
+
+\Xi ::= \Xi, \ell:t | []
 ~
 
 In all contexts there is a lookup test $C(x) = y$ which searches from
@@ -1004,6 +1007,99 @@ S,D,G |- e_2 : \tau, \_
 -------------------------[Ranges]
 S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
+
+## Evaluation environment typing
+### Checking against a context
+The $\Xi,G \vdash \xi$ judgment checks that $\xi$ satisfies the typings in $G$.
+~ Infer
+\Xi(\ell)=t
+\Gamma(x)=t
+----------------------------------------------[Check-Env-Scope-Binding]
+\Xi,\Gamma \vdash \epsilon,x=\ell
+~
+~ Infer
+
+----------------------------------------------[Check-Env-Scope-Empty]
+\Xi,\Gamma \vdash []
+~
+~ Infer
+\Xi,\Gamma \vdash \epsilon
+----------------------------------------------[Check-Env-Scope]
+\Xi,\Gamma \vdash \epsilon,\xi
+~
+~ Infer
+
+----------------------------------------------[Check-Env-Scope-Empty]
+\Xi,\Gamma \vdash []
+~
+
+### Constructing a context
+The ${\Xi} \vdash \xi:G$ judgment constructs a typing context from an
+evaluation environment. It needs an auxiliary judgment on individual scopes
+which has the shape $\Xi\vdash{}\epsilon:\gamma$.
+~ Infer
+\Xi(\ell)=t
+\Gamma(x)=t
+----------------------------------------------[Type-Env-Scope-Empty]
+\Xi,\Gamma \vdash \epsilon,x=\ell:\Gamma
+~
+~ Infer
+\Xi(\ell)=t
+\Gamma(x)=t
+----------------------------------------------[Type-Env-Scope-Binding]
+\Xi,\Gamma \vdash \epsilon,x=\ell:\Gamma
+~
+~ Infer
+
+------------------------------------------------------[Type-Env-Empty]
+\Xi \vdash []:[]
+~
+~ Infer
+\Xi \vdash \epsilon:\gamma
+----------------------------------------------------[Type-Env-Binding]
+\Xi \vdash \epsilon,[]:\gamma,[]
+~
+
+## Value Typing
+Values can include references to memory locations, so typechecking them
+requires a store typing $\Xi$. The judgment has this form.
+~ MathPre
+\Xi |- v:t
+~
+
+Here are the interesting rules.
+~ Infer
+\Xi |- \xi:G
+[];D;G,\overline{x:t} |- blk:@returns \tau' -| G'
+---------------------------------------------------------------------------------------[Type-Value-Closure]
+\Xi |- (P,E,\Delta,\upsilon) \otimes (\overline{x:t,d}) \to blk:(\overline{t,d}) \to t'
+~
+~ Infer
+\Xi |- lv:t
+\mathkw{has\_field} t name t_{name}
+----------------------------------------------------------[Type-Value-Builtin]
+\Xi |- @builtin name lv: t_{name}
+~
+~ Infer
+\Xi |- \ell:@extern X \{\overline{method}\}
+----------------------------------------------------------[Type-Value-Extern]
+\Xi |- (\ell, name_{object}):@extern X \{\overline{method}\}
+~
+
+## Store typing
+~ Infer
+\Xi |- v:t
+\Xi(\ell)=t
+-----------------------[]
+\Xi |- \ell=v,\sigma.
+~
+~ Infer
+
+-----------------------[]
+\Xi |- []
+~
+
+This is mutually inductive with the value judgment.
 
 ## Statement Typing
 
@@ -2608,38 +2704,31 @@ $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} 
 
 # Type Soundness
 
-## Environment Entailment
-
-In order to prove type soundness under big-step semantics, we must define a relation
+## Environment Typing
+Given a store typing and a variable typing it is possible to typecheck an
+evaluation environment $\xi,\sigma$
 ~MathPre
-\models \, \subseteq \, (S,D,G) \times (\xi,\sigma)
+S,D,\Xi,G\vDash{}\xi,\sigma.
 ~
-where
+Since contexts and environments are structured into scopes, we will define this
+judgment in terms of a per-scope judgment
 ~MathPre
-S,D,G \models \xi,\sigma
+S,D,\Xi,G\vDash{}\epsilon,\sigma.
 ~
-means that the typing context satisfies the evaluation environment.
-Intuitively, a typing context satisfies an evaluation environment if all of the variables in the typing context have the same type as their respective values they map to in the evaluation environment.
-
-This entailment relation is defined in terms of a sub-relation
-~MathPre
-S,D,G \models_{scope} \epsilon,\sigma
-~
-which is $\models$ per-scope.
 
 Here is a formal definition:
 ~Infer
 
 -------------------------------[Entails-Empty-Scope]
-S,D,G \models_{scope} [],\sigma
+S,D,\Xi,G\vDash{}[]
 ~
 
 ~Infer
-S,D,G \models_{scope} \epsilon,\sigma
-G(x) = t,d
-S,D,G |- \sigma(\ell) : t, d
+S,D,G\vDash{}\epsilon,\sigma
+G(x)=t
+\Xi(\ell)=t
 ---------------------------------------------[Entails-Variable-Scope]
-S,D,G \models_{scope} \epsilon,(x=\ell),\sigma
+S,D,G \models \epsilon,(x=\ell)
 ~
 
 
@@ -3057,112 +3146,22 @@ L_{15}: S,D,G,\xi,\sigma,x,t
 x \notin G \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models \xi,\sigma
 ~
 
-### Definition of Typing Judgment for Values
-~MathPre
-\vdash_v v : \tau
-~
-
-~Infer
-
---------------------[Judge-Integer]
-\vdash_v a : @int
-~
-
-~Infer
-
----------------------[Judge-Unsigned-Integer]
-\vdash_v nwa : @bit<n>
-~
-
-~Infer
-
----------------------[Judge-Signed-Integer]
-\vdash_v nsa : @bit<n>
-~
-
-
-~Infer
-\vdash_v \overline{v} : \overline{t}
-----------------------------------------------[Judge-Tuple]
-\vdash_v (\overline{v}) : @tuple<\overline{t}>
-~
-
-~Infer
-\overline{\vdash_v  v : \tau}
--------------------------------------------------------[Judge-Record]
-\vdash_v \{ \overline{name=v} \} : \{ \overline{f:t} \}
-~
-
-~Infer
-
-------------------------------[Judge-Error]
-\vdash_v @error.name : @error
-~
-
-~Infer
-
------------------------------------------------[Judge-Matchkind]
-\vdash_v @matchkind name : \mathkw{match\_kind}
-~
-
-~Infer
-\overline{\vdash_v  v : \tau}
------------------------------------------------------------------------[Judge-Struct]
-\vdash_v @struct \{ \overline{(f, v)} \} : @struct \{ \overline{f:t} \}
-~
-
-~Infer
-\overline{\vdash_v  v : \tau}
------------------------------------------------------------------------[Judge-Struct]
-\vdash_v @struct \{ \overline{(f, v)} \} : @struct \{ \overline{f:t} \}
-~
-
-~Infer
-\overline{\vdash_v  v : \tau}
--------------------------------------------------------------------------[Judge-Header]
-\vdash_v @header b \{ \overline{(f, v)} \} : @header \{ \overline{f:t} \}
-~
-
-TODO: enum member judging is sketcky: may need some context...
-~Infer
-y \in \overline{x}
-------------------------------------------[Judge-Enum-Field]
-\vdash_v X.y : @enum X \{ \overline{x} \}
-~
-
-TODO: parser judging is probably sketchy...
-Do we need to check the innards?
-~Infer
-\overline{ \vdash_v v : \tau_c }
----------------------------------------------------------------------------------------------------------------------------------[Judge-Parser]
-\vdash_v @parser \overline{(x, v)} (\overline{x:t,d}) \overline{decl} \overline{state} : @parser<\overline{X}>(\overline{x:t_c})
-~
-
-TODO: control judging is probably sketchy...
-Do we need to check the block?
-~Infer
-\overline{ \vdash_v v : \tau_c }
-----------------------------------------------------------------------------------------------------------------[Judge-Control]
-\vdash_v @control \overline{(x, v)} (\overline{x:t,d}) \overline{decl} blk : @control<\overline{X}>(\overline{x:t_c,d})
-~
-
-~Infer
-\overline{ \vdash_v v : t }
-------------------------------------------------------------------------------[Judge-Package]
-\vdash_v @package \overline{(x, v)} : @package<\overline{X}>(\overline{x:t,d})
-~
-
-TODO: how to type table, extern, or function values without contexts...maybe impossible...
-
 ## Type Soundness of Expressions
 
 NOTE: once the typing judgment on values is defined then this theorem may need to be stated slightly differently.
 
 ### Expression Type Preservation Theorem Statement
+Let $\langle \zeta, \xi, \sigma, e \rangle$ be an initial configuration
+and take contexts $\Sigma,\Delta,\Xi,\Gamma$. Suppose that
+the configuration is safe in the context, so $\Xi,G\vdash{}\xi$,
+$\Xi\vdash{}\sigma$, and $\Sigma,\Delta,\Gamma\vdash{}e:t$.
+
+If there is some final configuration $\langle\xi',\sigma',sig,v\rangle$ such that
 ~ MathPre
-\forall e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig,
-S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : \tau,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
+\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e <\xi',\sigma',sig,v>,
 ~
+then $\Sigma,\Delta,\Gamma |- v:t \wedge$ and
+$\Sigma,\Delta,\Xi,\Gamma\vDash{}\xi',\sigma'$.
 
 ### Expression Type Preservation Proof
 Introducing variables
@@ -3183,7 +3182,6 @@ We induct on the derivation of
 ~MathPre
 \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
 ~
-We assume freely $e$ is free-variable free.
 
 #### Case Bool-True
 We have hypotheses:
@@ -3264,44 +3262,10 @@ S,D,G \models \xi, \sigma \wedge S,D,G |- u : @string, @none
 Our subgoal is true by assumption.
 
 #### Case Var
-We have hypotheses:
-~MathPre
-H_0: S,D,G \models \xi, \sigma
-H_1: S,D,G |- x : t, d
-H_2: <\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma \circ \xi)(x)>
-~
-We wish to prove subgoals
-~MathPre
-SG_1: S,D,G \models \xi, \sigma
-SG_2: S,D,G |- (\sigma \circ \xi)(x) : t, d
-~
-$SG_1$ is true by assumption.
-
-By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
-~MathPre
-S,D,G |- (\sigma \circ \xi)(x) : t, d
-~
-And thus our subgoal $SG_2$ is true by assumption.
+We have $v = (\sigma \circ \xi)(x)$...
 
 #### Case Var-Top
-We have hypotheses:
-~MathPre
-H_0: S,D,G \models \xi, \sigma
-H_1: S,D,G |- .x : t, d
-H_2: <\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma \circ \xi)(.x)>
-~
-We wish to prove subgoal:
-~MathPre
-SG_1: S,D,G \models \xi,\sigma
-SG_2: S,D,G |- (\sigma \circ \xi)(x) : t, d
-~
-$SG_1$ is true by assumption $H_0$.
 
-By inversion on $H_0$ and our assumption of the absence of free variables we get hypothesis:
-~MathPre
-S,D,G |- (\sigma \circ \xi)(.x) : t, d
-~
-And thus our subgoal $SG_2$ is true by assumption.
 
 #### Case Array-Access
 We have hypotheses:

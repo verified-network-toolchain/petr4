@@ -214,7 +214,7 @@ Variables $x,X\in\mathkw{Var}$
 Control-plane names
 ~ P4MathGrammar
 name\in\mathkw{Name} ::= @Top | name.x
-~ 
+~
 
 In keeping with the concrete syntax of P4 we may sometimes write $.$
 for $\mathkw{Top}$.
@@ -222,7 +222,7 @@ for $\mathkw{Top}$.
 Memory locations
 ~ MathPre
 \ell\in\mathkw{Loc}
-~ 
+~
 
 ## Types
 The separation of type syntax here is an uneducated guess. In

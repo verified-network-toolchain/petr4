@@ -271,7 +271,7 @@ e\in{}@Expr::=a                        // integer
   | \{\overline{e}\}                   // tuple
   | @header \{\overline{name=e}\}      // header
   | e.name                             // field lookup
-  | @extern^{name} \ell \{\overline{method}\} // extern object
+  | @extern^{name} \{\overline{method}\} // extern object
   | f(\overline{e})                    // function application
   | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
   | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
@@ -280,7 +280,6 @@ e\in{}@Expr::=a                        // integer
   | e<\overline{t}>                    // type application
   | @do s                              // embedding of statements
   | x                                  // variable
-  | \ell{}                             // location
 method::=\tau x<\overline{X}>(\overline{x:t,d})
 ~
 
@@ -296,8 +295,8 @@ v\in{}@Val::=a                         // integer
   | @stack_n m \{\overline{v}\}        // stack[n] with next=m
   | @stack_n m \{\overline{v}\}.@pushFront // stack methods
   | @stack_n m \{\overline{v}\}.@popFront
-  | @extern^name \ell \{\overline{method}\} // extern object
-  | @extern^name \ell \{\overline{method}\}.x // extern method (when x in methods)
+  | @extern^name \{\overline{method}\} // extern object
+  | @extern^name \{\overline{method}\}.x // extern method (when x in methods)
   | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
   | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
   | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
@@ -343,15 +342,21 @@ sig\in{}@Signal::=@void    // escapes, in any fashion
 ~
 
 ## Contexts and environments
-A context is used in typechecking and contains closed types. An
-environment is used in evaluation and contains values.
+A context is used in typechecking and contains types. An environment
+is used in evaluation and contains values.
 
 ### Contexts
 ~ P4MathGrammar
-G::=[] | G,x:\tau
-R::=[] | R,\ell:\tau
+D::=[] | D,X
 \Xi::=[] | \Xi,name:\tau
+\Sigma::=[] | \Sigma,\ell:\tau
+G::=[] | G,x:\tau
 ~
+
+There is a binary merge operator $\mathkw{merge}_\Delta(\Xi_1,\Xi_2)$ which
+merges two control-plane contexts. If they both define a type for the
+same name, the types must be equal under $\Delta$. It is extended to
+$n$-ary merges in the obvious way.
 
 ### Environments
 ~ P4MathGrammar
@@ -363,100 +368,107 @@ R::=[] | R,\ell:\tau
 
 ## Expression typing
 The typing judgment for expressions has the form
-
 ~ MathPre
-D,C,\Xi,G |- e:t.
+D,\Xi,R,G |- e:t -| \Xi'
 ~
 
 ### Variables
 ~ Infer
-C(x):t
+G(x)=t
 ------------------------[]
-D,C,\Xi,G |- x:t
-~
-
-~ Infer
-\Xi(x):t
-------------------------[]
-D,C,\Xi,G |- x:t
-~
-
-~ Infer
-G(x):t
-------------------------[]
-D,C,\Xi,G |- x:t
+D,\Xi,R,G |- x:t -| \Xi
 ~
 
 ### Do expression
 ~ Infer
-D,C,\Xi,G |- s:@returns t
+D,\Xi,R,G |- s:@returns t -| \Xi'
 ---------------------------------[]
-D,C,\Xi,G |- @do s:t
+D,\Xi,R,G |- @do s:t -| \Xi'
 ~
 
 ### Type abstraction
 ~ Infer
-D[\overline{X}],C,\Xi,G |- e:t
-----------------------------------------------------[]
-D,C,\Xi,G |- <\overline{X}>e:<\overline{X}>\tau
+D[\overline{X}],\Xi,R,G |- e:t -| \Xi'
+---------------------------------------------------------[]
+D,\Xi,R,G |- <\overline{X}>e:<\overline{X}>\tau -| \Xi'
 ~
 
+The well-formedness condition here hasn't been defined yet but I'm
+putting it in as a reminder that it will probably be necessary.
 ~ Infer
-D,C,\Xi,G |- e:<\overline{X}>t'
+D,\Xi,R,G |- e:<\overline{X}>t' -| \Xi'
 D |- @wf t'[\overline{t/X}]
 ----------------------------------------------------[]
-D,C,\Xi,G |- e<\overline{t}>:t'[\overline{t/X}]
+D,\Xi,R,G |- e<\overline{t}>:t'[\overline{t/X}] -| \Xi'
 ~
 
 ### Constructor arrow
 ~ Infer
-D,C,\Xi[x:t_2],[] |- e:t_2'
-----------------------------------------------------------------------------------------[]
-D,C,\Xi,G |- \lambda_{C}(\overline{x:t_2}).e:(\overline{t_2})\longrightarrow_{C}t_2'
+D,\Xi,R,G |- e:t_2' -| \Xi'
+---------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- \lambda_{C}(\overline{x:t_2}).e:(\overline{t_2})\longrightarrow_{C}t_2' -| \Xi'
 ~
 
 ~ Infer
-D,C,\Xi,G |- f:(\overline{t})\longrightarrow_{C}t'
-D,C,\Xi,G |- \overline{e:t}
+D,\Xi,R,G |- f:(\overline{t})\longrightarrow_{C}t' -| \Xi_f
+D,\Xi,R,G |- \overline{e:t} -| \overline{\Xi'}
 ------------------------------------------------------------------[]
-D,C,\Xi,G |- f(\overline{e}):t'
+D,\Xi,R,G |- f(\overline{e}):t' -| @merge_{D}(\Xi_f,\overline{\Xi'})
 ~
 
 ### Stateful arrow
 Not sure about this one.
 ~ Infer
-D,C,\Xi,G |- \overline{e:t_0\longrightarrow_{R}t'}
+D,\Xi,R,G |- \overline{e:t_0\longrightarrow_{R}t'}
 -------------------------------------------------------------------------------------------------------[]
-D,C,\Xi,G |- \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]:(\overline{t})\longrightarrow_{S}t_0'
+D,\Xi,R,G |- \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]:(\overline{t})\longrightarrow_{S}t_0'
 ~
 
 ~ Infer
-D,C,\Xi,G |- f:(\overline{t_0})\longrightarrow_{R}t'
-D,C,\Xi,G |- \overline{e:t_0}
+D,\Xi,R,G |- f:(\overline{t_0})\longrightarrow_{R}t'
+D,\Xi,R,G |- \overline{e:t_0}
 ------------------------------------------------------------------[]
-D,C,\Xi,G |- f(\overline{e}):t_0'
+D,\Xi,R,G |- f(\overline{e}):t_0'
 ~
 
 ### Run-time arrow
 ~ Infer
-D,C,\Xi,G[\overline{x:t}] |- e:t_0
+D,\Xi,R,G[\overline{x:t}] |- e:t_0
 D |- (t_0,d) \mathkw{param\_ok}
 -----------------------------------------------------------------------------------------------------[]
-D,C,\Xi,G |- \lambda_{R}(\overline{x:t_0,d}).e:(\overline{t_0})\longrightarrow_{R}t_0
+D,\Xi,R,G |- \lambda_{R}(\overline{x:t_0,d}).e:(\overline{t_0})\longrightarrow_{R}t_0
 ~
 
 ~ Infer
-D,C,\Xi,G |- f:(\overline{t_0,d})\longrightarrow_{R}t'
-D,C,\Xi,G |- \overline{e:t_0}
+D,\Xi,R,G |- f:(\overline{t_0,d})\longrightarrow_{R}t'
+D,\Xi,R,G |- \overline{e:t_0}
 ------------------------------------------------------------------[]
-D,C,\Xi,G |- f(\overline{e}):t'
+D,\Xi,R,G |- f(\overline{e}):t'
 ~
 
 ### Extern object typing
+~ Infer
+\Xi(name)=@extern^{name} \{\overline{method}\}
+----------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- @extern^{name} \{\overline{method}\}:@extern^{name} \{\overline{method}\} -| \Xi
+~
+
+~ Infer
+name \notin @dom \Xi
+---------------------------------------------------------------------------------------------------------------------------------------[]
+D,\Xi,R,G |- @extern^{name} \{\overline{method}\}:@extern^{name} \{\overline{method}\} -| \Xi,name:@extern^{name} \{\overline{method}\}
+~
+
+
 ### Header typing
+
 ### Tuple typing
+standard
 ### Stack typing
+standard
 ### Error typing
+standard
 ### Base type typing
+standard
 
 # Dynamic semantics { #sec-dynamic }

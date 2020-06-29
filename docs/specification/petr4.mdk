@@ -196,32 +196,32 @@ v\in{}@Val::=\text{TODO once exprs stop changing so much}
 ## Expression Syntax
 
 ~ Begin P4MathGrammar
-e\in{}@Expr::=@true | @false                 // boolean literals
-  | a                              // arbitrary width integer literal
+e\in{}@Expr::= a                              // arbitrary width integer literal
   | w\mathkw{w}a                   // unsigned int of width w
   | \{\overline{e}\}               // tuple
   | \{\overline{name=e}\}          // record
   | @header \{\overline{name=e}\}  // header
-  | match                          // set
   | @error.x                       // error values
   | @matchkind.x                   // matchkind values
   | (t)e                           // explicit cast
   | x                              // variable
   | e.name                         // expression member
   | f<\overline{t}>(\overline{e})  // function call
-  | t<\overline{t}>(\overline{e})  // nameless instantiation
+  | X<\overline{t}>(\overline{e})  // nameless instantiation
   | @externfn \ell{} name                                            // extern functions
   | @extern name \ell                                           // extern objects
   | @builtin e name                                              // builtin functions
   | @stack_n n \overline{v}                                      // stacks
   | \lambda_p(\overline{x:t,d}).\overline{state}                 // parser objects
   | \lambda_c(\overline{x:t,d}).blk                              // control objects
-  | @package(\overline{name=v})                                  // package objects
   | \lambda_{ctor}(\overline{x:t}).blk                           // constructor closures
-  | (N,E)\otimes{}e                                            // closures
-  | @table(\overline{\tau:@matchkind.x})\{\overline{match:aref}\}  // tables
-  | @apply\{\overline{s}\}                                      // copy-in copy-out blocks
-  | @parse\{state;\overline{state}\}                            // parser invocations
+  | \lambda_{A}(\overline{x:t,d_0}).\lambda_{ctrl}(\overline{x:t}).blk // action
+  | \lambda_{F}(\overline{x:t,d}).blk                       // function
+  | (N,E)\otimes{}e                                                // closures
+  | \lambda_{T}(\overline{\tau:x}).e\{\overline{match:aref}\}  // tables
+  | @match name                                                    //
+  | @apply\{\overline{s}\}                                         // copy-in copy-out blocks
+  | @parse\{state;\overline{state}\}                               // parser invocations
 
 match ::= @singleton_t e      // singleton set
         | (\_)_{\tau}         // universal set for type $t$
@@ -243,7 +243,7 @@ s ::= e<\overline{t}>(\overline{e})  // method call
     | @return e                      // return (with value)
     | @emp                           // empty statement
     | blk // blocks
-    | @apply blk // copy-in copy-out blocks
+    | @apply\{\overline{s}\} // copy-in copy-out blocks
     | @parse\{state;\overline{state}\}  // parser invocations
 blk ::= \{\overline{s}\} // blocks
 ~ End P4MathGrammar
@@ -254,7 +254,7 @@ decl ::= t x // variable declaration
        | X(\overline{e}) x // instantiation
        | @parser X(\overline{x:t}) \{ \overline{decl} \lambda_P(\overline{x:t,d}).@parse \overline{state} \} // parser
        | @control X(\overline{x:t}) \{ \overline{decl} \lambda_C(\overline{x:t,d}).@do blk \} // control
-       | @action a(\overline{x:t,d_0}).\lambda_A(\overline{x:t}).@apply blk // action
+       | @action a(\overline{x:t,d_0}).\lambda_A(\overline{x:t}).blk // action
        | @function f<T>(\overline{x:t,d}).@do blk // function
        | @table x \{\overline{prop}\} // table
        | @error \{\overline{x}\} // error
@@ -290,14 +290,12 @@ P ::= decl, P
 
 ## Type Syntax
 ~ Begin P4MathGrammar
-t ::= @bool
-    | @int
+t ::= @int
     | @bit<w>
     | t[a]
     | @tuple<\overline{t}>
     | \{\overline{f:t}\}  // record type
     | \mathkw{header\ union} \{\overline{f:t}\}
-    | @struct \{\overline{f:t}\}
     | @header \{\overline{f:t}\}
     | @set<t>
     | @error
@@ -306,14 +304,13 @@ t ::= @bool
     | @newtype X t
     | @void
     | t<\overline{t}> // specialized type
-    | @package<\overline{X}>(\overline{t,d})
     | @control<\overline{X}>(\overline{t,d})
     | @parser<\overline{X}>(\overline{t})
     | @extern X \{ \overline{method} \}
     | <\overline{X}>(\overline{t,d})\longrightarrow_F{}\tau
     | (\overline{t,d_0},\overline{t})\longrightarrow_A{}@void
     | <\overline{X}>(\overline{t})\longrightarrow_C{}t
-    | @table
+    | @table(\overline{t})\longrightarrow
 
 d0 ::= @in
      | @out
@@ -328,8 +325,8 @@ X ::= name // regular type name
 
 "Results" $R$ are types for statements.
 ~ P4MathGrammar
-R := @returns // written ``Void" in the implementation
-     | \bot     // written ``Unit" in the implementation
+R := @returns t
+   | \bot
 ~
 
 Contexts indicate where a statement, declaration, parameter, or expression is
@@ -400,18 +397,6 @@ Contexts (not the typing contexts, but the $\mathkw{InFunction}$ ones)
 can be converted using maps $[-]_E,$ $[-]_S,$ and $[-]_D.$
 
 ## Expression Typing
-
-~ Infer
-
----------------------[]
-L,G |- @true: @bool
-~
-
-~ Infer
-
----------------------[]
-L,G |- @false: @bool
-~
 
 ~ Infer
 
@@ -518,6 +503,26 @@ G_X(name)=<\overline{T}>(\overline{\tau,d})\longrightarrow_M\tau_ret
 L,G |- @externfn \ell\ name:<\overline{T}>(\overline{\tau,d})\longrightarrow_M\tau_ret
 ~
 
+~ Infer
+E:G'
+S,D,L,G' |- e:t
+------------------------------------------------------------[]
+S,D,L,G |- (N,E)\otimes{}e:t
+~
+
+~ Infer
+G(x)=\mathkw{match\_kind}
+S,D,L,G |- \overline{match:@set<@tuple<t>>}
+S,D,L,G |- a(\overline{e}):@void
+-------------------------------------------------------------------------------------------------------[]
+S,D,L,G |- @table(\overline{t:x})\{\overline{match:a(\overline{e})}\}:\overline{t}\longrightarrow_{T}@void
+~
+
+~ Infer
+S,D,L,G |- \overline{s}:@returns t
+---------------------------------[]
+S,D,L,G |- @apply{\overline{s}}:t
+~
 
 ## Statement Typing
 
@@ -564,75 +569,75 @@ t x(\overline{e}) @declstmt
 
 Statements are typed by a judgment of the form
 ~ MathPre
-S,D,G,sctx |- s:R -| S',G'.
+S,G,sctx |- s:R -| S',G'.
 ~
 
 The judgment is defined inductively by the following rules.
 
 ~ Infer
-S,D,G,[sctx]_E |- e<\overline{t}>(\overline{e}):t
+S,G,[sctx]_E |- e<\overline{t}>(\overline{e}):t
 -------------------------------------------------------[Type-Stmt-Method-Call]
-S,D,G,sctx |- e<\overline{t}>(\overline{e}):\bot -| S,G
+S,G,sctx |- e<\overline{t}>(\overline{e}):\bot -| S,G
 ~
 
 ~ Infer
 e_l \mathkw{lvalue}
-S,D,G,[sctx]_E |- e_l:t
-S,D,G,[sctx]_E |- e_r:t
+S,G,[sctx]_E |- e_l:t
+S,G,[sctx]_E |- e_r:t
 ----------------------------[Type-Stmt-Assignment]
-S,D,G,sctx |- e_l:=e_r:\bot -| S,G
+S,G,sctx |- e_l:=e_r:\bot -| S,G
 ~
 
 ~ Infer
-S,D,G,[sctx]_E |- e:@bool
-S,D,G,sctx |- s_1:R_1 -| S_1,G_1
-S,D,G,sctx |- s_2:R_2 -| S_2,G_2
+S,G,[sctx]_E |- e:@bit<1>
+S,G,sctx |- s_1:R_1 -| S_1,G_1
+S,G,sctx |- s_2:R_2 -| S_2,G_2
 ----------------------------------------------[Type-Stmt-If-Else]
-S,D,G,sctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| S,G
+S,G,sctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| S,G
 ~
 
 Typing sequences of statements is defined in the next section.
 ~ Infer
-S,D,G,sctx |- \overline{s}:R -| S',G'
+S,G,sctx |- \overline{s}:R -| S',G'
 ---------------------------------------[Type-Stmt-Block]
-S,D,G,sctx |- \{\overline{s}\}:R -| S,G
+S,G,sctx |- \{\overline{s}\}:R -| S,G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Exit]
-S,D,G,@InParserState |- @exit:@returns -| S,G
+S,G,@InParserState |- @exit:@returns -| S,G
 ~
 
 ~ Infer
-S,D,G,@InFunction |- e:t
+S,G,@InFunction |- e:t
 ---------------------------------------------------[Type-Stmt-Return-Value]
-S,D,G,@InFunction t |- @return e:@returns -| S,G
+S,G,@InFunction t |- @return e:@returns -| S,G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Void]
-S,D,G,@InFunction @void |- @return:@returns -| S,G
+S,G,@InFunction @void |- @return:@returns -| S,G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Control]
-S,D,G,@InControl |- @return:@returns -| S,G
+S,G,@InControl |- @return:@returns -| S,G
 ~
 
 ~ Infer
 
 ---------------------------------------------------[Type-Stmt-Return-Action]
-S,D,G,@InAction |- @return:@returns -| S,G
+S,G,@InAction |- @return:@returns -| S,G
 ~
 
 ~ Infer
 decl @declstmt
-S,D,G,[sctx]_D |- decl -| S',D',G'.
+S,[],G,[sctx]_D |- decl -| S',D',G'.
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-S,D,G,sctx |- decl:\bot -| S',G'
+S,G,sctx |- decl:\bot -| S',G'
 ~
 
 ### Typing sequences of statements
@@ -643,14 +648,14 @@ rule...)
 ~ Infer
 
 ---------------------------------------------------[Type-Stmts-Empty]
-S,D,G,sctx |- \overline{  } :\bot -| S,G
+S,G,sctx |- \overline{  } :\bot -| S,G
 ~
 
 ~ Infer
-S,D,G,sctx |- s:R_1 -| S',G'
-S',D,G',sctx |- \overline{s}:R_2 -| S'',G''
+S,G,sctx |- s:R_1 -| S',G'
+S',G',sctx |- \overline{s}:R_2 -| S'',G''
 ---------------------------------------------------[Type-Stmts-List]
-S,D,G,sctx |- s;\overline{s}:R_1 \vee R_2 -| S'',G''
+S,G,sctx |- s;\overline{s}:R_1 \vee R_2 -| S'',G''
 ~
 
 ## Compile-time Evaluation
@@ -673,9 +678,9 @@ action, which are the ones with directions $d_0$.
 
 ~ Infer
 G(x) = (\overline{t,d_0},\overline{t'}) \longrightarrow_A @void
-S,D,G |- \overline{e:t}
+S,G |- \overline{e:t}
 -----------------------------------------------------------------[Type-ARef]
-S,D,G |- x(\overline{e}) \mathkw{aref\_ok}
+S,G |- x(\overline{e}) \mathkw{aref\_ok}
 ~
 
 #### Entry typing
@@ -685,44 +690,44 @@ Similar situation here, but for table entries. The $x(\overline{e})
 ~ Infer
 x(\overline{e}) \in A
 G(x) = (\overline{t,d_0},\overline{t'}) \longrightarrow_A @void
-S,D,G |- \overline{e':t'}
-S,D,G |- e_m:@set<@tuple<\overline{t_k}>>
+S,G |- \overline{e':t'}
+S,G |- e_m:@set<@tuple<\overline{t_k}>>
 ----------------------------------------------------------------------------------------------------[Type-Entry]
-S,D,G;\{\overline{t_k}\},A |- e_m:x(\overline{e},\overline{e'}) \mathkw{entry\_ok}
+S,G;\{\overline{t_k}\},A |- e_m:x(\overline{e},\overline{e'}) \mathkw{entry\_ok}
 ~
 
 #### Property typing
 Table properties get their own judgment
 ~ MathPre
-S,D,G,dctx;K,A |- prop -| K',A'
+S,G,dctx;K,A |- prop -| K',A'
 ~
 Where $K$ is a list of types for the table's keys and $A$ is a mapping from action refs to types.
 
 ~ Infer
-S,D,G,[dctx]_E |- \overline{e:t}
-S,D,G,[dctx]_E |- \overline{x:\mathkw{match\_kind}}
+S,G,[dctx]_E |- \overline{e:t}
+S,G,[dctx]_E |- \overline{x:\mathkw{match\_kind}}
 ------------------------------------------------------------------------------[Type-Prop-Keys]
-S,D,G;\{\},\{\} |- @key=\{\overline{e:x}\} -| \{\overline{\tau}\},\{\}
+S,G;\{\},\{\} |- @key=\{\overline{e:x}\} -| \{\overline{\tau}\},\{\}
 ~
 
 ~Infer
-S,D,G |- \overline{x_a(\overline{e}) \mathkw{aref\_ok}}
+S,G |- \overline{x_a(\overline{e}) \mathkw{aref\_ok}}
 -------------------------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Actions]
-S,D,G;K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a(\overline{e})}\}
+S,G;K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a(\overline{e})}\}
 ~
 
 ~ Infer
-S,D,G;K,A |- \overline{entry \mathkw{entry\_ok}}
+S,G;K,A |- \overline{entry \mathkw{entry\_ok}}
 ---------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Entries]
-S,D,G;K,A |- @const @entries = \{ \overline{entry} \} -| K,A
+S,G;K,A |- @const @entries = \{ \overline{entry} \} -| K,A
 ~
 
 ~ Infer
 G(x) = (\overline{t,d_0},\overline{t'}) \longrightarrow_A @void
 x(\overline{e}) \in A
-S,D,G |- \overline{e':t'}
+S,G |- \overline{e':t'}
 ----------------------------------------------------------------------------[Type-Prop-Default]
-S,D,G,K,A |- \mathkw{default\_action}=x(\overline{e},\overline{e'}) -| K,A
+S,G,K,A |- \mathkw{default\_action}=x(\overline{e},\overline{e'}) -| K,A
 ~
 
 ### Parser state typing
@@ -737,16 +742,16 @@ transitions make sense. It is defined by two rules, which use another
 judgement $\mathkw{state\_expr\_ok}$.
 
 ~ Infer
-S,D,G,K |- state\_expr \mathkw{state\_expr\_ok}
+S,G,K |- state\_expr \mathkw{state\_expr\_ok}
 ------------------------------------------------------[Type-State-Transition]
-S,D,G,K |- @state x \{ ; @transition state\_expr \}
+S,G,K |- @state x \{ ; @transition state\_expr \}
 ~
 
 ~ Infer
-S,D,G |- s0 -| G'
-S,D,G' |- \{ \overline{s}; @transition state\_expr \}
+S,G |- s0 -| G'
+S,G' |- \{ \overline{s}; @transition state\_expr \}
 ----------------------------------------------------------[Type-State-Statement]
-S,D,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
+S,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
 ~
 
 The $\mathkw{state\_expr\_ok}$ judgment is defined by the following rules.
@@ -757,11 +762,11 @@ G,K |- \mathkw{state\_expr\_ok} x
 ~
 
 ~ Infer
-S,D,G |- \overline{e:t}
-S,D,G |- e_m:@set<@tuple<\overline{t}>>
+S,G |- \overline{e:t}
+S,G |- e_m:@set<@tuple<\overline{t}>>
 \overline{x\in{}K}
 -----------------------------------------------[State-Expr-OK-Select]
-S,D,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{e_m:x} \}
+S,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{e_m:x} \}
 ~
 
 ### Extern constructor and method typing

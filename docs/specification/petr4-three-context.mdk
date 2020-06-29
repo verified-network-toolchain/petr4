@@ -264,8 +264,9 @@ e\in{}@Expr::=a                        // integer
   | \{\overline{e}\}                   // tuple
   | @header \{\overline{name=e}\}      // header
   | e.name                             // field lookup
+  | e[e]                               // stack lookup
   | @extern^{name} \{\overline{x:t}\} // extern object
-  | f(\overline{e})                    // function application
+  | e(\overline{e})                    // function application
   | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
   | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
   | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
@@ -308,14 +309,12 @@ term::=@exit            // exit
      | @goto @reject x  // parser reject
      | @goto @accept    // parser finish
      | @goto x          // parser state change
-     | @halt
 
-s::=e(\overline{e});s                           // method call
-  | t_0 x;s                                     // variable declaration
-  | e:=e;s                                      // assignment
-  | @parse\{s;\overline{state}\};s              // parser with current state
-  | @saved_{\overline{lv\Leftarrow{}l}}\{s\}; s // copy-out marker
-  | term                                        // terminal statement
+s::=t_0 x;s                                   // variable declaration
+  | e:=e;s                                    // assignment
+  | @parse\{s;\overline{state}\};s            // parser with current state
+  | @saved_{\overline{lv\Leftarrow{}l}}\{s\}  // copy-out marker
+  | term                                      // terminal statement
 
 blk ::= \{\overline{s}\} // shorthand for n-ary sequencing s;(s;(s;(...;s))
 state ::= @state x s
@@ -401,10 +400,10 @@ D,\Xi,R,G |- \lambda_{C}(\overline{x:t_2}).e:(\overline{t_2})\longrightarrow_{C}
 ~
 
 ~ Infer
-D,\Xi,R,G |- f:(\overline{t})\longrightarrow_{C}t' -| \Xi_f
+D,\Xi,R,G |- e:(\overline{t})\longrightarrow_{C}t' -| \Xi_f
 D,\Xi,R,G |- \overline{e:t} -| \overline{\Xi'}
 ------------------------------------------------------------------[]
-D,\Xi,R,G |- f(\overline{e}):t' -| @merge_{D}(\Xi_f,\overline{\Xi'})
+D,\Xi,R,G |- e(\overline{e}):t' -| @merge_{D}(\Xi_f,\overline{\Xi'})
 ~
 
 ### Stateful arrow
@@ -416,10 +415,10 @@ D,\Xi,R,G |- \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]:(\overline{t})\lon
 ~
 
 ~ Infer
-D,\Xi,R,G |- f:(\overline{t_0})\longrightarrow_{R}t'
+D,\Xi,R,G |- e:(\overline{t_0})\longrightarrow_{R}t'
 D,\Xi,R,G |- \overline{e:t_0}
 ------------------------------------------------------------------[]
-D,\Xi,R,G |- f(\overline{e}):t_0'
+D,\Xi,R,G |- e(\overline{e}):t_0'
 ~
 
 ### Run-time arrow
@@ -431,10 +430,10 @@ D,\Xi,R,G |- \lambda_{R}(\overline{x:t_0,d}).e:(\overline{t_0})\longrightarrow_{
 ~
 
 ~ Infer
-D,\Xi,R,G |- f:(\overline{t_0,d})\longrightarrow_{R}t'
+D,\Xi,R,G |- e:(\overline{t_0,d})\longrightarrow_{R}t'
 D,\Xi,R,G |- \overline{e:t_0}
 ------------------------------------------------------------------[]
-D,\Xi,R,G |- f(\overline{e}):t'
+D,\Xi,R,G |- e(\overline{e}):t'
 ~
 
 ### Extern object typing
@@ -464,9 +463,8 @@ standard
 
 # Dynamic semantics { #sec-dynamic }
 
+## Statement evaluation
 ~ MathPre
-\sigma,(\lambda(\overline{x:t,d}).e)(\overline{e});s --> \sigma',@saved_{\overline{lv\Leftarrow x_lv}} \{@return e[\overline{x_arg/x}]\};s
-
 \sigma,\tau\ x; s --> \sigma[\ell:=@init \tau],s[\ell/x]
 
 \sigma,lv:=v;s --> \sigma',s
@@ -475,10 +473,31 @@ standard
 \sigma,@parse\{@goto @reject x;\overline{state}\};s --> \sigma,@goto @reject x
 \sigma,@parse\{@goto x;\overline{state}\};s --> \sigma,@parse\{s_x;\overline{state}\};s
 
-\sigma,@saved_{\overline{lv\Leftarrow{}l}} \{term\};s --> @copyout \sigma,term
+\sigma,@saved_{\overline{lv\Leftarrow{}l}} \{term\} --> @copyout \sigma,term
 
 ~
 
-~ Infer
-\tau\ x; s --> s[\ell/x]
+## Expression evaluation
+Need to define contexts $C[\cdot]$ for some of these rules to make sense.
+~ MathPre
+v_1\oplus{}v_2 --> \llbracket\oplus\rrbracket(v_1,v_2)
+
+e.name for builtins --> result of builtin
+
+(stack_n m \{\overline{v}\})[i] --> v_i
+
+(stack_n m \{\overline{v}\})[i] --> havoc
+
+(stack_n m \{\overline{v}\}).next --> @goto @reject @OutOfBounds
+
+(\lambda(\overline{x:t,d}).e)(\overline{e}) --> \sigma',@do @saved_{\overline{lv\Leftarrow x_lv}} \{@return e[\overline{x_arg/x}]\}
+
+(<overline{X}>e)<\overline{t}> --> e[t/X]
+
+C[@do @exit] --> @do @exit
+@do @return v --> v
+C[@do @goto @reject x] --> @do @goto @reject x
+@do @goto @accept --> \{\}
+
+\ell --> \sigma(\ell)
 ~

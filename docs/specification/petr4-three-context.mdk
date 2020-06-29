@@ -211,15 +211,23 @@ features at work in as simple a setting as possible.
 ## Names
 Variables $x,X\in\mathkw{Var}$
 
-Qualified names
+Control-plane names
 ~ P4MathGrammar
 name\in\mathkw{Name} ::= @Top | name.x
 ~ 
+
 In keeping with the concrete syntax of P4 we may sometimes write $.$
 for $\mathkw{Top}$.
 
+Memory locations
+~ MathPre
+\ell\in\mathkw{Loc}
+~ 
+
 ## Types
-The separation of type syntax here might be a little much.
+The separation of type syntax here is an uneducated guess. In
+particular I think I probably need type application at each level or
+something like that if I want this to work.
 ~ P4MathGrammar
 b\in{}@BaseType::=@int // infinite precision integer
     | @bit<e>          // bitstring of width e
@@ -230,19 +238,16 @@ t_0\in{}@Type_0::=b                   // base type
     | @tuple<\overline{t_0}>          // tuple
     | t_0[a]                          // header stack
     | @header \{\overline{x:t_0}\}    // header
-    | @extern X \{\overline{method}\} // extern
+    | @extern^{name} \{\overline{method}\} // extern
     | X                               // type name or variable
 
 t_1\in{}@Type_1::=t_0                          // concrete type
     | (\overline{t_0,d})\longrightarrow_S{}t_0 // stateful (control-plane) functions
     | (\overline{t_0,d})\longrightarrow_R{}t_0 // run-time functions
 
-t_2\in{}@Type_3::=t_1                        // function type
+t\in{}@Type::=t_1                        // function type
     | (\overline{t_1})\longrightarrow_C{}t_1 // compile-time functions
-
-t\in{}@Type::=t_3
     | <\overline{X}>t_2 // abstraction
-    | t<\overline{t_0}> // application
 
 d\in{}@Dir::= @in | @out | @inout | @none
 ~
@@ -266,20 +271,42 @@ e\in{}@Expr::=a                        // integer
   | \{\overline{e}\}                   // tuple
   | @header \{\overline{name=e}\}      // header
   | e.name                             // field lookup
-  | @extern name \ell \{\overline{method}\} // extern object
-  | f<\overline{t_0}>(\overline{e})    // function application
+  | @extern^{name} \ell \{\overline{method}\} // extern object
+  | f(\overline{e})                    // function application
   | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
   | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
-  | \lambda_{C}^name(\overline{x:t_2}).e    // compile-time functions
+  | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
   | <\overline{X}>e                    // type abstraction
+  | e<\overline{t}>                    // type application
   | @do s                              // embedding of statements
   | x                                  // variable
-aref::=x(\overline{e})
+  | \ell{}                             // location
+method::=\tau x<\overline{X}>(\overline{x:t,d})
 ~
 
 ## Values
 ~ P4MathGrammar
-v\in{}@Val::=\text{TODO}
+v\in{}@Val::=a                         // integer
+  | n\mathkw{w}m                       // bitstring of width n
+  | @error.x                           // error
+  | \{\overline{v}\}                   // tuple
+  | @header \{\overline{name=v}\}      // header
+  | @header \{\overline{name=v}\}.@isValid // header methods
+  | @header \{\overline{name=v}\}.@setValid
+  | @stack_n m \{\overline{v}\}        // stack[n] with next=m
+  | @stack_n m \{\overline{v}\}.@pushFront // stack methods
+  | @stack_n m \{\overline{v}\}.@popFront
+  | @extern^name \ell \{\overline{method}\} // extern object
+  | @extern^name \ell \{\overline{method}\}.x // extern method (when x in methods)
+  | \lambda_{R}(\overline{x:t_0,d}).e  // run-time functions
+  | \lambda_{T}^name(\overline{t}).[e_1|\dots{}|e_n]    // programmable tables
+  | \lambda_{C}(\overline{x:t_2}).e    // compile-time functions
+  | <\overline{X}>e                    // type abstraction
+~
+
+## LValues
+~ P4MathGrammar
+lv\in{}@LVal::=\ell{} | lv.name | lv[v]
 ~
 
 ## Statements
@@ -291,14 +318,14 @@ term::=@exit            // exit
      | @goto @accept    // parser finish
      | @goto x          // parser state change
 
-s::=e<\overline{t}>(\overline{e})     // method call
-  | t_0 x                             // variable declaration
-  | e:=e                              // assignment
-  | blk                               // block
-  | @call s                           // copy-in copy-out call
-  | @parse\{state;\overline{state}\}  // parser invocations
-  | @emp                              // empty
-  | term                              // terminal statement
+s::=e(\overline{e})                       // method call
+  | t_0 x                                 // variable declaration
+  | e:=e                                  // assignment
+  | blk                                   // block
+  | @parse\{state;\overline{state}\}      // parser with current state
+  | @emp                                  // empty
+  | term                                  // terminal statement
+  | @saved_{\overline{lv\Leftarrow{}l}} s // copy-out marker
 
 blk ::= \{\overline{s}\}
 state ::= @state x blk
@@ -321,16 +348,17 @@ environment is used in evaluation and contains values.
 
 ### Contexts
 ~ P4MathGrammar
-C,\Xi,G::=[] | G,x:\tau
-D::=[] | D,X
+G::=[] | G,x:\tau
+R::=[] | R,\ell:\tau
+\Xi::=[] | \Xi,name:\tau
 ~
 
 ### Environments
 ~ P4MathGrammar
-H ::=[]
-   | H,x:=v
-   | H,x.{H}
+\sigma\in{}@Loc\xrightarrow{Fin}@Value
+\xi\in{}@Name\xrightarrow{Fin}@TableState\uplus{}@ExternState
 ~
+
 # Static semantics { #sec-static }
 
 ## Expression typing

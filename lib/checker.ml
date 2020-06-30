@@ -1152,16 +1152,18 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Array {typ; _} as arr_typ ->
      is_well_formed_type env typ &&
        is_valid_nested_type env arr_typ typ
-  | Tuple {types}
+  | Tuple {types} ->
+     List.for_all ~f:(is_well_formed_type env) types &&
+       List.for_all ~f:(is_valid_nested_type env typ) types
   | List {types} ->
      List.for_all ~f:(is_well_formed_type env) types &&
-       is_valid_nested_type env (Tuple {types}) typ
+       List.for_all ~f:(is_valid_nested_type env typ) types
   | Set typ ->
      is_well_formed_type env typ
   | Enum {typ; _} ->
     begin match typ with
     | None -> true
-    | Some typ ->  is_well_formed_type env typ
+    | Some typ -> is_well_formed_type env typ
     end
   | Record {fields; _}
   | HeaderUnion {fields; _}
@@ -1226,8 +1228,18 @@ and are_construct_params_types_well_formed env (construct_params: Typed.Paramete
   in
   List.for_all ~f:check construct_params
 
+and ctx_of_kind (k: FunctionType.kind) : Typed.ParamContext.t =
+  match k with
+  | Parser -> Runtime Parser
+  | Control -> Runtime Control
+  | Extern -> Runtime Method
+  | Table -> Runtime Control
+  | Action -> Runtime Action
+  | Function -> Runtime Function
+  | Builtin -> Runtime Method
+
 and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
-  let typ = reduce_type env typ in
+  let typ = reduce_to_underlying_type env typ in
   match ctx with
   | Constructor decl ->
      begin match typ, decl with
@@ -1266,9 +1278,20 @@ and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
      | _ -> true
      end
 
+and is_valid_param_type_kind env (kind: FunctionType.kind) (typ: Typed.Type.t) =
+    let open ParamContext in
+  match kind with
+  | Parser -> is_valid_param_type env (Runtime Parser) typ
+  | Control -> is_valid_param_type env (Runtime Control) typ
+  | Extern -> is_valid_param_type env (Runtime Method) typ
+  | Table -> false
+  | Action -> is_valid_param_type env (Runtime Action) typ
+  | Function -> is_valid_param_type env (Runtime Function) typ
+  | Builtin -> is_valid_param_type env (Runtime Method) typ
+
 and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typed.Type.t) (inner_type: Typed.Type.t) =
   let inner_type = reduce_to_underlying_type env inner_type in
-  match outer_type with
+  match reduce_to_underlying_type env outer_type with
   | Header _ ->
      begin match inner_type with
      | Bit _
@@ -1289,13 +1312,14 @@ and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typ
      | _ -> false
      end
   | Struct _
+  | List _
   | Tuple _ ->
      begin match inner_type with
+     | TypeName _
      | Bit _
      | Int _
      | Enum _
-     | Bool ->
-        true
+     | Bool -> true
      | Struct {fields} ->
         not in_header ||
           List.for_all fields
@@ -1324,20 +1348,22 @@ and is_compile_time_only_type env typ =
   | String -> true
   | _ -> false
 
-and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
-  let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
-  let env = CheckerEnv.insert_type_vars wildcards env in
-  let dir = translate_direction param.direction in
+
+and validate_param env ctx (typ: Typed.Type.t) dir info =
   if is_extern env typ && not (eq_dir dir Directionless)
   then raise_s [%message "Externs as parameters must be directionless"];
   if is_compile_time_only_type env typ && not (eq_dir dir Directionless)
   then raise_s [%message "parameters of this type must be directionless" ~typ:(typ: Typed.Type.t)];
   if not (is_well_formed_type env typ)
-  then raise_s [%message "Parameter type is not well-formed"
-                   ~param:((param_info, param): Types.Parameter.t)];
+  then raise_s [%message "Parameter type is not well-formed" ~info:(info:Info.t) ~typ:(typ:Typed.Type.t)];
   if not (is_valid_param_type env ctx typ)
-  then raise_s [%message "Type cannot be passed as a parameter"
-                   ~param:((param_info, param): Types.Parameter.t)];
+  then raise_s [%message "Type cannot be passed as a parameter" ~info:(info:Info.t)];
+
+and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
+  let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
+  let env = CheckerEnv.insert_type_vars wildcards env in
+  let dir = translate_direction param.direction in
+  validate_param env ctx typ dir param_info;
   let opt_value =
     match param.opt_value with
     | Some value ->
@@ -2263,10 +2289,12 @@ and type_function_call env ctx call_info func type_args args : Prog.Expression.t
     infer_type_arguments env ctx return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
-  let params_args': (Typed.Parameter.t * Expression.t option) list =
-    List.map params_args
-      ~f:(fun (p, a) -> {p with typ = saturate_type env p.typ}, a)
+  let subst_param_arg ((param:Typed.Parameter.t), arg) =
+      let param = {param with typ = saturate_type env param.typ} in
+      validate_param env (ctx_of_kind kind) param.typ param.direction call_info;
+      param, arg
   in
+  let params_args' = List.map params_args ~f:subst_param_arg in
   let typed_params_args = List.map ~f:(cast_param_arg env ctx call_info) params_args' in
   let out_type_args = List.map ~f:snd type_params_args in
   let out_args = List.map ~f:snd typed_params_args in
@@ -3602,7 +3630,7 @@ and type_header env info annotations name fields =
 
 and type_field env (field_info, field) =
   let open Types.Declaration in
-  let typ = translate_type env [] field.typ in
+  let typ = saturate_type env (translate_type env [] field.typ) in
   let pre_field : Prog.Declaration.pre_field =
     { annotations = field.annotations; name = field.name; typ }
   in

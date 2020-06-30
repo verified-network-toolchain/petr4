@@ -2608,6 +2608,9 @@ $\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} 
 
 # Type Soundness
 
+TODO: It's difficult to prove some of the helper lemmas with how $\models$ is defined.
+A better judgment for vales will help this a lot.
+
 ## Environment Entailment
 
 In order to prove type soundness under big-step semantics, we must define a relation
@@ -2646,7 +2649,7 @@ S,D,G \models_{scope} \epsilon,(x=\ell),\sigma
 ~ Infer
 
 ----------------------[Entails-Empty-Environment]
-S,D,G \models (P,[],D,\nu),\sigma
+S,D,G \models ([],[],[],\nu),\sigma
 ~
 
 
@@ -2704,25 +2707,79 @@ S \, D \, \gamma |- \sigma(\ell) : t, d
 ~Infer
 
 ---------------------------------------------------[Necromance-Empty-Environment]
-\Psi \, S \, D \, (P,[],D,\nu) \, \sigma \mapsto []
+\Psi \, S \, D \, ([],[],\nu) \, \sigma \mapsto []
 ~
 ~Infer
-\Psi \, S \, D \, (P,E,D,\nu) \sigma \mapsto G
+\Psi \, S \, D \, (E,D,\nu) \sigma \mapsto G
 \psi \, S \, D \, \epsilon \, \sigma \mapsto_{scope} \gamma
 -------------------------------------------------------------------[Necromance-Environment]
-\Psi \, S \, D \, (P,(E,\epsilon),D,\nu) \, \sigma \mapsto G,\gamma
+\Psi \, S \, D \, ((E,\epsilon),(D,\delta),\nu) \, \sigma \mapsto G,\gamma
 ~
 
 #### Corollary: The Necromancer necromances an entailing Typing Context
 
 ~MathPre
-C_0: \forall S,D,\xi,\sigma,G
+C_0: \forall S,D,\xi,\sigma,G,
 \Psi \, S \, D \, \xi \, \sigma \mapsto G \Rightarrow S,D,G \models \xi,\sigma
 ~
 
 ##### Proof
+Introducing the variables:
+~MathPre
+S,D,\xi,\sigma,G
+~
+and hypothesis:
+~MathPre
+H_0: \Psi \, S \, D \, \xi \, \sigma \mapsto G
+~
+we wish to prove the goal:
+~MathPre
+S,D,G \models \xi,\sigma
+~
+By induction on $H_0$ we have the following case-analysis:
 
-TODO: By inspection on the definitions of $\models$ and $\Psi$.
+###### Case Necromance-Empty-Environment
+We have hypothesis:
+~MathPre
+H_0: \Psi \, S \, D \, ([],[],\nu) \, \sigma \mapsto []
+~
+and we wish to prove subgoal:
+~MathPre
+SG_1: S,D,G \models ([],[],\nu)
+~
+We may construct the rule-instance:
+~ Infer
+
+---------------------------------[Entails-Empty-Environment]
+S,D,[] \models ([],[],\nu),\sigma
+~
+proving $SG_1$
+
+###### Case Necromance-Environment
+We have hypothesis:
+~MathPre
+H_0: \Psi \, S \, D \, ((E,\epsilon),(D,\delta),\nu) \, \sigma \mapsto G,\gamma
+~
+and induction hypothesis:
+~MathPre
+I_1: \Psi \, S \, D \, (E,D,\nu) \, \sigma \mapsto G \Rightarrow S,D,G \models (E,D,\nu),\sigma
+\textit{Sketchy: probably need another lemma...}
+~
+and we wish to prove subgoal:
+~MathPre
+SG_1: S,D,(G,\gamma) \models ((E,\epsilon),(D,\delta),\nu),\sigma
+~
+By inversion on $H_0$ we have hypotheses:
+~MathPre
+H_1: \Psi \, S \, D \, (E,D,\nu) \sigma \mapsto G
+H_2: \psi \, S \, D \, \epsilon \, \sigma \mapsto_{scope} \gamma
+~
+Via application $I_1 \, H_1$ we acquire hypothesis:
+~MathPre
+H_3: S,D,G \models (E,D,\nu),\sigma
+~
+
+TODO: stuck...
 
 ### Lemma: Copyin Preserves Entailment
 TODO: Is this the right definition?

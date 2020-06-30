@@ -1152,9 +1152,7 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Array {typ; _} as arr_typ ->
      is_well_formed_type env typ &&
        is_valid_nested_type env arr_typ typ
-  | Tuple {types} ->
-     List.for_all ~f:(is_well_formed_type env) types &&
-       List.for_all ~f:(is_valid_nested_type env typ) types
+  | Tuple {types}
   | List {types} ->
      List.for_all ~f:(is_well_formed_type env) types &&
        List.for_all ~f:(is_valid_nested_type env typ) types

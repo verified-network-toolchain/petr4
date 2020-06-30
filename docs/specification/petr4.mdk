@@ -370,10 +370,12 @@ d0 ::= @in
 d ::= d0 | @none
 ~ End P4MathGrammar
 
-"Results" $R$ are types for statements.
+Results $R$ are types for statements. They are partially ordered
+with $@void$ on top and $@unit$ on the bottom.
 ~ P4MathGrammar
-R := @returns // written ``Void" in the implementation
-     | \bot     // written ``Unit" in the implementation
+R\in{}@Result::=@returns t // returns at type t or exits
+              | @rejects   // parser reject
+              | @unit      // terminates at emp
 ~
 
 Contexts indicate where a statement is being typechecked.
@@ -452,10 +454,13 @@ lv ::= lv_o | @None
 
 ## Signal Syntax
 ~ Begin P4MathGrammar
-sig ::= \mathkw{sig\_continue}
-    | \mathkw{sig\_return} v
-    | \mathkw{sig\_exit}
-    | \mathkw{sig\_reject} v
+sig ::= @go
+      | @stop @return v
+      | @stop @return
+      | @stop @exit
+      | @stop @goto @reject v
+      | @stop @goto @accept
+      | @stop @goto x
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -1085,15 +1090,15 @@ This is mutually inductive with the value judgment.
 
 Statements are typed by a judgment of the form
 ~ MathPre
-S,D,G,ctx |- s:R -| G'.
+S,D,G,ctx |- s:res -| G'.
 ~
 
 The judgment is defined inductively by the following rules.
 
 ~ Infer
-S,D,G |- e<\overline{t}>(\overline{e}):t
+S,D,G |- e<\overline{t}>(\overline{e}):@void
 -------------------------------------------------------[Type-Stmt-Method-Call]
-S,D,G,ctx |- e<\overline{t}>(\overline{e}):\bot -| G
+S,D,G,ctx |- e<\overline{t}>(\overline{e}):@unit -| G
 ~
 
 ~ Infer
@@ -4643,21 +4648,68 @@ we prove $SG_2$.
 
 ## Type Soundness of Statements
 
-Statement Preservation requires a predicate on contexts and signals:
+### Context-signal typing
+Statement type preservation requires a predicate on contexts and signals:
 ~MathPre
-\Omega : ctx \to @Prop
-
-\forall R,sig
-\Omega \, @InAction \mapsto R = returns
-\Omega \, (@InFunction @void) \mapsto R = returns
-\Omega \, (@InFunction t) \mapsto R = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v : \tau
-\Omega \, \_ \mapsto R = @unit
+\Xi,ctx |- sig
 ~
-TODO: definition of $\Omega$ may be incorrect or incomplete.
 
-NOTE: $\Omega$ was added recently so that the function-call case made sense, and as of yet none of the statement cases prove this property.
+~ Infer
+
+-------------------------------[]
+\Xi,@void |- @stop
+~
+
+~ Infer
+
+-------------------[]
+\Xi,@unit |- @go
+~
+~ Infer
+
+------------------------------[]
+\Xi,@returns t |- @stop @exit
+~
+~ Infer
+\Xi |- v:t
+----------------------------------[]
+\Xi,@returns t |- @stop @return v
+~
+~ Infer
+\Xi |- v:@error
+----------------------------------------------[]
+\Xi,@parses |- @stop @reject v
+~
+~ Infer
+\Xi |- v:@error
+----------------------------------------------[]
+\Xi,@parses |- @go
+~
 
 ### Statement Type Preservation Theorem Statement
+~ Begin Theorem { #type-preservation-stmt; caption: "Evaluation preserves statement types"; }
+Let $\langle\zeta,\xi,\sigma,s\rangle$ be an initial configuration
+and take contexts $\Sigma,\Delta,\Xi,G,G'$. Suppose that
+the configuration is safe in the context, so
+
+ * There exists a $G'$ for which $S,D,G,ctx |- s:R -| G'$,
+ * $\Xi,G\vdash{}\xi$, and
+ * $\Xi\vdash{}\sigma$.
+ * $\Sigma,\Delta,\Gamma\vdash{}e:t{}$.
+
+If there is a final configuration $<\xi',\sigma',sig>$ such that
+~ Begin MathPre
+<\zeta,\xi,\sigma,s>\Downarrow_{s}<\xi',\sigma',sig>,
+~ End MathPre
+
+then there exists an extension $\Xi' \supseteq \Xi$ of the store
+typing such that
+
+ * $\Xi,R |- sig$,
+ * $\Xi'\vdash{}\xi':G'$, and
+ * $\Xi'\vdash{}\sigma'$.
+~ End Theorem
+
 ~MathPre
 \forall S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
 S,D,G,ctx |- s: R -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx

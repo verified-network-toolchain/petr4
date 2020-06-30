@@ -370,12 +370,11 @@ d0 ::= @in
 d ::= d0 | @none
 ~ End P4MathGrammar
 
-Results $R$ are types for statements. They are partially ordered
-with $@void$ on top and $@unit$ on the bottom.
+Results $res$ are types for statements. 
 ~ P4MathGrammar
-R\in{}@Result::=@returns t // returns or exits
-              | @rejects   // parser reject
-              | @unit      // terminates at emp
+res\in{}@Result::=@returns t // returns
+              | @rejects     // rejects
+              | @unit        // does not return or reject
 ~
 
 Contexts indicate where a statement is being typechecked.
@@ -453,14 +452,16 @@ lv ::= lv_o | @None
 ~ End P4MathGrammar
 
 ## Signal Syntax
+Statements evaluate to signals, which describe control flow.
 ~ Begin P4MathGrammar
+sig_0::=@return v
+      | @return
+      | @exit
+      | @transition @reject v
+      | @transition @accept
+      | @transition x
 sig ::= @go
-      | @stop @return v
-      | @stop @return
-      | @stop @exit
-      | @stop @goto @reject v
-      | @stop @goto @accept
-      | @stop @goto x
+      | @stop sig_0
 ~ End P4MathGrammar
 
 # Static Semantics { #sec-static }
@@ -496,19 +497,16 @@ G ::= G, \gamma{} | []
 \Xi ::= \Xi, \ell:t | []
 ~
 
-In all contexts there is a lookup test $C(x) = y$ which searches from
-the outermost list of bindings inward and a top level lookup $C(.x) =
-y$ which only looks at the innermost list of bindings.
+In all variable contexts there is a lookup test $C(x) = y$ which
+searches from the outermost list of bindings inward and a top level
+lookup $C(.x) = y$ which only looks at the innermost list of bindings.
 
 ## Helper Judgments
 
 ### Numeric types
+Judgment form $\mathkw{numeric}(t)$ with 3 rules.
 ~ MathPre
-@numeric(t) = \begin{cases} true & t = int
-true & t = int<w>
-true & t = bit<w>
-false & \text{otherwise}
-\end{cases}
+\inferrule{ }{@numeric(@int)}   \inferrule{ }{@numeric(@int<w>)}   \inferrule{ }{@numeric(@bit<w>)}
 ~
 
 ### Left-value Judgment
@@ -1088,6 +1086,19 @@ This is mutually inductive with the value judgment.
 
 ## Statement Typing
 
+### Merging statement types
+
+There is a judgment $D |- \mathkw{resmeet}(res_1,res_2,res)$ defined
+as follows.
+~ MathPre
+\inferrule{ }{@resmeet(@unit, @unit, @unit)}
+
+\inferrule{ }{@resmeet(@rejects, @unit, @rejects)}     \inferrule{ }{@resmeet(@unit, @rejects, @rejects)}     \inferrule{ }{@resmeet(@rejects, @rejects, @rejects)}
+
+\inferrule{D |- t\equiv{}t'}{@resmeet(@returns t, @returns t', @returns t)}       \inferrule{ }{@resmeet(@returns t, @unit, @returns t)}      \inferrule{ }{@resmeet(@unit, @returns t, @returns t)}
+~
+
+### Statement typing judgment
 Statements are typed by a judgment of the form
 ~ MathPre
 S,D,G,ctx |- s:res -| G'.
@@ -1105,42 +1116,23 @@ S,D,G,ctx |- e<\overline{t}>(\overline{e}):@unit -| G
 \mathkw{lvalue}(e_l)
 S,D,G |- e_l: t
 S,D,G |- e_r: t
-----------------------------[Type-Stmt-Assignment]
-S,D,G,ctx |- e_l:=e_r:\bot -| G
+---------------------------------[Type-Stmt-Assignment]
+S,D,G,ctx |- e_l:=e_r:@unit -| G
 ~
 
 ~ Infer
 S,D,G |- t().@apply(\overline{e}) : t'
 ----------------------------------------------[Type-Stmt-Direct-Application]
-S,D,G,ctx |- t.@apply(\overline{e}):bot -| G
-~
-
-The $\wedge{}$ operator is $\mathkw{returns}$ if both of its arguments
-are $\mathkw{returns}$ and $\bot$ otherwise. The $\vee{}$ operator is
-$\mathkw{returns}$ if any of its arguments are $\mathkw{returns}$
-and $\bot$ otherwise.
-~MathPre
-returns \wedge returns = returns
-   \bot \wedge R = \bot
-      R \wedge \bot = \bot
-   \bot \vee \bot = \bot
-returns \vee R = returns
-      R \vee returns = returns
-~
-
-~ Infer
-S,D,G |- e:@bool,\_
-S,D,G,ctx |- s:R -| G'
-----------------------------------[Type-Stmt-If]
-S,D,G,ctx |- @if (e) s :\bot -| G
+S,D,G,ctx |- t.@apply(\overline{e}):@unit -| G
 ~
 
 ~ Infer
 S,D,G |- e:@bool
-S,D,G,ctx |- s_1:R_1 -| G_1
-S,D,G,ctx |- s_2:R_2 -| G_2
+S,D,G,ctx |- s_1:res_1 -| G_1
+S,D,G,ctx |- s_2:res_2 -| G_2
+D |- @resmeet res_1 res_2 res
 ----------------------------------------------[Type-Stmt-If-Else]
-S,D,G,ctx |- @if (e) s_1 @else s_2:sig_1\wedge{}sig_2 -| G
+S,D,G,ctx |- @if (e) s_1 @else s_2:res -| G
 ~
 
 We need another judgment for typing sequences $\overline{s}$ of
@@ -1150,20 +1142,20 @@ rule...)
 ~ Infer
 
 ---------------------------------------------------[Type-Stmts-Empty]
-S,D,G,ctx |- \overline{  } :\bot -| G
+S,D,G,ctx |- \overline{  } :@unit -| G
 ~
 
 ~ Infer
-S,D,G,ctx  |- s:R_1 -| G'
-S,D,G',ctx |- \overline{s}:R_2 -| G'
+S,D,G,ctx  |- s:@unit -| G'
+S,D,G',ctx |- \overline{s}:res -| G'
 ---------------------------------------------------[Type-Stmts-List]
-S,D,G,ctx |- s;\overline{s}:R_1 \vee R_2 -| G
+S,D,G,ctx |- s;\overline{s}:res -| G
 ~
 
 ~ Infer
-S,D,G,ctx |- \overline{s}:R -| G'
+S,D,G,ctx |- \overline{s}:res -| G'
 ---------------------------------------[Type-Stmt-Block]
-S,D,G,ctx |- \{\overline{s}\}:R -| G
+S,D,G,ctx |- \{\overline{s}\}:res -| G
 ~
 
 ~ Infer
@@ -1175,19 +1167,19 @@ S,D,G,@InParserState |- @exit:@returns -| G
 ~ Infer
 
 ------------------------------------------[Type-Stmt-Empty]
-S,D,G,ctx |- \mathkw{;}:\bot -| G
+S,D,G,ctx |- \mathkw{;}:@unit -| G
 ~
 
 ~ Infer
 S,D,G |- e:t
 ---------------------------------------------------[Type-Stmt-Return-Value]
-S,D,G,@InFunction t |- @return e:@returns -| G
+S,D,G,@InFunction t |- @return e:@returns t -| G
 ~
 
 ~ Infer
 
----------------------------------------------------[Type-Stmt-Return-Void]
-S,D,G,@InFunction @void |- @return:@returns -| G
+--------------------------------------------------------[Type-Stmt-Return-Void]
+S,D,G,@InFunction @void |- @return:@returns @void -| G
 ~
 
 ~ Infer
@@ -1202,17 +1194,19 @@ S,D,G,@InControl |- @return:@returns -| G
 S,D,G,@InAction |- @return:@returns -| G
 ~
 
+We define a typing judgment for cases of switch statements which has
+the form $\mathkw{case\_ok}_t case$.
 ~ Infer
-S,D,G |- case\_lbl : \tau
-S,D,G,@InControl |- blk:R -| G'
----------------------------------------------------[Type-Case-Block]
-S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:blk)
+S,D,G |- case\_lbl:t
+S,D,G,@InControl |- blk:res -| G'
+-----------------------------------------------------[Type-Case-Block]
+S,D,G |- \mathkw{case\_ok}_\tau case\_lbl\text{:}blk
 ~
 
 ~ Infer
-S,D,G |- case\_lbl : \tau
----------------------------------------------------[Type-Case-Fallthrough]
-S,D,G |- \mathkw{case\_ok}_\tau (case\_lbl:{})
+S,D,G |- case\_lbl:t
+----------------------------------------------------[Type-Case-Fallthrough]
+S,D,G |- \mathkw{case\_ok}_\tau case\_lbl\text{:}
 ~
 
 There isn't a real reason to track signals in controls, seeing as
@@ -1222,21 +1216,20 @@ as switch statements can only appear in controls, this rule just
 assigns them the signal $\bot$ to avoid having to track signals in
 each case and across fallthrough cases.
 ~ Infer
-S,D,G |- e : @enum X \{ \overline{m} \}
-\forall i. S,D,G |- \mathkw{case\_ok}_X case_i
+S,D,G |- e:@enum X \{\overline{m}\}
+S,D,G |- \overline{\mathkw{case\_ok}_X case}
 ---------------------------------------------------------------------[Type-Stmt-Switch]
-S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
+S,D,G,@InControl |- @switch (e) \{\overline{case}\}:unit -| G
 ~
 
 TODO: DeclarationStatements don't need to exist, see
 https://github.com/cornell-netlab/petr4/issues/5
 
-The implementation makes sure decl is a constant, instantiation, or
-variable, this rule doesn't bother.
 ~ Infer
 S,D,G |- decl -| S',D',G'.
+\text{decl is const, instantiation, or var}
 ---------------------------------------------------[Type-Stmt-Declaration-Statement]
-S,D,G,ctx |- decl:\bot -| G'
+S,D,G,ctx |- decl:@unit -| G'
 ~
 
 ## Parser-State Typing

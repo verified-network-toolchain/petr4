@@ -373,7 +373,7 @@ d ::= d0 | @none
 Results $R$ are types for statements. They are partially ordered
 with $@void$ on top and $@unit$ on the bottom.
 ~ P4MathGrammar
-R\in{}@Result::=@returns t // returns at type t or exits
+R\in{}@Result::=@returns t // returns or exits
               | @rejects   // parser reject
               | @unit      // terminates at emp
 ~

@@ -12,7 +12,7 @@ Package: textcomp
 Package: mathtools
 Package: xspace
 
-.mathpre {
+.math, .mathpre, .math-inline {
   replace: "/( +)\|-( +)/\1\vdash{}\2/g";
   replace: "/( +)-\|( +)/\1\dashv{}\2/g";
   replace: "/-\>/\to{}/g";
@@ -1009,55 +1009,32 @@ S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
 
 ## Evaluation environment typing
-### Checking against a context
-The $\Xi,G \vdash \xi$ judgment checks that $\xi$ satisfies the typings in $G$.
-~ Infer
-\Xi(\ell)=t
-\Gamma(x)=t
-----------------------------------------------[Check-Env-Scope-Binding]
-\Xi,\Gamma \vdash \epsilon,x=\ell
-~
-~ Infer
-
-----------------------------------------------[Check-Env-Scope-Empty]
-\Xi,\Gamma \vdash []
-~
-~ Infer
-\Xi,\Gamma \vdash \epsilon
-----------------------------------------------[Check-Env-Scope]
-\Xi,\Gamma \vdash \epsilon,\xi
-~
-~ Infer
-
-----------------------------------------------[Check-Env-Scope-Empty]
-\Xi,\Gamma \vdash []
-~
-
-### Constructing a context
 The ${\Xi} \vdash \xi:G$ judgment constructs a typing context from an
 evaluation environment. It needs an auxiliary judgment on individual scopes
 which has the shape $\Xi\vdash{}\epsilon:\gamma$.
 ~ Infer
-\Xi(\ell)=t
-\Gamma(x)=t
+
 ----------------------------------------------[Type-Env-Scope-Empty]
-\Xi,\Gamma \vdash \epsilon,x=\ell:\Gamma
+\Xi\vdash [],[]
 ~
+
 ~ Infer
 \Xi(\ell)=t
-\Gamma(x)=t
 ----------------------------------------------[Type-Env-Scope-Binding]
-\Xi,\Gamma \vdash \epsilon,x=\ell:\Gamma
+\Xi\vdash \epsilon,x=\ell:\gamma,x:t
 ~
+
 ~ Infer
 
 ------------------------------------------------------[Type-Env-Empty]
 \Xi \vdash []:[]
 ~
+
 ~ Infer
+\Xi \vdash \xi:G
 \Xi \vdash \epsilon:\gamma
 ----------------------------------------------------[Type-Env-Binding]
-\Xi \vdash \epsilon,[]:\gamma,[]
+\Xi \vdash \xi,\epsilon:G,\gamma
 ~
 
 ## Value Typing
@@ -1074,12 +1051,14 @@ Here are the interesting rules.
 ---------------------------------------------------------------------------------------[Type-Value-Closure]
 \Xi |- (P,E,\Delta,\upsilon) \otimes (\overline{x:t,d}) \to blk:(\overline{t,d}) \to t'
 ~
+
 ~ Infer
 \Xi |- lv:t
 \mathkw{has\_field} t name t_{name}
 ----------------------------------------------------------[Type-Value-Builtin]
 \Xi |- @builtin name lv: t_{name}
 ~
+
 ~ Infer
 \Xi |- \ell:@extern X \{\overline{method}\}
 ----------------------------------------------------------[Type-Value-Extern]
@@ -1093,6 +1072,7 @@ Here are the interesting rules.
 -----------------------[]
 \Xi |- \ell=v,\sigma.
 ~
+
 ~ Infer
 
 -----------------------[]
@@ -3197,20 +3177,23 @@ x \notin G \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models \
 
 ## Type Soundness of Expressions
 
-NOTE: once the typing judgment on values is defined then this theorem may need to be stated slightly differently.
-
 ### Expression Type Preservation Theorem Statement
-Let $\langle \zeta, \xi, \sigma, e \rangle$ be an initial configuration
+~ Begin Theorem { #type-preservation-expr; caption: "Evaluation preserves expression types"; }
+Let $\langle\zeta,\xi,\sigma,e\rangle$ be an initial configuration
 and take contexts $\Sigma,\Delta,\Xi,\Gamma$. Suppose that
 the configuration is safe in the context, so $\Xi,G\vdash{}\xi$,
-$\Xi\vdash{}\sigma$, and $\Sigma,\Delta,\Gamma\vdash{}e:t$.
+$\Xi\vdash{}\sigma$, and $\Sigma,\Delta,\Gamma\vdash{}e:t{}$.
+If there is a final configuration $\langle\xi',\sigma',sig,v\rangle$ such that
+~ Begin MathPre
+<\zeta,\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>,
+~ End MathPre
+then there exists an extension $\Xi' \supseteq \Xi$ of the store
+typing such that
 
-If there is some final configuration $\langle\xi',\sigma',sig,v\rangle$ such that
-~ MathPre
-\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e <\xi',\sigma',sig,v>,
-~
-then $\Sigma,\Delta,\Gamma |- v:t \wedge$ and
-$\Sigma,\Delta,\Xi,\Gamma\vDash{}\xi',\sigma'$.
+ * $\Sigma,\Delta,\Gamma |- v:t{}$,
+ * $\Xi',G\vdash{}\xi'$, and
+ * $\Xi'\vdash{}\sigma'$.
+~ End Theorem
 
 ### Expression Type Preservation Proof
 Introducing variables
@@ -3311,10 +3294,14 @@ S,D,G \models \xi, \sigma \wedge S,D,G |- u : @string, @none
 Our subgoal is true by assumption.
 
 #### Case Var
-We have $v = (\sigma \circ \xi)(x)$...
+We need to show that $<\xi,\sigma,\mathkw{sig\_continue},(\sigma \circ
+\xi)(x)>$ is safe under some expansion $\Xi'$ of $\Xi$. This rule
+leaves $\xi$ and $\sigma$ unchanged, so things will work out with
+$\Xi'=\Xi$. Induction on $\Xi |- \xi:G$ shows that $\Xi(\xi(x))=\tau$,
+and $\Xi |- \sigma$ allows us to conclude $\sigma(\xi(x)):t$.
 
 #### Case Var-Top
-
+As in the ordinary variable case.
 
 #### Case Array-Access
 We have hypotheses:

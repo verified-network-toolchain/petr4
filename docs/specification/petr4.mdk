@@ -16,6 +16,7 @@ Package: xspace
   replace: "/( +)\|-( +)/\1\vdash{}\2/g";
   replace: "/( +)-\|( +)/\1\dashv{}\2/g";
   replace: "/-\>/\to{}/g";
+  replace: "/~\>/\rightsquigarrow{}/g";
   replace: "/\bG([^a-zA-Z])/\Gamma{}\1/g";
   replace: "/\bD([^a-zA-Z])/\Delta{}\1/g";
   replace: "/\bS([^a-zA-Z])/\Sigma{}\1/g";
@@ -23,6 +24,11 @@ Package: xspace
   replace: "/</\langle{}/g";
   replace: "/>/\rangle{}/g";
   replace: "/\b:=\b/\coloneqq{}/g";
+}
+
+Judgment {
+  replace:"~ Begin MathPre {.infer}&nl;&nl;\boxed{&source;}&nl;\
+           ~ End MathPre";
 }
 
 Infer {
@@ -346,7 +352,7 @@ t ::= @bool
     | \mathkw{match\_kind}
     | X  // type name
     | .X // top level type reference
-    | @newtype X t
+    | @newtype t X
     | @void
     | @header \{ \overline{f:t} \}
     | \mathkw{header\ union} \{ \overline{f:t} \}
@@ -358,10 +364,10 @@ t ::= @bool
     | @control<\overline{X}>(\overline{x:t,d})
     | @parser<\overline{X}>(\overline{x:t})
     | @extern X \{ \overline{method} \}
-    | @function<\overline{X}>(\overline{x:t,d}) : \tau
-    | @action(\overline{x:t,d_0}, \overline{x:t}) : @void
-    | @constructor<\overline{X}>(\overline{x:t}): t
-    | @table X
+    | @function<\overline{X}>(\overline{x:t,d}):\tau
+    | @action(\overline{x:t,d_0}, \overline{x:t}):@void
+    | @constructor<\overline{X}>(\overline{x:t}):t
+    | @table t
 
 d0 ::= @in
      | @out
@@ -782,13 +788,13 @@ t \mathrel{\prec} @enum t X \{m_1, ..., m_n\}
 ~ Infer
 
 -------------------------------[]
-@newtype X t \mathrel{\prec} t
+@newtype t X \mathrel{\prec} t
 ~
 
 ~ Infer
 
 -------------------------------[]
-t \mathrel{\prec} @newtype X t
+t \mathrel{\prec} @newtype t X
 ~
 
 ~ Infer
@@ -886,7 +892,7 @@ TODO: need to make sure all types in a header union are headers.
 ~ Infer
 
 -------------------------------------------------------------------[Table-Apply-Field]
-\mathkw{has\_field} (@table X) @apply (() -> X)
+\mathkw{has\_field} (@table t) @apply (() -> t)
 ~
 
 ~ Infer
@@ -1232,12 +1238,10 @@ S,D,G |- decl -| S',D',G'.
 S,D,G,ctx |- decl:@unit -| G'
 ~
 
-## Parser-State Typing
+## Parser state typing
 
-Parser states need their own typing judgment to deal with state-machine control flow. It has the form
-~ MathPre
-S,D,G,K |- state,
-~
+Parser states need their own typing judgment to deal with
+state-machine control flow. It has the form $S,D,G,K\vdash{}state$,
 where K is a list of names of states used to check that the parser's
 transitions make sense. It is defined by two rules, which use another
 judgement $\mathkw{state\_expr\_ok}$.
@@ -1249,9 +1253,16 @@ S,D,G,K |- @state x \{ ; @transition state\_expr \}
 ~
 
 ~ Infer
-S,D,G |- s0 -| G'
+S,D,G |- s0:@unit -| G'
 S,D,G' |- \{ \overline{s}; @transition state\_expr \}
-----------------------------------------------------------[Type-State-Statement]
+-------------------------------------------------------[Type-State-Statement-Unit]
+S,D,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
+~
+
+~ Infer
+S,D,G |- s0:@rejects -| G'
+S,D,G' |- \{ \overline{s}; @transition state\_expr \}
+----------------------------------------------------[Type-State-Statement-Rejects]
 S,D,G,K |- @state x \{ s0; \overline{s}; @transition state\_expr \}
 ~
 
@@ -1270,7 +1281,6 @@ S,D,G |- \overline{\mathkw{match\_ok} t match}
 S,D,G,K |- \mathkw{state\_expr\_ok} @select (\overline{e}) \{ \overline{\overline{match}:x} \}
 ~
 
-TODO: there should be implicit casts inserted in matches so that they always have set type.
 TODO: Should matches be a separate kind of expression, or should we fold them into one type?
 ~ Infer
 S,D,G |- e : @set t_m
@@ -1285,178 +1295,203 @@ S,D,G |- \mathkw{match\_ok} t e
 S,D,G |- \mathkw{match\_ok} t \mathkw{\_}
 ~
 
-## Declaration Typing
+## Parameter typing
+~ Judgment
+D,ctx |- (x:t,d) @param
+~
+TODO based on `validate_param` in the implementation. Will need a few
+aux judgments.
 
-Declarations are typed by a judgment of the form
-~ MathPre
-S,D,G |- decl -| S',D',G'.
+## Table property typing
+Table typechecking uses key types $K::=\{\overline{t}\}$ and
+action contexts $A::=\{\overline{x(e)}\}$. The action context supports
+membership tests $x(e)\in{}A$, which use strict syntactic equality.
+
+### Table const entry typing
+~ Judgment { #type-table }
+S,D,G;K,A |- \overline{e_m}:x_a(\overline{e_r},\overline{e}) @entryok
 ~
 
-It is defined inductively by the following rules.
-
-~ Infer
-S,D,G |- e:t
-S, e \Downarrow v
---------------------------------------------[Type-Decl-Const]
-S,D,G |- @const t x := e -| S[x = v],D,G[x:t]
+~ Infer { #type-table-entry }
+S,D,G |- \overline{e_m}:@set<@tuple<t_k>>
+x(\overline{e_r}) \in A
+S |- e\Downarrow_{CTK}
+S,D,G |- x(\overline{e_r},\overline{e}):@void
+-----------------------------------------------------------------------------------[Type-Table-Entry]
+S,D,G;K,A |- \overline{e_m}:x(\overline{e_r},\overline{e}) @entryok
 ~
 
-~ Infer
-S,D,G |- t(\overline{e}) : t_{inst}
------------------------------------[Type-Decl-Instantiation]
-S,D,G |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
+### Table property typing judgment
+~ Judgment
+S,D,G;K,A |- prop -| K',A'
 ~
-
-The function $\mathkw{names}(s_1, s_2, \dots)$ takes a list of states
-and returns a list of their names.
-
-~ Infer
-K = @names(\overline{state}),@accept,@reject
-@start \in K
-S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
-S',D',G',K |- \overline{state}
-t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@parser(\overline{x:t})
--------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
-S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
-~
-
-~ Infer
-S,D,G[\overline{x^{ctor}:t^{ctor}}][\overline{x:t}] |- \overline{decl} -| S',D',G'
-S',D',G',@void |- blk -| G''
-t_{ctor} = @constructor(\overline{x^{ctor}:t^{ctor}}):@control(\overline{x:t})
--------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
-S,D,G |- @control X(\overline{x: t})(\overline{x^{ctor}:t^{ctor}}) \{ \overline{decl} @apply blk \} -| S,D,G[X:t_ctor]
-~
-
-~ Infer
-\exists \rho, S,D[\overline{X \to \rho}],G[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{blk}
-G' = G[x:@function<\overline{X}>(\overline{x: t}) : t]
-----------------------------------------------------[Type-Decl-Function]
-S,D,G |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
-~
-
-~ Infer
-G' = G[x:@function<\overline{X}>(\overline{x: t,d}) : t]
----------------------------------------------------------------[Type-Decl-Extern-Function]
-S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
-~
-
-~ Infer
-
----------------------------[Type-Decl-Variable]
-S,D,G |- t x -| S,D,G[x:t]
-~
-
-~ Infer
-S,D,G |- e : t
---------------------------------[Type-Decl-Variable-Initialized]
-S,D,G |- t x := e -| S,D,G[x:t]
-~
-
-
-TODO: should $e$ be forced to be numeric for value set declarations?
-~ Infer
-
---------------------------------------------------------[Type-Decl-Value-Set]
-S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
-~
-
-~ Infer
-S,D[\overline{X=X}],G[\overline{x:t}],@InAction |- blk : @returns -| G_{blk}
-G' = G[x:@action<\overline{X}>(\overline{x:t,d0},\overline{x:t})]
--------------------------------------------------------------------------------[Type-Decl-Action]
-S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
-~
-
-### Table Typing
-
-Table properties get their own judgment
-~ MathPre
-S,D,G; K,A |- prop -| K',A'
-~
-Where $K$ is defined as the types of keys defined in the table, and $A$ is defined as the names and types of actions in the table.
 
 ~ Infer
 S,D,G |- \overline{e:t}
 S,D,G |- \overline{x:\mathkw{match\_kind}}
 ------------------------------------------------------------------------------[Type-Prop-Keys]
-S,D,G; \{\},\{\} |- @key = \{ \overline{e:x} \} -| \{\overline{\tau}\},\{\}
+S,D,G;\{\},\{\} |- @key=\{\overline{e:x}\} -| \{\overline{t}\},\{\}
 ~
 
 ~Infer
-P(x_a) = @action x_a (\overline{x:t,d_0},\overline{x:t}) blk
-S,D,G |- \overline{e:t}
+S,D,G |- x_a:@action(\overline{x_r:t_r,d_0},\overline{x:t}):@void
+S,D,G |- \overline{e:t_r}
 -------------------------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Actions]
-S,D,G; K,\{\} |- @actions = \{ \overline{x_a(\overline{e})} \} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
+S,D,G;K,\{\} |- @actions=\{\overline{x_a(\overline{e})}\} -| K,\{\overline{x_a(\overline{e}):@action(\overline{x:t}):@void}\}
 ~
 
 ~ Infer
-S,D,G |- \overline{e_m : t_k}
-A(x_a) = @action (\overline{x:t,d_0},\overline{x:t}) @void
-S,D,G |- \overline{e_a : t}
+S,D,G;K,A |- \overline{entry} @entryok
 ---------------------------------------------------------------------------------------------------------------------------------[Type-Prop-Entries]
-S,D,G; \{\overline{t_k}\},A |- @const @entries = \{ \overline{\overline{e_m}:x_a(\overline{e_a})} \} -| \{\overline{t_k}\},A
+S,D,G;K,A |- @const @entries = \{\overline{entry}\} -| K,A
 ~
 
 ~ Infer
-x \in A
+x(\overline{e_r}) \in A
+S |- \overline{e}\Downarrow_{CTK}
 ---------------------------------------------------[Type-Prop-Default]
-S,D,G,K,A |- \mathkw{default\_action}=x -| K,A
+S,D,G,K,A |- \mathkw{default\_action}=x(\overline{e_r},\overline{e}) -| K,A
+~
+
+## Declaration Typing
+~ Judgment
+S,D,G,ctx |- decl -| S',D',G'
 ~
 
 ~ Infer
-S,D,G,\{\},\{\} |- \overline{prop} -| K,\{\overline{x_a:@action(\overline{x:t,d_0}, \overline{x:t}) : @void}\}
-D' = D[``action\_list\_<x>" \to @enum ``action\_list\_<x>" \{ \overline{x_a} \}]
-D'' = D'[``apply\_result\_<x>" \to @struct \{ ``hit" : @bool; ``action\_run" : @enum ``action\_list\_<x>" \{ \overline{x_a} \} \}]
----------------------------------------------------[Type-Decl-Table]
-S,D,G |- @table x \{ \overline{prop} \} -| S,D,G[x \to @table ``apply\_result\_<x>"]
+S,D,G,@InConstant |- e:t
+S |- e~>v
+S,D |- t~>t'
+------------------------------------------------[Type-Decl-Const]
+S,D,G,ctx |- @const t x:=e -| S[x=v],D,G[x:t']
+~
+
+~ Infer
+S,D,G,ctx |- t(\overline{e}) : t_{inst}
+-------------------------------------------------------[Type-Decl-Instantiation]
+S,D,G,ctx |- t x(\overline{e}) -| S,D,G[x:t_{inst}]
+~
+
+The function $\mathkw{names}(s_1, s_2, \dots)$ takes a list of states
+and returns a list of their names. The judgment $\mathkw{nodups}(K)$
+checks that $K$ contains no duplicated names.
+~ Infer
+K = @names(\overline{state}),@accept,@reject
+@nodups(K)
+@start \in K
+S,D |- \overline{t_r~>t_r'}
+S,D |- \overline{t~>t'}
+D,@constructor @parser |- \overline{x:t'} @param
+D,@runtime @ctx |- \overline{x_r:t_r',d} @param
+S,D,G[\overline{x:t}][\overline{x_r:t_r}],@InParserLocals |- \overline{decl} -| S',D',G'
+S',D',G',K |- \overline{state}
+---------------------------------------------------------------------------------------------------------------------------------------------------[Type-Decl-Parser]
+S,D,G,ctx |- @parser X(\overline{x_r:t_r,d})(\overline{x:t})\{\overline{decl} \overline{state}\} -| S,D,G[X:@constructor(\overline{x:t}):@parser(\overline{x_r:t_r})]
+~
+
+~ Infer
+S,D |- \overline{t_r~>t_r'}
+S,D |- \overline{t~>t'}
+D,@constructor @control |- \overline{x:t'} @param
+D,@runtime @control |- \overline{x_r:t_r',d} @param
+S,D,G[\overline{x:t'}][\overline{x_r:t_r'}] |- \overline{decl} -| S',D',G'
+S',D',G',@InFunction @void |- blk:@returns @void -| G''
+----------------------------------------------------------------------------------------------------------------------------------------------[Type-Decl-Control]
+S,D,G,ctx |- @control X(\overline{x:t,d})(\overline{x:t}) \{\overline{decl} @apply blk\} -| S,D,G[X:@constructor(\overline{x:t}):@control(\overline{x_r:t_r,d})]
+~
+
+~ Infer
+S,D[\overline{X=X}] |- \overline{t~>t'}
+S,D[\overline{X=X}] |- t_{ret}~>t_{ret}'
+D[\overline{X=X}],@runtime [ctx] |- \overline{x:t',d} @param
+S,D[\overline{X=X}],G[\overline{x:t'}],@InFunction t_{ret}' |- blk:@returns t_{ret}' -| G_{blk}
+--------------------------------------------------------------------------------------------------------------------[Type-Decl-Function]
+S,D,G,ctx |- @function t_{ret} x<\overline{X}>(\overline{x:t,d}) blk -| S,D,G[x:@function<\overline{X}>(\overline{x:t'}):t_{ret}']
+~
+
+~ Infer
+S,D[\overline{X=X}] |- \overline{t_r'~>t_r'}
+S,D[\overline{X=X}] |- \overline{t'~>t'}
+D[\overline{X=X}],@runtime @action |- \overline{x_r:t_r',d} @param
+D[\overline{X=X}],@runtime @action |- \overline{x:t',d} @param
+S,D[\overline{X=X}],G[\overline{x_r:t_r'}][\overline{x:t'}],@InAction |- blk:@returns @void -| G_{blk}
+-----------------------------------------------------------------------------------------------------------------------------[Type-Decl-Action]
+S,D,G,ctx |- @action x (\overline{x_r:t_r,d_0},\overline{x:t}) blk -| S,D,G[x:@action(\overline{x_r:t_r',d_0}, \overline{x:t'}):@void]
+~
+
+~ Infer
+S,D[\overline{X=X}] |- \overline{t~>t'}
+S,D[\overline{X=X}] |- \overline{t_{ret}~>t_{ret}'}
+D[\overline{X=X}],@runtime @extern |- \overline{x_r:t_r',d} @param
+-----------------------------------------------------------------------------------------------------------------------------[Type-Decl-Extern-Function]
+S,D,G,ctx |- \mathkw{extern\ function} t_{ret} x<\overline{X}>(\overline{x:t,d}) blk -| S,D,G[x:@function<\overline{X}>(\overline{x:t',d}):t_{ret}']
+~
+
+~ Infer
+S,D |- t~>t'
+---------------------------------[Type-Decl-Variable]
+S,D,G,ctx |- t x -| S,D,G[x:t']
+~
+
+~ Infer
+S,D |- t~>t'
+S,D,G |- e:t'
+--------------------------------[Type-Decl-Variable-Initialized]
+S,D,G,ctx |- t x:=e -| S,D,G[x:t']
 ~
 
 
-### Header and Struct Typing
 ~ Infer
+S,D,G,\{\},\{\} |- \overline{prop} -| K,\{\overline{x_a(\overline{e})}\}
+X_{acts},X_{ret} \text{fresh}
+t_{acts}=@enum X_{acts} \{\overline{x_a}\}
+t_{ret}=@struct \{\mathkw{hit}:@bool; \mathkw{action\_run}:t_{acts}\}
+----------------------------------------------------------------------------------------------------------------------[Type-Decl-Table]
+S,D,G,ctx |- @table x \{\overline{prop}\} -| S,D[X_{acts}=t_{acts},X_{ret}=t_{ret}],G[x:@table t_{ret}]
+~
 
+~ Infer
+S,D |- \overline{t}~>\overline{t'}
 -----------------------------------------------------------------------------------[Type-Decl-Header]
-S,D,G |- @header X \{ \overline{x:t} \} -| S,D[X=@header \{ \overline{x:t} \}],G
-~
-
-TODO: need to restrict header union fields to be headers.
-
-~ Infer
-
-----------------------------------------------------------------[Type-Decl-Header-Union]
-S,D,G |- \mathkw{header\ union} X \{ \overline{x:t} \} -| S,D[X=\mathkw{header\ union} \{ \overline{x:t} \}],G
+S,D,G |- @header X \{\overline{x:t}\} -| S,D[X=@header \{\overline{x:t'}\}],G
 ~
 
 ~ Infer
-
--------------------------------------------------------------------[Type-Decl-Struct]
-S,D,G |- @struct X \{ \overline{x:t} \} -| S,D[X=@struct \{ \overline{f:t} \}],G
+S,D |- \overline{t}~>\overline{t'}
+------------------------------------------------------------------------------------[Type-Decl-Header-Union]
+S,D,G |- \mathkw{header\ union} X \{\overline{x:t} \} -| S,D[X=@header @union \{\overline{x:t'}\}],G
 ~
 
 ~ Infer
-\overline{@error.x \notin G}
+S,D |- \overline{t}~>\overline{t'}
+-----------------------------------------------------------------------------------[Type-Decl-Struct]
+S,D,G |- @struct X \{\overline{x:t}\} -| S,D[X=@struct \{\overline{x:t'}\}],G
+~
+
+~ Infer
+\overline{@error.x\notin{}G}
 -----------------------------------------------------------[Type-Decl-Error]
-S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
+S,D,G |- @error \{\overline{x}\} -| S,D,G[\overline{@error.x:@error}]
 ~
 
 ~ Infer
-\overline{.x \notin G}
----------------------------------------------------[Type-Decl-Match-Kind]
-S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
+\overline{.x\notin{}G}
+---------------------------------------------------------------------------[Type-Decl-Match-Kind]
+S,D,G |- \mathkw{match\_kind} \{\overline{x}\} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
 ~
 
 ~ Infer
-D' = D[X=@enum t X \{ \overline{x} \}]
-\overline{e} \Downarrow \overline{v}
----------------------------------------------------[Type-Decl-Enum]
-S,D,G |- @enum t X \{ \overline{x=e} \} -| S[\overline{x=v}],D,G
+S,D |- t~>t'
+S,D,G |- \overline{e:t'}
+S |- \overline{e}\Downarrow_{CTK}\overline{v}
+-------------------------------------------------------------------------------------------------[Type-Decl-Enum]
+S,D,G |- @enum t X \{\overline{x=e}\} -| S[\overline{X.x=v}],D[X=@enum t X \{\overline{x}\}],G
 ~
 
 ~ Infer
-D' = D[X=@enum X \{ \overline{x} \}]
+S,D |- @enum X \{\overline{x}\}~>t_X
 ---------------------------------------------------[Type-Decl-Serializable-Enum]
-S,D,G |- @enum X \{ \overline{x} \} -| S,D,G
+S,D,G |- @enum X \{ \overline{x} \} -| S,D[X=t_X],G
 ~
 
 ~ Infer
@@ -1467,37 +1502,40 @@ S,D,G |- @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \} -| S,D
 ~
 
 ~ Infer
-
+S,D |- t~>t'
 -------------------------------------[Type-Decl-TypeDef]
-S,D,G |- @typedef t X -| S,D[X=t],G
+S,D,G |- @typedef t X -| S,D[X=t'],G
 ~
 
 ~ Infer
-
+S,D |- t~>t'
 -----------------------------------------------[Type-Decl-TypeDef]
-S,D,G |- @newtype t X -| S,D[X=@newtype X t],G
+S,D,G |- @newtype t X -| S,D[X=@newtype t' X],G
 ~
 
 ~ Infer
-D'=D[X=@control<\overline{X}>(\overline{x:t,d})
---------------------------------------------------------------[Type-Decl-Control-Type]
-S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D',G
+S,D[\overline{X=X}] |- t~>t'
+S,D[\overline{X=X}],@runtime @control |- \overline{x:t',d} @param
+--------------------------------------------------------------------------------[Type-Decl-Control-Type]
+S,D,G |- @control X<\overline{X}>(\overline{x:t,d}) -| S,D[X=@control<\overline{X}>(\overline{x:t,d}),G
 ~
 
 ~ Infer
-D'=D[X=@parser<\overline{X}>(\overline{x:t,d})
--------------------------------------------------------------[Type-Decl-Parser-Type]
-S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D',G
+S,D[\overline{X=X}] |- t~>t'
+S,D[\overline{X=X}],@runtime @parser |- \overline{x:t',d} @param
+---------------------------------------------------------------------------------[Type-Decl-Parser-Type]
+S,D,G |- @parser X<\overline{X}>(\overline{x:t,d}) -| S,D[X=@parser<\overline{X}>(\overline{x:t,d}),G
 ~
 
 ~ Infer
-D'=D[X=@package<\overline{X}>(\overline{x:t})
-------------------------------------------------------------[Type-Decl-Package-Type]
-S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D',G
+S,D[\overline{X=X}] |- t~>t'
+S,D[\overline{X=X}],@constructor @package |- \overline{x:t'} @param
+--------------------------------------------------------------------------------[Type-Decl-Package-Type]
+S,D,G |- @package X<\overline{X}>(\overline{x:t}) -| S,D[X=@package<\overline{X}>(\overline{x:t}),G
 ~
 
 ## Typing of Programs
-Partial programs are checked by a judgment of the form
+Programs are checked by a judgment of the form
 ~ MathPre
 S,D,G |- P0 -| S',D',G'.
 ~
@@ -1527,7 +1565,7 @@ All evaluation rules include
 2. $\xi$, an evaluation environment
 3. $\sigma$, for maintaining state
 
-The control plane representation contains table entries and value sets. Since
+The control plane representation contains table entries. Since
 tables already populated with constant entries are immutable, the representation
 of the control plane treats entries like constant entries.
 
@@ -1772,7 +1810,7 @@ $\mathkw{bits}\ n$ is the number of bits not masked by $n$.
 @matchkind @exact & t_1 = \mathkw{match\_kind}
 \mathkw{init\_val} \xi (\xi(X)) & t_1 = X
 \mathkw{init\_val} \xi (\xi(.X)) & t_1 = .X
-\mathkw{init\_val} \xi t_2 & t_1 = @newtype X t_2
+\mathkw{init\_val} \xi t_2 & t_1 = @newtype t_2 X
 @None & t_1 = @void
 @header false \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = @header \{ \overline{f:t} \}
 \mathkw{header\ union} \{ \overline{f:\mathkw{init\_val} \xi t} \} & t_1 = \mathkw{header\ union} \{ \overline{f:t} \}
@@ -1786,7 +1824,7 @@ $(\mathkw{init\_val} \xi t)^n$ is short for $n$ occurrences of $\mathkw{init\_va
 ### Name of Type
 ~ MathPre
 @nametype t_1 = \begin{cases} X & t_1 = X
-X & t_1 = @newtype X t_2
+X & t_1 = @newtype t_2 X
 X & t_1 = @enum X \{\overline{x}\}
 @nametype t_2 & t_1 = t_2<\overline{t}>
 \end{cases}
@@ -1940,7 +1978,7 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 ~ Infer
 <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
 -------------------------------------------------------------------------------[NewType-Cast]
-<\zeta, \xi, \sigma, (@newtype X t) e> \Downarrow_e <\xi', \sigma', sig, v>
+<\zeta, \xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 
 ### Member Expression Evaluation
@@ -4037,8 +4075,8 @@ we prove subgoal $SG_2$
 We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
-H_1: S,D,G |- (@newtype X t) e : @newtype X t, @none
-H_2: <\zeta, \xi, \sigma, (@newtype X t) e> \Downarrow_e <\xi', \sigma', sig, v>
+H_1: S,D,G |- (@newtype t X) e : @newtype t X, @none
+H_2: <\zeta, \xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 and induction hypothesis:
 ~MathPre
@@ -4047,12 +4085,12 @@ I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- (t) e : t, @none \Rightarrow 
 We wish to prove subgoals:
 ~MathPre
 SG_1: S,D,G \models \xi',\sigma'
-SG_2: S,D,G |- v : @newtype X t, @none
+SG_2: S,D,G |- v : @newtype t X, @none
 ~
 By inversion on $H_1$ and $H_2$ we have hypotheses:
 ~MathPre
 H_3: S,D,G |- (t) e : t, d
-H_4: t \prec (@newtype X t)
+H_4: t \prec (@newtype t X)
 H_5: <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
@@ -4065,14 +4103,14 @@ By $H_6$, we prove $SG_1$.
 Sketchy: By constructing the rule-instance:
 ~ Infer
 S,D,G |- v : t, @none
-t \prec (@newtype X t)
+t \prec (@newtype t X)
 -------------------------[Cast]
-S,D,G |- (@newtype X t) v : @newtype X t, @none
+S,D,G |- (@newtype t X) v : @newtype t X, @none
 ~
 ~Infer
 
 --------------------------------[]
-S,D,G |- v : @newtype X t, @none
+S,D,G |- v : @newtype t X, @none
 ~
 we prove subgoal $SG_2$
 

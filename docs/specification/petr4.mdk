@@ -1584,15 +1584,8 @@ S,D,G |- decl, P0 -| S'',D'',G''
 ## Evaluation Environment and State
 All evaluation rules include
 
-1. $\zeta$, a representation of the control plane
-2. $\xi$, an evaluation environment
-3. $\sigma$, for maintaining state
-
-The control plane representation contains table entries. Since
-tables already populated with constant entries are immutable, the representation
-of the control plane treats entries like constant entries.
-
-$\zeta ::= (\{ \overline{matches:action\_ref} \}, \overline{set})$
+1. $\xi$, an evaluation environment
+2. $\sigma$, for maintaining state
 
 $\xi ::= P, E, \Delta, \upsilon$
 
@@ -1639,16 +1632,16 @@ where a value is needed, it will be $\mathkw{None}$ if the input signal is not $
 
 <!--
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig', v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig', v>
 sig = \mathkw{sig\_continue}
 ----------------------------------------------------------------------------------
-<\zeta, \xi, \sigma, sig, e> \Downarrow_E <\xi', \sigma', sig', v>
+<\xi, \sigma, sig, e> \Downarrow_E <\xi', \sigma', sig', v>
 ~
 
 ~ Infer
 sig \neq \mathkw{sig\_continue}
 ----------------------------------------------------------------------------------
-<\zeta, \xi, \sigma, sig, e> \Downarrow_E <\xi, \sigma, sig, @None>
+<\xi, \sigma, sig, e> \Downarrow_E <\xi, \sigma, sig, @None>
 ~
 -->
 
@@ -1692,9 +1685,9 @@ converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant 
 ~
 
 ~ MathPre
-@copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \begin{cases} \sigma & d = @in
+@copyout \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \begin{cases} \sigma & d = @in
 \sigma & d = @none \land t \neq @extern ...
-\sigma' & otherwise, \text{where} \mathkw{lv\_of\_expr} \, \zeta \, \xi_{call} \, \sigma \, e = (\_, \_, \_, lv_o) \land \mathkw{assign\_lv} \, \xi_{call} \, lv_o \, (\sigma \circ \xi_{closure})(x) = (\sigma', \_)
+\sigma' & otherwise, \text{where} \mathkw{lv\_of\_expr} \, \xi_{call} \, \sigma \, e = (\_, \_, \_, lv_o) \land \mathkw{assign\_lv} \, \xi_{call} \, lv_o \, (\sigma \circ \xi_{closure})(x) = (\sigma', \_)
 \end{cases}
 ~
 
@@ -1719,11 +1712,11 @@ n1 & v = (n1, {n2}_u^w)
 \mathkw{width\_of\_val} v' & v = (name1.name2, v')
 \end{cases}
 
-\mathkw{set\_of\_matches} \zeta \xi \sigma \overline{match} \overline{w} = \begin{cases} (\xi, \sigma, @universal) & \overline{match} = (\_)
-(\xi', \sigma', @singleton w (\mathkw{extract\_num} v)) & \overline{match} = (e) \land \overline{w} = w \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
-(\xi', \sigma', set) & \overline{match} = (e) \land <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, set> \land set \neq \mathkw{value\_set} ...
-(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \zeta \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \zeta \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n)
+\mathkw{set\_of\_matches} \xi \sigma \overline{match} \overline{w} = \begin{cases} (\xi, \sigma, @universal) & \overline{match} = (\_)
+(\xi', \sigma', @singleton w (\mathkw{extract\_num} v)) & \overline{match} = (e) \land \overline{w} = w \land <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+(\xi'', \sigma'', \mathkw{value\_set} \overline{matches} \overline{set}_2) & \overline{match} = (e) \land <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{value\_set} \overline{matches} \overline{set}_1> \land \mathkw{set\_of\_matches} \xi' \sigma' \overline{matches} = (\xi'', \sigma'', \overline{set}_2)
+(\xi', \sigma', set) & \overline{match} = (e) \land <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, set> \land set \neq \mathkw{value\_set} ...
+(\xi^n, \sigma^n, @product (set_1,...,set_n)) & \overline{match} = (match_1,...,match_n) \land \mathkw{set\_of\_matches} \xi \sigma (match_1) (w_1) = (\xi', \sigma', set_1) \land ... \land \mathkw{set\_of\_matches} \xi^{n-1} \sigma^{n-1} (match_n) (w_n) = (\xi^n, \sigma^n, set_n)
 \end{cases}
 
 
@@ -1742,26 +1735,26 @@ false & set = v_1 .. v_2 \land \overline{v} = (v_3) \land (v_3 \lt v_1 \lor v_3 
 
 ### Parser State machine
 ~ MathPre
-\mathkw{transition\_select} \zeta \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} (\mathkw{width\_of\_val} \overline{v}) = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
-(\xi'', \sigma'', Some\ x_i) & <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \zeta \xi' \sigma' \overline{matches} (\mathkw{width\_of\_val} \overline{v}) = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
+\mathkw{transition\_select} \xi \sigma (@select (\overline{e}) \{\overline{matches:x}\}) = \begin{cases} (\xi'', \sigma'', None) & <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \xi' \sigma' \overline{matches} (\mathkw{width\_of\_val} \overline{v}) = (\xi'', \sigma'', \overline{set}) \land \forall set_i \in \overline{set}, \mathkw{match\_set} \overline{v} set_i = false
+(\xi'', \sigma'', Some\ x_i) & <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}> \land \mathkw{set\_of\_matches} \xi' \sigma' \overline{matches} (\mathkw{width\_of\_val} \overline{v}) = (\xi'', \sigma'', \overline{set}) \land \mathkw{match\_set} \overline{v} set_i = true \land \forall j \lt i, \mathkw{match\_set} \overline{v} set_j = false
 \end{cases}
 
 
-\mathkw{parser\_state\_machine} \zeta \xi \sigma \overline{state} (@state x \{\overline{s}; @transition state\_expr\}) = \begin{cases} (\xi', \sigma', \mathkw{sig\_continue}) & state\_expr = ``accept" \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
-(\xi', \sigma', \mathkw{sig\_reject} ``NoError") & state\_expr = ``reject" \land <\zeta, \xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
-\mathkw{parser\_state\_machine} \zeta \xi' \sigma' \overline{state} (@state x_{next} \{...\}) & @state x_{next} \{...\} \in \overline{state} \land state\_expr = x_{next} \land x_{next} \neq ``accept" \land x_{next} \neq ``reject" \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
-\mathkw{parser\_state\_machine} \zeta \xi'' \sigma'' \overline{state} (@state x \{\overline{s}; @transition x_{next}\}) & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', Some\ x_{next})
-(\xi', \sigma', \mathkw{sig\_reject} ``NoMatch") & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \zeta \xi' \sigma' state\_expr = (\xi'', \sigma'', None)
+\mathkw{parser\_state\_machine} \xi \sigma \overline{state} (@state x \{\overline{s}; @transition state\_expr\}) = \begin{cases} (\xi', \sigma', \mathkw{sig\_continue}) & state\_expr = ``accept" \land <\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+(\xi', \sigma', \mathkw{sig\_reject} ``NoError") & state\_expr = ``reject" \land <\xi, \sigma, \{s1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \xi' \sigma' \overline{state} (@state x_{next} \{...\}) & @state x_{next} \{...\} \in \overline{state} \land state\_expr = x_{next} \land x_{next} \neq ``accept" \land x_{next} \neq ``reject" \land <\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+\mathkw{parser\_state\_machine} \xi'' \sigma'' \overline{state} (@state x \{\overline{s}; @transition x_{next}\}) & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \xi' \sigma' state\_expr = (\xi'', \sigma'', Some\ x_{next})
+(\xi', \sigma', \mathkw{sig\_reject} ``NoMatch") & state\_expr = @select (\overline{e}) \{\overline{matches:x}\} \land <\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}> \land \mathkw{transition\_select} \xi' \sigma' state\_expr = (\xi'', \sigma'', None)
 \end{cases}
 ~
 
 ### LValue Evaluation
 $e$ has type $\tau$.
 ~ MathPre
-\mathkw{lv\_of\_expr} \zeta \xi \sigma e_1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e_1 = x
-(\xi', \sigma', sig, @lvalue t lv_o.name) & e_1 = e_2.name \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', sig, lv_o)
-(\xi', \sigma', \mathkw{sig\_continue}, @lvalue t lv_o[n_1:n_2] ) & e_1 = e_2[n_1:n_2] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o)
-(\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv_o[v]) & e_1 = e_2[e_3] \land \mathkw{lv\_of\_expr} \zeta \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o) \land <\zeta, \xi, \sigma, e_3> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+\mathkw{lv\_of\_expr} \xi \sigma e_1 = \begin{cases} (\xi, \sigma, \mathkw{sig\_continue}, @lvalue t x) & e_1 = x
+(\xi', \sigma', sig, @lvalue t lv_o.name) & e_1 = e_2.name \land \mathkw{lv\_of\_expr} \xi \sigma e_2 = (\xi', \sigma', sig, lv_o)
+(\xi', \sigma', \mathkw{sig\_continue}, @lvalue t lv_o[n_1:n_2] ) & e_1 = e_2[n_1:n_2] \land \mathkw{lv\_of\_expr} \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o)
+(\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv_o[v]) & e_1 = e_2[e_3] \land \mathkw{lv\_of\_expr} \xi \sigma e_2 = (\xi', \sigma', \mathkw{sig\_continue}, lv_o) \land <\xi, \sigma, e_3> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \end{cases}
 
 \mathkw{value\_of\_lv} \xi lv_1 = \begin{cases} \xi(x) & lv_1 = @lvalue t x
@@ -1856,7 +1849,7 @@ X & t_1 = @enum X \{\overline{x}\}
 
 Expressions are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle$
+$\langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle$
 ~
 
 ### Evaluation of Constants
@@ -1864,37 +1857,37 @@ $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, 
 ~ Infer
 
 -------------------------------------------------------------------------------[Bool-True]
-<\zeta, \xi, \sigma, true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, true>
+<\xi, \sigma, true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, true>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Bool-False]
-<\zeta, \xi, \sigma, false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, false>
+<\xi, \sigma, false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, false>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Int-Constant]
-<\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
+<\xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Unsigned-Int-Constant]
-<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
+<\xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Signed-Int-Constant]
-<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
+<\xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[String]
-<\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
+<\xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
 ~
 
 ### Evaluation of Variables
@@ -1902,105 +1895,105 @@ $\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, 
 ~ Infer
 x \neq @verify
 -------------------------------------------------------------------------------[Var]
-<\zeta, \xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(x)>
+<\xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(x)>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Var-Verify]
-<\zeta, \xi, \sigma, @verify> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @extern @verify @None>
+<\xi, \sigma, @verify> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @extern @verify @None>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Var-Top]
-<\zeta, \xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(.x)>
+<\xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(.x)>
 ~
 
 ### Evaluation of Accessess
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
-<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+<\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------[Array-Access]
-<\zeta, \xi, \sigma, e_1[e_2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+<\xi, \sigma, e_1[e_2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 -----------------------------------------------------------------------------------------------------------[Bitslice]
-<\zeta, \xi, \sigma, e[n1:n2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
+<\xi, \sigma, e[n1:n2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+<\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
 -------------------------------------------------------------------------------[List-Expression]
-<\zeta, \xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
+<\xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+<\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
 -------------------------------------------------------------------------------[Record]
-<\zeta, \xi, \sigma, \{ \overline{name=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{name=v} \}>
+<\xi, \sigma, \{ \overline{name=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{name=v} \}>
 ~
 
 ### Unary Operation Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 \diamond \in \{ !, \texttt{\textasciitilde}, - \}
 -------------------------------------------------------------------------------[Unary-Op]
-<\zeta, \xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
+<\xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
 ~
 
 ### Binary Operation Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
-<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 \diamond \in \{ +, |+|, -, |-|, *, /, \%, \ll, \gg, \lt, \gt, \leq, \geq, ==, !=, \&, \hat{}, |, ++, \&\&, || \}
 -------------------------------------------------------------------------------[Binary-Op]
-<\zeta, \xi, \sigma, e_1 \diamond e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \diamond v_2>
+<\xi, \sigma, e_1 \diamond e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \diamond v_2>
 ~
 
 ### Evaluation of Casts
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 -------------------------------------------------------------------------------[Bool-Cast-True]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+<\xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
 n \neq 1
 -------------------------------------------------------------------------------[Bool-Cast-False]
-<\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+<\xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 
 $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $\mathkw{to2s}(a)$ is the result of converting $a$ to two's complement.
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------------[Bit-Cast]
-<\zeta, \xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
+<\xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------------------[Int-Cast]
-<\zeta, \xi, \sigma, (@int<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@to2s(\mathkw{extract\_num} v)}_s^{w}>
+<\xi, \sigma, (@int<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@to2s(\mathkw{extract\_num} v)}_s^{w}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
 -------------------------------------------------------------------------------[TypeName-Cast]
-<\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
 -------------------------------------------------------------------------------[NewType-Cast]
-<\zeta, \xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 
 ### Member Expression Evaluation
@@ -2008,380 +2001,380 @@ $\mathkw{of2s}(a)$ is the result of converting $a$ from two's complement while $
 ~ Infer
 \xi(X_1) = @enum X_2 \{\dots,name,\dots\}
 -------------------------------------------------------------------------------[Type-Member-Enum]
-<\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
+<\xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
 ~
 
 ~ Infer
 \xi(X_1) = @enum t X_2 \{\dots,(name, e),\dots\}
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 -------------------------------------------------------------------------------[Type-Member-SEnum]
-<\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (X_2.name, (t) v)>
+<\xi, \sigma, X_1.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (X_2.name, (t) v)>
 ~
 
 ~ Infer
 
 -------------------------------------------------------------------------------[Error-Member]
-<\zeta, \xi, \sigma, @error.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @error.name>
+<\xi, \sigma, @error.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @error.name>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
 -------------------------------------------------------------------------------[Struct-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}>
 -------------------------------------------------------------------------------[Header-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-IsValid-Field]
-<\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+<\xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-SetValid-Field]
-<\zeta, \xi, \sigma, e.@setValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setValid lv_o>
+<\xi, \sigma, e.@setValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setValid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-SetInvalid-Field]
-<\zeta, \xi, \sigma, e.@setInvalid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
+<\xi, \sigma, e.@setInvalid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name,v),\dots \}>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name,v),\dots \}>
 -------------------------------------------------------------------------------[Header-Union-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots \}>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots \}>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 -------------------------------------------------------------------------------[Header-Union-IsValid-Field]
-<\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+<\xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 -------------------------------------------------------------------------------[Array-Size-Field]
-<\zeta, \xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
+<\xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} \lt n_{size}
 -------------------------------------------------------------------------------[Array-Next-Field]
-<\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
+<\xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} \geq n_{size}
 -------------------------------------------------------------------------------[Array-Next-Field-OutOfBounds]
-<\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
+<\xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 1 \leq n_{next} \leq n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
+<\xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} \gt n_{size}
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-High]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
+<\xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 n_{next} \lt 1
 -------------------------------------------------------------------------------[Array-Last-Field-OutOfBounds-Low]
-<\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
+<\xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject} ``StackOutOfBounds", @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 -------------------------------------------------------------------------------[Array-LastIndex-Field]
-<\zeta, \xi, \sigma, e.@lastIndex> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (n_{next} - 1)_u^{32}>
+<\xi, \sigma, e.@lastIndex> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (n_{next} - 1)_u^{32}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Array-PopFront-Field]
-<\zeta, \xi, \sigma, e.\mathkw{pop\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{pop\_front} lv_o>
+<\xi, \sigma, e.\mathkw{pop\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{pop\_front} lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Array-PushFront-Field]
-<\zeta, \xi, \sigma, e.\mathkw{push\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{push\_front} lv_o>
+<\xi, \sigma, e.\mathkw{push\_front}> \Downarrow_e <\xi'', \sigma'', sig, @builtin \mathkw{push\_front} lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \{...;name=v;...\}>
 --------------------------------------------------------------------------[Record-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (loc, name_{object})>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (loc, name_{object})>
 -------------------------------------------------------------------------------[Runtime-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, name_{object})>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, name_{object})>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @parser \dots>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @parser \dots>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Parser-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @control \dots>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @control \dots>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Control-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @table \dots>
-\mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @table \dots>
+\mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', sig, lv_o)
 -------------------------------------------------------------------------------[Table-Field]
-<\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
+<\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin name lv_o>
 ~
 
 
 ### Ternary Expression Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
-<\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+<\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 -------------------------------------------------------------------------------[Ternary-Op-True]
-<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+<\xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
-<\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+<\xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 -------------------------------------------------------------------------------[Ternary-Op-False]
-<\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+<\xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 
 ### Function Call Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x:t,d}) blk>
-<\zeta, \xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x:t,d}) blk>
+<\xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
 @copyin \, (@push \, \xi_{closure}) \, \sigma_2 \, (\overline{x:t,d}) \, \overline{v} = \xi_3,\sigma_3
-<\zeta, \xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
-@copyout \, \zeta \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
+<\xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
+@copyout \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
 --------------------------------------------------------------------------------------------------------[Function-Eval]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk
-<\zeta, \xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk
+<\xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
 @copyin \, (@push \, \xi_{closure}) \, \sigma_2 \, (\overline{x:t,d}) \, \overline{v} = \xi_3,\sigma_3
-<\zeta, \xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
-@copyout \, \zeta \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
+<\xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
+@copyout \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
 --------------------------------------------------------------------------------------------------------[Action-Eval]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 \mathkw{value\_of\_lv} \xi' lv_o = @header b \{\dots\}
 ----------------------------------------------------------------------------------------------[isValid-Header]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, b>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, b>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 \mathkw{value\_of\_lv} \xi' lv_o = \mathkw{header\ union} \{ \dots,(name, @header true \{\dots\}), \dots\}
 -------------------------------------------------------------------------------[isValid-Header-Union-True]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 \mathkw{value\_of\_lv} \xi' lv_o = \mathkw{header\ union} \{ \overline{(name, @header false \{\dots\})}\}
 -------------------------------------------------------------------------------[isValid-Header-Union-False]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, false>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setValid lv_o>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setValid lv_o>
 \mathkw{value\_of\_lv} \xi' lv_o = @header b \{\overline{(name,v)}\}
 \mathkw{assign\_lv} \xi' lv_o (@header true \{\overline{(name,v)}\}) = (\xi'',sig)
 ----------------------------------------------------------------------------------------------[setValid]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, true>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, true>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @setInvalid lv_o>
 \mathkw{value\_of\_lv} \xi' lv_o = @header b \{\overline{(name,v)}\}
 \mathkw{assign\_lv} \xi' lv_o (@header false \{\overline{(name,v)}\}) = (\xi'',sig)
 ----------------------------------------------------------------------------------------------[setInvalid]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, false>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma', sig, false>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{pop\_front} (@lvalue t[a] ...)>
-<\zeta, \xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{pop\_front} (@lvalue t[a] ...)>
+<\xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\overline{v}, n_{size}, n_{next})
 \mathkw{assign\_lv} \xi' (@lvalue t[a] ...) (v_{(\mathkw{extract\_num} v)+1},...,v_{n_size}, (\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v}, n_{size}, n_{next} - \mathkw{extract\_num} v) = (\xi''',sig)
 --------------------------------------------------------------------------------------------------------[PopFront]
-<\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
+<\xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{push\_front} (@lvalue t[a] ...)>
-<\zeta, \xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin \mathkw{push\_front} (@lvalue t[a] ...)>
+<\xi', \sigma', e> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 \mathkw{value\_of\_lv} \xi'' (@lvalue t[a] ...) = (\overline{v}, n_{size}, n_{next})
 \mathkw{assign\_lv} \xi' (@lvalue t[a] ...) ((\mathkw{init\_val} \xi'' t)^{\mathkw{extract\_num} v},v_1,...,v_{n_{size} - \mathkw{extract\_num} v}, n_{size}, n_{next} + \mathkw{extract\_num} v) = (\xi''',sig)
 -------------------------------------------------------------------------------[PushFront]
-<\zeta, \xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
+<\xi, \sigma, f<\overline{t}>(e)> \Downarrow_e <\xi''', \sigma'', \mathkw{sig\_continue}, @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}
-<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+<\xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
 (@state ``start" \{...\}) \in \overline{state}
-\mathkw{parser\_state\_machine} \zeta \xi'''' \sigma''' \overline{state} (@state ``start" \{...\}) = (\xi''''', \sigma'''', sig')
-@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
+\mathkw{parser\_state\_machine} \xi'''' \sigma''' \overline{state} (@state ``start" \{...\}) = (\xi''''', \sigma'''', sig')
+@copyout (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 ------------------------------------------------------------------------------[Apply-Parser]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk
-<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\mathkw{set\_namespace} \xi' x, \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
-<\zeta, \xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig'>
-@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
+<\xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+<\xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig'>
+@copyout (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 ------------------------------------------------------------------------------[Apply-Control]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\mathkw{set\_namespace} \xi'''''' (@namespace \xi'), \sigma'''', sig', @None>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
-<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
-\mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
+<\mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
+\mathkw{set\_of\_matches} \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
 \mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
 \forall i \text{where} 1 \leq i \leq n, \mathkw{match\_set} \overline{v}' set'_i = false
-<\zeta, \xi''', \sigma''', x_{default}(\overline{e}_{default})> \Downarrow_e <\xi'''', \sigma'''', sig', v>
+<\xi''', \sigma''', x_{default}(\overline{e}_{default})> \Downarrow_e <\xi'''', \sigma'''', sig', v>
 ----------------------------------------------------------------------------------------------------------------------------[Apply-Table-Default]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",false);(``\text{action\_run}", name.x_{default})\}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @builtin @apply (@lvalue t x)>
 \mathkw{value\_of\_lv} \xi' (@lvalue t x) = @table name \overline{e_k:x} \overline{action\_ref} x_{default}(\overline{e}_{default}) \{ \overline{matches:x(\overline{e})} \}
-<\zeta, \mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
-\mathkw{set\_of\_matches} \zeta \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
+<\mathkw{set\_namespace} \xi' x, \sigma', \overline{e}_k> \Downarrow_e <\xi'', \sigma'', sig ,\overline{v}>
+\mathkw{set\_of\_matches} \xi'' \sigma'' \overline{matches'} (\mathkw{width\_of\_val} \overline{v}) = (\xi''', \sigma''', \overline{set})
 \mathkw{lpm\_entries} \overline{set} \overline{x} \overline{v} = (\overline{set}',\overline{v}')
 \mathkw{match\_set} \overline{v} set'_i = true
 \forall j \lt i, \mathkw{match\_set} \overline{v}' set'_j = false
-<\zeta, \xi''', \sigma''', x_i(\overline{e}_i)> \Downarrow_e <\xi'''', \sigma'''', sig', v>
+<\xi''', \sigma''', x_i(\overline{e}_i)> \Downarrow_e <\xi'''', \sigma'''', sig', v>
 ------------------------------------------------------------------------------[Apply-Table]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'''', \sigma'''', sig', \{(``\text{hit}",true);(``\text{action\_run}", name.x_i)\}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
 \xi'(x) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
 t name <\overline{X}>(\overline{x:t,d}) \in \overline{method}
 @len \overline{x:t,d} = @len \overline{e}
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
-@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+<\xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 ------------------------------------------------------------------------------[Extern-Function-Some-Caller]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
 $\mathkw{len}\ \overline{x}$ is defined as the number of elements in $\overline{x}$.
 $\mathkw{packet}$ is a type name.
 $\tau_i$ is the type of $e_i \in \overline{e}$
 
-$\langle \zeta, \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{Target\_extern} \langle \xi', \sigma', sig, v \rangle$ is a relation defined by the target.
+$\langle \xi, \sigma, \overline{t}, (\overline{v,t}) \rangle \Downarrow_{Target\_extern} \langle \xi', \sigma', sig, v \rangle$ is a relation defined by the target.
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name (loc, x)>
 \xi'(x) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
 @abstract t name <\overline{X}>(\overline{x:t,d}) \in \overline{method}
 @len \overline{x:t,d} = @len \overline{e}
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
-@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+<\xi''', \sigma', \overline{t}, (((loc, x), @packet),(v1,t_1),...,(v_n, t_n))> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 ------------------------------------------------------------------------------[Extern-Function-Some-Caller-Abstract]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name @None>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern name @None>
 \xi'(name) = \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi''', \sigma', \overline{t}, (\overline{v,t})> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
-@copyout \zeta (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
+<\xi''', \sigma', \overline{t}, (\overline{v,t})> \Downarrow_{T\_extern} <\xi'''', \sigma'', sig, v>
+@copyout (@pop \xi'''') \xi'''' (\overline{x:t,d}) \overline{e} = \xi'''''
 ----------------------------------------------------------------------------------------------[Extern-Function-No-Caller]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi''''', \sigma'', sig, v>
 ~
 
 ### Nameless Instantiation Evaluation
 
 ~ Infer
 \xi(@nametype t) = @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
-<\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi') (\overline{x:t},@none) \overline{v} = \xi''
 ---------------------------------------------------------------------------------------[Control]
-<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @control (\mathkw{first\_lvl} \xi'') (\overline{x:t,d}) \overline{decl} blk>
+<\xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @control (\mathkw{first\_lvl} \xi'') (\overline{x:t,d}) \overline{decl} blk>
 ~
 
 ~ Infer
 \xi(@nametype t) = @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}
-<\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi') (\overline{x:t},@none) \overline{v} = \xi''
 -------------------------------------------------------------------------------[Parser]
-<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @parser (\mathkw{first\_lvl} \xi'') (\overline{x:t,d}) \overline{decl} \overline{state}>
+<\xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @parser (\mathkw{first\_lvl} \xi'') (\overline{x:t,d}) \overline{decl} \overline{state}>
 ~
 
 ~ Infer
 \xi(@nametype t) = @package<\overline{X}>(\overline{x:t,d})
-<\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi') (\overline{x:t,d}) \overline{v} = \xi''
 -------------------------------------------------------------------------------[Package]
-<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @package (\mathkw{first\_lvl} \xi'')>
+<\xi, \sigma, t(\overline{e})> \Downarrow_e <@pop \xi'', \sigma', \mathkw{sig\_continue}, @package (\mathkw{first\_lvl} \xi'')>
 ~
 
 ~ Infer
 \xi(@nametype t) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
 (@namespace \xi, object) \in \sigma
 -------------------------------------------------------------------------------[Extern-Object-Initialized]
-<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (@namespace \xi, X)>
+<\xi, \sigma, t(\overline{e})> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (@namespace \xi, X)>
 ~
 
 $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\overline{name,object}))$ then $(\mathkw{namespace} \xi, object) \in (\overline{name,object})$.
@@ -2389,235 +2382,235 @@ $(\mathkw{namespace} \xi, object) \in \sigma$ means if $\sigma = (packet, (\over
 ~ Infer
 \xi(@nametype t) = @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}
 (@namespace \xi, object) \not\in \sigma
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern (@namespace \xi) ((@namespace \xi), X)>
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
+<\xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @extern (@namespace \xi) ((@namespace \xi), X)>
+<\xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
 -------------------------------------------------------------------------------[Extern-Object-Uninitialized]
-<\zeta, \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
+<\xi, \sigma, t(\overline{e})> \Downarrow_e <\xi'', \sigma'', sig, v>
 ~
 
 ### Set Operation Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
-<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Masks]
-<\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
+<\xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
-<\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+<\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 -------------------------------------------------------------------------------[Ranges]
-<\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
+<\xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
 ~
 
 ## Statements and Block Evaluation
 
 Statements are evaluated according to the following big-step relation:
 ~ Center
-$<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
+$<\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
 -----------------------------------------------------------------------------------------------[Method-Call]
-<\zeta, \xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig>
+<\xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-\mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
+<\xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+\mathkw{lv\_of\_expr} \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
 \mathkw{assign\_lv} \xi' \sigma'' lv v = (\sigma''', sig)
 ---------------------------------------------------------------------------[Assignment]
-<\zeta, \xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
+<\xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}>
-<\zeta, \mathkw{set\_namespace} ((@namespace \xi') \char`\^ (@nametype t)) \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma, t()> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @parser (\overline{name,v}) (\overline{x:t,d}) \overline{decl} \overline{state}>
+<\mathkw{set\_namespace} ((@namespace \xi') \char`\^ (@nametype t)) \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+<\xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
 (@state ``start" \{...\}) \in \overline{state}
-\mathkw{parser\_state\_machine} \zeta \xi'''' \sigma''' \overline{state} (@state ``start" \{...\}) = (\xi''''', \sigma'''', sig)
-@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
+\mathkw{parser\_state\_machine} \xi'''' \sigma''' \overline{state} (@state ``start" \{...\}) = (\xi''''', \sigma'''', sig)
+@copyout (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 --------------------------------------------------------------------------------------[Direct-Application-Parser]
-<\zeta, \xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\mathkw{set\_namespace} (@namespace \xi') \xi'''''', \sigma'''', sig>
+<\xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\mathkw{set\_namespace} (@namespace \xi') \xi'''''', \sigma'''', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, t()> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk>
-<\zeta, \mathkw{set\_namespace} ((@namespace \xi') \char`\^ (@nametype t)) \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
+<\xi, \sigma, t()> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @control (\overline{name,v}) (\overline{x:t,d}) \overline{decl} blk>
+<\mathkw{set\_namespace} ((@namespace \xi') \char`\^ (@nametype t)) \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
 @copyin (@push \xi'') (\overline{x:t,d}) \overline{v} = \xi'''
-<\zeta, \xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
-<\zeta, \xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig>
-@copyout \zeta (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
+<\xi'''[\overline{v}/\overline{name}], \sigma'', \overline{decl}> \Downarrow_d <\xi'''', \sigma'''>
+<\xi'''', \sigma''', blk> \Downarrow_s <\xi''''', \sigma'''', sig>
+@copyout (@pop \xi''''') \xi''''' (\overline{x:t,d}) \overline{e} = \xi''''''
 --------------------------------------------------------------------------------------------[Direct-Application-Control]
-<\zeta, \xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\mathkw{set\_namespace} (@namespace \xi') \xi'''''', \sigma'''', sig>
+<\xi, \sigma, t.@apply (\overline{e})> \Downarrow_s <\mathkw{set\_namespace} (@namespace \xi') \xi'''''', \sigma'''', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
 ------------------------------------------------------------------------------[Conditional-Reject]
-<\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
+<\xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
-<\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+<@push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ------------------------------------------------------------------------------[If-True]
-<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
+<\xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ------------------------------------------------------------------------------[If-False]
-<\zeta, \xi, \sigma, @if (e) s> \Downarrow_s  <\xi', \sigma', \mathkw{sig\_continue}>
+<\xi, \sigma, @if (e) s> \Downarrow_s  <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
-<\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+<@push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-True]
-<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+<\xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
-<\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+<@push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[If-Else-False]
-<\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+<\xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, @push \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
+<@push \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
 --------------------------------------------------------------------------[Block]
-<\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi, \sigma', sig>
+<\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi, \sigma', sig>
 ~
 
 ~ Infer
 
 ---------------------------------------------------------------------[Exit-Continue]
-<\zeta, \xi, \sigma, @exit> \Downarrow_s <\xi, \sigma, \mathkw{sig\_exit}>
+<\xi, \sigma, @exit> \Downarrow_s <\xi, \sigma, \mathkw{sig\_exit}>
 ~
 
 ~ Infer
 
 ---------------------------------------------[Empty]
-<\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
+<\xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
 ~
 
 ~ Infer
 
 ---------------------------------------------[Return-Void]
-<\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
+<\xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------[Return-Value]
-<\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
+<\xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = None
 ---------------------------------------------------------------------------------[Switch-No-Match]
-<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+<\xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
-<\zeta, @push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
+<@push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
 ---------------------------------------------------------------------------------[Switch-Match]
-<\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
+<\xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+<\xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
 --------------------------------------------------------------------[Declaration-Statement]
-<\zeta, \xi, \sigma, decl> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+<\xi, \sigma, decl> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 ~
 
 ## Declaration Evaluation
 
 Declarations are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \rangle$
+$\langle \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \rangle$
 ~
 
 ~ Infer
 
 -------------------------------------------[Constant-Decl]
-<\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
+<\xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
 ~
 
 ~ Infer
-<\zeta, \mathkw{set\_namespace} ((@namespace \xi) \char`\^ x) \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
+<\mathkw{set\_namespace} ((@namespace \xi) \char`\^ x) \xi, \sigma, t(\overline{e})> \Downarrow_e <\xi', \sigma', sig, v>
 -----------------------------------------------------------------------------------------------------------------[Instantiation-Decl]
-<\zeta, \xi, \sigma, t x(\overline{e})> \Downarrow_d <@new \, (\mathkw{set\_namespace} (@namespace \xi) \xi') \, \sigma' \, x \, v>
+<\xi, \sigma, t x(\overline{e})> \Downarrow_d <@new \, (\mathkw{set\_namespace} (@namespace \xi) \xi') \, \sigma' \, x \, v>
 ~
 
 ~ Infer
 
 -------------------------------------------[Parser-Decl]
-<\zeta, \xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
+<\xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Control-Decl]
-<\zeta, \xi, \sigma, @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}> \Downarrow_d <\xi[@control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}/X], \sigma>
+<\xi, \sigma, @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}> \Downarrow_d <\xi[@control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}/X], \sigma>
 ~
 
 ~ Infer
 @new \, \xi \, \sigma \, x \, (\xi\otimes{}@function(\overline{x:t,d}) blk) = \xi', \sigma'
 --------------------------------------------------------------------------------------------------------------------------------------------[Function-Decl]
-<\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
+<\xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
 ~
 
 ~ Infer
 @new \, \xi \, \sigma \, x \, (@extern x @None) = \xi',\sigma'
 ---------------------------------------------------------------[Extern-Function-Decl]
-<\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'>
+<\xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'>
 ~
 
 ~ Infer
 
 -------------------------------------------[Variable-Decl]
-<\zeta, \xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
+<\xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 --------------------------------------------------------------------------------[Variable-Initialized-Decl-Success]
-<\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
+<\xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
+<\xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
 sig \neq \mathkw{sig\_continue}
 -------------------------------------------[Variable-Initialized-Decl-Fail]
-<\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
+<\xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
 ~
 
 ~Infer
-<\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v>
+<\xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v>
 ------------------------------------------------------------------------------------------------[Value-Set-Decl-Success]
-<\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <@new \, \xi' \, \sigma' \, x \, v>
+<\xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <@new \, \xi' \, \sigma' \, x \, v>
 ~
 
 ~Infer
-<\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig, v>
+<\xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig, v>
 sig \neq \mathkw{sig\_continue}
 --------------------------------------------------------------------------[Value-Set-Decl-Fail]
-<\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <\xi, \sigma>
+<\xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <\xi, \sigma>
 ~
 
 ~ Infer
 @new \, \xi \, \sigma \, x \, (\xi\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk) = \xi',\sigma'
 ------------------------------------------------------------------------------------------------------------[Action-Decl]
-<\zeta, \xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
+<\xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
 ~
 
 ~ Infer
@@ -2626,7 +2619,7 @@ sig \neq \mathkw{sig\_continue}
 @key = \{ \overline{e:x} \} \in \overline{prop}
 @actions = \{ \overline{action\_ref} \} \in \overline{prop}
 --------------------------------------------------------[Table-Decl-Constant-Entries]
-<\zeta, \xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \})>
+<\xi, \sigma, @table x \{ \overline{prop} \}> \Downarrow_d <@new \, (\xi[@table x \{ \overline{prop} \}/x]) \, \sigma \, x \, (@table x \overline{e} \overline{action\_ref} (@default \overline{prop}) \{ \overline{matches:action\_ref} \})>
 ~
 
 ~ Infer
@@ -2640,79 +2633,79 @@ sig \neq \mathkw{sig\_continue}
 ~ Infer
 
 -------------------------------------------[Header-Decl]
-<\zeta, \xi, \sigma, @header X \{ \overline{x:t} \}> \Downarrow_d <\xi[@header X \{ \overline{x:t} \}/X], \sigma>
+<\xi, \sigma, @header X \{ \overline{x:t} \}> \Downarrow_d <\xi[@header X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Header-Union-Decl]
-<\zeta, \xi, \sigma, \mathkw{header\ union} X \{ \overline{x:t} \}> \Downarrow_d <\xi[\mathkw{header\ union} X \{ \overline{x:t} \}/X], \sigma>
+<\xi, \sigma, \mathkw{header\ union} X \{ \overline{x:t} \}> \Downarrow_d <\xi[\mathkw{header\ union} X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Struct-Decl]
-<\zeta, \xi, \sigma, @struct X \{ \overline{x:t} \}> \Downarrow_d <\xi[@struct X \{ \overline{x:t} \}/X], \sigma>
+<\xi, \sigma, @struct X \{ \overline{x:t} \}> \Downarrow_d <\xi[@struct X \{ \overline{x:t} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Error-Decl]
-<\zeta, \xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+<\xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Matchkind-Decl]
-<\zeta, \xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+<\xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Enum-Decl]
-<\zeta, \xi, \sigma, @enum X \{ \overline{x} \}> \Downarrow_d <\xi[@enum X \{ \overline{x} \}/X], \sigma>
+<\xi, \sigma, @enum X \{ \overline{x} \}> \Downarrow_d <\xi[@enum X \{ \overline{x} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[SEnum-Decl]
-<\zeta, \xi, \sigma, @enum t X \{ \overline{x=e} \}> \Downarrow_d <\xi[@enum t X \{ \overline{x=e} \}/X], \sigma>
+<\xi, \sigma, @enum t X \{ \overline{x=e} \}> \Downarrow_d <\xi[@enum t X \{ \overline{x=e} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Extern-Object-Decl]
-<\zeta, \xi, \sigma, @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}> \Downarrow_d <\xi[@extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}/X], \sigma>
+<\xi, \sigma, @extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}> \Downarrow_d <\xi[@extern X<\overline{X}> \{ \overline{ctor}\ \overline{method} \}/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Type-Def-Decl]
-<\zeta, \xi, \sigma, @typedef t X> \Downarrow_d <\xi[@typedef t X/X], \sigma>
+<\xi, \sigma, @typedef t X> \Downarrow_d <\xi[@typedef t X/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[New-Type-Decl]
-<\zeta, \xi, \sigma, @type t X> \Downarrow_d <\xi[@type t X/X], \sigma>
+<\xi, \sigma, @type t X> \Downarrow_d <\xi[@type t X/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Control-Type-Decl]
-<\zeta, \xi, \sigma, @control X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@control X<\overline{X}>(\overline{x:t,d})/X], \sigma>
+<\xi, \sigma, @control X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@control X<\overline{X}>(\overline{x:t,d})/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Parser-Type-Decl]
-<\zeta, \xi, \sigma, @parser X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@parser X<\overline{X}>(\overline{x:t,d})/X], \sigma>
+<\xi, \sigma, @parser X<\overline{X}>(\overline{x:t,d})> \Downarrow_d <\xi[@parser X<\overline{X}>(\overline{x:t,d})/X], \sigma>
 ~
 
 ~ Infer
 
 -------------------------------------------[Package-Type-Decl]
-<\zeta, \xi, \sigma, @package X<\overline{X}>(\overline{x:t})> \Downarrow_d <\xi[@package X<\overline{X}>(\overline{x:t})/X], \sigma>
+<\xi, \sigma, @package X<\overline{X}>(\overline{x:t})> \Downarrow_d <\xi[@package X<\overline{X}>(\overline{x:t})/X], \sigma>
 ~
 
 ## Program Evaluation
@@ -2721,24 +2714,24 @@ $r ::= (packet', n_{out\_port}) | \mathkw{None}$
 
 Programs are evaluated according to the following big-step relation:
 ~ Center
-$\langle \zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl} \rangle \Downarrow \langle \sigma', r \rangle$
+$\langle \xi, \sigma, packet, n_{in\_port}, \overline{decl} \rangle \Downarrow \langle \sigma', r \rangle$
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
+<\xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
 <\xi', n_{in\_port}> \Downarrow_{Target\_init} <\xi''>
-<\zeta, \xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', packet'>
+<\xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', packet'>
 \xi'''(``std\_meta") = @struct \{...,(``egress\_port",n_u^w),...\}
 ----------------------------------------------------------------------------------------[Some-Packet]
-<\zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', (packet', n)>
+<\xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', (packet', n)>
 ~
 
 ~ Infer
-<\zeta, \xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
+<\xi, \sigma, \overline{decl}> \Downarrow_d <\xi', \sigma'>
 <\xi', n_{in\_port}> \Downarrow_{Target\_init} <\xi''>
-<\zeta, \xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', @None>
+<\xi'', \sigma', packet, TODO> \Downarrow_{Target\_pipeline} <\sigma'', \xi''', @None>
 ----------------------------------------------------------------------------------------[No-Packet]
-<\zeta, \xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', @None>
+<\xi, \sigma, packet, n_{in\_port}, \overline{decl}> \Downarrow <\sigma', @None>
 ~
 
 $p ::= packet | \mathkw{None}$
@@ -2747,7 +2740,7 @@ These relations are defined by the target:
 ~ Center
 $\langle \xi, n_{in\_port} \rangle \Downarrow_{Target\_init} \langle \xi' \rangle$
 
-$\langle \zeta, \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} \langle \sigma', \xi', p \rangle$
+$\langle \xi, \sigma, packet, TODO \rangle \Downarrow_{Target\_pipeline} \langle \sigma', \xi', p \rangle$
 ~
 
 # Type Soundness
@@ -2810,8 +2803,8 @@ L_0: \forall S,D,G,\xi,\sigma,\sigma',
 TODO: need a good definition for this...
 
 ~MathPre
-L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
-S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow S,D,G \models \xi',\sigma' \wedge \sigma \subseteq \sigma' \wedge S,D,G |- lv : t,\_
+L_1: \forall S,D,G,\xi,\xi',\sigma,\sigma',e,sig,t,lv,
+S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow S,D,G \models \xi',\sigma' \wedge \sigma \subseteq \sigma' \wedge S,D,G |- lv : t,\_
 ~
 
 #### Proof
@@ -2931,8 +2924,8 @@ TODO!
 TODO: probably need a better definition for this...
 
 ~MathPre
-L_3: \forall \zeta, \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G, D_{\Psi}, G_{\Psi}
-S,D,G |- e : t,d \Rightarrow @copyout \, \zeta \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D_{\Psi},G_{\Psi} \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma' \wedge \sigma \subseteq \sigma'
+L_3: \forall \xi_{call}, \xi_{closure} \, \sigma, x, t, d, e, \sigma', S, D, G, D_{\Psi}, G_{\Psi}
+S,D,G |- e : t,d \Rightarrow @copyout \, \xi_{call} \, \xi_{closure} \, \sigma \, (x:t,d) \, e = \sigma' \Rightarrow S,D,G \models \xi_{call},\sigma \Rightarrow S,D_{\Psi},G_{\Psi} \models \xi_{closure},\sigma \Rightarrow S,D,G \models \xi_{call},\sigma' \wedge \sigma \subseteq \sigma'
 ~
 
 #### Proof
@@ -3055,8 +3048,8 @@ These are used to prove statement type preservation.
 
 #### Expression Monotonicity
 ~MathPre
-L_7:\forall \zeta,\xi,\sigma,e,\xi',\sigma',sig,v
-\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow \sigma \subseteq \sigma'
+L_7:\forall \xi,\sigma,e,\xi',\sigma',sig,v
+\langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle \Rightarrow \sigma \subseteq \sigma'
 ~
 
 ##### Proof
@@ -3065,8 +3058,8 @@ TODO!
 
 #### Corollary: $\mathkw{lv\_of\_expr}$ is Monotonic
 ~MathPre
-C_1: \forall \xi,\xi',\sigma,\sigma',\zeta,e,sig,t,lv,
-\mathkw{lv\_of\_expr} \zeta \xi \sigma e = (\xi', \sigma', sig, @lvalue t lv) \Rightarrow \sigma \subseteq \sigma'
+C_1: \forall \xi,\xi',\sigma,\sigma',e,sig,t,lv,
+\mathkw{lv\_of\_expr} \sigma', sig, @lvalue t lv) \Rightarrow \sigma \subseteq \sigma'
 ~
 
 ##### Proof
@@ -3085,8 +3078,8 @@ TODO!
 
 #### Statement Monotonicity
 ~MathPre
-L_8: \forall \zeta,\xi,\sigma,s,\xi',\sigma',sig,
-<\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow \sigma \subseteq \sigma'
+L_8: \forall \xi,\sigma,s,\xi',\sigma',sig,
+<\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow \sigma \subseteq \sigma'
 ~
 
 #### Proof
@@ -3247,13 +3240,13 @@ x \notin G \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G[x:t] \models \
 
 ### Expression Type Preservation Theorem Statement
 ~ Begin Theorem { #type-preservation-expr; caption: "Evaluation preserves expression types"; }
-Let $\langle\zeta,\xi,\sigma,e\rangle$ be an initial configuration
+Let $\langle\xi,\sigma,e\rangle$ be an initial configuration
 and take contexts $\Sigma,\Delta,\Xi,\Gamma$. Suppose that
 the configuration is safe in the context, so $\Xi,G\vdash{}\xi$,
 $\Xi\vdash{}\sigma$, and $\Sigma,\Delta,\Gamma\vdash{}e:t{}$.
 If there is a final configuration $\langle\xi',\sigma',sig,v\rangle$ such that
 ~ Begin MathPre
-<\zeta,\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>,
+<\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>,
 ~ End MathPre
 then there exists an extension $\Xi' \supseteq \Xi$ of the store
 typing such that
@@ -3264,14 +3257,14 @@ typing such that
 ~ End Theorem
 
 ### Expression Type Preservation Proof
-By induction on $<\zeta,\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>$.
+By induction on $<\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>$.
 
 #### Case Bool-True
 We have hypotheses:
 ~MathPre
 S,D,G \models \xi, \sigma
 S,D,G |- @true : @bool, @none
-<\zeta, \xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+<\xi, \sigma, @true> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3284,7 +3277,7 @@ We have hypotheses:
 ~MathPre
 S,D,G \models \xi, \sigma
 S,D,G |- @false : @bool, @none
-<\zeta, \xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
+<\xi, \sigma, @false> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @true>
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -3297,7 +3290,7 @@ We have hypotheses:
 ~MathPre
 S,D,G \models \xi, \sigma
 S,D,G |- a : @int, @none
-<\zeta, \xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
+<\xi, \sigma, a> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a>
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -3310,7 +3303,7 @@ We have hypotheses:
 ~MathPre
 S,D,G \models \xi, \sigma
 S,D,G |- nwa : @bit<a>, @none
-<\zeta, \xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
+<\xi, \sigma, nwa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_u^n>
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -3323,7 +3316,7 @@ We have hypotheses:
 ~MathPre
 S,D,G \models \xi
 S,D,G |- nsa : @int<w>, @none
-<\zeta, \xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
+<\xi, \sigma, nsa> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, a_s^n>
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -3336,7 +3329,7 @@ We have hypotheses:
 ~MathPre
 S,D,G \models \xi, \sigma
 S,D,G |- u : @string, @none
-<\zeta, \xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
+<\xi, \sigma, u> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, u>
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -3359,12 +3352,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- e_1[e_2] : t_1, d_1
-H_2: <\zeta, \xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
+H_2: <\xi, \sigma, e1[e2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
 and inductive hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t_1[], d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2  : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi'',sigma'' \wedge S,D,G |- v  : t_2, d_2
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t_1[], d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next}) : t_1[], d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2  : t_2, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi'',sigma'' \wedge S,D,G |- v  : t_2, d_2
 ~
 
 We wish to prove subgoals:
@@ -3382,8 +3375,8 @@ H_5: @numeric(t_2)
 
 By inversion on $H_2$ we get hypotheses:
 ~MathPre
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_6$ we get hypotheses:
@@ -3406,11 +3399,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- e[n_1:n_2] : S,D,G |- e1[e_2:e_3] : bit<n_1 - n_2 + 1>, d
-H_2: <\zeta, \xi, \sigma, e[n_1:n_2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
+H_2: <\xi, \sigma, e[n_1:n_2]> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)}>
 ~
 and inductive hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bit<w>, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bit<w>, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3421,7 +3414,7 @@ SG_2: S,D,G |- (@bitslice (\mathkw{extract\_num} v))_u^{(n1-n2+1)} : bit<n1 - n2
 By inversion on $H_1$ and $H_2$ respectively we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @bit<w>, d
-H_4:  <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4:  <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
@@ -3438,11 +3431,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- \{ \overline{e} \} : \{ \overline{\tau} \}, none
-H_2: <\zeta, \xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
+H_2: <\xi, \sigma, \{\overline{e}\}> \Downarrow_e <\xi', \sigma', sig, (\overline{v})>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- \overline{e: \tau, none} \Rightarrow <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- \overline{v: \tau, none}
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- \overline{e: \tau, none} \Rightarrow <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- \overline{v: \tau, none}
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3452,7 +3445,7 @@ SG_2: S,D,G |- \{ \overline{v} \} : \{ \overline{\tau} \}, none
 By inversion on $H_1$ and $H_2$ we respectively get hypotheses:
 ~MathPre
 H_3: S,D,G |- \overline{e: \tau, none}
-H_4: <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+H_4: <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_4$ we get hypotheses:
@@ -3474,12 +3467,12 @@ we prove subgoal $SG_2$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
-H_1: <\zeta, \xi, \sigma, \{ \overline{f=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{f=v} \}>
+H_1: <\xi, \sigma, \{ \overline{f=e} \}> \Downarrow_e <\xi', \sigma', sig, \{ \overline{f=v} \}>
 H_2: S,D,G |- \{ \overline{f = e} \} : \{ \overline{f : t} \}
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- \overline{e : t} \Rightarrow <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G |- \xi',\sigma' \wedge S,D,G |- \overline{v : t}
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- \overline{e : t} \Rightarrow <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}> \Rightarrow S,D,G |- \xi',\sigma' \wedge S,D,G |- \overline{v : t}
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3489,7 +3482,7 @@ SG_2: S,D,G |- \{ \overline{f=v} \} : \{ \overline{f : t} \}
 By inversion on $H_1$ and $H_2$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- \overline{e : t}
-H_4: <\zeta, \xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
+H_4: <\xi, \sigma, \overline{e}> \Downarrow_e <\xi', \sigma', sig, \overline{v}>
 ~
 Under the aegis of application $I_1 \, H_0 \, H_3 \, H_4$ we obtain hypotheses:
 ~MathPre
@@ -3510,11 +3503,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- \diamond e : t, d
-H_2: <\zeta, \xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
+H_2: <\xi, \sigma, \diamond e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \diamond v>
 ~
 and inductive hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t, d
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : t, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3529,10 +3522,10 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- !e : @bool, d
-H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bool, d
+H_2: <\xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @bool, d
 H_3: S,D,G |- e : @bool, d
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3559,10 +3552,10 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- {\texttt{\textasciitilde}e} : @bit<w>, d
-H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi', \sigma' \wedge S,D,G |- v : @bit<w>, d
+H_2: <\xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : @bit<w>, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi', \sigma' \wedge S,D,G |- v : @bit<w>, d
 H_3: S,D,G |- e : @bit<w>, d
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3589,11 +3582,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- -e : t, d
-H_2: <\zeta, \xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : t, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi', \sigma' \wedge S,D,G |- v : t, d
+H_2: <\xi, \sigma, !e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, !v>
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e : t, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi', \sigma' \wedge S,D,G |- v : t, d
 H_3: S,D,G |- e : t, d
 H_7: @numeric(t)
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3621,12 +3614,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t_1, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t_2, d_2
+I_1: S,D,G \models \xi, \sigma \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t_2, d_2
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3641,14 +3634,14 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bool, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bool, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bool, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bool, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bool, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bool, d_2
 H_3: S,D,G |- e_1 : @bool, d_1
 H_4: S,D,G |- e_2 : @bool, d_2
 H_5: \diamond \in \{ \&\&, || \}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3684,14 +3677,14 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @int, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @int, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @int, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @int, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @int, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @int, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @int, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @int, d_2
 H_3: S,D,G |- e_1 : @int, d_1
 H_4: S,D,G |- e_2 : @int, d_2
 H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq, /, \% \}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3727,14 +3720,14 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi, \sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @int<w>, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @int<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @int<w>, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @int<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @int<w>, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @int<w>, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @int<w>, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @int<w>, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @int<w>, d_2
 H_3: S,D,G |- e_1 : @int<w>, d_1
 H_4: S,D,G |- e_2 : @int<w>, d_2
 H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-| \}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3770,14 +3763,14 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bit<w>, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<w>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<w>, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<w>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<w>, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<w>, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<w>, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<w>, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<w>, d_2
 H_3: S,D,G |- e_1 : @bit<w>, d_1
 H_4: S,D,G |- e_2 : @bit<w>, d_2
 H_5: \diamond \in \{ +,-,*,<,>,\leq,\geq,|+|,|-|,\&,\hat{},|,\oplus \}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3813,15 +3806,15 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : @bool, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t, d_2
 H_3: S,D,G |- e_1 : t, d_1
 H_4: S,D,G |- e_2 : t, d_2
 H_{12}: \mathkw{has\_equality}(t)
 H_5: \diamond \in \{ ==,!= \}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3857,13 +3850,13 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \mathbin{++} e_2 : @bit<l+r>, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \mathbin{++} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{++} v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<l>, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<l>, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<r>, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<r>, d_2
+H_2: <\xi, \sigma, e1 \mathbin{++} e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \mathbin{++} v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<l>, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<l>, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<r>, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<r>, d_2
 H_3: S,D,G |- e_1 : @bit<l>, d_1
 H_4: S,D,G |- e_2 : @bit<r>, d_2
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3898,16 +3891,16 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \mathbin{\diamond} e_2 : t_1, @binaryDir(d_1, d_2)
-H_2: <\zeta, \xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t_1, d_1
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t_2, d_2
+H_2: <\xi, \sigma, e1 \diamond e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v1 \diamond v2>
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : t_1, d_1 \Rightarrow <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : t_1, d_1
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t_2, d_2 \Rightarrow <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t_2, d_2
 H_3: S,D,G |- e_1 : t_1, d_1
 H_4: S,D,G |- e_2 : t_2, d_2
 H_{12}: @numeric(t_1)
 H_{13}: t_2 = @bit<\_> \lor t_2 = @int
 H_5: \diamond \in \{\ll, \gg\}
-H_6: <\zeta, \xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
-H_7: <\zeta, \xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
+H_6: <\xi, \sigma, e1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v1>
+H_7: <\xi', \sigma', e2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v2>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3945,11 +3938,11 @@ We have hypotheses:
 ~ MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- (@bool) e : @bool, @none
-H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+H_2: <\xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1> \Rightarrow S,D,G \models \xi',\sigma' \wedge \Rightarrow S,D,G |- 1_u^1 : t_0, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1> \Rightarrow S,D,G \models \xi',\sigma' \wedge \Rightarrow S,D,G |- 1_u^1 : t_0, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -3972,7 +3965,7 @@ H_4: t_0 \prec @bool
 
 By inversion on $H_2$ we get hypothesis:
 ~MathPre
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, 1_u^1>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
@@ -3987,11 +3980,11 @@ We have hypotheses:
 ~ MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- (@bool) e : @bool, @none
-H_2: <\zeta, \xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+H_2: <\xi, \sigma, (@bool) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1> \Rightarrow S,D,G \models \xi',\sigma' \wedge \Rightarrow S,D,G |- n_u^1 : t_0, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1> \Rightarrow S,D,G \models \xi',\sigma' \wedge \Rightarrow S,D,G |- n_u^1 : t_0, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4014,7 +4007,7 @@ H_4: t_0 \prec @bool
 
 By inversion on $H_2$ we get hypothesis:
 ~MathPre
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, n_u^1>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
@@ -4029,11 +4022,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- (@bit<w>) e : @bit<w>, @none
-H_2: <\zeta, \xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
+H_2: <\xi, \sigma, (@bit<w>) e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {@of2s(\mathkw{extract\_num} v)}_u^{w}>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t_0, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t_0, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t_0, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4048,11 +4041,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- (X) e : X, @none
-H_2: <\zeta, \xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
+H_2: <\xi, \sigma, (X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- (\xi(X)) e : \xi(X), @none \Rightarrow <\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \xi(X), @none
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- (\xi(X)) e : \xi(X), @none \Rightarrow <\xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \xi(X), @none
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4063,7 +4056,7 @@ By inversion on $H_1$ and $H_2$ we have hypotheses:
 ~MathPre
 H_3: S,D,G |- (\xi(X)) e : \xi(X), @none
 H_4: \xi(X) \prec X
-H_5: <\zeta, \xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
+H_5: <\xi, \sigma, (\xi(X)) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
 ~MathPre
@@ -4091,11 +4084,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- (@newtype t X) e : @newtype t X, @none
-H_2: <\zeta, \xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
+H_2: <\xi, \sigma, (@newtype t X) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- (t) e : t, @none \Rightarrow <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t, @none
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- (t) e : t, @none \Rightarrow <\xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t, @none
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4106,7 +4099,7 @@ By inversion on $H_1$ and $H_2$ we have hypotheses:
 ~MathPre
 H_3: S,D,G |- (t) e : t, d
 H_4: t \prec (@newtype t X)
-H_5: <\zeta, \xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
+H_5: <\xi, \sigma, (t) e> \Downarrow_e <\xi', \sigma', sig, v>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we get hypotheses:
 ~MathPre
@@ -4134,7 +4127,7 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- X_1.name : X_1, @none
-H_2: <\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
+H_2: <\xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4155,7 +4148,7 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |-  X_1.name : X_1, @none
-H_2: <\zeta, \xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
+H_2: <\xi, \sigma, X_1.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, X_2.name>
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4175,7 +4168,7 @@ We have hypotheses:
 ~ MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- @error.name : @error, @none
-H_2: <\zeta, \xi, \sigma, @error.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @error.name>
+H_2: <\xi, \sigma, @error.name> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @error.name>
 ~
 Our subgoal:
 ~MathPre
@@ -4188,11 +4181,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.name : t_{name}, @none
-H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_2: <\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @struct \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @struct \{\dots,(name, v),\dots\} : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @struct \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @struct \{\dots,(name, v),\dots\} : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4203,7 +4196,7 @@ By inversion on $H_1$ and $H_2$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @struct \{f_1:t_1, \dots, f_n:t_n\}, d
 H_4: \mathkw{has\_field} (@struct \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
@@ -4227,11 +4220,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.name : t_{name}, @none
-H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_2: <\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4242,7 +4235,7 @@ By inversion on $H_1$ and $H_2$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d
 H_4: \mathkw{has\_field} (@header \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
@@ -4266,11 +4259,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.@isValid : @bool
-H_2: <\zeta, \xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
+H_2: <\xi, \sigma, e.@isValid> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, @builtin @isValid lv_o>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots,(name, v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @header b \{ \dots,(name, v),\dots \} : @header \{f_1:t_1, \dots, f_n:t_n\}, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4281,8 +4274,8 @@ By inversion on $H_1$ and $H_2$ we obtain hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @header \{f_1:t_1, \dots, f_n:t_n\}, d
 H_4: \mathkw{has\_field} (@header \{f_1:t_1, ... , f_n:t_n\}) @isValid (() -> @bool)
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
-H_6: \mathkw{lv\_of\_expr} \zeta \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @header b \{ \dots \}>
+H_6: \mathkw{lv\_of\_expr} \xi' \sigma' e = (\xi'', \sigma'', \mathkw{sig\_continue}, lv_o)
 ~
 Via application $I_1 \, H_0 \, H_3 \, H_5$ we acquire hypotheses:
 ~MathPre
@@ -4302,11 +4295,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.name : t_{name}, @none
-H_2: <\zeta, \xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_2: <\xi, \sigma, e.name> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name,v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
+I_1: S,D,G \models \xi,\sigma \Rightarrow  S,D,G |- e : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \mathkw{header\ union} \{ \dots,(name,v),\dots \}> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- \mathkw{header\ union} \{ \dots,(name,v),\dots \} : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4317,7 +4310,7 @@ By inversion on $H_1$ and $H_2$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e : \mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}, d
 H_4: \mathkw{has\_field} (\mathkw{header\ union} \{f_1:t_1, \dots, f_n:t_n\}) name t_{name}
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @struct \{\dots,(name, v),\dots\}>
 ~
 
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
@@ -4341,11 +4334,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.@size : @bit<32>, @none
-H_2: <\zeta, \xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
+H_2: <\xi, \sigma, e.@size> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, {n_{size}}_u^{32}>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+I_1: S,D,G \models \xi \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4356,7 +4349,7 @@ By inversion on $H_1$ and $H_2$ we acquire hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t[a], d
 H_4: \mathkw{has\_field} t[a] @size @bit<32>
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we obtain the hypotheses:
 ~MathPre
@@ -4372,11 +4365,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.@next : t, @none
-H_2: <\zeta, \xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
+H_2: <\xi, \sigma, e.@next> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next}}>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4387,7 +4380,7 @@ By inversion on $H_1$ and $H_2$ we obtain hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t[a], d
 H_4: \mathkw{has\_field} t[a] @next t
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$
 ~MathPre
@@ -4409,11 +4402,11 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e.@last : t, @none
-H_2: <\zeta, \xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
+H_2: <\xi, \sigma, e.@last> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_{n_{next} - 1}>
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t[a], d \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{v}, n_{size}, n_{next}) : t[a], d
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4424,7 +4417,7 @@ By inversion on $H_1$ and $H_2$ we obtain hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t[a], d
 H_4: \mathkw{has\_field} t[a] @last t
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{v}, n_{size}, n_{next})>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$
 ~MathPre
@@ -4446,12 +4439,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
-H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+H_2: <\xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool, \_
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : t, \_ \Rightarrow <\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : t, \_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4461,8 +4454,8 @@ By inversion on $H_1$ and $H_2$ we attain hypotheses:
 ~MathPre
 H_3: S,D,G |- e_1 : @bool, \_
 H_4: S,D,G |- e_2 : t, \_
-H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
-H_6: <\zeta, \xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
+H_5: <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @true>
+H_6: <\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', sig_2, v_2>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
 ~MathPre
@@ -4480,12 +4473,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 ? e_2 : e_3 : t, @none
-H_2: <\zeta, \xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+H_2: <\xi, \sigma, e_1 ? e_2 : e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_3 : t, \_ \Rightarrow <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_3 : t, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bool, \_ \Rightarrow <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool, \_
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_3 : t, \_ \Rightarrow <\xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_3 : t, \_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4495,8 +4488,8 @@ By inversion on $H_1$ and $H_2$ we attain hypotheses:
 ~MathPre
 H_3: S,D,G |- e_1 : @bool, \_
 H_4: S,D,G |- e_3 : t, \_
-H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
-H_6: <\zeta, \xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
+H_5: <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', sig_1, @false>
+H_6: <\xi', \sigma', e_3> \Downarrow_e <\xi'', \sigma'', sig_2, v_3>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we earn hypotheses:
 ~MathPre
@@ -4520,7 +4513,7 @@ From the present evaluation rule and the typing
 rule\textsc{Function-Call} we have this situation.
 ~ MathPre
 S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
-<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x':t',d'}) blk>
+<\xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x':t',d'}) blk>
 ~
 We don't know that the parameter lists line up yet. What we do know,
 however, is that $\Gamma,\Xi |- \xi,\sigma_0$. Applying the induction
@@ -4543,12 +4536,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1 \texttt{\&\&\&} e_2 : @set<@bit<w>>,@none
-H_2: <\zeta, \xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
+H_2: <\xi, \sigma, e_1 \texttt{\&\&\&} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \texttt{\&\&\&} v_2>
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<w>, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<w>, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<w>, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<w>, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : @bit<w>, \_ \Rightarrow <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : @bit<w>, \_
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : @bit<w>, \_ \Rightarrow <\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : @bit<w>, \_
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4559,8 +4552,8 @@ By inversion on $H_1$ and $H_2$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e_1 : @bit<w>, \_
 H_4: S,D,G |- e_2 : @bit<w>, \_
-H_5: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
-H_6: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+H_5: <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_6: <\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 ~
 Via the application $I_1 \, H_0 \, H_3 \, H_5$ we procure hypotheses:
 ~MathPre
@@ -4588,12 +4581,12 @@ We have hypotheses:
 ~MathPre
 H_0: S,D,G \models \xi,\sigma
 H_1: S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
-H_2: <\zeta, \xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
+H_2: <\xi, \sigma, e_1 \mathbin{..} e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_1 \mathbin{..} v_2>
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : \tau, \_ \Rightarrow <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : \tau, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : \tau, \_ \Rightarrow <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : \tau, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_1 : \tau, \_ \Rightarrow <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v_1 : \tau, \_
+I_2: S,D,G \models \xi',\sigma' \Rightarrow S,D,G |- e_2 : \tau, \_ \Rightarrow <\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_2 : \tau, \_
 ~
 We wish to prove subgoals:
 ~MathPre
@@ -4605,8 +4598,8 @@ By inversion on hypotheses $H_1$ and $H_2$ we land hypotheses:
 H_3: S,D,G |- v_1 : \tau, \_
 H_4: S,D,G |- v_2 : \tau, \_
 H_5: \tau = @bit<w> \lor \tau = @int<w>
-H_6: <\zeta, \xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
-H_7: <\zeta, \xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
+H_6: <\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v_1>
+H_7: <\xi', \sigma, e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_2>
 ~
 By dint of application $I_1 \, H_0 \, H_3 \, H_6$ we obtain hypotheses:
 ~MathPre
@@ -4672,7 +4665,7 @@ Statement type preservation requires a predicate on contexts and signals:
 
 ### Statement Type Preservation Theorem Statement
 ~ Begin Theorem { caption: "Evaluation preserves statement types"; }
-Let $\langle\zeta,\xi,\sigma,s\rangle$ be an initial configuration
+Let $\langle\xi,\sigma,s\rangle$ be an initial configuration
 and take contexts $\Sigma,\Delta,\Xi,G,G'$. Suppose that
 the configuration is safe in the context, so
 
@@ -4683,7 +4676,7 @@ the configuration is safe in the context, so
 
 If there is a final configuration $<\xi',\sigma',sig>$ such that
 ~ Begin MathPre
-<\zeta,\xi,\sigma,s>\Downarrow_{s}<\xi',\sigma',sig>,
+<\xi,\sigma,s>\Downarrow_{s}<\xi',\sigma',sig>,
 ~ End MathPre
 
 then there exists an extension $\Xi' \supseteq \Xi$ of the store
@@ -4695,20 +4688,20 @@ typing such that
 ~ End Theorem
 
 ~MathPre
-\forall S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
-S,D,G,ctx |- s: R -| G' \Rightarrow <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
+\forall S,D,G,ctx,s,R,G',\xi,\sigma,\xi',\sigma',sig
+S,D,G,ctx |- s: R -| G' \Rightarrow <\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G' \models \xi',\sigma' \wedge \Omega ctx
 ~
 
 ### Statement Type Preservation Proof
 
 Introducing variables:
 ~MathPre
-S,D,G,ctx,s,R,G',\zeta,\xi,\sigma,\xi',\sigma',sig
+S,D,G,ctx,s,R,G',\xi,\sigma,\xi',\sigma',sig
 ~
 and assuming hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- s:R -| G'
-H_1: <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
+H_1: <\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 we wish to prove the goal:
@@ -4717,7 +4710,7 @@ S,D,G \models \xi',\sigma'
 ~
 We induct on the derivation of:
 ~MathPre
-H_1: <\zeta, \xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
+H_1: <\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>
 ~
 We assume freely $s$ is free-variable free.
 
@@ -4725,12 +4718,12 @@ We assume freely $s$ is free-variable free.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- e_l:=e_r:\bot -| G
-H_1: <\zeta, \xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
+H_1: <\xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_r : t,d \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', \mathkw{sig\_continue}, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e_r : t,d \Rightarrow \langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', \mathkw{sig\_continue}, v \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4742,8 +4735,8 @@ By inversion on $H_0$ and $H_1$ we amass hypotheses:
 H_3: \mathkw{lvalue}(e_l)
 H_4: S,D,G |- e_l: t,\_
 H_5: S,D,G |- e_r: t,\_
-H_6: <\zeta, \xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-H_7: \mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
+H_6: <\xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_7: \mathkw{lv\_of\_expr} \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
 H_8: \mathkw{assign\_lv} \xi' \sigma'' lv v = (\sigma''', sig)
 ~
 
@@ -4754,7 +4747,7 @@ H_{10}: S,D,G |- v : t,d
 ~
 We may instantiate Lemma 1 as:
 ~MathPre
-L_1: S,D,G \models \xi,\sigma' \Rightarrow S,D,G |- e_l : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \zeta \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv) \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- lv : t,\_
+L_1: S,D,G \models \xi,\sigma' \Rightarrow S,D,G |- e_l : t,\_ \Rightarrow \mathkw{lv\_of\_expr} \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, @lvalue t lv) \Rightarrow S,D,G \models \xi'',\sigma'' \wedge S,D,G |- lv : t,\_
 ~
 
 Via the application $L_1 \, (L_0 \, (L_7 \, H_6) \, H_2) \, H_4 \, H_7$ we acquire hypotheses:
@@ -4778,12 +4771,12 @@ Subgoal $SG$ is thus proven by $H_{13}$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
+H_1: <\xi, \sigma, @if (e) s1 @else s2> \Downarrow_s <\xi', \sigma', \mathkw{sig\_reject\ v}>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v:@bool,\_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v:@bool,\_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4794,7 +4787,7 @@ By inversion on $H_0$ and $H_1$ we collect hypotheses:
 H_3: S,D,G |- e:@bool,\_
 H_4: S,D,G,ctx |- s_1:R_1 -| G_1
 H_5: S,D,G,ctx |- s_2:R_2 -| G_2
-H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
+H_6: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_reject\ v}, v>
 ~
 Through the agency of application $I_1 \, H_2 \, H_3 \, H_6$ we come by hypotheses:
 ~MathPre
@@ -4807,13 +4800,13 @@ and $H_7$ proves $SG$.
 We inherit hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s :\bot -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
+H_1: <\xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @true \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
-I_2: S,D,G,ctx |- s:\bot -| G' \Rightarrow <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models @push \xi',\sigma' \Rightarrow S,D,G' \models \xi'',\sigma''
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @true \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
+I_2: S,D,G,ctx |- s:\bot -| G' \Rightarrow <@push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models @push \xi',\sigma' \Rightarrow S,D,G' \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4823,8 +4816,8 @@ By inversion on $H_0$ and $H_1$ we obtain hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
 H_4: S,D,G,ctx |- s:R -| G'
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
-H_6: <\zeta, @push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, true>
+H_6: <@push \xi', \sigma', s> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 Under the aegis of application $I_1 \, H_2 \, H_3 \, H_5$ we get hypotheses:
 ~MathPre
@@ -4841,12 +4834,12 @@ and by $H_9$ subgoal $SG$ is proven.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s :\bot -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma', sig>
+H_1: <\xi, \sigma, @if (e) s> \Downarrow_s <\xi', \sigma', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @false \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @bool,\_ \Rightarrow \langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, @false \rangle \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
 ~
 We wish to prove:
 ~MathPre
@@ -4856,7 +4849,7 @@ By inversion on hypotheses $H_0$ and $H_1$ we inherit hypotheses:
 ~MathPre
 H_3: S,D,G |- e:@bool,\_
 H_4: S,D,G,ctx |- s:R -| G'
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
 ~
 Via application $I_1 \, H_2 \, H_3 \, H_5$ we obtain hypotheses:
 ~MathPre
@@ -4869,13 +4862,13 @@ and by $H_6$ we prove $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+H_1: <\xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
-I_2: S,D,G,ctx |- s_1:R_1 -| G_1 \Rightarrow <\zeta, @push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_1 \models \xi'',\sigma''
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @true : @bool,\_
+I_2: S,D,G,ctx |- s_1:R_1 -| G_1 \Rightarrow <@push \xi', \sigma', s1> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_1 \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4886,8 +4879,8 @@ By inversion on $H_0$ and $H_1$ we amass hypotheses:
 H_3: S,D,G |- e:@bool,\_
 H_4: S,D,G,ctx |- s_1:R_1 -| G_1
 H_5: S,D,G,ctx |- s_2:R_2 -| G_2
-H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
-H_7: <\zeta, @push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
+H_6: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @true>
+H_7: <@push \xi', \sigma', s_1> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 Via the application $I_1 \, H_2 \, H_3 \, H_6$ we acquire hypotheses:
 ~MathPre
@@ -4904,13 +4897,13 @@ and $H_{10}$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @if (e) s_1 @else s_2:R_1\wedge{}R_2 -| G
-H_1: <\zeta, \xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
+H_1: <\xi, \sigma, @if (e) s_1 @else s_2> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
-I_2: S,D,G,ctx |- s_2:R_2 -| G_2 \Rightarrow <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_2 \models \xi'',\sigma''
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e:@bool,\_ \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- @false : @bool,\_
+I_2: S,D,G,ctx |- s_2:R_2 -| G_2 \Rightarrow <@push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig> \Rightarrow S,D,G \models \xi',\sigma' \Rightarrow S,D,G_2 \models \xi'',\sigma''
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4921,8 +4914,8 @@ By inversion on $H_0$ and $H_1$ we amass hypotheses:
 H_3: S,D,G |- e:@bool,\_
 H_4: S,D,G,ctx |- s_1:R_1 -| G_1
 H_5: S,D,G,ctx |- s_2:R_2 -| G_2
-H_6: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
-H_7: <\zeta, @push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
+H_6: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, @false>
+H_7: <@push \xi', \sigma', s_2> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 Via the application $I_1 \, H_2 \, H_3 \, H_6$ we acquire hypotheses:
 ~MathPre
@@ -4939,12 +4932,12 @@ and $H_{10}$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- \{\overline{s}\}:sig -| G
-H_1: <\zeta, \xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', sig>
+H_1: <\xi, \sigma, \{s_1; ... s_n;\}> \Downarrow_s <\xi', \sigma', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: <\zeta, \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi',\sigma'
+I_1: <\xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S,D,G \models \xi',\sigma'
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -4953,7 +4946,7 @@ SG: S,D,G \models \xi,\sigma'
 By inversion on $H_0$ and $H_1$ we assemble hypotheses:
 ~MathPre
 H_3: S,D,G,ctx |- \overline{s}:sig -| G'
-H_4: <\zeta, \xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
+H_4: <\xi, \sigma, \overline{s}> \Downarrow_s <\xi', \sigma', sig>
 ~
 By the application $L_0 \, (L_8 \, H_4) \, H_2$ we get hypothesis:
 ~MathPre
@@ -4964,7 +4957,7 @@ H_5: S,D,G \models \xi,\sigma'
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,@InParserState |- @exit:@returns -| G
-H_1: <\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
+H_1: <\xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -4977,7 +4970,7 @@ $H_2$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- \mathkw{;}:\bot -| G
-H_1: <\zeta, \xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
+H_1: <\xi, \sigma, ;> \Downarrow_s <\xi, \sigma, sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -4990,7 +4983,7 @@ $H_2$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,ctx |- @return:@returns -| G
-H_1: <\zeta, \xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
+H_1: <\xi, \sigma, @return> \Downarrow_s <\xi, \sigma, \mathkw{sig\_return\ None}>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5003,12 +4996,12 @@ $H_2$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,@InFunction t |- @return e:@returns -| G
-H_1: <\zeta, \xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
+H_1: <\xi, \sigma, @return e> \Downarrow_s <\xi', \sigma', \mathkw{sig\_return\ v}>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t,\_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t,\_ \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : t,\_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5017,7 +5010,7 @@ SG: S,D,G \models \xi',\sigma'
 By inversion on $H_0$ and $H_1$ we get hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t,\_
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 By virtue of the application $I_1 \, H_2 \, H_3 \, H_4$ we obtain hypotheses:
 ~MathPre
@@ -5030,12 +5023,12 @@ and $H_5$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
-H_1: <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
+H_1: <\xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma', \mathkw{sig\_continue}>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5045,7 +5038,7 @@ By inversion on hypotheses $H_0$ and $H_1$ we profit hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @enum X \{ \overline{m} \}, \_
 H_4: \forall i. S,D,G |- \mathkw{case\_ok}_X case_i
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 H_6: \mathkw{match\_switch\_case} \overline{case} name_2 = None
 ~
 By means of application $I_1 \, H_2 \,H_3 \, H_5$ we procure hypotheses:
@@ -5059,12 +5052,12 @@ and $H_7$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G,@InControl |- @switch (e) \{ case1, \dots, case_n \}:\bot -| G
-H_1: <\zeta, \xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
+H_1: <\xi, \sigma, @switch (e) \{\overline{case}\}> \Downarrow_s <\xi', \sigma'', sig>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypotheses:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : @enum X,\_ \{ \overline{m} \} \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : @enum X \{ \overline{m} \}, \_
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5074,9 +5067,9 @@ By inversion on $H_0$ and $H_1$ we garner hypotheses:
 ~MathPre
 H_3: S,D,G |- e : @enum X \{ \overline{m} \}
 H_4: \forall i. S,D,G |- \mathkw{case\_ok}_X case_i
-H_5: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
+H_5: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, name_1.name_2>
 H_6: \mathkw{match\_switch\_case} \overline{case} name_2 = Some\ blk
-H_7: <\zeta, @push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
+H_7: <@push \xi', \sigma', blk> \Downarrow_s <\xi'', \sigma'', sig>
 ~
 TODO: where is $\mathkw{case\_ok}$ defined?
 
@@ -5097,20 +5090,20 @@ and $H_{10}$ proves $SG$.
 ### Declaration Type Preservation Theorem Statement
 
 ~MathPre
-\forall S,D,G,decl,S',D',G',\zeta,\xi,\sigma,\xi',\sigma',
-S,D,G |- decl -| S',D',G' \Rightarrow <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S',D',G' \models \xi',\sigma'
+\forall S,D,G,decl,S',D',G',\xi,\sigma,\xi',\sigma',
+S,D,G |- decl -| S',D',G' \Rightarrow <\xi, \sigma, decl> \Downarrow_d <\xi', \sigma'> \Rightarrow S,D,G \models \xi,\sigma \Rightarrow S',D',G' \models \xi',\sigma'
 ~
 
 ### Declaration Type Preservation Proof
 
 Introducing variables:
 ~MathPre
-S,D,G,decl,S',D',G',\zeta,\xi,\sigma,\xi',\sigma'
+S,D,G,decl,S',D',G',\xi,\sigma,\xi',\sigma'
 ~
 and hypotheses:
 ~MathPre
 H_0: S,D,G |- decl -| S',D',G'
-H_1: <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+H_1: <\xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
 H_2: S,D,G \models \xi,\sigma
 ~
 we wish to prove the goal:
@@ -5119,7 +5112,7 @@ S',D',G' \models \xi',\sigma'
 ~
 We induct on the derivation of:
 ~MathPre
-H_1: <\zeta, \xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
+H_1: <\xi, \sigma, decl> \Downarrow_d <\xi', \sigma'>
 ~
 We assumely freely $decl$ is free-variable free.
 
@@ -5127,7 +5120,7 @@ We assumely freely $decl$ is free-variable free.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- @const t x := v -| S[x = v],D,G[x:t]
-H_1: <\zeta, \xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
+H_1: <\xi, \sigma, @const t x:=v> \Downarrow_d <@new \, \xi \, \sigma \, x \, v>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5147,7 +5140,7 @@ and $H_4$ proves $SG$.
 #### Case Parser-Decl
 ~MathPre
 H_0: S,D,G |- @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} -| S,D,G[X:t_ctor]
-H_1: <\zeta, \xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
+H_1: <\xi, \sigma, @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}> \Downarrow_d <\xi[@parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}/X], \sigma>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5172,7 +5165,7 @@ This is a problem with several of the declaration rules...
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
-H_1: <\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
+H_1: <\xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
 H_2: S,D,G \models \xi,\sigma
 ~
 and we wish to prove subgoal:
@@ -5201,7 +5194,7 @@ and $H_7$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- \mathkw{extern\ function} t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G'
-H_1: <\zeta, \xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'>
+H_1: <\xi, \sigma, \mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})> \Downarrow_d <(\xi'[\mathkw{extern\ function} t x<\overline{X}>(\overline{x:t,d})/x]), \sigma'>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5229,7 +5222,7 @@ and $H_6$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- t x -| S,D,G[x:t]
-H_1: <\zeta, \xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
+H_1: <\xi, \sigma, t x> \Downarrow_d <@new \, \xi \, \sigma \, x \, (\mathkw{init\_val} \xi t)>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5246,12 +5239,12 @@ and $H_3$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- t x := e -| S,D,G[x:t]
-H_1: <\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
+H_1: <\xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, v>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5260,7 +5253,7 @@ SG: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, v
 By inversion on $H_0$ and $H_1$ we secure hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
 ~
 Via application $I_1 \, H_2 \, H_3 \, H_4$ we acquire hypotheses:
 ~MathPre
@@ -5277,12 +5270,12 @@ and $H_7$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- t x := e -| S,D,G[x:t]
-H_1: <\zeta, \xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
+H_1: <\xi, \sigma, t x := e> \Downarrow_d <@new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t)>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
+I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- e : t \Rightarrow <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5291,7 +5284,7 @@ SG: S,D,G[x:t] \models @new \, \xi' \, \sigma' \, x \, (\mathkw{init\_val} \xi t
 By inversion on hypotheses $H_0$ we procure hypotheses:
 ~MathPre
 H_3: S,D,G |- e : t
-H_4: <\zeta, \xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
+H_4: <\xi, \sigma, e> \Downarrow_e <\xi', \sigma', sig, v>
 H_5: sig \neq \mathkw{sig\_continue}
 ~
 By application $I_1 \, H_2 \, H_3 \, H_4$ we get hypotheses:
@@ -5311,12 +5304,12 @@ TODO: currently I am not sure how we are checking the size $e$ is numeric...
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
-H_1: <\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <@new \, \xi' \, \sigma' \, x \, v>
+H_1: <\xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <@new \, \xi' \, \sigma' \, x \, v>
 H_2: S,D,G \models \xi,\sigma
 ~
 and induction hypothesis:
 ~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow ??? \Rightarrow <\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge ???
+I_1: S,D,G \models \xi,\sigma \Rightarrow ??? \Rightarrow <\xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v> \Rightarrow S,D,G \models \xi',\sigma' \wedge ???
 ~
 We wish to prove subgoal:
 ~MathPre
@@ -5325,7 +5318,7 @@ SG: S,D,G[x:@set t] \models @new \, \xi' \, \sigma' \, x \, v
 By inversion on $H_0$ and $H_1$ we score hypothesis:
 ~MathPre
 H_3: \textit{I need some hypothesis about e but one currently does not exist...}
-H_4: <\zeta, \xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v>
+H_4: <\xi[t/x], \sigma, e> \Downarrow <\xi', \sigma', sig\_continue, v>
 ~
 By application $I_1 \, H_2 \, H_3 \, H_4$ we get hypotheses:
 ~MathPre
@@ -5338,7 +5331,7 @@ TODO: Type-Decl-Value-Set needs a hypothesis for $e$.
 We have hypothesis:
 ~MathPre
 H_0: S,D,G |- \mathkw{value\_set}<t>(e) x -| S,D,G[x:@set t]
-H_1: <\zeta, \xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <\xi, \sigma>
+H_1: <\xi, \sigma, \mathkw{value\_set}<t>(e) x> \Downarrow <\xi, \sigma>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5351,7 +5344,7 @@ $H_2$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- @action x<\overline{X}>(\overline{x:t,d_0},\overline{x:t}) blk -| S,D,G'
-H_1: <\zeta, \xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
+H_1: <\xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5380,7 +5373,7 @@ and $H_7$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- @error \{ \overline{x} \} -| S,D,G[\overline{@error.x:@error}]
-H_1: <\zeta, \xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+H_1: <\xi, \sigma, @error \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:
@@ -5401,7 +5394,7 @@ and $H_4$ proves $SG$.
 We have hypotheses:
 ~MathPre
 H_0: S,D,G |- \mathkw{match\_kind} \{ \overline{x} \} -| S,D,G[\overline{.x:\mathkw{match\_kind}}]
-H_1: <\zeta, \xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
+H_1: <\xi, \sigma, \mathkw{match\_kind} \{ \overline{x} \}> \Downarrow_d <\xi, \sigma>
 H_2: S,D,G \models \xi,\sigma
 ~
 We wish to prove subgoal:

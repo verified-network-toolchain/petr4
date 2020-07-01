@@ -779,7 +779,11 @@ and Value : sig
     in_size : int;
   } [@@deriving sexp,show,yojson]
 
-  type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list * (Ast.qualified_name * Ast.action list) list
+  type entries = (Ast.qualified_name *
+                    (int option * Ast.match_ list * Ast.action * Ast.id option)
+                      list) list
+                 *
+                   (Ast.qualified_name * Ast.action list) list
 
   type vsets = Match.t list list
 
@@ -1358,9 +1362,10 @@ and Env : sig
       | TraceTable of
           { name : string;
             key : Value.set;
-            action_ref : Table.action_ref }
+            action_ref : Table.action_ref;
+            matched_set : Value.set } [@@deriving sexp,show,yojson]
       
-    type trace = trace_elt list
+    type trace = trace_elt list [@@deriving sexp,show,yojson]
                
     type t [@@deriving sexp,show,yojson]
 
@@ -1612,7 +1617,8 @@ end = struct
       | TraceTable of
           { name : string;
             key : Value.set;
-            action_ref : Table.action_ref } [@@deriving sexp,show,yojson]
+            action_ref : Table.action_ref;
+            matched_set : Value.set } [@@deriving sexp,show,yojson]
 
     type trace = trace_elt list [@@deriving sexp,show,yojson]
     

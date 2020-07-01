@@ -550,9 +550,9 @@ module MakeInterpreter (T : Target) = struct
       else if sort_mks then filter_lpm_prod st env'' mks ks' entries'
       else (entries', ks') in
     let l = List.filter entries'' ~f:(fun (s,a) -> values_match_set st ks'' s) in
-    let action = match l with
-                | [] -> default
-                | _ -> List.hd_exn l |> snd in
+    let matched_set, action = match l with
+                | [] -> SUniversal, default
+                | (matched_set,action)::_ -> (matched_set,action) in
     let action_name = Table.((snd action).action.name) in
     let action_value = EvalEnv.find_val action_name env |> extract_from_state st'' in
     let args = Table.((snd action).action.args) in
@@ -562,7 +562,7 @@ module MakeInterpreter (T : Target) = struct
       match l with
       | [] -> env
       | (key,action_ref)::_ ->
-         let trace_elt = EvalEnv.TraceTable {name; key; action_ref} in
+         let trace_elt = EvalEnv.TraceTable {name; key; action_ref; matched_set} in
          EvalEnv.set_trace (trace_elt :: trace) env in
     match action_value with
     | VAction{scope;params;body}  ->

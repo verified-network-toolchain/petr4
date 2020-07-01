@@ -254,7 +254,6 @@ binop ::= +
 ## Statement and Block Syntax
 ~ Begin P4MathGrammar
 s ::= e<\overline{t}>(\overline{e})     // method calls (positional)
-    | e<\overline{t}>(\overline{x=e})   // method calls (named)
     | e := e                            // assignment
     | t.@apply(\overline{e})             // direct type invocation
     | @if (e) s_1 @else s_2             // conditional statement
@@ -982,8 +981,9 @@ S,D,G |- e:t @goes @none
 S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
 S,D[\overline{X=\rho}],G |- \overline{e:t,d}
 S,D,G |- \overline{e:t' @goes d}
+D[\overline{X=\rho}] |- \tau_{ret}~>\tau_{ret}'
 ----------------------------------------------------------------------------[Function-Call]
-S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{ret}[\rho/X]
+S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{ret}'
 ~
 
 ~ Infer
@@ -1041,9 +1041,15 @@ S,D,G |- e_1\mathbin{..}e_2 : @set<\tau>, @none
 ~
 
 ## Evaluation environment typing
-The ${\Xi} \vdash \xi:G$ judgment constructs a typing context from an
-evaluation environment. It needs an auxiliary judgment on individual scopes
-which has the shape $\Xi\vdash{}\epsilon:\gamma$.
+The ${\Xi} \vdash E:\Gamma$ judgment constructs a typing context from an
+evaluation environment. We may write $\Xi \vdash \xi:\Gamma$ to indicate
+$\Xi \vdash E:\Gamma$ when $\xi = (P,E,\Delta,\upsilon)$.
+
+First we need an auxiliary judgment on individual
+scopes.
+~ Judgment
+\Xi\vdash{}\epsilon:\gamma
+~
 ~ Infer
 
 ----------------------------------------------[Type-Env-Scope-Empty]
@@ -1056,6 +1062,9 @@ which has the shape $\Xi\vdash{}\epsilon:\gamma$.
 \Xi\vdash \epsilon,x=\ell:\gamma,x:t
 ~
 
+~ Judgment
+\Xi\vdash{}E:G
+~
 ~ Infer
 
 ------------------------------------------------------[Type-Env-Empty]
@@ -1079,9 +1088,15 @@ requires a store typing $\Xi$.
 Here are the interesting rules. TODO:remaining rules
 ~ Infer
 \Xi |- \xi:G
-[];D;G,\overline{x:t} |- blk:@returns \tau' -| G'
----------------------------------------------------------------------------------------[Type-Value-Function]
-\Xi |- (P,E,\Delta,\upsilon)\otimes{}@function<X>(\overline{x:t,d}).blk
+[];D[X=X];G,\overline{x:t} |- blk:@returns \tau_{ret} -| G'
+----------------------------------------------------------------------------------------------------------------[Type-Value-Function]
+\Xi |- (P,E,\Delta,\upsilon)\otimes{}@function<X>(\overline{x:t,d}) blk:@function<X>(\overline{t,d}):\tau_{ret}
+~
+~ Infer
+\Xi |- \xi:G
+[];D;G,\overline{x:t} |- blk:@returns @void -| G'
+------------------------------------------------------------------------------------------------------------------[Type-Value-Action]
+\Xi |- (P,E,\Delta,\upsilon)\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk:@action(\overline{x:t,d_0},\overline{x:t}):@void
 ~
 
 ~ Infer
@@ -1110,8 +1125,6 @@ Here are the interesting rules. TODO:remaining rules
 -----------------------[]
 \Xi |- []
 ~
-
-This is mutually inductive with the value judgment.
 
 ## Statement Typing
 
@@ -4510,21 +4523,28 @@ We would like to show $v:t_{ret}[\rho/X]$ in an extension of $\Xi$. We
 will go one step at a time.
 ##### Closure typing
 From the present evaluation rule and the typing
-rule\textsc{Function-Call} we have this situation.
+rule $\textsc{Function-Call}$ we have this situation.
 ~ MathPre
 S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
 <\xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x':t',d'}) blk>
+D[\overline{X=\rho}] |- t_{ret}~>t_{call}
+S,D,G |- f<\overline{\rho}>(\overline{e}):t_{call}'
 ~
 We don't know that the parameter lists line up yet. What we do know,
 however, is that $\Gamma,\Xi |- \xi,\sigma_0$. Applying the induction
 hypothesis yields a store typing $\Xi_1 \supseteq \Xi$ which types the
 closure.
 ~ MathPre
-\Xi_1 |- \xi_{closure}\otimes{}@function<X'>(\overline{x':t',d'})\to blk:@function<\overline{X}>(\overline{x:t,d}):t_{ret}.
+\Xi_1 |- \xi_{closure}\otimes{}@function<X'>(\overline{x':t',d'}) blk:@function<\overline{X}>(\overline{x:t,d}):t_{ret}'.
 ~
 Inverting this judgment tells us all the primed variables are
 actually the same as the nonprimed ones and, furthermore, the block
 returns an appropriate value.
+~ MathPre
+\xi_{closure}=(P_{cl},E_{cl},\Delta_{cl},\upsilon_{cl})
+\Xi_1 |- \xi:G_{cl}
+ [] ; D_{cl}[X=X];G_{cl},\overline{x:t} |- blk:@returns \tau_{ret} -| G'
+~
 
 ##### Expression typing
 ##### Copy-in typing

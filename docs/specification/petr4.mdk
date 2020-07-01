@@ -418,7 +418,7 @@ v_o ::= b // booleans
     | set
     | @error.name
     | @matchkind name
-    | \xi_{closure} \otimes (\overline{x:t,d}) \to blk // functions, actions
+    | \xi_{closure}\otimes{}v_{anon} // closures
     | @builtin name lv_o
     | @struct \{ \overline{(name, v)} \}
     | @header b \{ \overline{(name, v)} \}
@@ -432,6 +432,9 @@ v_o ::= b // booleans
     | @package \overline{(name, v)}
     | @table name \overline{e:x} \overline{action\_ref} action\_ref_default \{ \overline{matches:action\_ref} \}
     | @extern name v
+
+v_{anon} ::= @function<X>(\overline{x:t,d}) blk                // function code
+    	   | @action(\overline{x:t,d_0},\overline{x:t}) blk    // action code
 
 v ::= v_o | @None
 ~ End P4MathGrammar
@@ -1077,8 +1080,8 @@ Here are the interesting rules. TODO:remaining rules
 ~ Infer
 \Xi |- \xi:G
 [];D;G,\overline{x:t} |- blk:@returns \tau' -| G'
----------------------------------------------------------------------------------------[Type-Value-Closure]
-\Xi |- (P,E,\Delta,\upsilon) \otimes (\overline{x:t,d}) \to blk:(\overline{t,d}) \to t'
+---------------------------------------------------------------------------------------[Type-Value-Function]
+\Xi |- (P,E,\Delta,\upsilon)\otimes{}@function<X>(\overline{x:t,d}).blk
 ~
 
 ~ Infer
@@ -2181,12 +2184,22 @@ n_{next} \lt 1
 ### Function Call Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
+<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x:t,d}) blk>
 <\zeta, \xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
 @copyin \, (@push \, \xi_{closure}) \, \sigma_2 \, (\overline{x:t,d}) \, \overline{v} = \xi_3,\sigma_3
 <\zeta, \xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
 @copyout \, \zeta \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
---------------------------------------------------------------------------------------------------------[Function-Action]
+--------------------------------------------------------------------------------------------------------[Function-Eval]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
+~
+
+~ Infer
+<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk
+<\zeta, \xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
+@copyin \, (@push \, \xi_{closure}) \, \sigma_2 \, (\overline{x:t,d}) \, \overline{v} = \xi_3,\sigma_3
+<\zeta, \xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
+@copyout \, \zeta \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
+--------------------------------------------------------------------------------------------------------[Action-Eval]
 <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
 ~
 
@@ -2558,8 +2571,8 @@ $\langle \zeta, \xi, \sigma, decl \rangle \Downarrow_d \langle \xi', \sigma' \ra
 ~
 
 ~ Infer
-@new \, \xi \, \sigma \, x \, (\xi \otimes (\overline{x:t,d}) \to blk) = \xi', \sigma'
--------------------------------------------------------------------------[Function-Decl]
+@new \, \xi \, \sigma \, x \, (\xi\otimes{}@function(\overline{x:t,d}) blk) = \xi', \sigma'
+--------------------------------------------------------------------------------------------------------------------------------------------[Function-Decl]
 <\zeta, \xi, \sigma, @function t x<\overline{X}>(\overline{x:t,d}) blk> \Downarrow_d <\xi'[ @function t x<\overline{X}>(\overline{x:t,d}) blk/x], \sigma'>
 ~
 
@@ -2602,7 +2615,7 @@ sig \neq \mathkw{sig\_continue}
 ~
 
 ~ Infer
-@new \, \xi \, \sigma \, x \, (\xi \otimes (\overline{x:t,d_0},\overline{x:t}) \to blk) = \xi',\sigma'
+@new \, \xi \, \sigma \, x \, (\xi\otimes{}@action(\overline{x:t,d_0},\overline{x:t}) blk) = \xi',\sigma'
 ------------------------------------------------------------------------------------------------------------[Action-Decl]
 <\zeta, \xi, \sigma, @action x (\overline{x:t,d_0},\overline{x:t}) blk> \Downarrow_d <\xi'[@action x (\overline{x:t,d_0},\overline{x:t}) blk/x], \sigma'>
 ~
@@ -4496,7 +4509,7 @@ H_9: S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_3 : t, \_
 ~
 which proves our subgoal $SG_1$.
 
-#### Case Function-Action
+#### Case Function-Eval
 There are separate types for functions and actions. This proof only
 deals with functions.
 
@@ -4507,14 +4520,14 @@ From the present evaluation rule and the typing
 rule\textsc{Function-Call} we have this situation.
 ~ MathPre
 S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
-<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x':t',d'}) \to blk>
+<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure}\otimes{}@function<X>(\overline{x':t',d'}) blk>
 ~
 We don't know that the parameter lists line up yet. What we do know,
 however, is that $\Gamma,\Xi |- \xi,\sigma_0$. Applying the induction
 hypothesis yields a store typing $\Xi_1 \supseteq \Xi$ which types the
 closure.
 ~ MathPre
-\Xi_1 |- \xi_{closure} \otimes <X'>(\overline{x':t',d'})\to blk:@function<\overline{X}>(\overline{x:t,d}):t_{ret}.
+\Xi_1 |- \xi_{closure}\otimes{}@function<X'>(\overline{x':t',d'})\to blk:@function<\overline{X}>(\overline{x:t,d}):t_{ret}.
 ~
 Inverting this judgment tells us all the primed variables are
 actually the same as the nonprimed ones and, furthermore, the block

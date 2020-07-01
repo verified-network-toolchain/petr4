@@ -515,43 +515,46 @@ Judgment form $\mathkw{numeric}(t)$ with 3 rules.
 \inferrule{ }{@numeric(@int)}   \inferrule{ }{@numeric(@int<w>)}   \inferrule{ }{@numeric(@bit<w>)}
 ~
 
-### Left-value Judgment
+### LValue Judgment
 
 Left-values or lvalues are expressions that can appear on the left
-side of an assignment $e:=e$.  The judgment has the form
-~ MathPre
+side of an assignment $e:=e$. As its signature suggests, this judgment
+presupposes $S,D,G |- e:t$.
+~ Judgment
+S,D |- e:t @lvalue
+~
+
+~ Infer
+t not a stateful, constant, or function type
+x\notin{}@dom S
+-----------------------------------------------[Name-LValue]
+S,D,G |- x:t @lvalue
+~
+
+~ Infer
+t not a stateful, constant, or function type
+x\notin{}@dom S
+----------------------------------------------[Top-Level-Name-LValue]
+S,D,G |- .x:t @lvalue
+~
+
+~ Infer
 e @lvalue
-~
-and is defined inductively by the following rules.
-
-~ Infer
-
--------------[Name-LValue]
-x @lvalue
-~
-
-~ Infer
-
--------------[Top-Level-Name-LValue]
-.x @lvalue
-~
-
-~ Infer
-e @lvalue
---------------[Member-LValue]
-e.x @lvalue
+x not a builtin field on t
+----------------------------------[Member-LValue]
+S,D,G |- e.x:t @lvalue
 ~
 
 ~ Infer
 e1 @lvalue
 ----------------[Index-LValue]
-e1[e2] @lvalue
+e1[e2]:t @lvalue
 ~
 
 ~ Infer
 e @lvalue
 ----------------[Slice-LValue]
-e[n1:n2] @lvalue
+e[n1:n2]:t @lvalue
 ~
 
 ## Expression Typing
@@ -560,37 +563,37 @@ e[n1:n2] @lvalue
 ~ Infer
 
 ------------------------[Bool-True]
- S,D,G |- @true : @bool, @none
+S,D,G |- @true : @bool
 ~
 
 ~ Infer
 
 ------------------------[Bool-False]
- S,D,G |- @false : @bool, @none
+ S,D,G |- @false : @bool
 ~
 
 ~ Infer
 
 ------------------------[String]
- S,D,G |- u : @string, @none
+ S,D,G |- u : @string
 ~
 
 ~ Infer
 
 ------------------------[Int-Constant]
-S,D,G |- a : @int, @none
+S,D,G |- a : @int
 ~
 
 ~ Infer
 
 ------------------------[Signed-Int-Constant]
-S,D,G |- nsa : @int<n>, @none
+S,D,G |- nsa : @int<n>
 ~
 
 ~ Infer
 
 ------------------------[Unsigned-Int-Constant]
-S,D,G |- nwa : @bit<n>, @none
+S,D,G |- nwa : @bit<n>
 ~
 
 ### Type Variables
@@ -942,29 +945,46 @@ S,D,G |- e_3 : t, \_
 S,D,G |- e_1 ? e_2 : e_3 : t, @none
 ~
 
+### Direction agreement
+Expressions passed as out or inout parameters must be lvalues. This
+judgment checks that.
+
+~ Judgment
+S,D,G |- e:t @goes d
+~
+~ Infer
+S,D,G |- e:t @goes @out
+S,D,G |- e:t @goes @in
+-------------------------[]
+S,D,G |- e:t @goes @inout
+~
+~ Infer
+S,D,G |- e:t @lvalue
+-------------------------[]
+S,D,G |- e:t @goes @out
+~
+~ Infer
+
+-------------------------[]
+S,D,G |- e:t @goes @in
+~
+~ Infer
+
+-------------------------[]
+S,D,G |- e:t @goes @none
+~
+
 ### Type Function Calls
-TODO: Handle overloads of extern functions
-
-Function Call Argument Predicate $P_{call}$:
-~ MathPre
-@P_{call} : @direction \to @Prop
-\forall e,t
-@P_{call} @in    \mapsto t \neq @extern X \{ \overline{method} \}
-@P_{call} @out   \mapsto e @lvalue
-@P_{call} @inout \mapsto e @lvalue
-@P_{call} @none  \mapsto @True
-~
-
 ~ Infer
-S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-P,S,D[\overline{X \to \rho}],G |- \overline{e:t,d}
-\overline{@P_{call} d}
+S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
+S,D[\overline{X=\rho}],G |- \overline{e:t,d}
+S,D,G |- \overline{e:t' @goes d}
 ----------------------------------------------------------------------------[Function-Call]
-S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{\mathsf{ret}}, @none
+S,D,G |- f<\overline{\rho}>(\overline{e}):\tau_{ret}[\rho/X]
 ~
 
 ~ Infer
-S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
+S,D,G |- f:@action<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
 P,S,D[\overline{X \to \rho}],G \vdash \overline{e:t}
 \overline{@P_{call} d}
 ----------------------------------------------------------------------------[Action-Call]
@@ -1048,12 +1068,12 @@ which has the shape $\Xi\vdash{}\epsilon:\gamma$.
 
 ## Value Typing
 Values can include references to memory locations, so typechecking them
-requires a store typing $\Xi$. The judgment has this form.
-~ MathPre
+requires a store typing $\Xi$.
+~ Judgment
 \Xi |- v:t
 ~
 
-Here are the interesting rules.
+Here are the interesting rules. TODO:remaining rules
 ~ Infer
 \Xi |- \xi:G
 [];D;G,\overline{x:t} |- blk:@returns \tau' -| G'
@@ -1661,7 +1681,6 @@ a & v = a_s^n
 $\mathkw{bitslice} n_1 n_2 n_3$ is the decimal value obtained from interpreting $n_1$ in its binary representation and
 converting bits $n_2...n_3$ inclusive to decimal. Bit $n_2$ is more significant than bit $n_3$.
 
-
 ### Copy-In/Copy-Out
 ~ MathPre
 @copyin \, \xi_{closure} \, \sigma \, (x:t,d) \, v = \begin{cases} \xi_{closure},\sigma & d = @out
@@ -2162,13 +2181,13 @@ n_{next} \lt 1
 ### Function Call Evaluation
 
 ~ Infer
-<\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
-<\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
-@copyin \, (@push \, \xi_{closure}) \, \sigma'' \, (\overline{x:t,d}) \, \overline{v} = \xi_{closure}',\sigma'''
-<\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>
-@copyout \, \zeta \, \xi'' \, \xi_{closure}'' \, \sigma'''' \, (\overline{x:t,d}) \, \overline{e} = \sigma'''''
--------------------------------------------------------------------------------[Function-Action]
-<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma''''', \mathkw{sig\_continue}, v>
+<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
+<\zeta, \xi_1, \sigma_1, \overline{e}> \Downarrow_e <\xi_2, \sigma_2, \mathkw{sig\_continue}, \overline{v}>
+@copyin \, (@push \, \xi_{closure}) \, \sigma_2 \, (\overline{x:t,d}) \, \overline{v} = \xi_3,\sigma_3
+<\zeta, \xi_3, \sigma_3, blk> \Downarrow_s <\xi_4, \sigma_4, \mathkw{sig\_return\ v}>
+@copyout \, \zeta \, \xi_2 \, \xi_4 \, \sigma_4 \, (\overline{x:t,d}) \, \overline{e} = \sigma_5
+--------------------------------------------------------------------------------------------------------[Function-Action]
+<\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi_2, \sigma_5, \mathkw{sig\_continue}, v>
 ~
 
 ~ Infer
@@ -3226,30 +3245,13 @@ If there is a final configuration $\langle\xi',\sigma',sig,v\rangle$ such that
 then there exists an extension $\Xi' \supseteq \Xi$ of the store
 typing such that
 
- * $\Sigma,\Delta,\Gamma |- v:t{}$,
+ * $\Xi' |- v:t{}$,
  * $\Xi',G\vdash{}\xi'$, and
  * $\Xi'\vdash{}\sigma'$.
 ~ End Theorem
 
 ### Expression Type Preservation Proof
-Introducing variables
-~MathPre
-e,v,\tau,d,S,D,G,\zeta, \xi, \sigma, \xi', \sigma', sig
-~
-and assuming hypotheses
-~MathPre
-S,D,G \models \xi,\sigma
-S,D,G |- e : \tau,d
-\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
-~
-we wish to prove the goal
-~MathPre
-S,D,G \models \xi',\sigma' \wedge S,D,G |- v : \tau,d
-~
-We induct on the derivation of
-~MathPre
-\langle \zeta, \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rangle
-~
+By induction on $<\zeta,\xi,\sigma,e>\Downarrow_{e}<\xi',\sigma',sig,v>$.
 
 #### Case Bool-True
 We have hypotheses:
@@ -4494,96 +4496,34 @@ H_9: S,D,G \models \xi'',\sigma'' \wedge S,D,G |- v_3 : t, \_
 ~
 which proves our subgoal $SG_1$.
 
-#### Case Function
+#### Case Function-Action
+There are separate types for functions and actions. This proof only
+deals with functions.
 
-Question, when typing the function arguments does $\Delta$ get extended with type-arguments?
+We would like to show $v:t_{ret}[\rho/X]$ in an extension of $\Xi$. We
+will go one step at a time.
+##### Closure typing
+From the present evaluation rule and the typing
+rule\textsc{Function-Call} we have this situation.
+~ MathPre
+S,D,G |- f:@function<\overline{X}>(\overline{x:t,d}):t_{ret}
+<\zeta, \xi, \sigma_0, f> \Downarrow_e <\xi_1, \sigma_1, \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x':t',d'}) \to blk>
+~
+We don't know that the parameter lists line up yet. What we do know,
+however, is that $\Gamma,\Xi |- \xi,\sigma_0$. Applying the induction
+hypothesis yields a store typing $\Xi_1 \supseteq \Xi$ which types the
+closure.
+~ MathPre
+\Xi_1 |- \xi_{closure} \otimes <X'>(\overline{x':t',d'})\to blk:@function<\overline{X}>(\overline{x:t,d}):t_{ret}.
+~
+Inverting this judgment tells us all the primed variables are
+actually the same as the nonprimed ones and, furthermore, the block
+returns an appropriate value.
 
-We have hypotheses:
-~MathPre
-H_0: S,D,G \models \xi,\sigma
-H_1: S,D,G |- f<\overline{\rho}>(\overline{e}) : \tau_{\mathsf{ret}}, @none
-H_2: <\zeta, \xi, \sigma, f<\overline{t}>(\overline{e})> \Downarrow_e <\xi'', \sigma''''', \mathkw{sig\_continue}, v>
-~
-We have induction hypotheses:
-~MathPre
-I_1: S,D,G \models \xi,\sigma \Rightarrow S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_ \Rightarrow <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\overline{x:t,d}) \to blk> \Rightarrow S,D,G \models \xi',\sigma' \wedge S,D,G |- (\overline{x:t,d}) \to blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-I_2: S,D,G \models \xi',\sigma' \Rightarrow P,S,D,G |- \overline{e:t} \Rightarrow <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}> \Rightarrow S,D,G \models \xi'',\sigma'' \wedge P,S,D,G \vdash \overline{v:t}
-I_3: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns -| G_{\Psi}' \Rightarrow <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>\Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma''' \Rightarrow S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma'''' \wedge @sig = returns \wedge sig = \mathkw{sig\_return\ v} \wedge \vdash_v v : \tau_{\mathsf{ret}}
-~
-We wish to prove subgoals:
-~MathPre
-SG_1: S,D,G \models \xi'',\sigma'''''
-SG_2: \vdash_v v : \tau_{\mathsf{ret}}
-~
-By inversion on $H_1$ and $H_2$ we amass hypotheses:
-~MathPre
-H_3: S,D,G |- f : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-H_4: P,S,D,G \vdash \overline{e:t,d}
-H_5: \overline{@P_{call} \, e \, d \, t}
-H_6: <\zeta, \xi, \sigma, f> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, \xi_{closure} \otimes (\overline{x:t,d}) \to blk>
-H_7: <\zeta, \xi', \sigma', \overline{e}> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, \overline{v}>
-H_8: @copyin \, (@push \, \xi_{closure}) \, \sigma'' \, (\overline{x:t,d}) \, \overline{v} = \xi_{closure}',\sigma'''
-H_9: <\zeta, \xi_{closure}', \sigma''', blk> \Downarrow_s <\xi_{closure}'', \sigma'''', \mathkw{sig\_return\ v}>
-H_{10}: @copyout \, \zeta \, \xi'' \, \xi_{closure}'' \, \sigma'''' \, (\overline{x:t,d}) \, \overline{e} = \sigma'''''
-~
-Via the application $I_1 \, H_0 \, H_3 \, H_6$ we score hypotheses:
-~MathPre
-H_{11}: S,D,G \models \xi',\sigma'
-H_{12}: S,D,G |- \xi_{closure} \otimes (\overline{x:t,d}) \to blk : function<\overline{X}>(\overline{x:t,d}):t_{\mathsf{ret}}, \_
-~
-Via the application $I_2 \, H_{11} \, H_4 \, H_7$ we nab hypotheses:
-~MathPre
-H_{12}: S,D,G \models \xi'',\sigma''
-H_{13}: P,S,D,G |- \overline{v:t,d}
-~
-By means of application $L_9 \, H_{12}$ we obtain hypothesis:
-~MathPre
-H_{14}: P,S,D[\overline{X \to \rho}],G \models \xi'',\sigma''
-~
-Invoking the *Necromancer* we resurrect the typing context for the closure:
-~MathPre
-H_{15}: \Psi \, S \, D[\overline{X \to \rho}] \, G \, \xi_{closure} \, \sigma'' \mapsto G_{\Psi}
-~
-Under the aegis of application $L_4 \, (C_0 \, H_{15})$ we get hypothesis:
-~MathPre
-H_{16}: S,D[\overline{X \to \rho}],G_{\Gamma} \models @push \xi_{closure},\sigma''
-~
-By application $L_2 \, H_{13} \, H_8 \, H_{16}$ we procure hypothesis:
-~MathPre
-H_{17}: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}] \models \xi_{closure}',\sigma'''
-~
-Sketchy: By $H_3$ we know that variable $f \in \Gamma$.
-The only rule that inserts a function into the typing context is rule \textsc{Type-Decl-Function}.
-Thus by inspection on the typing judgments we obtain hypothesis:
-~MathPre
-H_{18}: S,D,G_{\Psi} |- @function t x<\overline{X}>(\overline{x: t,d}) blk -| S,D,G_{\Psi}'
-~
-and by inversion on $H_{18}$ we acquire hypothesis:
-~MathPre
-H_{19}: S,D[\overline{X \to \rho}],G_{\Psi}[\overline{x:t}],@InFunction t |- blk: @returns t -| G_{\Psi}'
-~
-By dint of application $I_3 \, H_{19} \, H_9 \, H_{17}$ we get hypotheses:
-~MathPre
-H_{20}: S,D[\overline{X \to \rho}],G_{\Psi}' \models \xi_{closure}'',\sigma''''
-H_{21}: @sig = returns
-H_{22}: sig = \mathkw{sig\_return\ v}
-H_{23} \vdash_v v : \tau_{\mathsf{ret}}
-~
-$H_{23}$ proves $SG_2$.
-
-We derive:
-~MathPre
-H_{24}: C_2 \, H_8 \, : \sigma'' \subseteq \sigma'''
-H_{25}: L_8 H_9 : \sigma''' \subseteq \sigma''''
-H_{26}: (\sigma'' \subseteq \sigma''' \Rightarrow \sigma''' \subseteq \sigma'''' \Rightarrow \sigma'' \subseteq \sigma'''') \, H_{24} \, H_{25} : \sigma'' \subseteq \sigma''''
-H_{27}: L_0 \, h_{26} \, H_{12} : S,D,G \models \xi'',\sigma''''
-~
-By application $L_3 \, H_4 \, H_{10} \, H_{27} \, H_{20}$ we acquire hypotheses:
-~MathPre
-H_{28}: S,D,G \models \xi'',\sigma'''''
-H_{29}: \sigma'''' \subseteq \sigma'''''
-~
-and $H_{28}$ proves $SG_1$.
+##### Expression typing
+##### Copy-in typing
+##### Block typing
+##### Copy-out typing
 
 #### Case Masks
 We have hypotheses:
@@ -4718,7 +4658,7 @@ Statement type preservation requires a predicate on contexts and signals:
 ~
 
 ### Statement Type Preservation Theorem Statement
-~ Begin Theorem { #type-preservation-stmt; caption: "Evaluation preserves statement types"; }
+~ Begin Theorem { caption: "Evaluation preserves statement types"; }
 Let $\langle\zeta,\xi,\sigma,s\rangle$ be an initial configuration
 and take contexts $\Sigma,\Delta,\Xi,G,G'$. Suppose that
 the configuration is safe in the context, so

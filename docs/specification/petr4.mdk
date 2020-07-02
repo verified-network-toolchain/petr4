@@ -278,7 +278,6 @@ blk ::= \{ s_1; ... s_n; \} // blocks
 ~ Begin P4MathGrammar
 decl ::= @const t x:=e
        | t x(\overline{e})
-       | t x(\overline{e}) blk
        | @parser X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} \overline{state} \}
        | @control X(\overline{x:t,d})(\overline{x:t}) \{ \overline{decl} @apply blk \}
        | @function t x<\overline{X}>(\overline{x:t,d}) blk
@@ -460,17 +459,17 @@ lv ::= \ell
 ## Signal Syntax
 Statements evaluate to signals, which describe control flow.
 ~ Begin P4MathGrammar
-sig_0::=@return v
+sig::=@return v
       | @return
       | @exit
       | @transition @reject v
       | @transition @accept
       | @transition x
-sig ::= @go
+ssig ::= @go
       | @stop sig_0
-vsig ::= @go v
+vsig ::= @ok v
        | @stop sig_0
-lsig ::= @go lv
+lsig ::= @ok lv
        | @stop sig_0
 ~ End P4MathGrammar
 
@@ -520,10 +519,10 @@ Judgment form $\mathkw{numeric}(t)$ with 3 rules.
 ~
 
 ### LValue Judgment
-\emph{TODO: this is maybe a misnamed judgment. Actual lvalues are
+*TODO: this is maybe a misnamed judgment. Actual lvalues are
 rooted at memory locations, not variables, so its confusing to name
 this judgment lvalue when it really is checking that you can evaluate
-the thing to an lvalue. Better name might be $\mathkw{assignable}$?}
+the thing to an lvalue. Better name might be $\mathkw{assignable}$?}*
 
 Left-values or lvalues are expressions that can appear on the left
 side of an assignment $e:=e$. As its signature suggests, this judgment
@@ -1090,8 +1089,8 @@ scopes.
 ~
 
 TODO:I'm leaving off rules for name lookup because that process is
-already described in the regular expression typing rules and there's
-no point in maintaining two versions of it at present.
+already described in the expression typing rules and there's no point
+in maintaining two versions of it at present.
 
 ~ Infer
 \Xi(\ell)=t
@@ -1794,74 +1793,6 @@ false & set = v_1 .. v_2 \land \overline{v} = (v_3) \land (v_3 \lt v_1 \lor v_3 
 \end{cases}
 ~
 
-### LValue Evaluation
-This judgment turns expressions into lvalues.
-~ Judgment
-<\xi,\sigma,e>\Downarrow_{l}<\xi,\sigma,lsig>
-~
-~ Infer
-x\in{}@dom(\xi)
---------------------------------------------------[Eval-LValue-Var]
-<\xi,\sigma,x>\Downarrow_{l}<\xi,\sigma,@go \xi(x)>
-~
-~ Infer
-.x\in{}@dom(\xi)
-----------------------------------------------------[Eval-LValue-Var-Top]
-<\xi,\sigma,.x>\Downarrow_l<\xi,\sigma,@go \xi(.x)>
-~
-~ Infer
-<\xi,\sigma,e>\Downarrow_l<\xi',\sigma',@go lv>
-------------------------------------------------------[Eval-LValue-Field]
-<\xi,\sigma,e.x>\Downarrow_l<\xi',\sigma',@go lv.x>
-~
-~ Infer
-<\xi,\sigma,e>\Downarrow_l<\xi',\sigma',@stop sig>
-------------------------------------------------------[Eval-LValue-Field-Fail1]
-<\xi,\sigma,e.x>\Downarrow_l<\xi',\sigma',@stop sig>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
-<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
-<\xi_2,\sigma_2,e_3>\Downarrow_e<\xi_3,\sigma_3,@go m>
--------------------------------------------------------------[Eval-LValue-Slice]
-<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_3,\sigma_3,@go lv[n:m]>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
-----------------------------------------------------------[Eval-LValue-Slice-Fail1]
-<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
-<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@stop sig>
-----------------------------------------------------------[Eval-LValue-Slice-Fail2]
-<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_2,\sigma_2,@stop sig>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
-<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
-<\xi_2,\sigma_2,e_3>\Downarrow_e<\xi_3,\sigma_3,@stop sig>
-----------------------------------------------------------[Eval-LValue-Slice-Fail3]
-<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_3,\sigma_3,@stop sig>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
-<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
-------------------------------------------------------------[Eval-LValue-Index]
-<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_2,\sigma_2,@go lv[n]>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
-------------------------------------------------------------[Eval-LValue-Index-Fail1]
-<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
-~
-~ Infer
-<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,lv>
-<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@stop sig>
-------------------------------------------------------------[Eval-LValue-Index-Fail2]
-<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_2,\sigma_2,@stop sig>
-~
-
 ### Default Action
 ~ MathPre
 @default \overline{prop} = \begin{cases} x(\overline{e}) & \mathkw{default\_action} = x \in \overline{prop}
@@ -1929,6 +1860,82 @@ X & t_1 = @enum X \{\overline{x}\}
 \end{cases}
 ~
 
+## LValue operations
+~ Judgment
+<\sigma,lv>\Downarrow_{read}v
+~
+~ Judgment
+<\sigma,lv,v>\Downarrow_{write}\sigma'
+~
+TODO:rules. These judgments write or read (evaluate to a value) lvalues.
+
+This judgment turns expressions into lvalues.
+~ Judgment
+<\xi,\sigma,e>\Downarrow_{l}<\xi,\sigma,lsig>
+~
+~ Infer
+x\in{}@dom(\xi)
+--------------------------------------------------[Eval-LValue-Var]
+<\xi,\sigma,x>\Downarrow_{l}<\xi,\sigma,@go \xi(x)>
+~
+~ Infer
+.x\in{}@dom(\xi)
+----------------------------------------------------[Eval-LValue-Var-Top]
+<\xi,\sigma,.x>\Downarrow_l<\xi,\sigma,@go \xi(.x)>
+~
+~ Infer
+<\xi,\sigma,e>\Downarrow_l<\xi',\sigma',@go lv>
+------------------------------------------------------[Eval-LValue-Field]
+<\xi,\sigma,e.x>\Downarrow_l<\xi',\sigma',@go lv.x>
+~
+~ Infer
+<\xi,\sigma,e>\Downarrow_l<\xi',\sigma',@stop sig>
+------------------------------------------------------[Eval-LValue-Field-Fail1]
+<\xi,\sigma,e.x>\Downarrow_l<\xi',\sigma',@stop sig>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
+<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
+<\xi_2,\sigma_2,e_3>\Downarrow_e<\xi_3,\sigma_3,@go m>
+-------------------------------------------------------------[Eval-LValue-Slice]
+<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_3,\sigma_3,@go lv[n:m]>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
+----------------------------------------------------------[Eval-LValue-Slice-Fail1]
+<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
+<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@stop sig>
+----------------------------------------------------------[Eval-LValue-Slice-Fail2]
+<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_2,\sigma_2,@stop sig>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
+<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
+<\xi_2,\sigma_2,e_3>\Downarrow_e<\xi_3,\sigma_3,@stop sig>
+----------------------------------------------------------[Eval-LValue-Slice-Fail3]
+<\xi,\sigma,e_1[e_2:e_3]>\Downarrow_l<\xi_3,\sigma_3,@stop sig>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@go lv>
+<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@go n>
+------------------------------------------------------------[Eval-LValue-Index]
+<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_2,\sigma_2,@go lv[n]>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
+------------------------------------------------------------[Eval-LValue-Index-Fail1]
+<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_1,\sigma_1,@stop sig>
+~
+~ Infer
+<\xi,\sigma,e_1>\Downarrow_l<\xi_1,\sigma_1,lv>
+<\xi_1,\sigma_1,e_2>\Downarrow_e<\xi_2,\sigma_2,@stop sig>
+------------------------------------------------------------[Eval-LValue-Index-Fail2]
+<\xi,\sigma,e_1[e_2]>\Downarrow_l<\xi_2,\sigma_2,@stop sig>
+~
+
 ## Expression Evaluation
 
 Expressions are evaluated according to the following big-step relation:
@@ -1977,29 +1984,33 @@ $\langle \xi, \sigma, e \rangle \Downarrow_e \langle \xi', \sigma', sig, v \rang
 ### Evaluation of Variables
 
 ~ Infer
-x \neq @verify
--------------------------------------------------------------------------------[Var]
-<\xi, \sigma, x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(x)>
+<\xi,\sigma,x>\Downarrow_l<\xi_1,\sigma_1,@ok lv>
+<\xi_1,\sigma_1,@ok lv>\Downarrow_{read}<\xi_2,\sigma_2,@ok v>
+x\neq{}@verify
+---------------------------------------------------------------------------------------------[Var]
+<\xi,\sigma,x>\Downarrow_e<\xi,\sigma,@ok v>
 ~
 
 ~ Infer
 
--------------------------------------------------------------------------------[Var-Verify]
+--------------------------------------------------------------------------------------------------[Var-Verify]
 <\xi, \sigma, @verify> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, @extern @verify @None>
 ~
 
 ~ Infer
-
--------------------------------------------------------------------------------[Var-Top]
-<\xi, \sigma, .x> \Downarrow_e <\xi, \sigma, \mathkw{sig\_continue}, (\sigma  \circ \xi)(.x)>
+<\xi,\sigma,x>\Downarrow_l<\xi_1,\sigma_1,@ok lv>
+<\xi_1,\sigma_1,@ok lv>\Downarrow_{read}<\xi_2,\sigma_2,@ok v>
+x\neq{}@verify
+---------------------------------------------------------------------------------------------[Var-Top]
+<\xi,\sigma,x>\Downarrow_e<\xi,\sigma,@ok v>
 ~
 
 ### Evaluation of Accessess
 
 ~ Infer
-<\xi, \sigma, e_1> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
-<\xi', \sigma', e_2> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v>
--------------------------------------------------------------------------------[Array-Access]
+<\xi, \sigma, e_1>\Downarrow_e<\xi', \sigma', \mathkw{sig\_continue}, (\dots,v_{(\mathkw{extract\_num} v) \% n_{size}},\dots,n_{size},n_{next})>
+<\xi', \sigma', e_2>\Downarrow_e<\xi'', \sigma'', \mathkw{sig\_continue}, v>
+--------------------------------------------------------------------------------------------------------------------------------------[Array-Access]
 <\xi, \sigma, e_1[e_2]> \Downarrow_e <\xi'', \sigma'', \mathkw{sig\_continue}, v_{(\mathkw{extract\_num} v) \% n_{size}}>
 ~
 
@@ -2501,12 +2512,13 @@ $<\xi, \sigma, s> \Downarrow_s <\xi', \sigma', sig>$
 <\xi, \sigma, e<\overline{t}>(\overline{e})> \Downarrow_s <\xi', \sigma', sig>
 ~
 
+assignment
 ~ Infer
-<\xi, \sigma, e_r> \Downarrow_e <\xi', \sigma', \mathkw{sig\_continue}, v>
-\mathkw{lv\_of\_expr} \xi \sigma' e_l = (\xi'', \sigma'', \mathkw{sig\_continue}, lv)
-\mathkw{assign\_lv} \xi' \sigma'' lv v = (\sigma''', sig)
+<\xi,\sigma,e_l>\Downarrow_{l}<\xi_1,\sigma_1,@ok lv>
+<\xi_1, \sigma_1, e_r> \Downarrow_e <\xi_2, \sigma_2, @ok v>
+@write \sigma_2 lv v\Downarrow_{w}\sigma_3
 ---------------------------------------------------------------------------[Assignment]
-<\xi, \sigma, e_l := e_r> \Downarrow_s <\xi', \sigma''', sig>
+<\xi, \sigma, e_l := e_r> \Downarrow_s <\xi_2, \sigma_3, @go>
 ~
 
 ~ Infer
@@ -4591,7 +4603,9 @@ There are separate types for functions and actions. This proof only
 deals with functions.
 
 We would like to show $v:t_{ret}[\rho/X]$ in an extension of $\Xi$. We
-will go one step at a time.
+will go one step at a time, constructing a chain of store typings
+$\Xi \subseteq \Xi_1 \subseteq \dots
+\subseteq \Xi_5$.
 ##### Closure typing
 From the present evaluation rule and the typing
 rule $\textsc{Function-Call}$ we have this situation.

@@ -506,9 +506,61 @@ G ::= G, \gamma{} | []
 \Xi ::= \Xi, \ell:t | []
 ~
 
-In all variable contexts there is a lookup test $C(x) = y$ which
-searches from the outermost list of bindings inward and a top level
-lookup $C(.x) = y$ which only looks at the innermost list of bindings.
+There are also lookup tests defined for $C \in \{ S, D, G \}$ and $c \in \{ \sigma, \delta, \gamma, \Xi \}$.
+~ Judgment
+c(x) = y
+~
+
+~ Infer
+c = c', x = y
+--------------[]
+c(x) = y
+~
+
+~ Infer
+c = c', u = v
+u \neq x
+c'(x) = y
+-------------------------------[]
+c(x) = y
+~
+
+~ Judgment
+C(x) = y
+~
+
+~ Infer
+C = C', c
+c(x) = y
+--------------------[]
+C(x) = y
+~
+
+~ Infer
+C = C', \sigma
+x\notin{}@dom c
+S'(x) = y
+-------------------------------[]
+C(x) = y
+~
+
+~Judgment
+C(.x) = y
+~
+
+~ Infer
+C = [], c
+c(x) = y
+-----------------------[]
+C(.x) = y
+~
+
+~ Infer
+C = C', c
+C'(.x) = y
+-----------------------[]
+C(.x) = y
+~
 
 ## Helper Judgments
 

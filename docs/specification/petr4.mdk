@@ -462,7 +462,7 @@ Statements evaluate to signals, which describe control flow.
 sig::=@return v
       | @return
       | @exit
-      | @transition @reject v
+      | @transition @reject x
       | @transition @accept
       | @transition x
 ssig ::= @go

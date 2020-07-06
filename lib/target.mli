@@ -44,8 +44,6 @@ module type Target = sig
 
   type extern = state pre_extern
 
-  val externs : (string * extern) list
-
   val write_header_field : obj writer
 
   val read_header_field : obj reader

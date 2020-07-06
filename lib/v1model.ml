@@ -414,6 +414,9 @@ module PreV1Switch : Target = struct
   let eval_log_msg : extern = fun env st ts args ->
     env, st, SContinue, VNull
 
+
+  (* stp: this value is never actually used; I'm keeping it in to keep track
+  of what is supported etc. *)
   let externs = [
     ("counter", eval_counter);
     ("count", eval_count); (* overloaded *)
@@ -445,6 +448,7 @@ module PreV1Switch : Target = struct
     ("assume", eval_assume);
     ("log_msg", eval_log_msg); (* overloaded; unsupported *)
   ]
+
   let eval_extern name =
     match name with
     | "counter" -> eval_counter

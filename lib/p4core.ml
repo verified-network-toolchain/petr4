@@ -362,9 +362,6 @@ module Corize (T : Target) : Target = struct
       ("emit", eval_emit);
       ("verify", eval_verify)]
 
-  let externs : (string * extern) list =
-    core_externs @ T.externs (* core has precedence over target *)
-
   let write_header_field : T.obj Target.writer = T.write_header_field
 
   let read_header_field : T.obj Target.reader = T.read_header_field

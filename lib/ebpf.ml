@@ -79,6 +79,7 @@ module PreEbpfFilter : Target = struct
     env, State.insert_extern loc (HashTable ()) st,
     SContinue, VRuntime {loc;obj_name = "hash_table"}
 
+  (* stp: never actually used; see note in v1model.ml *)
   let externs = [
     ("CounterArray", eval_counter_array);
     ("increment", eval_increment);

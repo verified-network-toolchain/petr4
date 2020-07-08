@@ -531,6 +531,8 @@ module MakeInterpreter (T : Target) = struct
     | Types.QualifiedName (_, s) ->
        snd s
 
+  and (trace_ref : EvalEnv.trace ref) = ref []
+      
   and eval_table (ctrl : ctrl) (env : env) (st : state) (key : Table.pre_key list)
       (entries : Table.pre_entry list)
       (name : string) (actions : Table.action_ref list)
@@ -558,12 +560,13 @@ module MakeInterpreter (T : Target) = struct
     let args = Table.((snd action).action.args) in
     (* add trace to environment *)
     let env'' =
-      let trace = EvalEnv.get_trace env in
+      let trace = !trace_ref in
       match l with
       | [] -> env
       | (key,action_ref)::_ ->
          let trace_elt = EvalEnv.TraceTable {name; key; action_ref; matched_set} in
-         EvalEnv.set_trace (trace_elt :: trace) env in
+         trace_ref := trace_elt :: trace;
+         EvalEnv.set_trace (!trace_ref) env in
     match action_value with
     | VAction{scope;params;body}  ->
       let (env',st''',s,_) = eval_funcall' ctrl env'' st'' scope params args body in
@@ -1698,6 +1701,7 @@ module MakeInterpreter (T : Target) = struct
       (in_port : Bigint.t) : state * env * pkt option * Bigint.t =
     let st' = T.initialize_metadata in_port st in
     let (st, env, pkt) = T.eval_pipeline ctrl env st' pkt eval_app in
+    let env = EvalEnv.set_trace (!trace_ref) env in
     st, env, pkt, T.get_outport st env
 
   and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)

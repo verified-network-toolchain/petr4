@@ -18,20 +18,8 @@ checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupport
 checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/bad/spec-ex32_e.p4,annotation (unsupported),137
 checker,examples/checker_tests/bad/issue1732.p4,@match annotation arg must be match kind (unsupported),137
-stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),122
-stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),122
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,apparent coercion t <-> tuple<t> in set context,125
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
-stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81
-stf,examples/checker_tests/good/issue1049-bmv2.p4,crc checksum problems,179
 checker,examples/checker_tests/bad/issue1167-bmv2.p4,direct meter tables must have reads (unsupported),162
 checker,examples/checker_tests/bad/issue1829-1-bmv2.p4,direct meter tables must have reads (unsupported),162
 checker,examples/checker_tests/bad/issue1829-2-bmv2.p4,direct meter must be associated with a table (unsupported),162
@@ -46,17 +34,6 @@ checker,examples/checker_tests/good/issue344.p4,generics (unsupported),148
 checker,examples/checker_tests/good/pvs-nested-struct.p4,flattening struct in match,81
 checker,examples/checker_tests/bad/annotation.p4,p4c rejecting "@pkginfo" annotation in parser,137
 checker,examples/checker_tests/bad/key-name.p4,complex key expressions need @name annotation,137
-stf,examples/checker_tests/good/action_call_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/csum_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ebpf_checksum_extern.p4,ebpf (unsupported),122
-stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),122
-stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
-stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
 checker,examples/checker_tests/bad/issue2260-1.p4,p4c refusing to insert explicit casts on a generic function (bad test),183
 checker,examples/checker_tests/bad/issue2230-1-bmv2.p4,p4c treating structs nominally (bad test),182
 checker,examples/checker_tests/bad/no-externs-bmv2.p4,BMv2-specific extern module system test (unsupported),161
@@ -87,3 +64,35 @@ checker,examples/checker_tests/bad/twovarbit.p4,headers can contain only one var
 checker,examples/checker_tests/bad/issue513.p4,target-dependent behavior (conditionals in actions),151
 checker,examples/checker_tests/bad/div3.p4,p4c rejects runtime division,194
 checker,examples/checker_tests/good/pvs-struct-1-bmv2.p4,value set typing bug,81
+
+stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),122
+stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),122
+stf,examples/checker_tests/good/psa-fwd-bmv2.p4,PSA arch (unsupported),122
+
+stf,examples/checker_tests/good/action_call_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/csum_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ipv4-actions_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/metadata_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/simple-actions_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/tunneling_ubpf.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ubpf_checksum_extern.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/ubpf_hash_extern.p4,ubpf (unsupported),122
+stf,examples/checker_tests/good/simple-firewall_ubpf.p4,ubpf (unsupported), 122
+
+stf,examples/checker_tests/good/ebpf_checksum_extern.p4,ebpf (unsupported),122
+stf,examples/checker_tests/good/ebpf_conntrack_extern.p4,ebpf (unsupported),122
+
+stf,examples/checker_tests/good/issue1049-bmv2.p4,crc checksum problems (unsupported),179
+stf,examples/checker_tests/good/extern-funcs-bmv2.p4,uninterpreted extern function supposed to assign (bad test? missing data?),161
+stf,examples/checker_tests/good/v1model-special-ops-bmv2.p4,multi-casting (unsupported),214
+stf,examples/checker_tests/good/ipv6-switch-ml-bmv2.p4, multi-casting (unsupported),214
+
+stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81

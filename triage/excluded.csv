@@ -18,27 +18,16 @@ checker,examples/checker_tests/good/issue2273-1.p4,initializer blocks (unsupport
 checker,examples/checker_tests/good/issue2273.p4,initializer blocks (unsupported),75
 checker,examples/checker_tests/bad/spec-ex32_e.p4,annotation (unsupported),137
 checker,examples/checker_tests/bad/issue1732.p4,@match annotation arg must be match kind (unsupported),137
-stf,examples/checker_tests/good/action_call_ebpf.p4,eBPF arch (unsupported),122
 stf,examples/checker_tests/good/psa-drop-all-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/valid_ebpf.p4,eBPF arch (unsupported),122
 stf,examples/checker_tests/good/psa-drop-all-corrected-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-multicast-basic-corrected-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-basic-counter-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/issue870_ebpf.p4,eBPF arch (unsupported),122
-stf,examples/checker_tests/good/hit_ebpf.p4,eBPF arch (unsupported),122
-stf,examples/checker_tests/good/key_ebpf.p4,eBPF arch (unsupported),122
-stf,examples/checker_tests/good/two_ebpf.p4,eBPF arch (unsupported),122
-stf,examples/checker_tests/good/count_ebpf.p4,eBPF arch (unsupported),122
 stf,examples/checker_tests/good/psa-multicast-basic-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-recirculate-no-meta-bmv2.p4,psa arch (unsupported),122
-stf,examples/checker_tests/good/test_ebpf.p4,eBPF arch (unsupported),122
 stf,examples/checker_tests/good/psa-unicast-or-drop-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-unicast-or-drop-corrected-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/switch_ebpf.p4,eBPF arch (unsupported),122
-stf,examples/checker_tests/good/key-issue-1020_ebpf.p4,STF parse error + eBPF arch (unsupported),122
 stf,examples/checker_tests/good/psa-top-level-assignments-bmv2.p4,PSA arch (unsupported),122
 stf,examples/checker_tests/good/psa-resubmit-bmv2.p4,PSA arch (unsupported),122
-stf,examples/checker_tests/good/action_call_table_ebpf.p4,uses STF setdefault cmd and eBPF backend (unsupported),122
 checker,examples/checker_tests/good/table-entries-no-arg-actions.p4,apparent coercion t <-> tuple<t> in set context,125
 checker,examples/checker_tests/good/action-two-params.p4,apparent coercion t <-> tuple<t> in set context,125
 stf,stf-test/custom-stf-tests/value_set.p4,fails in typechecker due to struct flattening (unsupported),81

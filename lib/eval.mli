@@ -33,6 +33,10 @@ module type Interpreter = sig
       evaluation. *)
   val eval_declaration : ctrl -> env -> state -> Declaration.t -> env * state
 
+  (* Neptune JIT wants the env so I expose *)
+  val eval : ctrl -> env -> state -> pkt -> Bigint.t -> state * env * pkt option * Bigint.t
+
+
   (** [eval_program ctrl env st pkt port prog] is [st', None] if [prog] drops
       the packet [pkt] with ingress port [port] under control-plane
       configuration [ctrl], environment [env], and state [st], producing the 
@@ -41,7 +45,7 @@ module type Interpreter = sig
       control-plane configuration [ctrl], environment [env], and state [st],
       producing the side-effects in [st']. *)
   val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
-    state * (buf * Bigint.t) option
+                     state * (buf * Bigint.t) option
 
 end
 

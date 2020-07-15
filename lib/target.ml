@@ -13,11 +13,11 @@ let (<>) = Stdlib.(<>)
 type env = EvalEnv.t
 
 type 'st pre_extern =
-  ctrl -> env -> 'st -> Type.t list -> (value * Type.t) list ->
+  env -> 'st -> Type.t list -> (value * Type.t) list ->
   env * 'st * signal * value
 
 type 'st apply =
-  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> env * 'st * signal * value
+  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> 'st * signal * value
 
 module State = struct
 
@@ -400,14 +400,12 @@ module type Target = sig
 
   type extern = state pre_extern
 
-  val externs : (string * extern) list
-
   val write_header_field : obj writer
 
   val read_header_field : obj reader
 
   val eval_extern : 
-    string -> ctrl -> env -> state -> Type.t list -> (value * Type.t) list ->
+    string -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 
   val initialize_metadata : Bigint.t -> state -> state

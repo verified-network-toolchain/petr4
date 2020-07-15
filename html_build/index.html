@@ -2,252 +2,144 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Petr4</title>
+  <title>Petr4 | Web</title>
+
+  <link rel="stylesheet" href="css/katex.min.css" />
+  <link rel="stylesheet" href="css/all.css" />
+  <link rel="stylesheet" href="css/bootstrap.min.css" />
+
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" />
+  <link rel="stylesheet" href="css/syntax.css" />
+  <link rel="stylesheet" href="css/codeblock.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.2/photoswipe.min.css" integrity="sha384-h/L2W9KefUClHWaty3SLE5F/qvc4djlyR4qY3NUV5HGQBBW7stbcfff1+I/vmsHh" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.2/default-skin/default-skin.min.css" integrity="sha384-iD0dNku6PYSIQLyfTOpB06F2KCZJAKLOThS5HRe8b3ibhdEQ6eKsFf/EeFxdOt5R" crossorigin="anonymous">
+  <link rel="stylesheet" href="css/editor.css" />
   <style>
-      .button {
-  background-color: #5bc0de;
-  border: none;
-  color: white;
-  padding: 15px 32px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 16px;
-  margin: 4px 2px;
-  cursor: pointer;
-}
-    .grid-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 2fr 1fr;
-      width: 95vw;
-        height: 90vh;
-    }
-    .grid-item {
-        margin: auto;
-        height: 100%;
-        width: 100%;
-        align-items: center;
-    }
-    textarea {
-    box-sizing: border-box; /* fit parent width */
-    height: 70%;
-    width: 100%;
-    font-family: monospace;
-    }
-    label {
-    width: 100%;
-    display:inline-block;
-    text-align: center;
-    }
-    </style>
+    font-family: 'Lora', 'Times New Roman', serif;
+    font-size: 12pt;
+  </style>
 </head>
-<body>
-<div class="grid-container">
-    <div class = "grid-item" ><label><h3>p4 program</h3></label><div id ="code-area" style="opacity:0">
+<body style="padding-top:100px;">
 
-        #include &lt;core.p4&gt;
-            #include &lt;v1model.p4&gt;
+  <nav class="navbar navbar-default navbar-fixed-top navbar-custom">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#main-navbar">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="">Petr4: Formal Foundations for P4</a>
+    </div>
 
-            struct metadata { }
-            struct headers { }
-
-            parser MyParser(packet_in packet,
-                            out headers hdr,
-                            inout metadata meta,
-                            inout standard_metadata_t standard_metadata) {
-                state start {
-                    transition accept;
-                }
-            }
-
-            control MyChecksum(inout headers hdr, inout metadata meta) {
-                apply { }
-            }
-
-            control MyIngress(inout headers hdr,
-                              inout metadata meta,
-                              inout standard_metadata_t standard_metadata) {
-                apply {
-                    standard_metadata.egress_spec = 9;
-                }
-            }
-
-            control MyEgress(inout headers hdr,
-                             inout metadata meta,
-                             inout standard_metadata_t standard_metadata) {
-                apply { }
-            }
-
-            control MyDeparser(packet_out packet, in headers hdr) {
-                apply { }
-            }
-
-            //this is declaration
-            V1Switch(
-                MyParser(),
-                MyChecksum(),
-                MyIngress(),
-                MyEgress(),
-                MyChecksum(),
-                MyDeparser()
-                )
-            main;
-
-
-    </div></div>
-    <div class = "grid-item"><label><h3>control</h3></label><div id="control-json-area" style="opacity:0">
-        {
-            "pre_entries": [
-                {
-                "annotations": [],
-                "matches": [
-                    [
-                    [
-                        "info",
-                        {
-                        "filename": "./examples/eval_tests/controls/table.p4\"",
-                        "line_start": 44,
-                        "line_end": null,
-                        "col_start": 12,
-                        "col_end": 15
-                        }
-                    ],
-                    [
-                        "Expression",
-                        {
-                        "expr": [
-                            [
-                            "info",
-                            {
-                                "filename": "./examples/eval_tests/controls/table.p4\"",
-                                "line_start": 44,
-                                "line_end": null,
-                                "col_start": 12,
-                                "col_end": 15
-                            }
-                            ],
-                            [
-                            "int",
-                            [
-                                [
-                                "info",
-                                {
-                                    "filename": "./examples/eval_tests/controls/table.p4\"",
-                                    "line_start": 44,
-                                    "line_end": null,
-                                    "col_start": 12,
-                                    "col_end": 15
-                                }
-                                ],
-                                {
-                                "value": 0,
-                                "width_signed": [
-                                    9,
-                                    false
-                                ]
-                                }
-                            ]
-                            ]
-                        ]
-                        }
-                    ]
-                    ]
-                ],
-                "action": [
-                    [
-                    "info",
-                    {
-                        "filename": "./examples/eval_tests/controls/table.p4\"",
-                        "line_start": 44,
-                        "line_end": null,
-                        "col_start": 18,
-                        "col_end": 25
-                    }
-                    ],
-                    {
-                    "annotations": [],
-                    "name": [
-                        [
-                        "info",
-                        {
-                            "filename": "./examples/eval_tests/controls/table.p4\"",
-                            "line_start": 44,
-                            "line_end": null,
-                            "col_start": 18,
-                            "col_end": 25
-                        }
-                        ],
-                        "set_one"
-                    ],
-                    "args": []
-                    }
-                ]
-                }
-            ],
-            "matches": [
-                [
-                    [
-                    [
-                        "info",
-                        {
-                        "filename": "./examples/eval_tests/parsers/value_set.p4\"",
-                        "line_start": 23,
-                        "line_end": null,
-                        "col_start": 12,
-                        "col_end": 14
-                        }
-                    ],
-                    [
-                        "Expression",
-                        {
-                        "expr": [
-                            [
-                            "info",
-                            {
-                                "filename": "./examples/eval_tests/parsers/value_set.p4\"",
-                                "line_start": 23,
-                                "line_end": null,
-                                "col_start": 12,
-                                "col_end": 14
-                            }
-                            ],
-                            [
-                            "int",
-                            [
-                                [
-                                "info",
-                                {
-                                    "filename":
-                                    "./examples/eval_tests/parsers/value_set.p4\"",
-                                    "line_start": 23,
-                                    "line_end": null,
-                                    "col_start": 12,
-                                    "col_end": 14
-                                }
-                                ],
-                                { "value": 42, "width_signed": null }
-                            ]
-                            ]
-                        ]
-                        }
-                    ]
-                    ]
-                ]
-                ]
-            }
-        </div></div>
-    <div class = "grid-item"><label><h3>packet in</h3></label><textarea rows="4" cols="50" id="packet-area" spellcheck="false">2A2A2A2A2A2A2A2A2A2A2A2A21</textarea></div>
-    <div class = "grid-item"><label><h3>packet out</h3></label><textarea rows="4" cols="50" id="output" readonly>out</textarea></div>
+    <div class="collapse navbar-collapse" id="main-navbar">
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+              <a title="Demo">Demo</a>
+            </li>
+            <li>
+              <a title="Code" href="https://github.com/cornell-netlab/petr4">Code</a>
+            </li>
+            <li>
+              <a title="Paper" href="petr4-draft.pdf">Draft Paper</a>
+            </li>
+      </ul>
+    </div>
+    
+    <div class="avatar-container">
+      <div class="avatar-img-border">
+        <a title="Petr4" href="/">
+          <img class="avatar-img" src="petr4-logo.png" alt="Petr4" />
+        </a>
+      </div>
+    </div>
   </div>
+</nav>
 
+<div role="main" class="container">
+    <div class="row">
+      <div class="col-lg-10">
+        <h3>P4 Program</h3>
+        <div id="code-area" style="opacity:0">
+      
+#include &lt;core.p4&gt;
+#include &lt;v1model.p4&gt;
 
+typedef standard_metadata_t std_meta_t;
 
-  <button id="form-submit" class = "button">run</button>
+header h_t { 
+  bit<8> x;
+  bit<8> y; 
+}
+struct H { 
+  h_t h;
+}
 
+struct M { }
 
-  <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
-  <script src="web.bc.js"></script>
+parser MyParser(packet_in pkt, out H hdr, inout M meta, inout std_meta_t std_meta) {
+    state start {
+        pkt.extract(hdr.h);
+        transition accept;
+    }
+}
+
+control MyVerifyChecksum(inout H hdr, inout M meta) {
+    apply { }
+}
+
+control MyComputeChecksum(inout H hdr, inout M meta) {
+    apply { }
+}
+
+control MyIngress(inout H hdr, inout M meta, inout std_meta_t std_meta) {
+  apply {
+    hdr.h.x = 0xFF;
+    hdr.h.y = 0x00;
+    std_meta.egress_spec = 9;
+  }
+}
+
+control MyEgress(inout H hdr, inout M meta, inout std_meta_t std_meta) {
+    apply { }
+}
+
+control MyDeparser(packet_out buf, in H hdr) {
+    apply {
+        buf.emit(hdr.h);
+    }
+}
+
+V1Switch(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;
+        </div>
+      </div>
+    </div>
+    <div class="row"></div>
+    <div class="row">
+      <div style="display:none;" id="control-json-area" style="opacity:0">
+        { "matches": [ ] }
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-3">
+        <h3>Input Packet</h3>
+        <textarea rows="2" cols="50" id="packet-in" style="font-family: 'Consolas'; font-size:10pt;" spellcheck="false">01 01 01 01</textarea>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-3">
+        <h3>Output</h3>
+        <textarea rows="2" cols="50" id="packet-out" style="font-family: 'Consolas'; font-size:10pt;" readonly></textarea></br/>
+        <button id="evaluate" class="btn btn-primary">Evaluate!</button>
+      </div>
+    </div>
+</div>
+
+<script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
+<script src="web.bc.js"></script>
 <script>
 
     //ace.config.set("workerPath", "build/src-min");
@@ -255,22 +147,24 @@
     var control_editor = ace.edit("control-json-area");
 
     control_editor.container.style.opacity = "";
-    control_editor.setFontSize("14px");
+    control_editor.setFontSize("12px");
     control_editor.setOptions({
         maxLines: 40,
         mode: "ace/mode/json",
         autoScrollEditorIntoView: true
     });
+    p4_editor.setTheme("ace/theme/xcode");
     p4_editor.container.style.opacity = "";
-    p4_editor.setFontSize("14px");
+    p4_editor.setFontSize("12px");
+    p4_editor.setShowPrintMargin(false);
     p4_editor.setOptions({
         maxLines: 40,
         mode: "ace/mode/c_cpp",
         autoScrollEditorIntoView: true
     });
-    const button = document.getElementById("form-submit")
-    var in_area = document.getElementById("packet-area")
-    var out_area = document.getElementById("output")
+    const button = document.getElementById("evaluate")
+    var in_area = document.getElementById("packet-in")
+    var out_area = document.getElementById("packet-out")
     button.onclick = function () {
         out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
     }

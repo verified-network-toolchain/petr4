@@ -56,7 +56,7 @@ Run `petr4 -help` to see the list of currently-supported options.
 ### Web user interface
 
 `petr4` uses `js_of_ocaml` to provide a web interface. To compile to javascript,
-run `make build_js`. Then open `index.html` in `html_build` in a browser.
+run `make web`. Then open `index.html` in `html_build` in a browser.
 
 ## Contributing
 

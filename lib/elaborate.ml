@@ -154,7 +154,14 @@ let freshen_param env param =
   let param' = Renamer.freshen_name (CheckerEnv.renamer env) param in
   CheckerEnv.insert_type (BareName (Info.dummy, param)) (TypeName (BareName (Info.dummy, param'))) env, param'
 
+let check_shadowing params =
+  let param_compare (_, p1) (_, p2) = String.compare p1 p2 in
+  match List.find_a_dup ~compare:param_compare params with
+  | Some _ -> failwith "parameter shadowed?"
+  | None -> ()
+
 let rec freshen_params env params =
+  check_shadowing params;
   match params with
   | [] -> env, []
   | param :: params ->

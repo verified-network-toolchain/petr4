@@ -1,18 +1,20 @@
-OUTPUT=petr4 styleguide
+OUTPUT=petr4 petr4-three-context styleguide
 PDF_OUTPUTS=$(addsuffix .pdf,$(addprefix build/,${OUTPUT}))
 HTML_OUTPUTS=$(addsuffix .html,$(addprefix build/,${OUTPUT}))
+MADOKO=madoko
+MADOKO_ARGS=-vv --png --odir=build
 
-all: pdf html
-
-pdf: ${PDF_OUTPUTS}
+all: html
 
 html: ${HTML_OUTPUTS} 
 
+pdf: ${PDF_OUTPUTS}
+
 build/%.pdf: %.mdk p4.json
-	madoko --pdf -vv --png --odir=build $<
+	$(MADOKO) $(MADOKO_ARGS) --pdf $<
 
 build/%.html: %.mdk p4.json
-	madoko -vv --png --odir=build $<
+	$(MADOKO) $(MADOKO_ARGS) $<
 
 clean:
 	${RM} -rf build

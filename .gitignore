@@ -4,6 +4,7 @@ _build/
 petr4.install
 .merlin
 html_build/*bc.js
+html_build/p4
 docs/specification/build
 *.p4i
 testruns/

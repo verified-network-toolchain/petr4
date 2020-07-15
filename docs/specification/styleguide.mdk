@@ -267,3 +267,7 @@ x + y
 ~ MathPre
 x+y
 ~
+Prefer writing with no whitespace. If things break, you might need to
+put braces `{}` after a macro to separate it from the next thing. The
+shortcut `|-` for `\vdash` also needs spaces around it to work, but I
+think that it looks better with space anyway.

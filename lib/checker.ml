@@ -518,7 +518,7 @@ and infer_type_arguments env ctx ret type_params_args params_args constraints =
     | Some arg ->
        CheckerEnv.insert_type (BareName (Info.dummy, type_var)) arg env, args @ [(type_var, arg)], unknowns
     | None ->
-       CheckerEnv.insert_type_var (BareName (Info.dummy, type_var)) env, args, unknowns @ [type_var]
+       env, args, unknowns @ [type_var]
   in
   let env, params_args', unknowns = List.fold ~f:insert ~init:(env, [], []) type_params_args in
   let constraints =
@@ -1155,13 +1155,13 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Tuple {types}
   | List {types} ->
      List.for_all ~f:(is_well_formed_type env) types &&
-       is_valid_nested_type env (Tuple {types}) typ
+       List.for_all ~f:(is_valid_nested_type env typ) types
   | Set typ ->
      is_well_formed_type env typ
   | Enum {typ; _} ->
     begin match typ with
     | None -> true
-    | Some typ ->  is_well_formed_type env typ
+    | Some typ -> is_well_formed_type env typ
     end
   | Record {fields; _}
   | HeaderUnion {fields; _}
@@ -1198,12 +1198,8 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Extern {type_params=tps; methods=methods} ->
     let env = CheckerEnv.insert_type_vars tps env in
     let open ExternType in
-    let folder (env,result) m =
-      if is_well_formed_type env (Type.Function m.typ) then
-        (CheckerEnv.insert_type_of (BareName (Info.dummy, m.name))
-           (Type.Function m.typ) env,result)
-      else (env,false) in
-    List.fold_left ~f:folder ~init:(env,true) methods |> snd
+    let method_ok m = is_well_formed_type env (Type.Function m.typ) in
+    List.for_all ~f:method_ok methods
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1230,8 +1226,18 @@ and are_construct_params_types_well_formed env (construct_params: Typed.Paramete
   in
   List.for_all ~f:check construct_params
 
+and ctx_of_kind (k: FunctionType.kind) : Typed.ParamContext.t =
+  match k with
+  | Parser -> Runtime Parser
+  | Control -> Runtime Control
+  | Extern -> Runtime Method
+  | Table -> Runtime Control
+  | Action -> Runtime Action
+  | Function -> Runtime Function
+  | Builtin -> Runtime Method
+
 and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
-  let typ = reduce_type env typ in
+  let typ = reduce_to_underlying_type env typ in
   match ctx with
   | Constructor decl ->
      begin match typ, decl with
@@ -1270,9 +1276,20 @@ and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) =
      | _ -> true
      end
 
+and is_valid_param_type_kind env (kind: FunctionType.kind) (typ: Typed.Type.t) =
+    let open ParamContext in
+  match kind with
+  | Parser -> is_valid_param_type env (Runtime Parser) typ
+  | Control -> is_valid_param_type env (Runtime Control) typ
+  | Extern -> is_valid_param_type env (Runtime Method) typ
+  | Table -> false
+  | Action -> is_valid_param_type env (Runtime Action) typ
+  | Function -> is_valid_param_type env (Runtime Function) typ
+  | Builtin -> is_valid_param_type env (Runtime Method) typ
+
 and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typed.Type.t) (inner_type: Typed.Type.t) =
   let inner_type = reduce_to_underlying_type env inner_type in
-  match outer_type with
+  match reduce_to_underlying_type env outer_type with
   | Header _ ->
      begin match inner_type with
      | Bit _
@@ -1293,13 +1310,14 @@ and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typ
      | _ -> false
      end
   | Struct _
+  | List _
   | Tuple _ ->
      begin match inner_type with
+     | TypeName _
      | Bit _
      | Int _
      | Enum _
-     | Bool ->
-        true
+     | Bool -> true
      | Struct {fields} ->
         not in_header ||
           List.for_all fields
@@ -1328,20 +1346,22 @@ and is_compile_time_only_type env typ =
   | String -> true
   | _ -> false
 
-and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
-  let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
-  let env = CheckerEnv.insert_type_vars wildcards env in
-  let dir = translate_direction param.direction in
+
+and validate_param env ctx (typ: Typed.Type.t) dir info =
   if is_extern env typ && not (eq_dir dir Directionless)
   then raise_s [%message "Externs as parameters must be directionless"];
   if is_compile_time_only_type env typ && not (eq_dir dir Directionless)
   then raise_s [%message "parameters of this type must be directionless" ~typ:(typ: Typed.Type.t)];
   if not (is_well_formed_type env typ)
-  then raise_s [%message "Parameter type is not well-formed"
-                   ~param:((param_info, param): Types.Parameter.t)];
+  then raise_s [%message "Parameter type is not well-formed" ~info:(info:Info.t) ~typ:(typ:Typed.Type.t)];
   if not (is_valid_param_type env ctx typ)
-  then raise_s [%message "Type cannot be passed as a parameter"
-                   ~param:((param_info, param): Types.Parameter.t)];
+  then raise_s [%message "Type cannot be passed as a parameter" ~info:(info:Info.t)];
+
+and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
+  let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
+  let env = CheckerEnv.insert_type_vars wildcards env in
+  let dir = translate_direction param.direction in
+  validate_param env ctx typ dir param_info;
   let opt_value =
     match param.opt_value with
     | Some value ->
@@ -2267,10 +2287,12 @@ and type_function_call env ctx call_info func type_args args : Prog.Expression.t
     infer_type_arguments env ctx return_type type_params_args params_args type_params_args
   in
   let env = CheckerEnv.insert_types type_params_args env in
-  let params_args': (Typed.Parameter.t * Expression.t option) list =
-    List.map params_args
-      ~f:(fun (p, a) -> {p with typ = saturate_type env p.typ}, a)
+  let subst_param_arg ((param:Typed.Parameter.t), arg) =
+      let param = {param with typ = saturate_type env param.typ} in
+      validate_param env (ctx_of_kind kind) param.typ param.direction call_info;
+      param, arg
   in
+  let params_args' = List.map params_args ~f:subst_param_arg in
   let typed_params_args = List.map ~f:(cast_param_arg env ctx call_info) params_args' in
   let out_type_args = List.map ~f:snd type_params_args in
   let out_args = List.map ~f:snd typed_params_args in
@@ -3606,7 +3628,7 @@ and type_header env info annotations name fields =
 
 and type_field env (field_info, field) =
   let open Types.Declaration in
-  let typ = translate_type env [] field.typ in
+  let typ = saturate_type env (translate_type env [] field.typ) in
   let pre_field : Prog.Declaration.pre_field =
     { annotations = field.annotations; name = field.name; typ }
   in
@@ -3795,7 +3817,7 @@ and type_extern_object env info annotations obj_name t_params methods =
       methods = List.map ms
                   ~f:(method_prototype_to_extern_method obj_name) }
   in
-  let to_typename s = Type.TypeName (BareName (Info.dummy, s)) in
+  let extern_typ_ret: ExternType.t = { extern_typ with type_params = [] } in
   let extern_ctors =
     List.map cs ~f:(function
         | _, Prog.MethodPrototype.Constructor
@@ -3804,9 +3826,7 @@ and type_extern_object env info annotations obj_name t_params methods =
              { type_params = type_params';
                wildcard_params = [];
                parameters = params_typed;
-               return = SpecializedType
-                          { base = Extern extern_typ;
-                            args = List.map ~f:to_typename type_params' } }
+               return = Extern extern_typ_ret; }
         | _ -> failwith "bug: expected constructor")
   in
   let env = CheckerEnv.insert_type (BareName obj_name) (Extern extern_typ) env in
@@ -3953,6 +3973,14 @@ and type_package_type env info annotations name t_params params =
   in
   (info, pkg_decl), env'
 
+and check_param_shadowing params constructor_params =
+  let open Types.Parameter in 
+  let all_params = params @ constructor_params in
+  let names = List.map ~f:(fun (_, p) -> snd p.variable) all_params in
+  match List.find_a_dup ~compare:String.compare names with
+  | Some dup -> raise_s [%message "duplicate parameter" ~dup]
+  | None -> ()
+
 and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match snd decl with
   | Constant { annotations; typ; name; value } ->
@@ -3963,15 +3991,20 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
      | None -> type_instantiation env ctx (fst decl) annotations typ args name
      end
   | Parser { annotations; name; type_params = _; params; constructor_params; locals; states } ->
+     check_param_shadowing params constructor_params;
      type_parser env (fst decl) name annotations params constructor_params locals states
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+     check_param_shadowing params constructor_params;
      type_control env (fst decl) name annotations type_params params constructor_params locals apply
   | Function { return; name; type_params; params; body } ->
+     check_param_shadowing params [];
      let ctx: StmtContext.t = Function (translate_type env (List.map ~f:snd type_params) return) in
      type_function env ctx (fst decl) return name type_params params body
   | Action { annotations; name; params; body } ->
+     check_param_shadowing params [];
      type_action env (fst decl) annotations name params body
   | ExternFunction { annotations; return; name; type_params; params } ->
+     check_param_shadowing params [];
      type_extern_function env (fst decl) annotations return name type_params params
   | Variable { annotations; typ; name; init } ->
      type_variable env ctx (fst decl) annotations typ name init
@@ -4000,10 +4033,13 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | NewType { annotations; name; typ_or_decl } ->
      type_new_type env ctx (fst decl) annotations name typ_or_decl
   | ControlType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_control_type env (fst decl) annotations name type_params params
   | ParserType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_parser_type env (fst decl) annotations name type_params params
   | PackageType { annotations; name; type_params; params } ->
+     check_param_shadowing params [];
      type_package_type env (fst decl) annotations name type_params params
 
 and type_declarations env ctx decls =

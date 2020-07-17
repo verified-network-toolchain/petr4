@@ -809,7 +809,7 @@ end = struct
         format_fields fields
     | HeaderUnion { annotations; name; fields } ->
       Annotation.format_ts fmt annotations;
-      Format.fprintf fmt "@[<4>header %a %a"
+      Format.fprintf fmt "@[<4>header_union %a %a"
         P4String.format_t name
         format_fields fields
     | NewType { annotations; name; typ_or_decl } ->

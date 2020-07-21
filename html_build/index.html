@@ -61,59 +61,19 @@
 
 <div role="main" class="container">
     <div class="row">
+      <form>
+      <select id="demo_options" onchange="select_demo()"  style="width: 400px;">
+        <option>table-entries-lpm-bmv2.p4</option>
+        <option>switch_ebpf.p4</option>
+        <option>union-valid-bmv2.p4</option>
+        <option>register.p4</option>
+      </select>
+      </form>
+    </div>
+    <div class="row">
       <div class="col-lg-10">
         <h3>P4 Program</h3>
-        <div id="code-area" style="opacity:0">
-      
-#include &lt;core.p4&gt;
-#include &lt;v1model.p4&gt;
-
-typedef standard_metadata_t std_meta_t;
-
-header h_t { 
-  bit<8> x;
-  bit<8> y; 
-}
-struct H { 
-  h_t h;
-}
-
-struct M { }
-
-parser MyParser(packet_in pkt, out H hdr, inout M meta, inout std_meta_t std_meta) {
-    state start {
-        pkt.extract(hdr.h);
-        transition accept;
-    }
-}
-
-control MyVerifyChecksum(inout H hdr, inout M meta) {
-    apply { }
-}
-
-control MyComputeChecksum(inout H hdr, inout M meta) {
-    apply { }
-}
-
-control MyIngress(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-  apply {
-    hdr.h.x = 0xFF;
-    hdr.h.y = 0x00;
-    std_meta.egress_spec = 9;
-  }
-}
-
-control MyEgress(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-    apply { }
-}
-
-control MyDeparser(packet_out buf, in H hdr) {
-    apply {
-        buf.emit(hdr.h);
-    }
-}
-
-V1Switch(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;
+        <div id="code-area" style="opacity:0" >
         </div>
       </div>
     </div>
@@ -168,6 +128,17 @@ V1Switch(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeCheck
     button.onclick = function () {
         out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
     }
+    
+    function select_demo(){
+      var selected_option=document.getElementById("demo_options").value;
+      var code_file=new XMLHttpRequest();
+      code_file.open("GET", "p4/"+selected_option,false);
+      code_file.send();
+      var code=code_file.responseText;
+      p4_editor.setValue(code, -1);
+            
+    }
+    select_demo();
     </script>
 </body>
 <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />

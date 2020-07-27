@@ -8,12 +8,9 @@ implementation.
 
 ### Installing Petr4
 
-1. Install [OPAM](https://opam.ocaml.org/).
-   ```
-   sudo apt-get install opam
-   opam init
-   eval `opam env`
-   ```
+1. Install OPAM 2 following the official [OPAM installation
+   instructions](https://opam.ocaml.org/doc/Install.html). Make sure `opam
+   --version` reports version 2 or later.
 
 1. Install external dependencies:
    ```

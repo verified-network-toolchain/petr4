@@ -331,9 +331,15 @@ end = struct
     | IntType x ->
       Format.fprintf fmt "@[int<%a>@]"
         Expression.format_t x
-    | BitType x ->
-      Format.fprintf fmt "@[bit<%a>@]"
-        Expression.format_t x
+    | BitType e -> 
+       begin match snd e with 
+       | P4.Expression.Int _  -> 
+          Format.fprintf fmt "@[bit<%a>@]"
+            Expression.format_t e
+       | _ -> 
+          Format.fprintf fmt "@[bit<(%a)>@]"
+            Expression.format_t e
+       end
     | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x

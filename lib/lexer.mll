@@ -346,7 +346,9 @@ and preprocessor = parse
   | ' '
       { preprocessor lexbuf }
   | int
-      { let line = int_of_string (lexeme lexbuf) in
+      {
+        Printf.printf "%s" (lexeme lexbuf);
+        let line = int_of_string (lexeme lexbuf) in
         set_line line ; preprocessor lexbuf }
       
   | '"'

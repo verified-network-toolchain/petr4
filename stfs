@@ -1,0 +1,5 @@
+examples/checker_tests/excluded/good/v1model-special-ops-bmv2.stf
+examples/checker_tests/good/table-entries-lpm-bmv2.stf
+examples/checker_tests/good/table-entries-lpm-bmv2.stf
+examples/checker_tests/good/v1model-const-entries-bmv2.stf
+examples/checker_tests/good/flag_lost-bmv2.stf

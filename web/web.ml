@@ -20,18 +20,16 @@ open Base
 
 exception ParsingError of string
 
-let hash = Hashtbl.create(module String)
+module JavascriptFS = struct
+  let exists path = true
 
-module HashFS = struct
-  let exists path = 
-    match Hashtbl.find hash path with 
-      | Some _ -> true
-      | None -> false
-
-  let load path = Hashtbl.find_exn hash path
+  let load path : string =
+    Js.to_string @@
+    Js.Unsafe.fun_call (Js.Unsafe.js_expr "load_file")
+      [|Js.Unsafe.inject (Js.string path)|]
 end
 
-module Pp = P4pp.Eval.Make(HashFS)
+module Pp = P4pp.Eval.Make(JavascriptFS)
 
 module Conf: Parse_config = struct
   let red s = s
@@ -39,7 +37,7 @@ module Conf: Parse_config = struct
 
   let preprocess _ p4_file_contents =
     let file ="input.p4" in
-    let env = P4pp.Eval.empty file [] [] in
+    let env = P4pp.Eval.empty file ["/include"] [] in
     let str,_ = Pp.preprocess env file p4_file_contents in
     str
 end

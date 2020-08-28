@@ -99,6 +99,16 @@
 </div>
 
 <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
+<script>
+    window.load_file = function (filename) {
+      var code_file=new XMLHttpRequest();
+      code_file.open("GET", "p4/"+filename,false);
+      code_file.send();
+      var text = code_file.responseText;
+      console.log("request done");
+      return text;
+    }
+</script>
 <script src="web.bc.js"></script>
 <script>
 
@@ -128,7 +138,10 @@
     button.onclick = function () {
         out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
     }
-    
+
+    function exists_file(filename) {
+    }
+
     function select_demo(){
       var selected_option=document.getElementById("demo_options").value;
       var code_file=new XMLHttpRequest();

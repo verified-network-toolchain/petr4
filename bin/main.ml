@@ -41,32 +41,6 @@ module Parse = Make_parse(Conf)
 
 open Parse
 
-let check_dir include_dirs p4_dir verbose =
-  let dir_handle = Unix.opendir p4_dir in
-  let rec loop () =
-    match Unix.readdir_opt dir_handle with
-    | None ->
-      ()
-    | Some file ->
-      if Filename.check_suffix file "p4" then
-        begin
-          Printf.printf "Checking: %s\n" (Filename.concat p4_dir file);
-          let p4_file = Filename.concat p4_dir file in
-          match parse_file include_dirs p4_file verbose with
-          | `Ok prog ->
-            let prog, renamer = Elaborate.elab prog in
-            Checker.check_program renamer prog |> ignore;
-            Printf.printf "OK:       %s\n" (Filename.concat p4_dir file);
-          | `Error (info, Lexer.Error s) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
-          | `Error (info, Petr4.Parser.Error) ->
-            Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
-          | `Error (info, err) ->
-            Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
-        end;
-      loop () in
-  loop ()
-
 let parse_command =
   let open Command.Spec in
   Command.basic_spec

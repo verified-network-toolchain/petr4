@@ -13,15 +13,18 @@
  * under the License.
  *)
 
-type t =
-  | I of
-    { filename :string;
+type i_record =
+  { filename :string;
       line_start: int;
       line_end: int option;
       col_start: int;
-      col_end: int }
-  | M of string
-[@@deriving sexp,show,yojson]
+      col_end : int } [@@deriving sexp,yojson]
+
+type t =
+  | I of
+      int * i_record [@name "info"]
+  | M of int * string [@name "missing_info"]
+[@@deriving sexp,yojson]
 
 val dummy : t
 

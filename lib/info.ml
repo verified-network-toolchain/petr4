@@ -21,13 +21,23 @@ type i_record =
       line_start: int;
       line_end: int option;
       col_start: int;
-      col_end : int } [@@deriving sexp,yojson]
+      col_end : int } [@@deriving sexp,yojson,show]
 
 type t =
   | I of
       int * i_record [@name "info"]
   | M of int * string [@name "missing_info"]
-[@@deriving sexp,yojson]
+                 [@@deriving sexp,yojson,show]
+
+let update_identifier i n =
+  match i with
+  | I (_,r) -> I (n,r)
+  | M (_,s) -> M (n,s)
+
+let identifier_of_info i =
+  match i with
+  | I (n,_) -> n
+  | M (n,_) -> n
 
 let pp fmt _ = Format.pp_print_string fmt "<info>"
 let show _ = "<info>"

@@ -101,11 +101,13 @@
 <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
 <script>
     window.load_file = function (filename) {
+      console.log("entering load_file("+filename+")")
       var code_file=new XMLHttpRequest();
       code_file.open("GET", "p4/"+filename,false);
       code_file.send();
       var text = code_file.responseText;
       console.log("request done");
+      console.log(text);
       return text;
     }
 </script>

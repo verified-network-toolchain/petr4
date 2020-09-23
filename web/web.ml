@@ -20,13 +20,15 @@ open Base
 
 exception ParsingError of string
 
+let js_load (path: Js.js_string Js.t) : Js.js_string Js.t =
+  Js.Unsafe.fun_call (Js.Unsafe.js_expr "window.load_file")
+    [|Js.Unsafe.inject path|]
+
 module JavascriptFS = struct
   let exists path = true
 
-  let load path : string =
-    Js.to_string @@
-    Js.Unsafe.fun_call (Js.Unsafe.js_expr "load_file")
-      [|Js.Unsafe.inject (Js.string path)|]
+  let load (path: string) : string =
+    Js.to_string @@ js_load (Js.string path)
 end
 
 module Pp = P4pp.Eval.Make(JavascriptFS)

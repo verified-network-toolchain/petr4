@@ -1,5 +1,9 @@
 Require Import String.
 Require Import  Coq.Lists.List.
+Require Import Coq.FSets.FMapList.
+Require Import Coq.Structures.OrderedTypeEx.
+
+Module Import MStr := FMapList.Make(String_as_OT).
 
 Class Monad (M : Type -> Type) : Type :=
   { mret : forall {A}, A -> M A;
@@ -26,6 +30,19 @@ Module MonadNotation.
 
 End MonadNotation.
 Import MonadNotation.
+Open Scope monad.
+
+Definition option_ret (A: Type) (a: A) := Some a.
+Definition option_bind (A B: Type) (c: option A) (f: A -> option B) : option B :=
+  match c with
+  | Some a => f a
+  | None => None
+  end.
+
+Global Instance option_monad_inst : Monad option :=
+  { mret := option_ret;
+    mbind := option_bind;
+  }.
 
 Inductive direction :=
   | In
@@ -145,10 +162,21 @@ with expression :=
   | NamelessInstantiation (type: type) (args: list argument)
   | Mask (expr: expression) (mask: expression)
   | Range (lo: expression) (hi: expression)
+.
 
-with value :=
+Inductive value :=
+  | ValBool (b: bool)
+  (* I would rather this was MStr.t value but that is not a strictly
+  positive definition. The difference is that [Raw.t value] is
+  basically list (string * value) while MStr.t value is a dependent
+  record { raw: MStr.Raw.t; sorted: Sorted ...} which includes a proof
+  that the list [raw] is sorted. *)
+  | ValRecord (fs: MStr.Raw.t value)
+.
 
-with lvalue :=
+Inductive lvalue :=
+  | LValName (var: string)
+  | LValMember (base: lvalue) (member: string)
 .
 
 Inductive declaration :=
@@ -209,22 +237,98 @@ Record parser := MkParser {
 }.
 End Parser.
 
-Inductive environment :=.
+Definition scope := MStr.t value.
+Definition environment := list scope.
 
-Definition updateEnvironment : string -> value -> environment -> option environment.
-Admitted.
+Definition updateScope (key: string) (val: value) (bindings: scope) : option scope :=
+  MStr.find key bindings;;
+  mret (MStr.add key val (MStr.remove key bindings)).
 
-Definition updateLvalue : lvalue -> value -> environment -> option environment.
-Admitted.
+Definition insertScope (key: string) (val: value) (bindings: scope) : option scope :=
+  MStr.find key bindings;;
+  mret (MStr.add key val bindings).
 
-Definition insertEnvironment : string -> value -> environment -> option environment.
-Admitted.
+Fixpoint updateEnvironment (key: string) (val: value) (env: environment) : option environment :=
+  match env with
+  | inner :: rest =>
+    if MStr.find key inner
+    then let* inner' := updateScope key val inner in
+         mret (inner' :: rest)
+    else let* rest' := updateEnvironment key val rest in
+         mret (inner :: rest')
+  | nil => None
+  end.
 
-Definition pushScope : environment -> environment.
-Admitted.
+Fixpoint insertEnvironment (key: string) (val: value) (env: environment) : option environment :=
+  match env with
+  | inner :: rest =>
+    let* inner' := insertScope key val inner in
+    mret (inner' :: rest)
+  | nil => None
+  end.
 
-Definition popScope : environment -> environment.
-Admitted.
+Definition findScope (key: string) (bindings: scope) : option value :=
+  MStr.find key bindings.
+  
+Fixpoint findEnvironment (key: string) (env: environment) : option value :=
+  match env with
+  | inner :: rest =>
+    match MStr.find key inner with
+    | Some v => Some v
+    | None => findEnvironment key rest
+    end
+  | nil => None
+  end.
+
+Definition pushScope (env: environment) :=
+  MStr.empty _ :: env.
+
+Definition popScope (env: environment) : option environment :=
+  match env with
+  | _ :: rest => Some rest
+  | nil => None
+  end.
+
+Fixpoint findLvalue (lval: lvalue) (env: environment) : option value :=
+  match lval with
+  | LValName var =>
+    findEnvironment var env
+  | LValMember lval' member =>
+    let* val := findLvalue lval' env in
+    match val with
+    | ValRecord map =>
+      Raw.find member map
+    | _ => None
+    end
+  end.
+
+Fixpoint assocUpdate {A: Type} (key: string) (val: A) (map: list (string * A)) : option (list (string * A)) :=
+  match map with
+  | (s, v) :: map' =>
+    if String_as_OT.eq_dec s key
+    then mret ((key, val) :: map')
+    else let* map' := assocUpdate key val map' in
+         mret ((s, v) :: map')
+  | nil => None
+  end.
+
+Definition updateMember (obj: value) (member: string) (val: value) : option value :=
+  match obj with
+  | ValRecord map =>
+    let* map' := assocUpdate member val map in
+    mret (ValRecord map')
+  | _ => None
+  end.
+
+Fixpoint updateLvalue (lval: lvalue) (val: value) (env: environment) : option environment :=
+  match lval with
+  | LValName var =>
+    updateEnvironment var val env
+  | LValMember lval' member =>
+    let* obj := findLvalue lval' env in
+    let* obj' := updateMember obj member val in
+    updateLvalue lval' obj' env
+  end.
 
 Inductive exception :=
 | Reject
@@ -272,8 +376,6 @@ Admitted.
 Definition evalExpression (expr: expression) : interp_monad value.
 Admitted.
 
-Open Scope monad.
-
 Fixpoint evalBlock (blk: block) : interp_monad unit :=
   match blk with
   | BlockCons stmt rest =>
@@ -294,7 +396,7 @@ with evalStatement (stmt: statement) : interp_monad unit :=
   | BlockStatement block =>
     mapEnv pushScope;;
     evalBlock block;;
-    mapEnv popScope
+    liftEnvFn popScope
   | StatementConstant type name init =>
     let* value := evalExpression init in
     liftEnvFn (insertEnvironment name value)
@@ -306,5 +408,4 @@ with evalStatement (stmt: statement) : interp_monad unit :=
        end
     in
     liftEnvFn (insertEnvironment name value)
-  end
-.
+  end.

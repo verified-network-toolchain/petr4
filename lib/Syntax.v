@@ -14,6 +14,7 @@ Class Monad (M : Type -> Type) : Type :=
 (* https://github.com/coq-community/coq-ext-lib/blob/v8.5/theories/Structures/Monad.v*)
 Module MonadNotation.
 
+  Declare Scope monad_scope.
   Delimit Scope monad_scope with monad.
 
   Notation "c >>= f" := (@mbind _ _ _ _ c f) (at level 50, left associativity) : monad_scope.

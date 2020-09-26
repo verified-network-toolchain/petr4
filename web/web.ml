@@ -19,16 +19,15 @@ open Js_of_ocaml
 
 exception ParsingError of string
 
-module Conf: Parse_config = struct
+module Conf: Parse_config = struct  
   let red s = s
   let green s = s
 
   let preprocess _ p4_file_contents =
-    let buf = Buffer.create 101 in
-    let file ="typed_input.p4" in
-    let env = P4pp.Eval.{ file = file ; defines = []} in
-    ignore (P4pp.Eval.preprocess_string [] env buf file p4_file_contents);
-    Buffer.contents buf
+    let file ="input.p4" in
+    let env = P4pp.Eval.empty file ["/include"] [] in
+    let str,_ = P4pp.Eval.FileSystem.preprocess env file p4_file_contents in
+    str
 end
 
 module Parse = Make_parse(Conf)

@@ -144,7 +144,7 @@ with argument :=
   | Missing
 
 with expression := 
-  | BoolExpression (b : bool)
+  | BoolExpression (value : bool)
   | IntExpression (value: nat)
   | StringExpression (value: string)
   | NameExpression (value: name)
@@ -166,7 +166,10 @@ with expression :=
 .
 
 Inductive value :=
-  | ValBool (b: bool)
+  | ValBool (value: bool)
+  | ValInt (value: nat)
+  | ValString (value: string)
+  | ValArray (value: list value)
   (* I would rather this was MStr.t value but that is not a strictly
   positive definition. The difference is that [Raw.t value] is
   basically list (string * value) while MStr.t value is a dependent
@@ -374,8 +377,21 @@ Admitted.
 Definition evalLvalue (expr: expression) : interp_monad lvalue.
 Admitted.
 
-Definition evalExpression (expr: expression) : interp_monad value.
-Admitted.
+Definition evalExpression (expr: expression) : interp_monad value :=
+  match expr with
+  | BoolExpression value => mret (ValBool value)
+  | IntExpression value => mret (ValInt value)
+  | StringExpression value => mret(ValString value)
+  | ArrayAccess array index =>
+    let* index' := evalExpression index in
+    let* array' := evalExpression array in
+    match (array', index') with
+    | (ValArray array'', ValInt index'') => List.nth_error array'' index''
+    | _ interp_fail Internal
+    end
+  | _ => mret (ValBool false)
+  end
+.
 
 Fixpoint evalBlock (blk: block) : interp_monad unit :=
   match blk with

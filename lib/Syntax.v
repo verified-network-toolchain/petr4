@@ -373,10 +373,24 @@ Definition liftEnvFn (f : environment -> option environment) : interp_monad unit
     | None => interp_fail Internal env
     end.
 
+Definition liftEnvLookupFn (f: environment -> option value) : interp_monad value :=
+  fun env =>
+    match f env with
+    | Some value => mret value env
+    | None => interp_fail Internal env
+    end.
+
 Definition tossValue (original: interp_monad value) : interp_monad unit :=
   fun env =>
     match original env with
     | (inl result, env') => mret tt env'
+    | (inr exc, env') => interp_fail exc env'
+    end.
+
+Definition dummyValue (original: interp_monad unit) : interp_monad value :=
+  fun env =>
+    match original env with
+    | (inl tt, env') => mret ValVoid env'
     | (inr exc, env') => interp_fail exc env'
     end.
 
@@ -409,30 +423,19 @@ Fixpoint evalExpression (expr: expression) : interp_monad value :=
   end.
 
 Definition evalIsValid (obj: lvalue) : interp_monad value :=
-  fun env =>
-    match findLvalue obj env with
-    | Some value =>
-      match value with
-      | ValHeader valid fields => mret (ValBool valid) env
-      | _ => (inr Internal, env)
-      end
-    | None => (inr Internal, env)
-    end.
+  let* value := liftEnvLookupFn (findLvalue obj)
+  in match value with
+  | ValHeader valid fields => mret (ValBool valid)
+  | _ => interp_fail Internal
+  end.
 
-Definition evalSetBool (obj: lvalue) (valid: bool) : interp_monad value :=
-  fun env =>
-    match findLvalue obj env with
-    | Some value =>
-      match value with
-      | ValHeader _ fields =>
-        match updateLvalue obj (ValHeader valid fields) env with
-        | Some env' => mret ValVoid env'
-        | None => (inr Internal, env)
-        end
-      | _ => (inr Internal, env)
-      end
-    | None => (inr Internal, env)
-    end.
+Definition evalSetBool (obj: lvalue) (valid: bool) : interp_monad unit :=
+  let* value := liftEnvLookupFn (findLvalue obj) in
+  match value with
+  | ValHeader _ fields =>
+    liftEnvFn (updateLvalue obj (ValHeader valid fields))
+  | _ => interp_fail Internal
+  end.
 
 Definition evalPopFront (obj: lvalue) (args: list (option value)) : interp_monad value :=
   interp_fail Internal.
@@ -443,8 +446,8 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : interp_mona
 Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : interp_monad value :=
   match name with
   | "isValid" => evalIsValid obj
-  | "setValid" => evalSetBool obj true
-  | "setInvalid" => evalSetBool obj false
+  | "setValid" => dummyValue (evalSetBool obj true)
+  | "setInvalid" => dummyValue (evalSetBool obj false)
   | "pop_front" => evalPopFront obj args
   | "push_front" => evalPushFront obj args
   | _ => interp_fail Internal

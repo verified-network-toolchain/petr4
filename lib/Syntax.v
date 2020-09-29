@@ -3,6 +3,8 @@ Require Import  Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 
+Open Scope string_scope.
+
 Module Import MStr := FMapList.Make(String_as_OT).
 
 Class Monad (M : Type -> Type) : Type :=
@@ -165,7 +167,13 @@ with expression :=
   | Range (lo: expression) (hi: expression)
 .
 
+Inductive lvalue :=
+  | LValName (var: string)
+  | LValMember (base: lvalue) (member: string)
+.
+
 Inductive value :=
+  | ValVoid
   | ValBool (value: bool)
   | ValInt (value: nat)
   | ValString (value: string)
@@ -176,11 +184,8 @@ Inductive value :=
   record { raw: MStr.Raw.t; sorted: Sorted ...} which includes a proof
   that the list [raw] is sorted. *)
   | ValRecord (fs: MStr.Raw.t value)
-.
-
-Inductive lvalue :=
-  | LValName (var: string)
-  | LValMember (base: lvalue) (member: string)
+  | ValBuiltinFunc (name: string) (obj: lvalue)
+  | ValHeader (valid: bool) (fields: MStr.Raw.t value)
 .
 
 Inductive declaration :=
@@ -368,6 +373,13 @@ Definition liftEnvFn (f : environment -> option environment) : interp_monad unit
     | None => interp_fail Internal env
     end.
 
+Definition tossValue (original: interp_monad value) : interp_monad unit :=
+  fun env =>
+    match original env with
+    | (inl result, env') => mret tt env'
+    | (inr exc, env') => interp_fail exc env'
+    end.
+
 Definition mapEnv (f : environment -> environment) : interp_monad unit :=
   fun env => mret tt (f env).
 
@@ -377,21 +389,66 @@ Admitted.
 Definition evalLvalue (expr: expression) : interp_monad lvalue.
 Admitted.
 
-Definition evalExpression (expr: expression) : interp_monad value :=
+Fixpoint evalExpression (expr: expression) : interp_monad value :=
   match expr with
   | BoolExpression value => mret (ValBool value)
   | IntExpression value => mret (ValInt value)
-  | StringExpression value => mret(ValString value)
+  | StringExpression value => mret (ValString value)
   | ArrayAccess array index =>
     let* index' := evalExpression index in
     let* array' := evalExpression array in
     match (array', index') with
-    | (ValArray array'', ValInt index'') => List.nth_error array'' index''
-    | _ interp_fail Internal
+    | (ValArray array'', ValInt index'') =>
+      match List.nth_error array'' index'' with
+      | Some value => mret value
+      | _ => interp_fail Internal
+      end
+    | _ => interp_fail Internal
     end
   | _ => mret (ValBool false)
-  end
-.
+  end.
+
+Definition evalIsValid (obj: lvalue) : interp_monad value :=
+  fun env =>
+    match findLvalue obj env with
+    | Some value =>
+      match value with
+      | ValHeader valid fields => mret (ValBool valid) env
+      | _ => (inr Internal, env)
+      end
+    | None => (inr Internal, env)
+    end.
+
+Definition evalSetBool (obj: lvalue) (valid: bool) : interp_monad value :=
+  fun env =>
+    match findLvalue obj env with
+    | Some value =>
+      match value with
+      | ValHeader _ fields =>
+        match updateLvalue obj (ValHeader valid fields) env with
+        | Some env' => mret ValVoid env'
+        | None => (inr Internal, env)
+        end
+      | _ => (inr Internal, env)
+      end
+    | None => (inr Internal, env)
+    end.
+
+Definition evalPopFront (obj: lvalue) (args: list (option value)) : interp_monad value :=
+  interp_fail Internal.
+
+Definition evalPushFront (obj: lvalue) (args: list (option value)) : interp_monad value :=
+  interp_fail Internal.
+
+Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : interp_monad value :=
+  match name with
+  | "isValid" => evalIsValid obj
+  | "setValid" => evalSetBool obj true
+  | "setInvalid" => evalSetBool obj false
+  | "pop_front" => evalPopFront obj args
+  | "push_front" => evalPushFront obj args
+  | _ => interp_fail Internal
+  end.
 
 Fixpoint evalBlock (blk: block) : interp_monad unit :=
   match blk with
@@ -404,8 +461,11 @@ Fixpoint evalBlock (blk: block) : interp_monad unit :=
 with evalStatement (stmt: statement) : interp_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
-    (* TODO *)
-    mret tt
+    let* func' := evalExpression func in
+    match func' with
+    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj nil) (* TODO: evaluate arguments *)
+    | _ => mret tt (* TODO: other function types *)
+    end
   | Assignment lhs rhs =>
     let* lval := evalLvalue lhs in
     let* val := evalExpression rhs in

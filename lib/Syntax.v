@@ -1,5 +1,5 @@
 Require Import String.
-Require Import  Coq.Lists.List.
+Require Import Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.NArith.BinNatDef.
@@ -201,7 +201,10 @@ Inductive value :=
   that the list [raw] is sorted. *)
   | ValRecord (fs: MStr.Raw.t value)
   | ValBuiltinFunc (name: string) (obj: lvalue)
-  | ValHeader (valid: bool) (fields: MStr.Raw.t value)
+  | ValHeader (value: header)
+  | ValHeaderStack (size: nat) (nextIndex: nat) (elements: list header)
+
+with header := MkHeader (valid: bool) (fields: MStr.Raw.t value)
 .
 
 Inductive declaration :=
@@ -528,31 +531,82 @@ Fixpoint evalExpression (expr: expression) : interp_monad value :=
 Definition evalIsValid (obj: lvalue) : interp_monad value :=
   let* value := liftEnvLookupFn (findLvalue obj)
   in match value with
-  | ValHeader valid fields => mret (ValBool valid)
+  | ValHeader (MkHeader valid fields) => mret (ValBool valid)
   | _ => interp_fail Internal
   end.
 
 Definition evalSetBool (obj: lvalue) (valid: bool) : interp_monad unit :=
   let* value := liftEnvLookupFn (findLvalue obj) in
   match value with
-  | ValHeader _ fields =>
-    liftEnvFn (updateLvalue obj (ValHeader valid fields))
+  | ValHeader (MkHeader _ fields) =>
+    liftEnvFn (updateLvalue obj (ValHeader (MkHeader valid fields)))
   | _ => interp_fail Internal
   end.
 
-Definition evalPopFront (obj: lvalue) (args: list (option value)) : interp_monad value :=
-  interp_fail Internal.
+Fixpoint rotateLeft {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+  match count with
+  | 0 => Some elements
+  | S count' =>
+    match elements with
+    | nil => None
+    | header :: elements' =>
+      rotateLeft (elements' ++ pad :: nil) count' pad
+    end
+  end.
 
-Definition evalPushFront (obj: lvalue) (args: list (option value)) : interp_monad value :=
-  interp_fail Internal.
+Definition evalPopFront (obj: lvalue) (args: list (option value)) : interp_monad unit :=
+  match args with
+  | Some (ValInt count) :: nil => 
+      let* value := liftEnvLookupFn (findLvalue obj) in
+      match value with
+      | ValHeaderStack size nextIndex elements =>
+        match rotateLeft elements count (MkHeader false (MStr.Raw.empty _)) with
+        | None => interp_fail Internal
+        | Some elements' =>
+          let value' := ValHeaderStack size (nextIndex - count) elements' in
+          liftEnvFn (updateLvalue obj value)
+        end
+      | _ => interp_fail Internal
+      end
+  | _ => interp_fail Internal
+  end.
+
+Fixpoint rotateRight {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+  match count with
+  | 0 => Some elements
+  | S count' =>
+    match elements  with
+    | nil => None
+    | header :: elements' =>
+      rotateRight (pad :: (removelast elements)) count' pad
+    end
+  end.
+
+Definition evalPushFront (obj: lvalue) (args: list (option value)) : interp_monad unit :=
+  match args with
+  | Some (ValInt count) :: nil => 
+      let* value := liftEnvLookupFn (findLvalue obj) in
+      match value with
+      | ValHeaderStack size nextIndex elements =>
+        match rotateRight elements count (MkHeader false (MStr.Raw.empty _)) with
+        | None => interp_fail Internal
+        | Some elements' =>
+          let nextIndex' := min size (nextIndex + count) in
+          let value' := ValHeaderStack size nextIndex' elements' in
+          liftEnvFn (updateLvalue obj value)
+        end
+      | _ => interp_fail Internal
+      end
+  | _ => interp_fail Internal
+  end.
 
 Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : interp_monad value :=
   match name with
   | "isValid" => evalIsValid obj
   | "setValid" => dummyValue (evalSetBool obj true)
   | "setInvalid" => dummyValue (evalSetBool obj false)
-  | "pop_front" => evalPopFront obj args
-  | "push_front" => evalPushFront obj args
+  | "pop_front" => dummyValue (evalPopFront obj args)
+  | "push_front" => dummyValue (evalPushFront obj args)
   | _ => interp_fail Internal
   end.
 

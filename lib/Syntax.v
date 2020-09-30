@@ -610,6 +610,18 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option valu
   | _ => interp_fail Internal
   end.
 
+Fixpoint evalArguments (args: list (option expression)) : interp_monad (list (option value)) :=
+  match args with
+  | nil => mret nil
+  | Some arg :: args' =>
+    let* val := evalExpression arg in
+    let* vals := evalArguments args' in
+    mret (Some val :: vals)
+  | None :: args' =>
+    let* vals := evalArguments args' in
+    mret (None :: vals)
+  end.
+
 Fixpoint evalBlock (blk: block) : interp_monad unit :=
   match blk with
   | BlockCons stmt rest =>
@@ -622,8 +634,9 @@ with evalStatement (stmt: statement) : interp_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
     let* func' := evalExpression func in
+    let* args' := evalArguments args in
     match func' with
-    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj nil) (* TODO: evaluate arguments *)
+    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj args')
     | _ => mret tt (* TODO: other function types *)
     end
   | Assignment lhs rhs =>

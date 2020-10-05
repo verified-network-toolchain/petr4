@@ -3,6 +3,7 @@ Require Import  Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.NArith.BinNatDef.
+Require Import Coq.PArith.POrderedType.
 
 Require Coq.Program.Tactics.
 Require Coq.Program.Wf.
@@ -193,6 +194,8 @@ Inductive value :=
   that the list [raw] is sorted. *)
   | ValRecord (fs: MStr.Raw.t value)
 .
+    
+    
 
 Inductive lvalue :=
   | LValName (var: string)
@@ -406,37 +409,49 @@ Fixpoint list_slice {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) 
     end
   end.
 
+Fixpoint total_pos_measure (n: positive) : nat :=
+  match n with
+  | xH => 1
+  | xO inner => 2 + total_pos_measure inner
+  | xI inner => 3 + total_pos_measure inner
+  end.
 
-Program Fixpoint negate_N (n: N) {measure (N.to_nat n)} := 
+Definition total_N_measure (n: N) : nat :=
+  match n with
+  | N0 => 0
+  | Npos inner => total_pos_measure inner
+  end.
+
+Program Fixpoint negate_N (n: N) {measure (total_N_measure n)} := 
   match n with
   | N0       => Npos xH (* negate 0 = 1*)
   | Npos xH  => N0 (* negate 1 = 0*)
-  | Npos (xO inner)  => N0
-    (* match negate_N (Npos inner) with
+  | Npos (xO inner)  =>
+    match negate_N (Npos inner) with
     | N0      => Npos xH (* negate 01 = 1 *)
     | Npos iv => Npos (xI iv)
-    end *)
-  | Npos (xI inner)  => N0
-    (* match negate_N (Npos inner) with
+    end
+  | Npos (xI inner)  =>
+    match negate_N (Npos inner) with
     | N0      => N0 (* negate 11 = 0 *)
     | Npos iv => Npos (xO iv)
-    end *)
+    end
   end.
-(* Next Obligation.
-unfold N.to_nat.
-unfold BinPos.Pos.to_nat.
+Next Obligation.
+induction inner.
+unfold total_N_measure.
+unfold total_pos_measure.
 simpl. auto.
-(* unfold BinPos.Pos.iter_op.
-simpl. auto. *)
-admit.
-Admitted. *)
-
-
-Definition negate_nat (n: nat) : nat := N.to_nat (negate_N (N.of_nat n)).
+unfold total_N_measure. unfold total_pos_measure.
+simpl. auto.
+unfold total_pos_measure. simpl. auto.
+Qed.
 
 
 Definition mapEnv (f : environment -> environment) : interp_monad unit :=
   fun env => mret tt (f env).
+
+Definition negate_nat (n: nat) : nat := N.to_nat (negate_N (N.of_nat n)).
 
 Definition defaultValue (A: type) : value.
 Admitted.
@@ -495,6 +510,7 @@ Fixpoint evalExpression (expr: expression) : interp_monad value :=
       | ValInt v => mret (ValInt (negate_nat v))
       | _ => interp_fail Internal
       end
+    | BitMinus => interp_fail Internal
     end
   | _ => mret (ValBool false)
   end

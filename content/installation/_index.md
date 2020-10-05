@@ -1,10 +1,11 @@
 +++
-title = "Installing μP4"
+title = "Installing Petr4"
 description = ""
 weight = 1
 +++
 
 {{< lead >}}
+[TODO: Update for Petr4]
 This webpage provides instructions to build and install μP4, and reproduce the results from the paper "Composing Dataplane Programs with μP4".
 
 1. [As a pre-built VM](#pre-built-vm).

@@ -1,24 +1,10 @@
 +++
-title = "Composing Dataplane Programs with μP4"
-description = "A compiler to build dataplane of network devices using portable, modular and composable programs."
+title = "Petr4: Formal Foundations for P4 Data Planes"
+description = "[insert short description]"
 +++
 
 {{< lead >}}
-Dataplane languages like P4 enable flexible and efficient packet-processing
-using domain-specific primitives such as programmable parsers and match-action
-tables. Unfortunately, P4 programs tend to be monolithic and tightly coupled to
-the hardware architecture, which makes it hard to write programs in a portable
-and modular way—e.g., by composing reusable libraries of standard protocols
-
-
-To address this challenge, we present the design and implementation of a novel
-framework (μP4) comprising a light-weight logical architecture that abstracts
-away from the structure of the underlying hardware pipelines and naturally
-supports powerful forms of program composition. Using examples, we show how μP4
-enables modular programming. We present a prototype of the μP4 compiler that
-generates code for multiple lower-level architectures, including Barefoot’s
-Tofino Native Architecture.
-
+[insert abstract]
 {{< /lead >}}
 
 
@@ -31,14 +17,10 @@ Tofino Native Architecture.
 			</div>
 			<div class="card-body pl-2">
 				<h5 class="card-title">
-					Portable
+					Goal1
 				</h5>
 				<p class="card-text text-muted">
-Programs written for one architecture, say PSA, should be easily reusable
-across other architectures, say v1model, without having to modify the source
-code. Following the “write-once, compile-anywhere” philosophy, programs should
-be loosely coupled to architectures and use general constructs that a compiler
-maps to architecture-specific constructs.
+[describe Goal1]
 				</p>
 			</div>
 		</div>
@@ -50,13 +32,10 @@ maps to architecture-specific constructs.
 			</div>
 			<div class="card-body pl-2">
 				<h5 class="card-title">
-					Modular
+					Goal2
 				</h5>
 				<p class="card-text text-muted">
-It should be possible to develop individual packet-processing functions in an
-independent manner agnostic of other dataplane functions. For example, one
-should be able to define Ethernet and IPv4 packet-processing functionality as
-separate module.
+[describe Goal2]
 				</p>
 			</div>
 		</div>
@@ -68,13 +47,10 @@ separate module.
 			</div>
 			<div class="card-body pl-2">
 				<h5 class="card-title">
-					Composable
-				</h5>
+				  Goal3
+        </h5>
 				<p class="card-text text-muted">
-It should be easy to flexibly compose individual functions to construct larger
-dataplane programs. For example, imagine combining L2 Ethernet processing with
-IPv4, or any other L3 routing scheme (e.g., IPv6, MPLS etc.) with compatible
-interface and semantics, to obtain a modular router.
+[describe Goal3]
 				</p>
 			</div>
 		</div>

@@ -1,0 +1,3 @@
+table-entries-non-const.p4(68): error: EntriesList: table initializers must be constant
+        entries = {
+        ^^^^^^^

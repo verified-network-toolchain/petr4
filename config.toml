@@ -1,0 +1,52 @@
+baseURL = "https://cornell-netlab.github.io/MicroP4/"
+
+languageCode = "en-us"
+DefaultContentLanguage = "en"
+#title = "μP4: A framework for dataplane programming"
+#title = "μP4: A framework for Portable, Modular and Composable dataplane programming"
+title = "μP4"
+theme = "ace-documentation"
+pygmentsCodeFences = true
+pygmentsStyle = "monokailight"
+
+
+publishDir = "public"
+
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir= false
+enableMissingTranslationPlaceholders = false
+
+# Enable Google Analytics by entering your tracking id
+googleAnalytics = ""
+
+[params]
+ordersectionsby = "weight" # ordersectionsby = "title"
+disableSearch = true # default is false
+disableReadmoreNav = false # set true to hide prev/next navigation, default is false
+highlightClientSide = false # set true to use highlight.pack.js instead of the default hugo chroma highlighter
+menushortcutsnewtab = false # set true to open shortcuts links to a new tab/window
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[outputs]
+home = [ "HTML", "RSS", "JSON"]
+
+[[menu.shortcuts]]
+name = "<i class='fab fa-github'></i> Code"
+url = "https://github.com/cornell-netlab/MicroP4/"
+weight = 1
+
+
+[[menu.shortcuts]]
+name = "<i class='fa fa-home'></i> Home"
+url = "https://cornell-netlab.github.io/MicroP4/"
+weight = 2
+
+# [[menu.shortcuts]]
+# name = "<button class='btn btn-info mt-n1'>Download</button>"
+# url = "https://cornell-netlab.github.io/MicroP4/"
+# weight = 3
+

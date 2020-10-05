@@ -1,0 +1,3 @@
+[submodule "themes/ace-documentation"]
+	path = themes/ace-documentation
+	url = https://github.com/hksoni/ace-documentation.git

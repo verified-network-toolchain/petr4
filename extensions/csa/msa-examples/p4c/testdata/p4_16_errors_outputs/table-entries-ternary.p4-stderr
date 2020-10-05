@@ -1,0 +1,3 @@
+table-entries-ternary.p4(76): error: Could not find declaration for missing_a
+            0x1111 : missing_a(); // action not in action list
+                     ^^^^^^^^^

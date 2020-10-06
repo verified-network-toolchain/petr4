@@ -98,7 +98,57 @@
 <h1>Installing Petr4</h1>
 
 <p class="lead">
-    [Installation instructions (consider adding a pre-built VM as well)]
+    <p>Petr4 is available pre-built in a VM or as an OPAM package. The OPAM package can
+be built from the version published on
+<a href="https://opam.ocaml.org/packages">opam.ocaml.org/packages</a> or it can be built
+from the Petr4 git repository directly.</p>
+<h2 id="installing-the-vm">Installing the VM</h2>
+<ol>
+<li>Install <a href="https://virtualbox.org/">VirtualBox</a> or your preferred
+virtualization software capable of running .ova files.</li>
+<li>Download the VM image from Zenodo [TODO:link when VM is ready and
+uploaded].</li>
+<li>Boot the VM image. The username is petr4 and the password is petr4. There
+should be a prebuilt version of petr4 installed and the source code is
+checked out in the VM user&rsquo;s home directory.</li>
+</ol>
+<h2 id="installing-the-opam-package">Installing the OPAM package</h2>
+<ol>
+<li>
+<p>Install OPAM 2 following the official <a href="https://opam.ocaml.org/doc/Install.html">OPAM installation
+instructions</a>. Make sure <code>opam --version</code> reports version 2 or later.</p>
+</li>
+<li>
+<p>Check the installed version of OCaml:</p>
+<pre><code>ocamlc -v
+</code></pre><p>If the version is less than 4.09.0, upgrade:</p>
+<pre><code>opam switch create 4.09.0 ocaml-base-compiler.4.09.0
+</code></pre></li>
+<li>
+<p>Install external dependencies:</p>
+<pre><code>sudo apt-get install m4 libgmp-dev
+</code></pre></li>
+</ol>
+<h3 id="installing-from-source">Installing from source</h3>
+<ol>
+<li>
+<p>Check out <a href="https://github.com/cornell-netlab/p4pp">p4pp</a> and install it with
+<code>opam pin add p4pp &lt;path to root of p4pp repo&gt;</code>.</p>
+</li>
+<li>
+<p>Check out <a href="https://github.com/cornell-netlab/petr4">petr4</a> and install it
+with <code>opam pin add petr4 &lt;path to root of petr4 repo&gt;</code>.</p>
+</li>
+</ol>
+<h3 id="installing-from-opam">Installing from OPAM</h3>
+<ol>
+<li>
+<pre><code>opam install petr4
+</code></pre>Note that if you&rsquo;ve previously installed petr4 using <code>opam pin</code>, this will
+use the pinned (local) package rather than the version on OPAM. If you change
+your mind, use <code>opam unpin petr4</code>.</li>
+</ol>
+
 </p>
 
 

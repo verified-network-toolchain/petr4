@@ -11,7 +11,7 @@
 	"title": "Installing Petr4",
 	"tags": [],
 	"description": "",
-	"content": "[Installation instructions (consider adding a pre-built VM as well)] "
+	"content": "Petr4 is available pre-built in a VM or as an OPAM package. The OPAM package can be built from the version published on opam.ocaml.org/packages or it can be built from the Petr4 git repository directly.\nInstalling the VM  Install VirtualBox or your preferred virtualization software capable of running .ova files. Download the VM image from Zenodo [TODO:link when VM is ready and uploaded]. Boot the VM image. The username is petr4 and the password is petr4. There should be a prebuilt version of petr4 installed and the source code is checked out in the VM user\u0026rsquo;s home directory.  Installing the OPAM package   Install OPAM 2 following the official OPAM installation instructions. Make sure opam --version reports version 2 or later.\n  Check the installed version of OCaml:\nocamlc -v If the version is less than 4.09.0, upgrade:\nopam switch create 4.09.0 ocaml-base-compiler.4.09.0   Install external dependencies:\nsudo apt-get install m4 libgmp-dev   Installing from source   Check out p4pp and install it with opam pin add p4pp \u0026lt;path to root of p4pp repo\u0026gt;.\n  Check out petr4 and install it with opam pin add petr4 \u0026lt;path to root of petr4 repo\u0026gt;.\n  Installing from OPAM   opam install petr4 Note that if you\u0026rsquo;ve previously installed petr4 using opam pin, this will use the pinned (local) package rather than the version on OPAM. If you change your mind, use opam unpin petr4.  "
 },
 {
 	"uri": "https://cornell-netlab.github.io/petr4/usage/",

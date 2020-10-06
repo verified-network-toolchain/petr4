@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html><head>
+
+    <meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=yes">
+
+    <link rel="canonical" href="https://cornell-netlab.github.io/petr4/usage/">
+
+    <title>
+        
+        Using Petr4 | Petr4
+        
+    </title>
+
+    
+    <link href="https://cornell-netlab.github.io/petr4/css/fontawesome.min.css" rel="stylesheet">
+
+    
+    <link rel="stylesheet" href="https://cornell-netlab.github.io/petr4/css/ace.min.css">
+
+    
+    
+        
+    
+
+</head>
+<body><nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow sticky-top" id="navbarMain">
+    <div class="container">
+        <div>
+            <a class="navbar-brand" href="/petr4">
+                Petr4
+            </a>
+        </div>
+        
+            <button class="navbar-toggler navbar-toggler-right collapsed" type="button" data-toggle="collapse" data-target="#navbarMainCollapse" aria-controls="navbarMainCollapse" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarMainCollapse">
+              <ul class="navbar-nav ml-auto">
+                            <li class="nav-item">
+                                <a class="nav-link" href="https://github.com/cornell-netlab/petr4/" >
+                                  <i class='fab fa-github'></i> Code
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="https://cornell-netlab.github.io/petr4/" >
+                                  <i class='fa fa-home'></i> Home
+                                </a>
+                            </li>
+              </ul>
+            </div>
+    </div>
+</nav>
+<div class="container-fluid">
+            <div class="row">
+
+                <div class="docs-sidenav order-0 col-12 col-md-3 col-lg-2 col-xl-2 position-sticky border-right"><nav class="navbar navbar-expand-md navbar-light pl-0">
+    <button class="navbar-toggler navbar-toggler-right collapsed" type="button" data-toggle="collapse" data-target="#sidenav-left-collapse" aria-controls="sidenav-left-collapse" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+     <div class="collapse navbar-collapse align-items-start flex-column" id="sidenav-left-collapse">
+         <ul class="navbar-nav flex-column pt-3">
+    <li data-nav-id="/petr4/claims/" class="nav-item my-1
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/claims/"><h6>Claims made in POPL&#39;21 paper</h6></a>
+    </li>
+    <li data-nav-id="/petr4/installation/" class="nav-item my-1
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/installation/"><h6>Installing Petr4</h6></a>
+    </li>
+    <li data-nav-id="/petr4/usage/" class="nav-item my-1 parent active
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/usage/"><h6>Using Petr4</h6></a>
+    </li>
+    <li data-nav-id="/petr4/contributors/" class="nav-item my-1
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/contributors/"><h6>Contributors</h6></a>
+    </li>
+        </ul>
+    </div>
+</nav>
+
+
+</div>
+                <div class="docs-toc large order-lg-2 order-md-0 order-xs-1 col-12 col-lg-2 col-xl-2 position-sticky border-left"><div class="docs-toc">
+	<nav id="TableOfContents"></nav>
+</div>
+</div>
+                <div class="main col-12 order-1 col-md-9 col-lg-10 col-xl-8 py-3">
+                
+
+<h1>Using Petr4</h1>
+
+<p class="lead">
+    <p>[TODO: update for Petr4]</p>
+<h2 id="functionality-examples-from-sigcomm-20-paper">Functionality: Examples from SIGCOMM &lsquo;20 paper</h2>
+<p>To reproduce the examples from our SIGCOMM &lsquo;20 paper, see the code and
+instructions here:
+<a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples">extensions/csa/msa-examples</a>.
+In short, there are 7 composed programs mentioned in the paper. All of them can
+be compiler using a single Makefile as mentioned in the <a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples/README.md">README</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Program in paper</th>
+<th>Composed μP4 program source</th>
+<th>Functions composed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td>main-programs/routerv6_main.up4</td>
+<td>Eth + IPv6</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>main-programs/routerv46lrx_main.up4</td>
+<td>Eth + IPv4 + IPv6 + MPLS</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>main-programs/router_ipv4v6srv6_main.up4</td>
+<td>Eth + IPv4 + IPv6 + SRv6</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>main-programs/routerv46_main.up4</td>
+<td>Eth + IPv4 + IPv6</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>main-programs/routerv4_main.up4</td>
+<td>Eth + IPv4</td>
+</tr>
+<tr>
+<td>P6</td>
+<td>main-programs/router_ipv4v6_nat_acl.up4</td>
+<td>Eth + IPv4 + IPv6 + NAT + NPT6 + ACL</td>
+</tr>
+<tr>
+<td>P7</td>
+<td>main-programs/router_ipv4srv4ipv6_main.up4</td>
+<td>Eth + IPv4 + IPv6 + SRv4</td>
+</tr>
+</tbody>
+</table>
+<p>The videos from the installation step also show the usage: <a href="https://www.youtube.com/watch?v=ZtmLH0UFeqw&amp;t=77s">https://www.youtube.com/watch?v=ZtmLH0UFeqw&amp;t=77s</a></p>
+<h2 id="reusability">Reusability:</h2>
+<p>The framework can be used to write, compose and build new dataplane programs. We are working on a <a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/tutorials">step-by-step tutorial</a> to get you started with programming with μP4.
+At a high-level, There are two steps in using μP4:</p>
+<ol>
+<li>Writing μP4 programs: See <a href="https://github.com/cornell-netlab/MicroP4#4-how-to-write-%CE%BCp4-programs">this page</a> for instructions on writing new programs.</li>
+<li>Compiling μP4 programs: See <a href="https://github.com/cornell-netlab/MicroP4#5-how-to-use-%CE%BCp4c">this page</a> for instructions on compiling μP4 programs with μP4C.</li>
+</ol>
+
+</p>
+
+<!-- 
+
+
+<ul class="docs-children list-unstyled">
+
+	
+</ul>
+
+
+
+ -->
+
+
+    
+
+
+                    
+                    <div class="row"><div class="position-relative mx-auto col-lg-9">
+                          <div class="bg-primary overflow-hidden p-3 mt-5 shadow">
+
+    <h4 class="text-white text-center">Read more</h4>
+
+    <div class="d-flex justify-content-center"><a class="p-1 mr-3 d-inline-block text-white" href="/petr4/installation/" title="Installing Petr4"><i class="fas fa-chevron-left p-1"></i>Installing Petr4</a>
+        <a class="p-1 ml-3 d-inline-block text-white text-right" href="/petr4/contributors/" title="Contributors">Contributors<i class="fas fa-chevron-right p-1"></i></a>
+    </div>
+</div>
+
+
+                        </div></div> 
+
+                </div>
+
+            </div> 
+
+        </div> 
+<script src="https://cornell-netlab.github.io/petr4/lib/jquery.min.js"></script> 
+<script src="https://cornell-netlab.github.io/petr4/lib/popper.min.js"></script> 
+
+<script src="https://cornell-netlab.github.io/petr4/js/bootstrap.min.js"></script> 
+
+
+<script type="text/javascript" src="/petr4/plugins/lunr.min.js"></script>
+<script type="text/javascript" src="/petr4/plugins/auto-complete.js"></script>
+<link href="/petr4/plugins/auto-complete.css" rel="stylesheet">
+<script type="text/javascript">
+  
+      var baseurl = "https:\/\/cornell-netlab.github.io\/petr4\/";
+  
+</script>
+<script type="text/javascript" src="/petr4/plugins/search.js"></script>
+
+
+<script type="text/javascript" src="/petr4/plugins/clipboard.js"></script>
+<script>
+  new ClipboardJS('.btn');
+</script>
+</body>
+</html>

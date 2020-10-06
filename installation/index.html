@@ -98,43 +98,7 @@
 <h1>Installing Petr4</h1>
 
 <p class="lead">
-    <p>[TODO: Update for Petr4]
-This webpage provides instructions to build and install μP4, and reproduce the results from the paper &ldquo;Composing Dataplane Programs with μP4&rdquo;.</p>
-<ol>
-<li><a href="#pre-built-vm">As a pre-built VM</a>.</li>
-<li><a href="#from-source">Building and installing μP4 from source</a>.</li>
-</ol>
-<p><strong>Note</strong>: μP4 supports both v1model and Barefoot&rsquo;s TNA architectures. For
-compiling programs for v1model, all the dependencies are publicly available.
-However, if you would like to compile programs for TNA, you would need access
-to Barefoot&rsquo;s proprietary SDE (version 9.0.0). Accordingly, the pre-built VM
-has tools to support only the v1model. You would need to install Barefoot&rsquo;s SDE
-yourself to support TNA.</p>
-<h2 id="pre-built-vm">Pre-built VM</h2>
-<p>We provide a VM with μP4, along with all the dependencies, pre-installed here: <a href="https://drive.google.com/file/d/1-z0oF_SZHLxzGr4Cn6Bb1bUTEZJwFs93/view?usp=sharing">μP4 VM (2.8 GB)</a> (md5sum: <code>95dd2959f71970d648f32be3a6144cf9</code>).</p>
-<ol>
-<li>Install and start <a href="https://www.virtualbox.org/wiki/Downloads">Virtualbox</a> on your machine.</li>
-<li>Download μP4 VM image, and import it to Virtualbox by selecting  &ldquo;File&rdquo; -&gt; &ldquo;Import Appliance&rdquo; in Virtualbox. If prompted, it&rsquo;s safe to ignore warnings related to Virtualbox Guest Additions.</li>
-<li>Allocate the VM as much RAM as possible (at least 2GB) and two processors. Building <code>p4c</code> and <code>BMv2</code> software switch from source can be resource intensive. The VM comes with these pre-built and installed. In case you want to rebuild them within the VM, allocate more resources.</li>
-<li>You may need to turn on virtualization extensions in your BIOS to enable 64-bit virtualization.</li>
-<li>When the VM starts up, the <code>microp4</code> user should be automatically logged in. (username: <code>microp4</code>, password: <code>microp4</code>).</li>
-<li>(Optional) Get the latest version of μP4: <code>cd microp4 &amp;&amp; git pull --recurse-submodules</code>. Then, to build it, do <code>cd build &amp;&amp; make -j2</code>. (The complete build instructions are here <a href="https://github.com/cornell-netlab/MicroP4#22-build-and-install-%CE%BCp4c">https://github.com/cornell-netlab/MicroP4#22-build-and-install-%CE%BCp4c</a> in case you would like to build it from scratch. p4c and BMv2 software switch are already installed on the VM, and you would not need to re-build them normally.)</li>
-<li>Next step: you can directly jump to building and testing composed programs by following the instructions here: <a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples">https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples</a>.</li>
-</ol>
-<p><strong>Video</strong>: We have also shared a video illustrating the steps and what to expect here:</p>
-<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-  <iframe src="https://www.youtube.com/embed/ZtmLH0UFeqw" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" allowfullscreen title="YouTube Video"></iframe>
-</div>
-<p><strong>Note</strong>: The VM does not include Barefoot&rsquo;s SDE. You will need to install it yourself on your local machine and compile the generated P4 programs following the instructions provided with the SDE. We have tested the Tofino backend with a native OS installation only, and not with the VM.</p>
-<h2 id="from-source">From Source</h2>
-<p>We have released the source code for μP4 at <a href="https://github.com/cornell-netlab/MicroP4/">https://github.com/cornell-netlab/MicroP4/</a> under an open-source license.</p>
-<p>To build and install μP4, follow the instructions at:
-<a href="https://github.com/cornell-netlab/MicroP4/tree/master#getting-started">https://github.com/cornell-netlab/MicroP4/tree/master#getting-started</a>.</p>
-<p><strong>Video</strong>: We have also shared a video illustrating the steps and what to expect. We used these steps to build the VM mentioned above.</p>
-<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-  <iframe src="https://www.youtube.com/embed/HI8LAPIx15Y" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" allowfullscreen title="YouTube Video"></iframe>
-</div>
-
+    [Installation instructions (consider adding a pre-built VM as well)]
 </p>
 
 

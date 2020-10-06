@@ -98,68 +98,9 @@
 <h1>Using Petr4</h1>
 
 <p class="lead">
-    <p>[TODO: update for Petr4]</p>
-<h2 id="functionality-examples-from-sigcomm-20-paper">Functionality: Examples from SIGCOMM &lsquo;20 paper</h2>
-<p>To reproduce the examples from our SIGCOMM &lsquo;20 paper, see the code and
-instructions here:
-<a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples">extensions/csa/msa-examples</a>.
-In short, there are 7 composed programs mentioned in the paper. All of them can
-be compiler using a single Makefile as mentioned in the <a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/msa-examples/README.md">README</a>.</p>
-<table>
-<thead>
-<tr>
-<th>Program in paper</th>
-<th>Composed μP4 program source</th>
-<th>Functions composed</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>P1</td>
-<td>main-programs/routerv6_main.up4</td>
-<td>Eth + IPv6</td>
-</tr>
-<tr>
-<td>P2</td>
-<td>main-programs/routerv46lrx_main.up4</td>
-<td>Eth + IPv4 + IPv6 + MPLS</td>
-</tr>
-<tr>
-<td>P3</td>
-<td>main-programs/router_ipv4v6srv6_main.up4</td>
-<td>Eth + IPv4 + IPv6 + SRv6</td>
-</tr>
-<tr>
-<td>P4</td>
-<td>main-programs/routerv46_main.up4</td>
-<td>Eth + IPv4 + IPv6</td>
-</tr>
-<tr>
-<td>P5</td>
-<td>main-programs/routerv4_main.up4</td>
-<td>Eth + IPv4</td>
-</tr>
-<tr>
-<td>P6</td>
-<td>main-programs/router_ipv4v6_nat_acl.up4</td>
-<td>Eth + IPv4 + IPv6 + NAT + NPT6 + ACL</td>
-</tr>
-<tr>
-<td>P7</td>
-<td>main-programs/router_ipv4srv4ipv6_main.up4</td>
-<td>Eth + IPv4 + IPv6 + SRv4</td>
-</tr>
-</tbody>
-</table>
-<p>The videos from the installation step also show the usage: <a href="https://www.youtube.com/watch?v=ZtmLH0UFeqw&amp;t=77s">https://www.youtube.com/watch?v=ZtmLH0UFeqw&amp;t=77s</a></p>
+    <h2 id="functionality-reproducing-results-from-popl-21-paper">Functionality: Reproducing Results from POPL &lsquo;21 paper</h2>
 <h2 id="reusability">Reusability:</h2>
-<p>The framework can be used to write, compose and build new dataplane programs. We are working on a <a href="https://github.com/cornell-netlab/MicroP4/tree/master/extensions/csa/tutorials">step-by-step tutorial</a> to get you started with programming with μP4.
-At a high-level, There are two steps in using μP4:</p>
-<ol>
-<li>Writing μP4 programs: See <a href="https://github.com/cornell-netlab/MicroP4#4-how-to-write-%CE%BCp4-programs">this page</a> for instructions on writing new programs.</li>
-<li>Compiling μP4 programs: See <a href="https://github.com/cornell-netlab/MicroP4#5-how-to-use-%CE%BCp4c">this page</a> for instructions on compiling μP4 programs with μP4C.</li>
-</ol>
-
+<p>[How to reuse petra4 to parse and interpret other programs]
 </p>
 
 <!-- 

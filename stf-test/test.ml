@@ -1,7 +1,7 @@
 open Petr4
 open Petr4.Ast
 open Common
-open Core_kernel
+open Core
 
 let stmt_string s =
   match s with

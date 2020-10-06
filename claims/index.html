@@ -98,18 +98,81 @@
 <h1>Claims made in POPL&#39;21 paper</h1>
 
 <p class="lead">
-    <p>The paper makes the following claims, which artifact evaluation will need to
-support.</p>
+    <h2 id="claims">Claims</h2>
+<p>The following claims from the paper should be verifiable using the artifact.</p>
 <ol>
-<li>We pass XX of the YY p4c tests.</li>
-<li>The remaining YY-XX fail due to the following features.
+<li>We run a test suite totaling 792 tests from p4c (line 1153 in section 5.1).</li>
+<li>All 792 of the tests pass the parser. (line 1155)</li>
+<li>Only 782 pass the typechecker. (line 1156)</li>
+<li>The 10 typechecker failures may be attributed to the following limitations
+(line 1156-67)
 <ol>
-<li>Value sets in parsers</li>
-<li>todo todo</li>
+<li>A lexer bug regarding casts applied to function calls.</li>
+<li>The use of @optional argument annotations.</li>
+<li>Tests expecting certain numeric casts to fail, rather than only
+issue a warning. (The spec only requires implementations to issue
+warnings for these casts.)</li>
+<li>p4c rejects programs that shadow names, while the petr4 implementation
+allows shadowing.</li>
+<li>Petr4&rsquo;s implicit cast insertion algorithm may turn a bad divisor (a
+negative signed integer) into one that typechecks (an unsigned, hence
+positive integer) where p4c&rsquo;s implicit cast machinery would not.</li>
+<li>p4c goes beyond the standard P4 type system to enforce special typing
+constraints for some V1Model constructs, while Petr4 currently provides
+a target-agnostic type system.</li>
 </ol>
 </li>
-<li></li>
+<li>There are 110 other tests left off for their use of the following unsupported
+features or disagreements with the specification.
+<ol>
+<li>Lack of concurrency</li>
+<li>Ignores annotations of all types</li>
+<li>No abstract externs or user-defined initialization blocks for externs</li>
+<li>(not in paper explicitly?) Parser value sets.</li>
+<li>(not in paper explicitly?) Struct flattening in key contexts</li>
+<li>(not in paper explicitly?) Generic control and parser declarations (not in
+spec)</li>
+<li>(not in paper explicitly?) casting int to bool not allowed (not in spec)</li>
+<li>(not in paper explicitly?) byte alignment of header fields</li>
+<li>(not in paper explicitly?) Petr4 does not (and cannot) implement the
+p4c/bmv2 C++ extension API.</li>
+<li>(not in paper explicitly?) overly permissive tests which pass only for
+p4c&rsquo;s spec violating behavior
+<ol>
+<li>could make a list here but it may not be worth it, as there&rsquo;s significant
+overlap with the discussion of bugs</li>
 </ol>
+</li>
+<li>(not in paper explicitly?) overly strict tests which fail despite
+spec-compliant behavior from petr4
+<ol>
+<li>as above, could make a list here but it may not be worth it, as there&rsquo;s
+significant overlap with the discussion of bugs</li>
+</ol>
+</li>
+</ol>
+</li>
+<li>There are 121 tests from p4c including STF so they can be used to test the
+Petr4 interpreter. Of these, 26 fail, for the following reasons.
+<ol>
+<li>Unimplemented architectures like PSA and ubpf.</li>
+<li>Some v1model and ebpf externs omitted: meters, direct-mapped objects,
+multicast, CRC16 checksums&hellip;</li>
+</ol>
+</li>
+<li>There are 40 additional custom tests we wrote, all of which pass.</li>
+</ol>
+<h2 id="checking-the-claims">Checking the claims</h2>
+<p>The provenance of the tests is not evident. Some of them are tests we wrote,
+others are tests from p4c. So I think the paper&rsquo;s top level sentence ``We have
+imported 792 test cases from p4c for &hellip;&rsquo;&rsquo; is maybe not exactly right.</p>
+<p>To run the test suite, open a terminal in the root of the petr4 repository and
+run the following commands.</p>
+<pre><code>cd ~/petr4
+. ./triage/util.sh
+chknow &amp;&amp; stfnow
+</code></pre><p>They should produce no output on the terminal. Instead test information will be
+recorded in several files under <code>~/petr4/testruns/</code>.</p>
 
 </p>
 

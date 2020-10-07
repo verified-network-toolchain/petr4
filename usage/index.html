@@ -99,8 +99,51 @@
 
 <p class="lead">
     <h2 id="functionality-reproducing-results-from-popl-21-paper">Functionality: Reproducing Results from POPL &lsquo;21 paper</h2>
+<p>Oops, the stuff in &ldquo;Claims&rdquo; should go here.</p>
 <h2 id="reusability">Reusability:</h2>
-<p>[How to reuse petra4 to parse and interpret other programs]
+<p>Petr4 provides a reference interpreter that runs P4 programs but can also serve
+as a useful frontend for P4 tools or as a testbed for new features.</p>
+<h3 id="running-p4-programs-with-petr4">Running P4 programs with Petr4</h3>
+<p>Before Petr4 can run a P4 program you have to provide it a control plane
+configuration and a packet in the STF (Simple Test Framework) format, which is
+described in the next section. Assuming you have a program <code>file.p4</code> and STF
+configuration <code>file.stf</code>, you can run it as follows.</p>
+<pre><code>petr4 run --stf file.stf file.p4
+</code></pre><h4 id="writing-stf">Writing STF</h4>
+<p>Here is
+a brief example adapted from <code>examples/checker_tests/good/issue2153-bmv2.stf</code>,
+a test case from the P4C test suite.</p>
+<pre><code>add simple_table hdr.h.b:0x55 do_something()
+
+packet 0 11 11 11 11 11 11 22 22 22 22 22 22 33 33 FF EE
+expect 0 11 11 11 11 11 11 22 22 22 22 22 22 33 33 FF EE
+</code></pre><p>This STF file adds a rule to the table <code>simple_table</code>, sends a 16-byte packet to
+the program on port 0, and checks that the same packet is emitted unchanged on
+port 0.</p>
+<p>The format of an add command is <code>add table_name key:match</code>&hellip;<code>key:match action</code>.
+The <code>table_name</code> should refer to a table in the P4 program being tested or run.
+STF permits writing a list of matches in an add command without the <code>key:</code> parts
+because the list of keys can be determined from the table declaration in P4. The
+P4 table declaration will contain a list of keys marked with match kinds (e.g.,
+<code>exact</code> or <code>ternary</code>). There should be one <code>key:match</code> expression in an <code>add</code>
+rule for each key in the table&rsquo;s keys property. Each <code>match</code> should be formatted
+appropriately for the given match kind.</p>
+<h4 id="match-kinds">Match kinds</h4>
+<p>There are three match kinds: <code>exact</code>, <code>ternary</code>, and <code>lpm</code> (longest prefix
+match). Each has an associated format for writing matches in STF.</p>
+<p>For an <code>exact</code> key, the match should be an integer constant in hexadecimal. In
+our example above, the key is an exact key and the match is <code>0x55</code>.</p>
+<p>For a <code>ternary</code> key, the match can also include asterisks <code>*</code> to indicate bits
+that can match anything. For example, <code>0xFF**</code> will match any two-byte key with
+FF in the first byte.</p>
+<p>For an <code>lpm</code> key, the match should be two integer constants separated by a slash
+<code>/</code>. The constant after the slash is the mask, which may be familiar from IP
+subnetting: a mask 0xFFFFFF00 corresponds to the IP subnet 255.255.255.0. The
+semantics of LPM is, as the name suggests, to follow the match-action rule which
+matches the longest prefix of the key.</p>
+<h3 id="understanding-the-architecture-of-petr4">Understanding the architecture of Petr4</h3>
+<p>[Nate: describe ASTs in here]</p>
+
 </p>
 
 <!-- 

@@ -4,7 +4,21 @@ Our reference implementation of P4 makes use of an abstract barrier between the 
 
 ## What is a P4 Architecture?
 
-Describe the componenets of an architecture.
+On a surface level, an architecture in P4 consists of a collection of `extern` functions/datatypes along with a description of the componenets of the packet-processing pipeline. However, a closer examination of the finer points of the P4 semantics reveals that there are many components in the P4 semantics which may be defined by the target rather than the language. In addition to defining externs and pipeline structure, the architecture's responsibilities include but are not limited to:
+
+* provide static analysis for enforcing target-dependent well-formedness rules
+
+* define semantics for initializing metadata
+
+* provide semantics for threading the packet and other metadata through the pipeline
+
+* define the behavior of reading from uninitialized/invalid headers
+
+* provide custom table attributes
+
+* define custom semantics for the invocation/execution of tables
+
+Therefore, an architecture consists of definitions for all of these semantic concerns. Indeed, many of these components correspond directly to values required by our signature for a target implementation.
 
 ## Adding to our Code
 

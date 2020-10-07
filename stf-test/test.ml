@@ -94,11 +94,10 @@ module RunnerMaker (C : RunnerConfig) = struct
 
   let rec run_test (prog : Prog.program) (stmts : statement list) (add, set_def)
       (results : (string * string) list) (expected : (string * string) list)
-      (env : Prog.Env.EvalEnv.t) (st : C.st) : unit = 
+      (env : Prog.Env.EvalEnv.t) (st : C.st)
+      : ((string * string) list) * ((string * string) list) = 
     match stmts with
-    | [] -> 
-      List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
-            Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
+    | [] -> (expected, results)
     | hd :: tl -> 
       match hd with
       | Packet (port, packet) -> 
@@ -146,39 +145,33 @@ let get_stf_files path =
   Core.Sys.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
+let run_stf include_dir stf_file p4_file =
+    let ic = In_channel.create stf_file in
+    let lexbuf = Lexing.from_channel ic in
+    let stmts = Test_parser.statements Test_lexer.token lexbuf in
+    let env, prog = 
+      Petr4_parse.parse_file include_dir p4_file false
+      |> (function `Ok p -> p | _ -> failwith "Petr4 parser error")
+      |> Elaborate.elab
+      |> fun (prog, renamer) -> Checker.check_program renamer prog
+      |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
+    let target = match prog with Program l ->
+      l
+      |> List.rev |> List.hd_exn |> snd
+      |> function Prog.Declaration.Instantiation{typ;_} -> typ
+         | _ -> failwith "unexpected main value" in
+    match target with
+    | SpecializedType{base = TypeName (BareName(_, "V1Switch"));_} -> 
+      V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
+    | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
+      EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
+    | _ -> failwith "architecture unsupported"
+
 let stf_alco_test include_dir stf_file p4_file =
-    let test = Alcotest.test_case p4_file `Quick (fun () ->
-      let ic = In_channel.create stf_file in
-      let lexbuf = Lexing.from_channel ic in
-      let stmts = Test_parser.statements Test_lexer.token lexbuf in
-      let env, prog = 
-        Petr4_parse.parse_file include_dir p4_file false
-        |> (function `Ok p -> p | _ -> failwith "Petr4 parser error")
-        |> Elaborate.elab
-        |> fun (prog, renamer) -> Checker.check_program renamer prog
-        |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
-      let target = match prog with Program l ->
-        l
-        |> List.rev |> List.hd_exn |> snd
-        |> function Prog.Declaration.Instantiation{typ;_} -> typ
-           | _ -> failwith "unexpected main value" in
-      match target with
-      | SpecializedType{base = TypeName (BareName(_, "V1Switch"));_} -> 
-        V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
-      | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
-        EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
-      | _ -> failwith "architecture unsupported") in
+    let run_stf_alcotest () =
+      let expected, results = run_stf include_dir stf_file p4_file in
+      List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
+            Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
+    in
+    let test = Alcotest.test_case p4_file `Quick run_stf_alcotest in
     Filename.basename stf_file, [test]
-
-let main include_dir stf_tests_dir =
-  get_stf_files stf_tests_dir
-  |> List.map ~f:( fun x ->
-    let stf_file = Filename.concat stf_tests_dir x in
-    let p4_file = Stdlib.Filename.remove_extension stf_file ^ ".p4" in
-    stf_alco_test include_dir stf_file p4_file
-    )
-
-let () =
-  main ["examples/"] "./examples/checker_tests/good/" @
-  main ["examples/"] "./stf-test/custom-stf-tests/"
-  |> Alcotest.run "Stf-tests"

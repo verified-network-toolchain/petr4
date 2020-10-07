@@ -110,9 +110,30 @@ let eval_command =
     (fun verbose include_dir pkt_str ctrl_json port target p4file () ->
        print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
 
+let stf_command =
+  let open Command.Spec in
+  Command.basic_spec
+    ~summary: "Run a P4 program with an STF script"
+    (empty
+     +> flag "-v" no_arg ~doc:" Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-stf" (required string) ~doc: "<stf file> Select the .stf script to run"
+     +> anon ("p4file" %: string))
+    (fun verbose include_dir stf_file p4_file () ->
+        let expected, results =
+            Petr4test.Test.run_stf include_dir stf_file p4_file
+        in
+        print_s [%message "expected vs result"
+                          ~expected:(expected:(string * string) list)
+                          ~results:(results:(string * string) list)])
+
+
 let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
-    ["parse", parse_command; "typecheck", check_command; "run", eval_command]
+    [ "parse", parse_command;
+      "typecheck", check_command;
+      "run", eval_command;
+      "stf", stf_command ]
 
 let () = Command.run ~version: "0.1.1" command

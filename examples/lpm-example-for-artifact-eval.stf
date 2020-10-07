@@ -1,0 +1,17 @@
+# header hdr { bit<8>  e; bit<16> t; bit<8>  l; bit<8> r; bit<1>  v; }
+
+add t_lpm h.h.key:0x11/0xF0 set_port(x:1)
+add t_lpm h.h.key:0x12/0xFF set_port(x:2)
+
+# t_lpm tests
+packet 0 0b 11 00 b0
+expect 1 0b 11 ** ** $
+
+packet 0 0b 10 00 b0
+expect 1 0b 10 ** ** $
+
+packet 0 0c 12 00 b0
+expect 2 0c 12 ** ** $
+
+packet 0 0d FF 00 b0
+expect 3 0d FF ** ** $

@@ -319,7 +319,22 @@ module MakeInterpreter (T : Target) = struct
         let pre_match = Match.Expression {expr = e} in
         let typed_match : Match.typed_t = {expr = pre_match; typ = Integer} in
         (Info.dummy, typed_match)
-      | _ -> failwith "stf lpm unsupported" in
+      | Slash (s, mask) ->
+        let expr = match convert_expression env (Some (s, t)) with
+                | Some e -> e
+                | None -> failwith "unreachable" in
+        let mask = match convert_expression env (Some (mask, t)) with
+                | Some e -> e
+                | None -> failwith "unreachable" in
+        let typed_mask : Expression.typed_t =
+            { expr = Expression.Mask {expr; mask};
+              typ = Typed.Type.Set Typed.Type.Integer;
+              dir = Directionless }
+        in
+        let match_ = Match.Expression {expr = Info.dummy, typed_mask} in
+        let typed_match : Match.typed_t = {expr = match_; typ = Integer} in
+        (Info.dummy, typed_match)
+    in
     let convert_pre_entry (priority, match_list, (action_name, args), id) : Table.pre_entry =
       let key_types = List.map key ~f:(fun k -> (snd (snd k).key).typ ) in
       { annotations = [];

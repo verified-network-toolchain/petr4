@@ -8,3 +8,4 @@ Makefile.coq*
 .coq-native/
 *.vio
 .coqdeps.d
+\#*.v\#

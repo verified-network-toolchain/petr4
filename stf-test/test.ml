@@ -142,7 +142,7 @@ end
 module EbpfRunner = RunnerMaker(EbpfRunnerConfig)
 
 let get_stf_files path =
-  Core.Sys.ls_dir path |> Base.List.to_list |>
+  Sys.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
 let run_stf include_dir stf_file p4_file =

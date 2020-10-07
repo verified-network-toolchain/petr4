@@ -35,7 +35,7 @@ install:
 	dune install
 
 test-stf:
-	dune exec stf-test/test.exe
+	dune exec bin/test.exe
 
 test:
 	cd test && dune exec ./test.exe

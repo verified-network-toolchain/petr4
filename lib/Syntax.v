@@ -1,12 +1,15 @@
 Require Import String.
-Require Import  Coq.Lists.List.
+Require Import Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.NArith.BinNatDef.
-Require Import Coq.PArith.POrderedType.
+Require Import Coq.Bool.Bvector.
 
 Require Coq.Program.Tactics.
 Require Coq.Program.Wf.
+
+Open Scope string_scope.
+Close Scope vector_scope.
 
 Module Import MStr := FMapList.Make(String_as_OT).
 
@@ -182,24 +185,49 @@ with expression :=
   | Range (lo: expression) (hi: expression)
 .
 
+Inductive lvalue :=
+  | LValName (var: string)
+  | LValMember (base: lvalue) (member: string)
+.
+
 Inductive value :=
-  | ValBool (value: bool)
-  | ValInt (value: nat)
-  | ValString (value: string)
-  | ValArray (value: list value)
+  | ValVoid
+  | ValBool (b: bool)
+  | ValInt (n: nat)
+  | ValBit (width: nat) (value: Bvector width)
+  | ValVarbit (width: nat) (value: Bvector width)
+  | ValFixedInt (width: nat) (value: nat)
+  | ValSignedInt (n: Decimal.int)
+  | ValString (s: string)
+  | ValArray (arr: list value)
+  | ValError (msg: string)
   (* I would rather this was MStr.t value but that is not a strictly
   positive definition. The difference is that [Raw.t value] is
   basically list (string * value) while MStr.t value is a dependent
   record { raw: MStr.Raw.t; sorted: Sorted ...} which includes a proof
   that the list [raw] is sorted. *)
   | ValRecord (fs: MStr.Raw.t value)
-.
-    
-    
+  | ValBuiltinFunc (name: string) (obj: lvalue)
+  | ValHeader (value: header)
+  | ValHeaderStack (size: nat) (nextIndex: nat) (elements: list header)
+  
 
-Inductive lvalue :=
-  | LValName (var: string)
-  | LValMember (base: lvalue) (member: string)
+  (* unused value types from the OCAML implementation
+
+    | VStruct of
+        { fields : (string * value) list; }
+    | VUnion of
+        { fields : (string * value) list; }
+    | VEnumField of
+        { typ_name : string;
+          enum_name : string; }
+    | VSenumField of
+        { typ_name : string;
+          enum_name : string;
+          v : value; }
+    | VSenum of (string * value) list *)
+
+with header := MkHeader (valid: bool) (fields: MStr.Raw.t value)
 .
 
 Inductive declaration :=
@@ -387,6 +415,27 @@ Definition liftEnvFn (f : environment -> option environment) : interp_monad unit
     | None => interp_fail Internal env
     end.
 
+Definition liftEnvLookupFn (f: environment -> option value) : interp_monad value :=
+  fun env =>
+    match f env with
+    | Some value => mret value env
+    | None => interp_fail Internal env
+    end.
+
+Definition tossValue (original: interp_monad value) : interp_monad unit :=
+  fun env =>
+    match original env with
+    | (inl result, env') => mret tt env'
+    | (inr exc, env') => interp_fail exc env'
+    end.
+
+Definition dummyValue (original: interp_monad unit) : interp_monad value :=
+  fun env =>
+    match original env with
+    | (inl tt, env') => mret ValVoid env'
+    | (inr exc, env') => interp_fail exc env'
+    end.
+
 Definition lift_option (x: option value) : interp_monad value := fun env => 
   match x with
   | Some it => mret it env
@@ -409,49 +458,8 @@ Fixpoint list_slice {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) 
     end
   end.
 
-Fixpoint total_pos_measure (n: positive) : nat :=
-  match n with
-  | xH => 1
-  | xO inner => 2 + total_pos_measure inner
-  | xI inner => 3 + total_pos_measure inner
-  end.
-
-Definition total_N_measure (n: N) : nat :=
-  match n with
-  | N0 => 0
-  | Npos inner => total_pos_measure inner
-  end.
-
-Program Fixpoint negate_N (n: N) {measure (total_N_measure n)} := 
-  match n with
-  | N0       => Npos xH (* negate 0 = 1*)
-  | Npos xH  => N0 (* negate 1 = 0*)
-  | Npos (xO inner)  =>
-    match negate_N (Npos inner) with
-    | N0      => Npos xH (* negate 01 = 1 *)
-    | Npos iv => Npos (xI iv)
-    end
-  | Npos (xI inner)  =>
-    match negate_N (Npos inner) with
-    | N0      => N0 (* negate 11 = 0 *)
-    | Npos iv => Npos (xO iv)
-    end
-  end.
-Next Obligation.
-induction inner.
-unfold total_N_measure.
-unfold total_pos_measure.
-simpl. auto.
-unfold total_N_measure. unfold total_pos_measure.
-simpl. auto.
-unfold total_pos_measure. simpl. auto.
-Qed.
-
-
 Definition mapEnv (f : environment -> environment) : interp_monad unit :=
   fun env => mret tt (f env).
-
-Definition negate_nat (n: nat) : nat := N.to_nat (negate_N (N.of_nat n)).
 
 Definition defaultValue (A: type) : value.
 Admitted.
@@ -459,19 +467,19 @@ Admitted.
 Definition evalLvalue (expr: expression) : interp_monad lvalue.
 Admitted.
 
-(* | NameExpression (value: name)*)
-(*
-| UnaryOp (op: unaryoperator) (arg: expression)
-| BinaryOp (op: binaryoperator) (arg: expression)
-| Cast (type: type) (expr: expression)
-| TypeMember (type: name) (name: string)
-| ErrorMember (error: string)
-| ExpressionMember (expr: expression) (name: string)
-| Ternary (cond: expression) (true: expression) (false: expression)
-| FunctionCall (function: expression) (type_args: list type) (args: list argument)
-| NamelessInstantiation (type: type) (args: list argument)
-| Mask (expr: expression) (mask: expression)
-| Range (lo: expression) (hi: expression) *)
+Definition powTwo (w: nat) : N.
+Admitted.
+
+Definition of_bvector {w} (bits: Bvector w) : N.
+Admitted.
+
+Definition evalMinus (v: value) : option value := 
+  match v with
+  | ValBit width bits => Some (ValFixedInt width (N.to_nat (N.sub (powTwo width) (of_bvector bits))))
+  | ValFixedInt width value => Some (ValFixedInt width (N.to_nat (N.sub (powTwo width) (N.of_nat value))))
+  | ValSignedInt n => Some (ValSignedInt (Decimal.opp n))
+  | _ => None
+  end.
 
 Fixpoint evalExpression (expr: expression) : interp_monad value :=
   match expr with
@@ -507,14 +515,107 @@ Fixpoint evalExpression (expr: expression) : interp_monad value :=
       end
     | BitNot => 
       match inner with
-      | ValInt v => mret (ValInt (negate_nat v))
+      | ValBit w bits => mret (ValBit w (Bneg w bits))
       | _ => interp_fail Internal
       end
-    | BitMinus => interp_fail Internal
+    | BitMinus => lift_option (evalMinus inner)
     end
-  | _ => mret (ValBool false)
-  end
-.
+  | _ => mret (ValBool false) (* TODO *)
+  end.
+
+Definition evalIsValid (obj: lvalue) : interp_monad value :=
+  let* value := liftEnvLookupFn (findLvalue obj)
+  in match value with
+  | ValHeader (MkHeader valid fields) => mret (ValBool valid)
+  | _ => interp_fail Internal
+  end.
+
+Definition evalSetBool (obj: lvalue) (valid: bool) : interp_monad unit :=
+  let* value := liftEnvLookupFn (findLvalue obj) in
+  match value with
+  | ValHeader (MkHeader _ fields) =>
+    liftEnvFn (updateLvalue obj (ValHeader (MkHeader valid fields)))
+  | _ => interp_fail Internal
+  end.
+
+Fixpoint rotateLeft {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+  match count with
+  | 0 => Some elements
+  | S count' =>
+    match elements with
+    | nil => None
+    | header :: elements' =>
+      rotateLeft (elements' ++ pad :: nil) count' pad
+    end
+  end.
+
+Definition evalPopFront (obj: lvalue) (args: list (option value)) : interp_monad unit :=
+  match args with
+  | Some (ValInt count) :: nil => 
+      let* value := liftEnvLookupFn (findLvalue obj) in
+      match value with
+      | ValHeaderStack size nextIndex elements =>
+        match rotateLeft elements count (MkHeader false (MStr.Raw.empty _)) with
+        | None => interp_fail Internal
+        | Some elements' =>
+          let value' := ValHeaderStack size (nextIndex - count) elements' in
+          liftEnvFn (updateLvalue obj value)
+        end
+      | _ => interp_fail Internal
+      end
+  | _ => interp_fail Internal
+  end.
+
+Fixpoint rotateRight {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+  match count with
+  | 0 => Some elements
+  | S count' =>
+    match elements  with
+    | nil => None
+    | header :: elements' =>
+      rotateRight (pad :: (removelast elements)) count' pad
+    end
+  end.
+
+Definition evalPushFront (obj: lvalue) (args: list (option value)) : interp_monad unit :=
+  match args with
+  | Some (ValInt count) :: nil => 
+      let* value := liftEnvLookupFn (findLvalue obj) in
+      match value with
+      | ValHeaderStack size nextIndex elements =>
+        match rotateRight elements count (MkHeader false (MStr.Raw.empty _)) with
+        | None => interp_fail Internal
+        | Some elements' =>
+          let nextIndex' := min size (nextIndex + count) in
+          let value' := ValHeaderStack size nextIndex' elements' in
+          liftEnvFn (updateLvalue obj value)
+        end
+      | _ => interp_fail Internal
+      end
+  | _ => interp_fail Internal
+  end.
+
+Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : interp_monad value :=
+  match name with
+  | "isValid" => evalIsValid obj
+  | "setValid" => dummyValue (evalSetBool obj true)
+  | "setInvalid" => dummyValue (evalSetBool obj false)
+  | "pop_front" => dummyValue (evalPopFront obj args)
+  | "push_front" => dummyValue (evalPushFront obj args)
+  | _ => interp_fail Internal
+  end.
+
+Fixpoint evalArguments (args: list (option expression)) : interp_monad (list (option value)) :=
+  match args with
+  | nil => mret nil
+  | Some arg :: args' =>
+    let* val := evalExpression arg in
+    let* vals := evalArguments args' in
+    mret (Some val :: vals)
+  | None :: args' =>
+    let* vals := evalArguments args' in
+    mret (None :: vals)
+  end.
 
 Fixpoint evalBlock (blk: block) : interp_monad unit :=
   match blk with
@@ -527,8 +628,12 @@ Fixpoint evalBlock (blk: block) : interp_monad unit :=
 with evalStatement (stmt: statement) : interp_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
-    (* TODO *)
-    mret tt
+    let* func' := evalExpression func in
+    let* args' := evalArguments args in
+    match func' with
+    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj args')
+    | _ => mret tt (* TODO: other function types *)
+    end
   | Assignment lhs rhs =>
     let* lval := evalLvalue lhs in
     let* val := evalExpression rhs in

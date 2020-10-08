@@ -9,6 +9,6 @@ let main include_dir stf_tests_dir =
     stf_alco_test include_dir stf_file p4_file)
 
 let () =
-  main ["examples/"] "./examples/checker_tests/good/" @
-  main ["examples/"] "./stf-test/custom-stf-tests/"
+  ["p4c stf tests", main ["examples/"] "./examples/checker_tests/good/";
+   "petr4 stf tests", main ["examples/"] "./stf-test/custom-stf-tests/"]
   |> Alcotest.run "Stf-tests"

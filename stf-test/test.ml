@@ -174,4 +174,4 @@ let stf_alco_test include_dir stf_file p4_file =
             Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
     in
     let test = Alcotest.test_case p4_file `Quick run_stf_alcotest in
-    Filename.basename stf_file, [test]
+    test

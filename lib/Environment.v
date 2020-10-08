@@ -24,6 +24,9 @@ Definition environment := list scope.
 
 Definition env_monad := @state_monad environment exception.
 
+Definition mapEnv (f : environment -> environment) : env_monad unit :=
+  fun env => mret tt (f env).
+
 Definition liftEnvFn (f : environment -> option environment) : env_monad unit :=
   fun env =>
     match f env with

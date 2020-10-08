@@ -38,3 +38,20 @@ Fixpoint rotateRight {A: Type} (elements: list A) (count: nat) (pad: A) : option
       rotateRight (pad :: (removelast elements)) count' pad
     end
   end.
+
+Fixpoint list_slice {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) := 
+  match (lo, hi) with
+  | (0, 0)          => Some nil
+  | (S _, 0)        => None
+  | (0, S hi')      => 
+    match l with
+    | nil     => None
+    | x :: xs => option_map (fun t => x :: t) (list_slice xs 0 hi')
+    end
+  | (S lo', S hi')  => 
+    match l with
+    | nil      => None
+    | x :: xs => option_map (fun t => x :: t) (list_slice xs lo' hi')
+    end
+  end.
+

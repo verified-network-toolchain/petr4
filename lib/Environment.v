@@ -22,7 +22,7 @@ Definition scope := MStr.t value.
 Definition environment := list scope.
 
 Definition env_monad := state_monad environment exception.
-Definition env_fail := state_fail environment exception.
+Definition env_fail {A: Type} := state_fail environment exception A.
 
 Definition updateScope (key: string) (val: value) (bindings: scope) : option scope :=
   MStr.find key bindings;;
@@ -118,28 +118,28 @@ Definition liftEnvFn (f : environment -> option environment) : env_monad unit :=
   fun env =>
     match f env with
     | Some env' => mret tt env'
-    | None => env_fail unit Internal env
+    | None => env_fail Internal env
     end.
 
 Definition liftEnvLookupFn (f: environment -> option value) : env_monad value :=
   fun env =>
     match f env with
     | Some res => mret res env
-    | None => env_fail value Internal env
+    | None => env_fail Internal env
     end.
 
 Definition tossValue (original: env_monad value) : env_monad unit :=
   fun env =>
     match original env with
     | (inl result, env') => mret tt env'
-    | (inr exc, env') => env_fail unit exc env'
+    | (inr exc, env') => env_fail exc env'
     end.
 
 Definition dummyValue (original: env_monad unit) : env_monad value :=
   fun env =>
     match original env with
     | (inl tt, env') => mret ValVoid env'
-    | (inr exc, env') => env_fail value exc env'
+    | (inr exc, env') => env_fail exc env'
     end.
 
 Definition lift_option (x: option value) : env_monad value := fun env => 

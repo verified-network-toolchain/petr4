@@ -31,27 +31,32 @@ def tally_tests(working_dir, program, subset):
     return Res(total, failed)
 
 def main(petr4_repo_root):
-    print("Running test suite. This will take a few minutes...")
     frontend_root = os.path.join(petr4_repo_root, "test")
-    parser_res = tally_tests(frontend_root, "./test.exe", "parser tests")
+    print("Running test suite. This will take a few minutes...")
+    parser_res      = tally_tests(frontend_root, "./test.exe", "parser tests")
     typechecker_res = tally_tests(frontend_root, "./test.exe", "typecheck tests")
-    p4c_stf_res = tally_tests(petr4_repo_root, "bin/test.exe", "p4c stf tests")
-    custom_stf_res = tally_tests(petr4_repo_root, "bin/test.exe", "petr4 stf tests")
+    excl_res        = tally_tests(frontend_root, "./test.exe", "excluded")
+    p4c_stf_res     = tally_tests(petr4_repo_root, "bin/test.exe", "p4c stf tests")
+    custom_stf_res  = tally_tests(petr4_repo_root, "bin/test.exe", "petr4 stf tests")
+    excl_stf        = tally_tests(petr4_repo_root, "bin/test.exe", "excluded tests")
     output = """
 {parser_res.total} parser tests
     {parser_res.passed} passed
     {parser_res.failed} failed
 {typechecker_res.total} typechecker tests
     {typechecker_res.passed} passed
-    {typechecker_res.failed} failed
+    {typechecker_res.failed} failed [See logs in TODO FILL IN PATH.]
 {p4c_stf_res.total} p4c STF tests
     {p4c_stf_res.passed} passed
     {p4c_stf_res.failed} failed
 {custom_stf_res.total} custom STF tests
     {custom_stf_res.passed} passed
     {custom_stf_res.failed} failed
+{excl_res.total} excluded [See examples/checker_tests/excluded.]
+    {excl_stf.total} with STF
     """.format(parser_res=parser_res, typechecker_res=typechecker_res,
-            p4c_stf_res=p4c_stf_res, custom_stf_res=custom_stf_res)
+               p4c_stf_res=p4c_stf_res, custom_stf_res=custom_stf_res,
+               excl_res=excl_res, excl_stf=excl_stf)
     print(output)
 
 if __name__ == "__main__":

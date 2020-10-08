@@ -10,5 +10,6 @@ let main include_dir stf_tests_dir =
 
 let () =
   ["p4c stf tests", main ["examples/"] "./examples/checker_tests/good/";
-   "petr4 stf tests", main ["examples/"] "./stf-test/custom-stf-tests/"]
+   "petr4 stf tests", main ["examples/"] "./stf-test/custom-stf-tests/";
+   "excluded tests", main ["examples/"] "./examples/checker_tests/excluded/good/"]
   |> Alcotest.run "Stf-tests"

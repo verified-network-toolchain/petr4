@@ -55,8 +55,10 @@ let example_path l =
   List.fold_left l ~init:root ~f:Filename.concat
 
 let good_files = example_path ["checker_tests"; "good"] |> get_files
+let excluded_good_files = example_path ["checker_tests"; "excluded/good"] |> get_files
 
 let bad_files = example_path ["checker_tests"; "bad"] |> get_files
+let excluded_bad_files = example_path ["checker_tests"; "excluded/bad"] |> get_files
 
 let good_test f file () =
   Alcotest.(check bool) "good test" true
@@ -69,6 +71,10 @@ let bad_test f file () =
 let () =
   let open Alcotest in
   run "Tests" [
+    "excluded tests good", (Stdlib.List.map (fun name ->
+        test_case name `Quick (good_test typecheck_test name)) excluded_good_files);
+    "excluded tests bad", (Stdlib.List.map (fun name ->
+        test_case name `Quick (bad_test typecheck_test name)) excluded_bad_files);
     "parser tests good", (Stdlib.List.map (fun name ->
         test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
     "typecheck tests good", (Stdlib.List.map (fun name ->

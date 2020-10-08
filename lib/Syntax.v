@@ -279,33 +279,32 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
   | _ => mret (ValBool false) (* TODO *)
   end.
 
-
 Definition evalIsValid (obj: lvalue) : env_monad value :=
-  let* result := liftEnvLookupFn (findLvalue obj)
+  let* result := findLvalue obj
   in match result with
   | ValHeader (MkHeader valid fields) => mret (ValBool valid)
   | _ => state_fail Internal
   end.
 
 Definition evalSetBool (obj: lvalue) (valid: bool) : env_monad unit :=
-  let* value := liftEnvLookupFn (findLvalue obj) in
+  let* value := findLvalue obj in
   match value with
   | ValHeader (MkHeader _ fields) =>
-    liftEnvFn (updateLvalue obj (ValHeader (MkHeader valid fields)))
+    updateLvalue obj (ValHeader (MkHeader valid fields))
   | _ => state_fail Internal
   end.
 
 Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInt count) :: nil => 
-      let* value := liftEnvLookupFn (findLvalue obj) in
+      let* value := findLvalue obj in
       match value with
       | ValHeaderStack size nextIndex elements =>
         match rotateLeft elements count (MkHeader false (MStr.Raw.empty _)) with
         | None => state_fail Internal
         | Some elements' =>
           let value' := ValHeaderStack size (nextIndex - count) elements' in
-          liftEnvFn (updateLvalue obj value)
+          updateLvalue obj value
         end
       | _ => state_fail Internal
       end
@@ -315,7 +314,7 @@ Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad un
 Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInt count) :: nil => 
-      let* value := liftEnvLookupFn (findLvalue obj) in
+      let* value := findLvalue obj in
       match value with
       | ValHeaderStack size nextIndex elements =>
         match rotateRight elements count (MkHeader false (MStr.Raw.empty _)) with
@@ -323,7 +322,7 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad u
         | Some elements' =>
           let nextIndex' := min size (nextIndex + count) in
           let value' := ValHeaderStack size nextIndex' elements' in
-          liftEnvFn (updateLvalue obj value)
+          updateLvalue obj value
         end
       | _ => state_fail Internal
       end
@@ -372,14 +371,14 @@ with evalStatement (stmt: statement) : env_monad unit :=
   | Assignment lhs rhs =>
     let* lval := evalLvalue lhs in
     let* val := evalExpression rhs in
-    liftEnvFn (updateLvalue lval val)
+    updateLvalue lval val
   | BlockStatement block =>
     mapEnv pushScope;;
     evalBlock block;;
     liftEnvFn popScope
   | StatementConstant type name init =>
     let* value := evalExpression init in
-    liftEnvFn (insertEnvironment name value)
+    insertEnvironment name value
   | StatementVariable type name init =>
     let* value :=
        match init with
@@ -387,5 +386,5 @@ with evalStatement (stmt: statement) : env_monad unit :=
        | Some expr => evalExpression expr
        end
     in
-    liftEnvFn (insertEnvironment name value)
+    insertEnvironment name value
   end.

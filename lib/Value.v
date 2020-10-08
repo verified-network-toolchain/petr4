@@ -3,7 +3,14 @@ Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.Bool.Bvector.
 
+Require Import Monads.Monad.
+Require Import Monads.Option.
+
+Require Import Utils.
+
 Module Import MStr := FMapList.Make(String_as_OT).
+
+Open Scope monad.
 
 Inductive lvalue :=
   | LValName (var: string)
@@ -46,5 +53,12 @@ that the list [raw] is sorted. *)
         v : value; }
   | VSenum of (string * value) list *)
 
-with header := MkHeader (valid: bool) (fields: MStr.Raw.t value)
-.
+with header := MkHeader (valid: bool) (fields: MStr.Raw.t value).
+
+Definition updateMember (obj: value) (member: string) (val: value) : option value :=
+  match obj with
+  | ValRecord map =>
+    let* map' := assocUpdate member val map in
+    mret (ValRecord map')
+  | _ => None
+  end.

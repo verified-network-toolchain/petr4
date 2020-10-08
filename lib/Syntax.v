@@ -247,7 +247,7 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
     let* array' := evalExpression array in
     match (array', index') with
     | (ValArray array'', ValInt index'') => lift_option (List.nth_error array'' index'')
-    | _ => env_fail Internal
+    | _ => state_fail Internal
     end
   | BitStringAccess array hi lo =>
     let* array' := evalExpression array in
@@ -255,7 +255,7 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
     let* lo'    := evalExpression lo in
     match (array', hi', lo') with
     | (ValArray array'', ValInt hi'', ValInt lo'') => lift_option (option_map ValArray (list_slice array'' lo'' hi''))
-    | _ => env_fail Internal
+    | _ => state_fail Internal
     end
   | List exprs => liftM ValArray (sequence (List.map evalExpression exprs))
   | Record entries => 
@@ -267,12 +267,13 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
     | Not => 
       match inner with
       | ValBool b => mret (ValBool (negb b))
-      | _ => env_fail Internal
+      | _ => state_fail Internal
       end
     | BitNot => 
       match inner with
       | ValBit w bits => mret (ValBit w (Bneg w bits))
       | _ => env_fail Internal
+      | _ => state_fail Internal
       end
     | BitMinus => lift_option (evalMinus inner)
     end
@@ -284,7 +285,7 @@ Definition evalIsValid (obj: lvalue) : env_monad value :=
   let* result := liftEnvLookupFn (findLvalue obj)
   in match result with
   | ValHeader (MkHeader valid fields) => mret (ValBool valid)
-  | _ => env_fail Internal
+  | _ => state_fail Internal
   end.
 
 Definition evalSetBool (obj: lvalue) (valid: bool) : env_monad unit :=
@@ -292,7 +293,7 @@ Definition evalSetBool (obj: lvalue) (valid: bool) : env_monad unit :=
   match value with
   | ValHeader (MkHeader _ fields) =>
     liftEnvFn (updateLvalue obj (ValHeader (MkHeader valid fields)))
-  | _ => env_fail Internal
+  | _ => state_fail Internal
   end.
 
 Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
@@ -302,14 +303,14 @@ Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad un
       match value with
       | ValHeaderStack size nextIndex elements =>
         match rotateLeft elements count (MkHeader false (MStr.Raw.empty _)) with
-        | None => env_fail Internal
+        | None => state_fail Internal
         | Some elements' =>
           let value' := ValHeaderStack size (nextIndex - count) elements' in
           liftEnvFn (updateLvalue obj value)
         end
-      | _ => env_fail Internal
+      | _ => state_fail Internal
       end
-  | _ => env_fail Internal
+  | _ => state_fail Internal
   end.
 
 Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
@@ -319,15 +320,15 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad u
       match value with
       | ValHeaderStack size nextIndex elements =>
         match rotateRight elements count (MkHeader false (MStr.Raw.empty _)) with
-        | None => env_fail Internal
+        | None => state_fail Internal
         | Some elements' =>
           let nextIndex' := min size (nextIndex + count) in
           let value' := ValHeaderStack size nextIndex' elements' in
           liftEnvFn (updateLvalue obj value)
         end
-      | _ => env_fail Internal
+      | _ => state_fail Internal
       end
-  | _ => env_fail Internal
+  | _ => state_fail Internal
   end.
 
 Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : env_monad value :=
@@ -337,7 +338,7 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option valu
   | "setInvalid" => dummyValue (evalSetBool obj false)
   | "pop_front" => dummyValue (evalPopFront obj args)
   | "push_front" => dummyValue (evalPushFront obj args)
-  | _ => env_fail Internal
+  | _ => state_fail Internal
   end.
 
 Fixpoint evalArguments (args: list (option expression)) : env_monad (list (option value)) :=

@@ -1,19 +1,19 @@
-Require Import String.
+Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
-Require Import Coq.FSets.FMapList.
-Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.Bool.Bvector.
+
+Require Coq.Program.Tactics.
+Require Coq.Program.Wf.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
+
 Require Import Utils.
 Require Import Environment.
 Require Import Value.
 
-Require Coq.Program.Tactics.
-Require Coq.Program.Wf.
 
 Open Scope string_scope.
 Close Scope vector_scope.

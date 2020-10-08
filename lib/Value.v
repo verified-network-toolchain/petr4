@@ -1,4 +1,4 @@
-Require Import String.
+Require Import Coq.Strings.String.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.Bool.Bvector.

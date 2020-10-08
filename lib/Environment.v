@@ -1,17 +1,16 @@
-Require Import String.
+Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
-Require Import Value.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
+Require Import Value.
+
 Open Scope string_scope.
 Open Scope monad.
-
-Module Import MStr := FMapList.Make(String_as_OT).
 
 Inductive exception :=
 | Reject
@@ -80,7 +79,7 @@ Fixpoint findLvalue (lval: lvalue) (env: environment) : option value :=
     let* val := findLvalue lval' env in
     match val with
     | ValRecord map =>
-      Raw.find member map
+      MStr.Raw.find member map
     | _ => None
     end
   end.

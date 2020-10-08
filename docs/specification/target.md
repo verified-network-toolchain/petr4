@@ -22,9 +22,67 @@ Therefore, an architecture consists of definitions for all of these semantic con
 
 ## Adding to our Code
 
-We step through the process using the example architecture `Simple Switch`, a toy generic architecture that the P4 language specification uses to illustrate the many oddities of 
+The signature for the module `Target` is given in `lib/target.mli`. It is worth noting that there is a rather large collection of useful functions also provided by `target.mli` which will be in the scope of the newly implemented target. Our own implementations of `V1 Model` and `eBPF Filter` make use of many of these. Also provided by `target.mli` is the abstract type for the state of the program. An implementer will be primarily concerned with the functions `insert_extern` and `find_extern`, as they deal with the part of the state which contains all of the target-provided stateful objects.
 
-Some text about the functor, modules, and what pieces need implementing.
+We now step through the process of implementing this signature using the example architecture `Very Simple Switch`, a toy architecture that the P4 language specification uses to illustrate the oddities of target-dependent semantics in P4. For reference, the target description file in the P4 code is given below:
+
+```
+# include <core.p4>
+
+typedef bit<4> PortId;
+
+const PortId REAL_PORT_COUNT = 4w8;
+
+struct InControl {
+    PortId inputPort;
+}
+
+const PortId RECIRCULATE_IN_PORT = 0xD;
+const PortId CPU_IN_PORT = 0xE;
+
+struct OutControl {
+    PortId outputPort;
+}
+
+const PortId DROP_PORT = 0xF;
+const PortId CPU_OUT_PORT = 0xE;
+const PortId RECIRCULATE_OUT_PORT = 0xD;
+
+parser Parser<H>(packet_in b, out H parsedHeaders);
+
+control Pipe<H>(inout H headers,
+                in error parseError,
+                in InControl inCtrl,
+                out OutControl outCtrl);
+
+control Deparser<H>(inout H outputHeaders, packet_out b);
+
+package VSS<H>(Parser<H> p,
+               Pipe<H> map,
+               Deparser<H> d);
+               
+extern Checksum16 {
+    Checksum16();
+    void clear();
+    void update<T>(in T data);
+    void remove<T>(in T data);
+    bit<16> get();
+}
+```
+
+First, the user must provide the type `obj`, which will be used to represent target-provided stateful value. In the case of `VSS`, only one such data structure is needed -- the underlying value of the `Checksum16` extern. Some other commonly used externs include counter and register arrays, as in `V1 Model`. The types `state` and `extern` are parameterized on the type `obj` and should be copied into the implementation as they appear in the signature.
+
+The user must also provide the functions `write_header_field` and `read_header_field`. These functions will be called by the main interpreter when reading and writing to headers, and they are intended to capture the fact that the semantics in these cases is left target-dependent by the P4 specification. However, the abstraction in its current form is not necessarily expressive enough to capture all possible decisions for header reads and writes. The average user will likely want to reuse our implementations of these functions in `v1model.ml` and `ebpf.ml`.
+
+The next required value is the `eval_extern` function.
+
+Paragraph about metadata initialization.
+
+Paragraph about pipeline evaluation.
+
+Paragraph about post-processing metadata.
+
+Cleanup paragraph: mention something about Core, other ambiguities in our design?
 
 ## Supported Architectures
 

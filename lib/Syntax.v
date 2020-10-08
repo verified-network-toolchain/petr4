@@ -272,7 +272,6 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
     | BitNot => 
       match inner with
       | ValBit w bits => mret (ValBit w (Bneg w bits))
-      | _ => env_fail Internal
       | _ => state_fail Internal
       end
     | BitMinus => lift_option (evalMinus inner)

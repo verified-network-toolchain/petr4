@@ -1,5 +1,7 @@
 Makefile.coq*
 .Makefile.coq*
+makefile
+makefile.conf
 *.vo*
 .*.aux
 *.glob
@@ -8,3 +10,4 @@ Makefile.coq*
 .coq-native/
 *.vio
 .coqdeps.d
+\#*.v\#

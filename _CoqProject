@@ -1,3 +1,9 @@
 -R lib Petr4
 
 lib/Syntax.v
+lib/Monads/Monad.v
+lib/Monads/Option.v
+lib/Monads/State.v
+lib/Value.v
+lib/Environment.v
+lib/Utils.v

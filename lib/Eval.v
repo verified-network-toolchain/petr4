@@ -12,15 +12,17 @@ Require Import Environment.
 Require Import Syntax.
 Require Import Utils.
 
+Require Import BinIntDef.
+
 Open Scope monad.
 
 Definition defaultValue (A: type) : value.
 Admitted.
 
-Definition powTwo (w: nat) : N.
+Definition powTwo (w: nat) : Z.
 Admitted.
 
-Definition of_bvector {w} (bits: Bvector w) : N.
+Definition of_bvector {w} (bits: Bvector w) : Z.
 Admitted.
 
 Definition evalLvalue (expr: expression) : env_monad lvalue.
@@ -28,22 +30,24 @@ Admitted.
 
 Definition evalMinus (v: value) : option value := 
   match v with
-  | ValBit width bits => Some (ValFixedInt width (N.to_nat (N.sub (powTwo width) (of_bvector bits))))
-  | ValFixedInt width value => Some (ValFixedInt width (N.to_nat (N.sub (powTwo width) (N.of_nat value))))
-  | ValSignedInt n => Some (ValSignedInt (Decimal.opp n))
+  | ValFixedBit width bits => Some (ValFixedInt width (Z.sub (powTwo width) (of_bvector bits)))
+  | ValFixedInt width value => Some (ValFixedInt width (Z.sub (powTwo width) value))
+  | ValInfInt n => Some (ValInfInt (Z.opp n))
   | _ => None
   end.
+
+
 
 Fixpoint evalExpression (expr: expression) : env_monad value :=
   match expr with
   | BoolExpression value => mret (ValBool value)
-  | IntExpression value => mret (ValInt value)
+  | IntExpression value => mret (ValInfInt value)
   | StringExpression value => mret (ValString value)
   | ArrayAccess array index =>
     let* index' := evalExpression index in
     let* array' := evalExpression array in
     match (array', index') with
-    | (ValArray array'', ValInt index'') => lift_option (List.nth_error array'' index'')
+    | (ValArray array'', ValInfInt index'') => lift_option (indexZError array'' index'')
     | _ => state_fail Internal
     end
   | BitStringAccess array hi lo =>
@@ -51,7 +55,7 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
     let* hi'    := evalExpression hi in
     let* lo'    := evalExpression lo in
     match (array', hi', lo') with
-    | (ValArray array'', ValInt hi'', ValInt lo'') => lift_option (option_map ValArray (list_slice array'' lo'' hi''))
+    | (ValArray array'', ValInfInt hi'', ValInfInt lo'') => lift_option (option_map ValArray (listSliceZ array'' lo'' hi''))
     | _ => state_fail Internal
     end
   | List exprs => liftM ValArray (sequence (List.map evalExpression exprs))
@@ -68,7 +72,8 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
       end
     | BitNot => 
       match inner with
-      | ValBit w bits => mret (ValBit w (Bneg w bits))
+      | ValFixedBit w bits => mret (ValFixedBit w (Bneg w bits))
+      | ValVarBit w bits => mret (ValVarBit w (Bneg w bits))
       | _ => state_fail Internal
       end
     | BitMinus => lift_option (evalMinus inner)
@@ -93,14 +98,14 @@ Definition evalSetBool (obj: lvalue) (valid: bool) : env_monad unit :=
 
 Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
-  | Some (ValInt count) :: nil => 
+  | Some (ValInfInt count) :: nil => 
       let* value := findLvalue obj in
       match value with
       | ValHeaderStack size nextIndex elements =>
-        match rotateLeft elements count (MkHeader false (MStr.Raw.empty _)) with
+        match rotateLeftZ elements count (MkHeader false (MStr.Raw.empty _)) with
         | None => state_fail Internal
         | Some elements' =>
-          let value' := ValHeaderStack size (nextIndex - count) elements' in
+          let value' := ValHeaderStack size (nextIndex - (Z.to_nat count)) elements' in
           updateLvalue obj value
         end
       | _ => state_fail Internal
@@ -110,14 +115,14 @@ Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad un
 
 Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
-  | Some (ValInt count) :: nil => 
+  | Some (ValInfInt count) :: nil => 
       let* value := findLvalue obj in
       match value with
       | ValHeaderStack size nextIndex elements =>
-        match rotateRight elements count (MkHeader false (MStr.Raw.empty _)) with
+        match rotateRightZ elements count (MkHeader false (MStr.Raw.empty _)) with
         | None => state_fail Internal
         | Some elements' =>
-          let nextIndex' := min size (nextIndex + count) in
+          let nextIndex' := min size (nextIndex + (Z.to_nat count)) in
           let value' := ValHeaderStack size nextIndex' elements' in
           updateLvalue obj value
         end

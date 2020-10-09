@@ -8,6 +8,7 @@ Require Import Monads.State.
 Require Import Utils.
 Require Import Environment.
 Require Import Value.
+Require Import Coq.Numbers.BinNums.
 
 Open Scope monad.
 
@@ -111,7 +112,7 @@ with argument :=
 
 with expression := 
   | BoolExpression (value : bool)
-  | IntExpression (value: nat)
+  | IntExpression (value: Z)
   | StringExpression (value: string)
   | NameExpression (value: name)
   | ArrayAccess (array: expression) (index: expression)

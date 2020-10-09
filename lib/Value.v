@@ -2,6 +2,7 @@ Require Import Coq.Strings.String.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.Bool.Bvector.
+Require Import Coq.Numbers.BinNums.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
@@ -20,11 +21,10 @@ Inductive lvalue :=
 Inductive value :=
 | ValVoid
 | ValBool (b: bool)
-| ValInt (n: nat)
-| ValBit (width: nat) (value: Bvector width)
-| ValVarbit (width: nat) (value: Bvector width)
-| ValFixedInt (width: nat) (value: nat)
-| ValSignedInt (n: Decimal.int)
+| ValFixedBit (width: nat) (value: Bvector width)
+| ValVarBit (width: nat) (value: Bvector width)
+| ValFixedInt (width: nat) (n: Z)
+| ValInfInt (n: Z)
 | ValString (s: string)
 | ValArray (arr: list value)
 | ValError (msg: string)

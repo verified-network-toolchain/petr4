@@ -42,20 +42,33 @@ from the Petr4 git repository directly.
    ```
 
 ### Installing from source
-1. Check out [p4pp](https://github.com/cornell-netlab/p4pp) and install it with
-   `opam pin add p4pp <path to root of p4pp repo>`.
+1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
 
-1. Check out [petr4](https://github.com/cornell-netlab/petr4) and install it
-   with `opam pin add petr4 <path to root of petr4 repo>`.
+1. Use OPAM to install dependencies. 
+   ```
+   opam install . --deps-only
+   ```
 
+1. Build binaries using the supplied `Makefile`
+   ```
+   make
+   ```
+
+1. Install binaries in local OPAM directory
+   ```
+   make install
+   ``` 
+
+1. [Optional] Run tests
+   ``` 
+   make test
+   ```
 
 ### Installing from OPAM
-1. ```
+1. Install petr4 from the opam repository.
+   ```
    opam install petr4
    ```
-   Note that if you've previously installed petr4 using `opam pin`, this will
-   use the pinned (local) package rather than the version on OPAM. If you change
-   your mind, use `opam unpin petr4`.
 
 {{< /lead >}}
 

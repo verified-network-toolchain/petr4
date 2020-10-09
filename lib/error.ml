@@ -1,5 +1,4 @@
 open Typed
-open Sexplib.Conv
 
 type error =
   | Unbound of string
@@ -11,7 +10,6 @@ type error =
   | Type_Difference of Type.t * Type.t
   | Duplicate
   | UnreachableBlock
-[@@deriving sexp]
 
 let format_error fmt = function
   | Unbound x -> 
@@ -28,8 +26,8 @@ let format_error fmt = function
   | UnreachableBlock -> 
      Format.fprintf fmt "error: unreachable block"
      
-exception Internal of string [@@deriving sexp]
-exception Type of (Info.t * error) [@@deriving sexp]
+exception Internal of string
+exception Type of (Info.t * error)
 exception V1AssertionError
 
 let raise_mismatch info expected found =

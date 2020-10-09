@@ -1,11 +1,7 @@
 open Sexplib.Conv
 
-type direction =
-  | In
-  | Out
-  | InOut
-  | Directionless
-  [@@deriving sexp,show,yojson]
+type direction = [%import:Poulet4.Syntax.direction]
+  [@@deriving show,yojson,sexp]
 
 let eq_dir d1 d2 =
   match d1, d2 with

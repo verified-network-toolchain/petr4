@@ -6,16 +6,8 @@ weight = 2
 
 {{< lead >}}
 
-## Functionality: Reproducing Results from POPL '21 paper
-
-Oops, the stuff in "Claims" should go here.
-
-## Reusability:
-
 Petr4 provides a reference interpreter that runs P4 programs but can also serve
 as a useful frontend for P4 tools or as a testbed for new features. 
-
-### Running P4 programs with Petr4
 
 Before Petr4 can run a P4 program you have to provide it a control plane
 configuration and a packet in the STF (Simple Test Framework) format, which is
@@ -27,7 +19,7 @@ petr4 stf -I examples -stf file.stf file.p4
 The -I command sets the include path for `petr4` to the examples directory in
 the Petr4 repository, which is where the standard library headers are kept.
 
-#### Writing STF
+## Writing STF
 
 Here are the first few lines of the `examples/lpm-example-for-artifact-eval.stf`
 STF script, which is representative of the form of most STF files: a prelude
@@ -47,7 +39,7 @@ To run this STF script, use `petr4 stf` from the root of the petr4 repo.
 petr4 stf -I examples -stf examples/lpm-example-for-artifact-eval.stf examples/lpm-example-for-artifact-eval.p4
 ```
 
-#### STF commands
+## STF commands
 
 The packet command takes a port number and then a packet. Spaces in
 packets are ignored and should be used to group bytes or headers for legibility.
@@ -67,7 +59,7 @@ P4 table declaration will contain a list of keys marked with match kinds (e.g.,
 rule for each key in the table's keys property. Each `match` should be formatted
 appropriately for the given match kind.
 
-#### Match kinds
+## Match kinds
 There are three match kinds: `exact`, `ternary`, and `lpm` (longest prefix
 match). Each has an associated format for writing matches in STF.
 
@@ -85,10 +77,6 @@ configuration: a mask 0xFFFFFF00 corresponds to setting your IPv4 subnet to
 match-action rule which matches the longest prefix of the key. So if several
 value-mask pairs match the key but one has a longer mask, that'll be the
 preferred rule (with ties broken by rule insertion order).
-
-### Understanding the architecture of Petr4
-[Nate: describe ASTs in here]
-
 {{< /lead >}}
 
 

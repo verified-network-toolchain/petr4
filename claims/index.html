@@ -8,7 +8,7 @@
 
     <title>
         
-        Claims made in POPL&#39;21 paper | Petr4
+        Verifying claims from the POPL&#39;21 paper | Petr4
         
     </title>
 
@@ -62,15 +62,15 @@
 
      <div class="collapse navbar-collapse align-items-start flex-column" id="sidenav-left-collapse">
          <ul class="navbar-nav flex-column pt-3">
-    <li data-nav-id="/petr4/claims/" class="nav-item my-1 parent active
-        ">
-        
-        <a class="nav-link p-0" href="/petr4/claims/"><h6>Claims made in POPL&#39;21 paper</h6></a>
-    </li>
     <li data-nav-id="/petr4/installation/" class="nav-item my-1
         ">
         
         <a class="nav-link p-0" href="/petr4/installation/"><h6>Installing Petr4</h6></a>
+    </li>
+    <li data-nav-id="/petr4/claims/" class="nav-item my-1 parent active
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/claims/"><h6>Verifying claims from the POPL&#39;21 paper</h6></a>
     </li>
     <li data-nav-id="/petr4/usage/" class="nav-item my-1
         ">
@@ -95,18 +95,18 @@
                 <div class="main col-12 order-1 col-md-9 col-lg-10 col-xl-8 py-3">
                 
 
-<h1>Claims made in POPL&#39;21 paper</h1>
+<h1>Verifying claims from the POPL&#39;21 paper</h1>
 
 <p class="lead">
     <h2 id="claims">Claims</h2>
-<p>The following claims from the paper should be verifiable using the artifact.</p>
+<p>The following claims from section 5 (&ldquo;Evaluation&rdquo;) should be verifiable using
+the artifact.</p>
 <ol>
-<li>We run a test suite totaling 792 tests from p4c (line 1153 in section 5.1).</li>
-<li>All 792 of the tests pass the parser. (line 1155)</li>
-<li>Only 782 pass the typechecker. (line 1156)</li>
-<li>The 10 typechecker failures may be attributed to the following limitations
-(line 1156-67)
-<ol>
+<li>We run a test suite totaling 792 tests from p4c.</li>
+<li>All 792 of the tests pass the parser.</li>
+<li>Only 782 pass the typechecker.</li>
+<li>The 10 typechecker failures may be attributed to the following limitations.
+<ul>
 <li>A lexer bug regarding casts applied to function calls.</li>
 <li>The use of @optional argument annotations.</li>
 <li>Tests expecting certain numeric casts to fail, rather than only
@@ -120,59 +120,63 @@ positive integer) where p4c&rsquo;s implicit cast machinery would not.</li>
 <li>p4c goes beyond the standard P4 type system to enforce special typing
 constraints for some V1Model constructs, while Petr4 currently provides
 a target-agnostic type system.</li>
-</ol>
+</ul>
 </li>
 <li>There are 110 other tests left off for their use of the following unsupported
-features or disagreements with the specification.
-<ol>
-<li>Lack of concurrency</li>
+features or disagreements with the specification. Some of these are not
+enumerated in the paper.
+<ul>
 <li>Ignores annotations of all types</li>
 <li>No abstract externs or user-defined initialization blocks for externs</li>
-<li>(not in paper explicitly?) Parser value sets.</li>
-<li>(not in paper explicitly?) Struct flattening in key contexts</li>
-<li>(not in paper explicitly?) Generic control and parser declarations (not in
-spec)</li>
-<li>(not in paper explicitly?) casting int to bool not allowed (not in spec)</li>
-<li>(not in paper explicitly?) byte alignment of header fields</li>
-<li>(not in paper explicitly?) Petr4 does not (and cannot) implement the
-p4c/bmv2 C++ extension API.</li>
-<li>(not in paper explicitly?) overly permissive tests which pass only for
-p4c&rsquo;s spec violating behavior
-<ol>
-<li>could make a list here but it may not be worth it, as there&rsquo;s significant
-overlap with the discussion of bugs</li>
-</ol>
-</li>
-<li>(not in paper explicitly?) overly strict tests which fail despite
-spec-compliant behavior from petr4
-<ol>
-<li>as above, could make a list here but it may not be worth it, as there&rsquo;s
-significant overlap with the discussion of bugs</li>
-</ol>
-</li>
-</ol>
+<li>Parser value sets</li>
+<li>Struct flattening in key contexts (not in spec)</li>
+<li>Generic control and parser declarations (not in spec)</li>
+<li>Casting int to bool not allowed (not in spec)</li>
+<li>Enforcing byte alignment of header fields</li>
+<li>Petr4 does not (and cannot) implement the p4c/bmv2 C++ extension API.</li>
+<li>Other overly permissive tests which pass only for p4c&rsquo;s spec violating behavior</li>
+<li>Other overly strict tests which fail despite spec-compliant behavior from petr4</li>
+</ul>
 </li>
 <li>There are 121 tests from p4c including STF so they can be used to test the
-Petr4 interpreter. Of these, 26 fail, for the following reasons.
-<ol>
+Petr4 interpreter. Of these, 26 are excluded, for the following reasons.
+<ul>
 <li>Unimplemented architectures like PSA and ubpf.</li>
-<li>Some v1model and ebpf externs omitted: meters, direct-mapped objects,
-multicast, CRC16 checksums&hellip;</li>
-</ol>
+<li>Some unimplemented v*odel and ebpf externs: meters, direct-mapped
+objects, multicast, CRC16 checksums, and others.</li>
+<li>Empty STF files that do nothing.</li>
+</ul>
 </li>
 <li>There are 40 additional custom tests we wrote, all of which pass.</li>
 </ol>
 <h2 id="checking-the-claims">Checking the claims</h2>
-<p>The provenance of the tests is not evident. Some of them are tests we wrote,
-others are tests from p4c. So I think the paper&rsquo;s top level sentence ``We have
-imported 792 test cases from p4c for &hellip;&rsquo;&rsquo; is maybe not exactly right.</p>
 <p>To run the test suite, open a terminal in the root of the petr4 repository and
-run the following commands.</p>
-<pre><code>cd ~/petr4
-. ./triage/util.sh
-chknow &amp;&amp; stfnow
-</code></pre><p>They should produce no output on the terminal. Instead test information will be
-recorded in several files under <code>~/petr4/testruns/</code>.</p>
+run the following command.</p>
+<pre><code>make claims
+</code></pre><p>It should produce this output.</p>
+<pre><code>Running test suite. This will take a few minutes...
+
+792 parser tests
+    792 passed
+    0 failed
+792 typechecker tests
+    782 passed
+    10 failed [Run `grep -R FAIL /home/ryan/dev/petr4-aux/test/_build/_tests/4BC654C2-965B-45E1-83A6-E5EEF138A21D` to see which.]
+95 p4c STF tests
+    95 passed
+    0 failed
+40 custom STF tests
+    40 passed
+    0 failed
+91 excluded [See examples/checker_tests/excluded.]
+    27 with STF
+</code></pre><p>The tally of excluded checker tests (91) differs from the paper&rsquo;s claim (110)
+because the paper counted individual files as test. There is a single test case
+<code>fabric.p4</code> which uses 18 additional P4 files under the directory
+<code>examples/checker_tests/excluded/good/include</code>, but is counted as a single test
+by the test framework because the support files cannot be run on their own.</p>
+<p>The tally of excluded STF tests (27) differs from the paper&rsquo;s claim (26). This
+seems to be an error and will be corrected in the camera-ready version.</p>
 
 </p>
 
@@ -187,8 +191,8 @@ recorded in several files under <code>~/petr4/testruns/</code>.</p>
 
     <h4 class="text-white text-center">Read more</h4>
 
-    <div class="d-flex justify-content-center"><a class="p-1 mr-3 d-inline-block text-white" href="/petr4/" title="Petr4: Formal Foundations for P4 Data Planes"><i class="fas fa-chevron-left p-1"></i>Petr4: Formal Foundations for P4 Data Planes</a>
-        <a class="p-1 ml-3 d-inline-block text-white text-right" href="/petr4/installation/" title="Installing Petr4">Installing Petr4<i class="fas fa-chevron-right p-1"></i></a>
+    <div class="d-flex justify-content-center"><a class="p-1 mr-3 d-inline-block text-white" href="/petr4/installation/" title="Installing Petr4"><i class="fas fa-chevron-left p-1"></i>Installing Petr4</a>
+        <a class="p-1 ml-3 d-inline-block text-white text-right" href="/petr4/usage/" title="Using Petr4">Using Petr4<i class="fas fa-chevron-right p-1"></i></a>
     </div>
 </div>
 

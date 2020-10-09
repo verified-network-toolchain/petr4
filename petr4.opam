@@ -31,4 +31,5 @@ depends: [
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
   "p4pp"
+  "odoc"
 ]

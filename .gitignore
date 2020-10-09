@@ -11,3 +11,6 @@ makefile.conf
 *.vio
 .coqdeps.d
 \#*.v\#
+.merlin
+extraction/lib/*.ml*
+_build

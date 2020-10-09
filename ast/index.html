@@ -4,11 +4,11 @@
     <meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=yes">
 
-    <link rel="canonical" href="https://cornell-netlab.github.io/petr4/usage/">
+    <link rel="canonical" href="https://cornell-netlab.github.io/petr4/ast/">
 
     <title>
         
-        Using Petr4 | Petr4
+        Understanding Petr4&#39;s Architecture | Petr4
         
     </title>
 
@@ -72,12 +72,12 @@
         
         <a class="nav-link p-0" href="/petr4/claims/"><h6>Verifying claims from the POPL&#39;21 paper</h6></a>
     </li>
-    <li data-nav-id="/petr4/usage/" class="nav-item my-1 parent active
+    <li data-nav-id="/petr4/usage/" class="nav-item my-1
         ">
         
         <a class="nav-link p-0" href="/petr4/usage/"><h6>Using Petr4</h6></a>
     </li>
-    <li data-nav-id="/petr4/ast/" class="nav-item my-1
+    <li data-nav-id="/petr4/ast/" class="nav-item my-1 parent active
         ">
         
         <a class="nav-link p-0" href="/petr4/ast/"><h6>Understanding Petr4&#39;s Architecture</h6></a>
@@ -105,63 +105,10 @@
                 <div class="main col-12 order-1 col-md-9 col-lg-10 col-xl-8 py-3">
                 
 
-<h1>Using Petr4</h1>
+<h1>Understanding Petr4&#39;s Architecture</h1>
 
 <p class="lead">
-    <p>Petr4 provides a reference interpreter that runs P4 programs but can also serve
-as a useful frontend for P4 tools or as a testbed for new features.</p>
-<p>Before Petr4 can run a P4 program you have to provide it a control plane
-configuration and a packet in the STF (Simple Test Framework) format, which is
-described in the next section. Assuming you have a program <code>file.p4</code> and STF
-configuration <code>file.stf</code>, you can run it as follows.</p>
-<pre><code>petr4 stf -I examples -stf file.stf file.p4
-</code></pre><p>The -I command sets the include path for <code>petr4</code> to the examples directory in
-the Petr4 repository, which is where the standard library headers are kept.</p>
-<h2 id="writing-stf">Writing STF</h2>
-<p>Here are the first few lines of the <code>examples/lpm-example-for-artifact-eval.stf</code>
-STF script, which is representative of the form of most STF files: a prelude
-adding rules to tables followed by some test packets.</p>
-<pre><code>add t_lpm h.h.key:0x11/0xf0 set_port(x:1)
-add t_lpm h.h.key:0x12/0xff set_port(x:2)
-packet 0 0b 11 00 b0
-expect 1 0b 11 ** ** $
-</code></pre><p>It adds a rule to the table <code>simple_table</code>, sends a 4-byte packet to the program
-on port 0, and checks that the packet is emitted on port 1 with its first two
-bytes unchanged.</p>
-<p>To run this STF script, use <code>petr4 stf</code> from the root of the petr4 repo.</p>
-<pre><code>petr4 stf -I examples -stf examples/lpm-example-for-artifact-eval.stf examples/lpm-example-for-artifact-eval.p4
-</code></pre><h2 id="stf-commands">STF commands</h2>
-<p>The packet command takes a port number and then a packet. Spaces in
-packets are ignored and should be used to group bytes or headers for legibility.</p>
-<p>The <code>expect</code> command takes a port and then a packet pattern. Spaces in
-packet patterns are ignored. Asterisks match anything. By default pattern
-matching just checks prefixes, so a pattern <code>FF</code> would match a packet <code>FFFF</code>.
-Adding a <code>$</code> at the end of the packet will restrict the match to the entire
-packet.</p>
-<p>The format of an add command is <code>add table_name key:match</code>&hellip;<code>key:match action</code>.
-The <code>table_name</code> should refer to a table in the P4 program being tested or run.
-STF permits writing a list of matches in an add command without the <code>key:</code> parts
-because the list of keys can be determined from the table declaration in P4. The
-P4 table declaration will contain a list of keys marked with match kinds (e.g.,
-<code>exact</code> or <code>ternary</code>). There should be one <code>key:match</code> expression in an <code>add</code>
-rule for each key in the table&rsquo;s keys property. Each <code>match</code> should be formatted
-appropriately for the given match kind.</p>
-<h2 id="match-kinds">Match kinds</h2>
-<p>There are three match kinds: <code>exact</code>, <code>ternary</code>, and <code>lpm</code> (longest prefix
-match). Each has an associated format for writing matches in STF.</p>
-<p>For an <code>exact</code> key, the match should be an integer constant in hexadecimal. In
-our example above, the key is an exact key and the match is <code>0x55</code>.</p>
-<p>For a <code>ternary</code> key, the match can also include asterisks <code>*</code> to indicate bits
-that can match anything. For example, <code>0xFF**</code> will match any two-byte key with
-FF in the first byte.</p>
-<p>For an <code>lpm</code> key, the match should be two integer constants separated by a slash
-<code>/</code>. The constant after the slash is the mask, which may be familiar from IPv4
-configuration: a mask 0xFFFFFF00 corresponds to setting your IPv4 subnet to
-255.255.255.0. The semantics of LPM is, as the name suggests, to follow the
-match-action rule which matches the longest prefix of the key. So if several
-value-mask pairs match the key but one has a longer mask, that&rsquo;ll be the
-preferred rule (with ties broken by rule insertion order).</p>
-
+    [Nate: describe ASTs in here]
 </p>
 
 <!-- 
@@ -186,8 +133,8 @@ preferred rule (with ties broken by rule insertion order).</p>
 
     <h4 class="text-white text-center">Read more</h4>
 
-    <div class="d-flex justify-content-center"><a class="p-1 mr-3 d-inline-block text-white" href="/petr4/claims/" title="Verifying claims from the POPL&#39;21 paper"><i class="fas fa-chevron-left p-1"></i>Verifying claims from the POPL&#39;21 paper</a>
-        <a class="p-1 ml-3 d-inline-block text-white text-right" href="/petr4/ast/" title="Understanding Petr4&#39;s Architecture">Understanding Petr4&#39;s Architecture<i class="fas fa-chevron-right p-1"></i></a>
+    <div class="d-flex justify-content-center"><a class="p-1 mr-3 d-inline-block text-white" href="/petr4/usage/" title="Using Petr4"><i class="fas fa-chevron-left p-1"></i>Using Petr4</a>
+        <a class="p-1 ml-3 d-inline-block text-white text-right" href="/petr4/targets/" title="Adding a New Target">Adding a New Target<i class="fas fa-chevron-right p-1"></i></a>
     </div>
 </div>
 

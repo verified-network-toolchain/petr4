@@ -5,10 +5,6 @@
     <link>https://cornell-netlab.github.io/petr4/claims/</link>
     <description>Recent content in Verifying claims from the POPL&#39;21 paper on Petr4</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>en-us</language>
-    
-	<atom:link href="https://cornell-netlab.github.io/petr4/claims/index.xml" rel="self" type="application/rss+xml" />
-    
-    
+    <language>en-us</language><atom:link href="https://cornell-netlab.github.io/petr4/claims/index.xml" rel="self" type="application/rss+xml" />
   </channel>
 </rss>

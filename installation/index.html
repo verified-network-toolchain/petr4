@@ -77,6 +77,16 @@
         
         <a class="nav-link p-0" href="/petr4/usage/"><h6>Using Petr4</h6></a>
     </li>
+    <li data-nav-id="/petr4/ast/" class="nav-item my-1
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/ast/"><h6>Understanding Petr4&#39;s Architecture</h6></a>
+    </li>
+    <li data-nav-id="/petr4/targets/" class="nav-item my-1
+        ">
+        
+        <a class="nav-link p-0" href="/petr4/targets/"><h6>Adding a New Target</h6></a>
+    </li>
     <li data-nav-id="/petr4/contributors/" class="nav-item my-1
         ">
         
@@ -132,21 +142,30 @@ instructions</a>. Make sure <code>opam --version</code> reports version 2 or lat
 <h3 id="installing-from-source">Installing from source</h3>
 <ol>
 <li>
-<p>Check out <a href="https://github.com/cornell-netlab/p4pp">p4pp</a> and install it with
-<code>opam pin add p4pp &lt;path to root of p4pp repo&gt;</code>.</p>
+<p>Install <a href="https://github.com/cornell-netlab/p4pp">p4pp</a> from source.</p>
 </li>
 <li>
-<p>Check out <a href="https://github.com/cornell-netlab/petr4">petr4</a> and install it
-with <code>opam pin add petr4 &lt;path to root of petr4 repo&gt;</code>.</p>
-</li>
+<p>Use OPAM to install dependencies.</p>
+<pre><code>opam install . --deps-only
+</code></pre></li>
+<li>
+<p>Build binaries using the supplied <code>Makefile</code></p>
+<pre><code>make
+</code></pre></li>
+<li>
+<p>Install binaries in local OPAM directory</p>
+<pre><code>make install
+</code></pre></li>
+<li>
+<p>[Optional] Run tests</p>
+<pre><code>make test
+</code></pre></li>
 </ol>
 <h3 id="installing-from-opam">Installing from OPAM</h3>
 <ol>
-<li>
+<li>Install petr4 from the opam repository.
 <pre><code>opam install petr4
-</code></pre>Note that if you&rsquo;ve previously installed petr4 using <code>opam pin</code>, this will
-use the pinned (local) package rather than the version on OPAM. If you change
-your mind, use <code>opam unpin petr4</code>.</li>
+</code></pre></li>
 </ol>
 
 </p>

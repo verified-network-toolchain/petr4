@@ -6,10 +6,7 @@ weight = 1
 
 {{< lead >}}
 
-Petr4 is available pre-built in a VM or as an OPAM package. The OPAM package can
-be built from the version published on
-[opam.ocaml.org/packages](https://opam.ocaml.org/packages) or it can be built
-from the Petr4 git repository directly.
+Petr4 is available pre-built in a VM or it may be built from source.
 
 ## Installing the VM
 
@@ -18,10 +15,19 @@ from the Petr4 git repository directly.
 1. Download the VM image from Zenodo [TODO:link when VM is ready and
    uploaded].
 1. Boot the VM image. The username is petr4 and the password is petr4. There
-   should be a prebuilt version of petr4 installed and the source code is
-   checked out in the VM user's home directory.
+   is a prebuilt version of petr4 installed and the source code is
+   checked out in `~/petr4`.
 
-## Installing the OPAM package
+## Installing from source
+
+Make sure you have a local copy of the Petr4 and P4pp (P4 Preprocessor)
+repositories.
+```
+git clone git://github.com/cornell-netlab/petr4
+git clone git://github.com/cornell-netlab/p4pp
+```
+
+### Installing dependences
 
 1. Install OPAM 2 following the official [OPAM installation
    instructions](https://opam.ocaml.org/doc/Install.html). Make sure `opam
@@ -41,34 +47,24 @@ from the Petr4 git repository directly.
    sudo apt-get install m4 libgmp-dev
    ```
 
-### Installing from source
-1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
+### Building Petr4
+Run the following steps first for p4pp and then for petr4. The p4pp package is
+a dependency of petr4.
 
-1. Use OPAM to install dependencies. 
+1. Use OPAM to install OCaml library dependencies. 
    ```
    opam install . --deps-only
    ```
 
-1. Build binaries using the supplied `Makefile`
+1. Build binaries using the supplied `Makefile`.
    ```
    make
    ```
 
-1. Install binaries in local OPAM directory
+1. Install the binaries in your local OPAM directory.
    ```
    make install
    ``` 
-
-1. [Optional] Run tests
-   ``` 
-   make test
-   ```
-
-### Installing from OPAM
-1. Install petr4 from the opam repository.
-   ```
-   opam install petr4
-   ```
 
 {{< /lead >}}
 

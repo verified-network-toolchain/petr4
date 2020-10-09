@@ -103,10 +103,7 @@
 <h1>Installing Petr4</h1>
 
 <p class="lead">
-    <p>Petr4 is available pre-built in a VM or as an OPAM package. The OPAM package can
-be built from the version published on
-<a href="https://opam.ocaml.org/packages">opam.ocaml.org/packages</a> or it can be built
-from the Petr4 git repository directly.</p>
+    <p>Petr4 is available pre-built in a VM or it may be built from source.</p>
 <h2 id="installing-the-vm">Installing the VM</h2>
 <ol>
 <li>Install <a href="https://virtualbox.org/">VirtualBox</a> or your preferred
@@ -114,10 +111,15 @@ virtualization software capable of running .ova files.</li>
 <li>Download the VM image from Zenodo [TODO:link when VM is ready and
 uploaded].</li>
 <li>Boot the VM image. The username is petr4 and the password is petr4. There
-should be a prebuilt version of petr4 installed and the source code is
-checked out in the VM user&rsquo;s home directory.</li>
+is a prebuilt version of petr4 installed and the source code is
+checked out in <code>~/petr4</code>.</li>
 </ol>
-<h2 id="installing-the-opam-package">Installing the OPAM package</h2>
+<h2 id="installing-from-source">Installing from source</h2>
+<p>Make sure you have a local copy of the Petr4 and P4pp (P4 Preprocessor)
+repositories.</p>
+<pre><code>git clone git://github.com/cornell-netlab/petr4
+git clone git://github.com/cornell-netlab/p4pp
+</code></pre><h3 id="installing-dependences">Installing dependences</h3>
 <ol>
 <li>
 <p>Install OPAM 2 following the official <a href="https://opam.ocaml.org/doc/Install.html">OPAM installation
@@ -134,32 +136,21 @@ instructions</a>. Make sure <code>opam --version</code> reports version 2 or lat
 <pre><code>sudo apt-get install m4 libgmp-dev
 </code></pre></li>
 </ol>
-<h3 id="installing-from-source">Installing from source</h3>
+<h3 id="building-petr4">Building Petr4</h3>
+<p>Run the following steps first for p4pp and then for petr4. The p4pp package is
+a dependency of petr4.</p>
 <ol>
 <li>
-<p>Install <a href="https://github.com/cornell-netlab/p4pp">p4pp</a> from source.</p>
-</li>
-<li>
-<p>Use OPAM to install dependencies.</p>
+<p>Use OPAM to install OCaml library dependencies.</p>
 <pre><code>opam install . --deps-only
 </code></pre></li>
 <li>
-<p>Build binaries using the supplied <code>Makefile</code></p>
+<p>Build binaries using the supplied <code>Makefile</code>.</p>
 <pre><code>make
 </code></pre></li>
 <li>
-<p>Install binaries in local OPAM directory</p>
+<p>Install the binaries in your local OPAM directory.</p>
 <pre><code>make install
-</code></pre></li>
-<li>
-<p>[Optional] Run tests</p>
-<pre><code>make test
-</code></pre></li>
-</ol>
-<h3 id="installing-from-opam">Installing from OPAM</h3>
-<ol>
-<li>Install petr4 from the opam repository.
-<pre><code>opam install petr4
 </code></pre></li>
 </ol>
 

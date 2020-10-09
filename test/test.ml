@@ -26,6 +26,7 @@ let parser_test include_dirs file =
   | `Error _ -> false
 
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
+  Printf.printf "Testing file %s...\n" p4_file;
   match Parse.parse_file include_dirs p4_file false with
   | `Ok prog ->
     begin

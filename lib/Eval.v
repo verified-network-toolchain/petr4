@@ -19,11 +19,20 @@ Open Scope monad.
 Definition defaultValue (A: type) : value.
 Admitted.
 
-Definition powTwo (w: nat) : Z.
-Admitted.
+Fixpoint powTwo (w: nat) : Z := 
+  match w with
+  | 0     => 1
+  | S w'  => Z.double (powTwo w')
+  end. 
 
-Definition of_bvector {w} (bits: Bvector w) : Z.
-Admitted.
+(* Coq Bvectors are little-endian *)
+Open Scope vector_scope.
+Fixpoint of_bvector {w} (bits: Bvector w) : Z := 
+  match bits with
+  | [] => 0
+  | (b :: bits') => Z.add (if b then 1 else 0) (Z.double (of_bvector bits'))
+  end.
+Close Scope vector_scope.
 
 Definition evalLvalue (expr: expression) : env_monad lvalue.
 Admitted.
@@ -35,8 +44,6 @@ Definition evalMinus (v: value) : option value :=
   | ValInfInt n => Some (ValInfInt (Z.opp n))
   | _ => None
   end.
-
-
 
 Fixpoint evalExpression (expr: expression) : env_monad value :=
   match expr with

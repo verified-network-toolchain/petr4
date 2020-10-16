@@ -188,6 +188,17 @@ Definition evalPacketExtractFixed (bits: list bool) (into: value) : option (valu
     | Some (vector, bits') => Some (ValFixedBit width vector, bits')
     | None => None
     end
+  | ValFixedInt width _ =>
+    match bits with
+    | nil => None
+    | bit :: bits' =>
+      match evalPacketExtractFixedBits bits width with
+      | Some (vector, bits') =>
+        let* val := evalMinus (ValFixedBit width vector) in
+        Some (val, bits')
+      | None => None
+      end
+    end
   | _ => None
   end.
 

@@ -24,7 +24,7 @@ type t =
       col_start: int;
       col_end : int } [@name "info"]
   | M of string [@name "missing_info"]
-[@@deriving sexp,yojson]
+[@@deriving sexp,yojson, equal]
 
 let pp fmt _ = Format.pp_print_string fmt "<info>"
 let show _ = "<info>"

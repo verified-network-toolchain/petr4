@@ -21,7 +21,7 @@ type t =
       col_start: int;
       col_end: int }
   | M of string
-[@@deriving sexp,show,yojson]
+[@@deriving sexp,show,yojson, equal]
 
 val dummy : t
 

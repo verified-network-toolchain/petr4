@@ -197,3 +197,31 @@ with evalStatement (stmt: statement) : env_monad unit :=
     in
     insertEnvironment name value
   end.
+
+  (* TODO: sophisticated pattern matching for the match expression as needed *)
+Fixpoint evalMatchExpression (vals: list value) (matches: list match_expression) : env_monad bool :=
+  match (vals, matches) with
+  | (List.nil, List.nil) => mret true
+  | (v :: vals', m :: matches') => 
+    match m with
+    | DontCare          => evalMatchExpression vals' matches'
+    | MatchExpression e => 
+      let* v' := evalExpression e in 
+        if eq_value v v' then evalMatchExpression vals' matches' else mret false
+    end
+  | _ => mret false
+  end.
+
+Fixpoint evalCases (vals: list value) (cases: list Case.case) : env_monad string := 
+  match cases with
+  | List.nil    => state_fail Internal
+  | c :: cases' => 
+    let* passes := evalMatchExpression vals (Case.matches c) in
+      if passes then mret (Case.next c) else evalCases vals cases'
+  end.
+
+
+Definition evalTransition (t: Transition.transition) : env_monad string := 
+  let* vs := sequence (List.map evalExpression (Transition.exprs t)) in 
+    evalCases vs (Transition.cases t).
+

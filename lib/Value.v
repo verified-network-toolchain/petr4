@@ -3,6 +3,8 @@ Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Require Import Coq.Bool.Bvector.
 Require Import Coq.Numbers.BinNums.
+Require Import Coq.ZArith.BinIntDef.
+Require Coq.Strings.String.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
@@ -54,6 +56,19 @@ that the list [raw] is sorted. *)
   | VSenum of (string * value) list *)
 
 with header := MkHeader (valid: bool) (fields: MStr.Raw.t value).
+Open Scope nat_scope.
+(* TODO: wrap this in a module and call it eqb, and prove that l `eqb` r => l = r *)
+Fixpoint eq_value (l: value) (r: value) : bool :=
+  match (l, r) with
+  | (ValVoid, ValVoid) => true
+  | (ValBool b_l, ValBool b_r) => eqb b_l b_r
+  | (ValFixedBit w_l v_l, ValFixedBit w_r v_r) => (Nat.eqb w_l w_r) && (BVeq _ _ v_l v_r)
+  | (ValVarBit w_l v_l, ValVarBit w_r v_r) => (Nat.eqb w_l w_r) && (BVeq _ _ v_l v_r)
+  | (ValFixedInt w_l v_l, ValFixedInt w_r v_r) => (Nat.eqb w_l w_r) && (Z.eqb v_l v_r)
+  | (ValInfInt v_l, ValInfInt v_r) => Z.eqb v_l v_r
+  | (ValString v_l, ValString v_r) => String.eqb v_l v_r
+  | _ => false (* TODO: arrays, errors, records, funcs, headers, headerstacks*)
+  end.
 
 Definition updateMember (obj: value) (member: string) (val: value) : option value :=
   match obj with

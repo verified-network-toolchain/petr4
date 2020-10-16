@@ -161,10 +161,49 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expr
   | _ => state_fail Internal
   end.
 
+Definition evalPacketExtract (bits: list bool) (into: value) : option (value * (list bool)) :=
+  match into with
+  | ValBool b =>
+    match bits with
+    | nil => None
+    | b' :: bits' => Some (ValBool b', bits')
+    end
+  | _ => None
+  end.
+
+Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
+  match name with
+  | "extract" =>
+    match args with
+    | (Some target_expr) :: nil =>
+      let* target := evalLvalue target_expr in
+      let* target_value := findLvalue target in
+      match evalPacketExtract bits target_value with
+      | Some (value', bits') =>
+        updateLvalue obj (ValExternObj (Packet bits')) ;;
+        updateLvalue target value'
+      | None => state_fail Internal
+      end
+    | _ => state_fail Internal
+    end
+  | _ => state_fail Internal
+  end.
+
+Definition evalExternFunc (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
+  let* value := findLvalue obj in
+  match value with
+  | ValExternObj ext =>
+    match ext with
+    | Packet bits => dummyValue (evalPacketFunc obj name bits args)
+    end
+  | _ => state_fail Internal
+  end.
+
 Definition evalMethodCall (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
   let* func' := evalExpression func in
   match func' with
   | ValBuiltinFunc name obj => evalBuiltinFunc name obj args
+  | ValExternFunc name obj => evalExternFunc name obj args
   | _ => state_fail Internal (* TODO: other function types *)
   end.
 

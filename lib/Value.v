@@ -18,6 +18,10 @@ Inductive lvalue :=
   | LValMember (base: lvalue) (member: string)
 .
 
+Inductive extern :=
+  | Packet (bits: list bool)
+.
+
 Inductive value :=
 | ValVoid
 | ValBool (b: bool)
@@ -35,6 +39,8 @@ record { raw: MStr.Raw.t; sorted: Sorted ...} which includes a proof
 that the list [raw] is sorted. *)
 | ValRecord (fs: MStr.Raw.t value)
 | ValBuiltinFunc (name: string) (obj: lvalue)
+| ValExternFunc (name: string) (obj: lvalue)
+| ValExternObj (ext: extern)
 | ValHeader (value: header)
 | ValHeaderStack (size: nat) (nextIndex: nat) (elements: list header)
 

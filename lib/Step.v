@@ -23,8 +23,8 @@ Fixpoint lookup_state (states: list State.state) (name: string) : option State.s
 Definition step (p: Parser.parser) (start: string) : env_monad string := 
   match lookup_state (Parser.states p) start with
   | Some nxt => 
-    let* _ := evalStatement (BlockStatement (states_to_block (State.statements nxt))) in
-      evalTransition (State.transition nxt)
+    let* _ := eval_statement (BlockStatement (states_to_block (State.statements nxt))) in
+      eval_transition (State.transition nxt)
   | None     => state_fail Internal
   end.
 

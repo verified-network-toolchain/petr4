@@ -228,7 +228,7 @@ Fixpoint eval_match_expression (vals: list value) (matches: list match_expressio
     match m with
     | DontCare          => eval_match_expression vals' matches'
     | MatchExpression e => 
-      let* v' := evalExpression e in 
+      let* v' := eval_expression e in 
         if eq_value v v' then eval_match_expression vals' matches' else mret false
     end
   | _ => mret false
@@ -244,6 +244,6 @@ Fixpoint eval_cases (vals: list value) (cases: list Case.case) : env_monad strin
 
 
 Definition eval_transition (t: Transition.transition) : env_monad string := 
-  let* vs := sequence (List.map evalExpression (Transition.exprs t)) in 
+  let* vs := sequence (List.map eval_expression (Transition.exprs t)) in 
     eval_cases vs (Transition.cases t).
 

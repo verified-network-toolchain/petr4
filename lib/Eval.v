@@ -138,16 +138,6 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad u
   | _ => state_fail Internal
   end.
 
-Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : env_monad value :=
-  match name with
-  | "isValid" => evalIsValid obj
-  | "setValid" => dummyValue (evalSetBool obj true)
-  | "setInvalid" => dummyValue (evalSetBool obj false)
-  | "pop_front" => dummyValue (evalPopFront obj args)
-  | "push_front" => dummyValue (evalPushFront obj args)
-  | _ => state_fail Internal
-  end.
-
 Fixpoint evalArguments (args: list (option expression)) : env_monad (list (option value)) :=
   match args with
   | nil => mret nil
@@ -160,11 +150,21 @@ Fixpoint evalArguments (args: list (option expression)) : env_monad (list (optio
     mret (None :: vals)
   end.
 
+Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expression)) : env_monad value :=
+  let* args' := evalArguments args in
+  match name with
+  | "isValid" => evalIsValid obj
+  | "setValid" => dummyValue (evalSetBool obj true)
+  | "setInvalid" => dummyValue (evalSetBool obj false)
+  | "pop_front" => dummyValue (evalPopFront obj args')
+  | "push_front" => dummyValue (evalPushFront obj args')
+  | _ => state_fail Internal
+  end.
+
 Definition evalMethodCall (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
   let* func' := evalExpression func in
-  let* args' := evalArguments args in
   match func' with
-  | ValBuiltinFunc name obj => evalBuiltinFunc name obj args'
+  | ValBuiltinFunc name obj => evalBuiltinFunc name obj args
   | _ => state_fail Internal (* TODO: other function types *)
   end.
 

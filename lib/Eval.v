@@ -18,46 +18,46 @@ Require Import BinIntDef.
 
 Open Scope monad.
 
-Definition defaultValue (A: type) : value.
+Definition default_value (A: type) : value.
 Admitted.
 
-Definition evalLvalue (expr: expression) : env_monad lvalue.
+Definition eval_lvalue (expr: expression) : env_monad lvalue.
 Admitted.
 
-Definition evalMinus (v: value) : option value := 
+Definition eval_minus (v: value) : option value := 
   match v with
-  | ValFixedBit width bits => Some (ValFixedInt width (Z.sub (powTwo width) (of_bvector bits)))
-  | ValFixedInt width value => Some (ValFixedInt width (Z.sub (powTwo width) value))
+  | ValFixedBit width bits => Some (ValFixedInt width (Z.sub (pow_two width) (of_bvector bits)))
+  | ValFixedInt width value => Some (ValFixedInt width (Z.sub (pow_two width) value))
   | ValInfInt n => Some (ValInfInt (Z.opp n))
   | _ => None
   end.
 
-Fixpoint evalExpression (expr: expression) : env_monad value :=
+Fixpoint eval_expression (expr: expression) : env_monad value :=
   match expr with
   | BoolExpression value => mret (ValBool value)
   | IntExpression value => mret (ValInfInt value)
   | StringExpression value => mret (ValString value)
   | ArrayAccess array index =>
-    let* index' := evalExpression index in
-    let* array' := evalExpression array in
+    let* index' := eval_expression index in
+    let* array' := eval_expression array in
     match (array', index') with
-    | (ValArray array'', ValInfInt index'') => lift_option (indexZError array'' index'')
+    | (ValArray array'', ValInfInt index'') => lift_option (index_z_error array'' index'')
     | _ => state_fail Internal
     end
   | BitStringAccess array hi lo =>
-    let* array' := evalExpression array in
-    let* hi'    := evalExpression hi in
-    let* lo'    := evalExpression lo in
+    let* array' := eval_expression array in
+    let* hi'    := eval_expression hi in
+    let* lo'    := eval_expression lo in
     match (array', hi', lo') with
-    | (ValArray array'', ValInfInt hi'', ValInfInt lo'') => lift_option (option_map ValArray (listSliceZ array'' lo'' hi''))
+    | (ValArray array'', ValInfInt hi'', ValInfInt lo'') => lift_option (option_map ValArray (list_slice_z array'' lo'' hi''))
     | _ => state_fail Internal
     end
-  | List exprs => liftM ValArray (sequence (List.map evalExpression exprs))
+  | List exprs => lift_monad ValArray (sequence (List.map eval_expression exprs))
   | Record entries => 
-    let actions := List.map (fun x => match x with | MkKeyValue k e => v <- evalExpression e ;; mret (k, v) end) entries in
-    liftM ValRecord (sequence actions)
+    let actions := List.map (fun x => match x with | MkKeyValue k e => v <- eval_expression e ;; mret (k, v) end) entries in
+    lift_monad ValRecord (sequence actions)
   | UnaryOp op arg => 
-    let* inner := evalExpression arg in
+    let* inner := eval_expression arg in
     match op with
     | Not => 
       match inner with
@@ -70,98 +70,98 @@ Fixpoint evalExpression (expr: expression) : env_monad value :=
       | ValVarBit w bits => mret (ValVarBit w (Bneg w bits))
       | _ => state_fail Internal
       end
-    | BitMinus => lift_option (evalMinus inner)
+    | BitMinus => lift_option (eval_minus inner)
     end
   | _ => mret (ValBool false) (* TODO *)
   end.
 
-Definition evalIsValid (obj: lvalue) : env_monad value :=
-  let* result := findLvalue obj
+Definition eval_is_valid (obj: lvalue) : env_monad value :=
+  let* result := find_lvalue obj
   in match result with
   | ValHeader (MkHeader valid fields) => mret (ValBool valid)
   | _ => state_fail Internal
   end.
 
-Definition evalSetBool (obj: lvalue) (valid: bool) : env_monad unit :=
-  let* value := findLvalue obj in
+Definition eval_set_bool (obj: lvalue) (valid: bool) : env_monad unit :=
+  let* value := find_lvalue obj in
   match value with
   | ValHeader (MkHeader _ fields) =>
-    updateLvalue obj (ValHeader (MkHeader valid fields))
+    update_lvalue obj (ValHeader (MkHeader valid fields))
   | _ => state_fail Internal
   end.
 
-Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
+Definition eval_pop_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* value := findLvalue obj in
+      let* value := find_lvalue obj in
       match value with
-      | ValHeaderStack size nextIndex elements =>
-        match rotateLeftZ elements count (MkHeader false (MStr.Raw.empty _)) with
+      | ValHeaderStack size next_index elements =>
+        match rotate_left_z elements count (MkHeader false (MStr.Raw.empty _)) with
         | None => state_fail Internal
         | Some elements' =>
-          let value' := ValHeaderStack size (nextIndex - (Z.to_nat count)) elements' in
-          updateLvalue obj value'
+          let value' := ValHeaderStack size (next_index - (Z.to_nat count)) elements' in
+          update_lvalue obj value'
         end
       | _ => state_fail Internal
       end
   | _ => state_fail Internal
   end.
 
-Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad unit :=
+Definition eval_push_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* value := findLvalue obj in
+      let* value := find_lvalue obj in
       match value with
-      | ValHeaderStack size nextIndex elements =>
-        match rotateRightZ elements count (MkHeader false (MStr.Raw.empty _)) with
+      | ValHeaderStack size next_index elements =>
+        match rotate_right_z elements count (MkHeader false (MStr.Raw.empty _)) with
         | None => state_fail Internal
         | Some elements' =>
-          let nextIndex' := min size (nextIndex + (Z.to_nat count)) in
-          let value' := ValHeaderStack size nextIndex' elements' in
-          updateLvalue obj value'
+          let next_index' := min size (next_index + (Z.to_nat count)) in
+          let value' := ValHeaderStack size next_index' elements' in
+          update_lvalue obj value'
         end
       | _ => state_fail Internal
       end
   | _ => state_fail Internal
   end.
 
-Fixpoint evalArguments (args: list (option expression)) : env_monad (list (option value)) :=
+Fixpoint eval_arguments (args: list (option expression)) : env_monad (list (option value)) :=
   match args with
   | nil => mret nil
   | Some arg :: args' =>
-    let* val := evalExpression arg in
-    let* vals := evalArguments args' in
+    let* val := eval_expression arg in
+    let* vals := eval_arguments args' in
     mret (Some val :: vals)
   | None :: args' =>
-    let* vals := evalArguments args' in
+    let* vals := eval_arguments args' in
     mret (None :: vals)
   end.
 
-Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expression)) : env_monad value :=
-  let* args' := evalArguments args in
+Definition eval_builtin_func (name: string) (obj: lvalue) (args: list (option expression)) : env_monad value :=
+  let* args' := eval_arguments args in
   match name with
-  | "isValid" => evalIsValid obj
-  | "setValid" => dummyValue (evalSetBool obj true)
-  | "setInvalid" => dummyValue (evalSetBool obj false)
-  | "pop_front" => dummyValue (evalPopFront obj args')
-  | "push_front" => dummyValue (evalPushFront obj args')
+  | "isValid" => eval_is_valid obj
+  | "setValid" => dummy_value (eval_set_bool obj true)
+  | "setInvalid" => dummy_value (eval_set_bool obj false)
+  | "pop_front" => dummy_value (eval_pop_front obj args')
+  | "push_front" => dummy_value (eval_push_front obj args')
   | _ => state_fail Internal
   end.
 
-Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
+Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
   match name with
   | "extract" =>
     match args with
     | (Some target_expr) :: nil =>
-      let* target := evalLvalue target_expr in
-      let* value := findLvalue target in
-      match evalPacketExtractFixed value bits with
+      let* target := eval_lvalue target_expr in
+      let* value := find_lvalue target in
+      match eval_packet_extract_fixed value bits with
       | (inr error, bits') =>
-        updateLvalue obj (ValExternObj (Packet bits')) ;;
+        update_lvalue obj (ValExternObj (Packet bits')) ;;
         state_fail error
       | (inl value', bits') =>
-        updateLvalue obj (ValExternObj (Packet bits')) ;;
-        updateLvalue target value' ;;
+        update_lvalue obj (ValExternObj (Packet bits')) ;;
+        update_lvalue target value' ;;
         mret tt
       end
     | _ => state_fail Internal
@@ -169,81 +169,81 @@ Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: 
   | _ => state_fail Internal
   end.
 
-Definition evalExternFunc (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
-  let* value := findLvalue obj in
+Definition eval_extern_func (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
+  let* value := find_lvalue obj in
   match value with
   | ValExternObj ext =>
     match ext with
-    | Packet bits => dummyValue (evalPacketFunc obj name bits args)
+    | Packet bits => dummy_value (eval_packet_func obj name bits args)
     end
   | _ => state_fail Internal
   end.
 
-Definition evalMethodCall (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
-  let* func' := evalExpression func in
+Definition eval_method_call (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
+  let* func' := eval_expression func in
   match func' with
-  | ValBuiltinFunc name obj => evalBuiltinFunc name obj args
-  | ValExternFunc name obj => evalExternFunc name obj args
+  | ValBuiltinFunc name obj => eval_builtin_func name obj args
+  | ValExternFunc name obj => eval_extern_func name obj args
   | _ => state_fail Internal (* TODO: other function types *)
   end.
 
-Fixpoint evalBlock (blk: block) : env_monad unit :=
+Fixpoint eval_block (blk: block) : env_monad unit :=
   match blk with
   | BlockCons stmt rest =>
-    evalStatement stmt;;
-    evalBlock rest
+    eval_statement stmt;;
+    eval_block rest
   | BlockEmpty => mret tt
   end
 
-with evalStatement (stmt: statement) : env_monad unit :=
+with eval_statement (stmt: statement) : env_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
-    tossValue (evalMethodCall func type_args args)
+    toss_value (eval_method_call func type_args args)
   | Assignment lhs rhs =>
-    let* lval := evalLvalue lhs in
-    let* val := evalExpression rhs in
-    updateLvalue lval val
+    let* lval := eval_lvalue lhs in
+    let* val := eval_expression rhs in
+    update_lvalue lval val
   | BlockStatement block =>
-    mapEnv pushScope;;
-    evalBlock block;;
-    liftEnvFn popScope
+    map_env push_scope;;
+    eval_block block;;
+    lift_env_fn pop_scope
   | StatementConstant type name init =>
-    let* value := evalExpression init in
-    insertEnvironment name value
+    let* value := eval_expression init in
+    insert_environment name value
   | StatementVariable type name init =>
     let* value :=
        match init with
-       | None => mret (defaultValue type)
-       | Some expr => evalExpression expr
+       | None => mret (default_value type)
+       | Some expr => eval_expression expr
        end
     in
-    insertEnvironment name value
+    insert_environment name value
   end.
 
   (* TODO: sophisticated pattern matching for the match expression as needed *)
-Fixpoint evalMatchExpression (vals: list value) (matches: list match_expression) : env_monad bool :=
+Fixpoint eval_match_expression (vals: list value) (matches: list match_expression) : env_monad bool :=
   match (vals, matches) with
   | (List.nil, List.nil) => mret true
   | (v :: vals', m :: matches') => 
     match m with
-    | DontCare          => evalMatchExpression vals' matches'
+    | DontCare          => eval_match_expression vals' matches'
     | MatchExpression e => 
       let* v' := evalExpression e in 
-        if eq_value v v' then evalMatchExpression vals' matches' else mret false
+        if eq_value v v' then eval_match_expression vals' matches' else mret false
     end
   | _ => mret false
   end.
 
-Fixpoint evalCases (vals: list value) (cases: list Case.case) : env_monad string := 
+Fixpoint eval_cases (vals: list value) (cases: list Case.case) : env_monad string := 
   match cases with
   | List.nil    => state_fail Internal
   | c :: cases' => 
-    let* passes := evalMatchExpression vals (Case.matches c) in
-      if passes then mret (Case.next c) else evalCases vals cases'
+    let* passes := eval_match_expression vals (Case.matches c) in
+      if passes then mret (Case.next c) else eval_cases vals cases'
   end.
 
 
-Definition evalTransition (t: Transition.transition) : env_monad string := 
+Definition eval_transition (t: Transition.transition) : env_monad string := 
   let* vs := sequence (List.map evalExpression (Transition.exprs t)) in 
-    evalCases vs (Transition.cases t).
+    eval_cases vs (Transition.cases t).
 

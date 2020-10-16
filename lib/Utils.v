@@ -12,79 +12,79 @@ Require Import BinPos.
 
 Open Scope monad.
 
-Fixpoint assocUpdate {A: Type} (key: string) (val: A) (map: list (string * A)) : option (list (string * A)) :=
+Fixpoint assoc_update {A: Type} (key: string) (val: A) (map: list (string * A)) : option (list (string * A)) :=
   match map with
   | (s, v) :: map' =>
     if String_as_OT.eq_dec s key
     then mret ((key, val) :: map')
-    else let* map' := assocUpdate key val map' in
+    else let* map' := assoc_update key val map' in
          mret ((s, v) :: map')
   | nil => None
   end.
 
-Fixpoint rotateLeftNat {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+Fixpoint rotate_left_nat {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
   match count with
   | 0 => Some elements
   | S count' =>
     match elements with
     | nil => None
     | header :: elements' =>
-      rotateLeftNat (elements' ++ pad :: nil) count' pad
+      rotate_left_nat (elements' ++ pad :: nil) count' pad
     end
   end.
 
-Definition rotateLeftZ {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
+Definition rotate_left_z {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
   match count with 
   | Zneg _ => None
-  | Zpos count' => rotateLeftNat elements (Pos.to_nat count') pad
-  | Z0 => rotateLeftNat elements 0 pad
+  | Zpos count' => rotate_left_nat elements (Pos.to_nat count') pad
+  | Z0 => rotate_left_nat elements 0 pad
   end.
 
   
-Fixpoint rotateRightNat {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
+Fixpoint rotate_right_nat {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
   match count with
   | 0 => Some elements
   | S count' =>
     match elements  with
     | nil => None
     | header :: elements' =>
-      rotateRightNat (pad :: (removelast elements)) count' pad
+      rotate_right_nat (pad :: (removelast elements)) count' pad
     end
   end.
 
-Definition rotateRightZ {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
+Definition rotate_right_z {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
   match count with 
   | Zneg _ => None
-  | Zpos count' => rotateRightNat elements (Pos.to_nat count') pad
-  | Z0 => rotateRightNat elements 0 pad
+  | Zpos count' => rotate_right_nat elements (Pos.to_nat count') pad
+  | Z0 => rotate_right_nat elements 0 pad
   end.
 
-Definition listSliceZ {A: Type} (l: list A) (lo: Z) (hi: Z) : option (list A).
+Definition list_slice_z {A: Type} (l: list A) (lo: Z) (hi: Z) : option (list A).
 Admitted.
 
-Fixpoint listSliceNat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) := 
+Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) := 
   match (lo, hi) with
   | (0, 0)          => Some nil
   | (S _, 0)        => None
   | (0, S hi')      =>
     match l with
     | nil     => None
-    | x :: xs => option_map (fun t => x :: t) (listSliceNat xs 0 hi')
+    | x :: xs => option_map (fun t => x :: t) (list_slice_nat xs 0 hi')
     end
   | (S lo', S hi')  =>
     match l with
     | nil      => None
-    | x :: xs => option_map (fun t => x :: t) (listSliceNat xs lo' hi')
+    | x :: xs => option_map (fun t => x :: t) (list_slice_nat xs lo' hi')
     end
   end.
 
-Definition indexZError {A} (xs: list A) (i: Z) : option A.
+Definition index_z_error {A} (xs: list A) (i: Z) : option A.
 Admitted.
 
-Fixpoint powTwo (w: nat) : Z :=
+Fixpoint pow_two (w: nat) : Z :=
   match w with
   | 0     => 1
-  | S w'  => Z.double (powTwo w')
+  | S w'  => Z.double (pow_two w')
   end.
 
 (* Coq Bvectors are little-endian *)

@@ -76,10 +76,10 @@ Fixpoint eq_value (l: value) (r: value) : bool :=
   | _ => false (* TODO: arrays, errors, records, funcs, headers, headerstacks*)
   end.
 
-Definition updateMember (obj: value) (member: string) (val: value) : option value :=
+Definition update_member (obj: value) (member: string) (val: value) : option value :=
   match obj with
   | ValRecord map =>
-    let* map' := assocUpdate member val map in
+    let* map' := assoc_update member val map in
     mret (ValRecord map')
   | _ => None
   end.

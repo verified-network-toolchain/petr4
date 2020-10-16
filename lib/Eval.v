@@ -161,12 +161,32 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expr
   | _ => state_fail Internal
   end.
 
-Definition evalPacketExtract (bits: list bool) (into: value) : option (value * (list bool)) :=
-  match into with
-  | ValBool b =>
+Fixpoint evalPacketExtractFixedBits (bits: list bool) (width: nat) : option ((Bvector width) * (list bool)) :=
+  match width with
+  | 0 => Some ([]%vector, bits)
+  | S n =>
     match bits with
     | nil => None
-    | b' :: bits' => Some (ValBool b', bits')
+    | bit :: bits' =>
+      match evalPacketExtractFixedBits bits' n with
+      | Some (result, bits'') =>
+        Some ((bit :: result)%vector, bits'')
+      | None => None
+      end
+    end
+  end.
+
+Definition evalPacketExtractFixed (bits: list bool) (into: value) : option (value * (list bool)) :=
+  match into with
+  | ValBool _ =>
+    match bits with
+    | nil => None
+    | bit :: bits' => Some (ValBool bit, bits')
+    end
+  | ValFixedBit width _ =>
+    match evalPacketExtractFixedBits bits width with
+    | Some (vector, bits') => Some (ValFixedBit width vector, bits')
+    | None => None
     end
   | _ => None
   end.
@@ -178,7 +198,7 @@ Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: 
     | (Some target_expr) :: nil =>
       let* target := evalLvalue target_expr in
       let* target_value := findLvalue target in
-      match evalPacketExtract bits target_value with
+      match evalPacketExtractFixed bits target_value with
       | Some (value', bits') =>
         updateLvalue obj (ValExternObj (Packet bits')) ;;
         updateLvalue target value'

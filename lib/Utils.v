@@ -1,11 +1,13 @@
+Require Import Coq.Bool.Bvector.
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
+Require Import Coq.NArith.BinNatDef.
+Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Structures.OrderedTypeEx.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
 
-Require Import BinIntDef.
 Require Import BinPos.
 
 Open Scope monad.
@@ -64,12 +66,12 @@ Fixpoint listSliceNat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A
   match (lo, hi) with
   | (0, 0)          => Some nil
   | (S _, 0)        => None
-  | (0, S hi')      => 
+  | (0, S hi')      =>
     match l with
     | nil     => None
     | x :: xs => option_map (fun t => x :: t) (listSliceNat xs 0 hi')
     end
-  | (S lo', S hi')  => 
+  | (S lo', S hi')  =>
     match l with
     | nil      => None
     | x :: xs => option_map (fun t => x :: t) (listSliceNat xs lo' hi')
@@ -78,3 +80,18 @@ Fixpoint listSliceNat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A
 
 Definition indexZError {A} (xs: list A) (i: Z) : option A.
 Admitted.
+
+Fixpoint powTwo (w: nat) : Z :=
+  match w with
+  | 0     => 1
+  | S w'  => Z.double (powTwo w')
+  end.
+
+(* Coq Bvectors are little-endian *)
+Open Scope vector_scope.
+Fixpoint of_bvector {w} (bits: Bvector w) : Z :=
+  match bits with
+  | [] => 0
+  | (b :: bits') => Z.add (if b then 1 else 0) (Z.double (of_bvector bits'))
+  end.
+Close Scope vector_scope.

@@ -12,27 +12,14 @@ Require Import Environment.
 Require Import Syntax.
 Require Import Utils.
 
+Require Import Platform.Packet.
+
 Require Import BinIntDef.
 
 Open Scope monad.
 
 Definition defaultValue (A: type) : value.
 Admitted.
-
-Fixpoint powTwo (w: nat) : Z := 
-  match w with
-  | 0     => 1
-  | S w'  => Z.double (powTwo w')
-  end. 
-
-(* Coq Bvectors are little-endian *)
-Open Scope vector_scope.
-Fixpoint of_bvector {w} (bits: Bvector w) : Z := 
-  match bits with
-  | [] => 0
-  | (b :: bits') => Z.add (if b then 1 else 0) (Z.double (of_bvector bits'))
-  end.
-Close Scope vector_scope.
 
 Definition evalLvalue (expr: expression) : env_monad lvalue.
 Admitted.
@@ -158,46 +145,6 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expr
   | "setInvalid" => dummyValue (evalSetBool obj false)
   | "pop_front" => dummyValue (evalPopFront obj args')
   | "push_front" => dummyValue (evalPushFront obj args')
-  | _ => state_fail Internal
-  end.
-
-Definition packet_monad := @state_monad (list bool) exception.
-
-Fixpoint readFirstBits (count: nat) : packet_monad (Bvector count) :=
-  match count with
-  | 0 => mret []%vector
-  | S count' =>
-    fun bits =>
-      match bits with
-      | nil => state_fail Internal bits
-      | bit :: bits' =>
-        match readFirstBits count' bits' with
-        | (inr error, bits'') => state_fail error bits''
-        | (inl rest, bits'') => mret (bit :: rest)%vector bits''
-        end
-      end
-  end.
-
-Definition evalPacketExtractFixed (into: value) : packet_monad value :=
-  match into with
-  | ValBool _ =>
-    let* vec := readFirstBits 1 in
-    match vec with
-    | (bit :: [])%vector => mret (ValBool bit)
-    | _ => state_fail Internal
-    end
-  | ValFixedBit width _ =>
-    let* vec := readFirstBits width in
-    mret (ValFixedBit width vec)
-  | ValFixedInt width _ =>
-    let* vec := readFirstBits width in
-    match vec with
-    | (false :: rest)%vector => mret (ValFixedInt width (of_bvector rest))
-    | (true :: rest)%vector =>
-      let negated := Z.sub (powTwo width) (of_bvector rest) in
-      mret (ValFixedInt width negated)
-    | _ => state_fail Internal
-    end
   | _ => state_fail Internal
   end.
 

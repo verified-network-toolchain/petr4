@@ -113,7 +113,7 @@ Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad un
         | None => state_fail Internal
         | Some elements' =>
           let value' := ValHeaderStack size (nextIndex - (Z.to_nat count)) elements' in
-          updateLvalue obj value
+          updateLvalue obj value'
         end
       | _ => state_fail Internal
       end
@@ -131,20 +131,10 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad u
         | Some elements' =>
           let nextIndex' := min size (nextIndex + (Z.to_nat count)) in
           let value' := ValHeaderStack size nextIndex' elements' in
-          updateLvalue obj value
+          updateLvalue obj value'
         end
       | _ => state_fail Internal
       end
-  | _ => state_fail Internal
-  end.
-
-Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option value)) : env_monad value :=
-  match name with
-  | "isValid" => evalIsValid obj
-  | "setValid" => dummyValue (evalSetBool obj true)
-  | "setInvalid" => dummyValue (evalSetBool obj false)
-  | "pop_front" => dummyValue (evalPopFront obj args)
-  | "push_front" => dummyValue (evalPushFront obj args)
   | _ => state_fail Internal
   end.
 
@@ -160,6 +150,94 @@ Fixpoint evalArguments (args: list (option expression)) : env_monad (list (optio
     mret (None :: vals)
   end.
 
+Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expression)) : env_monad value :=
+  let* args' := evalArguments args in
+  match name with
+  | "isValid" => evalIsValid obj
+  | "setValid" => dummyValue (evalSetBool obj true)
+  | "setInvalid" => dummyValue (evalSetBool obj false)
+  | "pop_front" => dummyValue (evalPopFront obj args')
+  | "push_front" => dummyValue (evalPushFront obj args')
+  | _ => state_fail Internal
+  end.
+
+Fixpoint evalPacketExtractFixedBits (bits: list bool) (width: nat) : option ((Bvector width) * (list bool)) :=
+  match width with
+  | 0 => Some ([]%vector, bits)
+  | S n =>
+    match bits with
+    | nil => None
+    | bit :: bits' =>
+      match evalPacketExtractFixedBits bits' n with
+      | Some (result, bits'') =>
+        Some ((bit :: result)%vector, bits'')
+      | None => None
+      end
+    end
+  end.
+
+Definition evalPacketExtractFixed (bits: list bool) (into: value) : option (value * (list bool)) :=
+  match into with
+  | ValBool _ =>
+    match bits with
+    | nil => None
+    | bit :: bits' => Some (ValBool bit, bits')
+    end
+  | ValFixedBit width _ =>
+    match evalPacketExtractFixedBits bits width with
+    | Some (vector, bits') => Some (ValFixedBit width vector, bits')
+    | None => None
+    end
+  | ValFixedInt width _ =>
+    match bits with
+    | nil => None
+    | bit :: bits' =>
+      match evalPacketExtractFixedBits bits width with
+      | Some (vector, bits') =>
+        let* val := evalMinus (ValFixedBit width vector) in
+        Some (val, bits')
+      | None => None
+      end
+    end
+  | _ => None
+  end.
+
+Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
+  match name with
+  | "extract" =>
+    match args with
+    | (Some target_expr) :: nil =>
+      let* target := evalLvalue target_expr in
+      let* target_value := findLvalue target in
+      match evalPacketExtractFixed bits target_value with
+      | Some (value', bits') =>
+        updateLvalue obj (ValExternObj (Packet bits')) ;;
+        updateLvalue target value'
+      | None => state_fail Internal
+      end
+    | _ => state_fail Internal
+    end
+  | _ => state_fail Internal
+  end.
+
+Definition evalExternFunc (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
+  let* value := findLvalue obj in
+  match value with
+  | ValExternObj ext =>
+    match ext with
+    | Packet bits => dummyValue (evalPacketFunc obj name bits args)
+    end
+  | _ => state_fail Internal
+  end.
+
+Definition evalMethodCall (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
+  let* func' := evalExpression func in
+  match func' with
+  | ValBuiltinFunc name obj => evalBuiltinFunc name obj args
+  | ValExternFunc name obj => evalExternFunc name obj args
+  | _ => state_fail Internal (* TODO: other function types *)
+  end.
+
 Fixpoint evalBlock (blk: block) : env_monad unit :=
   match blk with
   | BlockCons stmt rest =>
@@ -171,12 +249,7 @@ Fixpoint evalBlock (blk: block) : env_monad unit :=
 with evalStatement (stmt: statement) : env_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
-    let* func' := evalExpression func in
-    let* args' := evalArguments args in
-    match func' with
-    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj args')
-    | _ => mret tt (* TODO: other function types *)
-    end
+    tossValue (evalMethodCall func type_args args)
   | Assignment lhs rhs =>
     let* lval := evalLvalue lhs in
     let* val := evalExpression rhs in

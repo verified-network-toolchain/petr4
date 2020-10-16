@@ -113,7 +113,7 @@ Definition evalPopFront (obj: lvalue) (args: list (option value)) : env_monad un
         | None => state_fail Internal
         | Some elements' =>
           let value' := ValHeaderStack size (nextIndex - (Z.to_nat count)) elements' in
-          updateLvalue obj value
+          updateLvalue obj value'
         end
       | _ => state_fail Internal
       end
@@ -131,7 +131,7 @@ Definition evalPushFront (obj: lvalue) (args: list (option value)) : env_monad u
         | Some elements' =>
           let nextIndex' := min size (nextIndex + (Z.to_nat count)) in
           let value' := ValHeaderStack size nextIndex' elements' in
-          updateLvalue obj value
+          updateLvalue obj value'
         end
       | _ => state_fail Internal
       end

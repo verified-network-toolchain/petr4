@@ -16,39 +16,26 @@
 open Core_kernel
 open Sexplib.Conv
 
-type i_record =
-  { filename :string;
+type t =
+  | I of
+    { filename :string;
       line_start: int;
       line_end: int option;
       col_start: int;
-      col_end : int } [@@deriving sexp,yojson,show]
-
-type t =
-  | I of
-      int * i_record [@name "info"]
-  | M of int * string [@name "missing_info"]
-                 [@@deriving sexp,yojson,show]
-
-let update_identifier i n =
-  match i with
-  | I (_,r) -> I (n,r)
-  | M (_,s) -> M (n,s)
-
-let identifier_of_info i =
-  match i with
-  | I (n,_) -> n
-  | M (n,_) -> n
+      col_end : int } [@name "info"]
+  | M of string [@name "missing_info"]
+[@@deriving sexp,yojson]
 
 let pp fmt _ = Format.pp_print_string fmt "<info>"
 let show _ = "<info>"
 
-let dummy = M (0, "")
+let dummy = M ""
 
 (* to_string info
    String containing the location information of info *)
 let to_string = function
-  | M (_,s) -> s
-  | I (_, {filename; line_start; line_end; col_start; col_end; _ }) ->
+  | M s -> s
+  | I {filename; line_start; line_end; col_start; col_end; _ } ->
     let f = "File " ^ filename ^ "," in
     match line_end with
     | None ->
@@ -60,12 +47,12 @@ let to_string = function
 
 let start_pos = function
     M _ -> (Int.max_value, Int.max_value)
-  | I (_, { filename; line_start; line_end; col_start; col_end }) ->
+  | I { filename; line_start; line_end; col_start; col_end } ->
     (line_start, col_start)
 
 let end_pos = function
     M _ -> (0, 0)
-  | I (_, { filename; line_start; line_end; col_start; col_end }) ->
+  | I { filename; line_start; line_end; col_start; col_end } ->
     (match line_end with
      | None -> (line_start, col_end)
      | Some line_end -> (line_end, col_end))
@@ -83,29 +70,26 @@ let follows i1 i2 =
 
 let file = function
     M _ -> ""
-  | I  (_, { filename; line_start; line_end; col_start; col_end }) ->
+  | I  { filename; line_start; line_end; col_start; col_end } ->
     filename
-
-let merge_identifiers id1 id2 = id1
 
 let merge (info1 : t) (info2 : t) =
   match info2 with
   | M _ -> info1
-  | I (id1,_) ->
+  | I _ ->
     match info1 with
     | M _ -> info2
-    | I (id2,_) ->
+    | I _ ->
       let start_l, start_c = Poly.min (start_pos info1) (start_pos info2)   in
       let end_l, end_c     = Poly.max (end_pos info1)   (end_pos info2)     in
       let end_l_opt = if (start_l = end_l) then None else (Some end_l) in
-      let merged_id = merge_identifiers id1 id2 in
-      I (merged_id, { filename = file info1;
+      I { filename = file info1;
           line_start = start_l;
           line_end = end_l_opt;
           col_start = start_c;
-          col_end = end_c })
+          col_end = end_c }
 
 (* Because header unions associate a label with the name of a type
  * this type name must be used to find the actual corresponding type
  * the environment *)
-let header_union_info = M (0,"To look up header union type labels in the environment.")
+let header_union_info = M "To look up header union type labels in the environment."

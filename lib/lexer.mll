@@ -72,7 +72,7 @@ let info lexbuf : Info.t =
   let c2 = lexeme_end lexbuf in
   let c = start_of_line () in
   let l = line_number() in
-  Info.I (0,{ filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c })
+  Info.I { filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c }
 
 let sanitize s =
   String.concat "" (String.split_on_char '_' s)

@@ -25,7 +25,7 @@ let info_to_yojson f (_,x) = f x
 
 let info_of_yojson f json =
   match f json with
-  | Ok pre -> Ok (Info.M (0,"<yojson>"), pre)
+  | Ok pre -> Ok (Info.M "<yojson>", pre)
   | Error x -> Error x
 
 module P4Int = struct

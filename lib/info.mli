@@ -13,21 +13,15 @@
  * under the License.
  *)
 
-type i_record =
-  { filename :string;
-    line_start: int;
-    line_end: int option;
-    col_start: int;
-    col_end: int } [@@deriving sexp,yojson,show]
-
 type t =
   | I of
-      int * i_record
-  | M of int * string
+    { filename :string;
+      line_start: int;
+      line_end: int option;
+      col_start: int;
+      col_end: int }
+  | M of string
 [@@deriving sexp,show,yojson]
-
-val update_identifier : t -> int -> t
-val identifier_of_info : t -> int
 
 val dummy : t
 

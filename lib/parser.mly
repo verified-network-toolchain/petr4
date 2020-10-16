@@ -528,7 +528,7 @@ parserBlockStatement:
 
 transitionStatement:
 | (* empty *)
-  { let info = Info.M (0, "Compiler-generated reject transition") in
+  { let info = Info.M "Compiler-generated reject transition" in
     (info, Parser.Direct { next = (info, "reject") }) }
 
 | info1 = TRANSITION transition = stateExpression

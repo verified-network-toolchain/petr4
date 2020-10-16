@@ -3,12 +3,11 @@ Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
+Require Import Coq.PArith.BinPos.
 Require Import Coq.Structures.OrderedTypeEx.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
-
-Require Import BinPos.
 
 Open Scope monad.
 

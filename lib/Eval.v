@@ -1,6 +1,7 @@
 Require Import Coq.Bool.Bvector.
 Require Import Coq.Lists.List.
 Require Import Coq.NArith.BinNatDef.
+Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Strings.String.
 
 Require Import Monads.Monad.
@@ -14,7 +15,6 @@ Require Import Utils.
 
 Require Import Platform.Packet.
 
-Require Import BinIntDef.
 
 Open Scope monad.
 

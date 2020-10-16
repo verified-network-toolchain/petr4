@@ -161,45 +161,44 @@ Definition evalBuiltinFunc (name: string) (obj: lvalue) (args: list (option expr
   | _ => state_fail Internal
   end.
 
-Fixpoint evalPacketExtractFixedBits (bits: list bool) (width: nat) : option ((Bvector width) * (list bool)) :=
-  match width with
-  | 0 => Some ([]%vector, bits)
-  | S n =>
-    match bits with
-    | nil => None
-    | bit :: bits' =>
-      match evalPacketExtractFixedBits bits' n with
-      | Some (result, bits'') =>
-        Some ((bit :: result)%vector, bits'')
-      | None => None
+Definition packet_monad := @state_monad (list bool) exception.
+
+Fixpoint readFirstBits (count: nat) : packet_monad (Bvector count) :=
+  match count with
+  | 0 => mret []%vector
+  | S count' =>
+    fun bits =>
+      match bits with
+      | nil => state_fail Internal bits
+      | bit :: bits' =>
+        match readFirstBits count' bits' with
+        | (inr error, bits'') => state_fail error bits''
+        | (inl rest, bits'') => mret (bit :: rest)%vector bits''
+        end
       end
-    end
   end.
 
-Definition evalPacketExtractFixed (bits: list bool) (into: value) : option (value * (list bool)) :=
+Definition evalPacketExtractFixed (into: value) : packet_monad value :=
   match into with
   | ValBool _ =>
-    match bits with
-    | nil => None
-    | bit :: bits' => Some (ValBool bit, bits')
+    let* vec := readFirstBits 1 in
+    match vec with
+    | (bit :: [])%vector => mret (ValBool bit)
+    | _ => state_fail Internal
     end
   | ValFixedBit width _ =>
-    match evalPacketExtractFixedBits bits width with
-    | Some (vector, bits') => Some (ValFixedBit width vector, bits')
-    | None => None
-    end
+    let* vec := readFirstBits width in
+    mret (ValFixedBit width vec)
   | ValFixedInt width _ =>
-    match bits with
-    | nil => None
-    | bit :: bits' =>
-      match evalPacketExtractFixedBits bits width with
-      | Some (vector, bits') =>
-        let* val := evalMinus (ValFixedBit width vector) in
-        Some (val, bits')
-      | None => None
-      end
+    let* vec := readFirstBits width in
+    match vec with
+    | (false :: rest)%vector => mret (ValFixedInt width (of_bvector rest))
+    | (true :: rest)%vector =>
+      let negated := Z.sub (powTwo width) (of_bvector rest) in
+      mret (ValFixedInt width negated)
+    | _ => state_fail Internal
     end
-  | _ => None
+  | _ => state_fail Internal
   end.
 
 Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
@@ -208,12 +207,15 @@ Definition evalPacketFunc (obj: lvalue) (name: string) (bits: list bool) (args: 
     match args with
     | (Some target_expr) :: nil =>
       let* target := evalLvalue target_expr in
-      let* target_value := findLvalue target in
-      match evalPacketExtractFixed bits target_value with
-      | Some (value', bits') =>
+      let* value := findLvalue target in
+      match evalPacketExtractFixed value bits with
+      | (inr error, bits') =>
         updateLvalue obj (ValExternObj (Packet bits')) ;;
-        updateLvalue target value'
-      | None => state_fail Internal
+        state_fail error
+      | (inl value', bits') =>
+        updateLvalue obj (ValExternObj (Packet bits')) ;;
+        updateLvalue target value' ;;
+        mret tt
       end
     | _ => state_fail Internal
     end

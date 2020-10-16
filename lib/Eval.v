@@ -160,6 +160,14 @@ Fixpoint evalArguments (args: list (option expression)) : env_monad (list (optio
     mret (None :: vals)
   end.
 
+Definition evalMethodCall (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
+  let* func' := evalExpression func in
+  let* args' := evalArguments args in
+  match func' with
+  | ValBuiltinFunc name obj => evalBuiltinFunc name obj args'
+  | _ => state_fail Internal (* TODO: other function types *)
+  end.
+
 Fixpoint evalBlock (blk: block) : env_monad unit :=
   match blk with
   | BlockCons stmt rest =>
@@ -171,12 +179,7 @@ Fixpoint evalBlock (blk: block) : env_monad unit :=
 with evalStatement (stmt: statement) : env_monad unit :=
   match stmt with
   | MethodCall func type_args args =>
-    let* func' := evalExpression func in
-    let* args' := evalArguments args in
-    match func' with
-    | ValBuiltinFunc name obj => tossValue (evalBuiltinFunc name obj args')
-    | _ => mret tt (* TODO: other function types *)
-    end
+    tossValue (evalMethodCall func type_args args)
   | Assignment lhs rhs =>
     let* lval := evalLvalue lhs in
     let* val := evalExpression rhs in

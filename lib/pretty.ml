@@ -11,7 +11,7 @@
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations
  * under the License.
- *)
+*)
 
 open Core_kernel
 open Util
@@ -79,10 +79,10 @@ end
 let name_format_t fmt (name: Types.name) =
   match name with
   | BareName str ->
-     P4String.format_t fmt str
+    P4String.format_t fmt str
   | QualifiedName ([], str) ->
-     Format.fprintf fmt ".%a"
-       P4String.format_t str 
+    Format.fprintf fmt ".%a"
+      P4String.format_t str 
   | _ -> failwith "unimplemented"
 
 module rec Expression : sig
@@ -121,36 +121,36 @@ end = struct
         (format_list_sep KeyValue.format_t ",") x.entries
     | UnaryOp x ->
       let uop = match (snd x.op) with
-      | Not -> "!"
-      | BitNot -> "~"
-      | UMinus -> "-"
+        | Not -> "!"
+        | BitNot -> "~"
+        | UMinus -> "-"
       in
       Format.fprintf fmt "@[<4>(%s@ %a)@]"
         uop
         format_t x.arg
     | BinaryOp x ->
       let bop = match (snd x.op) with
-        Plus -> "+"
-      | PlusSat -> "|+|"
-      | Minus -> "-"
-      | MinusSat -> "|-|"
-      | Mul -> "*"
-      | Div -> "/"
-      | Mod -> "%"
-      | Shl -> "<<"
-      | Shr -> ">>"
-      | Le -> "<="
-      | Ge -> ">="
-      | Lt -> "<"
-      | Gt -> ">"
-      | Eq -> "=="
-      | NotEq -> "!="
-      | BitAnd -> "&"
-      | BitXor -> "^"
-      | BitOr -> "|"
-      | PlusPlus -> "++"
-      | And -> "&&"
-      | Or -> "||"
+          Plus -> "+"
+        | PlusSat -> "|+|"
+        | Minus -> "-"
+        | MinusSat -> "|-|"
+        | Mul -> "*"
+        | Div -> "/"
+        | Mod -> "%"
+        | Shl -> "<<"
+        | Shr -> ">>"
+        | Le -> "<="
+        | Ge -> ">="
+        | Lt -> "<"
+        | Gt -> ">"
+        | Eq -> "=="
+        | NotEq -> "!="
+        | BitAnd -> "&"
+        | BitXor -> "^"
+        | BitOr -> "|"
+        | PlusPlus -> "++"
+        | And -> "&&"
+        | Or -> "||"
       in
       Format.fprintf fmt "@[<4>(%a@ %s@ %a)@]"
         format_t (fst x.args)
@@ -186,8 +186,8 @@ end = struct
         (format_list_sep Argument.format_t ",") x.args
     | Mask x ->
       Format.fprintf fmt "@[<4>%a@ &&&@ %a@]"
-      format_t x.expr
-      format_t x.mask
+        format_t x.expr
+        format_t x.mask
     | Range x ->
       Format.fprintf fmt "@[<4>%a@ ..@ %a@]" (* TODO: check *)
         format_t x.lo
@@ -205,17 +205,17 @@ end = struct
     | Default ->
       Format.fprintf fmt "default"
     | Name(sl) ->
-       Format.fprintf fmt "@[%a@]"
+      Format.fprintf fmt "@[%a@]"
         P4String.format_t sl
 
   let format_switch_case fmt sc =
     match snd sc with
     | Action { label; code } ->
-       Format.fprintf fmt "%a: %a"
-         format_switch_label (snd label)
-         Block.format_t code
+      Format.fprintf fmt "%a: %a"
+        format_switch_label (snd label)
+        Block.format_t code
     | FallThrough { label } ->
-       Format.fprintf fmt "%a:"
+      Format.fprintf fmt "%a:"
         format_switch_label (snd label)     
 
   let rec format_t fmt (e:t) =
@@ -234,31 +234,31 @@ end = struct
         Type.format_t typ
         Argument.format_ts args
     | Conditional { cond; tru; fls } ->
-        Format.fprintf fmt "@[<4>if (%a)@ "
-          Expression.format_t cond;
-        (match snd tru with
-         | BlockStatement { block=tru_block } ->
-           Block.format_t fmt tru_block;
-           (match fls with
-            | None ->
-              ()
-            | Some (_, BlockStatement { block=fls_block }) ->
-              Format.fprintf fmt "@[<4>else@ %a"
-                Block.format_t fls_block
-            | Some sfls ->
-              Format.fprintf fmt "@\nelse@ %a"
-                format_t sfls)
-         | _ ->
-           Format.fprintf fmt "@\n%a@]" format_t tru;
-           (match fls with
-            | None ->
-              ()
-            | Some (_, BlockStatement { block=fls_block }) ->
-              Format.fprintf fmt "@\n@[<4>else@ %a"
-                Block.format_t fls_block
-            | Some sfls ->
-              Format.fprintf fmt "@\n@[<4>else@\n%a@]"
-                format_t sfls));
+      Format.fprintf fmt "@[<4>if (%a)@ "
+        Expression.format_t cond;
+      (match snd tru with
+       | BlockStatement { block=tru_block } ->
+         Block.format_t fmt tru_block;
+         (match fls with
+          | None ->
+            ()
+          | Some (_, BlockStatement { block=fls_block }) ->
+            Format.fprintf fmt "@[<4>else@ %a"
+              Block.format_t fls_block
+          | Some sfls ->
+            Format.fprintf fmt "@\nelse@ %a"
+              format_t sfls)
+       | _ ->
+         Format.fprintf fmt "@\n%a@]" format_t tru;
+         (match fls with
+          | None ->
+            ()
+          | Some (_, BlockStatement { block=fls_block }) ->
+            Format.fprintf fmt "@\n@[<4>else@ %a"
+              Block.format_t fls_block
+          | Some sfls ->
+            Format.fprintf fmt "@\n@[<4>else@\n%a@]"
+              format_t sfls));
     | BlockStatement { block } ->
       Format.fprintf fmt "@[<4>%a"
         Block.format_t block
@@ -272,9 +272,9 @@ end = struct
       Format.fprintf fmt "@[return %a;@]"
         Expression.format_t sexpr
     | Switch { expr; cases } -> 
-       Format.fprintf fmt "@[<4>switch (%a) {%a@]@\n}"
-         Expression.format_t expr
-         (format_list_nl format_switch_case) cases
+      Format.fprintf fmt "@[<4>switch (%a) {%a@]@\n}"
+        Expression.format_t expr
+        (format_list_nl format_switch_case) cases
     | DeclarationStatement { decl } ->
       Declaration.format_t fmt decl
 end
@@ -332,14 +332,14 @@ end = struct
       Format.fprintf fmt "@[int<%a>@]"
         Expression.format_t x
     | BitType e -> 
-       begin match snd e with 
-       | P4.Expression.Int _  -> 
+      begin match snd e with 
+        | P4.Expression.Int _  -> 
           Format.fprintf fmt "@[bit<%a>@]"
             Expression.format_t e
-       | _ -> 
+        | _ -> 
           Format.fprintf fmt "@[bit<(%a)>@]"
             Expression.format_t e
-       end
+      end
     | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
@@ -350,7 +350,7 @@ end = struct
       Format.fprintf fmt "@[.%s@]"
         (snd x);
     | TypeName _ ->
-       failwith "unimplemented"
+      failwith "unimplemented"
     | SpecializedType x ->
       Format.fprintf fmt "@[%a<%a>@]"
         format_t x.base
@@ -363,7 +363,7 @@ end = struct
       Format.fprintf fmt "@[tuple<%a>@]"
         (format_list_sep format_t ",") x
     | String -> 
-       Format.fprintf fmt "string"      
+      Format.fprintf fmt "string"      
     | Void ->
       Format.fprintf fmt "void"
     | DontCare ->
@@ -391,9 +391,9 @@ end = struct
   let format_t fmt kv = 
     match snd kv with 
     | { key; value } -> 
-       Format.fprintf fmt "%a = %a" 
-         P4String.format_t key 
-         Expression.format_t value 
+      Format.fprintf fmt "%a = %a" 
+        P4String.format_t key 
+        Expression.format_t value 
 end
 
 and Annotation : sig
@@ -404,24 +404,24 @@ end = struct
   let format_body fmt body = 
     match snd body with 
     | Empty -> 
-       ()
+      ()
     | Unparsed strings -> 
-       Format.fprintf fmt "(%a)" 
-         (format_list_sep P4String.format_t " ") strings
+      Format.fprintf fmt "(%a)" 
+        (format_list_sep P4String.format_t " ") strings
     | Expression exprs -> 
-       Format.fprintf fmt "[%a]" 
-         (format_list_sep Expression.format_t ",") exprs
+      Format.fprintf fmt "[%a]" 
+        (format_list_sep Expression.format_t ",") exprs
     | KeyValue kvs -> 
-       Format.fprintf fmt "{%a}" 
-         (format_list_sep KeyValue.format_t ",") kvs
+      Format.fprintf fmt "{%a}" 
+        (format_list_sep KeyValue.format_t ",") kvs
 
   let format_t fmt e =
     match snd e with 
     | { name; body } -> 
-       Format.fprintf fmt "@[%@%a%a@]"
-         P4String.format_t name
-         format_body body
-      
+      Format.fprintf fmt "@[%@%a%a@]"
+        P4String.format_t name
+        format_body body
+
   let format_ts fmt l =
     match l with
     | [] ->
@@ -519,7 +519,7 @@ end = struct
     | Select { exprs; cases } ->
       Format.fprintf fmt "@[<4>transition select(%a) {%a@]@\n}"
         (format_list_sep Expression.format_t ",") exprs
-      (format_list_nl format_case) cases
+        (format_list_nl format_case) cases
 
   let format_state fmt e =
     match snd e with
@@ -754,11 +754,11 @@ end = struct
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | Struct { annotations; name; fields } ->
-        Format.fprintf fmt "@[%a@]"
-          Annotation.format_ts annotations;
-        Format.fprintf fmt "@[<4>struct %a %a"
-          P4String.format_t name
-          format_fields fields
+      Format.fprintf fmt "@[%a@]"
+        Annotation.format_ts annotations;
+      Format.fprintf fmt "@[<4>struct %a %a"
+        P4String.format_t name
+        format_fields fields
     | MatchKind { members=[] } ->
       Format.fprintf fmt "@[<4>match_kind { }@]";
     | MatchKind { members } ->

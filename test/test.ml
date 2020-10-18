@@ -1,6 +1,8 @@
 open Core
 open Petr4
 open Common
+(* open Pp.O *)
+(* open Alcotest *)
 
 module Conf: Parse_config = struct
   let red s = s
@@ -85,6 +87,11 @@ let bad_test f file () =
 
 let excl_test file () =
   Alcotest.(check bool) "good test" true true
+module P4 = Types 
+
+let example_path l =
+  let root = Filename.concat ".." "examples" in
+  List.fold_left l ~init:root ~f:Filename.concat
 
 let () =
   let open Alcotest in
@@ -102,3 +109,6 @@ let () =
         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
         test_case name speed (bad_test typecheck_test name)) bad_files);
   ]
+
+
+

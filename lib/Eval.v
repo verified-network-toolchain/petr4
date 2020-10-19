@@ -12,6 +12,7 @@ Require Import Value.
 Require Import Environment.
 Require Import Syntax.
 Require Import Utils.
+Require Import Unpack.
 
 Require Import Platform.Packet.
 
@@ -38,90 +39,73 @@ Fixpoint eval_expression (expr: expression) : env_monad value :=
   | IntExpression value => mret (ValInfInt value)
   | StringExpression value => mret (ValString value)
   | ArrayAccess array index =>
-    let* index' := eval_expression index in
-    let* array' := eval_expression array in
-    match (array', index') with
-    | (ValArray array'', ValInfInt index'') => lift_option (index_z_error array'' index'')
-    | _ => state_fail Internal
-    end
+    let* index' := unpack_inf_int (eval_expression index) in
+    let* array' := unpack_array (eval_expression array) in
+    lift_option (index_z_error array' index')
   | BitStringAccess array hi lo =>
-    let* array' := eval_expression array in
-    let* hi'    := eval_expression hi in
-    let* lo'    := eval_expression lo in
-    match (array', hi', lo') with
-    | (ValArray array'', ValInfInt hi'', ValInfInt lo'') => lift_option (option_map ValArray (list_slice_z array'' lo'' hi''))
-    | _ => state_fail Internal
-    end
-  | List exprs => lift_monad ValArray (sequence (List.map eval_expression exprs))
+    let* array' := unpack_array (eval_expression array) in
+    let* hi'    := unpack_inf_int (eval_expression hi) in
+    let* lo'    := unpack_inf_int (eval_expression lo) in
+    lift_option (option_map ValArray (list_slice_z array' lo' hi'))
+  | List exprs =>
+    lift_monad ValArray (sequence (List.map eval_expression exprs))
   | Record entries => 
     let actions := List.map (fun x => match x with | MkKeyValue k e => v <- eval_expression e ;; mret (k, v) end) entries in
     lift_monad ValRecord (sequence actions)
   | UnaryOp op arg => 
-    let* inner := eval_expression arg in
     match op with
     | Not => 
-      match inner with
-      | ValBool b => mret (ValBool (negb b))
-      | _ => state_fail Internal
-      end
+      let* b := unpack_bool (eval_expression arg) in
+      mret (ValBool (negb b))
     | BitNot => 
+      let* inner := eval_expression arg in
       match inner with
       | ValFixedBit w bits => mret (ValFixedBit w (Bneg w bits))
       | ValVarBit w bits => mret (ValVarBit w (Bneg w bits))
       | _ => state_fail Internal
       end
-    | BitMinus => lift_option (eval_minus inner)
+    | BitMinus =>
+      let* inner := eval_expression arg in
+      lift_option (eval_minus inner)
     end
   | _ => mret (ValBool false) (* TODO *)
   end.
 
 Definition eval_is_valid (obj: lvalue) : env_monad value :=
-  let* result := find_lvalue obj
-  in match result with
-  | ValHeader (MkHeader valid fields) => mret (ValBool valid)
-  | _ => state_fail Internal
-  end.
+  let* hdr := unpack_header (find_lvalue obj) in
+  let (valid, _) := hdr in
+  mret (ValBool valid).
 
 Definition eval_set_bool (obj: lvalue) (valid: bool) : env_monad unit :=
-  let* value := find_lvalue obj in
-  match value with
-  | ValHeader (MkHeader _ fields) =>
+  let* hdr := unpack_header (find_lvalue obj) in
+  match hdr with
+  | MkHeader _ fields =>
     update_lvalue obj (ValHeader (MkHeader valid fields))
-  | _ => state_fail Internal
   end.
 
 Definition eval_pop_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* value := find_lvalue obj in
-      match value with
-      | ValHeaderStack size next_index elements =>
-        match rotate_left_z elements count (MkHeader false (MStr.Raw.empty _)) with
-        | None => state_fail Internal
-        | Some elements' =>
-          let value' := ValHeaderStack size (next_index - (Z.to_nat count)) elements' in
-          update_lvalue obj value'
-        end
-      | _ => state_fail Internal
-      end
+      let* hdrstack := unpack_header_stack (find_lvalue obj) in
+      let '(size, next_index, elements) := hdrstack in
+      let padding := MkHeader false (MStr.Raw.empty _) in
+      let* elements' := lift_option (rotate_left_z elements count padding) in
+      let next_index' := next_index - (Z.to_nat count) in
+      let value' := ValHeaderStack size next_index' elements' in
+      update_lvalue obj value'
   | _ => state_fail Internal
   end.
 
 Definition eval_push_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* value := find_lvalue obj in
-      match value with
-      | ValHeaderStack size next_index elements =>
-        match rotate_right_z elements count (MkHeader false (MStr.Raw.empty _)) with
-        | None => state_fail Internal
-        | Some elements' =>
-          let next_index' := min size (next_index + (Z.to_nat count)) in
-          let value' := ValHeaderStack size next_index' elements' in
-          update_lvalue obj value'
-        end
-      | _ => state_fail Internal
-      end
+      let* hdrstack := unpack_header_stack (find_lvalue obj) in
+      let '(size, next_index, elements) := hdrstack in
+      let padding := MkHeader false (MStr.Raw.empty _) in
+      let* elements' := lift_option (rotate_right_z elements count padding) in
+      let next_index' := min size (next_index + (Z.to_nat count)) in
+      let value' := ValHeaderStack size next_index' elements' in
+      update_lvalue obj value'
   | _ => state_fail Internal
   end.
 
@@ -170,13 +154,9 @@ Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (args
   end.
 
 Definition eval_extern_func (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
-  let* value := find_lvalue obj in
-  match value with
-  | ValExternObj ext =>
-    match ext with
-    | Packet bits => dummy_value (eval_packet_func obj name bits args)
-    end
-  | _ => state_fail Internal
+  let* ext := unpack_extern_obj (find_lvalue obj) in
+  match ext with
+  | Packet bits => dummy_value (eval_packet_func obj name bits args)
   end.
 
 Definition eval_method_call (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=

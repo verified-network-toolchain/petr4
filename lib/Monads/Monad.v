@@ -21,7 +21,7 @@ Notation "e1 ;; e2" := (_ <- e1%monad ;; e2%monad)%monad
   (at level 100, right associativity) : monad_scope.
 
 Notation "'let*' x ':=' c1 'in' c2" := (@mbind _ _ _ _ c1 (fun x => c2))
-  (at level 61, c1 at next level, right associativity) : monad_scope.
+  (at level 61, x pattern, format "'let*' x ':=' c1 'in' c2", c1 at next level, right associativity) : monad_scope.
 
 Open Scope monad.
 

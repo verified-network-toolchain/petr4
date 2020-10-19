@@ -23,7 +23,12 @@ Notation "e1 ;; e2" := (_ <- e1%monad ;; e2%monad)%monad
 Notation "'let*' x ':=' c1 'in' c2" := (@mbind _ _ _ _ c1 (fun x => c2))
   (at level 61, x pattern, format "'let*' x ':=' c1 'in' c2", c1 at next level, right associativity) : monad_scope.
 
+Notation "'let*' ' x ':=' c1 'in' c2" := (@mbind _ _ _ _ c1 (fun x => c2))
+  (at level 61, x pattern, format "'let*' ' x ':=' c1 'in' c2", c1 at next level, right associativity) : monad_scope.
+
 Open Scope monad.
+
+
 
 Fixpoint sequence {A} {m: Type -> Type} {M : Monad m} (acts: list (m A)) : m (list A) := 
   match acts with

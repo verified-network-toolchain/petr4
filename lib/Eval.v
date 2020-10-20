@@ -72,8 +72,7 @@ Fixpoint eval_expression (expr: expression) : env_monad value :=
   end.
 
 Definition eval_is_valid (obj: lvalue) : env_monad value :=
-  let* hdr := unpack_header (find_lvalue obj) in
-  let (valid, _) := hdr in
+  let* MkHeader valid _ := unpack_header (find_lvalue obj) in
   mret (ValBool valid).
 
 Definition eval_set_bool (obj: lvalue) (valid: bool) : env_monad unit :=
@@ -86,8 +85,7 @@ Definition eval_set_bool (obj: lvalue) (valid: bool) : env_monad unit :=
 Definition eval_pop_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* hdrstack := unpack_header_stack (find_lvalue obj) in
-      let '(size, next_index, elements) := hdrstack in
+      let* '(size, next_index, elements) := unpack_header_stack (find_lvalue obj) in
       let padding := MkHeader false (MStr.Raw.empty _) in
       let* elements' := lift_option (rotate_left_z elements count padding) in
       let next_index' := next_index - (Z.to_nat count) in
@@ -99,8 +97,7 @@ Definition eval_pop_front (obj: lvalue) (args: list (option value)) : env_monad 
 Definition eval_push_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
   | Some (ValInfInt count) :: nil => 
-      let* hdrstack := unpack_header_stack (find_lvalue obj) in
-      let '(size, next_index, elements) := hdrstack in
+      let* '(size, next_index, elements) := unpack_header_stack (find_lvalue obj) in
       let padding := MkHeader false (MStr.Raw.empty _) in
       let* elements' := lift_option (rotate_right_z elements count padding) in
       let next_index' := min size (next_index + (Z.to_nat count)) in

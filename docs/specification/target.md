@@ -4,19 +4,19 @@ Our reference implementation of P4 makes use of an abstract barrier between the 
 
 ## What is a P4 Architecture?
 
-On a surface level, an architecture in P4 consists of a collection of `extern` functions/datatypes along with a description of the componenets of the packet-processing pipeline. However, a closer examination of the finer points of the P4 semantics reveals that there are many components in the P4 semantics which may be defined by the target rather than the language. In addition to defining externs and pipeline structure, the architecture's responsibilities include but are not limited to:
+On a surface level, an architecture in P4 consists of a collection of `extern` functions/datatypes along with a description of the componenets of the packet-processing pipeline. A close examination of the finer points of the P4 semantics reveals that there are many components in the P4 semantics which may be defined by the target rather than the language itself. In addition to defining externs and pipeline structure, the architecture's may also:
 
 * provide static analysis for enforcing target-dependent well-formedness rules
 
-* define semantics for initializing metadata
+* define semantics for initializing metadata.
 
-* provide semantics for threading the packet and other metadata through the pipeline
+* provide semantics for threading the packet and other metadata through the pipeline.
 
-* define the behavior of reading from uninitialized/invalid headers
+* define the behavior of reading from uninitialized/invalid headers.
 
-* provide custom table attributes
+* provide custom table attributes.
 
-* define custom semantics for the invocation/execution of tables
+* define custom semantics for the invocation/execution of tables.
 
 Therefore, an architecture consists of definitions for all of these semantic concerns. Indeed, many of these components correspond directly to values required by our signature for a target implementation.
 
@@ -60,7 +60,7 @@ control Deparser<H>(inout H outputHeaders, packet_out b);
 package VSS<H>(Parser<H> p,
                Pipe<H> map,
                Deparser<H> d);
-               
+
 extern Checksum16 {
     Checksum16();
     void clear();
@@ -74,9 +74,9 @@ First, the user must provide the type `obj`, which will be used to represent tar
 
 The user must also provide the functions `write_header_field` and `read_header_field`. These functions will be called by the main interpreter when reading and writing to headers, and they are intended to capture the fact that the semantics in these cases is left target-dependent by the P4 specification. However, the abstraction in its current form is not necessarily expressive enough to capture all possible decisions for header reads and writes. The average user will likely want to reuse our implementations of these functions in `v1model.ml` and `ebpf.ml`.
 
-The next required value is the `eval_extern` function. This function takes as its arguments the name of the extern to evaluate, the envrionment and state, the type arguments of the extern call (e.g. a concrete value for `T` in the case of `update` and `remove` in `VSS` provided by the type checker), and the arguments paired with their types. For implementation, we may assume that the arguments are provided in the correct order and that the list is the proper length. The is also the place where we use the number and types of the arguments to distinguish between different externs of the same name, as permitted by the P4 specification. Note that in the case of an invocation of an extern function using dot-notation, e.g. `checksum.clear()`, the value of `checksum` will be available as the addition first argument in the list of arguments. The extern evaluation should then return as a tuple the updated environment (though most externs do not change the environment), the update state, a signal (almost always `Continue`), and the return value. Implementing the externs will require some degree of familiarity with our types for values, environments, and states. Also, note that any mutation of an extern object should be done by updating the mapping in the state via `insert_extern`.
+The next required value is the `eval_extern` function. This function takes as its arguments the name of the extern to evaluate, the envrionment and state, the type arguments of the extern call (e.g. a concrete value for `T` in the case of `update` and `remove` in `VSS` provided by the type checker), and the arguments paired with their types. For implementation, we may assume that the arguments are provided in the correct order and that the list is the proper length. The is also the place where we use the number and types of the arguments to distinguish between different externs of the same name, as permitted by the P4 specification. Note that in the case of an invocation of an extern function using dot-notation, e.g. `checksum.clear()`, the value of `checksum` will be available as the additional first argument in the list of arguments. The extern evaluation should then return as a tuple the updated environment (though most externs do not change the environment), the update state, a signal (almost always `Continue`), and the return value. Implementing the externs will require some degree of familiarity with our types for values, environments, and states. Also, note that any mutation of an extern object should be done by updating the mapping in the state via `insert_extern`.
 
-The target must also define what meta-data to initialize. Most targets initialize metadata upon packet ingress for each individual packet, consisting at least of the port number. The current version of our interpreter takes as input this port number, and it is provided as an argument to `initialize_metadata`. Note that the current architecture is not expressive enough to capture all values one may wish to include in the metadata, such as time stamps. 
+The target must also define what meta-data to initialize. Most targets initialize metadata upon packet ingress for each individual packet, consisting at least of the port number. The current version of our interpreter takes as input this port number, and it is provided as an argument to `initialize_metadata`. Note that the current architecture is not expressive enough to capture all values one may wish to include in the metadata, such as time stamps.
 
 We also include a post-processing step, `get_outport`, which is intended to examine the state and environment for the metadata at the end of the packet-processing pipeline in order to decide on which port number the P4 program has determined the packet should be emitted.
 
@@ -94,4 +94,4 @@ The code that implements the externs and the pipelines of the V1 model and the e
 
 ## Limitations
 
-There are two main ways in which our current implementation fails to capture the full expressivity of the P4 abstract machine. First, our implementation has no support for concurrency, and we only consider single-packet execution with a mostly static control-plane configuration. Many of the important externs from the V1 model library that have to do with concurrency and multiple packets (such as `clone` and `resubmit`) are unimplemented in `v1model.ml`. Second, our abstraction excludes from consideration many important concerns about target-dependent semantics in P4. While we provide minimal support for target-dependent decisions about invalid headers, our abstraction is not expressive enough to describe all possible decisions a target may make about accessing invalid header fields, header union, uninitialized stack accesses, etc. We also omit target-dependent table behaviors such as certain table annotations or custom table attributes. 
+There are two main ways in which our current implementation fails to capture the full expressivity of the P4 abstract machine. First, our implementation has no support for concurrency, and we only consider single-packet execution with a mostly static control-plane configuration. Many of the important externs from the V1 model library that have to do with concurrency and multiple packets (such as `clone` and `resubmit`) are unimplemented in `v1model.ml`. Second, our abstraction excludes from consideration many important concerns about target-dependent semantics in P4. While we provide minimal support for target-dependent decisions about invalid headers, our abstraction is not expressive enough to describe all possible decisions a target may make about accessing invalid header fields, header union, uninitialized stack accesses, etc. We also omit target-dependent table behaviors such as certain table annotations or custom table attributes.

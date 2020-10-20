@@ -48,7 +48,7 @@ module type Target = sig
 
   val read_header_field : obj reader
 
-  val eval_extern : 
+  val eval_extern :
     string -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 

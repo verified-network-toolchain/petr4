@@ -22,8 +22,10 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 all: build
 
+default: build
+
 build:
-	dune build @install
+	dune build @install && echo
 
 doc:
 	dune build @doc

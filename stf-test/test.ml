@@ -74,7 +74,7 @@ module type RunnerConfig = sig
     Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) option
 end
 
-module RunnerMaker (C : RunnerConfig) = struct  
+module MakeRunner (C : RunnerConfig) = struct  
 
   let evaler (prog : Prog.program) (pkt_in : string) (port : int)
       (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) option =
@@ -125,21 +125,23 @@ module RunnerMaker (C : RunnerConfig) = struct
       | _ -> failwith "unimplemented stf statement"
 end
 
-module V1RunnerConfig = struct
-  type st = Eval.V1Interpreter.state
+module MakeConfig (I : Eval.Interpreter) = struct
+  type st = I.state
 
-  let eval_program = Eval.V1Interpreter.eval_program
+  let eval_program = I.eval_program
 end
 
-module V1Runner = RunnerMaker(V1RunnerConfig)
+module V1RunnerConfig = MakeConfig(Eval.V1Interpreter)
 
-module EbpfRunnerConfig = struct
-  type st = Eval.EbpfInterpreter.state
+module V1Runner = MakeRunner(V1RunnerConfig)
 
-  let eval_program = Eval.EbpfInterpreter.eval_program
-end
+module EbpfRunnerConfig = MakeConfig(Eval.EbpfInterpreter)
 
-module EbpfRunner = RunnerMaker(EbpfRunnerConfig)
+module EbpfRunner = MakeRunner(EbpfRunnerConfig)
+
+module Up4RunnerConfig = MakeConfig(Eval.Up4Interpreter)
+
+module Up4Runner = MakeRunner(Up4RunnerConfig)
 
 let get_stf_files path =
   Sys.ls_dir path |> Base.List.to_list |>
@@ -165,6 +167,8 @@ let run_stf include_dir stf_file p4_file =
       V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
     | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
       EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
+    | SpecializedType{base = TypeName (BareName(_, "uP4Switch"));_} ->
+      Up4Runner.run_test prog stmts ([],[]) [] [] env Eval.Up4Interpreter.empty_state
     | _ -> failwith "architecture unsupported"
 
 let stf_alco_test include_dir stf_file p4_file =

@@ -22,6 +22,8 @@ module PreUp4Filter : Target = struct
     | out_buf (* output buffer *)
     *)
 
+  let dummy = Packet {pck = []; size = 0}
+
   type state = obj State.t
 
   type extern = state pre_extern

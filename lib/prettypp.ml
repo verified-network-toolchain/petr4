@@ -7,159 +7,80 @@ module P4 = Types
 let print pp = Format.printf "%a" Pp.to_fmt pp
 
 let format_list_sep f sep l = 
-  concat_map ~sep:("," |> text) l ~f:f;
+  concat_map ~sep:("," |> text) l ~f:f
+
+let format_list_nl f l = 
+  concat_map ~sep:("\n" |> text) l ~f:f
+
+let format_option f o =
+  match o with
+  | None -> nop 
+  | Some x -> f x 
+
+let format_list_term f term l =
+  (* let g x =
+     seq (f x)
+      (seq (term |> text) ("," |> text)) in
+     List.iter l ~f:g *)
+  failwith "what's the diff b/w this and format_list_sep"
 
 module P4Int = struct
   open P4.P4Int
-  let format_bigint (u:unit) b = b |> Bigint.to_string |> textf "%s"
-  let format_t (u:unit) e =
+  let format_bigint b = b |> Bigint.to_string |> text
+  let format_t e =
     let i = snd e in
     (match i.width_signed with
-     | None -> failwith "unimplemented"
-     | Some (width,signed) -> failwith "unimplemented" )
-    (* textf "%d%s" width (if signed then "s" else "w")) *)
+     | None -> i.value |> format_bigint |> box 
+     | Some (width,signed) -> seq 
+                                (seq (width |> string_of_int |> text) 
+                                   (text (if signed then "s" else "w"))) 
+                                (i.value |> format_bigint) |> box) 
 end
 
 module P4String = struct 
-  let format_t (u:unit) e = e |> snd |> textf "%s"
-  let format_t_help (u:unit) e = snd e  
+  let format_t e = e |> snd |> text
 end
 
-let name_format_t (u: unit) (name: Types.name) =
+let name_format_t (name: Types.name) =
   match name with
-  | BareName str -> P4String.format_t_help () str 
-  (* | QualifiedName ([], str) -> P4String.format_t_help () "." *)
-  | _ -> failwith "unimplemented"
+  | BareName str -> P4String.format_t str
+  | QualifiedName ([], str) -> seq (text ".") (P4String.format_t str)
+  | _ -> failwith "illegal name"
 
 module rec Expression : sig
-  val format_t : unit -> P4.Expression.t -> _ Pp.t 
+  val format_t : P4.Expression.t -> _ Pp.t 
 end = struct
   open P4.Expression
-  let rec format_t (u:unit) e =
+  let rec format_t e =
     match snd e with
     | True ->  text "true" 
     | False -> text "false"
-    | Int i -> failwith "unimplemented"
-    | String s -> textf "\"%s\"" (snd s)
-    | Name name -> failwith "unimplemented"
+    | Int i -> P4Int.format_t i
+    | String s -> P4String.format_t s
+    | Name name -> name_format_t name 
     | ArrayAccess x ->
-      textf "@[%a[%a]@]"
-        format_t x.array
-        format_t x.index
-    | _ -> failwith "unimplemented"
-end 
-
-and Type : sig
-  val format_t : P4.Type.t -> _ Pp.t
-  (* val format_typ_args: P4.Type.t list 
-     val format_type_params: P4.P4String.t list  *)
-end = struct
-  open P4.Type
-  let rec format_t e =
-    match snd e with
-    | Bool -> text "bool"
-    | Error -> text "error"
-    | Integer -> text "int"
-    | IntType x -> textf "@[int<%a>@]" Expression.format_t x |> box 
-    | BitType e -> string_of_format "hello" 
-    (* begin match snd e with 
-       | P4.Expression.Int _  -> 
-        Format.fprintf fmt "@[bit<%a>@]"
-          Expression.format_t e
-       | _ -> 
-        Format.fprintf fmt "@[bit<(%a)>@]"
-          Expression.format_t e
-       end *)
-    | VarBit x ->
-      Format.fprintf fmt "@[varbit@ <%a>@]"
-        Expression.format_t x
-    | TypeName (BareName x) ->
-      Format.fprintf fmt "@[%s@]"
-        (snd x)
-    | TypeName (QualifiedName ([], x)) ->
-      Format.fprintf fmt "@[.%s@]"
-        (snd x);
-    | TypeName _ ->
-      failwith "unimplemented"
-    | SpecializedType x ->
-      Format.fprintf fmt "@[%a<%a>@]"
-        format_t x.base
-        (format_list_sep format_t ",") x.args
-    | HeaderStack x ->
-      Format.fprintf fmt "@[%a[%a]@]"
-        format_t x.header
-        Expression.format_t x.size
-    | Tuple x ->
-      Format.fprintf fmt "@[tuple<%a>@]"
-        (format_list_sep format_t ",") x
-    | String -> 
-      Format.fprintf fmt "string"      
-    | Void ->
-      Format.fprintf fmt "void"
-    | DontCare ->
-      Format.fprintf fmt "_"
-      (* 
-  let format_typ_args fmt l =
-    if List.is_empty l then
-      ()
-    else
-      Format.fprintf fmt "<%a>"
-        (format_list_sep format_t ",") l
-
-  let format_type_params fmt l =
-    if List.is_empty l then
-      ()
-    else
-      Format.fprintf fmt "<%a>"
-        (format_list_sep P4String.format_t ",") l *)
-end
-
-
-    (* | Int i -> i |> Bigint.to_string |> textf "%s" 
-         | String s -> textf "\"%a\"" P4String.format_t_help s 
-         | Name name -> textf "%a" name_format_t () name
-         | ArrayAccess x ->
-         textf "@[%a[%a]@]"
-          format_t () x.arrays
-          format_t () x.index *)
-    | _ -> failwith "f"
-(* 
-    | String s -> s |> P4String.format_t
-    | N=ame name -> name |> name_format_t
-    | ArrayAccess x -> failwith "d"
-    (* (textf "@[%a[%a]@]"
-       format_t x.array
-       format_t x.index) |> print  *)
-    (* x.array |> format_t;
-       "[" |> text |> print; 
-       x.index |> format_t; 
-       "]" |> text |> print; *)
-    (* put it all in a box  *)
+      seq (format_t x.array) (seq (text "[") 
+                                (seq (format_t x.index) (text "]"))) |> box 
     | BitStringAccess x -> 
-      x.bits |> format_t;
-      "[" |> text |> print; 
-      x.hi |> format_t;
-      ":" |> text |> print; 
-      x.lo |> format_t;
-      "]" |> text |> print
-    (*put all in box *)
-    | List x -> failwith "unimplemented"
-    (* "{" |> text |> print;
-       concat_map ~sep:("," |> text) x.values ~f: (format_t)  
-       "}" |> text |> print; *)
-    (* put all in a box, int offset 4 *)
-    | Record x -> failwith "unimplemented"
-    (* do list first *)
-    | UnaryOp x ->
+      seq (format_t x.bits) (seq (text "[") 
+                               (seq (seq (format_t x.hi) (seq (text ":") 
+                                                            (format_t x.lo))) 
+                                  (text "]"))) |> box
+    | List x -> seq (text "{") 
+                  (seq (format_list_sep format_t "," x.values) (text "}")) 
+                |> box 
+    | Record x -> seq (text "{") 
+                    (seq (format_list_sep KeyValue.format_t "," x.entries) 
+                       (text "}")) 
+                  |> box 
+    | UnaryOp x -> 
       let uop = match (snd x.op) with
         | Not -> "!"
         | BitNot -> "~"
         | UMinus -> "-"
-      in
-      uop |> text |> print;
-      space |> print; 
-      x.arg |> format_t 
-    (* put in box with int offset 4  *)
+      in seq ("(" |> text) (seq (uop |> text) 
+                              (seq space (seq (format_t x.arg) (")" |> text))))
+         |> box 
     | BinaryOp x ->
       let bop = match (snd x.op) with
           Plus -> "+"
@@ -183,249 +104,458 @@ end
         | PlusPlus -> "++"
         | And -> "&&"
         | Or -> "||"
-      in
-      x.args |> fst |> format_t; 
-      space |> print; 
-      bop |> text|> print; 
-      space |> print; 
-      x.args |> snd |> format_t 
-    (* put in box offset 4 *)
-    | Cast x ->
-      "(" |> text |> print; 
-      x.typ |> Type.format_t; 
-      ")" |> text |> print; 
-      "(" |> text |> print; 
-      format_t x.expr; 
-      ")" |> text |> print 
-    (* put in box offset 4 *)
+      in seq ("(" |> text) (seq (format_t (fst x.args)) 
+                              (seq space (seq (bop |> text) 
+                                            (seq space (seq (format_t (snd x.args)) 
+                                                          (")" |> text)))))) 
+         |> box
+    | Cast x -> 
+      seq ("(" |> text) 
+        (seq (Type.format_t x.typ) 
+           (seq (")" |> text) 
+              (seq ("(" |> text) 
+                 (seq (format_t x.expr) (")" |> text)))))
+      |> box 
     | TypeMember x -> 
-      name_format_t x.typ; 
-      "." |> text |> print; 
-      x.name |> snd |> text |> print 
-    (* need to put all in one box, offset 4*)
-    | ErrorMember x -> failwith "unimplemented"
-    (* pp has no way to print errors? should I make a new print function with "@[<4>error.%s@]" ? *)
-    | ExpressionMember x -> 
-      format_t x.expr; 
-      "." |> text |> print; 
-      x.name |> snd |> text |> print 
-    (* put in box offset 4 *)
-    | Ternary x -> 
-      "(" |> text |> print; 
-      format_t x.cond; 
-      "?" |> text |> print; 
-      print space; 
-      format_t x.tru; 
-      print space; 
-      ":" |> text |> print;
-      print space; 
-      format_t x.fls;
-      ")" |> text |> print 
-    (* put in box offset 4 *)
-    | FunctionCall x -> 
-      x.func |> format_t; 
-      x.type_args |> Type.format_typ_args; 
-      "(" |> text |> print;
-      (* format_list_sep format_t ("," |> text) x.type_args;   *)
-      ")" |> text |> print 
-    (* put in box offset 4 *)
-    | NamelessInstantiation x ->  
-      x.typ |> Type.format_t;  
-      "(" |> text |> print; 
-      (* format_list_sep format_t ("," |> text) x.args;   *)
-      ")" |> text |> print
-    (* put in offset 4 box *)
+      seq (name_format_t x.typ) 
+        (seq ("." |> text) 
+           (x.name |> snd |> text)) |> box 
+    | ErrorMember x -> 
+      failwith "figure out how to pring errors? maybe use color"
+    | ExpressionMember x -> seq (format_t x.expr) 
+                              (seq ("." |> text) 
+                                 (x.name |> snd |> text)) |> box 
+    | Ternary x ->
+      seq ("(" |> text) 
+        (seq (format_t x.cond) 
+           (seq space (seq ("?" |> text) 
+                         (seq space 
+                            (seq (format_t x.tru) 
+                               (seq space (seq (":" |> text) 
+                                             (seq space (seq 
+                                                           (format_t x.fls) 
+                                                           (")" |> text)))))))))) 
+      |> box 
+    | FunctionCall x ->
+      seq (format_t x.func) 
+        (seq (Type.format_typ_args x.type_args) 
+           (seq ("(" |> text) 
+              (seq (format_list_sep Argument.format_t "," x.args) 
+                 (")" |> text)))) |> box 
+    | NamelessInstantiation x ->
+      seq (Type.format_t x.typ) 
+        (seq ("(" |> text) 
+           (seq (format_list_sep Argument.format_t "," x.args) 
+              (")" |> text))) |> box 
     | Mask x ->
-      format_t x.expr; 
-      print space; 
-      "&&&" |> text |> print; 
-      print space;  
-      format_t x.mask
-    (* box offset 4 *)
+      seq (format_t x.expr) (
+        seq space (seq ("&&&" |> text) 
+                     (seq space (format_t x.mask)))) |> box 
     | Range x -> 
-      format_t x.lo; 
-      print space; 
-      ".." |> text |> print; 
-      print space; 
-      format_t x.hi *)
-(* box offset 4 *)
-(* end
+      seq (format_t x.lo) 
+        (seq space (seq (".." |> text) 
+                      (seq space (format_t x.hi))))
+      |> box 
+end 
 
-   and Statement : sig
-      val format_t : P4.Statement.t -> unit
-    end = struct
-                  open P4.Statement
+and Statement : sig 
+  val format_t : P4.Statement.t -> _ Pp.t
+end = struct 
+  open P4.Statement 
 
-                  let format_switch_label sl =
-                    match sl with
-                    | Default -> "default" |> text |> print 
-                    | Name(sl) -> ("\"" ^ (snd sl) ^ "\"") |> text |> box |> print 
+  let format_switch_label sl =
+    match sl with
+    | Default -> text "default"
+    | Name(sl) -> sl |> P4String.format_t |> box 
 
-                  let format_switch_case fmt sc =
-                    match snd sc with
-                    | Action { label; code } -> failwith "unimplemented"
-                    | FallThrough { label } -> failwith "unimplemented"   
+  let format_switch_case sc =
+    match snd sc with
+    | Action { label; code } ->
+      seq (format_switch_label (snd label)) 
+        (seq (":" |> text) (seq space (Block.format_t code)))
+    | FallThrough { label } ->
+      seq (format_switch_label (snd label)) (":" |> text)
 
-                  let format_t (e:t) =
-                    match snd e with
-                    | MethodCall { func; type_args; args } -> failwith "unimplemented"
-                    | Assignment { lhs; rhs } -> failwith "unimplemented"
-                    | DirectApplication { typ; args } -> failwith "unimplemented"
-                    | Conditional { cond; tru; fls } -> failwith "unimplemented"
-                    | BlockStatement { block } -> failwith "unimplemented"
-                    | Exit -> "exit;" |> text |> print 
-                    | EmptyStatement -> ";" |> text |> print 
-                    | Return { expr = None } -> "return;" |> text |> print 
-                    | Return { expr = Some sexpr } -> failwith "unimplemented"
-                    | Switch { expr; cases } -> failwith "unimplemented"
-                    | DeclarationStatement { decl } -> failwith "unimplemented"
-                end
+  let block_fls fls = 
+    match fls with 
+    | None -> nop 
+    | Some (_, BlockStatement { block=fls_block }) ->
+      seq ("else" |> text) (seq space (Block.format_t fls_block))
+    | Some sfls -> 
+      seq ("\nelse" |> text) (seq space (Statement.format_t sfls)) |> box 
 
-   and Block : sig
-      val format_t :P4.Block.t -> unit
-    end = struct
-              open P4.Block
-              let format_t e =
-                match snd e with
-                | { annotations=[]; statements=[] } -> "{ }@]" |> text |> print 
-                | { annotations; statements } -> failwith "unimplemented"
-            end
+  let wc_fls fls = 
+    match fls with 
+    | None -> nop 
+    | Some (_, BlockStatement { block=fls_block }) ->
+      seq ("\n" |> text) 
+        (box (seq ("else" |> text) 
+                (seq space (Block.format_t fls_block)))) 
+    | Some sfls -> 
+      seq ("\n" |> text) 
+        (box (seq ("else" |> text) 
+                (seq ("\n" |> text) (Statement.format_t sfls)))) 
 
-   and Argument : sig
-      val format_t : P4.Argument.t -> unit
-      val format_ts : P4.Argument.t list -> unit
-    end = struct
-                 open P4.Argument
-                 let format_t  e =
-                   match snd e with
-                   | Expression x -> failwith "unimplemented"
-                   | KeyValue x -> failwith "unimplemented"
-                   | Missing -> "_" |> text |> print 
-                 let format_ts l = failwith "unimplemented"
-               end
-
-   (* 
-   and Type : sig
-   val format_typ_args: P4.Type.t list -> unit
-   val format_t : P4.Type.t -> unit
-   end = struct
-   open P4.Type
-   let format_t e =
+  let rec format_t (e:t) =
     match snd e with
-    | Bool -> "bool" |> text |> print 
-    | Error -> "error" |> text |> print 
-    | Integer -> "int" |> text |> print 
-    | IntType x -> x |> Expression.format_t 
+    | MethodCall { func; type_args; args } ->
+      seq (Expression.format_t func) 
+        (seq (Type.format_typ_args type_args) 
+           (seq ("(" |> text) (seq (Argument.format_ts args) 
+                                 (seq (")" |> text) (";" |> text))))) |> box
+    | Assignment { lhs; rhs } -> 
+      seq (Expression.format_t lhs) 
+        (seq space (seq ("=" |> text) 
+                      (seq space (seq (Expression.format_t rhs) 
+                                    (";" |> text))))) |> box
+    | DirectApplication { typ; args } ->
+      seq (Type.format_t typ) (seq (".apply(" |> text) 
+                                 (seq (Argument.format_ts args) 
+                                    (");" |> text))) |> box 
+    | Conditional { cond; tru; fls } ->
+      let remainder = match snd tru with 
+        | BlockStatement { block=tru_block } -> seq (tru_block |> Block.format_t) 
+                                                  (block_fls fls)
+        | _ -> seq ("\n" |> text) (seq (format_t tru) (wc_fls fls))
+      in seq ("if" |> text) 
+        (seq space (seq ("(" |> text) 
+                      (seq (Expression.format_t cond) 
+                         (seq (")" |> text) (seq space remainder))))) |> box
+    | BlockStatement { block } ->
+      block |> Block.format_t |> box
+    | Exit -> text "exit;"
+    | EmptyStatement -> text ";"
+    | Return { expr = None } -> text "return;"
+    | Return { expr = Some sexpr } ->
+      seq ("return" |> text) 
+        (seq space (seq (Expression.format_t sexpr) 
+                      (";" |> text))) |> box 
+    | Switch { expr; cases } -> 
+      seq (box (seq ("switch" |> text) 
+                  (seq space 
+                     (seq ("(" |> text) 
+                        (seq (Expression.format_t expr) 
+                           (seq (")" |> text) 
+                              (seq space (seq ("{" |> text) 
+                                            (format_list_nl format_switch_case cases))))))))) 
+        ("\n}" |> text)
+    | DeclarationStatement { decl } ->
+      Declaration.format_t decl
+end    
+
+and Block : sig
+  val format_t : P4.Block.t -> _ Pp.t
+end = struct
+  open P4.Block
+  let format_t e =
+    match snd e with
+    | { annotations=[]; statements=[] } -> "{ }" |> text |> box 
+    | { annotations; statements } ->
+      seq (box 
+             (seq (Annotation.format_ts annotations) 
+                (seq ("{\n" |> text) 
+                   (format_list_nl Statement.format_t statements)))) 
+        ("\n}" |> text)
+end
+
+and Argument : sig
+  val format_t : P4.Argument.t -> _ Pp.t
+  val format_ts : P4.Argument.t list -> _ Pp.t
+end = struct
+  open P4.Argument
+  let format_t e =
+    match snd e with
+    | Expression x ->
+      x.value |> Expression.format_t |> box 
+    | KeyValue x ->
+      seq (x.key |> snd |> text) 
+        (seq ("=" |> text) 
+           (Expression.format_t x.value)) |> box 
+    | Missing -> text "_"
+  let format_ts l =
+    format_list_sep format_t "," l |> box 
+end
+
+and Type : sig
+  val format_t : P4.Type.t -> _ Pp.t
+  val format_typ_args: P4.Type.t list -> _ Pp.t
+  val format_type_params: P4.P4String.t list -> _ Pp.t
+end = struct
+  open P4.Type
+  let rec format_t e =
+    match snd e with
+    | Bool -> text "bool"
+    | Error -> text "error"
+    | Integer -> text "int"
+    | IntType x -> seq ("int" |> text) (seq ("<" |> text) (seq ( Expression.format_t x) (">" |> text))) |> box 
     | BitType e -> 
       begin match snd e with 
         | P4.Expression.Int _  -> 
-          Expression.format_t e
+          seq ("[bit" |> text) (seq (Expression.format_t e) (">" |> text)) |> box 
         | _ -> 
-          Expression.format_t e
+          seq ("[bit(" |> text) (seq (Expression.format_t e) (")>" |> text)) |> box
       end
     | VarBit x ->
-      Expression.format_t x
-    | TypeName (BareName x) ->
-      (snd x) |> text |> box |> print 
+      seq ("varbit" |> text) 
+        (seq space (seq ("<" |> text) 
+                      (seq ( Expression.format_t x) 
+                         (">" |> text)))) |> box 
+    | TypeName (BareName x) -> x |> snd |> text |> box 
     | TypeName (QualifiedName ([], x)) ->
-      "." |> text |> print; 
-      (snd x) |> text |> box |> print 
-    | TypeName _ ->
-      failwith "unimplemented"
-    | SpecializedType x ->
-      failwith "unimplemented"
-    | HeaderStack x ->
-      failwith "unimplemented"
-    | Tuple x ->
-      failwith "unimplemented "
-    (* "tuple " |> text |> print; 
-       "<" |> text |> print;
-       (concat ~sep:(text ", ") (format_t x)) |> print;
-       ">" |> text |> print  *)
-    | String -> 
-      "string" |> text |> print  
-    | Void ->
-      "void" |> text |> print
-    | DontCare ->
-      "_" |> text |> print
+      seq ("." |> text) (x |> snd |> text) |> box 
+    | TypeName _ -> failwith "unimplemented" 
+    | SpecializedType x -> 
+      seq (format_t x.base) (seq ("<" |> text) 
+                               (seq (format_list_sep format_t "," x.args) 
+                                  (">" |> text))) |> box
+    | HeaderStack x -> seq (format_t x.header) 
+                         (seq ("[" |> text)
+                            (seq (Expression.format_t x.size) 
+                               ("]" |> text))) |> box  
+    | Tuple x -> seq ("tuple<" |> text) 
+                   (seq (format_list_sep format_t "," x) 
+                      (">" |> text)) |> box 
+    | String -> text "string"      
+    | Void -> text "void"
+    | DontCare -> text "_"
 
-   let format_typ_args l =
-    if (List.length l = 0) then
-      ()
+  let format_typ_args l =
+    if List.length l == 0 then nop 
     else
-      "<" |> text |> print;
-    (* (format_list_sep format_t ",") l; *)
-    ">" |> text |> print; 
-   end  *)
+      seq ("<" |> text) (seq (format_list_sep format_t "," l) (">" |> text))
 
-   (* and KeyValue : sig 
-   val format_t : Format.formatter -> P4.KeyValue.t -> unit
-   end = struct
-   open P4.KeyValue
-   let format_t fmt kv = 
+  let format_type_params l =
+    if  List.length l == 0 then nop 
+    else
+      seq ("<" |> text) (seq (format_list_sep P4String.format_t "," l) (">" |> text))
+end
+
+and KeyValue : sig 
+  val format_t : P4.KeyValue.t -> _ Pp.t
+end = struct
+  open P4.KeyValue
+  let format_t kv = 
     match snd kv with 
     | { key; value } -> 
-      key |> P4String.format_t; 
-      " = " |> text |> print; 
-      value |> Expression.format_t; 
-   end *)
+      seq (P4String.format_t key) 
+        (seq space (seq ("=" |> text) (seq space (Expression.format_t value))))
+end
 
-   and Annotation : sig
-      val format_t : P4.Annotation.t -> unit
-      val format_ts : P4.Annotation.t list -> unit
-    end = struct
-                   open P4.Annotation
-                   let format_body body = 
-                     match snd body with 
-                     | Empty -> 
-                       ()
-                     | Unparsed strings -> failwith "unimplemented"
-                     | Expression exprs -> 
-                       failwith "unimplemented"
-                     | KeyValue kvs -> 
-                       failwith "unimplemented"
+and Annotation : sig
+  val format_t : P4.Annotation.t -> _ Pp.t
+  val format_ts : P4.Annotation.t list -> _ Pp.t
+end = struct
+  open P4.Annotation
+  let format_body body = 
+    match snd body with 
+    | Empty -> nop 
+    | Unparsed strings -> 
+      seq ("(" |> text) 
+        (seq (format_list_sep P4String.format_t " " strings) 
+           (")" |> text))
+    | Expression exprs -> 
+      seq ("[" |> text) 
+        (seq (format_list_sep Expression.format_t "," exprs) 
+           ("]" |> text))
+    | KeyValue kvs -> 
+      seq ("{" |> text) 
+        (seq (format_list_sep KeyValue.format_t "," kvs) 
+           ("}" |> text))
 
-                   let format_t  e =
-                     match snd e with 
-                     | { name; body } -> failwith "unimplemented"
+  let format_t e =
+    match snd e with 
+    | { name; body } -> 
+      seq ("@" |> text) (seq (P4String.format_t name) 
+                           (format_body body)) |> box 
 
-                   let format_ts l =
-                     match l with
-                     | [] ->
-                       ()
-                     | _ :: _ ->
-                       failwith "unimplemented"
-                 end
+  let format_ts l =
+    match l with
+    | [] -> nop 
+    | _ :: _ -> seq (format_list_nl format_t l) ("\n" |> text)
+end
 
-   and Direction : sig
-      val format_t : P4.Direction.t -> unit
-    end = struct
-                  open P4.Direction
-                  let format_t e =
-                    match snd e with
-                    | In -> "in" |> text |> print 
-                    | Out -> "out" |> text |> print 
-                    | InOut -> "inout" |> text |> print 
-                end
+and Direction : sig
+  val format_t : P4.Direction.t -> _ Pp.t
+end = struct
+  open P4.Direction
+  let format_t e =
+    match snd e with
+    | In -> text "in"
+    | Out -> text "out"
+    | InOut -> text "inout"
+end
 
-   (* and Parameter : sig
-   end *)
+and Parameter : sig
+  val format_t : P4.Parameter.t -> _ Pp.t
+  val format_params : P4.Parameter.t list -> _ Pp.t
+  val format_constructor_params : P4.Parameter.t list -> _ Pp.t
+end = struct
+  open P4.Parameter
+  let format_t e =
+    let p = snd e in
+    seq (Annotation.format_ts p.annotations) 
+      (box (seq ((format_option Direction.format_t) p.direction) 
+              (seq ((match p.direction with None -> nop | Some _ -> space)) 
+                   (seq (Type.format_t p.typ) 
+                      (seq (p.variable |> snd |> text) 
+                         ((format_option
+                             (fun e -> seq ("=" |> text) 
+                                 (seq space (Expression.format_t e))))
+                            p.opt_value)))))) |> box 
 
-   (* 
-   and Match: sig
-   end *)
+  let format_params l = format_list_sep format_t "," l |> box 
 
-   (* and Parser : sig
-   end *)
+  let format_constructor_params l =
+    match l with
+    | [] -> nop 
+    | _ :: _ -> seq ("(" |> text) (seq (box (format_list_sep format_t "," l)) 
+                                     (")" |> text))
+end
 
-   (* and Table : sig
-   end *)
+and Match: sig
+  val format_t : P4.Match.t -> _ Pp.t 
+  val format_ts : P4.Match.t list -> _ Pp.t 
+end = struct
+  open P4.Match
+  let format_t e =
+    match snd e with
+    | Default -> text "default"
+    | DontCare -> text "_"
+    | Expression { expr } ->
+      Expression.format_t expr
 
-   (* and MethodPrototype : sig
-   end *)
+  let format_ts  l =
+    match l with
+    | [] -> nop 
+    | [x] -> format_t x
+    | _ -> box (seq ("(" |> text) 
+                  (seq (format_list_sep format_t "," l) 
+                     (")" |> text)))
+end
 
+and Parser : sig
+  val format_state : P4.Parser.state -> _ Pp.t
+  val format_states : P4.Parser.state list -> _ Pp.t
+end = struct
+  open P4.Parser
 
-   (* and Declaration : sig
-   end *)
+  let format_case e =
+    match snd e with
+    | { matches; next } ->
+      seq (Match.format_ts matches) 
+        (seq (":" |> text) 
+           (seq space (seq (P4String.format_t next) 
+                         (";" |> text))))
 
-   let format_program fmt p = *)
+  let format_transition e =
+    match snd e with
+    | Direct { next } -> 
+      seq ("transition" |> text) 
+        (seq space (seq (P4String.format_t next) 
+                      (";" |> text)))
+    | Select { exprs; cases } ->
+      seq (box (seq ("transition" |> text) 
+                  (seq space 
+                     (seq ("select(" |> text)
+                        (seq (format_list_sep Expression.format_t "," exprs) 
+                           (seq (")" |> text) 
+                              (seq space 
+                                 (seq ("{" |> text) 
+                                    (format_list_nl format_case cases)))))))))
+        ("\n}" |> text)
+
+  let format_state e =
+    match snd e with
+    | { annotations; name; statements; transition } -> 
+      seq (Annotation.format_ts annotations)
+        (seq (box (seq ("state" |> text)
+                     (seq space 
+                        (seq (format_list_nl Statement.format_t statements)
+                           (seq space 
+                              (seq ("{" |> text) 
+                                 (seq ("\n" |> text) 
+                                    (seq (match statements with 
+                                         | [] -> nop 
+                                         | _ :: _ -> text "\n")
+                                        (format_transition transition))))))))) 
+           ("\n}" |> text))
+
+  let format_states l =
+    format_list_nl format_state l
+end
+
+and Table : sig 
+  val format_property : P4.Table.property -> _ Pp.t
+end = struct 
+  open P4.Table 
+
+  let format_key e = 
+    match snd e with 
+    | { annotations; key; match_kind } -> 
+      box (seq (Expression.format_t key) 
+             (seq space 
+                (seq (":" |> text) 
+                   (seq space 
+                      (seq (P4String.format_t match_kind) 
+                         (seq space 
+                            (seq (Annotation.format_ts annotations) 
+                               (";" |> text))))))))
+
+  let format_action_ref e = 
+    match snd e with 
+    | { annotations; name; args = [] } ->
+      seq (Annotation.format_ts annotations) 
+        (name |> name_format_t |> box)
+    | { annotations; name; args } ->
+      seq (Annotation.format_ts annotations) 
+        (box (seq (name_format_t name) 
+                (seq ("(" |> text) 
+                   (seq (Argument.format_ts args) 
+                      (")" |> text)))))
+
+  let format_entry e =
+    match snd e with
+    | { annotations; matches; action } ->
+      seq (box (seq (Match.format_ts matches) 
+                  (seq space 
+                     (seq (":" |> text) 
+                        (seq space (format_action_ref action))))))
+        (seq (Annotation.format_ts annotations)
+           (";" |> text))
+
+  let format_property e = 
+    match snd e with 
+    | Key  { keys } ->
+      seq (box (seq ("key" |> text) 
+                  (seq space 
+                     (seq ("=" |> text) 
+                        (seq space 
+                           (seq ("{\n" |> text) 
+                              (format_list_nl format_key keys)))))))
+        ("\n}" |> text)
+    | Actions { actions } ->
+      seq (box (seq ("actions" |> text) 
+                  (seq space 
+                     (seq ("=" |> text) 
+                        (seq space 
+                           (seq ("{\n" |> text) 
+                              (format_list_term format_action_ref ";" actions)))))))
+        ("\n}" |> text)
+    | Entries { entries } ->
+      seq (box (seq ("const entries" |> text) 
+                  (seq space 
+                     (seq ("=" |> text) 
+                        (seq space 
+                           (seq ("{\n" |> text) 
+                              (format_list_nl format_entry entries)))))))
+        ("\n}" |> text)
+    | Custom { annotations; const; name; value } ->
+      seq (Annotation.format_ts annotations) 
+        (box (seq ((if const then "const " else "") |> text) 
+                (seq (P4String.format_t name)
+                   (seq space 
+                      (seq ("=" |> text)
+                         (seq space 
+                            (seq (Expression.format_t value) 
+                               (";" |> text))))))))
+end 

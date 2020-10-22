@@ -76,11 +76,8 @@ Definition eval_is_valid (obj: lvalue) : env_monad value :=
   mret (ValBool valid).
 
 Definition eval_set_bool (obj: lvalue) (valid: bool) : env_monad unit :=
-  let* hdr := unpack_header (find_lvalue obj) in
-  match hdr with
-  | MkHeader _ fields =>
-    update_lvalue obj (ValHeader (MkHeader valid fields))
-  end.
+  let* MkHeader _ fields := unpack_header (find_lvalue obj) in
+  update_lvalue obj (ValHeader (MkHeader valid fields)).
 
 Definition eval_pop_front (obj: lvalue) (args: list (option value)) : env_monad unit :=
   match args with
@@ -151,10 +148,8 @@ Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (args
   end.
 
 Definition eval_extern_func (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
-  let* ext := unpack_extern_obj (find_lvalue obj) in
-  match ext with
-  | Packet bits => dummy_value (eval_packet_func obj name bits args)
-  end.
+  let* Packet bits := unpack_extern_obj (find_lvalue obj) in
+  dummy_value (eval_packet_func obj name bits args).
 
 Definition eval_method_call (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
   let* func' := eval_expression func in

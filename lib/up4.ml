@@ -129,12 +129,19 @@ module PreUp4Filter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
+  (* hj283: push [pkt] through pipeline of this architecture, 
+     updating the environment and state and return the 
+     new state, environment and the packet if it was accepted! *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
+    (* hj283: get main *)  
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
+    (* hj283: get arguments passed into main *)
     let vs = assert_package main |> snd in
+    (* hj283: get parser and filter *)
     let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal |> fun x -> State.find_heap x st in
     let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal |> fun x -> State.find_heap x st in
+    (* hj283: get parser parameters *)
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
@@ -147,10 +154,12 @@ module PreUp4Filter : Target = struct
     let accept_name = Types.BareName (Info.dummy, "accept") in
     let vpkt_loc, hdr_loc, accept_loc = 
       State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
+    (* hj283: insert packet, header, accept into state *)
     let st = st
       |> State.insert_heap vpkt_loc vpkt
       |> State.insert_heap hdr_loc hdr
       |> State.insert_heap accept_loc accept in
+    (* hj283: insert packet, header, accept into environment *)
     let env =
       EvalEnv.(env
               |> insert_val pkt_name    vpkt_loc

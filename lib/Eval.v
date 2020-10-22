@@ -126,20 +126,19 @@ Definition eval_builtin_func (name: string) (obj: lvalue) (args: list (option ex
   | _ => state_fail Internal
   end.
 
-Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (args: list (option expression)) : env_monad unit :=
+Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (type_args: list type) (args: list (option expression)) : env_monad unit :=
   match name with
   | "extract" =>
-    match args with
-    | (Some target_expr) :: nil =>
+    match (args, type_args) with
+    | ((Some target_expr) :: nil, into :: nil) =>
       let* target := eval_lvalue target_expr in
-      let* value := find_lvalue target in
-      match eval_packet_extract_fixed value bits with
+      match eval_packet_extract_fixed into bits with
       | (inr error, bits') =>
         update_lvalue obj (ValExternObj (Packet bits')) ;;
         state_fail error
-      | (inl value', bits') =>
+      | (inl value, bits') =>
         update_lvalue obj (ValExternObj (Packet bits')) ;;
-        update_lvalue target value' ;;
+        update_lvalue target value ;;
         mret tt
       end
     | _ => state_fail Internal
@@ -147,15 +146,15 @@ Definition eval_packet_func (obj: lvalue) (name: string) (bits: list bool) (args
   | _ => state_fail Internal
   end.
 
-Definition eval_extern_func (name: string) (obj: lvalue) (args: list (option expression)): env_monad value :=
+Definition eval_extern_func (name: string) (obj: lvalue) (type_args: list type) (args: list (option expression)): env_monad value :=
   let* Packet bits := unpack_extern_obj (find_lvalue obj) in
-  dummy_value (eval_packet_func obj name bits args).
+  dummy_value (eval_packet_func obj name bits type_args args).
 
 Definition eval_method_call (func: expression) (type_args: list type) (args: list (option expression)) : env_monad value :=
   let* func' := eval_expression func in
   match func' with
   | ValBuiltinFunc name obj => eval_builtin_func name obj args
-  | ValExternFunc name obj => eval_extern_func name obj args
+  | ValExternFunc name obj => eval_extern_func name obj type_args args
   | _ => state_fail Internal (* TODO: other function types *)
   end.
 

@@ -30,33 +30,29 @@ Fixpoint read_first_bits (count: nat) : packet_monad (Bvector count) :=
       end
   end.
 
-Fixpoint eval_packet_extract_fixed (into: value) : packet_monad value :=
+Fixpoint eval_packet_extract_fixed (into: type) : packet_monad value :=
   let eval_packet_extract_fixed_multiple :=
     (* This needs to be an inline fixpoint; if we split it out, Coq cannot guess the decreasing argument. *)
-    fix f (fs: MStr.Raw.t value)
-      : packet_monad (MStr.Raw.t value) :=
+    fix f (fs: list (string * type))
+      : packet_monad (list (string * value)) :=
       match fs with
       | nil => mret nil
-      | (k, v) :: tail =>
-        let* inner := eval_packet_extract_fixed v in
+      | (k, t) :: tail =>
+        let* inner := eval_packet_extract_fixed t in
         let* rest := f tail
         in mret ((k, inner) :: rest)
       end in
-  let eval_packet_extract_header (hdr: header) : packet_monad header :=
-    let 'MkHeader _ fs := hdr in
-    let* fs' := eval_packet_extract_fixed_multiple fs in
-    mret (MkHeader true fs') in
   match into with
-  | ValBool _ =>
+  | Bool =>
     let* vec := read_first_bits 1 in
     match vec with
     | (bit :: [])%vector => mret (ValBool bit)
     | _ => state_fail Internal
     end
-  | ValFixedBit width _ =>
+  | Bit width =>
     let* vec := read_first_bits width in
     mret (ValFixedBit width vec)
-  | ValFixedInt width _ =>
+  | Int width =>
     let* vec := read_first_bits width in
     match vec with
     | (false :: rest)%vector => mret (ValFixedInt width (of_bvector rest))
@@ -65,11 +61,11 @@ Fixpoint eval_packet_extract_fixed (into: value) : packet_monad value :=
       mret (ValFixedInt width negated)
     | _ => state_fail Internal
     end
-  | ValRecord fs =>
+  | RecordType fs =>
     let* fs' := eval_packet_extract_fixed_multiple fs in
     mret (ValRecord fs')
-  | ValHeader hdr =>
-    let* hdr' := eval_packet_extract_header hdr in
-    mret (ValHeader hdr)
+  | Header fs =>
+    let* fs' := eval_packet_extract_fixed_multiple fs in
+    mret (ValHeader (MkHeader true fs'))
   | _ => state_fail Internal
   end.

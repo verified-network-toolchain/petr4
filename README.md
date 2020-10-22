@@ -36,10 +36,24 @@ implementation.
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
 
-1. Use OPAM to build and install Petr4. This will take a while the first time
-   because it installs OPAM dependencies.
+1. Use OPAM to install dependencies. 
    ```
-   opam pin add petr4 <path to root of petr4 repo>
+   opam install . --deps-only
+   ```
+
+1. Build binaries using the supplied `Makefile`
+   ```
+   make
+   ```
+
+1. Install binaries in local OPAM directory
+   ```
+   make install
+   ``` 
+
+1. [Optional] Run tests
+   ``` 
+   make test
    ```
 
 ### Running Petr4

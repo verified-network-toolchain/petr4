@@ -39,7 +39,7 @@ module Conf: Parse_config = struct
 
   let preprocess _ p4_file_contents =
     let file ="input.p4" in
-    let env = P4pp.Eval.empty file [] [] in
+    let env = P4pp.Eval.empty file ["/include"] [] in
     let str,_ = Pp.preprocess env file p4_file_contents in
     str
 end

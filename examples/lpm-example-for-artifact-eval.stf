@@ -1,0 +1,14 @@
+add t_lpm h.h.key:0x11/0xf0 set_port(x:1)
+add t_lpm h.h.key:0x12/0xff set_port(x:2)
+
+packet 0 0b 11 00 b0
+expect 1 0b 11 ** ** $
+
+packet 0 0b 10 00 b0
+expect 1 0b 10 ** ** $
+
+packet 0 0c 12 00 b0
+expect 2 0c 12 ** ** $
+
+packet 0 0d ff 00 b0
+expect 3 0d ff ** ** $

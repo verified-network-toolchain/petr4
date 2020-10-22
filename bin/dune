@@ -1,5 +1,12 @@
 (executable
   (public_name petr4)
   (name main)
-  (libraries ANSITerminal core petr4)
+  (modules main)
+  (libraries ANSITerminal core petr4 petr4test alcotest)
+  (preprocess (pps ppx_jane -allow-unannotated-ignores)))
+
+(executable
+  (name test)
+  (modules test)
+  (libraries ANSITerminal core petr4 petr4test alcotest)
   (preprocess (pps ppx_jane -allow-unannotated-ignores)))

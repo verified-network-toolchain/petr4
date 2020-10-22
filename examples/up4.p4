@@ -23,7 +23,7 @@ extern im_t {
   PortId_t get_in_port();
   PortId_t get_out_port(); // default 0x00
   bit<32> get_value(metadata_fields_t field_type);
-  // void copy_from(im_t im); TODO fix checker bug thing
+  void copy_from(im_t im);
   void drop();
 }
 

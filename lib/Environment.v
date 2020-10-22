@@ -15,6 +15,7 @@ Open Scope monad.
 Module Import MStr := FMapList.Make(String_as_OT).
 
 Inductive exception :=
+| PacketTooShort
 | Reject
 | Exit
 | Internal.

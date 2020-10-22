@@ -21,7 +21,7 @@ Fixpoint read_first_bits (count: nat) : packet_monad (Bvector count) :=
   | S count' =>
     fun bits =>
       match bits with
-      | nil => state_fail Internal bits
+      | nil => state_fail PacketTooShort bits
       | bit :: bits' =>
         match read_first_bits count' bits' with
         | (inr error, bits'') => state_fail error bits''

@@ -2,6 +2,7 @@ open Core_kernel
 open Pp
 open StdLabels
 open List 
+open Util
 module P4 = Types 
 
 let print pp = Format.printf "%a" Pp.to_fmt pp
@@ -23,6 +24,9 @@ let format_list_term f term l =
       (seq (term |> text) ("," |> text)) in
      List.iter l ~f:g *)
   failwith "what's the diff b/w this and format_list_sep"
+
+let format_list_sep_nl f sep l =
+  concat_map ~sep:(seq (sep |> text) ("\n" |> text)) l ~f:f
 
 module P4Int = struct
   open P4.P4Int
@@ -559,3 +563,361 @@ end = struct
                             (seq (Expression.format_t value) 
                                (";" |> text))))))))
 end 
+
+and MethodPrototype : sig
+  val format_t : P4.MethodPrototype.t -> _ Pp.t
+end = struct
+  open P4.MethodPrototype
+  let format_t e =
+    match snd e with
+    | Constructor { annotations; name; params } ->
+      seq (Annotation.format_ts annotations) 
+        (box (seq (P4String.format_t name) 
+                (seq ("(" |> text)
+                   (seq (Parameter.format_params params)
+                      (");" |> text)))))
+    | Method { annotations; return; name; type_params; params } ->
+      box (seq (Type.format_t return) 
+             (seq space 
+                (seq ( P4String.format_t name)
+                   (seq (Type.format_type_params type_params)
+                      (seq ("(" |> text)
+                         (seq (Parameter.format_params params) 
+                            (");" |> text)))))))
+    | AbstractMethod { annotations; return; name; type_params; params } -> 
+      seq (Annotation.format_ts annotations)
+        (box (seq ("abstract" |> text)
+                (seq space 
+                   (seq (Type.format_t return)
+                      (seq space 
+                         (seq (P4String.format_t name)
+                            (seq (Type.format_type_params type_params)
+                               (seq ("(" |> text)
+                                  (seq (Parameter.format_params params)
+                                     (");" |> text))))))))))
+end
+
+and Declaration : sig
+  val format_t : P4.Declaration.t -> _ Pp.t
+end = struct
+  open P4.Declaration
+
+  let format_field f =
+    match snd f with
+    | { annotations; typ; name } ->
+      seq (annotations |> Annotation.format_ts |> box)
+        (box (seq (Type.format_t typ) 
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (";" |> text)))))
+
+  let format_fields l =
+    match l with
+    | [] -> nop
+    | _ :: _ ->
+      seq ("{\n" |> text) 
+        (seq (box (format_list_nl format_field l))
+           ("\n}" |> text))
+
+  let rec format_typ_or_decl td =
+    match td with
+    | Left(typ) ->
+      Type.format_t typ
+    | Right(decl) ->
+      Declaration.format_t decl
+
+  let rec dec_help locals = 
+    if not (List.length locals = 0) then 
+      seq (format_list_nl format_t locals) ("\n" |> text)
+    else nop 
+
+  and format_t e = 
+    match snd e with 
+    | Constant { annotations; typ; name; value } -> 
+      box (seq (Annotation.format_ts annotations)
+             (seq ("const" |> text)
+                (seq space 
+                   (seq (Type.format_t typ) 
+                      (seq space 
+                         (seq (name |> snd |> text)
+                            (seq space 
+                               (seq ("=" |> text)
+                                  (seq space 
+                                     (seq ( Expression.format_t value)
+                                        (";" |> text)))))))))))
+    | Action { annotations; name; params; body } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("action" |> text)
+                (seq space
+                   (seq (name |> snd |> text) 
+                      (seq ("(" |> text)
+                         (seq (box (Parameter.format_params params))
+                            (seq (")" |> text)
+                               (seq space (Block.format_t body)))))))))
+    | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+      seq (Annotation.format_ts annotations)
+        (seq ("control" |> text)
+           (seq space 
+              (seq (name |> snd |> text)
+                 (seq (Type.format_type_params type_params)
+                    (seq ("(" |> text)
+                       (seq (Parameter.format_params params)
+                          (seq (")" |> text)
+                             (seq (Parameter.format_constructor_params constructor_params)
+                                (seq ("{\n" |> text)
+                                   (seq (dec_help locals) 
+                                      (seq (box (seq ("apply" |> text) 
+                                                   (seq space 
+                                                      (Block.format_t apply)))) ("\n}" |> text))))))))))))
+    | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
+      seq 
+        (box 
+           (seq (Annotation.format_ts annotations) 
+              (seq ("parser" |> text)
+                 (seq space 
+                    (seq (name |> snd |> text) 
+                       (seq (Type.format_type_params type_params)
+                          (seq ("(" |> text)
+                             (seq (Parameter.format_params params)
+                                (seq (")" |> text)
+                                   (seq (Parameter.format_constructor_params constructor_params)
+                                      (seq space 
+                                         (seq ("{\n" |> text)
+                                            (seq (dec_help locals)
+                                               (Parser.format_states states))))))))))))))
+        ("\n" |> text)
+    | Instantiation { annotations; typ; args; name; init=None } -> 
+      seq (Annotation.format_ts annotations) 
+        (box (seq (Type.format_t typ) 
+                (seq ("(" |> text)
+                   (seq (Argument.format_ts args)
+                      (seq (")" |> text)
+                         (seq space 
+                            (seq (P4String.format_t name)
+                               (";" |> text))))))))
+    | Instantiation { annotations; typ; args; name; init=Some block } -> 
+      seq (Annotation.format_ts annotations)
+        (box (seq (Type.format_t typ)
+                (seq ("(" |> text)
+                   (seq (Argument.format_ts args)
+                      (seq (")" |> text)
+                         (seq space
+                            (seq (P4String.format_t name)
+                               (seq space
+                                  (seq ("=" |> text)
+                                     (seq space
+                                        (seq (Block.format_t block) 
+                                           (";" |> text))))))))))))
+    | Table { annotations; name; properties } -> 
+      seq 
+        (seq (Annotation.format_ts annotations)
+           (box 
+              (seq ("table" |> text)
+                 (seq space 
+                    (seq (P4String.format_t name)
+                       (seq space
+                          (seq ("{\n" |> text)
+                             (format_list_nl Table.format_property properties))))))))
+        ("\n}" |> text)  
+    | Variable { annotations; typ; name; init = None } ->
+      seq (Annotation.format_ts annotations)    
+        (box (seq (Type.format_t typ) 
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (";" |> text)))))      
+    | Variable { annotations; typ; name; init = Some sinit } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq (Type.format_t typ)
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (seq space 
+                         (seq ("=" |> text)
+                            (seq space 
+                               (seq (Expression.format_t sinit)
+                                  (";" |> text)))))))))                   
+    | ExternFunction { annotations; return; name; type_params; params } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("extern" |> text)
+                (seq space
+                   (seq (Type.format_t return)
+                      (seq space
+                         (seq (P4String.format_t name)
+                            (seq (Type.format_type_params type_params)
+                               (seq ("(" |> text)
+                                  (seq (Parameter.format_params params)
+                                     (");" |> text))))))))))
+    | Function { return; name; type_params; params; body } ->
+      box (seq (Type.format_t return)
+             (seq space 
+                (seq (P4String.format_t name)
+                   (seq (Type.format_type_params type_params)
+                      (seq ("(" |> text)
+                         (seq (Parameter.format_params params)
+                            (seq (")" |> text)
+                               (seq space 
+                                  (Block.format_t body)))))))))
+    | ValueSet { annotations; typ; size; name } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("value_set<" |> text)
+                (seq (Type.format_t typ)
+                   (seq (">(" |> text)
+                      (seq (Expression.format_t size)
+                         (seq (")" |> text)
+                            (seq space
+                               (seq (P4String.format_t name)
+                                  (";" |> text)))))))))
+    | TypeDef { annotations; name; typ_or_decl } ->
+      box (seq (Annotation.format_ts annotations)
+             (seq ("typedef" |> text)
+                (seq space 
+                   (seq (format_typ_or_decl typ_or_decl)
+                      (seq space
+                         (seq (name |> snd |> text)
+                            (";" |> text)))))))
+    | ControlType { annotations; name; type_params; params } -> 
+      box (seq (Annotation.format_ts annotations)
+             (seq ("control" |> text)
+                (seq space 
+                   (seq (name |> snd |> text)
+                      (seq (Type.format_type_params type_params)
+                         (seq (",(" |> text)
+                            (seq (box (format_list_sep Parameter.format_t "," params))
+                               (");" |> text))))))))
+    | ParserType { annotations; name; type_params; params } ->
+      box (seq (Annotation.format_ts annotations)
+             (seq ("parser" |> text)
+                (seq space 
+                   (seq (name |> snd |> text)
+                      (seq (Type.format_type_params type_params)
+                         (seq (",(" |> text)
+                            (seq (box (format_list_sep Parameter.format_t "," params))
+                               (");" |> text)))))))) 
+    | PackageType { annotations; name; type_params; params } ->
+      box (seq (Annotation.format_ts annotations)
+             (seq ("package" |> text)
+                (seq space 
+                   (seq (name |> snd |> text)
+                      (seq (Type.format_type_params type_params)
+                         (seq (",(" |> text)
+                            (seq (box (format_list_sep Parameter.format_t "," params))
+                               (");" |> text)))))))) 
+    | Struct { annotations; name; fields } ->
+      seq (box (Annotation.format_ts annotations)) 
+        (box 
+           (seq ("struct" |> text)
+              (seq space 
+                 (seq (P4String.format_t name)
+                    (seq space 
+                       (format_fields fields))))))
+    | MatchKind { members=[] } ->
+      "match_kind { }" |> text |> box
+    | MatchKind { members } ->
+      seq (box (seq ("match_kind" |> text)
+                  (seq space
+                     (seq ("{\n" |> text)
+                        (format_list_sep_nl P4String.format_t "," members)))))
+        ("\n}" |> text)
+    | Error { members=[] } ->
+      box ("error { }" |> text)
+    | Error { members } ->
+      seq (box 
+             (seq ("error" |> text)
+                (seq space
+                   (seq ("{\n" |> text)
+                      (format_list_sep_nl P4String.format_t "," members)))))
+        ("\n}" |> text)
+    | Enum { annotations; name; members=[] } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("enum" |> text)
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (seq space 
+                         ("{ }" |> text))))))
+    | Enum { annotations; name; members } ->
+      seq 
+        (seq (Annotation.format_ts annotations)
+           (box 
+              (seq ("enum" |> text)
+                 (seq space 
+                    (seq (P4String.format_t name)
+                       (seq space 
+                          (seq ("{\n" |> text)
+                             (format_list_sep_nl P4String.format_t "," members))))))))
+        ("\n}" |> text)
+    | SerializableEnum { annotations; typ; name; members=[] } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("enum" |> text)
+                (seq space 
+                   (seq (Type.format_t typ)
+                      (seq space
+                         (seq (P4String.format_t name)
+                            (seq space 
+                               (seq ("{" |> text)
+                                  (seq space 
+                                     ("}" |> text))))))))))
+    | SerializableEnum { annotations; typ; name; members } ->
+      let format_member (field,init) =
+        seq (P4String.format_t field)
+          (seq space 
+             (seq ("=" |> text)
+                (seq space
+                   (Expression.format_t init)))) in 
+      seq (seq (Annotation.format_ts annotations)
+             (box (seq ("enum" |> text)
+                     (seq space
+                        (seq (Type.format_t typ)
+                           (seq space
+                              (seq (P4String.format_t name)
+                                 (seq ("{\n" |> text)
+                                    (format_list_sep_nl format_member "," members)))))))))
+        ("\n}" |> text)   
+    | ExternObject { annotations; name; type_params; methods = [] } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("extern" |> text)
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (seq (Type.format_type_params type_params)
+                         (seq space 
+                            (seq ("{" |> text)
+                               (seq space 
+                                  ("}" |> text)))))))))  
+    | ExternObject { annotations; name; type_params; methods } ->
+      seq 
+        (seq (Annotation.format_ts annotations)
+           (box (seq ("extern" |> text)
+                   (seq space 
+                      (seq (P4String.format_t name)
+                         (seq (Type.format_type_params type_params)
+                            (seq space 
+                               (seq ("{\n" |> text)
+                                  (format_list_nl MethodPrototype.format_t methods)))))))))
+        ("\n" |> text)      
+    | Header { annotations; name; fields } ->
+      seq (Annotation.format_ts annotations)
+        (seq ("header" |> text)
+           (seq space 
+              (seq (P4String.format_t name)
+                 (seq space
+                    (format_fields fields)))))
+    | HeaderUnion { annotations; name; fields } ->
+      seq (Annotation.format_ts annotations)
+        (box (seq ("header_union" |> text)
+                (seq space 
+                   (seq (P4String.format_t name)
+                      (seq space
+                         (format_fields fields))))))
+    | NewType { annotations; name; typ_or_decl } ->
+      box (seq (Annotation.format_ts annotations)
+             (seq ("type" |> text)
+                (seq space 
+                   (seq (format_typ_or_decl typ_or_decl)
+                      (seq space 
+                         (seq (name |> snd |> text)
+                            (";" |> text)))))))
+end 
+
+let format_program p =
+  match p with
+  | P4.Program(ds) ->
+    box (seq (format_list_nl Declaration.format_t ds)
+           ("\n" |> text))

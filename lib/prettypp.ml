@@ -8,16 +8,14 @@ module P4 = Types
 let print pp = Format.printf "%a" Pp.to_fmt pp
 
 let to_string pp : string =
-  let buf = Buffer.create 64 in
-  let buf_fmt = Format.formatter_of_buffer buf in
-  Format.fprintf buf_fmt "@%a" Pp.to_fmt pp;
-  Buffer.contents buf
+  Format.fprintf Format.str_formatter "%a" Pp.to_fmt pp;
+  Format.flush_str_formatter ()
 
 let format_list_sep f sep l = 
-  concat_map ~sep:("," |> text) l ~f:f
+  Pp.concat_map ~sep:("," |> text) l ~f:f
 
 let format_list_nl f l = 
-  concat_map ~sep:("\n" |> text) l ~f:f
+  Pp.concat_map ~sep:("\n" |> text) l ~f:f
 
 let format_option f o =
   match o with
@@ -32,7 +30,7 @@ let format_list_term f term l =
   failwith "what's the diff b/w this and format_list_sep"
 
 let format_list_sep_nl f sep l =
-  concat_map ~sep:(seq (sep |> text) ("\n" |> text)) l ~f:f
+  Pp.concat_map ~sep:(seq (sep |> text) ("\n" |> text)) l ~f:f
 
 module P4Int = struct
   open P4.P4Int
@@ -330,12 +328,12 @@ end = struct
     | DontCare -> text "_"
 
   let format_typ_args l =
-    if List.length l == 0 then nop 
+    if List.length l = 0 then nop 
     else
       seq ("<" |> text) (seq (format_list_sep format_t "," l) (">" |> text))
 
   let format_type_params l =
-    if  List.length l == 0 then nop 
+    if  List.length l = 0 then nop 
     else
       seq ("<" |> text) (seq (format_list_sep P4String.format_t "," l) (">" |> text))
 end
@@ -625,7 +623,7 @@ end = struct
         (seq (box (format_list_nl format_field l))
            ("\n}" |> text))
 
-  let rec format_typ_or_decl td =
+  let format_typ_or_decl td =
     match td with
     | Left(typ) ->
       Type.format_t typ

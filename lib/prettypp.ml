@@ -7,6 +7,12 @@ module P4 = Types
 
 let print pp = Format.printf "%a" Pp.to_fmt pp
 
+let to_string pp : string =
+  let buf = Buffer.create 64 in
+  let buf_fmt = Format.formatter_of_buffer buf in
+  Format.fprintf buf_fmt "@%a" Pp.to_fmt pp;
+  Buffer.contents buf
+
 let format_list_sep f sep l = 
   concat_map ~sep:("," |> text) l ~f:f
 

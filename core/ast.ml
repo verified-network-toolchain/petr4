@@ -49,37 +49,33 @@ module Expr : sig
     | And
     | Or
 
-  (** Expressions. *)
+  (** Expressions annotated with types,
+    unless the type is obvious. *)
   type e =
     | Integer of int
     | Bitstring of {
       width : int;
-      value : Bigint.t;
-    }
-    | Var of id
+      value : Bigint.t; }
+    | Var of t * id
     | Uop of {
       op : uop;
-      expr : e
-    }
+      expr : t * e }
     | Bop of {
       op : bop;
-      lhs : e;
-      rhs : e;
-    }
+      lhs : t * e;
+      rhs : t * e; }
     | Cast of {
       typ : t;
-      expr : e;
-    }
-    | Record of (id * e) list
+      expr : t * e; }
+    | Record of (id * (t * e)) list
     | ExprMember of {
-      expr : e;
-      mem : id;
-    }
+      expr : t * e;
+      mem : id; }
     | Error of id
     (* Extern or action calls. *)
     | Call of {
-      callee : e;
-      args : (dir * e) list; }
+      callee : t * e;
+      args : (t * e) list; }
 end = struct
   type t =
     | TInteger
@@ -99,8 +95,7 @@ end = struct
     (** Binary operations.
       The "Sat" suffix denotes
       saturating arithmetic:
-      where there is no overflow.
-    *)
+      where there is no overflow. *)
     type bop =
       | Plus
       | PlusSat
@@ -126,66 +121,66 @@ end = struct
     | Bitstring of {
       width : int;
       value : Bigint.t; }
-    | Var of id
+    | Var of t * id
     | Uop of {
       op : uop;
-      expr : e; }
+      expr : t * e; }
     | Bop of {
       op : bop;
-      lhs : e;
-      rhs : e; }
+      lhs : t * e;
+      rhs : t * e; }
     | Cast of {
       typ : t;
-      expr : e; }
-    | Record of (id * e) list
+      expr : t * e; }
+    | Record of (id * (t * e)) list
     | ExprMember of {
-      expr : e;
+      expr : t * e;
       mem : id; }
     | Error of id
     | Call of {
-      callee : e;
-      args : (dir * e) list; }
+      callee : t * e;
+      args : (t * e) list; }
 end
 
 (** Statements.  *)
 module Stmt : sig
   type s =
     | Assign of {
-      lhs : Expr.e;
-      rhs : Expr.e; }
+      lhs : (Expr.t * Expr.e);
+      rhs : (Expr.t * Expr.e); }
     | Conditional of {
-      guard : Expr.e;
+      guard : (Expr.t * Expr.e);
       t : s;
       f : s; }
     | Block of s list
     | Exit
-    | Return of Expr.e option
+    | Return of (Expr.t * Expr.e) option
     | VarDecl of {
       typ : Expr.t;
       var : id;
-      expr : Expr.e; }
+      expr : (Expr.t * Expr.e); }
     | MethodCall of {
-      callee : Expr.e;
-      args : Expr.e list }
+      callee : (Expr.t * Expr.e);
+      args : (Expr.t * Expr.e) list }
 end = struct
   type s =
     | Assign of {
-      lhs : Expr.e;
-      rhs : Expr.e; }
+      lhs : (Expr.t * Expr.e);
+      rhs : (Expr.t * Expr.e); }
     | Conditional of {
-      guard : Expr.e;
+      guard : (Expr.t * Expr.e);
       t : s;
       f : s; }
     | Block of s list
     | Exit
-    | Return of Expr.e option
+    | Return of (Expr.t * Expr.e) option
     | VarDecl of {
       typ : Expr.t;
       var : id;
-      expr : Expr.e; }
+      expr : (Expr.t * Expr.e); }
     | MethodCall of {
-      callee : Expr.e;
-      args : Expr.e list }
+      callee : (Expr.t * Expr.e);
+      args : (Expr.t * Expr.e) list }
 end
 
 (** Controls  *)
@@ -206,7 +201,7 @@ module Control : sig
   (** Action definition. *)
   type action = {
     name: id;
-    (* Compilation will perform
+    (** Compilation will perform
       closure-conversion to
       remove partial applications. *)
     params: (dir * Expr.t) list;
@@ -253,12 +248,12 @@ module Program : sig
   type var_decl = {
     var : id;
     typ : Expr.t;
-    expr :  Expr.e; }
+    expr :  (Expr.t * Expr.e); }
 
   (* Instantiations. *)
   type instantiation = {
     typ_name : id;
-    args : Expr.e list;
+    args : (Expr.t * Expr.e) list;
     var : id; }
 
   (** Type declaration. *)
@@ -281,12 +276,12 @@ end = struct
   type var_decl = {
     var : id;
     typ : Expr.t;
-    expr :  Expr.e; }
+    expr :  (Expr.t * Expr.e); }
 
   (* Instantiations. *)
   type instantiation = {
     typ_name : id;
-    args : Expr.e list;
+    args : (Expr.t * Expr.e) list;
     var : id; }
 
   (** Type declaration. *)
@@ -313,7 +308,6 @@ How to get there?
     should be a valid P4 program passing our type-checker.
 2) Collapse error and matchkind declarations and lift them to the top of the
     program. Result should be a valid P4 program passing our type-checker
-    (for convenience only; optional).
 3) Inline nested parser/control declarations by lifting parser states from
     sub-parses, inlining apply blocks of sub-controls, and lifting local
     declarations from sub-parsers and sub-controls. Result should be a valid

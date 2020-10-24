@@ -129,73 +129,100 @@ module PreUp4Filter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
+  (* TODO: unsure of type of this method.. *)
+  let eval_up4_ctrl = 
+    failwith "unimplemented"
+
   (* hj283: push [pkt] through pipeline of this architecture, 
      updating the environment and state and return the 
      new state, environment and the packet if it was accepted! *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
-    (* hj283: get main *)  
+    (* Get main   *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
-    (* hj283: get arguments passed into main *)
+    (* Get arguments passed into main *)
     let vs = assert_package main |> snd in
-    (* hj283: get parser and filter *)
-    let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal |> fun x -> State.find_heap x st in
-    let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal |> fun x -> State.find_heap x st in
-    (* hj283: get parser parameters *)
+    (* Get Package parameters *)
+    let parser = List.Assoc.find_exn vs "p" ~equal:String.equal |> fun x -> State.find_heap x st in
+    let control = List.Assoc.find_exn vs "c" ~equal:String.equal |> fun x -> State.find_heap x st in
+    let deparser = List.Assoc.find_exn vs "d" ~equal:String.equal |> fun x -> State.find_heap x st in
+    (* *)
     let params =
       match parser with
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
+    let deparse_params = 
+      match deparser with 
+      | VControl {cparams=ps;_} -> ps
+      | _ -> failwith "deparser is not a control object" in 
+    ignore deparse_params;
     let vpkt = VRuntime {loc = State.packet_location; obj_name = "packet_in"; } in
     let pkt_name = Types.BareName (Info.dummy, "packet") in
-    let hdr = init_val_of_typ env (List.nth_exn params 1).typ in
-    let hdr_name = Types.BareName (Info.dummy, "headers") in
-    let accept = VBool (false) in
-    let accept_name = Types.BareName (Info.dummy, "accept") in
-    let vpkt_loc, hdr_loc, accept_loc = 
-      State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
-    (* hj283: insert packet, header, accept into state *)
+    let im = init_val_of_typ env (List.nth_exn params 1).typ in 
+    let im_name = Types.BareName (Info.dummy, "im") in 
+    let hdrs = init_val_of_typ env (List.nth_exn params 2).typ in
+    let hdrs_name = Types.BareName (Info.dummy, "hdrs") in
+    let meta = init_val_of_typ env (List.nth_exn params 3).typ in
+    let meta_name = Types.BareName (Info.dummy, "meta") in
+    let in_p = init_val_of_typ env (List.nth_exn params 4).typ in
+    let in_p_name = Types.BareName (Info.dummy, "in_param") in
+    let inout_p = init_val_of_typ env (List.nth_exn params 5).typ in
+    let inout_p_name = Types.BareName (Info.dummy, "inout_param") in
+    let vpkt_loc, im_loc, hdrs_loc, meta_loc, in_p_loc, inout_p_loc = 
+      State.fresh_loc (),  State.fresh_loc (), State.fresh_loc (), State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
+    (* Types.BareName is repetitive, maybe put im, hdrs,meta... through a function to create
+    the types.BareNames. Possibly save params into a list and run List.map to generate var names.
+    p is for param  *)
+    (* Update state *)
     let st = st
       |> State.insert_heap vpkt_loc vpkt
-      |> State.insert_heap hdr_loc hdr
-      |> State.insert_heap accept_loc accept in
-    (* hj283: insert packet, header, accept into environment *)
+      |> State.insert_heap im_loc im
+      |> State.insert_heap hdrs_loc hdrs
+      |> State.insert_heap meta_loc meta
+      |> State.insert_heap in_p_loc in_p
+      |> State.insert_heap inout_p_loc inout_p in
+    (* Update environment *)
     let env =
       EvalEnv.(env
-              |> insert_val pkt_name    vpkt_loc
-              |> insert_val hdr_name    hdr_loc
-              |> insert_val accept_name accept_loc
-              |> insert_typ pkt_name    (List.nth_exn params 0).typ
-              |> insert_typ hdr_name    (List.nth_exn params 1).typ
-              |> insert_typ accept_name Type.Bool) in
-    let open Expression in
+              |> insert_val pkt_name     vpkt_loc
+              |> insert_val im_name      im_loc
+              |> insert_val hdrs_name    hdrs_loc
+              |> insert_val meta_name    meta_loc
+              |> insert_val in_p_name    in_p_loc
+              |> insert_val inout_p_name inout_p_loc
+              |> insert_typ pkt_name     (List.nth_exn params 0).typ
+              |> insert_typ im_name      (List.nth_exn params 1).typ 
+              |> insert_typ hdrs_name    (List.nth_exn params 2).typ
+              |> insert_typ meta_name    (List.nth_exn params 3).typ
+              |> insert_typ in_p_name    (List.nth_exn params 4).typ
+              |> insert_typ inout_p_name (List.nth_exn params 5).typ) in
+              let open Expression in
     let pkt_expr =
       Some (Info.dummy, {expr = Name pkt_name; dir = InOut; typ = (List.nth_exn params 0).typ}) in
-    let hdr_expr =
-      Some (Info.dummy, {expr = Name hdr_name; dir = InOut; typ = (List.nth_exn params 1).typ}) in
-    let accept_expr =
-      Some (Info.dummy, {expr = Name accept_name; dir = InOut; typ = Bool}) in
+    let im_expr = (* Are we doing this right? *)
+      Some (Info.dummy, {expr = Name im_name; dir = Directionless; typ = (List.nth_exn params 1).typ}) in
+    let hdrs_expr =
+      Some (Info.dummy, {expr = Name hdrs_name; dir = Out; typ = (List.nth_exn params 2).typ}) in
+    let meta_expr =
+      Some (Info.dummy, {expr = Name meta_name; dir = InOut; typ = (List.nth_exn params 3).typ}) in
+    let in_expr =
+      Some (Info.dummy, {expr = Name in_p_name; dir = In; typ = (List.nth_exn params 4).typ}) in
+    let inout_expr =
+      Some (Info.dummy, {expr = Name inout_p_name; dir = InOut; typ = (List.nth_exn params 5).typ}) in
     let (st,state, _) =
-      app ctrl env st SContinue parser [pkt_expr; hdr_expr] in
+      app ctrl env st SContinue parser [pkt_expr; im_expr; hdrs_expr; meta_expr; in_expr; inout_expr] in
+    (** Do we need to do set namespace?
+    let env = EvalEnv.set_namespace "" env *)
     match state with 
-    | SReject _ -> 
-      let (st, _) =
-        assign_lvalue
-          st
-          env
-          {lvalue = LName {name = accept_name}; typ = Bool}
-          (VBool(false)) in
-      st, env, None
-    | SContinue | SExit | SReturn _ ->
-      let (st,_) = 
-        eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
-      st, env, 
-      if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
-      then Some pkt else None
+    (** TODO: implement up4 actions based off of state result.
+        TODO: write eval_up4_ctrl *)
+    | SReject _ -> st, env, None
+    | SContinue | SExit | SReturn _ -> st, env, None
 
+  (* TODO: implement *)
   let get_outport (st : state) (env : env) : Bigint.t =
-    State.find_heap "__INGRESS_PORT__" st |> bigint_of_val
-  
-end
+    failwith "unimplemented"
+
+  end 
 
 module Up4Filter : Target = P4core.Corize(PreUp4Filter)

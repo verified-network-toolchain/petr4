@@ -1,7 +1,4 @@
-(* open Typed *)
-(* open Util *)
-
-module P4Int = Types.P4Int
+module P4Int = Petr4.Types.P4Int
 
 type dir = DIn | DOut | DInOut | DNone
 
@@ -22,7 +19,7 @@ module Expr : sig
     | TTypeName of id
 
   (** Unary operations. *)
-  and uop =
+  type uop =
     | Not
     | BitNot
     | UMinus
@@ -32,7 +29,7 @@ module Expr : sig
     saturating arithmetic:
     where there is no overflow.
   *)
-  and bop =
+  type bop =
     | Plus
     | PlusSat
     | Minus
@@ -52,8 +49,8 @@ module Expr : sig
     | And
     | Or
 
-  (* Expressions. *)
-  and e =
+  (** Expressions. *)
+  type e =
     | Integer of int
     | Bitstring of {
       width : int;
@@ -94,7 +91,7 @@ end = struct
     | TTypeName of id
 
     (** Unary operations. *)
-    and uop =
+    type uop =
       | Not
       | BitNot
       | UMinus
@@ -104,7 +101,7 @@ end = struct
       saturating arithmetic:
       where there is no overflow.
     *)
-    and bop =
+    type bop =
       | Plus
       | PlusSat
       | Minus
@@ -124,7 +121,7 @@ end = struct
       | And
       | Or
 
-  and e =
+  type e =
     | Integer of int
     | Bitstring of {
       width : int;

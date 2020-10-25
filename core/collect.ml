@@ -10,7 +10,7 @@ module Info = I
 let rec collect
   (Program p) : Ast.id list * Ast.match_kind list * program =
   p
-  |> List.fold_left
+  |> List.fold
       ~f:begin fun
           (acc :Ast.id list * Ast.match_kind list * Declaration.t list)
           (d : Declaration.t) ->

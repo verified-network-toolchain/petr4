@@ -6,6 +6,9 @@ type id = string
 
 type match_kind = MK of id
 
+(** OCaml constructors are not first class...  *)
+let mk (x : id) : match_kind = MK x
+
 (** Expressions. *)
 module Expr : sig
   (* Expression types. *)

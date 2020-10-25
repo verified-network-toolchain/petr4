@@ -5,6 +5,7 @@ open Util
 module AST = Petr4.Types
 module Type = Petr4.Typed
 module T = Type.Type
+module R = Result
 module Info = I
 
 (** Performs function-inlining.
@@ -34,7 +35,7 @@ type fmap = fn SM.t
   a program free of function declarations. *)
 let rec gather (Program p : program) : fmap * program =
   p
-  |> List.fold_left
+  |> List.fold
     ~f:begin fun
       (fm, rev_prog : fmap * Declaration.t list)
       (d : Declaration.t) ->
@@ -62,3 +63,44 @@ let rec gather (Program p : program) : fmap * program =
       end
     ~init:(SM.empty, [])
   |> Tuple.T2.map_snd ~f:begin pgm $$ List.rev end
+
+(** Result type, either inlines all function call occurences
+    or fails, primarily because a function declaration has been found. *)
+type result = (program, string) R.t
+
+(** Performs function-lining over a block. *)
+let inline_blk (fm : fmap) (i, blk : Block.t) : Block.t =
+  i, blk.statements
+  (* TODO: fold over statements *)
+  |> fun rev_stmts ->
+    { blk with statements = rev_stmts }
+
+(** Produces a program where all function calls are inlined. *)
+let rec inline_decl (fm : fmap) (Program p) : result =
+  p
+  |> List.fold_result
+       ~f:begin fun (rev_prog : Declaration.t list) (d : Declaration.t) ->
+          match d with
+          | _, Function _ -> R.Error "Program to inline has a function declaration."
+          | i, Parser prsr ->
+            let open R in
+            prsr.locals
+            |> pgm
+            |> inline_decl fm
+            >>| begin
+              fun (Program lcls) ->
+                (i, Declaration.Parser { prsr with locals = lcls }) :: rev_prog end
+          | i, Control ctrl ->
+            let open R in
+            ctrl.locals
+            |> pgm
+            |> inline_decl fm
+            >>| begin fun (Program lcls) ->
+                (i, Declaration.Control
+                   { ctrl with
+                     locals = lcls;
+                     apply = inline_blk fm ctrl.apply }) :: rev_prog end
+          | _ -> failwith "TODO other cases, need an inline_expr function"
+        end
+       ~init:[]
+   |> R.bind ~f:begin R.return $$ pgm $$ List.rev end

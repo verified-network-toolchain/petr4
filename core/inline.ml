@@ -32,7 +32,7 @@ type fmap = fn SM.t
 
 (** Gather all function definitions and produce
   a program free of function declarations. *)
-let gather (Program p : program) : fmap * program =
+let rec gather (Program p : program) : fmap * program =
   p
   |> List.fold_left
     ~f:begin fun
@@ -45,8 +45,19 @@ let gather (Program p : program) : fmap * program =
           Map.add_exn
             ~key:(snd name)
             ~data:{return; name; type_params; params; body}
-            fm,
-          rev_prog
+            fm, rev_prog
+        | i, Parser prsr ->
+          let fm_lcl, Program lcls = gather (Program prsr.locals) in
+          (* TODO: maybe need to combine names
+            of different scopes more carefully.*)
+          Map.merge_skewed ~combine:begin fun ~key:_ _ v -> v end fm fm_lcl,
+          (i, Parser { prsr with locals = lcls }) :: rev_prog
+        | i, Control ctrl ->
+          let fm_lcl, Program lcls = gather (Program ctrl.locals) in
+          (* TODO: maybe need to combine names
+            of different scopes more carefully.*)
+          Map.merge_skewed ~combine:begin fun ~key:_ _ v -> v end fm fm_lcl,
+          (i, Control { ctrl with locals = lcls }) :: rev_prog
         | _ -> fm, d :: rev_prog
       end
     ~init:(SM.empty, [])

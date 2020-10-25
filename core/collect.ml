@@ -4,7 +4,9 @@ open Core_kernel
 open Util
 module Info = I
 
-(** Collects all error and match-kind declarations  *)
+(** Collects all error and match-kind declarations.
+  INVARIANT: The output program contains no
+    match-kind nor error declarations. *)
 let collect
   (Program p) : Ast.id list * Ast.match_kind list * program =
   p
@@ -21,8 +23,8 @@ let collect
             | (_, MatchKind {members}) -> Tuple.T3.map_snd
               ~f:begin fun match_kinds ->
                 List.map ~f:(Ast.mk $$ snd) members @ match_kinds end
-            | _ -> Tuple.T3.map_trd 
+            | _                        -> Tuple.T3.map_trd
               ~f:begin fun rev_prog -> d :: rev_prog end
           end
       ~init:([],[],[])
-  |> Tuple.T3.map_trd ~f:begin fun p -> Program (List.rev p) end
+  |> Tuple.T3.map_trd ~f:begin pgm $$ List.rev end

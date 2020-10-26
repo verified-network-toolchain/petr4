@@ -69,20 +69,36 @@ let rec gather (Program p : program) : fmap * program =
 type result = (program, string) R.t
 
 (** Performs function-lining over a block. *)
-let inline_blk (fm : fmap) (i, blk : Block.t) : Block.t =
+let rec inline_blk (fm : fmap) (i, blk : Block.t) : Block.t =
   i, blk.statements
-  (* TODO: fold over statements *)
+  |> List.fold
+       ~f:begin fun (rev_stmts : Statement.t list) (i, s : Statement.t) ->
+          let open Statement in
+          match s.stmt with
+          | MethodCall _ -> failwith "TODO"
+          | Assignment _ -> failwith "TODO"
+          | DirectApplication _ -> failwith "TODO"
+          | Conditional _ -> failwith "TODO"
+          | BlockStatement { block } ->
+            let new_blk = BlockStatement { block = inline_blk fm block } in
+            (i, { s with stmt = new_blk }) :: rev_stmts
+          | Exit
+          | EmptyStatement -> (i, s) :: rev_stmts
+          | Return _ -> failwith "TODO"
+          | Switch _ -> failwith "TODO"
+          | DeclarationStatement { decl } -> failwith "TODO" end
+       ~init:[]
   |> fun rev_stmts ->
-    { blk with statements = rev_stmts }
+    { blk with statements = List.rev rev_stmts }
 
 (** Produces a program where all function calls are inlined. *)
 let rec inline_decl (fm : fmap) (Program p) : result =
   p
   |> List.fold_result
-       ~f:begin fun (rev_prog : Declaration.t list) (d : Declaration.t) ->
+       ~f:begin fun (rev_prog : Declaration.t list) (i, d : Declaration.t) ->
           match d with
-          | _, Function _ -> R.Error "Program to inline has a function declaration."
-          | i, Parser prsr ->
+          | Function _ -> R.Error "Program to inline has a function declaration."
+          | Parser prsr ->
             let open R in
             prsr.locals
             |> pgm
@@ -90,7 +106,7 @@ let rec inline_decl (fm : fmap) (Program p) : result =
             >>| begin
               fun (Program lcls) ->
                 (i, Declaration.Parser { prsr with locals = lcls }) :: rev_prog end
-          | i, Control ctrl ->
+          | Control ctrl ->
             let open R in
             ctrl.locals
             |> pgm

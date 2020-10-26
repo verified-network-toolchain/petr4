@@ -13,28 +13,28 @@ let rec collect
   |> List.fold
       ~f:begin fun
           (acc :Ast.id list * Ast.match_kind list * Declaration.t list)
-          (d : Declaration.t) ->
+          (i, d : Declaration.t) ->
             let open Declaration in
             acc |>
             match d with
-            | _, Error {members}     -> Tuple.T3.map_fst
+            | Error {members}     -> Tuple.T3.map_fst
               ~f:begin fun errors ->
                 List.map ~f:snd members @ errors end
-            | _, MatchKind {members} -> Tuple.T3.map_snd
+            | MatchKind {members} -> Tuple.T3.map_snd
               ~f:begin fun match_kinds ->
                 List.map ~f:(Ast.mk $$ snd) members @ match_kinds end
-            | i, Parser prsr         ->
+            | Parser prsr         ->
               fun (errors, match_kinds, rev_prog) ->
                 let pes, pmks, Program lcls = collect (Program prsr.locals) in
                 pes @ errors, pmks @ match_kinds,
                 (i, Parser { prsr with locals = lcls}) :: rev_prog
-            | i, Control ctrl        ->
+            | Control ctrl        ->
               fun (errors, match_kinds, rev_prog) ->
                 let ces, cmks, Program lcls = collect (Program ctrl.locals) in
                 ces @ errors, cmks @ match_kinds,
                 (i, Control { ctrl with locals = lcls }) :: rev_prog
             | _                      -> Tuple.T3.map_trd
-              ~f:begin fun rev_prog -> d :: rev_prog end
+              ~f:begin fun rev_prog -> (i, d) :: rev_prog end
           end
       ~init:([],[],[])
   |> Tuple.T3.map_trd ~f:begin pgm $$ List.rev end

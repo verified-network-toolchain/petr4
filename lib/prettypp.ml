@@ -87,7 +87,7 @@ end = struct
         | BitNot -> "~"
         | UMinus -> "-"
       in seq ("(" |> text) (seq (uop |> text) 
-                              (seq space (seq (format_t x.arg) (")" |> text))))
+                              (seq (format_t x.arg) (")" |> text)))
          |> box 
     | BinaryOp x ->
       let bop = match (snd x.op) with

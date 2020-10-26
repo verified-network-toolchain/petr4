@@ -1,8 +1,6 @@
 open Core
 open Petr4
 open Common
-(* open Pp.O *)
-(* open Alcotest *)
 
 module Conf: Parse_config = struct
   let red s = s
@@ -88,6 +86,8 @@ let bad_test f file () =
 let excl_test file () =
   Alcotest.(check bool) "good test" true true
 module P4 = Types 
+let pp_test () =
+  Alcotest.(check bool) "printing test" true Printingtests.test
 
 let example_path l =
   let root = Filename.concat ".." "examples" in
@@ -108,6 +108,7 @@ let () =
     "typecheck tests bad", (Stdlib.List.map (fun name ->
         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
         test_case name speed (bad_test typecheck_test name)) bad_files);
+    "typecheck tests pp", [test_case "printing tests" `Quick pp_test]
   ]
 
 

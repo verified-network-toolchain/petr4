@@ -68,28 +68,61 @@ let rec gather (Program p : program) : fmap * program =
     or fails, primarily because a function declaration has been found. *)
 type result = (program, string) R.t
 
-(** Performs function-lining over a block. *)
-let rec inline_blk (fm : fmap) (i, blk : Block.t) : Block.t =
-  i, blk.statements
-  |> List.fold
+(** Performs function-inlining for expressions. *)
+let inline_expr (fm : fmap) (i, e : Expression.t) : Expression.t =
+  let open Expression in
+  match e.expr with
+  | True
+  | False
+  | Int _
+  | String _
+  | Name _
+  | TypeMember _
+  | ErrorMember _
+  | DontCare -> i, { e with expr=e.expr }
+  | ArrayAccess _ -> failwith "TODO"
+  | BitStringAccess _ -> failwith "TODO"
+  | List _ -> failwith "TODO"
+  | Record _ -> failwith "TODO"
+  | UnaryOp _ -> failwith "TODO"
+  | BinaryOp _ -> failwith "TODO"
+  | Cast _ -> failwith "TODO"
+  | ExpressionMember _ -> failwith "TODO"
+  | Ternary _ -> failwith "TODO"
+  | FunctionCall _ -> failwith "TODO, big kahuna"
+  | NamelessInstantiation _ -> failwith "TODO"
+  | Mask _ -> failwith "TODO"
+  | Range _ -> failwith "TODO"
+
+(** Performs function-inlining over a block. *)
+let rec inline_blk (fm : fmap) (i, blk : Block.t) : (Block.t, string) R.t =
+  let open R in
+  blk.statements
+  |> List.fold_result
        ~f:begin fun (rev_stmts : Statement.t list) (i, s : Statement.t) ->
           let open Statement in
           match s.stmt with
-          | MethodCall _ -> failwith "TODO"
+          | MethodCall {
+              func = _, { expr = Name fname; typ; dir };
+              type_args; args } -> failwith "TODO"
+          | MethodCall _ -> R.Error "TODO better error message: expression type invalid"
           | Assignment _ -> failwith "TODO"
           | DirectApplication _ -> failwith "TODO"
           | Conditional _ -> failwith "TODO"
           | BlockStatement { block } ->
-            let new_blk = BlockStatement { block = inline_blk fm block } in
+            block
+            |> inline_blk fm
+            >>| fun nb ->
+            let new_blk = BlockStatement { block = nb } in
             (i, { s with stmt = new_blk }) :: rev_stmts
           | Exit
-          | EmptyStatement -> (i, s) :: rev_stmts
+          | EmptyStatement -> (i, s) :: rev_stmts |> R.return
           | Return _ -> failwith "TODO"
           | Switch _ -> failwith "TODO"
           | DeclarationStatement { decl } -> failwith "TODO" end
        ~init:[]
-  |> fun rev_stmts ->
-    { blk with statements = List.rev rev_stmts }
+  >>| fun rev_stmts ->
+    i, { blk with statements = List.rev rev_stmts }
 
 (** Produces a program where all function calls are inlined. *)
 let rec inline_decl (fm : fmap) (Program p) : result =
@@ -111,11 +144,14 @@ let rec inline_decl (fm : fmap) (Program p) : result =
             ctrl.locals
             |> pgm
             |> inline_decl fm
-            >>| begin fun (Program lcls) ->
+            >>= begin fun (Program lcls) ->
+            ctrl.apply
+            |> inline_blk fm
+            >>| fun iapply ->
                 (i, Declaration.Control
                    { ctrl with
                      locals = lcls;
-                     apply = inline_blk fm ctrl.apply }) :: rev_prog end
+                     apply = iapply }) :: rev_prog end
           | _ -> failwith "TODO other cases, need an inline_expr function"
         end
        ~init:[]

@@ -1,0 +1,4 @@
+(library 
+  (name poulet4)
+  (public_name poulet4)
+)

@@ -22,7 +22,7 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 all: build
 
-build: deps
+build:
 	dune build @install
 
 deps:

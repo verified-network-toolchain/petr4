@@ -129,11 +129,14 @@ module PreUp4Filter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
-  (* TODO: unsure of type of this method.. *)
-  let eval_up4_ctrl = 
-    failwith "unimplemented"
+  let eval_up4_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
+  (env,st) : state * signal =
+    (* Q: Do we need to set namespace as done in V1Model below? *)
+    (* let env = EvalEnv.set_namespace ctrl_name env in *)
+    let (st,s,_) = app ctrl env st SContinue control args in 
+    (st,s)
 
-  (* hj283: push [pkt] through pipeline of this architecture, 
+  (* Push [pkt] through pipeline of this architecture, 
      updating the environment and state and return the 
      new state, environment and the packet if it was accepted! *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)

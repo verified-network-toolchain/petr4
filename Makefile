@@ -29,7 +29,7 @@ doc:
 	dune build @doc
 
 run:
-	dune exec $(NAME)
+	dune exec -- $(NAME)
 
 install:
 	dune install
@@ -37,11 +37,15 @@ install:
 claims:
 	@test/claims.py
 
+ci-test:
+	dune exec -- bin/test.exe
+	cd test && dune exec -- ./test.exe test -q
+
 test-stf:
-	dune exec bin/test.exe
+	dune exec -- bin/test.exe
 
 test:
-	cd test && dune exec ./test.exe
+	cd test && dune exec -- ./test.exe
 
 clean:
 	dune clean

@@ -25,6 +25,22 @@ let parser_test include_dirs file =
   | `Ok _ -> true
   | `Error _ -> false
 
+let to_string pp : string =
+  Format.fprintf Format.str_formatter "%a" Pp.to_fmt pp;
+  Format.flush_str_formatter ()
+
+let get_name include_dirs file =
+  match Parse.parse_file include_dirs file false with 
+  | `Ok prog -> prog |> Prettypp.format_program |> to_string 
+  | `Error _ -> "121" 
+
+let pp_round_trip_test include_dirs file =
+  let way_there = match Parse.parse_file include_dirs file false with 
+    | `Ok prog -> prog |> Prettypp.format_program |> to_string 
+    | `Error _ -> "" in 
+  let way_back = Parse.parse_string way_there in
+  String.compare way_there (way_back |> Prettypp.format_program |> to_string) = 0 
+
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   Printf.printf "Testing file %s...\n" p4_file;
   match Parse.parse_file include_dirs p4_file false with
@@ -93,7 +109,10 @@ let example_path l =
   let root = Filename.concat ".." "examples" in
   List.fold_left l ~init:root ~f:Filename.concat
 
-let () =
+let () = 
+  Format.printf "%s" (get_name ["../examples"] (example_path ["checker_tests"; "good"; "coree.p4"])); 
+  Format.printf "%s" "----------";
+  Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "coree.p4"]))) |> Prettypp.format_program |> to_string); 
   let open Alcotest in
   run "Tests" [
     "excluded tests good", (Stdlib.List.map (fun name ->

@@ -46,6 +46,10 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
+  let parse_string p4_string = 
+    let lexbuf = Lexing.from_string p4_string in
+    Parser.p4program Lexer.lexer lexbuf 
+
   let hex_of_nibble (i : int) : string =
     match i with
     | 0 -> "0"

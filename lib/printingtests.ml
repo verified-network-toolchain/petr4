@@ -67,9 +67,6 @@ let unaryop3 = Prettypp.Expression.format_t
 
 (* tests *)
 let test = 
-  Format.printf "%s" (to_string unaryop); 
-  Format.printf "%s" (to_string unaryop2); 
-  Format.printf "%s" (to_string unaryop3); 
   "true" = (to_string t) && 
   "false" = (to_string f) &&
   "0" = (to_string i) &&

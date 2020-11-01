@@ -255,12 +255,11 @@ module PreUp4Filter : Target = struct
     (* Go through micro deparser *)
     let (st, signal) = eval_up4_ctrl ctrl deparser
                                      [pkt_expr; hdrs_expr] 
-                                     app (env, st) in
-    let st = 
-      match signal with
-      | SReject _ -> failwith "unimplemented"
-      | SContinue | SExit | SReturn _ -> st in
-    st, env, None
+                                     app (env, st) in 
+    match signal with
+    | SReject _ -> st, env, None
+    | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
+    
 
   (* TODO: implement *)
   let get_outport (st : state) (env : env) : Bigint.t =

@@ -122,20 +122,14 @@ module PreUp4Filter : Target = struct
     | "merge" -> eval_merge
     | _ -> failwith "extern unknown in up4 or not yet implemented"
 
+  (* TODO: implement *)
   let initialize_metadata meta st =
-    State.insert_heap "__INGRESS_PORT__" (VInteger meta) st
+    failwith "unimplemented"
 
   let check_pipeline env = failwith "unimplemented"
 
-  let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
-  (env,st) : state * signal =
-    let (st,s,_) = app ctrl env st SContinue control args in 
-    (st,s)
-
   let eval_up4_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
   (env,st) : state * signal =
-    (* Q: Do we need to set namespace as done in V1Model below? *)
-    (* let env = EvalEnv.set_namespace ctrl_name env in *)
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
@@ -144,7 +138,7 @@ module PreUp4Filter : Target = struct
      new state, environment and the packet if it was accepted! *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
-    (* Get main   *)
+    (* Get main *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     (* Get arguments passed into main *)
     let vs = assert_package main |> snd in
@@ -174,14 +168,14 @@ module PreUp4Filter : Target = struct
       match control with 
       | VControl {cparams=ps;_} -> ps
       | _ -> failwith "control is not a control object" in 
+    let out_p = init_val_of_typ env (List.nth_exn control_params 4).typ in
+    let out_p_name = Types.BareName (Info.dummy, "out_param") in
     (* Deparser params *)
     let deparse_params = 
         match deparser with 
         | VControl {cparams=ps;_} -> ps
         | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
-    let out_p = init_val_of_typ env (List.nth_exn control_params 4).typ in
-    let out_p_name = Types.BareName (Info.dummy, "out_param") in
     let vpkt_loc, im_loc, hdrs_loc, meta_loc, in_p_loc, inout_p_loc, out_p_loc = 
       State.fresh_loc (),  State.fresh_loc (), State.fresh_loc (), 
       State.fresh_loc (), State.fresh_loc (), State.fresh_loc (), State.fresh_loc() in
@@ -233,41 +227,34 @@ module PreUp4Filter : Target = struct
     (* Go through micro parser *)
     let (st,signal, _) =
       app ctrl env st SContinue parser [pkt_expr; im_expr; hdrs_expr; meta_expr; in_expr; inout_expr] in
-    (** Q: Do we need to do set namespace?
-    let env = EvalEnv.set_namespace "" env *)
-    let st = 
-      match signal with 
-      (** TODO: implement up4 actions based off of state result. *)
-      | SReject _ -> failwith "unimplemented"
-      | SContinue | SExit | SReturn _ -> st in
-    (* Go through micro control *)
-    let (st, signal) = eval_up4_ctrl ctrl control 
-                                     [im_expr; hdrs_expr; meta_expr; 
-                                     in_expr; out_expr; inout_expr] 
-                                     app (env, st) in
-    let st = 
-      match signal with
-      | SReject _ -> failwith "unimplemented"
-      | SContinue | SExit | SReturn _ -> st in
-    let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
-    let st = State.insert_heap vpkt_loc vpkt' st in
-    let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (List.nth_exn deparse_params 0).typ env in
-    (* Go through micro deparser *)
-    let (st, signal) = eval_up4_ctrl ctrl deparser
-                                     [pkt_expr; hdrs_expr] 
-                                     app (env, st) in 
-    match signal with
+    match signal with 
     | SReject _ -> st, env, None
-    | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
+    | SContinue | SExit | SReturn _ -> 
+      (* Go through micro control *)
+      let (st, signal) = eval_up4_ctrl ctrl control 
+                                      [im_expr; hdrs_expr; meta_expr; 
+                                      in_expr; out_expr; inout_expr] 
+                                      app (env, st) in
+      match signal with
+      | SReject _ -> st, env, None
+      | SContinue | SExit | SReturn _ -> 
+        let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
+        let st = State.insert_heap vpkt_loc vpkt' st in
+        let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) 
+                                      (List.nth_exn deparse_params 0).typ 
+                                      env in
+        (* Go through micro deparser *)
+        let (st, signal) = eval_up4_ctrl ctrl deparser
+                                        [pkt_expr; hdrs_expr] 
+                                        app (env, st) in 
+        match signal with
+        | SReject _ -> st, env, None
+        | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
     
 
   (* TODO: implement *)
   let get_outport (st : state) (env : env) : Bigint.t =
-    (* I think  *)
-    match State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st with
-    | VStruct {fields;_} ->
-      List.Assoc.find_exn fields "egress_port" ~equal:String.equal |> bigint_of_val
-    | _ -> drop_spec
+    failwith "unimplemented"
 
   end 
 

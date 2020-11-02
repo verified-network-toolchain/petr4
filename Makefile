@@ -18,12 +18,15 @@ WEB_EXAMPLES+=examples/checker_tests/good/switch_ebpf.p4
 WEB_EXAMPLES+=examples/checker_tests/good/union-valid-bmv2.p4
 WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
-.PHONY: all build claims clean test test-stf web
+.PHONY: all deps build claims clean test test-stf web
 
 all: build
 
-build:
+build: deps
 	dune build @install
+
+deps:
+	$(MAKE) -C deps
 
 doc:
 	dune build @doc

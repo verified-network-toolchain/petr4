@@ -1,8 +1,8 @@
-# Welcome to Petr4
+[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=master)](https://travis-ci.org/cornell-netlab/petr4)
 
+# Petr4
 The Petr4 project is developing the formal semantics of the [P4
-Language](https://p4.org) backed by an independent reference
-implementation.
+Language](https://p4.org) backed by an independent reference implementation.
 
 ## Getting Started
 

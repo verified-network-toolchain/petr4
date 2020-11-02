@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=master)](https://travis-ci.org/cornell-netlab/petr4)
+[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=use-poulet4)](https://travis-ci.org/cornell-netlab/petr4)
 
 # Petr4
 The Petr4 project is developing the formal semantics of the [P4

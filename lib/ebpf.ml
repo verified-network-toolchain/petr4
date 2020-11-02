@@ -115,7 +115,8 @@ module PreEbpfFilter : Target = struct
   (* TODO: implement *)
   let eval_ebpf_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
   (env,st) : state * signal =
-    failwith "unimplemented"
+    let (st,s,_) = app ctrl env st SContinue control args in 
+    (st,s)
 
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =

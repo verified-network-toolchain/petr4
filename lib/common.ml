@@ -47,6 +47,8 @@ module Make_parse (Conf: Parse_config) = struct
       `Error (Lexer.info lexbuf, err)
 
   let parse_string p4_string = 
+    let () = Lexer.reset () in
+    let () = Lexer.set_filename p4_string in
     let lexbuf = Lexing.from_string p4_string in
     Parser.p4program Lexer.lexer lexbuf 
 

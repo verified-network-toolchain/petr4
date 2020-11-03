@@ -797,7 +797,7 @@ end = struct
                 (seq space 
                    (seq (name |> snd |> text)
                       (seq (Type.format_type_params type_params)
-                         (seq (",(" |> text)
+                         (seq ("(" |> text)
                             (seq (box (format_list_sep Parameter.format_t "," params))
                                (");" |> text)))))))) 
     | PackageType { annotations; name; type_params; params } ->

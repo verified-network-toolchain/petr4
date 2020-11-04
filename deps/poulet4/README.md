@@ -13,6 +13,8 @@
 6. Use control-plane names for controllable entities
 7. Provide "arbitrary annotations" rather than  having annotations and info on
    every syntax node.
+8. Better names (e.g., `Stat_BlockStatement` should be `StmtBlock` and let's
+   not mix CamelCase and underscore_separated_words)
 
 # Questions
 

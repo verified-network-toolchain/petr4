@@ -7,7 +7,7 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
-Require Import Value.
+Require Import Syntax.
 
 Open Scope string_scope.
 Open Scope monad.
@@ -20,7 +20,7 @@ Inductive exception :=
 | Exit
 | Internal.
 
-Definition scope := MStr.t value.
+Definition scope := MStr.t Value_value.
 Definition environment := list scope.
 
 Definition env_monad := @state_monad environment exception.
@@ -35,7 +35,7 @@ Definition lift_env_fn (f : environment -> option environment) : env_monad unit 
     | None => state_fail Internal env
     end.
 
-Definition lift_env_lookup_fn (f: environment -> option value) : env_monad value :=
+Definition lift_env_lookup_fn (f: environment -> option Value_value) : env_monad Value_value :=
   fun env =>
     match f env with
     | Some res => mret res env
@@ -48,15 +48,15 @@ Definition lift_option {A : Type} (x: option A) : env_monad A := fun env =>
   | None => (inr Internal, env)
   end.
 
-Definition update_scope (key: string) (val: value) (bindings: scope) : option scope :=
+Definition update_scope (key: string) (val: Value_value) (bindings: scope) : option scope :=
   MStr.find key bindings;;
   mret (MStr.add key val (MStr.remove key bindings)).
 
-Definition insert_scope (key: string) (val: value) (bindings: scope) : option scope :=
+Definition insert_scope (key: string) (val: Value_value) (bindings: scope) : option scope :=
   MStr.find key bindings;;
   mret (MStr.add key val bindings).
 
-Definition find_scope (key: string) (bindings: scope) : option value :=
+Definition find_scope (key: string) (bindings: scope) : option Value_value :=
   MStr.find key bindings.
 
 Definition push_scope (env: environment) :=
@@ -68,7 +68,7 @@ Definition pop_scope (env: environment) : option environment :=
   | nil => None
   end.
 
-Fixpoint update_environment' (key: string) (val: value) (env: environment) : option environment :=
+Fixpoint update_environment' (key: string) (val: Value_value) (env: environment) : option environment :=
   match env with
   | inner :: rest =>
     if MStr.find key inner
@@ -79,10 +79,10 @@ Fixpoint update_environment' (key: string) (val: value) (env: environment) : opt
   | nil => None
   end.
 
-Definition update_environment (key: string) (val: value) : env_monad unit :=
+Definition update_environment (key: string) (val: Value_value) : env_monad unit :=
   lift_env_fn (update_environment' key val).
 
-Definition insert_environment' (key: string) (val: value) (env: environment) : option environment :=
+Definition insert_environment' (key: string) (val: Value_value) (env: environment) : option environment :=
   match env with
   | inner :: rest =>
     let* inner' := insert_scope key val inner in
@@ -90,10 +90,10 @@ Definition insert_environment' (key: string) (val: value) (env: environment) : o
   | nil => None
   end.
 
-Definition insert_environment (key: string) (val: value) : env_monad unit :=
+Definition insert_environment (key: string) (val: Value_value) : env_monad unit :=
   lift_env_fn (insert_environment' key val).
   
-Fixpoint find_environment' (key: string) (env: environment) : option value :=
+Fixpoint find_environment' (key: string) (env: environment) : option Value_value :=
   match env with
   | inner :: rest =>
     match MStr.find key inner with
@@ -103,48 +103,67 @@ Fixpoint find_environment' (key: string) (env: environment) : option value :=
   | nil => None
   end.
 
-Definition find_environment (key: string) : env_monad value :=
+Definition find_environment (key: string) : env_monad Value_value :=
   lift_env_lookup_fn (find_environment' key).
 
-Fixpoint find_lvalue' (lval: lvalue) (env: environment) : option value :=
-  match lval with
-  | LValName var =>
-    find_environment' var env
-  | LValMember lval' member =>
+(* TODO handle name resolution properly *)
+Definition str_of_name_warning_not_safe (t: Types.name) : string :=
+  let s :=
+    match t with 
+    | Types.BareName s => s
+    | Types.QualifiedName _ s => s
+    end
+  in
+  snd s.
+
+Fixpoint find_lvalue' (lval: Value_lvalue) (env: environment) : option Value_value :=
+  let '(MkValue_lvalue pre_lval _) := lval in
+  match pre_lval with
+  | ValLeft_LName var =>
+    let s := str_of_name_warning_not_safe var in
+    find_environment' s env
+  | ValLeft_LMember lval' member =>
     let* val := find_lvalue' lval' env in
     match val with
-    | ValRecord map =>
+    | Val_Record map =>
       Raw.find member map
     | _ => None
     end
+  | _ => None (* TODO *)
   end.
 
-Definition find_lvalue (lval: lvalue) : env_monad value :=
+Definition find_lvalue (lval: Value_lvalue) : env_monad Value_value :=
   lift_env_lookup_fn (find_lvalue' lval).
 
-Fixpoint update_lvalue' (lval: lvalue) (val: value) (env: environment) : option environment :=
-  match lval with
-  | LValName var =>
-    update_environment' var val env
-  | LValMember lval' member =>
+Definition update_member (obj: Value_value) (member: string) (val: Value_value) : option Value_value.
+Admitted.
+
+Fixpoint update_lvalue' (lval: Value_lvalue) (val: Value_value) (env: environment) : option environment :=
+  let '(MkValue_lvalue pre_lval _) := lval in
+  match pre_lval with
+  | ValLeft_LName var =>
+    let s := str_of_name_warning_not_safe var in
+    update_environment' s val env
+  | ValLeft_LMember lval' member =>
     let* obj := find_lvalue' lval' env in
     let* obj' := update_member obj member val in
     update_lvalue' lval' obj' env
+  | _ => None (* TODO *)
   end.
 
-Definition update_lvalue (lval: lvalue) (val: value) : env_monad unit :=
+Definition update_lvalue (lval: Value_lvalue) (val: Value_value) : env_monad unit :=
   lift_env_fn (update_lvalue' lval val).
 
-Definition toss_value (original: env_monad value) : env_monad unit :=
+Definition toss_value (original: env_monad Value_value) : env_monad unit :=
   fun env =>
     match original env with
     | (inl result, env') => mret tt env'
     | (inr exc, env') => state_fail exc env'
     end.
 
-Definition dummy_value (original: env_monad unit) : env_monad value :=
+Definition dummy_value (original: env_monad unit) : env_monad Value_value :=
   fun env =>
     match original env with
-    | (inl tt, env') => mret ValVoid env'
+    | (inl tt, env') => mret Val_Null env'
     | (inr exc, env') => state_fail exc env'
     end.

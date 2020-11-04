@@ -7,9 +7,9 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 
 Require Import Environment.
-Require Import Value.
 Require Import Utils.
 Require Import Syntax.
+Require Import Typed.
 
 Open Scope monad.
 
@@ -30,31 +30,30 @@ Fixpoint read_first_bits (count: nat) : packet_monad (Bvector count) :=
       end
   end.
 
-Fixpoint eval_packet_extract_fixed (into: type) : packet_monad value :=
+Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad Value_value :=
   match into with
-  | Bool =>
+  | Typ_Bool =>
     let* vec := read_first_bits 1 in
     match vec with
-    | (bit :: [])%vector => mret (ValBool bit)
+    | (bit :: [])%vector => mret (Val_Bool bit)
     | _ => state_fail Internal
     end
-  | Bit width =>
+  | Typ_Bit width =>
     let* vec := read_first_bits width in
-    mret (ValFixedBit width vec)
-  | Int width =>
+    mret (Val_Bit width vec)
+  | Typ_Int width =>
     let* vec := read_first_bits width in
-    match vec with
-    | (false :: rest)%vector => mret (ValFixedInt width (of_bvector rest))
-    | (true :: rest)%vector =>
-      let negated := Z.sub (pow_two width) (of_bvector rest) in
-      mret (ValFixedInt width negated)
-    | _ => state_fail Internal
-    end
-  | RecordType fs =>
-    let* fs' := sequence (List.map (fun '(n, t) => v <- eval_packet_extract_fixed t ;; mret (n, v)) fs) in
-    mret (ValRecord fs')
-  | Header fs =>
-    let* fs' := sequence (List.map (fun '(n, t) => v <- eval_packet_extract_fixed t ;; mret (n, v)) fs) in
-    mret (ValHeader (MkHeader true fs'))
+    mret (Val_Int width vec)
+  | Typ_Record (MkRecordType field_types) =>
+    let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
+    mret (Val_Record field_vals)
+  | Typ_Header (MkRecordType field_types) =>
+    let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
+    mret (Val_Header field_vals true)
   | _ => state_fail Internal
-  end.
+  end
+
+with eval_packet_extract_fixed_field (into_field: RecordType_field) : packet_monad (string * Value_value) :=
+  let '(MkRecordType_field into_name into_type) := into_field in
+  let* v := eval_packet_extract_fixed into_type in
+  mret (into_name, v).

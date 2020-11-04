@@ -1,95 +1,95 @@
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
+Require Import Coq.Bool.Bvector.
 Require Import Coq.Strings.String.
 
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require Import Value.
+Require Import Syntax.
 Require Import Environment.
 
-Definition unpack_bool (wrapped: env_monad value) : env_monad bool :=
+Definition unpack_bool (wrapped: env_monad Value_value) : env_monad bool :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValBool b => mret b
+  | Val_Bool b => mret b
   | _ => state_fail Internal
   end.
 
 (* TODO: unpack_fixed_bit, unpack_var_bit; dependent types make things hard here *)
-
-Definition unpack_fixed_int (wrapped: env_monad value) : env_monad (nat * Z) :=
+Definition unpack_fixed_int (wrapped: env_monad Value_value) : env_monad {width:nat & Bvector width} :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValFixedInt w n => mret (w, n)
+  | Val_Int w n => mret (existT _ w n)
   | _ => state_fail Internal
   end.
 
-Definition unpack_inf_int (wrapped: env_monad value) : env_monad Z :=
+Definition unpack_inf_int (wrapped: env_monad Value_value) : env_monad Z :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValInfInt n => mret n
+  | Val_Integer n => mret n
   | _ => state_fail Internal
   end.
 
-Definition unpack_string (wrapped: env_monad value) : env_monad string :=
+Definition unpack_string (wrapped: env_monad Value_value) : env_monad string :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValString s => mret s
+  | Val_String s => mret s
   | _ => state_fail Internal
   end.
 
-Definition unpack_array (wrapped: env_monad value) : env_monad (list value) :=
+Definition unpack_array (wrapped: env_monad Value_value) : env_monad (list Value_value) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValArray a => mret a
+  | Val_Tuple vals => mret vals
   | _ => state_fail Internal
   end.
 
-Definition unpack_error (wrapped: env_monad value) : env_monad string :=
+Definition unpack_error (wrapped: env_monad Value_value) : env_monad string :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValError e => mret e
+  | Val_Error e => mret e
   | _ => state_fail Internal
   end.
 
-Definition unpack_record (wrapped: env_monad value) : env_monad (MStr.Raw.t value) :=
+Definition unpack_record (wrapped: env_monad Value_value) : env_monad (MStr.Raw.t Value_value) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValRecord fs => mret fs
+  | Val_Record fs => mret fs
   | _ => state_fail Internal
   end.
 
-Definition unpack_builtin_func (wrapped: env_monad value) : env_monad (string * lvalue) :=
+Definition unpack_builtin_func (wrapped: env_monad Value_value) : env_monad (string * Value_lvalue) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValBuiltinFunc name obj => mret (name, obj)
+  | Val_BuiltinFun name obj => mret (name, obj)
   | _ => state_fail Internal
   end.
 
-Definition unpack_extern_func (wrapped: env_monad value) : env_monad (string * lvalue) :=
+Definition unpack_extern_func (wrapped: env_monad Value_value) : env_monad (string * option (Value_loc * string) * list Typed.P4Parameter) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValExternFunc name obj => mret (name, obj)
+  | Val_ExternFun name obj params => mret (name, obj, params)
   | _ => state_fail Internal
   end.
 
-Definition unpack_extern_obj (wrapped: env_monad value) : env_monad extern :=
+Definition unpack_extern_obj (wrapped: env_monad Value_value) : env_monad (list (string * list Typed.P4Parameter)) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValExternObj e => mret e
+  | Val_ExternObj e => mret e
   | _ => state_fail Internal
   end.
 
-Definition unpack_header (wrapped: env_monad value) : env_monad header :=
+Definition unpack_header (wrapped: env_monad Value_value) : env_monad (list (string * Value_value) * bool) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValHeader h => mret h
+  | Val_Header h v => mret (h, v)
   | _ => state_fail Internal
   end.
 
-Definition unpack_header_stack (wrapped: env_monad value) : env_monad (nat * nat * (list header)) :=
+Definition unpack_header_stack (wrapped: env_monad Value_value) : env_monad (list Value_value * nat * nat) :=
   let* unwrapped := wrapped in
   match unwrapped with
-  | ValHeaderStack s n hdrs => mret (s, n, hdrs)
+  | Val_Stack hdrs size next => mret (hdrs, size, next)
   | _ => state_fail Internal
   end.

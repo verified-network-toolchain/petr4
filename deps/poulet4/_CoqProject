@@ -4,11 +4,13 @@ lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
 lib/Utils.v
-lib/Value.v
 lib/Step.v
 lib/Environment.v
 lib/Unpack.v
 lib/Eval.v
+lib/Info.v
+lib/Types.v
+lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
 

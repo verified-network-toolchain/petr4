@@ -1,0 +1,41 @@
+language: minimal
+
+dist: focal
+
+cache:
+  directories:
+  - $HOME/.opam
+
+env:
+- DEBIAN_FRONTEND=noninteractive OPAMYES=true
+
+install:
+- sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 04EE7237B7D453EC
+- |
+  cat <<EOF
+  Package: *
+  Pin: release a=focal
+  Pin-Priority: 500
+
+
+  Package: *
+  Pin: origin "ftp.us.debian.org"
+  Pin-Priority: 300
+
+
+  Package: *ocaml*
+  Pin: origin "ftp.us.debian.org"
+  Pin-Priority: 700
+  EOF
+  | sudo tee /etc/apt/preferences.d/ocaml.pref
+- sudo add-apt-repository "deb http://ftp.us.debian.org/debian sid main"
+- sudo apt install ocaml-nox opam dune coq
+- opam init --no-setup
+- eval $(opam env)
+
+script:
+- make deps
+- opam install . --deps-only
+- make
+- make install
+- make ci-test

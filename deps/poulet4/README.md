@@ -11,10 +11,15 @@
 4. PPX annotations have to be added
 5. Fix representation of environments
 6. Use control-plane names for controllable entities
-7. Provide "arbitrary annotations" rather than  having annotations and info on
+7. Provide "arbitrary annotations" rather than having annotations and info on
    every syntax node.
 8. Better names (e.g., `Stat_BlockStatement` should be `StmtBlock` and let's
    not mix CamelCase and underscore_separated_words)
+
+# Refactoring the interpreter
+- [ ] Repair evaluator to handle indirect storage of packets
+- [ ] Parametrize over targets with typeclasses the way the OCaml version uses
+      modules
 
 # Questions
 

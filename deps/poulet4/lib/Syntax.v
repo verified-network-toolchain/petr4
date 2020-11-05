@@ -143,6 +143,8 @@ with Statement_pre_t :=
                   (name: P4String) (value: Value_value)
   | Stat_Variable (info: Info) (annotations: list Annotation) (typ: P4Type)
                   (name: P4String) (init: option Expression)
+  | Stat_Instantiation (info: Info) (annotations: list Annotation) (typ: P4Type)
+                       (args: list Expression) (name: P4String) (init: option Block)
 with Statement :=
   | MkStatement (info: Info) (stmt: Statement_pre_t) (typ: StmType)
 with Block :=

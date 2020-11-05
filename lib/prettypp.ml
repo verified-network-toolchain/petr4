@@ -635,9 +635,10 @@ end = struct
     | Right(decl) ->
       Declaration.format_t decl
 
+
   let rec dec_help locals = 
     if not (List.length locals = 0) then 
-      seq (format_list_nl format_t locals) ("\n" |> text)
+      seq (format_list_sep format_t "\n" locals) ("\n" |> text)
     else nop 
 
   and format_t e = 

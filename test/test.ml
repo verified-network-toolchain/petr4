@@ -112,7 +112,7 @@ let example_path l =
 let () = 
   Format.printf "%s" (get_name ["../examples"] (example_path ["checker_tests"; "good"; "coree.p4"])); 
   Format.printf "%s" "----------";
-  Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "coree.p4"]))) |> Prettypp.format_program |> to_string); 
+  Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "coree.p4"]))) |> Prettypp.format_program |> to_string);  
   let open Alcotest in
   run "Tests" [
     "excluded tests good", (Stdlib.List.map (fun name ->

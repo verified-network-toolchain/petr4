@@ -3,8 +3,7 @@
 1. Remove mutual recursion where possible
   - Put env into its own module
   - Get rid of DeclarationStatements
-  - parser <-> value ?
-  - make lvalue index have type nat, rather than Value
+  - make lvalue index have type nat, rather than Value [Ryan]
 2. Remove dependencies on Types AST
   - Types.Expression in Annotation
   - Types.Expression in Parameter default values [Ryan]
@@ -28,7 +27,7 @@
 9. Stratify types [Molly]
 10. Make externs nominal [Ryan]
 11. Inline constants with a constant folding pass after typechecker and before
-    Coq [Ryan]
+    Coq, remove const declarations [Ryan]
 
 # Refactoring the interpreter
 - [ ] Repair evaluator to handle indirect storage of packets

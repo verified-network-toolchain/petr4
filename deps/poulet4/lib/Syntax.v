@@ -305,7 +305,7 @@ with Value_pre_lvalue :=
   (* expr, msb, lsb *)
   | ValLeft_LBitAccess (expr: Value_lvalue) (msb: nat) (lsb: nat)
   (* expr, idx *)
-  | ValLeft_LArrayAccess (expr: Value_lvalue) (idx: Value_value)
+  | ValLeft_LArrayAccess (expr: Value_lvalue) (idx: nat)
 with Value_lvalue :=
   | MkValue_lvalue (lvalue: Value_pre_lvalue) (typ: P4Type)
 with Value_vparser :=

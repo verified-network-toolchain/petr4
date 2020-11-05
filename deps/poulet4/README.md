@@ -3,6 +3,8 @@
 1. Remove mutual recursion where possible
   - Put env into its own module
   - Get rid of DeclarationStatements
+  - parser <-> value ?
+  - make lvalue index have type nat, rather than Value
 2. Remove dependencies on Types AST
   - Types.Expression in Annotation
   - Types.Expression in Parameter default values
@@ -13,8 +15,19 @@
 6. Use control-plane names for controllable entities
 7. Provide "arbitrary annotations" rather than having annotations and info on
    every syntax node.
+   - Inductive AST  := | Add : AST -> AST -> AST | Var : string -> AST
+   - Inductive AST (X:Type) := Add : X -> AST -> AST -> AST
+                             | Var : X -> string -> AST
+   - Definition AST_with_info := AST Info.t
+   - Definition AST_with_info_and_type := AST (Info.t * Typed.Type.t)
+   - AST (Info * Type) -> AST (Info * Type * Set Var)
+   - UntypedAST (Info * Annotation) -> TypedAST (Info * Annotation * Type)
 8. Better names (e.g., `Stat_BlockStatement` should be `StmtBlock` and let's
    not mix CamelCase and underscore_separated_words)
+9. Stratify types
+10. Make externs nominal
+11. Inline constants with a constant folding pass after typechecker and before
+    Coq
 
 # Refactoring the interpreter
 - [ ] Repair evaluator to handle indirect storage of packets

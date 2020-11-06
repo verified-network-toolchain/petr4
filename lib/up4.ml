@@ -14,7 +14,7 @@ module PreUp4Filter : Target = struct
   (* TODO: Define uP4 obj *)
   type obj = 
     | Packet of {pck: int list; size: int} (* represented as a byte array *)
-    (*
+  (*
     | IM_T of {}  (* intrinsic metadata and constraints *)
     | emitter (* assemble packets *)
     | extractor (* header extraction *)
@@ -22,7 +22,7 @@ module PreUp4Filter : Target = struct
     | out_buf (* output buffer *)
     *)
 
-  let dummy = Packet {pck = []; size = 0}
+  (* let dummy = Packet {pck = []; size = 0} maybe we need this?*)
 
   type state = obj State.t
 
@@ -32,7 +32,12 @@ module PreUp4Filter : Target = struct
 
   (* Create instances of pkt extern *)
   let eval_copy_from : extern = fun env st ts args -> 
-    failwith "unimplemented"
+    let (loc, copy_loc) = match args with 
+      | [(VRuntime {loc = l; _}, _);
+         (VRuntime{loc = c_loc; _}, _)] -> l, c_loc
+      | _ -> failwith "unexpected args for packet copying" in
+    let pck = Packet { pck = []; size = 0} in
+    env, State.insert_extern loc pck st, SContinue, VRuntime {loc = loc; obj_name = "packet_copy"}
 
   let eval_get_length : extern = fun env st ts args -> 
     failwith "unimplemented"
@@ -84,7 +89,7 @@ module PreUp4Filter : Target = struct
 
   let write_header_field : obj writer = fun is_valid fields fname fvalue ->
     let fs = List.map fields
-      ~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
+        ~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
     VHeader {fields = fs; is_valid; }
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
@@ -92,16 +97,16 @@ module PreUp4Filter : Target = struct
   let eval_extern name =
     match name with
     (* | "copy_from" -> eval_copy_from (* Overloaded. input type is pkt or im_t *)
-    | "get_length" -> eval_get_length
-    | "set_out_port" -> eval_set_out_port
-    | "get_in_port" -> eval_get_in_port 
-    | "get_out_port" -> eval_get_out_port
-    | "get_value" -> eval_get_value
-    | "drop" -> eval_drop
-    | "dequeue" -> eval_dequeue
-    | "enqueue" -> eval_enqueue 
-    | "to_in_buf" -> eval_to_in_buf
-    | "merge" -> eval_merge *)
+       | "get_length" -> eval_get_length
+       | "set_out_port" -> eval_set_out_port
+       | "get_in_port" -> eval_get_in_port 
+       | "get_out_port" -> eval_get_out_port
+       | "get_value" -> eval_get_value
+       | "drop" -> eval_drop
+       | "dequeue" -> eval_dequeue
+       | "enqueue" -> eval_enqueue 
+       | "to_in_buf" -> eval_to_in_buf
+       | "merge" -> eval_merge *)
     | _ -> failwith "extern unknown in up4 or not yet implemented"
 
   (* TODO: below is copied from ebpf.ml. Check if it's okay *)
@@ -112,19 +117,19 @@ module PreUp4Filter : Target = struct
 
   (* TODO: below is copied from ebpf.ml. Check if it's okay *)
   let eval_up4_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
-  (env,st) : state * signal =
+      (env,st) : state * signal =
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
   let helper (param_string : loc) (param_type : Type.t) (env : env) (st : state)
-                : value * Types.name * loc * state * env =
-      let param_value = init_val_of_typ env param_type in 
-      let param_name = Types.BareName (Info.dummy, param_string) in
-      let param_loc = State.fresh_loc () in 
-      let st = State.insert_heap param_loc param_value st in 
-      let env = EvalEnv.insert_val param_name param_loc env in
-      let env = EvalEnv.insert_typ param_name param_type env in
-      param_value, param_name, param_loc, st, env
+    : value * Types.name * loc * state * env =
+    let param_value = init_val_of_typ env param_type in 
+    let param_name = Types.BareName (Info.dummy, param_string) in
+    let param_loc = State.fresh_loc () in 
+    let st = State.insert_heap param_loc param_value st in 
+    let env = EvalEnv.insert_val param_name param_loc env in
+    let env = EvalEnv.insert_typ param_name param_type env in
+    param_value, param_name, param_loc, st, env
 
   (* Push [pkt] through pipeline of this architecture, 
      updating the environment and state and return the 
@@ -151,25 +156,25 @@ module PreUp4Filter : Target = struct
       | _ -> failwith "control is not a control object" in 
     (* Deparser params *)
     let deparse_params = 
-        match deparser with 
-        | VControl {cparams=ps;_} -> ps
-        | _ -> failwith "deparser is not a control object" in 
+      match deparser with 
+      | VControl {cparams=ps;_} -> ps
+      | _ -> failwith "deparser is not a control object" in 
     ignore deparse_params;
     let vpkt, pkt_name, vpkt_loc = VRuntime {loc = State.packet_location; obj_name = "packet_in"; }, 
                                    Types.BareName (Info.dummy, "packet"),
                                    State.fresh_loc() in 
     let im, im_name, im_loc = VRuntime {loc = State.im_t_location; obj_name = "im_t"; }, 
-                                       Types.BareName (Info.dummy, "im"),
-                                       State.fresh_loc() in
+                              Types.BareName (Info.dummy, "im"),
+                              State.fresh_loc() in
     let st = st
-      |> State.insert_heap vpkt_loc vpkt
-      |> State.insert_heap im_loc im in 
+             |> State.insert_heap vpkt_loc vpkt
+             |> State.insert_heap im_loc im in 
     let env =
       EvalEnv.(env
-              |> insert_val pkt_name vpkt_loc
-              |> insert_val im_name  im_loc
-              |> insert_typ pkt_name (List.nth_exn params 0).typ
-              |> insert_typ im_name  (List.nth_exn params 1).typ) in
+               |> insert_val pkt_name vpkt_loc
+               |> insert_val im_name  im_loc
+               |> insert_typ pkt_name (List.nth_exn params 0).typ
+               |> insert_typ im_name  (List.nth_exn params 1).typ) in
     let hdrs, hdrs_name, hdrs_loc, st, env = 
       helper "hdrs" (List.nth_exn params 2).typ env st in
     let meta, meta_name, meta_loc, st, env = 
@@ -203,30 +208,30 @@ module PreUp4Filter : Target = struct
     | SContinue | SExit | SReturn _ -> 
       (* Go through micro control *)
       let (st, signal) = eval_up4_ctrl ctrl control 
-                                      [im_expr; hdrs_expr; meta_expr; 
-                                      in_expr; out_expr; inout_expr] 
-                                      app (env, st) in
+          [im_expr; hdrs_expr; meta_expr; 
+           in_expr; out_expr; inout_expr] 
+          app (env, st) in
       match signal with
       | SReject _ -> st, env, None
       | SContinue | SExit | SReturn _ -> 
         let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
         let st = State.insert_heap vpkt_loc vpkt' st in
         let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) 
-                                      (List.nth_exn deparse_params 0).typ 
-                                      env in
+            (List.nth_exn deparse_params 0).typ 
+            env in
         (* Go through micro deparser *)
         let (st, signal) = eval_up4_ctrl ctrl deparser
-                                        [pkt_expr; hdrs_expr] 
-                                        app (env, st) in 
+            [pkt_expr; hdrs_expr] 
+            app (env, st) in 
         match signal with
         | SReject _ -> st, env, None
         | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
-    
+
 
   (* TODO: below is copied from ebpf.ml. Check if it's okay *)
   let get_outport (st : state) (env : env) : Bigint.t =
     State.find_heap "__INGRESS_PORT__" st |> bigint_of_val
 
-  end 
+end 
 
 module Up4Filter : Target = P4core.Corize(PreUp4Filter)

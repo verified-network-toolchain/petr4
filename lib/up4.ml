@@ -36,8 +36,12 @@ module PreUp4Filter : Target = struct
       | [(VRuntime {loc = l; _}, _);
          (VRuntime{loc = c_loc; _}, _)] -> l, c_loc
       | _ -> failwith "unexpected args for packet copying" in
-    let pck = Packet { pck = []; size = 0} in
-    env, State.insert_extern loc pck st, SContinue, VRuntime {loc = loc; obj_name = "packet_copy"}
+    let packet_obj = State.find_extern copy_loc st in
+    let packet_val, packet_size = match packet_obj with
+      | Packet {pck = p; size = s} -> p,s 
+      | _ -> failwith "Reading from an object other than a packet" in
+    let pck = Packet { pck = packet_val; size = packet_size} in
+    env, State.insert_extern loc pck st, SContinue, VRuntime {loc = loc; obj_name = "pkt_copy"}
 
   let eval_get_length : extern = fun env st ts args -> 
     failwith "unimplemented"

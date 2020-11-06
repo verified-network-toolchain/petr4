@@ -32,37 +32,37 @@ module PreUp4Filter : Target = struct
 
   (* Create instances of pkt extern *)
   let eval_copy_from : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_get_length : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_set_out_port : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_get_in_port : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_get_out_port : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_get_value : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_drop : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_dequeue : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_enqueue : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_to_in_buf : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   let eval_merge : extern = fun env st ts args -> 
-    env, st, SContinue, VNull
+    failwith "unimplemented"
 
   (* stp: never actually used; see note in v1model.ml *)
   let externs = [
@@ -158,13 +158,18 @@ module PreUp4Filter : Target = struct
     let vpkt, pkt_name, vpkt_loc = VRuntime {loc = State.packet_location; obj_name = "packet_in"; }, 
                                    Types.BareName (Info.dummy, "packet"),
                                    State.fresh_loc() in 
-    let st, env = State.insert_heap vpkt_loc vpkt st,
-                  EvalEnv.(env
-                  |> insert_val pkt_name     vpkt_loc
-                  |> insert_typ pkt_name     (List.nth_exn params 0).typ
-                  ) in
-    let im, im_name, im_loc, st, env = 
-      helper "im" (List.nth_exn params 1).typ env st in
+    let im, im_name, im_loc = VRuntime {loc = State.im_t_location; obj_name = "im_t"; }, 
+                                       Types.BareName (Info.dummy, "im"),
+                                       State.fresh_loc() in
+    let st = st
+      |> State.insert_heap vpkt_loc vpkt
+      |> State.insert_heap im_loc im in 
+    let env =
+      EvalEnv.(env
+              |> insert_val pkt_name vpkt_loc
+              |> insert_val im_name  im_loc
+              |> insert_typ pkt_name (List.nth_exn params 0).typ
+              |> insert_typ im_name  (List.nth_exn params 1).typ) in
     let hdrs, hdrs_name, hdrs_loc, st, env = 
       helper "hdrs" (List.nth_exn params 2).typ env st in
     let meta, meta_name, meta_loc, st, env = 

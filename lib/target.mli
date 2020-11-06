@@ -18,6 +18,7 @@ module State : sig
   val empty : 'a t
 
   val packet_location : loc
+  val im_t_location : loc (* for uP4 im_t extern type *)
 
   val fresh_loc : unit -> loc
 

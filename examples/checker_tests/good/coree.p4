@@ -1,27 +1,35 @@
-#include <core.p4>
+/*
+Copyright 2013-present Barefoot Networks, Inc.
 
-header H {
-    bit<32> f;
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+@annotest const bit b = 1;
+
+@size(100)
+extern Annotated {
+    @name("annotated")
+    Annotated();
+    @name("exe")
+    void execute(bit<8> index);
 }
 
-parser p(packet_in pk) {
-    value_set<tuple<bit<32>, bit<2>>>(4) vs;
-    H h;
+@cycles(10)
+extern bit<32> log(in bit<32> data);
 
-    state start {
-        pk.extract(h);
-        transition select(h.f, 2w2) {
-            vs: next;
-            default: reject;
+control c() {
+    apply {
+        @blockAnnotation {
         }
     }
-
-    state next {
-        transition accept;
-    }
 }
-
-parser ps(packet_in p);
-package top(ps _p);
-
-top(p()) main;

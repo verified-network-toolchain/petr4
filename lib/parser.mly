@@ -473,11 +473,13 @@ dotPrefix:
 parserDeclaration:
 | p_type = parserTypeDeclaration constructor_params = optConstructorParameters
     L_BRACE locals = list_aux(parserLocalElement)
-    states = nonempty_list(parserState) info2 = R_BRACE
+    states = nonempty_list(parserState)
+    info2 = R_BRACE
     pop_scope
     { let open Declaration in
       let (info1, annotations, name, type_params, params) = p_type in
       let info = Info.merge info1 info2 in
+      let locals = List.rev locals in
       (info, Parser { annotations; name; type_params; params; constructor_params; locals; states }) }
 ;
 

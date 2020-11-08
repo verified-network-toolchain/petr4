@@ -181,7 +181,7 @@ end = struct
     match snd sc with
     | Action { label; code } ->
       seq (format_switch_label (snd label)) 
-        (seq (": " |> text) (Block.format_t code))
+        (seq (": " |> text) (seq (Block.format_t code) ("\n}" |> text)))
     | FallThrough { label } ->
       seq (format_switch_label (snd label)) (":" |> text)
 
@@ -189,7 +189,7 @@ end = struct
     match fls with 
     | None -> nop 
     | Some (_, BlockStatement { block=fls_block }) ->
-      seq ("else " |> text) (Block.format_t fls_block)
+      seq ("else " |> text) (seq (Block.format_t fls_block) ("\n}" |> text))
     | Some sfls -> 
       seq ("\nelse" |> text) (seq space (Statement.format_t sfls)) |> box 
 
@@ -198,7 +198,10 @@ end = struct
     | None -> nop 
     | Some (_, BlockStatement { block=fls_block }) ->
       seq ("\n" |> text) 
-        (box (seq ("else " |> text) (Block.format_t fls_block))) 
+        (seq (box ~indent:2
+                (seq ("else " |> text) 
+                   (Block.format_t fls_block))) 
+           ("\n}" |> text))
     | Some sfls -> 
       seq ("\n" |> text) 
         (box (seq ("else" |> text) 
@@ -224,14 +227,14 @@ end = struct
       let remainder = match snd tru with 
         | BlockStatement { block=tru_block } -> 
           seq (tru_block |> Block.format_t) 
-            (block_fls fls)
+            (seq ("\n}" |> text) (block_fls fls))
         | _ -> seq ("\n" |> text) (seq (format_t tru) (wc_fls fls))
       in seq ("if" |> text) 
         (seq space (seq ("(" |> text) 
                       (seq (Expression.format_t cond) 
                          (seq (")" |> text) (seq space remainder))))) |> box
     | BlockStatement { block } ->
-      (block |> Block.format_t |> box)
+      seq (block |> Block.format_t |> box) ("\n}" |> text)
     | Exit -> text "exit;"
     | EmptyStatement -> text ";"
     | Return { expr = None } -> text "return;"
@@ -258,13 +261,11 @@ end = struct
   open P4.Block
   let format_t e =
     match snd e with
-    | { annotations=[]; statements=[] } -> "{ }" |> text |> box 
+    | { annotations=[]; statements=[] } -> "{ " |> text |> box 
     | { annotations; statements } ->
-      seq (box
-             (seq (Annotation.format_ts annotations) 
-                (seq ("{\n" |> text) 
-                   (format_list_nl Statement.format_t statements)))) 
-        ("\n}" |> text)
+      seq (Annotation.format_ts annotations) 
+        (seq ("{\n" |> text) 
+           (format_list_nl Statement.format_t statements))
 end
 
 and Argument : sig
@@ -336,7 +337,7 @@ end = struct
   let format_type_params l =
     if  List.length l = 0 then nop 
     else
-      seq ("<" |> text) (seq (format_list_sep P4Word.format_t ", " l) (">" |> text))
+      seq ("<" |> text) (seq (format_list_sep P4Word.format_t "," l) ("> " |> text))
 end
 
 and KeyValue : sig 
@@ -478,16 +479,16 @@ end = struct
     match snd e with
     | { annotations; name; statements; transition } -> 
       seq (Annotation.format_ts annotations)
-        (seq (box (seq ("state" |> text)
-                     (seq space 
-                        (seq (P4Word.format_t name)
-                           (seq space 
-                              (seq ("{\n" |> text) 
-                                 (seq (format_list_nl Statement.format_t statements)
-                                    (seq (match statements with 
-                                         | [] -> nop 
-                                         | _ :: _ -> text "\n")
-                                        (format_transition transition))))))))) 
+        (seq (box ~indent:2 (seq ("state" |> text)
+                               (seq space 
+                                  (seq (P4Word.format_t name)
+                                     (seq space 
+                                        (seq ("{\n" |> text) 
+                                           (seq (format_list_nl Statement.format_t statements)
+                                              (seq (match statements with 
+                                                   | [] -> nop 
+                                                   | _ :: _ -> text "\n")
+                                                  (format_transition transition))))))))) 
            ("\n}" |> text))
 
   let format_states l =
@@ -502,75 +503,75 @@ end = struct
   let format_key e = 
     match snd e with 
     | { annotations; key; match_kind } -> 
-      box (seq (Expression.format_t key) 
-             (seq space 
-                (seq (":" |> text) 
-                   (seq space 
-                      (seq (P4Word.format_t match_kind) 
-                         (seq space 
-                            (seq (Annotation.format_ts annotations) 
-                               (";" |> text))))))))
+      box ~indent:2 (seq (Expression.format_t key) 
+                       (seq space 
+                          (seq (":" |> text) 
+                             (seq space 
+                                (seq (P4Word.format_t match_kind) 
+                                   (seq space 
+                                      (seq (Annotation.format_ts annotations) 
+                                         (";" |> text))))))))
 
   let format_action_ref e = 
     match snd e with 
     | { annotations; name; args = [] } ->
       seq (Annotation.format_ts annotations) 
-        (name |> name_format_t |> box)
+        (name |> name_format_t |> box ~indent:2)
     | { annotations; name; args } ->
       seq (Annotation.format_ts annotations) 
-        (box (seq (name_format_t name) 
-                (seq ("(" |> text) 
-                   (seq (Argument.format_ts args) 
-                      (")" |> text)))))
+        (box ~indent:2 (seq (name_format_t name) 
+                          (seq ("(" |> text) 
+                             (seq (Argument.format_ts args) 
+                                (")" |> text)))))
 
   let format_entry e =
     match snd e with
     | { annotations; matches; action } ->
-      seq (box (seq (Match.format_ts matches) 
-                  (seq space 
-                     (seq (":" |> text) 
-                        (seq space (format_action_ref action))))))
+      seq (box ~indent:2 (seq (Match.format_ts matches) 
+                            (seq space 
+                               (seq (":" |> text) 
+                                  (seq space (format_action_ref action))))))
         (seq (Annotation.format_ts annotations)
            (";" |> text))
 
   let format_property e = 
     match snd e with 
     | Key  { keys } ->
-      seq (box (seq ("key" |> text) 
-                  (seq space 
-                     (seq ("=" |> text) 
-                        (seq space 
-                           (seq ("{\n" |> text) 
-                              (format_list_nl format_key keys)))))))
+      seq (box ~indent:2 (seq ("key" |> text) 
+                            (seq space 
+                               (seq ("=" |> text) 
+                                  (seq space 
+                                     (seq ("{\n" |> text) 
+                                        (format_list_nl format_key keys)))))))
         ("\n}" |> text)
     | Actions { actions } ->
-      seq (box (seq ("actions" |> text) 
-                  (seq space 
-                     (seq ("=" |> text) 
-                        (seq space 
-                           (seq ("{\n" |> text) 
-                              (seq (format_list_sep format_action_ref ";" actions)
-                                 (begin match actions with
-                                    | [] -> nop
-                                    | _ -> ";" |> text end))))))))
+      seq (box ~indent:2 (seq ("actions" |> text) 
+                            (seq space 
+                               (seq ("=" |> text) 
+                                  (seq space 
+                                     (seq ("{\n" |> text) 
+                                        (seq (format_list_sep format_action_ref ";" actions)
+                                           (begin match actions with
+                                              | [] -> nop
+                                              | _ -> ";" |> text end))))))))
         ("\n}" |> text)
     | Entries { entries } ->
-      seq (box (seq ("const entries" |> text) 
-                  (seq space 
-                     (seq ("=" |> text) 
-                        (seq space 
-                           (seq ("{\n" |> text) 
-                              (format_list_nl format_entry entries)))))))
+      seq (box ~indent:2 (seq ("const entries" |> text) 
+                            (seq space 
+                               (seq ("=" |> text) 
+                                  (seq space 
+                                     (seq ("{\n" |> text) 
+                                        (format_list_nl format_entry entries)))))))
         ("\n}" |> text)
     | Custom { annotations; const; name; value } ->
       seq (Annotation.format_ts annotations) 
-        (box (seq ((if const then "const " else "") |> text) 
-                (seq (P4Word.format_t name)
-                   (seq space 
-                      (seq ("=" |> text)
-                         (seq space 
-                            (seq (Expression.format_t value) 
-                               (";" |> text))))))))
+        (box ~indent:2 (seq ((if const then "const " else "") |> text) 
+                          (seq (P4Word.format_t name)
+                             (seq space 
+                                (seq ("=" |> text)
+                                   (seq space 
+                                      (seq (Expression.format_t value) 
+                                         (";" |> text))))))))
 end 
 
 and MethodPrototype : sig
@@ -623,10 +624,9 @@ end = struct
 
   let format_fields l =
     match l with
-    | [] -> "{" |> text
+    | [] -> nop
     | _ :: _ ->
-      seq ("{\n" |> text) 
-        (format_list_nl format_field l)
+      format_list_nl format_field l
 
   let format_typ_or_decl td =
     match td with
@@ -644,30 +644,31 @@ end = struct
   and format_t e = 
     match snd e with 
     | Constant { annotations; typ; name; value } -> 
-      box (seq (Annotation.format_ts annotations)
-             (seq ("const" |> text)
-                (seq space 
-                   (seq (Type.format_t typ) 
-                      (seq space 
-                         (seq (name |> snd |> text)
-                            (seq space 
-                               (seq ("=" |> text)
-                                  (seq space 
-                                     (seq ( Expression.format_t value)
-                                        (";" |> text)))))))))))
+      (seq (Annotation.format_ts annotations)
+         (box ~indent:2 (seq ("const" |> text)
+                           (seq space 
+                              (seq (Type.format_t typ) 
+                                 (seq space 
+                                    (seq (name |> snd |> text)
+                                       (seq space 
+                                          (seq ("=" |> text)
+                                             (seq space 
+                                                (seq (Expression.format_t value)
+                                                   (";" |> text))))))))))))
     | Action { annotations; name; params; body } ->
       seq (Annotation.format_ts annotations)
-        (box (seq ("action" |> text)
-                (seq space
-                   (seq (name |> snd |> text) 
-                      (seq ("(" |> text)
-                         (seq (box (Parameter.format_params params))
-                            (seq (") " |> text)
-                               (Block.format_t body))))))))
+        (seq (box ~indent:2
+                (seq ("action" |> text)
+                   (seq space
+                      (seq (name |> snd |> text) 
+                         (seq ("(" |> text)
+                            (seq (box (Parameter.format_params params))
+                               (seq (") " |> text)
+                                  (Block.format_t body)))))))) ("\n}" |> text))
     | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
       seq (Annotation.format_ts annotations)
         (seq 
-           (box ~indent:1 
+           (box ~indent:2
               (seq ("control" |> text)
                  (seq space 
                     (seq (name |> snd |> text)
@@ -678,26 +679,27 @@ end = struct
                                    (seq (Parameter.format_constructor_params constructor_params)
                                       (seq ("{\n" |> text)
                                          (seq (dec_help locals) 
-                                            (seq ("apply " |> text)
-                                               (Block.format_t apply)))))))))))))
+                                            (seq (box ~indent: 2 (seq ("apply " |> text)
+                                                                    (Block.format_t apply))) 
+                                               ("\n}" |> text)))))))))))))
            ("\n}" |> text))
     | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
       seq 
-        (box ~indent:1 
+        (box ~indent:2 
            (seq 
-              (hvbox 
-                 (seq (Annotation.format_ts annotations) 
-                    (seq ("parser" |> text)
-                       (seq space 
-                          (seq (name |> snd |> text) 
-                             (seq (Type.format_type_params type_params)
-                                (seq (" (" |> text)
-                                   (seq (Parameter.format_params params)
-                                      (seq (")" |> text)
-                                         (seq (Parameter.format_constructor_params constructor_params)
-                                            (" {\n" |> text)))))))))))
+              (* (hvbox ~indent:2 *)
+              (seq (Annotation.format_ts annotations) 
+                 (seq ("parser" |> text)
+                    (seq space 
+                       (seq (name |> snd |> text) 
+                          (seq (Type.format_type_params type_params)
+                             (seq (" (" |> text)
+                                (seq (Parameter.format_params params)
+                                   (seq (")" |> text)
+                                      (seq (Parameter.format_constructor_params constructor_params)
+                                         (" {\n" |> text))))))))))
               (seq (dec_help locals) (Parser.format_states states) )))
-        ("}\n" |> text)
+        ("\n}\n" |> text)
     | Instantiation { annotations; typ; args; name; init=None } -> 
       seq (Annotation.format_ts annotations) 
         (box (seq (Type.format_t typ) 
@@ -708,27 +710,26 @@ end = struct
                             (seq (P4Word.format_t name)
                                (";" |> text))))))))
     | Instantiation { annotations; typ; args; name; init=Some block } -> 
-      seq (Annotation.format_ts annotations)
-        (box (seq (Type.format_t typ)
-                (seq ("(" |> text)
-                   (seq (Argument.format_ts args)
-                      (seq (")" |> text)
-                         (seq space
-                            (seq (P4Word.format_t name)
-                               (seq space
-                                  (seq ("= " |> text)
-                                     (seq (Block.format_t block) 
-                                        (";" |> text)))))))))))
+      seq (seq (Annotation.format_ts annotations)
+             (box ~indent: 2
+                (seq (Type.format_t typ)
+                   (seq ("(" |> text)
+                      (seq (Argument.format_ts args)
+                         (seq (")" |> text)
+                            (seq space
+                               (seq (P4Word.format_t name)
+                                  (seq space
+                                     (seq ("= " |> text)
+                                        (Block.format_t block)))))))))))
+        ("\n};" |> text)
     | Table { annotations; name; properties } -> 
       seq 
-        (seq (Annotation.format_ts annotations)
-           (box 
-              (seq ("table" |> text)
-                 (seq space 
-                    (seq (P4Word.format_t name)
-                       (seq space
-                          (seq ("{\n" |> text)
-                             (format_list_nl Table.format_property properties))))))))
+        (box ~indent:2 (seq (seq (Annotation.format_ts annotations)
+                               (seq ("table" |> text)
+                                  (seq space 
+                                     (seq (P4Word.format_t name)
+                                        (" {\n" |> text)))))
+                          (format_list_nl Table.format_property properties))) 
         ("\n}" |> text)  
     | Variable { annotations; typ; name; init = None } ->
       seq (Annotation.format_ts annotations)    
@@ -748,7 +749,7 @@ end = struct
                                   (";" |> text)))))))))                   
     | ExternFunction { annotations; return; name; type_params; params } ->
       seq (Annotation.format_ts annotations)
-        (box ~indent:1 (seq ("extern" |> text)
+        (box ~indent:2 (seq ("extern" |> text)
                           (seq space
                              (seq (Type.format_t return)
                                 (seq space
@@ -758,14 +759,15 @@ end = struct
                                             (seq (Parameter.format_params params)
                                                (");" |> text))))))))))
     | Function { return; name; type_params; params; body } ->
-      box ~indent:1 (seq (Type.format_t return)
-                       (seq space 
-                          (seq (P4Word.format_t name)
-                             (seq (Type.format_type_params type_params)
-                                (seq (" (" |> text)
-                                   (seq (Parameter.format_params params)
-                                      (seq (") " |> text)
-                                         (Block.format_t body))))))))
+      seq (box ~indent:2 (seq (Type.format_t return)
+                            (seq space 
+                               (seq (P4Word.format_t name)
+                                  (seq (Type.format_type_params type_params)
+                                     (seq (" (" |> text)
+                                        (seq (Parameter.format_params params)
+                                           (seq (") " |> text)
+                                              (Block.format_t body)))))))))
+        ("\n}" |> text)
     | ValueSet { annotations; typ; size; name } ->
       seq (Annotation.format_ts annotations)
         (box (seq ("value_set<" |> text)
@@ -803,27 +805,26 @@ end = struct
                             (seq (box (format_list_sep Parameter.format_t ", " params))
                                (");" |> text)))))))) 
     | PackageType { annotations; name; type_params; params } ->
-      box (seq (Annotation.format_ts annotations)
-             (seq ("package" |> text)
-                (seq space 
-                   (seq (name |> snd |> text)
-                      (seq (Type.format_type_params type_params)
-                         (seq ("(" |> text)
-                            (seq (box (format_list_sep Parameter.format_t ", " params))
-                               (");" |> text)))))))) 
-    | Struct { annotations; name; fields } ->
-      seq (box (Annotation.format_ts annotations)) 
-        (seq (box ~indent:1 
-                (seq ("struct" |> text)
-                   (seq space 
-                      (seq (P4Word.format_t name)
-                         (seq space 
-                            (format_fields fields))))))
-           ("\n}" |> text))
+      box ~indent:2 (seq (Annotation.format_ts annotations)
+                       (seq ("package" |> text)
+                          (seq space 
+                             (seq (name |> snd |> text)
+                                (seq (Type.format_type_params type_params)
+                                   (seq ("(" |> text)
+                                      (seq (box (format_list_sep Parameter.format_t ", " params))
+                                         (");" |> text)))))))) 
+    | Struct { annotations; name; fields } -> 
+      seq (seq (Annotation.format_ts annotations)
+             (box ~indent:2 
+                (seq (hvbox ~indent:2 ((seq ("struct " |> text)
+                                          (seq (P4Word.format_t name)
+                                             (" {\n" |> verbatim)))))
+                   (format_fields fields))))
+        ("\n}" |> text)   
     | MatchKind { members=[] } ->
       "match_kind { }" |> text |> box
     | MatchKind { members } ->
-      seq (box ~indent:1 (seq ("match_kind" |> text)
+      seq (box ~indent:2 (seq ("match_kind" |> text)
                             (seq space
                                (seq ("{\n" |> text)
                                   (format_list_sep_nl P4Word.format_t ", " members)))))
@@ -831,7 +832,7 @@ end = struct
     | Error { members=[] } ->
       box ("error { }" |> text)
     | Error { members } ->
-      seq (box ~indent:1 (seq ("error {" |> verbatim)
+      seq (box ~indent:2 (seq ("error {" |> verbatim)
                             (seq newline 
                                (format_list_sep_nl P4Word.format_t ", " members))))
         ("\n}" |> text)
@@ -845,7 +846,7 @@ end = struct
     | Enum { annotations; name; members } ->
       seq 
         (seq (Annotation.format_ts annotations)
-           (box 
+           (box ~indent:2
               (seq ("enum" |> text)
                  (seq space 
                     (seq (P4Word.format_t name)
@@ -892,8 +893,8 @@ end = struct
                                   ("}" |> text)))))))))  
     | ExternObject { annotations; name; type_params; methods } ->   
       seq (seq (Annotation.format_ts annotations)
-             (box ~indent:1 
-                (seq (hvbox ~indent:1 ((seq ("extern" |> text)
+             (box ~indent:2 
+                (seq (hvbox ~indent:2 ((seq ("extern" |> text)
                                           (seq space 
                                              (seq (P4Word.format_t name)
                                                 (seq (Type.format_type_params type_params)
@@ -902,18 +903,18 @@ end = struct
         ("\n}\n" |> text)         
     | Header { annotations; name; fields } ->
       seq (Annotation.format_ts annotations)
-        (seq (box ~indent:1 (seq ("header" |> text)
+        (seq (box ~indent:2 (seq ("header" |> text)
                                (seq space 
                                   (seq (P4Word.format_t name)
-                                     (seq space
+                                     (seq (" {\n" |> text)
                                         (format_fields fields)))))) 
            ("\n}" |> text))
     | HeaderUnion { annotations; name; fields } ->
       seq (Annotation.format_ts annotations)
-        (seq (box ~indent:1 (seq ("header_union" |> text)
+        (seq (box ~indent:2 (seq ("header_union" |> text)
                                (seq space 
                                   (seq (P4Word.format_t name)
-                                     (seq space
+                                     (seq (" {\n" |> text)
                                         (format_fields fields))))))
            ("\n}" |> text))
     | NewType { annotations; name; typ_or_decl } ->

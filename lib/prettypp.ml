@@ -816,9 +816,9 @@ end = struct
     | Struct { annotations; name; fields } -> 
       seq (seq (Annotation.format_ts annotations)
              (box ~indent:2 
-                (seq (hvbox ~indent:2 ((seq ("struct " |> text)
-                                          (seq (P4Word.format_t name)
-                                             (" {\n" |> verbatim)))))
+                (seq (hbox ((seq ("struct " |> text)
+                               (seq (P4Word.format_t name)
+                                  (" {\n" |> verbatim)))))
                    (format_fields fields))))
         ("\n}" |> text)   
     | MatchKind { members=[] } ->

@@ -5,7 +5,8 @@
   - Get rid of DeclarationStatements
   - make lvalue index have type nat, rather than Value [Ryan]
 2. Remove dependencies on Types AST
-  - Types.Expression in Annotation
+  - Types.Expression in Annotation (make Annotation a parameter but still be
+    able to round trip them)
   - Types.Expression in Parameter default values [Ryan]
 3. Assert_* functions from Prog should be monadic functions in their own module
    [Molly]

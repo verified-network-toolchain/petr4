@@ -892,7 +892,7 @@ and Value : sig
           lsb : Util.bigint; }
     | LArrayAccess of
         { expr : lvalue;
-          idx : value; }
+          idx : Util.bigint; }
   [@@deriving sexp,show,yojson]
 
   and lvalue = {
@@ -990,7 +990,7 @@ and Value : sig
 
   val assert_lbitaccess : lvalue -> lvalue * Util.bigint * Util.bigint
 
-  val assert_larrayaccess : lvalue -> lvalue * value
+  val assert_larrayaccess : lvalue -> lvalue * Util.bigint
 
   val assert_singleton : set -> Bigint.t * Bigint.t
 
@@ -1133,7 +1133,7 @@ end = struct
           lsb : Util.bigint; }
     | LArrayAccess of
         { expr : lvalue;
-          idx : value; }
+          idx : Util.bigint; }
   [@@deriving sexp,show,yojson]
 
   and lvalue =

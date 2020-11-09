@@ -220,6 +220,7 @@ with eval_statement (stmt: Statement) : env_monad unit :=
        end
     in
     insert_environment (snd name) value
+  | Stat_Instantiation _ _ _ _ _ _
   | Stat_DirectApplication _ _
   | Stat_Conditional _ _ _
   | Stat_Exit

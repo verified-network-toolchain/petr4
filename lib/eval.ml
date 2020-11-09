@@ -652,11 +652,12 @@ module MakeInterpreter (T : Target) = struct
   and lvalue_of_expr_ara (env : env) (st : state) (typ : Type.t)
       (a : Expression.t) (idx : Expression.t) : state * signal * lvalue option =
     let (st', s, lv) = lvalue_of_expr env st SContinue a in
-    let (st'', s', idx') = eval_expr env st' SContinue idx in
+    let (st'', s', idx_val) = eval_expr env st' SContinue idx in
+    let idx_bigint = bigint_of_val idx_val in
     match s, s' with
     | SContinue, SContinue ->
       st'', s',
-      lv >>| fun lv -> {lvalue = LArrayAccess{expr=lv; idx=idx'}; typ }
+      lv >>| fun lv -> {lvalue = LArrayAccess{expr=lv; idx=idx_bigint}; typ }
     | SContinue, _ -> st'', s', lv
     | _, _ -> st', s, lv
 

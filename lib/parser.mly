@@ -25,6 +25,20 @@ module Info = P4Info
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
 
+let rec smash_annotations l tok2 =
+  match l with 
+  | [] ->
+     [tok2]
+  | [tok1] ->
+     let i1,str1 = tok1 in
+     let i2,str2 = tok2 in
+     Printf.printf "SMASH[%b] \n%s [%s]\n%s [%s]\n\n" (Info.follows i1 i2) (Info.to_string i1) str1 (Info.to_string i2) str2;
+     if Info.follows i1 i2 then
+       [(Info.merge i1 i2, str1 ^ str2)]
+     else
+       [tok1; tok2]
+  | h::t -> h::smash_annotations t tok2
+
 %}
 
 (*************************** TOKENS *******************************)
@@ -303,7 +317,7 @@ annotationBody:
 | body1 = annotationBody L_PAREN body2 = annotationBody R_PAREN
   { body1 @ body2 }
 | body = annotationBody token = annotationToken
-  { body @ [token] }
+  { smash_annotations body token }
 ;
 
 annotationToken:

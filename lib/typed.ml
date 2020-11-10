@@ -1,6 +1,6 @@
 open Sexplib.Conv
 
-type direction = [%import:Poulet4.Syntax.direction]
+type direction = [%import:Poulet4.Typed.direction]
   [@@deriving show,yojson,sexp]
 
 let eq_dir d1 d2 =

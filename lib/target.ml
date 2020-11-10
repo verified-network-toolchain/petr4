@@ -262,14 +262,13 @@ and value_of_lbit (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalu
   | SReject _ | SReturn _ | SExit -> s, VNull
 
 and value_of_larray (reader : 'a reader) (st : 'a State.t) (env : env) (lv : lvalue)
-    (idx : value) : signal * value =
+    (idx : Bigint.t) : signal * value =
   let (s,v) = value_of_lvalue reader env st lv in
   match s with
   | SContinue ->
     begin match v with
       | VStack{headers=vs;size=s;next=i} ->
-        let idx' = bigint_of_val idx in
-        begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx' % s)))
+        begin try (SContinue, List.nth_exn vs Bigint.(to_int_exn (idx % s)))
           with Invalid_argument _ -> (SReject "StackOutOfBounds", VNull) end
       | _ -> failwith "array access is not a header stack" end
   | SReject _ -> (s,VNull)
@@ -309,7 +308,6 @@ let rec assign_lvalue (reader : 'a reader) (writer : 'a writer) (st : 'a State.t
     end
   | LArrayAccess{expr=lv;idx;} ->
     let signal1, arr = value_of_lvalue reader env st lv in
-    let idx = bigint_of_val idx in
     let rhs', signal2 = update_idx arr idx rhs in
     begin match signal1, signal2 with
       | SContinue, SContinue -> 

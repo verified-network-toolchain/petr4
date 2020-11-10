@@ -1,80 +1,107 @@
-/*
-Copyright 2020 Cisco Systems, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 #include <core.p4>
-#include <v1model.p4>
+#include <psa.p4>
 
-header hdr {
-    bit<8>  e;
-    bit<16> t;
-    bit<8>  l;
-    bit<8> r;
-    bit<8>  v;
+struct EMPTY { };
+
+typedef bit<48>  EthernetAddress;
+
+header ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
 }
 
-struct Header_t {
-    hdr h;
-}
-struct Meta_t {}
+parser MyIP(
+    packet_in buffer,
+    out ethernet_t eth,
+    inout EMPTY b,
+    in psa_ingress_parser_input_metadata_t c,
+    in EMPTY d,
+    in EMPTY e) {
 
-parser p(packet_in b, out Header_t h, inout Meta_t m, inout standard_metadata_t sm) {
     state start {
-        b.extract(h.h);
+        buffer.extract(eth);
         transition accept;
     }
 }
 
-control vrfy(inout Header_t h, inout Meta_t m) { apply {} }
-control update(inout Header_t h, inout Meta_t m) { apply {} }
-control egress(inout Header_t h, inout Meta_t m, inout standard_metadata_t sm) { apply {} }
-control deparser(packet_out b, in Header_t h) { apply { b.emit(h.h); } }
-
-control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t standard_meta) {
-
-    action a() { standard_meta.egress_spec = 0; }
-    action a_with_control_params(bit<9> x) { standard_meta.egress_spec = x; }
-
-
-    table t_optional {
-
-  	key = {
-            h.h.e : optional;
-            h.h.t : optional;
-        }
-
-	actions = {
-            a;
-            a_with_control_params;
-        }
-
-	default_action = a;
-
-        const entries = {
-            (0xaa, 0x1111) : a_with_control_params(1);
-            (   _, 0x1111) : a_with_control_params(2);
-            (0xaa,      _) : a_with_control_params(3);
-            // test default entries
-            (   _,      _) : a_with_control_params(4);
-        }
-    }
-
-    apply {
-        t_optional.apply();
+parser MyEP(
+    packet_in buffer,
+    out EMPTY a,
+    inout EMPTY b,
+    in psa_egress_parser_input_metadata_t c,
+    in EMPTY d,
+    in EMPTY e,
+    in EMPTY f) {
+    state start {
+        transition accept;
     }
 }
 
+control MyIC(
+    inout ethernet_t a,
+    inout EMPTY b,
+    in psa_ingress_input_metadata_t c,
+    inout psa_ingress_output_metadata_t d) {
 
-V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+    ActionProfile(1024) ap;
+    action a1() { }
+    action a2() { }
+    table tbl {
+        key = {
+            a.srcAddr : exact;
+        }
+        actions = { NoAction; a2; }
+        psa_implementation = ap;
+    }
+    table tbl2 {
+        key = {
+            a.srcAddr : exact;
+        }
+        actions = { NoAction; a1; }
+        psa_implementation = ap;
+    }
+    apply {
+        tbl.apply();
+        tbl2.apply();
+    }
+}
+
+control MyEC(
+    inout EMPTY a,
+    inout EMPTY b,
+    in psa_egress_input_metadata_t c,
+    inout psa_egress_output_metadata_t d) {
+    apply { }
+}
+
+control MyID(
+    packet_out buffer,
+    out EMPTY a,
+    out EMPTY b,
+    out EMPTY c,
+    inout ethernet_t d,
+    in EMPTY e,
+    in psa_ingress_output_metadata_t f) {
+    apply { }
+}
+
+control MyED(
+    packet_out buffer,
+    out EMPTY a,
+    out EMPTY b,
+    inout EMPTY c,
+    in EMPTY d,
+    in psa_egress_output_metadata_t e,
+    in psa_egress_deparser_input_metadata_t f) {
+    apply { }
+}
+
+IngressPipeline(MyIP(), MyIC(), MyID()) ip;
+EgressPipeline(MyEP(), MyEC(), MyED()) ep;
+
+PSA_Switch(
+    ip,
+    PacketReplicationEngine(),
+    ep,
+    BufferingQueueingEngine()) main;

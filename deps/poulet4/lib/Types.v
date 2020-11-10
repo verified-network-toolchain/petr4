@@ -7,25 +7,25 @@ Open Scope type_scope.
 
 Definition info (A : Type) := Info * A.
 
-Inductive P4Int_pre_t :=
-| MkP4Int_pre_t (value: Z) (width_signed: option (nat * bool)).
+Inductive P4IntPreT :=
+| MkP4IntPreT (value: Z) (width_signed: option (nat * bool)).
 
 (* P4Int = info (value [bigint] * (width [int] * signed) option) *)
-Definition P4Int := info P4Int_pre_t.
+Definition P4Int := info P4IntPreT.
 
 Definition P4String := info string.
 
 Inductive name :=
-  | BareName : P4String -> name
+  | BareName (_: P4String)
   | QualifiedName (namespaces: list P4String) (name: P4String).
 
-Inductive Op_pre_uni : Type :=
+Inductive OpPreUni : Type :=
   | Not
   | BitNot
   | UMinus.
-Definition Op_uni := info Op_pre_uni.
+Definition OpUni := info OpPreUni.
 
-Inductive Op_pre_bin : Type :=
+Inductive OpPreBin : Type :=
   | Plus
   | PlusSat
   | Minus
@@ -47,46 +47,48 @@ Inductive Op_pre_bin : Type :=
   | PlusPlus
   | And
   | Or.
-Definition Op_bin := info Op_pre_bin.
+Definition OpBin := info OpPreBin.
 
-Inductive Direction_pre_t :=
+Inductive DirectionPreT :=
   | In
   | Out
   | InOut.
-Definition Direction := info Direction_pre_t.
+Definition Direction := info DirectionPreT.
 
 Inductive KeyValue :=
   | MkKeyValue (info: Info) (key: P4String) (value: Expression)
-with Type'_pre_t :=
-  | Typ_Bool
-  | Typ_Error
-  | Typ_Integer
-  | Typ_IntType : Expression -> Type'_pre_t
-  | Typ_BitType : Expression -> Type'_pre_t
-  | Typ_VarBit : Expression -> Type'_pre_t
+with P4TypePreT :=
+  | TypBool
+  | TypError
+  | TypInteger
+  | TypIntType (_: Expression)
+  | TypBitType (_: Expression)
+  | TypVarBit (_: Expression)
   (* this could be a typename or a type variable. *)
-  | Typ_TypeName : name -> Type'_pre_t
-  (* SpecializedType : base -> args -> Type'_pre_t *)
-  | Typ_SpecializedType (bese: Type') (args: list Type')
-  (* HeaderStack : header_type -> header_size -> Type'_pre_t *)
-  | Typ_HeaderStack (header: Type') (size: Expression)
-  | Typ_Tuple : list Type' -> Type'_pre_t
-  | Typ_String
-  | Typ_Void
-  | Typ_DontCare
-with Type' :=
-  | MkType' : info Type'_pre_t -> Type'
+  | TypTypeName (_: name)
+  (* SpecializedType : base -> args -> P4TypePreT *)
+  | TypSpecializedType (bese: P4Type) (args: list P4Type)
+  (* HeaderStack : header_type -> header_size -> P4TypePreT *)
+  | TypHeaderStack (header: P4Type) (size: Expression)
+  | TypTuple (_: list P4Type)
+  | TypString
+  | TypVoid
+  | TypDontCare
+with P4Type :=
+  | MkP4Type (_: Info) (_: P4TypePreT)
+with ArgumentPreT :=
+  | ArgExpression (value: Expression)
+  (* ArgKeyValue : key -> value -> ArgumentPreT *)
+  | ArgKeyValue (key: P4String) (value: Expression)
+  | ArgMissing
 with Argument :=
-  | Arg_Expression (info: Info) (value: Expression)
-  (* Arg_KeyValue : key -> value -> Argument_pre_t *)
-  | Arg_KeyValue (info: Info) (key: P4String) (value: Expression)
-  | Arg_Missing (info: Info)
-with Expression_pre_t :=
-  | Exp_True
-  | Exp_False
-  | Exp_Int : P4Int -> Expression_pre_t
-  | Exp_String : P4String -> Expression_pre_t
-  | Exp_Name : name -> Expression_pre_t
+  | MkArgument (_: Info) (_: ArgumentPreT)
+with ExpressionPreT :=
+  | ExpTrue
+  | ExpFalse
+  | ExpInt (_: P4Int)
+  | ExpString (_: P4String)
+  | ExpName (_: name)
   (* | ArrayAccess of
       { array: t;
         index: t } *)
@@ -98,8 +100,8 @@ with Expression_pre_t :=
       { values: t list } *)
   (* | Record of
       { entries: KeyValue.t list } *)
-  | Exp_UnaryOp (op: Op_uni) (arg: Expression)
-  | Exp_BinaryOp (op: Op_bin) (args: (Expression * Expression))
+  | ExpUnaryOp (op: OpUni) (arg: Expression)
+  | ExpBinaryOp (op: OpBin) (args: (Expression * Expression))
   (* | Cast of
       { typ: Type.t;
         expr: t } *)
@@ -114,8 +116,8 @@ with Expression_pre_t :=
       { cond: t;
         tru: t;
         fls: t } *)
-  (* FunctionCall func type_args args *)
-  | Exp_FunctionCall (func: Expression) (type_args: list Type') (args: list Argument)
+  (* FunctionCall: func type_args args *)
+  | ExpFunctionCall (func: Expression) (type_args: list P4Type) (args: list Argument)
   (* | NamelessInstantiation of
       { typ: Type.t [@key "type"];
         args: Argument.t list } *)
@@ -126,12 +128,12 @@ with Expression_pre_t :=
       { lo: t;
         hi: t } *)
 with Expression :=
-  | MkExpression : info Expression_pre_t -> Expression.
+  | MkExpression (_: Info) (_: ExpressionPreT).
 
-Inductive Annotation_body :=
-  | Anno_Empty (info: Info)
-  | Anno_Unparsed : Info -> list P4String -> Annotation_body
-  | Anno_Expression : Info -> list Expression -> Annotation_body
-  | Anno_KeyValue : Info -> list KeyValue -> Annotation_body.
+Inductive AnnotationBody :=
+  | AnnoEmpty
+  | AnnoUnparsed (_: list P4String)
+  | AnnoExpression (_: list Expression)
+  | AnnoKeyValue (_: list KeyValue).
 Inductive Annotation :=
-  | MkAnnotation (info: Info) (name: P4String) (body: Annotation_body).
+  | MkAnnotation (info: Info) (name: P4String) (body: AnnotationBody).

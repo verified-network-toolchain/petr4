@@ -24,14 +24,14 @@ Definition eq_dir (d1 d2: direction) :=
 Inductive TableType :=
 | MkTableType (result_typ_name: string).
 
-Inductive FunctionType_kind :=
-| Fun_Parser
-| Fun_Control
-| Fun_Extern
-| Fun_Table
-| Fun_Action
-| Fun_Function
-| Fun_Builtin.
+Inductive FunctionKind :=
+| FunParser
+| FunControl
+| FunExtern
+| FunTable
+| FunAction
+| FunFunction
+| FunBuiltin.
 
 
 Inductive P4Parameter :=
@@ -47,13 +47,12 @@ with PackageType :=
 with ControlType :=
 (* MkControlType : type_params -> parameters -> ControlType *)
 | MkControlType (type_params: list string) (parameters: list P4Parameter)
-with ExternType_extern_method :=
-(* MkExternType_extern_method : name -> type ->
-                                  ExternType_extern_method *)
-| MkExternType_extern_method (name: string) (typ: FunctionType)
+with ExternMethodType :=
+(* ExternMethodType : name -> type -> ExternMethodType *)
+| MkExternMethodType (name: string) (typ: FunctionType)
 with ExternType :=
 (* MkExternType : type_params -> methods -> ExternType *)
-| MkExternType (type_params: list string) (methods: list ExternType_extern_method)
+| MkExternType (type_params: list string) (methods: list ExternMethodType)
 with ArrayType :=
 (* MkArrayType : type -> size [int] -> ArrayType *)
 | MkArrayType (typ: P4Type) (size: Z)
@@ -61,10 +60,10 @@ with TupleType :=
 | MkTupleType (types: list P4Type)
 with NewType :=
 | MkNewType (name: string) (typ: P4Type)
-with RecordType_field :=
-| MkRecordType_field (name: string) (typ: P4Type)
+with RecordFieldType :=
+| MkRecordFieldType (name: string) (typ: P4Type)
 with RecordType :=
-| MkRecordType (fields: list RecordType_field)
+| MkRecordType (fields: list RecordFieldType)
 with EnumType :=
 (* MkEnumType : name -> type -> members -> EnumType *)
 | MkEnumType (name: string) (typ: option P4Type) (members: list string)
@@ -72,7 +71,7 @@ with FunctionType :=
 (* MkFunctionType : type_params -> parameters -> kind ->
                       return -> FunctionType *)
 | MkFunctionType (type_params: list string) (parameters: list P4Parameter)
-                 (kind: FunctionType_kind) (ret: P4Type)
+                 (kind: FunctionKind) (ret: P4Type)
 with SpecializedType :=
 (* MkSpecializedType : base -> args -> SpecializedType *)
 | MkSpecializedType (base: P4Type) (args: list P4Type)
@@ -85,68 +84,68 @@ with ConstructorType :=
 | MkConstructorType (type_params: list string) (wildcard_params: list string)
                     (parameters: list P4Parameter) (ret: P4Type)
 with P4Type :=
-| Typ_Bool
-| Typ_String
-| Typ_Integer
-| Typ_Int (width: nat)
-| Typ_Bit (width: nat)
-| Typ_VarBit (width: nat)
-| Typ_Array (size: ArrayType)
-| Typ_Tuple (_: TupleType)
-| Typ_List (_: TupleType)
-| Typ_Record (_: RecordType)
-| Typ_Set (_: P4Type)
-| Typ_Error
-| Typ_MatchKind
-| Typ_TypeName (_: Types.name)
-| Typ_NewType (_: NewType)
-| Typ_Void
-| Typ_Header (_: RecordType)
-| Typ_HeaderUnion (_: RecordType)
-| Typ_Struct (_: RecordType)
-| Typ_Enum (_: EnumType)
-| Typ_SpecializedType (_: SpecializedType)
-| Typ_Package (_: PackageType)
-| Typ_Control (_: ControlType)
-| Typ_Parser (_: ControlType)
-| Typ_Extern (_: ExternType)
-| Typ_Function (_: FunctionType)
-| Typ_Action (_: ActionType)
-| Typ_Constructor (_: ConstructorType)
-| Typ_Table (_: TableType).
+| TypBool
+| TypString
+| TypInteger
+| TypInt (width: nat)
+| TypBit (width: nat)
+| TypVarBit (width: nat)
+| TypArray (size: ArrayType)
+| TypTuple (_: TupleType)
+| TypList (_: TupleType)
+| TypRecord (_: RecordType)
+| TypSet (_: P4Type)
+| TypError
+| TypMatchKind
+| TypTypeName (_: Types.name)
+| TypNewType (_: NewType)
+| TypVoid
+| TypHeader (_: RecordType)
+| TypHeaderUnion (_: RecordType)
+| TypStruct (_: RecordType)
+| TypEnum (_: EnumType)
+| TypSpecializedType (_: SpecializedType)
+| TypPackage (_: PackageType)
+| TypControl (_: ControlType)
+| TypParser (_: ControlType)
+| TypExtern (_: ExternType)
+| TypFunction (_: FunctionType)
+| TypAction (_: ActionType)
+| TypConstructor (_: ConstructorType)
+| TypTable (_: TableType).
 
 Inductive StmType :=
-| Stm_Unit
-| Stm_Void.
+| StmUnit
+| StmVoid.
 
 Inductive StmtContext :=
-| StmtCx_Function (_: P4Type)
-| StmtCx_Action
-| StmtCx_ParserState
-| StmtCx_ApplyBlock.
+| StmtCxFunction (_: P4Type)
+| StmtCxAction
+| StmtCxParserState
+| StmtCxApplyBlock.
 
 Inductive DeclContext :=
-| DeclCx_TopLevel
-| DeclCx_Nested
-| DeclCx_Statement (_: StmtContext).
+| DeclCxTopLevel
+| DeclCxNested
+| DeclCxStatement (_: StmtContext).
 
-Inductive ParamContext_decl :=
-| ParamCxDecl_Parser
-| ParamCxDecl_Control
-| ParamCxDecl_Method
-| ParamCxDecl_Action
-| ParamCxDecl_Function
-| ParamCxDecl_Package.
+Inductive ParamContextDeclaration :=
+| ParamCxDeclParser
+| ParamCxDeclControl
+| ParamCxDeclMethod
+| ParamCxDeclAction
+| ParamCxDeclFunction
+| ParamCxDeclPackage.
 
 Inductive ParamContext :=
-| ParamCx_Runtime (_: ParamContext_decl)
-| ParamCx_Constructor (_: ParamContext_decl).
+| ParamCxRuntime (_: ParamContextDeclaration)
+| ParamCxConstructor (_: ParamContextDeclaration).
 
 Inductive ExprContext :=
-| ExprCx_ParserState
-| ExprCx_ApplyBlock
-| ExprCx_DeclLocals
-| ExprCx_TableAction
-| ExprCx_Action
-| ExprCx_Function
-| ExprCx_Constant.
+| ExprCxParserState
+| ExprCxApplyBlock
+| ExprCxDeclLocals
+| ExprCxTableAction
+| ExprCxAction
+| ExprCxFunction
+| ExprCxConstant.

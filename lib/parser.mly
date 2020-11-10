@@ -32,7 +32,6 @@ let rec smash_annotations l tok2 =
   | [tok1] ->
      let i1,str1 = tok1 in
      let i2,str2 = tok2 in
-     Printf.printf "SMASH[%b] \n%s [%s]\n%s [%s]\n\n" (Info.follows i1 i2) (Info.to_string i1) str1 (Info.to_string i2) str2;
      if Info.follows i1 i2 then
        [(Info.merge i1 i2, str1 ^ str2)]
      else

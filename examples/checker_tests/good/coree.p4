@@ -1,107 +1,34 @@
-#include <core.p4>
-#include <psa.p4>
+/*
+Copyright 2013-present Barefoot Networks, Inc.
 
-struct EMPTY { };
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-typedef bit<48>  EthernetAddress;
+    http://www.apache.org/licenses/LICENSE-2.0
 
-header ethernet_t {
-    EthernetAddress dstAddr;
-    EthernetAddress srcAddr;
-    bit<16>         etherType;
-}
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
-parser MyIP(
-    packet_in buffer,
-    out ethernet_t eth,
-    inout EMPTY b,
-    in psa_ingress_parser_input_metadata_t c,
-    in EMPTY d,
-    in EMPTY e) {
+/* P4TEST_IGNORE_STDERR */
 
-    state start {
-        buffer.extract(eth);
-        transition accept;
-    }
-}
+@pragma name "original"
+const bit b = 1;
 
-parser MyEP(
-    packet_in buffer,
-    out EMPTY a,
-    inout EMPTY b,
-    in psa_egress_parser_input_metadata_t c,
-    in EMPTY d,
-    in EMPTY e,
-    in EMPTY f) {
-    state start {
-        transition accept;
-    }
-}
+@pragma name "string \" with \" quotes"
+const bit c = 1;
 
-control MyIC(
-    inout ethernet_t a,
-    inout EMPTY b,
-    in psa_ingress_input_metadata_t c,
-    inout psa_ingress_output_metadata_t d) {
+@pragma name "string with
+newline"
+const bit d = 1;
 
-    ActionProfile(1024) ap;
-    action a1() { }
-    action a2() { }
-    table tbl {
-        key = {
-            a.srcAddr : exact;
-        }
-        actions = { NoAction; a2; }
-        psa_implementation = ap;
-    }
-    table tbl2 {
-        key = {
-            a.srcAddr : exact;
-        }
-        actions = { NoAction; a1; }
-        psa_implementation = ap;
-    }
-    apply {
-        tbl.apply();
-        tbl2.apply();
-    }
-}
+@pragma name "string with quoted \
+newline"
+const bit e = 1;
 
-control MyEC(
-    inout EMPTY a,
-    inout EMPTY b,
-    in psa_egress_input_metadata_t c,
-    inout psa_egress_output_metadata_t d) {
-    apply { }
-}
-
-control MyID(
-    packet_out buffer,
-    out EMPTY a,
-    out EMPTY b,
-    out EMPTY c,
-    inout ethernet_t d,
-    in EMPTY e,
-    in psa_ingress_output_metadata_t f) {
-    apply { }
-}
-
-control MyED(
-    packet_out buffer,
-    out EMPTY a,
-    out EMPTY b,
-    inout EMPTY c,
-    in EMPTY d,
-    in psa_egress_output_metadata_t e,
-    in psa_egress_deparser_input_metadata_t f) {
-    apply { }
-}
-
-IngressPipeline(MyIP(), MyIC(), MyID()) ip;
-EgressPipeline(MyEP(), MyEC(), MyED()) ep;
-
-PSA_Switch(
-    ip,
-    PacketReplicationEngine(),
-    ep,
-    BufferingQueueingEngine()) main;
+@pragma name "8-bit string ⟶"
+const bit f = 1;

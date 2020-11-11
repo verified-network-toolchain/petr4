@@ -105,13 +105,15 @@ end = struct
       in (seq (format_t (fst x.args)) 
             (seq (bop |> text) 
                (format_t (snd x.args))))
-         |> box ~indent:2
+         |> hbox 
+    (* |> box ~indent:2 *)
     | Cast x -> 
       seq ("(" |> text) 
         (seq (Type.format_t x.typ) 
            (seq (") " |> text) 
               ((format_t x.expr))))
-      |> box ~indent:2
+      |> hbox 
+    (* |> box ~indent:2 *)
     | TypeMember x -> 
       seq (name_format_t x.typ) 
         (seq ("." |> text) 
@@ -362,7 +364,7 @@ end = struct
     match snd e with 
     | { name; body } -> 
       seq ("@" |> text) (seq (P4Word.format_t name) 
-                           (format_body body)) |> box ~indent:2
+                           (format_body body)) |> box 
 
   let format_ts l =
     match l with

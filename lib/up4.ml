@@ -14,8 +14,9 @@ module PreUp4Filter : Target = struct
   (* TODO: Define uP4 obj *)
   type obj = 
     | Packet of {pck: int list; size: int} (* represented as a byte array *)
+    | Im_t of {out_port: int; in_port: int}  (* intrinsic metadata and constraints *)
   (*
-    | IM_T of {}  (* intrinsic metadata and constraints *)
+    
     | emitter (* assemble packets *)
     | extractor (* header extraction *)
     | in_buf (* input buffer *)
@@ -47,7 +48,16 @@ module PreUp4Filter : Target = struct
     failwith "unimplemented"
 
   let eval_set_out_port : extern = fun env st ts args -> 
-    failwith "unimplemented"
+      let (loc, v) = match args with 
+      | [(VRuntime {loc = l; _}, _);
+         (VBit {v;_}, _)] -> l, Bigint.to_int_exn v
+      | _ -> failwith "unexpected args for set_out_port" in
+    let im_t_obj = State.find_extern loc st in
+    let in_port = match im_t_obj with 
+      | Im_t {out_port = _; in_port = i} -> i 
+      | _ -> failwith "VRuntime loc passed into set_out_port is not for Im_t obj." in
+    let new_im_t_obj = Im_t {out_port = v; in_port = in_port} in
+    env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
   let eval_get_in_port : extern = fun env st ts args -> 
     let (loc, v) = match args with

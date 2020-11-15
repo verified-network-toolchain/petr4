@@ -14,9 +14,9 @@ module PreUp4Filter : Target = struct
   (* TODO: Define uP4 obj *)
   type obj = 
     | Packet of {pck: int list; size: int} (* represented as a byte array *)
-    | Im_t of {out_port: int; in_port: int}  (* intrinsic metadata and constraints *)
+    | Im_t of {out_port: Bigint.t; in_port: Bigint.t}  (* intrinsic metadata and constraints *)
   (*
-    
+
     | emitter (* assemble packets *)
     | extractor (* header extraction *)
     | in_buf (* input buffer *)
@@ -48,9 +48,9 @@ module PreUp4Filter : Target = struct
     failwith "unimplemented"
 
   let eval_set_out_port : extern = fun env st ts args -> 
-      let (loc, v) = match args with 
+    let (loc, v) = match args with 
       | [(VRuntime {loc = l; _}, _);
-         (VBit {v;_}, _)] -> l, Bigint.to_int_exn v
+         (VBit {v;_}, _)] -> l, v
       | _ -> failwith "unexpected args for set_out_port" in
     let im_t_obj = State.find_extern loc st in
     let in_port = match im_t_obj with 
@@ -60,18 +60,24 @@ module PreUp4Filter : Target = struct
     env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
   let eval_get_in_port : extern = fun env st ts args -> 
-    let (loc, v) = match args with
-      | [(VRuntime {loc = l; _}, _);
-         (VBit {v;_}, _)] -> Bigint.to_int_exn v
-      | _ -> failwith "unexpectd args for get_in_port" in
+    let loc = match args with
+      | [(VRuntime {loc = l; _}, _)] -> l
+      | _ -> failwith "unexpected args for get_in_port" in
     let im_t_obj = State.find_extern loc st in
     let in_port = match im_t_obj with
       | Im_t {out_port = _; in_port = i} -> i;
       | _ -> failwith "Reading from an object other than " in 
-    env, st, SContinue, VBit {w = in_port; v = Bigint.big_int_of_int 9}
+    env, st, SContinue, VBit {w = Bigint.of_int 9; v = in_port}
 
   let eval_get_out_port : extern = fun env st ts args -> 
-    failwith "unimplemented"
+    let loc = match args with
+      | [(VRuntime {loc = l; _}, _);] -> l
+      | _ -> failwith "unexpected args for get_out_port" in
+    let im_t_obj = State.find_extern loc st in
+    let out_port = match im_t_obj with
+      | Im_t {out_port = o; in_port = _} -> o;
+      | _ -> failwith "Reading from an object other than " in 
+    env, st, SContinue, VBit {w = Bigint.of_int 9; v = out_port}
 
   let eval_get_value : extern = fun env st ts args -> 
     failwith "unimplemented"

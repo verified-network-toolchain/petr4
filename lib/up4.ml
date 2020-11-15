@@ -50,7 +50,15 @@ module PreUp4Filter : Target = struct
     failwith "unimplemented"
 
   let eval_get_in_port : extern = fun env st ts args -> 
-    failwith "unimplemented"
+    let (loc, v) = match args with
+      | [(VRuntime {loc = l; _}, _);
+         (VBit {v;_}, _)] -> Bigint.to_int_exn v
+      | _ -> failwith "unexpectd args for get_in_port" in
+    let im_t_obj = State.find_extern loc st in
+    let in_port = match im_t_obj with
+      | Im_t {out_port = _; in_port = i} -> i;
+      | _ -> failwith "Reading from an object other than " in 
+    env, st, SContinue, VBit {w = in_port; v = Bigint.big_int_of_int 9}
 
   let eval_get_out_port : extern = fun env st ts args -> 
     failwith "unimplemented"

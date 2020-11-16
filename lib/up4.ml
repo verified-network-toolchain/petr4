@@ -11,6 +11,9 @@ let (<>) = Stdlib.(<>)
 
 module PreUp4Filter : Target = struct
 
+  (* TODO: copied from v1model. *)
+  let drop_spec = Bigint.of_int 511
+
   (* TODO: Define uP4 obj *)
   type obj = 
     | Packet of {pck: int list; size: int} (* represented as a byte array *)
@@ -23,30 +26,14 @@ module PreUp4Filter : Target = struct
     | out_buf (* output buffer *)
     *)
 
-  (* let dummy = Packet {pck = []; size = 0} maybe we need this?*)
+  (* Needed to run tests (Does not run bc Packet is not used) *)
+  let dummy = Packet {pck = []; size = 0} 
 
   type state = obj State.t
 
   type extern = state pre_extern
 
-  (* TODO: Implement uP4 externs *)
-
-  (* Create instances of pkt extern *)
-  let eval_copy_from : extern = fun env st ts args -> 
-    let (loc, copy_loc) = match args with 
-      | [(VRuntime {loc = l; _}, _);
-         (VRuntime{loc = c_loc; _}, _)] -> l, c_loc
-      | _ -> failwith "unexpected args for packet copying" in
-    let packet_obj = State.find_extern copy_loc st in
-    let packet_val, packet_size = match packet_obj with
-      | Packet {pck = p; size = s} -> p,s 
-      | _ -> failwith "Reading from an object other than a packet" in
-    let pck = Packet { pck = packet_val; size = packet_size} in
-    env, State.insert_extern loc pck st, SContinue, VRuntime {loc = loc; obj_name = "pkt_copy"}
-
-  let eval_get_length : extern = fun env st ts args -> 
-    failwith "unimplemented"
-
+  (* Set out_port field to input to this extern function in the Im_t extern object. *)
   let eval_set_out_port : extern = fun env st ts args -> 
     let (loc, v) = match args with 
       | [(VRuntime {loc = l; _}, _);
@@ -55,10 +42,11 @@ module PreUp4Filter : Target = struct
     let im_t_obj = State.find_extern loc st in
     let in_port = match im_t_obj with 
       | Im_t {out_port = _; in_port = i} -> i 
-      | _ -> failwith "VRuntime loc passed into set_out_port is not for Im_t obj." in
+      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in
     let new_im_t_obj = Im_t {out_port = v; in_port = in_port} in
     env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
+  (* Get in_port field from the Im_t extern object. *)
   let eval_get_in_port : extern = fun env st ts args -> 
     let loc = match args with
       | [(VRuntime {loc = l; _}, _)] -> l
@@ -66,9 +54,10 @@ module PreUp4Filter : Target = struct
     let im_t_obj = State.find_extern loc st in
     let in_port = match im_t_obj with
       | Im_t {out_port = _; in_port = i} -> i;
-      | _ -> failwith "Reading from an object other than " in 
+      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in 
     env, st, SContinue, VBit {w = Bigint.of_int 9; v = in_port}
 
+  (* Get out_port field from the Im_t extern object. *)
   let eval_get_out_port : extern = fun env st ts args -> 
     let loc = match args with
       | [(VRuntime {loc = l; _}, _);] -> l
@@ -76,40 +65,24 @@ module PreUp4Filter : Target = struct
     let im_t_obj = State.find_extern loc st in
     let out_port = match im_t_obj with
       | Im_t {out_port = o; in_port = _} -> o;
-      | _ -> failwith "Reading from an object other than " in 
+      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in 
     env, st, SContinue, VBit {w = Bigint.of_int 9; v = out_port}
 
+  (*  *)
   let eval_get_value : extern = fun env st ts args -> 
     failwith "unimplemented"
 
+  (*  *)
   let eval_drop : extern = fun env st ts args -> 
-    failwith "unimplemented"
-
-  let eval_dequeue : extern = fun env st ts args -> 
-    failwith "unimplemented"
-
-  let eval_enqueue : extern = fun env st ts args -> 
-    failwith "unimplemented"
-
-  let eval_to_in_buf : extern = fun env st ts args -> 
-    failwith "unimplemented"
-
-  let eval_merge : extern = fun env st ts args -> 
     failwith "unimplemented"
 
   (* stp: never actually used; see note in v1model.ml *)
   let externs = [
-    ("copy_from", eval_copy_from); (* Overloaded. input type is pkt or im_t *)
-    ("get_length", eval_get_length);
     ("set_out_port", eval_set_out_port);
     ("get_in_port", eval_get_in_port); 
     ("get_out_port", eval_get_out_port);
     ("get_value", eval_get_value);
     ("drop", eval_drop);
-    ("dequeue", eval_dequeue);
-    ("enqueue", eval_enqueue); 
-    ("to_in_buf", eval_to_in_buf);
-    ("merge", eval_merge);
   ]
 
   let read_header_field : obj reader = fun is_valid fields fname ->
@@ -124,22 +97,16 @@ module PreUp4Filter : Target = struct
 
   let eval_extern name =
     match name with
-    (* | "copy_from" -> eval_copy_from (* Overloaded. input type is pkt or im_t *)
-       | "get_length" -> eval_get_length
-       | "set_out_port" -> eval_set_out_port
-       | "get_in_port" -> eval_get_in_port 
-       | "get_out_port" -> eval_get_out_port
-       | "get_value" -> eval_get_value
-       | "drop" -> eval_drop
-       | "dequeue" -> eval_dequeue
-       | "enqueue" -> eval_enqueue 
-       | "to_in_buf" -> eval_to_in_buf
-       | "merge" -> eval_merge *)
+    | "set_out_port" -> eval_set_out_port
+    | "get_in_port" -> eval_get_in_port 
+    | "get_out_port" -> eval_get_out_port
+    | "get_value" -> eval_get_value
+    | "drop" -> eval_drop
     | _ -> failwith "extern unknown in up4 or not yet implemented"
 
-  (* TODO: below is copied from ebpf.ml. Check if it's okay *)
+  (* Use the port number [meta] to set out_port and in_port of Im_t extern object. *)
   let initialize_metadata meta st =
-    State.insert_heap "__INGRESS_PORT__" (VInteger meta) st
+    State.insert_extern State.im_t_location (Im_t {out_port = meta; in_port = meta}) st
 
   let check_pipeline env = failwith "unimplemented"
 
@@ -255,10 +222,11 @@ module PreUp4Filter : Target = struct
         | SReject _ -> st, env, None
         | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
 
-
-  (* TODO: below is copied from ebpf.ml. Check if it's okay *)
+  (* Get out_port field from the Im_t extern object. *)
   let get_outport (st : state) (env : env) : Bigint.t =
-    State.find_heap "__INGRESS_PORT__" st |> bigint_of_val
+    match State.find_extern State.im_t_location st with
+    | Im_t {out_port = out; in_port = _} -> out
+    | _ -> drop_spec
 
 end 
 

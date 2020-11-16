@@ -10,7 +10,8 @@ struct in_param_t { }
 struct out_param_t { }
 
 typedef bit<9> PortId_t;
-const PortId_t PORT_CPU = 255;
+const PortId_t TEMP_PORT = 244;
+const PortId_t OUT_PORT = 255;
 
 parser MyParser(packet_in packet,
                 im_t im,
@@ -53,6 +54,7 @@ control MyControl(im_t im,
                   out out_param_t out_param,
                   inout error parser_error) {
     apply {
+        im.set_out_port(TEMP_PORT);
         if (parser_error == error.NoError) {
             hdrs[0] = { 72 };
             hdrs[1] = { 101 };
@@ -65,10 +67,10 @@ control MyControl(im_t im,
             hdrs[8] = { 111 };
             hdrs[9] = { 114 };
             hdrs[10] = { 108 };
-            hdrs[11] = { 100 };
-            hdrs[12] = { 33 };
+            hdrs[11] = { (bit<8>) im.get_in_port() };
+            hdrs[12] = { (bit<8>) im.get_out_port() };
         }
-        im.set_out_port(PORT_CPU);
+        im.set_out_port(OUT_PORT);
     }
 }
 

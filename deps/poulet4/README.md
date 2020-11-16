@@ -15,7 +15,7 @@
   - [ ] PPX annotations have to be added
 5. [ ] Fix representation of environments
 6. [ ] Use control-plane names for controllable entities
-7. [ ] Provide "arbitrary annotations" rather than having annotations
+7. [x] Provide "arbitrary annotations" rather than having annotations
    and info on every syntax node.
    - Go from this:
 

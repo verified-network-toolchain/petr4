@@ -21,13 +21,16 @@ Inductive exception :=
 | Internal
 | AssertError (error_msg : string).
 
-Definition scope := MStr.t Value.
-Definition environment := list scope.
+Section Environment.
 
-Definition env_monad := @state_monad environment exception.
+  Context `{tag_inst: Tags}.
+  Definition scope := MStr.t Value.
+  Definition environment := list scope.
 
-Definition map_env (f : environment -> environment) : env_monad unit :=
-  fun env => mret tt (f env).
+  Definition env_monad := @state_monad environment exception.
+
+  Definition map_env (f : environment -> environment) : env_monad unit :=
+    fun env => mret tt (f env).
 
 Definition lift_env_fn (f : environment -> option environment) : env_monad unit :=
   fun env =>
@@ -44,10 +47,10 @@ Definition lift_env_lookup_fn (f: environment -> option Value) : env_monad Value
     end.
 
 Definition lift_option {A : Type} (x: option A) : env_monad A := fun env => 
-  match x with
-  | Some it => mret it env
-  | None => (inr Internal, env)
-  end.
+                                                                   match x with
+                                                                   | Some it => mret it env
+                                                                   | None => (inr Internal, env)
+                                                                   end.
 
 Definition update_scope (key: string) (val: Value) (bindings: scope) : option scope :=
   MStr.find key bindings;;
@@ -93,7 +96,7 @@ Definition insert_environment' (key: string) (val: Value) (env: environment) : o
 
 Definition insert_environment (key: string) (val: Value) : env_monad unit :=
   lift_env_fn (insert_environment' key val).
-  
+
 Fixpoint find_environment' (key: string) (env: environment) : option Value :=
   match env with
   | inner :: rest =>
@@ -110,10 +113,10 @@ Definition find_environment (key: string) : env_monad Value :=
 (* TODO handle name resolution properly *)
 Definition str_of_name_warning_not_safe (t: Types.name) : string :=
   let s :=
-    match t with 
-    | Types.BareName s => s
-    | Types.QualifiedName _ s => s
-    end
+      match t with 
+      | Types.BareName s => s
+      | Types.QualifiedName _ s => s
+      end
   in
   snd s.
 
@@ -168,3 +171,5 @@ Definition dummy_value (original: env_monad unit) : env_monad Value :=
     | (inl tt, env') => mret ValNull env'
     | (inr exc, env') => state_fail exc env'
     end.
+
+End Environment.

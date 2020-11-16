@@ -13,6 +13,9 @@ Require Import Typed.
 
 Open Scope monad.
 
+Section Packet.
+Context `{tags_inst: Tags}.
+
 Definition packet_monad := @state_monad (list bool) exception.
 
 Fixpoint read_first_bits (count: nat) : packet_monad (Bvector count) :=
@@ -57,3 +60,5 @@ with eval_packet_extract_fixed_field (into_field: RecordFieldType) : packet_mona
   let '(MkRecordFieldType into_name into_type) := into_field in
   let* v := eval_packet_extract_fixed into_type in
   mret (into_name, v).
+
+End Packet.

@@ -11,7 +11,10 @@ Open Scope monad.
 
 (* Open Scope string_scope. *)
 
-Definition states_to_block (ss: list Statement) : Block := List.fold_right BlockCons (BlockEmpty Info.dummy nil) ss.
+Section Step.
+  Context `{tags_inst: Tags}.
+Definition states_to_block (ss: list Statement) : Block :=
+  List.fold_right BlockCons (BlockEmpty tags_dummy nil) ss.
 
 Fixpoint lookup_state (states: list ParserState) (name: string) : option ParserState := 
   match states with
@@ -30,7 +33,7 @@ Definition step (p: ValueParser) (start: string) : env_monad string :=
   | Some nxt => 
     let 'MkParserState _ _ _ statements transition := nxt in
     let blk := StatBlock (states_to_block statements) in
-    let* _ := eval_statement (MkStatement Info.dummy blk Typed.StmUnit) in
+    let* _ := eval_statement (MkStatement tags_dummy blk Typed.StmUnit) in
     eval_transition transition
   | None =>
     state_fail Internal
@@ -51,3 +54,4 @@ Fixpoint step_trans (p: ValueParser) (fuel: nat) (start: string) : env_monad uni
     end
   end. 
   
+End Step.

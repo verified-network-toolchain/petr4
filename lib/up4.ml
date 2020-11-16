@@ -11,23 +11,19 @@ let (<>) = Stdlib.(<>)
 
 module PreUp4Filter : Target = struct
 
-  (* TODO: copied from v1model. *)
-  let drop_spec = Bigint.of_int 511
-
   (* TODO: Define uP4 obj *)
   type obj = 
-    | Packet of {pck: int list; size: int} (* represented as a byte array *)
-    | Im_t of {out_port: Bigint.t; in_port: Bigint.t}  (* intrinsic metadata and constraints *)
-  (*
+    | Im_t of {out_port: Bigint.t; 
+               in_port: Bigint.t; 
+               queue_depth_at_dequeue: Bigint.t}  
 
+  (* (* Unsupported externs *)
+    | Packet (* represented as a byte array *)
     | emitter (* assemble packets *)
     | extractor (* header extraction *)
     | in_buf (* input buffer *)
     | out_buf (* output buffer *)
     *)
-
-  (* Needed to run tests (Does not run bc Packet is not used) *)
-  let dummy = Packet {pck = []; size = 0} 
 
   type state = obj State.t
 
@@ -40,10 +36,9 @@ module PreUp4Filter : Target = struct
          (VBit {v;_}, _)] -> l, v
       | _ -> failwith "unexpected args for set_out_port" in
     let im_t_obj = State.find_extern loc st in
-    let in_port = match im_t_obj with 
-      | Im_t {out_port = _; in_port = i} -> i 
-      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in
-    let new_im_t_obj = Im_t {out_port = v; in_port = in_port} in
+    let in_port, queue_depth_at_dequeue = match im_t_obj with 
+      | Im_t {in_port = i; queue_depth_at_dequeue = q; _} -> i, q in
+    let new_im_t_obj = Im_t {out_port = v; in_port; queue_depth_at_dequeue} in
     env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
   (* Get in_port field from the Im_t extern object. *)
@@ -52,9 +47,8 @@ module PreUp4Filter : Target = struct
       | [(VRuntime {loc = l; _}, _)] -> l
       | _ -> failwith "unexpected args for get_in_port" in
     let im_t_obj = State.find_extern loc st in
-    let in_port = match im_t_obj with
-      | Im_t {out_port = _; in_port = i} -> i;
-      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in 
+    let in_port, queue_depth_at_dequeue = match im_t_obj with
+      | Im_t {in_port = i; queue_depth_at_dequeue = q; _} -> i, q in 
     env, st, SContinue, VBit {w = Bigint.of_int 9; v = in_port}
 
   (* Get out_port field from the Im_t extern object. *)
@@ -64,13 +58,20 @@ module PreUp4Filter : Target = struct
       | _ -> failwith "unexpected args for get_out_port" in
     let im_t_obj = State.find_extern loc st in
     let out_port = match im_t_obj with
-      | Im_t {out_port = o; in_port = _} -> o;
-      | _ -> failwith "The extern object that called set_out_port is not an Im_t object." in 
+      | Im_t {out_port = o; _} -> o in 
     env, st, SContinue, VBit {w = Bigint.of_int 9; v = out_port}
 
-  (*  *)
+  (* Get metadata_fields_t enum value from the Im_t extern object. *)
   let eval_get_value : extern = fun env st ts args -> 
-    failwith "unimplemented"
+    let loc, enum_name = match args with
+      | [(VRuntime {loc = l; _}, _);
+         (VEnumField{enum_name; _}, _)] -> l, enum_name
+      | _ -> failwith "unexpected args for get_value" in
+    let im_t_obj = State.find_extern loc st in
+    let v = match enum_name, im_t_obj with
+      | "QUEUE_DEPTH_AT_DEQUEUE", Im_t {queue_depth_at_dequeue = q; _} -> q 
+      | s, _ -> failwith ("Unsupported metadata_fields_t: " ^ s) in 
+    env, st, SContinue, VBit {w = Bigint.of_int 32; v = v}
 
   (*  *)
   let eval_drop : extern = fun env st ts args -> 
@@ -105,8 +106,11 @@ module PreUp4Filter : Target = struct
     | _ -> failwith "extern unknown in up4 or not yet implemented"
 
   (* Use the port number [meta] to set out_port and in_port of Im_t extern object. *)
+  (* QUEUE_DEPTH_AT_DEQUEUE metadata hard coded.. it says in the up4 spec that 
+     metadata_fileds_t enums are immutable intrinsic metadata field for the target. *)
   let initialize_metadata meta st =
-    State.insert_extern State.im_t_location (Im_t {out_port = meta; in_port = meta}) st
+    State.insert_extern State.im_t_location (
+      Im_t {out_port = meta; in_port = meta; queue_depth_at_dequeue = Bigint.of_int 32}) st
 
   let check_pipeline env = failwith "unimplemented"
 
@@ -225,8 +229,7 @@ module PreUp4Filter : Target = struct
   (* Get out_port field from the Im_t extern object. *)
   let get_outport (st : state) (env : env) : Bigint.t =
     match State.find_extern State.im_t_location st with
-    | Im_t {out_port = out; in_port = _} -> out
-    | _ -> drop_spec
+    | Im_t {out_port = out; _} -> out
 
 end 
 

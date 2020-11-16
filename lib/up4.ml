@@ -11,7 +11,9 @@ let (<>) = Stdlib.(<>)
 
 module PreUp4Filter : Target = struct
 
-  (* TODO: Define uP4 obj *)
+  (* Copied from v1model *)
+  let drop_spec = Bigint.of_int 511 
+
   type obj = 
     | Im_t of {out_port: Bigint.t; 
                in_port: Bigint.t; 
@@ -73,9 +75,16 @@ module PreUp4Filter : Target = struct
       | s, _ -> failwith ("Unsupported metadata_fields_t: " ^ s) in 
     env, st, SContinue, VBit {w = Bigint.of_int 32; v = v}
 
-  (*  *)
+  (* Set out_port field of the Im_t extern object to be the drop_spec. *)
   let eval_drop : extern = fun env st ts args -> 
-    failwith "unimplemented"
+    let loc = match args with 
+      | [(VRuntime {loc = l; _}, _)] -> l
+      | _ -> failwith "unexpected args for drop()" in
+    let im_t_obj = State.find_extern loc st in
+    let in_port, queue_depth_at_dequeue = match im_t_obj with 
+      | Im_t {in_port = i; queue_depth_at_dequeue = q; _} -> i, q in
+    let new_im_t_obj = Im_t {out_port = drop_spec; in_port; queue_depth_at_dequeue} in
+    env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
   (* stp: never actually used; see note in v1model.ml *)
   let externs = [
@@ -114,7 +123,7 @@ module PreUp4Filter : Target = struct
 
   let check_pipeline env = failwith "unimplemented"
 
-  (* TODO: below is copied from ebpf.ml. Check if it's okay *)
+  (* below is copied from ebpf.ml *)
   let eval_up4_ctrl (ctrl : ctrl) (control : value) (args : Expression.t option list) app
       (env,st) : state * signal =
     let (st,s,_) = app ctrl env st SContinue control args in 
@@ -213,18 +222,24 @@ module PreUp4Filter : Target = struct
       match signal with
       | SReject _ -> st, env, None
       | SContinue | SExit | SReturn _ -> 
-        let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
-        let st = State.insert_heap vpkt_loc vpkt' st in
-        let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) 
-            (List.nth_exn deparse_params 0).typ 
-            env in
-        (* Go through micro deparser *)
-        let (st, signal) = eval_up4_ctrl ctrl deparser
-            [pkt_expr; hdrs_expr] 
-            app (env, st) in 
-        match signal with
-        | SReject _ -> st, env, None
-        | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
+        let im_t = State.find_extern State.im_t_location st in 
+        let outport = match im_t with 
+          | Im_t {out_port; _} -> out_port in 
+        if outport = drop_spec 
+          then st, env, None
+        else
+          let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
+          let st = State.insert_heap vpkt_loc vpkt' st in
+          let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) 
+              (List.nth_exn deparse_params 0).typ 
+              env in
+          (* Go through micro deparser *)
+          let (st, signal) = eval_up4_ctrl ctrl deparser
+              [pkt_expr; hdrs_expr] 
+              app (env, st) in 
+          match signal with
+          | SReject _ -> st, env, None
+          | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
 
   (* Get out_port field from the Im_t extern object. *)
   let get_outport (st : state) (env : env) : Bigint.t =

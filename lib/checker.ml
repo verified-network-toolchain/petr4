@@ -283,7 +283,6 @@ and get_type_params (t: Typed.Type.t) : string list =
   | Package {type_params; _}
   | Control {type_params; _}
   | Parser {type_params; _}
-  | Extern {type_params; _}
   | Function {type_params; _} ->
      type_params
   | _ ->
@@ -297,8 +296,6 @@ and drop_type_params (t: Typed.Type.t) : Typed.Type.t =
      Control {c with type_params = []}
   | Parser p ->
      Parser {p with type_params = []}
-  | Extern e ->
-     Extern {e with type_params = []}
   | Function f ->
      Function {f with type_params = []}
   | t -> t
@@ -334,13 +331,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
     {type_params = ctrl.type_params;
      parameters = List.map ~f:(saturate_param env) ctrl.parameters}
   in
-  let rec saturate_extern env (extern: ExternType.t) : ExternType.t =
-    let env = CheckerEnv.insert_type_vars extern.type_params env in
-    { extern with
-      methods = List.map ~f:(saturate_method env) extern.methods }
-  and saturate_method env (m: ExternType.extern_method) =
-    { m with typ = saturate_function env m.typ }
-  and saturate_function env (fn: FunctionType.t) : FunctionType.t =
+  let saturate_function env (fn: FunctionType.t) : FunctionType.t =
     let env = CheckerEnv.insert_type_vars fn.type_params env in
     {type_params = fn.type_params;
      parameters = List.map ~f:(saturate_param env) fn.parameters;
@@ -400,7 +391,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   | Parser control ->
       Parser (saturate_ctrl env control)
   | Extern extern ->
-      Extern (saturate_extern env extern)
+      Extern extern
   | Function func ->
       Function (saturate_function env func)
   | Action action ->
@@ -592,24 +583,6 @@ and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
      solve_params_equality env equiv_vars' unknowns ctrl1.parameters ctrl2.parameters
   | Unequal_lengths -> None
 
-and solve_extern_type_equality env equiv_vars unknowns extern1 extern2 =
-  let open Typed.ExternType in
-  match List.zip extern1.type_params extern2.type_params with
-  | Ok param_pairs ->
-      let equiv_vars' = equiv_vars @ param_pairs in
-      let method_cmp m1 m2 =
-          String.compare m1.name m2.name
-      in
-      let solve_method_eq (m1, m2) =
-        if m1.name = m2.name
-        then solve_function_type_equality env equiv_vars' unknowns m1.typ m2.typ
-        else None
-      in
-      let methods1 = List.sort ~compare:method_cmp extern1.methods in
-      let methods2 = List.sort ~compare:method_cmp extern2.methods in
-      solve_lists env unknowns ~f:solve_method_eq methods1 methods2
-  | Unequal_lengths -> None
-
 and solve_function_type_equality env equiv_vars unknowns func1 func2 =
   let open FunctionType in
   match List.zip func1.type_params func2.type_params with
@@ -677,12 +650,22 @@ and solve_types ?(casts=true)
                 (t1: Typed.Type.t)
                 (t2: Typed.Type.t)
   : soln =
+  let ok ?(casts=true) (t1, t2) =
+    solve_types ~casts env equiv_vars unknowns t1 t2
+  in
   let t1 = reduce_type env t1 in
   let t2 = reduce_type env t2 in
   begin match t1, t2 with
     | TypeName (QualifiedName _), _
     | _, TypeName (QualifiedName _) ->
        failwith "Name in saturated type?"
+    | SpecializedType { base = Extern { name = e1 };
+                        args = type_args1 },
+      SpecializedType { base = Extern { name = e2 };
+                        args = type_args2 } ->
+       if e1 = e2
+       then solve_lists env unknowns ~f:(ok ~casts:false) type_args1 type_args2
+       else None
     | SpecializedType _, _
     | _, SpecializedType _ ->
        raise_s [%message "Stuck specialized type?" ~t1:(t1: Typed.Type.t)
@@ -718,7 +701,6 @@ and solve_types ?(casts=true)
        else None
     | List {types = types1}, List {types = types2}
     | Tuple {types = types1}, Tuple {types = types2} ->
-       let ok (t1, t2) = solve_types env equiv_vars unknowns t1 t2 in
        solve_lists env unknowns ~f:ok types1 types2
     | Record rec1, Record rec2
     | Header rec1, Header rec2
@@ -735,7 +717,9 @@ and solve_types ?(casts=true)
     | Parser ctrl1, Parser ctrl2 ->
         solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2
     | Extern extern1, Extern extern2 ->
-        solve_extern_type_equality env equiv_vars unknowns extern1 extern2
+       if extern1.name = extern2.name
+       then Some (empty_constraints unknowns)
+       else None
     | Action action1, Action action2 ->
         solve_action_type_equality env equiv_vars unknowns action1 action2
     | Function func1, Function func2 ->
@@ -820,6 +804,7 @@ and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool
   | Some _ -> true
   | None ->
      match reduce_type env (snd expr).typ with
+     | SpecializedType { base = Extern _; _ }
      | Extern _
      | Package _
      | Control _
@@ -1187,7 +1172,7 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Table {result_typ_name=name} ->
     CheckerEnv.resolve_type_name_opt (BareName (Info.dummy, name)) env <> None
   | NewType {name; typ} ->
-     is_well_formed_type env typ
+    is_well_formed_type env typ
   (* Polymorphic types *)
   | Function {type_params=tps; parameters=ps; return=rt; _} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1195,11 +1180,15 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Constructor {type_params=tps; wildcard_params=ws; parameters=ps; return=rt} ->
     let env = CheckerEnv.insert_type_vars tps env in
     are_construct_params_types_well_formed env ps && is_well_formed_type env rt
-  | Extern {type_params=tps; methods=methods} ->
-    let env = CheckerEnv.insert_type_vars tps env in
-    let open ExternType in
-    let method_ok m = is_well_formed_type env (Type.Function m.typ) in
-    List.for_all ~f:method_ok methods
+  | Extern {name} ->
+    let open ExternMethods in 
+    begin match CheckerEnv.find_extern_opt (BareName (Info.dummy, name)) env with
+    | Some {methods; type_params} ->
+       let env = CheckerEnv.insert_type_vars type_params env in
+       let method_ok m = is_well_formed_type env (Type.Function m.typ) in
+       List.for_all ~f:method_ok methods
+    | None -> false
+    end
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1210,7 +1199,16 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   (* Type Application *)
   | SpecializedType {base=base_typ; args=typ_args} ->
     let base_typ = saturate_type env base_typ in
-    let base_type_type_params = get_type_params base_typ in
+    let base_type_type_params =
+      match base_typ with
+      | Extern {name} ->
+         let open ExternMethods in
+         let {type_params; methods} =
+           CheckerEnv.find_extern (BareName (Info.dummy, name)) env
+         in
+         type_params
+      | typ -> get_type_params typ
+    in
     is_well_formed_type env base_typ
     && List.for_all ~f:(is_well_formed_type env) typ_args
     && List.length base_type_type_params = List.length typ_args
@@ -2044,7 +2042,7 @@ and type_expression_member env ctx expr name : Prog.Expression.typed_t =
   let expr_typ = reduce_type env (snd typed_expr).typ in
   let open RecordType in
   let methods = header_methods (snd typed_expr).typ in
-  let typ =
+  let rec find_type (expr_typ: Typed.Type.t) =
     match expr_typ with
     | Header {fields=fs;_}
     | HeaderUnion {fields=fs;_}
@@ -2055,15 +2053,23 @@ and type_expression_member env ctx expr name : Prog.Expression.typed_t =
        | Some field -> field.typ
        | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
        end
-    | Extern {methods; _} ->
-       let open ExternType in
-       let matches m = m.name = snd name in
-       begin match List.find ~f:matches methods with
-       | Some m -> Type.Function m.typ
-       | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
+    | SpecializedType { base = Extern { name = extern_name }; args } ->
+       begin match CheckerEnv.find_extern_opt (BareName (Info.dummy, extern_name)) env with
+       | Some { type_params; methods } ->
+          let extended_env = CheckerEnv.insert_types (List.zip_exn type_params args) env in
+          let open ExternMethods in
+          let matches m = m.name = snd name in
+          begin match List.find ~f:matches methods with
+          | Some m -> reduce_type extended_env (Type.Function m.typ)
+          | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
+          end
+       | None -> raise_s [%message "methods not found for extern" ~extern_name]
        end
+    | Extern { name = extern_name } ->
+       find_type (SpecializedType { base = Extern { name = extern_name }; args = [] })
     | _ -> type_expression_member_builtin env ctx (info expr) expr_typ name
   in
+  let typ = find_type expr_typ in
   { expr = ExpressionMember { expr = typed_expr;
                               name = name };
     typ = typ;
@@ -2288,9 +2294,9 @@ and type_function_call env ctx call_info func type_args args : Prog.Expression.t
   in
   let env = CheckerEnv.insert_types type_params_args env in
   let subst_param_arg ((param:Typed.Parameter.t), arg) =
-      let param = {param with typ = saturate_type env param.typ} in
-      validate_param env (ctx_of_kind kind) param.typ param.direction call_info;
-      param, arg
+    let param = {param with typ = saturate_type env param.typ} in
+    validate_param env (ctx_of_kind kind) param.typ param.direction call_info;
+    param, arg
   in
   let params_args' = List.map params_args ~f:subst_param_arg in
   let typed_params_args = List.map ~f:(cast_param_arg env ctx call_info) params_args' in
@@ -2433,29 +2439,46 @@ and resolve_function_overload_by ~f env ctx func : Prog.Expression.t =
      let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
                                                           name = name }
      in
-     begin match reduce_type env (snd expr_typed).typ with
-     | Extern { methods; _ } ->
-        let works (meth: Typed.ExternType.extern_method) =
-          meth.name = snd name && f meth.typ.parameters
-        in
-        begin match List.find ~f:works methods with
-        | Some p ->
-           { expr = prog_member;
-             typ = Function p.typ;
-             dir = Directionless }
-        | None -> failwith "couldn't find matching method"
-        end
-     | _ ->
-        let typ = saturate_type env (snd expr_typed).typ in
-        begin match type_expression_member_function_builtin env info typ name with
-        | Some typ ->
-           { expr = prog_member;
-             typ;
-             dir = Directionless }
-        | None ->
-           snd @@ type_expression env ctx func
-        end
-     end
+     let rec resolve_by_type typ : Prog.Expression.typed_t =
+       begin match reduce_type env typ with
+       | SpecializedType { base = Extern { name = extern_name }; args } ->
+          let { expr; typ; dir }: Prog.Expression.typed_t =
+            resolve_by_type (Extern {name = extern_name})
+          in
+          let { type_params; methods }: ExternMethods.t =
+            CheckerEnv.find_extern (BareName (Info.dummy, extern_name)) env
+          in 
+          let env_with_args =
+            CheckerEnv.insert_types (List.zip_exn type_params args) env
+          in
+          let typ = reduce_type env_with_args typ in
+          {expr; typ; dir}
+       | Extern { name = extern_name } ->
+          let open ExternMethods in
+          let { type_params; methods } = CheckerEnv.find_extern (BareName (Info.dummy, extern_name)) env in 
+          let works meth =
+            meth.name = snd name && f meth.typ.parameters
+          in
+          begin match List.find ~f:works methods with
+          | Some p ->
+             { expr = prog_member;
+               typ = Function p.typ;
+               dir = Directionless }
+          | None -> failwith "couldn't find matching method"
+          end
+       | _ ->
+          let typ = saturate_type env (snd expr_typed).typ in
+          begin match type_expression_member_function_builtin env info typ name with
+          | Some typ ->
+             { expr = prog_member;
+               typ;
+               dir = Directionless }
+          | None ->
+             snd @@ type_expression env ctx func
+          end
+       end
+     in
+     resolve_by_type (snd expr_typed).typ
   | _ -> snd @@ type_expression env ctx func
 
 and resolve_function_overload env ctx type_name args =
@@ -3754,13 +3777,6 @@ and type_serializable_enum env ctx info annotations underlying_type name members
     Prog.Declaration.SerializableEnum { annotations; typ=enum_type; name; members = member_names } in
   (info, enum_typed), env
 
-(* Section 7.2.9.2
- * Verboten constructor parameters:
- * - package
- * - parser
- * - control
- * - function
- * - table *)
 and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
   let env' = CheckerEnv.insert_type_vars type_params' env in
@@ -3812,33 +3828,36 @@ and type_extern_object env info annotations obj_name t_params methods =
         type_params = t_params;
         methods = cs @ ms }
   in
-  let extern_typ: ExternType.t =
-    { type_params = type_params';
-      methods = List.map ms
-                  ~f:(method_prototype_to_extern_method obj_name) }
+  let extern_type = Typed.Type.Extern { name = snd obj_name } in
+  let extern_methods: Typed.ExternMethods.t =
+    { type_params = List.map ~f:snd t_params;
+      methods = List.map ~f:(method_prototype_to_extern_method obj_name) ms }
   in
-  let extern_typ_ret: ExternType.t = { extern_typ with type_params = [] } in
   let extern_ctors =
     List.map cs ~f:(function
         | _, Prog.MethodPrototype.Constructor
               { annotations; name = cname; params = params_typed } ->
+           let generic_args =
+             List.map t_params
+               ~f:(fun ty -> Type.TypeName (BareName ty))
+           in
            Type.Constructor
              { type_params = type_params';
                wildcard_params = [];
                parameters = params_typed;
-               return = Extern extern_typ_ret; }
+               return = SpecializedType { base = extern_type;
+                                          args = generic_args } }
         | _ -> failwith "bug: expected constructor")
   in
-  let env = CheckerEnv.insert_type (BareName obj_name) (Extern extern_typ) env in
+  let env = CheckerEnv.insert_type (BareName obj_name) extern_type env in
+  let env = CheckerEnv.insert_extern (BareName obj_name) extern_methods env in
   let env = List.fold extern_ctors ~init:env
               ~f:(fun env t -> CheckerEnv.insert_type_of (BareName obj_name) t env)
   in
   (info, extern_decl), env
 
-and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) :
-  Typed.ExternType.extern_method =
+and method_prototype_to_extern_method extern_name (m: Prog.MethodPrototype.t) : Typed.ExternMethods.extern_method =
     let open Typed.Type in
-    let open Typed.ExternType in
     let name, (fn : Typed.FunctionType.t) =
       match snd m with
       | Constructor { annotations; name; params } ->

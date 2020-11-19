@@ -47,18 +47,18 @@ Section Packet.
     | TypInt width =>
       let* vec := read_first_bits width in
       mret (ValInt width vec)
-    | TypRecord (MkRecordType field_types) =>
+    | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValRecord field_vals)
-    | TypHeader (MkRecordType field_types) =>
+    | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValHeader field_vals true)
     | _ => state_fail Internal
     end
 
-  with eval_packet_extract_fixed_field (into_field: RecordFieldType) : packet_monad (string * Value) :=
-         let '(MkRecordFieldType into_name into_type) := into_field in
-         let* v := eval_packet_extract_fixed into_type in
-         mret (into_name, v).
+  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (string * Value) :=
+    let '(MkFieldType into_name into_type) := into_field in
+    let* v := eval_packet_extract_fixed into_type in
+    mret (into_name, v).
 
 End Packet.

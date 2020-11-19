@@ -111,14 +111,11 @@ Section Environment.
     lift_env_lookup_fn (find_environment' key).
 
   (* TODO handle name resolution properly *)
-  Definition str_of_name_warning_not_safe (t: Types.name) : string :=
-    let s :=
-        match t with 
-        | Types.BareName s => s
-        | Types.QualifiedName _ s => s
-        end
-    in
-    snd s.
+  Definition str_of_name_warning_not_safe (t: Typed.name) : string :=
+    match t with 
+    | Typed.BareName s => s
+    | Typed.QualifiedName _ s => s
+    end.
 
   Fixpoint find_lvalue' (lval: ValueLvalue) (env: environment) : option Value :=
     let '(MkValueLvalue pre_lval _) := lval in

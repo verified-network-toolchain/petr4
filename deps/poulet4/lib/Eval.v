@@ -53,15 +53,15 @@ Section Eval.
     match expr with
     | ExpBool value => mret (ValBool value)
     | ExpInt value =>
-      match snd value with
-      | Types.MkP4IntPreT value (Some (width, true)) =>
+      match value with
+      | MkP4Int _ value (Some (width, true)) =>
         mret (ValInt width (bvec_of_z width value))
-      | Types.MkP4IntPreT value (Some (width, false)) =>
+      | MkP4Int _ value (Some (width, false)) =>
         mret (ValBit width (bvec_of_z width value))
-      | Types.MkP4IntPreT value None =>
+      | MkP4Int _ value None =>
         mret (ValInteger value)
       end
-    | ExpString value => mret (ValString (snd value))
+    | ExpString (MkP4String _ str) => mret (ValString str)
     | ExpArrayAccess array index =>
       let* index' := unpack_inf_int (eval_expression index) in
       let* array' := unpack_array (eval_expression array) in
@@ -74,18 +74,18 @@ Section Eval.
       let actions := List.map eval_kv entries in
       lift_monad ValRecord (sequence actions)
     | ExpUnaryOp op arg => 
-      match snd op with
-      | Types.Not => 
+      match op with
+      | Not => 
         let* b := unpack_bool (eval_expression arg) in
         mret (ValBool (negb b))
-      | Types.BitNot => 
+      | BitNot => 
         let* inner := eval_expression arg in
         match inner with
         | ValBit w bits => mret (ValBit w (Bneg w bits))
         | ValVarbit m w bits => mret (ValVarbit m w (Bneg w bits))
         | _ => state_fail Internal
         end
-      | Types.UMinus =>
+      | UMinus =>
         let* inner := eval_expression arg in
         lift_option (eval_minus inner)
       end
@@ -93,9 +93,9 @@ Section Eval.
     end
 
   with eval_kv (kv: KeyValue) : env_monad (string * Value) :=
-         let '(MkKeyValue _ key expr) := kv in
+         let '(MkKeyValue _ (MkP4String _ key) expr) := kv in
          let* value := eval_expression expr in
-         mret (snd key, value).
+         mret (key, value).
 
   Definition eval_is_valid (obj: ValueLvalue) : env_monad Value :=
     let* (_, valid) := unpack_header (find_lvalue obj) in
@@ -193,7 +193,7 @@ Section Eval.
 
   Fixpoint eval_block (blk: Block) : env_monad unit :=
     match blk with
-    | BlockEmpty _ _ =>
+    | BlockEmpty _ =>
       mret tt
     | BlockCons stmt rest =>
       eval_statement stmt;;
@@ -213,17 +213,17 @@ Section Eval.
            map_env push_scope;;
            eval_block block;;
            lift_env_fn pop_scope
-         | StatConstant _ type name init =>
-           insert_environment (snd name) init
-         | StatVariable _ type name init =>
+         | StatConstant type (MkP4String _ name) init =>
+           insert_environment name init
+         | StatVariable type (MkP4String _ name) init =>
            let* value :=
               match init with
               | None => mret (default_value type)
               | Some expr => eval_expression expr
               end
            in
-           insert_environment (snd name) value
-         | StatInstantiation _ _ _ _ _
+           insert_environment name value
+         | StatInstantiation _ _ _ _
          | StatDirectApplication _ _
          | StatConditional _ _ _
          | StatExit
@@ -250,15 +250,15 @@ Section Eval.
   Fixpoint eval_cases (vals: list Value) (cases: list ParserCase) : env_monad string := 
     match cases with
     | List.nil    => state_fail Internal
-    | MkParserCase _ matches next :: cases' => 
+    | MkParserCase _ matches (MkP4String _ next) :: cases' => 
       let* passes := eval_match_expression vals matches in
-      if passes then mret (snd next) else eval_cases vals cases'
+      if passes then mret next else eval_cases vals cases'
     end.
 
   Definition eval_transition (t: ParserTransition) : env_monad string := 
     match t with
-    | ParserDirect _ next =>
-      mret (snd next)
+    | ParserDirect _ (MkP4String _ next) =>
+      mret next
     | ParserSelect _ exprs cases =>
       let* vs := sequence (List.map eval_expression exprs) in 
       eval_cases vs cases

@@ -13,25 +13,25 @@ Open Scope monad.
 
 Section Step.
   Context `{tags_inst: Tags}.
+
   Definition states_to_block (ss: list Statement) : Block :=
-    List.fold_right BlockCons (BlockEmpty tags_dummy nil) ss.
+    List.fold_right BlockCons (BlockEmpty tags_dummy) ss.
 
   Fixpoint lookup_state (states: list ParserState) (name: string) : option ParserState := 
     match states with
     | List.nil => None
     | s :: states' =>
-      let 'MkParserState _ _  s_name _ _ := s in
-      if String.eqb name (snd s_name)
+      let 'MkParserState _ (MkP4String _ s_name) _ _ := s in
+      if String.eqb name s_name
       then Some s
       else lookup_state states' name
     end.
-
 
   Definition step (p: ValueParser) (start: string) : env_monad string := 
     let 'MkValueParser env params cparams locals states := p in
     match lookup_state states start with
     | Some nxt => 
-      let 'MkParserState _ _ _ statements transition := nxt in
+      let 'MkParserState _ _ statements transition := nxt in
       let blk := StatBlock (states_to_block statements) in
       let* _ := eval_statement (MkStatement tags_dummy blk Typed.StmUnit) in
       eval_transition transition

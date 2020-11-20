@@ -6,13 +6,9 @@ Require Import Coq.Bool.Bvector.
 Require Import Info.
 Require Import Typed.
 
-Class Tags :=
-  { tags_t: Type;
-    tags_dummy: tags_t }.
-
 Section Syntax.
 
-  Context `{TTags: Tags}.
+  Context (tags_t: Type).
 
   Inductive P4String :=
   | MkP4String (tags: tags_t) (s: string).
@@ -218,6 +214,7 @@ Section Syntax.
                    (type_params: list P4String) (params: list P4Parameter)
   | DeclPackageType (tags: tags_t)  (name: P4String)
                     (type_params: list P4String) (params: list P4Parameter)
+
   with Value :=
   | ValNull
   | ValBool (_: bool)

@@ -23,8 +23,10 @@ Inductive exception :=
 
 Section Environment.
 
-  Context `{tag_inst: Tags}.
-  Definition scope := MStr.t Value.
+  Context (tags_t: Type).
+  Context (tags_dummy: tags_t).
+
+  Definition scope := MStr.t (Value tags_t).
   Definition environment := list scope.
 
   Definition env_monad := @state_monad environment exception.
@@ -39,7 +41,7 @@ Section Environment.
       | None => state_fail Internal env
       end.
 
-  Definition lift_env_lookup_fn (f: environment -> option Value) : env_monad Value :=
+  Definition lift_env_lookup_fn (f: environment -> option (Value tags_t)) : env_monad (Value tags_t) :=
     fun env =>
       match f env with
       | Some res => mret res env
@@ -52,15 +54,15 @@ Section Environment.
                                                                      | None => (inr Internal, env)
                                                                      end.
 
-  Definition update_scope (key: string) (val: Value) (bindings: scope) : option scope :=
+  Definition update_scope (key: string) (val: (Value tags_t)) (bindings: scope) : option scope :=
     MStr.find key bindings;;
     mret (MStr.add key val (MStr.remove key bindings)).
 
-  Definition insert_scope (key: string) (val: Value) (bindings: scope) : option scope :=
+  Definition insert_scope (key: string) (val: (Value tags_t)) (bindings: scope) : option scope :=
     MStr.find key bindings;;
     mret (MStr.add key val bindings).
 
-  Definition find_scope (key: string) (bindings: scope) : option Value :=
+  Definition find_scope (key: string) (bindings: scope) : option (Value tags_t) :=
     MStr.find key bindings.
 
   Definition push_scope (env: environment) :=
@@ -72,7 +74,7 @@ Section Environment.
     | nil => None
     end.
 
-  Fixpoint update_environment' (key: string) (val: Value) (env: environment) : option environment :=
+  Fixpoint update_environment' (key: string) (val: (Value tags_t)) (env: environment) : option environment :=
     match env with
     | inner :: rest =>
       if MStr.find key inner
@@ -83,10 +85,10 @@ Section Environment.
     | nil => None
     end.
 
-  Definition update_environment (key: string) (val: Value) : env_monad unit :=
+  Definition update_environment (key: string) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (update_environment' key val).
 
-  Definition insert_environment' (key: string) (val: Value) (env: environment) : option environment :=
+  Definition insert_environment' (key: string) (val: (Value tags_t)) (env: environment) : option environment :=
     match env with
     | inner :: rest =>
       let* inner' := insert_scope key val inner in
@@ -94,10 +96,10 @@ Section Environment.
     | nil => None
     end.
 
-  Definition insert_environment (key: string) (val: Value) : env_monad unit :=
+  Definition insert_environment (key: string) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (insert_environment' key val).
 
-  Fixpoint find_environment' (key: string) (env: environment) : option Value :=
+  Fixpoint find_environment' (key: string) (env: environment) : option (Value tags_t) :=
     match env with
     | inner :: rest =>
       match MStr.find key inner with
@@ -107,7 +109,7 @@ Section Environment.
     | nil => None
     end.
 
-  Definition find_environment (key: string) : env_monad Value :=
+  Definition find_environment (key: string) : env_monad (Value tags_t) :=
     lift_env_lookup_fn (find_environment' key).
 
   (* TODO handle name resolution properly *)
@@ -117,55 +119,55 @@ Section Environment.
     | Typed.QualifiedName _ s => s
     end.
 
-  Fixpoint find_lvalue' (lval: ValueLvalue) (env: environment) : option Value :=
-    let '(MkValueLvalue pre_lval _) := lval in
+  Fixpoint find_lvalue' (lval: (ValueLvalue tags_t)) (env: environment) : option (Value tags_t) :=
+    let '(MkValueLvalue _ pre_lval _) := lval in
     match pre_lval with
-    | ValLeftName var =>
+    | ValLeftName _ var =>
       let s := str_of_name_warning_not_safe var in
       find_environment' s env
-    | ValLeftMember lval' member =>
+    | ValLeftMember _ lval' member =>
       let* val := find_lvalue' lval' env in
       match val with
-      | ValRecord map =>
+      | ValRecord _ map =>
         Raw.find member map
       | _ => None
       end
     | _ => None (* TODO *)
     end.
 
-  Definition find_lvalue (lval: ValueLvalue) : env_monad Value :=
+  Definition find_lvalue (lval: (ValueLvalue tags_t)) : env_monad (Value tags_t) :=
     lift_env_lookup_fn (find_lvalue' lval).
 
-  Definition update_member (obj: Value) (member: string) (val: Value) : option Value.
+  Definition update_member (obj: (Value tags_t)) (member: string) (val: (Value tags_t)) : option (Value tags_t).
   Admitted.
 
-  Fixpoint update_lvalue' (lval: ValueLvalue) (val: Value) (env: environment) : option environment :=
-    let '(MkValueLvalue pre_lval _) := lval in
+  Fixpoint update_lvalue' (lval: (ValueLvalue tags_t)) (val: (Value tags_t)) (env: environment) : option environment :=
+    let '(MkValueLvalue _ pre_lval _) := lval in
     match pre_lval with
-    | ValLeftName var =>
+    | ValLeftName _ var =>
       let s := str_of_name_warning_not_safe var in
       update_environment' s val env
-    | ValLeftMember lval' member =>
+    | ValLeftMember _ lval' member =>
       let* obj := find_lvalue' lval' env in
       let* obj' := update_member obj member val in
       update_lvalue' lval' obj' env
     | _ => None (* TODO *)
     end.
 
-  Definition update_lvalue (lval: ValueLvalue) (val: Value) : env_monad unit :=
+  Definition update_lvalue (lval: (ValueLvalue tags_t)) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (update_lvalue' lval val).
 
-  Definition toss_value (original: env_monad Value) : env_monad unit :=
+  Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=
     fun env =>
       match original env with
       | (inl result, env') => mret tt env'
       | (inr exc, env') => state_fail exc env'
       end.
 
-  Definition dummy_value (original: env_monad unit) : env_monad Value :=
+  Definition dummy_value (original: env_monad unit) : env_monad (Value tags_t) :=
     fun env =>
       match original env with
-      | (inl tt, env') => mret ValNull env'
+      | (inl tt, env') => mret (ValNull _) env'
       | (inr exc, env') => state_fail exc env'
       end.
 

@@ -1,7 +1,9 @@
+Require Import Coq.extraction.ExtrOcamlBasic.
+Require Import Coq.extraction.ExtrOcamlString.
+Require Import Coq.extraction.ExtrOcamlNatInt.
 Require Syntax.
 Require Extraction.
 
 Cd "extraction/lib/".
-Extraction Language OCaml.
 Separate Extraction Syntax.
 Cd "../../".

@@ -1,27 +1,22 @@
 open Sexplib.Conv
 
 type direction = [%import:Poulet4.Typed.direction]
-  [@@deriving show,yojson,sexp]
+  [@@deriving sexp,show,yojson]
 
-type coq_P4String = [%import:Poulet4.Typed.coq_P4String]
-  [@@deriving show,yojson,sexp]
+type positive = [%import:Poulet4.BinNums.positive]
+  [@@deriving sexp,show,yojson]
+type coq_Z = [%import:Poulet4.BinNums.coq_Z]
+  [@@deriving sexp,show,yojson]
+type name = [%import:Poulet4.Typed.name]
 type coq_FunctionKind = [%import:Poulet4.Typed.coq_FunctionKind]
-  [@@deriving show,yojson,sexp]
 
 type coq_P4Type = [%import:Poulet4.Typed.coq_P4Type]
-  [@@deriving show,yojson,sexp]
 and coq_ArrayType = [%import:Poulet4.Typed.coq_ArrayType]
-  [@@deriving show,yojson,sexp]
 and coq_FieldType = [%import:Poulet4.Typed.coq_FieldType]
-  [@@deriving show,yojson,sexp]
 and coq_ControlType = [%import:Poulet4.Typed.coq_ControlType]
-  [@@deriving show,yojson,sexp]
 and coq_FunctionType = [%import:Poulet4.Typed.coq_FunctionType]
-  [@@deriving show,yojson,sexp]
 and coq_SpecializedType = [%import:Poulet4.Typed.coq_SpecializedType]
-  [@@deriving show,yojson,sexp]
 and coq_P4Parameter = [%import:Poulet4.Typed.coq_P4Parameter]
-  [@@deriving show,yojson,sexp]
 
 let eq_dir d1 d2 =
   match d1, d2 with

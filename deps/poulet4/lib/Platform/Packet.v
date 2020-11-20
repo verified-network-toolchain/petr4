@@ -14,7 +14,7 @@ Require Import Typed.
 Open Scope monad.
 
 Section Packet.
-  Context `{tags_inst: Tags}.
+  Context (tags_t: Type).
 
   Definition packet_monad := @state_monad (list bool) exception.
 
@@ -33,30 +33,30 @@ Section Packet.
         end
     end.
 
-  Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad Value :=
+  Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad (Value tags_t) :=
     match into with
     | TypBool =>
       let* vec := read_first_bits 1 in
       match vec with
-      | (bit :: [])%vector => mret (ValBool bit)
+      | (bit :: [])%vector => mret (ValBool _ bit)
       | _ => state_fail Internal
       end
     | TypBit width =>
       let* vec := read_first_bits width in
-      mret (ValBit width vec)
+      mret (ValBit _ width vec)
     | TypInt width =>
       let* vec := read_first_bits width in
-      mret (ValInt width vec)
+      mret (ValInt _ width vec)
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-      mret (ValRecord field_vals)
+      mret (ValRecord _ field_vals)
     | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-      mret (ValHeader field_vals true)
+      mret (ValHeader _ field_vals true)
     | _ => state_fail Internal
     end
 
-  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (string * Value) :=
+  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (string * Value tags_t) :=
     let '(MkFieldType into_name into_type) := into_field in
     let* v := eval_packet_extract_fixed into_type in
     mret (into_name, v).

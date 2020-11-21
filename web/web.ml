@@ -28,7 +28,9 @@ module JavascriptFS = struct
   let exists path = true
 
   let load (path: string) : string =
-    Js.to_string @@ js_load (Js.string path)
+    let s = Js.to_string @@ js_load (Js.string path) in
+    print_endline s;
+    s
 end
 
 module Pp = P4pp.Eval.Make(JavascriptFS)

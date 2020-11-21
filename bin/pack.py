@@ -25,6 +25,5 @@ Folder=arguments.Location
 #the destination file name for the ml code
 Destination =arguments.Destination
 
-
-print(Folder, Destination)
+Ocaml_code_header
 

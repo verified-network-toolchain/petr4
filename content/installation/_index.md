@@ -38,9 +38,9 @@ git clone git://github.com/cornell-netlab/p4pp
     ```
     ocamlc -v
     ```
-    If the version is less than 4.09.0, upgrade:
+    If the version is less than 4.09.1, upgrade:
     ```
-    opam switch create 4.09.0 ocaml-base-compiler.4.09.0
+    opam switch create 4.09.1 ocaml-base-compiler.4.09.1
     ```
 
 1. Install external dependencies:

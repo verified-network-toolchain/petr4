@@ -125,4 +125,4 @@ let command =
       "run", eval_command;
       "stf", stf_command ]
 
-let () = Command.run ~version: "0.1.1" command
+let () = Command.run ~version: "0.1.2" command

@@ -13,7 +13,7 @@ Petr4 is available pre-built in a VM or it may be built from source.
 1. Install [VirtualBox](https://virtualbox.org/) or your preferred
    virtualization software capable of running .ova files.
 1. [Download the VM image from
-   Box](https://cornell.box.com/s/xcvswidhg5rn6wq2q8lbbso6bk719kr6). It is
+   Zenodo](https://doi.org/10.5281/zenodo.4074357). It is
    a 1.4GB file and should not take too long to download.
 1. Boot the VM image. The username is petr4 and the password is petr4. There
    is a prebuilt version of petr4 installed and the source code is

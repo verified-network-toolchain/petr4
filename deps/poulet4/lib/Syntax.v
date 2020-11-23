@@ -94,26 +94,51 @@ Inductive TableProperty :=
   | MkTableProperty (info: Info) (annotations: list Annotation) (const: bool)
                     (name: P4String) (value: Expression).
 
+Inductive ValueBase :=
+  | ValBaseNull
+  | ValBaseBool (_: bool)
+  | ValBaseInteger (_: Z)
+  (* widh, value *)
+  | ValBaseBit (width: nat) (value: Bvector width)
+  (* width, value *)
+  | ValBaseInt (width: nat) (value: Bvector width)
+  (* max, width, value *)
+  | ValBaseVarbit (max: nat) (width: nat) (value: Bvector width)
+  | ValBaseString (_: string)
+  | ValBaseTuple (_: list ValueBase)
+  | ValBaseRecord (_: list (string * ValueBase))
+  | ValBaseSet (_: ValueSet)
+  | ValBaseError (_: string)
+  | ValBaseMatchKind (_: string)
+  | ValBaseStruct (fields: list (string * ValueBase))
+  (* fields, is_valid *)
+  | ValBaseHeader (fields: list (string * ValueBase)) (is_valid: bool)
+  | ValBaseUnion (fields: list (string * ValueBase))
+  (* headers, size, next *)
+  | ValBaseStack (headers: list ValueBase) (size: nat) (next: nat)
+  (* typ_name, enum_name *)
+  | ValBaseEnumField (typ_name: string) (enum_name: string)
+  (* typ_name, enum_name, value *)
+  | ValBaseSenumField (typ_name: string) (enum_name: string) (value: ValueBase)
+  | ValBaseSenum (_: list (string * ValueBase))
+with ValueSet :=
+  (* width, value *)
+  | ValSetSingleton (width: nat) (value: Z)
+  | ValSetUniversal
+  (* value, mask *)
+  | ValSetMask (value: ValueBase) (mask: ValueBase)
+  (* lo, hi *)
+  | ValSetRange (lo: ValueBase) (hi: ValueBase)
+  | ValSetProd (_: list ValueSet)
+  (* width, nbits, value *)
+  | ValSetLpm (width: ValueBase) (nbits: nat) (value: ValueBase)
+  (* size, members, sets *)
+  | ValSetValueSet (size: ValueBase) (members: list (list Match))
+                   (sets: list ValueSet).
+
 Inductive StatementSwitchLabel :=
   | StatSwLabDefault (info: Info)
   | StatSwLabName (info: Info) (_: P4String).
-
-Inductive DeclarationField :=
-| MkDeclarationField (info: Info) (annotations: list Annotation) (typ: P4Type)
-                     (name: P4String).
-
-Definition ValueLoc := string.
-
-Inductive ValueTable :=
-  (* name, keys, actions, default_action, const_entries *)
-| MkValTable (name: string) (keys: list TableKey)
-             (actions: list TableActionRef) (default_action: TableActionRef)
-             (const_entries: list TableEntry).
-
-Definition Env_env binding := list (list (string * binding)).
-
-Inductive Env_EvalEnv :=
-  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env P4Type) (namespace: string).
 
 Inductive StatementSwitchCase :=
   (* label, code *)
@@ -137,7 +162,7 @@ with StatementPreT :=
   (* expr, cases *)
   | StatSwitch (expr: Expression) (cases: list StatementSwitchCase)
   | StatConstant (annotations: list Annotation) (typ: P4Type)
-                 (name: P4String) (value: Value)
+                 (name: P4String) (value: ValueBase)
   | StatVariable (annotations: list Annotation) (typ: P4Type)
                  (name: P4String) (init: option Expression)
   | StatInstantiation (annotations: list Annotation) (typ: P4Type)
@@ -146,23 +171,31 @@ with Statement :=
   | MkStatement (info: Info) (stmt: StatementPreT) (typ: StmType)
 with Block :=
   | BlockEmpty (info: Info) (annotations: list Annotation)
-  | BlockCons (statement: Statement) (rest: Block)
-with ParserCase :=
+  | BlockCons (statement: Statement) (rest: Block).
+
+Inductive ParserCase :=
   (* matches, next *)
-  | MkParserCase (info: Info) (matches: list Match) (next: P4String)
-with ParserTransition :=
+  | MkParserCase (info: Info) (matches: list Match) (next: P4String).
+
+Inductive ParserTransition :=
   (* next *)
   | ParserDirect (info: Info) (next: P4String)
   (* exprs, cases *)
-  | ParserSelect (info: Info) (exprs: list Expression) (cases: list ParserCase)
-with ParserState :=
+  | ParserSelect (info: Info) (exprs: list Expression) (cases: list ParserCase).
+
+Inductive ParserState :=
   (* annotations, name, statements, transition *)
   | MkParserState (info: Info) (annotations: list Annotation) (name: P4String)
-                   (statements: list Statement) (transition: ParserTransition)
-with Declaration :=
+                   (statements: list Statement) (transition: ParserTransition).
+
+Inductive DeclarationField :=
+| MkDeclarationField (info: Info) (annotations: list Annotation) (typ: P4Type)
+                     (name: P4String).
+
+Inductive Declaration :=
   (* annotations, typ, name, value *)
   | DeclConstant (info: Info) (annotations: list Annotation) (typ: P4Type)
-                  (name: P4String) (value: Value)
+                  (name: P4String) (value: ValueBase)
   (* annotations, typ, args, name, init *)
   | DeclInstantiation (info: Info) (annotations: list Annotation) (typ: P4Type)
                        (args: list Expression) (name: P4String) (init: option Block)
@@ -238,66 +271,24 @@ with Declaration :=
                     (type_params: list P4String) (params: list P4Parameter)
   (* annotations, name, typ_params, params *)
   | DeclPackageType (info: Info) (annotations: list Annotation) (name: P4String)
-                     (type_params: list P4String) (params: list P4Parameter)
-with Value :=
-  | ValNull
-  | ValBool (_: bool)
-  | ValInteger (_: Z)
-  (* widh, value *)
-  | ValBit (width: nat) (value: Bvector width)
-  (* width, value *)
-  | ValInt (width: nat) (value: Bvector width)
-  (* max, width, value *)
-  | ValVarbit (max: nat) (width: nat) (value: Bvector width)
-  | ValString (_: string)
-  | ValTuple (_: list Value)
-  | ValRecord (_: list (string * Value))
-  | ValSet (_: ValueSet)
-  | ValError (_: string)
-  | ValMatchKind (_: string)
-  (* scope, params, body *)
-  | ValFun (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
-  (* name, caller *)
-  | ValBuiltinFun (name: string) (caller: ValueLvalue)
-  (* scope, params, body *)
-  | ValAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
-  | ValStruct (fields: list (string * Value))
-  (* fields, is_valid *)
-  | ValHeader (fields: list (string * Value)) (is_valid: bool)
-  | ValUnion (fields: list (string * Value))
-  (* headers, size, next *)
-  | ValStack (headers: list Value) (size: nat) (next: nat)
-  (* typ_name, enum_name *)
-  | ValEnumField (typ_name: string) (enum_name: string)
-  (* typ_name, enum_name, value *)
-  | ValSenumField (typ_name: string) (enum_name: string) (value: Value)
-  | ValSenum (_: list (string * Value))
-  (* loc, obj_name *)
-  | ValRuntime (loc: ValueLoc) (obj_name: string)
-  | ValParser (_: ValueParser)
-  | ValControl (_: ValueControl)
-  (* params, args *)
-  | ValPackage (params: list P4Parameter) (args: list (string * ValueLoc))
-  | ValTable (_: ValueTable)
-  (* name, caller, params*)
-  | ValExternFun (name: string) (caller: option (ValueLoc * string))
-                   (params: list P4Parameter)
-  | ValExternObj (_: list (string * list P4Parameter))
-with ValueSet :=
-  (* width, value *)
-  | ValSetSingleton (width: nat) (value: Z)
-  | ValSetUniversal
-  (* value, mask *)
-  | ValSetMask (value: Value) (mask: Value)
-  (* lo, hi *)
-  | ValSetRange (lo: Value) (hi: Value)
-  | ValSetProd (_: list ValueSet)
-  (* width, nbits, value *)
-  | ValSetLpm (width: Value) (nbits: nat) (value: Value)
-  (* size, members, sets *)
-  | ValSetValueSet (size: Value) (members: list (list Match))
-                   (sets: list ValueSet)
-with ValuePreLvalue :=
+                     (type_params: list P4String) (params: list P4Parameter).
+
+
+Definition ValueLoc := string.
+
+Inductive ValueTable :=
+  (* name, keys, actions, default_action, const_entries *)
+| MkValTable (name: string) (keys: list TableKey)
+             (actions: list TableActionRef) (default_action: TableActionRef)
+             (const_entries: list TableEntry).
+
+Definition Env_env binding := list (list (string * binding)).
+
+Inductive Env_EvalEnv :=
+  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env P4Type) (namespace: string).
+
+
+Inductive ValuePreLvalue :=
   | ValLeftName (name: Types.name)
   (* expr, name *)
   | ValLeftMember (expr: ValueLvalue) (name: string)
@@ -306,24 +297,44 @@ with ValuePreLvalue :=
   (* expr, idx *)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)
 with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type)
-with ValueParser :=
-  (* scope, constructor_params, params, locals, states *)
-  | MkValueParser (scope: Env_EvalEnv) (constructor_params: list P4Parameter)
-                    (params: list P4Parameter) (locals: list Declaration)
-                    (states: list ParserState)
-with ValueControl :=
-  (* scope, constructor_params, params, locals, apply *)
-  | MkValueControl (scope: Env_EvalEnv) (constructor_params: list P4Parameter)
-                     (params: list P4Parameter) (locals: list Declaration)
-                     (apply: Block).
+  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type).
+
+Inductive ValueObject :=
+  | ValObjParser (scope: Env_EvalEnv)
+                 (params: list P4Parameter) (locals: list Declaration)
+                 (states: list ParserState)
+  | ValObjTable (_: ValueTable)
+  | ValObjControl (scope: Env_EvalEnv)
+                  (params: list P4Parameter) (locals: list Declaration)
+                  (apply: Block)
+  | ValObjPackage (args: list (string * ValueLoc))
+  | ValObjRuntime (loc: ValueLoc) (obj_name: string)
+  | ValObjExternFun (name: string) (caller: option (ValueLoc * string))
+                   (params: list P4Parameter)
+  | ValObjFun (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
+  | ValObjBuiltinFun (name: string) (caller: ValueLvalue)
+  | ValObjAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block).
+
+Inductive ValueConstructor :=
+  | ValConsParser (scope: Env_EvalEnv) (constructor_params: list P4Parameter)
+                  (params: list P4Parameter) (locals: list Declaration)
+                  (states: list ParserState)
+  | ValConsTable (_: ValueTable)
+  | ValConsControl (scope: Env_EvalEnv) (constructor_params: list P4Parameter)
+                   (params: list P4Parameter) (locals: list Declaration)
+                   (apply: Block)
+  | ValConsPackage (params: list P4Parameter) (args: list (string * ValueLoc))
+  | ValConsExternObj (_: list (string * list P4Parameter)).
+
+Inductive Value :=
+  | ValBase (_: ValueBase)
+  | ValObj (_: ValueObject)
+  | ValCons (_: ValueConstructor).
+
 
 (* Molly: Value_pkt, Value_entries, Value_vset, Value_ctrl, Value_signal
           omitted*)
 
-Inductive Env_CheckerEnv :=
-  MkEnv_CheckerEnv (typ: Env_env P4Type) (typ_of: Env_env (P4Type * direction))
-                   (const: Env_env Value).
 
 Inductive program := Program (_: list Declaration).
 

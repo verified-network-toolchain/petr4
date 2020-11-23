@@ -30,30 +30,30 @@ Fixpoint read_first_bits (count: nat) : packet_monad (Bvector count) :=
       end
   end.
 
-Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad Value :=
+Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
   match into with
   | TypBool =>
     let* vec := read_first_bits 1 in
     match vec with
-    | (bit :: [])%vector => mret (ValBool bit)
+    | (bit :: [])%vector => mret (ValBaseBool bit)
     | _ => state_fail Internal
     end
   | TypBit width =>
     let* vec := read_first_bits width in
-    mret (ValBit width vec)
+    mret (ValBaseBit width vec)
   | TypInt width =>
     let* vec := read_first_bits width in
-    mret (ValInt width vec)
+    mret (ValBaseInt width vec)
   | TypRecord (MkRecordType field_types) =>
     let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-    mret (ValRecord field_vals)
+    mret (ValBaseRecord field_vals)
   | TypHeader (MkRecordType field_types) =>
     let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-    mret (ValHeader field_vals true)
+    mret (ValBaseHeader field_vals true)
   | _ => state_fail Internal
   end
 
-with eval_packet_extract_fixed_field (into_field: RecordFieldType) : packet_monad (string * Value) :=
+with eval_packet_extract_fixed_field (into_field: RecordFieldType) : packet_monad (string * ValueBase) :=
   let '(MkRecordFieldType into_name into_type) := into_field in
   let* v := eval_packet_extract_fixed into_type in
   mret (into_name, v).

@@ -23,7 +23,7 @@ Definition state_bind
     | inl result => f result env'
     | inr exc => (inr exc, env')
     end.
-    
+
 Global Instance state_monad_inst {State Exception: Type} : Monad (@state_monad State Exception) :=
   { mret := @state_return State Exception;
     mbind := @state_bind State Exception

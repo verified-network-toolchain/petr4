@@ -24,23 +24,26 @@ Fixpoint lookup_state (states: list ParserState) (name: string) : option ParserS
   end.
 
 
-Definition step (p: ValueParser) (start: string) : env_monad string := 
-  let 'MkValueParser env params cparams locals states := p in
-  match lookup_state states start with
-  | Some nxt => 
-    let 'MkParserState _ _ _ statements transition := nxt in
-    let blk := StatBlock (states_to_block statements) in
-    let* _ := eval_statement (MkStatement Info.dummy blk Typed.StmUnit) in
-    eval_transition transition
-  | None =>
-    state_fail Internal
+Definition step (p: ValueObject) (start: string) : env_monad string := 
+  match p with
+  | ValObjParser env params locals states =>
+    match lookup_state states start with
+    | Some nxt => 
+      let 'MkParserState _ _ _ statements transition := nxt in
+      let blk := StatBlock (states_to_block statements) in
+      let* _ := eval_statement (MkStatement Info.dummy blk Typed.StmUnit) in
+      eval_transition transition
+    | None =>
+      state_fail Internal
+    end
+  | _ => state_fail Internal
   end.
 
 (* TODO: formalize progress with respect to a header, such that if the parser 
   always makes forward progress then there exists a fuel value for which
   the parser either rejects or accepts (or errors, but not due to lack of fuel) 
 *)
-Fixpoint step_trans (p: ValueParser) (fuel: nat) (start: string) : env_monad unit := 
+Fixpoint step_trans (p: ValueObject) (fuel: nat) (start: string) : env_monad unit := 
   match fuel with 
   | 0   => state_fail Internal (* TODO: add a separate exception for out of fuel? *)
   | S x => let* state' := step p start in 

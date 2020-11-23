@@ -126,8 +126,11 @@ Fixpoint find_lvalue' (lval: ValueLvalue) (env: environment) : option Value :=
   | ValLeftMember lval' member =>
     let* val := find_lvalue' lval' env in
     match val with
-    | ValRecord map =>
-      Raw.find member map
+    | ValBase (ValBaseRecord map) =>
+      match (Raw.find member map) with
+      | Some v => Some (ValBase v)
+      | None => None
+      end
     | _ => None
     end
   | _ => None (* TODO *)
@@ -165,6 +168,6 @@ Definition toss_value (original: env_monad Value) : env_monad unit :=
 Definition dummy_value (original: env_monad unit) : env_monad Value :=
   fun env =>
     match original env with
-    | (inl tt, env') => mret ValNull env'
+    | (inl tt, env') => mret (ValBase ValBaseNull) env'
     | (inr exc, env') => state_fail exc env'
     end.

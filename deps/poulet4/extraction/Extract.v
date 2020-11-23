@@ -11,7 +11,6 @@ Extract Constant CamlString.caml_string_cmp =>
                else if c = 0 then EQ
                else if c > 0 then GT)".
 Extract Constant CamlString.caml_string_eqb => "(=)".
-Extract Constant CamlString.caml_string_eqb => "(=)".
 Extract Constant CamlString.caml_string_of_chars =>
   "(fun cs -> String.init (List.length cs) (fun n -> List.nth n cs)".
 

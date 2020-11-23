@@ -9,7 +9,6 @@ lib/Environment.v
 lib/Unpack.v
 lib/Eval.v
 lib/Info.v
-lib/Types.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v

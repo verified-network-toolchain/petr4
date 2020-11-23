@@ -1,7 +1,22 @@
 open Sexplib.Conv
 
 type direction = [%import:Poulet4.Typed.direction]
-  [@@deriving show,yojson,sexp]
+  [@@deriving sexp,show,yojson]
+
+type positive = [%import:Poulet4.BinNums.positive]
+  [@@deriving sexp,show,yojson]
+type coq_Z = [%import:Poulet4.BinNums.coq_Z]
+  [@@deriving sexp,show,yojson]
+type name = [%import:Poulet4.Typed.name]
+type coq_FunctionKind = [%import:Poulet4.Typed.coq_FunctionKind]
+
+type coq_P4Type = [%import:Poulet4.Typed.coq_P4Type]
+and coq_ArrayType = [%import:Poulet4.Typed.coq_ArrayType]
+and coq_FieldType = [%import:Poulet4.Typed.coq_FieldType]
+and coq_ControlType = [%import:Poulet4.Typed.coq_ControlType]
+and coq_FunctionType = [%import:Poulet4.Typed.coq_FunctionType]
+and coq_SpecializedType = [%import:Poulet4.Typed.coq_SpecializedType]
+and coq_P4Parameter = [%import:Poulet4.Typed.coq_P4Parameter]
 
 let eq_dir d1 d2 =
   match d1, d2 with

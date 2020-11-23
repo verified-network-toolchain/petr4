@@ -2,12 +2,12 @@ Require Import Coq.Bool.Bvector.
 Require Import Coq.Lists.List.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.Strings.String.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
+Require Import CamlString.
 Require Import Environment.
 Require Import Syntax.
 Require Import Typed.
@@ -96,11 +96,12 @@ Section Eval.
         lift_option _ (eval_minus inner)
       end
     | _ => mret (ValBase _ (ValBaseBool _ false)) (* TODO *)
-    end
-  with eval_kv (kv: KeyValue tags_t) : env_monad tags_t (string * (Value tags_t)) :=
-         let '(MkKeyValue _ _ (MkP4String _ _ key) expr) := kv in
-         let* value := eval_expression expr in
-         mret (key, value).
+    end.
+
+  Definition eval_kv (kv: KeyValue tags_t) : env_monad tags_t (caml_string * (Value tags_t)) :=
+    let '(MkKeyValue _ _ (MkP4String _ _ key) expr) := kv in
+    let* value := eval_expression expr in
+    mret (key, value).
 
   Definition eval_is_valid (obj: ValueLvalue) : env_monad tags_t (Value tags_t) :=
     let* (_, valid) := unpack_header _ (find_lvalue _ obj) in
@@ -146,18 +147,21 @@ Section Eval.
       mret (None :: vals)
     end.
 
-  Definition eval_builtin_func (name: string) (obj: ValueLvalue) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
+  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* args' := eval_arguments args in
-    match name with
-    | "isValid" => eval_is_valid obj
-    | "setValid" => dummy_value _ (eval_set_bool obj true)
-    | "setInvalid" => dummy_value _ (eval_set_bool obj false)
-    | "pop_front" => dummy_value _ (eval_pop_front obj args')
-    | "push_front" => dummy_value _ (eval_push_front obj args')
-    | _ => state_fail Internal
-    end.
+    if CamlStringOT.eq_dec name StrConstants.isValid
+    then eval_is_valid obj
+    else if CamlStringOT.eq_dec name StrConstants.setValid
+    then dummy_value _ (eval_set_bool obj true)
+    else if CamlStringOT.eq_dec name StrConstants.setInvalid
+    then dummy_value _ (eval_set_bool obj false)
+    else if CamlStringOT.eq_dec name StrConstants.pop_front
+    then dummy_value _ (eval_pop_front obj args')
+    else if CamlStringOT.eq_dec name StrConstants.push_front
+    then dummy_value _ (eval_push_front obj args')
+    else state_fail Internal.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
+  Definition eval_packet_func (obj: ValueLvalue) (name: caml_string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
   Admitted.
   (* TODO: Fix the following code to handle the "real" representation of packets. *)
   (*
@@ -181,7 +185,7 @@ Section Eval.
   end.
    *)
 
-  Definition eval_extern_func (name: string) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
+  Definition eval_extern_func (name: caml_string) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
   Admitted.
   (* TODO fix
   let* Packet bits := unpack_extern_obj (find_lvalue obj) in
@@ -251,7 +255,7 @@ Section Eval.
     | _ => mret false
     end.
 
-  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t string := 
+  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t caml_string := 
     match cases with
     | List.nil    => state_fail Internal
     | MkParserCase _ _ matches (MkP4String _ _ next) :: cases' => 
@@ -259,7 +263,7 @@ Section Eval.
       if passes then mret next else eval_cases vals cases'
     end.
 
-  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t string := 
+  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t caml_string := 
     match t with
     | ParserDirect _ _ (MkP4String _ _ next) =>
       mret next

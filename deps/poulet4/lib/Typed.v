@@ -1,10 +1,10 @@
-Require Import Coq.Strings.String.
 Require Import Coq.ZArith.ZArith.
+Require Import CamlString.
 Require Import Info.
 
 Inductive name :=
-| BareName (name: string)
-| QualifiedName (namespaces: list string) (name: string).
+| BareName (name: caml_string)
+| QualifiedName (namespaces: list caml_string) (name: caml_string).
 
 Inductive direction :=
 | In
@@ -32,7 +32,7 @@ Inductive FunctionKind :=
 
 Inductive P4Type :=
 | TypBool
-| TypString
+| Typcaml_string
 | TypInteger
 | TypInt (width: nat)
 | TypBit (width: nat)
@@ -48,32 +48,32 @@ Inductive P4Type :=
 | TypHeader (fields: list FieldType)
 | TypHeaderUnion (fields: list FieldType)
 | TypStruct (fields: list FieldType)
-| TypEnum (name: string) (typ: option P4Type) (members: list string)
+| TypEnum (name: caml_string) (typ: option P4Type) (members: list caml_string)
 | TypTypeName (name: name)
-| TypNewType (name: string) (typ: P4Type)
-| TypControl (type_params: list string) (parameters: list P4Parameter)
-| TypParser (type_params: list string) (parameters: list P4Parameter)
-| TypExtern (extern_name: string)
+| TypNewType (name: caml_string) (typ: P4Type)
+| TypControl (type_params: list caml_string) (parameters: list P4Parameter)
+| TypParser (type_params: list caml_string) (parameters: list P4Parameter)
+| TypExtern (extern_name: caml_string)
 | TypFunction (fn: FunctionType)
 | TypAction (data_params: list P4Parameter) (ctrl_params: list P4Parameter)
-| TypTable (result_typ_name: string)
-| TypPackage (type_params: list string) (wildcard_params: list string)
+| TypTable (result_typ_name: caml_string)
+| TypPackage (type_params: list caml_string) (wildcard_params: list caml_string)
              (parameters: list P4Parameter)
-| TypConstructor (type_params: list string) (wildcard_params: list string)
+| TypConstructor (type_params: list caml_string) (wildcard_params: list caml_string)
                  (parameters: list P4Parameter) (ret: P4Type)
 with ArrayType :=
 | MkArrayType (typ: P4Type) (size: Z)
 with FieldType :=
-| MkFieldType (name: string) (typ: P4Type)
+| MkFieldType (name: caml_string) (typ: P4Type)
 with ControlType :=
-| MkControlType (type_params: list string) (parameters: list P4Parameter)
+| MkControlType (type_params: list caml_string) (parameters: list P4Parameter)
 with FunctionType :=
-| MkFunctionType (type_params: list string) (parameters: list P4Parameter)
+| MkFunctionType (type_params: list caml_string) (parameters: list P4Parameter)
                  (kind: FunctionKind) (ret: P4Type)
 with SpecializedType :=
 | MkSpecializedType (base: P4Type) (args: list P4Type)
 with P4Parameter :=
-| MkParameter (opt: bool) (direction: direction) (typ: P4Type) (variable: string).
+| MkParameter (opt: bool) (direction: direction) (typ: P4Type) (variable: caml_string).
 
 Inductive StmType :=
 | StmUnit

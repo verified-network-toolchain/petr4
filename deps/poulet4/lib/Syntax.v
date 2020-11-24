@@ -106,6 +106,8 @@ Section Syntax.
   | MkTableProperty (tags: tags_t)  (const: bool)
                     (name: P4String) (value: Expression).
 
+  Definition loc := nat.
+
   Inductive ValueBase :=
   | ValBaseNull
   | ValBaseBool (_: bool)
@@ -115,14 +117,14 @@ Section Syntax.
   | ValBaseVarbit (max: nat) (width: nat) (value: Bvector width)
   | ValBaseString (_: caml_string)
   | ValBaseTuple (_: list ValueBase)
-  | ValBaseRecord (_: list (caml_string * ValueBase))
+  | ValBaseRecord (_: list (caml_string * loc))
   | ValBaseSet (_: ValueSet)
   | ValBaseError (_: caml_string)
   | ValBaseMatchKind (_: caml_string)
-  | ValBaseStruct (fields: list (caml_string * ValueBase))
-  | ValBaseHeader (fields: list (caml_string * ValueBase)) (is_valid: bool)
-  | ValBaseUnion (fields: list (caml_string * ValueBase))
-  | ValBaseStack (headers: list ValueBase) (size: nat) (next: nat)
+  | ValBaseStruct (fields: list (caml_string * loc))
+  | ValBaseHeader (fields: list (caml_string * loc)) (is_valid: bool)
+  | ValBaseUnion (fields: list (caml_string * loc))
+  | ValBaseStack (headers: list loc) (size: nat) (next: nat)
   | ValBaseEnumField (typ_name: caml_string) (enum_name: caml_string)
   | ValBaseSenumField (typ_name: caml_string) (enum_name: caml_string) (value: ValueBase)
   | ValBaseSenum (_: list (caml_string * ValueBase))
@@ -249,14 +251,6 @@ Section Syntax.
   Inductive Env_EvalEnv :=
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env P4Type) (namespace: caml_string).
 
-  Inductive ValuePreLvalue :=
-  | ValLeftName (name: Typed.name)
-  | ValLeftMember (expr: ValueLvalue) (name: caml_string)
-  | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)
-  with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type).
-
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)
                  (params: list P4Parameter) (locals: list Declaration)
@@ -270,7 +264,7 @@ Section Syntax.
   | ValObjExternFun (name: caml_string) (caller: option (ValueLoc * caml_string))
                    (params: list P4Parameter)
   | ValObjFun (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
-  | ValObjBuiltinFun (name: caml_string) (caller: ValueLvalue)
+  | ValObjBuiltinFun (name: caml_string) (caller: loc)
   | ValObjAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block).
 
   Inductive ValueConstructor :=

@@ -4,33 +4,40 @@ Require Coq.Arith.PeanoNat.
 Module CAP := Coq.Arith.PeanoNat.
 Require Export Coq.Lists.List.
 Import ListNotations.
+Require Coq.Bool.Bool.
+Module CBB := Coq.Bool.Bool.
 
 (** * P4 Data Types Signature *)
-Module Type P4DataTypes.
-  (** Names *)
-  Parameter id : Set.
+Module Type P4Data.
+  Parameter t : Type.
+  Parameter eqb : t -> t -> bool.
+  Axiom eqb_reflect : forall x y : t, CBB.reflect (x = y) (eqb x y).
+End P4Data.
 
-  (** Integer values *)
-  Parameter int : Set.
+Module P4DataUtil (Export D : P4Data).
+  Infix "=?" := eqb (at level 70, no associativity).
 
-  (** Large Integer values *)
-  Parameter bigint : Set.
-End P4DataTypes.
+  Lemma eq_dec : forall x y : t, x = y \/ x <> y.
+  Proof.
+    intros x y. pose proof eqb_reflect x y as REFL.
+    inversion REFL as [HT Hxy | HF Hxy]; subst; auto.
+  Qed.
+End P4DataUtil.
 
 (** * Definitions and Lemmas regarding Fields *)
-Module Field (P4 : P4DataTypes).
+Module Field (NAME : P4Data).
   (** Field type. *)
-  Definition f (T : Set) : Set := P4.id * T.
+  Definition f (T : Type) : Type := NAME.t * T.
 
   (** Fields. *)
-  Definition fs (T : Set) : Set := list (f T).
+  Definition fs (T : Type) : Type := list (f T).
 
   (** Predicate on a field's data. *)
-  Definition predf_data {T : Set} (P : T -> Prop) : f T -> Prop :=
+  Definition predf_data {T : Type} (P : T -> Prop) : f T -> Prop :=
     fun '(_, t) => P t.
 
   (** Predicate over every data in fields. *)
-  Definition predfs_data {T : Set} (P : T -> Prop) : fs T -> Prop :=
+  Definition predfs_data {T : Type} (P : T -> Prop) : fs T -> Prop :=
     Forall (predf_data P).
 End Field.
 
@@ -38,19 +45,19 @@ End Field.
 Inductive dir : Set := DIn | DOut | DInOut | DZilch.
 
 (** * Expression Grammar *)
-Module Expr (P4 : P4DataTypes).
-  Module F := Field P4.
+Module Expr (LOC INT BIGINT NAME : P4Data).
+  Module F := Field NAME.
   Export F.
 
   (** Expression types. *)
-  Inductive t : Set :=
+  Inductive t : Type :=
     | TInteger
-    | TBitstring (n : P4.int)
+    | TBitstring (n : INT.t)
     | TError
     | TMatchKind
     | TRecord (fields : fs t)
     | THeader (fields : fs t)
-    | TTypeName (X : P4.id).
+    | TTypeName (X : NAME.t).
 
   (** Custom induction principle for [t]. *)
   Section TypeInduction.
@@ -59,19 +66,19 @@ Module Expr (P4 : P4DataTypes).
 
     Hypothesis HTInteger : P TInteger.
 
-    Hypothesis HTBitstring : forall n : P4.int, P (TBitstring n).
+    Hypothesis HTBitstring : forall n : INT.t, P (TBitstring n).
 
     Hypothesis HTError : P TError.
 
     Hypothesis HTMatchKind : P TMatchKind.
 
-    Hypothesis HTRecord : forall fields : list (P4.id * t),
+    Hypothesis HTRecord : forall fields : list (NAME.t * t),
         predfs_data P fields -> P (TRecord fields).
 
-    Hypothesis HTHeader : forall fields : list (P4.id * t),
+    Hypothesis HTHeader : forall fields : list (NAME.t * t),
         predfs_data P fields -> P (THeader fields).
 
-    Hypothesis HTTypeName : forall X : P4.id, P (TTypeName X).
+    Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X).
 
     (** A custom induction principle.
         Do [induction ?t using custom_t_ind]. *)
@@ -122,16 +129,16 @@ Module Expr (P4 : P4DataTypes).
 
    (** Expressions annotated with types,
        unless the type is obvious. *)
-  Inductive e : Set :=
-    | EInteger (n : P4.int)
-    | EBitstring (width : P4.int) (value : P4.bigint)
-    | EVar (type : t) (x : P4.id)
+  Inductive e : Type :=
+    | EInteger (n : INT.t)
+    | EBitstring (width : INT.t) (value : BIGINT.t)
+    | EVar (type : t) (x : NAME.t)
     | EUop (op : uop) (type : t) : e -> e
     | EBop (op : bop) (lhs_type rhs_type : t) (lhs rhs : e)
     | ECast (cast_type : t) (expr_type : t) : e -> e
     | ERecord (fields : fs (t * e))
-    | EExprMember (mem : P4.id) (expr_type : t) : e -> e
-    | EError (name : P4.id)
+    | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
+    | EError (name : NAME.t)
     (* Extern or action calls. *)
     | ECall
         (callee_type : t) (callee : e)
@@ -142,13 +149,13 @@ Module Expr (P4 : P4DataTypes).
     (** An arbitrary predicate. *)
     Variable P : e -> Prop.
 
-    Hypothesis HEInteger : forall n : P4.int,
+    Hypothesis HEInteger : forall n : INT.t,
         P (EInteger n).
 
-    Hypothesis HEBitstring : forall (w : P4.int) (v : P4.bigint),
+    Hypothesis HEBitstring : forall (w : INT.t) (v : BIGINT.t),
         P (EBitstring w v).
 
-    Hypothesis HEVar : forall (ty : t) (x : P4.id),
+    Hypothesis HEVar : forall (ty : t) (x : NAME.t),
         P (EVar ty x).
 
     Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e),
@@ -163,10 +170,10 @@ Module Expr (P4 : P4DataTypes).
     Hypothesis HERecord : forall (fields : fs (t * e)),
         predfs_data (fun '(_,ex) => P ex) fields -> P (ERecord fields).
 
-    Hypothesis HEExprMember : forall (x : P4.id) (ty : t) (ex : e),
+    Hypothesis HEExprMember : forall (x : NAME.t) (ty : t) (ex : e),
         P ex -> P (EExprMember x ty ex).
 
-    Hypothesis HEError : forall (err : P4.id),
+    Hypothesis HEError : forall err : NAME.t,
         P (EError err).
 
     Hypothesis HECall : forall (ty : t) (callee : e) (args : fs (t * e)),

@@ -20,10 +20,10 @@ Section Unpack.
     end.
 
   (* TODO: unpack_fixed_bit, unpack_var_bit; dependent types make things hard here *)
-  Definition unpack_fixed_int (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t {width:nat & Bvector width} :=
+  Definition unpack_fixed_int (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (nat * Z) :=
     let* unwrapped := wrapped in
     match unwrapped with
-    | ValBase _ (ValBaseInt _ w n) => mret (existT _ w n)
+    | ValBase _ (ValBaseInt _ w n) => mret (w, n)
     | _ => state_fail Internal
     end.
 

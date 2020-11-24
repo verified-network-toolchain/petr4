@@ -4,7 +4,7 @@ Require Import Coq.extraction.ExtrOcamlNatInt.
 Require Syntax.
 Require Extraction.
 
-Extract Constant CamlString.caml_string => "string".
+Extract Inlined Constant CamlString.caml_string => "string".
 Extract Constant CamlString.caml_string_cmp =>
   "(fun x y -> let c = String.compare x y in
                if c < 0 then LT
@@ -15,5 +15,5 @@ Extract Constant CamlString.caml_string_of_chars =>
   "(fun cs -> String.init (List.length cs) (fun n -> List.nth n cs)".
 
 Cd "extraction/lib/".
-Separate Extraction Syntax.
+Separate Extraction Syntax Typed.
 Cd "../../".

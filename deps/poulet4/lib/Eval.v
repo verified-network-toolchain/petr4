@@ -40,8 +40,8 @@ Section Eval.
 
   Definition eval_minus (v: Value tags_t) : option (Value tags_t) := 
     match v with
-    | ValBase _ (ValBaseBit _ width bits) => Some (ValBase _ (ValBaseBit _ width (bvector_negate bits)))
-    | ValBase _ (ValBaseInt _ width bits) => Some (ValBase _ (ValBaseInt _ width (bvector_negate bits)))
+    | ValBase _ (ValBaseBit _ width bits) => Some (ValBase _ (ValBaseBit _ width (Z.opp bits)))
+    | ValBase _ (ValBaseInt _ width bits) => Some (ValBase _ (ValBaseInt _ width (Z.opp bits)))
     | ValBase _ (ValBaseInteger _ n) => Some (ValBase _ (ValBaseInteger _ (Z.opp n)))
     | _ => None
     end.
@@ -56,9 +56,9 @@ Section Eval.
     | ExpInt _ value =>
       match value with
       | MkP4Int _ _ value (Some (width, true)) =>
-        mret (ValBase _ (ValBaseInt _ width (bvec_of_z width value)))
+        mret (ValBase _ (ValBaseInt _ width value))
       | MkP4Int _ _ value (Some (width, false)) =>
-        mret (ValBase _ (ValBaseBit _ width (bvec_of_z width value)))
+        mret (ValBase _ (ValBaseBit _ width value))
       | MkP4Int _ _ value None =>
         mret (ValBase _ (ValBaseInteger _ value))
       end
@@ -87,7 +87,7 @@ Section Eval.
       | BitNot => 
         let* inner := eval_expression arg in
         match inner with
-        | ValBase _ (ValBaseBit _ w bits) => mret (ValBase _ (ValBaseBit _ w (Bneg w bits)))
+        | ValBase _ (ValBaseBit _ w bits) => mret (ValBase _ (ValBaseBit _ w (BinInt.Z.lnot bits)))
         | ValBase _ (ValBaseVarbit _ m w bits) => mret (ValBase _ (ValBaseVarbit _ m w (Bneg w bits)))
         | _ => state_fail Internal
         end

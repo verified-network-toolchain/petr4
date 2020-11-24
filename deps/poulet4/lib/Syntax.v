@@ -110,8 +110,8 @@ Section Syntax.
   | ValBaseNull
   | ValBaseBool (_: bool)
   | ValBaseInteger (_: Z)
-  | ValBaseBit (width: nat) (value: Bvector width)
-  | ValBaseInt (width: nat) (value: Bvector width)
+  | ValBaseBit (width: nat) (value: Z)
+  | ValBaseInt (width: nat) (value: Z)
   | ValBaseVarbit (max: nat) (width: nat) (value: Bvector width)
   | ValBaseString (_: caml_string)
   | ValBaseTuple (_: list ValueBase)

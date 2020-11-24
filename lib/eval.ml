@@ -1,7 +1,7 @@
 module I = Info
 open Core_kernel
 open Prog
-open Env
+open Eval_env
 open Typed
 open Value
 open Target

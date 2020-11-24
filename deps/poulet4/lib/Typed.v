@@ -32,12 +32,12 @@ Inductive FunctionKind :=
 
 Inductive P4Type :=
 | TypBool
-| Typcaml_string
+| TypString
 | TypInteger
 | TypInt (width: nat)
 | TypBit (width: nat)
 | TypVarBit (width: nat)
-| TypArray (size: ArrayType)
+| TypArray (typ: P4Type) (size: Z)
 | TypTuple (types: list P4Type)
 | TypList (types: list P4Type)
 | TypRecord (fields: list FieldType)
@@ -51,18 +51,17 @@ Inductive P4Type :=
 | TypEnum (name: caml_string) (typ: option P4Type) (members: list caml_string)
 | TypTypeName (name: name)
 | TypNewType (name: caml_string) (typ: P4Type)
-| TypControl (type_params: list caml_string) (parameters: list P4Parameter)
-| TypParser (type_params: list caml_string) (parameters: list P4Parameter)
+| TypControl (_: ControlType)
+| TypParser (_: ControlType)
 | TypExtern (extern_name: caml_string)
 | TypFunction (fn: FunctionType)
 | TypAction (data_params: list P4Parameter) (ctrl_params: list P4Parameter)
 | TypTable (result_typ_name: caml_string)
 | TypPackage (type_params: list caml_string) (wildcard_params: list caml_string)
              (parameters: list P4Parameter)
+| TypSpecializedType (base: P4Type) (args: list P4Type)
 | TypConstructor (type_params: list caml_string) (wildcard_params: list caml_string)
                  (parameters: list P4Parameter) (ret: P4Type)
-with ArrayType :=
-| MkArrayType (typ: P4Type) (size: Z)
 with FieldType :=
 | MkFieldType (name: caml_string) (typ: P4Type)
 with ControlType :=
@@ -70,8 +69,6 @@ with ControlType :=
 with FunctionType :=
 | MkFunctionType (type_params: list caml_string) (parameters: list P4Parameter)
                  (kind: FunctionKind) (ret: P4Type)
-with SpecializedType :=
-| MkSpecializedType (base: P4Type) (args: list P4Type)
 with P4Parameter :=
 | MkParameter (opt: bool) (direction: direction) (typ: P4Type) (variable: caml_string).
 

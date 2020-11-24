@@ -41,12 +41,14 @@ Section Packet.
       | (bit :: [])%vector => mret (ValBaseBool _ bit)
       | _ => state_fail Internal
       end
+    (* TODO: fix numerics
     | TypBit width =>
       let* vec := read_first_bits width in
       mret (ValBaseBit _ width vec)
     | TypInt width =>
       let* vec := read_first_bits width in
       mret (ValBaseInt _ width vec)
+     *)
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseRecord _ field_vals)

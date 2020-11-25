@@ -180,8 +180,13 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
   Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
   Notation "( x )" := x (in custom p4expr, x at level 99).
   Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
+  Notation "'Int' n" := (EInteger n) (in custom p4expr at level 0).
   Notation "n '@' m" := (EBitstring n m)
                           (in custom p4expr at level 1, no associativity).
+  Notation "'Var' x '::' ty 'end'" := (EVar ty x)
+                        (in custom p4expr at level 0, no associativity).
+  Notation "'Loc' x" := (ELoc x)
+                        (in custom p4expr at level 0, no associativity).
   Notation "'!' x '::' ty 'end'" := (EUop Not ty x)
                               (in custom p4expr at level 2,
                                   x custom p4expr, ty custom p4type,
@@ -369,9 +374,9 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
               Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
             end in
         match expr as e' return P e' with
-        | EInteger n => HEInteger n
+        | <{ Int n }> => HEInteger n
         | <{ w @ v }> => HEBitstring w v
-        | EVar ty x => HEVar ty x
+        | <{ Var x :: ty end }> => HEVar ty x
         | EUop ty op exp => HEUop ty op exp (custom_e_ind exp)
         | EBop op lt rt lhs rhs =>
             HEBop op lt rt lhs rhs
@@ -385,7 +390,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
             HECall ty callee args
                    (custom_e_ind callee)
                    (fields_ind args)
-        | ELoc l => HELoc l
+        | <{ Loc l }> => HELoc l
         end.
   End ExprInduction.
 End Expr.

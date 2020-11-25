@@ -58,7 +58,7 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
            (at level 40, ex custom p4expr, ty custom p4type at level 0).
 
   (** Expression typing as a relation. *)
-  Inductive check (errs : errors) (mkds : matchkinds)
+  Fail Inductive check (errs : errors) (mkds : matchkinds)
             (g : gam) (d : del) : e -> t -> dir -> Prop :=
     (* Literals. *)
     | chk_bool (b : bool) :
@@ -218,6 +218,7 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
          \in returns \goes DIn
    | chk_call_cons (x : NAME.t) (params : fs t) (args : fs e)
                    (typ returns : t) (callee arg : e) :
+       (* This hypothesis is specious. *)
        check errs mkds g d callee
              (TArrow ((x,typ) :: params) returns) DIn ->
        $ errs ,, mkds ,, g ,, d $ |= arg \in typ \goes DIn ->
@@ -227,6 +228,13 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
        check errs mkds g d
              (ECall (TArrow ((x, typ) :: params) returns)
                     callee ((x,arg) :: args)) returns DIn
+   | chk_call (params : fs t) (args : fs e) (returns : t) (callee : e) :
+       $ errs ,, mkds ,, g ,, d $
+         |= callee \in params |-> returns \goes DIn ->
+       relfs (fun typ arg => check errs mkds g d arg typ DIn) params args ->
+       $ errs ,, mkds ,, g ,, d $
+         |= call callee :: {{ params |-> returns }} with args end
+         \in returns \goes DIn
    where "'$' ers ',,' mks ',,' gm ',,' dl '$' '|=' ex '\in' ty '\goes' dr"
            := (check ers mks gm dl ex ty dr).
 End CheckExpr.

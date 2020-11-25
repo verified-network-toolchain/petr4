@@ -114,7 +114,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     | TMatchKind
     | TRecord (fields : fs t)
     | THeader (fields : fs t)
-    | TTypeName (X : NAME.t).
+    | TTypeName (X : NAME.t)
+    | TArrow (params : fs t) (return_type : t).
 
   Declare Custom Entry p4type.
 
@@ -122,7 +123,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
   Notation "( x )" := x (in custom p4type, x at level 99).
   Notation "x" := x (in custom p4type at level 0, x constr at level 0).
   Notation "'Bool'" := TBool (in custom p4type at level 0).
-  Notation "'int'" := TInteger (in custom p4type at level 0, no associativity).
+  Notation "'int'"
+    := TInteger (in custom p4type at level 0, no associativity).
   Notation "'bit' '<' w '>'"
     := (TBitstring w)
          (in custom p4type at level 2,
@@ -159,6 +161,9 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
   Notation "'hdr' { fields } "
     := (THeader fields)
          (in custom p4type at level 6, no associativity).
+  Notation "params '|->' return_typ"
+           := (TArrow params return_typ)
+                (in custom p4type at level 10, no associativity).
 
   (** Custom induction principle for [t]. *)
   Section TypeInduction.
@@ -183,6 +188,9 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
 
     Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X).
 
+    Hypothesis HTArrow : forall (params : fs t) (returns : t),
+        predfs_data P params -> P returns -> P {{ params |-> returns }}.
+
     (** A custom induction principle.
         Do [induction ?t using custom_t_ind]. *)
     Definition custom_t_ind : forall ty : t, P ty :=
@@ -199,9 +207,11 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         | {{ bit<w> }} => HTBitstring w
         | {{ error }} => HTError
         | {{ matchkind }} => HTMatchKind
-        | TTypeName X => HTTypeName X
+        |   TTypeName X => HTTypeName X
         | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
         | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
+        | {{ params |-> returns }} =>
+            HTArrow params returns (fields_ind params) (custom_t_ind returns)
         end.
   End TypeInduction.
 

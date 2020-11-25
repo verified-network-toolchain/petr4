@@ -24,6 +24,43 @@ Module P4DataUtil (Export D : P4Data).
   Qed.
 End P4DataUtil.
 
+Module Type P4Numeric <: P4Data.
+  Include P4Data.
+
+  (** Arithmetic operations and lemmas. *)
+
+  Parameter add : t -> t -> t.
+  Axiom add_comm : forall m n : t, add m n = add n m.
+  Axiom add_assoc : forall a b c : t, add a (add b c) = add (add a b) c.
+
+  Parameter sub : t -> t -> t.
+  Axiom sub_assoc : forall a b c : t, sub a (sub b c) = sub (sub a b) c.
+
+  Parameter mul : t -> t -> t.
+  Axiom mul_comm : forall m n : t, mul m n = mul n m.
+  Axiom mul_assoc : forall a b c : t, mul a (mul b c) = mul (mul a b) c.
+
+  (** Ordered relations. *)
+
+  Parameter le : t -> t -> Prop.
+
+  Parameter lt : t -> t -> Prop.
+End P4Numeric.
+
+Module P4NumericUtil (N : P4Numeric).
+  Include N.
+
+  Infix "+" := add (at level 50, left associativity).
+
+  Infix "-" := sub (at level 50, left associativity).
+
+  Infix "*" := mul (at level 40, left associativity).
+
+  Infix "<=" := le (at level 70, no associativity).
+
+  Infix "<" := lt (at level 70, no associativity).
+End P4NumericUtil.
+
 (** * Definitions and Lemmas regarding Fields *)
 Module Field (NAME : P4Data).
   (** Field type. *)
@@ -39,13 +76,32 @@ Module Field (NAME : P4Data).
   (** Predicate over every data in fields. *)
   Definition predfs_data {T : Type} (P : T -> Prop) : fs T -> Prop :=
     Forall (predf_data P).
+
+  (** Relation betwixt two field instances. *)
+  Definition relf {U V : Type} (R : U -> V -> Prop) : f U -> f V -> Prop :=
+    fun '(ux, ut) '(vx, vt) => ux = vx /\ R ut vt.
+
+  Fixpoint relfs {U V : Type}
+           (R : U -> V -> Prop) (ufs : fs U) (vfs : fs V) : Prop :=
+    match ufs, vfs with
+    | [], [] => True
+    | [], _ :: _
+    | _ :: _, [] => False
+    | (ux, u) :: us, (vx, v) :: vs =>
+        relfs R us vs /\ ux = vx /\ R u v
+    end.
+
+  (** Relation between two instances of fields. *)
+  Definition relfs_forall2 {U V : Type}
+             (R : U -> V -> Prop) : fs U -> fs V -> Prop :=
+    Forall2 (relf R).
 End Field.
 
 (** Directions. *)
 Inductive dir : Set := DIn | DOut | DInOut | DZilch.
 
 (** * Expression Grammar *)
-Module Expr (LOC INT BIGINT NAME : P4Data).
+Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
   Module F := Field NAME.
   Export F.
 
@@ -67,19 +123,26 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
   Notation "x" := x (in custom p4type at level 0, x constr at level 0).
   Notation "'Bool'" := TBool (in custom p4type at level 0).
   Notation "'int'" := TInteger (in custom p4type at level 0, no associativity).
-  Notation "'bit' '<' w '>'" := (TBitstring w)
-                             (in custom p4type at level 2,
-                                 w custom p4type at level 99, no associativity).
-  Notation "'error'" := TError (in custom p4type at level 0, no associativity).
+  Notation "'bit' '<' w '>'"
+    := (TBitstring w)
+         (in custom p4type at level 2,
+             w custom p4type at level 99, no associativity).
+  Notation "'error'" := TError
+                          (in custom p4type at level 0, no associativity).
   Notation "'matchkind'"
     := TMatchKind (in custom p4type at level 0, no associativity).
-  Notation " x '::' tx" := (x,tx) (in custom p4type at level 5, no associativity).
-  Notation "'rec' { } "
+  Notation " x '::' tx" := (x,tx)
+                             (in custom p4type at level 5, no associativity).
+  Notation "'rec' { }"
     := (TRecord []) (in custom p4type at level 6, no associativity).
   Notation "'rec' { x '::' tx }"
     := (TRecord [(x,tx)])
          (in custom p4type at level 6, no associativity).
-  Notation "'rec' { fx ';;' fy ';;' .. ';;' fz }'"
+  Notation "'rec' { x '::' tx ';;' tfs }"
+           := (TRecord ((x,tx) :: tfs))
+                (in custom p4type at level 6,
+                    tx custom p4type, no associativity).
+  Notation "'rec' { fx ';;' fy ';;' .. ';;' fz }"
            := (TRecord  (cons fx (cons fy .. (cons fz nil) ..)))
                        (in custom p4type at level 6, no associativity).
   Notation "'rec' { fields } "
@@ -90,7 +153,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
   Notation "'hdr' { x '::' tx }"
     := (THeader [(x,tx)])
          (in custom p4type at level 6, no associativity).
-  Notation "'hdr' { fx ';;' fy ';;' .. ';;' fz }'"
+  Notation "'hdr' { fx ';;' fy ';;' .. ';;' fz }"
            := (THeader  (cons fx (cons fy .. (cons fz nil) ..)))
                        (in custom p4type at level 6, no associativity).
   Notation "'hdr' { fields } "
@@ -178,13 +241,13 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
     | EUop (op : uop) (type : t) : e -> e
     | EBop (op : bop) (lhs_type rhs_type : t) (lhs rhs : e)
     | ECast (cast_type : t) (expr_type : t) : e -> e
-    | ERecord (fields : fs (t * e))
+    | ERecord (fields : fs e)
     | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
     | EError (name : NAME.t)
     (* Extern or action calls. *)
     | ECall
         (callee_type : t) (callee : e)
-        (args : fs (t * e))
+        (args : fs e)
     (* May be necessary for small-step semantics... *)
     | ELoc (loc : LOC.t).
 
@@ -310,18 +373,21 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
          (in custom p4expr at level 16,
              x custom p4expr, ty custom p4type,
              tx custom p4type, no associativity).
-  Notation "x ':=' ex :: tx" := (x, (ex, tx))
+  Notation "x ':=' ex" := (x, ex)
                             (in custom p4expr at level 2,
-                                ex custom p4expr,
-                                tx custom p4type, no associativity).
+                                ex custom p4expr, no associativity).
   Notation "'rec' { } "
     := (ERecord [])
          (in custom p4expr at level 6, no associativity).
-  Notation "'rec' { x ':=' ex :: tx }"
-    := (ERecord [(x,(ex,tx))])
+  Notation "'rec' { x ':=' ex }"
+    := (ERecord [(x,ex)])
          (in custom p4expr at level 6,
              ex custom p4expr, no associativity).
-  Notation "'rec' { fx ';;' fy ';;' .. ';;' fz }'"
+  Notation "'rec' { x ':=' ex ';;' efs }"
+           := (ERecord ((x,ex) :: efs))
+                (in custom p4expr at level 6,
+                    ex custom p4expr, no associativity).
+  Notation "'rec' { fx ';;' fy ';;' .. ';;' fz }"
            := (ERecord  (cons fx (cons fy .. (cons fz nil) ..)))
                        (in custom p4expr at level 6, no associativity).
   Notation "'rec' { fields } "
@@ -366,8 +432,8 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
     Hypothesis HECast : forall (ct et : t) (ex : e),
         P ex -> P <{ (ct) ex :: et end }>.
 
-    Hypothesis HERecord : forall (fields : fs (t * e)),
-        predfs_data (fun '(_,ex) => P ex) fields -> P <{ rec {fields} }>.
+    Hypothesis HERecord : forall (fields : fs e),
+        predfs_data P fields -> P <{ rec {fields} }>.
 
     Hypothesis HEExprMember : forall (x : NAME.t) (ty : t) (ex : e),
         P ex -> P <{ [ ex :: ty ] x }>.
@@ -375,8 +441,8 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
     Hypothesis HEError : forall err : NAME.t,
         P <{ Error err }>.
 
-    Hypothesis HECall : forall (ty : t) (callee : e) (args : fs (t * e)),
-        P callee -> predfs_data (fun '(_, exp) => P exp) args ->
+    Hypothesis HECall : forall (ty : t) (callee : e) (args : fs e),
+        P callee -> predfs_data P args ->
         P <{ call callee :: ty with args end }>.
 
     Hypothesis HELoc : forall l : LOC.t,
@@ -386,12 +452,12 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
         Do [induction ?e using custom_e_ind]. *)
     Definition custom_e_ind : forall exp : e, P exp :=
       fix custom_e_ind (expr : e) : P expr :=
-        let fix fields_ind (flds : fs (t * e))
-            : predfs_data (fun '(_, exp) => P exp) flds :=
+        let fix fields_ind (flds : fs e)
+            : predfs_data P flds :=
             match flds as fs_ex
-                  return predfs_data (fun '(_, exp) => P exp) fs_ex with
-            | [] => Forall_nil (predf_data (fun '(_, exp) => P exp))
-            | ((_, (_, hfe)) as hf) :: tf =>
+                  return predfs_data P fs_ex with
+            | [] => Forall_nil (predf_data P)
+            | ((_, hfe) as hf) :: tf =>
               Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
             end in
         match expr as e' return P e' with

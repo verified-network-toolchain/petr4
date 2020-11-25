@@ -244,6 +244,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     | ERecord (fields : fs e)
     | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
     | EError (name : NAME.t)
+    | EMatchKind (name : NAME.t)
     (* Extern or action calls. *)
     | ECall
         (callee_type : t) (callee : e)
@@ -399,6 +400,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
                     ty custom p4type, left associativity).
   Notation "'Error' x" := (EError x)
                           (in custom p4expr at level 0, no associativity).
+  Notation "'Matchkind' x" := (EMatchKind x)
+                          (in custom p4expr at level 0, no associativity).
   Notation " 'call' f '::' tf 'with' args 'end' "
     := (ECall tf f args) (in custom p4expr at level 30,
                              tf custom p4type,
@@ -441,6 +444,9 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     Hypothesis HEError : forall err : NAME.t,
         P <{ Error err }>.
 
+    Hypothesis HEMatchKind : forall mkd : NAME.t,
+        P <{ Matchkind mkd }>.
+
     Hypothesis HECall : forall (ty : t) (callee : e) (args : fs e),
         P callee -> predfs_data P args ->
         P <{ call callee :: ty with args end }>.
@@ -474,6 +480,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         | <{ [ exp :: ty ] x }> =>
             HEExprMember x ty exp (custom_e_ind exp)
         | <{ Error err }> => HEError err
+        | <{ Matchkind mkd }> => HEMatchKind mkd
         | <{ call callee :: ty with args end }> =>
             HECall ty callee args
                    (custom_e_ind callee)

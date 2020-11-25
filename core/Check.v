@@ -209,6 +209,24 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
    | chk_matchkind (mkd : NAME.t) :
        mkds mkd = Some tt ->
        $ errs ,, mkds ,, g ,, d $ |= Matchkind mkd \in error \goes DIn
+   (* Action and extern calls. TODO: directions. *)
+   | chk_call_nil (returns : t) (callee : e) :
+       $ errs ,, mkds ,, g ,, d $
+         |= callee \in {{ nil |-> returns }} \goes DIn ->
+       $ errs ,, mkds ,, g ,, d $
+         |= call callee :: {{nil |-> returns }} with nil end
+         \in returns \goes DIn
+   | chk_call_cons (x : NAME.t) (params : fs t) (args : fs e)
+                   (typ returns : t) (callee arg : e) :
+       check errs mkds g d callee
+             (TArrow ((x,typ) :: params) returns) DIn ->
+       $ errs ,, mkds ,, g ,, d $ |= arg \in typ \goes DIn ->
+       $ errs ,, mkds ,, g ,, d $
+         |= call callee :: {{ params |-> returns }} with args end
+         \in returns \goes DIn ->
+       check errs mkds g d
+             (ECall (TArrow ((x, typ) :: params) returns)
+                    callee ((x,arg) :: args)) returns DIn
    where "'$' ers ',,' mks ',,' gm ',,' dl '$' '|=' ex '\in' ty '\goes' dr"
            := (check ers mks gm dl ex ty dr).
 End CheckExpr.

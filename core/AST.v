@@ -51,6 +51,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
 
   (** Expression types. *)
   Inductive t : Type :=
+    | TBool
     | TInteger
     | TBitstring (n : INT.t)
     | TError
@@ -64,34 +65,44 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
   Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
   Notation "( x )" := x (in custom p4type, x at level 99).
   Notation "x" := x (in custom p4type at level 0, x constr at level 0).
+  Notation "'Bool'" := TBool (in custom p4type at level 0).
   Notation "'int'" := TInteger (in custom p4type at level 0, no associativity).
   Notation "'bit' '<' w '>'" := (TBitstring w)
                              (in custom p4type at level 2,
                                  w custom p4type at level 99, no associativity).
   Notation "'error'" := TError (in custom p4type at level 0, no associativity).
-  Notation "'matchkind'" := TMatchKind (in custom p4type at level 0, no associativity).
+  Notation "'matchkind'"
+    := TMatchKind (in custom p4type at level 0, no associativity).
   Notation " x '::' tx" := (x,tx) (in custom p4type at level 5, no associativity).
-  Notation "'rec' { } " := (TRecord []) (in custom p4type at level 6, no associativity).
-  Notation "'rec' { x '::' tx }" := (TRecord [(x,tx)])
-                                    (in custom p4type at level 6, no associativity).
+  Notation "'rec' { } "
+    := (TRecord []) (in custom p4type at level 6, no associativity).
+  Notation "'rec' { x '::' tx }"
+    := (TRecord [(x,tx)])
+         (in custom p4type at level 6, no associativity).
   Notation "'rec' { fx ';;' fy ';;' .. ';;' fz }'"
            := (TRecord  (cons fx (cons fy .. (cons fz nil) ..)))
                        (in custom p4type at level 6, no associativity).
-  Notation "'rec' { fields } " := (TRecord fields)
-                                    (in custom p4type at level 6, no associativity).
-  Notation "'hdr' { } " := (THeader []) (in custom p4type at level 6, no associativity).
-  Notation "'hdr' { x '::' tx }" := (THeader [(x,tx)])
-                                    (in custom p4type at level 6, no associativity).
+  Notation "'rec' { fields } "
+    := (TRecord fields)
+         (in custom p4type at level 6, no associativity).
+  Notation "'hdr' { } "
+    := (THeader []) (in custom p4type at level 6, no associativity).
+  Notation "'hdr' { x '::' tx }"
+    := (THeader [(x,tx)])
+         (in custom p4type at level 6, no associativity).
   Notation "'hdr' { fx ';;' fy ';;' .. ';;' fz }'"
            := (THeader  (cons fx (cons fy .. (cons fz nil) ..)))
                        (in custom p4type at level 6, no associativity).
-  Notation "'hdr' { fields } " := (THeader fields)
-                                    (in custom p4type at level 6, no associativity).
+  Notation "'hdr' { fields } "
+    := (THeader fields)
+         (in custom p4type at level 6, no associativity).
 
   (** Custom induction principle for [t]. *)
   Section TypeInduction.
     (** An arbitrary property. *)
     Variable P : t -> Prop.
+
+    Hypothesis HTBool : P {{ Bool }}.
 
     Hypothesis HTInteger : P {{ int }}.
 
@@ -120,6 +131,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
               Forall_cons hf (custom_t_ind hft) (fields_ind tf)
             end in
         match type as ty return P ty with
+        | {{ Bool }} => HTBool
         | {{ int }} => HTInteger
         | {{ bit<w> }} => HTBitstring w
         | {{ error }} => HTError
@@ -159,6 +171,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
    (** Expressions annotated with types,
        unless the type is obvious. *)
   Inductive e : Type :=
+    | EBool (b : bool)
     | EInteger (n : INT.t)
     | EBitstring (width : INT.t) (value : BIGINT.t)
     | EVar (type : t) (x : NAME.t)
@@ -180,6 +193,9 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
   Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
   Notation "( x )" := x (in custom p4expr, x at level 99).
   Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
+  Notation "'True'" := (EBool true) (in custom p4expr at level 0).
+  Notation "'False'" := (EBool false) (in custom p4expr at level 0).
+  Notation "'BOOL' b" := (EBool b) (in custom p4expr at level 0).
   Notation "'Int' n" := (EInteger n) (in custom p4expr at level 0).
   Notation "n '@' m" := (EBitstring n m)
                           (in custom p4expr at level 1, no associativity).
@@ -199,92 +215,92 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
                               (in custom p4expr at level 2,
                                   x custom p4expr, ty custom p4type,
                                   no associativity).
-  Notation "'begin' x '::' tx '+' y '::' ty 'end'"
+  Notation "'+' x '::' tx y '::' ty 'end'"
     := (EBop Plus tx ty x y)
          (in custom p4expr at level 3,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '|+|' y '::' ty 'end'"
+  Notation "'|+|' x '::' tx y '::' ty 'end'"
     := (EBop PlusSat tx ty x y)
          (in custom p4expr at level 4,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '-' y '::' ty 'end'"
+  Notation "'--' x '::' tx y '::' ty 'end'"
     := (EBop Minus tx ty x y)
          (in custom p4expr at level 3,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '|-|' y '::' ty 'end'"
+  Notation "'|-|' x '::' tx y '::' ty 'end'"
     := (EBop MinusSat tx ty x y)
          (in custom p4expr at level 4,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '<<' y '::' ty 'end'"
+  Notation "'<<' x '::' tx y '::' ty 'end'"
     := (EBop Shl tx ty x y)
          (in custom p4expr at level 5,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '>>' y '::' ty 'end'"
+  Notation "'>>' x '::' tx y '::' ty 'end'"
     := (EBop Shr tx ty x y)
          (in custom p4expr at level 5,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '<=' y '::' ty 'end'"
+  Notation "'<=' x '::' tx y '::' ty 'end'"
     := (EBop Le tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '>=' y '::' ty 'end'"
+  Notation "'>=' x '::' tx y '::' ty 'end'"
     := (EBop Ge tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '<' y '::' ty 'end'"
+  Notation "'<' x '::' tx y '::' ty 'end'"
     := (EBop Lt tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '>' y '::' ty 'end'"
+  Notation "'>' x '::' tx y '::' ty 'end'"
     := (EBop Gt tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '==' y '::' ty 'end'"
+  Notation "'==' x '::' tx y '::' ty 'end'"
     := (EBop Eq tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '!=' y '::' ty 'end'"
+  Notation "'!=' x '::' tx y '::' ty 'end'"
     := (EBop NotEq tx ty x y)
          (in custom p4expr at level 12,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '&' y '::' ty 'end'"
+  Notation "'&' x '::' tx y '::' ty 'end'"
     := (EBop BitAnd tx ty x y)
          (in custom p4expr at level 7,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '^' y '::' ty 'end'"
+  Notation "'^' x '::' tx y '::' ty 'end'"
     := (EBop BitXor tx ty x y)
          (in custom p4expr at level 8,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '|' y '::' ty 'end'"
+  Notation "'|' x '::' tx y '::' ty 'end'"
     := (EBop BitOr tx ty x y)
          (in custom p4expr at level 9,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, left associativity).
-  Notation "'begin' x '::' tx '&&' y '::' ty 'end'"
+  Notation "'&&' x '::' tx y '::' ty 'end'"
     := (EBop And tx ty x y)
          (in custom p4expr at level 14,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '||' y '::' ty 'end'"
+  Notation "'||' x '::' tx y '::' ty 'end'"
     := (EBop Or tx ty x y)
          (in custom p4expr at level 15,
              x custom p4expr, tx custom p4type,
              y custom p4expr, ty custom p4type, no associativity).
-  Notation "'begin' x '::' tx '++' y '::' ty 'end'"
+  Notation "'++' x '::' tx y '::' ty 'end'"
     := (EBop PlusPlus tx ty x y)
          (in custom p4expr at level 6,
              x custom p4expr, tx custom p4type,
@@ -322,13 +338,18 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
                              tf custom p4type,
                              f custom p4expr, left associativity).
 
+  (* Example oneplusone : e := <{ + Int 1 :: int Int 1 :: int end }>. *)
+
   (** A custom induction principle for [e]. *)
   Section ExprInduction.
     (** An arbitrary predicate. *)
     Variable P : e -> Prop.
 
+    Hypothesis HEBool : forall b : bool,
+        P <{ BOOL b }>.
+
     Hypothesis HEInteger : forall n : INT.t,
-        P (EInteger n).
+        P <{ Int n }>.
 
     Hypothesis HEBitstring : forall (w : INT.t) (v : BIGINT.t),
         P <{ w @ v }>.
@@ -374,6 +395,7 @@ Module Expr (LOC INT BIGINT NAME : P4Data).
               Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
             end in
         match expr as e' return P e' with
+        | <{ BOOL b }> => HEBool b
         | <{ Int n }> => HEInteger n
         | <{ w @ v }> => HEBitstring w v
         | <{ Var x :: ty end }> => HEVar ty x

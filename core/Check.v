@@ -44,4 +44,15 @@ Module CheckExpr (LOC INT BIGINT NAME : P4Data).
 
   (** Typing store. *)
   Definition xi : Type := LM.env t.
+
+  Reserved Notation "g ',' d '|=' exp '\in' typ '\goes' drc"
+           (at level 40, exp custom p4expr,
+            typ custom p4type at level 0).
+
+  (** Expression typing as a relation. *)
+  Inductive check (g : gam) (d : del) : e -> t -> dir -> Prop :=
+    | chk_int (n : INT.t) :
+        g, d |=  Int n \in int \goes DIn
+    where "gm ',' dl '|=' exp '\in' typ '\goes' drc"
+      := (check gm dl exp typ drc).
 End CheckExpr.

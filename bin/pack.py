@@ -26,10 +26,19 @@ Folder=arguments.Location
 #the destination file name for the ml code
 Destination =arguments.Destination
 
-Ocaml_code_header=" \n"
 
-#def load_code(f_name):
-chdir("./")
+
+def load_code(f_name):
+  file = open(f_name, "r")
+  code = file.read()
+  file.close()
+  return code
+
+Ocaml_code_header=load_code("./bin/pack_header.ml")
+
+
+# loads the list of p4 files inside a folder that is found in petr4 into a
+#dictionary pointing from a file name to file content
 def load_list_of_files (destination):
   if ("." in destination):
     if (".p4" in destination):
@@ -37,15 +46,24 @@ def load_list_of_files (destination):
       dest=destination
       while ("/" in dest):
         dest=dest[dest.find("/")+1:]
-      return [dest]
-    else: return []
+      d={}
+      d[dest]=load_code(destination)
+      return d
+    else: return {}
   else:
     directories=listdir(destination)
-    list_of_files=[]
+    list_of_files={}
     for file in directories:
-      list_of_files += load_list_of_files(destination + "/"+ file)
+      list_of_files.update( load_list_of_files(destination + "/"+ file))
     return list_of_files
 
+def add_to_map(f_name, code):
+  return "\n AssocListMap.insert " + f_name + " " +  ' {|' + code + '|} ' +" pack "
 
-#def add_to_map(f_name, code):
-  
+files_and_code=load_list_of_files(Folder)
+for file_name in files_and_code.keys() :
+  Ocaml_code_header+= add_to_map(file_name, files_and_code[file_name])
+
+f=open(Destination, "w")
+f.write(Ocaml_code_header)
+f.close()

@@ -1,3 +1,4 @@
+from os import listdir, chdir, getcwd
 import argparse
 """
 1. Write python program to pack a directory into an ml file
@@ -25,5 +26,26 @@ Folder=arguments.Location
 #the destination file name for the ml code
 Destination =arguments.Destination
 
-Ocaml_code_header
+Ocaml_code_header=" \n"
 
+#def load_code(f_name):
+chdir("./")
+def load_list_of_files (destination):
+  if ("." in destination):
+    if (".p4" in destination):
+      [destination]
+      dest=destination
+      while ("/" in dest):
+        dest=dest[dest.find("/")+1:]
+      return [dest]
+    else: return []
+  else:
+    directories=listdir(destination)
+    list_of_files=[]
+    for file in directories:
+      list_of_files += load_list_of_files(destination + "/"+ file)
+    return list_of_files
+
+
+#def add_to_map(f_name, code):
+  

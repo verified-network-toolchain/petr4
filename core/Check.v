@@ -58,8 +58,8 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
            (at level 40, ex custom p4expr, ty custom p4type at level 0).
 
   (** Expression typing as a relation. *)
-  Fail Inductive check (errs : errors) (mkds : matchkinds)
-            (g : gam) (d : del) : e -> t -> dir -> Prop :=
+  Inductive check (errs : errors) (mkds : matchkinds)
+            (g : gam) (d : del) : dir -> e -> t -> Prop :=
     (* Literals. *)
     | chk_bool (b : bool) :
         $ errs ,, mkds ,, g ,, d $ |= BOOL b \in Bool \goes DIn
@@ -186,22 +186,9 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
        $ errs ,, mkds ,, g ,, d $
          |= [ re :: rec { fields } ] x \in tx \goes dr
    (* Records. *)
-   | chk_rec_nil :
-       $ errs ,, mkds ,, g ,, d $ |= rec { } \in rec { } \goes DIn
-   | chk_rec_cons (x : NAME.t) (exp : e) (typ : t)
-                  (efs : fs e) (tfs : fs t) :
-       $ errs ,, mkds ,, g ,, d $ |= exp \in typ \goes DIn ->
-       $ errs ,, mkds ,, g ,, d $ |= rec { efs } \in rec { tfs } \goes DIn ->
-       check errs mkds g d
-             (ERecord ((x, exp) :: efs))
-             (TRecord ((x, typ) :: tfs)) DIn
-   (* Coq errantly believes there is a non-strictly
-      positive occurence of [check] in this definition.
-      I do not put a [check] to the left of an arrow
-      thus I do not see the problem...
    | chk_rec_lit (efs : fs e) (tfs : fs t) :
-      relfs (check g d DIn) efs tfs ->
-      g ,, d |= rec { efs } \in rec { tfs } \goes DIn *)
+      relfs (check errs mkds g d DIn) efs tfs ->
+      $ errs ,, mkds ,, g ,, d $ |= rec { efs } \in rec { tfs } \goes DIn
    (* Errors and matchkinds. *)
    | chk_error (err : NAME.t) :
        errs err = Some tt ->
@@ -210,31 +197,13 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
        mkds mkd = Some tt ->
        $ errs ,, mkds ,, g ,, d $ |= Matchkind mkd \in error \goes DIn
    (* Action and extern calls. TODO: directions. *)
-   | chk_call_nil (returns : t) (callee : e) :
-       $ errs ,, mkds ,, g ,, d $
-         |= callee \in {{ nil |-> returns }} \goes DIn ->
-       $ errs ,, mkds ,, g ,, d $
-         |= call callee :: {{nil |-> returns }} with nil end
-         \in returns \goes DIn
-   | chk_call_cons (x : NAME.t) (params : fs t) (args : fs e)
-                   (typ returns : t) (callee arg : e) :
-       (* This hypothesis is specious. *)
-       check errs mkds g d callee
-             (TArrow ((x,typ) :: params) returns) DIn ->
-       $ errs ,, mkds ,, g ,, d $ |= arg \in typ \goes DIn ->
-       $ errs ,, mkds ,, g ,, d $
-         |= call callee :: {{ params |-> returns }} with args end
-         \in returns \goes DIn ->
-       check errs mkds g d
-             (ECall (TArrow ((x, typ) :: params) returns)
-                    callee ((x,arg) :: args)) returns DIn
    | chk_call (params : fs t) (args : fs e) (returns : t) (callee : e) :
        $ errs ,, mkds ,, g ,, d $
          |= callee \in params |-> returns \goes DIn ->
-       relfs (fun typ arg => check errs mkds g d arg typ DIn) params args ->
+       relfs (check errs mkds g d DIn) args params ->
        $ errs ,, mkds ,, g ,, d $
          |= call callee :: {{ params |-> returns }} with args end
          \in returns \goes DIn
    where "'$' ers ',,' mks ',,' gm ',,' dl '$' '|=' ex '\in' ty '\goes' dr"
-           := (check ers mks gm dl ex ty dr).
+           := (check ers mks gm dl dr ex ty).
 End CheckExpr.

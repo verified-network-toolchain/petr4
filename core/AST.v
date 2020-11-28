@@ -24,6 +24,7 @@ Module P4DataUtil (Export D : P4Data).
   Qed.
 End P4DataUtil.
 
+(** * P4 Numeric Types *)
 Module Type P4Numeric <: P4Data.
   Include P4Data.
 
@@ -104,7 +105,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     | TMatchKind
     | TRecord (fields : fs t)
     | THeader (fields : fs t)
-    | TTypeName (X : NAME.t)
+(*    | TTypeName (X : NAME.t) *)
     | TArrow (params : fs t) (return_type : t).
 
   Declare Custom Entry p4type.
@@ -176,7 +177,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     Hypothesis HTHeader : forall fields : list (NAME.t * t),
         predfs_data P fields -> P {{ hdr { fields } }}.
 
-    Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X).
+(*    Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
     Hypothesis HTArrow : forall (params : fs t) (returns : t),
         predfs_data P params -> P returns -> P {{ params |-> returns }}.
@@ -197,7 +198,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         | {{ bit<w> }} => HTBitstring w
         | {{ error }} => HTError
         | {{ matchkind }} => HTMatchKind
-        |   TTypeName X => HTTypeName X
+(*        |   TTypeName X => HTTypeName X *)
         | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
         | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
         | {{ params |-> returns }} =>
@@ -489,3 +490,23 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         end.
   End ExprInduction.
 End Expr.
+
+(** * Statement Grammar *)
+Module Stmt (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
+  Module F := Field NAME.
+  Export F.
+
+  Module E := Expr LOC NAME INT BIGINT.
+
+  Inductive s : Type :=
+    (* Skip is useful for small-step semantics. *)
+    | SSkip
+    | SAssign (lhs_type rhs_type : E.t) (lhs rhs : E.e)
+    | SConditional (guard_type : E.t) (guard : E.e) (tru_blk fls_blk : s)
+    (* Sequences, a possibly easier-to-verify alternative to blocks. *)
+    | SSeq (s1 s2 : s)
+    | SExit (* QUESTION: necessary if no parsers? *)
+    | Return (returns : option (E.t * E.e))
+    | VarDecl (typ : E.t) (var : NAME.t) (rhs_type : E.t) (rhs : E.e)
+    | MethodCall (callee_type : E.t) (callee : E.e) (args : E.e).
+End Stmt.

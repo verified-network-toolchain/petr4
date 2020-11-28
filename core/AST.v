@@ -248,9 +248,9 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     (* Extern or action calls. *)
     | ECall
         (callee_type : t) (callee : e)
-        (args : fs e)
+        (args : fs e).
     (* May be necessary for small-step semantics... *)
-    | ELoc (loc : LOC.t).
+(*    | ELoc (loc : LOC.t). *)
 
   Declare Custom Entry p4expr.
 
@@ -265,8 +265,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
                           (in custom p4expr at level 1, no associativity).
   Notation "'Var' x '::' ty 'end'" := (EVar ty x)
                         (in custom p4expr at level 0, no associativity).
-  Notation "'Loc' x" := (ELoc x)
-                        (in custom p4expr at level 0, no associativity).
+(*  Notation "'Loc' x" := (ELoc x)
+                        (in custom p4expr at level 0, no associativity). *)
   Notation "'!' x '::' ty 'end'" := (EUop Not ty x)
                               (in custom p4expr at level 2,
                                   x custom p4expr, ty custom p4type,
@@ -451,8 +451,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         P callee -> predfs_data P args ->
         P <{ call callee :: ty with args end }>.
 
-    Hypothesis HELoc : forall l : LOC.t,
-        P (ELoc l).
+(*    Hypothesis HELoc : forall l : LOC.t,
+        P (ELoc l). *)
 
     (** A custom induction principle.
         Do [induction ?e using custom_e_ind]. *)
@@ -485,7 +485,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
             HECall ty callee args
                    (custom_e_ind callee)
                    (fields_ind args)
-        | <{ Loc l }> => HELoc l
+(*        | <{ Loc l }> => HELoc l *)
         end.
   End ExprInduction.
 End Expr.

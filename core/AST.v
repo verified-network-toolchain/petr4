@@ -79,20 +79,10 @@ Module Field (NAME : P4Data).
 
   (** Relation betwixt two field instances. *)
   Definition relf {U V : Type} (R : U -> V -> Prop) : f U -> f V -> Prop :=
-    fun '(ux, ut) '(vx, vt) => ux = vx /\ R ut vt.
-
-  Fixpoint relfs {U V : Type}
-           (R : U -> V -> Prop) (ufs : fs U) (vfs : fs V) : Prop :=
-    match ufs, vfs with
-    | [], [] => True
-    | [], _ :: _
-    | _ :: _, [] => False
-    | (ux, u) :: us, (vx, v) :: vs =>
-        relfs R us vs /\ ux = vx /\ R u v
-    end.
+    fun u v => fst u = fst v /\ R (snd u) (snd v).
 
   (** Relation between two instances of fields. *)
-  Definition relfs_forall2 {U V : Type}
+  Definition relfs {U V : Type}
              (R : U -> V -> Prop) : fs U -> fs V -> Prop :=
     Forall2 (relf R).
 End Field.

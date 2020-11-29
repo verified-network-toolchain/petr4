@@ -92,7 +92,7 @@ End Field.
 Inductive dir : Set := DIn | DOut | DInOut | DZilch.
 
 (** * Expression Grammar *)
-Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
+Module Expr (NAME : P4Data) (INT BIGINT : P4Numeric).
   Module F := Field NAME.
   Export F.
 
@@ -499,11 +499,11 @@ Import ExprNotations.
 End Expr.
 
 (** * Statement Grammar *)
-Module Stmt (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
+Module Stmt (NAME : P4Data) (INT BIGINT : P4Numeric).
   Module F := Field NAME.
   Export F.
 
-  Module E := Expr LOC NAME INT BIGINT.
+  Module E := Expr NAME INT BIGINT.
 
   Inductive s : Type :=
     (* Skip is useful for small-step semantics. *)

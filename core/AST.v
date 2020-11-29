@@ -108,6 +108,7 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
 (*    | TTypeName (X : NAME.t) *)
     | TArrow (params : fs t) (return_type : t).
 
+Module TypeNotations.
   Declare Custom Entry p4type.
 
   Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -155,6 +156,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
   Notation "params '|->' return_typ"
            := (TArrow params return_typ)
                 (in custom p4type at level 10, no associativity).
+End TypeNotations.
+Import TypeNotations.
 
   (** Custom induction principle for [t]. *)
   Section TypeInduction.
@@ -202,7 +205,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
         | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
         | {{ params |-> returns }} =>
-            HTArrow params returns (fields_ind params) (custom_t_ind returns)
+            HTArrow params returns
+                    (fields_ind params) (custom_t_ind returns)
         end.
   End TypeInduction.
 
@@ -252,6 +256,9 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
         (args : fs e).
     (* May be necessary for small-step semantics... *)
 (*    | ELoc (loc : LOC.t). *)
+
+Module ExprNotations.
+  Export TypeNotations.
 
   Declare Custom Entry p4expr.
 
@@ -407,8 +414,8 @@ Module Expr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     := (ECall tf f args) (in custom p4expr at level 30,
                              tf custom p4type,
                              f custom p4expr, left associativity).
-
-  (* Example oneplusone : e := <{ + Int 1 :: int Int 1 :: int end }>. *)
+End ExprNotations.
+Import ExprNotations.
 
   (** A custom induction principle for [e]. *)
   Section ExprInduction.
@@ -502,11 +509,43 @@ Module Stmt (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
     (* Skip is useful for small-step semantics. *)
     | SSkip
     | SAssign (lhs_type rhs_type : E.t) (lhs rhs : E.e)
-    | SConditional (guard_type : E.t) (guard : E.e) (tru_blk fls_blk : s)
+    | SConditional (guard_type : E.t) (guard : E.e)
+                   (tru_blk fls_blk : s)
     (* Sequences, a possibly easier-to-verify alternative to blocks. *)
     | SSeq (s1 s2 : s)
     | SExit (* QUESTION: necessary if no parsers? *)
     | Return (returns : option (E.t * E.e))
     | VarDecl (typ : E.t) (var : NAME.t) (rhs_type : E.t) (rhs : E.e)
     | MethodCall (callee_type : E.t) (callee : E.e) (args : E.e).
+
+  Module StmtNotations.
+    Declare Custom Entry p4stmt.
+
+    Notation "'{[' stmt ']}'" := stmt (stmt custom p4stmt at level 99).
+    Notation "( x )" := x (in custom p4stmt, x at level 99).
+    Notation "x"
+      := x (in custom p4stmt at level 0, x constr at level 0).
+    Notation "'skip'" := SSkip (in custom p4stmt at level 0).
+    Notation "'exit'" := SExit (in custom p4stmt at level 0).
+    Notation "s1 ';;;' s2"
+      := (SSeq s1 s2) (in custom p4stmt at level 99,
+                          s1 custom p4stmt, s2 custom p4stmt,
+                          right associativity).
+
+    Export E.ExprNotations.
+
+    Notation "e1 :: t1 := e2 :: t2"
+             := (SAssign t1 t2 e1 e2)
+                  (in custom p4stmt at level 40,
+                      t1 custom p4type, t2 custom p4type,
+                      e1 custom p4expr, e2 custom p4expr,
+                      no associativity).
+
+    Notation "'if' e :: t 'then' s1 'else' s2 'end'"
+             := (SConditional t e s1 s2)
+                  (in custom p4stmt at level 80,
+                      t custom p4type, e custom p4expr,
+                      s1 custom p4stmt, s2 custom p4stmt,
+                      no associativity).
+    End StmtNotations.
 End Stmt.

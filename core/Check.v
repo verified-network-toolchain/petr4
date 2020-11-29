@@ -29,16 +29,15 @@ Module Env (DOM : P4Data).
 End Env.
 
 (** * Expression Typechecking *)
-Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
+Module CheckExpr (NAME : P4Data) (INT BIGINT : P4Numeric).
   Module IU := P4NumericUtil(INT).
   Infix "+" := IU.add (at level 50, left associativity).
 
-  Module E := Expr LOC NAME INT BIGINT.
+  Module E := Expr NAME INT BIGINT.
   Module F := E.F.
   Export E.ExprNotations.
 
   Module NM := Env NAME.
-  Module LM := Env LOC.
 
   (** Available error names. *)
   Definition errors : Type := NM.env unit.
@@ -203,3 +202,12 @@ Module CheckExpr (LOC NAME : P4Data) (INT BIGINT : P4Numeric).
    where "'$' ers ',,' mks ',,' gm  '$' '|=' ex '\in' ty '\goes' dr"
            := (check ers mks gm dr ex ty).
 End CheckExpr.
+
+(** * Statement Typechecking *)
+Module CheckStmt (NAME : P4Data) (INT BIGINT : P4Numeric).
+  Module S := Stmt NAME INT BIGINT.
+  Module E := S.E.
+  Module F := S.F.
+
+    Module NM := Env NAME.
+End CheckStmt.

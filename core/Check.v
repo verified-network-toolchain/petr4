@@ -28,16 +28,16 @@ Module Env (DOM : P4Data).
   End EnvDefs.
 End Env.
 
-(** * Expression Typechecking *)
-Module CheckExpr (NAME : P4Data) (INT BIGINT : P4Numeric).
-  Module N := NAME.
-  Module I := INT.
-  Module B := BIGINT.
-
+(** * Typechecking *)
+Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
   Module IU := P4NumericUtil(INT).
   Infix "+" := IU.add (at level 50, left associativity).
 
-  Module E := Expr NAME INT BIGINT.
+  Module P := P4 NAME INT BIGINT.
+
+  Module E := P.Expr.
+  Module S := P.Stmt.
+
   Module F := E.F.
   Import E.ExprNotations.
 
@@ -205,20 +205,14 @@ Module CheckExpr (NAME : P4Data) (INT BIGINT : P4Numeric).
          \in returns \goes DIn
    where "'$' ers ',,' mks ',,' gm  '$' '|=' ex '\in' ty '\goes' dr"
            := (check ers mks gm dr ex ty).
-End CheckExpr.
+  (*[]*)
 
-(** * Statement Typechecking *)
-Module CheckStmt (NAME : P4Data) (INT BIGINT : P4Numeric).
-  Module CE := CheckExpr NAME INT BIGINT.
-  Import CE.
-
-  Module S := Stmt N I B.
   Import S.StmtNotations.
 
   (** Statement signals. *)
-(*  Inductive signal : Set := SIG_Cont | SIG_Return. *)
+  (*  Inductive signal : Set := SIG_Cont | SIG_Return. *)
 
-(*  Declare Custom Entry p4signal.
+  (*  Declare Custom Entry p4signal.
 
   Notation "x"
       := x (in custom p4signal at level 0, x constr at level 0).
@@ -228,18 +222,18 @@ Module CheckStmt (NAME : P4Data) (INT BIGINT : P4Numeric).
   Reserved Notation "'#' errs ',,' mks ',,' g1 '#' '|=' s '=|' g2"
            (at level 40, s custom p4stmt).
 
-  Fail Inductive check_stmt (errs : CE.errors) (mkds : CE.matchkinds)
-    (g : CE.gam) : S.s -> CE.gam -> Prop :=
+  Inductive check_stmt (errs : errors) (mkds : matchkinds)
+    (g : gam) : S.s -> gam -> Prop :=
     | chk_skip :
         # errs ,, mkds ,, g # |= skip =| g
-    | chk_seq (s1 s2 : S.s) (g1 g2 : CE.gam) :
+    | chk_seq (s1 s2 : S.s) (g1 g2 : gam) :
         (* My statement notation doesn't work. *)
         check_stmt errs mkds g  s1 g1 ->
         check_stmt errs mkds g1 s2 g2 ->
         check_stmt errs mkds g (S.SSeq s1 s2) g2
-    | chk_vardecl (t : E.t) (x : N.t) (e : E.e) :
+    | chk_vardecl (t : E.t) (x : NAME.t) (e : E.e) :
         check errs mkds g DIn e t ->
         check_stmt errs mkds g (S.SVarDecl t x e) g
     where "'#' ers ',,' mks ',,' g1 '#' '|=' s '=|' g2"
             := (check_stmt ers mks g1 s g2).
-End CheckStmt.
+End Typecheck.

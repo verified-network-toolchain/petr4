@@ -88,9 +88,6 @@ Module Field (NAME : P4Data).
     Forall2 (relf R).
 End Field.
 
-(** Directions. *)
-Inductive dir : Set := DIn | DOut | DInOut | DZilch.
-
 (** * P4 AST *)
 Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
   (** * Expression Grammar *)

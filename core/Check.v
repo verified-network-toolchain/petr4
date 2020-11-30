@@ -232,8 +232,14 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
         check_stmt errs mkds g1 s2 g2 ->
         check_stmt errs mkds g (S.SSeq s1 s2) g2
     | chk_vardecl (t : E.t) (x : NAME.t) (e : E.e) :
-        check errs mkds g DIn e t ->
-        check_stmt errs mkds g (S.SVarDecl t x e) g
+        $ errs ,, mkds ,, g $ |= e \in t \goes DIn ->
+        check_stmt errs mkds g (S.SVarDecl t x e) (NM.bind x t g)
+    | chk_assign (t : E.t) (lhs rhs : E.e) :
+        $ errs ,, mkds ,, g $ |= lhs \in t \goes DIn ->
+        $ errs ,, mkds ,, g $ |= rhs \in t \goes DIn ->
+        check_stmt errs mkds g (S.SAssign t lhs rhs) g
+    | chk_cond (t : E.t) (guard : E.e) (tru fls : S.s) :
+        check_stmt errs mkds g (S.SConditional t guard tru fls) g
     where "'#' ers ',,' mks ',,' g1 '#' '|=' s '=|' g2"
             := (check_stmt ers mks g1 s g2).
 End Typecheck.

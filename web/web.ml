@@ -17,23 +17,28 @@
 open Petr4.Common
 open Js_of_ocaml
 open Base
+open Pack
+
 
 exception ParsingError of string
 
-let js_load (path: Js.js_string Js.t) : Js.js_string Js.t =
-  Js.Unsafe.fun_call (Js.Unsafe.js_expr "window.load_file")
-    [|Js.Unsafe.inject path|]
 
-module JavascriptFS = struct
-  let exists path = true
+
+module Pythonfs = struct
+  let exists path = 
+    let ld= AssocListMap.find path pack in
+    match ld with
+    |None->false
+    |Some x-> true
 
   let load (path: string) : string =
-    let s = Js.to_string @@ js_load (Js.string path) in
-    print_endline s;
-    s
+    let ld= AssocListMap.find path pack in
+    match ld with
+    |None->""
+    |Some x-> x
 end
 
-module Pp = P4pp.Eval.Make(JavascriptFS)
+module Pp = P4pp.Eval.Make(Pythonfs)
 
 module Conf: Parse_config = struct
   let red s = s
@@ -52,13 +57,13 @@ open Parse
 let eval verbose packet_str add ctrl_str p4_contents =
   let ctrl_json = Yojson.Safe.from_string ctrl_str in
   eval_file_string [] p4_contents verbose packet_str ctrl_json 0 "v1"
-  (* stp: the return type of this function has changed; not sure if that breaks anything *)
+(* stp: the return type of this function has changed; not sure if that breaks anything *)
 let _ =
   Js.export "Petr4"
     (object%js
-       method eval packet control_string p4_content =
+      method eval packet control_string p4_content =
         try
           eval true (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
         with e ->
           Exn.to_string e |> Js.string
-     end)
+    end)

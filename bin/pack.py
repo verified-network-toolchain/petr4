@@ -47,7 +47,7 @@ def load_list_of_files (destination):
       while ("/" in dest):
         dest=dest[dest.find("/")+1:]
       d={}
-      d[dest]=load_code(destination)
+      d["/include/"+dest]=load_code(destination)
       return d
     else: return {}
   else:
@@ -58,7 +58,7 @@ def load_list_of_files (destination):
     return list_of_files
 
 def add_to_map(f_name, code):
-  return "\n AssocListMap.insert " + f_name + " " +  ' {|' + code + '|} ' +" pack "
+  return "\nlet pack=AssocListMap.insert " + '"' + f_name + '" ' +  ' {|' + code + '|} ' +" pack "
 
 files_and_code=load_list_of_files(Folder)
 for file_name in files_and_code.keys() :

@@ -47,7 +47,7 @@ clean:
 	dune clean
 
 pack:
-	python bin/pack.py "examples" "web/pack.ml"
+	python3 bin/pack.py "examples" "web/pack.ml"
 
 web:
 	mkdir -p html_build/p4/include

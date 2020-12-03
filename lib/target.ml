@@ -34,7 +34,6 @@ module State = struct
   }
 
   let packet_location = "__PACKET__"
-  let im_t_location = "__IM_T__" (* for uP4 im_t extern type *)
 
   let counter = ref 0
 

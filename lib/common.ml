@@ -18,6 +18,8 @@ open Core_kernel
 module Info = P4Info
 module Env = Prog.Env
 
+let print pp = Format.printf "%a@." Pp.to_fmt pp;;
+
 module type Parse_config = sig
   val red: string -> string
   val green: string -> string
@@ -35,7 +37,8 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then
         begin
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
-          Format.printf "%a@\n%!" Pretty.format_program prog;
+          prog |> Prettypp.format_program |> print;
+          Format.print_string "@\n%!"; 
           Format.printf "----------@\n";
           Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
         end;
@@ -99,7 +102,7 @@ module Make_parse (Conf: Parse_config) = struct
             Yojson.Safe.to_string j in
         Format.printf "%s" (to_string json)
       else
-        Format.printf "%a" Pretty.format_program prog
+        prog |> Prettypp.format_program |> print;
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
     | `Error (info, Parser.Error) ->

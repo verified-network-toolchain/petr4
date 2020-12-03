@@ -1,8 +1,9 @@
 open Core_kernel
-open Pp
 open StdLabels
 open List 
 open Util
+open Pp 
+
 module P4 = Types 
 
 let format_list_sep f sep l = 

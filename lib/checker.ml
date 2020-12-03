@@ -1122,7 +1122,7 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
-  match typ with
+  match saturate_type env typ with
   (* Base types *)
   | Bool
   | String
@@ -1168,7 +1168,7 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     res1 && res2
   (* Type names *)
   | TypeName name ->
-     CheckerEnv.resolve_type_name_opt name env <> None
+    CheckerEnv.resolve_type_name_opt name env <> None
   | Table {result_typ_name=name} ->
     CheckerEnv.resolve_type_name_opt (BareName (Info.dummy, name)) env <> None
   | NewType {name; typ} ->
@@ -1183,11 +1183,8 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   | Extern {name} ->
     let open ExternMethods in 
     begin match CheckerEnv.find_extern_opt (BareName (Info.dummy, name)) env with
-    | Some {methods; type_params} ->
-       let env = CheckerEnv.insert_type_vars type_params env in
-       let method_ok m = is_well_formed_type env (Type.Function m.typ) in
-       List.for_all ~f:method_ok methods
-    | None -> false
+    | Some {type_params = []; _} -> true
+    | _ -> false
     end
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
@@ -1199,19 +1196,20 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
   (* Type Application *)
   | SpecializedType {base=base_typ; args=typ_args} ->
     let base_typ = saturate_type env base_typ in
-    let base_type_type_params =
-      match base_typ with
-      | Extern {name} ->
-         let open ExternMethods in
-         let {type_params; methods} =
-           CheckerEnv.find_extern (BareName (Info.dummy, name)) env
-         in
-         type_params
-      | typ -> get_type_params typ
-    in
-    is_well_formed_type env base_typ
-    && List.for_all ~f:(is_well_formed_type env) typ_args
-    && List.length base_type_type_params = List.length typ_args
+    begin match base_typ with
+    | Extern {name} ->
+      let open ExternMethods in
+      let {type_params; methods} =
+        CheckerEnv.find_extern (BareName (Info.dummy, name)) env
+      in
+      List.for_all ~f:(is_well_formed_type env) typ_args
+      && List.length type_params = List.length typ_args
+    | typ ->
+      let type_params = get_type_params typ in
+      is_well_formed_type env base_typ
+      && List.for_all ~f:(is_well_formed_type env) typ_args
+      && List.length type_params = List.length typ_args
+    end
 
 and are_param_types_well_formed env (params:Parameter.t list) : bool =
   let open Parameter in
@@ -3779,11 +3777,17 @@ and type_serializable_enum env ctx info annotations underlying_type name members
 
 and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
-  let env' = CheckerEnv.insert_type_vars type_params' env in
+  let extern_type = Typed.Type.Extern { name = snd obj_name } in
+  let extern_methods:  Typed.ExternMethods.t = { type_params = type_params'; methods = [] } in
+  let env' = env
+             |> CheckerEnv.insert_type_vars type_params'
+             |> CheckerEnv.insert_type (BareName obj_name) extern_type
+             |> CheckerEnv.insert_extern (BareName obj_name) extern_methods
+  in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
-       assert (snd cname = snd obj_name);
+       if snd cname <> snd obj_name then failwith "Constructor name and type name disagree";
        let params_typed = type_constructor_params env' Method params in
        let constructor_typed =
          Prog.MethodPrototype.Constructor { annotations;
@@ -3828,7 +3832,6 @@ and type_extern_object env info annotations obj_name t_params methods =
         type_params = t_params;
         methods = cs @ ms }
   in
-  let extern_type = Typed.Type.Extern { name = snd obj_name } in
   let extern_methods: Typed.ExternMethods.t =
     { type_params = List.map ~f:snd t_params;
       methods = List.map ~f:(method_prototype_to_extern_method obj_name) ms }

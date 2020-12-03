@@ -110,14 +110,13 @@ module PreUp4Filter : Target = struct
     ("enqueue", eval_enqueue); 
     ("to_in_buf", eval_to_in_buf);
     ("merge", eval_merge);
-  ]
+  ] 
 
   let read_header_field : obj reader = fun is_valid fields fname ->
     List.Assoc.find_exn fields fname ~equal:String.equal
 
   let write_header_field : obj writer = fun is_valid fields fname fvalue ->
-    let fs = List.map fields
-        ~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
+    let fs = List.map fields~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
     VHeader {fields = fs; is_valid; }
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
@@ -173,20 +172,11 @@ module PreUp4Filter : Target = struct
     let control = List.Assoc.find_exn vs "c" ~equal:String.equal |> fun x -> State.find_heap x st in
     let deparser = List.Assoc.find_exn vs "d" ~equal:String.equal |> fun x -> State.find_heap x st in
     (* Parser params *)
-    let params =
-      match parser with
-      | VParser {pparams=ps;_} -> ps
-      | _ -> failwith "parser is not a parser object" in
+    let params = (assert_parser parser).pparams in
     (* Micro Control params *)
-    let control_params = 
-      match control with 
-      | VControl {cparams=ps;_} -> ps
-      | _ -> failwith "control is not a control object" in 
+    let control_params = (assert_control control).cparams in 
     (* Deparser params *)
-    let deparse_params = 
-      match deparser with 
-      | VControl {cparams=ps;_} -> ps
-      | _ -> failwith "deparser is not a control object" in 
+    let deparse_params = (assert_control deparser).cparams in 
     ignore deparse_params;
     let vpkt, pkt_name, vpkt_loc = VRuntime {loc = State.packet_location; obj_name = "packet_in"; }, 
                                    Types.BareName (Info.dummy, "packet"),

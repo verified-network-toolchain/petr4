@@ -14,6 +14,8 @@ module PreUp4Filter : Target = struct
   (* Copied from v1model *)
   let drop_spec = Bigint.of_int 511 
 
+  let im_t_location = "__IM_T__" 
+
   type obj = 
     | Im_t of {out_port: Bigint.t; 
                in_port: Bigint.t; 
@@ -86,15 +88,6 @@ module PreUp4Filter : Target = struct
     let new_im_t_obj = Im_t {out_port = drop_spec; in_port; queue_depth_at_dequeue} in
     env, State.insert_extern loc new_im_t_obj st, SContinue, VNull
 
-  (* stp: never actually used; see note in v1model.ml *)
-  let externs = [
-    ("set_out_port", eval_set_out_port);
-    ("get_in_port", eval_get_in_port); 
-    ("get_out_port", eval_get_out_port);
-    ("get_value", eval_get_value);
-    ("drop", eval_drop);
-  ]
-
   let read_header_field : obj reader = fun is_valid fields fname ->
     List.Assoc.find_exn fields fname ~equal:String.equal
 
@@ -105,6 +98,7 @@ module PreUp4Filter : Target = struct
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 
+  (* copy_from extern function of im_t extern is not supported *)
   let eval_extern name =
     match name with
     | "set_out_port" -> eval_set_out_port
@@ -118,7 +112,7 @@ module PreUp4Filter : Target = struct
   (* QUEUE_DEPTH_AT_DEQUEUE metadata hard coded.. it says in the up4 spec that 
      metadata_fileds_t enums are immutable intrinsic metadata field for the target. *)
   let initialize_metadata meta st =
-    State.insert_extern State.im_t_location (
+    State.insert_extern im_t_location (
       Im_t {out_port = meta; in_port = meta; queue_depth_at_dequeue = Bigint.of_int 32}) st
 
   let check_pipeline env = failwith "unimplemented"
@@ -171,7 +165,7 @@ module PreUp4Filter : Target = struct
     let vpkt, pkt_name, vpkt_loc = VRuntime {loc = State.packet_location; obj_name = "packet_in"; }, 
                                    Types.BareName (Info.dummy, "packet"),
                                    State.fresh_loc() in 
-    let im, im_name, im_loc = VRuntime {loc = State.im_t_location; obj_name = "im_t"; }, 
+    let im, im_name, im_loc = VRuntime {loc = im_t_location; obj_name = "im_t"; }, 
                               Types.BareName (Info.dummy, "im"),
                               State.fresh_loc() in
     let st = st
@@ -194,9 +188,9 @@ module PreUp4Filter : Target = struct
     let out_p, out_p_name, out_p_loc, st, env = 
       helper "out_param" (List.nth_exn control_params 3).typ env st in
     let open Expression in
-    let pkt_expr = (* TODO: double check. packet does not have direction in spec. *)
-      Some (Info.dummy, {expr = Name pkt_name; dir = InOut; typ = (List.nth_exn params 0).typ}) in
-    let im_expr = (* TODO: Are we doing this right? (Direction) *)
+    let pkt_expr = 
+      Some (Info.dummy, {expr = Name pkt_name; dir = Directionless; typ = (List.nth_exn params 0).typ}) in
+    let im_expr = 
       Some (Info.dummy, {expr = Name im_name; dir = Directionless; typ = (List.nth_exn params 1).typ}) in
     let hdrs_expr =
       Some (Info.dummy, {expr = Name hdrs_name; dir = Out; typ = (List.nth_exn params 2).typ}) in
@@ -222,7 +216,7 @@ module PreUp4Filter : Target = struct
       match signal with
       | SReject _ -> st, env, None
       | SContinue | SExit | SReturn _ -> 
-        let im_t = State.find_extern State.im_t_location st in 
+        let im_t = State.find_extern im_t_location st in 
         let outport = match im_t with 
           | Im_t {out_port; _} -> out_port in 
         if outport = drop_spec 
@@ -243,7 +237,7 @@ module PreUp4Filter : Target = struct
 
   (* Get out_port field from the Im_t extern object. *)
   let get_outport (st : state) (env : env) : Bigint.t =
-    match State.find_extern State.im_t_location st with
+    match State.find_extern im_t_location st with
     | Im_t {out_port = out; _} -> out
 
 end 

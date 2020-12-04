@@ -44,7 +44,4 @@ clean:
 
 web: web/pack.ml
 	mkdir -p html_build/p4/include
-	cd web
-	dune build ./web.bc.js --profile debug
-	cp ../_build/default/web/web.bc.js ../html_build/
-	cd ..
+	cd web && dune build ./web.bc.js --profile debug && cp ../_build/default/web/web.bc.js ../html_build/ && cd ..

@@ -250,12 +250,12 @@ Section Syntax.
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env P4Type) (namespace: caml_string).
 
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: Typed.name)
-  | ValLeftMember (expr: ValueLvalue) (name: caml_string)
-  | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)
+  | ValLeftName (tags: tags_t) (name: Typed.name)
+  | ValLeftMember (tags: tags_t) (expr: ValueLvalue) (name: caml_string)
+  | ValLeftBitAccess (tags: tags_t) (expr: ValueLvalue) (msb: nat) (lsb: nat)
+  | ValLeftArrayAccess (tags: tags_t) (expr: ValueLvalue) (idx: nat)
   with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type).
+  | MkValueLvalue (tags: tags_t) (lvalue: ValuePreLvalue) (typ: P4Type).
 
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)

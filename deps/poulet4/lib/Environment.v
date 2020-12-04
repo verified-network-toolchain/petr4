@@ -118,13 +118,13 @@ Section Environment.
     | Typed.QualifiedName _ s => s
     end.
 
-  Fixpoint find_lvalue' (lval: ValueLvalue) (env: environment) : option (Value tags_t) :=
-    let '(MkValueLvalue pre_lval _) := lval in
+  Fixpoint find_lvalue' (lval: ValueLvalue tags_t) (env: environment) : option (Value tags_t) :=
+    let '(MkValueLvalue _ _ pre_lval _) := lval in
     match pre_lval with
-    | ValLeftName var =>
+    | ValLeftName _ _ var =>
       let s := str_of_name_warning_not_safe var in
       find_environment' s env
-    | ValLeftMember lval' member =>
+    | ValLeftMember _ _ lval' member =>
       let* val := find_lvalue' lval' env in
       match val with
       | ValBase _ (ValBaseRecord _ map) =>
@@ -137,14 +137,14 @@ Section Environment.
     | _ => None (* TODO *)
     end.
 
-  Definition find_lvalue (lval: ValueLvalue) : env_monad (Value tags_t) :=
+  Definition find_lvalue (lval: ValueLvalue tags_t) : env_monad (Value tags_t) :=
     lift_env_lookup_fn (find_lvalue' lval).
 
   Definition update_member (obj: (Value tags_t)) (member: caml_string) (val: (Value tags_t)) : option (Value tags_t).
   Admitted.
 
-  Fixpoint update_lvalue' (lval: ValueLvalue) (val: (Value tags_t)) (env: environment) : option environment :=
-    let '(MkValueLvalue pre_lval _) := lval in
+  Fixpoint update_lvalue' (lval: ValueLvalue tags_t) (val: (Value tags_t)) (env: environment) : option environment :=
+    let '(MkValueLvalue _ _ pre_lval _) := lval in
     match pre_lval with
     | ValLeftName var =>
       let s := str_of_name_warning_not_safe var in

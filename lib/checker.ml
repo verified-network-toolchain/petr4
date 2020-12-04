@@ -823,7 +823,7 @@ and cast_if_needed env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =
     | TypSet elt_typ -> add_cast env (cast_if_needed env expr elt_typ) typ
     | typ -> add_cast env expr typ
 
-and cast_to_same_type (env: Checker_env.t) (ctx: Typed.ExprContext.t) (exp1: Expression.t) (exp2: Expression.t) =
+and cast_to_same_type (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp1: Expression.t) (exp2: Expression.t) =
   let exp1 = type_expression env ctx exp1 in
   let typ1 = type_of_expr exp1 in
   let exp2 = type_expression env ctx exp2 in
@@ -983,7 +983,7 @@ and translate_direction (dir: Types.Direction.t option) : Typed.direction =
 and eval_to_positive_int env info expr =
   let value =
     expr
-    |> type_expression env Constant
+    |> type_expression env ExprCxConstant
     |> compile_time_eval_bigint env
     |> Bigint.to_int_exn
   in
@@ -1018,7 +1018,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (vars: string li
     let hdt = translate_type env vars ht in
     let len =
       e
-      |> type_expression env Constant
+      |> type_expression env ExprCxConstant
       |> compile_time_eval_bigint env
       |> Bigint.to_int_exn in
     ret @@ TypArray (hdt, len)
@@ -1057,90 +1057,91 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 and is_well_formed_type env (typ: coq_P4Type) : bool =
   match typ with
   (* Base types *)
-  | Bool
-  | String
-  | Integer
-  | Int _
-  | Bit _
-  | VarBit _
-  | Error
-  | MatchKind
-  | Void -> true
+  | TypBool
+  | TypString
+  | TypInteger
+  | TypInt _
+  | TypBit _
+  | TypVarBit _
+  | TypError
+  | TypMatchKind
+  | TypVoid -> true
   (* Recursive types *)
-  | Array {typ; _} as arr_typ ->
+  | TypArray (typ, _) as arr_typ ->
     is_well_formed_type env typ &&
     is_valid_nested_type env arr_typ typ
-  | Tuple {types}
-  | List {types} ->
+  | TypTuple types
+  | TypList types ->
     List.for_all ~f:(is_well_formed_type env) types &&
     List.for_all ~f:(is_valid_nested_type env typ) types
-  | Set typ ->
+  | TypSet typ ->
     is_well_formed_type env typ
-  | Enum {typ; _} ->
+  | TypEnum (_, typ, _) ->
     begin match typ with
       | None -> true
       | Some typ -> is_well_formed_type env typ
     end
-  | Record {fields; _}
-  | HeaderUnion {fields; _}
-  | Struct {fields; _} ->
-    let field_ok (field: RecordType.field) =
-      is_well_formed_type env field.typ &&
-      is_valid_nested_type env typ field.typ
+  | TypRecord fields
+  | TypHeaderUnion fields
+  | TypStruct fields ->
+    let field_ok (MkFieldType (_, field_typ): coq_FieldType) =
+      is_well_formed_type env field_typ &&
+      is_valid_nested_type env typ field_typ
     in
     List.for_all ~f:field_ok fields
-  | Header {fields; _} ->
-    let field_ok (field: RecordType.field) =
-      is_well_formed_type env field.typ &&
-      is_valid_nested_type ~in_header:true env typ field.typ
+  | TypHeader fields ->
+    let field_ok (MkFieldType (_, field_typ): coq_FieldType) =
+      is_well_formed_type env field_typ &&
+      is_valid_nested_type ~in_header:true env typ field_typ
     in
     List.for_all ~f:field_ok fields
-  | Action {data_params; ctrl_params} ->
-    let res1 : bool = (are_param_types_well_formed env data_params) in
-    let res2 : bool = (are_construct_params_types_well_formed env ctrl_params) in
-    res1 && res2
+  | TypAction (data_params, ctrl_params) ->
+    are_param_types_well_formed env data_params &&
+    are_construct_params_types_well_formed env ctrl_params
   (* Type names *)
-  | TypeName name ->
+  | TypTypeName name ->
     Checker_env.resolve_type_name_opt name env <> None
-  | Table {result_typ_name=name} ->
-    Checker_env.resolve_type_name_opt (BareName (Info.dummy, name)) env <> None
-  | NewType {name; typ} ->
+  | TypTable result_typ_name ->
+    Checker_env.resolve_type_name_opt (BareName result_typ_name) env <> None
+  | TypNewType (name, typ) ->
     is_well_formed_type env typ
   (* Polymorphic types *)
-  | Function {type_params=tps; parameters=ps; return=rt; _} ->
+  | TypFunction (MkFunctionType (tps, ps, _, rt)) ->
     let env = Checker_env.insert_type_vars tps env in
     are_param_types_well_formed env ps && is_well_formed_type env rt
-  | Constructor {type_params=tps; wildcard_params=ws; parameters=ps; return=rt} ->
+  | TypConstructor (tps, ws, ps, rt) ->
     let env = Checker_env.insert_type_vars tps env in
     are_construct_params_types_well_formed env ps && is_well_formed_type env rt
-  | Extern {type_params=tps; methods=methods} ->
+  | TypExtern name ->
+    (* TODO check that name is in the extern env environment 
     let env = Checker_env.insert_type_vars tps env in
-    let open ExternType in
-    let method_ok m = is_well_formed_type env (Type.Function m.typ) in
+    let method_ok m = is_well_formed_type env (TypFunction m.typ) in
     List.for_all ~f:method_ok methods
-  | Parser {type_params=tps; parameters=ps;_}
-  | Control {type_params=tps; parameters=ps;_} ->
+    *) true
+  | TypParser ctrl
+  | TypControl ctrl ->
+    let MkControlType (tps, ps) = ctrl in
     let env = Checker_env.insert_type_vars tps env in
     are_param_types_well_formed env ps
-  | Package {type_params=tps; parameters=cps;_} ->
+  | TypPackage (tps, _, cps) ->
     let env = Checker_env.insert_type_vars tps env in
-    are_construct_params_types_well_formed  env cps
+    are_construct_params_types_well_formed env cps
   (* Type Application *)
-  | SpecializedType {base=base_typ; args=typ_args} ->
+  | TypSpecializedType (base_typ, typ_args) ->
     let base_typ = saturate_type env base_typ in
     let base_type_type_params = get_type_params base_typ in
     is_well_formed_type env base_typ
     && List.for_all ~f:(is_well_formed_type env) typ_args
     && List.length base_type_type_params = List.length typ_args
 
-and are_param_types_well_formed env (params:Parameter.t list) : bool =
-  let open Parameter in
-  let check param = is_well_formed_type env param.typ in
+and are_param_types_well_formed env (params:coq_P4Parameter list) : bool =
+  let check (MkParameter (_, _, typ, _)) = is_well_formed_type env typ in
   List.for_all ~f:check params
 
 and are_construct_params_types_well_formed env (construct_params: coq_P4Parameter list) : bool =
-  let check (param: coq_P4Parameter) : bool =
-    param.direction = Directionless && is_well_formed_type env param.typ
+  let check (MkParameter (_, dir, typ, _)) =
+    dir = Directionless &&
+    is_well_formed_type env typ
   in
   List.for_all ~f:check construct_params
 
@@ -2293,7 +2294,6 @@ and resolve_constructor_overload env type_name args =
     resolve_constructor_overload_by ~f:(overload_param_count_ok args) env type_name
 
 and resolve_function_overload_by ~f env ctx func : Prog.coq_Expression =
-  let open Types.Expression in
   fst func,
   match snd func with
   | Name func_name ->

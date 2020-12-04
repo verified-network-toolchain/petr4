@@ -1,6 +1,7 @@
 Require Import Coq.extraction.ExtrOcamlBasic.
 Require Import Coq.extraction.ExtrOcamlString.
 Require Import Coq.extraction.ExtrOcamlNatInt.
+Require Import Petr4.ExtractOcamlZBigint.
 Require Syntax.
 Require Extraction.
 

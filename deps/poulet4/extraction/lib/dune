@@ -1,4 +1,5 @@
 (library 
   (name poulet4)
   (public_name poulet4)
+  (libraries bignum)
   (ocamlc_flags (:standard -w -33)))

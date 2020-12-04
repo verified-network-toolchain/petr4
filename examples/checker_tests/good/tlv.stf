@@ -1,8 +1,8 @@
-packet 0 04 01020304
-expect 0 04 01020304
+packet 0 02 A1B2
+expect 0 01 A1
 
-packet 0 04 0102030405
-expect 0 04 01020304
+packet 0 03 A1B2C3
+expect 0 02 A1B2
 
-packet 0 01 0102030405
-expect 0 04 01
+packet 0 03 A1B2C3 FFFF
+expect 0 02 A1B2   FFFF

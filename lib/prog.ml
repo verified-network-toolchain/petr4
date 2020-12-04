@@ -1435,6 +1435,8 @@ and Env : sig
     val find_types_of : Types.name -> t -> (Typed.Type.t * Typed.direction) list
     val find_const : Types.name -> t -> Value.value
     val find_const_opt : Types.name -> t -> Value.value option
+    val find_extern_opt : Types.name -> t -> Typed.ExternMethods.t option
+    val find_extern : Types.name -> t -> Typed.ExternMethods.t
 
     val insert_type : Types.name -> Typed.Type.t -> t -> t
     val insert_types : (string * Typed.Type.t) list -> t -> t
@@ -1443,6 +1445,7 @@ and Env : sig
     val insert_type_var : Types.name -> t -> t
     val insert_type_vars : string list -> t -> t
     val insert_const : Types.name -> Value.value -> t -> t
+    val insert_extern : Types.name -> Typed.ExternMethods.t -> t -> t
     val push_scope : t -> t
     val pop_scope : t -> t
 
@@ -1786,21 +1789,21 @@ end = struct
         typ_of: (Typed.Type.t * Typed.direction) env;
         (* maps constants to their values *)
         const: Value.value env;
+        (* Extern methods *)
+        externs: ExternMethods.t env;
         (* for generating fresh type variables *)
         renamer: Renamer.t }
     [@@deriving sexp,show,yojson]
-
-    let empty_t () : t =
-      { typ = empty_env;
-        typ_of = empty_env;
-        const = empty_env;
-        renamer = Renamer.create () }
 
     let empty_with_renamer r : t =
       { typ = empty_env;
         typ_of = empty_env;
         const = empty_env;
+        externs = empty_env;
         renamer = r }
+
+    let empty_t () : t =
+      empty_with_renamer @@ Renamer.create ()
 
     let renamer env =
       env.renamer
@@ -1826,6 +1829,12 @@ end = struct
     let find_const_opt name env =
       find_opt name env.const
 
+    let find_extern_opt name env =
+      find_opt name env.externs
+
+    let find_extern name env =
+      opt_to_exn name (find_extern_opt name env)
+
     let insert_type name typ env =
       { env with typ = insert name typ env.typ }
 
@@ -1850,6 +1859,9 @@ end = struct
     let insert_dir_type_of var typ dir env =
       { env with typ_of = insert var (typ, dir) env.typ_of }
 
+    let insert_extern var extern env =
+      { env with externs = insert var extern env.externs }
+
     let insert_const var value env =
       match find_const_opt var env with
       | Some _ -> raise_s [%message "constant already defined!"
@@ -1860,12 +1872,14 @@ end = struct
       { typ = push env.typ;
         typ_of = push env.typ_of;
         const = push env.const;
+        externs = push env.externs;
         renamer = env.renamer }
 
     let pop_scope env =
       { typ = pop env.typ;
         typ_of = pop env.typ_of;
         const = pop env.const;
+        externs = push env.externs;
         renamer = env.renamer }
 
     let eval_env_of_t (cenv: t) : EvalEnv.t =

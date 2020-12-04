@@ -61,9 +61,11 @@ let eval verbose packet_str add ctrl_str p4_contents =
 let _ =
   Js.export "Petr4"
     (object%js
+      method load path =
+        Pythonfs.load(Js.to_string path) |> Js.string
       method eval packet control_string p4_content =
         try
-          eval true (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
+          eval false (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
         with e ->
           Exn.to_string e |> Js.string
     end)

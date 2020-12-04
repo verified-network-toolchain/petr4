@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 from os import listdir, chdir, getcwd
+import os.path
 import argparse
 """
 1. Write python program to pack a directory into an ml file
@@ -34,13 +36,28 @@ def load_code(f_name):
   file.close()
   return code
 
-Ocaml_code_header=load_code("./bin/pack_header.ml")
+Ocaml_code_header='''
+module type Map = sig
+  type ('k, 'v) t
+  val insert : 'k -> 'v -> ('k, 'v) t -> ('k, 'v) t
+  val find : 'k -> ('k, 'v) t -> 'v option
+  val empty : ('k, 'v) t
+end
+
+module AssocListMap : Map = struct
+  type ('k, 'v) t = ('k * 'v) list
+  let insert k v m = (k, v) :: m
+  let find = List.assoc_opt
+  let empty = []
+end
+let pack= AssocListMap.empty
+'''
 
 
 # loads the list of p4 files inside a folder that is found in petr4 into a
 #dictionary pointing from a file name to file content
 def load_list_of_files (destination):
-  if ("." in destination):
+  if os.path.isfile(destination):
     if (".p4" in destination):
       [destination]
       dest=destination

@@ -63,10 +63,10 @@
     <div class="row">
       <form>
       <select id="demo_options" onchange="select_demo()"  style="width: 400px;">
-        <option>table-entries-lpm-bmv2.p4</option>
-        <option>switch_ebpf.p4</option>
-        <option>union-valid-bmv2.p4</option>
-        <option>register.p4</option>
+        <option value="/include/table-entries-lpm-bmv2.p4">table-entries-lpm-bmv2.p4</option>
+        <option value="/include/switch_ebpf.p4">switch_ebpf.p4</option>
+        <option value="/include/union-valid-bmv2.p4">union-valid-bmv2.p4</option>
+        <option value="/include/register.p4">register.p4</option>
       </select>
       </form>
     </div>
@@ -99,18 +99,6 @@
 </div>
 
 <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
-<script>
-    window.load_file = function (filename) {
-      console.log("entering load_file("+filename+")")
-      var code_file=new XMLHttpRequest();
-      code_file.open("GET", "p4/"+filename,false);
-      code_file.send();
-      var text = code_file.responseText;
-      console.log("request done");
-      console.log(text);
-      return text;
-    }
-</script>
 <script src="web.bc.js"></script>
 <script>
 
@@ -145,15 +133,14 @@
     }
 
     function select_demo(){
-      var selected_option=document.getElementById("demo_options").value;
-      var code_file=new XMLHttpRequest();
-      code_file.open("GET", "p4/"+selected_option,false);
-      code_file.send();
-      var code=code_file.responseText;
+      var selected_option = document.getElementById("demo_options").value;
+      var code = Petr4.load(selected_option);
       p4_editor.setValue(code, -1);
             
     }
-    select_demo();
+    window.onload = function () {
+        select_demo();
+    }
     </script>
 </body>
 <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />

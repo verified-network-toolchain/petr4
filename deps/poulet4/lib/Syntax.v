@@ -289,8 +289,6 @@ Section Syntax.
   | ValObj (_: ValueObject)
   | ValCons (_: ValueConstructor).
 
-  (* Value_pkt, Value_entries, Value_vset, Value_ctrl, Value_signal omitted*)
-
   Inductive program := Program (_: list Declaration).
 
 End Syntax.

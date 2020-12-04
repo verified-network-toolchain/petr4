@@ -1,5 +1,4 @@
 open Core_kernel
-open Prog.Value
 
 type t = Bigint.t
 

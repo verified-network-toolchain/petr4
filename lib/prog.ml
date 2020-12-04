@@ -33,3 +33,26 @@ type coq_ValueObject = Info.t Poulet4.Syntax.coq_ValueObject
 type coq_ValueConstructor = Info.t Poulet4.Syntax.coq_ValueConstructor
 type coq_Value = Info.t Poulet4.Syntax.coq_Value
 type program = Info.t Poulet4.Syntax.program
+
+
+(* Everything below this comment is runtime data structures and not
+ * program syntax.
+ *)
+type buf = Cstruct_sexp.t
+type pkt = {
+  emitted: buf;
+  main: buf;
+  in_size: int;
+}
+type loc = string
+type entries = (Ast.qualified_name * (int option * Ast.match_ list * Ast.action * Ast.id option) list) list * (Ast.qualified_name * Ast.action list) list
+
+type vsets = coq_Match list list
+
+type ctrl = entries * vsets
+
+type signal =
+  | SContinue
+  | SReturn of coq_Value
+  | SExit
+  | SReject of string

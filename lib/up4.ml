@@ -92,8 +92,9 @@ module PreUp4Filter : Target = struct
     List.Assoc.find_exn fields fname ~equal:String.equal
 
   let write_header_field : obj writer = fun is_valid fields fname fvalue ->
-    let fs = List.map fields~f:(fun (n,v) -> if String.equal n fname then n, fvalue else n,v) in
-    VHeader {fields = fs; is_valid; }
+    let fields = List.map fields
+        ~f:(fun (n, v) -> if String.equal n fname then n, fvalue else n, v) in
+    VHeader {fields; is_valid}
 
   let assign_lvalue = assign_lvalue read_header_field write_header_field
 

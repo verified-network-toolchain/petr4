@@ -250,10 +250,8 @@ and compile_time_eval_bigint env expr: Bigint.t =
     |> option_map bigint_of_value
     |> option_collapse
   with
-  | Some bigint ->
-    bigint
-  | None ->
-    failwith "could not compute compile-time-known numerical value for expr"
+  | Some bigint -> bigint
+  | None -> failwith "could not compute compile-time-known numerical value for expr"
 
 (* Evaluate the declaration [decl] at compile time, updating env.const
  * with any bindings made in the declaration.  Make sure to typecheck
@@ -1021,7 +1019,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (vars: string li
       |> type_expression env ExprCxConstant
       |> compile_time_eval_bigint env
       |> Bigint.to_int_exn in
-    ret @@ TypArray (hdt, len)
+    ret @@ TypArray (hdt, Bigint.of_int len)
   | Tuple tlist ->
     ret @@ TypTuple (List.map ~f:(translate_type env vars) tlist)
   | Void -> ret TypVoid
@@ -1398,7 +1396,7 @@ and type_bit_string_access env ctx bits lo hi
     assert (Bigint.(<=) val_lo val_hi);
     assert (Bigint.(<) val_hi big_width);
     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn |> (+) 1 in
-    ExpBitStringAccess (bits_typed, val_lo, val_hi),
+    ExpBitStringAccess (bits_typed, ExpInt val_lo, val_hi),
     TypBit diff,
     bits_dir
   | typ ->
@@ -2294,51 +2292,43 @@ and resolve_constructor_overload env type_name args =
     resolve_constructor_overload_by ~f:(overload_param_count_ok args) env type_name
 
 and resolve_function_overload_by ~f env ctx func : Prog.coq_Expression =
-  fst func,
+  let open Types.Expression in
   match snd func with
   | Name func_name ->
+    let name = name_to_coq_name func_name in
     let ok : coq_P4Type -> bool =
       function
-      | Function { parameters; _ } -> f parameters
+      | TypFunction (MkFunctionType (_, parameters, _, _)) ->
+        f parameters
       | _ -> false
     in
     begin match
-        Checker_env.find_types_of func_name env
+        Checker_env.find_types_of name env
         |> List.map ~f:fst
         |> List.find ~f:ok
       with
-      | Some typ -> { expr = Name func_name; typ; dir = Directionless }
-      | _ -> snd @@ type_expression env ctx func
+      | Some typ -> MkExpression (fst func, ExpName name, typ, Directionless)
+      | _ -> type_expression env ctx func
     end
   | ExpressionMember { expr; name } ->
     let expr_typed = type_expression env ctx expr in
-    let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
-                                                         name = name }
+    let expr_type = type_of_expr expr_typed in
+    let prog_member: Prog.coq_ExpressionPreT =
+      ExpExpressionMember (expr_typed, p4string_to_coq_p4string name)
     in
-    begin match reduce_type env (snd expr_typed).typ with
-      | Extern { methods; _ } ->
-        let works (meth: Typed.ExternType.extern_method) =
-          meth.name = snd name && f meth.typ.parameters
-        in
-        begin match List.find ~f:works methods with
-          | Some p ->
-            { expr = prog_member;
-              typ = Function p.typ;
-              dir = Directionless }
-          | None -> failwith "couldn't find matching method"
-        end
+    begin match reduce_type env expr_type with
+      | TypExtern name ->
+        failwith "Extern is unimplemented"
+        (* TODO *)
       | _ ->
-        let typ = saturate_type env (snd expr_typed).typ in
+        let typ = saturate_type env expr_type in
         begin match type_expression_member_function_builtin env info typ name with
-          | Some typ ->
-            { expr = prog_member;
-              typ;
-              dir = Directionless }
-          | None ->
-            snd @@ type_expression env ctx func
+          | Some typ -> MkExpression (fst func, prog_member, typ, Directionless)
+          | None -> type_expression env ctx func
         end
     end
-  | _ -> snd @@ type_expression env ctx func
+  | _ -> type_expression env ctx func
+
 
 and resolve_function_overload env ctx type_name args =
   let arg_name arg =
@@ -2440,46 +2430,39 @@ and type_range env ctx lo hi =
   in
   ExpRange (lo_typed, hi_typed), TypSet typ, Directionless
 
-and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Prog.coq_Statement) : unit =
-  let MkStatement (_, stmt, _) = stmt in
-  match ctx, stmt with
-  | StmtCxAction, StatSwitch _ ->
+and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Types.Statement.t) : unit =
+  match ctx, snd stmt with
+  | StmtCxAction, Switch _ ->
     failwith "Branching statement not allowed in action."
-  | StmtCxParserState, StatConditional _
-  | StmtCxParserState, StatSwitch _ ->
+  | StmtCxParserState, Conditional _
+  | StmtCxParserState, Switch _ ->
     failwith "Branching statement not allowed in parser."
   | _ -> ()
 
-and type_statement (env: Checker_env.t) (ctx: coq_StmtContext) (stm: Types.Statement.t) =
-  check_statement_legal_in ctx stm;
-  let typed_stm, env' =
-    match snd stm with
-    | MethodCall { func; type_args; args } ->
-      type_method_call env ctx (fst stm) func type_args args
-    | Assignment { lhs; rhs } ->
-      type_assignment env ctx lhs rhs
-    | DirectApplication { typ; args } ->
-      type_direct_application env ctx typ args
-    | Conditional { cond; tru; fls } ->
-      type_conditional env ctx cond tru fls
-    | BlockStatement { block } ->
-      type_block env ctx block
-    | Exit ->
-      { stmt = Exit;
-        typ = StmType.Void },
-      env
-    | EmptyStatement ->
-      { stmt = EmptyStatement;
-        typ = StmType.Unit },
-      env
-    | Return { expr } ->
-      type_return env ctx (fst stm) expr
-    | Switch { expr; cases } ->
-      type_switch env ctx (fst stm) expr cases
-    | DeclarationStatement { decl } ->
-      type_declaration_statement env ctx decl
-  in
-  ((fst stm, typed_stm), env')
+and type_statement (env: Checker_env.t) (ctx: coq_StmtContext) (stmt: Types.Statement.t)
+  : Prog.coq_Statement * Checker_env.t =
+  check_statement_legal_in ctx stmt;
+  match snd stmt with
+  | MethodCall { func; type_args; args } ->
+    type_method_call env ctx (fst stmt) func type_args args
+  | Assignment { lhs; rhs } ->
+    type_assignment env ctx lhs rhs
+  | DirectApplication { typ; args } ->
+    type_direct_application env ctx typ args
+  | Conditional { cond; tru; fls } ->
+    type_conditional env ctx cond tru fls
+  | BlockStatement { block } ->
+    type_block env ctx block
+  | Exit ->
+    MkStatement (fst stmt, StatExit, StmVoid), env
+  | EmptyStatement ->
+      MkStatement (fst stmt, StatEmpty, StmUnit), env
+  | Return { expr } ->
+    type_return env ctx (fst stmt) expr
+  | Switch { expr; cases } ->
+    type_switch env ctx (fst stmt) expr cases
+  | DeclarationStatement { decl } ->
+    type_declaration_statement env ctx decl
 
 (* Section 8.17 *)
 and type_method_call env ctx call_info func type_args args =

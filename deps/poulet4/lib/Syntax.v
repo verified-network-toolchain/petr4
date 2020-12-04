@@ -62,7 +62,7 @@ Section Syntax.
   | ExpString (_: P4String)
   | ExpName (_: Typed.name)
   | ExpArrayAccess (array: Expression) (index: Expression)
-  | ExpBitStringAccess (bits: Expression) (lo: Expression) (hi: Expression)
+  | ExpBitStringAccess (bits: Expression) (lo: P4Int) (hi: P4Int)
   | ExpList (value: list Expression)
   | ExpRecord (entries: list KeyValue)
   | ExpUnaryOp (op: OpUni) (arg: Expression)

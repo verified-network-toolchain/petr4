@@ -146,17 +146,17 @@ Section Environment.
   Fixpoint update_lvalue' (lval: ValueLvalue tags_t) (val: (Value tags_t)) (env: environment) : option environment :=
     let '(MkValueLvalue _ _ pre_lval _) := lval in
     match pre_lval with
-    | ValLeftName var =>
+    | ValLeftName _ _ var =>
       let s := str_of_name_warning_not_safe var in
       update_environment' s val env
-    | ValLeftMember lval' member =>
+    | ValLeftMember _ _ lval' member =>
       let* obj := find_lvalue' lval' env in
       let* obj' := update_member obj member val in
       update_lvalue' lval' obj' env
     | _ => None (* TODO *)
     end.
 
-  Definition update_lvalue (lval: ValueLvalue) (val: (Value tags_t)) : env_monad unit :=
+  Definition update_lvalue (lval: ValueLvalue tags_t) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (update_lvalue' lval val).
 
   Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=

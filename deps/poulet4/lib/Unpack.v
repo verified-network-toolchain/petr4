@@ -62,7 +62,7 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * ValueLvalue) :=
+  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * ValueLvalue tags_t) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValObj _ (ValObjBuiltinFun _ name obj) => mret (name, obj)

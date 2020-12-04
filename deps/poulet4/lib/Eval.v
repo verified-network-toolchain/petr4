@@ -26,7 +26,7 @@ Section Eval.
   Definition default_value (A: P4Type) : Value tags_t.
   Admitted.
 
-  Definition eval_lvalue (expr: Expression tags_t) : env_monad tags_t ValueLvalue.
+  Definition eval_lvalue (expr: Expression tags_t) : env_monad tags_t (ValueLvalue tags_t).
   Admitted.
 
   Definition bvector_negate {n: nat} (b: Bvector n) : Bvector n.
@@ -103,15 +103,15 @@ Section Eval.
     let* value := eval_expression expr in
     mret (key, value).
 
-  Definition eval_is_valid (obj: ValueLvalue) : env_monad tags_t (Value tags_t) :=
+  Definition eval_is_valid (obj: ValueLvalue tags_t) : env_monad tags_t (Value tags_t) :=
     let* (_, valid) := unpack_header _ (find_lvalue _ obj) in
     mret (ValBase _ (ValBaseBool _ valid)).
 
-  Definition eval_set_bool (obj: ValueLvalue) (valid: bool) : env_monad tags_t unit :=
+  Definition eval_set_bool (obj: ValueLvalue tags_t) (valid: bool) : env_monad tags_t unit :=
     let* (fields, _) := unpack_header _ (find_lvalue _ obj) in
     update_lvalue _ tags_dummy obj (ValBase _ (ValBaseHeader _ fields valid)).
 
-  Definition eval_pop_front (obj: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_pop_front (obj: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
       let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
@@ -123,7 +123,7 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Definition eval_push_front (obj: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_push_front (obj: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
       let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
@@ -147,7 +147,7 @@ Section Eval.
       mret (None :: vals)
     end.
 
-  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
+  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue tags_t) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* args' := eval_arguments args in
     if CamlStringOT.eq_dec name StrConstants.isValid
     then eval_is_valid obj
@@ -161,7 +161,7 @@ Section Eval.
     then dummy_value _ (eval_push_front obj args')
     else state_fail Internal.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: caml_string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
+  Definition eval_packet_func (obj: ValueLvalue tags_t) (name: caml_string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
   Admitted.
   (* TODO: Fix the following code to handle the "real" representation of packets. *)
   (*
@@ -185,7 +185,7 @@ Section Eval.
   end.
    *)
 
-  Definition eval_extern_func (name: caml_string) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
+  Definition eval_extern_func (name: caml_string) (obj: ValueLvalue tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
   Admitted.
   (* TODO fix
   let* Packet bits := unpack_extern_obj (find_lvalue obj) in

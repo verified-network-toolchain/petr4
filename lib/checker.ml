@@ -3763,7 +3763,13 @@ and type_serializable_enum env ctx info annotations underlying_type name members
  * - table *)
 and type_extern_object env info annotations obj_name t_params methods =
   let type_params' = List.map ~f:snd t_params in
-  let env' = CheckerEnv.insert_type_vars type_params' env in
+  let extern_fwd_typ: Typed.Type.t =
+      Extern { type_params = type_params'; methods = [] }
+  in
+  let env' = env
+    |> CheckerEnv.insert_type_vars type_params'
+    |> CheckerEnv.insert_type (BareName obj_name) extern_fwd_typ
+  in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->

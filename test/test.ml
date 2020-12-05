@@ -111,9 +111,9 @@ let example_path l =
 
 let () = 
   (let open Alcotest in
-   (* Format.printf "%s" (get_name ["../examples"] (example_path ["checker_tests"; "good"; "pragma-string.p4"])); 
-      Format.printf "%s" "----------";
-      Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "pragma-string.p4"]))) |> Prettypp.format_program |> to_string);   *)
+   Format.printf "%s" (get_name ["../examples"] (example_path ["checker_tests"; "good"; "scalarmeta-bmv2.p4"])); 
+   Format.printf "%s" "----------";
+   Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "scalarmeta-bmv2.p4"]))) |> Prettypp.format_program |> to_string);  
    run "Tests" [
      (* "excluded tests good", (Stdlib.List.map (fun name ->
          test_case name `Quick (excl_test name)) excluded_good_files);
@@ -127,8 +127,8 @@ let () =
         "typecheck tests bad", (Stdlib.List.map (fun name ->
          let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
          test_case name speed (bad_test typecheck_test name)) bad_files);  *)
-     "round trip pp tests good", (Stdlib.List.map (fun name ->
-         test_case name `Quick (good_test pp_round_trip_test name)) good_files);
+     (* "round trip pp tests good", (Stdlib.List.map (fun name ->
+         test_case name `Quick (good_test pp_round_trip_test name)) good_files); *)
    ])
 
 

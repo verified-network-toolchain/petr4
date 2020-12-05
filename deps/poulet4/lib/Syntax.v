@@ -1,5 +1,5 @@
 Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+Require Import Coq.Numbers.BinNums.
 Require Import Coq.Bool.Bvector.
 
 Require Import Info.
@@ -62,7 +62,7 @@ Section Syntax.
   | ExpString (_: P4String)
   | ExpName (_: Typed.name)
   | ExpArrayAccess (array: Expression) (index: Expression)
-  | ExpBitStringAccess (bits: Expression) (lo: P4Int) (hi: P4Int)
+  | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
   | ExpRecord (entries: list KeyValue)
   | ExpUnaryOp (op: OpUni) (arg: Expression)

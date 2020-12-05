@@ -1,5 +1,5 @@
 Require Coq.extraction.Extraction.
-Require Import Coq.ZArith.ZArith.
+Require Import Coq.Numbers.BinNums.
 
 Extract Inductive positive => "Bigint.t"
   [ "(fun p->Bigint.(of_int 1 + (of_int 2) * p))"

@@ -2466,18 +2466,16 @@ and type_statement (env: Checker_env.t) (ctx: coq_StmtContext) (stmt: Types.Stat
 
 (* Section 8.17 *)
 and type_method_call env ctx call_info func type_args args =
-  let expr_ctx = ExprContext.of_stmt_context ctx in
-  let call_typed = type_function_call env expr_ctx call_info func type_args args in
-  match call_typed.expr with
-  | FunctionCall call ->
-    { stmt = MethodCall
-          { func = call.func;
-            type_args = call.type_args;
-            args = call.args };
-      typ = StmType.Unit },
+  (*let expr_ctx = ExprContext.of_stmt_context ctx in*)
+  let expr_ctx = failwith "" in
+  let call, typ, dir =
+    type_function_call env expr_ctx call_info func type_args args
+  in
+  match call with
+  | ExpFunctionCall (func, type_args, args) ->
+    MkStatement (call_info, StatMethodCall (func, type_args, args), StmUnit),
     env
-  | _ -> raise_s [%message "function call not typed as FunctionCall?"
-             ~typed_expr:(call_typed.expr : Prog.Expression.pre_t)]
+  | _ -> failwith "function call not typed as FunctionCall?"
 
 (* Question: Can Assignment statement update env? *)
 (* Typecheck LHS and RHS respectively and check if they have the same type. *)
@@ -2490,7 +2488,6 @@ and type_method_call env ctx call_info func type_args args =
  *    Δ, T, Γ |- e1 = e2 : Δ, T, Γ
 *)
 and type_assignment env ctx lhs rhs =
-  let open Prog.Statement in
   let expr_ctx = ExprContext.of_stmt_context ctx in
   let lhs_typed = type_expression env expr_ctx lhs in
   if not @@ is_lvalue env lhs_typed
@@ -3826,7 +3823,7 @@ and check_param_shadowing params constructor_params =
   | Some dup -> raise_s [%message "duplicate parameter" ~dup]
   | None -> ()
 
-and type_declaration (env: Checker_env.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.coq_Declaration * Checker_env.t =
+and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.Declaration.t) : Prog.coq_Declaration * Checker_env.t =
   match snd decl with
   | Constant { annotations; typ; name; value } ->
     type_constant env ctx (fst decl) annotations typ name value
@@ -3899,5 +3896,5 @@ and type_declarations env ctx decls: Prog.coq_Declaration list * Checker_env.t =
 let check_program renamer (program:Types.program) : Checker_env.t * Prog.program =
   let Program top_decls = program in
   let initial_env = Checker_env.empty_with_renamer renamer in
-  let prog, env = type_declarations initial_env DeclContext.TopLevel top_decls in
+  let prog, env = type_declarations initial_env DeclCxTopLevel top_decls in
   env, prog

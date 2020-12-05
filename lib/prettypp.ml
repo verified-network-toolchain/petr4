@@ -346,12 +346,10 @@ end = struct
   let format_body body = 
     match snd body with 
     | Empty -> nop 
-    | Unparsed strings -> let contents = match strings with 
-        | [] -> nop
-        | h::t -> format_list_sep P4Word.format_t " " strings |> box 
-      in 
+    | Unparsed strings -> 
       seq ("(" |> text) 
-        (seq contents (")" |> text))
+        (seq (format_list_sep P4Word.format_t " " strings) 
+           (")" |> text)) 
     | Expression exprs -> 
       seq ("[" |> text) 
         (seq (format_list_sep Expression.format_t ", " exprs) 

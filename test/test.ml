@@ -110,23 +110,26 @@ let example_path l =
   List.fold_left l ~init:root ~f:Filename.concat
 
 let () = 
-  let open Alcotest in
-  run "Tests" [
-    "excluded tests good", (Stdlib.List.map (fun name ->
-        test_case name `Quick (excl_test name)) excluded_good_files);
-    "excluded tests bad", (Stdlib.List.map (fun name ->
-        test_case name `Quick (excl_test name)) excluded_bad_files);
-    "parser tests good", (Stdlib.List.map (fun name ->
-        test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
-    "typecheck tests good", (Stdlib.List.map (fun name ->
-        let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
-        test_case name speed (good_test typecheck_test name)) good_files);
-    "typecheck tests bad", (Stdlib.List.map (fun name ->
-        let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
-        test_case name speed (bad_test typecheck_test name)) bad_files);
-    "round trip pp tests good", (Stdlib.List.map (fun name ->
-        test_case name `Quick (good_test pp_round_trip_test name)) good_files);
-  ]
+  (let open Alcotest in
+   (* Format.printf "%s" (get_name ["../examples"] (example_path ["checker_tests"; "good"; "pragma-string.p4"])); 
+      Format.printf "%s" "----------";
+      Format.printf "%s" ((Parse.parse_string (get_name ["../examples"] (example_path ["checker_tests"; "good"; "pragma-string.p4"]))) |> Prettypp.format_program |> to_string);   *)
+   run "Tests" [
+     (* "excluded tests good", (Stdlib.List.map (fun name ->
+         test_case name `Quick (excl_test name)) excluded_good_files);
+        "excluded tests bad", (Stdlib.List.map (fun name ->
+         test_case name `Quick (excl_test name)) excluded_bad_files);
+        "parser tests good", (Stdlib.List.map (fun name ->
+         test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
+        "typecheck tests good", (Stdlib.List.map (fun name ->
+         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
+         test_case name speed (good_test typecheck_test name)) good_files);
+        "typecheck tests bad", (Stdlib.List.map (fun name ->
+         let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
+         test_case name speed (bad_test typecheck_test name)) bad_files);  *)
+     "round trip pp tests good", (Stdlib.List.map (fun name ->
+         test_case name `Quick (good_test pp_round_trip_test name)) good_files);
+   ])
 
 
 

@@ -18,20 +18,47 @@ let make_assert expected unwrap = fun info typ ->
   | Some v -> v
   | None -> raise_mismatch info expected typ
 
-let name_to_coq_name (n: Types.name) : Typed.name =
-  failwith "surface_name_to_coq_name unimplemented"
+let p4string_to_coq_p4string (info, str: P4String.t) : Prog.coq_P4String =
+  MkP4String (info, str)
 
-let name_base (n: Typed.name) : string =
-  failwith "name_base unimplemented"
+let name_to_coq_name : Types.name -> Typed.name = function
+  | BareName n -> BareName (snd n)
+  | QualifiedName (path, n) -> 
+    QualifiedName (List.map ~f:snd path, snd n)
+
+let name_base : Typed.name -> string = function
+  | BareName n
+  | QualifiedName (_, n) -> n
 
 let binop_to_coq_binop (n: Op.pre_bin) : Prog.coq_OpBin =
-  failwith "binop_to_coq_binop unimplemented"
+  match n with
+  | Op.Plus -> Plus
+  | Op.PlusSat -> PlusSat
+  | Op.Minus -> Minus
+  | Op.MinusSat -> MinusSat
+  | Op.Mul -> Mul
+  | Op.Div -> Div
+  | Op.Mod -> Mod
+  | Op.Shl -> Shl
+  | Op.Shr -> Shr
+  | Op.Le -> Le
+  | Op.Ge -> Ge
+  | Op.Lt -> Lt
+  | Op.Gt -> Gt
+  | Op.Eq -> Eq
+  | Op.NotEq -> NotEq
+  | Op.BitAnd -> BitAnd
+  | Op.BitXor -> BitXor
+  | Op.BitOr -> BitOr
+  | Op.PlusPlus -> PlusPlus
+  | Op.And -> And
+  | Op.Or -> Or
 
 let uop_to_coq_uop (n: Op.pre_uni) : Prog.coq_OpUni =
-  failwith "uop_to_coq_uop unimplemented"
-
-let p4string_to_coq_p4string (s: P4String.t) : Prog.coq_P4String =
-  failwith "p4string_to_coq_p4string unimplemented"
+  match n with
+  | Op.Not -> Not
+  | Op.BitNot -> BitNot
+  | Op.UMinus -> UMinus
 
 let string_of_p4string ((MkP4String (_, s)): Prog.coq_P4String) : string = s
   
@@ -2698,8 +2725,19 @@ and type_switch env ctx stmt_info expr cases =
   let cases = List.fold ~init:[] ~f:case_checker cases in
   MkStatement (stmt_info, StatSwitch (expr_typed, cases), StmUnit), env
 
-and pre_stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_StatementPreT =
-  failwith "pre_stmt_of_decl_stmt unimplemented"
+and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
+  let info, (stmt: Prog.coq_StatementPreT) =
+    match decl with
+    | DeclConstant (info, typ, name, value) ->
+      info, StatConstant (typ, name, value)
+    | DeclVariable (info, typ, name, init) ->
+      info, StatVariable (typ, name, init)
+    | DeclInstantiation (info, typ, args, name, init) ->
+      info, StatInstantiation (typ, args, name, init)
+    | _ ->
+      Info.dummy, StatEmpty
+  in
+  MkStatement (info, stmt, StmUnit)
 
 (* Section 10.3 *)
 and type_declaration_statement env ctx stmt_info (decl: Declaration.t) : Prog.coq_Statement * Checker_env.t =
@@ -2708,8 +2746,7 @@ and type_declaration_statement env ctx stmt_info (decl: Declaration.t) : Prog.co
   | Instantiation _
   | Variable _ ->
     let decl_typed, env' = type_declaration env (DeclCxStatement ctx) decl in
-    let pre_stmt = pre_stmt_of_decl_stmt decl_typed in
-    MkStatement (stmt_info, pre_stmt, StmUnit), env'
+    stmt_of_decl_stmt decl_typed, env'
   | _ -> raise_s [%message "declaration used as statement, but that's not allowed. Parser bug?" ~decl:(decl: Types.Declaration.t)]
 
 (* Section 10.1

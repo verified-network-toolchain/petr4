@@ -56,17 +56,17 @@ let rec to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   then to_twos_complement Bigint.(n+w') w
   else n
 
-let bit_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
-  VBit{w;v=of_twos_complement n w}  
+let bit_of_rawint (n : Bigint.t) (w : Bigint.t) : Prog.coq_Value =
+  ValBase (ValBaseBit (Bigint.to_int_exn w, of_twos_complement n w))
 
-let int_of_rawint (n : Bigint.t) (w : Bigint.t) : value =
-  VInt{w;v=to_twos_complement n w}
+let int_of_rawint (n : Bigint.t) (w : Bigint.t) : Prog.coq_Value =
+  ValBase (ValBaseInt (Bigint.to_int_exn w, of_twos_complement n w))
 
 let rec bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   if Bigint.(w > zero) then
-    let w' = power_of_two Bigint.(w-one) in
+    let w' = power_of_two Bigint.(w - one) in
     let g = bitstring_slice n Bigint.(w - one) Bigint.(w - one) in
     if Bigint.(g = zero)
-    then bitwise_neg_of_bigint Bigint.(n + w') Bigint.(w-one)
-    else bitwise_neg_of_bigint Bigint.(n - w') Bigint.(w-one)
+    then bitwise_neg_of_bigint Bigint.(n + w') Bigint.(w - one)
+    else bitwise_neg_of_bigint Bigint.(n - w') Bigint.(w - one)
   else n

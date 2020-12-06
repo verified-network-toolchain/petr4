@@ -25,6 +25,19 @@ module Info = P4Info
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
 
+let rec smash_annotations l tok2 =
+  match l with 
+  | [] ->
+     [tok2]
+  | [tok1] ->
+     let i1,str1 = tok1 in
+     let i2,str2 = tok2 in
+     if Info.follows i1 i2 then
+       [(Info.merge i1 i2, str1 ^ str2)]
+     else
+       [tok1; tok2]
+  | h::t -> h::smash_annotations t tok2
+
 %}
 
 (*************************** TOKENS *******************************)
@@ -303,7 +316,7 @@ annotationBody:
 | body1 = annotationBody L_PAREN body2 = annotationBody R_PAREN
   { body1 @ body2 }
 | body = annotationBody token = annotationToken
-  { body @ [token] }
+  { smash_annotations body token }
 ;
 
 annotationToken:
@@ -473,11 +486,13 @@ dotPrefix:
 parserDeclaration:
 | p_type = parserTypeDeclaration constructor_params = optConstructorParameters
     L_BRACE locals = list_aux(parserLocalElement)
-    states = nonempty_list(parserState) info2 = R_BRACE
+    states = nonempty_list(parserState)
+    info2 = R_BRACE
     pop_scope
     { let open Declaration in
       let (info1, annotations, name, type_params, params) = p_type in
       let info = Info.merge info1 info2 in
+      let locals = List.rev locals in
       (info, Parser { annotations; name; type_params; params; constructor_params; locals; states }) }
 ;
 

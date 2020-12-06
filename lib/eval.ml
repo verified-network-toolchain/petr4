@@ -1437,3 +1437,5 @@ end
 module V1Interpreter = MakeInterpreter(V1model.V1Switch)
 
 module EbpfInterpreter = MakeInterpreter(Ebpf.EbpfFilter)
+
+module Up4Interpreter = MakeInterpreter(Up4.Up4Filter)

@@ -53,6 +53,8 @@ let dir_of_param (MkParameter (_, dir, _, _): Typed.coq_P4Parameter) = dir
 
 let type_of_param (MkParameter (_, _, typ, _): Typed.coq_P4Parameter) = typ
 
+let params_of_fn_type (MkFunctionType (_, parameters, _, _)) = parameters
+
 let assert_array = make_assert "array"
     begin function
       | TypArray (typ, size) -> Some (typ, size)
@@ -281,9 +283,6 @@ and get_type_params (t: coq_P4Type) : string list =
   | TypPackage (type_params, _, _)
   | TypControl (MkControlType (type_params, _))
   | TypParser (MkControlType (type_params, _))
-  (* TODO: extern env from nominal version
-     | TypExtern (type_params, _)
-  *)
   | TypFunction (MkFunctionType (type_params, _, _, _)) ->
     type_params
   | _ ->
@@ -297,10 +296,6 @@ and drop_type_params (t: coq_P4Type) : coq_P4Type =
     TypControl (MkControlType ([], params))
   | TypParser (MkControlType (_, params)) ->
     TypParser (MkControlType ([], params))
-  (* TODO: extern env from nominal version
-     | TypExtern e ->
-     TypExtern {e with type_params = []}
-  *)
   | TypFunction (MkFunctionType (_, params, kind, ret)) ->
     TypFunction (MkFunctionType ([], params, kind, ret))
   | t -> t
@@ -313,7 +308,6 @@ and drop_type_params (t: coq_P4Type) : coq_P4Type =
  * TypeName references.
 *)
 and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
-  let open Type in
   let saturate_types env types =
     List.map ~f:(saturate_type env) types
   in
@@ -545,7 +539,6 @@ and solve_record_type_equality env equiv_vars unknowns (rec1: coq_FieldType list
   solve_lists env unknowns fields1 fields2 ~f:solve_fields
 
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
-  let open Parameter in
   let param_eq (MkParameter (opt1, dir1, typ1, var1),
                 MkParameter (opt2, dir2, typ2, var2)) =
     if dir1 = dir2
@@ -766,6 +759,7 @@ and compile_time_known_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : b
   | None ->
     let MkExpression (_, _, typ, _) = expr in
     match reduce_type env typ with
+    | TypSpecializedType (TypExtern _, _)
     | TypExtern _
     | TypPackage _
     | TypControl _
@@ -1067,7 +1061,7 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: coq_P4Type) : bool =
-  match typ with
+  match saturate_type env typ with
   (* Base types *)
   | TypBool
   | TypString
@@ -1125,11 +1119,10 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
     let env = Checker_env.insert_type_vars tps env in
     are_construct_params_types_well_formed env ps && is_well_formed_type env rt
   | TypExtern name ->
-    (* TODO check that name is in the extern env environment 
-    let env = Checker_env.insert_type_vars tps env in
-    let method_ok m = is_well_formed_type env (TypFunction m.typ) in
-    List.for_all ~f:method_ok methods
-    *) true
+    begin match Checker_env.find_extern_opt (BareName name) env with
+    | Some {type_params = []; _} -> true
+    | _ -> false
+    end
   | TypParser ctrl
   | TypControl ctrl ->
     let MkControlType (tps, ps) = ctrl in
@@ -1141,10 +1134,17 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
   (* Type Application *)
   | TypSpecializedType (base_typ, typ_args) ->
     let base_typ = saturate_type env base_typ in
-    let base_type_type_params = get_type_params base_typ in
-    is_well_formed_type env base_typ
-    && List.for_all ~f:(is_well_formed_type env) typ_args
-    && List.length base_type_type_params = List.length typ_args
+    begin match base_typ with
+    | TypExtern name ->
+      let ext = Checker_env.find_extern (BareName name) env in
+      List.for_all ~f:(is_well_formed_type env) typ_args
+      && List.length ext.type_params = List.length typ_args
+    | typ ->
+      let type_params = get_type_params typ in
+      is_well_formed_type env base_typ
+      && List.for_all ~f:(is_well_formed_type env) typ_args
+      && List.length type_params = List.length typ_args
+    end
 
 and are_param_types_well_formed env (params:coq_P4Parameter list) : bool =
   let check (MkParameter (_, _, typ, _)) = is_well_formed_type env typ in
@@ -1293,7 +1293,7 @@ and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_
   let env = Checker_env.insert_type_vars wildcards env in
   let dir = translate_direction param.direction in
   validate_param env ctx typ dir param_info;
-  (*
+  (* TODO optional values
   let opt_value =
     match param.opt_value with
     | Some value ->
@@ -1942,7 +1942,7 @@ and type_expression_member env ctx expr name =
   let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env (type_of_expr typed_expr) in
   let methods = header_methods (type_of_expr typed_expr) in
-  let typ =
+  let rec find_type expr_typ =
     match expr_typ with
     | TypHeader fields
     | TypHeaderUnion fields
@@ -1955,18 +1955,22 @@ and type_expression_member env ctx expr name =
         | Some (MkFieldType (_, field_typ)) -> field_typ
         | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
       end
-    (*TODO fix to handle nominal externs
-    | TypExtern {methods; _} ->
-      let open ExternType in
-      let matches m = m.name = snd name in
-      begin match List.find ~f:matches methods with
-        | Some m -> Type.Function m.typ
-        | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
-      end
-      *)
+    | TypSpecializedType (TypExtern extern_name, args) ->
+       begin match Checker_env.find_extern_opt (BareName extern_name) env with
+       | Some {type_params; methods} ->
+          let extended_env = Checker_env.insert_types (List.zip_exn type_params args) env in
+          let matches (m: Prog.coq_ExternMethod) = m.name = snd name in
+          begin match List.find ~f:matches methods with
+          | Some m -> reduce_type extended_env (TypFunction m.typ)
+          | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
+          end
+       | None -> raise_s [%message "methods not found for extern" ~extern_name]
+       end
+    | TypExtern extern_name ->
+       find_type (TypSpecializedType (TypExtern extern_name, []))
     | _ -> type_expression_member_builtin env ctx (info expr) expr_typ name
   in
-  ExpExpressionMember (typed_expr, (p4string_to_coq_p4string name)), typ, Directionless
+  ExpExpressionMember (typed_expr, (p4string_to_coq_p4string name)), find_type expr_typ, Directionless
 
 (* Section 8.4.1
  * -------------
@@ -2330,19 +2334,34 @@ and resolve_function_overload_by ~f env ctx func : Prog.coq_Expression =
     let prog_member: Prog.coq_ExpressionPreT =
       ExpExpressionMember (expr_typed, p4string_to_coq_p4string name)
     in
-    begin match reduce_type env expr_type with
-      | TypExtern name ->
-        failwith "Extern is unimplemented"
-        (* TODO *)
-      | _ ->
-        let typ = saturate_type env expr_type in
-        begin match type_expression_member_function_builtin env info typ name with
-          | Some typ -> MkExpression (fst func, prog_member, typ, Directionless)
-          | None -> type_expression env ctx func
-        end
-    end
+    let rec resolve_by_type typ : Prog.coq_Expression =
+      begin match reduce_type env typ with
+        | TypSpecializedType (TypExtern extern_name, args) ->
+          let (MkExpression (info, expr, typ, dir)) = resolve_by_type (TypExtern extern_name) in
+          let ext = Checker_env.find_extern (BareName extern_name) env in 
+          let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
+          let typ = reduce_type env_with_args typ in
+          MkExpression (info, expr, typ, dir)
+        | TypExtern extern_name ->
+          let ext = Checker_env.find_extern (BareName extern_name) env in 
+          let works (meth: Prog.coq_ExternMethod) =
+            let params = params_of_fn_type meth.typ in
+            meth.name = snd name && f params
+          in
+          begin match List.find ~f:works ext.methods with
+            | Some p -> MkExpression (fst func, prog_member, TypFunction p.typ, Directionless)
+            | None -> failwith "couldn't find matching method"
+          end
+        | _ ->
+          let typ = saturate_type env (type_of_expr expr_typed) in
+          begin match type_expression_member_function_builtin env info typ name with
+            | Some typ -> MkExpression (fst func, prog_member, typ, Directionless)
+            | None -> type_expression env ctx func
+          end
+      end
+    in
+    resolve_by_type expr_type
   | _ -> type_expression env ctx func
-
 
 and resolve_function_overload env ctx type_name args =
   let arg_name arg =
@@ -3574,109 +3593,84 @@ and type_serializable_enum env ctx info annotations underlying_type name members
   let env, members = List.fold_left ~f:add_member ~init:(env, []) members in
   DeclSerializableEnum (info, enum_type, p4string_to_coq_p4string name, members), env
 
-(* Section 7.2.9.2
- * Verboten constructor parameters:
- * - package
- * - parser
- * - control
- * - function
- * - table *)
 and type_extern_object env info annotations obj_name t_params methods =
-  failwith "unimplemented"
-      (* TODO nominal externs
-  let type_params' = List.map ~f:snd t_params in
-  let env' = Checker_env.insert_type_vars type_params' env in
+  let extern_type = TypExtern (snd obj_name) in
+  let obj_type_params = List.map ~f:p4string_to_coq_p4string t_params in
+  let t_params' = List.map ~f:snd t_params in
+  let extern_methods: Prog.coq_ExternMethods = {type_params = t_params'; methods = []} in
+  let env' = env
+             |> Checker_env.insert_type_vars t_params'
+             |> Checker_env.insert_type (BareName (snd obj_name)) extern_type
+             |> Checker_env.insert_extern (BareName (snd obj_name)) extern_methods
+  in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
-      assert (snd cname = snd obj_name);
-      let params_typed = type_constructor_params env' ParamCxDeclMethod params in
-      let constructor_typed =
-        Prog.coq_MethodPrototype.Constructor { annotations;
-                                           name = cname;
-                                           params = params_typed }
-      in
-      ((fst m, constructor_typed) :: constructors, methods)
+       if snd cname <> snd obj_name then failwith "Constructor name and type name disagree";
+       let params_typed = type_constructor_params env' ParamCxDeclMethod params in
+       let constructor_typed: Prog.coq_MethodPrototype =
+         ProtoConstructor (info, p4string_to_coq_p4string cname, params_typed)
+       in
+       (constructor_typed :: constructors, methods)
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }
     | MethodPrototype.AbstractMethod { annotations; return; name; type_params = t_params; params } ->
       if snd name = snd obj_name
       then raise_s [%message "extern method must have different name from extern"
             ~m:(m: MethodPrototype.t)];
-      let method_type_params = List.map ~f:snd t_params in
-      let env'' = Checker_env.insert_type_vars method_type_params env' in
-      let params_typed = type_params env'' (Runtime Method) params in
-      let return_typed = translate_type env'' [] return in
-      let method_typed =
+      let method_type_params = List.map ~f:p4string_to_coq_p4string t_params in
+      let method_type_params' = List.map ~f:snd t_params in
+      let env' = Checker_env.insert_type_vars method_type_params' env' in
+      let params_typed = type_params env' (ParamCxRuntime ParamCxDeclMethod) params in
+      let return_typed = translate_type env' [] return in
+      let name = p4string_to_coq_p4string name in
+      let method_typed: Prog.coq_MethodPrototype =
         match snd m with
         | Method _ ->
-          Prog.MethodPrototype.Method
-            { annotations;
-              return = return_typed;
-              name;
-              type_params = t_params;
-              params = params_typed }
+          ProtoMethod (info, return_typed, name, method_type_params, params_typed)
         | AbstractMethod _ ->
-          Prog.MethodPrototype.AbstractMethod
-            { annotations;
-              return = return_typed;
-              name;
-              type_params = t_params;
-              params = params_typed }
+          ProtoAbstractMethod (info, return_typed, name, method_type_params, params_typed)
         | _ -> failwith "bug"
       in
-      (constructors, (fst m, method_typed) :: methods)
+      (constructors, method_typed :: methods)
   in
   let (cs, ms) = List.fold_left ~f:consume_method ~init:([], []) methods in
-  let extern_decl =
-    Prog.Declaration.ExternObject
-      { annotations;
-        name = obj_name;
-        type_params = t_params;
-        methods = cs @ ms }
+  let extern_decl: Prog.coq_Declaration =
+    DeclExternObject (info, p4string_to_coq_p4string obj_name, obj_type_params, cs @ ms) in
+  let extern_methods: Prog.coq_ExternMethods =
+    { type_params = List.map ~f:string_of_p4string obj_type_params;
+      methods = List.map ~f:(method_prototype_to_extern_method obj_name) ms }
   in
-  let extern_typ: ExternType.t =
-    { type_params = type_params';
-      methods = List.map ms
-          ~f:(method_prototype_to_extern_method obj_name) }
-  in
-  let extern_typ_ret: ExternType.t = { extern_typ with type_params = [] } in
   let extern_ctors =
     List.map cs ~f:(function
-        | _, Prog.MethodPrototype.Constructor
-            { annotations; name = cname; params = params_typed } ->
-          Type.Constructor
-            { type_params = type_params';
-              wildcard_params = [];
-              parameters = params_typed;
-              return = Extern extern_typ_ret; }
+        | ProtoConstructor (_, cname, params_typed) ->
+           let generic_args =
+             List.map t_params
+               ~f:(fun ty -> TypTypeName (BareName (snd ty)))
+           in
+           TypConstructor (t_params', [], params_typed,
+                           TypSpecializedType (extern_type, generic_args))
         | _ -> failwith "bug: expected constructor")
   in
-  let env = Checker_env.insert_type (BareName obj_name) (Extern extern_typ) env in
+  let name = BareName (snd obj_name) in
+  let env = Checker_env.insert_type name extern_type env in
+  let env = Checker_env.insert_extern name extern_methods env in
   let env = List.fold extern_ctors ~init:env
-      ~f:(fun env t -> Checker_env.insert_type_of (BareName obj_name) t env)
+              ~f:(fun env t -> Checker_env.insert_type_of name t env)
   in
   extern_decl, env
-      *)
 
-and method_prototype_to_extern_method extern_name (m: Types.MethodPrototype.t) :
-  Prog.coq_MethodPrototype =
-  failwith "method_proto_to_extern_method unimplemented"
-  (* TODO nominal externs
-  match snd m with
-  | Constructor { annotations; name; params } ->
-    ProtoConstructor (fst m, name,
-    { type_params = [];
-      return = TypeName (BareName extern_name);
-      kind = Extern;
-      parameters = params }
-  | AbstractMethod { annotations; return; name; type_params; params }
-  | Method { annotations; return; name; type_params; params } ->
-    name,
-    { type_params = List.map ~f:snd type_params;
-      return = return;
-      kind = Extern;
-      parameters = params }
-  *)
+and method_prototype_to_extern_method extern_name (m: Prog.coq_MethodPrototype)
+  : Prog.coq_ExternMethod =
+  let extern_name = snd extern_name in
+  match m with
+  | ProtoConstructor (_, name, params) ->
+    { name = string_of_p4string name;
+      typ = MkFunctionType ([], params, FunExtern, TypTypeName (BareName extern_name)) }
+  | ProtoAbstractMethod (_, return, name, type_params, params)
+  | ProtoMethod (_, return, name, type_params, params) ->
+    let typ_params = List.map ~f:string_of_p4string type_params in
+    { name = string_of_p4string name;
+      typ = MkFunctionType (typ_params, params, FunExtern, return) }
 
 (* Section 7.3 *)
 and type_type_def env ctx info annotations pre_name typ_or_decl =

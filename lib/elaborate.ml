@@ -1,12 +1,11 @@
 module I = Info
 open Core_kernel
-open Prog.Env
 open Util
 open Types
 module Info = I
 
 let subst_vars_name env type_name =
-  begin match CheckerEnv.resolve_type_name_opt type_name env with
+  begin match Checker_env.resolve_type_name_opt type_name env with
   | Some (TypeName v) -> v
   | Some _ -> failwith "unexpected type value during elaboration"
   | None -> type_name

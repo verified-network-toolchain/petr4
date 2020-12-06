@@ -11,20 +11,21 @@ type t =
     typ_of: (Typed.coq_P4Type * Typed.direction) Env.t;
     (* maps constants to their values *)
     const: Prog.coq_Value Env.t;
+    (* externs *)
+    externs: Prog.coq_ExternMethods Env.t;
     (* for generating fresh type variables *)
-    renamer: Renamer.t }
-
-let empty_t () : t =
-  { typ = Env.empty_env;
-    typ_of = Env.empty_env;
-    const = Env.empty_env;
-    renamer = Renamer.create () }
+    renamer: Renamer.t;
+  }
 
 let empty_with_renamer r : t =
   { typ = Env.empty_env;
     typ_of = Env.empty_env;
     const = Env.empty_env;
+    externs = Env.empty_env;
     renamer = r }
+
+let empty_t () : t =
+  empty_with_renamer @@ Renamer.create ()
 
 let renamer env =
   env.renamer
@@ -50,6 +51,12 @@ let find_const name env =
 
 let find_const_opt name env =
   Env.find_opt name env.const
+
+let find_extern name env =
+  Env.find name env.externs
+
+let find_extern_opt name env =
+  Env.find_opt name env.externs
 
 let insert_type name typ env =
   { env with typ = Env.insert name typ env.typ }
@@ -82,3 +89,8 @@ let insert_const var value env =
   match find_const_opt var env with
   | Some _ -> raise NameAlreadyBound
   | None -> { env with const = Env.insert var value env.const }
+
+let insert_extern var value env =
+  match find_extern_opt var env with
+  | Some _ -> raise NameAlreadyBound
+  | None -> { env with externs = Env.insert var value env.externs }

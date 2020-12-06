@@ -1,8 +1,12 @@
-# Welcome to Petr4
+[![Build Status](https://travis-ci.org/cornell-netlab/petr4.svg?branch=master)](https://travis-ci.org/cornell-netlab/petr4)
 
+# Petr4
 The Petr4 project is developing the formal semantics of the [P4
-Language](https://p4.org) backed by an independent reference
-implementation.
+Language](https://p4.org) backed by an independent reference implementation.
+
+# POPL'21 artifact
+See https://cornell-netlab.github.io/petr4/ or check out the `gh-pages` branch
+for information on the Petr4 artifact.
 
 ## Getting Started
 
@@ -29,9 +33,9 @@ implementation.
     ```
     ocamlc -v
     ```
-    If the version is less than 4.09.0, upgrade:
+    If the version is less than 4.09.1, upgrade:
     ```
-    opam switch 4.09.0
+    opam switch 4.09.1
     ```
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.

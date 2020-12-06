@@ -7,17 +7,17 @@ open Bitstring
 (* Unary Operator Evaluation *)
 (*----------------------------------------------------------------------------*)
 
-let eval_not (v : V.value) : V.value =
+let eval_not (v : coq_Value) : coq_Value =
   match v with
   | VBool b -> VBool (not b)
   | _ -> failwith "not operator can only be applied to bools"
 
-let eval_bitnot (v : V.value) : V.value =
+let eval_bitnot (v : coq_Value) : coq_Value =
   match v with
   | VBit{w;v=n} -> VBit{w;v=bitwise_neg_of_bigint n w}
   | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
-and eval_uminus (v : V.value) : V.value =
+and eval_uminus (v : coq_Value) : coq_Value =
   match v with
   | VBit{w;v=n}  -> Bigint.(VBit{w;v=(power_of_two w) - n})
   | VInt{w;v=n}  -> Bigint.(VInt{w;v=to_twos_complement (-n) w})
@@ -29,7 +29,7 @@ and eval_uminus (v : V.value) : V.value =
 (*----------------------------------------------------------------------------*)
 
 let unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
-(op : Bigint.t -> Bigint.t -> Bigint.t) : V.value =
+(op : Bigint.t -> Bigint.t -> Bigint.t) : coq_Value =
   let x = power_of_two w in
   let n = op l r in
   let n' =
@@ -39,7 +39,7 @@ let unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
   VBit{w;v=n'}
 
 let signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
-(op : Bigint.t -> Bigint.t -> Bigint.t) : V.value =
+(op : Bigint.t -> Bigint.t -> Bigint.t) : coq_Value =
   let x = power_of_two Bigint.(w-one) in
   let n = op l r in
   let n' =
@@ -48,7 +48,7 @@ let signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
     else Bigint.max n Bigint.(-x) in
   VInt{w;v=n'}
 
-let rec interp_bplus (l : V.value) (r : V.value) : V.value =
+let rec interp_bplus (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 + v2) w}
   | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 + v2) w}
@@ -58,9 +58,9 @@ let rec interp_bplus (l : V.value) (r : V.value) : V.value =
   | VInteger n,   VInt{w;v=v1} -> interp_bplus (int_of_rawint n w) r
   | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 + n2)
   | _ -> raise_s [%message "binary plus operation only defined on ints"
-                     ~l:(l: V.value) (r: V.value)]
+                     ~l:(l: coq_Value) (r: coq_Value)]
 
-let rec interp_bplus_sat (l : V.value) (r : V.value) : V.value =
+let rec interp_bplus_sat (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> unsigned_op_sat v1 v2 w Bigint.(+)
   | VInt{w;v=v1}, VInt{v=v2;_} -> signed_op_sat v1 v2 w Bigint.(+)
@@ -70,7 +70,7 @@ let rec interp_bplus_sat (l : V.value) (r : V.value) : V.value =
   | VInteger n,   VInt{w;_}    -> interp_bplus_sat (int_of_rawint n w) r
   | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
-let rec interp_bminus (l : V.value) (r : V.value) : V.value =
+let rec interp_bminus (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 - v2) w}
   | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 - v2) w}
@@ -81,7 +81,7 @@ let rec interp_bminus (l : V.value) (r : V.value) : V.value =
   | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 - n2)
   | _ -> failwith "binary plus operation only defined on ints"
 
-let rec interp_bminus_sat (l : V.value) (r : V.value) : V.value =
+let rec interp_bminus_sat (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> unsigned_op_sat v1 v2 w Bigint.(-)
   | VInt{w;v=v1}, VInt{v=v2;_} -> signed_op_sat v1 v2 w Bigint.(-)
@@ -91,7 +91,7 @@ let rec interp_bminus_sat (l : V.value) (r : V.value) : V.value =
   | VInteger n, VInt{w;_}      -> interp_bminus_sat (int_of_rawint n w) r
   | _ -> failwith "binary sat plus operation only definted on fixed-width ints"
 
-let rec interp_bmult (l : V.value) (r : V.value) : V.value =
+let rec interp_bmult (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 * v2) w}
   | VInt{w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement Bigint.(v1 * v2) w}
@@ -102,19 +102,19 @@ let rec interp_bmult (l : V.value) (r : V.value) : V.value =
   | VInteger n1,  VInteger n2  -> VInteger Bigint.(n1 * n2)
   | _ -> failwith "binary mult operation only defined on ints"
 
-let interp_bdiv (l : V.value) (r : V.value) : V.value =
+let interp_bdiv (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VInteger n1, VInteger n2     -> VInteger Bigint.(n1 / n2)
   | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 / v2)}
   | _ -> failwith "division only defined on positive values"
 
-let interp_bmod (l : V.value) (r : V.value) : V.value =
+let interp_bmod (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VInteger n1, VInteger n2     -> VInteger Bigint.(n1 % n2)
   | VBit {w;v=v1}, VBit {v=v2;_} -> VBit {w;v=Bigint.(v1 % v2)}
   | _ -> failwith "mod only defined on positive values"
 
-let interp_bshl (l : V.value) (r : V.value) : V.value =
+let interp_bshl (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_}
   | VBit{w;v=v1}, VInteger v2 -> VBit{w;v=of_twos_complement (shift_bitstring_left v1 v2) w}
@@ -125,7 +125,7 @@ let interp_bshl (l : V.value) (r : V.value) : V.value =
   | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
   | _ -> failwith "shift left operator not defined for these types"
 
-let interp_bshr (l : V.value) (r : V.value) : V.value =
+let interp_bshr (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_}
   | VBit{w;v=v1}, VInteger v2 ->
@@ -143,7 +143,7 @@ let interp_bshr (l : V.value) (r : V.value) : V.value =
     VBit{w;v=of_twos_complement (shift_bitstring_right v1 v2 false Bigint.zero) w}
   | _ -> failwith "shift right operator not defined for these types"
 
-let rec interp_ble (l : V.value) (r : V.value) : V.value =
+let rec interp_ble (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1, VInteger v2
@@ -154,7 +154,7 @@ let rec interp_ble (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2  -> interp_ble l (int_of_rawint v2 w)
   | _ -> failwith "leq operator only defined on int types"
 
-let rec interp_bge (l : V.value) (r : V.value) : V.value =
+let rec interp_bge (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1,  VInteger v2
@@ -165,7 +165,7 @@ let rec interp_bge (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2  -> interp_bge l (int_of_rawint v2 w)
   | _ -> failwith "geq operator only defined on int types"
 
-let rec interp_blt (l : V.value) (r : V.value) : V.value =
+let rec interp_blt (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1, VInteger v2
@@ -176,7 +176,7 @@ let rec interp_blt (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2  -> interp_blt l (int_of_rawint v2 w)
   | _ -> failwith "lt operator only defined on int types"
 
-let rec interp_bgt (l : V.value) (r : V.value) : V.value =
+let rec interp_bgt (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{v=v1;_}, VBit{v=v2;_}
   | VInteger v1,  VInteger v2
@@ -187,7 +187,7 @@ let rec interp_bgt (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VInteger v2  -> interp_bgt l (int_of_rawint v2 w)
   | _ -> failwith "gt operator only defined on int types"
 
-let rec interp_beq (l : V.value) (r : V.value) : V.value =
+let rec interp_beq (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VError s1, VError s2
   | VEnumField{enum_name=s1;_},
@@ -217,11 +217,11 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VNull, _
   | _, VNull -> VBool false
   | _ -> raise_s [%message "equality comparison undefined for given types"
-                     ~l:(l:V.value) ~r:(r:V.value)]
+                     ~l:(l:coq_Value) ~r:(r:coq_Value)]
 
-and structs_equal (l1 : (string * V.value) list)
-(l2 : (string * V.value) list) : V.value =
-  let f (a : (string * V.value) list) (b : string * V.value) =
+and structs_equal (l1 : (string * coq_Value) list)
+(l2 : (string * coq_Value) list) : coq_Value =
+  let f (a : (string * coq_Value) list) (b : string * coq_Value) =
     if List.Assoc.mem a ~equal:String.equal (fst b)
     then a
     else b :: a in
@@ -233,21 +233,21 @@ and structs_equal (l1 : (string * V.value) list)
   let b = List.for_all l1' ~f:g in
   VBool b
 
-and headers_equal (l1 : (string * V.value) list)
-    (l2 : (string * V.value) list) (b1 : bool) (b2 : bool) : V.value =
+and headers_equal (l1 : (string * coq_Value) list)
+    (l2 : (string * coq_Value) list) (b1 : bool) (b2 : bool) : coq_Value =
   let a = (not b1 && not b2) in
   let b = (b1 && b2 && V.assert_bool (structs_equal l1 l2)) in
   VBool (a || b)
 
-and stacks_equal (l1 : V.value list) (l2 : V.value list) : V.value =
+and stacks_equal (l1 : coq_Value list) (l2 : coq_Value list) : coq_Value =
   let f = (fun i a -> a |> interp_beq (List.nth_exn l2 i) |> V.assert_bool) in
   let b = List.for_alli l1 ~f:f in
   VBool b
 
-and unions_equal (l1 : (string * V.value) list) (l2 : (string * V.value) list) : V.value =
+and unions_equal (l1 : (string * coq_Value) list) (l2 : (string * coq_Value) list) : coq_Value =
   VBool (V.assert_bool (structs_equal l1 l2))
 
-and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
+and tuples_equal (l1 : coq_Value list) (l2 : coq_Value list) : coq_Value =
   let f acc v1 v2 =
     let b = interp_beq v1 v2 in
     V.VBool (acc |> V.assert_bool && b |> V.assert_bool) in
@@ -255,31 +255,31 @@ and tuples_equal (l1 : V.value list) (l2 : V.value list) : V.value =
   | Ok b -> b
   | Unequal_lengths -> V.VBool false
 
-let interp_bne (l : V.value) (r : V.value) : V.value =
+let interp_bne (l : coq_Value) (r : coq_Value) : coq_Value =
   interp_beq l r |> V.assert_bool |> not |> VBool
 
-let rec interp_bitwise_and (l : V.value) (r : V.value) : V.value =
+let rec interp_bitwise_and (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_and v1 v2}
   | VBit{w;v=v1}, VInteger n   -> interp_bitwise_and l (bit_of_rawint n w)
   | VInteger n, VBit{w;v=v2}   -> interp_bitwise_and (bit_of_rawint n w) r
   | _ -> failwith "bitwise and only defined on fixed width ints"
 
-let rec interp_bitwise_xor (l : V.value) (r : V.value) : V.value =
+let rec interp_bitwise_xor (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_xor v1 v2}
   | VBit{w;v=v1}, VInteger n   -> interp_bitwise_xor l (bit_of_rawint n w)
   | VInteger n,   VBit{w;v=v2} -> interp_bitwise_xor (bit_of_rawint n w) r
   | _ -> failwith "bitwise xor only defined on fixed width ints"
 
-let rec interp_bitwise_or (l : V.value) (r : V.value) : V.value =
+let rec interp_bitwise_or (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=Bigint.bit_or v1 v2}
   | VBit{w;v=v1}, VInteger n   -> interp_bitwise_or l (bit_of_rawint n w)
   | VInteger n, VBit{w;v=v2}   -> interp_bitwise_or (bit_of_rawint n w) r
   | _ -> failwith "bitwise or only defined on fixed width ints"
 
-let rec interp_concat (l : V.value) (r : V.value) : V.value =
+let rec interp_concat (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} ->
      VBit{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
@@ -287,24 +287,24 @@ let rec interp_concat (l : V.value) (r : V.value) : V.value =
   | VInteger n, VBit{w;v}  -> interp_concat (bit_of_rawint n w) r
   | _ -> failwith "concat operator only defined on unsigned ints"
 
-let interp_band (l : V.value) (r : V.value) : V.value =
+let interp_band (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBool b1, VBool b2 -> VBool(b1 && b2)
   | _ -> failwith "and operator only defined on bools"
 
-let interp_bor (l : V.value) (r : V.value) : V.value =
+let interp_bor (l : coq_Value) (r : coq_Value) : coq_Value =
   match (l,r) with
   | VBool b1, VBool b2 -> VBool(b1 || b2)
   | _ -> failwith "or operator only defined on bools"
 
 let bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
-(v1 : Bigint.t) (v2 : Bigint.t) (w : Bigint.t) : V.value =
+(v1 : Bigint.t) (v2 : Bigint.t) (w : Bigint.t) : coq_Value =
   let v1' = of_twos_complement v1 w in
   let v2' = of_twos_complement v2 w in
   let n = op v1' v2' in
   VBit{w;v=to_twos_complement n w}
 
-let interp_binary_op (op: Op.bin) (l: V.value) (r: V.value) =
+let interp_binary_op (op: Op.bin) (l: coq_Value) (r: coq_Value) =
   match snd op with
   | Plus     -> interp_bplus l r
   | PlusSat  -> interp_bplus_sat l r
@@ -329,7 +329,7 @@ let interp_binary_op (op: Op.bin) (l: V.value) (r: V.value) =
   | Or       -> interp_bor l r
 
 
-let interp_unary_op (op: Op.uni) (v: V.value) =
+let interp_unary_op (op: Op.uni) (v: coq_Value) =
   match snd op with
   | Not    -> eval_not v
   | BitNot -> eval_bitnot v
@@ -339,12 +339,12 @@ let interp_unary_op (op: Op.uni) (v: V.value) =
 (* Cast evaluation                                                            *)
 (*----------------------------------------------------------------------------*)
 
-let bool_of_val (v : V.value) : V.value =
+let bool_of_val (v : coq_Value) : coq_Value =
   match v with
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
   | _ -> failwith "cast to bool undefined"
 
-let rec bit_of_val (width : int) (v : V.value) : V.value =
+let rec bit_of_val (width : int) (v : coq_Value) : coq_Value =
   let w = Bigint.of_int width in
   match v with
   | VInt{v=n;_}
@@ -354,7 +354,7 @@ let rec bit_of_val (width : int) (v : V.value) : V.value =
   | VSenumField{v;_} -> bit_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let rec int_of_val (width : int) (v : V.value) : V.value =
+let rec int_of_val (width : int) (v : coq_Value) : coq_Value =
   let w = Bigint.of_int width in
   match v with
   | VBit{v=n;_}
@@ -363,17 +363,17 @@ let rec int_of_val (width : int) (v : V.value) : V.value =
   | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
+let fields_for_cast (fields: Typed.RecordType.field list) (value: coq_Value) =
   match value with
   | VTuple vals ->
      let fields_vals = List.zip_exn fields vals in
      List.map ~f:(fun (f, v) -> f.name, v) fields_vals
   | VRecord fields -> fields
-  | _ -> raise_s [%message "cannot cast" ~value:(value:V.value)]
+  | _ -> raise_s [%message "cannot cast" ~value:(value:coq_Value)]
 
 
 let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
-      (new_type: Typed.Type.t) (value: V.value) : V.value =
+      (new_type: Typed.Type.t) (value: coq_Value) : coq_Value =
   match new_type with
   | Bool -> bool_of_val value
   | Bit{width} -> bit_of_val width value
@@ -394,6 +394,6 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
      | VSenumField {v = VInt {w; v}; _}
      | VInt {w; v}
      | VBit {w; v} -> VSet (SSingleton {w; v})
-     |_ -> raise_s [%message "cannot cast" ~value:(value:V.value) ~t:(t:Typed.Type.t)]
+     |_ -> raise_s [%message "cannot cast" ~value:(value:coq_Value) ~t:(t:Typed.Type.t)]
      end
-  | _ -> raise_s [%message "cast unimplemented" ~value:(value:V.value) ~t:(new_type:Typed.Type.t)]
+  | _ -> raise_s [%message "cast unimplemented" ~value:(value:coq_Value) ~t:(new_type:Typed.Type.t)]

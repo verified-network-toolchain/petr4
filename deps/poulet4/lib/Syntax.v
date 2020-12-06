@@ -250,6 +250,14 @@ Section Syntax.
   Inductive Env_EvalEnv :=
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env P4Type) (namespace: caml_string).
 
+  Record ExternMethod :=
+    { name: caml_string;
+      typ: FunctionType }.
+
+  Record ExternMethods :=
+    { type_params: list caml_string;
+      methods: list ExternMethod }.
+
   Inductive ValuePreLvalue :=
   | ValLeftName (tags: tags_t) (name: Typed.name)
   | ValLeftMember (tags: tags_t) (expr: ValueLvalue) (name: caml_string)

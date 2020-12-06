@@ -114,39 +114,38 @@ end = struct
 end
 
 and ExternType : sig
+  type t =
+    { name: string; }
+  [@@deriving sexp,show,yojson]
+
+  val eq : t -> t -> bool
+end = struct
+  type t =
+    { name: string; }
+  [@@deriving sexp,show,yojson]
+
+  let eq extern1 extern2 =
+    Base.String.equal extern1.name extern2.name
+end
+
+and ExternMethods : sig
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp,show,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t =
-    { type_params: string list;
-      methods: extern_method list }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
+  type t = { type_params: string list;
+             methods: extern_method list }
+  [@@deriving sexp,show,yojson]
 end = struct
   type extern_method =
     { name: string;
       typ: FunctionType.t; }
-    [@@deriving sexp,show,yojson]
+  [@@deriving sexp,show,yojson]
 
-  type t =
-    { type_params: string list;
-      methods: extern_method list }
-    [@@deriving sexp,show,yojson]
-
-  let eq_em
-    { name=s1; typ=f1 }
-    { name=s2; typ=f2 } =
-    Base.String.equal s1 s2 &&
-    FunctionType.eq f1 f2
-
-  let eq
-    { type_params=s1; methods=m1 }
-    { type_params=s2; methods=m2 } =
-    Base.List.equal Base.String.equal s1 s2 &&
-    Base.List.equal eq_em m1 m2
+  type t = { type_params: string list;
+             methods: extern_method list }
+  [@@deriving sexp,show,yojson]
 end
 
 and IntType : sig

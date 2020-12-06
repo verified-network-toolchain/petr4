@@ -53,3 +53,6 @@ module V1Interpreter : Interpreter
 
 (** [EbpfInterpreter] is an interpreter for P4 under the eBPF architecture. *)
 module EbpfInterpreter : Interpreter
+
+(** [Up4Interpreter] is an interpreter for P4 under the uP4 architecture. *)
+module Up4Interpreter : Interpreter

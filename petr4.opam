@@ -1,5 +1,5 @@
 opam-version: "2.0"
-version: "0.1.1"
+version: "0.1.2"
 synopsis: "Petr4: Formal Semantics for the P4 Programming Language"
 maintainer: "jnfoster@cs.cornell.edu"
 authors: ["Nate Foster <jnfoster@cs.cornell.edu>"]
@@ -17,7 +17,7 @@ depends: [
   "poulet4"
   "alcotest"
   "bignum"
-  "ocaml" {>= "4.09.0"}
+  "ocaml" {>= "4.09.1"}
   "dune" {>= "1.2"}
   "cstruct"
   "cstruct-sexp"
@@ -32,6 +32,6 @@ depends: [
   "js_of_ocaml"
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
-  "p4pp"
+  "p4pp" {>= "0.1.5"}
   "odoc"
 ]

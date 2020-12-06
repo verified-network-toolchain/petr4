@@ -90,12 +90,13 @@ Section Syntax.
   Inductive TablePreActionRef :=
   | MkTablePreActionRef (name: Typed.name)
                         (args: list (option Expression)).
+
   Inductive TableActionRef :=
   | MkTableActionRef (tags: tags_t) (action: TablePreActionRef)
                      (typ: Typed.P4Type).
 
   Inductive TableKey :=
-  | MkTableKey (tags: tags_t)  (key: list Expression)
+  | MkTableKey (tags: tags_t)  (key: Expression)
                (match_kind: P4String).
 
   Inductive TableEntry :=

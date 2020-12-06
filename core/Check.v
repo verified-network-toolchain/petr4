@@ -35,10 +35,11 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
 
   Module P := P4 NAME INT BIGINT.
 
+(*  Module F := P.F. *)
   Module E := P.Expr.
   Module S := P.Stmt.
+  Module F := P.F.
 
-  Module F := E.F.
   Import E.ExprNotations.
 
   Module NM := Env NAME.
@@ -184,8 +185,11 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
        $ errs ,, mkds ,, g $
          |= [ re :: rec { fields } ] x \in tx
    (* Records. *)
-   | chk_rec_lit (efs : F.fs E.e) (tfs : F.fs E.t) :
-      F.relfs (check errs mkds g) efs tfs ->
+   | chk_rec_lit (efs : F.fs (E.t * E.e)) (tfs : F.fs E.t) :
+      F.relfs
+        (fun te t =>
+           fst te = t /\ let e := snd te in
+           $ errs ,, mkds ,, g $ |= e \in t) efs tfs ->
       $ errs ,, mkds ,, g $ |= rec { efs } \in rec { tfs }
    (* Errors and matchkinds. *)
    | chk_error (err : NAME.t) :
@@ -195,10 +199,13 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
        mkds mkd = Some tt ->
        $ errs ,, mkds ,, g $ |= Matchkind mkd \in error
    (* Action and extern calls. TODO: directions. *)
-   | chk_call (params : F.fs E.t) (args : F.fs E.e)
+   | chk_call (params : F.fs (P.d * E.t)) (args : F.fs (P.d * E.t * E.e))
               (returns : E.t) (callee : E.e) :
        $ errs ,, mkds ,, g $ |= callee \in {{ params |-> returns }} ->
-       F.relfs (check errs mkds g) args params ->
+       F.relfs
+         (fun dte dt =>
+            fst dte = dt /\ let e := snd dte in let t := snd dt in
+            $ errs ,, mkds ,, g $ |= e \in t) args params ->
        $ errs ,, mkds ,, g $
          |= call callee :: {{ params |-> returns }} with args end \in returns
    where "'$' ers ',,' mks ',,' gm  '$' '|=' ex '\in' ty"

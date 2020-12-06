@@ -7,6 +7,13 @@ Import ListNotations.
 Require Coq.Bool.Bool.
 Module CBB := Coq.Bool.Bool.
 
+Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
+
+Infix "|>" := pipeline (at level 76, left associativity).
+
+Infix "∘" := Basics.compose
+  (at level 40, left associativity).
+
 (** * P4 Data Types Signature *)
 Module Type P4Data.
   Parameter t : Type.
@@ -90,11 +97,13 @@ End Field.
 
 (** * P4 AST *)
 Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
+  Module F := Field NAME.
+
+  (** Directions. *)
+  Inductive d := DIn | DOut | DInOut | DZilch.
+
   (** * Expression Grammar *)
   Module Expr.
-    Module F := Field NAME.
-    Export F.
-
     (** Expression types. *)
     Inductive t : Type :=
       | TBool
@@ -102,11 +111,11 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | TBitstring (n : INT.t)
       | TError
       | TMatchKind
-      | TRecord (fields : fs t)
-      | THeader (fields : fs t)
+      | TRecord (fields : F.fs t)
+      | THeader (fields : F.fs t)
       (*    | TTypeName (X : NAME.t) *)
-      | TArrow (params : fs t) (return_type : t).
-    (*[]*)
+      | TArrow (params : F.fs (d * t)) (return_type : t).
+    (**[]*)
 
     Module TypeNotations.
       Declare Custom Entry p4type.
@@ -158,26 +167,33 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
       Hypothesis HTMatchKind : P {{ matchkind }}.
 
-      Hypothesis HTRecord : forall fields : list (NAME.t * t),
-          predfs_data P fields -> P {{ rec { fields } }}.
+      Hypothesis HTRecord : forall fields : F.fs t,
+          F.predfs_data P fields -> P {{ rec { fields } }}.
 
-      Hypothesis HTHeader : forall fields : list (NAME.t * t),
-          predfs_data P fields -> P {{ hdr { fields } }}.
+      Hypothesis HTHeader : forall fields : F.fs t,
+          F.predfs_data P fields -> P {{ hdr { fields } }}.
 
       (* Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
-      Hypothesis HTArrow : forall (params : fs t) (returns : t),
-          predfs_data P params -> P returns -> P {{ params |-> returns }}.
+      Hypothesis HTArrow : forall (params : F.fs (d * t)) (returns : t),
+          F.predfs_data (P ∘ snd) params -> P returns -> P {{ params |-> returns }}.
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t, P ty :=
         fix custom_t_ind (type : t) : P type :=
-          let fix fields_ind (flds : fs t) : predfs_data P flds :=
-              match flds as fs_ty return predfs_data P fs_ty with
-              | [] => Forall_nil (fun '(_, typ) => P typ)
-              | ((_, hft) as hf) :: tf =>
+          let fix fields_ind (flds : F.fs t) : F.predfs_data P flds :=
+              match flds as fs_ty return F.predfs_data P fs_ty with
+              | [] => Forall_nil (F.predf_data P)
+              | (_, hft) as hf :: tf =>
                 Forall_cons hf (custom_t_ind hft) (fields_ind tf)
+              end in
+          let fix fields_ind_dir
+                  (flds : F.fs (d * t)) : F.predfs_data (P ∘ snd) flds :=
+              match flds as fs_ty return F.predfs_data (P ∘ snd) fs_ty with
+              | [] => Forall_nil (F.predf_data (P ∘ snd))
+              | (_, (_, hft)) as hf :: tf =>
+                Forall_cons hf (custom_t_ind hft) (fields_ind_dir tf)
               end in
           match type as ty return P ty with
           | {{ Bool }} => HTBool
@@ -190,7 +206,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           | {{ params |-> returns }} =>
               HTArrow params returns
-                      (fields_ind params) (custom_t_ind returns)
+                      (fields_ind_dir params) (custom_t_ind returns)
           end.
     End TypeInduction.
 
@@ -219,7 +235,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | PlusPlus
       | And
       | Or.
-    (*[]*)
+    (**[]*)
 
     (** Expressions annotated with types,
       unless the type is obvious. *)
@@ -231,14 +247,14 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | EUop (op : uop) (type : t) : e -> e
       | EBop (op : bop) (lhs_type rhs_type : t) (lhs rhs : e)
       | ECast (cast_type : t) (expr_type : t) : e -> e
-      | ERecord (fields : fs e)
+      | ERecord (fields : F.fs (t * e))
       | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
       | EError (name : NAME.t)
       | EMatchKind (name : NAME.t)
       (* Extern or action calls. *)
       | ECall
           (callee_type : t) (callee : e)
-          (args : fs e).
+          (args : F.fs (d * t * e)).
     (*[]*)
 
     Module ExprNotations.
@@ -413,8 +429,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Hypothesis HECast : forall (ct et : t) (ex : e),
           P ex -> P <{ (ct) ex :: et end }>.
 
-      Hypothesis HERecord : forall (fields : fs e),
-          predfs_data P fields -> P <{ rec {fields} }>.
+      Hypothesis HERecord : forall (fields : F.fs (t * e)),
+          F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} }>.
 
       Hypothesis HEExprMember : forall (x : NAME.t) (ty : t) (ex : e),
           P ex -> P <{ [ ex :: ty ] x }>.
@@ -425,8 +441,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Hypothesis HEMatchKind : forall mkd : NAME.t,
           P <{ Matchkind mkd }>.
 
-      Hypothesis HECall : forall (ty : t) (callee : e) (args : fs e),
-          P callee -> predfs_data P args ->
+      Hypothesis HECall : forall (ty : t) (callee : e) (args : F.fs (d * t * e)),
+          P callee -> F.predfs_data (P ∘ snd) args ->
           P <{ call callee :: ty with args end }>.
 
       (*    Hypothesis HELoc : forall l : LOC.t,
@@ -436,12 +452,12 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e, P exp :=
         fix custom_e_ind (expr : e) : P expr :=
-          let fix fields_ind (flds : fs e)
-              : predfs_data P flds :=
+          let fix fields_ind {A:Type} (flds : F.fs (A * e))
+              : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ex
-                    return predfs_data P fs_ex with
-              | [] => Forall_nil (predf_data P)
-              | ((_, hfe) as hf) :: tf =>
+                    return F.predfs_data (P ∘ snd) fs_ex with
+              | [] => Forall_nil (F.predf_data (P ∘ snd))
+              | (_, (_, hfe)) as hf :: tf =>
                 Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
               end in
           match expr as e' return P e' with
@@ -481,8 +497,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Sequences, a possibly easier-to-verify alternative to blocks. *)
       | SSeq (s1 s2 : s)
       | SVarDecl (typ : E.t) (var : NAME.t) (rhs : E.e)
-      | SMethodCall (callee_type : E.t) (callee : E.e) (args : E.e).
-    (*[]*)
+      | SMethodCall (callee_type : E.t) (callee : E.e) (args : F.fs (d * E.t * E.e)).
+    (**[]*)
 
     Module StmtNotations.
       Export E.ExprNotations.

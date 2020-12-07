@@ -9,7 +9,7 @@ Module CBB := Coq.Bool.Bool.
 
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
-Infix "▷" := pipeline (at level 40, left associativity).
+Infix "▷" := pipeline (at level 45, right associativity).
 
 Infix "∘" := Basics.compose
   (at level 40, left associativity).
@@ -511,18 +511,18 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Notation "x"
         := x (in custom p4stmt at level 0, x constr at level 0).
       Notation "'skip'" := SSkip (in custom p4stmt at level 0).
-      Notation "s1 ';' s2"
+      Notation "s1 ; s2"
         := (SSeq s1 s2) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
 
-      Notation "e1 :: t := e2"
+      Notation "'asgn' e1 := e2 :: t 'fin'"
               := (SAssign t e1 e2)
                     (in custom p4stmt at level 40,
                         e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
 
-      Notation "x := e :: t"
+      Notation "'decl' x ≜ e :: t 'fin'"
               := (SVarDecl t x e)
                     (in custom p4stmt at level 40,
                         e custom p4expr, t custom p4type,
@@ -534,6 +534,10 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
+
+      Example stmt (s1 s2 : s) (x : NAME.t)
+              (e e1 e2 : Expr.e) (t : Expr.t)
+        : s := $ s1 ; s2 $.
     End StmtNotations.
   End Stmt.
 End P4.

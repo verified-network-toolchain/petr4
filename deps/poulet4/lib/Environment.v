@@ -135,6 +135,12 @@ Section Environment.
     let* l := heap_insert v in
     stack_insert name l.
 
+  Definition env_lookup (lvalue: ValueLvalue) : env_monad (Value tags_t).
+  Admitted.
+
+  Definition env_update (lvalue: ValueLvalue) (value: Value tags_t) : env_monad unit.
+  Admitted.
+
   Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=
     fun env =>
       match original env with

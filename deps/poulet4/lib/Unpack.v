@@ -55,14 +55,14 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_record (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (MStr.Raw.t nat) :=
+  Definition unpack_record (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (MStr.Raw.t (ValueBase tags_t)) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseRecord _ fs) => mret fs
     | _ => state_fail Internal
     end.
 
-  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * loc) :=
+  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * ValueLvalue) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValObj _ (ValObjBuiltinFun _ name obj) => mret (name, obj)
@@ -83,14 +83,14 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_header (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (caml_string * nat) * bool) :=
+  Definition unpack_header (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (caml_string * (ValueBase tags_t)) * bool) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseHeader _ h v) => mret (h, v)
     | _ => state_fail Internal
     end.
 
-  Definition unpack_header_stack (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list nat * nat * nat) :=
+  Definition unpack_header_stack (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (ValueBase tags_t) * nat * nat) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseStack _ hdrs size next)  => mret (hdrs, size, next)

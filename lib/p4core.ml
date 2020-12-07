@@ -1,13 +1,16 @@
-open Prog.Value
 open Typed
+open Prog
 open Target
 open Bitstring
-open Prog.Env
 module I = Info
 open Core_kernel
 module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
+
+
+let to_bvec (x: Bigint.t): Poulet4.Bvector.coq_Bvector =
+  failwith "to_bvec unimplemented"
 
 module Corize (T : Target) : Target = struct
 
@@ -17,15 +20,15 @@ module Corize (T : Target) : Target = struct
 
   type extern = state pre_extern
 
-  let value_of_field (init_fs : (string * value) list)
-      (f : RecordType.field) : string * value =
-    f.name,
-    List.Assoc.find_exn init_fs f.name ~equal:String.equal
+  let value_of_field (init_fs : (string * coq_Value) list)
+                     ((MkFieldType (f, t)): coq_FieldType) : string * coq_Value =
+    f,
+    List.Assoc.find_exn init_fs f ~equal:String.equal
 
-  let nbytes_of_hdr (fs : (string * value) list) : Bigint.t =
+  let nbytes_of_hdr (fs : (string * coq_ValueBase) list) : Bigint.t =
     fs
     |> List.map ~f:snd
-    |> List.map ~f:(width_of_val)
+    |> List.map ~f:width_of_val
     |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
     |> fun x -> Bigint.(x / of_int 8)
 
@@ -43,129 +46,129 @@ module Corize (T : Target) : Target = struct
     let n = List.fold_left bytes' ~init:Bigint.zero ~f:f in
     (c2,n,signal)
 
-  let rec extract_hdr_field (nvarbits : Bigint.t)
+  let rec extract_hdr_field (nvarbits : int)
       (n, s : (Bigint.t * Bigint.t) * signal)
-      (v : value) : ((Bigint.t * Bigint.t) * signal) * value =
+      (v : coq_ValueBase) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
     match s with
     | SContinue ->
       begin match v with
-        | VBit{w;_} -> extract_bit n w
-        | VVarbit{max;_} -> extract_varbit nvarbits n max
-        | VBool b -> extract_bool n
-        | VInt{w;_} -> extract_int n w
-        | VStruct {fields} ->
+        | ValBaseBit (w, _) -> extract_bit n w
+        | ValBaseInt (w, _) -> extract_int n w
+        | ValBaseVarbit (max, _, _) -> extract_varbit nvarbits n max
+        | ValBaseBool b -> extract_bool n
+        | ValBaseStruct fields ->
            let field_names = List.map ~f:fst fields in
            let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
            let fields = List.zip_exn field_names field_vals in
-           (n, s), VStruct{fields}
-        | VSenumField {typ_name; enum_name; v} ->
+           (n, s), ValBaseStruct fields
+        | ValBaseSenumField (typ_name, enum_name, v) ->
           extract_senum typ_name enum_name v nvarbits (n, s)
-        | _ -> raise_s [%message "invalid header field type"
-                      ~v:(v:value)]
+        | _ -> failwith "invalid header field type"
       end
-    | SReject _ -> ((n,s),VNull)
+    | SReject _ -> ((n,s),ValBaseNull)
     | _ -> failwith "unreachable"
 
-  and extract_bit (n : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+  and extract_bit (n : Bigint.t * Bigint.t) (w' : int)
+    : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
     let (nw,nv) = n in
+    let w = Bigint.of_int w' in
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-    Bigint.(((nw-w, y), SContinue)), VBit{w;v=x}
+    Bigint.(((nw-w, y), SContinue)), ValBaseBit (w', x)
 
-  and extract_bool (buf : Bigint.t * Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+  and extract_bool (buf : Bigint.t * Bigint.t) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
     let open Bigint in
     let (bufsize, buf) = buf in
     let x = bitstring_slice buf (bufsize-one) (bufsize-one) in
     let y = bitstring_slice buf (bufsize-of_int 2) zero in
-    ((bufsize-one, y), SContinue), VBool (x <> zero)
+    ((bufsize-one, y), SContinue), ValBaseBool (x <> zero)
 
   and extract_int (n : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
+      (w' : int) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
     let (nw,nv) = n in
+    let w = Bigint.of_int w' in
     let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-w) in
     let y = bitstring_slice nv Bigint.(nw-w-one) Bigint.zero in
-    Bigint.(((nw-w, y), SContinue)), VInt{w;v=to_twos_complement x w}
+    Bigint.(((nw-w, y), SContinue)), ValBaseInt (w', to_twos_complement x w)
 
-  and extract_varbit (nbits : Bigint.t) (nw,nv : Bigint.t * Bigint.t)
-      (w : Bigint.t) : ((Bigint.t * Bigint.t) * signal) * value =
-    if Bigint.(nbits > w)
-    then (((nw,nv),SReject "HeaderTooShort"),VNull)
+  and extract_varbit (nbits' : int) (nw,nv : Bigint.t * Bigint.t)
+      (w' : int) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
+    let nbits = Bigint.of_int nbits' in
+    if nbits' > w'
+    then (((nw,nv),SReject "HeaderTooShort"),ValBaseNull)
     else if Bigint.(nbits > nw)
-    then (((nw,nv), SReject "ParserInvalidArgument"), VNull)
+    then (((nw,nv), SReject "ParserInvalidArgument"), ValBaseNull)
     else
       let x = bitstring_slice nv Bigint.(nw-one) Bigint.(nw-nbits) in
       let y = bitstring_slice nv Bigint.(nw-nbits-one) Bigint.zero in
-      Bigint.((nw-nbits, y), SContinue), VVarbit{max=w;w=nbits;v=x}
+      Bigint.((nw-nbits, y), SContinue), ValBaseVarbit (w', nbits', to_bvec x)
 
-  and extract_struct (nvarbits : Bigint.t) (n, s : (Bigint.t * Bigint.t) * signal)
-      (fields : (string * value) list) : ((Bigint.t * Bigint.t) * signal) * value list =
+  and extract_struct (nvarbits : int) (n, s : (Bigint.t * Bigint.t) * signal)
+      (fields : (string * coq_ValueBase) list) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase list =
     let (n, s), vs = List.fold_map (List.map ~f:snd fields)
       ~init:(n, s)
       ~f:(fun (n, s) v -> extract_hdr_field nvarbits (n,s) v) in
     (n,s), vs
 
-  and extract_senum (typ_name : string) (enum_name : string) (v : value)
-      (nvarbits : Bigint.t) (n, s) : ((Bigint.t * Bigint.t) * signal) * value =
+  and extract_senum (typ_name : string) (enum_name : string) (v : coq_ValueBase)
+      (nvarbits : int) (n, s) : ((Bigint.t * Bigint.t) * signal) * coq_ValueBase =
     let (x, v) = extract_hdr_field nvarbits (n, s) v in
-    x, VSenumField{typ_name; enum_name; v}
+    x, ValBaseSenumField (typ_name, enum_name, v)
 
-  let rec reset_fields (env : env) (fs : (string * value) list)
-      (t : Type.t) : (string * value) list =
+  let rec reset_fields (env : env) (fs : (string * coq_Value) list)
+      (t : coq_P4Type) : (string * coq_Value) list =
     match t with
-    | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
-    | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
-    | NewType nt -> reset_fields env fs nt.typ
-    | _ -> raise_s [%message "not resettable"
-                  ~t:(t:Type.t)]
+    | TypStruct rt | TypHeader rt | TypHeaderUnion rt -> List.map rt ~f:(value_of_field fs)
+    | TypTypeName n  -> reset_fields env fs (Eval_env.find_typ n env)
+    | TypNewType (_, typ) -> reset_fields env fs typ
+    | _ -> failwith "not resettable"
 
   let eval_extract' (env : env) (st : state)
-      (t : Type.t) (pkt : value) (_ : value) (w : Bigint.t)
-      (is_fixed : bool) : env * state * signal * value =
+      (t : coq_P4Type) (pkt : coq_Value) (_ : coq_Value) (w : int)
+      (is_fixed : bool) : env * state * signal * coq_Value =
     let obj = State.get_packet st in
     let pkt = obj.main in
     let init_v = init_val_of_typ env t in
     let init_fs = match init_v with
-      | VHeader { fields; is_valid } -> fields
+      | ValBase (ValBaseHeader (fields, is_valid)) -> fields
       | _ -> failwith "extract expects header" in
-    let eight = Bigint.of_int 8 in
-    let nbytes = Bigint.(nbytes_of_hdr init_fs + w / eight) in
+    let nbytes = Bigint.(nbytes_of_hdr init_fs + of_int w / of_int 8) in
     let (pkt', extraction, s) = bytes_of_packet pkt nbytes in
     let st' = State.set_packet {obj with main = pkt'} st in
     match s with
-    | SReject _ | SExit | SReturn _ -> env, st, s, VNull
+    | SReject _ | SExit | SReturn _ -> env, st, s, ValBase ValBaseNull
     | SContinue ->
       let (ns, vs) = List.unzip init_fs in
       try
         let (st'', _,s), vs' =
           List.fold_map vs
-            ~init:(st', Bigint.(nbytes * eight, extraction), SContinue)
+            ~init:(st', Bigint.(nbytes * of_int 8, extraction), SContinue)
             ~f:(fun (st, n, s) v ->
                 let ((n,s), v) = extract_hdr_field w (n,s) v in
                 (st, n,s), v) in
         begin match s with
-        | SReject _ | SExit | SReturn _ -> env, st, s, VNull
+        | SReject _ | SExit | SReturn _ -> env, st, s, ValBase ValBaseNull
         | SContinue ->
           let fs' = List.zip_exn ns vs' in
-          let h = VHeader {
-                      fields = fs';
-                      is_valid = true;
-                    } in
+          let h: coq_Value = ValBase (ValBaseHeader (fs', true)) in
           let loc = State.fresh_loc () in
           let st''' = State.insert_heap loc h st'' in
           let env'=
-            EvalEnv.insert_val_bare
+            Eval_env.insert_val_bare
               (if is_fixed then "hdr" else "variableSizeHeader")
               loc env in
-          env', st''', SContinue, VNull
+          env', st''', SContinue, ValBase ValBaseNull
         end
       with Invalid_argument _ ->
-        env, st', SReject "PacketTooShort", VNull
+        env, st', SReject "PacketTooShort", ValBase ValBaseNull
 
   let eval_advance : extern = fun env st _ args ->
     let (pkt_loc, v) = match args with
-      | [(VRuntime {loc;_}, _); (VBit{v;_}, _)] -> loc, v
-      | [(VRuntime {loc;_}, _); (VInteger v, _)] -> loc, v
+      | [ValObj (ValObjRuntime (loc, _)), _;
+         ValBase (ValBaseBit (_, v)), _]
+      | [ValObj (ValObjRuntime (loc, _)), _;
+         ValBase (ValBaseInteger v), _] ->
+        loc, v
       | _ -> failwith "unexpected args for advance" in
     let obj = State.get_packet st in
     let pkt = obj.main in
@@ -173,54 +176,65 @@ module Corize (T : Target) : Target = struct
       let x = (Bigint.to_int_exn v) / 8 in
       let pkt' = Cstruct.split pkt x |> snd in
       let st' = State.set_packet {obj with main = pkt'} st in
-      env, st', SContinue, VNull
+      env, st', SContinue, ValBase ValBaseNull
     with Invalid_argument _ ->
-      env, st, SReject "PacketTooShort", VNull
+      env, st, SReject "PacketTooShort", ValBase ValBaseNull
 
   let eval_extract : extern = fun env st targs args ->
     match args with
-    | [(pkt, _);(v1, t)] -> (match v1 with
-                            | VNull -> let targ = List.nth targs 0 |> Option.value_exn in
-                              eval_advance env st targs [(pkt, t); (VBit{v=width_of_typ env targ;w=Bigint.zero}, t)]
-                            | _ -> eval_extract' env st t pkt v1 Bigint.zero true)
-    | [(pkt,_);(v1,t);(v2, _)] -> eval_extract' env st t pkt v1 (bigint_of_val v2) false
+    | [(pkt, _);(v1, t)] ->
+      begin match v1 with
+        | ValBase ValBaseNull ->
+          let targ = List.nth targs 0 |> Option.value_exn in
+          eval_advance env st targs [(pkt, t); (ValBase (ValBaseBit (0, width_of_typ env targ), t))]
+        | _ -> eval_extract' env st t pkt v1 0 true
+      end
+    | [(pkt,_); (v1,t); (ValBase v2, _)] ->
+      let w = match Checker.bigint_of_value v2 with
+        | Some v -> Bigint.to_int_exn v
+        | _ -> failwith "expected number"
+      in
+      eval_extract' env st t pkt v1 w false
     | _ -> failwith "wrong number of args for extract"
 
-  let rec val_of_bigint (env : env) (t : Type.t) (n : Bigint.t) : value =
+  let rec val_of_bigint (env : env) (t : coq_P4Type) (n : Bigint.t) : coq_ValueBase =
     let w = width_of_typ env t in
     let f (w,n) t =
       let rmax = width_of_typ env t in
       let v =
         val_of_bigint env t (bitstring_slice n Bigint.(w - one) Bigint.(w-rmax)) in
       Bigint.(w - rmax, bitstring_slice n (w - rmax) zero), v in
-    let fieldvals_of_recordtype (rt : RecordType.t) : (string * value) list =
-      let names = List.map ~f:(fun x -> x.name) rt.fields in
-      let typs = List.map ~f:(fun x -> x.typ) rt.fields in
-      let vs = List.fold_map typs ~init:(w,n) ~f:f in
+    let fieldvals_of_recordtype (rt : coq_FieldType list) : (string * coq_ValueBase) list =
+      let names = List.map ~f:(fun (MkFieldType (name, _)) -> name) rt in
+      let types = List.map ~f:(fun (MkFieldType (_, typ)) -> typ) rt in
+      let vs = List.fold_map types ~init:(w,n) ~f:f in
       List.zip_exn names (snd vs) in
     match t with
-    | Bool -> if Bigint.(n = zero) then VBool false else VBool true
-    | Int {width} ->
-      VInt {v = to_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
-    | Bit {width} ->
-      VBit {v = of_twos_complement n (Bigint.of_int width); w = Bigint.of_int width}
-    | Array {typ;size} ->
+    | TypBool ->
+      if Bigint.(n = zero)
+      then ValBaseBool false
+      else ValBaseBool true
+    | TypInt width ->
+      ValBaseInt (width, to_twos_complement n (Bigint.of_int width))
+    | TypBit width ->
+      ValBaseBit (width, to_twos_complement n (Bigint.of_int width))
+    | TypArray (typ, size) ->
       let init = List.init size ~f:(fun x -> t) in
       let (_, hdrs) =
         List.fold_map init
         ~init:(w,n)
         ~f:f in
       VStack {headers = hdrs;size=Bigint.of_int size;next=Bigint.zero}
-    | List {types} | Tuple {types} ->
+    | TypList types | TypTuple types ->
       let _, vs = List.fold_map types ~init:(w,n) ~f:f in
       VTuple vs
-    | Record rt -> VRecord (fieldvals_of_recordtype rt)
-    | Header rt -> VHeader {fields=fieldvals_of_recordtype rt;is_valid=true}
-    | Struct rt -> VStruct {fields=fieldvals_of_recordtype rt;}
-    | Enum {typ = Some t;_} -> val_of_bigint env t n
-    | TypeName name -> val_of_bigint env (EvalEnv.find_typ name env) n
-    | NewType nt -> val_of_bigint env nt.typ n
-    | _ -> raise_s [%message "not a fixed-width type" ~t:(t: Type.t)]
+    | TypRecord rt -> ValBase (ValBaseRecord (fieldvals_of_recordtype rt))
+    | TypStruct rt -> ValBaseStruct (fieldvals_of_recordtype rt)
+    | TypHeader rt -> ValBaseHeader (fieldvals_of_recordtype rt, true)
+    | TypEnum (_, Some t, _) -> val_of_bigint env t n
+    | TypTypeName name -> val_of_bigint env (Eval_env.find_typ name env) n
+    | TypNewType (name, typ) -> val_of_bigint env typ n
+    | _ -> raise_s [%message "not a fixed-width type" ~t:(t: coq_P4Type)]
 
   let eval_lookahead : extern = fun env st targs args ->
     let t = match targs with
@@ -237,8 +251,8 @@ module Corize (T : Target) : Target = struct
       | SContinue -> 
         let v = val_of_bigint env t n in
         env, st, SContinue, v
-      | _ -> env, st, s, VNull end
-    with Invalid_argument _ -> env, st, SReject "PacketTooShort", VNull
+      | _ -> env, st, s, ValBaseNull end
+    with Invalid_argument _ -> env, st, SReject "PacketTooShort", ValBaseNull
 
   let eval_length : extern = fun env st _ args ->
     match args with
@@ -263,14 +277,14 @@ module Corize (T : Target) : Target = struct
     let s = String.of_char_list chars in
     Cstruct.of_string s
 
-  let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
+  let rec field_types_of_typ (env : env) (t : coq_P4Type) : coq_P4Type list =
     match t with
     | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
-    | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
+    | TypeName n -> field_types_of_typ env (Eval_env.find_typ n env)
     | NewType nt -> field_types_of_typ env nt.typ
     | _ -> failwith "type does not have fields"
 
-  let rec packet_of_value (env : env) (t : Type.t) (v : value) : buf =
+  let rec packet_of_value (env : env) (t : coq_P4Type) (v : coq_Value) : buf =
     match v with
     | VBit {w; v} -> packet_of_bit w v
     | VInt {w; v} -> packet_of_int w v
@@ -288,20 +302,20 @@ module Corize (T : Target) : Target = struct
   and packet_of_int (w : Bigint.t) (v : Bigint.t) : buf =
     packet_of_bytes (of_twos_complement v w) w
 
-  and packet_of_struct (env : env) (t : Type.t)
-      (fields : (string * value) list) : buf =
+  and packet_of_struct (env : env) (t : coq_P4Type)
+      (fields : (string * coq_Value) list) : buf =
     let fs = reset_fields env fields t in
     let fs' = List.map ~f:snd fs in
     let fts = field_types_of_typ env t in
-    let pkts = List.map2_exn ~f:(fun v t -> packet_of_value env t v) fs' fts in
+    let pkts = List.map2_exn ~f:(fun v t -> packet_of_coq_Value env t v) fs' fts in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
-  and packet_of_hdr (env : env) (t : Type.t)
-      (fields : (string * value) list) (is_valid : bool) : buf =
+  and packet_of_hdr (env : env) (t : coq_P4Type)
+      (fields : (string * coq_Value) list) (is_valid : bool) : buf =
     let rec underlying_typ_of_enum env t =
       match t with
-      | Typed.Type.Enum et -> Option.value_exn et.typ
-      | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
+      | Typed.Type.Enum et -> Option.coq_Value_exn et.typ
+      | TypeName n -> Eval_env.find_typ n env |> underlying_typ_of_enum env
       | NewType nt -> nt.typ |> underlying_typ_of_enum env
       | _ -> failwith "no such underlying type" in
     let f = fun (accw, accv) (w,v) ->
@@ -329,11 +343,11 @@ module Corize (T : Target) : Target = struct
       |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f in
     packet_of_bit w v
 
-  and packet_of_stack (env : env) (t : Type.t) (hdrs : value list) : buf =
+  and packet_of_stack (env : env) (t : coq_P4Type) (hdrs : coq_Value list) : buf =
     let t' = match t with
       | Array at -> at.typ
       | _ -> failwith "expected array type" in
-    let pkts = List.map ~f:(packet_of_value env t') hdrs in
+    let pkts = List.map ~f:(packet_of_coq_Value env t') hdrs in
     List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
   let eval_emit : extern = fun env st _ args ->
@@ -345,14 +359,14 @@ module Corize (T : Target) : Target = struct
     let pkt_add = packet_of_value env t v in
     let emitted = Cstruct.append pkt_hd pkt_add in
     let st' = State.set_packet {obj with emitted = emitted} st in
-    env, st', SContinue, VNull
+    env, st', SContinue, ValBaseNull
 
   let eval_verify : extern = fun env st _ args ->
     let b, err = match args with
       | [(VBool b, _); (VError err,_)] -> b, err
       | _ -> failwith "unexpected args for verify" in
-    if b then env, st, SContinue, VNull
-    else env, st, SReject err, VNull
+    if b then env, st, SContinue, ValBaseNull
+    else env, st, SReject err, ValBaseNull
 
   let core_externs : (string * extern) list =
     [ ("extract", eval_extract);

@@ -1,10 +1,9 @@
 module I = Info
 module Info = I (* JNF: ugly hack *)
 open Prog
-open Value
 open Target
 
-type env = Env.EvalEnv.t
+type env = Eval_env.t
 
 module type Interpreter = sig
 
@@ -17,21 +16,21 @@ module type Interpreter = sig
       from evaluating the P4 expression [expr] under the environment [env] and
       the state [st], and [st'] is [st] updated according to the side-effects of
       the same evaluation. *)
-  val eval_expression : env -> state -> Expression.t -> state * value
+  val eval_expression : env -> state -> coq_Expression -> state * coq_Value
 
   (** [eval_statement ctrl env st stmt] is [env', st'], where [env'] is [env]
       updated with the bindings produced by evaluating [stmt] under the
       control-plane configuration [ctrl], environment [env], and state [st],
       and [st'] is [st] updated according to the side-effects of the same
       evaluation. *)
-  val eval_statement : ctrl -> env -> state -> Statement.t -> env * state
+  val eval_statement : ctrl -> env -> state -> coq_Statement -> env * state
 
   (** [eval_declaration ctrl env st decl] is [env', st'], where [env'] is [env]
       updated with the bindings produced by evaluating [decl] under the
       control-plane configuration [ctrl], environment [env], and state [st],
       and [st'] is [st] updated according to the side-effects of the same
       evaluation. *)
-  val eval_declaration : ctrl -> env -> state -> Declaration.t -> env * state
+  val eval_declaration : ctrl -> env -> state -> coq_Declaration -> env * state
 
   (** [eval_program ctrl env st pkt port prog] is [st', None] if [prog] drops
       the packet [pkt] with ingress port [port] under control-plane

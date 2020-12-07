@@ -84,6 +84,7 @@ Section Syntax.
   Inductive MatchPreT :=
   | MatchDontCare
   | MatchExpression (expr: Expression).
+
   Inductive Match :=
   | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: P4Type).
 
@@ -268,10 +269,12 @@ Section Syntax.
 
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)
+                 (constructor_params: list P4Parameter)
                  (params: list P4Parameter) (locals: list Declaration)
                  (states: list ParserState)
   | ValObjTable (_: ValueTable)
   | ValObjControl (scope: Env_EvalEnv)
+                  (constructor_params: list P4Parameter)
                   (params: list P4Parameter) (locals: list Declaration)
                   (apply: Block)
   | ValObjPackage (args: list (caml_string * ValueLoc))

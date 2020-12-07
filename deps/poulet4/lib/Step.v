@@ -27,7 +27,7 @@ Section Step.
 
   Definition step (p: (ValueObject tags_t)) (start: caml_string) : env_monad tags_t caml_string := 
     match p with
-    | ValObjParser _ env params locals states =>
+    | ValObjParser _ env _ params locals states =>
       match lookup_state states start with
       | Some nxt => 
         let 'MkParserState _ _ _ statements transition := nxt in

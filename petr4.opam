@@ -32,6 +32,6 @@ depends: [
   "js_of_ocaml-ppx"
   "p4pp" {>= "0.1.5"}
   "odoc"
-  "pp_expect" {>= "0.15.0"}
+  "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}
 ]

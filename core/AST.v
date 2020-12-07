@@ -9,7 +9,7 @@ Module CBB := Coq.Bool.Bool.
 
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
-Infix "|>" := pipeline (at level 76, left associativity).
+Infix "▷" := pipeline (at level 40, left associativity).
 
 Infix "∘" := Basics.compose
   (at level 40, left associativity).
@@ -146,7 +146,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Notation "'hdr' { fields } "
         := (THeader fields)
             (in custom p4type at level 6, no associativity).
-      Notation "params '|->' return_typ"
+      Notation "params ↦ return_typ"
               := (TArrow params return_typ)
                     (in custom p4type at level 10, no associativity).
     End TypeNotations.
@@ -176,7 +176,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
       Hypothesis HTArrow : forall (params : F.fs (d * t)) (returns : t),
-          F.predfs_data (P ∘ snd) params -> P returns -> P {{ params |-> returns }}.
+          F.predfs_data (P ∘ snd) params ->
+          P returns -> P {{ params ↦ returns }}.
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
@@ -204,7 +205,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           (*        |   TTypeName X => HTTypeName X *)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
-          | {{ params |-> returns }} =>
+          | {{ params ↦ returns }} =>
               HTArrow params returns
                       (fields_ind_dir params) (custom_t_ind returns)
           end.
@@ -388,7 +389,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Notation "'rec' { fields } "
         := (ERecord fields)
             (in custom p4expr at level 6, no associativity).
-      Notation " '[' x '::' ty  ']' y"
+      Notation "'Mem' x '::' ty 'dot' y 'end'"
               := (EExprMember y ty x)
                     (in custom p4expr at level 10, x custom p4expr,
                         ty custom p4type, left associativity).
@@ -433,7 +434,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} }>.
 
       Hypothesis HEExprMember : forall (x : NAME.t) (ty : t) (ex : e),
-          P ex -> P <{ [ ex :: ty ] x }>.
+          P ex -> P <{ Mem ex :: ty dot x end }>.
 
       Hypothesis HEError : forall err : NAME.t,
           P <{ Error err }>.
@@ -471,7 +472,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                     (custom_e_ind lhs) (custom_e_ind rhs)
           | <{ (ct) exp :: et end }> => HECast ct et exp (custom_e_ind exp)
           | <{ rec { fields } }> => HERecord fields (fields_ind fields)
-          | <{ [ exp :: ty ] x }> =>
+          | <{ Mem exp :: ty dot x end }> =>
               HEExprMember x ty exp (custom_e_ind exp)
           | <{ Error err }> => HEError err
           | <{ Matchkind mkd }> => HEMatchKind mkd
@@ -505,7 +506,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
       Declare Custom Entry p4stmt.
 
-      Notation "'{[' stmt ']}'" := stmt (stmt custom p4stmt at level 99).
+      Notation "$ stmt $" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"
         := x (in custom p4stmt at level 0, x constr at level 0).

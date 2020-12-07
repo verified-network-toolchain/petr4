@@ -103,35 +103,35 @@ Section Eval.
     let* value := eval_expression expr in
     mret (key, value).
 
-  Definition eval_is_valid (obj: ValueLvalue tags_t) : env_monad tags_t (Value tags_t) :=
-    let* (_, valid) := unpack_header _ (find_lvalue _ obj) in
+  Definition eval_is_valid (lvalue: ValueLvalue) : env_monad tags_t (Value tags_t) :=
+    let* (_, valid) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
     mret (ValBase _ (ValBaseBool _ valid)).
 
-  Definition eval_set_bool (obj: ValueLvalue tags_t) (valid: bool) : env_monad tags_t unit :=
-    let* (fields, _) := unpack_header _ (find_lvalue _ obj) in
-    update_lvalue _ tags_dummy obj (ValBase _ (ValBaseHeader _ fields valid)).
+  Definition eval_set_bool (lvalue: ValueLvalue) (valid: bool) : env_monad tags_t unit :=
+    let* (fields, _) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
+    env_update _ tags_dummy lvalue (ValBase _ (ValBaseHeader _ fields valid)).
 
-  Definition eval_pop_front (obj: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
-      let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
+      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
       let padding := ValBaseHeader _ (MStr.Raw.empty _) false in
       let* elements' := lift_option _ (rotate_left_z elements count padding) in
       let next_index' := next_index - (Z.to_nat count) in
       let value' := ValBase _ (ValBaseStack _ elements' size next_index') in
-      update_lvalue _ tags_dummy obj value'
+      env_update _ tags_dummy lvalue value'
     | _ => state_fail Internal
     end.
 
-  Definition eval_push_front (obj: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_push_front (lvalue: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
-      let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
+      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
       let padding := ValBaseHeader _ (MStr.Raw.empty _) false in
       let* elements' := lift_option _ (rotate_right_z elements count padding) in
       let next_index' := min size (next_index + (Z.to_nat count)) in
       let value' := ValBase _ (ValBaseStack _ elements' size next_index') in
-      update_lvalue _ tags_dummy obj value'
+      env_update _ tags_dummy lvalue value'
     | _ => state_fail Internal
     end.
 
@@ -216,21 +216,20 @@ Section Eval.
          | StatAssignment _ lhs rhs =>
            let* lval := eval_lvalue lhs in
            let* val := eval_expression rhs in
-           update_lvalue _ tags_dummy lval val
+           env_update _ tags_dummy lval val
          | StatBlock _ block =>
-           map_env _ (push_scope _);;
-           eval_block block;;
-           lift_env_fn _ (pop_scope _)
+           stack_push _ ;;
+           eval_block block ;;
+           stack_pop _
          | StatConstant _ type (MkP4String _ _ name) init =>
-           insert_environment _ name (ValBase _ init)
+           env_insert _ name (ValBase _ init)
          | StatVariable _ type (MkP4String _ _ name) init =>
            let* value :=
               match init with
               | None => mret (default_value type)
               | Some expr => eval_expression expr
-              end
-           in
-           insert_environment _ name value
+              end in
+           env_insert _ name value
          | StatInstantiation _ _ _ _ _
          | StatDirectApplication _ _ _
          | StatConditional _ _ _ _

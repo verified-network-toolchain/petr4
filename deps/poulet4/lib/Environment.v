@@ -11,6 +11,7 @@ Require Import Syntax.
 
 Open Scope monad.
 
+Module Import MNat := FMapList.Make(Nat_as_OT).
 Module Import MStr := FMapList.Make(CamlStringOT).
 
 Inductive exception :=
@@ -25,91 +26,80 @@ Section Environment.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
 
-  Definition scope := MStr.t (Value tags_t).
-  Definition environment := list scope.
+  Definition loc := nat.
+  Definition scope := MStr.t loc.
+  Definition stack := list scope.
+  Definition heap := MNat.t (Value tags_t).
+
+  Record environment := MkEnvironment {
+    env_fresh: loc;
+    env_stack: stack;
+    env_heap: heap;
+  }.
 
   Definition env_monad := @state_monad environment exception.
 
-  Definition map_env (f : environment -> environment) : env_monad unit :=
-    fun env => mret tt (f env).
-
-  Definition lift_env_fn (f : environment -> option environment) : env_monad unit :=
-    fun env =>
-      match f env with
-      | Some env' => mret tt env'
-      | None => state_fail Internal env
-      end.
-
-  Definition lift_env_lookup_fn (f: environment -> option (Value tags_t)) : env_monad (Value tags_t) :=
-    fun env =>
-      match f env with
-      | Some res => mret res env
-      | None => state_fail Internal env
-      end.
-
-  Definition lift_option {A : Type} (x: option A) : env_monad A := fun env => 
-                                                                     match x with
-                                                                     | Some it => mret it env
-                                                                     | None => (inr Internal, env)
-                                                                     end.
-
-  Definition update_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : option scope :=
-    MStr.find key bindings;;
-    mret (MStr.add key val (MStr.remove key bindings)).
-
-  Definition insert_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : option scope :=
-    MStr.find key bindings;;
-    mret (MStr.add key val bindings).
-
-  Definition find_scope (key: caml_string) (bindings: scope) : option (Value tags_t) :=
-    MStr.find key bindings.
-
-  Definition push_scope (env: environment) :=
-    MStr.empty _ :: env.
-
-  Definition pop_scope (env: environment) : option environment :=
-    match env with
-    | _ :: rest => Some rest
-    | nil => None
+  Definition lift_option {A: Type} (o: option A) : env_monad A :=
+    match o with
+    | None => state_fail Internal
+    | Some a => mret a
     end.
 
-  Fixpoint update_environment' (key: caml_string) (val: (Value tags_t)) (env: environment) : option environment :=
-    match env with
-    | inner :: rest =>
-      if MStr.find key inner
-      then let* inner' := update_scope key val inner in
-           mret (inner' :: rest)
-      else let* rest' := update_environment' key val rest in
-           mret (inner :: rest')
+  Fixpoint stack_lookup' (key: caml_string) (st: stack) : option loc :=
+    match st with
     | nil => None
-    end.
-
-  Definition update_environment (key: caml_string) (val: (Value tags_t)) : env_monad unit :=
-    lift_env_fn (update_environment' key val).
-
-  Definition insert_environment' (key: caml_string) (val: (Value tags_t)) (env: environment) : option environment :=
-    match env with
-    | inner :: rest =>
-      let* inner' := insert_scope key val inner in
-      mret (inner' :: rest)
-    | nil => None
-    end.
-
-  Definition insert_environment (key: caml_string) (val: (Value tags_t)) : env_monad unit :=
-    lift_env_fn (insert_environment' key val).
-
-  Fixpoint find_environment' (key: caml_string) (env: environment) : option (Value tags_t) :=
-    match env with
-    | inner :: rest =>
-      match MStr.find key inner with
-      | Some v => Some v
-      | None => find_environment' key rest
+    | top :: rest =>
+      match MStr.find key top with
+      | None => stack_lookup' key rest
+      | Some l => Some l
       end
-    | nil => None
     end.
 
-  Definition find_environment (key: caml_string) : env_monad (Value tags_t) :=
-    lift_env_lookup_fn (find_environment' key).
+  Definition stack_lookup (key: caml_string) : env_monad loc :=
+    fun env =>
+      match stack_lookup' key (env_stack env) with
+      | None => state_fail Internal env
+      | Some l => mret l env
+      end.
+
+  Definition stack_insert' (key: caml_string) (l: loc) (st: stack) : option stack :=
+    match st with
+    | nil => None
+    | top :: rest =>
+      match MStr.find key top with
+      | None => Some ((MStr.add key l top) :: rest)
+      | Some _ => None
+      end
+    end.
+
+  Definition stack_insert (key: caml_string) (l: loc) : env_monad unit :=
+    fun env =>
+      match stack_insert' key l (env_stack env) with
+      | None => state_fail Internal env
+      | Some st => mret tt {|
+          env_fresh := env_fresh env;
+          env_stack := st;
+          env_heap := env_heap env;
+        |}
+      end.
+
+  Definition stack_push : env_monad unit :=
+    fun env => mret tt {|
+      env_fresh := env_fresh env;
+      env_stack := MStr.empty _ :: (env_stack env);
+      env_heap := env_heap env;
+    |}.
+
+  Definition stack_pop : env_monad unit :=
+    fun env =>
+      match env_stack env with
+      | nil => state_fail Internal env
+      | _ :: rest => mret tt {|
+          env_fresh := env_fresh env;
+          env_stack := rest;
+          env_heap := env_heap env;
+        |}
+      end.
 
   (* TODO handle name resolution properly *)
   Definition str_of_name_warning_not_safe (t: Typed.name) : caml_string :=
@@ -118,46 +108,38 @@ Section Environment.
     | Typed.QualifiedName _ s => s
     end.
 
-  Fixpoint find_lvalue' (lval: ValueLvalue tags_t) (env: environment) : option (Value tags_t) :=
-    let '(MkValueLvalue _ _ pre_lval _) := lval in
-    match pre_lval with
-    | ValLeftName _ _ var =>
-      let s := str_of_name_warning_not_safe var in
-      find_environment' s env
-    | ValLeftMember _ _ lval' member =>
-      let* val := find_lvalue' lval' env in
-      match val with
-      | ValBase _ (ValBaseRecord _ map) =>
-        match (Raw.find member map) with
-        | Some v => Some (ValBase _ v)
-        | None => None
-        end
-      | _ => None
-      end
-    | _ => None (* TODO *)
-    end.
+  Definition heap_lookup (l: loc) : env_monad (Value tags_t) :=
+    fun env =>
+      match MNat.find l (env_heap env) with
+      | None => state_fail Internal env
+      | Some val => mret val env
+      end.
 
-  Definition find_lvalue (lval: ValueLvalue tags_t) : env_monad (Value tags_t) :=
-    lift_env_lookup_fn (find_lvalue' lval).
+  Definition heap_update (l: loc) (v: Value tags_t) : env_monad unit :=
+    fun env => mret tt {|
+      env_fresh := env_fresh env;
+      env_stack := env_stack env;
+      env_heap := MNat.add l v (env_heap env);
+    |}.
 
-  Definition update_member (obj: (Value tags_t)) (member: caml_string) (val: (Value tags_t)) : option (Value tags_t).
+  Definition heap_insert (v: Value tags_t) : env_monad loc :=
+    fun env =>
+      let l := env_fresh env in
+      mret l {|
+        env_fresh := S l;
+        env_stack := env_stack env;
+        env_heap := MNat.add l v (env_heap env);
+      |}.
+
+  Definition env_insert (name: caml_string) (v: Value tags_t) : env_monad unit :=
+    let* l := heap_insert v in
+    stack_insert name l.
+
+  Definition env_lookup (lvalue: ValueLvalue) : env_monad (Value tags_t).
   Admitted.
 
-  Fixpoint update_lvalue' (lval: ValueLvalue tags_t) (val: (Value tags_t)) (env: environment) : option environment :=
-    let '(MkValueLvalue _ _ pre_lval _) := lval in
-    match pre_lval with
-    | ValLeftName _ _ var =>
-      let s := str_of_name_warning_not_safe var in
-      update_environment' s val env
-    | ValLeftMember _ _ lval' member =>
-      let* obj := find_lvalue' lval' env in
-      let* obj' := update_member obj member val in
-      update_lvalue' lval' obj' env
-    | _ => None (* TODO *)
-    end.
-
-  Definition update_lvalue (lval: ValueLvalue tags_t) (val: (Value tags_t)) : env_monad unit :=
-    lift_env_fn (update_lvalue' lval val).
+  Definition env_update (lvalue: ValueLvalue) (value: Value tags_t) : env_monad unit.
+  Admitted.
 
   Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=
     fun env =>

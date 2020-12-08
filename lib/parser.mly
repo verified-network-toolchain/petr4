@@ -316,7 +316,7 @@ annotationBody:
 | body1 = annotationBody L_PAREN body2 = annotationBody R_PAREN
   { body1 @ body2 }
 | body = annotationBody token = annotationToken
-   { smash_annotations body token }
+  { smash_annotations body token }
 ;
 
 annotationToken:

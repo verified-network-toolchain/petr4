@@ -63,13 +63,5 @@ Admitted.
 
 Lemma int_parses_corr : parses IntParser 2 (caml_string_of_chars "start") = true.
 Proof.
-  unfold parses.
-  unfold step_trans.
-  unfold step. unfold run_with_state.
-  unfold IntParser. auto. unfold lookup_state.
-  unfold states. unfold start_st. auto.
-  rewrite caml_string_true.
-  unfold body. auto. 
-  unfold eval_statement.
-  unfold Monad.mbind. auto.
-Admitted.
+  repeat (cbv || rewrite caml_string_true).
+Abort.

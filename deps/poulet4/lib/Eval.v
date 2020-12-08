@@ -15,6 +15,7 @@ Require Import Utils.
 Require Import Unpack.
 
 Require Import Platform.Packet.
+Require Import Strings.String.
 
 
 Open Scope monad.
@@ -49,6 +50,9 @@ Section Eval.
   Definition bvec_of_z (width: nat) (z: Z) : (Bvector width).
   Admitted.
 
+  Definition extract_value_func (caller: ValueLvalue): Value tags_t := ValObj _ (ValObjBuiltinFun _ StrConstants.extract caller).
+  
+
   Fixpoint eval_expression (expr: Expression tags_t) : env_monad tags_t (Value tags_t) :=
     let '(MkExpression _ tags_dummy expr _ _) := expr in
     match expr with
@@ -63,6 +67,7 @@ Section Eval.
         mret (ValBase _ (ValBaseInteger _ value))
       end
     | ExpString _ (MkP4String _ _ str) => mret (ValBase _ (ValBaseString _ str))
+    | ExpName _ name => find_environment _ (str_of_name_warning_not_safe name)
     | ExpArrayAccess _ array index =>
       let* index' := unpack_inf_int _ (eval_expression index) in
       let* array' := unpack_array _ (eval_expression array) in
@@ -94,6 +99,20 @@ Section Eval.
       | UMinus =>
         let* inner := eval_expression arg in
         lift_option _ (eval_minus inner)
+      end
+    | ExpExpressionMember _ inner (MkP4String _ _ name) =>
+      let* inner_v := eval_expression inner in
+      match inner_v with
+      | ValObj _ (ValObjPacket _ bits) => 
+        match inner with 
+        | MkExpression _ _ (ExpName _ inner_name) inner_typ _ => 
+          if CamlStringOT.eq_dec name StrConstants.extract 
+          then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
+          else state_fail Internal
+        | _ => state_fail Internal
+        end
+      (* TODO real member lookup *)
+      | _ => state_fail Internal
       end
     | _ => mret (ValBase _ (ValBaseBool _ false)) (* TODO *)
     end.
@@ -147,6 +166,35 @@ Section Eval.
       mret (None :: vals)
     end.
 
+  Definition is_packet_func (str: caml_string) : bool := 
+    if CamlStringOT.eq_dec str StrConstants.extract
+    then true
+    else false.
+
+  Definition eval_packet_func (obj: ValueLvalue) (name: caml_string) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit :=
+    obj' <- find_lvalue _ obj ;;
+    match obj' with
+      | ValObj _ (ValObjPacket _ bits) => if CamlStringOT.eq_dec name StrConstants.extract then 
+          match (args, type_args) with
+          | ((Some target_expr) :: nil, into :: nil) =>
+            match eval_packet_extract_fixed tags_t into bits with 
+            | (inr error, bits') =>
+              update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+              state_fail error 
+            | (inl value, bits') =>
+              update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+              let* target := eval_lvalue target_expr in
+              update_lvalue _ tags_dummy target (ValBase _ value) ;;
+              mret tt
+            end
+        
+          | _ => state_fail Internal
+          end
+
+        else state_fail Internal
+      | _ => state_fail Internal
+    end.
+
   Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* args' := eval_arguments args in
     if CamlStringOT.eq_dec name StrConstants.isValid
@@ -159,31 +207,13 @@ Section Eval.
     then dummy_value _ (eval_pop_front obj args')
     else if CamlStringOT.eq_dec name StrConstants.push_front
     then dummy_value _ (eval_push_front obj args')
+    else if is_packet_func name 
+    then dummy_value _ (eval_packet_func obj name nil args)
     else state_fail Internal.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: caml_string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
-  Admitted.
-  (* TODO: Fix the following code to handle the "real" representation of packets. *)
-  (*
-  match name with
-  | "extract" =>
-    match (args, type_args) with
-    | ((Some target_expr) :: nil, into :: nil) =>
-      let* target := eval_lvalue target_expr in
-      match eval_packet_extract_fixed into bits with
-      | (inr error, bits') =>
-        update_lvalue obj (ValCons (ValConsExternObj (Packet bits'))) ;;
-        state_fail error
-      | (inl value, bits') =>
-        update_lvalue obj (ValCons (ValConsExternObj (Packet bits'))) ;;
-        update_lvalue target value ;;
-        mret tt
-      end
-    | _ => state_fail Internal
-    end
-  | _ => state_fail Internal
-  end.
-   *)
+
+  
+  
 
   Definition eval_extern_func (name: caml_string) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
   Admitted.

@@ -271,7 +271,8 @@ Section Syntax.
                    (params: list P4Parameter)
   | ValObjFun (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
   | ValObjBuiltinFun (name: caml_string) (caller: ValueLvalue)
-  | ValObjAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block).
+  | ValObjAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
+  | ValObjPacket (bits: list bool).
 
   Inductive ValueConstructor :=
   | ValConsParser (scope: Env_EvalEnv) (constructor_params: list P4Parameter)
@@ -289,7 +290,7 @@ Section Syntax.
   | ValObj (_: ValueObject)
   | ValCons (_: ValueConstructor).
 
-  (* Value_pkt, Value_entries, Value_vset, Value_ctrl, Value_signal omitted*)
+  (* Value_entries, Value_vset, Value_ctrl, Value_signal omitted*)
 
   Inductive program := Program (_: list Declaration).
 

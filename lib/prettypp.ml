@@ -512,7 +512,7 @@ end = struct
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((P4Word.format_t name) ++
                       (" (" |> text) ++
-                      (vbox (Parameter.format_params params)) ++
+                      (hvbox (Parameter.format_params params)) ++
                       (");" |> text)))
     | Method { annotations; return; name; type_params; params } ->
       Annotation.format_ts annotations
@@ -521,14 +521,14 @@ end = struct
                ++ P4Word.format_t name
                ++ Type.format_type_params type_params
                ++ text "(")
-      ++ vbox (Parameter.format_params params ++ text ");")
+      ++ hvbox (Parameter.format_params params ++ text ");")
     | AbstractMethod { annotations; return; name; type_params; params } -> 
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("abstract" |> text) ++ space ++ (Type.format_t return) ++ 
                       space ++ (P4Word.format_t name) ++ 
                       (Type.format_type_params type_params) ++
                       (" (" |> text) ++
-                      (vbox (Parameter.format_params params)) ++ 
+                      (hvbox (Parameter.format_params params)) ++ 
                       (");" |> text)))
 end
 
@@ -574,7 +574,7 @@ end = struct
       (Annotation.format_ts annotations) ++ 
       (box ~indent:2
          (("action" |> text) ++ space ++ (name |> snd |> text) ++ ("(" |> text) ++ 
-          (vbox (Parameter.format_params params)) ++ (") " |> text) ++
+          (hvbox (Parameter.format_params params)) ++ (") " |> text) ++
           (Block.format_t body))) ++ ("\n}" |> text)
     | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
       (Annotation.format_ts annotations) ++ 
@@ -582,7 +582,7 @@ end = struct
          (("control" |> text) ++ (space ++ (name |> snd |> text) ++
                                   (Type.format_type_params type_params) ++ 
                                   ("(" |> text) ++ 
-                                  (vbox (Parameter.format_params params)) ++ 
+                                  (hvbox (Parameter.format_params params)) ++ 
                                   (")" |> text) ++ 
                                   (Parameter.format_constructor_params constructor_params) ++ 
                                   (" {\n" |> text) ++ 
@@ -599,7 +599,7 @@ end = struct
            (name |> snd |> text) ++ 
            (Type.format_type_params type_params) ++ 
            (" (" |> text) ++ 
-           (vbox (Parameter.format_params params)) ++ 
+           (hvbox (Parameter.format_params params)) ++ 
            (")" |> text) ++ 
            (Parameter.format_constructor_params constructor_params) ++ 
            (" {\n" |> text)) ++ 
@@ -674,7 +674,7 @@ end = struct
                       (P4Word.format_t name) ++ 
                       (Type.format_type_params type_params) ++ 
                       (" (" |> text) ++ 
-                      (vbox (Parameter.format_params params)) ++ 
+                      (hvbox (Parameter.format_params params)) ++ 
                       (") " |> text) ++ 
                       (Block.format_t body))) ++ 
       ("\n}" |> text)
@@ -694,14 +694,14 @@ end = struct
       (box ~indent:2 (("control" |> text) ++ space ++ (name |> snd |> text) ++ 
                       (Type.format_type_params type_params) ++
                       (" (" |> text) ++ 
-                      (vbox (format_list_sep Parameter.format_t ", " params)) ++
+                      (hvbox (format_list_sep Parameter.format_t ", " params)) ++
                       (");" |> text)))
     | ParserType { annotations; name; type_params; params } ->
       (Annotation.format_ts annotations) ++ 
       (box ~indent:2 
          (("parser" |> text) ++ space ++ (name |> snd |> text) ++ 
           (Type.format_type_params type_params) ++ (" (" |> text) ++
-          (vbox (format_list_sep Parameter.format_t ", " params)) ++ 
+          (hvbox (format_list_sep Parameter.format_t ", " params)) ++ 
           (");" |> text)))
     | PackageType { annotations; name; type_params; params } ->
       (Annotation.format_ts annotations) ++ 
@@ -711,7 +711,7 @@ end = struct
           (name |> snd |> text) ++ 
           (Type.format_type_params type_params) ++ 
           (" (" |> text) ++ 
-          (vbox (format_list_sep Parameter.format_t ", " params)) ++ 
+          (hvbox (format_list_sep Parameter.format_t ", " params)) ++ 
           (");" |> text)))
     | Struct { annotations; name; fields } -> 
       (Annotation.format_ts annotations) ++ 

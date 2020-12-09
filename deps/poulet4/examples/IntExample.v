@@ -66,19 +66,8 @@ Definition bad_env : Environment.environment tag_t := nil.
 
 Lemma int_parses_fail : parses IntParser 2 (caml_string_of_chars "start") bad_env = false.
 Proof.
-
-  unfold IntParser.
-  unfold states.
-  unfold start_st.
-  unfold parses.
-  unfold step_trans. auto.
-  unfold run_with_state.
-  unfold step. auto.
-  unfold lookup_state.
-
-  rewrite caml_string_eqb_true. 
+  repeat (cbv || rewrite caml_string_eqb_true).
   auto.
-  (* reflexivity. *)
 Qed.
 
 Definition pkt_value : Value tag_t := ValObj _ (ValObjPacket _ (true :: true :: nil)).
@@ -95,9 +84,6 @@ Definition inter_scope : Environment.scope tag_t :=
                               (ValObj tag_t (ValObjPacket tag_t nil))
                               top_scope.
 Definition good_env : Environment.environment tag_t := top_scope :: nil.
-
-Compute Environment.MStr.find. 
-Compute Environment.MStr.find (caml_string_of_chars "pkt") top_scope.
 
 Lemma top_find_pkt : Environment.MStr.find (caml_string_of_chars "pkt") top_scope = Some pkt_value.
 Admitted.
@@ -143,10 +129,14 @@ Proof.
   unfold Environment.find_environment'.
   unfold Environment.str_of_name_warning_not_safe.
   auto.
+
+
   assert (H := top_find_pkt).
   unfold Environment.MStr.find. unfold Environment.MStr.Raw.find. auto.
   unfold Environment.MStr.this. 
   unfold Environment.MStr.empty. unfold Environment.MStr.Raw.empty.
+
+  
   
   unfold Environment.MStr.find in H. unfold Environment.MStr.Raw.find in H. 
 

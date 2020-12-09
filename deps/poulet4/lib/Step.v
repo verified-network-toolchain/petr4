@@ -48,9 +48,9 @@ Section Step.
     match fuel with 
     | 0   => state_fail Internal (* TODO: add a separate exception for out of fuel? *)
     | S x => let* state' := step p start in 
-            if CamlStringOT.eq_dec state' StrConstants.accept
+            if caml_string_eqb state' StrConstants.accept
             then mret tt
-            else if CamlStringOT.eq_dec state' StrConstants.reject
+            else if caml_string_eqb state' StrConstants.reject
             then state_fail Reject
             else step_trans p x state'
     end.

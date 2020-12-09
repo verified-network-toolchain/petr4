@@ -27,8 +27,15 @@ Section Eval.
   Definition default_value (A: P4Type) : Value tags_t.
   Admitted.
 
-  Definition eval_lvalue (expr: Expression tags_t) : env_monad tags_t ValueLvalue.
-  Admitted.
+  Definition eval_lvalue (expr: Expression tags_t) : env_monad tags_t ValueLvalue :=
+    let '(MkExpression _ _ expr' type _) := expr in 
+    match expr' with
+    | ExpName _ name => mret (MkValueLvalue (ValLeftName name) type)
+    | ExpExpressionMember _ _ _
+    | ExpArrayAccess _ _ _ 
+    | ExpBitStringAccess _ _ _ _ 
+    | _ => state_fail Internal
+    end.
 
   Definition bvector_negate {n: nat} (b: Bvector n) : Bvector n.
   Admitted.
@@ -106,7 +113,7 @@ Section Eval.
       | ValObj _ (ValObjPacket _ bits) => 
         match inner with 
         | MkExpression _ _ (ExpName _ inner_name) inner_typ _ => 
-          if CamlStringOT.eq_dec name StrConstants.extract 
+          if caml_string_eqb name StrConstants.extract 
           then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
           else state_fail Internal
         | _ => state_fail Internal
@@ -167,48 +174,49 @@ Section Eval.
     end.
 
   Definition is_packet_func (str: caml_string) : bool := 
-    if CamlStringOT.eq_dec str StrConstants.extract
+    if caml_string_eqb str StrConstants.extract
     then true
     else false.
 
   Definition eval_packet_func (obj: ValueLvalue) (name: caml_string) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit :=
     obj' <- find_lvalue _ obj ;;
     match obj' with
-      | ValObj _ (ValObjPacket _ bits) => if CamlStringOT.eq_dec name StrConstants.extract then 
-          match (args, type_args) with
-          | ((Some target_expr) :: nil, into :: nil) =>
-            match eval_packet_extract_fixed tags_t into bits with 
-            | (inr error, bits') =>
-              update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
-              state_fail error 
-            | (inl value, bits') =>
-              update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
-              let* target := eval_lvalue target_expr in
-              update_lvalue _ tags_dummy target (ValBase _ value) ;;
-              mret tt
-            end
-        
-          | _ => state_fail Internal
+    | ValObj _ (ValObjPacket _ bits) => 
+      if caml_string_eqb name StrConstants.extract 
+      then 
+        match (args, type_args) with
+        | ((Some target_expr) :: _, into :: _) =>
+          match eval_packet_extract_fixed tags_t into bits with 
+          | (inr error, bits') =>
+            update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+            state_fail error 
+          | (inl value, bits') =>
+            update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+            let* target := eval_lvalue target_expr in
+            update_lvalue _ tags_dummy target (ValBase _ value) ;;
+            mret tt
           end
+        | _ => state_fail Internal
+        end
 
-        else state_fail Internal
-      | _ => state_fail Internal
+      else state_fail Internal
+    | _ => state_fail Internal
     end.
 
-  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
+  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* args' := eval_arguments args in
-    if CamlStringOT.eq_dec name StrConstants.isValid
+    if caml_string_eqb name StrConstants.isValid
     then eval_is_valid obj
-    else if CamlStringOT.eq_dec name StrConstants.setValid
+    else if caml_string_eqb name StrConstants.setValid
     then dummy_value _ (eval_set_bool obj true)
-    else if CamlStringOT.eq_dec name StrConstants.setInvalid
+    else if caml_string_eqb name StrConstants.setInvalid
     then dummy_value _ (eval_set_bool obj false)
-    else if CamlStringOT.eq_dec name StrConstants.pop_front
+    else if caml_string_eqb name StrConstants.pop_front
     then dummy_value _ (eval_pop_front obj args')
-    else if CamlStringOT.eq_dec name StrConstants.push_front
+    else if caml_string_eqb name StrConstants.push_front
     then dummy_value _ (eval_push_front obj args')
     else if is_packet_func name 
-    then dummy_value _ (eval_packet_func obj name nil args)
+    then dummy_value _ (eval_packet_func obj name type_args args)
     else state_fail Internal.
 
 
@@ -225,7 +233,7 @@ Section Eval.
   Definition eval_method_call (func: Expression tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* func' := eval_expression func in
     match func' with
-    | ValObj _ (ValObjBuiltinFun _ name obj) => eval_builtin_func name obj args
+    | ValObj _ (ValObjBuiltinFun _ name obj) => eval_builtin_func name obj type_args args
     (* | ValExternFun name caller params => eval_extern_func name obj type_args args *)
     | _ => state_fail Internal (* TODO: other function types *)
     end.

@@ -61,6 +61,9 @@ Section Environment.
     MStr.find key bindings;;
     mret (MStr.add key val bindings).
 
+  Definition extend_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : scope :=
+      MStr.add key val bindings.
+
   Definition find_scope (key: caml_string) (bindings: scope) : option (Value tags_t) :=
     MStr.find key bindings.
 
@@ -77,7 +80,11 @@ Section Environment.
     match env with
     | inner :: rest =>
       if MStr.find key inner
-      then let* inner' := update_scope key val inner in
+      (* TODO: insert vs update makes proofs slightly easier but is less efficient.
+          we could alleviate the burden with a lemma for environments.
+      *)
+      (* then let* inner' := update_scope key val inner in *)
+      then let* inner' := insert_scope key val inner in
            mret (inner' :: rest)
       else let* rest' := update_environment' key val rest in
            mret (inner :: rest')

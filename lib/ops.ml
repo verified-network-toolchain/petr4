@@ -244,71 +244,70 @@ let rec interp_beq (l : coq_ValueBase) (r : coq_ValueBase) : bool =
   | _ -> failwith "equality comparison undefined for given types"
 
 and structs_equal (l1 : (P4string.t * coq_ValueBase) list)
-(l2 : (P4string.t * coq_ValueBase) list) : coq_ValueBase =
+(l2 : (P4string.t * coq_ValueBase) list) : bool =
   let f (a : (P4string.t * coq_ValueBase) list) (b : P4string.t * coq_ValueBase) =
-    if List.Assoc.mem a ~equal:String.equal (fst b).str
+    if List.Assoc.mem a ~equal:P4string.eq (fst b)
     then a
     else b :: a in
   let l1' = List.fold_left l1 ~init:[] ~f:f in
   let l2' = List.fold_left l2 ~init:[] ~f:f in
   let g (a,b) =
-    let h = (fun (x,y) -> String.equal x a && interp_beq y b) in
+    let h = (fun (x,y) -> P4string.eq x a && interp_beq y b) in
     List.exists l2' ~f:h in
-  let b = List.for_all l1' ~f:g in
-  ValBaseBool b
+  List.for_all l1' ~f:g
 
-and headers_equal (l1 : (string * coq_ValueBase) list)
-    (l2 : (string * coq_ValueBase) list) (b1 : bool) (b2 : bool) : coq_ValueBase =
-  let a = (not b1 && not b2) in
-  let b = (b1 && b2 && V.assert_bool (structs_equal l1 l2)) in
-  ValBaseBool (a || b)
+and headers_equal (l1 : (P4string.t * coq_ValueBase) list)
+    (l2 : (P4string.t * coq_ValueBase) list) (b1 : bool) (b2 : bool) : bool =
+  let a = not b1 && not b2 in
+  let b = b1 && b2 && structs_equal l1 l2 in
+  a || b
 
-and stacks_equal (l1 : coq_ValueBase list) (l2 : coq_ValueBase list) : coq_ValueBase =
-  let f = (fun i a -> a |> interp_beq (List.nth_exn l2 i) |> V.assert_bool) in
+and stacks_equal (l1 : coq_ValueBase list) (l2 : coq_ValueBase list) : bool =
+  let f = (fun i a -> a |> interp_beq (List.nth_exn l2 i)) in
   let b = List.for_alli l1 ~f:f in
-  ValBaseBool b
+  b
 
-and unions_equal (l1 : (string * coq_ValueBase) list) (l2 : (string * coq_ValueBase) list) : coq_ValueBase =
-  ValBaseBool (V.assert_bool (structs_equal l1 l2))
+and unions_equal l1 l2 : bool =
+  structs_equal l1 l2
 
-and tuples_equal (l1 : coq_ValueBase list) (l2 : coq_ValueBase list) : coq_ValueBase =
+and tuples_equal (l1 : coq_ValueBase list) (l2 : coq_ValueBase list) : bool =
   let f acc v1 v2 =
     let b = interp_beq v1 v2 in
-    V.ValBaseBool (acc |> V.assert_bool && b |> V.assert_bool) in
-  match List.fold2 ~init:(V.ValBaseBool true) ~f l1 l2 with
+    acc && b in
+  match List.fold2 ~init:true ~f l1 l2 with
   | Ok b -> b
-  | Unequal_lengths -> V.ValBaseBool false
+  | Unequal_lengths -> false
 
-let interp_bne (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
-  interp_beq l r |> V.assert_bool |> not |> ValBaseBool
+let interp_bne (l : coq_ValueBase) (r : coq_ValueBase) : bool =
+  not (interp_beq l r)
 
 let rec interp_bitwise_and (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
   match (l,r) with
-  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit{w;v=Bigint.bit_and v1 v2}
+  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit(w,Bigint.bit_and v1 v2)
   | ValBaseBit(w, v1), ValBaseInteger n   -> interp_bitwise_and l (bit_of_rawint n w)
   | ValBaseInteger n, ValBaseBit(w, v2)   -> interp_bitwise_and (bit_of_rawint n w) r
   | _ -> failwith "bitwise and only defined on fixed width ints"
 
 let rec interp_bitwise_xor (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
   match (l,r) with
-  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit{w;v=Bigint.bit_xor v1 v2}
+  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit(w, Bigint.bit_xor v1 v2)
   | ValBaseBit(w, v1), ValBaseInteger n   -> interp_bitwise_xor l (bit_of_rawint n w)
   | ValBaseInteger n,   ValBaseBit(w, v2) -> interp_bitwise_xor (bit_of_rawint n w) r
   | _ -> failwith "bitwise xor only defined on fixed width ints"
 
 let rec interp_bitwise_or (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
   match (l,r) with
-  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit{w;v=Bigint.bit_or v1 v2}
+  | ValBaseBit(w, v1), ValBaseBit(_, v2) -> ValBaseBit(w, Bigint.bit_or v1 v2)
   | ValBaseBit(w, v1), ValBaseInteger n   -> interp_bitwise_or l (bit_of_rawint n w)
   | ValBaseInteger n, ValBaseBit(w, v2)   -> interp_bitwise_or (bit_of_rawint n w) r
   | _ -> failwith "bitwise or only defined on fixed width ints"
 
 let rec interp_concat (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
   match (l,r) with
-  | ValBaseBit{w=w1;v=v1}, ValBaseBit{w=w2;v=v2} ->
-     ValBaseBit{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
-  | ValBaseBit{w;v},  ValBaseInteger n -> interp_concat l (bit_of_rawint n w)
-  | ValBaseInteger n, ValBaseBit{w;v}  -> interp_concat (bit_of_rawint n w) r
+  | ValBaseBit(w1, v1), ValBaseBit(w2, v2) ->
+     ValBaseBit (w1+w2, Bigint.(shift_bitstring_left v1 (of_int w2) + v2))
+  | ValBaseBit(w, v),  ValBaseInteger n -> interp_concat l (bit_of_rawint n w)
+  | ValBaseInteger n, ValBaseBit(w, v)  -> interp_concat (bit_of_rawint n w) r
   | _ -> failwith "concat operator only defined on unsigned ints"
 
 let interp_band (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
@@ -344,8 +343,8 @@ let interp_binary_op (op: coq_OpBin) (l: coq_ValueBase) (r: coq_ValueBase) =
   | Ge       -> interp_bge l r
   | Lt       -> interp_blt l r
   | Gt       -> interp_bgt l r
-  | Eq       -> interp_beq l r
-  | NotEq    -> interp_bne l r
+  | Eq       -> ValBaseBool (interp_beq l r)
+  | NotEq    -> ValBaseBool (interp_bne l r)
   | BitAnd   -> interp_bitwise_and l r
   | BitXor   -> interp_bitwise_xor l r
   | BitOr    -> interp_bitwise_or l r
@@ -390,9 +389,9 @@ let fields_for_cast (fields: Typed.coq_FieldType list) (value: coq_ValueBase) =
   match value with
   | ValBaseTuple vals ->
      let fields_vals = List.zip_exn fields vals in
-     List.map ~f:(fun (f, v) -> f.name, v) fields_vals
+     List.map ~f:(fun ((MkFieldType (f, _)), v) -> f, v) fields_vals
   | ValBaseRecord fields -> fields
-  | _ -> raise_s [%message "cannot cast" ~value:(value:coq_ValueBase)]
+  | _ -> failwith "cannot cast"
 
 let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> Typed.coq_P4Type)
       (new_type: coq_P4Type) (value: coq_ValueBase) : coq_ValueBase =
@@ -400,21 +399,22 @@ let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> Typed.coq_P4Type)
   | TypBool -> bool_of_val value
   | TypBit width -> bit_of_val width value
   | TypInt width -> int_of_val width value
-  | TypNewType (typ, name) -> interp_cast ~type_lookup typ value
+  | TypNewType (name, typ) -> interp_cast ~type_lookup typ value
   | TypTypeName n -> interp_cast ~type_lookup (type_lookup n) value
   | TypHeader fields -> ValBaseHeader (fields_for_cast fields value, true)
   | TypStruct fields -> ValBaseStruct (fields_for_cast fields value)
-  | TypTuple types -> begin match value with
-                   | ValBaseTuple v -> VTuple v
-                   | _ -> failwith "cannot cast"
-                   end
+  | TypTuple types ->
+    begin match value with
+      | ValBaseTuple v -> value
+      | _ -> failwith "cannot cast"
+    end
   | TypSet t ->
      begin match value with
      | ValBaseSet v -> ValBaseSet v
-     | ValBaseSenumField ValBaseBit (w, v), _, _
-     | ValBaseSenumField ValBaseInt (w, v), _, _
-     | ValBaseInt {w; v}
-     | ValBaseBit {w; v} -> VSet (SSingleton {w; v})
-     |_ -> raise_s [%message "cannot cast" ~value:(value:coq_Value) ~t:(t:Typed.Type.t)]
+     | ValBaseSenumField (_, _, ValBaseBit (w, v))
+     | ValBaseSenumField (_, _, ValBaseInt (w, v))
+     | ValBaseInt (w, v)
+     | ValBaseBit (w, v) -> ValBaseSet (ValSetSingleton (w, v))
+     |_ -> failwith "cannot cast"
      end
-  | _ -> raise_s [%message "cast unimplemented" ~value:(value:coq_ValueBase) ~t:(new_type:Typed.Type.t)]
+  | _ -> failwith "cast unimplemented"

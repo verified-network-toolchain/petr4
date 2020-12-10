@@ -1,6 +1,0 @@
-(executable
-  (public_name petr4-web)
-  (name web)
-  (libraries p4pp core_kernel petr4 js_of_ocaml js_of_ocaml-lwt)
-  (js_of_ocaml (flags +dynlink.js +toplevel.js))
-  (preprocess (pps ppx_jane -allow-unannotated-ignores js_of_ocaml-ppx)))

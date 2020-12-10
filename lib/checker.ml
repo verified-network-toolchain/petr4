@@ -18,7 +18,7 @@ let make_assert expected unwrap = fun info typ ->
   | Some v -> v
   | None -> raise_mismatch info expected typ
 
-let p4string_to_coq_p4string (info, str: P4String.t) : Prog.coq_P4String =
+let p4string_to_coq_p4string (info, str: P4String.t) : coq_P4String =
   MkP4String (info, str)
 
 let name_to_coq_name : Types.name -> Typed.name = function
@@ -60,7 +60,7 @@ let uop_to_coq_uop (n: Op.pre_uni) : Prog.coq_OpUni =
   | Op.BitNot -> BitNot
   | Op.UMinus -> UMinus
 
-let string_of_p4string ((MkP4String (_, s)): Prog.coq_P4String) : string = s
+let string_of_p4string ((MkP4String (_, s)): coq_P4String) : string = s
   
 let info_of_expr (MkExpression (info, _, _, _): Prog.coq_Expression) = info
 
@@ -930,7 +930,7 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
       let value_typed: Prog.coq_Expression =
         cast_expression env ctx field_type (snd entry).value
       in
-      let key: Prog.coq_P4String = MkP4String (fst (snd entry).key, snd (snd entry).key) in
+      let key: coq_P4String = MkP4String (fst (snd entry).key, snd (snd entry).key) in
       MkKeyValue (fst entry, key, value_typed)
     in
     let entries_casted =
@@ -3615,7 +3615,7 @@ and type_serializable_enum env ctx info annotations underlying_type name members
   let add_member (env, members_typed) ((member_info, member), expr) =
     let member_name = QualifiedName ([], snd name ^ "." ^ member) in
     let expr_typed = cast_expression env expr_ctx underlying_type expr in
-    let mem: Prog.coq_P4String = MkP4String (member_info, member) in
+    let mem: coq_P4String = MkP4String (member_info, member) in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
       let enum_val: Prog.coq_Value =

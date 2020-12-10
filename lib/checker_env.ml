@@ -68,22 +68,18 @@ let insert_types names_types env =
   List.fold ~f:go ~init:env names_types
 
 let insert_type_var var env =
-  let typ =
-    Typed.TypTypeName var
-  in
+  let typ: Typed.coq_P4Type = TypTypeName var in
   { env with typ = Env.insert var typ env.typ }
 
 let insert_type_vars vars env =
-  let go env var =
-    insert_type_var (Typed.BareName var) env
-  in
+  let go env var = insert_type_var (BareName var) env in
   List.fold ~f:go ~init:env vars
-
-let insert_type_of var typ env =
-  { env with typ_of = Env.insert var (typ, Typed.Directionless) env.typ_of }
 
 let insert_dir_type_of var typ dir env =
   { env with typ_of = Env.insert var (typ, dir) env.typ_of }
+
+let insert_type_of var typ env =
+  insert_dir_type_of var typ Directionless env
 
 let insert_const var value env =
   match find_const_opt var env with

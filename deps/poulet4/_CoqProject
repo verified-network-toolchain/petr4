@@ -1,6 +1,7 @@
 -R lib Petr4
 
 lib/String.v
+lib/StringConstants.v
 lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
@@ -10,6 +11,8 @@ lib/Environment.v
 lib/Unpack.v
 lib/Eval.v
 lib/Info.v
+lib/P4String.v
+lib/P4Int.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v

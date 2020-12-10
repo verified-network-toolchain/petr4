@@ -29,37 +29,10 @@ type 'a info = Info.t * 'a [@@deriving sexp,show,yojson]
 (** [info x] returns the parsing info associated with an IR node [x].*) 
 val info : 'a info -> Info.t
 
-(** [P4Int.t] represents an integer literal, with an optional sign and width *)
-module P4Int : sig
-  type pre_t =
-    { value: Bigint.t;
-      width_signed: (int * bool) option }
-  [@@deriving sexp,show,yojson]
-
-  type t = pre_t info [@@deriving sexp,show,yojson]
-end
-
-(** [P4String.t] represents a string literal. *)
-module P4String : sig
-  type t = string info
-  [@@deriving sexp,show,yojson]
-end
-
-(** [name] represents a name, which is either a bare name like [x] or a qualified name like [x.y] *)
-type name =
-  | BareName of P4String.t
-  | QualifiedName of P4String.t list * P4String.t
-  [@@deriving sexp,show,yojson]
-
-val to_bare : name -> name
-val name_info: name -> Info.t
-val name_eq : name -> name -> bool
-val name_only : name -> string
-
-(** [KeyValue.t] represents a key-value pair; the key is a [P4String.t] and the value is an [Expression.t]  *)
+(** [KeyValue.t] represents a key-value pair; the key is a [P4string.t] and the value is an [Expression.t]  *)
 module rec KeyValue : sig
   type pre_t =
-    { key : P4String.t;
+    { key : P4string.t;
       value : Expression.t }
   [@@deriving sexp,show,yojson]
 
@@ -71,7 +44,7 @@ end
 and Annotation : sig
   type pre_body =
     | Empty
-    | Unparsed of P4String.t list
+    | Unparsed of P4string.t list
     | Expression of Expression.t list
     | KeyValue of KeyValue.t list
   [@@deriving sexp,show,yojson]
@@ -79,7 +52,7 @@ and Annotation : sig
   type body = pre_body info [@@deriving sexp,show,yojson]
 
   type pre_t =
-    { name: P4String.t;
+    { name: P4string.t;
       body: body }
   [@@deriving sexp,show,yojson]
 
@@ -93,7 +66,7 @@ and Parameter : sig
     { annotations: Annotation.t list;
       direction: Direction.t option;
       typ: Type.t;
-      variable: P4String.t;
+      variable: P4string.t;
       opt_value: Expression.t option}
   [@@deriving sexp,show,yojson]
 
@@ -151,7 +124,7 @@ and Type : sig
     | IntType of Expression.t (** Fixed-with signed integers *)
     | BitType of Expression.t (** Fixed-width unsigned integers *)
     | VarBit of Expression.t (** Variable-width integers with a maximum width *)
-    | TypeName of name (** Named types *)
+    | TypeName of P4name.t (** Named types *)
     | SpecializedType of 
         { base: t;
           args: t list } (** Type applications, with a base type and a list of type arguments. *)
@@ -174,19 +147,19 @@ and MethodPrototype : sig
   type pre_t =
       Constructor of 
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           params: Parameter.t list } (** Constructors, with [annotations], a [name], and [parameters]. *) 
     | AbstractMethod of 
         { annotations: Annotation.t list;
           return: Type.t;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list} (** Abstract methods, with [annotations], a [return] type, a [name], [type_params], and [params]. *)
     | Method of 
         { annotations: Annotation.t list;
           return: Type.t;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list} (** Abstract Methods, which also come, with [annotations], a [return] type, a [name], [type_params], and [params]. *)
   [@@deriving sexp,show,yojson]
 
@@ -200,7 +173,7 @@ and Argument : sig
         { value: Expression.t } 
     (** Expressions with a [value]. *)
     | KeyValue of 
-        { key: P4String.t;
+        { key: P4string.t;
           value: Expression.t }
     (** Key-value pairs with a [key] and a [value]. *)
     | Missing 
@@ -226,9 +199,9 @@ and Expression : sig
   type pre_t =
       True (** Boolean [true] literals *)
     | False (** Boolean [false] literal *) 
-    | Int of P4Int.t (** Integer literal *)
-    | String of P4String.t (** String literal *)
-    | Name of name (** Names *)
+    | Int of P4int.t (** Integer literal *)
+    | String of P4string.t (** String literal *)
+    | Name of P4name.t (** Names *)
     | ArrayAccess of 
         { array: t;
           index: t }
@@ -257,13 +230,13 @@ and Expression : sig
           expr: t }
     (** Type casts *)
     | TypeMember of
-        { typ: name;
-          name: P4String.t }
+        { typ: P4name.t;
+          name: P4string.t }
     (** Type members. *)
-    | ErrorMember of P4String.t (** Error members *)
+    | ErrorMember of P4string.t (** Error members *)
     | ExpressionMember of
         { expr: t;
-          name: P4String.t }
+          name: P4string.t }
     (** Expression members *)
     | Ternary of 
         { cond: t;
@@ -297,7 +270,7 @@ and Table : sig
   (** [action_ref] represents action references, with optional [annotations], a [name], and [args]. *)
   type pre_action_ref =
     { annotations: Annotation.t list;
-      name: name;
+      name: P4name.t;
       args: Argument.t list }
   [@@deriving sexp,show,yojson]
 
@@ -307,7 +280,7 @@ and Table : sig
   type pre_key =
     { annotations: Annotation.t list;
       key: Expression.t;
-      match_kind: P4String.t }
+      match_kind: P4string.t }
   [@@deriving sexp,show,yojson]
 
   type key = pre_key info [@@deriving sexp,show,yojson]
@@ -335,7 +308,7 @@ and Table : sig
     | Custom of
         { annotations: Annotation.t list;
           const: bool;
-          name: P4String.t;
+          name: P4string.t;
           value: Expression.t }
       (** Custom (e.g., [size], [default_action], etc.) *)
         [@@deriving sexp,show,yojson]
@@ -364,7 +337,7 @@ and Parser : sig
   (** [case] represents a [select] [case] with [matches] and [next] state. *) 
   type pre_case =
     { matches: Match.t list;
-      next: P4String.t }
+      next: P4string.t }
   [@@deriving sexp,show,yojson { exn = true }]
 
   type case = pre_case info [@@deriving sexp,show,yojson]
@@ -372,7 +345,7 @@ and Parser : sig
   (** [transition] represents a transition statement, which is either [Direct], with a [next], or a [Select] with [exprs] and [cases]. *)
   type pre_transition =
       Direct of
-        { next: P4String.t }
+        { next: P4string.t }
     | Select of
         { exprs: Expression.t list;
           cases: case list }
@@ -383,7 +356,7 @@ and Parser : sig
   (** [state] represents a state with optional [annotations], a [name], [statements], and a [transition]. *)
   type pre_state =
     { annotations: Annotation.t list;
-      name: P4String.t;
+      name: P4string.t;
       statements: Statement.t list;
       transition: transition }
   [@@deriving sexp,show,yojson]
@@ -397,20 +370,20 @@ and Declaration : sig
       Constant of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
-          name: P4String.t;
+          name: P4string.t;
           value: Expression.t }
     (** Constants *)
     | Instantiation of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           args: Argument.t list;
-          name: P4String.t;
+          name: P4string.t;
           init: Block.t option; }
     (** Instantiation *)
     | Parser of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list;
           constructor_params: Parameter.t list;
           locals: t list;
@@ -418,8 +391,8 @@ and Declaration : sig
     (** Parsers *)
     | Control of 
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list;
           constructor_params: Parameter.t list;
           locals: t list;
@@ -427,105 +400,105 @@ and Declaration : sig
     (** Controls *)
     | Function of
         { return: Type.t;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list;
           body: Block.t }
     (** Functions *)
     | ExternFunction of
         { annotations: Annotation.t list;
           return: Type.t;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list }
     (** Extern function s*) 
     | Variable of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
-          name: P4String.t;
+          name: P4string.t;
           init: Expression.t option }
     (** Variables *)
     | ValueSet of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
           size: Expression.t;
-          name: P4String.t }
+          name: P4string.t }
     (** Parser value sets *)
     | Action of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           params: Parameter.t list;
           body: Block.t }
     (** Actions *)
     | Table of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           properties: Table.property list }
     (** Tables *)
     | Header of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           fields: field list }
     (** Header types *)
     | HeaderUnion of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           fields: field list }
     (** Header union types *)
     | Struct of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           fields: field list }
     (** Struct types *)
     | Error of
-        { members: P4String.t list }
+        { members: P4string.t list }
     (** Error types *)
     | MatchKind of
-        { members: P4String.t list }
+        { members: P4string.t list }
     (** Match kind types *)
     | Enum of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          members: P4String.t list }
+          name: P4string.t;
+          members: P4string.t list }
     (** Enumerated types *)
     | SerializableEnum of
         { annotations: Annotation.t list;
           typ: Type.t [@key "type"];
-          name: P4String.t;
-          members: (P4String.t * Expression.t) list }
+          name: P4string.t;
+          members: (P4string.t * Expression.t) list }
     (** Serializable enumerated types *)
     | ExternObject of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           methods: MethodPrototype.t list }
     (** Extern objects *)
     | TypeDef of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           typ_or_decl: (Type.t, t) alternative }
     (** Type definitions *)
     | NewType of
         { annotations: Annotation.t list;
-          name: P4String.t;
+          name: P4string.t;
           typ_or_decl: (Type.t, t) alternative }
     (** Generative type definitions *)
     | ControlType of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list }
     (** Control types *) 
     | ParserType of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list }
     (** Parser types *)
     | PackageType of
         { annotations: Annotation.t list;
-          name: P4String.t;
-          type_params: P4String.t list;
+          name: P4string.t;
+          type_params: P4string.t list;
           params: Parameter.t list }
           (** Package types *)
   [@@deriving sexp,show,yojson]
@@ -536,13 +509,13 @@ and Declaration : sig
   and pre_field =
       { annotations: Annotation.t list;
         typ: Type.t [@key "type"];
-        name: P4String.t } [@@deriving sexp,show,yojson]
+        name: P4string.t } [@@deriving sexp,show,yojson]
 
   and field = pre_field info [@@deriving sexp,show,yojson]
 
-  val name : t -> P4String.t
+  val name : t -> P4string.t
 
-  val name_opt : t -> P4String.t option
+  val name_opt : t -> P4string.t option
 end
 
 (** [Statement.t] represents a P4 statement *)
@@ -550,7 +523,7 @@ and Statement : sig
   (** [switch_label] represents the label on a switch statement, which is either [default] or a [name] *)
   type pre_switch_label =
       Default
-    | Name of P4String.t
+    | Name of P4string.t
   [@@deriving sexp,show,yojson]
 
   type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]

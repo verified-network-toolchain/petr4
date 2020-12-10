@@ -102,10 +102,10 @@ Section Environment.
       end.
 
   (* TODO handle name resolution properly *)
-  Definition str_of_name_warning_not_safe (t: Typed.name) : String.t :=
+  Definition str_of_name_warning_not_safe (t: Typed.name tags_t) : String.t :=
     match t with 
-    | Typed.BareName s => s
-    | Typed.QualifiedName _ s => s
+    | Typed.BareName _ s
+    | Typed.QualifiedName _ _ s => s.(P4String.str)
     end.
 
   Definition heap_lookup (l: loc) : env_monad (Value tags_t) :=

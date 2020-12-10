@@ -10,11 +10,11 @@ exception UnboundName of string
 let mk_unbound (name: Typed.name) : exn =
   let str_name =
     match name with
-    | Typed.QualifiedName (qs, name) ->
-       qs @ [name]
-       |> String.concat ~sep:"."
-    | Typed.BareName name ->
-       name
+    | QualifiedName (qs, name) ->
+      List.map ~f:(fun s -> s.str) qs @ [name.str]
+      |> String.concat ~sep:"."
+    | BareName name ->
+       name.str
   in
   UnboundName str_name
 
@@ -73,19 +73,22 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a t) : 'a t =
   let env1' = insert_bare name value env1 in
   env0 @ env1'
 
-let insert name value env =
+let insert (name: Typed.name) (value: 'a) (env: 'a t) : 'a t =
   match name with
-  | Typed.BareName name -> insert_bare name value env
-  | Typed.QualifiedName ([], name) -> insert_toplevel name value env
+  | BareName name ->
+    insert_bare name.str value env
+  | QualifiedName ([], name) ->
+    insert_toplevel name.str value env
   | _ -> failwith "unimplemented"
 
-let update name value env =
+let update (name: Typed.name) (value: 'a) (env: 'a t) : 'a t option =
   match name with
-  | Typed.BareName name -> update_bare name value env
-  | Typed.QualifiedName ([], name) -> update_toplevel name value env
+  | BareName name -> update_bare name.str value env
+  | QualifiedName ([], name) -> update_toplevel name.str value env
   | _ -> failwith "unimplemented"
 
-let rec find_bare_opt (name: string) : 'a t -> 'a option = function
+let rec find_bare_opt (name: string) : 'a t -> 'a option =
+  function
   | [] -> None
   | h :: t ->
      let select (name', _) = name = name' in
@@ -93,35 +96,32 @@ let rec find_bare_opt (name: string) : 'a t -> 'a option = function
      | None              -> find_bare_opt name t
      | Some (_, binding) -> Some binding
 
-let rec find_all_bare (name: string) : 'a t -> 'a list = function
+let rec find_all_bare (name: string) : 'a t -> 'a list =
+  function
   | [] -> []
   | h :: t ->
-     let select acc (name', value) =
+     let f acc (name', value) =
        if name' = name
        then value :: acc
        else acc
      in
-     List.fold h ~init:[] ~f:select @ find_all_bare name t
+     List.fold h ~init:[] ~f @ find_all_bare name t
 
-let find_all name env =
+let find_all (name: Typed.name) (env: 'a t) : 'a list =
   match name with
-  | Typed.BareName name -> find_all_bare name env
-  | Typed.QualifiedName ([], n) ->
+  | BareName name -> find_all_bare name.str env
+  | QualifiedName ([], n) ->
      begin match List.last env with
-     | Some top -> find_all_bare n [top]
+     | Some top -> find_all_bare n.str [top]
      | None -> no_scopes ()
      end
   | _ -> failwith "unimplemented"
-
-let string_of_name = function
-  | Typed.BareName n -> n
-  | _ -> ""
 
 let opt_to_unbound name =
   Util.opt_to_exn (mk_unbound name)
 
 let find_bare (name: string) (env: 'a t) : 'a =
-  let bare_name = Typed.BareName name in
+  let bare_name: Typed.name = BareName {tags = Info.dummy; str = name} in
   opt_to_unbound bare_name @@ find_bare_opt name env
 
 let find_toplevel (name: string) (env: 'a t) : 'a =
@@ -136,14 +136,14 @@ let find_toplevel_opt (name: string) (env: 'a t) : 'a option =
 
 let find (name: Typed.name) (env: 'a t) : 'a =
   match name with
-  | Typed.BareName n -> find_bare n env
-  | Typed.QualifiedName ([], n) -> find_toplevel n env
+  | BareName n -> find_bare n.str env
+  | QualifiedName ([], n) -> find_toplevel n.str env
   | _ -> failwith "unimplemented"
 
 let find_opt (name: Typed.name) (env: 'a t) : 'a option =
   match name with
-  | Typed.BareName n -> find_bare_opt n env
-  | Typed.QualifiedName ([], n) -> find_toplevel_opt n env
+  | BareName n -> find_bare_opt n.str env
+  | QualifiedName ([], n) -> find_toplevel_opt n.str env
   | _ -> failwith "unimplemented"
 
 let empty_env : 'a t = [[]]

@@ -6,8 +6,7 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 
 Require String.
-Require Import Environment.
-Require Import Utils.
+Require Import Environment. Require Import Utils.
 Require Import Syntax.
 Require Import Typed.
 
@@ -15,6 +14,10 @@ Open Scope monad.
 
 Section Packet.
   Context (tags_t: Type).
+  Notation P4String := (P4String.t tags_t).
+  Notation ValueBase := (ValueBase tags_t).
+  Notation P4Type := (P4Type tags_t).
+  Notation FieldType := (FieldType tags_t).
 
   Definition packet_monad := @state_monad (list bool) exception.
 
@@ -33,9 +36,9 @@ Section Packet.
         end
     end.
 
-  Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad (ValueBase tags_t) :=
+  Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
     match into with
-    | TypBool =>
+    | TypBool _ =>
       let* vec := read_first_bits 1 in
       match vec with
       | (bit :: [])%vector => mret (ValBaseBool _ bit)
@@ -49,17 +52,17 @@ Section Packet.
       let* vec := read_first_bits width in
       mret (ValBaseInt _ width vec)
      *)
-    | TypRecord field_types =>
+    | TypRecord _ field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseRecord _ field_vals)
-    | TypHeader field_types =>
+    | TypHeader _ field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseHeader _ field_vals true)
     | _ => state_fail Internal
     end
 
-  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (String.t * ValueBase tags_t) :=
-    let '(MkFieldType into_name into_type) := into_field in
+  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (P4String * ValueBase) :=
+    let '(MkFieldType _ into_name into_type) := into_field in
     let* v := eval_packet_extract_fixed into_type in
     mret (into_name, v).
 

@@ -43,20 +43,22 @@ let insert_val name binding e =
   {e with vs = Env.insert name binding e.vs}
 
 let insert_val_bare name binding e =
-  {e with vs = Env.insert (Typed.BareName name) binding e.vs}
+  {e with vs = Env.insert (BareName name) binding e.vs}
 
 let insert_typ name binding e =
   {e with typ = Env.insert name binding e.typ}
 
 let insert_typ_bare name =
-  insert_typ (Typed.BareName name)
+  insert_typ (BareName name)
 
-let insert_vals bindings e =
+let insert_vals (bindings: (name * string) list) (e: t) : t =
   List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-let fix_bindings bindings =
-  List.map bindings
-    ~f:(fun (name, v) -> Typed.BareName name, v)
+let fix_bindings (bindings: (coq_P4String * 'a) list) : (name * 'a) list =
+  let mk_pair ((name, v): coq_P4String * 'a) : name * 'a =
+    BareName name, v
+  in
+  List.map ~f:mk_pair bindings
 
 let insert_vals_bare bindings =
   insert_vals (fix_bindings bindings)

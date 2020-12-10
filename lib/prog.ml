@@ -1,5 +1,3 @@
-type coq_P4String = Info.t Poulet4.Syntax.coq_P4String
-type coq_P4Int = Info.t Poulet4.Syntax.coq_P4Int
 type coq_MethodPrototype = Info.t Poulet4.Syntax.coq_MethodPrototype
 type coq_OpUni = Poulet4.Syntax.coq_OpUni
 type coq_OpBin = Poulet4.Syntax.coq_OpBin
@@ -26,16 +24,15 @@ type coq_ParserState = Info.t Poulet4.Syntax.coq_ParserState
 type coq_DeclarationField = Info.t Poulet4.Syntax.coq_DeclarationField
 type coq_Declaration = Info.t Poulet4.Syntax.coq_Declaration
 type coq_ValueTable = Info.t Poulet4.Syntax.coq_ValueTable
-type coq_Env_EvalEnv = Poulet4.Syntax.coq_Env_EvalEnv
-type coq_ExternMethod = Poulet4.Syntax.coq_ExternMethod
-type coq_ExternMethods = Poulet4.Syntax.coq_ExternMethods
+type coq_Env_EvalEnv = Info.t Poulet4.Syntax.coq_Env_EvalEnv
+type coq_ExternMethod = Info.t Poulet4.Syntax.coq_ExternMethod
+type coq_ExternMethods = Info.t Poulet4.Syntax.coq_ExternMethods
 type coq_ValuePreLvalue = Info.t Poulet4.Syntax.coq_ValuePreLvalue
 and coq_ValueLvalue = Info.t Poulet4.Syntax.coq_ValueLvalue
 type coq_ValueObject = Info.t Poulet4.Syntax.coq_ValueObject
 type coq_ValueConstructor = Info.t Poulet4.Syntax.coq_ValueConstructor
 type coq_Value = Info.t Poulet4.Syntax.coq_Value
 type program = Info.t Poulet4.Syntax.program
-
 
 (* Everything below this comment is runtime data structures and not
  * program syntax.

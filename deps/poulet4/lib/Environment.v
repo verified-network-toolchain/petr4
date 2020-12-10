@@ -6,19 +6,19 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
-Require Import CamlString.
+Require String.
 Require Import Syntax.
 
 Open Scope monad.
 
-Module Import MStr := FMapList.Make(CamlStringOT).
+Module Import MStr := FMapList.Make(String.StringOT).
 
 Inductive exception :=
 | PacketTooShort
 | Reject
 | Exit
 | Internal
-| AssertError (error_msg: caml_string).
+| AssertError (error_msg: String.t).
 
 Section Environment.
 
@@ -53,18 +53,18 @@ Section Environment.
                                                                      | None => (inr Internal, env)
                                                                      end.
 
-  Definition update_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : option scope :=
+  Definition update_scope (key: String.t) (val: (Value tags_t)) (bindings: scope) : option scope :=
     MStr.find key bindings;;
     mret (MStr.add key val (MStr.remove key bindings)).
 
-  Definition insert_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : option scope :=
+  Definition insert_scope (key: String.t) (val: (Value tags_t)) (bindings: scope) : option scope :=
     MStr.find key bindings;;
     mret (MStr.add key val bindings).
 
-  Definition extend_scope (key: caml_string) (val: (Value tags_t)) (bindings: scope) : scope :=
+  Definition extend_scope (key: String.t) (val: (Value tags_t)) (bindings: scope) : scope :=
       MStr.add key val bindings.
 
-  Definition find_scope (key: caml_string) (bindings: scope) : option (Value tags_t) :=
+  Definition find_scope (key: String.t) (bindings: scope) : option (Value tags_t) :=
     MStr.find key bindings.
 
   Definition push_scope (env: environment) :=
@@ -76,7 +76,7 @@ Section Environment.
     | nil => None
     end.
 
-  Fixpoint update_environment' (key: caml_string) (val: (Value tags_t)) (env: environment) : option environment :=
+  Fixpoint update_environment' (key: String.t) (val: (Value tags_t)) (env: environment) : option environment :=
     match env with
     | inner :: rest =>
       if MStr.find key inner
@@ -91,10 +91,10 @@ Section Environment.
     | nil => None
     end.
 
-  Definition update_environment (key: caml_string) (val: (Value tags_t)) : env_monad unit :=
+  Definition update_environment (key: String.t) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (update_environment' key val).
 
-  Definition insert_environment' (key: caml_string) (val: (Value tags_t)) (env: environment) : option environment :=
+  Definition insert_environment' (key: String.t) (val: (Value tags_t)) (env: environment) : option environment :=
     match env with
     | inner :: rest =>
       let* inner' := insert_scope key val inner in
@@ -102,10 +102,10 @@ Section Environment.
     | nil => None
     end.
 
-  Definition insert_environment (key: caml_string) (val: (Value tags_t)) : env_monad unit :=
+  Definition insert_environment (key: String.t) (val: (Value tags_t)) : env_monad unit :=
     lift_env_fn (insert_environment' key val).
 
-  Fixpoint find_environment' (key: caml_string) (env: environment) : option (Value tags_t) :=
+  Fixpoint find_environment' (key: String.t) (env: environment) : option (Value tags_t) :=
     match env with
     | inner :: rest =>
       match MStr.find key inner with
@@ -115,11 +115,11 @@ Section Environment.
     | nil => None
     end.
 
-  Definition find_environment (key: caml_string) : env_monad (Value tags_t) :=
+  Definition find_environment (key: String.t) : env_monad (Value tags_t) :=
     lift_env_lookup_fn (find_environment' key).
 
   (* TODO handle name resolution properly *)
-  Definition str_of_name_warning_not_safe (t: Typed.name) : caml_string :=
+  Definition str_of_name_warning_not_safe (t: Typed.name) : String.t :=
     match t with 
     | Typed.BareName s => s
     | Typed.QualifiedName _ s => s
@@ -147,7 +147,7 @@ Section Environment.
   Definition find_lvalue (lval: ValueLvalue) : env_monad (Value tags_t) :=
     lift_env_lookup_fn (find_lvalue' lval).
 
-  Definition update_member (obj: (Value tags_t)) (member: caml_string) (val: (Value tags_t)) : option (Value tags_t).
+  Definition update_member (obj: (Value tags_t)) (member: String.t) (val: (Value tags_t)) : option (Value tags_t).
   Admitted.
 
   Fixpoint update_lvalue' (lval: ValueLvalue) (val: (Value tags_t)) (env: environment) : option environment :=

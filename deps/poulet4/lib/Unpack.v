@@ -5,7 +5,7 @@ Require Import Coq.Bool.Bvector.
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require Import CamlString.
+Require String.
 Require Import Syntax.
 Require Import Environment.
 
@@ -34,7 +34,7 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_string (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t caml_string :=
+  Definition unpack_string (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t String.t :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseString _ s) => mret s
@@ -48,7 +48,7 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_error (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t caml_string :=
+  Definition unpack_error (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t String.t :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseError _ e) => mret e
@@ -62,28 +62,28 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * ValueLvalue) :=
+  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (String.t * ValueLvalue) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValObj _ (ValObjBuiltinFun _ name obj) => mret (name, obj)
     | _ => state_fail Internal
     end.
 
-  Definition unpack_extern_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (caml_string * option (ValueLoc * caml_string) * list Typed.P4Parameter) :=
+  Definition unpack_extern_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (String.t * option (ValueLoc * String.t) * list Typed.P4Parameter) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValObj _ (ValObjExternFun _ name obj params) => mret (name, obj, params)
     | _ => state_fail Internal
     end.
 
-  Definition unpack_extern_obj (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (caml_string * list Typed.P4Parameter)) :=
+  Definition unpack_extern_obj (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (String.t * list Typed.P4Parameter)) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValCons _ (ValConsExternObj _ e) => mret e
     | _ => state_fail Internal
     end.
 
-  Definition unpack_header (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (caml_string * (ValueBase tags_t)) * bool) :=
+  Definition unpack_header (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list (String.t * (ValueBase tags_t)) * bool) :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseHeader _ h v) => mret (h, v)

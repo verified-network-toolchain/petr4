@@ -79,10 +79,17 @@ let eq_dir d1 d2 =
   | _ -> false
 
 let expr_ctxt_of_stmt_ctxt (s: coq_StmtContext) : coq_ExprContext =
-  failwith "unimplemented"
+  match s with
+  | StmtCxFunction ret -> ExprCxFunction
+  | StmtCxAction -> ExprCxAction
+  | StmtCxParserState -> ExprCxParserState
+  | StmtCxApplyBlock -> ExprCxApplyBlock
 
 let expr_ctxt_of_decl_ctxt (s: coq_DeclContext) : coq_ExprContext =
-  failwith "unimplemented"
+  match s with
+   | DeclCxTopLevel -> ExprCxConstant
+   | DeclCxNested -> ExprCxDeclLocals
+   | DeclCxStatement c -> expr_ctxt_of_stmt_ctxt c
 
 type 'a info = 'a Types.info
 

@@ -106,7 +106,6 @@ Section Eval.
         let* inner := eval_expression arg in
         match inner with
         | ValBase _ (ValBaseBit _ w bits) => mret (ValBase _ (ValBaseBit _ w (BinInt.Z.lnot bits)))
-        | ValBase _ (ValBaseVarbit _ m w bits) => mret (ValBase _ (ValBaseVarbit _ m w (Bneg w bits)))
         | _ => state_fail Internal
         end
       | UMinus =>

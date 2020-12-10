@@ -18,18 +18,6 @@ let make_assert expected unwrap = fun info typ ->
   | Some v -> v
   | None -> raise_mismatch info expected typ
 
-let p4string_to_coq_p4string (info, str: P4String.t) : coq_P4String =
-  MkP4String (info, str)
-
-let name_to_coq_name : Types.name -> Typed.name = function
-  | BareName n -> BareName (snd n)
-  | QualifiedName (path, n) -> 
-    QualifiedName (List.map ~f:snd path, snd n)
-
-let name_base : Typed.name -> string = function
-  | BareName n
-  | QualifiedName (_, n) -> n
-
 let binop_to_coq_binop (n: Op.pre_bin) : Prog.coq_OpBin =
   match n with
   | Op.Plus -> Plus
@@ -60,8 +48,6 @@ let uop_to_coq_uop (n: Op.pre_uni) : Prog.coq_OpUni =
   | Op.BitNot -> BitNot
   | Op.UMinus -> UMinus
 
-let string_of_p4string ((MkP4String (_, s)): coq_P4String) : string = s
-  
 let info_of_expr (MkExpression (info, _, _, _): Prog.coq_Expression) = info
 
 let preexpr_of_expr (MkExpression (_, exp, _, _): Prog.coq_Expression) = exp
@@ -110,7 +96,7 @@ let assert_numeric = make_assert "integer"
     end
 
 let field_cmp (MkFieldType (name1, _)) (MkFieldType (name2, _)) =
-  String.compare name1 name2
+  String.compare name1.str name2.str
 
 let sort_fields = List.sort ~compare:field_cmp
 
@@ -131,7 +117,7 @@ let rec is_extern (env: Checker_env.t) (typ: Typed.coq_P4Type) =
   | _ -> false
 
 (* Ugly hack *)
-let real_name_for_type_member env (typ_name: Typed.name) name =
+let real_name_for_type_member env (typ_name: P4name.t) name =
   begin match typ_name with
     | QualifiedName (qs, typ_name) ->
       let prefixed_name = typ_name ^ "." ^ (snd name) in
@@ -3202,7 +3188,7 @@ and type_table_entries env ctx entries key_typs action_map =
   in
   List.map ~f:type_table_entry entries
 
-and name_eq (n1: Typed.name) (n2: Typed.name) : bool =
+and name_eq (n1: P4name.t) (n2: P4name.t) : bool =
   n1 = n2
 
 (* syntactic equality of expressions *)
@@ -3269,7 +3255,7 @@ and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool
   | _ -> false
 
 and type_default_action
-    env ctx (action_map : (Typed.name * Prog.coq_TableActionRef) list)
+    env ctx (action_map : (P4name.t * Prog.coq_TableActionRef) list)
     action_expr : Prog.coq_TableActionRef =
   let expr_ctx: Typed.coq_ExprContext = ExprCxTableAction in
   let action_expr_typed = type_expression env expr_ctx action_expr in
@@ -3498,11 +3484,10 @@ and type_header env info annotations pre_name fields =
 and type_field env (field_info, field) =
   let open Types.Declaration in
   let typ = saturate_type env (translate_type env [] field.typ) in
-  let name = p4string_to_coq_p4string field.name in
   let pre_field : Prog.coq_DeclarationField =
-    MkDeclarationField (field_info, typ, name) in
+    MkDeclarationField (field_info, typ, field.name) in
   let pre_record_field : coq_FieldType =
-    MkFieldType (snd field.name, typ) in
+    MkFieldType (field.name, typ) in
   pre_field, pre_record_field
 
 and type_header_union_field env (field_info, field) =
@@ -3515,28 +3500,26 @@ and type_header_union_field env (field_info, field) =
              ~field:((field_info, field): Types.Declaration.field)]
 
 (* Section 7.2.3 *)
-and type_header_union env info annotations pre_name fields =
-  let name = p4string_to_coq_p4string pre_name in
+and type_header_union env info annotations name fields =
   let fields_typed, type_fields =
     List.unzip @@ List.map ~f:(type_header_union_field env) fields
   in
   let header_typ = TypHeaderUnion type_fields in
   if not @@ is_well_formed_type env header_typ
   then failwith "bad header type";
-  let env = Checker_env.insert_type (BareName (snd pre_name)) header_typ env in
+  let env = Checker_env.insert_type (BareName name) header_typ env in
   let header: Prog.coq_Declaration =
     DeclHeaderUnion (info, name, fields_typed) in
   header, env
 
 (* Section 7.2.5 *)
-and type_struct env info annotations pre_name fields =
-  let name = p4string_to_coq_p4string pre_name in
+and type_struct env info annotations name fields =
   let fields_typed, type_fields = List.unzip @@ List.map ~f:(type_field env) fields in
   let struct_typ = TypStruct type_fields in
   if not @@ is_well_formed_type env struct_typ
   then failwith "bad struct type";
   let env =
-    Checker_env.insert_type (BareName (snd pre_name)) struct_typ env in
+    Checker_env.insert_type (BareName name) struct_typ env in
   let struct_decl: Prog.coq_Declaration =
     DeclStruct (info, name, fields_typed) in
   struct_decl, env
@@ -3552,50 +3535,49 @@ and fold_unique members (_, member) =
 (* Section 7.1.2 *)
 (* called by type_type_declaration *)
 and type_error env info members : Prog.coq_Declaration * Checker_env.t =
-  let add_err env (e_info, e) =
-    let name: Typed.name =
-      QualifiedName ([], "error." ^ e) in
+  let add_err env (e: P4string.t) =
+    let name: P4name.t =
+      QualifiedName ([], {tags = e.tags; str = "error." ^ e.str})
+    in
     env
     |> Checker_env.insert_type_of name TypError
     |> Checker_env.insert_const name (ValBase (ValBaseError e))
   in
   let env = List.fold_left ~f:add_err ~init:env members in
-  let members = List.map ~f:p4string_to_coq_p4string members in
   DeclError (info, members), env
 
 (* Section 7.1.3 *)
 and type_match_kind env info members : Prog.coq_Declaration * Checker_env.t =
-  let add_mk env e =
-    let name = QualifiedName ([], snd e) in
+  let add_mk env (e: P4string.t) =
+    let name: P4name.t = QualifiedName ([], e) in
     env
     |> Checker_env.insert_type_of name TypMatchKind
-    |> Checker_env.insert_const name (ValBase (ValBaseMatchKind (snd e)))
+    |> Checker_env.insert_const name (ValBase (ValBaseMatchKind e))
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
-  let members = List.map ~f:p4string_to_coq_p4string members in
   DeclMatchKind (info, members), env
 
 (* Section 7.2.1 *)
-and type_enum env info annotations name members : Prog.coq_Declaration * Checker_env.t =
+and type_enum env info annotations (name: P4string.t) members : Prog.coq_Declaration * Checker_env.t =
   let enum_typ =
-    TypEnum (snd name, None, List.map ~f:snd members)
+    TypEnum (name, None, members)
   in
-  let add_member env (member_info, member) =
-    let member_name =
-      QualifiedName ([], snd name ^ "." ^ member) in
+  let add_member env (member: P4string.t) =
+    let member_name: P4name.t =
+      QualifiedName ([], {tags = member.tags;
+                          str = name.str ^ "." ^ member.str}) in
     let enum_val: Prog.coq_Value =
-      ValBase (ValBaseEnumField (snd name, member)) in
+      ValBase (ValBaseEnumField (name, member)) in
     env
     |> Checker_env.insert_type_of member_name enum_typ
     |> Checker_env.insert_const member_name enum_val
   in
-  let env = Checker_env.insert_type (QualifiedName ([], snd name)) enum_typ env in
+  let env = Checker_env.insert_type (QualifiedName ([], name)) enum_typ env in
   let env = List.fold_left ~f:add_member ~init:env members in
-  let members = List.map ~f:p4string_to_coq_p4string members in
-  DeclEnum (info, p4string_to_coq_p4string name, members), env
+  DeclEnum (info, name, members), env
 
 (* Section 8.3 *)
-and type_serializable_enum env ctx info annotations underlying_type name members
+and type_serializable_enum env ctx info annotations underlying_type (name: P4string.t) members
   : Prog.coq_Declaration * Checker_env.t =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
   let underlying_type =
@@ -3610,43 +3592,43 @@ and type_serializable_enum env ctx info annotations underlying_type name members
   in
   let member_names = List.map ~f:(fun member -> snd (fst member)) members in
   let enum_type: coq_P4Type =
-    TypEnum (snd name, Some underlying_type, member_names)
+    TypEnum (name, Some underlying_type, member_names)
   in
-  let add_member (env, members_typed) ((member_info, member), expr) =
-    let member_name = QualifiedName ([], snd name ^ "." ^ member) in
+  let add_member (env, members_typed) (member, expr) =
+    let member_name: P4name.t =
+      QualifiedName ([], {tags=member.P4string.tags;
+                          str=name.str ^ "." ^ member.str}) in
     let expr_typed = cast_expression env expr_ctx underlying_type expr in
-    let mem: coq_P4String = MkP4String (member_info, member) in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
       let enum_val: Prog.coq_Value =
-        ValBase (ValBaseEnumField (snd name, member)) in
+        ValBase (ValBaseEnumField (name, member)) in
       env
       |> Checker_env.insert_type_of member_name enum_type
       |> Checker_env.insert_const member_name
-        enum_val, members_typed @ [mem, expr_typed]
+        enum_val, members_typed @ [member, expr_typed]
     | None -> failwith "could not evaluate enum member"
   in
-  let env = Checker_env.insert_type (QualifiedName ([], snd name)) enum_type env in
+  let env = Checker_env.insert_type (QualifiedName ([], name)) enum_type env in
   let env, members = List.fold_left ~f:add_member ~init:(env, []) members in
-  DeclSerializableEnum (info, enum_type, p4string_to_coq_p4string name, members), env
+  DeclSerializableEnum (info, enum_type, name, members), env
 
 and type_extern_object env info annotations obj_name t_params methods =
-  let extern_type = TypExtern (snd obj_name) in
-  let obj_type_params = List.map ~f:p4string_to_coq_p4string t_params in
+  let extern_type = TypExtern obj_name in
   let t_params' = List.map ~f:snd t_params in
   let extern_methods: Prog.coq_ExternMethods = {type_params = t_params'; methods = []} in
   let env' = env
              |> Checker_env.insert_type_vars t_params'
-             |> Checker_env.insert_type (BareName (snd obj_name)) extern_type
-             |> Checker_env.insert_extern (BareName (snd obj_name)) extern_methods
+             |> Checker_env.insert_type (BareName obj_name) extern_type
+             |> Checker_env.insert_extern (BareName obj_name) extern_methods
   in
   let consume_method (constructors, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
-       if snd cname <> snd obj_name then failwith "Constructor name and type name disagree";
+       if P4string.neq cname obj_name then failwith "Constructor name and type name disagree";
        let params_typed = type_constructor_params env' ParamCxDeclMethod params in
        let constructor_typed: Prog.coq_MethodPrototype =
-         ProtoConstructor (info, p4string_to_coq_p4string cname, params_typed)
+         ProtoConstructor (info, cname, params_typed)
        in
        (constructor_typed :: constructors, methods)
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }

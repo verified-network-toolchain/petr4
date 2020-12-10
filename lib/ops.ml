@@ -9,18 +9,18 @@ open Bitstring
 
 let eval_not (v : coq_ValueBase) : coq_ValueBase =
   match v with
-  | ValBaseBool b -> VBool (not b)
+  | ValBaseBool b -> ValBaseBool (not b)
   | _ -> failwith "not operator can only be applied to bools"
 
 let eval_bitnot (v : coq_ValueBase) : coq_ValueBase =
   match v with
-  | ValBaseBit{w;v=n} -> VBit{w;v=bitwise_neg_of_bigint n w}
+  | ValBaseBit (w, n) -> ValBaseBit (w, bitwise_neg_of_bigint n (Bigint.of_int w))
   | _ -> failwith "bitwise complement on non-fixed width unsigned bitstring"
 
 and eval_uminus (v : coq_ValueBase) : coq_ValueBase =
   match v with
-  | ValBaseBit{w;v=n}  -> Bigint.(VBit{w;v=(power_of_two w) - n})
-  | ValBaseInt{w;v=n}  -> Bigint.(ValBaseInt{w;v=to_twos_complement (-n) w})
+  | ValBaseBit (w, n) -> Bigint.(ValBaseBit (w, (power_of_two (of_int w)) - n))
+  | ValBaseInt (w, n) -> Bigint.(ValBaseInt (w, to_twos_complement (-n) (of_int w)))
   | ValBaseInteger n -> ValBaseInteger (Bigint.neg n)
   | _ -> failwith "unary minus on non-int type"
 
@@ -28,34 +28,34 @@ and eval_uminus (v : coq_ValueBase) : coq_ValueBase =
 (* binary operator interpretation *)
 (*----------------------------------------------------------------------------*)
 
-let unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
+let unsigned_op_sat (l : Bigint.t) (r : Bigint.t) (w : int)
 (op : Bigint.t -> Bigint.t -> Bigint.t) : coq_ValueBase =
-  let x = power_of_two w in
+  let x = power_of_two (Bigint.of_int w) in
   let n = op l r in
   let n' =
     if Bigint.(n > zero)
     then Bigint.min n Bigint.(x - one)
     else Bigint.max n Bigint.zero in
-  VBit{w;v=n'}
+  ValBaseBit (w, n')
 
-let signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : Bigint.t)
+let signed_op_sat (l : Bigint.t) (r : Bigint.t) (w : int)
 (op : Bigint.t -> Bigint.t -> Bigint.t) : coq_Value =
-  let x = power_of_two Bigint.(w-one) in
+  let x = power_of_two Bigint.(of_int w - one) in
   let n = op l r in
   let n' =
     if Bigint.(n > zero)
     then Bigint.min n Bigint.(x - one)
     else Bigint.max n Bigint.(-x) in
-  ValBaseInt{w;v=n'}
+  ValBaseInt (w, n')
 
 let rec interp_bplus (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
   match (l,r) with
-  | ValBaseBit{w;v=v1}, VBit{v=v2;_} -> VBit{w;v=of_twos_complement Bigint.(v1 + v2) w}
-  | ValBaseInt{w;v=v1}, ValBaseInt{v=v2;_} -> ValBaseInt{w;v=to_twos_complement Bigint.(v1 + v2) w}
-  | ValBaseBit{w;v=v1}, ValBaseInteger n   -> interp_bplus l (bit_of_rawint n w)
-  | ValBaseInteger n,   VBit{w;v=v1} -> interp_bplus (bit_of_rawint n w) r
-  | ValBaseInt{w;v=v1}, ValBaseInteger n   -> interp_bplus l (int_of_rawint n w)
-  | ValBaseInteger n,   ValBaseInt{w;v=v1} -> interp_bplus (int_of_rawint n w) r
+  | ValBaseBit (w, v1), ValBaseBit (_, v2) -> ValBaseBit(w, of_twos_complement Bigint.(v1 + v2) w)
+  | ValBaseInt (w, v1), ValBaseInt (_, v2) -> ValBaseInt(w, to_twos_complement Bigint.(v1 + v2) w)
+  | ValBaseBit (w, v1), ValBaseInteger n   -> interp_bplus l (bit_of_rawint n w)
+  | ValBaseInteger n,   ValBaseBit (w, v1) -> interp_bplus (bit_of_rawint n w) r
+  | ValBaseInt (w, v1), ValBaseInteger n   -> interp_bplus l (int_of_rawint n w)
+  | ValBaseInteger n,   ValBaseInt (w, v1) -> interp_bplus (int_of_rawint n w) r
   | ValBaseInteger n1,  ValBaseInteger n2  -> ValBaseInteger Bigint.(n1 + n2)
   | _ -> raise_s [%message "binary plus operation only defined on ints"
                      ~l:(l: coq_Value) (r: coq_Value)]

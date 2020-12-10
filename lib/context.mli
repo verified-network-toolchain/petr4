@@ -16,9 +16,9 @@
 type t [@@deriving sexp]
 
 val reset : unit -> unit
-val declare_var : Info.t * string -> unit
-val declare_type : Info.t * string -> unit
-val is_typename : Info.t * string -> bool
+val declare_var : P4string.t -> unit
+val declare_type : P4string.t -> unit
+val is_typename : P4string.t -> bool
 val go_toplevel : unit -> unit
 val go_local : unit -> unit                
 val push_scope : unit -> unit

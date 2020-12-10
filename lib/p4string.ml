@@ -7,3 +7,9 @@ type 'a pre_t =
 
 type t = Info.t pre_t
   [@@deriving sexp,show,yojson]
+
+let eq x y =
+  x.str = y.str
+
+let neq x y =
+  not (eq x y)

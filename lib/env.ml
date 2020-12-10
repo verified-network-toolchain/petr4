@@ -7,7 +7,7 @@ let (<>) = Stdlib.(<>)
 exception BadEnvironment of string
 exception UnboundName of string
 
-let mk_unbound (name: Typed.name) : exn =
+let mk_unbound (name: P4name.t) : exn =
   let str_name =
     match name with
     | QualifiedName (qs, name) ->
@@ -73,7 +73,7 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a t) : 'a t =
   let env1' = insert_bare name value env1 in
   env0 @ env1'
 
-let insert (name: Typed.name) (value: 'a) (env: 'a t) : 'a t =
+let insert (name: P4name.t) (value: 'a) (env: 'a t) : 'a t =
   match name with
   | BareName name ->
     insert_bare name.str value env
@@ -81,7 +81,7 @@ let insert (name: Typed.name) (value: 'a) (env: 'a t) : 'a t =
     insert_toplevel name.str value env
   | _ -> failwith "unimplemented"
 
-let update (name: Typed.name) (value: 'a) (env: 'a t) : 'a t option =
+let update (name: P4name.t) (value: 'a) (env: 'a t) : 'a t option =
   match name with
   | BareName name -> update_bare name.str value env
   | QualifiedName ([], name) -> update_toplevel name.str value env
@@ -107,7 +107,7 @@ let rec find_all_bare (name: string) : 'a t -> 'a list =
      in
      List.fold h ~init:[] ~f @ find_all_bare name t
 
-let find_all (name: Typed.name) (env: 'a t) : 'a list =
+let find_all (name: P4name.t) (env: 'a t) : 'a list =
   match name with
   | BareName name -> find_all_bare name.str env
   | QualifiedName ([], n) ->
@@ -121,7 +121,7 @@ let opt_to_unbound name =
   Util.opt_to_exn (mk_unbound name)
 
 let find_bare (name: string) (env: 'a t) : 'a =
-  let bare_name: Typed.name = BareName {tags = Info.dummy; str = name} in
+  let bare_name: P4name.t = BareName {tags = Info.dummy; str = name} in
   opt_to_unbound bare_name @@ find_bare_opt name env
 
 let find_toplevel (name: string) (env: 'a t) : 'a =
@@ -134,13 +134,13 @@ let find_toplevel_opt (name: string) (env: 'a t) : 'a option =
   | []       -> None
   | env :: _ -> find_bare_opt name [env]
 
-let find (name: Typed.name) (env: 'a t) : 'a =
+let find (name: P4name.t) (env: 'a t) : 'a =
   match name with
   | BareName n -> find_bare n.str env
   | QualifiedName ([], n) -> find_toplevel n.str env
   | _ -> failwith "unimplemented"
 
-let find_opt (name: Typed.name) (env: 'a t) : 'a option =
+let find_opt (name: P4name.t) (env: 'a t) : 'a option =
   match name with
   | BareName n -> find_bare_opt n.str env
   | QualifiedName ([], n) -> find_toplevel_opt n.str env

@@ -46,7 +46,7 @@ and pre_P4Parameter =
   [@@deriving sexp,show,yojson]
 type coq_P4Type = Info.t pre_P4Type
 [@@deriving sexp,show,yojson]
-type coq_FieldTYpe = Info.t pre_FieldType
+type coq_FieldType = Info.t pre_FieldType
 [@@deriving sexp,show,yojson]
 type coq_FunctionType = Info.t pre_FunctionType
 [@@deriving sexp,show,yojson]

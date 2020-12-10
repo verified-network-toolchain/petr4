@@ -51,11 +51,11 @@ let insert_typ name binding e =
 let insert_typ_bare name =
   insert_typ (BareName name)
 
-let insert_vals (bindings: (name * string) list) (e: t) : t =
+let insert_vals (bindings: (P4name.t * string) list) (e: t) : t =
   List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-let fix_bindings (bindings: (coq_P4String * 'a) list) : (name * 'a) list =
-  let mk_pair ((name, v): coq_P4String * 'a) : name * 'a =
+let fix_bindings (bindings: (P4string.t * 'a) list) : (P4name.t * 'a) list =
+  let mk_pair ((name, v): P4string.t * 'a) : P4name.t * 'a =
     BareName name, v
   in
   List.map ~f:mk_pair bindings

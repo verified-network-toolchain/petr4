@@ -73,11 +73,11 @@ Section Eval.
     | ExpInt _ value =>
       match value.(P4Int.width_signed) with
       | Some (width, true) =>
-        mret (ValBase _ (ValBaseInt _ width value.(P4Int.val)))
+        mret (ValBase _ (ValBaseInt _ width value.(P4Int.value)))
       | Some (width, false) =>
-        mret (ValBase _ (ValBaseBit _ width value.(P4Int.val)))
+        mret (ValBase _ (ValBaseBit _ width value.(P4Int.value)))
       | None =>
-        mret (ValBase _ (ValBaseInteger _ value.(P4Int.val)))
+        mret (ValBase _ (ValBaseInteger _ value.(P4Int.value)))
       end
     | ExpString _ s =>
       mret (ValBase _ (ValBaseString _ s))

@@ -7,7 +7,7 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
-Require Import CamlString.
+Require String.
 Require Import Environment.
 Require Import Syntax.
 Require Import Typed.
@@ -48,6 +48,9 @@ Section Eval.
 
   Definition bvec_of_z (width: nat) (z: Z) : (Bvector width).
   Admitted.
+
+  Definition extract_value_func (caller: ValueLvalue tags_t): Value tags_t :=
+    ValObj _ (ValObjBuiltinFun _ String.extract caller).
 
   Fixpoint eval_expression (expr: Expression tags_t) : env_monad tags_t (Value tags_t) :=
     let '(MkExpression _ tags_dummy expr _ _) := expr in
@@ -95,23 +98,39 @@ Section Eval.
         let* inner := eval_expression arg in
         lift_option _ (eval_minus inner)
       end
+    | ExpExpressionMember _ inner (MkP4String _ _ name) =>
+      let* inner_v := eval_expression inner in
+      match inner_v with
+      | ValObj _ (ValObjPacket _ bits) => 
+        match inner with 
+        | MkExpression _ _ (ExpName _ inner_name) inner_typ _ => 
+          if String.eqb name String.extract 
+          then mret (extract_value_func
+                       (MkValueLvalue _ tags_dummy
+                                      (ValLeftName _ tags_dummy inner_name) inner_typ))
+          else state_fail Internal
+        | _ => state_fail Internal
+        end
+      (* TODO real member lookup *)
+      | _ => state_fail Internal
+      end
     | _ => mret (ValBase _ (ValBaseBool _ false)) (* TODO *)
     end.
 
-  Definition eval_kv (kv: KeyValue tags_t) : env_monad tags_t (caml_string * (Value tags_t)) :=
+  Definition eval_kv (kv: KeyValue tags_t) : env_monad tags_t (String.t * (Value tags_t)) :=
     let '(MkKeyValue _ _ (MkP4String _ _ key) expr) := kv in
     let* value := eval_expression expr in
     mret (key, value).
 
-  Definition eval_is_valid (lvalue: ValueLvalue) : env_monad tags_t (Value tags_t) :=
+  Definition eval_is_valid (lvalue: ValueLvalue tags_t) : env_monad tags_t (Value tags_t) :=
     let* (_, valid) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
     mret (ValBase _ (ValBaseBool _ valid)).
 
-  Definition eval_set_bool (lvalue: ValueLvalue) (valid: bool) : env_monad tags_t unit :=
+  Definition eval_set_bool (lvalue: ValueLvalue tags_t) (valid: bool) : env_monad tags_t unit :=
     let* (fields, _) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
     env_update _ tags_dummy lvalue (ValBase _ (ValBaseHeader _ fields valid)).
 
-  Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_pop_front (lvalue: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
@@ -123,7 +142,7 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Definition eval_push_front (lvalue: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
+  Definition eval_push_front (lvalue: ValueLvalue tags_t) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
     | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
@@ -147,58 +166,30 @@ Section Eval.
       mret (None :: vals)
     end.
 
-  Definition eval_builtin_func (name: caml_string) (obj: ValueLvalue tags_t) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
+  Definition is_packet_func (str: String.t) : bool := 
+    if String.eqb str String.extract
+    then true
+    else false.
+
+  Definition eval_packet_func (obj: ValueLvalue tags_t) (name: String.t) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
+  Admitted.
+
+  Definition eval_builtin_func (name: String.t) (obj: ValueLvalue tags_t) (type_args : list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* args' := eval_arguments args in
-    if CamlStringOT.eq_dec name StrConstants.isValid
+    if String.eqb name String.isValid
     then eval_is_valid obj
-    else if CamlStringOT.eq_dec name StrConstants.setValid
+    else if String.eqb name String.setValid
     then dummy_value _ (eval_set_bool obj true)
-    else if CamlStringOT.eq_dec name StrConstants.setInvalid
+    else if String.eqb name String.setInvalid
     then dummy_value _ (eval_set_bool obj false)
-    else if CamlStringOT.eq_dec name StrConstants.pop_front
+    else if String.eqb name String.pop_front
     then dummy_value _ (eval_pop_front obj args')
-    else if CamlStringOT.eq_dec name StrConstants.push_front
+    else if String.eqb name String.push_front
     then dummy_value _ (eval_push_front obj args')
     else state_fail Internal.
 
-  Definition eval_packet_func (obj: ValueLvalue tags_t) (name: caml_string) (bits: list bool) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit.
+  Definition eval_extern_func (name: String.t) (obj: ValueLvalue tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
   Admitted.
-  (* TODO: Fix the following code to handle the "real" representation of packets. *)
-  (*
-  match name with
-  | "extract" =>
-    match (args, type_args) with
-    | ((Some target_expr) :: nil, into :: nil) =>
-      let* target := eval_lvalue target_expr in
-      match eval_packet_extract_fixed into bits with
-      | (inr error, bits') =>
-        update_lvalue obj (ValCons (ValConsExternObj (Packet bits'))) ;;
-        state_fail error
-      | (inl value, bits') =>
-        update_lvalue obj (ValCons (ValConsExternObj (Packet bits'))) ;;
-        update_lvalue target value ;;
-        mret tt
-      end
-    | _ => state_fail Internal
-    end
-  | _ => state_fail Internal
-  end.
-   *)
-
-  Definition eval_extern_func (name: caml_string) (obj: ValueLvalue tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
-  Admitted.
-  (* TODO fix
-  let* Packet bits := unpack_extern_obj (find_lvalue obj) in
-  dummy_value (eval_packet_func obj name bits type_args args).
-   *)
-
-  Definition eval_method_call (func: Expression tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
-    let* func' := eval_expression func in
-    match func' with
-    | ValObj _ (ValObjBuiltinFun _ name obj) => eval_builtin_func name obj args
-    (* | ValExternFun name caller params => eval_extern_func name obj type_args args *)
-    | _ => state_fail Internal (* TODO: other function types *)
-    end.
 
   Fixpoint eval_block (blk: Block tags_t) : env_monad tags_t unit :=
     match blk with
@@ -212,7 +203,7 @@ Section Eval.
          let 'MkStatement _ _ stmt _ := stmt in
          match stmt with
          | StatMethodCall _ func type_args args =>
-           toss_value _ (eval_method_call func type_args args)
+           state_fail Internal
          | StatAssignment _ lhs rhs =>
            let* lval := eval_lvalue lhs in
            let* val := eval_expression rhs in
@@ -254,7 +245,7 @@ Section Eval.
     | _ => mret false
     end.
 
-  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t caml_string := 
+  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t String.t := 
     match cases with
     | List.nil    => state_fail Internal
     | MkParserCase _ _ matches (MkP4String _ _ next) :: cases' => 
@@ -262,7 +253,7 @@ Section Eval.
       if passes then mret next else eval_cases vals cases'
     end.
 
-  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t caml_string := 
+  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t String.t := 
     match t with
     | ParserDirect _ _ (MkP4String _ _ next) =>
       mret next

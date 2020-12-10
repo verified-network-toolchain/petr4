@@ -1,6 +1,6 @@
 -R lib Petr4
 
-lib/CamlString.v
+lib/String.v
 lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v

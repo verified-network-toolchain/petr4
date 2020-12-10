@@ -6,20 +6,20 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
-Require Import CamlString.
+Require String.
 Require Import Syntax.
 
 Open Scope monad.
 
 Module Import MNat := FMapList.Make(Nat_as_OT).
-Module Import MStr := FMapList.Make(CamlStringOT).
+Module Import MStr := FMapList.Make(String.StringOT).
 
 Inductive exception :=
 | PacketTooShort
 | Reject
 | Exit
 | Internal
-| AssertError (error_msg: caml_string).
+| AssertError (error_msg: String.t).
 
 Section Environment.
 
@@ -45,7 +45,7 @@ Section Environment.
     | Some a => mret a
     end.
 
-  Fixpoint stack_lookup' (key: caml_string) (st: stack) : option loc :=
+  Fixpoint stack_lookup' (key: String.t) (st: stack) : option loc :=
     match st with
     | nil => None
     | top :: rest =>
@@ -55,14 +55,14 @@ Section Environment.
       end
     end.
 
-  Definition stack_lookup (key: caml_string) : env_monad loc :=
+  Definition stack_lookup (key: String.t) : env_monad loc :=
     fun env =>
       match stack_lookup' key (env_stack env) with
       | None => state_fail Internal env
       | Some l => mret l env
       end.
 
-  Definition stack_insert' (key: caml_string) (l: loc) (st: stack) : option stack :=
+  Definition stack_insert' (key: String.t) (l: loc) (st: stack) : option stack :=
     match st with
     | nil => None
     | top :: rest =>
@@ -72,7 +72,7 @@ Section Environment.
       end
     end.
 
-  Definition stack_insert (key: caml_string) (l: loc) : env_monad unit :=
+  Definition stack_insert (key: String.t) (l: loc) : env_monad unit :=
     fun env =>
       match stack_insert' key l (env_stack env) with
       | None => state_fail Internal env
@@ -102,7 +102,7 @@ Section Environment.
       end.
 
   (* TODO handle name resolution properly *)
-  Definition str_of_name_warning_not_safe (t: Typed.name) : caml_string :=
+  Definition str_of_name_warning_not_safe (t: Typed.name) : String.t :=
     match t with 
     | Typed.BareName s => s
     | Typed.QualifiedName _ s => s
@@ -131,14 +131,14 @@ Section Environment.
         env_heap := MNat.add l v (env_heap env);
       |}.
 
-  Definition env_insert (name: caml_string) (v: Value tags_t) : env_monad unit :=
+  Definition env_insert (name: String.t) (v: Value tags_t) : env_monad unit :=
     let* l := heap_insert v in
     stack_insert name l.
 
-  Definition env_lookup (lvalue: ValueLvalue) : env_monad (Value tags_t).
+  Definition env_lookup (lvalue: ValueLvalue tags_t) : env_monad (Value tags_t).
   Admitted.
 
-  Definition env_update (lvalue: ValueLvalue) (value: Value tags_t) : env_monad unit.
+  Definition env_update (lvalue: ValueLvalue tags_t) (value: Value tags_t) : env_monad unit.
   Admitted.
 
   Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=

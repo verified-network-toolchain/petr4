@@ -5,7 +5,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require Import CamlString.
+Require String.
 Require Import Environment.
 Require Import Utils.
 Require Import Syntax.
@@ -58,7 +58,7 @@ Section Packet.
     | _ => state_fail Internal
     end
 
-  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (caml_string * ValueBase tags_t) :=
+  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (String.t * ValueBase tags_t) :=
     let '(MkFieldType into_name into_type) := into_field in
     let* v := eval_packet_extract_fixed into_type in
     mret (into_name, v).

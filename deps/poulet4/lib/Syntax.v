@@ -114,7 +114,7 @@ Section Syntax.
   | ValBaseInteger (_: Z)
   | ValBaseBit (width: nat) (value: Z)
   | ValBaseInt (width: nat) (value: Z)
-  | ValBaseVarbit (max: nat) (width: nat) (value: Bvector width)
+  | ValBaseVarbit (max: nat) (width: nat) (value: N)
   | ValBaseString (_: String.t)
   | ValBaseTuple (_: list ValueBase)
   | ValBaseRecord (_: list (String.t * ValueBase))

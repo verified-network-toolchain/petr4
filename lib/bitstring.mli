@@ -20,9 +20,9 @@ val of_twos_complement : t -> t -> t
     range [-2^(w-1) .. 2^(w-1)-1]. *)
 val to_twos_complement : t -> t -> t
 
-val bit_of_rawint : t -> t -> Prog.coq_Value
+val bit_of_rawint : t -> int -> Prog.coq_ValueBase
 
-val int_of_rawint : t -> t -> Prog.coq_Value
+val int_of_rawint : t -> int -> Prog.coq_ValueBase
 
 (* [bitwsie_neg_of_bigint n w] computes the bitwise negation of n as a
    w-bit two's complement number. *)

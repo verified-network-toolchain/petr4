@@ -56,11 +56,11 @@ let rec to_twos_complement (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   then to_twos_complement Bigint.(n+w') w
   else n
 
-let bit_of_rawint (n : Bigint.t) (w : Bigint.t) : Prog.coq_Value =
-  ValBase (ValBaseBit (Bigint.to_int_exn w, of_twos_complement n w))
+let bit_of_rawint (n : Bigint.t) (w : int) : Prog.coq_ValueBase =
+  ValBaseBit (w, of_twos_complement n (Bigint.of_int w))
 
-let int_of_rawint (n : Bigint.t) (w : Bigint.t) : Prog.coq_Value =
-  ValBase (ValBaseInt (Bigint.to_int_exn w, of_twos_complement n w))
+let int_of_rawint (n : Bigint.t) (w : int) : Prog.coq_ValueBase =
+  ValBaseInt (w, of_twos_complement n (Bigint.of_int w))
 
 let rec bitwise_neg_of_bigint (n : Bigint.t) (w : Bigint.t) : Bigint.t =
   if Bigint.(w > zero) then

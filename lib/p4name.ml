@@ -1,4 +1,5 @@
 open Sexplib.Conv
+open P4string
 
 type 'a pre_t =
   [%import:'a Poulet4.Typed.name
@@ -16,7 +17,7 @@ let name_info name : Info.t =
   match name with
   | BareName name -> name.tags
   | QualifiedName (prefix, name) ->
-     let infos = List.map (fun x -> x.P4string.tags) prefix in
+     let infos = List.map (fun x -> x.tags) prefix in
      List.fold_right Info.merge infos name.tags
 
 let name_eq n1 n2 =

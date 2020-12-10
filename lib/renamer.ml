@@ -36,3 +36,6 @@ let freshen_name st name =
   observe_name st new_name;
   new_name
 
+let freshen_p4string st (s: P4string.t): P4string.t =
+  {s with str = freshen_name st s.str}
+

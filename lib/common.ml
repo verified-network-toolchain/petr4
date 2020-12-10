@@ -16,13 +16,16 @@
 module P4Info = Info
 open Core_kernel
 module Info = P4Info
-module Env = Prog.Env
 
 module type Parse_config = sig
   val red: string -> string
   val green: string -> string
   val preprocess: string list -> string -> string
 end
+
+(* This is a stand-in for Pretty.format_program *)
+let pretty p =
+  failwith "Sorry, I yanked the pretty-printer out while I was refactoring. Feel free to put it back - Ryan"
 
 module Make_parse (Conf: Parse_config) = struct
   let parse_file include_dirs p4_file verbose =
@@ -35,7 +38,7 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then
         begin
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
-          Format.printf "%a@\n%!" Pretty.format_program prog;
+          Format.printf "%a@\n%!" pretty prog;
           Format.printf "----------@\n";
           Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
         end;
@@ -93,7 +96,7 @@ module Make_parse (Conf: Parse_config) = struct
             Yojson.Safe.to_string j in
         Format.printf "%s" (to_string json)
       else
-        Format.printf "%a" Pretty.format_program prog
+        Format.printf "%a" pretty prog
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
     | `Error (info, Parser.Error) ->
@@ -101,6 +104,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
+  (* TODO restore evaluator
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     let port = Bigint.of_int port in
     let pkt = Cstruct.of_hex pkt_str in
@@ -143,4 +147,5 @@ module Make_parse (Conf: Parse_config) = struct
       let exn_msg = Exn.to_string exn in
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg
+                           *)
 end

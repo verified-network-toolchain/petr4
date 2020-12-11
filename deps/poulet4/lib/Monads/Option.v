@@ -14,3 +14,5 @@ Global Instance option_monad_inst : Monad option :=
   { mret := option_ret;
     mbind := option_bind;
   }.
+
+Hint Unfold option_ret option_bind.

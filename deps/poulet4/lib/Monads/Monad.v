@@ -5,6 +5,8 @@ Class Monad (M : Type -> Type) : Type :=
     mbind : forall {A B}, M A -> (A -> M B) -> M B
   }.
 
+Hint Unfold mret mbind.
+
 (* Adapted from coq-ext-lib *)
 (* https://github.com/coq-community/coq-ext-lib/blob/v8.5/theories/Structures/Monad.v*)
 

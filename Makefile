@@ -22,8 +22,8 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 all: build
 
-build: deps
-	dune build @install && echo
+build:
+	dune build @install
 
 deps:
 	$(MAKE) -C deps

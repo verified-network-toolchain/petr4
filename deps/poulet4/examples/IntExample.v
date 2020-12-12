@@ -161,7 +161,7 @@ Proof.
     unfold top_scope.
     apply Environment.MapsToSI.
       - apply String.eqb_neq. auto.
-      -  apply Environment.MapsToSE.
+      - apply Environment.MapsToSE.
   }
 
   unfold state_return. simpl.
@@ -193,7 +193,8 @@ Proof.
   
   
   unfold Option.option_bind.
-  
+
+  unfold Environment.find_scope. 
   rewrite top_find_pkt. simpl.
   unfold Environment.insert_scope. simpl.
   unfold Option.option_bind. rewrite top_find_pkt. simpl.
@@ -263,79 +264,143 @@ Lemma find_x :
 Proof.
 Admitted.
 
+(* Lemma forall s1 s2  *)
+
 Lemma curried_tupled_equiv: 
   forall (bits: list bool),
     parses IntParserTupled 4 "start" (build_env bits) = parses IntParserCurried 4 "start" (build_env bits).
 Proof.
-  (* induction bits.
-  unfold build_env, IntParserTupled, IntParserCurried, parses. simpl.
-  unfold run_with_state. simpl.
-  unfold state_bind. simpl.
-  unfold eval_statement. simpl.
-  unfold state_bind. simpl.
-  unfold Environment.toss_value. simpl.
-  unfold eval_method_call. simpl.
-  unfold state_bind. simpl.
+  induction bits.
+    -
+      unfold build_env, IntParserTupled, IntParserCurried, parses. simpl.
+      unfold run_with_state. simpl.
+      unfold state_bind. simpl.
+      unfold eval_statement. simpl.
+      unfold state_bind. simpl.
+      unfold Environment.toss_value. simpl.
+      unfold eval_method_call. simpl.
+      unfold state_bind. simpl.
+      erewrite Environment.find_env_corr with (v := (ValObj tag_t (ValObjPacket tag_t nil))).
 
-  unfold Environment.find_environment, Environment.lift_env_lookup_fn, Environment.find_environment'.
-  simpl.
-  unfold Environment.extend_scope. simpl. 
-  
-  assert (lookup_env := Environment.MStr.find_1).
-  specialize (lookup_env (Value tag_t)).
-  remember (
-  (Environment.MStr.add "x" out_value
-     (Environment.MStr.add "y" out_value
-        (Environment.MStr.empty (Value tag_t))))) as env_inner.
-  remember (Environment.MStr.add "pkt" (ValObj tag_t (ValObjPacket tag_t nil)) env_inner) as env.
-  specialize (lookup_env env).
+      3 : {
+        unfold Environment.push_scope.
+        replace (Environment.MStr.empty (Value tag_t) :: Environment.extend_scope tag_t "pkt"
+          (ValObj tag_t (ValObjPacket tag_t nil))
+          (Environment.extend_scope tag_t "x" out_value
+            (Environment.extend_scope tag_t "y" out_value
+                (Environment.MStr.empty (Value tag_t)))) :: nil)
+        with
+        ((Environment.MStr.empty (Value tag_t) :: nil) ++ Environment.extend_scope tag_t "pkt"
+          (ValObj tag_t (ValObjPacket tag_t nil))
+          (Environment.extend_scope tag_t "x" out_value
+            (Environment.extend_scope tag_t "y" out_value
+                (Environment.MStr.empty (Value tag_t)))) :: nil).
+          - eauto.
+          - reflexivity.
+      }
 
-  pose proof (lookup_env "pkt") as lookup_pkt.
+      2 : {
+        apply Environment.MapsToSE.
+      }
 
-  rewrite Heqenv in lookup_pkt.
+      unfold state_return. simpl.
+      unfold eval_builtin_func. simpl.
+      unfold state_bind. simpl.
 
-  pose proof (@Environment.MStr.add_1 (Value tag_t) env_inner "pkt" "pkt") as add_pkt.
-  specialize (add_pkt (ValObj tag_t (ValObjPacket tag_t nil))).
+      erewrite Environment.find_env_corr with (v := out_value).
 
-  assert (pkt_eq := eq_refl "pkt").
-  specialize (add_pkt pkt_eq).
+      3 : {
+        unfold Environment.push_scope.
+        replace (Environment.MStr.empty (Value tag_t) :: Environment.extend_scope tag_t "pkt"
+          (ValObj tag_t (ValObjPacket tag_t nil))
+          (Environment.extend_scope tag_t "x" out_value
+            (Environment.extend_scope tag_t "y" out_value
+                (Environment.MStr.empty (Value tag_t)))) :: nil)
+        with
+        ((Environment.MStr.empty (Value tag_t) :: nil) ++ Environment.extend_scope tag_t "pkt"
+          (ValObj tag_t (ValObjPacket tag_t nil))
+          (Environment.extend_scope tag_t "x" out_value
+            (Environment.extend_scope tag_t "y" out_value
+                (Environment.MStr.empty (Value tag_t)))) :: nil).
+          - eauto.
+          - reflexivity.
+      }
+      2 : {
+        apply Environment.MapsToSI.
+          - apply String.eqb_neq. auto.
+          - apply Environment.MapsToSE.
+      }
+      
+      simpl.
+      unfold Environment.dummy_value, eval_packet_func. simpl.
+      unfold state_bind. simpl.
 
-  specialize (lookup_pkt (ValObj tag_t (ValObjPacket tag_t nil)) add_pkt).
+      unfold Environment.find_lvalue. simpl.
+      unfold Environment.lift_env_lookup_fn.
+      erewrite Environment.lift_env_lookup_corr with (v := (ValObj tag_t (ValObjPacket tag_t nil))).
+      
+      2 : {
+        eapply Environment.find_env_corr.
+          2 : {
+            unfold Environment.push_scope.
+            replace (Environment.MStr.empty (Value tag_t)
+            :: Environment.extend_scope tag_t "pkt"
+                 (ValObj tag_t (ValObjPacket tag_t nil))
+                 (Environment.extend_scope tag_t "x" out_value
+                    (Environment.extend_scope tag_t "y" out_value
+                       (Environment.MStr.empty (Value tag_t)))) :: nil)
+              with
+              ((Environment.MStr.empty (Value tag_t)
+                :: nil) ++ Environment.extend_scope tag_t "pkt"
+                    (ValObj tag_t (ValObjPacket tag_t nil))
+                    (Environment.extend_scope tag_t "x" out_value
+                        (Environment.extend_scope tag_t "y" out_value
+                          (Environment.MStr.empty (Value tag_t)))) :: nil).
+            -- auto.
+            -- reflexivity.
 
-  rewrite <- Heqenv in lookup_pkt.
-  rewrite lookup_pkt. simpl.
+          }
+          apply Environment.MapsToSE.
+      }
+      simpl.
+      unfold Environment.update_lvalue, Environment.lift_env_fn, Environment.update_lvalue'.
+      unfold Environment.update_environment'. 
+      unfold Option.option_bind. simpl.
+      unfold Option.option_bind. simpl.
+      assert (H := Environment.find_scope_corr tag_t "pkt" (ValObj tag_t (ValObjPacket tag_t nil))).
+      specialize (H (Environment.extend_scope tag_t "pkt"
+      (ValObj tag_t (ValObjPacket tag_t nil))
+      (Environment.extend_scope tag_t "x" out_value
+         (Environment.extend_scope tag_t "y" out_value
+            (Environment.MStr.empty (Value tag_t)))))).
+      
+      destruct H as [H1 H2].
 
-  unfold eval_builtin_func. simpl.
-  unfold state_bind. simpl.
-  
+      erewrite H1.
+      2 : {
+        apply Environment.MapsToSE.
+      }
+      clear H1 H2.
+      assert (H := Environment.insert_scope_corr_1 tag_t "pkt" (ValObj tag_t (ValObjPacket tag_t nil)) (ValObj tag_t (ValObjPacket tag_t nil))).
+      specialize (H (Environment.extend_scope tag_t "pkt"
+      (ValObj tag_t (ValObjPacket tag_t nil))
+      (Environment.extend_scope tag_t "x" out_value
+         (Environment.extend_scope tag_t "y" out_value
+            (Environment.MStr.empty (Value tag_t)))))).
+      specialize (H (Environment.extend_scope tag_t "pkt"
+      (ValObj tag_t (ValObjPacket tag_t nil))
+      (Environment.extend_scope tag_t "x" out_value
+          (Environment.extend_scope tag_t "y" out_value
+            (Environment.MStr.empty (Value tag_t)))))).
+      eassert (H1 := H _).
+      
+      
+      destruct H1 as [H2 H3].
 
-  unfold Environment.push_scope. simpl.
+      rewrite H2. simpl.
 
-  assert (Fx := find_x).
+      reflexivity.
+  -
 
-  unfold build_env in Fx.
-
-  unfold Environment.find_environment, Environment.lift_env_lookup_fn, Environment.find_environment'.
-  simpl.
-
-  pose proof (lookup_env "x") as lookup_x.
-
-  (* rewrite Heqenv in lookup_x. *)
-
-  pose proof (@Environment.MStr.add_1 (Value tag_t) env_inner "x" "x") as add_x.
-  specialize (add_pkt (ValObj tag_t (ValObjPacket tag_t nil))).
-
-  unfold Environment.MStr.find, Environment.MStr.Raw.find. simpl.
-  rewrite Heqenv.
-  rewrite Heqenv_inner.
-  unfold Environment.MStr.Raw.add. simpl.
-  unfold Environment.MStr.Raw.add. simpl.
-  unfold String.ascii_compare. simpl.
-  unfold Bool.reflect_dec. auto.
-  unfold BinNat.N.ltb_spec0. simpl.
-  unfold and_rec. simpl.
-  (* cbv beta. cbv delta. *)
-  simpl.
-  unfold env. *)
 Admitted.
 

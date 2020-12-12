@@ -79,7 +79,7 @@ Section Environment.
   Fixpoint update_environment' (key: String.t) (val: (Value tags_t)) (env: environment) : option environment :=
     match env with
     | inner :: rest =>
-      if MStr.find key inner
+      if find_scope key inner
       (* TODO: insert vs update makes proofs slightly easier but is less efficient.
           we could alleviate the burden with a lemma for environments.
       *)
@@ -262,8 +262,13 @@ Section Environment.
   Admitted.
 
   Lemma lift_env_lookup_corr : 
-    forall s v env env',
-    Environment.find_environment s env = (inl v, env') -> Environment.find_environment' s env = Some v.
+    forall s v env,
+    Environment.find_environment s env = (inl v, env) -> Environment.find_environment' s env = Some v.
+  Proof using tags_t.
+  Admitted.
+
+  Lemma insert_scope_corr_1 : 
+    forall s v v' scope scope', MapsToS s v scope -> insert_scope s v scope = Some scope' /\ MapsToS s v' scope'.
   Proof using tags_t.
   Admitted.
 

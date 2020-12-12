@@ -8,8 +8,9 @@ Require Import Monads.State.
 
 Require Import Step.
 
-Open Scope list_scope.
+
 Open Scope string_scope.
+Open Scope list_scope.
 
 Definition tag_t := unit.
 Definition tag := tt.
@@ -78,19 +79,19 @@ Definition inter_scope : Environment.scope tag_t :=
                               top_scope.
 Definition good_env: Environment.environment tag_t := top_scope :: nil.
 
+
 Lemma top_find_pkt: Environment.MStr.find "pkt" top_scope = Some pkt_value.
 Proof.
-  unfold top_scope, Environment.extend_scope.
-  apply Environment.MStr.find_1.
-  now apply Environment.MStr.add_1.
+  apply Environment.find_scope_corr.
+  apply Environment.MapsToSE.
 Qed.
+
 Lemma top_find_val : Environment.MStr.find "output" top_scope = Some out_value.
 Proof.
-  unfold top_scope, Environment.extend_scope.
-  apply Environment.MStr.find_1.
-  apply Environment.MStr.add_2;
-    [congruence|].
-  now apply Environment.MStr.add_1.
+  apply Environment.find_scope_corr.
+  apply Environment.MapsToSI.
+    - apply String.eqb_neq. reflexivity.
+    - apply Environment.MapsToSE.
 Qed.
 
 Lemma top_find_val_inter : Environment.MStr.find "output" inter_scope = Some out_value.
@@ -103,6 +104,7 @@ Proof.
 Qed.
 
 Hint Rewrite top_find_pkt top_find_val top_find_val_inter: int_example.
+
 
 Lemma int_parses : parses IntParser 2 "start" good_env = true.
 Proof.
@@ -125,21 +127,67 @@ Proof.
 
   unfold eval_method_call. simpl.
   unfold state_bind. simpl.
-  unfold Environment.find_environment, Environment.push_scope. simpl.
-  unfold Environment.lift_env_lookup_fn, Environment.find_environment'.
-  simpl.
-  rewrite top_find_pkt. simpl.
+
+  assert (pkt_env := Environment.find_env_corr).
+  erewrite pkt_env with (v := pkt_value).
+  3: {
+    unfold Environment.push_scope. simpl.
+    replace (Environment.MStr.empty (Value tag_t) :: top_scope :: nil) with (((Environment.MStr.empty (Value tag_t))::nil) ++ top_scope :: nil).
+      - eauto.
+      - reflexivity.
+  }
+
+  2 : {
+    unfold top_scope.
+    apply Environment.MapsToSE.
+  }
+
+
+  unfold pkt_value. simpl.
 
   unfold eval_builtin_func. simpl.
   unfold state_bind. simpl.
 
-  unfold Environment.find_environment, Environment.lift_env_lookup_fn, Environment.find_environment'. simpl.
-  rewrite top_find_val. simpl.
+  erewrite Environment.find_env_corr with (v := out_value).
+
+  3: {
+    unfold Environment.push_scope. simpl.
+    replace (Environment.MStr.empty (Value tag_t) :: top_scope :: nil) with (((Environment.MStr.empty (Value tag_t))::nil) ++ top_scope :: nil).
+      - eauto.
+      - reflexivity.
+  }
+
+  2 : {
+    unfold top_scope.
+    apply Environment.MapsToSI.
+      - apply String.eqb_neq. auto.
+      -  apply Environment.MapsToSE.
+  }
+
+  unfold state_return. simpl.
+
+
   unfold Environment.dummy_value, eval_packet_func. simpl.
   unfold state_bind. simpl.
-  unfold Environment.find_lvalue. simpl.
-  unfold Environment.lift_env_lookup_fn, Environment.find_environment'. simpl.
-  rewrite top_find_pkt. simpl.
+
+  unfold Environment.find_lvalue.
+
+  unfold Environment.lift_env_lookup_fn, Environment.find_lvalue'.
+
+  erewrite Environment.lift_env_lookup_corr with (v := pkt_value).
+  2 : {
+    eapply Environment.find_env_corr.
+      2: {
+        unfold Environment.push_scope. simpl.
+        replace (Environment.MStr.empty (Value tag_t) :: top_scope :: nil) with (((Environment.MStr.empty (Value tag_t))::nil) ++ top_scope :: nil).
+          - eauto.
+          - reflexivity.
+      }
+      apply Environment.MapsToSE.
+  }
+  simpl.
+
+
   unfold Environment.update_lvalue. simpl.
   unfold Environment.lift_env_fn, Environment.update_environment'. simpl.
   

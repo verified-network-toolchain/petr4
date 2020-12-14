@@ -69,9 +69,6 @@ let check_command =
     (fun verbose include_dir json pretty p4file () ->
        ignore (check_file include_dir p4file json pretty verbose))
 
-let eval_file_string _ _ _ _ _ _ _ =
-  failwith "sorry! yanked the evaluator out while refactoring"
-
 let eval_command =
   let open Command.Spec in
   Command.basic_spec
@@ -87,9 +84,6 @@ let eval_command =
     (fun verbose include_dir pkt_str ctrl_json port target p4file () ->
        print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
 
-
-let do_stf _ _ _ = failwith "Sorry! yanked eval out while refactoring"
-(* TODO restore
 let do_stf include_dir stf_file p4_file =
     let print_err (e_port, e_pkt) (a_port, a_pkt) =
         Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
@@ -109,7 +103,6 @@ let do_stf include_dir stf_file p4_file =
     in
     let pkts = List.zip_exn expected results in
     List.iter ~f:check_pkt pkts
-*)
 
 
 let stf_command =

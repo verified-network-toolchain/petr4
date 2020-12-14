@@ -17,6 +17,7 @@ lib/Platform/Packet.v
 -R examples Petr4.Examples
 
 examples/IntExample.v
+examples/IntExampleHoare.v
 
 -R extraction Petr4
 

@@ -41,6 +41,7 @@ parser IntExample (packet_in pkt, out int<2> output) {
 Definition scope : Env_EvalEnv := MkEnv_EvalEnv nil nil "dummy".
 
 Definition pkt_param : P4Parameter := MkParameter true Directionless (TypExtern "packet_in") "pkt".
+Definition pkt_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "pkt")) (TypExtern "packet_in") Directionless.
 Definition out_type : P4Type := TypInt 2.
 Definition out_param : P4Parameter := MkParameter true Out out_type "output".
 Definition locals : list (Declaration tag_t) := nil.

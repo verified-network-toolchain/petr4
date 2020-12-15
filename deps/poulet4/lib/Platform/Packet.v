@@ -61,5 +61,20 @@ Section Packet.
     let* v := eval_packet_extract_fixed into_type in
     mret (into_name, v).
 
+
+  Fixpoint parseable_type (type : P4Type) : bool := 
+    match type with
+    | TypRecord field_types
+    | TypHeader field_types => fold_left andb (map parseable_ftype field_types) true
+    | TypBool
+    | TypBit _
+    | TypInt _ => true
+    | _ => false
+    end
+  with parseable_ftype (ftype: FieldType) : bool := 
+    let '(MkFieldType _ x) := ftype in parseable_type x.
+
+    
+
 End Packet.
 

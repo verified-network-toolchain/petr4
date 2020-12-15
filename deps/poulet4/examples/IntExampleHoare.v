@@ -7,12 +7,13 @@ Require Import Typed.
 Require Import Environment.
 Require Import Strings.String.
 Require Import Vectors.VectorDef.
+Require Import ZArith.BinIntDef.
 Import VectorNotations.
 Open Scope vector_scope.
 Open Scope monad_scope.
 Open Scope monad.
 Open Scope list_scope.
-
+Open Scope Z_scope.
 Require Import IntExample.
 
 Definition pred := environment tag_t -> Prop.
@@ -166,6 +167,75 @@ Lemma hoare_transitivity:
     (| P' |) stmt (| Q' |).
 Proof.
 Admitted.
+
+Definition x : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "x")) TypInteger Directionless.
+Definition one : Expression tag_t := MkExpression _ tt (ExpInt _ (MkP4Int _ tt Z.one None)) TypInteger Directionless.
+Definition x_p1 : Expression tag_t := MkExpression _ tt (ExpBinaryOp _ Plus (x, one)) TypInteger Directionless.
+
+Definition one_v : Value tag_t := ValBase _ (ValBaseInteger _ Z.one).
+
+Definition x_p1_stmt : Statement tag_t := MkStatement _ tt (StatAssignment _ x x_p1) StmUnit.
+
+Lemma hoare_spc_inc : 
+    forall v v_inner v' v_inner',
+    v = ValBase _ (ValBaseInteger _ v_inner) ->
+    v' = ValBase _ (ValBaseInteger _ v_inner') ->
+    (| "x" |-> v |) x_p1_stmt (| "x" |-> v' |) /\ v_inner' = Z.add v_inner 1.
+Proof.
+Admitted.
+
+Lemma Z_incr_increasing:
+    forall n,
+    Z.gtb n 0 = true -> 
+    Z.gtb (Z.succ n) 0 = true.
+Proof.
+    intros.
+    induction n.
+        - unfold Z.gtb in *. simpl in *. auto.
+        - unfold Z.gtb in *. simpl in *. auto.
+        - 
+            exfalso.
+            eapply Bool.eq_true_false_abs with (b := false).
+            unfold Z.gtb in *. 
+            simpl in *.
+            auto.
+            auto.
+Qed.
+            
+
+
+Lemma hoare_incr_increasing :
+    forall v v_inner v' v_inner',
+    v = ValBase _ (ValBaseInteger _ v_inner) ->
+    Z.gtb v_inner 0 = true ->
+    v' = ValBase _ (ValBaseInteger _ v_inner') ->
+    (| "x" |-> v |) x_p1_stmt (| "x" |-> v' |) /\ Z.gtb v_inner' 0 = true.
+Proof.
+    intros.
+    split.
+    assert (H2 := hoare_spc_inc). 
+    eapply hoare_transitivity with (P := "x" |-> v).
+    specialize (H2 v v_inner v' v_inner').
+    specialize (H2 H H1).
+    assert (H3 := H2).
+    3 : {
+        eapply H2; eauto.
+    }
+    - auto.
+    - auto.
+    -
+        assert (H2 := hoare_spc_inc). 
+        specialize (H2 v v_inner v' v_inner').
+        specialize (H2 H H1).
+        destruct H2 as [_ H2].
+        rewrite H2.
+        apply Z_incr_increasing.
+        assumption.
+    Grab Existential Variables.
+    exact List.nil.
+    exact List.nil.
+Qed.
+
 
 Lemma hoare_extract_stmt: 
     forall out_expr (out_name: string) dir v pkt_value pkt_value' bits b1 b2,

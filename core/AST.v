@@ -100,10 +100,14 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
   Module F := Field NAME.
 
   (** Directions. *)
-  Inductive d := DIn | DOut | DInOut | DZilch.
+  Module Dir.
+    Inductive d := DIn | DOut | DInOut | DZilch.
+  End Dir.
 
   (** * Expression Grammar *)
   Module Expr.
+    Import Dir.
+
     (** Expression types. *)
     Inductive t : Type :=
       | TBool
@@ -487,6 +491,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
   (** * Statement Grammar *)
   Module Stmt.
+    Import Dir.
     Module E := Expr.
 
     Inductive s : Type :=
@@ -498,7 +503,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Sequences, a possibly easier-to-verify alternative to blocks. *)
       | SSeq (s1 s2 : s)
       | SVarDecl (typ : E.t) (var : NAME.t) (rhs : E.e)
-      | SMethodCall (callee_type : E.t) (callee : E.e) (args : F.fs (d * E.t * E.e)).
+      | SMethodCall (callee : E.e) (args : F.fs (d * E.t * E.e)).
     (**[]*)
 
     Module StmtNotations.
@@ -534,10 +539,24 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
-
-      Example stmt (s1 s2 : s) (x : NAME.t)
-              (e e1 e2 : Expr.e) (t : Expr.t)
-        : s := $ s1 ; s2 $.
     End StmtNotations.
   End Stmt.
+
+  (** * Declaration Grammar *)
+  Module Decl.
+    Module E := Expr.
+    Module S := Stmt.
+
+    (** Here is the subset of declarations that
+        may occur within controls, parsers,
+        and even the top-level. *)
+    Inductive d : Type :=
+      | DVardecl (typ : E.t) (x : NAME.t)
+      | DVarasgn (typ : E.t) (x : NAME.t) (rhs : E.e)
+      (** [C] is the constructor name,
+          and [x] is the variable name. *)
+      | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
+      | DFunction (returns : E.t) (f : NAME.t)
+                  (params : F.fs (Dir.d * E.t)) (body : S.s).
+  End Decl.
 End P4.

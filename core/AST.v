@@ -9,7 +9,7 @@ Module CBB := Coq.Bool.Bool.
 
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
-Infix "▷" := pipeline (at level 45, right associativity).
+Infix "▷" := pipeline (at level 45, left associativity).
 
 Infix "∘" := Basics.compose
   (at level 40, left associativity).
@@ -93,6 +93,19 @@ Module Field (NAME : P4Data).
   Definition relfs {U V : Type}
              (R : U -> V -> Prop) : fs U -> fs V -> Prop :=
     Forall2 (relf R).
+
+  (** Filter. *)
+  Definition filter {U : Type} (f : U -> bool) : fs U -> fs U :=
+    List.filter (f ∘ snd).
+
+  (** Map. *)
+  Definition map {U V : Type} (f : U -> V) : fs U -> fs V :=
+    List.map (fun '(x,u) => (x, f u)).
+
+  (** Fold. *)
+  Definition fold {U V : Type}
+             (f : NAME.t -> U -> V -> V) (fs : fs U) (init : V) : V :=
+    List.fold_right (fun '(x,u) acc => f x u acc) init fs.
 End Field.
 
 (** * P4 AST *)
@@ -558,5 +571,6 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
       | DFunction (returns : E.t) (f : NAME.t)
                   (params : F.fs (Dir.d * E.t)) (body : S.s).
+    (**[]*)
   End Decl.
 End P4.

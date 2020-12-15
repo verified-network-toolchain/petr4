@@ -66,6 +66,14 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
   (** Typing context. *)
   Definition gam : Type := NM.env E.t.
 
+  Definition out_update (fs : F.fs (dir * E.t * E.e)) : gam -> gam :=
+    fs
+      ▷ F.filter (fun '(d,_,_) =>
+                     match d with
+                     | P.Dir.DOut | P.Dir.DInOut => true
+                     | _ => false end)
+      ▷ F.fold (fun x '(_,t,_) acc => NM.bind x t acc).
+
   Reserved Notation "⟦ ers ',' mks ',' gm ⟧ ⊢ ex ∈ ty"
            (at level 40, ex custom p4expr, ty custom p4type at level 0).
 
@@ -191,7 +199,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
    | chk_matchkind (mkd : NAME.t) :
        mkds mkd = Some tt ->
        ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd ∈ error
-   (* Action and extern calls. *)
+   (* Calls. *)
    | chk_call (params : F.fs (dir * E.t)) (args : F.fs (dir * E.t * E.e))
               (returns : E.t) (callee : E.e) :
        ⟦ errs , mkds , Γ ⟧ ⊢ callee ∈ {{ params ↦ returns }} ->
@@ -240,13 +248,14 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
         ⦃ errs , mkds , Γ ⦄ ⊢ tru ⊣ Γ1 ->
         ⦃ errs , mkds , Γ ⦄ ⊢ fls ⊣ Γ2 ->
         ⦃ errs , mkds , Γ ⦄ ⊢ if guard :: τ then tru else fls fin ⊣ Γ
-   | chk_method_call (params : F.fs (dir * E.t))
+   | chk_method_call (Γ' : gam) (params : F.fs (dir * E.t))
                      (args : F.fs (dir * E.t * E.e)) (callee : E.e) :
+       Γ' = out_update args Γ ->
        F.relfs
          (fun dte dt =>
             fst dte = dt /\ let e := snd dte in let τ := snd dt in
             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
-       check_stmt errs mkds Γ (S.SMethodCall callee args) Γ
+       check_stmt errs mkds Γ (S.SMethodCall callee args) Γ'
     where "⦃ ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
             := (check_stmt ers mks g1 s g2).
 End Typecheck.

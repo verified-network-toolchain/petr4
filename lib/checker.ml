@@ -100,6 +100,15 @@ let field_cmp (MkFieldType (name1, _)) (MkFieldType (name2, _)) =
 
 let sort_fields = List.sort ~compare:field_cmp
 
+let is_optional_annotation (_, a: Types.Annotation.t) =
+  let open Types.Annotation in
+  match snd a.body with
+  | Empty -> String.equal a.name.str "optional"
+  | _ -> false
+
+let is_optional (_, p: Types.Parameter.t) =
+  List.exists ~f:is_optional_annotation p.annotations
+
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
 let rec is_extern (env: Checker_env.t) (typ: Typed.coq_P4Type) =
   match typ with
@@ -126,6 +135,23 @@ let real_name_for_type_member env (typ_name: P4name.t) (name: P4string.t) : P4na
       let prefixed_name = {name with str = typ_name.str ^ "." ^ name.str} in
       BareName prefixed_name
   end
+
+let method_prototype_to_extern_method extern_name (m: Prog.coq_MethodPrototype)
+  : Prog.coq_ExternMethod =
+  match m with
+  | ProtoConstructor (_, name, params) ->
+    { name = name;
+      typ = MkFunctionType ([], params, FunExtern, TypTypeName (BareName extern_name)) }
+  | ProtoAbstractMethod (_, return, name, type_params, params)
+  | ProtoMethod (_, return, name, type_params, params) ->
+    { name = name;
+      typ = MkFunctionType (type_params, params, FunExtern, return) }
+
+let name_of_method_prototype (m: Prog.coq_MethodPrototype) =
+  match m with
+  | ProtoConstructor (_, name, _)
+  | ProtoAbstractMethod (_, _, name, _, _)
+  | ProtoMethod (_, _, name, _, _) -> name
 
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
   match saturate_type env hdr_type with
@@ -1304,12 +1330,12 @@ and validate_param env ctx (typ: coq_P4Type) dir info =
   if not @@ is_valid_param_type env ctx typ
   then failwith "Type cannot be passed as a parameter."
 
-and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_info, param : Types.Parameter.t) : coq_P4Parameter * P4string.t list =
+and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_info, param : Types.Parameter.t)
+    : coq_P4Parameter * (P4string.t * Expression.t option) * P4string.t list =
   let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
   let env = Checker_env.insert_type_vars wildcards env in
   let dir = translate_direction param.direction in
   validate_param env ctx typ dir param_info;
-  (* TODO optional values
   let opt_value =
     match param.opt_value with
     | Some value ->
@@ -1318,35 +1344,37 @@ and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_
       else raise_s [%message "Only directionless and in parameters may have default arguments" ~param_info:(param_info:Info.t)]
     | None -> None
   in
-  *)
-  MkParameter (false, (*TODO check if optional annotation present in Types ast *)
+  MkParameter (is_optional (param_info, param),
                translate_direction param.direction,
                typ,
                param.variable),
+  (param.variable, opt_value),
   wildcards
 
 and type_param env ctx param =
-  fst (type_param' env ctx param)
+  let param, default_arg, _ = type_param' env ctx param in
+  param, default_arg
 
 and type_params' ?(gen_wildcards=false) env ctx params =
-  let params, wildcard_lists =
+  let params, default_args, wildcard_lists =
     params
     |> List.map ~f:(type_param' ~gen_wildcards env ctx)
-    |> List.unzip
+    |> List.unzip3
   in
-  params, List.concat wildcard_lists
+  params, default_args, List.concat wildcard_lists
 
 and type_params env ctx param =
-  fst (type_params' env ctx param)
+  let params, default_args, _ = type_params' env ctx param in
+  params, default_args
 
-and type_constructor_param env decl_kind (param: Types.Parameter.t) : coq_P4Parameter =
+and type_constructor_param env decl_kind (param: Types.Parameter.t) : coq_P4Parameter * (P4string.t * Expression.t option) =
   if (snd param).direction <> None
   then raise_s [%message "Constructor parameters must be directionless"
         ~param:(param: Types.Parameter.t)];
   type_param env (ParamCxConstructor decl_kind) param
 
 and type_constructor_params env ctx params =
-  List.map ~f:(type_constructor_param env ctx) params
+  List.unzip (List.map ~f:(type_constructor_param env ctx) params)
 
 and type_int (int: P4int.t) : Prog.coq_ExpressionPreT * coq_P4Type * direction =
   let typ = 
@@ -2888,7 +2916,7 @@ and open_parser_scope env ctx params constructor_params locals states =
 and type_parser env info name annotations type_params params constructor_params locals states =
   if List.length type_params > 0
   then failwith "Parser declarations cannot have type parameters";
-  let env', state_names, constructor_params_typed, params_typed, locals_typed =
+  let env', state_names, (constructor_params_typed, ctor_defaults), (params_typed, inst_defaults), locals_typed =
     open_parser_scope env ParamCxDeclParser params constructor_params locals states
   in
   let states_typed = List.map ~f:(type_parser_state env' state_names) states in
@@ -2904,6 +2932,8 @@ and type_parser env info name annotations type_params params constructor_params 
   let parser_type = Typed.MkControlType ([], params_typed) in
   let ctor_type = Typed.TypConstructor ([], [], constructor_params_typed, TypParser parser_type) in
   let env = Checker_env.insert_type_of (BareName name) ctor_type env in
+  let env = Checker_env.insert_ctor_default_args (BareName name) inst_defaults env in
+  let env = Checker_env.insert_default_args (BareName name) ctor_defaults env in
   parser_typed, env
 
 and open_control_scope env ctx params constructor_params locals =
@@ -2918,7 +2948,7 @@ and open_control_scope env ctx params constructor_params locals =
 and type_control env info name annotations type_params params constructor_params locals apply =
   if List.length type_params > 0
   then failwith "Control declarations cannot have type parameters";
-  let inner_env, params_typed, constructor_params_typed, locals_typed =
+  let inner_env, (params_typed, inst_defaults), (constructor_params_typed, ctor_defaults), locals_typed =
     open_control_scope env ParamCxDeclControl params constructor_params locals
   in
   let block_typed, _ = type_block inner_env StmtCxApplyBlock (fst apply) apply in
@@ -2941,6 +2971,8 @@ and type_control env info name annotations type_params params constructor_params
   in
   let ctor_type = Typed.TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
   let env = Checker_env.insert_type_of (BareName name) ctor_type env in
+  let env = Checker_env.insert_ctor_default_args (BareName name) inst_defaults env in
+  let env = Checker_env.insert_default_args (BareName name) ctor_defaults env in
   control, env
 
 (* Section 9
@@ -2953,15 +2985,15 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
 *)
-and type_function env (ctx: Typed.coq_StmtContext) info return name type_params params body =
+and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body =
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
     | StmtCxFunction _ -> ParamCxDeclFunction, FunFunction
     | StmtCxAction -> ParamCxDeclAction, FunAction
     | _ -> failwith "bad context for function"
   in
-  let body_env = Checker_env.insert_type_vars type_params env in
-  let params_typed = List.map ~f:(type_param body_env (ParamCxRuntime paramctx)) params in
+  let body_env = Checker_env.insert_type_vars t_params env in
+  let params_typed, defaults = type_params body_env (ParamCxRuntime paramctx) params in
   let return_type = return |> translate_type env in
   let body_env = insert_params body_env params in
   let body_stmt_typed, _ = type_block body_env ctx (fst body) body in
@@ -2975,28 +3007,30 @@ and type_function env (ctx: Typed.coq_StmtContext) info return name type_params 
     | _ ->
       failwith "bug: expected BlockStatement"
   in
-  let funtype = MkFunctionType (type_params, params_typed, kind, return_type) in
+  let funtype = MkFunctionType (t_params, params_typed, kind, return_type) in
   let env = Checker_env.insert_type_of (BareName name) (TypFunction funtype) env in
+  let env = Checker_env.insert_default_args (BareName name) defaults env in
   let fn_typed : Prog.coq_Declaration =
     DeclFunction (info,
                   return_type,
                   name,
-                  type_params,
+                  t_params,
                   params_typed,
                   body_typed)
   in
   fn_typed, env
 
 (* Section 7.2.9.1 *)
-and type_extern_function env info annotations return name type_params params =
+and type_extern_function env info annotations return name t_params params =
   let return = return |> translate_type env in
-  let env' = Checker_env.insert_type_vars type_params env in
-  let params_typed = List.map ~f:(type_param env' (ParamCxRuntime ParamCxDeclFunction)) params in
+  let env' = Checker_env.insert_type_vars t_params env in
+  let params_typed, defaults = type_params env' (ParamCxRuntime ParamCxDeclFunction) params in
   let typ: coq_FunctionType =
-    MkFunctionType (type_params, params_typed, FunExtern, return)
+    MkFunctionType (t_params, params_typed, FunExtern, return)
   in
+  let env = Checker_env.insert_default_args (BareName name) defaults env in
   let fn_typed: Prog.coq_Declaration =
-    DeclExternFunction (info, return, name, type_params, params_typed)
+    DeclExternFunction (info, return, name, t_params, params_typed)
   in
   fn_typed, Checker_env.insert_type_of (BareName name) (TypFunction typ) env
 
@@ -3621,9 +3655,10 @@ and type_extern_object env info annotations obj_name t_params methods =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
        if P4string.neq cname obj_name then failwith "Constructor name and type name disagree";
-       let params_typed = type_constructor_params env' ParamCxDeclMethod params in
-       let constructor_typed: Prog.coq_MethodPrototype =
-         ProtoConstructor (info, cname, params_typed)
+       let params_typed, defaults =
+         type_constructor_params env' ParamCxDeclMethod params in
+       let constructor_typed: Prog.coq_MethodPrototype * _ =
+         ProtoConstructor (info, cname, params_typed), defaults
        in
        (constructor_typed :: constructors, methods)
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }
@@ -3634,53 +3669,55 @@ and type_extern_object env info annotations obj_name t_params methods =
       let method_type_params = t_params in
       let method_type_params' = t_params in
       let env' = Checker_env.insert_type_vars method_type_params' env' in
-      let params_typed = type_params env' (ParamCxRuntime ParamCxDeclMethod) params in
+      let params_typed, defaults = type_params env' (ParamCxRuntime ParamCxDeclMethod) params in
       let return_typed = translate_type env' return in
-      let method_typed: Prog.coq_MethodPrototype =
+      let method_typed: Prog.coq_MethodPrototype * _ =
         match snd m with
         | Method _ ->
-          ProtoMethod (info, return_typed, name, method_type_params, params_typed)
+          ProtoMethod (info, return_typed, name, method_type_params, params_typed), defaults
         | AbstractMethod _ ->
-          ProtoAbstractMethod (info, return_typed, name, method_type_params, params_typed)
+          ProtoAbstractMethod (info, return_typed, name, method_type_params, params_typed), defaults
         | _ -> failwith "bug"
       in
       (constructors, method_typed :: methods)
   in
   let (cs, ms) = List.fold_left ~f:consume_method ~init:([], []) methods in
   let extern_decl: Prog.coq_Declaration =
-    DeclExternObject (info, obj_name, t_params, cs @ ms) in
+    DeclExternObject (info, obj_name, t_params, List.map ~f:fst cs @ List.map ~f:fst ms) in
   let extern_methods: Prog.coq_ExternMethods =
     { type_params = t_params;
-      methods = List.map ~f:(method_prototype_to_extern_method obj_name) ms }
+      methods = ms |> List.map ~f:fst |> List.map ~f:(method_prototype_to_extern_method obj_name) }
+  in
+  let name_defaults ((m: Prog.coq_MethodPrototype), defaults) =
+    let name = name_of_method_prototype m in
+    let qname: P4string.t = {tags = name.tags; str = obj_name.str ^ "." ^ name.str} in
+    P4name.BareName qname, defaults
+  in
+  let method_defaults = ms |> List.map ~f:name_defaults in
+  let env = List.fold method_defaults
+              ~init:env
+              ~f:(fun env (name, defaults) -> Checker_env.insert_default_args name defaults env)
   in
   let extern_ctors =
-    List.map cs ~f:(function
+    List.map cs ~f:(fun (c, defaults) -> match c with
         | ProtoConstructor (_, cname, params_typed) ->
            let generic_args =
              List.map t_params
                ~f:(fun ty -> TypTypeName (BareName ty))
            in
            TypConstructor (t_params, [], params_typed,
-                           TypSpecializedType (extern_type, generic_args))
+                           TypSpecializedType (extern_type, generic_args)),
+           defaults
         | _ -> failwith "bug: expected constructor")
   in
   let env = Checker_env.insert_type (BareName obj_name) extern_type env in
   let env = Checker_env.insert_extern (BareName obj_name) extern_methods env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> Checker_env.insert_type_of (BareName obj_name) t env)
+              ~f:(fun env (typ, defaults) ->
+                env |> Checker_env.insert_type_of (BareName obj_name) typ
+                    |> Checker_env.insert_default_args (BareName obj_name) defaults)
   in
   extern_decl, env
-
-and method_prototype_to_extern_method extern_name (m: Prog.coq_MethodPrototype)
-  : Prog.coq_ExternMethod =
-  match m with
-  | ProtoConstructor (_, name, params) ->
-    { name = name;
-      typ = MkFunctionType ([], params, FunExtern, TypTypeName (BareName extern_name)) }
-  | ProtoAbstractMethod (_, return, name, type_params, params)
-  | ProtoMethod (_, return, name, type_params, params) ->
-    { name = name;
-      typ = MkFunctionType (type_params, params, FunExtern, return) }
 
 (* Section 7.3 *)
 and type_type_def env ctx info annotations name typ_or_decl =
@@ -3718,7 +3755,7 @@ and type_new_type env ctx info annotations name typ_or_decl =
 (* Section 7.2.11.2 *)
 and type_control_type env info annotations name t_params params =
   let body_env = Checker_env.insert_type_vars t_params env in
-  let params_typed = type_params body_env (ParamCxRuntime ParamCxDeclControl) params in
+  let params_typed, _ = type_params body_env (ParamCxRuntime ParamCxDeclControl) params in
   let ctrl_decl: Prog.coq_Declaration =
     DeclControlType (info, name, t_params, params_typed) in
   let ctrl_typ = TypControl (MkControlType (t_params, params_typed)) in
@@ -3727,7 +3764,7 @@ and type_control_type env info annotations name t_params params =
 (* Section 7.2.11 *)
 and type_parser_type env info annotations name t_params params =
   let body_env = Checker_env.insert_type_vars t_params env in
-  let params_typed = type_params body_env (ParamCxRuntime ParamCxDeclParser) params in
+  let params_typed, _ = type_params body_env (ParamCxRuntime ParamCxDeclParser) params in
   let parser_decl: Prog.coq_Declaration =
     DeclParserType (info, name, t_params, params_typed) in
   let parser_typ = TypParser (MkControlType (t_params, params_typed)) in
@@ -3736,7 +3773,7 @@ and type_parser_type env info annotations name t_params params =
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =
   let body_env = Checker_env.insert_type_vars t_params env in
-  let params_typed, wildcard_params =
+  let params_typed, _, wildcard_params =
     type_params' ~gen_wildcards:true body_env (ParamCxConstructor ParamCxDeclPackage) params in
   let pkg_decl: Prog.coq_Declaration =
     DeclPackageType (info, name, t_params, params_typed)

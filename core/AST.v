@@ -129,11 +129,17 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | TError
       | TMatchKind
       | TRecord (fields : F.fs t)
-      | THeader (fields : F.fs t)
+      | THeader (fields : F.fs t).
       (* | TTypeName (X : NAME.t) *)
-      (* No calls at expression level. *)
-      | TArrow (params : F.fs (d * t)).
+      (* | TArrow (params : F.fs (d * t)). *)
     (**[]*)
+
+    (** Function signatures. *)
+    Inductive arrow (A : Type) : Type :=
+      Arrow (params : F.fs (d * A)) (returns : option A).
+    (**[]*)
+
+    Arguments Arrow {A} _ _.
 
     Module TypeNotations.
       Declare Custom Entry p4type.
@@ -193,8 +199,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
       (* Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
-      Hypothesis HTArrow : forall (params : F.fs (d * t)),
-          F.predfs_data (P ∘ snd) params -> P (TArrow params).
+      (* Hypothesis HTArrow : forall (params : F.fs (d * t)),
+          F.predfs_data (P ∘ snd) params -> P (TArrow params). *)
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
@@ -222,7 +228,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           (* |   TTypeName X => HTTypeName X *)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
-          | TArrow params => HTArrow params (fields_ind_dir params)
+          (* | TArrow params => HTArrow params (fields_ind_dir params) *)
           end.
     End TypeInduction.
 
@@ -267,7 +273,6 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
       | EError (name : NAME.t)
       | EMatchKind (name : NAME.t).
-      (* Extern or action calls. *)
       (* | ECall
           (callee_type : t) (callee : e)
           (args : F.fs (d * t * e)). *)
@@ -514,7 +519,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Sequences, a possibly easier-to-verify alternative to blocks. *)
       | SSeq (s1 s2 : s)
       | SVarDecl (typ : E.t) (var : NAME.t) (rhs : E.e)
-      | SMethodCall (t : E.t) (callee : E.e) (args : F.fs (d * E.t * E.e)).
+      | SCall (f : NAME.t) (args : E.arrow (E.t * E.e)).
     (**[]*)
 
     Module StmtNotations.
@@ -532,7 +537,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
 
-      Notation "'asgn' e1 := e2 :: t 'fin'"
+      Notation "'asgn' e1 ':=' e2 :: t 'fin'"
               := (SAssign t e1 e2)
                     (in custom p4stmt at level 40,
                         e1 custom p4expr, e2 custom p4expr,
@@ -550,6 +555,15 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
+
+      Notation "'call' f 'with' args 'fin'"
+        := (SCall f (E.Arrow args None))
+             (in custom p4stmt at level 30, no associativity).
+
+      Notation "'let' e '::' t ':=' 'call' f 'with' args 'fin'"
+               := (SCall f (E.Arrow args (Some (t,e))))
+                    (in custom p4stmt at level 30,
+                        e custom p4expr, t custom p4stmt, no associativity).
     End StmtNotations.
   End Stmt.
 
@@ -566,9 +580,10 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | DVarinit (typ : E.t) (x : NAME.t) (rhs : E.e)
       | DConst   (typ : E.t) (x : NAME.t) (rhs : E.e)
       (** [C] is the constructor name,
-          and [x] is the variable name. *)
+          and [x] is the instance name. *)
       | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
-      | DFunction (f : NAME.t) (params : F.fs (Dir.d * E.t)) (body : S.s)
+      | DFunction (f : NAME.t) (params : F.fs (Dir.d * E.t))
+                  (returns : option E.t) (body : S.s)
       | DSeq (d1 d2 : d).
     (**[]*)
   End Decl.
@@ -580,10 +595,12 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
     Module D := Decl.
 
     (** Declarations that may occur within Controls. *)
+    (* TODO, this is a stub. *)
     Inductive d : Type :=
       | DTable (* TODO! *)
       | DDecl (d : D.d)
       | DSeq (d1 d2 : d).
+    (**[]*)
   End Control.
 
   (** * Top-Level Declarations *)
@@ -594,9 +611,13 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
     Module C := Control.
 
     (** Top-level declarations. *)
+    (* TODO, this is a stub. *)
     Inductive d : Type :=
-      | TDecl (d : D.d)
-      | TControl (cparams : F.fs E.t) (params : F.fs (Dir.d * E.t))
-                 (body : C.d) (apply_blk : S.s).
+      | TPDecl (d : D.d)
+      | TPControl (cparams : F.fs E.t) (params : F.fs (Dir.d * E.t))
+                  (body : C.d) (apply_blk : S.s)
+      | TPParser (cparams : F.fs E.t) (params : F.fs (Dir.d * E.t)) (* TODO! *)
+      | TPSeq (d1 d2 : d).
+    (**[]*)
   End TopDecl.
 End P4.

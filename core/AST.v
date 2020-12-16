@@ -563,12 +563,40 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
         and even the top-level. *)
     Inductive d : Type :=
       | DVardecl (typ : E.t) (x : NAME.t)
-      | DVarasgn (typ : E.t) (x : NAME.t) (rhs : E.e)
+      | DVarinit (typ : E.t) (x : NAME.t) (rhs : E.e)
+      | DConst   (typ : E.t) (x : NAME.t) (rhs : E.e)
       (** [C] is the constructor name,
           and [x] is the variable name. *)
       | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
-      | DFunction (f : NAME.t) (t : E.t)
-                  (params : F.fs (Dir.d * E.t)) (body : S.s).
+      | DFunction (f : NAME.t) (params : F.fs (Dir.d * E.t)) (body : S.s)
+      | DSeq (d1 d2 : d).
     (**[]*)
   End Decl.
+
+  (** * Controls *)
+  Module Control.
+    Module E := Expr.
+    Module S := Stmt.
+    Module D := Decl.
+
+    (** Declarations that may occur within Controls. *)
+    Inductive d : Type :=
+      | DTable (* TODO! *)
+      | DDecl (d : D.d)
+      | DSeq (d1 d2 : d).
+  End Control.
+
+  (** * Top-Level Declarations *)
+  Module TopDecl.
+    Module E := Expr.
+    Module S := Stmt.
+    Module D := Decl.
+    Module C := Control.
+
+    (** Top-level declarations. *)
+    Inductive d : Type :=
+      | TDecl (d : D.d)
+      | TControl (cparams : F.fs E.t) (params : F.fs (Dir.d * E.t))
+                 (body : C.d) (apply_blk : S.s).
+  End TopDecl.
 End P4.

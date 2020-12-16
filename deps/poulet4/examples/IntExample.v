@@ -107,6 +107,7 @@ Qed.
 Hint Rewrite top_find_pkt top_find_val top_find_val_inter: int_example.
 
 
+(*
 Lemma int_parses : parses IntParser 2 "start" good_env = true.
 Proof.
   unfold parses.
@@ -203,6 +204,7 @@ Proof.
   fold inter_scope. rewrite top_find_val_inter. 
   now simpl.
 Qed.
+*)
 
 
 (* OK, now consider the following two parsers: *)
@@ -266,6 +268,8 @@ Proof.
 Admitted.
 
 (* Lemma forall s1 s2  *)
+
+(*
 
 Lemma curried_tupled_equiv: 
   forall (bits: list bool),
@@ -405,3 +409,4 @@ Proof.
 
 Admitted.
 
+*)

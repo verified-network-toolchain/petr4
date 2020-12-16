@@ -18,6 +18,7 @@ Require Import Platform.Packet.
 Require Import Strings.String.
 
 
+Open Scope string_scope.
 Open Scope monad.
 
 Section Eval.
@@ -57,7 +58,7 @@ Section Eval.
   Definition bvec_of_z (width: nat) (z: Z) : (Bvector width).
   Admitted.
 
-  Definition extract_value_func (caller: ValueLvalue): Value tags_t := ValObj _ (ValObjBuiltinFun _ String.extract caller).
+  Definition extract_value_func (caller: ValueLvalue): Value tags_t := ValObj _ (ValObjFun _ (MkParameter false Out TypVoid "headerLvalue" :: nil) (ValFuncImplBuiltin tags_t String.extract caller)).
   
 
   Fixpoint eval_expression (expr: Expression tags_t) : env_monad tags_t (Value tags_t) :=
@@ -161,16 +162,25 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Fixpoint eval_arguments (args: list (option (Expression tags_t))) : env_monad tags_t (list (option (Value tags_t))) :=
-    match args with
-    | nil => mret nil
-    | Some arg :: args' =>
-      let* val := eval_expression arg in
-      let* vals := eval_arguments args' in
+  Fixpoint eval_arguments (params: list P4Parameter) (args: list (option (Expression tags_t))) : env_monad tags_t (list (option (Value tags_t))) :=
+    match (args, params) with
+    | (nil, nil) => mret nil
+    | (Some arg :: args', param :: params') =>
+      let '(MkParameter _ dir _ _) := param in
+      let* val := match dir with
+      | In => eval_expression arg
+      | Out => 
+        let* lvalue := eval_lvalue arg
+        in mret (ValLvalue _ lvalue)
+      (* TODO: Handle InOut and Directionless *)
+      | _ => state_fail Internal
+      end in
+      let* vals := eval_arguments params' args' in
       mret (Some val :: vals)
-    | None :: args' =>
-      let* vals := eval_arguments args' in
+    | (None :: args', param :: params') =>
+      let* vals := eval_arguments params' args' in
       mret (None :: vals)
+    | _ => state_fail Internal
     end.
 
   Definition is_packet_func (str: String.t) : bool := 
@@ -178,7 +188,7 @@ Section Eval.
     then true
     else false.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t unit :=
+  Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     obj' <- find_lvalue _ obj ;;
     match obj' with
     | ValObj _ (ValObjPacket _ bits) => 
@@ -192,7 +202,7 @@ Section Eval.
             state_fail error 
           | (inl value, bits') =>
             update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
-            let* target := eval_lvalue target_expr in
+            let* target := unpack_lvalue tags_t (mret target_expr) in
             update_lvalue _ tags_dummy target (ValBase _ value) ;;
             mret tt
           end
@@ -203,8 +213,7 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Definition eval_builtin_func (name: String.t) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
-    let* args' := eval_arguments args in
+  Definition eval_builtin_func (name: String.t) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option (Value tags_t))) : env_monad tags_t (Value tags_t) :=
     if String.eqb name String.isValid
     then eval_is_valid obj
     else if String.eqb name String.setValid
@@ -212,9 +221,9 @@ Section Eval.
     else if String.eqb name String.setInvalid
     then dummy_value _ (eval_set_bool obj false)
     else if String.eqb name String.pop_front
-    then dummy_value _ (eval_pop_front obj args')
+    then dummy_value _ (eval_pop_front obj args)
     else if String.eqb name String.push_front
-    then dummy_value _ (eval_push_front obj args')
+    then dummy_value _ (eval_push_front obj args)
     else if is_packet_func name 
     then dummy_value _ (eval_packet_func obj name type_args args)
     else state_fail Internal.
@@ -233,9 +242,17 @@ Section Eval.
   Definition eval_method_call (func: Expression tags_t) (type_args: list P4Type) (args: list (option (Expression tags_t))) : env_monad tags_t (Value tags_t) :=
     let* func' := eval_expression func in
     match func' with
-    | ValObj _ (ValObjBuiltinFun _ name obj) => eval_builtin_func name obj type_args args
-    (* | ValExternFun name caller params => eval_extern_func name obj type_args args *)
-    | _ => state_fail Internal (* TODO: other function types *)
+    | ValObj _ (ValObjFun _ params impl) =>
+      (* TODO: Properly implement copy in/copy out semantics. *)
+      let* args' := eval_arguments params args in
+      match impl with
+      | ValFuncImplBuiltin _ name obj =>
+        eval_builtin_func name obj type_args args'
+      (* TODO: other function types *)
+      (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
+      | _ => state_fail Internal
+      end
+    | _ => state_fail Internal 
     end.
 
   Fixpoint eval_block (blk: Block tags_t) : env_monad tags_t unit :=

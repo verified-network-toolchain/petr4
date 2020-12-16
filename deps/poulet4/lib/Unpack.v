@@ -8,6 +8,7 @@ Require Import Monads.State.
 Require String.
 Require Import Syntax.
 Require Import Environment.
+Require Import Typed.
 
 Section Unpack.
   Context (tags_t: Type).
@@ -62,17 +63,10 @@ Section Unpack.
     | _ => state_fail Internal
     end.
 
-  Definition unpack_builtin_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (String.t * ValueLvalue) :=
+  Definition unpack_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (list P4Parameter * ValueFunctionImplementation tags_t) :=
     let* unwrapped := wrapped in
     match unwrapped with
-    | ValObj _ (ValObjBuiltinFun _ name obj) => mret (name, obj)
-    | _ => state_fail Internal
-    end.
-
-  Definition unpack_extern_func (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (String.t * option (ValueLoc * String.t) * list Typed.P4Parameter) :=
-    let* unwrapped := wrapped in
-    match unwrapped with
-    | ValObj _ (ValObjExternFun _ name obj params) => mret (name, obj, params)
+    | ValObj _ (ValObjFun _ params impl) => mret (params, impl)
     | _ => state_fail Internal
     end.
 
@@ -94,6 +88,13 @@ Section Unpack.
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase _ (ValBaseStack _ hdrs size next)  => mret (hdrs, size, next)
+    | _ => state_fail Internal
+    end.
+
+  Definition unpack_lvalue (wrapped: env_monad tags_t (Value tags_t)) : env_monad tags_t (ValueLvalue) :=
+    let* unwrapped := wrapped in
+    match unwrapped with
+    | ValLvalue _ lvalue  => mret lvalue
     | _ => state_fail Internal
     end.
 

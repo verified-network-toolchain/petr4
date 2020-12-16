@@ -257,6 +257,11 @@ Section Syntax.
   with ValueLvalue :=
   | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type).
 
+  Inductive ValueFunctionImplementation :=
+  | ValFuncImplUser (scope: Env_EvalEnv) (body: Block)
+  | ValFuncImplExtern (name: String.t) (caller: option (ValueLoc * String.t))
+  | ValFuncImplBuiltin (name: String.t) (caller: ValueLvalue).
+
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)
                  (params: list P4Parameter) (locals: list Declaration)
@@ -267,10 +272,7 @@ Section Syntax.
                   (apply: Block)
   | ValObjPackage (args: list (String.t * ValueLoc))
   | ValObjRuntime (loc: ValueLoc) (obj_name: String.t)
-  | ValObjExternFun (name: String.t) (caller: option (ValueLoc * String.t))
-                   (params: list P4Parameter)
-  | ValObjFun (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
-  | ValObjBuiltinFun (name: String.t) (caller: ValueLvalue)
+  | ValObjFun (params: list P4Parameter) (impl: ValueFunctionImplementation)
   | ValObjAction (scope: Env_EvalEnv) (params: list P4Parameter) (body: Block)
   | ValObjPacket (bits: list bool).
 
@@ -288,7 +290,8 @@ Section Syntax.
   Inductive Value :=
   | ValBase (_: ValueBase)
   | ValObj (_: ValueObject)
-  | ValCons (_: ValueConstructor).
+  | ValCons (_: ValueConstructor)
+  | ValLvalue (_: ValueLvalue).
 
   (* Value_entries, Value_vset, Value_ctrl, Value_signal omitted*)
 

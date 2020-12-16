@@ -101,6 +101,21 @@ Definition hoare_triple_expression
             eval_expression tag_t tag expr env_pre = (inl result, env_post)
 .
 
+(* Same as above, but for the expression as an lvalue. *)
+Definition hoare_triple_expression_lvalue
+    (pre: pred)
+    (expr: Expression tag_t)
+    (constraint: pred)
+    (post: pred)
+:=
+    forall env_pre,
+        pre env_pre ->
+        exists env_post result,
+            post env_post /\
+            constraint (ValLvalue tag_t result) /\
+            eval_lvalue tag_t expr env_pre = (inl result, env_post)
+.
+
 (* If a statement is a block statement, then correctness of the block w.r.t.
    the pushed precondition and popped postcondition implies correctness of the
    statement itself. *)
@@ -181,25 +196,31 @@ Proof.
     exact eval_block_result.
 Qed.
 
-Fixpoint hoare_triples_expressions
+Fixpoint hoare_triples_arguments
     (pre: pred)
-    (constrained_exprs: list (option (Expression tag_t) * pred * pred))
+    (constrained_exprs: list (option (Expression tag_t) * P4Parameter * pred * pred))
     (post: pred)
 :=
     match constrained_exprs with
     | List.nil => forall env, pre env -> post env
     | constrained_expr :: constrained_exprs' =>
-      let '(maybe_expr, constraint_pre, constraint_post) := constrained_expr in
+      let '(maybe_expr, param, constraint_pre, constraint_post) := constrained_expr in
       constraint_pre maybe_expr ->
       match maybe_expr with
       | None =>
         constraint_post None /\
-        hoare_triples_expressions pre constrained_exprs' post
+        hoare_triples_arguments pre constrained_exprs' post
       | Some expr =>
         exists inter,
             let constraint_post' := fun val => constraint_post (Some val) in
-            hoare_triple_expression pre expr constraint_post' inter /\
-            hoare_triples_expressions inter constrained_exprs' post
+            let '(MkParameter _ dir _ _) := param in
+            match dir with
+            | Typed.In => hoare_triple_expression pre expr constraint_post' inter
+            | Typed.Out => hoare_triple_expression_lvalue pre expr constraint_post' inter
+            (* TODO: Implement InOut and Directionless *)
+            | _ => False
+            end /\
+            hoare_triples_arguments inter constrained_exprs' post
       end
     end
 .
@@ -215,12 +236,14 @@ Fixpoint project {A B: Type} (l: list (A * B)) :=
 
 Definition hoare_triple_arguments
     (pre: pred)
-    (constrained_exprs: list (option (Expression tag_t) * pred * pred))
+    (exprs_params_pre_post: list (option (Expression tag_t) * P4Parameter * pred * pred))
     (post: pred)
 :=
     forall env_pre,
         pre env_pre ->
-        let (constrained_exprs_pre, constraints_post) := project constrained_exprs in
+        let (exprs_params_pre, constraints_post) := project exprs_params_pre_post in
+        let (exprs_params, constraints_pre) := project exprs_params_pre in
+        let (exprs, params) := project exprs_params in
         pred_list constrained_exprs_pre ->
         exists constrained_results results env_post,
             let (exprs, _) := project constrained_exprs_pre in

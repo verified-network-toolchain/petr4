@@ -31,6 +31,8 @@ let format_error fmt = function
 exception Internal of string [@@deriving sexp]
 exception Type of (Info.t * error) [@@deriving sexp]
 exception V1AssertionError
+exception UnboundedLoop
+exception IrreducibleCFG
 
 let raise_mismatch info expected found =
   let err = Mismatch { expected; found } in

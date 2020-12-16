@@ -6,6 +6,8 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
 
+Require Import Typed.
+
 Require String.
 Require Import Syntax.
 
@@ -258,6 +260,14 @@ Section Environment.
     Environment.MapsToS s v scope ->
       env = env_pre ++ (scope :: env_post) ->
       Environment.find_environment s env = (inl v, env).
+  Proof using tags_t.
+  Admitted.
+
+  Lemma find_lvalue_env_corr : 
+    forall s ty v (env : Environment.environment) (scope : Environment.scope) env_pre env_post, 
+    Environment.MapsToS s v scope ->
+      env = env_pre ++ (scope :: env_post) ->
+      Environment.find_lvalue (MkValueLvalue (ValLeftName (BareName s)) ty) env = (inl v, env).
   Proof using tags_t.
   Admitted.
 

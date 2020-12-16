@@ -244,16 +244,17 @@ Definition hoare_triple_arguments
         let (exprs_params_pre, constraints_post) := project exprs_params_pre_post in
         let (exprs_params, constraints_pre) := project exprs_params_pre in
         let (exprs, params) := project exprs_params in
-        pred_list constrained_exprs_pre ->
+        pred_list (List.combine exprs constraints_pre) ->
         exists constrained_results results env_post,
-            let (exprs, _) := project constrained_exprs_pre in
             project constrained_results = (results, constraints_post) /\
             post env_post /\
             pred_list constrained_results /\
-            eval_arguments tag_t tag exprs env_pre = (inl results, env_post)
+            eval_arguments tag_t tag params exprs env_pre = (inl results, env_post)
 .
 
-Lemma hoare_lift_arguments
+(* This doesn't compile: where is hoare_triples_expressions? *)
+
+(* Lemma hoare_lift_arguments
     (pre: pred)
     (constrained_exprs: list (option (Expression tag_t) * pred * pred))
     (post: pred)
@@ -309,7 +310,7 @@ Proof.
         unfold state_bind.
         rewrite eval_arguments_result.
         reflexivity.
-Qed.
+Qed. *)
 
 Definition hoare_triple_builtin_function
     (pre: @pred (environment tag_t))
@@ -331,7 +332,7 @@ Definition hoare_triple_builtin_function
             eval_builtin_func tag_t tag name obj type_args args env_pre = (inl result, env_post) *)
 .
 
-Lemma hoare_lift_method_call
+(* Lemma hoare_lift_method_call
     (pre: pred)
     (callee: Expression tag_t)
     (inter: pred)
@@ -352,7 +353,8 @@ Lemma hoare_lift_method_call
     hoare_triple_arguments inter' constrained_args inter' ->
     hoare_triple pre (MkStatement tag_t tag (StatMethodCall tag_t callee type_args args) StmVoid) post
 .
-Admitted.
+
+Admitted. *)
 
 (*
 Proof.

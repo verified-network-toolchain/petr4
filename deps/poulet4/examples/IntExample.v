@@ -106,8 +106,6 @@ Qed.
 
 Hint Rewrite top_find_pkt top_find_val top_find_val_inter: int_example.
 
-
-(*
 Lemma int_parses : parses IntParser 2 "start" good_env = true.
 Proof.
   unfold parses.
@@ -148,10 +146,34 @@ Proof.
   unfold pkt_value. simpl.
 
   unfold eval_builtin_func. simpl.
+  unfold Environment.dummy_value.
+  unfold eval_packet_func. simpl.
   unfold state_bind. simpl.
 
-  erewrite Environment.find_env_corr with (v := out_value).
+  unfold Environment.find_lvalue, Environment.lift_env_lookup_fn.
 
+  assert (H := Environment.find_lvalue_env_corr).
+  unfold Environment.find_lvalue'.
+
+
+  
+
+  erewrite Environment.lift_env_lookup_corr with (v := pkt_value). simpl.
+
+  - 
+    unfold Environment.update_lvalue. simpl.
+    unfold Environment.lift_env_fn, Environment.update_environment'. simpl.
+    unfold Option.option_bind.
+
+    unfold Environment.find_scope. 
+    rewrite top_find_pkt. simpl.
+    unfold Environment.insert_scope. simpl.
+    unfold Option.option_bind. rewrite top_find_pkt. simpl.
+
+    fold inter_scope. rewrite top_find_val_inter. 
+    now simpl.
+  -
+    erewrite Environment.find_env_corr.
   3: {
     unfold Environment.push_scope. simpl.
     replace (Environment.MStr.empty (Value tag_t) :: top_scope :: nil) with (((Environment.MStr.empty (Value tag_t))::nil) ++ top_scope :: nil).
@@ -161,50 +183,12 @@ Proof.
 
   2 : {
     unfold top_scope.
-    apply Environment.MapsToSI.
-      - apply String.eqb_neq. auto.
-      - apply Environment.MapsToSE.
+    unfold Environment.str_of_name_warning_not_safe.
+    apply Environment.MapsToSE.
   }
-
-  unfold state_return. simpl.
-
-
-  unfold Environment.dummy_value, eval_packet_func. simpl.
-  unfold state_bind. simpl.
-
-  unfold Environment.find_lvalue.
-
-  unfold Environment.lift_env_lookup_fn, Environment.find_lvalue'.
-
-  erewrite Environment.lift_env_lookup_corr with (v := pkt_value).
-  2 : {
-    eapply Environment.find_env_corr.
-      2: {
-        unfold Environment.push_scope. simpl.
-        replace (Environment.MStr.empty (Value tag_t) :: top_scope :: nil) with (((Environment.MStr.empty (Value tag_t))::nil) ++ top_scope :: nil).
-          - eauto.
-          - reflexivity.
-      }
-      apply Environment.MapsToSE.
-  }
-  simpl.
-
-
-  unfold Environment.update_lvalue. simpl.
-  unfold Environment.lift_env_fn, Environment.update_environment'. simpl.
-  
-  
-  unfold Option.option_bind.
-
-  unfold Environment.find_scope. 
-  rewrite top_find_pkt. simpl.
-  unfold Environment.insert_scope. simpl.
-  unfold Option.option_bind. rewrite top_find_pkt. simpl.
-
-  fold inter_scope. rewrite top_find_val_inter. 
-  now simpl.
+  auto.
 Qed.
-*)
+
 
 
 (* OK, now consider the following two parsers: *)
@@ -266,8 +250,6 @@ Lemma find_x :
   Environment.find_scope _ "x" (List.hd (Environment.MStr.empty _) (build_env bits)) = Some out_value.
 Proof.
 Admitted.
-
-(* Lemma forall s1 s2  *)
 
 (*
 

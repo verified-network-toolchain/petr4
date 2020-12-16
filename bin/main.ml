@@ -69,6 +69,21 @@ let check_command =
     (fun verbose include_dir json pretty p4file () ->
        ignore (check_file include_dir p4file json pretty verbose))
 
+let unroll_command =
+  let open Command.Spec in
+  Command.basic_spec
+  ~summary: "Perform parser unrolling on a P4 program"
+  (empty
+  +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+  +> flag "-n" (optional_with_default "0" string) ~doc:"<n> Provide a default number of unrollings"
+  +> flag "-inf" no_arg ~doc:" Allow infinite loops in parsers"
+  +> flag "-irr" no_arg ~doc:" Allow irreducible control flow in parsers"
+  +> flag "-d" (optional string) ~doc:" Specify path and filename for output"
+  +> anon ("p4file" %: string))
+  (fun include_dir n inf irr dir p4file () ->
+    unroll_file include_dir n inf irr dir p4file)
+  
+
 let eval_command =
   let open Command.Spec in
   Command.basic_spec
@@ -122,6 +137,7 @@ let command =
     ~summary: "Petr4: A reference implementation of the P4_16 language"
     [ "parse", parse_command;
       "typecheck", check_command;
+      "unroll", unroll_command;
       "run", eval_command;
       "stf", stf_command ]
 

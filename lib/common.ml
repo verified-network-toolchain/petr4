@@ -14,6 +14,7 @@
 *)
 
 module P4Info = Info
+module P4Error = Error
 open Core_kernel
 module Info = P4Info
 module Env = Prog.Env
@@ -143,4 +144,48 @@ module Make_parse (Conf: Parse_config) = struct
       let exn_msg = Exn.to_string exn in
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg
+
+  let unroll_file include_dirs n inf irr d p4_file =
+    let n = int_of_string n in
+    match parse_file include_dirs p4_file false with
+    | `Ok prog ->
+      let (elab_prog, renamer) : Types.program * 'a = Elaborate.elab prog in
+      let _, typed_prog = Checker.check_program renamer elab_prog in
+      let dir_sepc = Filename.dir_sep |> String.to_list_rev |> List.hd_exn in
+      let path = String.split ~on:dir_sepc p4_file |> List.rev in
+      let name = List.hd_exn path |> String.split ~on:'.' |> List.hd_exn in
+      let path = List.tl_exn path |> List.rev
+        |> List.fold ~init:"." ~f:(fun acc s -> Format.sprintf "%s%c%s" acc dir_sepc s) in
+      let d = Option.value_map d ~default:path ~f:Fn.id in
+      let new_file = Format.sprintf "%s%c%s_unrolled.p4" d dir_sepc name in
+      begin try
+        let unrolled_prog = Unroll.unroll_parsers n typed_prog in
+        let unrolled_prog = CheckerInverse.of_program unrolled_prog in
+        let fd = Out_channel.create new_file in
+        let ff = Format.formatter_of_out_channel fd in
+        Format.fprintf ff "%a" Pretty.format_program unrolled_prog;
+        Out_channel.close fd
+      with
+        | P4Error.UnboundedLoop ->
+          if inf
+          then begin
+            let fd = Out_channel.create new_file in
+            let ff = Format.formatter_of_out_channel fd in
+            Format.printf "[WARNING] Program may contain infinite loops. No unrolling was performed.";
+            Format.fprintf ff "%a" Pretty.format_program elab_prog;
+            Out_channel.close fd end
+          else
+            Format.printf "[ERROR] Program may contain inifite loops. No unrolling was performed."
+        | P4Error.IrreducibleCFG ->
+          if irr
+          then begin
+            let fd = Out_channel.create new_file in
+            let ff = Format.formatter_of_out_channel fd in
+            Format.printf "[WARNING] Program control flow is irreducible. No unrolling was performed.";
+            Format.fprintf ff "%a" Pretty.format_program elab_prog;
+            Out_channel.close fd end
+          else
+            Format.printf "[ERROR] Program control flow is irreducible. No unrolling was performed." end
+    | `Error (_, e) -> raise e
+
 end

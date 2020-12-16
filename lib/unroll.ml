@@ -47,7 +47,7 @@ let get_sccs (cfg : cfg) : loop list =
     the [cfg] which dominates all other states in the [scc] and which is the only
     state in the [scc] with in-going edges from outside of the [scc]. *)
 let is_natural (cfg : cfg) (doms : dom_map) (scc : loop) : bool =
-  false
+  false (* TODO *)
 
 (** [consumes_pkt cfg loop] is [true] iff. some state in the [loop] calls
     [packet_in.extract] or [packet_in.advance]. *)
@@ -90,7 +90,7 @@ let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.stat
   let cfg, _ = List.fold idxs ~init:(cfg, idx_loops) ~f:(unroll_loop n) in
   of_cfg cfg
 
-let unroll_parsers (p : Prog.program) (n : int) : Prog.program =
+let unroll_parsers (n : int) (p : Prog.program) : Prog.program =
   let open Prog.Declaration in
   let f = function
     | (i, Parser {

@@ -11,10 +11,6 @@ type t =
     typ_of: (Typed.coq_P4Type * Typed.direction) Env.t;
     (* maps constants to their values *)
     const: Prog.coq_Value Env.t;
-    (* default arguments *)
-    default_args: ((P4string.t * Types.Expression.t option) list) Env.t;
-    (* default arguments *)
-    ctor_default_args: ((P4string.t * Types.Expression.t option) list) Env.t;
     (* externs *)
     externs: Prog.coq_ExternMethods Env.t;
     (* for generating fresh type variables *)
@@ -25,8 +21,6 @@ let empty_with_renamer r : t =
   { typ = Env.empty_env;
     typ_of = Env.empty_env;
     const = Env.empty_env;
-    default_args = Env.empty_env;
-    ctor_default_args = Env.empty_env;
     externs = Env.empty_env;
     renamer = r }
 
@@ -57,18 +51,6 @@ let find_const name env =
 
 let find_const_opt name env =
   Env.find_opt name env.const
-
-let find_default_args name env =
-  Env.find name env.default_args
-
-let find_default_args_opt name env =
-  Env.find_opt name env.default_args
-
-let find_ctor_default_args name env =
-  Env.find name env.ctor_default_args
-
-let find_ctor_default_args_opt name env =
-  Env.find_opt name env.ctor_default_args
 
 let find_extern name env =
   Env.find name env.externs
@@ -103,17 +85,6 @@ let insert_const var value env =
   match find_const_opt var env with
   | Some _ -> raise NameAlreadyBound
   | None -> { env with const = Env.insert var value env.const }
-
-let insert_default_args var value env =
-  match find_default_args_opt var env with
-  | Some _ -> raise NameAlreadyBound
-  | None -> { env with default_args = Env.insert var value env.default_args }
-
-let insert_ctor_default_args var value env =
-  match find_ctor_default_args_opt var env with
-  | Some _ -> raise NameAlreadyBound
-  | None -> { env with ctor_default_args = Env.insert var value env.default_args }
-
 
 let insert_extern var value env =
   match find_extern_opt var env with

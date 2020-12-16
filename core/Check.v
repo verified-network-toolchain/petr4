@@ -200,7 +200,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
        mkds mkd = Some tt ->
        ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd ∈ error
    (* Calls. *)
-   | chk_call (params : F.fs (dir * E.t)) (args : F.fs (dir * E.t * E.e))
+   (* | chk_call (params : F.fs (dir * E.t)) (args : F.fs (dir * E.t * E.e))
               (returns : E.t) (callee : E.e) :
        ⟦ errs , mkds , Γ ⟧ ⊢ callee ∈ {{ params ↦ returns }} ->
        F.relfs
@@ -208,7 +208,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
             fst dte = dt /\ let e := snd dte in let τ := snd dt in
             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
        ⟦ errs , mkds , Γ ⟧
-         ⊢ call callee :: {{ params ↦ returns }} with args end ∈ returns
+         ⊢ call callee :: {{ params ↦ returns }} with args end ∈ returns *)
    where "⟦ ers ',' mks ',' gm ⟧ ⊢ ex ∈ ty"
            := (check ers mks gm ex ty).
   (**[]*)

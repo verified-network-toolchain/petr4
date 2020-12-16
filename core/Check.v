@@ -251,11 +251,12 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
    | chk_method_call (Γ' : gam) (params : F.fs (dir * E.t))
                      (args : F.fs (dir * E.t * E.e)) (callee : E.e) :
        Γ' = out_update args Γ ->
+       check errs mkds Γ callee (E.TArrow params) ->
        F.relfs
          (fun dte dt =>
             fst dte = dt /\ let e := snd dte in let τ := snd dt in
             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
-       check_stmt errs mkds Γ (S.SMethodCall callee args) Γ'
+       check_stmt errs mkds Γ (S.SMethodCall (E.TArrow params) callee args) Γ'
     where "⦃ ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
             := (check_stmt ers mks g1 s g2).
 End Typecheck.

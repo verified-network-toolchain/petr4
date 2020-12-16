@@ -129,9 +129,9 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | TError
       | TMatchKind
       | TRecord (fields : F.fs t)
-      | THeader (fields : F.fs t)
-      (*    | TTypeName (X : NAME.t) *)
-      | TArrow (params : F.fs (d * t)) (return_type : t).
+      | THeader (fields : F.fs t).
+      (* | TTypeName (X : NAME.t) *)
+      (* | TArrow (params : F.fs (d * t)) (return_type : t). *)
     (**[]*)
 
     Module TypeNotations.
@@ -163,9 +163,9 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Notation "'hdr' { fields } "
         := (THeader fields)
             (in custom p4type at level 6, no associativity).
-      Notation "params ↦ return_typ"
+      (* Notation "params ↦ return_typ"
               := (TArrow params return_typ)
-                    (in custom p4type at level 10, no associativity).
+                    (in custom p4type at level 10, no associativity). *)
     End TypeNotations.
     Import TypeNotations.
 
@@ -192,9 +192,9 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
       (* Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
-      Hypothesis HTArrow : forall (params : F.fs (d * t)) (returns : t),
+      (* Hypothesis HTArrow : forall (params : F.fs (d * t)) (returns : t),
           F.predfs_data (P ∘ snd) params ->
-          P returns -> P {{ params ↦ returns }}.
+          P returns -> P {{ params ↦ returns }}. *)
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
@@ -219,12 +219,12 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           | {{ bit<w> }} => HTBitstring w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
-          (*        |   TTypeName X => HTTypeName X *)
+          (* |   TTypeName X => HTTypeName X *)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
-          | {{ params ↦ returns }} =>
+          (* | {{ params ↦ returns }} =>
               HTArrow params returns
-                      (fields_ind_dir params) (custom_t_ind returns)
+                      (fields_ind_dir params) (custom_t_ind returns) *)
           end.
     End TypeInduction.
 
@@ -268,12 +268,12 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | ERecord (fields : F.fs (t * e))
       | EExprMember (mem : NAME.t) (expr_type : t) : e -> e
       | EError (name : NAME.t)
-      | EMatchKind (name : NAME.t)
+      | EMatchKind (name : NAME.t).
       (* Extern or action calls. *)
-      | ECall
+      (* | ECall
           (callee_type : t) (callee : e)
-          (args : F.fs (d * t * e)).
-    (*[]*)
+          (args : F.fs (d * t * e)). *)
+    (**[]*)
 
     Module ExprNotations.
       Export TypeNotations.
@@ -414,10 +414,10 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                               (in custom p4expr at level 0, no associativity).
       Notation "'Matchkind' x" := (EMatchKind x)
                               (in custom p4expr at level 0, no associativity).
-      Notation " 'call' f '::' tf 'with' args 'end' "
+      (* Notation " 'call' f '::' tf 'with' args 'end' "
         := (ECall tf f args) (in custom p4expr at level 30,
                                 tf custom p4type,
-                                f custom p4expr, left associativity).
+                                f custom p4expr, left associativity). *)
     End ExprNotations.
     Import ExprNotations.
 
@@ -459,11 +459,11 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       Hypothesis HEMatchKind : forall mkd : NAME.t,
           P <{ Matchkind mkd }>.
 
-      Hypothesis HECall : forall (ty : t) (callee : e) (args : F.fs (d * t * e)),
+      (* Hypothesis HECall : forall (ty : t) (callee : e) (args : F.fs (d * t * e)),
           P callee -> F.predfs_data (P ∘ snd) args ->
-          P <{ call callee :: ty with args end }>.
+          P <{ call callee :: ty with args end }>. *)
 
-      (*    Hypothesis HELoc : forall l : LOC.t,
+      (* Hypothesis HELoc : forall l : LOC.t,
           P (ELoc l). *)
 
       (** A custom induction principle.
@@ -493,11 +493,11 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
               HEExprMember x ty exp (custom_e_ind exp)
           | <{ Error err }> => HEError err
           | <{ Matchkind mkd }> => HEMatchKind mkd
-          | <{ call callee :: ty with args end }> =>
+          (* | <{ call callee :: ty with args end }> =>
               HECall ty callee args
                     (custom_e_ind callee)
-                    (fields_ind args)
-          (*        | <{ Loc l }> => HELoc l *)
+                    (fields_ind args) *)
+          (* | <{ Loc l }> => HELoc l *)
           end.
     End ExprInduction.
   End Expr.

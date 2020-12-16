@@ -1,10 +1,16 @@
 open Error
 open Core_kernel
 
+(** [block] is a custom minimalize representation of *)
+type block = {
+  stmts : Prog.Statement.t list;
+  trans : Prog.Parser.transition;
+}
+
 (** [cfg] is a decomposition of [Prog.Parser.state list] with the additional
     information needed to describe a complete control-flow graph. *)
 type cfg = {
-  states : (string * Prog.Statement.t list * Prog.Parser.transition) list;
+  states : (string * Prog.Parser.state) list;
   edges : (string * string list) list;
 }
 
@@ -28,10 +34,25 @@ let equal = String.equal
 
 (** [to_cfg states] is a CFG describing the control structure of the [states]. *)
 let to_cfg (states : Prog.Parser.state list) : cfg =
-  { states = []; edges = []; } (* TODO *)
+  let open Prog.Parser in
+  let f state =
+    snd (snd state).name, state in
+  let states = List.map states ~f in
+  let f (state, (_, { transition; _ })) =
+    let succs = match snd transition with
+      | Direct {next = (_, "accept")} -> []
+      | Direct {next = (_, "reject")} -> []
+      | Direct {next = (_, succ)}  -> [succ]
+      | Select { cases; _ } ->
+        List.map cases ~f:(fun case -> (snd case).next |> snd)
+        |> List.filter
+          ~f:(fun succ -> not (equal succ "reject" || equal succ "accept")) in
+    state, succs in
+  let edges = List.map states ~f in
+  { states; edges; } (* TODO *)
 
 let of_cfg (cfg : cfg) : Prog.Parser.state list =
-  [] (* TODO *)
+  List.map cfg.states ~f:snd
 
 (** [get_dom_map cfg] returns a dominance map according to the given [cfg]. *)
 let get_dom_map (cfg : cfg) : dom_map =
@@ -41,7 +62,6 @@ let get_dom_map (cfg : cfg) : dom_map =
     using Tarjan's strongly connected components algorithm. *)
 let get_sccs (cfg : cfg) : loop list =
   [] (* TODO *)
-
 
 (** [is_natural cfg doms scc] is [true] iff. there is a state in the [scc] of
     the [cfg] which dominates all other states in the [scc] and which is the only

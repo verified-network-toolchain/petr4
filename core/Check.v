@@ -66,13 +66,13 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
   (** Typing context. *)
   Definition gam : Type := NM.env E.t.
 
-  Definition out_update (fs : F.fs (dir * E.t * E.e)) : gam -> gam :=
+  Definition out_update (fs : F.fs (dir * (E.t * E.e))) : gam -> gam :=
     fs
-      ▷ F.filter (fun '(d,_,_) =>
+      ▷ F.filter (fun '(d,_) =>
                      match d with
                      | P.Dir.DOut | P.Dir.DInOut => true
                      | _ => false end)
-      ▷ F.fold (fun x '(_,t,_) acc => NM.bind x t acc).
+      ▷ F.fold (fun x '(_, (t,_)) acc => NM.bind x t acc).
 
   Reserved Notation "⟦ ers ',' mks ',' gm ⟧ ⊢ ex ∈ ty"
            (at level 40, ex custom p4expr, ty custom p4type at level 0).
@@ -225,38 +225,56 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
   Notation "'C'" := SIG_Cont (in custom p4signal at level 0).
   Notation "'R'" := SIG_Return (in custom p4signal at level 0). *)
 
-  Reserved Notation "⦃ errs ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
+  (** Available functions. *)
+  Definition fenv : Type := NM.env (E.arrow E.t).
+
+  Reserved Notation "⦃ fe ',' errs ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
            (at level 40, s custom p4stmt, g2 custom p4env).
 
-  Inductive check_stmt (errs : errors) (mkds : matchkinds)
-    (Γ : gam) : S.s -> gam -> Prop :=
+  Inductive check_stmt (fns : fenv) (errs : errors)
+            (mkds : matchkinds) (Γ : gam) : S.s -> gam -> Prop :=
     | chk_skip :
-        ⦃ errs , mkds , Γ ⦄ ⊢ skip ⊣ Γ
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ skip ⊣ Γ
     | chk_seq (s1 s2 : S.s) (Γ' Γ'' : gam) :
-        ⦃ errs , mkds , Γ  ⦄ ⊢ s1 ⊣ Γ' ->
-        ⦃ errs , mkds , Γ' ⦄ ⊢ s2 ⊣ Γ'' ->
-        ⦃ errs , mkds , Γ  ⦄ ⊢ s1 ; s2 ⊣ Γ''
+        ⦃ fns , errs , mkds , Γ  ⦄ ⊢ s1 ⊣ Γ' ->
+        ⦃ fns , errs , mkds , Γ' ⦄ ⊢ s2 ⊣ Γ'' ->
+        ⦃ fns , errs , mkds , Γ  ⦄ ⊢ s1 ; s2 ⊣ Γ''
     | chk_vardecl (τ : E.t) (x : NAME.t) (e : E.e) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ fin ⊣ x |-> τ ;; Γ
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ fin ⊣ x |-> τ ;; Γ
     | chk_assign (τ : E.t) (lhs rhs : E.e) :
         ⟦ errs , mkds , Γ ⟧ ⊢ lhs ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rhs ∈ τ ->
-        ⦃ errs , mkds , Γ ⦄ ⊢ asgn lhs := rhs :: τ fin ⊣ Γ
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn lhs := rhs :: τ fin ⊣ Γ
     | chk_cond (τ : E.t) (guard : E.e) (tru fls : S.s) (Γ1 Γ2 : gam) :
         ⟦ errs , mkds , Γ ⟧ ⊢ guard ∈ τ ->
-        ⦃ errs , mkds , Γ ⦄ ⊢ tru ⊣ Γ1 ->
-        ⦃ errs , mkds , Γ ⦄ ⊢ fls ⊣ Γ2 ->
-        ⦃ errs , mkds , Γ ⦄ ⊢ if guard :: τ then tru else fls fin ⊣ Γ
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ tru ⊣ Γ1 ->
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ fls ⊣ Γ2 ->
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ if guard :: τ then tru else fls fin ⊣ Γ
    | chk_method_call (Γ' : gam) (params : F.fs (dir * E.t))
-                     (args : F.fs (dir * E.t * E.e)) (callee : E.e) :
+                     (args : F.fs (dir * (E.t * E.e))) (f : NAME.t) :
        Γ' = out_update args Γ ->
-       check errs mkds Γ callee (E.TArrow params) ->
+       fns f = Some (E.Arrow params None) ->
        F.relfs
          (fun dte dt =>
-            fst dte = dt /\ let e := snd dte in let τ := snd dt in
-            ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
-       check_stmt errs mkds Γ (S.SMethodCall (E.TArrow params) callee args) Γ'
-    where "⦃ ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
-            := (check_stmt ers mks g1 s g2).
+            fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
+            let e := dte ▷ snd ▷ snd in let τ := snd dt in
+            ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+         args params ->
+       ⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args fin ⊣ Γ'
+   | chk_call (Γ' : gam) (params : F.fs (dir * E.t)) (τ : E.t)
+              (args : F.fs (dir * (E.t * E.e))) (e : E.e) (f : NAME.t) :
+       Γ' = out_update args Γ ->
+       fns f = Some (E.Arrow params (Some τ)) ->
+       ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
+       F.relfs
+         (fun dte dt =>
+            fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
+            let e := dte ▷ snd ▷ snd in let τ := snd dt in
+            ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+         args params ->
+       ⦃ fns , errs , mkds , Γ ⦄ ⊢ let e :: τ := call f with args fin ⊣ Γ'
+    where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
+            := (check_stmt fe ers mks g1 s g2).
+  (**[]*)
 End Typecheck.

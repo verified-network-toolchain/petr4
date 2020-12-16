@@ -129,9 +129,10 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | TError
       | TMatchKind
       | TRecord (fields : F.fs t)
-      | THeader (fields : F.fs t).
+      | THeader (fields : F.fs t)
       (* | TTypeName (X : NAME.t) *)
-      (* | TArrow (params : F.fs (d * t)) (return_type : t). *)
+      (* No calls at expression level. *)
+      | TArrow (params : F.fs (d * t)).
     (**[]*)
 
     Module TypeNotations.
@@ -192,9 +193,8 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
 
       (* Hypothesis HTTypeName : forall X : NAME.t, P (TTypeName X). *)
 
-      (* Hypothesis HTArrow : forall (params : F.fs (d * t)) (returns : t),
-          F.predfs_data (P ∘ snd) params ->
-          P returns -> P {{ params ↦ returns }}. *)
+      Hypothesis HTArrow : forall (params : F.fs (d * t)),
+          F.predfs_data (P ∘ snd) params -> P (TArrow params).
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
@@ -222,9 +222,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           (* |   TTypeName X => HTTypeName X *)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
-          (* | {{ params ↦ returns }} =>
-              HTArrow params returns
-                      (fields_ind_dir params) (custom_t_ind returns) *)
+          | TArrow params => HTArrow params (fields_ind_dir params)
           end.
     End TypeInduction.
 
@@ -516,7 +514,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Sequences, a possibly easier-to-verify alternative to blocks. *)
       | SSeq (s1 s2 : s)
       | SVarDecl (typ : E.t) (var : NAME.t) (rhs : E.e)
-      | SMethodCall (callee : E.e) (args : F.fs (d * E.t * E.e)).
+      | SMethodCall (t : E.t) (callee : E.e) (args : F.fs (d * E.t * E.e)).
     (**[]*)
 
     Module StmtNotations.
@@ -569,7 +567,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (** [C] is the constructor name,
           and [x] is the variable name. *)
       | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
-      | DFunction (returns : E.t) (f : NAME.t)
+      | DFunction (f : NAME.t) (t : E.t)
                   (params : F.fs (Dir.d * E.t)) (body : S.s).
     (**[]*)
   End Decl.

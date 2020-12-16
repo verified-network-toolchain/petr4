@@ -129,7 +129,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       | TError
       | TMatchKind
       | TRecord (fields : F.fs t)
-      | THeader (fields : F.fs t)
+      | THeader (fields : F.fs t).
       (* | TTypeName (X : NAME.t) *)
       (* | TArrow (params : F.fs (d * t)). *)
     (**[]*)

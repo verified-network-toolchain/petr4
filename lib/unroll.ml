@@ -195,29 +195,30 @@ let update_exits (cfg : cfg) (loop : loop) : loop =
 
 (** [stmt_consumes_pkt stmt] is [true] iff. the semantics of [stmt] increment
     the packet pointer. *)
-let stmt_consumes_pkt (stmt : Prog.Statement.t) : bool =
+let stmt_consumes_pkt (env : Prog.Env.EvalEnv.t) (stmt : Prog.Statement.t) : bool =
   match (snd stmt).stmt with
   | Prog.Statement.MethodCall {
     func = _, {expr = Prog.Expression.Name (BareName (_, "extract")); _};
     type_args = [t]; _ } ->
-    Bigint.(zero < (Target.width_of_typ Prog.Env.EvalEnv.empty_eval_env t))
-    (* TODO: also not sound due to type variables *)
-    (* | MethodCall {
-    func = _, String (_, "advance"); } -> true TODO: not truely sound *)
+    Bigint.(zero < (Target.width_of_typ env t))
+  (* | MethodCall {
+    func = _, {expr = Prog.Expression.Name (BareName (_, "advance")); _}; _ } ->
+    true TODO: not truely sound *)
   | _ -> false  
 
 (** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics
     increment the packet pointer. *)
-let state_consumes_pkt (st : Prog.Parser.state) : bool =
-  List.exists (snd st).statements ~f:stmt_consumes_pkt
+let state_consumes_pkt (env : Prog.Env.EvalEnv.t) (st : Prog.Parser.state) : bool =
+  List.exists (snd st).statements ~f:(stmt_consumes_pkt env)
 
 (** [consumes_pkt cfg loop] is [true] iff. every path from the [loop.hdr] to a
     state in [loop.exits] calls [packet_in.extract] or [packet_in.advance] on a
     value whose bit-length is non-zero. *)
-let loop_consumes_pkt (cfg : cfg) (doms : dom_map) (loop : loop) : bool =
+let loop_consumes_pkt (env : Prog.Env.EvalEnv.t) (cfg : cfg) (doms : dom_map)
+    (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
     List.exists (List.Assoc.find_exn doms e ~equal) ~f:(fun st ->
-      state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
+      state_consumes_pkt env (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
 let loops_equal (l1 : loop) (l2 : loop) : bool =
@@ -236,7 +237,8 @@ let unroll_loop_h (n : int) (cfg : cfg) (idx_loops : (string * loop) list)
 
 let unroll_loop a (b,c) d = unroll_loop_h a b c d
 
-let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.state list =
+let unroll_parser (n : int) (env : Prog.Env.EvalEnv.t)
+    (states : Prog.Parser.state list) : Prog.Parser.state list =
   let cfg = to_cfg states in
   let doms = get_dom_map cfg in
   let sccs = get_sccs cfg in
@@ -247,7 +249,7 @@ let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.stat
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
   let loops = List.map loops' ~f:(update_exits cfg) in
-  let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
+  let loops = List.filter loops ~f:(loop_consumes_pkt env cfg doms) in
   let () =
     if List.equal loops_equal loops' loops
     then ()
@@ -257,7 +259,7 @@ let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.stat
   let cfg, _ = List.fold idxs ~init:(cfg, idx_loops) ~f:(unroll_loop n) in
   of_cfg cfg
 
-let unroll_parsers (n : int) (p : Prog.program) : Prog.program =
+let unroll_parsers (n : int) (env : Prog.Env.EvalEnv.t) (p : Prog.program) : Prog.program =
   let open Prog.Declaration in
   let f = function
     | (i, Parser {
@@ -275,7 +277,7 @@ let unroll_parsers (n : int) (p : Prog.program) : Prog.program =
       params;
       constructor_params;
       locals;
-      states = unroll_parser n states;
+      states = unroll_parser n env states;
     })
     | d -> d in
   match p with Program ds ->

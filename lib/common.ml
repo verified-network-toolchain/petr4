@@ -150,7 +150,8 @@ module Make_parse (Conf: Parse_config) = struct
     match parse_file include_dirs p4_file false with
     | `Ok prog ->
       let (elab_prog, renamer) : Types.program * 'a = Elaborate.elab prog in
-      let _, typed_prog = Checker.check_program renamer elab_prog in
+      let cenv, typed_prog = Checker.check_program renamer elab_prog in
+      let env = Prog.Env.CheckerEnv.eval_env_of_t cenv in
       let dir_sepc = Filename.dir_sep |> String.to_list_rev |> List.hd_exn in
       let path = String.split ~on:dir_sepc p4_file |> List.rev in
       let name = List.hd_exn path |> String.split ~on:'.' |> List.hd_exn in
@@ -159,7 +160,7 @@ module Make_parse (Conf: Parse_config) = struct
       let d = Option.value_map d ~default:path ~f:Fn.id in
       let new_file = Format.sprintf "%s%c%s_unrolled.p4" d dir_sepc name in
       begin try
-        let unrolled_prog = Unroll.unroll_parsers n typed_prog in
+        let unrolled_prog = Unroll.unroll_parsers n env typed_prog in
         let unrolled_prog = CheckerInverse.of_program unrolled_prog in
         let fd = Out_channel.create new_file in
         let ff = Format.formatter_of_out_channel fd in

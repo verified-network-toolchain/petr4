@@ -33,11 +33,12 @@ Definition pred_env_popped (p: pred) (env: environment tag_t) :=
 (* The predicate that holds for all environments. *)
 Definition pred_trivial {A: Type} := fun a : A => True.
 
-Fixpoint pred_list {A: Type} (elems_preds: list (A * pred)) :=
-    match elems_preds with
-    | List.nil => True
-    | (elem, pred) :: elems_preds' =>
-      pred elem /\ pred_list elems_preds'
+Fixpoint pred_list {A: Type} (elems: list A) (preds: list pred) :=
+    match (elems, preds) with
+    | (List.nil, List.nil) => True
+    | (elem :: elems', pred :: preds') =>
+      pred elem /\ pred_list elems' preds'
+    | _ => False
     end
 .
 
@@ -112,7 +113,7 @@ Definition hoare_triple_expression_lvalue
         pre env_pre ->
         exists env_post result,
             post env_post /\
-            constraint (ValLvalue tag_t result) /\
+            constraint result /\
             eval_lvalue tag_t expr env_pre = (inl result, env_post)
 .
 
@@ -196,178 +197,230 @@ Proof.
     exact eval_block_result.
 Qed.
 
-Fixpoint hoare_triples_arguments
-    (pre: pred)
-    (constrained_exprs: list (option (Expression tag_t) * P4Parameter * pred * pred))
-    (post: pred)
-:=
-    match constrained_exprs with
-    | List.nil => forall env, pre env -> post env
-    | constrained_expr :: constrained_exprs' =>
-      let '(maybe_expr, param, constraint_pre, constraint_post) := constrained_expr in
-      constraint_pre maybe_expr ->
-      match maybe_expr with
-      | None =>
-        constraint_post None /\
-        hoare_triples_arguments pre constrained_exprs' post
-      | Some expr =>
-        exists inter,
-            let constraint_post' := fun val => constraint_post (Some val) in
-            let '(MkParameter _ dir _ _) := param in
-            match dir with
-            | Typed.In => hoare_triple_expression pre expr constraint_post' inter
-            | Typed.Out => hoare_triple_expression_lvalue pre expr constraint_post' inter
-            (* TODO: Implement InOut and Directionless *)
-            | _ => False
-            end /\
-            hoare_triples_arguments inter constrained_exprs' post
-      end
-    end
-.
-
-Fixpoint project {A B: Type} (l: list (A * B)) :=
-    match l with
-    | List.nil => (List.nil, List.nil)
-    | (a, b) :: l' =>
-      let (ll, lr) := project l' in
-      (a :: ll, b :: lr)
-    end
-.
-
+(* Hoare triple for the evaluation of arguments. In an environment satisfying
+ * the precondition and given expressions satisfying exprs_pre, yields an
+   environment and values satisfying the postcondition and exprs_post. *)
 Definition hoare_triple_arguments
     (pre: pred)
-    (exprs_params_pre_post: list (option (Expression tag_t) * P4Parameter * pred * pred))
+    (exprs: list (option (Expression tag_t)))
+    (params: list P4Parameter)
+    (exprs_pre: list pred)
+    (exprs_post: list pred)
     (post: pred)
 :=
     forall env_pre,
         pre env_pre ->
-        let (exprs_params_pre, constraints_post) := project exprs_params_pre_post in
-        let (exprs_params, constraints_pre) := project exprs_params_pre in
-        let (exprs, params) := project exprs_params in
-        pred_list (List.combine exprs constraints_pre) ->
-        exists constrained_results results env_post,
-            project constrained_results = (results, constraints_post) /\
+        pred_list exprs exprs_pre ->
+        exists results env_post,
             post env_post /\
-            pred_list constrained_results /\
+            pred_list results exprs_post /\
             eval_arguments tag_t tag params exprs env_pre = (inl results, env_post)
 .
 
-(* This doesn't compile: where is hoare_triples_expressions? *)
-
-(* Lemma hoare_lift_arguments
-    (pre: pred)
-    (constrained_exprs: list (option (Expression tag_t) * pred * pred))
-    (post: pred)
-:
-    hoare_triples_expressions pre constrained_exprs post ->
-        hoare_triple_arguments pre constrained_exprs post
+(* Trivializes evaluation of an empty list of arguments. *)
+Lemma hoare_triple_arguments_base (pre: pred):
+    hoare_triple_arguments pre List.nil List.nil List.nil List.nil pre
 .
 Proof.
-    generalize pre as pre'.
-    unfold hoare_triple_arguments.
-    induction constrained_exprs;
-    intros pre' H env_pre env_pre_fits.
-    - exists List.nil, List.nil, env_pre.
-      simpl; repeat split.
-      f_equal; try reflexivity.
-      exact (H env_pre env_pre_fits).
-    - intros.
-      destruct a as [[maybe_expr expr_pre] expr_post]; intros.
-      remember (project constrained_exprs) as p; destruct p as (constrained_exprs_pre, constraints_post).
-      remember (project constrained_exprs_pre) as p; destruct p as (exprs, constraints_pre).
-      simpl project; rewrite <- Heqp.
-      intros.
-      destruct H0 as [maybe_expr_fits constrained_exprs_pre_fit].
-      simpl in H.
-      specialize (H maybe_expr_fits).
-      destruct maybe_expr.
-      * destruct H as [inter [H_first H_rest]].
-        specialize (H_first env_pre env_pre_fits).
-        destruct H_first as [env_inter [result [env_inter_fits [expr_inter_fits eval_expression_result]]]].
-        specialize (IHconstrained_exprs inter H_rest env_inter env_inter_fits constrained_exprs_pre_fit).
-        destruct IHconstrained_exprs as [constrained_results [results [env_post H]]].
-        destruct H as [Heqp1 [env_post_fits [constrained_results_fit eval_arguments_result]]].
-        exists ((Some result, expr_post) :: constrained_results).
-        exists (Some result :: results).
-        exists env_post; simpl.
-        rewrite <- Heqp0; simpl.
-        rewrite Heqp1.
-        repeat split; try easy.
-        unfold state_bind.
-        rewrite eval_expression_result.
-        rewrite eval_arguments_result.
-        reflexivity.
-      * destruct H as [expr_post_fits H_rest].
-        specialize (IHconstrained_exprs pre' H_rest env_pre env_pre_fits constrained_exprs_pre_fit).
-        destruct IHconstrained_exprs as [constrained_results [results [env_post H]]].
-        destruct H as [Heqp1 [env_post_fits [constrained_results_fit eval_arguments_result]]].
-        exists ((None, expr_post) :: constrained_results).
-        exists (None :: results).
-        exists env_post; simpl.
-        rewrite <- Heqp0; simpl.
-        rewrite Heqp1.
-        repeat split; try easy.
-        unfold state_bind.
-        rewrite eval_arguments_result.
-        reflexivity.
-Qed. *)
+    intros env_pre env_pre_fits exprs_pre_fit.
+    exists List.nil, env_pre.
+    repeat split.
+    exact env_pre_fits.
+Qed.
 
+(* Simplifies a Hoare triple for argument evaluation when the first argument
+   is omitted, by decomposing it into an assertion that this first value is
+   allowed to be omitted by the preconditions on parameters and a Hoare triple
+   abou thte remaining arguments; there is no intermediate environment. *)
+Lemma hoare_triple_arguments_unfold_omitted
+    (pre: pred)
+    (expr: Expression tag_t)
+    (exprs: list (option (Expression tag_t)))
+    (param: P4Parameter)
+    (params: list P4Parameter)
+    (expr_pre: pred)
+    (exprs_pre: list pred)
+    (expr_post: pred)
+    (exprs_post: list pred)
+    (post: pred)
+:
+    expr_post None ->
+    hoare_triple_arguments pre exprs params exprs_pre exprs_post post ->
+    hoare_triple_arguments pre (None :: exprs) (param :: params) (expr_pre :: exprs_pre) (expr_post :: exprs_post) post
+.
+Proof.
+    intros expr_post_fits H_rest env_pre env_pre_fits exprs_pre_fit.
+    destruct exprs_pre_fit as [expr_pre_fits exprs_pre_fit].
+    specialize (H_rest env_pre env_pre_fits exprs_pre_fit).
+    destruct H_rest as [exprs_results [env_post [env_post_fits [exprs_post_fit eval_arguments_result]]]].
+    exists (None :: exprs_results), env_post.
+    repeat split; try easy.
+    simpl eval_arguments.
+    unfold state_bind.
+    rewrite eval_arguments_result.
+    reflexivity.
+Qed.
+
+(* Simplifies a Hoare triple for argument evaluation when the first argument
+   is an out-parameter, by decomposing it into a Hoare triple about this first
+   parameter and a Hoare triple about the remaining arguments, with the
+   environment inbetween described by the predicate inter. *)
+Lemma hoare_triple_arguments_unfold_lvalue
+    (pre: pred)
+    (expr: Expression tag_t)
+    (exprs: list (option (Expression tag_t)))
+    (opt: bool)
+    (typ: P4Type)
+    (variable: String.t)
+    (params: list P4Parameter)
+    (expr_pre: pred)
+    (exprs_pre: list pred)
+    (inter: pred)
+    (expr_post: pred)
+    (exprs_post: list pred)
+    (post: pred)
+:
+    let expr_post' := fun val => expr_post (Some (ValLvalue tag_t val)) in
+    hoare_triple_expression_lvalue pre expr expr_post' inter ->
+    hoare_triple_arguments inter exprs params exprs_pre exprs_post post ->
+    hoare_triple_arguments pre (Some expr :: exprs) (MkParameter opt Typed.Out typ variable :: params) (expr_pre :: exprs_pre) (expr_post :: exprs_post) post
+.
+Proof.
+    intros expr_post' H_first H_rest env_pre env_pre_fits exprs_pre_fit.
+    specialize (H_first env_pre env_pre_fits).
+    destruct H_first as [env_inter [expr_result [env_inter_fits [expr_post'_fits eval_lvalue_result]]]].
+    destruct exprs_pre_fit as [expr_pre_fits exprs_pre_fit].
+    specialize (H_rest env_inter env_inter_fits exprs_pre_fit).
+    destruct H_rest as [exprs_results [env_post [env_post_fits [exprs_post_fit eval_arguments_result]]]].
+    exists ((Some (ValLvalue tag_t expr_result)) :: exprs_results).
+    exists env_post.
+    repeat split; try easy.
+    simpl eval_arguments.
+    unfold state_bind.
+    rewrite eval_lvalue_result; simpl.
+    rewrite eval_arguments_result; simpl.
+    reflexivity.
+Qed.
+
+(* Simplifies a Hoare triple for argument evaluation when the first argument
+   is an in-parameter, by decomposing it into a Hoare triple about this first
+   parameter and a Hoare triple about the remaining arguments, with the
+   environment inbetween described by the predicate inter. *)
+Lemma hoare_triple_arguments_unfold_value
+    (pre: pred)
+    (expr: Expression tag_t)
+    (exprs: list (option (Expression tag_t)))
+    (opt: bool)
+    (typ: P4Type)
+    (variable: String.t)
+    (params: list P4Parameter)
+    (expr_pre: pred)
+    (exprs_pre: list pred)
+    (inter: pred)
+    (expr_post: pred)
+    (exprs_post: list pred)
+    (post: pred)
+:
+    let expr_post' := fun val => expr_post (Some val) in
+    hoare_triple_expression pre expr expr_post' inter ->
+    hoare_triple_arguments inter exprs params exprs_pre exprs_post post ->
+    hoare_triple_arguments pre (Some expr :: exprs) (MkParameter opt Typed.In typ variable :: params) (expr_pre :: exprs_pre) (expr_post :: exprs_post) post
+.
+Proof.
+    intros expr_post' H_first H_rest env_pre env_pre_fits exprs_pre_fit.
+    specialize (H_first env_pre env_pre_fits).
+    destruct H_first as [env_inter [expr_result [env_inter_fits [expr_post'_fits eval_expression_result]]]].
+    destruct exprs_pre_fit as [expr_pre_fits exprs_pre_fit].
+    specialize (H_rest env_inter env_inter_fits exprs_pre_fit).
+    destruct H_rest as [exprs_results [env_post [env_post_fits [exprs_post_fit eval_arguments_result]]]].
+    exists (Some expr_result :: exprs_results).
+    exists env_post.
+    repeat split; try easy.
+    simpl eval_arguments.
+    unfold state_bind.
+    rewrite eval_expression_result.
+    rewrite eval_arguments_result.
+    reflexivity.
+Qed.
+
+(* A Hoare triple for builtin function calls. All calls in an environment
+   satisfying pre and with argument values satisfying the exprs_pre will yield
+   a value satisfying expr_post, and an environment satisfying post. *)
 Definition hoare_triple_builtin_function
-    (pre: @pred (environment tag_t))
+    (pre: pred)
     (name: String.t)
     (obj: ValueLvalue)
     (type_args: list P4Type)
-    (constraints: list (@pred (option (Value tag_t))))
-    (constraint: @pred (Value tag_t))
-    (post: @pred (environment tag_t))
-:= True
-(* This does not typecheck, because eval_builtin_func takes expressions instead of arguments.
-    forall env_pre obj type_args constrained_args args,
+    (values_pre: list pred)
+    (value_post: pred)
+    (post: pred)
+:=
+    forall obj type_args args env_pre,
         pre env_pre ->
-        project constrained_args = (args, constraints) ->
-        pred_list constrained_args ->
+        pred_list args values_pre ->
         exists env_post result,
-            constraint result /\
+            value_post result /\
             post env_post /\
-            eval_builtin_func tag_t tag name obj type_args args env_pre = (inl result, env_post) *)
+            eval_builtin_func tag_t tag name obj type_args args env_pre = (inl result, env_post)
 .
 
-(* Lemma hoare_lift_method_call
+(* To prove a Hoare triple for a method call, you need to show that
+   (1) that the evaluation of the callee expression in an environment 
+       satisfying the precondition will take you to an environment described 
+       by intermediate environment predicate inter; and
+   (2) that, given the arguments satisfy the predicates in exprs_pre,
+       evaluating the arguments in an environment satisfying inter will take 
+       you to an environment described by another predicate, inter', with
+       the resulting values described by the predicates in exprs_post; and
+   (3) that evaluating the function call in an environment satisfying inter',
+       and with arguments satisfyiing the predicates in exprs_post will lead
+       to an environment satisfying the postcondition. 
+
+    Caveat emptor: for now only builtin methods are supported. *)
+Lemma hoare_lift_method_call
     (pre: pred)
     (callee: Expression tag_t)
     (inter: pred)
     (type_args: list P4Type)
-    (constrained_args: list (option (Expression tag_t) * pred * (@pred (option (Value tag_t)))))
+    (exprs: list (option (Expression tag_t)))
+    (exprs_pre: list pred)
+    (exprs_post: list pred)
     (inter': pred)
     (post: pred)
 :
-    let (constrained_args_pre, constraints_post) := project constrained_args in
-    let (args, constraints_pre) := project constrained_args_pre in
-    let is_call := 
-        fun val => match val with
-        | ValObj _ (ValObjBuiltinFun _ name obj) =>
-            hoare_triple_builtin_function inter' name obj type_args constraints_post pred_trivial post
-        | _ => False
-        end in
-    hoare_triple_expression pre callee is_call inter ->
-    hoare_triple_arguments inter' constrained_args inter' ->
-    hoare_triple pre (MkStatement tag_t tag (StatMethodCall tag_t callee type_args args) StmVoid) post
+    pred_list exprs exprs_pre ->
+    let validate_call := fun val => match val with
+    | ValObj _ (ValObjFun _ params (ValFuncImplBuiltin _ name obj)) =>
+        hoare_triple_arguments inter exprs params exprs_pre exprs_post inter' /\
+        hoare_triple_builtin_function inter' name obj type_args exprs_post pred_trivial post
+    | _ => False
+    end in
+    hoare_triple_expression pre callee validate_call inter ->
+    (| pre |) (MkStatement tag_t tag (StatMethodCall tag_t callee type_args exprs) StmVoid) (| post |)
 .
-
-Admitted. *)
-
-(*
 Proof.
     intros.
-    destruct H as [inter [inter' [constraints [Hexpr Hargs]]]].
-    unfold hoare_triple.
     intros env_pre env_pre_fits.
-    specialize (Hexpr env_pre env_pre_fits).
-    destruct Hexpr as [env_inter [result [env_inter_fits [Hcall eval_expression_result]]]].
-    destruct result; try contradiction.
+    specialize (H0 env_pre env_pre_fits).
+    destruct H0 as [env_inter [func [env_inter_fits [validate_call_fits eval_expression_result]]]].
+    unfold validate_call in validate_call_fits; clear validate_call.
+    destruct func; try contradiction.
     destruct v; try contradiction.
-    specialize (Hargs env_inter env_inter_fits).
-Admitted. *)
+    destruct impl; try contradiction.
+    destruct validate_call_fits as [H_arguments H_call].
+    specialize (H_arguments env_inter env_inter_fits H).
+    destruct H_arguments as [results [env_inter' [env_inter'_fits [exprs_post_fit eval_arguments_result]]]].
+    specialize (H_call caller type_args results env_inter' env_inter'_fits exprs_post_fit).
+    destruct  H_call as [env_post [result [_ [env_post_fits eval_builtin_func_result]]]].
+    exists env_post.
+    split; try easy.
+    unfold eval_statement, toss_value, eval_method_call; simpl.
+    unfold state_bind.
+    rewrite eval_expression_result; simpl.
+    rewrite eval_arguments_result; simpl.
+    rewrite eval_builtin_func_result; simpl.
+    reflexivity.
+Qed.
 
 Definition pred_good := fun env => env = good_env.
 
@@ -480,10 +533,19 @@ Admitted.
 Lemma intparser_state_correct:
     hoare_triple pred_good (MkStatement tag_t tag (StatBlock tag_t (states_to_block tag_t tag body)) StmUnit) pred_trivial
 .
+Proof.
     apply hoare_lift_block.
     simpl states_to_block.
     apply hoare_block_nonempty with (inter := pred_env_popped pred_trivial).
     2:{ apply hoare_block_empty. }
+
+    (* At this point, you could run
+    apply hoare_lift_method_call with
+        (inter := pred_env_pushed pred_good)
+        (exprs_pre := pred_trivial :: List.nil)
+        (exprs_post := pred_trivial :: List.nil)
+        (inter' := pred_trivial); try easy.
+    *)
 
     unfold extract_stmt.
 

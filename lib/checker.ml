@@ -831,10 +831,10 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
   in
   MkExpression (exp_info, pre_expr, typ, dir)
 
-and add_cast env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =
+and add_cast env (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
   let MkExpression (info, pre_expr, orig_typ, dir) = expr in
-  if cast_ok env (type_of_expr expr) orig_typ
-  then MkExpression (info, ExpCast (typ, expr), typ, dir)
+  if cast_ok env orig_typ new_typ
+  then MkExpression (info, ExpCast (new_typ, expr), new_typ, dir)
   else failwith "Cannot cast."
 
 and cast_if_needed env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =

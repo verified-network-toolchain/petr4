@@ -77,7 +77,7 @@ Section Typed.
   | MkFunctionType (type_params: list P4String) (parameters: list P4Parameter)
                    (kind: FunctionKind) (ret: P4Type)
   with P4Parameter :=
-  | MkParameter (opt: bool) (direction: direction) (typ: P4Type) (variable: P4String).
+  | MkParameter (opt: bool) (direction: direction) (typ: P4Type) (default_arg_id: option nat) (variable: P4String).
 
   Inductive StmType :=
   | StmUnit

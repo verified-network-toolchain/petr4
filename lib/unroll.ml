@@ -30,6 +30,12 @@ type loop = {
   exits : string list;
 }
 
+type scc_meta = {
+  index : int;
+  low_link : int;
+  on_stack : bool;
+}
+
 let equal = String.equal
 let mem n l = List.exists l ~f:(equal n)
 
@@ -85,10 +91,65 @@ let get_dom_map (cfg : cfg) : dom_map =
     if unchanged then acc' else f acc' in
   f init
 
+let rec strong_connect
+    (cfg : cfg)
+    (idx : int)
+    (stack : string list)
+    (meta : (string * scc_meta) list)
+    (sccs : loop list)
+    (v : string):
+    int * string list * (string * scc_meta) list * loop list =
+  let vmeta = { index = idx; low_link = idx; on_stack = true; } in
+  let meta = List.Assoc.add meta v vmeta ~equal in
+  let idx = idx + 1 in
+  let stack = v :: stack in
+  let succs = List.Assoc.find_exn cfg.edges v ~equal in
+  let f (idx, stack, meta, sccs) w =
+    if List.Assoc.mem meta w ~equal
+    then
+      let idx, stack, meta, sccs = strong_connect cfg idx stack meta sccs w in
+      let vmeta = List.Assoc.find_exn meta v ~equal in
+      let wlow = (List.Assoc.find_exn meta w ~equal).low_link in
+      let vmeta = { vmeta with low_link = Int.min vmeta.low_link wlow } in
+      let meta = List.Assoc.add meta v vmeta ~equal in
+      idx, stack, meta, sccs
+    else if (List.Assoc.find_exn meta w ~equal).on_stack
+    then
+      let vmeta = List.Assoc.find_exn meta v ~equal in
+      let wlow = (List.Assoc.find_exn meta w ~equal).low_link in
+      let vmeta = { vmeta with low_link = Int.min vmeta.low_link wlow } in
+      let meta = List.Assoc.add meta v vmeta ~equal in
+      idx, stack, meta, sccs
+    else idx, stack, meta, sccs in
+  let idx, stack, meta, sccs = List.fold succs ~init:(idx, stack, meta, sccs) ~f in
+  let vmeta = List.Assoc.find_exn meta v ~equal in
+  if Int.equal vmeta.low_link vmeta.index
+  then
+    let rec f stack meta new_scc =
+      let w = List.hd_exn stack in
+      let stack = List.tl_exn stack in
+      let wmeta = List.Assoc.find_exn meta w ~equal in
+      let wmeta = { wmeta with on_stack = false } in
+      let meta = List.Assoc.add meta w wmeta ~equal in
+      let new_scc = w :: new_scc in
+      if equal w v then stack, meta, new_scc else f stack meta new_scc in
+    let new_scc = [] in
+    let stack, meta, new_scc = f stack meta new_scc in
+    let sccs = { states = new_scc; hdr = None; exits = []; } :: sccs in
+    idx, stack, meta, sccs
+  else idx, stack, meta, sccs
+
 (** [get_sccs cfg] is a list of strongly-connected sub-graphs of [cfg] computed
     using Tarjan's strongly connected components algorithm. *)
 let get_sccs (cfg : cfg) : loop list =
-  [] (* TODO *)
+  let idx, stack, meta, sccs = 0, [], [], [] in
+  let nodes = List.map cfg.states ~f:fst in
+  let f (idx, stack, meta, sccs) v =
+    if List.Assoc.mem meta v ~equal
+    then strong_connect cfg idx stack meta sccs v
+    else idx, stack, meta, sccs in
+  List.fold nodes ~init:(idx, stack, meta, sccs) ~f
+  |> fun (_, _, _, sccs) -> sccs
 
 (** [is_natural cfg doms scc] is [true] iff. there is a state [st] in the [scc]
     of the [cfg] satisfying the following two conditions:
@@ -203,7 +264,7 @@ let stmt_consumes_pkt (env : Prog.Env.EvalEnv.t) (stmt : Prog.Statement.t) : boo
     Bigint.(zero < (Target.width_of_typ env t))
   (* | MethodCall {
     func = _, {expr = Prog.Expression.Name (BareName (_, "advance")); _}; _ } ->
-    true TODO: not truely sound *)
+    true *)
   | _ -> false  
 
 (** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics

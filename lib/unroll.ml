@@ -52,10 +52,13 @@ let to_cfg (states : Prog.Parser.state list) : cfg =
   let edges = List.map states ~f in
   { states; edges; }
 
+(** [of_cfg cfg] is the P4 parser described by the [cfg]. *)
 let of_cfg (cfg : cfg) : Prog.Parser.state list =
   List.map cfg.states ~f:snd
 
-let get_preds (v : string) (cfg : cfg) : string list =
+(** [get_preds cfg v] is a list of states which are predecessors of [v] according
+    to the [cfg]. *)
+let get_preds (cfg : cfg) (v : string) : string list =
   List.map cfg.states ~f:fst
   |> List.filter ~f:(fun st -> List.Assoc.find_exn cfg.edges ~equal st |> mem v)
 
@@ -65,7 +68,7 @@ let get_dom_map (cfg : cfg) : dom_map =
   let init = List.map nodes ~f:(fun v -> v, nodes) in
   let rec f acc =
     let update acc v =
-      let preds = get_preds v cfg in
+      let preds = get_preds cfg v in
       if Int.equal (List.length preds) 0
       then List.Assoc.add acc v [v] ~equal
       else
@@ -87,11 +90,94 @@ let get_dom_map (cfg : cfg) : dom_map =
 let get_sccs (cfg : cfg) : loop list =
   [] (* TODO *)
 
-(** [is_natural cfg doms scc] is [true] iff. there is a state in the [scc] of
-    the [cfg] which dominates all other states in the [scc] and which is the only
-    state in the [scc] with in-going edges from outside of the [scc]. *)
-let is_natural (cfg : cfg) (doms : dom_map) (scc : loop) : bool =
-  false (* TODO *)
+(** [is_natural cfg doms scc] is [true] iff. there is a state [st] in the [scc]
+    of the [cfg] satisfying the following two conditions:
+    1) [st] dominates all other states in the [scc]
+    2) [st] is the only state in the [scc] with in-going edges from outside of
+       the [scc]  *)
+let is_natural (cfg : cfg) (doms : dom_map) (scc : loop) : loop option =
+  let is_dom st =
+    List.for_all scc.states
+      ~f:(fun b -> List.Assoc.find_exn doms b ~equal |> mem st) in
+  let is_hdr st =
+    let cond = List.for_all scc.states
+      ~f:(fun b -> List.for_all (get_preds cfg b)
+        ~f:(fun p -> mem p scc.states || equal b st)) in
+    if cond then Some { scc with hdr = Some st } else None in
+  let header = List.find scc.states ~f:is_dom in
+  Option.bind header ~f:is_hdr
+
+(** [close_under_pred cfg (b,a)] is the natural loop formed around the backedge
+    [b,a] according to the [cfg]. *)
+let close_under_pred (cfg : cfg) (exit,head : string * string) : loop =
+  let loop = {
+    states = if equal exit head then [head] else [head; exit];
+    hdr = Some head;
+    exits = [];
+  } in
+  let rec f loop =
+    let preds = loop.states
+      |> List.filter ~f:(fun b -> equal b head |> not)
+      |> List.map ~f:(fun b -> get_preds cfg b)
+      |> List.fold ~init:[] ~f:(@) in
+    let states = List.fold preds ~init:loop.states
+      ~f:(fun acc p -> if mem p acc then acc else p :: acc) in
+    if Int.equal (List.length states) (List.length loop.states)
+    then loop
+    else f {loop with states = states;} in
+  f loop
+
+(** [merge_loops l1 l2] is a new loop which subsumes both [l1] and [l2].
+    Precondition: [l1] and [l2] are natural loops sharing the same header *)
+let merge_loops (l1 : loop) (l2 : loop) : loop = 
+  let union l1 l2 =
+    List.fold l1 ~init:l2 ~f:(fun acc b -> if mem b acc then acc else b :: acc) in
+  { states = union l1.states l2.states;
+    hdr = l1.hdr;
+    exits = union l1.exits l2.exits; }
+
+(** [merge_sc_loops] merges loops for which neither is a subset of the other but
+    which share the same header. *)
+let merge_sc_loops (acc : (string * loop) list)
+    (idx, loop : string * loop) : (string * loop) list =
+  let entry = List.find acc ~f:(fun (_, l) -> Option.equal equal loop.hdr l.hdr) in
+  let entry = Option.map entry ~f:(fun (idx, l) -> idx, merge_loops loop l) in
+  let idx, loop = Option.value_map entry ~default:(idx,loop) ~f:Fn.id in
+  List.Assoc.add acc idx loop ~equal
+
+(** [extract_nested cfg doms acc loop] scans the [loop] for natural nested
+    sub-loops according to the [cfg] and returns [acc] with all such loops added.*)
+let extract_nested (cfg : cfg) (doms : dom_map) (acc : loop list) (loop : loop) : loop list =
+  let backedges =
+    List.map loop.states ~f:(fun st -> st, List.Assoc.find_exn cfg.edges st ~equal)
+    |> List.map ~f:(fun (e, ss) -> e, List.filter ss ~f:(fun v -> mem v loop.states))
+    |> List.fold ~init:[] ~f:(fun acc (e,ss) -> acc @ (List.map ss ~f:(fun s -> e,s)))
+    |> List.filter ~f:(fun (b,a) -> List.Assoc.find_exn doms b ~equal |> mem a) in
+  if Int.equal (List.length backedges) 1
+  then loop :: acc
+  else
+    let loops = List.map backedges ~f:(close_under_pred cfg) in
+    let idx_loops = List.mapi loops ~f:(fun i l -> string_of_int i, l) in
+    let idx_loops = List.fold idx_loops ~init:[] ~f:merge_sc_loops in
+    let loops = List.map idx_loops ~f:snd in
+    acc @ loops
+
+let accepts_or_rejects (cfg : cfg) (st : string) : bool =
+  let trans = (List.Assoc.find_exn cfg.states st ~equal |> snd).transition in
+  match snd trans with
+  | Direct {next = (_, st)} -> equal st "reject" || equal st "accept"
+  | Select {cases; _} ->
+    List.map cases ~f:(fun (_,case) -> snd case.next)
+    |> List.exists ~f:(fun st -> equal st "reject" || equal st "accept")
+
+(** [update_exists cfg loop] is [loop] updated with an accurate list of [exits]
+    according to the [cfg]. *)
+let update_exits (cfg : cfg) (loop : loop) : loop =
+  let is_exit st =
+    let succs = List.Assoc.find_exn cfg.edges st ~equal in
+    List.exists cfg.states ~f:(fun (b,_) -> mem b succs && not (mem b loop.states))
+    || accepts_or_rejects cfg st in
+  { loop with exits = List.filter loop.states ~f:is_exit; }
 
 (** [consumes_pkt cfg loop] is [true] iff. some state in the [loop] calls
     [packet_in.extract] or [packet_in.advance]. *)
@@ -119,12 +205,14 @@ let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.stat
   let cfg = to_cfg states in
   let doms = get_dom_map cfg in
   let sccs = get_sccs cfg in
-  let loops' = List.filter sccs ~f:(is_natural cfg doms) in
+  let loops' = List.filter_map sccs ~f:(is_natural cfg doms) in
   let () =
     if List.equal loops_equal sccs loops'
     then ()
     else raise IrreducibleCFG in
-  let loops = List.filter loops' ~f:(consumes_pkt cfg) in
+  let loops = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
+  let loops = List.map loops ~f:(update_exits cfg) in
+  let loops = List.filter loops ~f:(consumes_pkt cfg) in
   let () =
     if List.equal loops_equal loops' loops
     then ()

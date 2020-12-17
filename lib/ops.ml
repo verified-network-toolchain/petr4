@@ -54,7 +54,7 @@ let rec interp_bplus (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
     let v = Bigint.(of_twos_complement (v1 + v2) (of_int w)) in
     ValBaseBit(w, v) 
   | ValBaseInt (w, v1), ValBaseInt (_, v2) ->
-    let v = Bigint.(of_twos_complement (v1 + v2) (of_int w)) in
+    let v = Bigint.(to_twos_complement (v1 + v2) (of_int w)) in
     ValBaseInt(w, v)
   | ValBaseBit (w, v1), ValBaseInteger n   -> interp_bplus l (bit_of_rawint n w)
   | ValBaseInteger n,   ValBaseBit (w, v1) -> interp_bplus (bit_of_rawint n w) r
@@ -79,7 +79,7 @@ let rec interp_bminus (l : coq_ValueBase) (r : coq_ValueBase) : coq_ValueBase =
     let v = Bigint.(of_twos_complement (v1 - v2) (of_int w)) in
     ValBaseBit(w, v)
   | ValBaseInt(w, v1), ValBaseInt(_, v2) ->
-    let v = Bigint.(of_twos_complement (v1 - v2) (of_int w)) in
+    let v = Bigint.(to_twos_complement (v1 - v2) (of_int w)) in
     ValBaseInt(w, v)
   | ValBaseBit(w, v1), ValBaseInteger n   -> interp_bminus l (bit_of_rawint n w)
   | ValBaseInteger n,   ValBaseBit(w, v1) -> interp_bminus (bit_of_rawint n w) r

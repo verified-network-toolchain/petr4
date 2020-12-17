@@ -24,8 +24,8 @@ module type Parse_config = sig
 end
 
 (* This is a stand-in for Pretty.format_program *)
-let pretty p =
-  failwith "Sorry, I yanked the pretty-printer out while I was refactoring. Feel free to put it back - Ryan"
+let pretty fmt p =
+  Format.pp_print_string fmt "Sorry, I yanked the pretty-printer out while I was refactoring. Feel free to put it back - Ryan"
 
 module Make_parse (Conf: Parse_config) = struct
   let parse_file include_dirs p4_file verbose =

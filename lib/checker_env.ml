@@ -11,6 +11,8 @@ type t =
     typ_of: (Typed.coq_P4Type * Typed.direction) Env.t;
     (* maps constants to their values *)
     const: Prog.coq_Value Env.t;
+    (* maps default expr ids to expressions *)
+    default_args: Types.Expression.t list ref;
     (* externs *)
     externs: Prog.coq_ExternMethods Env.t;
     (* for generating fresh type variables *)
@@ -21,6 +23,7 @@ let empty_with_renamer r : t =
   { typ = Env.empty_env;
     typ_of = Env.empty_env;
     const = Env.empty_env;
+    default_args = ref [];
     externs = Env.empty_env;
     renamer = r }
 
@@ -51,6 +54,9 @@ let find_const name env =
 
 let find_const_opt name env =
   Env.find_opt name env.const
+
+let find_default_arg id env =
+  List.nth_exn !(env.default_args) id
 
 let find_extern name env =
   Env.find name env.externs
@@ -85,6 +91,11 @@ let insert_const var value env =
   match find_const_opt var env with
   | Some _ -> raise NameAlreadyBound
   | None -> { env with const = Env.insert var value env.const }
+
+let add_default_arg expr env =
+  let l = !(env.default_args) in
+  env.default_args := l @ [expr];
+  List.length l
 
 let insert_extern var value env =
   match find_extern_opt var env with

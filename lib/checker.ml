@@ -632,9 +632,15 @@ and solve_types
     | TypTypeName (QualifiedName _), _
     | _, TypTypeName (QualifiedName _) ->
       failwith "Name in saturated type."
-    | TypSpecializedType _, _
-    | _, TypSpecializedType _ ->
-      failwith "Stuck specialized type."
+    | TypSpecializedType (TypExtern e1, args1),
+      TypSpecializedType (TypExtern e2, args2) ->
+      let ok (t1, t2) = solve_types env equiv_vars unknowns t1 t2 in
+      if P4string.eq e1 e2
+      then solve_lists env unknowns ~f:ok args1 args2
+      else None
+    | TypSpecializedType (base, args), _
+    | _, TypSpecializedType (base, args) ->
+      raise_s [%message "Stuck specialized type." ~t:(TypSpecializedType (base, args):coq_P4Type)]
     | TypTypeName (BareName tv1), TypTypeName (BareName tv2) ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
@@ -3270,7 +3276,9 @@ and type_default_action
         else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
     end
   | ExpName action_name ->
-    if not @@ List.Assoc.mem ~equal:P4name.name_eq action_map action_name
+     let acts = List.map ~f:(fun (n, a) -> P4name.name_only n, a) action_map in
+     let act = P4name.name_only action_name in
+    if not @@ List.Assoc.mem ~equal:(=) acts act
     then failwith "couldn't find default action in action_map";
     MkTableActionRef (fst action_expr,
                       MkTablePreActionRef (action_name, []),
@@ -3684,16 +3692,17 @@ and type_new_type env ctx info annotations name typ_or_decl =
   | Left typ ->
     let typ = translate_type env typ in
     let newtype_typed: Prog.coq_Declaration =
-      DeclNewType (info, name, Coq_inl typ)
-    in
-    newtype_typed, Checker_env.insert_type (BareName name) typ env
+      DeclNewType (info, name, Coq_inl typ) in
+    let newtype = TypNewType (name, typ) in
+    newtype_typed, Checker_env.insert_type (BareName name) newtype env
   | Right decl ->
     let decl_name = Declaration.name decl in
-    let decl_typed, env' = type_declaration env ctx decl in
-    let decl_typ = Checker_env.resolve_type_name (BareName decl_name) env' in
+    let decl_typed, env = type_declaration env ctx decl in
+    let decl_typ = Checker_env.resolve_type_name (BareName decl_name) env in
     let newtype_typed: Prog.coq_Declaration =
       DeclNewType (info, name, Coq_inr decl_typed) in
-    newtype_typed, Checker_env.insert_type (BareName name) decl_typ env'
+    let newtype = TypNewType (name, decl_typ) in
+    newtype_typed, Checker_env.insert_type (BareName name) newtype env
 
 (* Section 7.2.11.2 *)
 and type_control_type env info annotations name t_params params =

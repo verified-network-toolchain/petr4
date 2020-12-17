@@ -31,6 +31,7 @@ type loop = {
 }
 
 let equal = String.equal
+let mem n l = List.exists l ~f:(equal n)
 
 (** [to_cfg states] is a CFG describing the control structure of the [states]. *)
 let to_cfg (states : Prog.Parser.state list) : cfg =
@@ -49,14 +50,37 @@ let to_cfg (states : Prog.Parser.state list) : cfg =
           ~f:(fun succ -> not (equal succ "reject" || equal succ "accept")) in
     state, succs in
   let edges = List.map states ~f in
-  { states; edges; } (* TODO *)
+  { states; edges; }
 
 let of_cfg (cfg : cfg) : Prog.Parser.state list =
   List.map cfg.states ~f:snd
 
+let get_preds (v : string) (cfg : cfg) : string list =
+  List.map cfg.states ~f:fst
+  |> List.filter ~f:(fun st -> List.Assoc.find_exn cfg.edges ~equal st |> mem v)
+
 (** [get_dom_map cfg] returns a dominance map according to the given [cfg]. *)
 let get_dom_map (cfg : cfg) : dom_map =
-  [] (* TODO *)
+  let nodes = List.map cfg.states ~f:fst in
+  let init = List.map nodes ~f:(fun v -> v, nodes) in
+  let rec f acc =
+    let update acc v =
+      let preds = get_preds v cfg in
+      if Int.equal (List.length preds) 0
+      then List.Assoc.add acc v [v] ~equal
+      else
+        let pred = List.hd_exn preds in
+        let doms = pred
+          |> List.Assoc.find_exn acc ~equal
+          |> List.filter ~f:(fun n -> List.for_all preds
+            ~f:(fun pred -> List.Assoc.find_exn acc pred ~equal |> mem n)) in 
+        List.Assoc.add acc v (if mem v doms then doms else v :: doms) ~equal in
+    let acc' = List.fold ~init:acc ~f:update nodes in
+    let unchanged = List.for_all nodes
+      ~f:(fun v -> Int.equal (List.Assoc.find_exn acc' v ~equal |> List.length)
+        (List.Assoc.find_exn acc v ~equal |> List.length)) in
+    if unchanged then acc' else f acc' in
+  f init
 
 (** [get_sccs cfg] is a list of strongly-connected sub-graphs of [cfg] computed
     using Tarjan's strongly connected components algorithm. *)

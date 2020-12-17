@@ -179,10 +179,45 @@ let update_exits (cfg : cfg) (loop : loop) : loop =
     || accepts_or_rejects cfg st in
   { loop with exits = List.filter loop.states ~f:is_exit; }
 
-(** [consumes_pkt cfg loop] is [true] iff. some state in the [loop] calls
-    [packet_in.extract] or [packet_in.advance]. *)
-let consumes_pkt (cfg : cfg) (loop : loop) : bool =
-  false (* TODO *)
+(*  NOTE: the common case is for extract or advance to occur as a method call.
+    The current implementation checks for this, but it is also possible for other
+    kinds of statements, such as applications, other function calls, and even
+    assignment statements which assign from an expression containing a function
+    call, to have side effects which also increment packet pointer. With some
+    inlining, the difficulties will be decrease, but it will still be necessary
+    to do some sort of global analysis in order to maximize the completeness of
+    this check. This will probably be some kind of dataflow analysis whose
+    values are 'Extracts' and 'MayNotExtract' or something of the sort. *)
+
+(* NOTE: in order for the check to be truely sound, we would need to use a
+    dataflow analysis to check that the argument to advance is non-zero. For now,
+    we simply assume the programmer was smart enough not to allow this. *)
+
+(** [stmt_consumes_pkt stmt] is [true] iff. the semantics of [stmt] increment
+    the packet pointer. *)
+let stmt_consumes_pkt (stmt : Prog.Statement.t) : bool =
+  match (snd stmt).stmt with
+  | Prog.Statement.MethodCall {
+    func = _, {expr = Prog.Expression.Name (BareName (_, "extract")); _};
+    type_args = [t]; _ } ->
+    Bigint.(zero < (Target.width_of_typ Prog.Env.EvalEnv.empty_eval_env t))
+    (* TODO: also not sound due to type variables *)
+    (* | MethodCall {
+    func = _, String (_, "advance"); } -> true TODO: not truely sound *)
+  | _ -> false  
+
+(** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics
+    increment the packet pointer. *)
+let state_consumes_pkt (st : Prog.Parser.state) : bool =
+  List.exists (snd st).statements ~f:stmt_consumes_pkt
+
+(** [consumes_pkt cfg loop] is [true] iff. every path from the [loop.hdr] to a
+    state in [loop.exits] calls [packet_in.extract] or [packet_in.advance] on a
+    value whose bit-length is non-zero. *)
+let loop_consumes_pkt (cfg : cfg) (doms : dom_map) (loop : loop) : bool =
+  List.for_all loop.exits ~f:(fun e ->
+    List.exists (List.Assoc.find_exn doms e ~equal) ~f:(fun st ->
+      state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
 let loops_equal (l1 : loop) (l2 : loop) : bool =
@@ -210,9 +245,9 @@ let unroll_parser (n : int) (states : Prog.Parser.state list) : Prog.Parser.stat
     if List.equal loops_equal sccs loops'
     then ()
     else raise IrreducibleCFG in
-  let loops = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
-  let loops = List.map loops ~f:(update_exits cfg) in
-  let loops = List.filter loops ~f:(consumes_pkt cfg) in
+  let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
+  let loops = List.map loops' ~f:(update_exits cfg) in
+  let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
   let () =
     if List.equal loops_equal loops' loops
     then ()

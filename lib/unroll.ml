@@ -271,12 +271,12 @@ let stmt_consumes_pkt (stmt : Types.Statement.t) : bool =
   match (snd stmt) with
   | Types.Statement.MethodCall {
     func = _, Types.Expression.ExpressionMember {name = (_, "extract"); _ }; _ } ->
-    true
+    true (* TODO: unsound *)
     (* Bigint.(zero < (Target.width_of_typ env t)) *)
   | MethodCall {
     func = _, Types.Expression.ExpressionMember {name = (_, "advance"); _}; _ } ->
-    true
-  | DirectApplication _ -> true
+    true (* TODO: unsound *)
+  | DirectApplication _ -> true (* TODO: unsound*)
   | _ -> false  
 
 (** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics
@@ -290,9 +290,7 @@ let state_consumes_pkt (st : Types.Parser.state) : bool =
 let loop_consumes_pkt (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
-    (* let () = Format.printf "Checking if exit '%s' consumes packet\n" e in *)
     List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
-      (* let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in *)
       state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
@@ -480,31 +478,18 @@ let unstart_loop (l : loop) : loop = {
 
 let unroll_parser (n : int) (term : bool)
     (states : Types.Parser.state list) : Types.Parser.state list =
-  (* Format.printf "Number of states: %d\n" (List.length states); *)
   let cfg = to_cfg states in
   let doms = get_dom_map cfg in
-  (* List.iter doms ~f:(fun (v, ds) -> Format.printf "Dominators for state %s:\n" v;
-    List.iter ds ~f:(fun d -> Format.printf "\t%s\n" d)); *)
   let sccs = get_sccs cfg in
   let sccs = List.filter sccs ~f:(nontrivial cfg) in
-  (* Format.printf "Found SCCs!\n"; *)
-  (* List.iter sccs ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let loops' = List.filter_map sccs ~f:(is_natural cfg doms) in
-  (* Format.printf "Filtered SCCS!\n"; *)
-  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
-  (* Format.printf "Number of sccs: %d\n" (List.length sccs); *)
-  (* Format.printf "Number of natural loops: %d\n" (List.length loops'); *)
   let () =
     if List.equal loops_equal sccs loops'
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
-  (* Format.printf "Extracted nested loops!\n"; *)
-  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let loops = List.map loops' ~f:(update_exits cfg) in
   let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
-  (* Format.printf "Filtered non-packet-consuming loops!\n"; *)
-  (* List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let () =
     if List.equal loops_equal loops' loops
     then ()

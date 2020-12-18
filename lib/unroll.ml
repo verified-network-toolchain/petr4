@@ -3,14 +3,14 @@ open Core_kernel
 
 (** [block] is a custom minimalize representation of *)
 type block = {
-  stmts : Prog.Statement.t list;
-  trans : Prog.Parser.transition;
+  stmts : Types.Statement.t list;
+  trans : Types.Parser.transition;
 }
 
-(** [cfg] is a decomposition of [Prog.Parser.state list] with the additional
+(** [cfg] is a decomposition of [Types.Parser.state list] with the additional
     information needed to describe a complete control-flow graph. *)
 type cfg = {
-  states : (string * Prog.Parser.state) list;
+  states : (string * Types.Parser.state) list;
   edges : (string * string list) list;
 }
 
@@ -40,8 +40,8 @@ let equal = String.equal
 let mem n l = List.exists l ~f:(equal n)
 
 (** [to_cfg states] is a CFG describing the control structure of the [states]. *)
-let to_cfg (states : Prog.Parser.state list) : cfg =
-  let open Prog.Parser in
+let to_cfg (states : Types.Parser.state list) : cfg =
+  let open Types.Parser in
   let f state =
     snd (snd state).name, state in
   let states = List.map states ~f in
@@ -59,7 +59,7 @@ let to_cfg (states : Prog.Parser.state list) : cfg =
   { states; edges; }
 
 (** [of_cfg cfg] is the P4 parser described by the [cfg]. *)
-let of_cfg (cfg : cfg) : Prog.Parser.state list =
+let of_cfg (cfg : cfg) : Types.Parser.state list =
   List.map cfg.states ~f:snd
 
 (** [get_preds cfg v] is a list of states which are predecessors of [v] according
@@ -99,13 +99,14 @@ let rec strong_connect
     (sccs : loop list)
     (v : string):
     int * string list * (string * scc_meta) list * loop list =
+  (* Format.printf "Called strong_connect on %s\nCurrent num sccs: %d\n" v (List.length sccs); *)
   let vmeta = { index = idx; low_link = idx; on_stack = true; } in
   let meta = List.Assoc.add meta v vmeta ~equal in
   let idx = idx + 1 in
   let stack = v :: stack in
   let succs = List.Assoc.find_exn cfg.edges v ~equal in
   let f (idx, stack, meta, sccs) w =
-    if List.Assoc.mem meta w ~equal
+    if not (List.Assoc.mem meta w ~equal)
     then
       let idx, stack, meta, sccs = strong_connect cfg idx stack meta sccs w in
       let vmeta = List.Assoc.find_exn meta v ~equal in
@@ -125,6 +126,7 @@ let rec strong_connect
   let vmeta = List.Assoc.find_exn meta v ~equal in
   if Int.equal vmeta.low_link vmeta.index
   then
+    (* let () = Format.printf "Adding new scc\n" in *)
     let rec f stack meta new_scc =
       let w = List.hd_exn stack in
       let stack = List.tl_exn stack in
@@ -142,12 +144,13 @@ let rec strong_connect
 (** [get_sccs cfg] is a list of strongly-connected sub-graphs of [cfg] computed
     using Tarjan's strongly connected components algorithm. *)
 let get_sccs (cfg : cfg) : loop list =
+  (* Format.printf "Starting scc algorithm\n"; *)
   let idx, stack, meta, sccs = 0, [], [], [] in
   let nodes = List.map cfg.states ~f:fst in
   let f (idx, stack, meta, sccs) v =
     if List.Assoc.mem meta v ~equal
-    then strong_connect cfg idx stack meta sccs v
-    else idx, stack, meta, sccs in
+    then idx, stack, meta, sccs
+    else strong_connect cfg idx stack meta sccs v in
   List.fold nodes ~init:(idx, stack, meta, sccs) ~f
   |> fun (_, _, _, sccs) -> sccs
 
@@ -256,30 +259,30 @@ let update_exits (cfg : cfg) (loop : loop) : loop =
 
 (** [stmt_consumes_pkt stmt] is [true] iff. the semantics of [stmt] increment
     the packet pointer. *)
-let stmt_consumes_pkt (env : Prog.Env.EvalEnv.t) (stmt : Prog.Statement.t) : bool =
-  match (snd stmt).stmt with
-  | Prog.Statement.MethodCall {
-    func = _, {expr = Prog.Expression.Name (BareName (_, "extract")); _};
-    type_args = [t]; _ } ->
-    Bigint.(zero < (Target.width_of_typ env t))
-  (* | MethodCall {
-    func = _, {expr = Prog.Expression.Name (BareName (_, "advance")); _}; _ } ->
-    true *)
+let stmt_consumes_pkt (stmt : Types.Statement.t) : bool =
+  match (snd stmt) with
+  | Types.Statement.MethodCall {
+    func = _, Types.Expression.Name (BareName (_, "extract"));
+    type_args = [t]; _ } -> true
+    (* Bigint.(zero < (Target.width_of_typ env t)) *)
+  | MethodCall {
+    func = _, Types.Expression.Name (BareName (_, "advance")); _} ->
+    true
   | _ -> false  
 
 (** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics
     increment the packet pointer. *)
-let state_consumes_pkt (env : Prog.Env.EvalEnv.t) (st : Prog.Parser.state) : bool =
-  List.exists (snd st).statements ~f:(stmt_consumes_pkt env)
+let state_consumes_pkt (st : Types.Parser.state) : bool =
+  List.exists (snd st).statements ~f:(stmt_consumes_pkt)
 
 (** [consumes_pkt cfg loop] is [true] iff. every path from the [loop.hdr] to a
     state in [loop.exits] calls [packet_in.extract] or [packet_in.advance] on a
     value whose bit-length is non-zero. *)
-let loop_consumes_pkt (env : Prog.Env.EvalEnv.t) (cfg : cfg) (doms : dom_map)
+let loop_consumes_pkt (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
     List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
-      state_consumes_pkt env (List.Assoc.find_exn cfg.states st ~equal)))
+      state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
 let loops_equal (l1 : loop) (l2 : loop) : bool =
@@ -298,19 +301,23 @@ let unroll_loop_h (n : int) (cfg : cfg) (idx_loops : (string * loop) list)
 
 let unroll_loop a (b,c) d = unroll_loop_h a b c d
 
-let unroll_parser (n : int) (env : Prog.Env.EvalEnv.t)
-    (states : Prog.Parser.state list) : Prog.Parser.state list =
+let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.state list =
+  (* Format.printf "Number of states: %d\n" (List.length states); *)
   let cfg = to_cfg states in
   let doms = get_dom_map cfg in
+  (* List.iter doms ~f:(fun (v, ds) -> Format.printf "Dominators for state %s:\n" v;
+    List.iter ds ~f:(fun d -> Format.printf "\t%s\n" d)); *)
   let sccs = get_sccs cfg in
   let loops' = List.filter_map sccs ~f:(is_natural cfg doms) in
+  (* Format.printf "Number of sccs: %d\n" (List.length sccs); *)
+  (* Format.printf "Number of natural loops: %d\n" (List.length loops'); *)
   let () =
     if List.equal loops_equal sccs loops'
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
   let loops = List.map loops' ~f:(update_exits cfg) in
-  let loops = List.filter loops ~f:(loop_consumes_pkt env cfg doms) in
+  let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
   let () =
     if List.equal loops_equal loops' loops
     then ()
@@ -320,8 +327,8 @@ let unroll_parser (n : int) (env : Prog.Env.EvalEnv.t)
   let cfg, _ = List.fold idxs ~init:(cfg, idx_loops) ~f:(unroll_loop n) in
   of_cfg cfg
 
-let unroll_parsers (n : int) (env : Prog.Env.EvalEnv.t) (p : Prog.program) : Prog.program =
-  let open Prog.Declaration in
+let unroll_parsers (n : int) (p : Types.program) : Types.program =
+  let open Types.Declaration in
   let f = function
     | (i, Parser {
         annotations;
@@ -338,7 +345,7 @@ let unroll_parsers (n : int) (env : Prog.Env.EvalEnv.t) (p : Prog.program) : Pro
       params;
       constructor_params;
       locals;
-      states = unroll_parser n env states;
+      states = unroll_parser n states;
     })
     | d -> d in
   match p with Program ds ->

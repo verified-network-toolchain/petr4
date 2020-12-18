@@ -278,7 +278,7 @@ let state_consumes_pkt (env : Prog.Env.EvalEnv.t) (st : Prog.Parser.state) : boo
 let loop_consumes_pkt (env : Prog.Env.EvalEnv.t) (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
-    List.exists (List.Assoc.find_exn doms e ~equal) ~f:(fun st ->
+    List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
       state_consumes_pkt env (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)

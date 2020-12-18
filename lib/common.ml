@@ -161,10 +161,9 @@ module Make_parse (Conf: Parse_config) = struct
       let new_file = Format.sprintf "%s%c%s_unrolled.p4" d dir_sepc name in
       begin try
         let unrolled_prog = Unroll.unroll_parsers n env typed_prog in
-        let unrolled_prog = CheckerInverse.of_program unrolled_prog in
         let fd = Out_channel.create new_file in
         let ff = Format.formatter_of_out_channel fd in
-        Format.fprintf ff "%a" Pretty.format_program unrolled_prog;
+        Format.fprintf ff "%s" (Prog.sexp_of_program unrolled_prog |> Sexp.to_string);
         Out_channel.close fd
       with
         | P4Error.UnboundedLoop ->

@@ -145,7 +145,7 @@ module Make_parse (Conf: Parse_config) = struct
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg
 
-  let unroll_file include_dirs n inf irr d p4_file =
+  let unroll_file include_dirs n term inf irr d p4_file =
     let n = int_of_string n in
     match parse_file include_dirs p4_file false with
     | `Ok prog ->
@@ -160,7 +160,7 @@ module Make_parse (Conf: Parse_config) = struct
       let d = Option.value_map d ~default:path ~f:Fn.id in
       let new_file = Format.sprintf "%s%c%s_unrolled.p4" d dir_sepc name in
       begin try
-        let unrolled_prog = Unroll.unroll_parsers n elab_prog in
+        let unrolled_prog = Unroll.unroll_parsers n term elab_prog in
         let fd = Out_channel.create new_file in
         let ff = Format.formatter_of_out_channel fd in
         Format.fprintf ff "%a" Pretty.format_program unrolled_prog;

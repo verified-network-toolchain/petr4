@@ -307,37 +307,41 @@ let rename_loop_copy (i : int) (states : (string * Types.Parser.state) list) : (
       Format.sprintf "%s_unroll%d" (snd (snd st).name) i; }) in
   List.map states ~f
 
-let update_case (max : int) (hdr : string) (states : string list) (curr : int)
-    (case : Types.Parser.case) : Types.Parser.case =
+let update_case (max : int) (term : bool) (hdr : string) (states : string list)
+    (curr : int) (case : Types.Parser.case) : Types.Parser.case =
   let n = snd (snd case).next in
   fst case, { (snd case) with next = fst (snd case).next,
     if equal hdr n
-    then Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
+    then if term && (curr + 1 >= max)
+      then "reject"
+      else Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
     else if mem n states
     then Format.sprintf "%s_unroll%d" n curr
     else n
   }
 
-let update_transitions (max : int) (hdr : string) (states : string list) (curr : int)
-    (st : Types.Parser.state) : Types.Parser.state =
+let update_transitions (max : int) (term : bool) (hdr : string) (states : string list)
+    (curr : int) (st : Types.Parser.state) : Types.Parser.state =
   fst st, { (snd st) with transition = fst (snd st).transition, 
     match snd (snd st).transition with
     | Direct {next = (i, n)} ->
       let n =
         if equal n hdr
-        then Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
+        then if term && (curr + 1 >= max)
+          then "reject"
+          else Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
         else if mem n states
         then Format.sprintf "%s_unroll%d" n curr
         else n in
       Direct {next = (i,n)}
     | Select {exprs; cases;} ->
-      let cases = List.map cases ~f:(update_case max hdr states curr) in
+      let cases = List.map cases ~f:(update_case max term hdr states curr) in
       Select {exprs; cases;}
   }
 
-let update_loop_transitions (max : int) (hdr : string) (states : string list) (curr : int)
-    (c : (string * Types.Parser.state) list) : (string * Types.Parser.state) list =
-  List.map c ~f:(fun (n, st) -> n, update_transitions max hdr states curr st)
+let update_loop_transitions (max : int) (term : bool) (hdr : string) (states : string list)
+    (curr : int) (c : (string * Types.Parser.state) list) : (string * Types.Parser.state) list =
+  List.map c ~f:(fun (n, st) -> n, update_transitions max term hdr states curr st)
 
 let rename_edges (max : int) (hdr : string) (states : string list) (curr : int)
     (n, es : string * string list) : string * string list =
@@ -354,16 +358,33 @@ let rename_edges (max : int) (hdr : string) (states : string list) (curr : int)
 let rename_loop_edges (max : int) (hdr : string) (states : string list) (curr : int)
     (c : (string * string list) list) : (string * string list) list =
   List.map c ~f:(rename_edges max hdr states curr)
+  
+let subloop (l1 : loop) (l2 : loop) : bool =
+  List.for_all l1.states ~f:(fun st -> mem st l2.states)
 
-(** [unroll_loop cfg loops n i] is an updated version of both [cfg] and [loops],
+let update_loop (hdr : string) (states : string list)
+    (new_nodes : string list) (l : loop) : loop = { l with
+  hdr =
+    if equal hdr (Option.value_exn l.hdr)
+    then Some (Format.sprintf "%s_unroll0" hdr)
+    else l.hdr;
+  states =
+    List.filter l.states
+      ~f:(fun st -> not (mem st states)) |> (@) new_nodes; }  
+
+(** [unroll_loop cfg loops max term i] is an updated version of both [cfg] and [loops],
     updated to reflect the fact that the loop at index [i] in [loops] has been
     unrolled. The computation attempts to establish the appropriate number of
     unrollings to perform based on header stack size. If unable to do so, it
     defaults to [n] unrollings. Additionally, it is guaranteed that if [n] was
     replaced by a value computed using header stack size, the loop is replaced
-    with straight-line code, whereas if [n] is used, the semantics are the same. *)
-let unroll_loop_h (max : int) (count : int) (cfg : cfg) (idx_loops : (string * loop) list)
-    (idx : string) : int * cfg * (string * loop) list =
+    with straight-line code, whereas if [n] is used, we check the [term] flag.
+    If [term] is true, [n] unrollings are performed, and all transitions from the
+    [n]th copy of the loop to the first copy of the loop are replaced with
+    transitions to the reject state. Otherwise, the loop is left intact with
+    [n] copies of the body. *)
+let unroll_loop_h (max : int) (term : bool) (count : int) (cfg : cfg)
+    (idx_loops : (string * loop) list) (idx : string) : int * cfg * (string * loop) list =
   let loop = List.Assoc.find_exn idx_loops idx ~equal in
   let stack_bound = get_stack_bound cfg loop in
   if Option.is_some stack_bound
@@ -379,14 +400,14 @@ let unroll_loop_h (max : int) (count : int) (cfg : cfg) (idx_loops : (string * l
     let edges = List.fold loop.states ~init:cfg.edges ~f:(fun acc st ->
       List.Assoc.remove acc st ~equal) in
     let states = List.map states ~f:(fun (n, st) ->
-      n, update_transitions max (Option.value_exn loop.hdr) [] (-1) st) in
+      n, update_transitions max term (Option.value_exn loop.hdr) [] (-1) st) in
     let edges = List.map edges ~f:(fun (st, succs) ->
       st, List.map succs ~f:(fun succ ->
         if mem succ loop.states then Format.sprintf "%s_unroll0" succ else succ)) in
     let loop_copies = List.init max ~f:(Fn.const loop_states) in
     let loop_copies = List.mapi loop_copies ~f:rename_loop_copy in
     let loop_copies = List.mapi loop_copies 
-      ~f:(update_loop_transitions max (Option.value_exn loop.hdr) loop.states) in
+      ~f:(update_loop_transitions max term (Option.value_exn loop.hdr) loop.states) in
     let states = List.concat loop_copies |> List.fold ~init:states
       ~f:(fun acc (n, st) -> List.Assoc.add acc n st ~equal) in
     let edge_copies = List.init max ~f:(Fn.const loop_edges) in
@@ -395,11 +416,21 @@ let unroll_loop_h (max : int) (count : int) (cfg : cfg) (idx_loops : (string * l
     let edges = List.concat edge_copies |> List.fold ~init:edges
       ~f:(fun acc (n, es) -> List.Assoc.add acc n es ~equal) in
     let cfg = { states; edges; } in
+    let supset_loops = List.filter idx_loops ~f:(fun (_, l) -> subloop loop l) in
+    let new_nodes = List.init max ~f:(Fn.const loop.states) in
+    let new_nodes = List.mapi new_nodes
+      ~f:(fun i sts -> List.map sts ~f:(fun st -> Format.sprintf "%s_unroll%d" st i))
+      |> List.concat in
+    let supset_loops = List.map supset_loops
+      ~f:(fun (idx, l) -> idx, update_loop (Option.value_exn loop.hdr) loop.states new_nodes l) in
+    let idx_loops = List.fold supset_loops ~init:idx_loops
+      ~f:(fun acc (idx, l) -> List.Assoc.add acc idx l ~equal) in
     count, cfg, idx_loops
 
-let unroll_loop a (b, c, d) e = unroll_loop_h a b c d e
+let unroll_loop a b (c, d, e) f = unroll_loop_h a b c d e f
 
-let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.state list =
+let unroll_parser (n : int) (term : bool)
+    (states : Types.Parser.state list) : Types.Parser.state list =
   (* Format.printf "Number of states: %d\n" (List.length states); *)
   let cfg = to_cfg states in
   let doms = get_dom_map cfg in
@@ -407,11 +438,11 @@ let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.st
     List.iter ds ~f:(fun d -> Format.printf "\t%s\n" d)); *)
   let sccs = get_sccs cfg in
   let sccs = List.filter sccs ~f:(nontrivial cfg) in
-  Format.printf "Found SCCs!\n";
-  List.iter sccs ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Found SCCs!\n"; *)
+  (* List.iter sccs ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let loops' = List.filter_map sccs ~f:(is_natural cfg doms) in
-  Format.printf "Filtered SCCS!\n";
-  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Filtered SCCS!\n"; *)
+  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   (* Format.printf "Number of sccs: %d\n" (List.length sccs); *)
   (* Format.printf "Number of natural loops: %d\n" (List.length loops'); *)
   let () =
@@ -419,24 +450,25 @@ let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.st
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
-  Format.printf "Extracted nested loops!\n";
-  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Extracted nested loops!\n"; *)
+  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let loops = List.map loops' ~f:(update_exits cfg) in
   let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
-  Format.printf "Filtered non-packet-consuming loops!\n";
-  List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Filtered non-packet-consuming loops!\n"; *)
+  (* List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let () =
     if List.equal loops_equal loops' loops
     then ()
     else raise UnboundedLoop in
   Format.printf "Found %d natural loops consuming the packet\n" (List.length loops);
+  let loops = List.sort loops ~compare:(fun l1 l2 -> if subloop l1 l2 then -1 else 1) in
   let idxs = List.init (List.length loops) ~f:string_of_int in
   let idx_loops = List.zip_exn idxs loops in
-  let count, cfg, _ = List.fold idxs ~init:(0, cfg, idx_loops) ~f:(unroll_loop n) in
+  let count, cfg, _ = List.fold idxs ~init:(0, cfg, idx_loops) ~f:(unroll_loop n term) in
   Format.printf "Successfully eliminated %d natural loops using stack heuristics\n" count;
   of_cfg cfg
 
-let unroll_parsers (n : int) (p : Types.program) : Types.program =
+let unroll_parsers (n : int) (term : bool) (p : Types.program) : Types.program =
   let open Types.Declaration in
   let f = function
     | (i, Parser {
@@ -454,7 +486,7 @@ let unroll_parsers (n : int) (p : Types.program) : Types.program =
       params;
       constructor_params;
       locals;
-      states = unroll_parser n states;
+      states = unroll_parser n term states;
     })
     | d -> d in
   match p with Program ds ->

@@ -76,12 +76,13 @@ let unroll_command =
   (empty
   +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
   +> flag "-n" (optional_with_default "0" string) ~doc:"<n> Provide a default number of unrollings"
+  +> flag "-term" no_arg ~doc:" Enable loop elimination"
   +> flag "-inf" no_arg ~doc:" Allow infinite loops in parsers"
   +> flag "-irr" no_arg ~doc:" Allow irreducible control flow in parsers"
   +> flag "-d" (optional string) ~doc:" Specify path and filename for output"
   +> anon ("p4file" %: string))
-  (fun include_dir n inf irr dir p4file () ->
-    unroll_file include_dir n inf irr dir p4file)
+  (fun include_dir n term inf irr dir p4file () ->
+    unroll_file include_dir n term inf irr dir p4file)
   
 
 let eval_command =

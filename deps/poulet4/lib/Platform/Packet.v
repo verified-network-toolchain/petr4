@@ -6,7 +6,8 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 
 Require String.
-Require Import Environment. Require Import Utils.
+Require Import Environment.
+Require Import Utils.
 Require Import Syntax.
 Require Import Typed.
 

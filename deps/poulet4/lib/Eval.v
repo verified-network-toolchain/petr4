@@ -38,8 +38,15 @@ Section Eval.
   Definition default_value (A: P4Type) : Value.
   Admitted.
 
-  Definition eval_lvalue (expr: Expression) : env_monad ValueLvalue.
-  Admitted.
+  Definition eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
+    let '(MkExpression _ _ expr' type _) := expr in 
+    match expr' with
+    | ExpName _ name => mret (MkValueLvalue _ (ValLeftName _ name) type)
+    | ExpExpressionMember _ _ _
+    | ExpArrayAccess _ _ _ 
+    | ExpBitStringAccess _ _ _ _ 
+    | _ => state_fail Internal
+    end.
 
   Definition bvector_negate {n: nat} (b: Bvector n) : Bvector n.
   Admitted.
@@ -184,25 +191,62 @@ Section Eval.
     then true
     else false.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option Expression)) : env_monad unit.
-  Admitted.
+  Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option Expression)) : env_monad unit :=
+    obj' <- env_lookup _ tags_dummy obj ;;
+    match obj' with
+    | ValObj _ (ValObjPacket _ bits) => 
+      if String.eqb name String.extract 
+      then 
+        match (args, type_args) with
+        | ((Some target_expr) :: _, into :: _) =>
+          match eval_packet_extract_fixed tags_t into bits with 
+          | (inr error, bits') =>
+            env_update _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+            state_fail error 
+          | (inl value, bits') =>
+            env_update _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
+            let* target := eval_lvalue target_expr in
+            env_update _ tags_dummy target (ValBase _ value) ;;
+            mret tt
+          end
+        | _ => state_fail Internal
+        end
 
-  Definition eval_builtin_func (name: String.t) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option Expression)) : env_monad Value :=
+      else state_fail Internal
+    | _ => state_fail Internal
+    end.
+
+  Definition eval_builtin_func (name: P4String) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option Expression)) : env_monad Value :=
+    let name := P4String.str name in
     let* args' := eval_arguments args in
-    if String.eqb name StringConstants.isValid
+    if String.eqb name String.isValid
     then eval_is_valid obj
-    else if String.eqb name StringConstants.setValid
+    else if String.eqb name String.setValid
     then dummy_value _ (eval_set_bool obj true)
-    else if String.eqb name StringConstants.setInvalid
+    else if String.eqb name String.setInvalid
     then dummy_value _ (eval_set_bool obj false)
-    else if String.eqb name StringConstants.pop_front
+    else if String.eqb name String.pop_front
     then dummy_value _ (eval_pop_front obj args')
-    else if String.eqb name StringConstants.push_front
+    else if String.eqb name String.push_front
     then dummy_value _ (eval_push_front obj args')
+    else if is_packet_func name 
+    then dummy_value _ (eval_packet_func obj name type_args args)
     else state_fail Internal.
 
   Definition eval_extern_func (name: String.t) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option Expression)): env_monad Value.
   Admitted.
+  (* TODO fix
+  let* Packet bits := unpack_extern_obj (find_lvalue obj) in
+  dummy_value (eval_packet_func obj name bits type_args args).
+   *)
+
+  Definition eval_method_call (func: Expression) (type_args: list P4Type) (args: list (option Expression)) : env_monad Value :=
+    let* func' := eval_expression func in
+    match func' with
+    | ValObj _ (ValObjBuiltinFun _ name obj) => eval_builtin_func name obj type_args args
+    (* | ValExternFun name caller params => eval_extern_func name obj type_args args *)
+    | _ => state_fail Internal (* TODO: other function types *)
+    end.
 
   Fixpoint eval_block (blk: Block) : env_monad unit :=
     match blk with

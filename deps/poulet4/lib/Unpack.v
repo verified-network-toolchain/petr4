@@ -1,6 +1,4 @@
-Require Import Coq.NArith.BinNatDef.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.Bool.Bvector.
+Require Import Coq.Numbers.BinNums.
 
 Require Import Monads.Monad.
 Require Import Monads.State.
@@ -29,7 +27,7 @@ Section Unpack.
   Definition unpack_fixed_int (wrapped: env_monad Value) : env_monad (nat * Z) :=
     let* unwrapped := wrapped in
     match unwrapped with
-    | ValBase _ (ValBaseInt _ w n) => mret (w, n)
+    | ValBase _ (ValBaseInt _ w n) => (state_return (w, n):env_monad (nat*Z))
     | _ => state_fail Internal
     end.
 

@@ -28,3 +28,9 @@ Global Instance state_monad_inst {State Exception: Type} : Monad (@state_monad S
   { mret := @state_return State Exception;
     mbind := @state_bind State Exception
   }.
+
+Definition run_with_state 
+  {State Exception Result : Type}
+  (st: State)
+  (act: @state_monad State Exception Result)
+  : (Result + Exception) * State := act st.

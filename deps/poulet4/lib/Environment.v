@@ -39,11 +39,12 @@ Section Environment.
 
   Definition env_monad := @state_monad environment exception.
 
-  Definition lift_option {A: Type} (o: option A) : env_monad A :=
-    match o with
-    | None => state_fail Internal
-    | Some a => mret a
-    end.
+  Definition lift_option {A : Type} (x: option A) : env_monad A :=
+    fun env => 
+      match x with
+      | Some it => mret it env
+      | None => (inr Internal, env)
+      end.
 
   Fixpoint stack_lookup' (key: String.t) (st: stack) : option loc :=
     match st with

@@ -290,9 +290,9 @@ let state_consumes_pkt (st : Types.Parser.state) : bool =
 let loop_consumes_pkt (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
-    let () = Format.printf "Checking if exit '%s' consumes packet\n" e in
+    (* let () = Format.printf "Checking if exit '%s' consumes packet\n" e in *)
     List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
-      let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in
+      (* let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in *)
       state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
@@ -368,7 +368,7 @@ let subloop (l1 : loop) (l2 : loop) : bool =
 let update_loop (hdr : string) (states : string list)
     (new_nodes : string list) (l : loop) : loop = { l with
   hdr =
-    if equal hdr (Option.value_exn l.hdr)
+    if mem (Option.value_exn l.hdr) states
     then Some (Format.sprintf "%s_unroll0" hdr)
     else l.hdr;
   states =
@@ -428,6 +428,11 @@ let unroll_loop_h (max : int) (term : bool) (count : int) (cfg : cfg)
       ~f:(fun (idx, l) -> idx, update_loop (Option.value_exn loop.hdr) loop.states new_nodes l) in
     let idx_loops = List.fold supset_loops ~init:idx_loops
       ~f:(fun acc (idx, l) -> List.Assoc.add acc idx l ~equal) in
+    let loop = { loop with 
+      states = List.concat loop_copies |> List.map ~f:fst;
+      hdr = Option.map loop.hdr ~f:(fun hdr -> Format.sprintf "%s_unroll0" hdr)
+    } in
+    let idx_loops = List.Assoc.add idx_loops idx loop ~equal in
     count, cfg, idx_loops
 
 let unroll_loop a b (c, d, e) f = unroll_loop_h a b c d e f
@@ -494,12 +499,12 @@ let unroll_parser (n : int) (term : bool)
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
-  Format.printf "Extracted nested loops!\n";
-  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Extracted nested loops!\n"; *)
+  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let loops = List.map loops' ~f:(update_exits cfg) in
   let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
-  Format.printf "Filtered non-packet-consuming loops!\n";
-  List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
+  (* Format.printf "Filtered non-packet-consuming loops!\n"; *)
+  (* List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
   let () =
     if List.equal loops_equal loops' loops
     then ()
@@ -512,6 +517,7 @@ let unroll_parser (n : int) (term : bool)
     else cfg, loops in
   let idxs = List.init (List.length loops) ~f:string_of_int in
   let idx_loops = List.zip_exn idxs loops in
+  (* let idxs = List.hd idxs |> Option.value_map ~default:[] ~f:(fun x -> [x]) in *)
   let count, cfg, _ = List.fold idxs ~init:(0, cfg, idx_loops) ~f:(unroll_loop n term) in
   Format.printf "Successfully eliminated %d natural loops using stack heuristics\n" count;
   of_cfg cfg

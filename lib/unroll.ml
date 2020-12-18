@@ -153,6 +153,11 @@ let get_sccs (cfg : cfg) : loop list =
     else strong_connect cfg idx stack meta sccs v in
   List.fold nodes ~init:(idx, stack, meta, sccs) ~f
   |> fun (_, _, _, sccs) -> sccs
+  
+let nontrivial (cfg : cfg) (loop : loop) : bool =
+  not (Int.equal (List.length loop.states) 1)
+  || List.Assoc.find_exn cfg.edges (List.hd_exn loop.states) ~equal
+      |> mem (List.hd_exn loop.states)
 
 (** [is_natural cfg doms scc] is [true] iff. there is a state [st] in the [scc]
     of the [cfg] satisfying the following two conditions:
@@ -239,7 +244,8 @@ let accepts_or_rejects (cfg : cfg) (st : string) : bool =
 let update_exits (cfg : cfg) (loop : loop) : loop =
   let is_exit st =
     let succs = List.Assoc.find_exn cfg.edges st ~equal in
-    List.exists cfg.states ~f:(fun (b,_) -> mem b succs && not (mem b loop.states))
+    List.exists cfg.states ~f:(fun (b,_) -> mem b succs && (not (mem b loop.states)
+      || Option.equal equal (Some b) loop.hdr))
     || accepts_or_rejects cfg st in
   { loop with exits = List.filter loop.states ~f:is_exit; }
 
@@ -262,11 +268,11 @@ let update_exits (cfg : cfg) (loop : loop) : loop =
 let stmt_consumes_pkt (stmt : Types.Statement.t) : bool =
   match (snd stmt) with
   | Types.Statement.MethodCall {
-    func = _, Types.Expression.Name (BareName (_, "extract"));
-    type_args = [t]; _ } -> true
+    func = _, Types.Expression.ExpressionMember {name = (_, "extract"); _ }; _ } ->
+    true
     (* Bigint.(zero < (Target.width_of_typ env t)) *)
   | MethodCall {
-    func = _, Types.Expression.Name (BareName (_, "advance")); _} ->
+    func = _, Types.Expression.ExpressionMember {name = (_, "advance"); _}; _ } ->
     true
   | _ -> false  
 
@@ -281,12 +287,73 @@ let state_consumes_pkt (st : Types.Parser.state) : bool =
 let loop_consumes_pkt (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
+    (* let () = Format.printf "Checking if exit '%s' consumes packet\n" e in *)
     List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
+      (* let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in *)
       state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
 let loops_equal (l1 : loop) (l2 : loop) : bool =
   List.equal equal l1.states l2.states
+
+let get_stack_bound (cfg : cfg) (loop : loop) : int option =
+  None (* TODO *)
+
+let rename_loop_copy (i : int) (states : (string * Types.Parser.state) list) : (string * Types.Parser.state) list =
+  let open Types.Parser in
+  let f (n, st : string * Types.Parser.state) =
+    Format.sprintf "%s_unroll%d" n i,
+    (fst st, { (snd st) with name = fst (snd st).name,
+      Format.sprintf "%s_unroll%d" (snd (snd st).name) i; }) in
+  List.map states ~f
+
+let update_case (max : int) (hdr : string) (states : string list) (curr : int)
+    (case : Types.Parser.case) : Types.Parser.case =
+  let n = snd (snd case).next in
+  fst case, { (snd case) with next = fst (snd case).next,
+    if equal hdr n
+    then Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
+    else if mem n states
+    then Format.sprintf "%s_unroll%d" n curr
+    else n
+  }
+
+let update_transitions (max : int) (hdr : string) (states : string list) (curr : int)
+    (st : Types.Parser.state) : Types.Parser.state =
+  fst st, { (snd st) with transition = fst (snd st).transition, 
+    match snd (snd st).transition with
+    | Direct {next = (i, n)} ->
+      let n =
+        if equal n hdr
+        then Format.sprintf "%s_unroll%d" n ((curr + 1) % max)
+        else if mem n states
+        then Format.sprintf "%s_unroll%d" n curr
+        else n in
+      Direct {next = (i,n)}
+    | Select {exprs; cases;} ->
+      let cases = List.map cases ~f:(update_case max hdr states curr) in
+      Select {exprs; cases;}
+  }
+
+let update_loop_transitions (max : int) (hdr : string) (states : string list) (curr : int)
+    (c : (string * Types.Parser.state) list) : (string * Types.Parser.state) list =
+  List.map c ~f:(fun (n, st) -> n, update_transitions max hdr states curr st)
+
+let rename_edges (max : int) (hdr : string) (states : string list) (curr : int)
+    (n, es : string * string list) : string * string list =
+  let f e =
+    if equal e hdr
+    then Format.sprintf "%s_unroll%d" e ((curr + 1) % max)
+    else if mem e states
+    then Format.sprintf "%s_unroll%d" e curr
+    else e in
+  let n = if mem n states then Format.sprintf "%s_unroll%d" n curr else n in
+  let es = List.map es ~f in
+  n, es
+
+let rename_loop_edges (max : int) (hdr : string) (states : string list) (curr : int)
+    (c : (string * string list) list) : (string * string list) list =
+  List.map c ~f:(rename_edges max hdr states curr)
 
 (** [unroll_loop cfg loops n i] is an updated version of both [cfg] and [loops],
     updated to reflect the fact that the loop at index [i] in [loops] has been
@@ -295,11 +362,42 @@ let loops_equal (l1 : loop) (l2 : loop) : bool =
     defaults to [n] unrollings. Additionally, it is guaranteed that if [n] was
     replaced by a value computed using header stack size, the loop is replaced
     with straight-line code, whereas if [n] is used, the semantics are the same. *)
-let unroll_loop_h (n : int) (cfg : cfg) (idx_loops : (string * loop) list)
-    (idx : string) : cfg * (string * loop) list =
-  cfg, idx_loops (* TODO *)
+let unroll_loop_h (max : int) (count : int) (cfg : cfg) (idx_loops : (string * loop) list)
+    (idx : string) : int * cfg * (string * loop) list =
+  let loop = List.Assoc.find_exn idx_loops idx ~equal in
+  let stack_bound = get_stack_bound cfg loop in
+  if Option.is_some stack_bound
+  then count + 1, cfg, idx_loops (* TODO *)
+  else if max <= 1 then count, cfg, idx_loops
+  else
+    let loop_states = List.map loop.states ~f:(fun st ->
+      st, List.Assoc.find_exn cfg.states st ~equal) in
+    let loop_edges = List.map loop.states ~f:(fun st ->
+      st, List.Assoc.find_exn cfg.edges st ~equal) in
+    let states = List.fold loop.states ~init:cfg.states ~f:(fun acc st ->
+      List.Assoc.remove acc st ~equal) in
+    let edges = List.fold loop.states ~init:cfg.edges ~f:(fun acc st ->
+      List.Assoc.remove acc st ~equal) in
+    let states = List.map states ~f:(fun (n, st) ->
+      n, update_transitions max (Option.value_exn loop.hdr) [] (-1) st) in
+    let edges = List.map edges ~f:(fun (st, succs) ->
+      st, List.map succs ~f:(fun succ ->
+        if mem succ loop.states then Format.sprintf "%s_unroll0" succ else succ)) in
+    let loop_copies = List.init max ~f:(Fn.const loop_states) in
+    let loop_copies = List.mapi loop_copies ~f:rename_loop_copy in
+    let loop_copies = List.mapi loop_copies 
+      ~f:(update_loop_transitions max (Option.value_exn loop.hdr) loop.states) in
+    let states = List.concat loop_copies |> List.fold ~init:states
+      ~f:(fun acc (n, st) -> List.Assoc.add acc n st ~equal) in
+    let edge_copies = List.init max ~f:(Fn.const loop_edges) in
+    let edge_copies = List.mapi edge_copies
+      ~f:(rename_loop_edges max (Option.value_exn loop.hdr) loop.states) in
+    let edges = List.concat edge_copies |> List.fold ~init:edges
+      ~f:(fun acc (n, es) -> List.Assoc.add acc n es ~equal) in
+    let cfg = { states; edges; } in
+    count, cfg, idx_loops
 
-let unroll_loop a (b,c) d = unroll_loop_h a b c d
+let unroll_loop a (b, c, d) e = unroll_loop_h a b c d e
 
 let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.state list =
   (* Format.printf "Number of states: %d\n" (List.length states); *)
@@ -308,7 +406,12 @@ let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.st
   (* List.iter doms ~f:(fun (v, ds) -> Format.printf "Dominators for state %s:\n" v;
     List.iter ds ~f:(fun d -> Format.printf "\t%s\n" d)); *)
   let sccs = get_sccs cfg in
+  let sccs = List.filter sccs ~f:(nontrivial cfg) in
+  Format.printf "Found SCCs!\n";
+  List.iter sccs ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   let loops' = List.filter_map sccs ~f:(is_natural cfg doms) in
+  Format.printf "Filtered SCCS!\n";
+  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   (* Format.printf "Number of sccs: %d\n" (List.length sccs); *)
   (* Format.printf "Number of natural loops: %d\n" (List.length loops'); *)
   let () =
@@ -316,15 +419,21 @@ let unroll_parser (n : int) (states : Types.Parser.state list) : Types.Parser.st
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
+  Format.printf "Extracted nested loops!\n";
+  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   let loops = List.map loops' ~f:(update_exits cfg) in
   let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
+  Format.printf "Filtered non-packet-consuming loops!\n";
+  List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   let () =
     if List.equal loops_equal loops' loops
     then ()
     else raise UnboundedLoop in
+  Format.printf "Found %d natural loops consuming the packet\n" (List.length loops);
   let idxs = List.init (List.length loops) ~f:string_of_int in
   let idx_loops = List.zip_exn idxs loops in
-  let cfg, _ = List.fold idxs ~init:(cfg, idx_loops) ~f:(unroll_loop n) in
+  let count, cfg, _ = List.fold idxs ~init:(0, cfg, idx_loops) ~f:(unroll_loop n) in
+  Format.printf "Successfully eliminated %d natural loops using stack heuristics\n" count;
   of_cfg cfg
 
 let unroll_parsers (n : int) (p : Types.program) : Types.program =

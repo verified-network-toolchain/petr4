@@ -85,6 +85,8 @@ let eval_command =
        print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
 
 let do_stf include_dir stf_file p4_file =
+  failwith "do_stf removed"
+  (* TODO restore stf
     let print_err (e_port, e_pkt) (a_port, a_pkt) =
         Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
                       e_port e_pkt a_port a_pkt
@@ -103,6 +105,7 @@ let do_stf include_dir stf_file p4_file =
     in
     let pkts = List.zip_exn expected results in
     List.iter ~f:check_pkt pkts
+  *)
 
 
 let stf_command =

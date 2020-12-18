@@ -1,5 +1,7 @@
+module I = Info
 open Error
 open Core_kernel
+module Info = I
 
 (** [block] is a custom minimalize representation of *)
 type block = {
@@ -244,9 +246,7 @@ let accepts_or_rejects (cfg : cfg) (st : string) : bool =
 let update_exits (cfg : cfg) (loop : loop) : loop =
   let is_exit st =
     let succs = List.Assoc.find_exn cfg.edges st ~equal in
-    List.exists cfg.states ~f:(fun (b,_) -> mem b succs && (not (mem b loop.states)
-      || Option.equal equal (Some b) loop.hdr))
-    || accepts_or_rejects cfg st in
+    mem (Option.value_exn loop.hdr) succs in
   { loop with exits = List.filter loop.states ~f:is_exit; }
 
 (*  NOTE: the common case is for extract or advance to occur as a method call.
@@ -263,6 +263,8 @@ let update_exits (cfg : cfg) (loop : loop) : loop =
     dataflow analysis to check that the argument to advance is non-zero. For now,
     we simply assume the programmer was smart enough not to allow this. *)
 
+(* NOTE: for now, we allow direct applications to be packet-consuming statements*)
+
 (** [stmt_consumes_pkt stmt] is [true] iff. the semantics of [stmt] increment
     the packet pointer. *)
 let stmt_consumes_pkt (stmt : Types.Statement.t) : bool =
@@ -274,6 +276,7 @@ let stmt_consumes_pkt (stmt : Types.Statement.t) : bool =
   | MethodCall {
     func = _, Types.Expression.ExpressionMember {name = (_, "advance"); _}; _ } ->
     true
+  | DirectApplication _ -> true
   | _ -> false  
 
 (** [state_consumes_pkt st] is [true] iff. the [st] contains code whose semantics
@@ -287,9 +290,9 @@ let state_consumes_pkt (st : Types.Parser.state) : bool =
 let loop_consumes_pkt (cfg : cfg) (doms : dom_map)
     (loop : loop) : bool =
   List.for_all loop.exits ~f:(fun e ->
-    (* let () = Format.printf "Checking if exit '%s' consumes packet\n" e in *)
+    let () = Format.printf "Checking if exit '%s' consumes packet\n" e in
     List.exists (List.Assoc.find_exn doms e ~equal |> List.filter ~f:(fun d -> mem d loop.states)) ~f:(fun st ->
-      (* let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in *)
+      let () = Format.printf "Checking if dominator '%s' of exit '%s' consumes packet\n" st e in
       state_consumes_pkt (List.Assoc.find_exn cfg.states st ~equal)))
 
 (** [loops_equal l1 l2] is [true] iff. [l1] and [l2] have exactly the same states. *)
@@ -429,6 +432,47 @@ let unroll_loop_h (max : int) (term : bool) (count : int) (cfg : cfg)
 
 let unroll_loop a b (c, d, e) f = unroll_loop_h a b c d e f
 
+let start_map (n : string) : string =
+  if equal n "start" then "post_start" else n
+
+let fresh_start =
+  let open Types.Parser in
+  Info.dummy, {
+    annotations = [];
+    name = Info.dummy, "start";
+    statements = [];
+    transition = Info.dummy, Direct { next = Info.dummy, "post_start" }
+  }
+
+let unstart_case (case : Types.Parser.case) : Types.Parser.case =
+  fst case, { (snd case) with 
+    next = fst (snd case).next, snd (snd case).next |> start_map }
+  
+let unstart_transition (trans : Types.Parser.transition) : Types.Parser.transition =
+  fst trans, match snd trans with
+    | Direct {next;} -> Direct {next = fst next, start_map (snd next)}
+    | Select {exprs; cases} -> Select {exprs; cases = List.map cases ~f:unstart_case}
+
+let unstart_state (st : Types.Parser.state) : Types.Parser.state =
+  fst st, { (snd st) with
+    name = fst (snd st).name, start_map (snd (snd st).name);
+    transition = unstart_transition (snd st).transition; }
+
+let unstart_cfg (cfg : cfg) : cfg =
+  let states = List.map cfg.states
+    ~f:(fun (n, st) -> start_map n, unstart_state st) in
+  let states = ("start", fresh_start) :: states in
+  let edges = List.map cfg.edges
+    ~f:(fun (n, ss) -> start_map n, List.map ss ~f:start_map) in
+  let edges = ("start", ["post_start"]) :: edges in
+  { states; edges; }
+
+let unstart_loop (l : loop) : loop = {
+  hdr = Option.map ~f:start_map l.hdr;
+  states = List.map l.states ~f:start_map;
+  exits = List.map l.exits ~f:start_map;
+}
+
 let unroll_parser (n : int) (term : bool)
     (states : Types.Parser.state list) : Types.Parser.state list =
   (* Format.printf "Number of states: %d\n" (List.length states); *)
@@ -450,18 +494,22 @@ let unroll_parser (n : int) (term : bool)
     then ()
     else raise IrreducibleCFG in
   let loops' = List.fold loops' ~init:[] ~f:(extract_nested cfg doms) in
-  (* Format.printf "Extracted nested loops!\n"; *)
-  (* List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
+  Format.printf "Extracted nested loops!\n";
+  List.iter loops' ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   let loops = List.map loops' ~f:(update_exits cfg) in
   let loops = List.filter loops ~f:(loop_consumes_pkt cfg doms) in
-  (* Format.printf "Filtered non-packet-consuming loops!\n"; *)
-  (* List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st)); *)
+  Format.printf "Filtered non-packet-consuming loops!\n";
+  List.iter loops ~f:(fun scc -> Format.printf "SCC:\n"; List.iter scc.states ~f:(fun st -> Format.printf "\t%s\n" st));
   let () =
     if List.equal loops_equal loops' loops
     then ()
     else raise UnboundedLoop in
   Format.printf "Found %d natural loops consuming the packet\n" (List.length loops);
   let loops = List.sort loops ~compare:(fun l1 l2 -> if subloop l1 l2 then -1 else 1) in
+  let cfg, loops = 
+    if List.exists loops ~f:(fun l -> mem "start" l.states)
+    then unstart_cfg cfg, List.map loops ~f:(fun l -> unstart_loop l)
+    else cfg, loops in
   let idxs = List.init (List.length loops) ~f:string_of_int in
   let idx_loops = List.zip_exn idxs loops in
   let count, cfg, _ = List.fold idxs ~init:(0, cfg, idx_loops) ~f:(unroll_loop n term) in

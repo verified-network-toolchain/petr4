@@ -3,6 +3,8 @@ open Petr4.Ast
 open Common
 open Core
 
+let unroll = true
+
 let stmt_string s =
   match s with
   | Expect(port, Some(expect)) ->
@@ -155,6 +157,7 @@ let run_stf include_dir stf_file p4_file =
       Petr4_parse.parse_file include_dir p4_file false
       |> (function `Ok p -> p | _ -> failwith "Petr4 parser error")
       |> Elaborate.elab
+      |> (fun (p,r) -> if unroll then Unroll.unroll_parsers 5 false p, r else p, r)
       |> fun (prog, renamer) -> Checker.check_program renamer prog
       |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
     let target = match prog with Program l ->

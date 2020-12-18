@@ -64,7 +64,7 @@ val width_of_typ : env -> coq_P4Type -> Bigint.t
 
 val init_val_of_typ : env -> coq_P4Type -> coq_Value
 
-val width_of_val : coq_Value -> Bigint.t
+val width_of_val : coq_ValueBase -> Bigint.t
 
 val value_of_lvalue : 'a reader -> env -> 'a State.t -> coq_ValueLvalue -> signal * coq_Value
 

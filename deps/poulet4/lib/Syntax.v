@@ -112,7 +112,7 @@ Section Syntax.
   | ValBaseInteger (_: Z)
   | ValBaseBit (width: nat) (value: Z)
   | ValBaseInt (width: nat) (value: Z)
-  | ValBaseVarbit (max: nat) (width: nat) (value: N)
+  | ValBaseVarbit (max: nat) (width: nat) (value: Z)
   | ValBaseString (_: P4String)
   | ValBaseTuple (_: list ValueBase)
   | ValBaseRecord (_: list (P4String * ValueBase))

@@ -29,11 +29,12 @@ install:
   EOF
   | sudo tee /etc/apt/preferences.d/ocaml.pref
 - sudo add-apt-repository "deb http://ftp.us.debian.org/debian sid main"
-- sudo apt install ocaml-nox opam dune
+- sudo apt install ocaml-nox opam dune coq
 - opam init --no-setup
 - eval $(opam env)
 
 script:
+- make deps
 - opam install . --deps-only
 - make
 - make install

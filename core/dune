@@ -1,4 +1,0 @@
-(library
-  (name petr4_core)
-  (libraries petr4 core_kernel bignum ppx_deriving_yojson.runtime yojson cstruct-sexp)
-  (preprocess (pps ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show)))

@@ -135,11 +135,14 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
     (**[]*)
 
     (** Function signatures. *)
-    Inductive arrow (A : Type) : Type :=
-      Arrow (params : F.fs (d * A)) (returns : option A).
+    Inductive arrow (A R : Type) : Type :=
+      Arrow (params : F.fs (d * A)) (returns : option R).
     (**[]*)
 
-    Arguments Arrow {A} _ _.
+    Arguments Arrow {A} _ _ _.
+
+    (** Function types. *)
+    Definition arrowT : Type := arrow t t.
 
     Module TypeNotations.
       Declare Custom Entry p4type.
@@ -277,6 +280,9 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
           (callee_type : t) (callee : e)
           (args : F.fs (d * t * e)). *)
     (**[]*)
+
+    (** Function call. *)
+    Definition arrowE : Type := arrow (t * e) (t * NAME.t).
 
     Module ExprNotations.
       Export TypeNotations.
@@ -519,7 +525,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (* Sequences, a possibly easier-to-verify alternative to blocks. *)
       | SSeq (s1 s2 : s)
       | SVarDecl (typ : E.t) (var : NAME.t) (rhs : E.e)
-      | SCall (f : NAME.t) (args : E.arrow (E.t * E.e)).
+      | SCall (f : NAME.t) (args : E.arrowE).
     (**[]*)
 
     Module StmtNotations.
@@ -557,11 +563,11 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
                         no associativity).
 
       Notation "'call' f 'with' args 'fin'"
-        := (SCall f (E.Arrow args None))
+        := (SCall f (E.Arrow (E.t * NAME.t) args None))
              (in custom p4stmt at level 30, no associativity).
 
       Notation "'let' e '::' t ':=' 'call' f 'with' args 'fin'"
-               := (SCall f (E.Arrow args (Some (t,e))))
+               := (SCall f (E.Arrow (E.t * NAME.t) args (Some (t,e))))
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
     End StmtNotations.
@@ -582,8 +588,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric).
       (** [C] is the constructor name,
           and [x] is the instance name. *)
       | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e))
-      | DFunction (f : NAME.t) (params : F.fs (Dir.d * E.t))
-                  (returns : option E.t) (body : S.s)
+      | DFunction (f : NAME.t) (signature : E.arrowT) (body : S.s)
       | DSeq (d1 d2 : d).
     (**[]*)
   End Decl.

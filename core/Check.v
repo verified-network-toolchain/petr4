@@ -226,7 +226,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
   Notation "'R'" := SIG_Return (in custom p4signal at level 0). *)
 
   (** Available functions. *)
-  Definition fenv : Type := NM.env (E.arrow E.t).
+  Definition fenv : Type := NM.env (E.arrowT).
 
   Reserved Notation "⦃ fe ',' errs ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
            (at level 40, s custom p4stmt, g2 custom p4env).
@@ -254,7 +254,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
    | chk_method_call (Γ' : gam) (params : F.fs (dir * E.t))
                      (args : F.fs (dir * (E.t * E.e))) (f : NAME.t) :
        Γ' = out_update args Γ ->
-       fns f = Some (E.Arrow params None) ->
+       fns f = Some (E.Arrow E.t params None) ->
        F.relfs
          (fun dte dt =>
             fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
@@ -263,17 +263,17 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric).
          args params ->
        ⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args fin ⊣ Γ'
    | chk_call (Γ' : gam) (params : F.fs (dir * E.t)) (τ : E.t)
-              (args : F.fs (dir * (E.t * E.e))) (e : E.e) (f : NAME.t) :
+              (args : F.fs (dir * (E.t * E.e))) (f x : NAME.t) :
        Γ' = out_update args Γ ->
-       fns f = Some (E.Arrow params (Some τ)) ->
-       ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
+       fns f = Some (E.Arrow _ params (Some τ)) ->
        F.relfs
          (fun dte dt =>
             fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
             let e := dte ▷ snd ▷ snd in let τ := snd dt in
             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
          args params ->
-       ⦃ fns , errs , mkds , Γ ⦄ ⊢ let e :: τ := call f with args fin ⊣ Γ'
+       ⦃ fns , errs , mkds , Γ ⦄
+         ⊢ let x :: τ := call f with args fin ⊣ x |-> τ ;; Γ'
     where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2"
             := (check_stmt fe ers mks g1 s g2).
   (**[]*)

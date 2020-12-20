@@ -16,6 +16,8 @@ lib/P4Int.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
+lib/P4Light/AST.v
+lib/P4Light/Check.v
 
 -R extraction Petr4
 

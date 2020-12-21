@@ -27,10 +27,15 @@ extern im_t {
   void drop();
 }
 
+extern pkt {
+  bit<32> get_length();
+}
+
 action msa_no_action(){}
 
 parser micro_parser<H, M, I, IO>(
     packet_in packet,
+    pkt p,
     im_t im,
     out H hdrs,
     inout M meta,
@@ -38,6 +43,7 @@ parser micro_parser<H, M, I, IO>(
     inout IO inout_param);
 
 control micro_control<H, M, I, O, IO>(
+    pkt p,
     im_t im,
     inout H hdrs,
     inout M meta,
@@ -45,7 +51,7 @@ control micro_control<H, M, I, O, IO>(
     out O out_param,
     inout IO inout_param);
     
-control micro_deparser<H>(packet_out packet, in H hdrs);
+control micro_deparser<H>(packet_out packet, pkt p, in H hdrs);
 
 package uP4Switch<H, M, I, O, IO>(
     micro_parser<H, M, I, IO> p,

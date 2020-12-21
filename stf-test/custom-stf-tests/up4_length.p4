@@ -45,7 +45,7 @@ parser MyParser(packet_in packet,
 }
 
 control MyControl(pkt p,
-                  im_t im,
+                  im_t im, 
                   inout head[13] hdrs,
                   inout metadata meta,
                   in in_param_t in_param,
@@ -65,7 +65,7 @@ control MyControl(pkt p,
             hdrs[9] = { 114 };
             hdrs[10] = { 108 };
             hdrs[11] = { 100 };
-            hdrs[12] = { 33 };
+            hdrs[12] = { (bit<8>) p.get_length() };
         }
     }
 }
@@ -74,6 +74,7 @@ control MyDeparser(packet_out packet, pkt p, in head[13] hdr) {
     apply {
         packet.emit(hdr[0]);
         packet.emit(hdr);
+        packet.emit( (bit<8>) p.get_length() );
     }
 }
 

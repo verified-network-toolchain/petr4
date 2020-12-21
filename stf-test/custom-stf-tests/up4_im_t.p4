@@ -14,6 +14,7 @@ const PortId_t TEMP_PORT = 244;
 const PortId_t OUT_PORT = 255;
 
 parser MyParser(packet_in packet,
+                pkt p,
                 im_t im,
                 out head[13] hdrs,
                 inout metadata meta,
@@ -47,7 +48,8 @@ parser MyParser(packet_in packet,
 
 }
 
-control MyControl(im_t im,
+control MyControl(pkt p,
+                  im_t im,
                   inout head[13] hdrs,
                   inout metadata meta,
                   in in_param_t in_param,
@@ -74,7 +76,7 @@ control MyControl(im_t im,
     }
 }
 
-control MyDeparser(packet_out packet, in head[13] hdr) {
+control MyDeparser(packet_out packet, pkt p, in head[13] hdr) {
     apply {
         packet.emit(hdr[0]);
         packet.emit(hdr);

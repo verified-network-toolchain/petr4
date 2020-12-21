@@ -29,12 +29,12 @@ Section Eval.
   Admitted.
 
   Definition eval_lvalue (expr: Expression tags_t) : env_monad tags_t ValueLvalue :=
-    let '(MkExpression _ _ expr' type _) := expr in 
+    let '(MkExpression _ _ expr' type _) := expr in
     match expr' with
     | ExpName _ name => mret (MkValueLvalue (ValLeftName name) type)
     | ExpExpressionMember _ _ _
-    | ExpArrayAccess _ _ _ 
-    | ExpBitStringAccess _ _ _ _ 
+    | ExpArrayAccess _ _ _
+    | ExpBitStringAccess _ _ _ _
     | _ => state_fail Internal
     end.
 
@@ -47,7 +47,7 @@ Section Eval.
   Definition eq_value (v1 v2: Value tags_t) : bool.
   Admitted.
 
-  Definition eval_minus (v: Value tags_t) : option (Value tags_t) := 
+  Definition eval_minus (v: Value tags_t) : option (Value tags_t) :=
     match v with
     | ValBase _ (ValBaseBit _ width bits) => Some (ValBase _ (ValBaseBit _ width (bvector_negate bits)))
     | ValBase _ (ValBaseInt _ width bits) => Some (ValBase _ (ValBaseInt _ width (bvector_negate bits)))
@@ -59,7 +59,7 @@ Section Eval.
   Admitted.
 
   Definition extract_value_func (caller: ValueLvalue): Value tags_t := ValObj _ (ValObjFun _ (MkParameter false Out TypVoid "headerLvalue" :: nil) (ValFuncImplBuiltin tags_t String.extract caller)).
-  
+
 
   Fixpoint eval_expression (expr: Expression tags_t) : env_monad tags_t (Value tags_t) :=
     let '(MkExpression _ tags_dummy expr _ _) := expr in
@@ -79,7 +79,7 @@ Section Eval.
     | ExpArrayAccess _ array index =>
       let* index' := unpack_inf_int _ (eval_expression index) in
       let* array' := unpack_array _ (eval_expression array) in
-      let element := 
+      let element :=
         match index_z_error array' index' with
         | Some element' => Some (ValBase _ element')
         | None => None
@@ -89,15 +89,15 @@ Section Eval.
       state_fail Internal
 (*     | ExpList _ exprs =>
       lift_monad (ValTuple _) (sequence (List.map eval_expression exprs))
-    | ExpRecord _ entries => 
+    | ExpRecord _ entries =>
       let actions := List.map eval_kv entries in
       lift_monad (ValRecord _) (sequence actions) *)
-    | ExpUnaryOp _ op arg => 
+    | ExpUnaryOp _ op arg =>
       match op with
-      | Not => 
+      | Not =>
         let* b := unpack_bool _ (eval_expression arg) in
         mret (ValBase _ (ValBaseBool _ (negb b)))
-      | BitNot => 
+      | BitNot =>
         let* inner := eval_expression arg in
         match inner with
         | ValBase _ (ValBaseBit _ w bits) => mret (ValBase _ (ValBaseBit _ w (Bneg w bits)))
@@ -111,10 +111,10 @@ Section Eval.
     | ExpExpressionMember _ inner (MkP4String _ _ name) =>
       let* inner_v := eval_expression inner in
       match inner_v with
-      | ValObj _ (ValObjPacket _ bits) => 
-        match inner with 
-        | MkExpression _ _ (ExpName _ inner_name) inner_typ _ => 
-          if String.eqb name String.extract 
+      | ValObj _ (ValObjPacket _ bits) =>
+        match inner with
+        | MkExpression _ _ (ExpName _ inner_name) inner_typ _ =>
+          if String.eqb name String.extract
           then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
           else state_fail Internal
         | _ => state_fail Internal
@@ -140,7 +140,7 @@ Section Eval.
 
   Definition eval_pop_front (obj: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
-    | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
+    | Some (ValBase _ (ValBaseInteger _ count)) :: nil =>
       let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
       let padding := ValBaseHeader _ (MStr.Raw.empty _) false in
       let* elements' := lift_option _ (rotate_left_z elements count padding) in
@@ -152,7 +152,7 @@ Section Eval.
 
   Definition eval_push_front (obj: ValueLvalue) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     match args with
-    | Some (ValBase _ (ValBaseInteger _ count)) :: nil => 
+    | Some (ValBase _ (ValBaseInteger _ count)) :: nil =>
       let* '(elements, size, next_index) := unpack_header_stack _ (find_lvalue _ obj) in
       let padding := ValBaseHeader _ (MStr.Raw.empty _) false in
       let* elements' := lift_option _ (rotate_right_z elements count padding) in
@@ -169,7 +169,7 @@ Section Eval.
       let '(MkParameter _ dir _ _) := param in
       let* val := match dir with
       | In => eval_expression arg
-      | Out => 
+      | Out =>
         let* lvalue := eval_lvalue arg
         in mret (ValLvalue _ lvalue)
       (* TODO: Handle InOut and Directionless *)
@@ -183,7 +183,7 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Definition is_packet_func (str: String.t) : bool := 
+  Definition is_packet_func (str: String.t) : bool :=
     if String.eqb str String.extract
     then true
     else false.
@@ -191,15 +191,15 @@ Section Eval.
   Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option (Value tags_t))) : env_monad tags_t unit :=
     obj' <- find_lvalue _ obj ;;
     match obj' with
-    | ValObj _ (ValObjPacket _ bits) => 
-      if String.eqb name String.extract 
-      then 
+    | ValObj _ (ValObjPacket _ bits) =>
+      if String.eqb name String.extract
+      then
         match (args, type_args) with
         | ((Some target_expr) :: _, into :: _) =>
-          match eval_packet_extract_fixed tags_t into bits with 
+          match eval_packet_extract_fixed tags_t into bits with
           | (inr error, bits') =>
             update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
-            state_fail error 
+            state_fail error
           | (inl value, bits') =>
             update_lvalue _ tags_dummy obj (ValObj _ (ValObjPacket _ bits')) ;;
             let* target := unpack_lvalue tags_t (mret target_expr) in
@@ -224,13 +224,13 @@ Section Eval.
     then dummy_value _ (eval_pop_front obj args)
     else if String.eqb name String.push_front
     then dummy_value _ (eval_push_front obj args)
-    else if is_packet_func name 
+    else if is_packet_func name
     then dummy_value _ (eval_packet_func obj name type_args args)
     else state_fail Internal.
 
 
-  
-  
+
+
 
   Definition eval_extern_func (name: String.t) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option (Expression tags_t))): env_monad tags_t (Value tags_t).
   Admitted.
@@ -252,7 +252,7 @@ Section Eval.
       (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
       | _ => state_fail Internal
       end
-    | _ => state_fail Internal 
+    | _ => state_fail Internal
     end.
 
   Fixpoint eval_block (blk: Block tags_t) : env_monad tags_t unit :=
@@ -286,11 +286,12 @@ Section Eval.
               end
            in
            insert_environment _ name value
+         | StatEmpty _ =>
+           mret tt
          | StatInstantiation _ _ _ _ _
          | StatDirectApplication _ _ _
          | StatConditional _ _ _ _
          | StatExit _
-         | StatEmpty _
          | StatReturn _ _
          | StatSwitch _ _ _ =>
            state_fail Internal
@@ -300,30 +301,30 @@ Section Eval.
   Fixpoint eval_match_expression (vals: list (Value tags_t)) (matches: list (Match tags_t)) : env_monad tags_t bool :=
     match (vals, matches) with
     | (List.nil, List.nil) => mret true
-    | (v :: vals', MkMatch _ _ m _ :: matches') => 
+    | (v :: vals', MkMatch _ _ m _ :: matches') =>
       match m with
       | MatchDontCare _ => eval_match_expression vals' matches'
-      | MatchExpression _ e => 
-        let* v' := eval_expression e in 
+      | MatchExpression _ e =>
+        let* v' := eval_expression e in
         if eq_value v v' then eval_match_expression vals' matches' else mret false
       end
     | _ => mret false
     end.
 
-  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t String.t := 
+  Fixpoint eval_cases (vals: list (Value tags_t)) (cases: list (ParserCase tags_t)) : env_monad tags_t String.t :=
     match cases with
     | List.nil    => state_fail Internal
-    | MkParserCase _ _ matches (MkP4String _ _ next) :: cases' => 
+    | MkParserCase _ _ matches (MkP4String _ _ next) :: cases' =>
       let* passes := eval_match_expression vals matches in
       if passes then mret next else eval_cases vals cases'
     end.
 
-  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t String.t := 
+  Definition eval_transition (t: ParserTransition tags_t) : env_monad tags_t String.t :=
     match t with
     | ParserDirect _ _ (MkP4String _ _ next) =>
       mret next
     | ParserSelect _ _ exprs cases =>
-      let* vs := sequence (List.map eval_expression exprs) in 
+      let* vs := sequence (List.map eval_expression exprs) in
       eval_cases vs cases
     end.
 

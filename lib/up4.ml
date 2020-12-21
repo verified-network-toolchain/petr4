@@ -142,6 +142,13 @@ module PreUp4Filter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
+  (* A helper method for eval_pipeline function. 
+     1. Initialize a value of [param_type].
+     2. Create a BareName object with parameter name [param_string]. 
+     3. Create a fresh location.
+     4. Insert the value from 1 into the fresh location from 3.
+     5. Update the environment with mappings from 
+        the BareName object from 2 to fresh loc from 3 and the [param_type]. *)
   let helper (param_string : loc) (param_type : Type.t) (env : env) (st : state)
     : value * Types.name * loc * state * env =
     let param_value = init_val_of_typ env param_type in 

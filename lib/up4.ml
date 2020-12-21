@@ -43,7 +43,7 @@ module PreUp4Filter : Target = struct
     let length = match pck_obj with
       | Pkt -> (State.get_packet st).in_size 
       | _ -> failwith "cannot perform get_length on a non-pkt object" in 
-    env, st, SContinue, VBit {w = Bigint.of_int 9; v = Bigint.of_int length}
+    env, st, SContinue, VBit {w = Bigint.of_int 32; v = Bigint.of_int length}
 
   (* Set out_port field to input to this extern function in the Im_t extern object. *)
   let eval_set_out_port : extern = fun env st ts args -> 

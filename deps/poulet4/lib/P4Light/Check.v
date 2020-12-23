@@ -40,12 +40,13 @@ Module Env (DOM : P4Data).
 End Env.
 
 (** * Typechecking *)
-Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
+Module Typecheck (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
   Module IU := P4NumericUtil(INT).
   Infix "+" := IU.add (at level 50, left associativity).
 
-  Module P := P4 NAME INT BIGINT I.
+  Module P := P4Light STRING INT BIGINT I.
 
+  Module N := P.N.
   Module E := P.Expr.
   Module S := P.Stmt.
   Module F := P.F.
@@ -54,14 +55,16 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
   Import E.TypeNotations.
   Import E.ExprNotations.
 
-  Module NM := Env NAME.
+  Module NM := Env N.
   Import NM.EnvNotations.
 
+  Module SM := Env STRING.
+
   (** Available error names. *)
-  Definition errors : Type := NM.env unit.
+  Definition errors : Type := SM.env unit.
 
   (** Available matchkinds. *)
-  Definition matchkinds : Type := NM.env unit.
+  Definition matchkinds : Type := SM.env unit.
 
   (** Typing context. *)
   Definition gam : Type := NM.env E.t.
@@ -72,7 +75,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
                      match d with
                      | P.Dir.DOut | P.Dir.DInOut => true
                      | _ => false end)
-      ▷ F.fold (fun x '(_, (t,_)) acc => NM.bind x t acc).
+      ▷ F.fold (fun x '(_, (t,_)) acc => NM.bind (N.Bare x) t acc).
 
   Reserved Notation "⟦ ers ',' mks ',' gm ⟧ ⊢ e ∈ t"
            (at level 40, e custom p4expr, t custom p4type at level 0).
@@ -87,7 +90,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
         ⟦ errs , mkds , Γ ⟧ ⊢ Int n @ i ∈ int
     | chk_bitstring (w : INT.t) (v : BIGINT.t) (i : I.t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ Bit<w> v @ i ∈ bit<w>
-    | chk_var (x : NAME.t) (τ : E.t) (i : I.t) :
+    | chk_var (x : N.t) (τ : E.t) (i : I.t) :
         Γ x = Some τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Var x :: τ @ i end ∈ τ
    (* Unary operations. *)
@@ -175,12 +178,12 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ bit<n> ->
        ⟦ errs , mkds , Γ ⟧ ⊢ ++ e1 :: bit<m> e2 :: bit<n> @ i end ∈ bit<w>
    (* Member expressions. *)
-   | chk_hdr_mem (e : E.e) (x : NAME.t)
+   | chk_hdr_mem (e : E.e) (x : STRING.t)
                  (fields : F.fs E.t) (τ : E.t) (i : I.t) :
        In (x, τ) fields ->
        ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ hdr { fields } ->
        ⟦ errs , mkds , Γ ⟧ ⊢ Mem e :: hdr { fields } dot x @ i end ∈ τ
-   | chk_rec_mem (e : E.e) (x : NAME.t)
+   | chk_rec_mem (e : E.e) (x : STRING.t)
                  (fields : F.fs E.t) (τ : E.t) (i : I.t) :
        In (x, τ) fields ->
        ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ rec { fields } ->
@@ -193,10 +196,10 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
            ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
       ⟦ errs , mkds , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
    (* Errors and matchkinds. *)
-   | chk_error (err : NAME.t) (i : I.t) :
+   | chk_error (err : STRING.t) (i : I.t) :
        errs err = Some tt ->
        ⟦ errs , mkds , Γ ⟧ ⊢ Error err @ i ∈ error
-   | chk_matchkind (mkd : NAME.t) (i : I.t) :
+   | chk_matchkind (mkd : STRING.t) (i : I.t) :
        mkds mkd = Some tt ->
        ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd @ i ∈ error
    where "⟦ ers ',' mks ',' gm ⟧ ⊢ ex ∈ ty"
@@ -245,7 +248,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     | chk_seq_ret (s1 s2 : S.s) (Γ' : gam) (i : I.t) :
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ⊣ Γ', R ->
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ Γ', R
-    | chk_vardecl (τ : E.t) (x : NAME.t)
+    | chk_vardecl (τ : E.t) (x : N.t)
                   (e : E.e) (i : I.t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ @ i fin ⊣ x ↦ τ ;; Γ, C
@@ -268,7 +271,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
         ⦃ fns , errs, mkds , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ Γ, R
     | chk_method_call (Γ' : gam) (params : F.fs (dir * E.t))
                       (args : F.fs (dir * (E.t * E.e)))
-                      (f : NAME.t) (i : I.t) :
+                      (f : N.t) (i : I.t) :
         Γ' = out_update args Γ ->
         fns f = Some (E.Arrow E.t params None) ->
         F.relfs
@@ -281,7 +284,7 @@ Module Typecheck (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C
     | chk_call (Γ' : gam) (params : F.fs (dir * E.t))
                (τ : E.t) (args : F.fs (dir * (E.t * E.e)))
-               (f x : NAME.t) (i : I.t) :
+               (f x : N.t) (i : I.t) :
         Γ' = out_update args Γ ->
         fns f = Some (E.Arrow _ params (Some τ)) ->
         F.relfs

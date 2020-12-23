@@ -114,9 +114,54 @@ Module Type P4Info.
   Parameter t : Type.
 End P4Info.
 
-(** * P4 AST *)
-Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
-  Module F := Field NAME.
+(** * Qualified Names *)
+Module P4Name (STRING : P4Data) <: P4Data.
+  Module S := STRING.
+
+  (** Names, qualified or otherwise. *)
+  Inductive t' : Type :=
+    | Bare (x : S.t)                       (* bare/unqualified names *)
+    | Qualified (name_space : S.t) (x : t') (* qualified names *).
+
+  Definition t := t'.
+
+  (** Get just the name. *)
+  Fixpoint get_name (n : t) : S.t :=
+    match n with
+    | Bare x        => x
+    | Qualified _ n => get_name n
+    end.
+
+  Fixpoint eqb (n1 n2 : t) : bool :=
+    match n1, n2 with
+    | Bare x1, Bare x2                   => S.eqb x1 x2
+    | Qualified ns1 n1, Qualified ns2 n2 => S.eqb ns1 ns2 && eqb n1 n2
+    | _, _                               => false
+    end.
+
+  Lemma eqb_reflect : forall x y : t, CBB.reflect (x = y) (eqb x y).
+  Proof.
+    induction x as [x | nsx x IHx]; intros [y | nsy y]; simpl in *.
+    - pose proof S.eqb_reflect x y as H.
+      inversion H as [HEq Hxy | HNEq Hxy]; subst.
+      + left. reflexivity.
+      + right. intros H'.
+        inversion H'; subst. contradiction.
+    - right. intros H. inversion H.
+    - right. intros H. inversion H.
+    - pose proof S.eqb_reflect nsx nsy as H.
+      specialize IHx with y.
+      inversion H as [HEq Hxy | HNEq Hxy]; subst; simpl;
+        inversion IHx as [IH IHxy | IH IHxy]; subst;
+          try (right; intros H'; inversion H'; contradiction).
+      left. reflexivity.
+  Qed.
+End P4Name.
+
+(** * P4Light AST *)
+Module P4Light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
+  Module F := Field STRING.
+  Module N := P4Name STRING.
 
   (** Directions. *)
   Module Dir.
@@ -265,7 +310,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       | EInteger (n : INT.t) (i : I.t) (* arbitrary-size integers *)
       | EBitstring (width : INT.t) (value : BIGINT.t)
                    (i : I.t) (* fixed-width integers *)
-      | EVar (type : t) (x : NAME.t) (i : I.t) (* variables *)
+      | EVar (type : t) (x : N.t) (i : I.t) (* variables *)
       | EUop (op : uop) (type : t)
              (arg : e) (i : I.t) (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t)
@@ -274,14 +319,14 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
               (arg : e) (i : I.t) (* explicit casts *)
       | ERecord (fields : F.fs (t * e))
                 (i : I.t) (* records and structs *)
-      | EExprMember (mem : NAME.t) (expr_type : t)
+      | EExprMember (mem : STRING.t) (expr_type : t)
                     (arg : e) (i : I.t)      (* member-expressions *)
-      | EError (name : NAME.t) (i : I.t)     (* error literals *)
-      | EMatchKind (name : NAME.t) (i : I.t) (* matchkind literals *).
+      | EError (name : STRING.t) (i : I.t)     (* error literals *)
+      | EMatchKind (name : STRING.t) (i : I.t) (* matchkind literals *).
     (**[]*)
 
     (** Function call. *)
-    Definition arrowE : Type := arrow (t * e) (t * NAME.t).
+    Definition arrowE : Type := arrow (t * e) (t * N.t).
 
     Module ExprNotations.
       Declare Custom Entry p4expr.
@@ -432,7 +477,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       Hypothesis HEBitstring : forall (w : INT.t) (v : BIGINT.t) i,
           P <{ Bit<w> v @ i }>.
 
-      Hypothesis HEVar : forall (ty : t) (x : NAME.t) i,
+      Hypothesis HEVar : forall (ty : t) (x : N.t) i,
           P <{ Var x :: ty @ i end }>.
 
       Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e) i,
@@ -447,7 +492,7 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       Hypothesis HERecord : forall (fields : F.fs (t * e)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEExprMember : forall (x : NAME.t) (ty : t) (ex : e) i,
+      Hypothesis HEExprMember : forall (x : STRING.t) (ty : t) (ex : e) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
       Hypothesis HEError : forall err i,
@@ -500,9 +545,9 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
                      (tru_blk fls_blk : s) (i : I.t) (* conditionals *)
       | SSeq (s1 s2 : s)
              (i : I.t) (* sequences, an alternative to blocks *)
-      | SVarDecl (typ : E.t) (var : NAME.t)
+      | SVarDecl (typ : E.t) (var : N.t)
                  (rhs : E.e) (i : I.t) (* variable declaration *)
-      | SCall (f : NAME.t) (args : E.arrowE)
+      | SCall (f : N.t) (args : E.arrowE)
               (i : I.t) (* function/action/extern call *)
       | SReturnVoid (i : I.t) (* void return statement *)
       | SReturnFruit (t : E.t) (e : E.e)
@@ -541,10 +586,10 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
       Notation "'call' f 'with' args @ i 'fin'"
-        := (SCall f (E.Arrow (E.t * NAME.t) args None) i)
+        := (SCall f (E.Arrow (E.t * N.t) args None) i)
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e '::' t ':=' 'call' f 'with' args @ i 'fin'"
-               := (SCall f (E.Arrow (E.t * NAME.t) args (Some (t,e))) i)
+               := (SCall f (E.Arrow (E.t * N.t) args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'return' e '::' t @ i 'fin'"
@@ -566,14 +611,14 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
         may occur within controls, parsers,
         and even the top-level. *)
     Inductive d : Type :=
-      | DVardecl (typ : E.t) (x : NAME.t) (i : I.t)
-      | DVarinit (typ : E.t) (x : NAME.t) (rhs : E.e) (i : I.t)
-      | DConst   (typ : E.t) (x : NAME.t) (rhs : E.e) (i : I.t)
-      (** [C] is the constructor name,
-          and [x] is the instance name. *)
-      | DInstantiate (C x : NAME.t) (args : F.fs (E.t * E.e)) (i : I.t)
-      | DFunction (f : NAME.t) (signature : E.arrowT) (body : S.s) (i : I.t)
-      | DSeq (d1 d2 : d) (i : I.t).
+      | DVardecl (typ : E.t) (x : N.t) (i : I.t)             (* unitialized variable *)
+      | DVarinit (typ : E.t) (x : N.t) (rhs : E.e) (i : I.t) (* initialized variable *)
+      | DConst   (typ : E.t) (x : N.t) (rhs : E.e) (i : I.t) (* constant *)
+      | DInstantiate (C x : N.t) (args : F.fs (E.t * E.e))
+                     (i : I.t) (* constructor [C] with [args] makes [x] *)
+      | DFunction (f : N.t) (signature : E.arrowT)
+                  (body : S.s) (i : I.t) (* function/method declaration *)
+      | DSeq (d1 d2 : d) (i : I.t)       (* sequence of declarations *).
     (**[]*)
   End Decl.
 
@@ -611,4 +656,4 @@ Module P4 (NAME : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       | TPSeq (d1 d2 : d) (i : I.t).
     (**[]*)
   End TopDecl.
-End P4.
+End P4Light.

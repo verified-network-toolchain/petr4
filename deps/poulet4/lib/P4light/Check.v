@@ -1,6 +1,6 @@
 (** * Typechecking *)
 
-Require Export P4Light.AST.
+Require Export P4light.AST.
 
 (** * Environments *)
 
@@ -44,7 +44,7 @@ Module Typecheck (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
   Module IU := P4NumericUtil(INT).
   Infix "+" := IU.add (at level 50, left associativity).
 
-  Module P := P4Light STRING INT BIGINT I.
+  Module P := P4light STRING INT BIGINT I.
 
   Module N := P.N.
   Module E := P.Expr.

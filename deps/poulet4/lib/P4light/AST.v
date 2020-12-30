@@ -158,8 +158,8 @@ Module P4Name (STRING : P4Data) <: P4Data.
   Qed.
 End P4Name.
 
-(** * P4Light AST *)
-Module P4Light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
+(** * P4light AST *)
+Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
   Module F := Field STRING.
   Module N := P4Name STRING.
 
@@ -656,4 +656,4 @@ Module P4Light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       | TPSeq (d1 d2 : d) (i : I.t).
     (**[]*)
   End TopDecl.
-End P4Light.
+End P4light.

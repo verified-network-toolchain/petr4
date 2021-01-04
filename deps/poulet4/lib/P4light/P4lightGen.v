@@ -1,6 +1,6 @@
 Require Import Petr4.Syntax.
 Require Import Petr4.Typed.
-Require Import Petr4.P4Light.AST.
+Require Import Petr4.P4light.AST.
 Require Import Petr4.Monads.Monad.
 Require Import Petr4.Monads.State.
 Require Import Coq.Lists.List.

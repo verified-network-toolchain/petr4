@@ -1,6 +1,6 @@
 (** * Typechecking *)
 
-Require Export P4light.AST.
+Require Export P4Light.AST.
 
 (** * Environments *)
 

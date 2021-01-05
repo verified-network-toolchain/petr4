@@ -72,6 +72,86 @@ Proof.
     contradiction.
 Qed.
 
+Fixpoint weakest_precondition_arguments
+    (params: list P4Parameter)
+    (args: list (option (Expression tag_t)))
+    (post: @pred ((environment tag_t) * (list (option (Value tag_t)))))
+    : @pred (environment tag_t)
+:=
+    fun env_pre =>
+        match (args, params) with
+        | (nil, nil) => post (env_pre, nil)
+        | (Some arg :: args', param :: params') =>
+          let inter := fun '(env_inter, val) =>
+              let post' := fun '(env_post, vals) =>
+                post (env_post, (Some val) :: vals)
+              in weakest_precondition_arguments params' args' post' env_inter
+          in let '(MkParameter _ dir _ _) := param in
+          match dir with
+          | In => weakest_precondition_expression arg inter env_pre
+          | Out =>
+            let inter' := fun '(env_inter, val) =>
+                inter (env_inter, ValLvalue tag_t val)
+            in weakest_precondition_expression_lvalue arg inter' env_pre
+          | _ => False
+          end
+        | (None :: args', param :: params') =>
+          let post' := fun '(env_post, vals) =>
+            post (env_post, None :: vals)
+          in weakest_precondition_arguments params' args' post' env_pre
+        | _ => False
+        end
+.
+
+Lemma weakest_precondition_arguments_correct:
+    forall params args env_pre post,
+        weakest_precondition_arguments params args post env_pre ->
+            exists env_post vals_post,
+                post (env_post, vals_post) /\
+                eval_arguments tag_t tag params args env_pre =
+                    (inl vals_post, env_post)
+.
+Proof.
+    intro params.
+    induction params; intro args; destruct args; intros.
+    - simpl in H.
+      exists env_pre, nil.
+      split; [exact H|].
+      reflexivity.
+    - destruct o; contradiction.
+    - simpl in H; contradiction.
+    - destruct o.
+      * destruct a, direction; try contradiction.
+        -- apply weakest_precondition_expression_correct in H.
+           destruct H as [env_inter [val [H eval_expression_result]]].
+           apply IHparams in H.
+           destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
+           exists env_post, (Some val :: vals).
+           split; [exact env_post_fits|].
+           simpl; unfold state_bind.
+           rewrite eval_expression_result.
+           rewrite eval_arguments_result.
+           reflexivity.
+        -- apply weakest_precondition_expression_lvalue_correct in H.
+           destruct H as [env_inter [val [H eval_lvalue_result]]].
+           apply IHparams in H.
+           destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
+           exists env_post, (Some (ValLvalue tag_t val) :: vals).
+           split; [exact env_post_fits|].
+           simpl; unfold state_bind.
+           rewrite eval_lvalue_result; simpl.
+           rewrite eval_arguments_result.
+           reflexivity.
+      * simpl in H.
+        apply IHparams in H.
+        destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
+        exists env_post, (None :: vals).
+        split; [exact env_post_fits|].
+        simpl; unfold state_bind.
+        rewrite eval_arguments_result.
+        reflexivity.
+Qed.
+
 Fixpoint weakest_precondition_statement
     (stmt: Statement tag_t)
     (post: @pred (environment tag_t))

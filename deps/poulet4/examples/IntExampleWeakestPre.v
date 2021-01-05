@@ -177,6 +177,24 @@ with weakest_precondition_statement_pre
                   post env_post
           in weakest_precondition_expression rhs inter env_inter'
       in weakest_precondition_expression_lvalue lhs inter'
+    | StatMethodCall _ callee type_args args =>
+      let inter' := fun '(env_inter', func) =>
+          match func with
+          | ValObj _ (ValObjFun _ params impl) =>
+            let inter := fun '(env_inter, arg_vals) =>
+                match impl with
+                | ValFuncImplBuiltin _ name obj =>
+                  exists env_post val,
+                    post env_post /\
+                    (inl val, env_post)
+                        = eval_builtin_func tag_t tag name obj
+                                            type_args arg_vals env_inter
+                | _ => False
+                end
+            in weakest_precondition_arguments params args inter env_inter'
+          | _ => False
+          end
+      in weakest_precondition_expression callee inter'
     | StatEmpty _ => post
     | _ => pred_false
     end
@@ -243,6 +261,25 @@ Proof.
       exists env_post.
       split; [exact env_post_fits|].
       rewrite <- eval_statement_result.
+      reflexivity.
+    - simpl in H.
+      apply weakest_precondition_expression_correct in H.
+      destruct H as [env_inter' [impl [H eval_expression_result]]].
+      destruct impl; try contradiction.
+      destruct v; try contradiction.
+      apply weakest_precondition_arguments_correct in H.
+      destruct H as [env_inter [vals [H eval_arguments_result]]].
+      destruct impl; try contradiction.
+      destruct H as [env_post [val [env_post_fits eval_builtin_func_result]]].
+      exists env_post.
+      split; [exact env_post_fits|].
+      unfold eval_statement_pre; simpl.
+      unfold toss_value.
+      unfold eval_method_call; simpl.
+      unfold state_bind.
+      rewrite eval_expression_result.
+      rewrite eval_arguments_result.
+      rewrite <- eval_builtin_func_result.
       reflexivity.
     - unfold weakest_precondition_statement_pre in H.
       apply weakest_precondition_expression_lvalue_correct in H.

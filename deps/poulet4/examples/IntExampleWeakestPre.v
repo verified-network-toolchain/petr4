@@ -31,42 +31,38 @@ Definition pred_env_popped (p: pred) (env: environment tag_t) :=
 
 Fixpoint weakest_precondition_expression
     (expr: Expression tag_t)
-    (post_env: @pred (environment tag_t))
-    (post_val: @pred (Value tag_t))
+    (post: @pred ((environment tag_t) * (Value tag_t)))
     : @pred (environment tag_t)
 :=
     pred_false
 with weakest_precondition_expression_lvalue
     (expr: Expression tag_t)
-    (post_env: @pred (environment tag_t))
-    (post_val: @pred ValueLvalue)
+    (post: @pred ((environment tag_t) * ValueLvalue))
     : @pred (environment tag_t)
 :=
     pred_false
 .
 
 Lemma weakest_precondition_expression_correct:
-    forall env_pre expr post post_val,
-        weakest_precondition_expression expr post post_val env_pre ->
+    forall env_pre expr post,
+        weakest_precondition_expression expr post env_pre ->
             exists env_post val_post,
-                post env_post /\
-                post_val val_post /\
+                post (env_post, val_post) /\
                 eval_expression tag_t tag expr env_pre
                     = (inl val_post, env_post)
 .
 Proof.
     intros.
     induction expr.
-    unfold pred_false in H.
+    simpl in H.
     contradiction.
 Qed.
 
 Lemma weakest_precondition_expression_lvalue_correct:
-    forall expr env_pre post post_val,
-        weakest_precondition_expression_lvalue expr post post_val env_pre ->
+    forall expr env_pre post,
+        weakest_precondition_expression_lvalue expr post env_pre ->
             exists env_post val_post,
-                post env_post /\
-                post_val val_post /\
+                post (env_post, val_post) /\
                 eval_lvalue tag_t expr env_pre = (inl val_post, env_post)
 .
 Proof.
@@ -93,18 +89,14 @@ with weakest_precondition_statement_pre
       let inter := weakest_precondition_block block (pred_env_popped post) in
       pred_env_pushed inter
     | StatAssignment _ lhs rhs =>
-      let inter :=
-          fun env_inter =>
-          forall rval lval,
+      let inter' := fun '(env_inter', lval) =>
+          let inter := fun '(env_inter, rval) =>
               exists env_post,
                   (inl tt, env_post)
                     = update_lvalue tag_t tag lval rval env_inter /\
                   post env_post
-      in
-      let inter' := weakest_precondition_expression rhs inter pred_true in
-      weakest_precondition_expression_lvalue lhs inter' pred_true
-    (* | StatMethodCall callee type_args args =>
-      fun env_pre => *)
+          in weakest_precondition_expression rhs inter env_inter'
+      in weakest_precondition_expression_lvalue lhs inter'
     | StatEmpty _ => post
     | _ => pred_false
     end
@@ -174,10 +166,9 @@ Proof.
       reflexivity.
     - unfold weakest_precondition_statement_pre in H.
       apply weakest_precondition_expression_lvalue_correct in H.
-      destruct H as [env_inter' [lval [H [_ eval_lvalue_result]]]].
+      destruct H as [env_inter' [lval [H eval_lvalue_result]]].
       apply weakest_precondition_expression_correct in H.
-      destruct H as [env_inter [rval [env_inter_prop [_ eval_expression_result]]]].
-      specialize (env_inter_prop rval lval).
+      destruct H as [env_inter [rval [env_inter_prop eval_expression_result]]].
       destruct env_inter_prop as [env_post [update_lvalue_result env_post_fits]].
       exists env_post.
       split; [exact env_post_fits|].

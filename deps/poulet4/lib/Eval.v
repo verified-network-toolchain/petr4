@@ -264,7 +264,9 @@ Section Eval.
       eval_block rest
     end
   with eval_statement (stmt: Statement tags_t) : env_monad tags_t unit :=
-         let 'MkStatement _ _ stmt _ := stmt in
+    let 'MkStatement _ _ stmt _ := stmt in
+    eval_statement_pre stmt
+  with eval_statement_pre (stmt: StatementPreT tags_t) : env_monad tags_t unit :=
          match stmt with
          | StatMethodCall _ func type_args args =>
            toss_value _ (eval_method_call func type_args args)

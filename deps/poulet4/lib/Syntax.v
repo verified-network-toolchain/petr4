@@ -163,8 +163,12 @@ Section Syntax.
   with Statement :=
   | MkStatement (tags: tags_t) (stmt: StatementPreT) (typ: StmType)
   with Block :=
-  | BlockEmpty (tags: tags_t) 
+  | BlockEmpty (tags: tags_t)
   | BlockCons (statement: Statement) (rest: Block).
+
+  Scheme statement_mut := Induction for Statement Sort Prop
+    with statementpre_mut := Induction for StatementPreT Sort Prop
+    with block_mut := Induction for Block Sort Prop.
 
   Inductive ParserCase :=
   | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).

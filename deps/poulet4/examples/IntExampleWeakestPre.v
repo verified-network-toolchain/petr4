@@ -307,12 +307,10 @@ Proof.
         try contradiction.
       exists e.
       split; [exact env_post_fits|].
-      replace (eval_statement_pre tag_t tag (StatBlock tag_t block))
-         with (map_env tag_t (push_scope tag_t);;
-               eval_block tag_t tag block;;
-               lift_env_fn tag_t (pop_scope tag_t));
-         [|reflexivity]; simpl.
-      unfold state_bind; simpl.
+      unfold eval_statement_pre.
+      fold (eval_block tag_t tag block).
+      simpl; unfold state_bind.
+      unfold map_env; simpl.
       rewrite eval_block_result.
       unfold lift_env_fn.
       rewrite H.
@@ -335,11 +333,10 @@ Proof.
       destruct H1 as [env_post [env_post_fits eval_block_result]].
       exists env_post.
       split; [exact env_post_fits|].
-      replace (eval_block tag_t tag (BlockCons tag_t statement rest))
-         with (eval_statement tag_t tag statement;;
-               eval_block tag_t tag rest);
-         [|reflexivity]; simpl.
-      unfold state_bind; simpl.
+      unfold eval_block.
+      fold (eval_statement tag_t tag statement).
+      fold (eval_block tag_t tag rest).
+      simpl; unfold state_bind.
       rewrite eval_statement_result.
       exact eval_block_result.
 Qed.

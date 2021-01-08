@@ -13,6 +13,7 @@ lib/Info.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
+lib/Unroll.v
 
 -R examples Petr4.Examples
 

@@ -659,15 +659,6 @@ end = struct
                ++ Type.format_type_params type_params
                ++ text "(")
       ++ box (Parameter.format_params params ++ text ");")
-    (* Annotation.format_ts annotations
-       ++ (box ~indent:2 (text "extern") 
-        ++ text " "
-        ++ Type.format_t return
-        ++ text " "
-        ++ (P4Word.format_t name
-            ++ Type.format_type_params type_params
-            ++ text "(")
-        ++ vbox (Parameter.format_params params ++ text ");")) *)
     | Function { return; name; type_params; params; body } ->
       (box ~indent:2 ((Type.format_t return) ++ 
                       space  ++ 

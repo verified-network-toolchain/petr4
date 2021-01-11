@@ -577,34 +577,40 @@ end = struct
           (hvbox (Parameter.format_params params)) ++ (") " |> text) ++
           (Block.format_t body))) ++ ("\n}" |> text)
     | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
-      (Annotation.format_ts annotations) ++
-      (box ~indent:2
-         (("control" |> text) ++ (space ++ (name |> snd |> text) ++
-                                  (Type.format_type_params type_params) ++
-                                  ("(" |> text) ++
-                                  (hvbox (Parameter.format_params params)) ++
-                                  (")" |> text) ++
-                                  (Parameter.format_constructor_params constructor_params) ++
-                                  (" {\n" |> text) ++
-                                  (dec_help locals) ++
-                                  (box ~indent: 2 (("apply " |> text) ++
-                                                   (Block.format_t apply))) ++
-                                  ("\n}" |> text))) ++
-       ("\n}" |> text))
+      box ~indent:2 begin
+        Annotation.format_ts annotations
+        ++ hbox (text "control"
+                 ++ space
+                 ++ text (snd name)
+                 ++ Type.format_type_params type_params
+                 ++ text "(")
+        ++ box (Parameter.format_params params)
+        ++ text ")"
+        ++ Parameter.format_constructor_params constructor_params
+        ++ verbatim " {"
+        ++ newline
+        ++ dec_help locals
+        ++ box ~indent: 2 (text "apply " ++ Block.format_t apply)
+        ++ text "\n}"
+      end
+      ++ text "\n}"
     | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
-      (box ~indent:2
-         ((Annotation.format_ts annotations)  ++
-          ("parser" |> text) ++
-          (space ++
-           (name |> snd |> text) ++
-           (Type.format_type_params type_params) ++
-           (" (" |> text) ++
-           (hvbox (Parameter.format_params params)) ++
-           (")" |> text) ++
-           (Parameter.format_constructor_params constructor_params) ++
-           (" {\n" |> text)) ++
-          (dec_help locals) ++ (Parser.format_states states)))  ++
-      ("\n}\n" |> text)
+      box ~indent:2 begin
+        Annotation.format_ts annotations
+        ++ hbox (text "parser"
+                 ++ space
+                 ++ text (snd name)
+                 ++ Type.format_type_params type_params
+                 ++ text "(")
+        ++ box (Parameter.format_params params)
+        ++ text ")"
+        ++ Parameter.format_constructor_params constructor_params
+        ++ verbatim " {"
+        ++ newline
+        ++ dec_help locals
+        ++ Parser.format_states states
+      end
+      ++ text "\n}"
     | Instantiation { annotations; typ; args; name; init=None } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((Type.format_t typ) ++

@@ -511,7 +511,7 @@ end = struct
     | Constructor { annotations; name; params } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((P4Word.format_t name) ++
-                      (" (" |> text) ++
+                      ("(" |> text) ++
                       (hvbox (Parameter.format_params params)) ++
                       (");" |> text)))
     | Method { annotations; return; name; type_params; params } ->
@@ -541,8 +541,8 @@ end = struct
     match snd f with
     | { annotations; typ; name } ->
       (annotations |> Annotation.format_ts |> box) ++
-      (box ~indent:2 ((Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
-                      (";" |> text)))
+      ((Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
+                      (";" |> text))
 
   let format_typ_or_decl td =
     match td with
@@ -651,11 +651,11 @@ end = struct
                       (";" |> text)))                             
     | ExternFunction { annotations; return; name; type_params; params } ->
       Annotation.format_ts annotations
-      ++ text "extern"
-      ++ text " "
-      ++ Type.format_t return
-      ++ text " "
-      ++ hbox (P4Word.format_t name
+      ++ hbox (text "extern"
+               ++ space
+               ++ Type.format_t return
+               ++ space
+               ++ P4Word.format_t name
                ++ Type.format_type_params type_params
                ++ text "(")
       ++ box (Parameter.format_params params ++ text ");")
@@ -714,15 +714,12 @@ end = struct
           (hvbox (format_list_sep Parameter.format_t ", " params)) ++ 
           (");" |> text)))
     | Struct { annotations; name; fields } -> 
-      (Annotation.format_ts annotations) ++ 
-      (box ~indent:2 (("struct" |> text) ++ 
-                      space ++ 
-                      (P4Word.format_t name) ++ 
-                      (begin match fields with
-                         | [] -> " {" |> text
-                         | _ -> (" {\n" |> text) ++ 
-                                (format_list_nl format_field fields) end))) ++ 
-      ("\n}" |> text)
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "struct "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
     | MatchKind { members=[] } ->
       "match_kind {\n}" |> text |> box
     | MatchKind { members } ->
@@ -784,26 +781,19 @@ end = struct
                    (format_list_nl MethodPrototype.format_t methods))))
         ("\n}\n" |> text) 
     | Header { annotations; name; fields } ->
-      (Annotation.format_ts annotations) ++ 
-      (box ~indent:2 
-         (("header" |> text) ++ 
-          space ++
-          (P4Word.format_t name) ++
-          (begin match fields with
-             | [] -> " {" |> text
-             | _ -> (" {\n" |> text) ++ 
-                    (format_list_nl format_field fields) end))) ++
-      ("\n}" |> text)
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "header "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
     | HeaderUnion { annotations; name; fields } ->
-      (Annotation.format_ts annotations) ++ 
-      (box ~indent:2 (("header_union" |> text) ++ 
-                      space ++ 
-                      (P4Word.format_t name) ++ 
-                      (begin match fields with
-                         | [] -> " {" |> text
-                         | _ -> (" {\n" |> text) ++ 
-                                (format_list_nl format_field fields) end))) ++
-      ("\n}" |> text)
+      Annotation.format_ts annotations
+      ++ box ~indent:2 (text "header_union "
+                        ++ P4Word.format_t name
+                        ++ text " {" ++ newline
+                        ++ format_list_nl format_field fields)
+      ++ text "\n}"
     | NewType { annotations; name; typ_or_decl } ->
       box ~indent:2 ((Annotation.format_ts annotations) ++ 
                      ("type" |> text) ++ 

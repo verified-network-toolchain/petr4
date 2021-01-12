@@ -62,6 +62,7 @@ module Match: sig
 end
 
 module Parser : sig
+  val format_case : Format.formatter -> Types.Parser.case -> unit
   val format_state : Format.formatter -> Types.Parser.state -> unit
   val format_states : Format.formatter -> Types.Parser.state list -> unit
 end

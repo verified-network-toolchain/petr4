@@ -499,6 +499,7 @@ end = struct
 end
 
 and Parser : sig
+  val format_case : Format.formatter -> P4.Parser.case -> unit
   val format_state : Format.formatter -> P4.Parser.state -> unit
   val format_states : Format.formatter -> P4.Parser.state list -> unit
 end = struct

@@ -37,7 +37,7 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then
         begin
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
-          prog |> Prettypp.format_program |> print;
+          prog |> Pretty.format_program |> print;
           Format.print_string "@\n%!"; 
           Format.printf "----------@\n";
           Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
@@ -102,7 +102,7 @@ module Make_parse (Conf: Parse_config) = struct
             Yojson.Safe.to_string j in
         Format.printf "%s" (to_string json)
       else
-        prog |> Prettypp.format_program |> print;
+        prog |> Pretty.format_program |> print;
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
     | `Error (info, Parser.Error) ->

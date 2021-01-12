@@ -46,10 +46,10 @@ with weakest_precondition_expression_lvalue
 Lemma weakest_precondition_expression_correct:
     forall env_pre expr post,
         weakest_precondition_expression expr post env_pre ->
-            exists env_post val_post,
-                post (env_post, val_post) /\
-                eval_expression tag_t tag expr env_pre
-                    = (inl val_post, env_post)
+            match eval_expression tag_t tag expr env_pre with
+            | (inl val_post, env_post) => post (env_post, val_post)
+            | _ => False
+            end
 .
 Proof.
     intros.
@@ -61,9 +61,10 @@ Qed.
 Lemma weakest_precondition_expression_lvalue_correct:
     forall expr env_pre post,
         weakest_precondition_expression_lvalue expr post env_pre ->
-            exists env_post val_post,
-                post (env_post, val_post) /\
-                eval_lvalue tag_t expr env_pre = (inl val_post, env_post)
+            match eval_lvalue tag_t expr env_pre with
+            | (inl val_post, env_post) => post (env_post, val_post)
+            | _ => False
+            end
 .
 Proof.
     intros.
@@ -106,50 +107,61 @@ Fixpoint weakest_precondition_arguments
 Lemma weakest_precondition_arguments_correct:
     forall params args env_pre post,
         weakest_precondition_arguments params args post env_pre ->
-            exists env_post vals_post,
-                post (env_post, vals_post) /\
-                eval_arguments tag_t tag params args env_pre =
-                    (inl vals_post, env_post)
+            match eval_arguments tag_t tag params args env_pre with
+            | (inl vals_post, env_post) => post (env_post, vals_post)
+            | _ => False
+            end
 .
 Proof.
     intro params.
     induction params; intro args; destruct args; intros.
-    - simpl in H.
-      exists env_pre, nil.
-      split; [exact H|].
-      reflexivity.
-    - destruct o; contradiction.
+    - simpl.
+      exact H.
+    - destruct o; simpl in H; contradiction.
     - simpl in H; contradiction.
-    - destruct o.
+    - destruct o as [expr|].
       * destruct a, direction; try contradiction.
-        -- apply weakest_precondition_expression_correct in H.
-           destruct H as [env_inter [val [H eval_expression_result]]].
+        -- simpl in H.
+           apply weakest_precondition_expression_correct in H.
+           case_eq (eval_expression tag_t tag expr env_pre).
+           intros s env_inter eval_expression_result.
+           rewrite eval_expression_result in H.
+           destruct s as [val_inter|]; try contradiction.
            apply IHparams in H.
-           destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
-           exists env_post, (Some val :: vals).
-           split; [exact env_post_fits|].
+           case_eq (eval_arguments tag_t tag params args env_inter).
+           intros s env_post eval_arguments_result.
+           rewrite eval_arguments_result in H.
+           destruct s as [vals_post|]; try contradiction.
            simpl; unfold state_bind.
            rewrite eval_expression_result.
            rewrite eval_arguments_result.
-           reflexivity.
-        -- apply weakest_precondition_expression_lvalue_correct in H.
-           destruct H as [env_inter [val [H eval_lvalue_result]]].
+           simpl.
+           exact H.
+        -- simpl in H.
+           apply weakest_precondition_expression_lvalue_correct in H.
+           case_eq (eval_lvalue tag_t expr env_pre).
+           intros s env_inter eval_lvalue_result.
+           rewrite eval_lvalue_result in H.
+           destruct s as [val_inter|]; try contradiction.
            apply IHparams in H.
-           destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
-           exists env_post, (Some (ValLvalue tag_t val) :: vals).
-           split; [exact env_post_fits|].
+           case_eq (eval_arguments tag_t tag params args env_inter).
+           intros vals env_post eval_arguments_result.
+           rewrite eval_arguments_result in H.
+           destruct vals; try contradiction.
            simpl; unfold state_bind.
            rewrite eval_lvalue_result; simpl.
-           rewrite eval_arguments_result.
-           reflexivity.
+           rewrite eval_arguments_result; simpl.
+           exact H.
       * simpl in H.
         apply IHparams in H.
-        destruct H as [env_post [vals [env_post_fits eval_arguments_result]]].
-        exists env_post, (None :: vals).
-        split; [exact env_post_fits|].
+        case_eq (eval_arguments tag_t tag params args env_pre).
+        intros s env_post eval_arguments_result.
+        rewrite eval_arguments_result in H.
+        destruct s as [vals_post|]; try contradiction.
         simpl; unfold state_bind.
         rewrite eval_arguments_result.
-        reflexivity.
+        simpl.
+        exact H.
 Qed.
 
 Fixpoint weakest_precondition_statement
@@ -171,10 +183,10 @@ with weakest_precondition_statement_pre
     | StatAssignment _ lhs rhs =>
       let inter' := fun '(env_inter', lval) =>
           let inter := fun '(env_inter, rval) =>
-              exists env_post,
-                  (inl tt, env_post)
-                    = update_lvalue tag_t tag lval rval env_inter /\
-                  post env_post
+              match update_lvalue tag_t tag lval rval env_inter with
+              | (inl tt, env_post) => post env_post
+              | _ => False
+              end
           in weakest_precondition_expression rhs inter env_inter'
       in weakest_precondition_expression_lvalue lhs inter'
     | StatMethodCall _ callee type_args args =>
@@ -184,11 +196,10 @@ with weakest_precondition_statement_pre
             let inter := fun '(env_inter, arg_vals) =>
                 match impl with
                 | ValFuncImplBuiltin _ name obj =>
-                  exists env_post val,
-                    post env_post /\
-                    (inl val, env_post)
-                        = eval_builtin_func tag_t tag name obj
-                                            type_args arg_vals env_inter
+                  match eval_builtin_func tag_t tag name obj type_args arg_vals env_inter with
+                  | (inl val, env_post) => post env_post
+                  | _ => False
+                  end
                 | _ => False
                 end
             in weakest_precondition_arguments params args inter env_inter'
@@ -216,9 +227,10 @@ Definition weakest_precondition_block_correct
 :=
     forall env_pre post,
         weakest_precondition_block block post env_pre ->
-            exists env_post,
-                post env_post /\
-                eval_block tag_t tag block env_pre = (inl tt, env_post)
+            match eval_block tag_t tag block env_pre with
+            | (inl tt, env_post) => post env_post
+            | _ => False
+            end
 .
 
 Definition weakest_precondition_statement_pre_correct
@@ -226,9 +238,10 @@ Definition weakest_precondition_statement_pre_correct
 :=
     forall env_pre post,
         weakest_precondition_statement_pre stmt post env_pre ->
-            exists env_post,
-                post env_post /\
-                eval_statement_pre tag_t tag stmt env_pre = (inl tt, env_post)
+            match eval_statement_pre tag_t tag stmt env_pre with
+            | (inl tt, env_post) => post env_post
+            | _ => False
+            end
 .
 
 Definition weakest_precondition_statement_correct
@@ -236,9 +249,10 @@ Definition weakest_precondition_statement_correct
 :=
     forall env_pre post,
         weakest_precondition_statement stmt post env_pre ->
-            exists env_post,
-                post env_post /\
-                eval_statement tag_t tag stmt env_pre = (inl tt, env_post)
+            match eval_statement tag_t tag stmt env_pre with
+            | (inl tt, env_post) => post env_post
+            | _ => False
+            end
 .
 
 Lemma weakest_precondition_correctness:
@@ -257,86 +271,100 @@ Proof.
       intros.
       simpl in H0.
       specialize (H env_pre post H0).
-      destruct H as [env_post [env_post_fits eval_statement_result]].
-      exists env_post.
-      split; [exact env_post_fits|].
-      rewrite <- eval_statement_result.
-      reflexivity.
-    - simpl in H.
+      case_eq (eval_statement_pre tag_t tag stmt0 env_pre).
+      intros s env_post eval_statement_pre_result.
+      rewrite eval_statement_pre_result in H.
+      destruct s; try contradiction; destruct u.
+      unfold eval_statement.
+      fold (eval_statement_pre tag_t tag stmt0 env_pre).
+      rewrite eval_statement_pre_result.
+      exact H.
+    - simpl in H;
       apply weakest_precondition_expression_correct in H.
-      destruct H as [env_inter' [impl [H eval_expression_result]]].
-      destruct impl; try contradiction.
-      destruct v; try contradiction.
+      case_eq (eval_expression tag_t tag func env_pre).
+      intros s env_inter' eval_expression_result.
+      rewrite eval_expression_result in H.
+      destruct s; try contradiction.
+      repeat (destruct v; try contradiction).
       apply weakest_precondition_arguments_correct in H.
-      destruct H as [env_inter [vals [H eval_arguments_result]]].
+      case_eq (eval_arguments tag_t tag params args env_inter').
+      intros s env_inter eval_arguments_result.
+      rewrite eval_arguments_result in H.
+      destruct s; try contradiction.
       destruct impl; try contradiction.
-      destruct H as [env_post [val [env_post_fits eval_builtin_func_result]]].
-      exists env_post.
-      split; [exact env_post_fits|].
-      unfold eval_statement_pre; simpl.
+      case_eq (eval_builtin_func tag_t tag name caller type_args l env_inter).
+      intros s env_post eval_builtin_func_result.
+      rewrite eval_builtin_func_result in H.
+      destruct s; try contradiction.
+      unfold eval_statement_pre.
       unfold toss_value.
-      unfold eval_method_call; simpl.
-      unfold state_bind.
+      unfold eval_method_call.
+      simpl; unfold state_bind.
       rewrite eval_expression_result.
       rewrite eval_arguments_result.
-      rewrite <- eval_builtin_func_result.
-      reflexivity.
+      rewrite eval_builtin_func_result.
+      simpl.
+      exact H.
     - unfold weakest_precondition_statement_pre in H.
       apply weakest_precondition_expression_lvalue_correct in H.
-      destruct H as [env_inter' [lval [H eval_lvalue_result]]].
+      case_eq (eval_lvalue tag_t lhs env_pre).
+      intros s env_inter' eval_lvalue_result.
+      rewrite eval_lvalue_result in H.
+      destruct s as [lval|]; try contradiction.
       apply weakest_precondition_expression_correct in H.
-      destruct H as [env_inter [rval [env_inter_prop eval_expression_result]]].
-      destruct env_inter_prop as [env_post [update_lvalue_result env_post_fits]].
-      exists env_post.
-      split; [exact env_post_fits|].
-      unfold eval_statement_pre; simpl.
-      unfold state_bind.
+      case_eq (eval_expression tag_t tag rhs env_inter').
+      intros s env_inter eval_expression_result.
+      rewrite eval_expression_result in H.
+      destruct s as [rval|]; try contradiction.
+      case_eq (update_lvalue tag_t tag lval rval env_inter).
+      intros s env_post update_lvalue_result.
+      rewrite update_lvalue_result in H.
+      destruct s; try contradiction; destruct u.
+      unfold eval_statement_pre.
+      simpl; unfold state_bind.
       rewrite eval_lvalue_result.
       rewrite eval_expression_result.
       rewrite update_lvalue_result.
-      reflexivity.
+      exact H.
     - simpl in H0.
       unfold pred_env_pushed in H0.
-      unfold weakest_precondition_block_correct in H.
       specialize (H (push_scope tag_t env_pre) (pred_env_popped post) H0).
-      destruct H as [env_post' [env_post_fits eval_block_result]].
-      unfold pred_env_popped in env_post_fits.
-      case_eq (pop_scope tag_t env_post');
-        intros;
-        rewrite H in env_post_fits;
-        try contradiction.
-      exists e.
-      split; [exact env_post_fits|].
+      case_eq (eval_block tag_t tag block (push_scope tag_t env_pre)).
+      intros s env_post' eval_block_result.
+      rewrite eval_block_result in H.
+      destruct s; try contradiction; destruct u.
       unfold eval_statement_pre.
       fold (eval_block tag_t tag block).
-      simpl; unfold state_bind.
-      unfold map_env; simpl.
+      simpl; unfold state_bind; simpl.
       rewrite eval_block_result.
       unfold lift_env_fn.
-      rewrite H.
-      reflexivity.
+      unfold pred_env_popped in H.
+      destruct (pop_scope tag_t env_post') as [env_post|]; try contradiction.
+      simpl.
+      exact H.
     - simpl in H.
-      exists env_pre.
-      split; [exact H|].
-      reflexivity.
-    - unfold weakest_precondition_block_correct; intros.
+      simpl.
+      exact H.
+    - unfold weakest_precondition_block_correct; intros; simpl.
       unfold weakest_precondition_block in H.
-      exists env_pre.
-      split; [exact H|].
-      reflexivity.
-    - unfold weakest_precondition_block_correct.
-      intros.
+      exact H.
+    - unfold weakest_precondition_block_correct; intros.
       simpl in H1.
-      apply H in H1.
-      destruct H1 as [env_inter [H1 eval_statement_result]].
-      apply H0 in H1.
-      destruct H1 as [env_post [env_post_fits eval_block_result]].
-      exists env_post.
-      split; [exact env_post_fits|].
+      specialize (H env_pre (weakest_precondition_block rest post) H1).
+      case_eq (eval_statement tag_t tag statement env_pre).
+      intros s env_inter eval_statement_result.
+      rewrite eval_statement_result in H.
+      destruct s; try contradiction; destruct u.
+      specialize (H0 env_inter post H).
+      case_eq (eval_block tag_t tag rest env_inter).
+      intros s env_post eval_block_result.
+      rewrite eval_block_result in H0.
+      destruct s; try contradiction; destruct u.
       unfold eval_block.
       fold (eval_statement tag_t tag statement).
       fold (eval_block tag_t tag rest).
       simpl; unfold state_bind.
       rewrite eval_statement_result.
-      exact eval_block_result.
+      rewrite eval_block_result.
+      exact H0.
 Qed.

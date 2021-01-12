@@ -31,15 +31,15 @@ let to_string pp : string =
 
 let get_name include_dirs file =
   match Parse.parse_file include_dirs file false with 
-  | `Ok prog -> prog |> Prettypp.format_program |> to_string 
+  | `Ok prog -> prog |> Pretty.format_program |> to_string 
   | `Error _ -> "121" 
 
 let pp_round_trip_test include_dirs file =
   let way_there = match Parse.parse_file include_dirs file false with 
-    | `Ok prog -> prog |> Prettypp.format_program |> to_string 
+    | `Ok prog -> prog |> Pretty.format_program |> to_string 
     | `Error _ -> "" in 
   let way_back = Parse.parse_string way_there in
-  String.compare way_there (way_back |> Prettypp.format_program |> to_string) = 0 
+  String.compare way_there (way_back |> Pretty.format_program |> to_string) = 0 
 
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   Printf.printf "Testing file %s...\n" p4_file;
@@ -101,9 +101,6 @@ let bad_test f file () =
 
 let excl_test file () =
   Alcotest.(check bool) "good test" true true
-module P4 = Types 
-let pp_test () =
-  Alcotest.(check bool) "printing test" true Printingtests.test
 
 let example_path l =
   let root = Filename.concat ".." "examples" in
@@ -127,6 +124,3 @@ let () =
      "round trip pp tests good", (Stdlib.List.map (fun name ->
          test_case name `Quick (good_test pp_round_trip_test name)) good_files);
    ])
-
-
-

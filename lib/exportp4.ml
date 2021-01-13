@@ -227,8 +227,19 @@ let print_global_decl p (decl : coq_Declaration) : string =
       decl_name
   | _ -> print_dummy_decl p ()
 
+let print_header p =
+  fprintf p "Require Import Coq.Lists.List.@ ";
+  fprintf p "Require Import Coq.Numbers.BinNums.@ ";
+  fprintf p "Require Import Strings.String.@ @ ";
+  fprintf p "Require Import Petr4.P4String.@ ";
+  fprintf p "Require Import Petr4.Syntax.@ ";
+  fprintf p "Require Import Petr4.Typed.@ @ ";
+  fprintf p "Open Scope string_scope.@ @ ";
+  fprintf p "Import ListNotations.@ @ "
+
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";
+  print_header p;
   let decl_names = List.map (print_global_decl p) program in
   fprintf p "Definition program := %a."
     (print_list print_string) decl_names;

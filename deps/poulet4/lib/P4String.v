@@ -17,3 +17,6 @@ Definition equivb [tags_t: Type] (s1 s2: t tags_t) :=
 
 Definition eq_const [tags_t: Type] (s1: t tags_t) (s2: String.t) :=
   String.eqb s1.(str) s2.
+
+Definition make {tags_t : Type} (tgs : tags_t) (x : String.t) :=
+  {| tags := tgs; str := x |}.

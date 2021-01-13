@@ -1,78 +1,36 @@
-Require Coq.Strings.String.
-Module CSS := Coq.Strings.String.
-Require Coq.Arith.PeanoNat.
-Module CAP := Coq.Arith.PeanoNat.
 Require Export Coq.Lists.List.
 Import ListNotations.
 Require Coq.Bool.Bool.
 Module CBB := Coq.Bool.Bool.
 
+(** Big Integers. *)
+Require Export Coq.Numbers.BinNums.
+
+(** Infos. TODO: I'm mimicking [Syntax.v] rn... *)
+(* Require Export Petr4.Info. *)
+
+(** Strings. *)
+Require Petr4.String.
+Definition string : Type :=  Petr4.String.t.
+
+(** Names. *)
+Require Petr4.P4String.
+Definition name (tags_t : Type) := Petr4.P4String.t tags_t.
+
+(** Integers. *)
+Require Petr4.P4Int.
+Definition int (tags_t : Type) := Petr4.P4Int.t tags_t.
+
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
 Infix "▷" := pipeline (at level 45, left associativity).
 
-Infix "∘" := Basics.compose
-  (at level 40, left associativity).
-
-(** * P4 Data Types Signature *)
-Module Type P4Data.
-  Parameter t : Type.
-  Parameter eqb : t -> t -> bool.
-  Axiom eqb_reflect : forall x y : t, CBB.reflect (x = y) (eqb x y).
-End P4Data.
-
-Module P4DataUtil (Export D : P4Data).
-  Infix "=?" := eqb (at level 70, no associativity).
-
-  Lemma eq_dec : forall x y : t, x = y \/ x <> y.
-  Proof.
-    intros x y. pose proof eqb_reflect x y as REFL.
-    inversion REFL as [HT Hxy | HF Hxy]; subst; auto.
-  Qed.
-End P4DataUtil.
-
-(** * P4 Numeric Types *)
-Module Type P4Numeric <: P4Data.
-  Include P4Data.
-
-  (** Arithmetic operations and lemmas. *)
-
-  Parameter add : t -> t -> t.
-  Axiom add_comm : forall m n : t, add m n = add n m.
-  Axiom add_assoc : forall a b c : t, add a (add b c) = add (add a b) c.
-
-  Parameter sub : t -> t -> t.
-  Axiom sub_assoc : forall a b c : t, sub a (sub b c) = sub (sub a b) c.
-
-  Parameter mul : t -> t -> t.
-  Axiom mul_comm : forall m n : t, mul m n = mul n m.
-  Axiom mul_assoc : forall a b c : t, mul a (mul b c) = mul (mul a b) c.
-
-  (** Ordered relations. *)
-
-  Parameter le : t -> t -> Prop.
-
-  Parameter lt : t -> t -> Prop.
-End P4Numeric.
-
-Module P4NumericUtil (N : P4Numeric).
-  Include N.
-
-  Infix "+" := add (at level 50, left associativity).
-
-  Infix "-" := sub (at level 50, left associativity).
-
-  Infix "*" := mul (at level 40, left associativity).
-
-  Infix "<=" := le (at level 70, no associativity).
-
-  Infix "<" := lt (at level 70, no associativity).
-End P4NumericUtil.
+Infix "∘" := Basics.compose (at level 40, left associativity).
 
 (** * Definitions and Lemmas regarding Fields *)
-Module Field (NAME : P4Data).
+Module Field.
   (** Field type. *)
-  Definition f (T : Type) : Type := NAME.t * T.
+  Definition f (T : Type) : Type := string * T.
 
   (** Fields. *)
   Definition fs (T : Type) : Type := list (f T).
@@ -104,64 +62,13 @@ Module Field (NAME : P4Data).
 
   (** Fold. *)
   Definition fold {U V : Type}
-             (f : NAME.t -> U -> V -> V) (fs : fs U) (init : V) : V :=
+             (f : string -> U -> V -> V) (fs : fs U) (init : V) : V :=
     List.fold_right (fun '(x,u) acc => f x u acc) init fs.
 End Field.
 
-(** * Info *)
-Module Type P4Info.
-  (* TODO! line/column number, lexical info *)
-  Parameter t : Type.
-End P4Info.
-
-(** * Qualified Names *)
-Module P4Name (STRING : P4Data) <: P4Data.
-  Module S := STRING.
-
-  (** Names, qualified or otherwise. *)
-  Inductive t' : Type :=
-    | Bare (x : S.t)                       (* bare/unqualified names *)
-    | Qualified (name_space : S.t) (x : t') (* qualified names *).
-
-  Definition t := t'.
-
-  (** Get just the name. *)
-  Fixpoint get_name (n : t) : S.t :=
-    match n with
-    | Bare x        => x
-    | Qualified _ n => get_name n
-    end.
-
-  Fixpoint eqb (n1 n2 : t) : bool :=
-    match n1, n2 with
-    | Bare x1, Bare x2                   => S.eqb x1 x2
-    | Qualified ns1 n1, Qualified ns2 n2 => S.eqb ns1 ns2 && eqb n1 n2
-    | _, _                               => false
-    end.
-
-  Lemma eqb_reflect : forall x y : t, CBB.reflect (x = y) (eqb x y).
-  Proof.
-    induction x as [x | nsx x IHx]; intros [y | nsy y]; simpl in *.
-    - pose proof S.eqb_reflect x y as H.
-      inversion H as [HEq Hxy | HNEq Hxy]; subst.
-      + left. reflexivity.
-      + right. intros H'.
-        inversion H'; subst. contradiction.
-    - right. intros H. inversion H.
-    - right. intros H. inversion H.
-    - pose proof S.eqb_reflect nsx nsy as H.
-      specialize IHx with y.
-      inversion H as [HEq Hxy | HNEq Hxy]; subst; simpl;
-        inversion IHx as [IH IHxy | IH IHxy]; subst;
-          try (right; intros H'; inversion H'; contradiction).
-      left. reflexivity.
-  Qed.
-End P4Name.
-
 (** * P4light AST *)
-Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
-  Module F := Field STRING.
-  Module N := P4Name STRING.
+Module P4light.
+  Module F := Field.
 
   (** Directions. *)
   Module Dir.
@@ -179,13 +86,13 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
 
     (** Expression types. *)
     Inductive t : Type :=
-      | TBool                     (* bool *)
-      | TInteger                  (* arbitrary-size integers *)
-      | TBitstring (n : INT.t)    (* fixed-width integers *)
-      | TError                    (* the error type *)
-      | TMatchKind                (* the matchkind type *)
-      | TRecord (fields : F.fs t) (* the record and struct type *)
-      | THeader (fields : F.fs t) (* the header type *).
+    | TBool                        (* bool *)
+    | TInteger                     (* arbitrary-size integers *)
+    | TBitstring (n : int unit)    (* fixed-width integers *)
+    | TError                       (* the error type *)
+    | TMatchKind                   (* the matchkind type *)
+    | TRecord (fields : F.fs t)    (* the record and struct type *)
+    | THeader (fields : F.fs t)    (* the header type *).
     (**[]*)
 
     (** Function signatures. *)
@@ -193,7 +100,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       Arrow (params : F.fs (d * A)) (returns : option R).
     (**[]*)
 
-    Arguments Arrow {A} _ _ _.
+    Arguments Arrow {A} {R}.
 
     (** Function types. *)
     Definition arrowT : Type := arrow t t.
@@ -205,7 +112,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       Notation "( x )" := x (in custom p4type, x at level 99).
       Notation "x" := x (in custom p4type at level 0, x constr at level 0).
       Notation "'Bool'" := TBool (in custom p4type at level 0).
-      Notation "'int'"
+      Notation "'Int'"
         := TInteger (in custom p4type at level 0, no associativity).
       Notation "'bit' '<' w '>'"
         := (TBitstring w)
@@ -231,7 +138,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
 
       Hypothesis HTBool : P {{ Bool }}.
 
-      Hypothesis HTInteger : P {{ int }}.
+      Hypothesis HTInteger : P {{ Int }}.
 
       Hypothesis HTBitstring : forall w, P {{ bit<w> }}.
 
@@ -264,7 +171,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
               end in
           match type as ty return P ty with
           | {{ Bool }} => HTBool
-          | {{ int }} => HTInteger
+          | {{ Int }} => HTInteger
           | {{ bit<w> }} => HTBitstring w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
@@ -274,59 +181,75 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     End TypeInduction.
 
     Inductive uop : Set :=
-      | Not    (* boolean negation *)
-      | BitNot (* bitwise negation *)
-      | UMinus (* integer negation *).
+    | Not    (* boolean negation *)
+    | BitNot (* bitwise negation *)
+    | UMinus (* integer negation *).
 
     (** Binary operations.
         The "Sat" suffix denotes
         saturating arithmetic:
         where there is no overflow. *)
     Inductive bop : Set :=
-      | Plus     (* integer addition *)
-      | PlusSat  (* saturating addition *)
-      | Minus    (* integer subtraction *)
-      | MinusSat (* saturating subtraction *)
-      | Shl      (* bitwise left-shift *)
-      | Shr      (* bitwise right-shift *)
-      | Le       (* integer less-than *)
-      | Ge       (* integer greater-than *)
-      | Lt       (* integer less-than or equals *)
-      | Gt       (* integer greater-than or equals *)
-      | Eq       (* expression equality *)
-      | NotEq    (* expression inequality *)
-      | BitAnd   (* bitwise and *)
-      | BitXor   (* bitwise exclusive-or *)
-      | BitOr    (* bitwise or *)
-      | PlusPlus (* bit-string concatenation *)
-      | And      (* boolean and *)
-      | Or       (* boolean or *).
+    | Plus     (* integer addition *)
+    | PlusSat  (* saturating addition *)
+    | Minus    (* integer subtraction *)
+    | MinusSat (* saturating subtraction *)
+    | Shl      (* bitwise left-shift *)
+    | Shr      (* bitwise right-shift *)
+    | Le       (* integer less-than *)
+    | Ge       (* integer greater-than *)
+    | Lt       (* integer less-than or equals *)
+    | Gt       (* integer greater-than or equals *)
+    | Eq       (* expression equality *)
+    | NotEq    (* expression inequality *)
+    | BitAnd   (* bitwise and *)
+    | BitXor   (* bitwise exclusive-or *)
+    | BitOr    (* bitwise or *)
+    | PlusPlus (* bit-string concatenation *)
+    | And      (* boolean and *)
+    | Or       (* boolean or *).
     (**[]*)
 
-    (** Expressions annotated with types,
-      unless the type is obvious. *)
-    Inductive e : Type :=
-      | EBool (b : bool) (i : I.t) (* booleans *)
-      | EInteger (n : INT.t) (i : I.t) (* arbitrary-size integers *)
-      | EBitstring (width : INT.t) (value : BIGINT.t)
-                   (i : I.t) (* fixed-width integers *)
-      | EVar (type : t) (x : N.t) (i : I.t) (* variables *)
+    Section Expressions.
+      Variable (tags_t : Type).
+
+      (** Expressions annotated with types,
+          unless the type is obvious. *)
+      Inductive e : Type :=
+      | EBool (b : bool) (i : tags_t)                     (* booleans *)
+      | EInteger (n : int tags_t) (i : tags_t)         (* arbitrary-size integers *)
+      | EBitstring (width : int tags_t) (value : N)
+                   (i : tags_t)                        (* fixed-width integers *)
+      | EVar (type : t) (x : name tags_t) (i : tags_t) (* variables *)
       | EUop (op : uop) (type : t)
-             (arg : e) (i : I.t) (* unary operations *)
+             (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t)
-             (lhs rhs : e) (i : I.t) (* binary operations *)
+             (lhs rhs : e) (i : tags_t)                (* binary operations *)
       | ECast (cast_type : t) (expr_type : t)
-              (arg : e) (i : I.t) (* explicit casts *)
+              (arg : e) (i : tags_t)                   (* explicit casts *)
       | ERecord (fields : F.fs (t * e))
-                (i : I.t) (* records and structs *)
-      | EExprMember (mem : STRING.t) (expr_type : t)
-                    (arg : e) (i : I.t)      (* member-expressions *)
-      | EError (name : STRING.t) (i : I.t)     (* error literals *)
-      | EMatchKind (name : STRING.t) (i : I.t) (* matchkind literals *).
-    (**[]*)
+                (i : tags_t)                           (* records and structs *)
+      | EExprMember (mem : string) (expr_type : t)
+                    (arg : e) (i : tags_t)             (* member-expressions *)
+      | EError (err : name tags_t) (i : tags_t)        (* error literals *)
+      | EMatchKind (err : string)  (i : tags_t)        (* matchkind literals *).
+      (**[]*)
 
-    (** Function call. *)
-    Definition arrowE : Type := arrow (t * e) (t * N.t).
+      (** Function call. *)
+      Definition arrowE : Type := arrow (t * e) (t * (name tags_t)).
+    End Expressions.
+
+    Arguments EBool {tags_t}.
+    Arguments EInteger {tags_t}.
+    Arguments EBitstring {tags_t}.
+    Arguments EVar {tags_t}.
+    Arguments EUop {tags_t}.
+    Arguments EBop {tags_t}.
+    Arguments ECast {tags_t}.
+    Arguments ERecord {tags_t}.
+    Arguments EExprMember {tags_t}.
+    Arguments EError {tags_t}.
+    Arguments EMatchKind {tags_t}.
 
     Module ExprNotations.
       Declare Custom Entry p4expr.
@@ -337,7 +260,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
       Notation "'True' @ i" := (EBool true i) (in custom p4expr at level 0).
       Notation "'False' @ i" := (EBool false i) (in custom p4expr at level 0).
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
-      Notation "'Int' n @ i" := (EInteger n i) (in custom p4expr at level 0).
+      Notation "'INT' n @ i" := (EInteger n i) (in custom p4expr at level 0).
       Notation "'Bit' '<' w '>' n @ i" := (EBitstring w n i)
                               (in custom p4expr at level 1, no associativity).
       Notation "'Var' x '::' ty @ i 'end'" := (EVar ty x i)
@@ -466,33 +389,35 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     (** A custom induction principle for [e]. *)
     Section ExprInduction.
       (** An arbitrary predicate. *)
-      Variable P : e -> Prop.
+      Context {tags_t : Type}.
+
+      Variable P : e tags_t -> Prop.
 
       Hypothesis HEBool : forall b i,
           P <{ BOOL b @ i }>.
 
       Hypothesis HEInteger : forall n i,
-          P <{ Int n @ i }>.
+          P <{ INT n @ i }>.
 
-      Hypothesis HEBitstring : forall (w : INT.t) (v : BIGINT.t) i,
+      Hypothesis HEBitstring : forall (w : int tags_t) (v : N) i,
           P <{ Bit<w> v @ i }>.
 
-      Hypothesis HEVar : forall (ty : t) (x : N.t) i,
+      Hypothesis HEVar : forall (ty : t) (x : name tags_t) i,
           P <{ Var x :: ty @ i end }>.
 
-      Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e) i,
+      Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e tags_t) i,
           P ex -> P (EUop op ty ex i).
 
-      Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e) i,
+      Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P (EBop op lt rt lhs rhs i).
 
-      Hypothesis HECast : forall (ct et : t) (ex : e) i,
+      Hypothesis HECast : forall (ct et : t) (ex : e tags_t) i,
           P ex -> P <{ (ct) ex :: et @ i end }>.
 
-      Hypothesis HERecord : forall (fields : F.fs (t * e)) i,
+      Hypothesis HERecord : forall (fields : F.fs (t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEExprMember : forall (x : STRING.t) (ty : t) (ex : e) i,
+      Hypothesis HEExprMember : forall (x : string) (ty : t) (ex : e tags_t) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
       Hypothesis HEError : forall err i,
@@ -503,9 +428,9 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
 
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
-      Definition custom_e_ind : forall exp : e, P exp :=
-        fix custom_e_ind (expr : e) : P expr :=
-          let fix fields_ind {A:Type} (flds : F.fs (A * e))
+      Definition custom_e_ind : forall exp : e tags_t, P exp :=
+        fix custom_e_ind (expr : e tags_t) : P expr :=
+          let fix fields_ind {A:Type} (flds : F.fs (A * e tags_t))
               : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ex
                     return F.predfs_data (P ∘ snd) fs_ex with
@@ -515,7 +440,7 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
               end in
           match expr as e' return P e' with
           | <{ BOOL b @ i }> => HEBool b i
-          | <{ Int n @ i }> => HEInteger n i
+          | <{ INT n @ i }> => HEInteger n i
           | <{ Bit<w> v @ i }> => HEBitstring w v i
           | <{ Var x :: ty @ i end }> => HEVar ty x i
           | EUop ty op exp i => HEUop ty op exp i (custom_e_ind exp)
@@ -537,22 +462,36 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     Import Dir.
     Module E := Expr.
 
-    Inductive s : Type :=
-      | SSkip (i : I.t) (* skip, useful for small-step semantics *)
-      | SAssign (type : E.t) (lhs rhs : E.e)
-                (i : I.t) (* assignment *)
-      | SConditional (guard_type : E.t) (guard : E.e)
-                     (tru_blk fls_blk : s) (i : I.t) (* conditionals *)
-      | SSeq (s1 s2 : s)
-             (i : I.t) (* sequences, an alternative to blocks *)
-      | SVarDecl (typ : E.t) (var : N.t)
-                 (rhs : E.e) (i : I.t) (* variable declaration *)
-      | SCall (f : N.t) (args : E.arrowE)
-              (i : I.t) (* function/action/extern call *)
-      | SReturnVoid (i : I.t) (* void return statement *)
-      | SReturnFruit (t : E.t) (e : E.e)
-                     (i : I.t) (* fruitful return statement *).
+    Section Statements.
+      Variable (tags_t : Type).
+
+      Inductive s : Type :=
+      | SSkip (i : tags_t)                               (* skip, useful for
+                                                            small-step semantics *)
+      | SAssign (type : E.t) (lhs rhs : E.e tags_t)
+                (i : tags_t)                             (* assignment *)
+      | SConditional (guard_type : E.t) (guard : E.e tags_t)
+                     (tru_blk fls_blk : s) (i : tags_t)  (* conditionals *)
+      | SSeq (s1 s2 : s) (i : tags_t)                    (* sequences,
+                                                            an alternative to blocks *)
+      | SVarDecl (typ : E.t) (var : name tags_t)
+                 (rhs : E.e tags_t) (i : tags_t)         (* variable declaration *)
+      | SCall (f : name tags_t) (args : E.arrowE tags_t)
+              (i : tags_t)                               (* function/action/extern call *)
+      | SReturnVoid (i : tags_t)                         (* void return statement *)
+      | SReturnFruit (t : E.t)
+                     (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *).
     (**[]*)
+    End Statements.
+
+    Arguments SSkip {tags_t}.
+    Arguments SAssign {tags_t}.
+    Arguments SConditional {tags_t}.
+    Arguments SSeq {tags_t}.
+    Arguments SVarDecl {tags_t}.
+    Arguments SCall {tags_t}.
+    Arguments SReturnVoid {tags_t}.
+    Arguments SReturnFruit {tags_t}.
 
     Module StmtNotations.
       Import E.TypeNotations.
@@ -586,10 +525,10 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
       Notation "'call' f 'with' args @ i 'fin'"
-        := (SCall f (E.Arrow (E.t * N.t) args None) i)
+        := (SCall f (E.Arrow args None) i)
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e '::' t ':=' 'call' f 'with' args @ i 'fin'"
-               := (SCall f (E.Arrow (E.t * N.t) args (Some (t,e))) i)
+               := (SCall f (E.Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'return' e '::' t @ i 'fin'"
@@ -607,19 +546,34 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     Module E := Expr.
     Module S := Stmt.
 
-    (** Here is the subset of declarations that
-        may occur within controls, parsers,
-        and even the top-level. *)
-    Inductive d : Type :=
-      | DVardecl (typ : E.t) (x : N.t) (i : I.t)             (* unitialized variable *)
-      | DVarinit (typ : E.t) (x : N.t) (rhs : E.e) (i : I.t) (* initialized variable *)
-      | DConst   (typ : E.t) (x : N.t) (rhs : E.e) (i : I.t) (* constant *)
-      | DInstantiate (C x : N.t) (args : F.fs (E.t * E.e))
-                     (i : I.t) (* constructor [C] with [args] makes [x] *)
-      | DFunction (f : N.t) (signature : E.arrowT)
-                  (body : S.s) (i : I.t) (* function/method declaration *)
-      | DSeq (d1 d2 : d) (i : I.t)       (* sequence of declarations *).
+    Section Declarations.
+      Variable (tags_t : Type).
+
+      (** Here is the subset of declarations that
+          may occur within controls, parsers,
+          and even the top-level. *)
+      Inductive d : Type :=
+      | DVardecl (typ : E.t) (x : name tags_t)
+                 (i : tags_t)                      (* unitialized variable *)
+      | DVarinit (typ : E.t) (x : name tags_t)
+                 (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
+      | DConst   (typ : E.t) (x : name tags_t)
+                 (rhs : E.e tags_t) (i : tags_t)   (* constant *)
+      | DInstantiate (C x : name tags_t) (args : F.fs (E.t * E.e tags_t))
+                     (i : tags_t)                  (* constructor [C]
+                                                      with [args] makes [x] *)
+      | DFunction (f : name tags_t) (signature : E.arrowT)
+                  (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
+      | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
+    End Declarations.
+
+    Arguments DVardecl {tags_t}.
+    Arguments DVarinit {tags_t}.
+    Arguments DConst {tags_t}.
+    Arguments DInstantiate {tags_t}.
+    Arguments DFunction {tags_t}.
+    Arguments DSeq {tags_t}.
   End Decl.
 
   (** * Controls *)
@@ -628,13 +582,17 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     Module S := Stmt.
     Module D := Decl.
 
-    (** Declarations that may occur within Controls. *)
-    (* TODO, this is a stub. *)
-    Inductive d : Type :=
-      | DTable (i : I.t) (* TODO! *)
-      | DDecl (d : D.d) (i : I.t)
-      | DSeq (d1 d2 : d) (i : I.t).
-    (**[]*)
+    Section ControlDecls.
+      Variable (tags_t : Type).
+
+      (** Declarations that may occur within Controls. *)
+      (* TODO, this is a stub. *)
+      Inductive d : Type :=
+      | DTable (i : tags_t) (* TODO! *)
+      | DDecl (d : D.d tags_t) (i : tags_t)
+      | DSeq (d1 d2 : d) (i : tags_t).
+      (**[]*)
+    End ControlDecls.
   End Control.
 
   (** * Top-Level Declarations *)
@@ -644,16 +602,20 @@ Module P4light (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
     Module D := Decl.
     Module C := Control.
 
-    (** Top-level declarations. *)
-    (* TODO, this is a stub. *)
-    Inductive d : Type :=
-      | TPDecl (d : D.d) (i : I.t)
+    Section TopDeclarations.
+      Variable (tags_t : Type).
+
+      (** Top-level declarations. *)
+      (* TODO, this is a stub. *)
+      Inductive d : Type :=
+      | TPDecl (d : D.d tags_t) (i : tags_t)
       | TPControl (cparams : F.fs E.t)
-                  (params : F.fs (Dir.d * E.t))
-                  (body : C.d) (apply_blk : S.s) (i : I.t)
+                  (params : F.fs (Dir.d * tags_t))
+                  (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (cparams : F.fs E.t)
-                 (params : F.fs (Dir.d * E.t)) (i : I.t) (* TODO! *)
-      | TPSeq (d1 d2 : d) (i : I.t).
-    (**[]*)
+                 (params : F.fs (Dir.d * E.t)) (i : tags_t) (* TODO! *)
+      | TPSeq (d1 d2 : d) (i : tags_t).
+      (**[]*)
+    End TopDeclarations.
   End TopDecl.
 End P4light.

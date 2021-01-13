@@ -3,14 +3,13 @@ Require Import Petr4.Typed.
 Require Import Petr4.P4light.AST.
 Require Import Petr4.Monads.Monad.
 Require Import Petr4.Monads.State.
+Require Import Petr4.Info.
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 Import ListNotations.
 Open Scope type_scope.
 
-Module P4lightGen (STRING : P4Data) (INT BIGINT : P4Numeric) (I : P4Info).
-
-Module P4light := P4light STRING INT BIGINT I.
+Module P4lightGen.
 
 Definition path := list string.
 
@@ -21,7 +20,7 @@ Inductive virloc :=
 Definition instantiation_expression := unit. (* TODO *)
 (* Should contain name of the instance, and a closure-ish. *)
 
-Definition decl_list := list (P4light.TopDecl.d + instantiation_expression).
+Definition decl_list := list (P4light.TopDecl.d Info + instantiation_expression).
 Definition state := decl_list * path.
 Inductive exception :=
   | NotFound

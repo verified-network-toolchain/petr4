@@ -38,7 +38,7 @@ let print_nat p n =
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
-  fprintf p "()"
+  fprintf p "tt"
 
 let p4string p (s : Info.t Poulet4.P4String.t) =
   fprintf p "{| @[<hov 0>tags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str

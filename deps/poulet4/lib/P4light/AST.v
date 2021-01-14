@@ -1,25 +1,34 @@
 Require Export Coq.Lists.List.
-Import ListNotations.
-Require Coq.Bool.Bool.
-Module CBB := Coq.Bool.Bool.
+Export ListNotations.
+Require Export Coq.Bool.Bool.
+Require Export Coq.Classes.EquivDec.
+Require Export Coq.Numbers.BinNums. (** Big Integers. *)
+Require Petr4.String. (** Strings. *)
+Require Petr4.P4String. (** Names. *)
+Require Petr4.P4Int. (** Integers. *)
 
-(** Big Integers. *)
-Require Export Coq.Numbers.BinNums.
+Definition string : Type := Petr4.String.t.
+Instance StringEqDec : EqDec string eq := Petr4.String.StringEqDec.
 
-(** Infos. TODO: I'm mimicking [Syntax.v] rn... *)
-(* Require Export Petr4.Info. *)
+Section TypeSynonyms.
+  Variable (tags_t : Type).
 
-(** Strings. *)
-Require Petr4.String.
-Definition string : Type :=  Petr4.String.t.
+  Definition name : Type := Petr4.P4String.t tags_t.
 
-(** Names. *)
-Require Petr4.P4String.
-Definition name (tags_t : Type) := Petr4.P4String.t tags_t.
+  Instance P4StringEqDec : EqDec name (@P4String.equiv tags_t) :=
+    P4String.P4StringEqDec tags_t.
+  (**[]*)
 
-(** Integers. *)
-Require Petr4.P4Int.
-Definition int (tags_t : Type) := Petr4.P4Int.t tags_t.
+  Definition int : Type := Petr4.P4Int.t tags_t.
+
+  Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
+    P4Int.IntEquivalence tags_t.
+  (**[]*)
+
+  Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
+    P4Int.IntEqDec tags_t.
+  (**[]*)
+End TypeSynonyms.
 
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
@@ -29,41 +38,56 @@ Infix "∘" := Basics.compose (at level 40, left associativity).
 
 (** * Definitions and Lemmas regarding Fields *)
 Module Field.
-  (** Field type. *)
-  Definition f (T : Type) : Type := string * T.
+  Section FieldTypes.
+    Variable (tags_t : Type).
 
-  (** Fields. *)
-  Definition fs (T : Type) : Type := list (f T).
+    (** Field type. *)
+    Definition f (T : Type) : Type := (name tags_t) * T.
 
-  (** Predicate on a field's data. *)
-  Definition predf_data {T : Type} (P : T -> Prop) : f T -> Prop :=
-    fun '(_, t) => P t.
+    (** Fields. *)
+    Definition fs (T : Type) : Type := list (f T).
+  End FieldTypes.
 
-  (** Predicate over every data in fields. *)
-  Definition predfs_data {T : Type} (P : T -> Prop) : fs T -> Prop :=
-    Forall (predf_data P).
+  Section FieldLibrary.
+    Context {tags_t : Type}.
 
-  (** Relation betwixt two field instances. *)
-  Definition relf {U V : Type} (R : U -> V -> Prop) : f U -> f V -> Prop :=
-    fun u v => fst u = fst v /\ R (snd u) (snd v).
+    (** Predicate on a field's data. *)
+    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop :=
+      fun '(_, t) => P t.
+    (**[]*)
 
-  (** Relation between two instances of fields. *)
-  Definition relfs {U V : Type}
-             (R : U -> V -> Prop) : fs U -> fs V -> Prop :=
-    Forall2 (relf R).
+    (** Predicate over every data in fields. *)
+    Definition predfs_data {T : Type} (P : T -> Prop) : fs tags_t T -> Prop :=
+      Forall (predf_data P).
+    (**[]*)
 
-  (** Filter. *)
-  Definition filter {U : Type} (f : U -> bool) : fs U -> fs U :=
-    List.filter (f ∘ snd).
+    (** Relation betwixt two field instances. *)
+    Definition relf {U V : Type} (R : U -> V -> Prop) : f tags_t U -> f tags_t V -> Prop :=
+      fun u v => fst u = fst v /\ R (snd u) (snd v).
+    (**[]*)
 
-  (** Map. *)
-  Definition map {U V : Type} (f : U -> V) : fs U -> fs V :=
-    List.map (fun '(x,u) => (x, f u)).
+    (** Relation between two instances of fields. *)
+    Definition relfs {U V : Type}
+               (R : U -> V -> Prop) : fs tags_t U -> fs tags_t V -> Prop :=
+      Forall2 (relf R).
+    (**[]*)
 
-  (** Fold. *)
-  Definition fold {U V : Type}
-             (f : string -> U -> V -> V) (fs : fs U) (init : V) : V :=
-    List.fold_right (fun '(x,u) acc => f x u acc) init fs.
+    (** Filter. *)
+    Definition filter {U : Type} (f : U -> bool) : fs tags_t U -> fs tags_t U :=
+      List.filter (f ∘ snd).
+    (**[]*)
+
+    (** Map. *)
+    Definition map {U V : Type} (f : U -> V) : fs tags_t U -> fs tags_t V :=
+      List.map (fun '(x,u) => (x, f u)).
+    (**[]*)
+
+    (** Fold. *)
+    Definition fold {U V : Type}
+               (f : name tags_t -> U -> V -> V) (fds : fs tags_t U) (init : V) : V :=
+      List.fold_right (fun '(x,u) acc => f x u acc) init fds.
+    (**[]*)
+  End FieldLibrary.
 End Field.
 
 (** * P4light AST *)
@@ -84,26 +108,37 @@ Module P4light.
   Module Expr.
     Import Dir.
 
-    (** Expression types. *)
-    Inductive t : Type :=
-    | TBool                        (* bool *)
-    | TInteger                     (* arbitrary-size integers *)
-    | TBitstring (n : int unit)    (* fixed-width integers *)
-    | TError                       (* the error type *)
-    | TMatchKind                   (* the matchkind type *)
-    | TRecord (fields : F.fs t)    (* the record and struct type *)
-    | THeader (fields : F.fs t)    (* the header type *).
-    (**[]*)
+    Section P4Types.
+      Variable (tags_t : Type).
 
-    (** Function signatures. *)
-    Inductive arrow (A R : Type) : Type :=
-      Arrow (params : F.fs (d * A)) (returns : option R).
-    (**[]*)
+      (** Expression types. *)
+      Inductive t : Type :=
+      | TBool                            (* bool *)
+      | TInteger                         (* arbitrary-size integers *)
+      | TBitstring (n : nat)               (* fixed-width integers *)
+      | TError                           (* the error type *)
+      | TMatchKind                       (* the matchkind type *)
+      | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
+      | THeader (fields : F.fs tags_t t) (* the header type *).
+      (**[]*)
 
-    Arguments Arrow {A} {R}.
+      (** Function signatures. *)
+      Inductive arrow (A R : Type) : Type :=
+        Arrow (params : F.fs tags_t (Dir.d * A)) (returns : option R).
+      (**[]*)
 
-    (** Function types. *)
-    Definition arrowT : Type := arrow t t.
+      (** Function types. *)
+      Definition arrowT : Type := arrow t t.
+    End P4Types.
+
+    Arguments TBool {_}.
+    Arguments TInteger {_}.
+    Arguments TBitstring {_}.
+    Arguments TError {_}.
+    Arguments TMatchKind {_}.
+    Arguments TRecord {_}.
+    Arguments THeader {_}.
+    Arguments Arrow {_} {_} {_}.
 
     Module TypeNotations.
       Declare Custom Entry p4type.
@@ -133,8 +168,10 @@ Module P4light.
 
     (** Custom induction principle for [t]. *)
     Section TypeInduction.
+      Context {tags_t : Type}.
+
       (** An arbitrary property. *)
-      Variable P : t -> Prop.
+      Variable P : t tags_t -> Prop.
 
       Hypothesis HTBool : P {{ Bool }}.
 
@@ -154,16 +191,16 @@ Module P4light.
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
-      Definition custom_t_ind : forall ty : t, P ty :=
-        fix custom_t_ind (type : t) : P type :=
-          let fix fields_ind (flds : F.fs t) : F.predfs_data P flds :=
+      Definition custom_t_ind : forall ty : t tags_t, P ty :=
+        fix custom_t_ind (type : t tags_t) : P type :=
+          let fix fields_ind (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
               | [] => Forall_nil (F.predf_data P)
               | (_, hft) as hf :: tf =>
                 Forall_cons hf (custom_t_ind hft) (fields_ind tf)
               end in
           let fix fields_ind_dir
-                  (flds : F.fs (d * t)) : F.predfs_data (P ∘ snd) flds :=
+                  (flds : F.fs tags_t (d * t tags_t)) : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ty return F.predfs_data (P ∘ snd) fs_ty with
               | [] => Forall_nil (F.predf_data (P ∘ snd))
               | (_, (_, hft)) as hf :: tf =>
@@ -178,12 +215,14 @@ Module P4light.
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           end.
+      (**[]*)
     End TypeInduction.
 
     Inductive uop : Set :=
     | Not    (* boolean negation *)
     | BitNot (* bitwise negation *)
     | UMinus (* integer negation *).
+    (**[]*)
 
     (** Binary operations.
         The "Sat" suffix denotes
@@ -216,27 +255,29 @@ Module P4light.
       (** Expressions annotated with types,
           unless the type is obvious. *)
       Inductive e : Type :=
-      | EBool (b : bool) (i : tags_t)                     (* booleans *)
-      | EInteger (n : int tags_t) (i : tags_t)         (* arbitrary-size integers *)
-      | EBitstring (width : int tags_t) (value : N)
-                   (i : tags_t)                        (* fixed-width integers *)
-      | EVar (type : t) (x : name tags_t) (i : tags_t) (* variables *)
-      | EUop (op : uop) (type : t)
-             (arg : e) (i : tags_t)                    (* unary operations *)
-      | EBop (op : bop) (lhs_type rhs_type : t)
-             (lhs rhs : e) (i : tags_t)                (* binary operations *)
-      | ECast (cast_type : t) (expr_type : t)
+      | EBool (b : bool) (i : tags_t)                      (* booleans *)
+      | EInteger (n : int tags_t) (i : tags_t)          (* arbitrary-size integers *)
+      | EBitstring (width : nat) (value : N) (i : tags_t) (* fixed-width integers *)
+      | EVar (type : t tags_t) (x : name tags_t)
+             (i : tags_t)                               (* variables *)
+      | EUop (op : uop) (type : t tags_t)
+             (arg : e) (i : tags_t)                     (* unary operations *)
+      | EBop (op : bop) (lhs_type rhs_type : t tags_t)
+             (lhs rhs : e) (i : tags_t)                 (* binary operations *)
+      | ECast (cast_type : t tags_t)
+              (expr_type : t tags_t)
               (arg : e) (i : tags_t)                   (* explicit casts *)
-      | ERecord (fields : F.fs (t * e))
+      | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
-      | EExprMember (mem : string) (expr_type : t)
+      | EExprMember (mem : name tags_t)
+                    (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
       | EError (err : name tags_t) (i : tags_t)        (* error literals *)
-      | EMatchKind (err : string)  (i : tags_t)        (* matchkind literals *).
+      | EMatchKind (err : name tags_t) (i : tags_t)    (* matchkind literals *).
       (**[]*)
 
       (** Function call. *)
-      Definition arrowE : Type := arrow (t * e) (t * (name tags_t)).
+      Definition arrowE : Type := arrow tags_t (t tags_t * e) (t tags_t * (name tags_t)).
     End Expressions.
 
     Arguments EBool {tags_t}.
@@ -399,25 +440,25 @@ Module P4light.
       Hypothesis HEInteger : forall n i,
           P <{ INT n @ i }>.
 
-      Hypothesis HEBitstring : forall (w : int tags_t) (v : N) i,
+      Hypothesis HEBitstring : forall (w : nat) (v : N) i,
           P <{ Bit<w> v @ i }>.
 
-      Hypothesis HEVar : forall (ty : t) (x : name tags_t) i,
+      Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
           P <{ Var x :: ty @ i end }>.
 
-      Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e tags_t) i,
+      Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P (EUop op ty ex i).
 
-      Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e tags_t) i,
+      Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P (EBop op lt rt lhs rhs i).
 
-      Hypothesis HECast : forall (ct et : t) (ex : e tags_t) i,
+      Hypothesis HECast : forall (ct et : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ (ct) ex :: et @ i end }>.
 
-      Hypothesis HERecord : forall (fields : F.fs (t * e tags_t)) i,
+      Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEExprMember : forall (x : string) (ty : t) (ex : e tags_t) i,
+      Hypothesis HEExprMember : forall (x : name tags_t) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
       Hypothesis HEError : forall err i,
@@ -430,7 +471,7 @@ Module P4light.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
         fix custom_e_ind (expr : e tags_t) : P expr :=
-          let fix fields_ind {A:Type} (flds : F.fs (A * e tags_t))
+          let fix fields_ind {A:Type} (flds : F.fs tags_t (A * e tags_t))
               : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ex
                     return F.predfs_data (P ∘ snd) fs_ex with
@@ -454,6 +495,7 @@ Module P4light.
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           end.
+      (**[]*)
     End ExprInduction.
   End Expr.
 
@@ -468,18 +510,18 @@ Module P4light.
       Inductive s : Type :=
       | SSkip (i : tags_t)                               (* skip, useful for
                                                             small-step semantics *)
-      | SAssign (type : E.t) (lhs rhs : E.e tags_t)
+      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                             (* assignment *)
-      | SConditional (guard_type : E.t) (guard : E.e tags_t)
+      | SConditional (guard_type : E.t tags_t) (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t)  (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                    (* sequences,
                                                             an alternative to blocks *)
-      | SVarDecl (typ : E.t) (var : name tags_t)
+      | SVarDecl (typ : E.t tags_t) (var : name tags_t)
                  (rhs : E.e tags_t) (i : tags_t)         (* variable declaration *)
       | SCall (f : name tags_t) (args : E.arrowE tags_t)
               (i : tags_t)                               (* function/action/extern call *)
       | SReturnVoid (i : tags_t)                         (* void return statement *)
-      | SReturnFruit (t : E.t)
+      | SReturnFruit (t : E.t tags_t)
                      (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *).
     (**[]*)
     End Statements.
@@ -553,16 +595,16 @@ Module P4light.
           may occur within controls, parsers,
           and even the top-level. *)
       Inductive d : Type :=
-      | DVardecl (typ : E.t) (x : name tags_t)
+      | DVardecl (typ : E.t tags_t) (x : name tags_t)
                  (i : tags_t)                      (* unitialized variable *)
-      | DVarinit (typ : E.t) (x : name tags_t)
+      | DVarinit (typ : E.t tags_t) (x : name tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
-      | DConst   (typ : E.t) (x : name tags_t)
+      | DConst   (typ : E.t tags_t) (x : name tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* constant *)
-      | DInstantiate (C x : name tags_t) (args : F.fs (E.t * E.e tags_t))
+      | DInstantiate (C x : name tags_t) (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                      (i : tags_t)                  (* constructor [C]
                                                       with [args] makes [x] *)
-      | DFunction (f : name tags_t) (signature : E.arrowT)
+      | DFunction (f : name tags_t) (signature : E.arrowT tags_t)
                   (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
@@ -609,11 +651,11 @@ Module P4light.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t)
-      | TPControl (cparams : F.fs E.t)
-                  (params : F.fs (Dir.d * tags_t))
+      | TPControl (cparams : F.fs tags_t (E.t tags_t))
+                  (params : F.fs tags_t (Dir.d * tags_t))
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (cparams : F.fs E.t)
-                 (params : F.fs (Dir.d * E.t)) (i : tags_t) (* TODO! *)
+      | TPParser (cparams : F.fs tags_t (E.t tags_t))
+                 (params : F.fs tags_t (Dir.d * E.t tags_t)) (i : tags_t) (* TODO! *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.

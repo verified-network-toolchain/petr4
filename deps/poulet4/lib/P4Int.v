@@ -79,3 +79,18 @@ Section IntEquivDec.
       try (right; intros [? ?]; contradiction).
   Defined.
 End IntEquivDec.
+
+Module P4IntArithmetic.
+  Section Arithmetic.
+    Context {tags_t : Type}.
+
+    Definition eq_width (n1 n2 : t tags_t) : Prop := width_signed n1 = width_signed n2.
+
+    (** Assumes [width n1 = width n2]. *)
+    Definition add_p4int_assume (n1 n2 : t tags_t) : t tags_t :=
+      {| tags := tags n1;
+         value := value n1 + value n2;
+         width_signed := width_signed n1 |}.
+    (**[]*)
+  End Arithmetic.
+End P4IntArithmetic.

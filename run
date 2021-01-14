@@ -1,3 +1,3 @@
 #!/bin/bash
 dune build 
-./_build/default/bin/main.exe typecheck ../drop/basic.p4 -I ../drop/includes -exportp4 -json -pretty
+./_build/default/bin/main.exe typecheck ../drop/basic.p4 -I ../drop/includes -exportp4

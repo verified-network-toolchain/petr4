@@ -169,17 +169,17 @@ let rec print_type p (typ : coq_P4Type) =
           print_type ret_type
 and print_field_type p field =
   let MkFieldType (s, typ) = field in
-      fprintf p "(@[<hov 0>(MkFieldType %a@ %a)@]"
+      fprintf p "@[<hov 0>(MkFieldType %a@ %a)@]"
           p4string s
           print_type typ
 and print_control_type p ctrl =
   let MkControlType (typ_params, params) = ctrl in
-      fprintf p "(@[<hov 0>(MkControlType %a@ %a)@]"
+      fprintf p "@[<hov 0>(MkControlType %a@ %a)@]"
           p4strings typ_params
           (print_list print_param) params
 and print_function_type p func =
   let MkFunctionType (typ_params, params, func_kind, ret_typ) = func in
-      fprintf p "(@[<hov 0>(MkFunctionType %a@ %a@ %a@ %a)@]"
+      fprintf p "@[<hov 0>(MkFunctionType %a@ %a@ %a@ %a)@]"
           p4strings typ_params
           (print_list print_param) params
           print_function_kind func_kind
@@ -204,7 +204,7 @@ let print_stmt_type p (typ : coq_StmType) =
 let rec print_expr p (expr : coq_Expression) =
   match expr with
   | MkExpression (info, pre_expr, typ, dir) ->
-      fprintf p "(@[<hov 4>(MkExpression %a@ %a@ %a@ %a)@]"
+      fprintf p "@[<hov 4>(MkExpression %a@ %a@ %a@ %a)@]"
           print_info info
           print_pre_expr pre_expr
           print_type typ

@@ -29,7 +29,7 @@ Section Environment.
   Definition loc := nat.
   Definition scope := MStr.t loc.
   Definition stack := list scope.
-  Definition heap := MNat.t (Value tags_t).
+  Definition heap := MNat.t (@Value tags_t).
 
   Record environment := MkEnvironment {
     env_fresh: loc;
@@ -103,27 +103,27 @@ Section Environment.
       end.
 
   (* TODO handle name resolution properly *)
-  Definition str_of_name_warning_not_safe (t: Typed.name tags_t) : String.t :=
+  Definition str_of_name_warning_not_safe (t: @Typed.name tags_t) : String.t :=
     match t with 
-    | Typed.BareName _ s
-    | Typed.QualifiedName _ _ s => s.(P4String.str)
+    | Typed.BareName s
+    | Typed.QualifiedName _ s => s.(P4String.str)
     end.
 
-  Definition heap_lookup (l: loc) : env_monad (Value tags_t) :=
+  Definition heap_lookup (l: loc) : env_monad (@Value tags_t) :=
     fun env =>
       match MNat.find l (env_heap env) with
       | None => state_fail Internal env
       | Some val => mret val env
       end.
 
-  Definition heap_update (l: loc) (v: Value tags_t) : env_monad unit :=
+  Definition heap_update (l: loc) (v: @Value tags_t) : env_monad unit :=
     fun env => mret tt {|
       env_fresh := env_fresh env;
       env_stack := env_stack env;
       env_heap := MNat.add l v (env_heap env);
     |}.
 
-  Definition heap_insert (v: Value tags_t) : env_monad loc :=
+  Definition heap_insert (v: @Value tags_t) : env_monad loc :=
     fun env =>
       let l := env_fresh env in
       mret l {|
@@ -132,28 +132,29 @@ Section Environment.
         env_heap := MNat.add l v (env_heap env);
       |}.
 
-  Definition env_insert (name: String.t) (v: Value tags_t) : env_monad unit :=
+  Definition env_insert (name: String.t) (v: @Value tags_t) : env_monad unit :=
     let* l := heap_insert v in
     stack_insert name l.
 
-  Definition env_lookup (lvalue: ValueLvalue tags_t) : env_monad (Value tags_t).
+  Definition env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t).
   Admitted.
 
-  Definition env_update (lvalue: ValueLvalue tags_t) (value: Value tags_t) : env_monad unit.
+  Definition env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit.
   Admitted.
 
-  Definition toss_value (original: env_monad (Value tags_t)) : env_monad unit :=
+  Definition toss_value (original: env_monad (@Value tags_t)) : env_monad unit :=
     fun env =>
       match original env with
       | (inl result, env') => mret tt env'
       | (inr exc, env') => state_fail exc env'
       end.
 
-  Definition dummy_value (original: env_monad unit) : env_monad (Value tags_t) :=
+  Definition dummy_value (original: env_monad unit) : env_monad (@Value tags_t) :=
     fun env =>
       match original env with
-      | (inl tt, env') => mret (ValBase _ (ValBaseNull _)) env'
+      | (inl tt, env') => mret (ValBase ValBaseNull) env'
       | (inr exc, env') => state_fail exc env'
       end.
 
 End Environment.
+

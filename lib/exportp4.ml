@@ -3,11 +3,11 @@ open Prog
 open Format
 
 let print_bool p b =
-  match b with
-  | true ->
-      fprintf p "true"
-  | false ->
-      fprintf p "false"
+  let s = 
+    match b with
+    | true -> "true"
+    | false -> "false"
+  in fprintf p "%s" s
 
 let print_string p s =
   fprintf p "%s" s
@@ -17,8 +17,8 @@ let print_pair f1 f2 p (a, b) =
 
 let print_option f p a =
   match a with
-  | Some a -> () (* failwith "unimplemented" *)
-  | None -> () (* failwith "unimplemented" *)
+  | Some a -> fprintf p "@[<hov 4>(Some@ %a)@]" f a
+  | None -> fprintf p "@[<hov 4>None@]"
 
 let rec print_list_aux f p l =
   match l with
@@ -33,8 +33,7 @@ let print_list f p l =
       fprintf p "@[<hov 1>[%a%a]@]" f hd (print_list_aux f) tl
 
 let print_nat p n =
-  ()
-  (* failwith "unimplemented" *)
+  fprintf p "%d" n
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
@@ -47,23 +46,155 @@ let p4strings =
   print_list p4string
 
 let print_direction p dir =
-  ()
-  (* failwith "unimplemented" *)
+  let s = 
+    match dir with
+    | In -> "In" 
+    | Out -> "Out"
+    | InOut -> "InOut"
+    | Directionless -> "Directionless"
+  in fprintf p "%s" s
 
 let print_name p (name : Info.t Poulet4.Typed.name) =
   match name with
   | BareName s ->
       fprintf p "@[<hov 4>(BareName %a)@]"
           p4string s
-  | _ -> failwith "unimplemented"
+  | QualifiedName (namespaces, s) -> failwith "QualifiedName unimplemented in print_name"
 
-let print_type p (typ : coq_P4Type) =
+let print_function_kind p func_kind =
+  let s = 
+    match func_kind with
+    | FunParser -> "FunParser"
+    | FunControl -> "FunControl"
+    | FunExtern -> "FunExtern"
+    | FunTable -> "FunTable"
+    | FunAction -> "FunAction"
+    | FunFunction -> "FunFunction"
+    | FunBuiltin -> "FunBuiltin"
+  in fprintf p "%s" s
+
+let rec print_type p (typ : coq_P4Type) =
   match typ with
+  | TypBool -> 
+      fprintf p "@[<hov 0>(TypBool)@]"
+  | TypString ->
+      fprintf p "@[<hov 0>(TypString)@]"
+  | TypInteger ->
+      fprintf p "@[<hov 0>(TypInteger)@]"
+  | TypInt n ->
+      fprintf p "@[<hov 0>(TypInt@ %a)@]"
+          print_nat n
+  | TypBit n ->
+      fprintf p "@[<hov 0>(TypBit@ %a)@]"
+          print_nat n
+  | TypVarBit n ->
+      fprintf p "@[<hov 0>(TypVarBit@ %a)@]"
+          print_nat n
+  | TypArray (typ, n) ->
+      fprintf p "@[<hov 0>(TypArray@ %a@ %a)@]"
+          print_type typ
+          print_nat n
+  | TypTuple typs ->
+      fprintf p "@[<hov 0>(TypTuple@ %a)@]"
+          (print_list print_type) typs
+  | TypList typs ->
+      fprintf p "@[<hov 0>(TypList@ %a)@]"
+          (print_list print_type) typs
+  | TypRecord fields ->
+      fprintf p "@[<hov 0>(TypRecord@ %a)@]"
+          (print_list print_field_type) fields
+  | TypSet typ ->
+      fprintf p "@[<hov 0>(TypSet@ %a)@]"
+          print_type typ
+  | TypError ->
+      fprintf p "@[<hov 0>(TypError)@]"
+  | TypMatchKind ->
+      fprintf p "@[<hov 0>(TypMatchKind)@]"
+  | TypVoid ->
+      fprintf p "@[<hov 0>(TypVoid)@]"
+  | TypHeader fields ->
+      fprintf p "@[<hov 0>(TypHeader@ %a)@]"
+          (print_list print_field_type) fields
+  | TypHeaderUnion fields ->
+      fprintf p "@[<hov 0>(TypHeaderUnion@ %a)@]"
+          (print_list print_field_type) fields
+  | TypStruct fields ->
+      fprintf p "@[<hov 0>(TypStruct@ %a)@]"
+          (print_list print_field_type) fields
+  | TypEnum (s, typ, members) ->
+      fprintf p "@[<hov 0>(TypEnum@ %a@ %a@ %a)@]"
+          p4string s
+          (print_option print_type) typ
+          p4strings members
   | TypTypeName name ->
-      fprintf p "@[<hov 4>(TypTypeName %a)@]"
+      fprintf p "@[<hov 0>(TypTypeName@ %a)@]"
           print_name name
-  | _ -> ()
-  (* failwith "unimplemented" *)
+  | TypNewType (s, typ) ->
+      fprintf p "@[<hov 0>(TypNewType@ %a@ %a)@]"
+          p4string s
+          print_type typ
+  | TypControl ctrl ->
+      fprintf p "@[<hov 0>(TypControl@ %a)@]"
+          print_control_type ctrl
+  | TypParser ctrl ->
+      fprintf p "@[<hov 0>(TypParser@ %a)@]"
+          print_control_type ctrl
+  | TypExtern s ->
+      fprintf p "@[<hov 0>(TypExtern@ %a)@]"
+          p4string s
+  | TypFunction func ->
+      fprintf p "@[<hov 0>(TypFunction@ %a)@]"
+          print_function_type func
+  | TypAction (data_params, ctrl_params) ->
+      fprintf p "@[<hov 0>(TypAction@ %a@ %a)@]"
+          (print_list print_param) data_params
+          (print_list print_param) ctrl_params
+  | TypTable s ->
+      fprintf p "@[<hov 0>(TypTable@ %a)@]"
+          p4string s
+  | TypPackage (typ_params, wildcard_params, params) ->
+      fprintf p "@[<hov 0>(TypPackage@ %a@ %a@ %a)@]"
+          p4strings typ_params
+          p4strings wildcard_params
+          (print_list print_param) params
+  | TypSpecializedType (base, args) ->
+      fprintf p "@[<hov 0>(TypSpecializedType@ %a@ %a)@]"
+          print_type base
+          (print_list print_type) args
+  | TypConstructor (typ_params, wildcard_params, params, ret_type) ->
+      fprintf p "@[<hov 0>(TypConstructor@ %a@ %a@ %a@ %a)@]"
+          p4strings typ_params
+          p4strings wildcard_params
+          (print_list print_param) params
+          print_type ret_type
+and print_field_type p field =
+  let MkFieldType (s, typ) = field in
+      fprintf p "(@[<hov 0>(MkFieldType %a@ %a)@]"
+          p4string s
+          print_type typ
+and print_control_type p ctrl =
+  let MkControlType (typ_params, params) = ctrl in
+      fprintf p "(@[<hov 0>(MkControlType %a@ %a)@]"
+          p4strings typ_params
+          (print_list print_param) params
+and print_function_type p func =
+  let MkFunctionType (typ_params, params, func_kind, ret_typ) = func in
+      fprintf p "(@[<hov 0>(MkFunctionType %a@ %a@ %a@ %a)@]"
+          p4strings typ_params
+          (print_list print_param) params
+          print_function_kind func_kind
+          print_type ret_typ
+and print_param p param =
+  let MkParameter (opt, direction, typ, default_arg_id, variable) = param in
+      fprintf p "@[<hov 4>(MkParameter %a@ %a@ %a@ %a@ %a)@]"
+          print_bool opt
+          print_direction direction
+          print_type typ
+          (print_option print_nat) default_arg_id
+          p4string variable
+
+let print_params =
+  print_list print_param
 
 let print_stmt_type p (typ : coq_StmType) =
   match typ with
@@ -121,20 +252,6 @@ and print_block p (block : coq_Block) =
           print_stmt stmt
           print_block block
 
-let print_param p param =
-  match param with
-  (* | (info, Poulet4.Typed.MkParameter (opt, direction, typ, default_arg_id, variable)) -> *)
-  | Poulet4.Typed.MkParameter (opt, direction, typ, default_arg_id, variable) ->
-      fprintf p "@[<hov 4>(MkParameter %a@ %a@ %a@ %a@ %a)@]"
-          print_bool opt
-          print_direction direction
-          print_type typ
-          (print_option print_nat) default_arg_id
-          p4string variable
-  (* failwith "unimplemented" *)
-
-let print_params =
-  print_list print_param
 
 let print_state p state =
   ()
@@ -223,7 +340,10 @@ let print_global_decl p (decl : coq_Declaration) : string =
       decl_name
   | DeclError (info, decls) ->
       let decl_name = get_decl_name () in
-      fprintf p "@[<hov 4>Definition %s := %a.@]@ @ " decl_name p4strings decls;
+      fprintf p "@[<hov 4>Definition %s := DeclError %a@ %a.@]@ @ "
+          decl_name
+          print_info info
+          p4strings decls;
       decl_name
   | _ -> print_dummy_decl p ()
 

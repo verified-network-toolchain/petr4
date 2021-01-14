@@ -198,8 +198,8 @@ let print_params =
 
 let print_stmt_type p (typ : coq_StmType) =
   match typ with
-  | _ -> ()
-  (* failwith "unimplemented" *)
+  | StmUnit -> fprintf p "StmUnit"
+  | StmVoid -> fprintf p "StmVoid"
 
 let rec print_expr p (expr : coq_Expression) =
   match expr with
@@ -292,7 +292,7 @@ let get_decl_name =
 let print_global_decl p (decl : coq_Declaration) : string =
   let print_dummy_decl p () =
     let decl_name = get_decl_name () in
-    fprintf p "Axiom %s : Declaration unit.@ @ " decl_name;
+    fprintf p "Axiom %s : @Declaration unit.@ @ " decl_name;
     decl_name
   in
   match decl with

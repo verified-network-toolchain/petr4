@@ -19,17 +19,17 @@ Definition decl1 := DeclError tt
      {| tags := tt; str := "ParserTimeout" |};
      {| tags := tt; str := "ParserInvalidArgument" |}].
 
-Axiom decl2 : Declaration unit.
+Axiom decl2 : @Declaration unit.
 
-Axiom decl3 : Declaration unit.
+Axiom decl3 : @Declaration unit.
 
-Axiom decl4 : Declaration unit.
+Axiom decl4 : @Declaration unit.
 
-Axiom decl5 : Declaration unit.
+Axiom decl5 : @Declaration unit.
 
-Axiom decl6 : Declaration unit.
+Axiom decl6 : @Declaration unit.
 
-Axiom decl7 : Declaration unit.
+Axiom decl7 : @Declaration unit.
 
 Definition standard_metadata_t := DeclStruct tt
     {| tags := tt; str := "standard_metadata_t" |}
@@ -64,75 +64,75 @@ Definition standard_metadata_t := DeclStruct tt
          {| tags := tt; str := "parser_error" |});
      (MkDeclarationField tt (TypBit 3) {| tags := tt; str := "priority" |})].
 
-Axiom decl8 : Declaration unit.
+Axiom decl8 : @Declaration unit.
 
-Axiom decl9 : Declaration unit.
+Axiom decl9 : @Declaration unit.
 
-Axiom decl10 : Declaration unit.
+Axiom decl10 : @Declaration unit.
 
-Axiom decl11 : Declaration unit.
+Axiom decl11 : @Declaration unit.
 
-Axiom decl12 : Declaration unit.
+Axiom decl12 : @Declaration unit.
 
-Axiom decl13 : Declaration unit.
+Axiom decl13 : @Declaration unit.
 
-Axiom decl14 : Declaration unit.
+Axiom decl14 : @Declaration unit.
 
-Axiom decl15 : Declaration unit.
+Axiom decl15 : @Declaration unit.
 
-Axiom decl16 : Declaration unit.
+Axiom decl16 : @Declaration unit.
 
-Axiom decl17 : Declaration unit.
+Axiom decl17 : @Declaration unit.
 
-Axiom decl18 : Declaration unit.
+Axiom decl18 : @Declaration unit.
 
-Axiom decl19 : Declaration unit.
+Axiom decl19 : @Declaration unit.
 
-Axiom decl20 : Declaration unit.
+Axiom decl20 : @Declaration unit.
 
-Axiom decl21 : Declaration unit.
+Axiom decl21 : @Declaration unit.
 
-Axiom decl22 : Declaration unit.
+Axiom decl22 : @Declaration unit.
 
-Axiom decl23 : Declaration unit.
+Axiom decl23 : @Declaration unit.
 
-Axiom decl24 : Declaration unit.
+Axiom decl24 : @Declaration unit.
 
-Axiom decl25 : Declaration unit.
+Axiom decl25 : @Declaration unit.
 
-Axiom decl26 : Declaration unit.
+Axiom decl26 : @Declaration unit.
 
-Axiom decl27 : Declaration unit.
+Axiom decl27 : @Declaration unit.
 
-Axiom decl28 : Declaration unit.
+Axiom decl28 : @Declaration unit.
 
-Axiom decl29 : Declaration unit.
+Axiom decl29 : @Declaration unit.
 
-Axiom decl30 : Declaration unit.
+Axiom decl30 : @Declaration unit.
 
-Axiom decl31 : Declaration unit.
+Axiom decl31 : @Declaration unit.
 
-Axiom decl32 : Declaration unit.
+Axiom decl32 : @Declaration unit.
 
-Axiom decl33 : Declaration unit.
+Axiom decl33 : @Declaration unit.
 
-Axiom decl34 : Declaration unit.
+Axiom decl34 : @Declaration unit.
 
-Axiom decl35 : Declaration unit.
+Axiom decl35 : @Declaration unit.
 
-Axiom decl36 : Declaration unit.
+Axiom decl36 : @Declaration unit.
 
-Axiom decl37 : Declaration unit.
+Axiom decl37 : @Declaration unit.
 
-Axiom decl38 : Declaration unit.
+Axiom decl38 : @Declaration unit.
 
-Axiom decl39 : Declaration unit.
+Axiom decl39 : @Declaration unit.
 
-Axiom decl40 : Declaration unit.
+Axiom decl40 : @Declaration unit.
 
-Axiom decl41 : Declaration unit.
+Axiom decl41 : @Declaration unit.
 
-Axiom decl42 : Declaration unit.
+Axiom decl42 : @Declaration unit.
 
 Definition metadata := DeclStruct tt {| tags := tt; str := "metadata" |} nil.
 
@@ -185,10 +185,11 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                      str := "standard_metadata" |}))
                (TypTypeName
                (BareName {| tags := tt; str := "standard_metadata_t" |}))
-               InOut))]) ) (BlockEmpty tt)))] (BlockCons (MkStatement tt
+               InOut))]) StmUnit) (BlockEmpty tt)))]
+    (BlockCons (MkStatement tt
     (StatMethodCall ((MkExpression tt
                          (ExpName (BareName {| tags := tt; str := "drop" |}))
-                         (TypAction nil nil) Directionless) nil nil) )
+                         (TypAction nil nil) Directionless) nil nil) StmUnit)
     (BlockEmpty tt)).
 
 Definition MyEgress := DeclControl tt {| tags := tt; str := "MyEgress" |} nil

@@ -501,6 +501,17 @@ Proof.
     exact List.nil.
 Qed.
 
+(* Lemma hoare_extract_expr: 
+    forall out_expr (out_name: string) dir v pkt_value pkt_value' bits b1 b2,
+    out_expr = MkExpression _ tt (ExpName _ (BareName out_name)) (TypInt 2) dir -> 
+    pkt_value = ValObj _ (ValObjPacket _ (b1 :: b2 :: bits)) ->
+    hoare_triple_expression (out_name |-> v &&& ("pkt" |-> pkt_value)
+        build_extract_stmt (TypInt 2) out_expr 
+    (| out_name |-> out_value &&& ("pkt" |-> pkt_value') |) /\
+    pkt_value' = ValObj _ (ValObjPacket _ bits) /\
+    out_value  = ValBase _ (ValBaseInt _ 2 [b1 ; b2]).
+Proof.
+Admitted. *)
 
 Lemma hoare_extract_stmt: 
     forall out_expr (out_name: string) dir v pkt_value pkt_value' bits b1 b2,
@@ -539,13 +550,21 @@ Proof.
     apply hoare_block_nonempty with (inter := pred_env_popped pred_trivial).
     2:{ apply hoare_block_empty. }
 
-    (* At this point, you could run
-    apply hoare_lift_method_call with
+    (* At this point, you could run *)
+    (* apply hoare_lift_method_call with
         (inter := pred_env_pushed pred_good)
         (exprs_pre := pred_trivial :: List.nil)
         (exprs_post := pred_trivial :: List.nil)
-        (inter' := pred_trivial); try easy.
-    *)
+        (inter' := pred_trivial). easy.
+
+    unfold hoare_triple_expression. simpl.
+    intros.
+    unfold pred_good, good_env in *. simpl in *.
+    unfold pred_env_pushed in H. simpl in H.
+    exists . *)
+
+
+   
 
     unfold extract_stmt.
 

@@ -73,4 +73,31 @@ Definition states : list (ParserState tag_t) := start_st :: loop_st :: nil.
 Definition LoopParser : ValueObject tag_t := ValObjParser _ scope nil locals states.
 
 (* Compute LoopParser. *)
-Compute unroll_loop tag_t tt LoopParser loop_st.
+(* Compute rename_loop tag_t tt LoopParser loop_st. *)
+(* Compute unroll_loop tag_t tt LoopParser loop_st. *)
+
+(* 
+  The loop example should unroll to the following:
+
+parser LoopExample (packet_in pkt, out int<2> output) {
+  int iters;
+  state start {
+    iters = 5;
+    transition loop;
+  }
+  state loop {
+    iters = iters - 1;
+    transition select(iters) {
+      0 : accept;
+      _ : loop';
+    }
+  }
+  state loop' {
+    iters = iters - 1;
+    transition select(iters) {
+      0 : accept;
+      _ : loop';
+    }
+  }
+}
+*)

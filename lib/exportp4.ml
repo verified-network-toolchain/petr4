@@ -678,6 +678,12 @@ let print_decl p (decl : coq_Declaration) =
           print_params data_params
           print_params ctrl_params
           print_block body
+  | DeclVariable (info, typ, name, init) ->
+      fprintf p "(DeclVariable@ %a@ %a@ %a@ %a)"
+          print_info info
+          print_type typ
+          p4string name
+          (print_option print_expr) init
   | _ -> ()
   (* failwith "unimplemented" *)
 
@@ -746,11 +752,24 @@ let print_global_decl p (decl : coq_Declaration) : string =
           print_info info
           p4strings decls;
       decl_name
+  | DeclFunction (info, ret, name, type_params, params, body) ->
+      let decl_name = name.str in
+      fprintf p "@[<hov 4>Definition %s := DeclFunction@ %a@ %a@ %a@ %a@ %a@ %a.@]@ @ "
+          decl_name
+          print_info info
+          print_type ret
+          p4string name
+          p4strings type_params
+          print_params params
+          print_block body;
+      decl_name
+  (*TODO*)
   | _ -> print_dummy_decl p ()
 
 let print_header p =
   fprintf p "Require Import Coq.Lists.List.@ ";
-  fprintf p "Require Import Coq.Numbers.BinNums.@ ";
+  fprintf p "Require Import Coq.NArith.NArith.@ ";
+  fprintf p "Require Import Coq.ZArith.ZArith.@ ";
   fprintf p "Require Import Strings.String.@ @ ";
   fprintf p "Require Import Petr4.P4String.@ ";
   fprintf p "Require Import Petr4.Syntax.@ ";

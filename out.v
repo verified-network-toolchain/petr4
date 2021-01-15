@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
-Require Import Coq.Numbers.BinNums.
+Require Import Coq.NArith.NArith.
+Require Import Coq.ZArith.ZArith.
 Require Import Strings.String.
 
 Require Import Petr4.P4String.

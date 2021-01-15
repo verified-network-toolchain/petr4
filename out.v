@@ -150,8 +150,9 @@ Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
      (MkParameter false InOut
           (TypTypeName
            (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})] nil nil [
-    ].
+          None {| tags := tt; str := "standard_metadata" |})] nil nil
+    [(MkParserState tt {| tags := tt; str := "start" |} nil
+          (ParserDirect tt {| tags := tt; str := "accept" |}))].
 
 Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
     nil
@@ -165,28 +166,40 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
           (TypTypeName
            (BareName {| tags := tt; str := "standard_metadata_t" |})) 
           None {| tags := tt; str := "standard_metadata" |})] nil
-    [(DeclAction tt {| tags := tt; str := "drop" |} nil nil (BlockCons
-     (MkStatement tt (StatMethodCall
-     (MkExpression tt
-          (ExpName (BareName {| tags := tt; str := "mark_to_drop" |}))
-          (TypFunction
-           (MkFunctionType nil
-                [(MkParameter false InOut
-                      (TypTypeName
-                       (BareName
-                        {| tags := tt; str := "standard_metadata_t" |})) 
-                      None {| tags := tt; str := "standard_metadata" |})]
-                FunExtern TypVoid)) Directionless) nil
-     [(Some
-       (MkExpression tt
-            (ExpName (BareName {| tags := tt; str := "standard_metadata" |}))
-            (TypTypeName
-             (BareName {| tags := tt; str := "standard_metadata_t" |}))
-            InOut))]) StmUnit) (BlockEmpty tt)))] (BlockCons (MkStatement tt
-    (StatMethodCall
-    (MkExpression tt (ExpName (BareName {| tags := tt; str := "drop" |}))
-         (TypAction nil nil) Directionless) nil nil) StmUnit) (BlockEmpty
-    tt)).
+    [(DeclAction tt {| tags := tt; str := "drop" |} nil nil
+     (BlockCons
+          (MkStatement tt
+               (StatMethodCall
+                    (MkExpression tt
+                         (ExpName
+                          (BareName {| tags := tt; str := "mark_to_drop" |}))
+                         (TypFunction
+                          (MkFunctionType nil
+                               [(MkParameter false InOut
+                                     (TypTypeName
+                                      (BareName
+                                       {| tags := tt;
+                                          str := "standard_metadata_t" |}))
+                                     None
+                                     {| tags := tt;
+                                        str := "standard_metadata" |})]
+                               FunExtern TypVoid)) Directionless) nil
+                    [(Some
+                      (MkExpression tt
+                           (ExpName
+                            (BareName
+                             {| tags := tt; str := "standard_metadata" |}))
+                           (TypTypeName
+                            (BareName
+                             {| tags := tt; str := "standard_metadata_t" |}))
+                           InOut))]) StmUnit) (BlockEmpty tt)))]
+    (BlockCons
+         (MkStatement tt
+              (StatMethodCall
+                   (MkExpression tt
+                        (ExpName (BareName {| tags := tt; str := "drop" |}))
+                        (TypAction nil nil) Directionless) nil nil) StmUnit)
+         (BlockEmpty tt)).
 
 Definition MyEgress := DeclControl tt {| tags := tt; str := "MyEgress" |} nil
     [(MkParameter false InOut

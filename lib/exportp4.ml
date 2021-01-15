@@ -360,7 +360,7 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_type typ
           (print_list print_expr) args
   | ExpDontCare ->
-    fprintf p "@[<hov 4>ExpDontCare@]"
+    fprintf p "@[<hov 0>ExpDontCare@]"
   | ExpMask (expr, mask) ->
       fprintf p "(@[<hov 4>ExpMask@ %a@ %a)@]"
           print_expr expr
@@ -385,7 +385,7 @@ let print_pre_match p (m: coq_MatchPreT) =
   | MatchDontCare -> 
       fprintf p "@[<hov 0>MatchDontCare@]"
   | MatchExpression expr -> 
-      fprintf p "(@[<hov 0>MatchExpression@ %a@]"
+      fprintf p "(@[<hov 0>MatchExpression@ %a)@]"
           print_expr expr
 
 let print_match p (m: coq_Match) =
@@ -395,6 +395,9 @@ let print_match p (m: coq_Match) =
           print_info info
           print_pre_match expr
           print_type typ
+
+let print_matches =
+  print_list print_match
 
 let print_table_pre_action_ref p (action: coq_TablePreActionRef) =
   match action with
@@ -424,7 +427,7 @@ let print_table_entry p (entry: coq_TableEntry) =
   | MkTableEntry (info, matches, action) ->
       fprintf p "(@[<hov 4>MkTableEntry@ %a@ %a %a@)@]"
           print_info info
-          (print_list print_match) matches
+          print_matches matches
           print_table_action_ref action
   
 let print_table_property p (property: coq_TableProperty) =
@@ -439,7 +442,7 @@ let print_table_property p (property: coq_TableProperty) =
 let rec print_value_base p (value : coq_ValueBase)=
   match value with
   | ValBaseNull ->
-      fprintf p "@[<hov 4>ValBaseNull@]"
+      fprintf p "@[<hov 0>ValBaseNull@]"
   | ValBaseBool b ->
       fprintf p "(@[<hov 0>ValBaseBool@ %a)@]"
           print_bool b
@@ -531,43 +534,132 @@ and print_value_set p (val_set: coq_ValueSet) =
   | ValSetValueSet (size, members, val_sets) ->
       fprintf p "(@[<hov 4>ValSetValueSet@ %a@ %a@ %a)@]" 
           print_value_base size
-          (print_list (print_list print_match)) members
+          (print_list print_matches) members
           (print_list print_value_set) val_sets
 
-let rec print_stmt p (stmt : coq_Statement) =
-  match stmt with
-  | MkStatement (info, pre_stmt, typ) ->
-      fprintf p "(MkStatement@ %a@ %a@ %a)"
+let print_stmt_switch_label p (label: coq_StatementSwitchLabel) =
+  match label with
+  | StatSwLabDefault info -> 
+      fprintf p "(@[<hov 0>StatSwLabDefault@ %a)@]"
           print_info info
-          print_pre_stmt pre_stmt
-          print_stmt_type typ
+  | StatSwLabName (info, s) ->
+      fprintf p "(@[<hov 4>StatSwLabName@ %a@ %a)@]"
+          print_info info
+          p4string s
 
-and print_pre_stmt p pre_stmt =
+let rec print_stmt_switch_case p (case: coq_StatementSwitchCase) =
+  match case with
+  | StatSwCaseAction (info, label, code) ->
+      fprintf p "(@[<hov 4>StatSwCaseAction@ %a@ %a@ %a)@]" 
+          print_info info
+          print_stmt_switch_label label
+          print_block code
+  | StatSwCaseFallThrough (info, label) ->
+      fprintf p "(@[<hov 4>StatSwCaseFallThrough@ %a@ %a)@]" 
+          print_info info
+          print_stmt_switch_label label
+and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
   match pre_stmt with
   | StatMethodCall (func, arg_types, args) ->
-      fprintf p "(StatMethodCall@ %a@ %a@ %a)"
+      fprintf p "(@[<hov 4>StatMethodCall@ %a@ %a@ %a)@]"
           print_expr func
           print_types arg_types
           (print_list (print_option print_expr)) args
-  | _ -> ()
-  (* failwith "unimplemented" *)
-
+  | StatAssignment (lhs, rhs) ->
+      fprintf p "(@[<hov 4>StatAssignment@ %a@ %a)@]"
+          print_expr lhs
+          print_expr rhs
+  | StatDirectApplication (typ, args) ->
+      fprintf p "(@[<hov 4>StatDirectApplication@ %a@ %a)@]"
+          print_type typ
+          print_exprs args
+  | StatConditional (cond, tru, fls) ->
+      fprintf p "(@[<hov 4>StatConditional@ %a@ %a@ %a)@]"
+          print_expr cond
+          print_stmt tru
+          (print_option print_stmt) fls
+  | StatBlock block ->
+      fprintf p "(@[<hov 0>StatBlock@ %a)@]"
+          print_block block
+  | StatExit -> 
+      fprintf p "@[<hov 0>StatExit@]"
+  | StatEmpty -> 
+      fprintf p "@[<hov 0>StatEmpty@]"
+  | StatReturn expr ->
+      fprintf p "(@[<hov 0>StatReturn@ %a)@]"
+          (print_option print_expr) expr
+  | StatSwitch (expr, cases) -> 
+      fprintf p "(@[<hov 4>StatSwitch@ %a@ %a)@]"
+          print_expr expr
+          (print_list print_stmt_switch_case) cases
+  | StatConstant (typ, s, value) ->
+      fprintf p "(@[<hov 4>StatConstant@ %a@ %a@ %a)@]"
+          print_type typ
+          p4string s
+          print_value_base value
+  | StatVariable (typ, s, init) -> 
+      fprintf p "(@[<hov 4>StatVariable@ %a@ %a@ %a)@]"
+          print_type typ
+          p4string s
+          (print_option print_expr) init
+  | StatInstantiation (typ, args, s, init) ->
+      fprintf p "(@[<hov 4>StatInstantiation@ %a@ %a@ %a@ %a)@]"
+          print_type typ
+          print_exprs args
+          p4string s
+          (print_option print_block) init
+and print_stmt p (stmt : coq_Statement) =
+  match stmt with
+  | MkStatement (info, pre_stmt, typ) ->
+      fprintf p "(@[<hov 4>MkStatement@ %a@ %a@ %a)@]"
+          print_info info
+          print_pre_stmt pre_stmt
+          print_stmt_type typ
 and print_block p (block : coq_Block) =
   match block with
   | BlockEmpty info ->
-      fprintf p "(BlockEmpty@ %a)" print_info info
+      fprintf p "(@[<hov 0>BlockEmpty@ %a)@]" 
+          print_info info
   | BlockCons (stmt, block) ->
-      fprintf p "(BlockCons@ %a@ %a)"
+      fprintf p "(@[<hov 4>BlockCons@ %a@ %a)@]"
           print_stmt stmt
           print_block block
 
+let print_stmts = 
+  print_list print_stmt
 
-let print_state p state =
-  ()
-  (* failwith "unimplemented" *)
+let print_parser_case p (case: coq_ParserCase) =
+  match case with
+  | MkParserCase (info, matches, next) ->
+      fprintf p "(@[<hov 4>MkParserCase@ %a@ %a@ %a)@]"
+          print_info info
+          print_matches matches
+          p4string next
+  
+let print_parser_transition p (transition: coq_ParserTransition) =
+  match transition with
+  | ParserDirect (info, next) ->
+      fprintf p "(@[<hov 4>ParserDirect@ %a@ %a)@]"
+          print_info info
+          p4string next
+  | ParserSelect (info, exprs, cases) ->
+      fprintf p "(@[<hov 4>ParserSelect@ %a@ %a@ %a)@]"
+          print_info info
+          print_exprs exprs
+          (print_list print_parser_case) cases
 
-let print_states =
-  print_list print_state
+
+let print_parser_state p (state: coq_ParserState) =
+  match state with
+  | MkParserState (info, s, stmts, transition) ->
+      fprintf p "(@[<hov 4>MkParserState@ %a@ %a@ %a@ %a)@]"
+          print_info info
+          p4string s
+          print_stmts stmts
+          print_parser_transition transition
+
+let print_parser_states =
+  print_list print_parser_state
 
 let print_decl_field p (decl_field : coq_DeclarationField) =
   match decl_field with
@@ -625,7 +717,7 @@ let print_global_decl p (decl : coq_Declaration) : string =
           print_params params
           print_params constructor_params
           print_decls locals
-          print_states states;
+          print_parser_states states;
       decl_name
   | DeclControl (info, name, type_params, params, constructor_params, locals, apply) ->
       let decl_name = name.str in

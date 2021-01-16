@@ -960,15 +960,17 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
 let print_decls =
   print_list (print_decl None)
 
-let get_decl_name =
+let gen_decl_name =
   let cnt = ref 0 in
-  fun () ->
+  fun (existing: string list) ->
     cnt := !cnt + 1;
+    while List.mem ("decl" ^ string_of_int !cnt) existing do
+      cnt := !cnt + 1;
+    done;
     "decl" ^ string_of_int !cnt
 
-let print_top_decl  p (decl : coq_Declaration): string =
-  let decl_name = 
-    match decl with
+let get_decl_name (decl: coq_Declaration): string option =
+  match decl with
     | DeclConstant (_, _, name, _)
     | DeclInstantiation (_, _, _, name, _)
     | DeclParser (_, name, _, _, _, _, _)
@@ -989,11 +991,18 @@ let print_top_decl  p (decl : coq_Declaration): string =
     | DeclNewType (_, name, _)
     | DeclControlType (_, name, _, _)
     | DeclParserType (_, name, _, _)
-    | DeclPackageType (_, name, _, _) -> 
-      name.str
+    | DeclPackageType (_, name, _, _) -> Some name.str
     | DeclError (_, _)
-    | DeclMatchKind (_, _) ->
-      get_decl_name ()
+    | DeclMatchKind (_, _) -> None
+
+let collect_decl_names (program : Prog.program): string list =
+  List.filter_map Fun.id (List.map get_decl_name program)
+
+let print_top_decl p (existing: string list) (decl : coq_Declaration): string =
+  let decl_name = 
+    match get_decl_name decl with
+    | Some name -> name
+    | None -> gen_decl_name existing
   in 
     print_decl (Some decl_name) p decl;
     decl_name
@@ -1146,14 +1155,15 @@ let print_header p =
   fprintf p "Require Import Petr4.Typed.@ @ ";
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ ";
-  fprintf p "Notation stags := P4String.tags.@ @ ";
+  fprintf p "Notation stags := P4String.tags.@ ";
   fprintf p "Notation itags := P4Int.tags.@ @ "
 
 
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";
   print_header p;
-  let decl_names = List.map (print_top_decl p) program in
+  let existing = collect_decl_names program in
+  let decl_names = List.map (print_top_decl p existing) program in
   let prog_name = Some "program" in
   let (f_str, prog_name) = (gen_format_string prog_name "%a")
   in fprintf p f_str

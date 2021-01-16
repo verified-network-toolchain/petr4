@@ -669,26 +669,278 @@ let print_decl_field p (decl_field : coq_DeclarationField) =
           print_type typ
           p4string name
 
-let print_decl p (decl : coq_Declaration) =
+let gen_format_string decl_name content = 
+  match decl_name with
+    | Some decl_name ->
+        ("@[<hov 4>Definition %s := " ^^ content ^^ ".@]@ @ ", decl_name)
+    | None -> 
+        ("(@[<hov 4>%s" ^^ content ^^ ")@]", "")
+
+let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
+  (* let print_dummy_decl decl_name p =
+    fprintf p "Axiom %s : @Declaration unit.@ @ " decl_name
+  in  *)
   match decl with
+  | DeclConstant (info, typ, name, value) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclConstant@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          print_type typ
+          p4string name
+          print_value_base value
+  | DeclInstantiation (info, typ, args, name, init) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclInstantiation@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          print_type typ
+          print_exprs args
+          p4string name
+          (print_option print_block) init
+  | DeclParser (info, name, type_params, params, constructor_params, locals, states) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclParser@ %a@ %a@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          p4strings type_params
+          print_params params
+          print_params constructor_params
+          (print_list (print_decl None)) locals
+          print_parser_states states
+  | DeclControl (info, name, type_params, params, constructor_params, locals, apply) ->
+      let (f_str, decl_name) =  
+        (gen_format_string decl_name "DeclControl@ %a@ %a@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          p4strings type_params
+          print_params params
+          print_params constructor_params
+          (print_list (print_decl None)) locals
+          print_block apply
+  | DeclFunction (info, ret_type, name, type_params, params, body) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclFunction@ %a@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          print_type ret_type
+          p4string name
+          p4strings type_params
+          print_params params
+          print_block body
+  | DeclExternFunction (info, ret_type, name, type_params, params) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclExternFunction@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          print_type ret_type
+          p4string name
+          p4strings type_params
+          print_params params
+  | DeclVariable (info, typ, name, init) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclVariable@ %a@ %a@ %a@ %a")
+      in fprintf p f_str
+          decl_name
+          print_info info
+          print_type typ
+          p4string name
+          (print_option print_expr) init
+  | DeclValueSet (info, typ, size, name) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclValueSet@ %a@ %a@ %a@ %a")
+      in fprintf p f_str
+          decl_name
+          print_info info
+          print_type typ
+          print_expr size
+          p4string name
   | DeclAction (info, name, data_params, ctrl_params, body) ->
-      fprintf p "(DeclAction@ %a@ %a@ %a@ %a@ %a)"
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclAction@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
           print_info info
           p4string name
           print_params data_params
           print_params ctrl_params
           print_block body
-  | DeclVariable (info, typ, name, init) ->
-      fprintf p "(DeclVariable@ %a@ %a@ %a@ %a)"
+  | DeclTable (info, name, keys, actions, entries, 
+              default_action, size, custom_properties) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclTable@ %a@ %a@ %a@ %a@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          (print_list print_table_key) keys
+          (print_list print_table_action_ref) actions
+          (print_option (print_list print_table_entry)) entries
+          (print_option print_table_action_ref) default_action
+          (print_option p4int) size
+          (print_list print_table_property) custom_properties
+  | DeclHeader (info, name, fields) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclHeader@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          (print_list print_decl_field) fields
+  | DeclHeaderUnion (info, name, fields) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclHeaderUnion@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          (print_list print_decl_field) fields
+  | DeclStruct (info, name, fields) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclStruct@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          (print_list print_decl_field) fields
+  | DeclError (info, members) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclError@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4strings members
+  | DeclMatchKind (info, members) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclMatchKind@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4strings members
+  | DeclEnum (info, name, members) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclEnum@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          p4strings members
+  | DeclSerializableEnum (info, typ, name, members) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclSerializableEnum@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
           print_info info
           print_type typ
           p4string name
-          (print_option print_expr) init
-  | _ -> ()
-  (* failwith "unimplemented" *)
-
-let print_decls =
-  print_list print_decl
+          (print_list (print_pair p4string print_expr)) members
+  | DeclExternObject (info, name, type_params, methods) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclExternObject@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+          p4string name
+          p4strings type_params
+          (print_list print_method_prototype) methods
+  | DeclTypeDef (info, name, typ_or_decl) ->
+    begin
+      match typ_or_decl with
+      | Coq_inl typ ->
+        let (f_str, decl_name) = 
+          (gen_format_string decl_name "DeclTypeDef@ %a@ %a@ %a")
+        in
+        fprintf p f_str
+            decl_name
+            print_info info
+            p4string name
+            print_type typ
+      | Coq_inr decl ->
+        let (f_str, decl_name) = 
+          (gen_format_string decl_name "DeclTypeDef@ %a@ %a@ %a")
+        in
+        fprintf p f_str
+            decl_name
+            print_info info
+            p4string name
+            (print_decl None) decl
+    end
+  | DeclNewType (info, name, typ_or_decl) ->
+    begin
+      match typ_or_decl with
+      | Coq_inl typ ->
+        let (f_str, decl_name) = 
+          (gen_format_string decl_name "DeclNewType@ %a@ %a@ %a")
+        in
+        fprintf p f_str
+            decl_name
+            print_info info
+            p4string name
+            print_type typ
+      | Coq_inr decl ->
+        let (f_str, decl_name) = 
+          (gen_format_string decl_name "DeclNewType@ %a@ %a@ %a")
+        in
+        fprintf p f_str
+            decl_name
+            print_info info
+            p4string name
+            (print_decl None) decl
+    end
+  | DeclControlType (info, name, type_params, params) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclControlType@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+            p4string name
+            p4strings type_params
+            print_params params
+  | DeclParserType (info, name, type_params, params) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclParserType@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+            p4string name
+            p4strings type_params
+            print_params params
+  | DeclPackageType (info, name, type_params, params) ->
+      let (f_str, decl_name) = 
+        (gen_format_string decl_name "DeclPackageType@ %a@ %a@ %a@ %a")
+      in
+      fprintf p f_str
+          decl_name
+          print_info info
+            p4string name
+            p4strings type_params
+            print_params params
 
 let get_decl_name =
   let cnt = ref 0 in
@@ -696,75 +948,40 @@ let get_decl_name =
     cnt := !cnt + 1;
     "decl" ^ string_of_int !cnt
 
-let print_global_decl p (decl : coq_Declaration) : string =
-  let print_dummy_decl p () =
-    let decl_name = get_decl_name () in
-    fprintf p "Axiom %s : @Declaration unit.@ @ " decl_name;
+let print_top_decl  p (decl : coq_Declaration): string =
+  let decl_name = 
+    match decl with
+    | DeclConstant (_, _, name, _)
+    | DeclInstantiation (_, _, _, name, _)
+    | DeclParser (_, name, _, _, _, _, _)
+    | DeclControl (_, name, _, _, _, _, _)
+    | DeclFunction (_, _, name, _, _, _)
+    | DeclExternFunction (_, _, name, _, _)
+    | DeclVariable (_, _, name, _)
+    | DeclValueSet (_, _, _, name)
+    | DeclAction (_, name, _, _, _)
+    | DeclTable (_, name, _, _, _, _, _, _)
+    | DeclHeader (_, name, _)
+    | DeclHeaderUnion (_, name, _)
+    | DeclStruct (_, name, _)
+    | DeclEnum (_, name, _)
+    | DeclSerializableEnum (_, _, name, _)
+    | DeclExternObject (_, name, _, _)
+    | DeclTypeDef (_, name, _)
+    | DeclNewType (_, name, _)
+    | DeclControlType (_, name, _, _)
+    | DeclParserType (_, name, _, _)
+    | DeclPackageType (_, name, _, _) -> 
+      name.str
+    | DeclError (_, _)
+    | DeclMatchKind (_, _) ->
+      get_decl_name ()
+  in 
+    print_decl (Some decl_name) p decl;
     decl_name
-  in
-  match decl with
-  | DeclInstantiation (info, typ, args, name, init) ->
-      let decl_name = name.str in
-      fprintf p "@[<hov 4>Definition %s := DeclInstantiation@ %a@ %a@ %a@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          print_type typ
-          print_exprs args
-          p4string name
-          (print_option print_block) init;
-      decl_name
-  | DeclParser (info, name, type_params, params, constructor_params, locals, states) ->
-      let decl_name = name.str in
-      fprintf p "@[<hov 4>Definition %s := DeclParser@ %a@ %a@ %a@ %a@ %a@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          p4string name
-          p4strings type_params
-          print_params params
-          print_params constructor_params
-          print_decls locals
-          print_parser_states states;
-      decl_name
-  | DeclControl (info, name, type_params, params, constructor_params, locals, apply) ->
-      let decl_name = name.str in
-      fprintf p "@[<hov 4>Definition %s := DeclControl@ %a@ %a@ %a@ %a@ %a@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          p4string name
-          p4strings type_params
-          print_params params
-          print_params constructor_params
-          print_decls locals
-          print_block apply;
-      decl_name
-  | DeclStruct (info, name, fields) ->
-      let decl_name = name.str in
-      fprintf p "@[<hov 4>Definition %s := DeclStruct@ %a@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          p4string name
-          (print_list print_decl_field) fields;
-      decl_name
-  | DeclError (info, decls) ->
-      let decl_name = get_decl_name () in
-      fprintf p "@[<hov 4>Definition %s := DeclError@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          p4strings decls;
-      decl_name
-  | DeclFunction (info, ret, name, type_params, params, body) ->
-      let decl_name = name.str in
-      fprintf p "@[<hov 4>Definition %s := DeclFunction@ %a@ %a@ %a@ %a@ %a@ %a.@]@ @ "
-          decl_name
-          print_info info
-          print_type ret
-          p4string name
-          p4strings type_params
-          print_params params
-          print_block body;
-      decl_name
-  (*TODO*)
-  | _ -> print_dummy_decl p ()
+
+
+
 
 let print_header p =
   fprintf p "Require Import Coq.Lists.List.@ ";
@@ -780,7 +997,9 @@ let print_header p =
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";
   print_header p;
-  let decl_names = List.map (print_global_decl p) program in
-  fprintf p "Definition program :=@ %a."
-    (print_list print_string) decl_names;
-  fprintf p "@]@."
+  let decl_names = List.map (print_top_decl p) program in
+  let prog_name = Some "program" in
+  let (f_str, prog_name) = (gen_format_string prog_name "%a")
+  in fprintf p f_str
+        prog_name
+        (print_list print_string) decl_names

@@ -20,17 +20,50 @@ Definition decl1 := DeclError tt
      {| tags := tt; str := "ParserTimeout" |};
      {| tags := tt; str := "ParserInvalidArgument" |}].
 
-Axiom decl2 : @Declaration unit.
+Definition packet_in := DeclExternObject tt
+    {| tags := tt; str := "packet_in" |} nil
+    [(ProtoMethod tt (TypBit 32) {| tags := tt; str := "length" |} nil nil);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "advance" |} nil
+          [(MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "sizeInBits" |})]);
+     (ProtoMethod tt (TypTypeName (BareName {| tags := tt; str := "T1" |}))
+          {| tags := tt; str := "lookahead" |}
+          [{| tags := tt; str := "T1" |}] nil);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "extract" |}
+          [{| tags := tt; str := "T0" |}]
+          [(MkParameter false Out
+                (TypTypeName (BareName {| tags := tt; str := "T0" |})) 
+                None {| tags := tt; str := "variableSizeHeader" |});
+           (MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "variableFieldSizeInBits" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "extract" |}
+          [{| tags := tt; str := "T" |}]
+          [(MkParameter false Out
+                (TypTypeName (BareName {| tags := tt; str := "T" |})) 
+                None {| tags := tt; str := "hdr" |})])].
 
-Axiom decl3 : @Declaration unit.
+Definition packet_out := DeclExternObject tt
+    {| tags := tt; str := "packet_out" |} nil
+    [(ProtoMethod tt TypVoid {| tags := tt; str := "emit" |}
+          [{| tags := tt; str := "T2" |}]
+          [(MkParameter false In
+                (TypTypeName (BareName {| tags := tt; str := "T2" |})) 
+                None {| tags := tt; str := "hdr" |})])].
 
-Axiom decl4 : @Declaration unit.
+Definition verify := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "verify" |} nil
+    [(MkParameter false In TypBool None {| tags := tt; str := "check" |});
+     (MkParameter false In TypError None {| tags := tt; str := "toSignal" |})].
 
-Axiom decl5 : @Declaration unit.
+Definition NoAction := DeclAction tt {| tags := tt; str := "NoAction" |} nil
+    nil (BlockEmpty tt).
 
-Axiom decl6 : @Declaration unit.
+Definition decl2 := DeclMatchKind tt
+    [{| tags := tt; str := "exact" |}; {| tags := tt; str := "ternary" |};
+     {| tags := tt; str := "lpm" |}].
 
-Axiom decl7 : @Declaration unit.
+Definition decl3 := DeclMatchKind tt
+    [{| tags := tt; str := "range" |}; {| tags := tt; str := "selector" |}].
 
 Definition standard_metadata_t := DeclStruct tt
     {| tags := tt; str := "standard_metadata_t" |}
@@ -64,75 +97,378 @@ Definition standard_metadata_t := DeclStruct tt
      (MkDeclarationField tt TypError {| tags := tt; str := "parser_error" |});
      (MkDeclarationField tt (TypBit 3) {| tags := tt; str := "priority" |})].
 
-Axiom decl8 : @Declaration unit.
+Definition CounterType := DeclEnum tt {| tags := tt; str := "CounterType" |}
+    [{| tags := tt; str := "packets" |}; {| tags := tt; str := "bytes" |};
+     {| tags := tt; str := "packets_and_bytes" |}].
 
-Axiom decl9 : @Declaration unit.
+Definition MeterType := DeclEnum tt {| tags := tt; str := "MeterType" |}
+    [{| tags := tt; str := "packets" |}; {| tags := tt; str := "bytes" |}].
 
-Axiom decl10 : @Declaration unit.
+Definition counter := DeclExternObject tt {| tags := tt; str := "counter" |}
+    nil
+    [(ProtoConstructor tt {| tags := tt; str := "counter" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "size" |});
+           (MkParameter false Directionless
+                (TypTypeName
+                 (BareName {| tags := tt; str := "CounterType" |})) None
+                {| tags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "count" |} nil
+          [(MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "index" |})])].
 
-Axiom decl11 : @Declaration unit.
+Definition direct_counter := DeclExternObject tt
+    {| tags := tt; str := "direct_counter" |} nil
+    [(ProtoConstructor tt {| tags := tt; str := "direct_counter" |}
+          [(MkParameter false Directionless
+                (TypTypeName
+                 (BareName {| tags := tt; str := "CounterType" |})) None
+                {| tags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "count" |} nil nil)].
 
-Axiom decl12 : @Declaration unit.
+Definition meter := DeclExternObject tt {| tags := tt; str := "meter" |} nil
+    [(ProtoConstructor tt {| tags := tt; str := "meter" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "size" |});
+           (MkParameter false Directionless
+                (TypTypeName (BareName {| tags := tt; str := "MeterType" |}))
+                None {| tags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "execute_meter" |}
+          [{| tags := tt; str := "T3" |}]
+          [(MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "index" |});
+           (MkParameter false Out
+                (TypTypeName (BareName {| tags := tt; str := "T3" |})) 
+                None {| tags := tt; str := "result" |})])].
 
-Axiom decl13 : @Declaration unit.
+Definition direct_meter := DeclExternObject tt
+    {| tags := tt; str := "direct_meter" |} [{| tags := tt; str := "T4" |}]
+    [(ProtoConstructor tt {| tags := tt; str := "direct_meter" |}
+          [(MkParameter false Directionless
+                (TypTypeName (BareName {| tags := tt; str := "MeterType" |}))
+                None {| tags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "read" |} nil
+          [(MkParameter false Out
+                (TypTypeName (BareName {| tags := tt; str := "T4" |})) 
+                None {| tags := tt; str := "result" |})])].
 
-Axiom decl14 : @Declaration unit.
+Definition register := DeclExternObject tt
+    {| tags := tt; str := "register" |} [{| tags := tt; str := "T5" |}]
+    [(ProtoConstructor tt {| tags := tt; str := "register" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "size" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "write" |} nil
+          [(MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "index" |});
+           (MkParameter false In
+                (TypTypeName (BareName {| tags := tt; str := "T5" |})) 
+                None {| tags := tt; str := "value" |})]);
+     (ProtoMethod tt TypVoid {| tags := tt; str := "read" |} nil
+          [(MkParameter false Out
+                (TypTypeName (BareName {| tags := tt; str := "T5" |})) 
+                None {| tags := tt; str := "result" |});
+           (MkParameter false In (TypBit 32) None
+                {| tags := tt; str := "index" |})])].
 
-Axiom decl15 : @Declaration unit.
+Definition action_profile := DeclExternObject tt
+    {| tags := tt; str := "action_profile" |} nil
+    [(ProtoConstructor tt {| tags := tt; str := "action_profile" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "size" |})])].
 
-Axiom decl16 : @Declaration unit.
+Definition random := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "random" |} [{| tags := tt; str := "T6" |}]
+    [(MkParameter false Out
+          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
+          {| tags := tt; str := "result" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
+          {| tags := tt; str := "lo" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
+          {| tags := tt; str := "hi" |})].
 
-Axiom decl17 : @Declaration unit.
+Definition digest := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "digest" |} [{| tags := tt; str := "T7" |}]
+    [(MkParameter false In (TypBit 32) None
+          {| tags := tt; str := "receiver" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T7" |})) None
+          {| tags := tt; str := "data" |})].
 
-Axiom decl18 : @Declaration unit.
+Definition HashAlgorithm := DeclEnum tt
+    {| tags := tt; str := "HashAlgorithm" |}
+    [{| tags := tt; str := "crc32" |};
+     {| tags := tt; str := "crc32_custom" |};
+     {| tags := tt; str := "crc16" |};
+     {| tags := tt; str := "crc16_custom" |};
+     {| tags := tt; str := "random" |}; {| tags := tt; str := "identity" |};
+     {| tags := tt; str := "csum16" |}; {| tags := tt; str := "xor16" |}].
 
-Axiom decl19 : @Declaration unit.
+Definition mark_to_drop := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "mark_to_drop" |} nil nil.
 
-Axiom decl20 : @Declaration unit.
+Definition mark_to_drop_2 := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "mark_to_drop" |} nil
+    [(MkParameter false InOut
+          (TypTypeName
+           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
+          None {| tags := tt; str := "standard_metadata" |})].
 
-Axiom decl21 : @Declaration unit.
+Definition hash := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "hash" |}
+    [{| tags := tt; str := "O" |}; {| tags := tt; str := "T8" |};
+     {| tags := tt; str := "D" |}; {| tags := tt; str := "M" |}]
+    [(MkParameter false Out
+          (TypTypeName (BareName {| tags := tt; str := "O" |})) None
+          {| tags := tt; str := "result" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
+          None {| tags := tt; str := "algo" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T8" |})) None
+          {| tags := tt; str := "base" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "D" |})) None
+          {| tags := tt; str := "data" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "M" |})) None
+          {| tags := tt; str := "max" |})].
 
-Axiom decl22 : @Declaration unit.
+Definition action_selector := DeclExternObject tt
+    {| tags := tt; str := "action_selector" |} nil
+    [(ProtoConstructor tt {| tags := tt; str := "action_selector" |}
+          [(MkParameter false Directionless
+                (TypTypeName
+                 (BareName {| tags := tt; str := "HashAlgorithm" |})) 
+                None {| tags := tt; str := "algorithm" |});
+           (MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "size" |});
+           (MkParameter false Directionless (TypBit 32) None
+                {| tags := tt; str := "outputWidth" |})])].
 
-Axiom decl23 : @Declaration unit.
+Definition CloneType := DeclEnum tt {| tags := tt; str := "CloneType" |}
+    [{| tags := tt; str := "I2E" |}; {| tags := tt; str := "E2E" |}].
 
-Axiom decl24 : @Declaration unit.
+Definition Checksum16 := DeclExternObject tt
+    {| tags := tt; str := "Checksum16" |} nil
+    [(ProtoConstructor tt {| tags := tt; str := "Checksum16" |} nil);
+     (ProtoMethod tt (TypBit 16) {| tags := tt; str := "get" |}
+          [{| tags := tt; str := "D9" |}]
+          [(MkParameter false In
+                (TypTypeName (BareName {| tags := tt; str := "D9" |})) 
+                None {| tags := tt; str := "data" |})])].
 
-Axiom decl25 : @Declaration unit.
+Definition verify_checksum := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "verify_checksum" |}
+    [{| tags := tt; str := "T10" |}; {| tags := tt; str := "O11" |}]
+    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T10" |})) None
+          {| tags := tt; str := "data" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "O11" |})) None
+          {| tags := tt; str := "checksum" |});
+     (MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
+          None {| tags := tt; str := "algo" |})].
 
-Axiom decl26 : @Declaration unit.
+Definition update_checksum := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "update_checksum" |}
+    [{| tags := tt; str := "T12" |}; {| tags := tt; str := "O13" |}]
+    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T12" |})) None
+          {| tags := tt; str := "data" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "O13" |})) None
+          {| tags := tt; str := "checksum" |});
+     (MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
+          None {| tags := tt; str := "algo" |})].
 
-Axiom decl27 : @Declaration unit.
+Definition verify_checksum_with_payload := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "verify_checksum_with_payload" |}
+    [{| tags := tt; str := "T14" |}; {| tags := tt; str := "O15" |}]
+    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T14" |})) None
+          {| tags := tt; str := "data" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "O15" |})) None
+          {| tags := tt; str := "checksum" |});
+     (MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
+          None {| tags := tt; str := "algo" |})].
 
-Axiom decl28 : @Declaration unit.
+Definition update_checksum_with_payload := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "update_checksum_with_payload" |}
+    [{| tags := tt; str := "T16" |}; {| tags := tt; str := "O17" |}]
+    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T16" |})) None
+          {| tags := tt; str := "data" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "O17" |})) None
+          {| tags := tt; str := "checksum" |});
+     (MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
+          None {| tags := tt; str := "algo" |})].
 
-Axiom decl29 : @Declaration unit.
+Definition resubmit := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "resubmit" |} [{| tags := tt; str := "T18" |}]
+    [(MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T18" |})) None
+          {| tags := tt; str := "data" |})].
 
-Axiom decl30 : @Declaration unit.
+Definition recirculate := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "recirculate" |} [{| tags := tt; str := "T19" |}]
+    [(MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T19" |})) None
+          {| tags := tt; str := "data" |})].
 
-Axiom decl31 : @Declaration unit.
+Definition clone := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "clone" |} nil
+    [(MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "CloneType" |})) 
+          None {| tags := tt; str := "type" |});
+     (MkParameter false In (TypBit 32) None
+          {| tags := tt; str := "session" |})].
 
-Axiom decl32 : @Declaration unit.
+Definition clone3 := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "clone3" |} [{| tags := tt; str := "T20" |}]
+    [(MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "CloneType" |})) 
+          None {| tags := tt; str := "type" |});
+     (MkParameter false In (TypBit 32) None
+          {| tags := tt; str := "session" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "T20" |})) None
+          {| tags := tt; str := "data" |})].
 
-Axiom decl33 : @Declaration unit.
+Definition truncate := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "truncate" |} nil
+    [(MkParameter false In (TypBit 32) None
+          {| tags := tt; str := "length" |})].
 
-Axiom decl34 : @Declaration unit.
+Definition assert := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "assert" |} nil
+    [(MkParameter false In TypBool None {| tags := tt; str := "check" |})].
 
-Axiom decl35 : @Declaration unit.
+Definition assume := DeclExternFunction tt TypVoid
+    {| tags := tt; str := "assume" |} nil
+    [(MkParameter false In TypBool None {| tags := tt; str := "check" |})].
 
-Axiom decl36 : @Declaration unit.
+Definition Parser := DeclParserType tt {| tags := tt; str := "Parser" |}
+    [{| tags := tt; str := "H" |}; {| tags := tt; str := "M21" |}]
+    [(MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "packet_in" |})) 
+          None {| tags := tt; str := "b" |});
+     (MkParameter false Out
+          (TypTypeName (BareName {| tags := tt; str := "H" |})) None
+          {| tags := tt; str := "parsedHdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "M21" |})) None
+          {| tags := tt; str := "meta" |});
+     (MkParameter false InOut
+          (TypTypeName
+           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
+          None {| tags := tt; str := "standard_metadata" |})].
 
-Axiom decl37 : @Declaration unit.
+Definition VerifyChecksum := DeclControlType tt
+    {| tags := tt; str := "VerifyChecksum" |}
+    [{| tags := tt; str := "H22" |}; {| tags := tt; str := "M23" |}]
+    [(MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "H22" |})) None
+          {| tags := tt; str := "hdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "M23" |})) None
+          {| tags := tt; str := "meta" |})].
 
-Axiom decl38 : @Declaration unit.
+Definition Ingress := DeclControlType tt {| tags := tt; str := "Ingress" |}
+    [{| tags := tt; str := "H24" |}; {| tags := tt; str := "M25" |}]
+    [(MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "H24" |})) None
+          {| tags := tt; str := "hdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "M25" |})) None
+          {| tags := tt; str := "meta" |});
+     (MkParameter false InOut
+          (TypTypeName
+           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
+          None {| tags := tt; str := "standard_metadata" |})].
 
-Axiom decl39 : @Declaration unit.
+Definition Egress := DeclControlType tt {| tags := tt; str := "Egress" |}
+    [{| tags := tt; str := "H26" |}; {| tags := tt; str := "M27" |}]
+    [(MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "H26" |})) None
+          {| tags := tt; str := "hdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "M27" |})) None
+          {| tags := tt; str := "meta" |});
+     (MkParameter false InOut
+          (TypTypeName
+           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
+          None {| tags := tt; str := "standard_metadata" |})].
 
-Axiom decl40 : @Declaration unit.
+Definition ComputeChecksum := DeclControlType tt
+    {| tags := tt; str := "ComputeChecksum" |}
+    [{| tags := tt; str := "H28" |}; {| tags := tt; str := "M29" |}]
+    [(MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "H28" |})) None
+          {| tags := tt; str := "hdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| tags := tt; str := "M29" |})) None
+          {| tags := tt; str := "meta" |})].
 
-Axiom decl41 : @Declaration unit.
+Definition Deparser := DeclControlType tt {| tags := tt; str := "Deparser" |}
+    [{| tags := tt; str := "H30" |}]
+    [(MkParameter false Directionless
+          (TypTypeName (BareName {| tags := tt; str := "packet_out" |})) 
+          None {| tags := tt; str := "b" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| tags := tt; str := "H30" |})) None
+          {| tags := tt; str := "hdr" |})].
 
-Axiom decl42 : @Declaration unit.
+Definition V1Switch := DeclPackageType tt {| tags := tt; str := "V1Switch" |}
+    [{| tags := tt; str := "H31" |}; {| tags := tt; str := "M32" |}]
+    [(MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName (BareName {| tags := tt; str := "Parser" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
+          None {| tags := tt; str := "p" |});
+     (MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName
+                (BareName {| tags := tt; str := "VerifyChecksum" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
+          None {| tags := tt; str := "vr" |});
+     (MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName (BareName {| tags := tt; str := "Ingress" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
+          None {| tags := tt; str := "ig" |});
+     (MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName (BareName {| tags := tt; str := "Egress" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
+          None {| tags := tt; str := "eg" |});
+     (MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName
+                (BareName {| tags := tt; str := "ComputeChecksum" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
+          None {| tags := tt; str := "ck" |});
+     (MkParameter false Directionless
+          (TypSpecializedType
+               (TypTypeName (BareName {| tags := tt; str := "Deparser" |}))
+               [(TypTypeName (BareName {| tags := tt; str := "H31" |}))])
+          None {| tags := tt; str := "dep" |})].
 
 Definition metadata := DeclStruct tt {| tags := tt; str := "metadata" |} nil.
 
@@ -168,32 +504,35 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
            (BareName {| tags := tt; str := "standard_metadata_t" |})) 
           None {| tags := tt; str := "standard_metadata" |})] nil
     [(DeclAction tt {| tags := tt; str := "drop" |} nil nil
-     (BlockCons
-          (MkStatement tt
-               (StatMethodCall
-                    (MkExpression tt
-                         (ExpName
-                          (BareName {| tags := tt; str := "mark_to_drop" |}))
-                         (TypFunction
-                          (MkFunctionType nil
-                               [(MkParameter false InOut
-                                     (TypTypeName
-                                      (BareName
-                                       {| tags := tt;
-                                          str := "standard_metadata_t" |}))
-                                     None
-                                     {| tags := tt;
-                                        str := "standard_metadata" |})]
-                               FunExtern TypVoid)) Directionless) nil
-                    [(Some
-                      (MkExpression tt
-                           (ExpName
-                            (BareName
-                             {| tags := tt; str := "standard_metadata" |}))
-                           (TypTypeName
-                            (BareName
-                             {| tags := tt; str := "standard_metadata_t" |}))
-                           InOut))]) StmUnit) (BlockEmpty tt)))]
+          (BlockCons
+               (MkStatement tt
+                    (StatMethodCall
+                         (MkExpression tt
+                              (ExpName
+                               (BareName
+                                {| tags := tt; str := "mark_to_drop" |}))
+                              (TypFunction
+                               (MkFunctionType nil
+                                    [(MkParameter false InOut
+                                          (TypTypeName
+                                           (BareName
+                                            {| tags := tt;
+                                               str := "standard_metadata_t" |}))
+                                          None
+                                          {| tags := tt;
+                                             str := "standard_metadata" |})]
+                                    FunExtern TypVoid)) Directionless) nil
+                         [(Some
+                           (MkExpression tt
+                                (ExpName
+                                 (BareName
+                                  {| tags := tt;
+                                     str := "standard_metadata" |}))
+                                (TypTypeName
+                                 (BareName
+                                  {| tags := tt;
+                                     str := "standard_metadata_t" |})) InOut))])
+                    StmUnit) (BlockEmpty tt)))]
     (BlockCons
          (MkStatement tt
               (StatMethodCall
@@ -446,11 +785,17 @@ Definition main := DeclInstantiation tt
                       {| tags := tt; str := "hdr" |})])) Directionless)]
     {| tags := tt; str := "main" |} None.
 
-Definition program :=
-[decl1; decl2; decl3; decl4; decl5; decl6; decl7; standard_metadata_t; decl8;
- decl9; decl10; decl11; decl12; decl13; decl14; decl15; decl16; decl17;
- decl18; decl19; decl20; decl21; decl22; decl23; decl24; decl25; decl26;
- decl27; decl28; decl29; decl30; decl31; decl32; decl33; decl34; decl35;
- decl36; decl37; decl38; decl39; decl40; decl41; decl42; metadata; headers;
- MyParser; MyIngress; MyEgress; MyDeparser; MyVerifyChecksum;
- MyComputeChecksum; main].
+Definition program := [decl1; packet_in; packet_out; verify; NoAction; decl2;
+                       decl3; standard_metadata_t; CounterType; MeterType;
+                       counter; direct_counter; meter; direct_meter;
+                       register; action_profile; random; digest;
+                       HashAlgorithm; mark_to_drop; mark_to_drop_2; hash;
+                       action_selector; CloneType; Checksum16;
+                       verify_checksum; update_checksum;
+                       verify_checksum_with_payload;
+                       update_checksum_with_payload; resubmit; recirculate;
+                       clone; clone3; truncate; assert; assume; Parser;
+                       VerifyChecksum; Ingress; Egress; ComputeChecksum;
+                       Deparser; V1Switch; metadata; headers; MyParser;
+                       MyIngress; MyEgress; MyDeparser; MyVerifyChecksum;
+                       MyComputeChecksum; main].

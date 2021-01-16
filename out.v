@@ -4,6 +4,7 @@ Require Import Coq.ZArith.ZArith.
 Require Import Strings.String.
 
 Require Import Petr4.P4String.
+Require Import Petr4.P4Int.
 Require Import Petr4.Syntax.
 Require Import Petr4.Typed.
 
@@ -11,496 +12,512 @@ Open Scope string_scope.
 
 Import ListNotations.
 
+Notation stags := P4String.tags.
+
+Notation itags := P4Int.tags.
+
 Definition decl1 := DeclError tt
-    [{| tags := tt; str := "NoError" |};
-     {| tags := tt; str := "PacketTooShort" |};
-     {| tags := tt; str := "NoMatch" |};
-     {| tags := tt; str := "StackOutOfBounds" |};
-     {| tags := tt; str := "HeaderTooShort" |};
-     {| tags := tt; str := "ParserTimeout" |};
-     {| tags := tt; str := "ParserInvalidArgument" |}].
+    [{| stags := tt; str := "NoError" |};
+     {| stags := tt; str := "PacketTooShort" |};
+     {| stags := tt; str := "NoMatch" |};
+     {| stags := tt; str := "StackOutOfBounds" |};
+     {| stags := tt; str := "HeaderTooShort" |};
+     {| stags := tt; str := "ParserTimeout" |};
+     {| stags := tt; str := "ParserInvalidArgument" |}].
 
 Definition packet_in := DeclExternObject tt
-    {| tags := tt; str := "packet_in" |} nil
-    [(ProtoMethod tt (TypBit 32) {| tags := tt; str := "length" |} nil nil);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "advance" |} nil
+    {| stags := tt; str := "packet_in" |} nil
+    [(ProtoMethod tt (TypBit 32) {| stags := tt; str := "length" |} nil nil);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "advance" |} nil
           [(MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "sizeInBits" |})]);
-     (ProtoMethod tt (TypTypeName (BareName {| tags := tt; str := "T1" |}))
-          {| tags := tt; str := "lookahead" |}
-          [{| tags := tt; str := "T1" |}] nil);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "extract" |}
-          [{| tags := tt; str := "T0" |}]
+                {| stags := tt; str := "sizeInBits" |})]);
+     (ProtoMethod tt (TypTypeName (BareName {| stags := tt; str := "T1" |}))
+          {| stags := tt; str := "lookahead" |}
+          [{| stags := tt; str := "T1" |}] nil);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "extract" |}
+          [{| stags := tt; str := "T0" |}]
           [(MkParameter false Out
-                (TypTypeName (BareName {| tags := tt; str := "T0" |})) 
-                None {| tags := tt; str := "variableSizeHeader" |});
+                (TypTypeName (BareName {| stags := tt; str := "T0" |})) 
+                None {| stags := tt; str := "variableSizeHeader" |});
            (MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "variableFieldSizeInBits" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "extract" |}
-          [{| tags := tt; str := "T" |}]
+                {| stags := tt; str := "variableFieldSizeInBits" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "extract" |}
+          [{| stags := tt; str := "T" |}]
           [(MkParameter false Out
-                (TypTypeName (BareName {| tags := tt; str := "T" |})) 
-                None {| tags := tt; str := "hdr" |})])].
+                (TypTypeName (BareName {| stags := tt; str := "T" |})) 
+                None {| stags := tt; str := "hdr" |})])].
 
 Definition packet_out := DeclExternObject tt
-    {| tags := tt; str := "packet_out" |} nil
-    [(ProtoMethod tt TypVoid {| tags := tt; str := "emit" |}
-          [{| tags := tt; str := "T2" |}]
+    {| stags := tt; str := "packet_out" |} nil
+    [(ProtoMethod tt TypVoid {| stags := tt; str := "emit" |}
+          [{| stags := tt; str := "T2" |}]
           [(MkParameter false In
-                (TypTypeName (BareName {| tags := tt; str := "T2" |})) 
-                None {| tags := tt; str := "hdr" |})])].
+                (TypTypeName (BareName {| stags := tt; str := "T2" |})) 
+                None {| stags := tt; str := "hdr" |})])].
 
 Definition verify := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "verify" |} nil
-    [(MkParameter false In TypBool None {| tags := tt; str := "check" |});
-     (MkParameter false In TypError None {| tags := tt; str := "toSignal" |})].
+    {| stags := tt; str := "verify" |} nil
+    [(MkParameter false In TypBool None {| stags := tt; str := "check" |});
+     (MkParameter false In TypError None
+          {| stags := tt; str := "toSignal" |})].
 
-Definition NoAction := DeclAction tt {| tags := tt; str := "NoAction" |} nil
+Definition NoAction := DeclAction tt {| stags := tt; str := "NoAction" |} nil
     nil (BlockEmpty tt).
 
 Definition decl2 := DeclMatchKind tt
-    [{| tags := tt; str := "exact" |}; {| tags := tt; str := "ternary" |};
-     {| tags := tt; str := "lpm" |}].
+    [{| stags := tt; str := "exact" |}; {| stags := tt; str := "ternary" |};
+     {| stags := tt; str := "lpm" |}].
 
 Definition decl3 := DeclMatchKind tt
-    [{| tags := tt; str := "range" |}; {| tags := tt; str := "selector" |}].
+    [{| stags := tt; str := "range" |}; {| stags := tt; str := "selector" |}].
 
 Definition standard_metadata_t := DeclStruct tt
-    {| tags := tt; str := "standard_metadata_t" |}
+    {| stags := tt; str := "standard_metadata_t" |}
     [(MkDeclarationField tt (TypBit 9)
-          {| tags := tt; str := "ingress_port" |});
+          {| stags := tt; str := "ingress_port" |});
      (MkDeclarationField tt (TypBit 9)
-          {| tags := tt; str := "egress_spec" |});
+          {| stags := tt; str := "egress_spec" |});
      (MkDeclarationField tt (TypBit 9)
-          {| tags := tt; str := "egress_port" |});
+          {| stags := tt; str := "egress_port" |});
      (MkDeclarationField tt (TypBit 32)
-          {| tags := tt; str := "instance_type" |});
+          {| stags := tt; str := "instance_type" |});
      (MkDeclarationField tt (TypBit 32)
-          {| tags := tt; str := "packet_length" |});
+          {| stags := tt; str := "packet_length" |});
      (MkDeclarationField tt (TypBit 32)
-          {| tags := tt; str := "enq_timestamp" |});
+          {| stags := tt; str := "enq_timestamp" |});
      (MkDeclarationField tt (TypBit 19)
-          {| tags := tt; str := "enq_qdepth" |});
+          {| stags := tt; str := "enq_qdepth" |});
      (MkDeclarationField tt (TypBit 32)
-          {| tags := tt; str := "deq_timedelta" |});
+          {| stags := tt; str := "deq_timedelta" |});
      (MkDeclarationField tt (TypBit 19)
-          {| tags := tt; str := "deq_qdepth" |});
+          {| stags := tt; str := "deq_qdepth" |});
      (MkDeclarationField tt (TypBit 48)
-          {| tags := tt; str := "ingress_global_timestamp" |});
+          {| stags := tt; str := "ingress_global_timestamp" |});
      (MkDeclarationField tt (TypBit 48)
-          {| tags := tt; str := "egress_global_timestamp" |});
-     (MkDeclarationField tt (TypBit 16) {| tags := tt; str := "mcast_grp" |});
+          {| stags := tt; str := "egress_global_timestamp" |});
      (MkDeclarationField tt (TypBit 16)
-          {| tags := tt; str := "egress_rid" |});
+          {| stags := tt; str := "mcast_grp" |});
+     (MkDeclarationField tt (TypBit 16)
+          {| stags := tt; str := "egress_rid" |});
      (MkDeclarationField tt (TypBit 1)
-          {| tags := tt; str := "checksum_error" |});
-     (MkDeclarationField tt TypError {| tags := tt; str := "parser_error" |});
-     (MkDeclarationField tt (TypBit 3) {| tags := tt; str := "priority" |})].
+          {| stags := tt; str := "checksum_error" |});
+     (MkDeclarationField tt TypError
+          {| stags := tt; str := "parser_error" |});
+     (MkDeclarationField tt (TypBit 3) {| stags := tt; str := "priority" |})].
 
-Definition CounterType := DeclEnum tt {| tags := tt; str := "CounterType" |}
-    [{| tags := tt; str := "packets" |}; {| tags := tt; str := "bytes" |};
-     {| tags := tt; str := "packets_and_bytes" |}].
+Definition CounterType := DeclEnum tt {| stags := tt; str := "CounterType" |}
+    [{| stags := tt; str := "packets" |}; {| stags := tt; str := "bytes" |};
+     {| stags := tt; str := "packets_and_bytes" |}].
 
-Definition MeterType := DeclEnum tt {| tags := tt; str := "MeterType" |}
-    [{| tags := tt; str := "packets" |}; {| tags := tt; str := "bytes" |}].
+Definition MeterType := DeclEnum tt {| stags := tt; str := "MeterType" |}
+    [{| stags := tt; str := "packets" |}; {| stags := tt; str := "bytes" |}].
 
-Definition counter := DeclExternObject tt {| tags := tt; str := "counter" |}
+Definition counter := DeclExternObject tt {| stags := tt; str := "counter" |}
     nil
-    [(ProtoConstructor tt {| tags := tt; str := "counter" |}
+    [(ProtoConstructor tt {| stags := tt; str := "counter" |}
           [(MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "size" |});
+                {| stags := tt; str := "size" |});
            (MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| tags := tt; str := "CounterType" |})) None
-                {| tags := tt; str := "type" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "count" |} nil
+                 (BareName {| stags := tt; str := "CounterType" |})) 
+                None {| stags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "count" |} nil
           [(MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "index" |})])].
+                {| stags := tt; str := "index" |})])].
 
 Definition direct_counter := DeclExternObject tt
-    {| tags := tt; str := "direct_counter" |} nil
-    [(ProtoConstructor tt {| tags := tt; str := "direct_counter" |}
+    {| stags := tt; str := "direct_counter" |} nil
+    [(ProtoConstructor tt {| stags := tt; str := "direct_counter" |}
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| tags := tt; str := "CounterType" |})) None
-                {| tags := tt; str := "type" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "count" |} nil nil)].
+                 (BareName {| stags := tt; str := "CounterType" |})) 
+                None {| stags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "count" |} nil nil)].
 
-Definition meter := DeclExternObject tt {| tags := tt; str := "meter" |} nil
-    [(ProtoConstructor tt {| tags := tt; str := "meter" |}
+Definition meter := DeclExternObject tt {| stags := tt; str := "meter" |} nil
+    [(ProtoConstructor tt {| stags := tt; str := "meter" |}
           [(MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "size" |});
+                {| stags := tt; str := "size" |});
            (MkParameter false Directionless
-                (TypTypeName (BareName {| tags := tt; str := "MeterType" |}))
-                None {| tags := tt; str := "type" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "execute_meter" |}
-          [{| tags := tt; str := "T3" |}]
+                (TypTypeName
+                 (BareName {| stags := tt; str := "MeterType" |})) None
+                {| stags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "execute_meter" |}
+          [{| stags := tt; str := "T3" |}]
           [(MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "index" |});
+                {| stags := tt; str := "index" |});
            (MkParameter false Out
-                (TypTypeName (BareName {| tags := tt; str := "T3" |})) 
-                None {| tags := tt; str := "result" |})])].
+                (TypTypeName (BareName {| stags := tt; str := "T3" |})) 
+                None {| stags := tt; str := "result" |})])].
 
 Definition direct_meter := DeclExternObject tt
-    {| tags := tt; str := "direct_meter" |} [{| tags := tt; str := "T4" |}]
-    [(ProtoConstructor tt {| tags := tt; str := "direct_meter" |}
-          [(MkParameter false Directionless
-                (TypTypeName (BareName {| tags := tt; str := "MeterType" |}))
-                None {| tags := tt; str := "type" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "read" |} nil
-          [(MkParameter false Out
-                (TypTypeName (BareName {| tags := tt; str := "T4" |})) 
-                None {| tags := tt; str := "result" |})])].
-
-Definition register := DeclExternObject tt
-    {| tags := tt; str := "register" |} [{| tags := tt; str := "T5" |}]
-    [(ProtoConstructor tt {| tags := tt; str := "register" |}
-          [(MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "size" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "write" |} nil
-          [(MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "index" |});
-           (MkParameter false In
-                (TypTypeName (BareName {| tags := tt; str := "T5" |})) 
-                None {| tags := tt; str := "value" |})]);
-     (ProtoMethod tt TypVoid {| tags := tt; str := "read" |} nil
-          [(MkParameter false Out
-                (TypTypeName (BareName {| tags := tt; str := "T5" |})) 
-                None {| tags := tt; str := "result" |});
-           (MkParameter false In (TypBit 32) None
-                {| tags := tt; str := "index" |})])].
-
-Definition action_profile := DeclExternObject tt
-    {| tags := tt; str := "action_profile" |} nil
-    [(ProtoConstructor tt {| tags := tt; str := "action_profile" |}
-          [(MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "size" |})])].
-
-Definition random := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "random" |} [{| tags := tt; str := "T6" |}]
-    [(MkParameter false Out
-          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
-          {| tags := tt; str := "result" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
-          {| tags := tt; str := "lo" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T6" |})) None
-          {| tags := tt; str := "hi" |})].
-
-Definition digest := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "digest" |} [{| tags := tt; str := "T7" |}]
-    [(MkParameter false In (TypBit 32) None
-          {| tags := tt; str := "receiver" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T7" |})) None
-          {| tags := tt; str := "data" |})].
-
-Definition HashAlgorithm := DeclEnum tt
-    {| tags := tt; str := "HashAlgorithm" |}
-    [{| tags := tt; str := "crc32" |};
-     {| tags := tt; str := "crc32_custom" |};
-     {| tags := tt; str := "crc16" |};
-     {| tags := tt; str := "crc16_custom" |};
-     {| tags := tt; str := "random" |}; {| tags := tt; str := "identity" |};
-     {| tags := tt; str := "csum16" |}; {| tags := tt; str := "xor16" |}].
-
-Definition mark_to_drop := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "mark_to_drop" |} nil nil.
-
-Definition mark_to_drop_2 := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "mark_to_drop" |} nil
-    [(MkParameter false InOut
-          (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})].
-
-Definition hash := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "hash" |}
-    [{| tags := tt; str := "O" |}; {| tags := tt; str := "T8" |};
-     {| tags := tt; str := "D" |}; {| tags := tt; str := "M" |}]
-    [(MkParameter false Out
-          (TypTypeName (BareName {| tags := tt; str := "O" |})) None
-          {| tags := tt; str := "result" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
-          None {| tags := tt; str := "algo" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T8" |})) None
-          {| tags := tt; str := "base" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "D" |})) None
-          {| tags := tt; str := "data" |});
-     (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "M" |})) None
-          {| tags := tt; str := "max" |})].
-
-Definition action_selector := DeclExternObject tt
-    {| tags := tt; str := "action_selector" |} nil
-    [(ProtoConstructor tt {| tags := tt; str := "action_selector" |}
+    {| stags := tt; str := "direct_meter" |} [{| stags := tt; str := "T4" |}]
+    [(ProtoConstructor tt {| stags := tt; str := "direct_meter" |}
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| tags := tt; str := "HashAlgorithm" |})) 
-                None {| tags := tt; str := "algorithm" |});
-           (MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "size" |});
-           (MkParameter false Directionless (TypBit 32) None
-                {| tags := tt; str := "outputWidth" |})])].
+                 (BareName {| stags := tt; str := "MeterType" |})) None
+                {| stags := tt; str := "type" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "read" |} nil
+          [(MkParameter false Out
+                (TypTypeName (BareName {| stags := tt; str := "T4" |})) 
+                None {| stags := tt; str := "result" |})])].
 
-Definition CloneType := DeclEnum tt {| tags := tt; str := "CloneType" |}
-    [{| tags := tt; str := "I2E" |}; {| tags := tt; str := "E2E" |}].
+Definition register := DeclExternObject tt
+    {| stags := tt; str := "register" |} [{| stags := tt; str := "T5" |}]
+    [(ProtoConstructor tt {| stags := tt; str := "register" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| stags := tt; str := "size" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "write" |} nil
+          [(MkParameter false In (TypBit 32) None
+                {| stags := tt; str := "index" |});
+           (MkParameter false In
+                (TypTypeName (BareName {| stags := tt; str := "T5" |})) 
+                None {| stags := tt; str := "value" |})]);
+     (ProtoMethod tt TypVoid {| stags := tt; str := "read" |} nil
+          [(MkParameter false Out
+                (TypTypeName (BareName {| stags := tt; str := "T5" |})) 
+                None {| stags := tt; str := "result" |});
+           (MkParameter false In (TypBit 32) None
+                {| stags := tt; str := "index" |})])].
+
+Definition action_profile := DeclExternObject tt
+    {| stags := tt; str := "action_profile" |} nil
+    [(ProtoConstructor tt {| stags := tt; str := "action_profile" |}
+          [(MkParameter false Directionless (TypBit 32) None
+                {| stags := tt; str := "size" |})])].
+
+Definition random := DeclExternFunction tt TypVoid
+    {| stags := tt; str := "random" |} [{| stags := tt; str := "T6" |}]
+    [(MkParameter false Out
+          (TypTypeName (BareName {| stags := tt; str := "T6" |})) None
+          {| stags := tt; str := "result" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "T6" |})) None
+          {| stags := tt; str := "lo" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "T6" |})) None
+          {| stags := tt; str := "hi" |})].
+
+Definition digest := DeclExternFunction tt TypVoid
+    {| stags := tt; str := "digest" |} [{| stags := tt; str := "T7" |}]
+    [(MkParameter false In (TypBit 32) None
+          {| stags := tt; str := "receiver" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "T7" |})) None
+          {| stags := tt; str := "data" |})].
+
+Definition HashAlgorithm := DeclEnum tt
+    {| stags := tt; str := "HashAlgorithm" |}
+    [{| stags := tt; str := "crc32" |};
+     {| stags := tt; str := "crc32_custom" |};
+     {| stags := tt; str := "crc16" |};
+     {| stags := tt; str := "crc16_custom" |};
+     {| stags := tt; str := "random" |};
+     {| stags := tt; str := "identity" |};
+     {| stags := tt; str := "csum16" |}; {| stags := tt; str := "xor16" |}].
+
+Definition mark_to_drop := DeclExternFunction tt TypVoid
+    {| stags := tt; str := "mark_to_drop" |} nil nil.
+
+Definition mark_to_drop_2 := DeclExternFunction tt TypVoid
+    {| stags := tt; str := "mark_to_drop" |} nil
+    [(MkParameter false InOut
+          (TypTypeName
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})].
+
+Definition hash := DeclExternFunction tt TypVoid
+    {| stags := tt; str := "hash" |}
+    [{| stags := tt; str := "O" |}; {| stags := tt; str := "T8" |};
+     {| stags := tt; str := "D" |}; {| stags := tt; str := "M" |}]
+    [(MkParameter false Out
+          (TypTypeName (BareName {| stags := tt; str := "O" |})) None
+          {| stags := tt; str := "result" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "HashAlgorithm" |}))
+          None {| stags := tt; str := "algo" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "T8" |})) None
+          {| stags := tt; str := "base" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "D" |})) None
+          {| stags := tt; str := "data" |});
+     (MkParameter false In
+          (TypTypeName (BareName {| stags := tt; str := "M" |})) None
+          {| stags := tt; str := "max" |})].
+
+Definition action_selector := DeclExternObject tt
+    {| stags := tt; str := "action_selector" |} nil
+    [(ProtoConstructor tt {| stags := tt; str := "action_selector" |}
+          [(MkParameter false Directionless
+                (TypTypeName
+                 (BareName {| stags := tt; str := "HashAlgorithm" |})) 
+                None {| stags := tt; str := "algorithm" |});
+           (MkParameter false Directionless (TypBit 32) None
+                {| stags := tt; str := "size" |});
+           (MkParameter false Directionless (TypBit 32) None
+                {| stags := tt; str := "outputWidth" |})])].
+
+Definition CloneType := DeclEnum tt {| stags := tt; str := "CloneType" |}
+    [{| stags := tt; str := "I2E" |}; {| stags := tt; str := "E2E" |}].
 
 Definition Checksum16 := DeclExternObject tt
-    {| tags := tt; str := "Checksum16" |} nil
-    [(ProtoConstructor tt {| tags := tt; str := "Checksum16" |} nil);
-     (ProtoMethod tt (TypBit 16) {| tags := tt; str := "get" |}
-          [{| tags := tt; str := "D9" |}]
+    {| stags := tt; str := "Checksum16" |} nil
+    [(ProtoConstructor tt {| stags := tt; str := "Checksum16" |} nil);
+     (ProtoMethod tt (TypBit 16) {| stags := tt; str := "get" |}
+          [{| stags := tt; str := "D9" |}]
           [(MkParameter false In
-                (TypTypeName (BareName {| tags := tt; str := "D9" |})) 
-                None {| tags := tt; str := "data" |})])].
+                (TypTypeName (BareName {| stags := tt; str := "D9" |})) 
+                None {| stags := tt; str := "data" |})])].
 
 Definition verify_checksum := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "verify_checksum" |}
-    [{| tags := tt; str := "T10" |}; {| tags := tt; str := "O11" |}]
-    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+    {| stags := tt; str := "verify_checksum" |}
+    [{| stags := tt; str := "T10" |}; {| stags := tt; str := "O11" |}]
+    [(MkParameter false In TypBool None
+          {| stags := tt; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T10" |})) None
-          {| tags := tt; str := "data" |});
+          (TypTypeName (BareName {| stags := tt; str := "T10" |})) None
+          {| stags := tt; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "O11" |})) None
-          {| tags := tt; str := "checksum" |});
+          (TypTypeName (BareName {| stags := tt; str := "O11" |})) None
+          {| stags := tt; str := "checksum" |});
      (MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
-          None {| tags := tt; str := "algo" |})].
+          (TypTypeName (BareName {| stags := tt; str := "HashAlgorithm" |}))
+          None {| stags := tt; str := "algo" |})].
 
 Definition update_checksum := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "update_checksum" |}
-    [{| tags := tt; str := "T12" |}; {| tags := tt; str := "O13" |}]
-    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+    {| stags := tt; str := "update_checksum" |}
+    [{| stags := tt; str := "T12" |}; {| stags := tt; str := "O13" |}]
+    [(MkParameter false In TypBool None
+          {| stags := tt; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T12" |})) None
-          {| tags := tt; str := "data" |});
+          (TypTypeName (BareName {| stags := tt; str := "T12" |})) None
+          {| stags := tt; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "O13" |})) None
-          {| tags := tt; str := "checksum" |});
+          (TypTypeName (BareName {| stags := tt; str := "O13" |})) None
+          {| stags := tt; str := "checksum" |});
      (MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
-          None {| tags := tt; str := "algo" |})].
+          (TypTypeName (BareName {| stags := tt; str := "HashAlgorithm" |}))
+          None {| stags := tt; str := "algo" |})].
 
 Definition verify_checksum_with_payload := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "verify_checksum_with_payload" |}
-    [{| tags := tt; str := "T14" |}; {| tags := tt; str := "O15" |}]
-    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+    {| stags := tt; str := "verify_checksum_with_payload" |}
+    [{| stags := tt; str := "T14" |}; {| stags := tt; str := "O15" |}]
+    [(MkParameter false In TypBool None
+          {| stags := tt; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T14" |})) None
-          {| tags := tt; str := "data" |});
+          (TypTypeName (BareName {| stags := tt; str := "T14" |})) None
+          {| stags := tt; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "O15" |})) None
-          {| tags := tt; str := "checksum" |});
+          (TypTypeName (BareName {| stags := tt; str := "O15" |})) None
+          {| stags := tt; str := "checksum" |});
      (MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
-          None {| tags := tt; str := "algo" |})].
+          (TypTypeName (BareName {| stags := tt; str := "HashAlgorithm" |}))
+          None {| stags := tt; str := "algo" |})].
 
 Definition update_checksum_with_payload := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "update_checksum_with_payload" |}
-    [{| tags := tt; str := "T16" |}; {| tags := tt; str := "O17" |}]
-    [(MkParameter false In TypBool None {| tags := tt; str := "condition" |});
+    {| stags := tt; str := "update_checksum_with_payload" |}
+    [{| stags := tt; str := "T16" |}; {| stags := tt; str := "O17" |}]
+    [(MkParameter false In TypBool None
+          {| stags := tt; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T16" |})) None
-          {| tags := tt; str := "data" |});
+          (TypTypeName (BareName {| stags := tt; str := "T16" |})) None
+          {| stags := tt; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "O17" |})) None
-          {| tags := tt; str := "checksum" |});
+          (TypTypeName (BareName {| stags := tt; str := "O17" |})) None
+          {| stags := tt; str := "checksum" |});
      (MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "HashAlgorithm" |}))
-          None {| tags := tt; str := "algo" |})].
+          (TypTypeName (BareName {| stags := tt; str := "HashAlgorithm" |}))
+          None {| stags := tt; str := "algo" |})].
 
 Definition resubmit := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "resubmit" |} [{| tags := tt; str := "T18" |}]
+    {| stags := tt; str := "resubmit" |} [{| stags := tt; str := "T18" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T18" |})) None
-          {| tags := tt; str := "data" |})].
+          (TypTypeName (BareName {| stags := tt; str := "T18" |})) None
+          {| stags := tt; str := "data" |})].
 
 Definition recirculate := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "recirculate" |} [{| tags := tt; str := "T19" |}]
+    {| stags := tt; str := "recirculate" |} [{| stags := tt; str := "T19" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T19" |})) None
-          {| tags := tt; str := "data" |})].
+          (TypTypeName (BareName {| stags := tt; str := "T19" |})) None
+          {| stags := tt; str := "data" |})].
 
 Definition clone := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "clone" |} nil
+    {| stags := tt; str := "clone" |} nil
     [(MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "CloneType" |})) 
-          None {| tags := tt; str := "type" |});
+          (TypTypeName (BareName {| stags := tt; str := "CloneType" |})) 
+          None {| stags := tt; str := "type" |});
      (MkParameter false In (TypBit 32) None
-          {| tags := tt; str := "session" |})].
+          {| stags := tt; str := "session" |})].
 
 Definition clone3 := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "clone3" |} [{| tags := tt; str := "T20" |}]
+    {| stags := tt; str := "clone3" |} [{| stags := tt; str := "T20" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "CloneType" |})) 
-          None {| tags := tt; str := "type" |});
+          (TypTypeName (BareName {| stags := tt; str := "CloneType" |})) 
+          None {| stags := tt; str := "type" |});
      (MkParameter false In (TypBit 32) None
-          {| tags := tt; str := "session" |});
+          {| stags := tt; str := "session" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "T20" |})) None
-          {| tags := tt; str := "data" |})].
+          (TypTypeName (BareName {| stags := tt; str := "T20" |})) None
+          {| stags := tt; str := "data" |})].
 
 Definition truncate := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "truncate" |} nil
+    {| stags := tt; str := "truncate" |} nil
     [(MkParameter false In (TypBit 32) None
-          {| tags := tt; str := "length" |})].
+          {| stags := tt; str := "length" |})].
 
 Definition assert := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "assert" |} nil
-    [(MkParameter false In TypBool None {| tags := tt; str := "check" |})].
+    {| stags := tt; str := "assert" |} nil
+    [(MkParameter false In TypBool None {| stags := tt; str := "check" |})].
 
 Definition assume := DeclExternFunction tt TypVoid
-    {| tags := tt; str := "assume" |} nil
-    [(MkParameter false In TypBool None {| tags := tt; str := "check" |})].
+    {| stags := tt; str := "assume" |} nil
+    [(MkParameter false In TypBool None {| stags := tt; str := "check" |})].
 
-Definition Parser := DeclParserType tt {| tags := tt; str := "Parser" |}
-    [{| tags := tt; str := "H" |}; {| tags := tt; str := "M21" |}]
+Definition Parser := DeclParserType tt {| stags := tt; str := "Parser" |}
+    [{| stags := tt; str := "H" |}; {| stags := tt; str := "M21" |}]
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "packet_in" |})) 
-          None {| tags := tt; str := "b" |});
+          (TypTypeName (BareName {| stags := tt; str := "packet_in" |})) 
+          None {| stags := tt; str := "b" |});
      (MkParameter false Out
-          (TypTypeName (BareName {| tags := tt; str := "H" |})) None
-          {| tags := tt; str := "parsedHdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "H" |})) None
+          {| stags := tt; str := "parsedHdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "M21" |})) None
-          {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "M21" |})) None
+          {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})].
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})].
 
 Definition VerifyChecksum := DeclControlType tt
-    {| tags := tt; str := "VerifyChecksum" |}
-    [{| tags := tt; str := "H22" |}; {| tags := tt; str := "M23" |}]
+    {| stags := tt; str := "VerifyChecksum" |}
+    [{| stags := tt; str := "H22" |}; {| stags := tt; str := "M23" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "H22" |})) None
-          {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "H22" |})) None
+          {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "M23" |})) None
-          {| tags := tt; str := "meta" |})].
+          (TypTypeName (BareName {| stags := tt; str := "M23" |})) None
+          {| stags := tt; str := "meta" |})].
 
-Definition Ingress := DeclControlType tt {| tags := tt; str := "Ingress" |}
-    [{| tags := tt; str := "H24" |}; {| tags := tt; str := "M25" |}]
+Definition Ingress := DeclControlType tt {| stags := tt; str := "Ingress" |}
+    [{| stags := tt; str := "H24" |}; {| stags := tt; str := "M25" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "H24" |})) None
-          {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "H24" |})) None
+          {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "M25" |})) None
-          {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "M25" |})) None
+          {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})].
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})].
 
-Definition Egress := DeclControlType tt {| tags := tt; str := "Egress" |}
-    [{| tags := tt; str := "H26" |}; {| tags := tt; str := "M27" |}]
+Definition Egress := DeclControlType tt {| stags := tt; str := "Egress" |}
+    [{| stags := tt; str := "H26" |}; {| stags := tt; str := "M27" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "H26" |})) None
-          {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "H26" |})) None
+          {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "M27" |})) None
-          {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "M27" |})) None
+          {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})].
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})].
 
 Definition ComputeChecksum := DeclControlType tt
-    {| tags := tt; str := "ComputeChecksum" |}
-    [{| tags := tt; str := "H28" |}; {| tags := tt; str := "M29" |}]
+    {| stags := tt; str := "ComputeChecksum" |}
+    [{| stags := tt; str := "H28" |}; {| stags := tt; str := "M29" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "H28" |})) None
-          {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "H28" |})) None
+          {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "M29" |})) None
-          {| tags := tt; str := "meta" |})].
+          (TypTypeName (BareName {| stags := tt; str := "M29" |})) None
+          {| stags := tt; str := "meta" |})].
 
-Definition Deparser := DeclControlType tt {| tags := tt; str := "Deparser" |}
-    [{| tags := tt; str := "H30" |}]
+Definition Deparser := DeclControlType tt
+    {| stags := tt; str := "Deparser" |} [{| stags := tt; str := "H30" |}]
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "packet_out" |})) 
-          None {| tags := tt; str := "b" |});
+          (TypTypeName (BareName {| stags := tt; str := "packet_out" |}))
+          None {| stags := tt; str := "b" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "H30" |})) None
-          {| tags := tt; str := "hdr" |})].
+          (TypTypeName (BareName {| stags := tt; str := "H30" |})) None
+          {| stags := tt; str := "hdr" |})].
 
-Definition V1Switch := DeclPackageType tt {| tags := tt; str := "V1Switch" |}
-    [{| tags := tt; str := "H31" |}; {| tags := tt; str := "M32" |}]
+Definition V1Switch := DeclPackageType tt
+    {| stags := tt; str := "V1Switch" |}
+    [{| stags := tt; str := "H31" |}; {| stags := tt; str := "M32" |}]
     [(MkParameter false Directionless
           (TypSpecializedType
-               (TypTypeName (BareName {| tags := tt; str := "Parser" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
-                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
-          None {| tags := tt; str := "p" |});
+               (TypTypeName (BareName {| stags := tt; str := "Parser" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| stags := tt; str := "M32" |}))])
+          None {| stags := tt; str := "p" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| tags := tt; str := "VerifyChecksum" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
-                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
-          None {| tags := tt; str := "vr" |});
+                (BareName {| stags := tt; str := "VerifyChecksum" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| stags := tt; str := "M32" |}))])
+          None {| stags := tt; str := "vr" |});
      (MkParameter false Directionless
           (TypSpecializedType
-               (TypTypeName (BareName {| tags := tt; str := "Ingress" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
-                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
-          None {| tags := tt; str := "ig" |});
+               (TypTypeName (BareName {| stags := tt; str := "Ingress" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| stags := tt; str := "M32" |}))])
+          None {| stags := tt; str := "ig" |});
      (MkParameter false Directionless
           (TypSpecializedType
-               (TypTypeName (BareName {| tags := tt; str := "Egress" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
-                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
-          None {| tags := tt; str := "eg" |});
+               (TypTypeName (BareName {| stags := tt; str := "Egress" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| stags := tt; str := "M32" |}))])
+          None {| stags := tt; str := "eg" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| tags := tt; str := "ComputeChecksum" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}));
-                (TypTypeName (BareName {| tags := tt; str := "M32" |}))])
-          None {| tags := tt; str := "ck" |});
+                (BareName {| stags := tt; str := "ComputeChecksum" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}));
+                (TypTypeName (BareName {| stags := tt; str := "M32" |}))])
+          None {| stags := tt; str := "ck" |});
      (MkParameter false Directionless
           (TypSpecializedType
-               (TypTypeName (BareName {| tags := tt; str := "Deparser" |}))
-               [(TypTypeName (BareName {| tags := tt; str := "H31" |}))])
-          None {| tags := tt; str := "dep" |})].
+               (TypTypeName (BareName {| stags := tt; str := "Deparser" |}))
+               [(TypTypeName (BareName {| stags := tt; str := "H31" |}))])
+          None {| stags := tt; str := "dep" |})].
 
 Definition egressSpec_t := DeclTypeDef tt
-    {| tags := tt; str := "egressSpec_t" |} (inl (TypBit 9)).
+    {| stags := tt; str := "egressSpec_t" |} (inl (TypBit 9)).
 
-Definition myHeader_t := DeclHeader tt {| tags := tt; str := "myHeader_t" |}
-    [(MkDeclarationField tt (TypBit 1) {| tags := tt; str := "firstBit" |});
-     (MkDeclarationField tt (TypBit 7) {| tags := tt; str := "padding" |})].
+Definition myHeader_t := DeclHeader tt {| stags := tt; str := "myHeader_t" |}
+    [(MkDeclarationField tt (TypBit 1) {| stags := tt; str := "firstBit" |});
+     (MkDeclarationField tt (TypBit 7) {| stags := tt; str := "padding" |})].
 
-Definition metadata := DeclStruct tt {| tags := tt; str := "metadata" |} nil.
+Definition metadata := DeclStruct tt {| stags := tt; str := "metadata" |}
+    nil.
 
-Definition headers := DeclStruct tt {| tags := tt; str := "headers" |}
+Definition headers := DeclStruct tt {| stags := tt; str := "headers" |}
     [(MkDeclarationField tt
           (TypHeader
-           [(MkFieldType {| tags := tt; str := "firstBit" |} (TypBit 1));
-            (MkFieldType {| tags := tt; str := "padding" |} (TypBit 7))])
-          {| tags := tt; str := "myHeader" |})].
+           [(MkFieldType {| stags := tt; str := "firstBit" |} (TypBit 1));
+            (MkFieldType {| stags := tt; str := "padding" |} (TypBit 7))])
+          {| stags := tt; str := "myHeader" |})].
 
-Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
+Definition MyParser := DeclParser tt {| stags := tt; str := "MyParser" |} nil
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "packet_in" |})) 
-          None {| tags := tt; str := "packet" |});
+          (TypTypeName (BareName {| stags := tt; str := "packet_in" |})) 
+          None {| stags := tt; str := "packet" |});
      (MkParameter false Out
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "metadata" |})) 
-          None {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "metadata" |})) 
+          None {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})] nil nil
-    [(MkParserState tt {| tags := tt; str := "start" |}
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})] nil nil
+    [(MkParserState tt {| stags := tt; str := "start" |}
           [(MkStatement tt
                 (StatMethodCall
                      (MkExpression tt
@@ -508,24 +525,24 @@ Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
                                (MkExpression tt
                                     (ExpName
                                      (BareName
-                                      {| tags := tt; str := "packet" |}))
+                                      {| stags := tt; str := "packet" |}))
                                     (TypTypeName
                                      (BareName
-                                      {| tags := tt; str := "packet_in" |}))
+                                      {| stags := tt; str := "packet_in" |}))
                                     Directionless)
-                               {| tags := tt; str := "extract" |})
+                               {| stags := tt; str := "extract" |})
                           (TypFunction
-                           (MkFunctionType [{| tags := tt; str := "T" |}]
+                           (MkFunctionType [{| stags := tt; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
                                        (BareName
-                                        {| tags := tt; str := "T" |})) 
-                                      None {| tags := tt; str := "hdr" |})]
+                                        {| stags := tt; str := "T" |})) 
+                                      None {| stags := tt; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
                      [(TypHeader
-                       [(MkFieldType {| tags := tt; str := "firstBit" |}
+                       [(MkFieldType {| stags := tt; str := "firstBit" |}
                              (TypBit 1));
-                        (MkFieldType {| tags := tt; str := "padding" |}
+                        (MkFieldType {| stags := tt; str := "padding" |}
                              (TypBit 7))])]
                      [(Some
                        (MkExpression tt
@@ -533,70 +550,151 @@ Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
                                  (MkExpression tt
                                       (ExpName
                                        (BareName
-                                        {| tags := tt; str := "hdr" |}))
+                                        {| stags := tt; str := "hdr" |}))
                                       (TypTypeName
                                        (BareName
-                                        {| tags := tt; str := "headers" |}))
+                                        {| stags := tt; str := "headers" |}))
                                       Out)
-                                 {| tags := tt; str := "myHeader" |})
+                                 {| stags := tt; str := "myHeader" |})
                             (TypHeader
                              [(MkFieldType
-                                   {| tags := tt; str := "firstBit" |}
+                                   {| stags := tt; str := "firstBit" |}
                                    (TypBit 1));
-                              (MkFieldType {| tags := tt; str := "padding" |}
+                              (MkFieldType
+                                   {| stags := tt; str := "padding" |}
                                    (TypBit 7))]) Directionless))]) StmUnit)]
-          (ParserDirect tt {| tags := tt; str := "accept" |}))].
+          (ParserDirect tt {| stags := tt; str := "accept" |}))].
 
-Require Import Petr4.P4Int.
-Definition x := {| tags := tt; value := 2; width_signed := None |}.
-
-Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
+Definition MyIngress := DeclControl tt {| stags := tt; str := "MyIngress" |}
     nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "metadata" |})) 
-          None {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "metadata" |})) 
+          None {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})] nil
-    [(DeclAction tt {| tags := tt; str := "drop" |} nil nil
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})] nil
+    [(DeclInstantiation tt
+          (TypSpecializedType
+               (TypTypeName (BareName {| stags := tt; str := "counter" |}))
+               nil)
+          [(MkExpression tt
+                (ExpCast (TypBit 32)
+                     (MkExpression tt
+                          (ExpInt
+                           {| itags := tt; value := 2;
+                              width_signed := None |}) TypInteger
+                          Directionless)) (TypBit 32) Directionless);
+           (MkExpression tt
+                (ExpTypeMember
+                     (BareName {| stags := tt; str := "CounterType" |})
+                     {| stags := tt; str := "packets_and_bytes" |})
+                (TypEnum {| stags := tt; str := "CounterType" |} None
+                     [{| stags := tt; str := "packets" |};
+                      {| stags := tt; str := "bytes" |};
+                      {| stags := tt; str := "packets_and_bytes" |}])
+                Directionless)] {| stags := tt; str := "myCounter" |} 
+          None);
+     (DeclAction tt {| stags := tt; str := "drop" |} nil nil
           (BlockCons
                (MkStatement tt
                     (StatMethodCall
                          (MkExpression tt
                               (ExpName
                                (BareName
-                                {| tags := tt; str := "mark_to_drop" |}))
+                                {| stags := tt; str := "mark_to_drop" |}))
                               (TypFunction
                                (MkFunctionType nil
                                     [(MkParameter false InOut
                                           (TypTypeName
                                            (BareName
-                                            {| tags := tt;
+                                            {| stags := tt;
                                                str := "standard_metadata_t" |}))
                                           None
-                                          {| tags := tt;
+                                          {| stags := tt;
                                              str := "standard_metadata" |})]
                                     FunExtern TypVoid)) Directionless) nil
                          [(Some
                            (MkExpression tt
                                 (ExpName
                                  (BareName
-                                  {| tags := tt;
+                                  {| stags := tt;
                                      str := "standard_metadata" |}))
                                 (TypTypeName
                                  (BareName
-                                  {| tags := tt;
+                                  {| stags := tt;
                                      str := "standard_metadata_t" |})) InOut))])
-                    StmUnit) (BlockEmpty tt)));
-     (DeclAction tt {| tags := tt; str := "do_forward" |} nil
+                    StmUnit)
+               (BlockCons
+                    (MkStatement tt
+                         (StatMethodCall
+                              (MkExpression tt
+                                   (ExpExpressionMember
+                                        (MkExpression tt
+                                             (ExpName
+                                              (BareName
+                                               {| stags := tt;
+                                                  str := "myCounter" |}))
+                                             (TypExtern
+                                              {| stags := tt;
+                                                 str := "counter" |})
+                                             Directionless)
+                                        {| stags := tt; str := "count" |})
+                                   (TypFunction
+                                    (MkFunctionType nil
+                                         [(MkParameter false In (TypBit 32)
+                                               None
+                                               {| stags := tt;
+                                                  str := "index" |})]
+                                         FunExtern TypVoid)) Directionless)
+                              nil
+                              [(Some
+                                (MkExpression tt
+                                     (ExpCast (TypBit 32)
+                                          (MkExpression tt
+                                               (ExpExpressionMember
+                                                    (MkExpression tt
+                                                         (ExpExpressionMember
+                                                              (MkExpression
+                                                                   tt
+                                                                   (ExpName
+                                                                    (
+                                                                    BareName
+                                                                    {| 
+                                                                    stags := tt;
+                                                                    str := "hdr" |}))
+                                                                   (TypTypeName
+                                                                    (
+                                                                    BareName
+                                                                    {| 
+                                                                    stags := tt;
+                                                                    str := "headers" |}))
+                                                                   InOut)
+                                                              {| stags := tt;
+                                                                 str := "myHeader" |})
+                                                         (TypHeader
+                                                          [(MkFieldType
+                                                                {| stags := tt;
+                                                                   str := "firstBit" |}
+                                                                (TypBit 1));
+                                                           (MkFieldType
+                                                                {| stags := tt;
+                                                                   str := "padding" |}
+                                                                (TypBit 7))])
+                                                         Directionless)
+                                                    {| stags := tt;
+                                                       str := "firstBit" |})
+                                               (TypBit 1) Directionless))
+                                     (TypBit 32) Directionless))]) StmUnit)
+                    (BlockEmpty tt))));
+     (DeclAction tt {| stags := tt; str := "do_forward" |} nil
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| tags := tt; str := "egressSpec_t" |})) 
-                None {| tags := tt; str := "port" |})]
+                 (BareName {| stags := tt; str := "egressSpec_t" |})) 
+                None {| stags := tt; str := "port" |})]
           (BlockCons
                (MkStatement tt
                     (StatAssignment
@@ -605,23 +703,85 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                    (MkExpression tt
                                         (ExpName
                                          (BareName
-                                          {| tags := tt;
+                                          {| stags := tt;
                                              str := "standard_metadata" |}))
                                         (TypTypeName
                                          (BareName
-                                          {| tags := tt;
+                                          {| stags := tt;
                                              str := "standard_metadata_t" |}))
                                         InOut)
-                                   {| tags := tt; str := "egress_spec" |})
+                                   {| stags := tt; str := "egress_spec" |})
                               (TypBit 9) Directionless)
                          (MkExpression tt
                               (ExpName
-                               (BareName {| tags := tt; str := "port" |}))
+                               (BareName {| stags := tt; str := "port" |}))
                               (TypTypeName
                                (BareName
-                                {| tags := tt; str := "egressSpec_t" |}))
-                              Directionless)) StmUnit) (BlockEmpty tt)));
-     (DeclTable tt {| tags := tt; str := "forward" |}
+                                {| stags := tt; str := "egressSpec_t" |}))
+                              Directionless)) StmUnit)
+               (BlockCons
+                    (MkStatement tt
+                         (StatMethodCall
+                              (MkExpression tt
+                                   (ExpExpressionMember
+                                        (MkExpression tt
+                                             (ExpName
+                                              (BareName
+                                               {| stags := tt;
+                                                  str := "myCounter" |}))
+                                             (TypExtern
+                                              {| stags := tt;
+                                                 str := "counter" |})
+                                             Directionless)
+                                        {| stags := tt; str := "count" |})
+                                   (TypFunction
+                                    (MkFunctionType nil
+                                         [(MkParameter false In (TypBit 32)
+                                               None
+                                               {| stags := tt;
+                                                  str := "index" |})]
+                                         FunExtern TypVoid)) Directionless)
+                              nil
+                              [(Some
+                                (MkExpression tt
+                                     (ExpCast (TypBit 32)
+                                          (MkExpression tt
+                                               (ExpExpressionMember
+                                                    (MkExpression tt
+                                                         (ExpExpressionMember
+                                                              (MkExpression
+                                                                   tt
+                                                                   (ExpName
+                                                                    (
+                                                                    BareName
+                                                                    {| 
+                                                                    stags := tt;
+                                                                    str := "hdr" |}))
+                                                                   (TypTypeName
+                                                                    (
+                                                                    BareName
+                                                                    {| 
+                                                                    stags := tt;
+                                                                    str := "headers" |}))
+                                                                   InOut)
+                                                              {| stags := tt;
+                                                                 str := "myHeader" |})
+                                                         (TypHeader
+                                                          [(MkFieldType
+                                                                {| stags := tt;
+                                                                   str := "firstBit" |}
+                                                                (TypBit 1));
+                                                           (MkFieldType
+                                                                {| stags := tt;
+                                                                   str := "padding" |}
+                                                                (TypBit 7))])
+                                                         Directionless)
+                                                    {| stags := tt;
+                                                       str := "firstBit" |})
+                                               (TypBit 1) Directionless))
+                                     (TypBit 32) Directionless))]) StmUnit)
+                    (BlockEmpty tt))));
+     (DeclTable tt {| stags := tt; str := "forward" |}
           [(MkTableKey tt
                 (MkExpression tt
                      (ExpExpressionMember
@@ -630,40 +790,40 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                     (MkExpression tt
                                          (ExpName
                                           (BareName
-                                           {| tags := tt; str := "hdr" |}))
+                                           {| stags := tt; str := "hdr" |}))
                                          (TypTypeName
                                           (BareName
-                                           {| tags := tt; str := "headers" |}))
-                                         InOut)
-                                    {| tags := tt; str := "myHeader" |})
+                                           {| stags := tt;
+                                              str := "headers" |})) InOut)
+                                    {| stags := tt; str := "myHeader" |})
                                (TypHeader
                                 [(MkFieldType
-                                      {| tags := tt; str := "firstBit" |}
+                                      {| stags := tt; str := "firstBit" |}
                                       (TypBit 1));
                                  (MkFieldType
-                                      {| tags := tt; str := "padding" |}
+                                      {| stags := tt; str := "padding" |}
                                       (TypBit 7))]) Directionless)
-                          {| tags := tt; str := "firstBit" |}) (TypBit 1)
-                     Directionless) {| tags := tt; str := "exact" |})]
+                          {| stags := tt; str := "firstBit" |}) (TypBit 1)
+                     Directionless) {| stags := tt; str := "exact" |})]
           [(MkTableActionRef tt
                 (MkTablePreActionRef
-                     (BareName {| tags := tt; str := "do_forward" |}) nil)
+                     (BareName {| stags := tt; str := "do_forward" |}) nil)
                 (TypAction nil
                      [(MkParameter false Directionless
                            (TypTypeName
                             (BareName
-                             {| tags := tt; str := "egressSpec_t" |})) 
-                           None {| tags := tt; str := "port" |})]));
+                             {| stags := tt; str := "egressSpec_t" |})) 
+                           None {| stags := tt; str := "port" |})]));
            (MkTableActionRef tt
                 (MkTablePreActionRef
-                     (BareName {| tags := tt; str := "drop" |}) nil)
+                     (BareName {| stags := tt; str := "drop" |}) nil)
                 (TypAction nil nil))] None
           (Some
            (MkTableActionRef tt
                 (MkTablePreActionRef
-                     (BareName {| tags := tt; str := "drop" |}) nil) 
+                     (BareName {| stags := tt; str := "drop" |}) nil)
                 TypVoid))
-          (Some {| tags := tt; value := 2; width_signed := None |}) nil)]
+          (Some {| itags := tt; value := 2; width_signed := None |}) nil)]
     (BlockCons
          (MkStatement tt
               (StatConditional
@@ -676,26 +836,26 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                                  (MkExpression tt
                                                       (ExpName
                                                        (BareName
-                                                        {| tags := tt;
+                                                        {| stags := tt;
                                                            str := "hdr" |}))
                                                       (TypTypeName
                                                        (BareName
-                                                        {| tags := tt;
+                                                        {| stags := tt;
                                                            str := "headers" |}))
                                                       InOut)
-                                                 {| tags := tt;
+                                                 {| stags := tt;
                                                     str := "myHeader" |})
                                             (TypHeader
                                              [(MkFieldType
-                                                   {| tags := tt;
+                                                   {| stags := tt;
                                                       str := "firstBit" |}
                                                    (TypBit 1));
                                               (MkFieldType
-                                                   {| tags := tt;
+                                                   {| stags := tt;
                                                       str := "padding" |}
                                                    (TypBit 7))])
                                             Directionless)
-                                       {| tags := tt; str := "isValid" |})
+                                       {| stags := tt; str := "isValid" |})
                                   (TypFunction
                                    (MkFunctionType nil nil FunBuiltin
                                         TypBool)) Directionless) nil nil)
@@ -710,46 +870,47 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                                   (MkExpression tt
                                                        (ExpName
                                                         (BareName
-                                                         {| tags := tt;
+                                                         {| stags := tt;
                                                             str := "forward" |}))
                                                        (TypTable
-                                                        {| tags := tt;
+                                                        {| stags := tt;
                                                            str := "apply_result_forward" |})
                                                        Directionless)
-                                                  {| tags := tt;
+                                                  {| stags := tt;
                                                      str := "apply" |})
                                              (TypFunction
                                               (MkFunctionType nil nil
                                                    FunTable
                                                    (TypTypeName
                                                     (BareName
-                                                     {| tags := tt;
+                                                     {| stags := tt;
                                                         str := "apply_result_forward" |}))))
                                              Directionless) nil nil) StmUnit)
                               (BlockEmpty tt))) StmUnit) None) StmUnit)
          (BlockEmpty tt)).
 
-Definition MyEgress := DeclControl tt {| tags := tt; str := "MyEgress" |} nil
+Definition MyEgress := DeclControl tt {| stags := tt; str := "MyEgress" |}
+    nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "metadata" |})) 
-          None {| tags := tt; str := "meta" |});
+          (TypTypeName (BareName {| stags := tt; str := "metadata" |})) 
+          None {| stags := tt; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| tags := tt; str := "standard_metadata_t" |})) 
-          None {| tags := tt; str := "standard_metadata" |})] nil nil
+           (BareName {| stags := tt; str := "standard_metadata_t" |})) 
+          None {| stags := tt; str := "standard_metadata" |})] nil nil
     (BlockEmpty tt).
 
-Definition MyDeparser := DeclControl tt {| tags := tt; str := "MyDeparser" |}
-    nil
+Definition MyDeparser := DeclControl tt
+    {| stags := tt; str := "MyDeparser" |} nil
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| tags := tt; str := "packet_out" |})) 
-          None {| tags := tt; str := "packet" |});
+          (TypTypeName (BareName {| stags := tt; str := "packet_out" |}))
+          None {| stags := tt; str := "packet" |});
      (MkParameter false In
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |})] nil nil
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |})] nil nil
     (BlockCons
          (MkStatement tt
               (StatMethodCall
@@ -758,23 +919,24 @@ Definition MyDeparser := DeclControl tt {| tags := tt; str := "MyDeparser" |}
                              (MkExpression tt
                                   (ExpName
                                    (BareName
-                                    {| tags := tt; str := "packet" |}))
+                                    {| stags := tt; str := "packet" |}))
                                   (TypTypeName
                                    (BareName
-                                    {| tags := tt; str := "packet_out" |}))
+                                    {| stags := tt; str := "packet_out" |}))
                                   Directionless)
-                             {| tags := tt; str := "emit" |})
+                             {| stags := tt; str := "emit" |})
                         (TypFunction
-                         (MkFunctionType [{| tags := tt; str := "T2" |}]
+                         (MkFunctionType [{| stags := tt; str := "T2" |}]
                               [(MkParameter false In
                                     (TypTypeName
-                                     (BareName {| tags := tt; str := "T2" |}))
-                                    None {| tags := tt; str := "hdr" |})]
+                                     (BareName
+                                      {| stags := tt; str := "T2" |})) 
+                                    None {| stags := tt; str := "hdr" |})]
                               FunExtern TypVoid)) Directionless)
                    [(TypHeader
-                     [(MkFieldType {| tags := tt; str := "firstBit" |}
+                     [(MkFieldType {| stags := tt; str := "firstBit" |}
                            (TypBit 1));
-                      (MkFieldType {| tags := tt; str := "padding" |}
+                      (MkFieldType {| stags := tt; str := "padding" |}
                            (TypBit 7))])]
                    [(Some
                      (MkExpression tt
@@ -782,293 +944,305 @@ Definition MyDeparser := DeclControl tt {| tags := tt; str := "MyDeparser" |}
                                (MkExpression tt
                                     (ExpName
                                      (BareName
-                                      {| tags := tt; str := "hdr" |}))
+                                      {| stags := tt; str := "hdr" |}))
                                     (TypTypeName
                                      (BareName
-                                      {| tags := tt; str := "headers" |}))
-                                    In) {| tags := tt; str := "myHeader" |})
+                                      {| stags := tt; str := "headers" |}))
+                                    In) {| stags := tt; str := "myHeader" |})
                           (TypHeader
-                           [(MkFieldType {| tags := tt; str := "firstBit" |}
+                           [(MkFieldType {| stags := tt; str := "firstBit" |}
                                  (TypBit 1));
-                            (MkFieldType {| tags := tt; str := "padding" |}
+                            (MkFieldType {| stags := tt; str := "padding" |}
                                  (TypBit 7))]) Directionless))]) StmUnit)
          (BlockEmpty tt)).
 
 Definition MyVerifyChecksum := DeclControl tt
-    {| tags := tt; str := "MyVerifyChecksum" |} nil
+    {| stags := tt; str := "MyVerifyChecksum" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "metadata" |})) 
-          None {| tags := tt; str := "meta" |})] nil nil (BlockEmpty tt).
+          (TypTypeName (BareName {| stags := tt; str := "metadata" |})) 
+          None {| stags := tt; str := "meta" |})] nil nil (BlockEmpty tt).
 
 Definition MyComputeChecksum := DeclControl tt
-    {| tags := tt; str := "MyComputeChecksum" |} nil
+    {| stags := tt; str := "MyComputeChecksum" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |});
+          (TypTypeName (BareName {| stags := tt; str := "headers" |})) 
+          None {| stags := tt; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| tags := tt; str := "metadata" |})) 
-          None {| tags := tt; str := "meta" |})] nil nil (BlockEmpty tt).
+          (TypTypeName (BareName {| stags := tt; str := "metadata" |})) 
+          None {| stags := tt; str := "meta" |})] nil nil (BlockEmpty tt).
 
 Definition main := DeclInstantiation tt
     (TypSpecializedType
-         (TypTypeName (BareName {| tags := tt; str := "V1Switch" |})) nil)
+         (TypTypeName (BareName {| stags := tt; str := "V1Switch" |})) nil)
     [(MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyParser" |})) nil)
+                     (BareName {| stags := tt; str := "MyParser" |})) nil)
                nil)
           (TypParser
            (MkControlType nil
                 [(MkParameter false Directionless
-                      (TypExtern {| tags := tt; str := "packet_in" |}) 
-                      None {| tags := tt; str := "packet" |});
+                      (TypExtern {| stags := tt; str := "packet_in" |}) 
+                      None {| stags := tt; str := "packet" |});
                  (MkParameter false Out
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |});
+                      {| stags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
-                      {| tags := tt; str := "meta" |});
+                      {| stags := tt; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "ingress_port" |}
+                       [(MkFieldType {| stags := tt; str := "ingress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_spec" |}
+                        (MkFieldType {| stags := tt; str := "egress_spec" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_port" |}
+                        (MkFieldType {| stags := tt; str := "egress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "instance_type" |}
+                        (MkFieldType
+                             {| stags := tt; str := "instance_type" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "packet_length" |}
+                        (MkFieldType
+                             {| stags := tt; str := "packet_length" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_timestamp" |}
+                        (MkFieldType
+                             {| stags := tt; str := "enq_timestamp" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_qdepth" |}
-                             (TypBit 19));
-                        (MkFieldType {| tags := tt; str := "deq_timedelta" |}
-                             (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "deq_qdepth" |}
+                        (MkFieldType {| stags := tt; str := "enq_qdepth" |}
                              (TypBit 19));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt; str := "deq_timedelta" |}
+                             (TypBit 32));
+                        (MkFieldType {| stags := tt; str := "deq_qdepth" |}
+                             (TypBit 19));
+                        (MkFieldType
+                             {| stags := tt;
                                 str := "ingress_global_timestamp" |}
                              (TypBit 48));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt;
                                 str := "egress_global_timestamp" |}
                              (TypBit 48));
-                        (MkFieldType {| tags := tt; str := "mcast_grp" |}
+                        (MkFieldType {| stags := tt; str := "mcast_grp" |}
                              (TypBit 16));
-                        (MkFieldType {| tags := tt; str := "egress_rid" |}
+                        (MkFieldType {| stags := tt; str := "egress_rid" |}
                              (TypBit 16));
                         (MkFieldType
-                             {| tags := tt; str := "checksum_error" |}
+                             {| stags := tt; str := "checksum_error" |}
                              (TypBit 1));
-                        (MkFieldType {| tags := tt; str := "parser_error" |}
+                        (MkFieldType {| stags := tt; str := "parser_error" |}
                              TypError);
-                        (MkFieldType {| tags := tt; str := "priority" |}
+                        (MkFieldType {| stags := tt; str := "priority" |}
                              (TypBit 3))]) None
-                      {| tags := tt; str := "standard_metadata" |})]))
+                      {| stags := tt; str := "standard_metadata" |})]))
           Directionless);
      (MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyVerifyChecksum" |}))
+                     (BareName {| stags := tt; str := "MyVerifyChecksum" |}))
                     nil) nil)
           (TypControl
            (MkControlType nil
                 [(MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |});
+                      {| stags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
-                      {| tags := tt; str := "meta" |})])) Directionless);
+                      {| stags := tt; str := "meta" |})])) Directionless);
      (MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyIngress" |})) nil)
+                     (BareName {| stags := tt; str := "MyIngress" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
                 [(MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |});
+                      {| stags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
-                      {| tags := tt; str := "meta" |});
+                      {| stags := tt; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "ingress_port" |}
+                       [(MkFieldType {| stags := tt; str := "ingress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_spec" |}
+                        (MkFieldType {| stags := tt; str := "egress_spec" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_port" |}
+                        (MkFieldType {| stags := tt; str := "egress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "instance_type" |}
+                        (MkFieldType
+                             {| stags := tt; str := "instance_type" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "packet_length" |}
+                        (MkFieldType
+                             {| stags := tt; str := "packet_length" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_timestamp" |}
+                        (MkFieldType
+                             {| stags := tt; str := "enq_timestamp" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_qdepth" |}
-                             (TypBit 19));
-                        (MkFieldType {| tags := tt; str := "deq_timedelta" |}
-                             (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "deq_qdepth" |}
+                        (MkFieldType {| stags := tt; str := "enq_qdepth" |}
                              (TypBit 19));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt; str := "deq_timedelta" |}
+                             (TypBit 32));
+                        (MkFieldType {| stags := tt; str := "deq_qdepth" |}
+                             (TypBit 19));
+                        (MkFieldType
+                             {| stags := tt;
                                 str := "ingress_global_timestamp" |}
                              (TypBit 48));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt;
                                 str := "egress_global_timestamp" |}
                              (TypBit 48));
-                        (MkFieldType {| tags := tt; str := "mcast_grp" |}
+                        (MkFieldType {| stags := tt; str := "mcast_grp" |}
                              (TypBit 16));
-                        (MkFieldType {| tags := tt; str := "egress_rid" |}
+                        (MkFieldType {| stags := tt; str := "egress_rid" |}
                              (TypBit 16));
                         (MkFieldType
-                             {| tags := tt; str := "checksum_error" |}
+                             {| stags := tt; str := "checksum_error" |}
                              (TypBit 1));
-                        (MkFieldType {| tags := tt; str := "parser_error" |}
+                        (MkFieldType {| stags := tt; str := "parser_error" |}
                              TypError);
-                        (MkFieldType {| tags := tt; str := "priority" |}
+                        (MkFieldType {| stags := tt; str := "priority" |}
                              (TypBit 3))]) None
-                      {| tags := tt; str := "standard_metadata" |})]))
+                      {| stags := tt; str := "standard_metadata" |})]))
           Directionless);
      (MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyEgress" |})) nil)
+                     (BareName {| stags := tt; str := "MyEgress" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
                 [(MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |});
+                      {| stags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
-                      {| tags := tt; str := "meta" |});
+                      {| stags := tt; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "ingress_port" |}
+                       [(MkFieldType {| stags := tt; str := "ingress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_spec" |}
+                        (MkFieldType {| stags := tt; str := "egress_spec" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "egress_port" |}
+                        (MkFieldType {| stags := tt; str := "egress_port" |}
                              (TypBit 9));
-                        (MkFieldType {| tags := tt; str := "instance_type" |}
+                        (MkFieldType
+                             {| stags := tt; str := "instance_type" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "packet_length" |}
+                        (MkFieldType
+                             {| stags := tt; str := "packet_length" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_timestamp" |}
+                        (MkFieldType
+                             {| stags := tt; str := "enq_timestamp" |}
                              (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "enq_qdepth" |}
-                             (TypBit 19));
-                        (MkFieldType {| tags := tt; str := "deq_timedelta" |}
-                             (TypBit 32));
-                        (MkFieldType {| tags := tt; str := "deq_qdepth" |}
+                        (MkFieldType {| stags := tt; str := "enq_qdepth" |}
                              (TypBit 19));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt; str := "deq_timedelta" |}
+                             (TypBit 32));
+                        (MkFieldType {| stags := tt; str := "deq_qdepth" |}
+                             (TypBit 19));
+                        (MkFieldType
+                             {| stags := tt;
                                 str := "ingress_global_timestamp" |}
                              (TypBit 48));
                         (MkFieldType
-                             {| tags := tt;
+                             {| stags := tt;
                                 str := "egress_global_timestamp" |}
                              (TypBit 48));
-                        (MkFieldType {| tags := tt; str := "mcast_grp" |}
+                        (MkFieldType {| stags := tt; str := "mcast_grp" |}
                              (TypBit 16));
-                        (MkFieldType {| tags := tt; str := "egress_rid" |}
+                        (MkFieldType {| stags := tt; str := "egress_rid" |}
                              (TypBit 16));
                         (MkFieldType
-                             {| tags := tt; str := "checksum_error" |}
+                             {| stags := tt; str := "checksum_error" |}
                              (TypBit 1));
-                        (MkFieldType {| tags := tt; str := "parser_error" |}
+                        (MkFieldType {| stags := tt; str := "parser_error" |}
                              TypError);
-                        (MkFieldType {| tags := tt; str := "priority" |}
+                        (MkFieldType {| stags := tt; str := "priority" |}
                              (TypBit 3))]) None
-                      {| tags := tt; str := "standard_metadata" |})]))
+                      {| stags := tt; str := "standard_metadata" |})]))
           Directionless);
      (MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyComputeChecksum" |}))
+                     (BareName {| stags := tt; str := "MyComputeChecksum" |}))
                     nil) nil)
           (TypControl
            (MkControlType nil
                 [(MkParameter false InOut
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |});
+                      {| stags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
-                      {| tags := tt; str := "meta" |})])) Directionless);
+                      {| stags := tt; str := "meta" |})])) Directionless);
      (MkExpression tt
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| tags := tt; str := "MyDeparser" |})) nil)
+                     (BareName {| stags := tt; str := "MyDeparser" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
                 [(MkParameter false Directionless
-                      (TypExtern {| tags := tt; str := "packet_out" |}) 
-                      None {| tags := tt; str := "packet" |});
+                      (TypExtern {| stags := tt; str := "packet_out" |}) 
+                      None {| stags := tt; str := "packet" |});
                  (MkParameter false In
                       (TypStruct
-                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                       [(MkFieldType {| stags := tt; str := "myHeader" |}
                              (TypHeader
                               [(MkFieldType
-                                    {| tags := tt; str := "firstBit" |}
+                                    {| stags := tt; str := "firstBit" |}
                                     (TypBit 1));
                                (MkFieldType
-                                    {| tags := tt; str := "padding" |}
+                                    {| stags := tt; str := "padding" |}
                                     (TypBit 7))]))]) None
-                      {| tags := tt; str := "hdr" |})])) Directionless)]
-    {| tags := tt; str := "main" |} None.
+                      {| stags := tt; str := "hdr" |})])) Directionless)]
+    {| stags := tt; str := "main" |} None.
 
 Definition program := [decl1; packet_in; packet_out; verify; NoAction; decl2;
                        decl3; standard_metadata_t; CounterType; MeterType;

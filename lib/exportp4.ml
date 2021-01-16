@@ -41,7 +41,7 @@ let print_info p info =
   fprintf p "tt"
 
 let p4string p (s : P4string.t) =
-  fprintf p "{| @[<hov 0>tags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str
+  fprintf p "{| @[<hov 0>stags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str
 
 let p4strings =
   print_list p4string
@@ -53,7 +53,7 @@ let print_bigint p n =
   fprintf p "%s" (Bignum.to_string_accurate (Bignum.of_bigint n))
 
 let p4int p (n : P4int.t) =
-  fprintf p "{| @[<hov 0>tags := %a;@ value := %a;@ width_signed := %a |}@]" 
+  fprintf p "{| @[<hov 0>itags := %a;@ value := %a;@ width_signed := %a |}@]" 
       print_info n.tags 
       print_bigint n.value
       (print_option (print_pair print_nat print_bool)) n.width_signed
@@ -1141,10 +1141,14 @@ let print_header p =
   fprintf p "Require Import Coq.ZArith.ZArith.@ ";
   fprintf p "Require Import Strings.String.@ @ ";
   fprintf p "Require Import Petr4.P4String.@ ";
+  fprintf p "Require Import Petr4.P4Int.@ ";
   fprintf p "Require Import Petr4.Syntax.@ ";
   fprintf p "Require Import Petr4.Typed.@ @ ";
   fprintf p "Open Scope string_scope.@ @ ";
-  fprintf p "Import ListNotations.@ @ "
+  fprintf p "Import ListNotations.@ @ ";
+  fprintf p "Notation stags := P4String.tags.@ @ ";
+  fprintf p "Notation itags := P4Int.tags.@ @ "
+
 
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";

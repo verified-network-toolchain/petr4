@@ -630,7 +630,12 @@ Module P4light.
       (** Declarations that may occur within Controls. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | DTable (i : tags_t) (* TODO! *)
+      | DAction (a : name tags_t)
+                (signature : (E.arrow (E.t tags_t) unit) tags_t)
+                (body : S.s tags_t) (i : tags_t) (* action declaration *)
+      | DTable (keys : F.fs tags_t (E.t tags_t)) (* field names are matchkinds *)
+               (actions : list (name tags_t))    (* action names *)
+               (i : tags_t)                      (* table declaration *)
       | DDecl (d : D.d tags_t) (i : tags_t)
       | DSeq (d1 d2 : d) (i : tags_t).
       (**[]*)

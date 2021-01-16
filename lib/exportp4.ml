@@ -372,7 +372,7 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
 and print_keyvalue p kv =
   match kv with
   | MkKeyValue (info, key, value) ->
-      fprintf p "(@[<hov 4>MkKeyValue@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkKeyValue@ %a@ %a@ %a)@]"
           print_info info
           p4string key
           print_expr value
@@ -391,7 +391,7 @@ let print_pre_match p (m: coq_MatchPreT) =
 let print_match p (m: coq_Match) =
   match m with
   | MkMatch (info, expr, typ) ->
-      fprintf p "(@[<hov 4>MkMatch@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkMatch@ %a@ %a@ %a)@]"
           print_info info
           print_pre_match expr
           print_type typ
@@ -402,38 +402,47 @@ let print_matches =
 let print_table_pre_action_ref p (action: coq_TablePreActionRef) =
   match action with
   | MkTablePreActionRef (name, args) ->
-      fprintf p "(@[<hov 4>MkTablePreActionRef@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkTablePreActionRef@ %a@ %a)@]"
           print_name name
           (print_list (print_option print_expr)) args
   
 let print_table_action_ref p (action: coq_TableActionRef) =
   match action with
   | MkTableActionRef (info, action, typ) ->
-      fprintf p "(@[<hov 4>MkTableActionRef@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkTableActionRef@ %a@ %a@ %a)@]"
           print_info info
           print_table_pre_action_ref action
           print_type typ
   
+let print_table_actions =
+  print_list print_table_action_ref
+
 let print_table_key p (key: coq_TableKey) =
   match key with
   | MkTableKey (info, key, match_kind) ->
-      fprintf p "(@[<hov 4>MkTableKey@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkTableKey@ %a@ %a@ %a)@]"
           print_info info
           print_expr key
           p4string match_kind
 
+let print_table_keys =
+  print_list print_table_key
+
 let print_table_entry p (entry: coq_TableEntry) =
   match entry with
   | MkTableEntry (info, matches, action) ->
-      fprintf p "(@[<hov 4>MkTableEntry@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkTableEntry@ %a@ %a@ %a)@]"
           print_info info
           print_matches matches
           print_table_action_ref action
-  
+
+let print_table_entries = 
+  print_list print_table_entry
+
 let print_table_property p (property: coq_TableProperty) =
   match property with
   | MkTableProperty (info, const, s, expr) ->
-      fprintf p "(@[<hov 4>MkTableEntry@ %a@ %a@ %a %a@)@]"
+      fprintf p "(@[<hov 4>MkTableEntry@ %a@ %a@ %a@ %a)@]"
           print_info info
           print_bool const
           p4string s
@@ -661,6 +670,12 @@ let print_parser_state p (state: coq_ParserState) =
 let print_parser_states =
   print_list print_parser_state
 
+let print_sum_type_left f p l= 
+  fprintf p "(@[<hov 0>inl %a)@]" f l
+
+let print_sum_type_right f p r = 
+  fprintf p "(@[<hov 0>inr %a)@]" f r
+
 let print_decl_field p (decl_field : coq_DeclarationField) =
   match decl_field with
   | MkDeclarationField (info, typ, name) ->
@@ -789,9 +804,9 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           decl_name
           print_info info
           p4string name
-          (print_list print_table_key) keys
-          (print_list print_table_action_ref) actions
-          (print_option (print_list print_table_entry)) entries
+          print_table_keys keys
+          print_table_actions actions
+          (print_option print_table_entries) entries
           (print_option print_table_action_ref) default_action
           (print_option p4int) size
           (print_list print_table_property) custom_properties
@@ -878,7 +893,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
             decl_name
             print_info info
             p4string name
-            print_type typ
+            (print_sum_type_left print_type) typ
       | Coq_inr decl ->
         let (f_str, decl_name) = 
           (gen_format_string decl_name "DeclTypeDef@ %a@ %a@ %a")
@@ -887,7 +902,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
             decl_name
             print_info info
             p4string name
-            (print_decl None) decl
+            (print_sum_type_right (print_decl None)) decl
     end
   | DeclNewType (info, name, typ_or_decl) ->
     begin
@@ -900,7 +915,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
             decl_name
             print_info info
             p4string name
-            print_type typ
+            (print_sum_type_left print_type) typ
       | Coq_inr decl ->
         let (f_str, decl_name) = 
           (gen_format_string decl_name "DeclNewType@ %a@ %a@ %a")
@@ -909,7 +924,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
             decl_name
             print_info info
             p4string name
-            (print_decl None) decl
+            (print_sum_type_right (print_decl None)) decl
     end
   | DeclControlType (info, name, type_params, params) ->
       let (f_str, decl_name) = 
@@ -941,6 +956,9 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
             p4string name
             p4strings type_params
             print_params params
+
+let print_decls =
+  print_list (print_decl None)
 
 let get_decl_name =
   let cnt = ref 0 in
@@ -980,8 +998,142 @@ let print_top_decl  p (decl : coq_Declaration): string =
     print_decl (Some decl_name) p decl;
     decl_name
 
+let print_value_loc =
+  p4string
 
+let print_value_table p (value_table: coq_ValueTable) =
+  match value_table with
+  | MkValTable (name, keys, actions, default_action, const_entries) ->
+      fprintf p "(@[<hov 4>MkValTable@ %a@ %a@ %a@ %a@ %a)@]"
+          p4string name
+          print_table_keys keys
+          print_table_actions actions
+          print_table_action_ref default_action
+          print_table_entries const_entries
 
+let print_env_env print_binding =
+  print_list (print_list (print_pair p4string print_binding))
+
+let print_env_eval_env p (env: coq_Env_EvalEnv) =
+  match env with
+  | MkEnv_EvalEnv (vs, typ, namespaces) ->
+      fprintf p "(@[<hov 4>MkEnv_EvalEnv@ %a@ %a@ %a)@]"
+          (print_env_env p4string) vs
+          (print_env_env print_type) typ
+          p4string namespaces
+  
+let rec print_value_pre_lvalue p (lvalue : coq_ValuePreLvalue) = 
+  match lvalue with
+  | ValLeftName (name) ->
+      fprintf p "(@[<hov 0>ValLeftName@ %a)@]"
+          print_name name
+  | ValLeftMember (expr, name) ->
+      fprintf p "(@[<hov 4>ValLeftMember@ %a@ %a)@]"
+          print_lvalue expr
+          p4string name
+  | ValLeftBitAccess (expr, msb, lsb) ->
+      fprintf p "(@[<hov 4>ValLeftBitAccess@ %a@ %a@ %a)@]"
+          print_lvalue expr
+          print_nat msb
+          print_nat lsb
+  | ValLeftArrayAccess (expr, idx) ->
+      fprintf p "(@[<hov 4>ValLeftArrayAccess@ %a@ %a)@]"
+          print_lvalue expr
+          print_nat idx
+and print_lvalue p (lvalue: coq_ValueLvalue) =
+  match lvalue with
+  | MkValueLvalue  (lvalue, typ) ->
+      fprintf p "(@[<hov 4>MkValueLvalue@ %a@ %a)@]"
+          print_value_pre_lvalue lvalue
+          print_type typ
+  
+let print_value_object p (value: coq_ValueObject) =
+  match value with
+  | ValObjParser (scope, constructor_params, params, locals, states) ->
+      fprintf p "(@[<hov 4>ValObjParser@ %a@ %a@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params constructor_params
+          print_params params
+          print_decls locals
+          print_parser_states states
+  | ValObjTable (value_table) ->
+      fprintf p "(@[<hov 0>ValObjTable@ %a)@]"
+          print_value_table value_table
+  | ValObjControl (scope, constructor_params, params, locals, apply) ->
+      fprintf p "(@[<hov 4>ValObjControl@ %a@ %a@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params constructor_params
+          print_params params
+          print_decls locals
+          print_block apply
+  | ValObjPackage args ->
+      fprintf p "(@[<hov 0>ValObjPackage@ %a)@]"
+          (print_list (print_pair p4string print_value_loc)) args
+  | ValObjRuntime (loc, obj_name) ->
+      fprintf p "(@[<hov 4>ValObjRuntime@ %a@ %a)@]"
+          print_value_loc loc
+          p4string obj_name
+  | ValObjExternFun (name, caller, params) ->
+      fprintf p "(@[<hov 4>ValObjExternFun@ %a@ %a@ %a)@]"
+          p4string name
+          (print_option (print_pair print_value_loc p4string)) caller
+          print_params params
+  | ValObjFun (scope, params, body) ->
+      fprintf p "(@[<hov 4>ValObjFun@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params params
+          print_block body
+  | ValObjBuiltinFun (name, caller) ->
+      fprintf p "(@[<hov 4>ValObjBuiltinFun@ %a@ %a)@]"
+          p4string name
+          print_lvalue caller
+  | ValObjAction (scope, params, body) ->
+      fprintf p "(@[<hov 4>ValObjAction@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params params
+          print_block body
+  | ValObjPacket bits ->
+      fprintf p "(@[<hov 0>ValObjPacket@ %a)@]"
+          (print_list print_bool) bits
+
+let print_value_constructor p (value: coq_ValueConstructor) =
+  match value with
+  | ValConsParser (scope, constructor_params, params, locals, states) ->
+      fprintf p "(@[<hov 4>ValConsParser@ %a@ %a@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params constructor_params
+          print_params params
+          print_decls locals
+          print_parser_states states
+  | ValConsTable (value_table) ->
+      fprintf p "(@[<hov 0>ValConsTable@ %a)@]"
+          print_value_table value_table
+  | ValConsControl (scope, constructor_params, params, locals, apply) ->
+      fprintf p "(@[<hov 4>ValConsControl@ %a@ %a@ %a@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_params constructor_params
+          print_params params
+          print_decls locals
+          print_block apply
+  | ValConsPackage (params, args) ->
+      fprintf p "(@[<hov 4>ValConsPackage@ %a@ %a)@]"
+          print_params params
+          (print_list (print_pair p4string print_value_loc)) args
+  | ValConsExternObj fields ->
+      fprintf p "(@[<hov 0>ValConsExternObj@ %a)@]"
+          (print_list (print_pair p4string (print_params))) fields
+
+let print_value p (value: coq_Value) =
+  match value with
+  | ValBase value ->
+      fprintf p "(@[<hov 0>ValBase@ %a)@]"
+          print_value_base value
+  | ValObj value ->
+      fprintf p "(@[<hov 0>ValBase@ %a)@]"
+          print_value_object value
+  | ValCons value ->
+      fprintf p "(@[<hov 0>ValCons@ %a)@]"
+          print_value_constructor value
 
 let print_header p =
   fprintf p "Require Import Coq.Lists.List.@ ";
@@ -1002,4 +1154,5 @@ let print_program p (program : Prog.program) =
   let (f_str, prog_name) = (gen_format_string prog_name "%a")
   in fprintf p f_str
         prog_name
-        (print_list print_string) decl_names
+        (print_list print_string) decl_names;
+  fprintf p "@]@."

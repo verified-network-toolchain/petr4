@@ -470,9 +470,21 @@ Definition V1Switch := DeclPackageType tt {| tags := tt; str := "V1Switch" |}
                [(TypTypeName (BareName {| tags := tt; str := "H31" |}))])
           None {| tags := tt; str := "dep" |})].
 
+Definition egressSpec_t := DeclTypeDef tt
+    {| tags := tt; str := "egressSpec_t" |} (inl (TypBit 9)).
+
+Definition myHeader_t := DeclHeader tt {| tags := tt; str := "myHeader_t" |}
+    [(MkDeclarationField tt (TypBit 1) {| tags := tt; str := "firstBit" |});
+     (MkDeclarationField tt (TypBit 7) {| tags := tt; str := "padding" |})].
+
 Definition metadata := DeclStruct tt {| tags := tt; str := "metadata" |} nil.
 
-Definition headers := DeclStruct tt {| tags := tt; str := "headers" |} nil.
+Definition headers := DeclStruct tt {| tags := tt; str := "headers" |}
+    [(MkDeclarationField tt
+          (TypHeader
+           [(MkFieldType {| tags := tt; str := "firstBit" |} (TypBit 1));
+            (MkFieldType {| tags := tt; str := "padding" |} (TypBit 7))])
+          {| tags := tt; str := "myHeader" |})].
 
 Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
     [(MkParameter false Directionless
@@ -488,8 +500,55 @@ Definition MyParser := DeclParser tt {| tags := tt; str := "MyParser" |} nil
           (TypTypeName
            (BareName {| tags := tt; str := "standard_metadata_t" |})) 
           None {| tags := tt; str := "standard_metadata" |})] nil nil
-    [(MkParserState tt {| tags := tt; str := "start" |} nil
+    [(MkParserState tt {| tags := tt; str := "start" |}
+          [(MkStatement tt
+                (StatMethodCall
+                     (MkExpression tt
+                          (ExpExpressionMember
+                               (MkExpression tt
+                                    (ExpName
+                                     (BareName
+                                      {| tags := tt; str := "packet" |}))
+                                    (TypTypeName
+                                     (BareName
+                                      {| tags := tt; str := "packet_in" |}))
+                                    Directionless)
+                               {| tags := tt; str := "extract" |})
+                          (TypFunction
+                           (MkFunctionType [{| tags := tt; str := "T" |}]
+                                [(MkParameter false Out
+                                      (TypTypeName
+                                       (BareName
+                                        {| tags := tt; str := "T" |})) 
+                                      None {| tags := tt; str := "hdr" |})]
+                                FunExtern TypVoid)) Directionless)
+                     [(TypHeader
+                       [(MkFieldType {| tags := tt; str := "firstBit" |}
+                             (TypBit 1));
+                        (MkFieldType {| tags := tt; str := "padding" |}
+                             (TypBit 7))])]
+                     [(Some
+                       (MkExpression tt
+                            (ExpExpressionMember
+                                 (MkExpression tt
+                                      (ExpName
+                                       (BareName
+                                        {| tags := tt; str := "hdr" |}))
+                                      (TypTypeName
+                                       (BareName
+                                        {| tags := tt; str := "headers" |}))
+                                      Out)
+                                 {| tags := tt; str := "myHeader" |})
+                            (TypHeader
+                             [(MkFieldType
+                                   {| tags := tt; str := "firstBit" |}
+                                   (TypBit 1));
+                              (MkFieldType {| tags := tt; str := "padding" |}
+                                   (TypBit 7))]) Directionless))]) StmUnit)]
           (ParserDirect tt {| tags := tt; str := "accept" |}))].
+
+Require Import Petr4.P4Int.
+Definition x := {| tags := tt; value := 2; width_signed := None |}.
 
 Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
     nil
@@ -532,13 +591,142 @@ Definition MyIngress := DeclControl tt {| tags := tt; str := "MyIngress" |}
                                  (BareName
                                   {| tags := tt;
                                      str := "standard_metadata_t" |})) InOut))])
-                    StmUnit) (BlockEmpty tt)))]
+                    StmUnit) (BlockEmpty tt)));
+     (DeclAction tt {| tags := tt; str := "do_forward" |} nil
+          [(MkParameter false Directionless
+                (TypTypeName
+                 (BareName {| tags := tt; str := "egressSpec_t" |})) 
+                None {| tags := tt; str := "port" |})]
+          (BlockCons
+               (MkStatement tt
+                    (StatAssignment
+                         (MkExpression tt
+                              (ExpExpressionMember
+                                   (MkExpression tt
+                                        (ExpName
+                                         (BareName
+                                          {| tags := tt;
+                                             str := "standard_metadata" |}))
+                                        (TypTypeName
+                                         (BareName
+                                          {| tags := tt;
+                                             str := "standard_metadata_t" |}))
+                                        InOut)
+                                   {| tags := tt; str := "egress_spec" |})
+                              (TypBit 9) Directionless)
+                         (MkExpression tt
+                              (ExpName
+                               (BareName {| tags := tt; str := "port" |}))
+                              (TypTypeName
+                               (BareName
+                                {| tags := tt; str := "egressSpec_t" |}))
+                              Directionless)) StmUnit) (BlockEmpty tt)));
+     (DeclTable tt {| tags := tt; str := "forward" |}
+          [(MkTableKey tt
+                (MkExpression tt
+                     (ExpExpressionMember
+                          (MkExpression tt
+                               (ExpExpressionMember
+                                    (MkExpression tt
+                                         (ExpName
+                                          (BareName
+                                           {| tags := tt; str := "hdr" |}))
+                                         (TypTypeName
+                                          (BareName
+                                           {| tags := tt; str := "headers" |}))
+                                         InOut)
+                                    {| tags := tt; str := "myHeader" |})
+                               (TypHeader
+                                [(MkFieldType
+                                      {| tags := tt; str := "firstBit" |}
+                                      (TypBit 1));
+                                 (MkFieldType
+                                      {| tags := tt; str := "padding" |}
+                                      (TypBit 7))]) Directionless)
+                          {| tags := tt; str := "firstBit" |}) (TypBit 1)
+                     Directionless) {| tags := tt; str := "exact" |})]
+          [(MkTableActionRef tt
+                (MkTablePreActionRef
+                     (BareName {| tags := tt; str := "do_forward" |}) nil)
+                (TypAction nil
+                     [(MkParameter false Directionless
+                           (TypTypeName
+                            (BareName
+                             {| tags := tt; str := "egressSpec_t" |})) 
+                           None {| tags := tt; str := "port" |})]));
+           (MkTableActionRef tt
+                (MkTablePreActionRef
+                     (BareName {| tags := tt; str := "drop" |}) nil)
+                (TypAction nil nil))] None
+          (Some
+           (MkTableActionRef tt
+                (MkTablePreActionRef
+                     (BareName {| tags := tt; str := "drop" |}) nil) 
+                TypVoid))
+          (Some {| tags := tt; value := 2; width_signed := None |}) nil)]
     (BlockCons
          (MkStatement tt
-              (StatMethodCall
+              (StatConditional
                    (MkExpression tt
-                        (ExpName (BareName {| tags := tt; str := "drop" |}))
-                        (TypAction nil nil) Directionless) nil nil) StmUnit)
+                        (ExpFunctionCall
+                             (MkExpression tt
+                                  (ExpExpressionMember
+                                       (MkExpression tt
+                                            (ExpExpressionMember
+                                                 (MkExpression tt
+                                                      (ExpName
+                                                       (BareName
+                                                        {| tags := tt;
+                                                           str := "hdr" |}))
+                                                      (TypTypeName
+                                                       (BareName
+                                                        {| tags := tt;
+                                                           str := "headers" |}))
+                                                      InOut)
+                                                 {| tags := tt;
+                                                    str := "myHeader" |})
+                                            (TypHeader
+                                             [(MkFieldType
+                                                   {| tags := tt;
+                                                      str := "firstBit" |}
+                                                   (TypBit 1));
+                                              (MkFieldType
+                                                   {| tags := tt;
+                                                      str := "padding" |}
+                                                   (TypBit 7))])
+                                            Directionless)
+                                       {| tags := tt; str := "isValid" |})
+                                  (TypFunction
+                                   (MkFunctionType nil nil FunBuiltin
+                                        TypBool)) Directionless) nil nil)
+                        TypBool Directionless)
+                   (MkStatement tt
+                        (StatBlock
+                         (BlockCons
+                              (MkStatement tt
+                                   (StatMethodCall
+                                        (MkExpression tt
+                                             (ExpExpressionMember
+                                                  (MkExpression tt
+                                                       (ExpName
+                                                        (BareName
+                                                         {| tags := tt;
+                                                            str := "forward" |}))
+                                                       (TypTable
+                                                        {| tags := tt;
+                                                           str := "apply_result_forward" |})
+                                                       Directionless)
+                                                  {| tags := tt;
+                                                     str := "apply" |})
+                                             (TypFunction
+                                              (MkFunctionType nil nil
+                                                   FunTable
+                                                   (TypTypeName
+                                                    (BareName
+                                                     {| tags := tt;
+                                                        str := "apply_result_forward" |}))))
+                                             Directionless) nil nil) StmUnit)
+                              (BlockEmpty tt))) StmUnit) None) StmUnit)
          (BlockEmpty tt)).
 
 Definition MyEgress := DeclControl tt {| tags := tt; str := "MyEgress" |} nil
@@ -561,7 +749,50 @@ Definition MyDeparser := DeclControl tt {| tags := tt; str := "MyDeparser" |}
           None {| tags := tt; str := "packet" |});
      (MkParameter false In
           (TypTypeName (BareName {| tags := tt; str := "headers" |})) 
-          None {| tags := tt; str := "hdr" |})] nil nil (BlockEmpty tt).
+          None {| tags := tt; str := "hdr" |})] nil nil
+    (BlockCons
+         (MkStatement tt
+              (StatMethodCall
+                   (MkExpression tt
+                        (ExpExpressionMember
+                             (MkExpression tt
+                                  (ExpName
+                                   (BareName
+                                    {| tags := tt; str := "packet" |}))
+                                  (TypTypeName
+                                   (BareName
+                                    {| tags := tt; str := "packet_out" |}))
+                                  Directionless)
+                             {| tags := tt; str := "emit" |})
+                        (TypFunction
+                         (MkFunctionType [{| tags := tt; str := "T2" |}]
+                              [(MkParameter false In
+                                    (TypTypeName
+                                     (BareName {| tags := tt; str := "T2" |}))
+                                    None {| tags := tt; str := "hdr" |})]
+                              FunExtern TypVoid)) Directionless)
+                   [(TypHeader
+                     [(MkFieldType {| tags := tt; str := "firstBit" |}
+                           (TypBit 1));
+                      (MkFieldType {| tags := tt; str := "padding" |}
+                           (TypBit 7))])]
+                   [(Some
+                     (MkExpression tt
+                          (ExpExpressionMember
+                               (MkExpression tt
+                                    (ExpName
+                                     (BareName
+                                      {| tags := tt; str := "hdr" |}))
+                                    (TypTypeName
+                                     (BareName
+                                      {| tags := tt; str := "headers" |}))
+                                    In) {| tags := tt; str := "myHeader" |})
+                          (TypHeader
+                           [(MkFieldType {| tags := tt; str := "firstBit" |}
+                                 (TypBit 1));
+                            (MkFieldType {| tags := tt; str := "padding" |}
+                                 (TypBit 7))]) Directionless))]) StmUnit)
+         (BlockEmpty tt)).
 
 Definition MyVerifyChecksum := DeclControl tt
     {| tags := tt; str := "MyVerifyChecksum" |} nil
@@ -595,7 +826,16 @@ Definition main := DeclInstantiation tt
                 [(MkParameter false Directionless
                       (TypExtern {| tags := tt; str := "packet_in" |}) 
                       None {| tags := tt; str := "packet" |});
-                 (MkParameter false Out (TypStruct nil) None
+                 (MkParameter false Out
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
                       {| tags := tt; str := "meta" |});
@@ -648,7 +888,16 @@ Definition main := DeclInstantiation tt
                     nil) nil)
           (TypControl
            (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
+                [(MkParameter false InOut
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
                       {| tags := tt; str := "meta" |})])) Directionless);
@@ -660,7 +909,16 @@ Definition main := DeclInstantiation tt
                nil)
           (TypControl
            (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
+                [(MkParameter false InOut
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
                       {| tags := tt; str := "meta" |});
@@ -713,7 +971,16 @@ Definition main := DeclInstantiation tt
                nil)
           (TypControl
            (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
+                [(MkParameter false InOut
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
                       {| tags := tt; str := "meta" |});
@@ -766,7 +1033,16 @@ Definition main := DeclInstantiation tt
                     nil) nil)
           (TypControl
            (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
+                [(MkParameter false InOut
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |});
                  (MkParameter false InOut (TypStruct nil) None
                       {| tags := tt; str := "meta" |})])) Directionless);
@@ -781,7 +1057,16 @@ Definition main := DeclInstantiation tt
                 [(MkParameter false Directionless
                       (TypExtern {| tags := tt; str := "packet_out" |}) 
                       None {| tags := tt; str := "packet" |});
-                 (MkParameter false In (TypStruct nil) None
+                 (MkParameter false In
+                      (TypStruct
+                       [(MkFieldType {| tags := tt; str := "myHeader" |}
+                             (TypHeader
+                              [(MkFieldType
+                                    {| tags := tt; str := "firstBit" |}
+                                    (TypBit 1));
+                               (MkFieldType
+                                    {| tags := tt; str := "padding" |}
+                                    (TypBit 7))]))]) None
                       {| tags := tt; str := "hdr" |})])) Directionless)]
     {| tags := tt; str := "main" |} None.
 
@@ -796,6 +1081,8 @@ Definition program := [decl1; packet_in; packet_out; verify; NoAction; decl2;
                        update_checksum_with_payload; resubmit; recirculate;
                        clone; clone3; truncate; assert; assume; Parser;
                        VerifyChecksum; Ingress; Egress; ComputeChecksum;
-                       Deparser; V1Switch; metadata; headers; MyParser;
-                       MyIngress; MyEgress; MyDeparser; MyVerifyChecksum;
-                       MyComputeChecksum; main].
+                       Deparser; V1Switch; egressSpec_t; myHeader_t;
+                       metadata; headers; MyParser; MyIngress; MyEgress;
+                       MyDeparser; MyVerifyChecksum; MyComputeChecksum; main].
+
+

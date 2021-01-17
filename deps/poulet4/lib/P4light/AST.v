@@ -122,6 +122,21 @@ Module P4light.
       | THeader (fields : F.fs tags_t t) (* the header type *).
       (**[]*)
 
+      (** Equality of types. *)
+      Inductive equivt : t -> t -> Prop :=
+      | equivt_bool : equivt TBool TBool
+      | equivt_int : equivt TInteger TInteger
+      | equivt_bitstring (n : nat) : equivt (TBitstring n) (TBitstring n)
+      | equivt_error : equivt TError TError
+      | equivt_matchkind : equivt TMatchKind TMatchKind
+      | equivt_record (fs1 fs2 : F.fs tags_t t) :
+          F.relfs equivt fs1 fs2 ->
+          equivt (TRecord fs1) (TRecord fs2)
+      | equivt_header (fs1 fs2 : F.fs tags_t t) :
+          F.relfs equivt fs1 fs2 ->
+          equivt (THeader fs1) (THeader fs2).
+      (**[]*)
+
       (** Function signatures. *)
       Inductive arrow (A R : Type) : Type :=
         Arrow (params : F.fs tags_t (Dir.d * A)) (returns : option R).
@@ -139,6 +154,15 @@ Module P4light.
     Arguments TRecord {_}.
     Arguments THeader {_}.
     Arguments Arrow {_} {_} {_}.
+
+    Arguments equivt {_}.
+    Arguments equivt_bool {_}.
+    Arguments equivt_int {_}.
+    Arguments equivt_bitstring {_}.
+    Arguments equivt_error {_}.
+    Arguments equivt_matchkind {_}.
+    Arguments equivt_record {_}.
+    Arguments equivt_header {_}.
 
     Module TypeNotations.
       Declare Custom Entry p4type.

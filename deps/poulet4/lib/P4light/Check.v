@@ -220,7 +220,7 @@ Module Typecheck.
                   (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
         F.relfs
           (fun te τ =>
-             fst te = τ /\
+             E.equivt (fst te) τ /\
              let e := snd te in
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
@@ -282,7 +282,7 @@ Module Typecheck.
         fns f = Some (E.Arrow params None) ->
         F.relfs
           (fun dte dt =>
-             fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
+             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
              let e := dte ▷ snd ▷ snd in
              let τ := snd dt in
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
@@ -294,7 +294,7 @@ Module Typecheck.
         fns f = Some (E.Arrow params (Some τ)) ->
         F.relfs
           (fun dte dt =>
-             fst dt = fst dte /\ snd dt = dte ▷ snd ▷ fst /\
+             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
              let e := dte ▷ snd ▷ snd in
              let τ := snd dt in
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
@@ -346,7 +346,7 @@ Module Typecheck.
                       (i : tags_t) :
         cs c = Some (CCtor params) ->
         F.relfs
-          (fun '(τ,e) τ' => τ = τ' /\ ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (fun '(τ,e) τ' => E.equivt τ τ' /\ ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
         check_decl cs ins fns errs mkds Γ
                    (D.DInstantiate c x args i) Γ fns !{ x ↦ tt ;; ins }!
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)

@@ -686,10 +686,10 @@ let print_decl_field p (decl_field : coq_DeclarationField) =
 
 let gen_format_string decl_name content = 
   match decl_name with
-    | Some decl_name ->
-        ("@[<hov 4>Definition %s := " ^^ content ^^ ".@]@ @ ", decl_name)
-    | None -> 
-        ("(@[<hov 4>%s" ^^ content ^^ ")@]", "")
+  | Some decl_name ->
+      ("@[<hov 4>Definition %s := " ^^ content ^^ ".@]@ @ ", decl_name)
+  | None -> 
+      ("(@[<hov 4>%s" ^^ content ^^ ")@]", "")
 
 let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
   (* let print_dummy_decl decl_name p =

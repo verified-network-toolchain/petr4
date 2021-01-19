@@ -288,7 +288,8 @@ Module Typecheck.
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C)
     | chk_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
-               (τ : E.t tags_t) (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+               (τ : E.t tags_t)
+               (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
                (f x : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
         fns f = Some (E.Arrow params (Some τ)) ->
@@ -335,18 +336,22 @@ Module Typecheck.
               (mkds : matchkinds)
               (Γ : gam) : D.d tags_t -> gam -> fenv -> ienv -> Prop :=
     | chk_vardeclare (τ : E.t tags_t) (x : name tags_t) (i : tags_t) :
-        check_decl cs ins fns errs mkds Γ (D.DVardecl τ x i) !{ x ↦ τ ;; Γ }! fns ins
+        check_decl cs ins fns errs mkds Γ
+                   (D.DVardecl τ x i) !{ x ↦ τ ;; Γ }! fns ins
     | chk_varinit (τ : E.t tags_t) (x : name tags_t)
                   (e : E.e tags_t) (i : tags_t) :
         ⟦ errs, mkds, Γ ⟧ ⊢ e ∈ τ ->
-        check_decl cs ins fns errs mkds Γ (D.DVarinit τ x e i) !{ x ↦ τ ;; Γ }! fns ins
+        check_decl cs ins fns errs mkds Γ
+                   (D.DVarinit τ x e i) !{ x ↦ τ ;; Γ }! fns ins
     | chk_instantiate (c x : name tags_t)
                       (params : F.fs tags_t (E.t tags_t))
                       (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                       (i : tags_t) :
         cs c = Some (CCtor params) ->
         F.relfs
-          (fun '(τ,e) τ' => E.equivt τ τ' /\ ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (fun '(τ,e) τ' =>
+             E.equivt τ τ' /\ ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+          args params ->
         check_decl cs ins fns errs mkds Γ
                    (D.DInstantiate c x args i) Γ fns !{ x ↦ tt ;; ins }!
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)

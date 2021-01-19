@@ -83,8 +83,8 @@ Module Field.
     (**[]*)
 
     (** Fold. *)
-    Definition fold {U V : Type}
-               (f : name tags_t -> U -> V -> V) (fds : fs tags_t U) (init : V) : V :=
+    Definition fold {U V : Type} (f : name tags_t -> U -> V -> V)
+               (fds : fs tags_t U) (init : V) : V :=
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
   End FieldLibrary.
@@ -122,21 +122,6 @@ Module P4light.
       | THeader (fields : F.fs tags_t t) (* the header type *).
       (**[]*)
 
-      (** Equality of types. *)
-      Inductive equivt : t -> t -> Prop :=
-      | equivt_bool : equivt TBool TBool
-      | equivt_int : equivt TInteger TInteger
-      | equivt_bitstring (n : nat) : equivt (TBitstring n) (TBitstring n)
-      | equivt_error : equivt TError TError
-      | equivt_matchkind : equivt TMatchKind TMatchKind
-      | equivt_record (fs1 fs2 : F.fs tags_t t) :
-          F.relfs equivt fs1 fs2 ->
-          equivt (TRecord fs1) (TRecord fs2)
-      | equivt_header (fs1 fs2 : F.fs tags_t t) :
-          F.relfs equivt fs1 fs2 ->
-          equivt (THeader fs1) (THeader fs2).
-      (**[]*)
-
       (** Function signatures. *)
       Inductive arrow (A R : Type) : Type :=
         Arrow (params : F.fs tags_t (Dir.d * A)) (returns : option R).
@@ -155,15 +140,6 @@ Module P4light.
     Arguments THeader {_}.
     Arguments Arrow {_} {_} {_}.
 
-    Arguments equivt {_}.
-    Arguments equivt_bool {_}.
-    Arguments equivt_int {_}.
-    Arguments equivt_bitstring {_}.
-    Arguments equivt_error {_}.
-    Arguments equivt_matchkind {_}.
-    Arguments equivt_record {_}.
-    Arguments equivt_header {_}.
-
     Module TypeNotations.
       Declare Custom Entry p4type.
 
@@ -178,7 +154,8 @@ Module P4light.
             (in custom p4type at level 2,
                 w custom p4type at level 99, no associativity).
       Notation "'error'" := TError
-                              (in custom p4type at level 0, no associativity).
+                              (in custom p4type at level 0,
+                                  no associativity).
       Notation "'matchkind'"
         := TMatchKind (in custom p4type at level 0, no associativity).
       Notation "'rec' { fields }"
@@ -217,14 +194,16 @@ Module P4light.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t tags_t, P ty :=
         fix custom_t_ind (type : t tags_t) : P type :=
-          let fix fields_ind (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
+          let fix fields_ind
+                  (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
               | [] => Forall_nil (F.predf_data P)
               | (_, hft) as hf :: tf =>
                 Forall_cons hf (custom_t_ind hft) (fields_ind tf)
               end in
           let fix fields_ind_dir
-                  (flds : F.fs tags_t (d * t tags_t)) : F.predfs_data (P ∘ snd) flds :=
+                  (flds : F.fs tags_t (d * t tags_t)) :
+                F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ty return F.predfs_data (P ∘ snd) fs_ty with
               | [] => Forall_nil (F.predf_data (P ∘ snd))
               | (_, (_, hft)) as hf :: tf =>
@@ -242,6 +221,104 @@ Module P4light.
       (**[]*)
     End TypeInduction.
 
+    Section TypeEquivalence.
+      Context {tags_t : Type}.
+
+      (** Equality of types. *)
+      Inductive equivt : t tags_t -> t tags_t -> Prop :=
+      | equivt_bool : equivt TBool TBool
+      | equivt_int : equivt TInteger TInteger
+      | equivt_bitstring (n : nat) : equivt (TBitstring n) (TBitstring n)
+      | equivt_error : equivt TError TError
+      | equivt_matchkind : equivt TMatchKind TMatchKind
+      | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          equivt (TRecord fs1) (TRecord fs2)
+      | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          equivt (THeader fs1) (THeader fs2).
+      (**[]*)
+
+      Lemma equivt_reflexive : Reflexive equivt.
+      Proof.
+        intros ty;
+          induction ty using custom_t_ind; constructor;
+            try (induction H; constructor; auto;
+                 destruct x; unfold F.relf;
+                 simpl in *; auto).
+      Qed.
+
+      Lemma equivt_symmetric : Symmetric equivt.
+      Proof.
+        intros t1.
+        induction t1 using custom_t_ind;
+          intros [] HEQ; inversion HEQ; clear HEQ; constructor.
+        - symmetry in H0, H1; subst.
+          induction H2; constructor;
+            inversion H; clear H; subst.
+          + destruct x as [x1 t1]; destruct y as [x2 t2];
+              unfold F.predf_data in H4.
+            unfold F.relf in *; simpl in *.
+            destruct H0; split; auto.
+          + apply IHForall2; auto.
+        - symmetry in H0, H1; subst.
+          induction H2; constructor;
+            inversion H; clear H; subst.
+          + destruct x as [x1 t1]; destruct y as [x2 t2];
+              unfold F.predf_data in H4.
+            unfold F.relf in *; simpl in *.
+            destruct H0; split; auto.
+          + apply IHForall2; auto.
+      Qed.
+
+      Lemma equivt_transitive : Transitive equivt.
+      Proof.
+        intros x; induction x using custom_t_ind;
+          intros [] [] Hxy Hyz; auto;
+          inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz.
+        - rename fields into fs1; rename fields0 into fs2;
+            rename fields1 into fs3. constructor.
+          generalize dependent fs3;
+            generalize dependent fs2.
+          induction fs1 as [| [x1 t1] fs1 IHfs1];
+            intros [| [x2 t2] fs2] H12;
+            intros [| [x3 t3] fs3] H23;
+            inversion H12; inversion H23; inversion H;
+              clear H12 H23 H; subst; constructor.
+          + unfold F.relf in *; simpl in *.
+            destruct H3; destruct H9; subst; split; eauto.
+          + eapply IHfs1; eauto.
+        - rename fields into fs1; rename fields0 into fs2;
+            rename fields1 into fs3. constructor.
+          generalize dependent fs3;
+            generalize dependent fs2.
+          induction fs1 as [| [x1 t1] fs1 IHfs1];
+            intros [| [x2 t2] fs2] H12;
+            intros [| [x3 t3] fs3] H23;
+            inversion H12; inversion H23; inversion H;
+              clear H12 H23 H; subst; constructor.
+          + unfold F.relf in *; simpl in *.
+            destruct H3; destruct H9; subst; split; eauto.
+          + eapply IHfs1; eauto.
+      Qed.
+
+      Instance TypeEquivalence : Equivalence equivt.
+      Proof.
+        constructor; [ apply equivt_reflexive
+                     | apply equivt_symmetric
+                     | apply equivt_transitive].
+      Defined.
+    End TypeEquivalence.
+(*
+    Arguments equivt {_}.
+    Arguments equivt_bool {_}.
+    Arguments equivt_int {_}.
+    Arguments equivt_bitstring {_}.
+    Arguments equivt_error {_}.
+    Arguments equivt_matchkind {_}.
+    Arguments equivt_record {_}.
+    Arguments equivt_header {_}.
+*)
     Inductive uop : Set :=
     | Not    (* boolean negation *)
     | BitNot (* bitwise negation *)

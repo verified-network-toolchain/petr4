@@ -62,8 +62,9 @@ Module Field.
     (**[]*)
 
     (** Relation betwixt two field instances. *)
-    Definition relf {U V : Type} (R : U -> V -> Prop) : f tags_t U -> f tags_t V -> Prop :=
-      fun u v => fst u = fst v /\ R (snd u) (snd v).
+    Definition relf {U V : Type}
+               (R : U -> V -> Prop) : f tags_t U -> f tags_t V -> Prop :=
+      fun u v => P4String.equiv (fst u) (fst v) /\ R (snd u) (snd v).
     (**[]*)
 
     (** Relation between two instances of fields. *)
@@ -244,62 +245,43 @@ Module P4light.
         intros ty;
           induction ty using custom_t_ind; constructor;
             try (induction H; constructor; auto;
-                 destruct x; unfold F.relf;
-                 simpl in *; auto).
+                 destruct x as [x ty]; unfold F.relf; simpl in *;
+                 split; auto; try reflexivity).
       Qed.
 
       Lemma equivt_symmetric : Symmetric equivt.
       Proof.
         intros t1.
         induction t1 using custom_t_ind;
-          intros [] HEQ; inversion HEQ; clear HEQ; constructor.
-        - symmetry in H0, H1; subst.
-          induction H2; constructor;
-            inversion H; clear H; subst.
-          + destruct x as [x1 t1]; destruct y as [x2 t2];
-              unfold F.predf_data in H4.
-            unfold F.relf in *; simpl in *.
-            destruct H0; split; auto.
-          + apply IHForall2; auto.
-        - symmetry in H0, H1; subst.
-          induction H2; constructor;
-            inversion H; clear H; subst.
-          + destruct x as [x1 t1]; destruct y as [x2 t2];
-              unfold F.predf_data in H4.
-            unfold F.relf in *; simpl in *.
-            destruct H0; split; auto.
-          + apply IHForall2; auto.
+          intros [] HEQ; inversion HEQ; clear HEQ; constructor;
+            symmetry in H0, H1; subst;
+              induction H2; constructor;
+                inversion H; clear H; subst;
+                  try (destruct x as [x1 t1];
+                       destruct y as [x2 t2];
+                       unfold F.predf_data in H4;
+                       unfold F.relf in *; simpl in *;
+                       destruct H0; split; auto;
+                       symmetry; assumption);
+        try (apply IHForall2; auto).
       Qed.
 
       Lemma equivt_transitive : Transitive equivt.
       Proof.
         intros x; induction x using custom_t_ind;
           intros [] [] Hxy Hyz; auto;
-          inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz.
-        - rename fields into fs1; rename fields0 into fs2;
-            rename fields1 into fs3. constructor.
-          generalize dependent fs3;
-            generalize dependent fs2.
-          induction fs1 as [| [x1 t1] fs1 IHfs1];
-            intros [| [x2 t2] fs2] H12;
-            intros [| [x3 t3] fs3] H23;
-            inversion H12; inversion H23; inversion H;
-              clear H12 H23 H; subst; constructor.
-          + unfold F.relf in *; simpl in *.
-            destruct H3; destruct H9; subst; split; eauto.
-          + eapply IHfs1; eauto.
-        - rename fields into fs1; rename fields0 into fs2;
-            rename fields1 into fs3. constructor.
-          generalize dependent fs3;
-            generalize dependent fs2.
-          induction fs1 as [| [x1 t1] fs1 IHfs1];
-            intros [| [x2 t2] fs2] H12;
-            intros [| [x3 t3] fs3] H23;
-            inversion H12; inversion H23; inversion H;
-              clear H12 H23 H; subst; constructor.
-          + unfold F.relf in *; simpl in *.
-            destruct H3; destruct H9; subst; split; eauto.
-          + eapply IHfs1; eauto.
+          inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz;
+        try (rename fields into fs1; rename fields0 into fs2;
+             rename fields1 into fs3; constructor;
+             generalize dependent fs3; generalize dependent fs2;
+             induction fs1 as [| [x1 t1] fs1 IHfs1];
+             intros [| [x2 t2] fs2] H12; intros [| [x3 t3] fs3] H23;
+             inversion H12; inversion H23; inversion H;
+             clear H12 H23 H; subst; constructor;
+             [ unfold F.relf in *; simpl in *;
+               destruct H3; destruct H9; split; eauto;
+               transitivity x2; assumption
+             | eapply IHfs1; eauto]).
       Qed.
 
       Instance TypeEquivalence : Equivalence equivt.
@@ -308,17 +290,62 @@ Module P4light.
                      | apply equivt_symmetric
                      | apply equivt_transitive].
       Defined.
+
+      Lemma equivt_dec : forall (t1 t2 : t tags_t),
+          equivt t1 t2 \/ ~ equivt t1 t2.
+      Proof.
+        induction t1 using custom_t_ind; intros [];
+          try (left; apply equivt_reflexive);
+          try (right; intros HR; inversion HR; assumption).
+        - destruct (equiv_dec w n) as [H | H];
+            unfold equiv in *; unfold complement in *; subst.
+          + left; reflexivity.
+          + right; intros H'; inversion H'; contradiction.
+        - rename fields into fs1; rename fields0 into fs2.
+          generalize dependent fs2.
+          induction fs1 as [| [x1 t1] fs1 IHfs1]; intros [| [x2 t2] fs2];
+            try (left; reflexivity);
+            try (right; intros H';
+                 inversion H'; inversion H2; assumption); subst.
+          inversion H; clear H; subst; unfold F.predf_data in H2.
+          pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3.
+          destruct (equiv_dec x1 x2) as [H12 | H12];
+            unfold equiv in *; unfold complement in *;
+              destruct (H2 t2) as [HT | HT]; clear H2;
+              destruct IH as [IH | IH];
+              try (right; intros H'; inversion H';
+                   clear H'; subst; inversion H1;
+                   clear H1; subst; unfold F.relf in *;
+                   simpl in *; destruct H3; contradiction).
+          + left; constructor; inversion IH; subst;
+            constructor; auto; unfold F.relf; split; auto.
+          + right; intros H'; inversion H'; subst;
+              clear H'; inversion H1; subst; apply IH;
+                constructor; auto.
+        - rename fields into fs1; rename fields0 into fs2.
+          generalize dependent fs2.
+          induction fs1 as [| [x1 t1] fs1 IHfs1]; intros [| [x2 t2] fs2];
+            try (left; reflexivity);
+            try (right; intros H';
+                 inversion H'; inversion H2; assumption); subst.
+          inversion H; clear H; subst; unfold F.predf_data in H2.
+          pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3.
+          destruct (equiv_dec x1 x2) as [H12 | H12];
+            unfold equiv in *; unfold complement in *;
+              destruct (H2 t2) as [HT | HT]; clear H2;
+              destruct IH as [IH | IH];
+              try (right; intros H'; inversion H';
+                   clear H'; subst; inversion H1;
+                   clear H1; subst; unfold F.relf in *;
+                   simpl in *; destruct H3; contradiction).
+          + left; constructor; inversion IH; subst;
+            constructor; auto; unfold F.relf; split; auto.
+          + right; intros H'; inversion H'; subst;
+              clear H'; inversion H1; subst; apply IH;
+                constructor; auto.
+      Qed.
     End TypeEquivalence.
-(*
-    Arguments equivt {_}.
-    Arguments equivt_bool {_}.
-    Arguments equivt_int {_}.
-    Arguments equivt_bitstring {_}.
-    Arguments equivt_error {_}.
-    Arguments equivt_matchkind {_}.
-    Arguments equivt_record {_}.
-    Arguments equivt_header {_}.
-*)
+
     Inductive uop : Set :=
     | Not    (* boolean negation *)
     | BitNot (* bitwise negation *)
@@ -761,7 +788,8 @@ Module P4light.
                   (params : F.fs tags_t (Dir.d * tags_t))
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (cparams : F.fs tags_t (E.t tags_t))
-                 (params : F.fs tags_t (Dir.d * E.t tags_t)) (i : tags_t) (* TODO! *)
+                 (params : F.fs tags_t (Dir.d * E.t tags_t))
+                 (i : tags_t) (* TODO! *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.

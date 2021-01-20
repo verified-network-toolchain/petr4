@@ -38,7 +38,7 @@ let print_list f p l =
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
-  fprintf p "tt"
+  fprintf p "NoInfo"
 
 let p4string p (s : P4string.t) =
   fprintf p "{| @[<hov 0>stags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str
@@ -967,7 +967,7 @@ let gen_decl_name =
     while List.mem ("decl" ^ string_of_int !cnt) existing do
       cnt := !cnt + 1;
     done;
-    "decl" ^ string_of_int !cnt
+    "decl'" ^ string_of_int !cnt
 
 let get_decl_name (decl: coq_Declaration): string option =
   match decl with
@@ -1145,18 +1145,9 @@ let print_value p (value: coq_Value) =
           print_value_constructor value
 
 let print_header p =
-  fprintf p "Require Import Coq.Lists.List.@ ";
-  fprintf p "Require Import Coq.NArith.NArith.@ ";
-  fprintf p "Require Import Coq.ZArith.ZArith.@ ";
-  fprintf p "Require Import Strings.String.@ @ ";
-  fprintf p "Require Import Petr4.P4String.@ ";
-  fprintf p "Require Import Petr4.P4Int.@ ";
-  fprintf p "Require Import Petr4.Syntax.@ ";
-  fprintf p "Require Import Petr4.Typed.@ @ ";
+  fprintf p "Require Import Petr4.P4defs.@ ";
   fprintf p "Open Scope string_scope.@ @ ";
-  fprintf p "Import ListNotations.@ @ ";
-  fprintf p "Notation stags := P4String.tags.@ ";
-  fprintf p "Notation itags := P4Int.tags.@ @ "
+  fprintf p "Import ListNotations.@ @ "
 
 
 let print_program p (program : Prog.program) =
@@ -1164,8 +1155,8 @@ let print_program p (program : Prog.program) =
   print_header p;
   let existing = collect_decl_names program in
   let decl_names = List.map (print_top_decl p existing) program in
-  let prog_name = Some "program" in
-  let (f_str, prog_name) = (gen_format_string prog_name "%a")
+  let prog_name = Some "prog" in
+  let (f_str, prog_name) = (gen_format_string prog_name "Program@ %a")
   in fprintf p f_str
         prog_name
         (print_list print_string) decl_names;

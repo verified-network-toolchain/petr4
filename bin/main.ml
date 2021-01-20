@@ -66,9 +66,11 @@ let check_command =
      +> flag "-json" no_arg ~doc:" Print parsed tree as JSON"
      +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
      +> flag "-exportp4" no_arg ~doc:" Export P4 syntax in Coq"
+     +> flag "-export-file" (optional_with_default "out.v" string) ~doc:"Path to export P4 syntax in Coq"
+     +> flag "-typed-json" no_arg ~doc:" Pretty-print typed AST JSON"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir json pretty exportp4 p4file () ->
-       ignore (check_file include_dir p4file json pretty exportp4 verbose))
+    (fun verbose include_dir json pretty exportp4 export_file typed_json p4file () ->
+       ignore (check_file include_dir p4file json pretty exportp4 export_file typed_json verbose))
 
 let eval_command =
   let open Command.Spec in

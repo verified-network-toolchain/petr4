@@ -732,8 +732,6 @@ Module P4light.
       | DInstantiate (C x : name tags_t) (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                      (i : tags_t)                  (* constructor [C]
                                                       with [args] makes [x] *)
-      | DFunction (f : name tags_t) (signature : E.arrowT tags_t)
-                  (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
     End Declarations.
@@ -742,7 +740,6 @@ Module P4light.
     Arguments DVarinit {tags_t}.
     Arguments DConst {tags_t}.
     Arguments DInstantiate {tags_t}.
-    Arguments DFunction {tags_t}.
     Arguments DSeq {tags_t}.
   End Decl.
 
@@ -790,6 +787,8 @@ Module P4light.
       | TPParser (cparams : F.fs tags_t (E.t tags_t))
                  (params : F.fs tags_t (Dir.d * E.t tags_t))
                  (i : tags_t) (* TODO! *)
+      | TPFunction (f : name tags_t) (signature : E.arrowT tags_t)
+                  (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.

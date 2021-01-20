@@ -354,6 +354,7 @@ Module Typecheck.
           args params ->
         check_decl cs ins fns errs mkds Γ
                    (D.DInstantiate c x args i) Γ fns !{ x ↦ tt ;; ins }!
+(* Functions belong only to the top-level declarations.
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
                    (Γ' Γ'' : gam) (sg : signal) :
@@ -361,7 +362,7 @@ Module Typecheck.
         (⦃ fns, errs, mkds, Γ' ⦄ ⊢ body ⊣ Γ'', sg) ->
         good_signal sig sg ->
         check_decl cs ins fns errs mkds Γ
-                   (D.DFunction f sig body i) Γ !{ f ↦ sig ;; fns }! ins
+                   (D.DFunction f sig body i) Γ !{ f ↦ sig ;; fns }! ins *)
     | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t) (ins' ins'' : ienv)
                   (fns' fns'' : fenv) (Γ' Γ'' : gam) :
         check_decl cs ins fns errs mkds Γ d1 Γ' fns' ins' ->

@@ -6,7 +6,7 @@
 #ifndef _MSA_P4_
 #define _MSA_P4_
 
-#include <core.p4>
+#include "core.p4"
 
 typedef   bit<9>    PortId_t;
 typedef   bit<16>   PktInstId_t;

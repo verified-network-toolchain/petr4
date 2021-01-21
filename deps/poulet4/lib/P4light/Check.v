@@ -88,13 +88,25 @@ Module Typecheck.
     Variable (tags_t : Type).
 
     (** Available matchkinds. *)
-    Definition matchkinds : Type := Env.t (name tags_t) unit.
+    Definition matchkinds : Type := Env.t (string tags_t) unit.
 
     (** Available error names. *)
-    Definition errors : Type := Env.t (name tags_t) unit.
+    Definition errors : Type := Env.t (string tags_t) unit.
 
     (** Typing context. *)
     Definition gam : Type := Env.t (name tags_t) (E.t tags_t).
+
+    Definition bare (x : string tags_t) : name tags_t :=
+      Typed.BareName tags_t x.
+    (**[]*)
+
+    Instance P4NameEquivalence : Equivalence (Typed.equivn tags_t) :=
+      P4NameEquivalence tags_t.
+    (**[]*)
+
+    Instance P4NameEqDec : EqDec (name tags_t) (Typed.equivn tags_t) :=
+      P4NameEqDec tags_t.
+    (**[]*)
 
     Definition out_update
                (fs : F.fs tags_t (dir * (E.t tags_t * E.e tags_t))) : gam -> gam :=
@@ -103,7 +115,9 @@ Module Typecheck.
                       match d with
                       | P.Dir.DOut | P.Dir.DInOut => true
                       | _ => false end)
-        ▷ F.fold (fun x '(_, (τ,_)) Γ => !{ x ↦ τ ;; Γ }!).
+        ▷ F.fold (fun x '(_, (τ,_)) Γ =>
+                    let x' := bare x in
+                    !{ x' ↦ τ ;; Γ }!).
 
     (** Expression typing as a relation. *)
     Inductive check
@@ -204,12 +218,12 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ bit<n> ->
         ⟦ errs , mkds , Γ ⟧ ⊢ ++ e1 :: bit<m> e2 :: bit<n> @ i end ∈ bit<w>
     (* Member expressions. *)
-    | chk_hdr_mem (e : E.e tags_t) (x : name tags_t)
+    | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
                   (fields : F.fs tags_t (E.t tags_t)) (τ : E.t tags_t) (i : tags_t) :
         In (x, τ) fields ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ hdr { fields } ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Mem e :: hdr { fields } dot x @ i end ∈ τ
-    | chk_rec_mem (e : E.e tags_t) (x : name tags_t)
+    | chk_rec_mem (e : E.e tags_t) (x : string tags_t)
                   (fields : F.fs tags_t (E.t tags_t))
                   (τ : E.t tags_t) (i : tags_t) :
         In (x, τ) fields ->
@@ -225,10 +239,10 @@ Module Typecheck.
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
     (* Errors and matchkinds. *)
-    | chk_error (err : name tags_t) (i : tags_t) :
+    | chk_error (err : string tags_t) (i : tags_t) :
         errs err = Some tt ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Error err @ i ∈ error
-    | chk_matchkind (mkd : name tags_t) (i : tags_t) :
+    | chk_matchkind (mkd : string tags_t) (i : tags_t) :
         mkds mkd = Some tt ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd @ i ∈ error
     where "⟦ ers ',' mks ',' gm ⟧ ⊢ e ∈ ty"
@@ -254,10 +268,11 @@ Module Typecheck.
     | chk_seq_ret (s1 s2 : S.s tags_t) (Γ' : gam) (i : tags_t) :
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ⊣ Γ', R) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ Γ', R)
-    | chk_vardecl (τ : E.t tags_t) (x : name tags_t)
+    | chk_vardecl (τ : E.t tags_t) (x : string tags_t)
                   (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ @ i fin ⊣ x ↦ τ ;; Γ, C
+        let x' := bare x in
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ @ i fin ⊣ x' ↦ τ ;; Γ, C
     | chk_assign (τ : E.t tags_t) (lhs rhs : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ lhs ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rhs ∈ τ ->
@@ -318,7 +333,9 @@ Module Typecheck.
     Definition bind_all (sig : E.arrowT tags_t) : gam -> gam :=
       match sig with
       | E.Arrow params _ =>
-        F.fold (fun x '(_,τ) Γ => !{ x ↦ τ ;; Γ }!) params
+        F.fold (fun x '(_,τ) Γ =>
+                  let x' := bare x in
+                  !{ x' ↦ τ ;; Γ }!) params
       end.
     (**[]*)
 
@@ -335,15 +352,17 @@ Module Typecheck.
               (fns : fenv) (errs : errors)
               (mkds : matchkinds)
               (Γ : gam) : D.d tags_t -> gam -> fenv -> ienv -> Prop :=
-    | chk_vardeclare (τ : E.t tags_t) (x : name tags_t) (i : tags_t) :
+    | chk_vardeclare (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+        let x' := bare x in
         check_decl cs ins fns errs mkds Γ
-                   (D.DVardecl τ x i) !{ x ↦ τ ;; Γ }! fns ins
-    | chk_varinit (τ : E.t tags_t) (x : name tags_t)
+                   (D.DVardecl τ x i) !{ x' ↦ τ ;; Γ }! fns ins
+    | chk_varinit (τ : E.t tags_t) (x : string tags_t)
                   (e : E.e tags_t) (i : tags_t) :
         ⟦ errs, mkds, Γ ⟧ ⊢ e ∈ τ ->
+        let x' := bare x in
         check_decl cs ins fns errs mkds Γ
-                   (D.DVarinit τ x e i) !{ x ↦ τ ;; Γ }! fns ins
-    | chk_instantiate (c x : name tags_t)
+                   (D.DVarinit τ x e i) !{ x' ↦ τ ;; Γ }! fns ins
+    | chk_instantiate (c : name tags_t) (x : string tags_t)
                       (params : F.fs tags_t (E.t tags_t))
                       (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                       (i : tags_t) :
@@ -352,8 +371,9 @@ Module Typecheck.
           (fun '(τ,e) τ' =>
              E.equivt τ τ' /\ ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
           args params ->
+        let x' := bare x in
         check_decl cs ins fns errs mkds Γ
-                   (D.DInstantiate c x args i) Γ fns !{ x ↦ tt ;; ins }!
+                   (D.DInstantiate c x args i) Γ fns !{ x' ↦ tt ;; ins }!
 (* Functions belong only to the top-level declarations.
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)

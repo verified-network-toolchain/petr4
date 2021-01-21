@@ -3,19 +3,19 @@ Export ListNotations.
 Require Export Coq.Bool.Bool.
 Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Big Integers. *)
-Require Petr4.String. (** Strings. *)
-Require Petr4.P4String. (** Names. *)
+Require Petr4.String.
+Require Petr4.P4String. (** Strings. *)
+Require Petr4.Typed. (** Names. *)
 Require Petr4.P4Int. (** Integers. *)
 
-Definition string : Type := Petr4.String.t.
-Instance StringEqDec : EqDec string eq := Petr4.String.StringEqDec.
+Instance StringEqDec : EqDec Petr4.String.t eq := Petr4.String.StringEqDec.
 
 Section TypeSynonyms.
   Variable (tags_t : Type).
 
-  Definition name : Type := Petr4.P4String.t tags_t.
+  Definition string : Type := Petr4.P4String.t tags_t.
 
-  Instance P4StringEqDec : EqDec name (@P4String.equiv tags_t) :=
+  Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
     P4String.P4StringEqDec tags_t.
   (**[]*)
 
@@ -27,6 +27,16 @@ Section TypeSynonyms.
 
   Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
     P4Int.IntEqDec tags_t.
+  (**[]*)
+
+  Definition name : Type := Typed.name tags_t.
+
+  Instance P4NameEquivalence : Equivalence (Typed.equivn tags_t) :=
+    Typed.NameEquivalence tags_t.
+  (**[]*)
+
+  Instance P4NameEqDec : EqDec name (Typed.equivn tags_t) :=
+    Typed.NameEqDec tags_t.
   (**[]*)
 End TypeSynonyms.
 
@@ -42,7 +52,7 @@ Module Field.
     Variable (tags_t : Type).
 
     (** Field type. *)
-    Definition f (T : Type) : Type := (name tags_t) * T.
+    Definition f (T : Type) : Type := (string tags_t) * T.
 
     (** Fields. *)
     Definition fs (T : Type) : Type := list (f T).
@@ -84,7 +94,7 @@ Module Field.
     (**[]*)
 
     (** Fold. *)
-    Definition fold {U V : Type} (f : name tags_t -> U -> V -> V)
+    Definition fold {U V : Type} (f : string tags_t -> U -> V -> V)
                (fds : fs tags_t U) (init : V) : V :=
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
@@ -251,7 +261,7 @@ Module P4light.
 
       Lemma equivt_symmetric : Symmetric equivt.
       Proof.
-        intros t1.
+        intros t1;
         induction t1 using custom_t_ind;
           intros [] HEQ; inversion HEQ; clear HEQ; constructor;
             symmetry in H0, H1; subst;
@@ -397,11 +407,11 @@ Module P4light.
               (arg : e) (i : tags_t)                   (* explicit casts *)
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
-      | EExprMember (mem : name tags_t)
+      | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
-      | EError (err : name tags_t) (i : tags_t)        (* error literals *)
-      | EMatchKind (err : name tags_t) (i : tags_t)    (* matchkind literals *).
+      | EError (err : string tags_t) (i : tags_t)      (* error literals *)
+      | EMatchKind (err : string tags_t) (i : tags_t)  (* matchkind literals *).
       (**[]*)
 
       (** Function call. *)
@@ -586,7 +596,7 @@ Module P4light.
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEExprMember : forall (x : name tags_t) (ty : t tags_t) (ex : e tags_t) i,
+      Hypothesis HEExprMember : forall (x : string tags_t) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
       Hypothesis HEError : forall err i,
@@ -640,11 +650,12 @@ Module P4light.
                                                             small-step semantics *)
       | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                             (* assignment *)
-      | SConditional (guard_type : E.t tags_t) (guard : E.e tags_t)
+      | SConditional (guard_type : E.t tags_t)
+                     (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t)  (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                    (* sequences,
                                                             an alternative to blocks *)
-      | SVarDecl (typ : E.t tags_t) (var : name tags_t)
+      | SVarDecl (typ : E.t tags_t) (var : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)         (* variable declaration *)
       | SCall (f : name tags_t) (args : E.arrowE tags_t)
               (i : tags_t)                               (* function/action/extern call *)
@@ -723,13 +734,14 @@ Module P4light.
           may occur within controls, parsers,
           and even the top-level. *)
       Inductive d : Type :=
-      | DVardecl (typ : E.t tags_t) (x : name tags_t)
+      | DVardecl (typ : E.t tags_t) (x : string tags_t)
                  (i : tags_t)                      (* unitialized variable *)
-      | DVarinit (typ : E.t tags_t) (x : name tags_t)
+      | DVarinit (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
-      | DConst   (typ : E.t tags_t) (x : name tags_t)
+      | DConst   (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* constant *)
-      | DInstantiate (C x : name tags_t) (args : F.fs tags_t (E.t tags_t * E.e tags_t))
+      | DInstantiate (C : name tags_t) (x : string tags_t)
+                     (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                      (i : tags_t)                  (* constructor [C]
                                                       with [args] makes [x] *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
@@ -755,11 +767,11 @@ Module P4light.
       (** Declarations that may occur within Controls. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | DAction (a : name tags_t)
+      | DAction (a : string tags_t)
                 (signature : (E.arrow (E.t tags_t) unit) tags_t)
                 (body : S.s tags_t) (i : tags_t) (* action declaration *)
       | DTable (keys : F.fs tags_t (E.t tags_t)) (* field names are matchkinds *)
-               (actions : list (name tags_t))    (* action names *)
+               (actions : list (string tags_t))  (* action names *)
                (i : tags_t)                      (* table declaration *)
       | DDecl (d : D.d tags_t) (i : tags_t)
       | DSeq (d1 d2 : d) (i : tags_t).
@@ -787,7 +799,7 @@ Module P4light.
       | TPParser (cparams : F.fs tags_t (E.t tags_t))
                  (params : F.fs tags_t (Dir.d * E.t tags_t))
                  (i : tags_t) (* TODO! *)
-      | TPFunction (f : name tags_t) (signature : E.arrowT tags_t)
+      | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                   (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)

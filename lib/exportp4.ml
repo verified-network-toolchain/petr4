@@ -971,12 +971,17 @@ let gen_decl_name =
 
 let get_decl_name (decl: coq_Declaration): string option =
   match decl with
+    | DeclFunction (_, _, name, _, params, _)
+    | DeclExternFunction (_, _, name, _, params) -> 
+      let param_names = 
+        List.fold_left 
+        (fun accum p -> let MkParameter (_,_,_,_,name) = p 
+                        in accum ^ "'" ^ name.str) "" params
+      in Some (name.str ^ param_names)
     | DeclConstant (_, _, name, _)
     | DeclInstantiation (_, _, _, name, _)
     | DeclParser (_, name, _, _, _, _, _)
     | DeclControl (_, name, _, _, _, _, _)
-    | DeclFunction (_, _, name, _, _, _)
-    | DeclExternFunction (_, _, name, _, _)
     | DeclVariable (_, _, name, _)
     | DeclValueSet (_, _, _, name)
     | DeclAction (_, name, _, _, _)

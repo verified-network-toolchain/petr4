@@ -370,8 +370,8 @@ end = struct
 
   let format_params l = format_list_pp_sep format_t (text "," ++ space) l
 
-  let format_params_semi l = format_list_pp_sep format_t (text ";" ++ newline) l ++ text ";"
-
+  let format_params_semi l = 
+    format_list_pp_sep Parameter.format_t (text ";" ++ newline) l ++ text ";"
 
   let format_constructor_params l =
     match l with
@@ -432,18 +432,7 @@ end = struct
   let format_state e =
     match snd e with
     | { annotations; name; statements; transition } ->
-      (Annotation.format_ts annotations) ++
-      (box ~indent:2 (("state" |> text) ++
-                      space ++
-                      (P4Word.format_t name) ++
-                      space ++
-                      ("{\n" |> text) ++
-                      (format_list_nl Statement.format_t statements) ++
-                      (match statements with
-                       | [] -> nop
-                       | _ :: _ -> text "\n") ++
-                      (format_transition transition))) ++
-      ("\n}" |> text)
+      format_list_nl Statement.format_t statements
 
   let format_states l =
     format_list_nl format_state l
@@ -556,14 +545,9 @@ end = struct
       Declaration.format_t decl
 
   let format_struct name fields = 
-    box ~indent:2 (text "typedef struct simple_h {" ++ newline 
-                   ++ text "bool valid;" ++ newline 
-                   ++ text "bit src;" ++ newline 
-                   ++ text "dst;") ++ newline 
-    ++ verbatim "} simple_h;" ++ newline 
-    ++ box ~indent:2 (text "typedef struct " ++ name ++ text " {" ++ newline 
-                      ++ text "simple_h simple;")++ newline
-    ++ verbatim "} headers;" 
+    box ~indent:2 (text "typedef struct " ++ name ++ text " {" ++ newline 
+                   ++ text "simple_h simple;")++ newline
+    ++ verbatim "} " ++ name ++ text ";" 
 
   let rec dec_help locals =
     if not (List.length locals = 0) then
@@ -584,9 +568,8 @@ end = struct
                       (Expression.format_t value) ++
                       (";" |> text)))
     | Action { annotations; name; params; body } ->
-      (Annotation.format_ts annotations) ++
       (box ~indent:2
-         (("action" |> text) ++ space ++ (name |> snd |> text) ++ ("(" |> text) ++
+         (("void " |> text) ++ (name |> snd |> text) ++ ("(" |> text) ++
           (hvbox (Parameter.format_params params)) ++ (") " |> text) ++
           (Block.format_t body))) ++ ("\n}" |> text)
     | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
@@ -612,12 +595,13 @@ end = struct
                          | _ -> text "emit(state->pkt, &state->hdrs.simple, 16);"
                         )) ++newline ++ text "}"
     | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
-      box ~indent:2 (text "typedef struct P_state {" ++ newline 
-                     ++ text "packet_in pkt;" ++ newline
-                     ++ text "headers hdrs;") ++ newline 
-      ++ verbatim "} P_state;" ++ newline 
-      ++ box ~indent:2 (text "void P(P_state* state) {" ++ newline
-                        ++ text "extract(state->pkt, &state->hdrs.simple, 16);") ++ newline
+      let n = P4Word.format_t name ++ text "_state" in 
+      box ~indent:2 (text "typedef struct " ++ n ++ text " {" ++ newline 
+                     ++ Parameter.format_params_semi params) ++ newline 
+      ++ verbatim "} " ++ n ++ text ";" ++ newline 
+      ++ box ~indent:2 (text "void " ++ P4Word.format_t name ++ text "(" ++ n ++ text "* state) {" ++ newline
+                        (* ++ Parser.format_states states) ++ newline  *)
+                        ++ text "extract(state->pkt, &state->hdrs.simple, 1);") ++ newline
       ++ text "}"
     | Instantiation { annotations; typ; args; name; init=None } ->
       box ~indent: 2 (text "int main() {" ++ newline ++
@@ -646,14 +630,7 @@ end = struct
        ("= " |> text) ++
        (Block.format_t block)) ++
       ("\n};" |> text)
-    | Table { annotations; name; properties } ->
-      (box ~indent:2 ((Annotation.format_ts annotations) ++
-                      ("table" |> text) ++
-                      space  ++
-                      (P4Word.format_t name) ++
-                      (" {\n" |> text) ++
-                      (format_list_nl Table.format_property properties))) ++
-      ("\n}" |> text)
+    | Table { annotations; name; properties } -> nop 
     | Variable { annotations; typ; name; init = None } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ( (Type.format_t typ) ++
@@ -711,7 +688,7 @@ end = struct
           (");" |> text)))
     | PackageType { annotations; name; type_params; params } ->
       nop
-    | Struct { annotations; name; fields } ->
+    | Struct { annotations; name; fields } -> 
       format_struct (P4Word.format_t name) fields
     | MatchKind { members=[] } ->
       "match_kind {\n}" |> text |> box
@@ -767,9 +744,10 @@ end = struct
       nop
     | Header { annotations; name; fields } ->
       Annotation.format_ts annotations
-      ++ box ~indent:2 (text "header "
+      ++ box ~indent:2 (text "typedef struct " 
                         ++ P4Word.format_t name
                         ++ text " {" ++ newline
+                        ++ text "bool valid;" ++ newline
                         ++ format_list_nl format_field fields)
       ++ text "\n}"
     | HeaderUnion { annotations; name; fields } ->
@@ -792,6 +770,5 @@ end
 let format_program p =
   match p with
   | P4.Program(ds) ->
-    box ((format_list_nl Declaration.format_t ds) ++
-         ("\n" |> text))
+    box ((format_list_nl Declaration.format_t ds))
 

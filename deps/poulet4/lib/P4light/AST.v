@@ -2,11 +2,16 @@ Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
 Require Export Coq.Classes.EquivDec.
-Require Export Coq.Numbers.BinNums. (** Big Integers. *)
+Require Export Coq.Numbers.BinNums. (** Integers. *)
 Require Petr4.String.
 Require Petr4.P4String. (** Strings. *)
 Require Petr4.Typed. (** Names. *)
-Require Petr4.P4Int. (** Integers. *)
+
+Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
+
+Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
+
+Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 
 Instance StringEqDec : EqDec Petr4.String.t eq := Petr4.String.StringEqDec.
 
@@ -31,12 +36,85 @@ Section TypeSynonyms.
 
   Definition name : Type := Typed.name tags_t.
 
-  Instance P4NameEquivalence : Equivalence (Typed.equivn tags_t) :=
-    Typed.NameEquivalence tags_t.
-  (**[]*)
+  Definition equivn (n1 n2 : name) : Prop :=
+    match n1, n2 with
+    | Typed.BareName _ x1,
+      Typed.BareName _ x2          => P4String.equiv x1 x2
+    | Typed.QualifiedName _ xs1 x1,
+      Typed.QualifiedName _ xs2 x2 =>
+        P4String.equiv x1 x2 /\
+        List.Forall2 (@P4String.equiv tags_t) xs1 xs2
+    | _, _ => False
+    end.
 
-  Instance P4NameEqDec : EqDec name (Typed.equivn tags_t) :=
-    Typed.NameEqDec tags_t.
+  Lemma equivn_reflexive : Reflexive equivn.
+  Proof.
+    intros [x | xs x]; simpl.
+    - reflexivity.
+    - split; try reflexivity.
+      induction xs as [| h xs IHxs];
+        constructor; auto. reflexivity.
+  Qed.
+
+  Lemma equivn_symmetric : Symmetric equivn.
+  Proof.
+    intros [x | xs x] [y | ys y] H; simpl in *; auto.
+    - symmetry. assumption.
+    - destruct H as [Hxy H]. split; try (symmetry; assumption).
+      generalize dependent ys; induction xs as [| hx xs IHxs];
+        intros [| hy ys] H; inversion H; clear H; subst; auto;
+      constructor; auto. symmetry. assumption.
+  Qed.
+
+  Lemma equivn_transitive : Transitive equivn.
+  Proof.
+    intros [x | xs x] [y | ys y] [z | zs z] Hxy Hyz;
+      simpl in *; auto; try contradiction.
+    - transitivity y; auto.
+    - destruct Hxy as [Hxy Hxys]; destruct Hyz as [Hyz Hyzs]; split.
+      + transitivity y; auto.
+      + clear x y z Hxy Hyz.
+        generalize dependent zs; generalize dependent ys.
+        induction xs as [| x xs IHxs];
+          intros [| y ys] Hxy [| z zs] Hyz;
+          inversion Hxy; clear Hxy;
+            inversion Hyz; clear Hyz; subst; auto.
+        constructor.
+        * transitivity y; auto.
+        * apply IHxs with ys; auto.
+  Qed.
+
+  Instance NameEquivalence : Equivalence equivn.
+  Proof.
+    constructor; [ apply equivn_reflexive
+                 | apply equivn_symmetric
+                 | apply equivn_transitive].
+  Defined.
+
+  Definition equivn_dec : forall n1 n2 : name,
+      { equivn n1 n2 } + { ~ equivn n1 n2 }.
+  Proof.
+    intros [x | xs x] [y | ys y]; simpl; auto.
+    - pose proof equiv_dec x y; auto.
+    - assert (H : {List.Forall2 (@P4String.equiv tags_t) xs ys} +
+                  {~ List.Forall2 (@P4String.equiv tags_t) xs ys}).
+      { clear x y; generalize dependent ys.
+        induction xs as [| x xs IHxs]; intros [| y ys];
+          try (right; intros H'; inversion H'; contradiction).
+        - left; constructor.
+        - pose proof equiv_dec x y as Hxy; specialize IHxs with ys;
+            unfold equiv in *; unfold complement in *.
+          destruct Hxy as [Hxy | Hxy]; destruct IHxs as [IH | IH];
+            try (right; intros H'; inversion H'; contradiction).
+          left. constructor; auto. }
+      destruct (equiv_dec x y) as [Hxy | Hxy]; destruct H as [H | H];
+        unfold equiv in *; unfold complement in *;
+          try (right; intros [Hxy' H']; contradiction).
+      left; auto.
+  Defined.
+
+  Instance NameEqDec : EqDec name equivn :=
+    { equiv_dec := equivn_dec }.
   (**[]*)
 End TypeSynonyms.
 
@@ -125,8 +203,8 @@ Module P4light.
       (** Expression types. *)
       Inductive t : Type :=
       | TBool                            (* bool *)
-      | TInteger                         (* arbitrary-size integers *)
-      | TBitstring (n : nat)               (* fixed-width integers *)
+      | TBit (width : positive)          (* unsigned integers *)
+      | TInt (width : positive)          (* signed integers *)
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
@@ -143,8 +221,8 @@ Module P4light.
     End P4Types.
 
     Arguments TBool {_}.
-    Arguments TInteger {_}.
-    Arguments TBitstring {_}.
+    Arguments TBit {_}.
+    Arguments TInt {_}.
     Arguments TError {_}.
     Arguments TMatchKind {_}.
     Arguments TRecord {_}.
@@ -158,10 +236,12 @@ Module P4light.
       Notation "( x )" := x (in custom p4type, x at level 99).
       Notation "x" := x (in custom p4type at level 0, x constr at level 0).
       Notation "'Bool'" := TBool (in custom p4type at level 0).
-      Notation "'Int'"
-        := TInteger (in custom p4type at level 0, no associativity).
       Notation "'bit' '<' w '>'"
-        := (TBitstring w)
+        := (TBit w)
+            (in custom p4type at level 2,
+                w custom p4type at level 99, no associativity).
+      Notation "'int' '<' w '>'"
+        := (TInt w)
             (in custom p4type at level 2,
                 w custom p4type at level 99, no associativity).
       Notation "'error'" := TError
@@ -187,9 +267,9 @@ Module P4light.
 
       Hypothesis HTBool : P {{ Bool }}.
 
-      Hypothesis HTInteger : P {{ Int }}.
+      Hypothesis HTBit : forall w, P {{ bit<w> }}.
 
-      Hypothesis HTBitstring : forall w, P {{ bit<w> }}.
+      Hypothesis HTInt : forall w, P {{ int<w> }}.
 
       Hypothesis HTError : P {{ error }}.
 
@@ -222,8 +302,8 @@ Module P4light.
               end in
           match type as ty return P ty with
           | {{ Bool }} => HTBool
-          | {{ Int }} => HTInteger
-          | {{ bit<w> }} => HTBitstring w
+          | {{ bit<w> }} => HTBit w
+          | {{ int<w> }} => HTInt w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
@@ -238,8 +318,8 @@ Module P4light.
       (** Equality of types. *)
       Inductive equivt : t tags_t -> t tags_t -> Prop :=
       | equivt_bool : equivt TBool TBool
-      | equivt_int : equivt TInteger TInteger
-      | equivt_bitstring (n : nat) : equivt (TBitstring n) (TBitstring n)
+      | equivt_bit (w : positive) : equivt (TBit w) (TBit w)
+      | equivt_int (w : positive) : equivt (TInt w) (TInt w)
       | equivt_error : equivt TError TError
       | equivt_matchkind : equivt TMatchKind TMatchKind
       | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
@@ -306,11 +386,11 @@ Module P4light.
       Proof.
         induction t1 using custom_t_ind; intros [];
           try (left; apply equivt_reflexive);
-          try (right; intros HR; inversion HR; assumption).
-        - destruct (equiv_dec w n) as [H | H];
-            unfold equiv in *; unfold complement in *; subst.
-          + left; reflexivity.
-          + right; intros H'; inversion H'; contradiction.
+          try (right; intros HR; inversion HR; assumption);
+          try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
+               unfold equiv in *; unfold complement in *; subst;
+               try (right; intros H'; inversion H'; contradiction);
+               try (left; reflexivity)).
         - rename fields into fs1; rename fields0 into fs2.
           generalize dependent fs2.
           induction fs1 as [| [x1 t1] fs1 IHfs1]; intros [| [x2 t2] fs2];
@@ -394,8 +474,8 @@ Module P4light.
           unless the type is obvious. *)
       Inductive e : Type :=
       | EBool (b : bool) (i : tags_t)                      (* booleans *)
-      | EInteger (n : int tags_t) (i : tags_t)          (* arbitrary-size integers *)
-      | EBitstring (width : nat) (value : N) (i : tags_t) (* fixed-width integers *)
+      | EBit (width : positive) (val : N) (i : tags_t)  (* unsigned integers *)
+      | EInt (width : positive) (val : Z) (i : tags_t)  (* signed integers *)
       | EVar (type : t tags_t) (x : name tags_t)
              (i : tags_t)                               (* variables *)
       | EUop (op : uop) (type : t tags_t)
@@ -419,8 +499,8 @@ Module P4light.
     End Expressions.
 
     Arguments EBool {tags_t}.
-    Arguments EInteger {tags_t}.
-    Arguments EBitstring {tags_t}.
+    Arguments EBit {_}.
+    Arguments EInt {_}.
     Arguments EVar {tags_t}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
@@ -439,9 +519,8 @@ Module P4light.
       Notation "'True' @ i" := (EBool true i) (in custom p4expr at level 0).
       Notation "'False' @ i" := (EBool false i) (in custom p4expr at level 0).
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
-      Notation "'INT' n @ i" := (EInteger n i) (in custom p4expr at level 0).
-      Notation "'Bit' '<' w '>' n @ i" := (EBitstring w n i)
-                              (in custom p4expr at level 1, no associativity).
+      Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
+      Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x '::' ty @ i 'end'" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
       Notation "'!' x '::' ty @ i 'end'" := (EUop Not ty x i)
@@ -572,14 +651,11 @@ Module P4light.
 
       Variable P : e tags_t -> Prop.
 
-      Hypothesis HEBool : forall b i,
-          P <{ BOOL b @ i }>.
+      Hypothesis HEBool : forall b i, P <{ BOOL b @ i }>.
 
-      Hypothesis HEInteger : forall n i,
-          P <{ INT n @ i }>.
+      Hypothesis HEBit : forall w n i, P <{ w W n @ i }>.
 
-      Hypothesis HEBitstring : forall (w : nat) (v : N) i,
-          P <{ Bit<w> v @ i }>.
+      Hypothesis HEInt : forall w n i, P <{ w S n @ i }>.
 
       Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
           P <{ Var x :: ty @ i end }>.
@@ -599,11 +675,9 @@ Module P4light.
       Hypothesis HEExprMember : forall (x : string tags_t) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
-      Hypothesis HEError : forall err i,
-          P <{ Error err @ i }>.
+      Hypothesis HEError : forall err i, P <{ Error err @ i }>.
 
-      Hypothesis HEMatchKind : forall mkd i,
-          P <{ Matchkind mkd @ i }>.
+      Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
 
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
@@ -619,8 +693,8 @@ Module P4light.
               end in
           match expr as e' return P e' with
           | <{ BOOL b @ i }> => HEBool b i
-          | <{ INT n @ i }> => HEInteger n i
-          | <{ Bit<w> v @ i }> => HEBitstring w v i
+          | <{ w W n @ i }>  => HEBit w n i
+          | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x :: ty @ i end }> => HEVar ty x i
           | EUop ty op exp i => HEUop ty op exp i (custom_e_ind exp)
           | EBop op lt rt lhs rhs i =>
@@ -680,7 +754,7 @@ Module P4light.
 
       Declare Custom Entry p4stmt.
 
-      Notation "$ stmt $" := stmt (stmt custom p4stmt at level 99).
+      Notation "'-{' stmt '}-'" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"
         := x (in custom p4stmt at level 0, x constr at level 0).

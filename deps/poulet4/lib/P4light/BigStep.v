@@ -6,8 +6,8 @@ Section Values.
   (** Values from expression evaluation. *)
   Inductive value : Type :=
   | VBool (b : bool) (i : tags_t)
-  | VInt  (n : int tags_t) (i : tags_t)
-  | VBitString (w : nat) (n : N) (i : tags_t)
+  | VInt (w : positive) (n : Z) (i : tags_t)
+  | VBit (w : positive) (n : N) (i : tags_t)
   | VRecord (fs : Field.fs tags_t value) (i : tags_t)
   | VError (err : string tags_t) (i : tags_t)
   | VMatchKind (mk : string tags_t) (i : tags_t).
@@ -18,9 +18,9 @@ Section Values.
 
     Hypothesis HVBool : forall b i, P (VBool b i).
 
-    Hypothesis HVInt : forall n i, P (VInt n i).
+    Hypothesis HVBit : forall w n i, P (VBit w n i).
 
-    Hypothesis HVBitString : forall w n i, P (VBitString w n i).
+    Hypothesis HVInt : forall w n i, P (VInt w n i).
 
     Hypothesis HVRecord : forall fs i,
         Field.predfs_data P fs -> P (VRecord fs i).
@@ -39,6 +39,41 @@ Section Values.
                 Forall_cons hf (custom_value_ind hfv) (fields_ind tf)
               end in
           match val as v return P v with
+          | VBool b i  => HVBool b i
+          | VInt w n i => HVInt w n i
+          | VBit w n i => HVBit w n i
+          | VRecord vs i     => HVRecord vs i (fields_ind vs)
+          | VError err i     => HVError err i
+          | VMatchKind mk i  => HVMatchKind mk i
+          end.
+  End ValueInduction.
+(*
+  Section ValueRect.
+    Variable P : value -> Prop.
+
+    Hypothesis HVBool : forall b i, P (VBool b i).
+
+    Hypothesis HVInt : forall n i, P (VInt n i).
+
+    Hypothesis HVBitString : forall w n i, P (VBitString w n i).
+
+    Hypothesis HVRecord : forall fs i,
+        Field.predfs_data P fs -> P (VRecord fs i).
+
+    Hypothesis HVError : forall err i, P (VError err i).
+
+    Hypothesis HVMatchKind : forall mk i, P (VMatchKind mk i).
+
+    Definition custom_value_rect : forall v : value, P v :=
+      fix custom_value_rect (val : value) : P val :=
+          let fix fields_rect
+                  (flds : Field.fs tags_t value) : Field.predfs_data P flds :=
+              match flds as fs return Field.predfs_data P fs with
+              | [] => Forall_nil (Field.predf_data P)
+              | (_, hfv) as hf :: tf =>
+                Forall_cons hf (custom_value_ind hfv) (fields_ind tf)
+              end in
+          match val as v return P v with
           | VBool b i => HVBool b i
           | VInt n i  => HVInt n i
           | VBitString w n i => HVBitString w n i
@@ -46,18 +81,17 @@ Section Values.
           | VError err i     => HVError err i
           | VMatchKind mk i  => HVMatchKind mk i
           end.
-  End ValueInduction.
-
+  End ValueRect.
+*)
   Section ValueEquality.
-
     (** Value equivalence relation. *)
     Inductive equivv : value -> value -> Prop :=
     | equivv_bool (b : bool) (i1 i2 : tags_t) :
         equivv (VBool b i1) (VBool b i2)
-    | equivv_int (n : int tags_t) (i1 i2 : tags_t) :
-        equivv (VInt n i1) (VInt n i2)
-    | equivv_bitstring (w : nat) (n : N) (i1 i2 : tags_t) :
-        equivv (VBitString w n i1) (VBitString w n i2)
+    | equivv_int (w : positive) (n : Z) (i1 i2 : tags_t) :
+        equivv (VInt w n i1) (VInt w n i2)
+    | equivv_bit (w : positive) (n : N) (i1 i2 : tags_t) :
+        equivv (VBit w n i1) (VBit w n i2)
     | equivv_record (fs1 fs2 : Field.fs tags_t value) (i1 i2 : tags_t) :
         Field.relfs equivv fs1 fs2 ->
         equivv (VRecord fs1 i1) (VRecord fs2 i2)
@@ -119,5 +153,31 @@ Section Values.
       - transitivity err2; auto.
       - transitivity mk2; auto.
     Qed.
+
+    Instance ValueEquivalence : Equivalence equivv.
+    Proof.
+      constructor; [ apply equivv_reflexive
+                   | apply equivv_symmetric
+                   | apply equivv_transitive].
+    Defined.
+
+    Lemma equivv_dec : forall v1 v2 : value,
+        equivv v1 v2 \/ ~ equivv v1 v2.
+    Proof.
+      induction v1 using custom_value_ind; intros [];
+        try (right; intros H'; inversion H'; contradiction).
+      - destruct (equiv_dec b b0) as [Hb | Hb];
+          unfold equiv in *; unfold complement in *; subst;
+            [ left; constructor
+            | right; intros H'; inversion H'; contradiction ].
+    Abort.
+(*
+    Lemma value_eqdec : forall v1 v2 : value,
+        {equivv v1 v2} + {~ equivv v1 v2}.
+    Proof.
+      intros v1. induction v1 using value_rect.
+      induction v1 using custom_value_ind with
+          (P := fun v1 : value => {equiv v1 v2} + {~ equiv v1 v2}).
+*)
   End ValueEquality.
 End Values.

@@ -6,6 +6,7 @@ makefile.conf
 .*.aux
 *.glob
 *.v.d
+*.lia.cache
 *~
 .coq-native/
 *.vio

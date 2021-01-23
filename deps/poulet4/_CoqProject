@@ -16,6 +16,7 @@ lib/P4Int.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
+lib/P4light/P4Arith.v
 lib/P4light/AST.v
 lib/P4light/BigStep.v
 lib/P4light/Check.v

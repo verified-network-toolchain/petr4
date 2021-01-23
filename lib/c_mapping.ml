@@ -546,7 +546,7 @@ end = struct
 
   let format_struct name fields = 
     box ~indent:2 (text "typedef struct " ++ name ++ text " {" ++ newline 
-                   ++ text "simple_h simple;")++ newline
+                   ++ format_list_nl format_field fields) ++ newline  
     ++ verbatim "} " ++ name ++ text ";" 
 
   let rec dec_help locals =
@@ -577,14 +577,7 @@ end = struct
       box ~indent:2 ((text "typedef struct ") ++ n ++ text " {" ++ newline ++
                      Parameter.format_params_semi params)
       ++ newline ++ text "}" ++ n ++ text ";" ++ newline 
-      ++ (match (snd name) with
-          | "C" -> box ~indent:2 (text "void C_forward (C_state* state) {" ++ newline ++ 
-                                  text "state->forward = true;") ++ newline ++ 
-                   text "}" ++ newline ++
-                   box ~indent:2 (text "void C_drop (C_state* state) {" ++ newline ++
-                                  text "state->forward = false;") ++ newline ++
-                   text "}"
-          | _ -> nop) ++ newline
+      ++ format_list_nl format_t locals
       ++ box ~indent:2 (text "void " ++ text (snd name) ++ text "(" ++ n ++ text "* state) {" ++ newline ++
                         (match (snd name) with 
                          | "C" -> box ~indent:2 (text "if(state->hdrs.simple.dst != 0) {" ++ newline ++
@@ -600,7 +593,6 @@ end = struct
                      ++ Parameter.format_params_semi params) ++ newline 
       ++ verbatim "} " ++ n ++ text ";" ++ newline 
       ++ box ~indent:2 (text "void " ++ P4Word.format_t name ++ text "(" ++ n ++ text "* state) {" ++ newline
-                        (* ++ Parser.format_states states) ++ newline  *)
                         ++ text "extract(state->pkt, &state->hdrs.simple, 1);") ++ newline
       ++ text "}"
     | Instantiation { annotations; typ; args; name; init=None } ->
@@ -749,7 +741,7 @@ end = struct
                         ++ text " {" ++ newline
                         ++ text "bool valid;" ++ newline
                         ++ format_list_nl format_field fields)
-      ++ text "\n}"
+      ++ text "\n}" ++ P4Word.format_t name ++ text ";"
     | HeaderUnion { annotations; name; fields } ->
       Annotation.format_ts annotations
       ++ box ~indent:2 (text "header_union "

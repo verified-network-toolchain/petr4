@@ -6,6 +6,20 @@ let prog_merge (prog1 : P4.program) (prog2 : P4.program) : P4.program = prog1
 let parser_merge (p1 : P4.Declaration.t) (p2 : P4.Declaration.t) : P4.Declaration.t = p1
 
 
+let if_BareName : P4.name = P4.BareName (Info.M "Created Condition", "condition")
+
+let cond_If : P4.Statement.t =
+  (Info.M "Created If", P4.Statement.Conditional {
+      cond = Info.M "Created Condition", P4.Expression.Name (if_BareName);
+      tru = Info.M "Created Return", P4.Statement.Return {expr = None};
+      fls = None})
+
+let cond_param (info: Info.t) : P4.Parameter.t = let open P4.Parameter in 
+  (info, { annotations = [];
+           direction = Some (Info.M "Created param", P4.Direction.In);
+           typ = (Info.M "Created param", P4.Type.Bool);
+           variable = (Info.M "Created param", "condition");
+           opt_value = None})
 
 (** Record for temp control *)
 type tempControl = { annotations: P4.Annotation.t list;
@@ -17,7 +31,7 @@ type tempControl = { annotations: P4.Annotation.t list;
                      apply: P4.Block.t }
 
 let get_control (d : P4.Declaration.t) : tempControl = match (snd d) with
-  | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+  | P4.Declaration.Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     { annotations = annotations; 
       name = name; 
       type_params = type_params; 

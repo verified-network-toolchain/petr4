@@ -1,5 +1,5 @@
-#include <core.p4>
-#include <v1model.p4>
+#include "core.p4"
+#include "v1model.p4"
 
 struct metadata { }
 struct headers { }
@@ -13,8 +13,8 @@ parser MyParser(packet_in packet,
     }
 }
 
-control MyChecksum(inout headers hdr, inout metadata meta) {
-    apply { }
+control MyChecksum(inout headers hdr, inout metadata meta, in bool condition) {
+    apply {if (condition) return;}
 }
 
 control MyIngress(inout headers hdr,

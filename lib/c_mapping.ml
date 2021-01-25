@@ -255,8 +255,7 @@ end = struct
     | BitType e ->
       begin match snd e with
         | P4.Expression.Int _  ->
-          ("bit<" |> text) ++ (Expression.format_t e) ++ (">" |> text)
-          |> box ~indent:2
+          text "bit"
         | _ ->
           ("bit<(" |> text) ++ (Expression.format_t e) ++ (")>" |> text)
           |> box ~indent:2
@@ -362,7 +361,7 @@ end = struct
   let format_t (_, p) =
     hovbox @@
     Annotation.format_ts p.annotations
-    ++ format_dir p.direction
+    (* ++ format_dir p.direction *)
     ++ Type.format_t p.typ
     ++ space
     ++ P4Word.format_t p.variable

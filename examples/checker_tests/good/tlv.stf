@@ -1,0 +1,8 @@
+packet 0 02 A1B2
+expect 0 01 A1
+
+packet 0 03 A1B2C3
+expect 0 02 A1B2
+
+packet 0 03 A1B2C3 FFFF
+expect 0 02 A1B2   FFFF

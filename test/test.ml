@@ -76,29 +76,34 @@ let known_failures =
    "default-control-argument.p4"]
 
 let good_test f file () =
-  Alcotest.(check bool) "good test" true
+  Alcotest.(check bool) (Printf.sprintf "good/%s" file) true
     (f ["../examples"] (example_path ["checker_tests"; "good"; file]))
 
 let bad_test f file () =
-  Alcotest.(check bool) "bad test" false
+  Alcotest.(check bool) (Printf.sprintf "bad/%s" file) false
     (f ["../examples"] (example_path ["checker_tests"; "bad"; file]))
 
 let excl_test file () =
-  Alcotest.(check bool) "good test" true true
+  Alcotest.(check bool) (Printf.sprintf "excluded %s" file) true true
+
+let classify_test name =
+  if List.mem ~equal:String.equal known_failures name
+  then `Slow
+  else `Quick
 
 let () =
   let open Alcotest in
   run "Tests" [
-    "excluded tests good", (Stdlib.List.map (fun name ->
+    "excl-pos", (Stdlib.List.map (fun name ->
         test_case name `Quick (excl_test name)) excluded_good_files);
-    "excluded tests bad", (Stdlib.List.map (fun name ->
+    "excl-neg", (Stdlib.List.map (fun name ->
         test_case name `Quick (excl_test name)) excluded_bad_files);
-    "parser tests good", (Stdlib.List.map (fun name ->
+    "parser-pos", (Stdlib.List.map (fun name ->
         test_case name `Quick (good_test parser_test name)) (good_files@bad_files));
-    "typecheck tests good", (Stdlib.List.map (fun name ->
-        let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
+    "typing-pos", (Stdlib.List.map (fun name ->
+        let speed = classify_test name in
         test_case name speed (good_test typecheck_test name)) good_files);
-    "typecheck tests bad", (Stdlib.List.map (fun name ->
-        let speed = if List.mem ~equal:String.equal known_failures name then `Slow else `Quick in
+    "typing-neg", (Stdlib.List.map (fun name ->
+        let speed = classify_test name in
         test_case name speed (bad_test typecheck_test name)) bad_files);
   ]

@@ -33,7 +33,6 @@ and cstmt =
   | CVarInit of ctyp * cname * cexpr
 and cexpr =
     CIntLit of int
-  | CStrLit of string
   | CVar of cname
   | CDeref of cexpr
   | CAddrOf of cexpr

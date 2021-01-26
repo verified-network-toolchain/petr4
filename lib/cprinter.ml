@@ -66,8 +66,6 @@ and format_cexpr (expr: cexpr) =
   match expr with
   | CIntLit i ->
     string_of_int i |> text
-  | CStrLit s ->
-    text "\"" ++ text (String.escaped s) ++ text "\""
   | CVar name ->
     format_cname name
   | CDeref exp ->

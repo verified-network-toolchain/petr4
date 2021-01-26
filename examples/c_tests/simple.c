@@ -19,17 +19,17 @@ typedef struct C_state {
   headers hdrs;
   bool forward;
 } C_state;
-void C_forward(C_state* state) {
+void C_do_forward(C_state* state) {
   state->forward = true;
 }
-void C_drop(C_state* state) {
+void C_do_drop(C_state* state) {
   state->forward = false;
 }
 void C(C_state* state) {
   if(state->hdrs.simple.dst != 0) {
-    C_forward(state);
+    C_do_forward(state);
   } else { 
-    C_drop(state);
+    C_do_drop(state);
   }
 }
 typedef struct D_state {

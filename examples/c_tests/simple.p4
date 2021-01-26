@@ -1,5 +1,12 @@
 #include "core.p4"
 
+/* Begin dummy architecture */
+parser P<T>(packet_in pkt, inout T hdrs);
+control C<T>(inout T hdrs, out bool forward);
+control D<T>(packet_out pkt, in T hdrs);
+package S<T>(P<T> p, C<T> c, D<T> d);
+/* End dummy architecture */
+
 header simple_h {
     bit<8>  src;
     bit<8>  dst;
@@ -9,34 +16,33 @@ struct header_t {
   simple_h simple;
 }
 
-parser P(packet_in pkt, inout header_t hdrs) {
+parser MyP(packet_in pkt, inout header_t hdrs) {
     state start {
         pkt.extract(hdrs.simple);
         transition accept;
     }
 }
 
-control C(inout header_t hdrs, out bool forward) {
-    action forward() {
+control MyC(inout header_t hdrs, out bool forward) {
+    action do_forward() {
         forward = true;
     }
-    action drop() {
+    action do_drop() {
         forward = false;
     }
     table t {
         key = { hdrs.simple.dst : exact; }
-        actions = { forward; drop; }
+        actions = { do_forward; do_drop; }
     }
     apply {
         t.apply();
     }
 }
 
-control D(packet_out pkt, in header_t hdrs) {
+control MyD(packet_out pkt, in header_t hdrs) {
     apply {
         pkt.emit(hdrs.simple);
     }
 }
 
-package S(P p, C vr, D dep);
-S(P(), C(), D()) main;
+S(MyP(), MyC(), MyD()) main;

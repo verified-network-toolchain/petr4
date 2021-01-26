@@ -104,7 +104,6 @@ let do_stf include_dir stf_file p4_file =
     let pkts = List.zip_exn expected results in
     List.iter ~f:check_pkt pkts
 
-
 let stf_command =
   let open Command.Spec in
   Command.basic_spec
@@ -117,12 +116,23 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
         do_stf include_dir stf_file p4_file)
 
+let ccomp_command =
+  let open Command.Spec in
+  Command.basic_spec ~summary:"Compile a P4 program to C"
+    (empty
+     +> flag "-v" no_arg ~doc:" Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> anon ("p4file" %: string))
+    (fun verbose include_dirs p4_file () ->
+       ccomp_file verbose include_dirs p4_file)
+
 let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
     [ "parse", parse_command;
       "typecheck", check_command;
       "run", eval_command;
-      "stf", stf_command ]
+      "stf", stf_command;
+      "ccomp", ccomp_command ]
 
 let () = Command.run ~version: "0.1.2" command

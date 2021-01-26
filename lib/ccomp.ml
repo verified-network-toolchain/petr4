@@ -69,3 +69,6 @@ let translate_prog ((Program t): Prog.program) : C.cprog comp =
   t
   |> List.map ~f:translate_decl
   |> CompM.all
+
+let compile (prog: Prog.program) : C.cprog =
+  translate_prog prog Map.empty |> snd

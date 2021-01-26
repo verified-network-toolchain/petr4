@@ -79,3 +79,6 @@ and format_cexpr (expr: cexpr) =
     ++ text "("
     ++ concat_map ~sep:(text ", ") ~f:format_cexpr args
     ++ text ")"
+
+let format_cprog (prog: cprog) =
+   text "Cprinter.format_cprog unimplemented."

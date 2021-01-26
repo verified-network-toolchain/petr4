@@ -23,6 +23,8 @@ type ctyp =
 type cdecl =
     CStruct of cname * cfield list
   | CFun of ctyp * cname * cparam list * cstmt list
+  | CInclude of string
+  | CStdInclude of string
 and cfield = CField of ctyp * cname
 and cparam = CParam of ctyp * cname
 and cstmt =

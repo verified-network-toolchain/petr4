@@ -29,6 +29,10 @@ let rec format_cdecl (decl: cdecl) =
     ++ text "\n{"
     ++ format_cstmts body
     ++ text "}"
+  | CInclude name ->
+    text "#include \"" ++ text name ++ text "\""
+  | CStdInclude name ->
+    text "#include <" ++ text name ++ text ">"
 
 and format_cfield ((CField (typ, name)): cfield) =
   format_ctyp typ ++ space ++ format_cname name
@@ -81,4 +85,4 @@ and format_cexpr (expr: cexpr) =
     ++ text ")"
 
 let format_cprog (prog: cprog) =
-   text "Cprinter.format_cprog unimplemented."
+  concat_map ~sep:(text "\n") ~f:format_cdecl prog

@@ -35,10 +35,10 @@ let translate_expr (e: Prog.Expression.t) : C.cexpr comp =
       | Some e -> e |> return
       | None -> C.CVar (snd x) |> return
     end
-  | _ -> failwith "unimplemented"
+  | _ -> (C.CIntLit 123) |> return
 
 let translate_stmt (s: Prog.Expression.t) : C.cstmt comp =
-  failwith "unimplemented"
+  C.CVarInit (CInt, "todo", CIntLit 123) |> return
 
 let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
   match snd d with
@@ -49,7 +49,7 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
     let%bind cfields = translate_fields fields in
     let valid = C.CField (CBool, "__header_valid") in
     C.CStruct (snd name, valid :: cfields) |> return
-  | _ -> failwith "Unimplemented"
+  | _ -> C.CInclude "todo" |> return
 
 and translate_field (field: Prog.Declaration.field) : C.cfield comp =
   let%bind ctyp = translate_type (snd field).typ in
@@ -63,7 +63,7 @@ and translate_fields (fields: Prog.Declaration.field list) =
 and translate_type (typ: Typed.Type.t) : C.ctyp comp =
   match typ with
   | Typed.Type.Bool -> C.CBool |> return
-  | _ -> failwith "unimplemented"
+  | _ -> C.CInt |> return
 
 let translate_prog ((Program t): Prog.program) : C.cprog comp =
   t
@@ -71,4 +71,5 @@ let translate_prog ((Program t): Prog.program) : C.cprog comp =
   |> CompM.all
 
 let compile (prog: Prog.program) : C.cprog =
-  translate_prog prog Map.empty |> snd
+  CInclude "petr4-runtime.h" ::
+  (translate_prog prog Map.empty |> snd)

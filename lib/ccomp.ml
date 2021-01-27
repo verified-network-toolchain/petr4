@@ -1,27 +1,31 @@
 open Core_kernel
 module C = Csyntax
-module Map = Map.Make(String)
 
+module Map = Map.Make(String)
 module Env = struct
   type t = C.cexpr Map.t
 end
 
 (* Type of a compiler producing syntax in 'a. *)
-type 'a comp = Env.t -> Env.t * 'a
+type 'a comp = Env.t -> (Env.t * 'a) option
 
 module CompOps = struct
   type 'a t = 'a comp
 
-  let bind (c: 'a t) ~f:(f:'a -> 'b t) : 'b t =
-    fun env -> let (env', a) = c env in f a env'
+  let bind (c: 'a t) ~f:(f:'a -> 'b t) : 'b t = fun env ->
+    match c env with
+    | Some (env', a) -> f a env'
+    | None -> None
 
   let return (a: 'a) =
-    fun env -> (env, a)
+    fun env -> Some (env, a)
 
   let map = `Define_using_bind
 
   let find_var (var: string) : (C.cexpr option) t =
-    fun env -> (env, Map.find env var)
+    fun env -> Some (env, Map.find env var)
+
+  let fail = fun env -> None
 end
 
 module CompM = Monad.Make(CompOps)
@@ -37,7 +41,7 @@ let translate_expr (e: Prog.Expression.t) : C.cexpr comp =
     end
   | _ -> (C.CIntLit 123) |> return
 
-let translate_stmt (s: Prog.Expression.t) : C.cstmt comp =
+let translate_stmt (s: Prog.Statement.t) : C.cstmt comp =
   C.CVarInit (CInt, "todo", CIntLit 123) |> return
 
 let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
@@ -63,6 +67,10 @@ and translate_fields (fields: Prog.Declaration.field list) =
 and translate_type (typ: Typed.Type.t) : C.ctyp comp =
   match typ with
   | Typed.Type.Bool -> C.CBool |> return
+  | Typed.Type.TypeName (BareName n) ->
+    C.CTypeName (snd n) |> return
+  | Typed.Type.Bit {width = 8} ->
+    C.CBit8 |> return
   | _ -> C.CInt |> return
 
 let translate_prog ((Program t): Prog.program) : C.cprog comp =
@@ -72,4 +80,6 @@ let translate_prog ((Program t): Prog.program) : C.cprog comp =
 
 let compile (prog: Prog.program) : C.cprog =
   CInclude "petr4-runtime.h" ::
-  (translate_prog prog Map.empty |> snd)
+  match translate_prog prog Map.empty with
+  | Some result -> snd result
+  | None -> failwith "compilation failed (todo error message)"

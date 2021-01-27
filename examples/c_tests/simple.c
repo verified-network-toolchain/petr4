@@ -2,8 +2,8 @@
 
 typedef struct simple_h {
   bool valid;
-  bit src;
-  bit dst;
+  bit8 src;
+  bit8 dst;
 } simple_h;
 typedef struct headers {
   simple_h simple;
@@ -19,7 +19,7 @@ typedef struct C_state {
   headers hdrs;
   bool forward;
 } C_state;
-void C_do_forward(C_state* state) {
+void C_do_forward(C_state* state, headers* h) {
   state->forward = true;
 }
 void C_do_drop(C_state* state) {

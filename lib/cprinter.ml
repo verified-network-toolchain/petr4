@@ -10,17 +10,21 @@ let rec format_ctyp (typ: ctyp) =
   | CVoid -> text "void"
   | CInt -> text "int"
   | CChar -> text "char"
+  | CBit8 -> text "bit8"
   | CUInt -> text "unsigned int"
   | CBool -> text "bool"
-  | CStruct name -> text "struct " ++ format_cname name
+  | CTypeName name -> format_cname name
   | CPtr typ -> text "(" ++ format_ctyp typ ++ text "*)"
 
 let rec format_cdecl (decl: cdecl) =
   match decl with
   | CStruct (name, fields) ->
-    text "struct " ++ format_cname name ++ text " {"
-    ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields
-    ++ text "}"
+    box ~indent:2
+      (text "typedef struct "
+       ++ format_cname name
+       ++ text " {\n"
+       ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields)
+       ++ text "\n} " ++ text name
   | CFun (ret, name, params, body) ->
     format_ctyp ret
     ++ space
@@ -54,6 +58,7 @@ and format_cstmt (stmt: cstmt) =
     ++ format_cstmt true_branch
     ++ text "\n} else {\n"
     ++ format_cstmt false_branch
+    ++ text "\n}"
   | CAssign (lval, rval) ->
     format_cexpr lval ++ text " = " ++ format_cexpr rval
   | CVarInit (typ, var, rval) ->

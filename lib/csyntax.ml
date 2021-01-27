@@ -16,9 +16,10 @@ type ctyp =
     CVoid
   | CInt
   | CChar
+  | CBit8
   | CUInt
   | CBool
-  | CStruct of cname
+  | CTypeName of cname
   | CPtr of ctyp
 type cdecl =
     CStruct of cname * cfield list
@@ -40,4 +41,5 @@ and cexpr =
   | CAddrOf of cexpr
   | CMember of cexpr * cname
   | CCall of cname * cexpr list
+
 type cprog = cdecl list

@@ -8,7 +8,7 @@ typedef char bool;
 #define true 1
 #define false 0
 
-typedef char bit;
+typedef char bit8;
 
 typedef void* packet_in;
 typedef void* packet_out;

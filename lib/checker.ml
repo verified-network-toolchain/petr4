@@ -3649,9 +3649,10 @@ and type_header env info annotations name fields =
 
 and type_field env (field_info, field) =
   let open Types.Declaration in
-  let typ = saturate_type env (translate_type env [] field.typ) in
+  let decl_typ = translate_type env [] field.typ in
+  let typ = saturate_type env decl_typ in
   let pre_field : Prog.Declaration.pre_field =
-    { annotations = field.annotations; name = field.name; typ }
+    { annotations = field.annotations; name = field.name; typ = decl_typ }
   in
   let pre_record_field : Typed.RecordType.field =
     { name = snd field.name; typ }

@@ -18,7 +18,8 @@ lib/Unroll.v
 -R examples Petr4.Examples
 
 examples/IntExample.v
-examples/IntExampleHoare.v
+examples/TwoState.v
+examples/WeakestPre.v
 
 -R extraction Petr4
 

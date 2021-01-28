@@ -1,13 +1,13 @@
 module I = Info
 open Core_kernel
-open Prog.Env
 open Util
 open Types
+open Checker_env
 module Info = I
 
 let subst_vars_name env type_name =
-  begin match CheckerEnv.resolve_type_name_opt type_name env with
-  | Some (TypeName v) -> v
+  begin match Checker_env.resolve_type_name_opt type_name env with
+  | Some (TypTypeName v) -> v
   | Some _ -> failwith "unexpected type value during elaboration"
   | None -> type_name
   end
@@ -151,11 +151,11 @@ let subst_vars_params env params =
   List.map ~f:(subst_vars_param env) params
 
 let freshen_param env param =
-  let param' = Renamer.freshen_name (CheckerEnv.renamer env) param in
-  CheckerEnv.insert_type (BareName (Info.dummy, param)) (TypeName (BareName (Info.dummy, param'))) env, param'
+  let param' = Renamer.freshen_p4string env.renamer param in
+  Checker_env.insert_type (BareName param) (TypTypeName (BareName param')) env, param'
 
 let check_shadowing params =
-  let param_compare (_, p1) (_, p2) = String.compare p1 p2 in
+  let param_compare (p1: P4string.t) (p2: P4string.t) = String.compare p1.str p2.str in
   match List.find_a_dup ~compare:param_compare params with
   | Some _ -> failwith "parameter shadowed?"
   | None -> ()
@@ -165,10 +165,9 @@ let rec freshen_params env params =
   match params with
   | [] -> env, []
   | param :: params ->
-     let info, pre_param = param in
-     let env, pre_param = freshen_param env pre_param in
+     let env, param = freshen_param env param in
      let env, params = freshen_params env params in
-     env, (info, pre_param) :: params
+     env, param :: params
 
 let elab_method env m =
   let open Types.MethodPrototype in
@@ -243,12 +242,12 @@ let elab_decls env decls =
      cannot be changed, unlike bound type variable names! *)
   let observe_decl_name d =
     match Declaration.name_opt d with
-    | Some (_, name) -> Renamer.observe_name (CheckerEnv.renamer env) name
+    | Some name -> Renamer.observe_name env.renamer name.str
     | None -> ()
   in
   List.iter ~f:observe_decl_name decls;
   elab_decls' env decls
 
 let elab (Program decls) =
-  let env = CheckerEnv.empty_t () in
-  Program (elab_decls env decls), CheckerEnv.renamer env
+  let env = Checker_env.empty_t () in
+  Program (elab_decls env decls), env.renamer

@@ -5,6 +5,7 @@ Require Import Strings.String.
 Require String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
+Require Import Environment.
 Require Import IntExample.
 
 Require Import Step.
@@ -40,10 +41,10 @@ An interesting property is that Tupled and Curried behave the same on all packet
 *)
 
 
-Definition x_param : P4Parameter := MkParameter true Out out_type "x".
-Definition y_param : P4Parameter := MkParameter true Out out_type "y".
-Definition x_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "x")) out_type Directionless.
-Definition y_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "y")) out_type Directionless.
+Definition x_param : P4Parameter tag_t := MkParameter _ true Out out_type None (MkP4String "x").
+Definition y_param : P4Parameter tag_t := MkParameter _ true Out out_type None (MkP4String "y").
+Definition x_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName _ (MkP4String "x"))) out_type Directionless.
+Definition y_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName _ (MkP4String "y"))) out_type Directionless.
 Definition extract_x := build_extract_stmt out_type x_expr.
 Definition extract_y := build_extract_stmt out_type y_expr.
 
@@ -51,21 +52,19 @@ Definition body_tupled := extract_x :: extract_y :: nil.
 Definition body_1_curried := extract_x :: nil.
 Definition body_2_curried := extract_y :: nil.
 
-Definition start_st_tupled : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") body_tupled (ParserDirect _ tt (MkP4String _ tt String.accept)).
-Definition start_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") body_1_curried (ParserDirect _ tt (MkP4String _ tt "middle")).
-Definition mid_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "middle") body_2_curried (ParserDirect _ tt (MkP4String _ tt String.accept)).
+Definition start_st_tupled : ParserState tag_t := MkParserState _ tt (MkP4String "start") body_tupled (ParserDirect _ tt (MkP4String String.accept)).
+Definition start_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String "start") body_1_curried (ParserDirect _ tt (MkP4String "middle")).
+Definition mid_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String "middle") body_2_curried (ParserDirect _ tt (MkP4String String.accept)).
 
 Definition states_tupled : list (ParserState tag_t) := start_st_tupled :: nil.
 Definition states_curried : list (ParserState tag_t) := start_st_curried :: nil.
 
-Definition IntParserTupled := ValObjParser _ scope nil nil states_tupled.
-Definition IntParserCurried := ValObjParser _ scope nil nil states_curried.
+Definition IntParserTupled := ValObjParser _ scope nil nil nil states_tupled.
+Definition IntParserCurried := ValObjParser _ scope nil nil nil states_curried.
 
-Definition build_env (bits: list bool): Environment.environment tag_t :=
-  Environment.extend_scope _ "pkt" (ValObj _ (ValObjPacket _ bits)) (
-    Environment.extend_scope _ "x" out_value (
-      Environment.extend_scope _ "y" out_value (
-        Environment.MStr.empty _
-      )
-    )
-  ) :: nil.
+
+Definition build_env (bits: list bool) :=
+  let heap := MNat.add 0 (ValObj _ (ValObjPacket _ bits)) (MNat.add 1 out_value (MNat.add 2 out_value (MNat.empty _))) in
+  let scope := MStr.add "pkt" 0 (MStr.add "x" 1 (MStr.add "y" 2 (MStr.empty _))) in
+  MkEnvironment tag_t 0 (MStr.empty _ :: nil) (MNat.empty _)
+.

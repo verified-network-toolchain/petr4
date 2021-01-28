@@ -18,7 +18,6 @@ open Context
 open Parser
 
 module S = String
-open Types
 module String = S
 
 exception Error of string
@@ -31,7 +30,7 @@ type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
   | SRangle of Info.t
   | SPragma
-  | SIdent of Types.P4String.t * lexer_state
+  | SIdent of P4string.t * lexer_state
     (* We have seen an identifier: we have just
      * emitted a [NAME] token. The next token will be
      * either [IDENTIFIER] or [TYPENAME], depending on
@@ -84,7 +83,7 @@ let strip_prefix s =
 
 let parse_int n info =
   let value = Bigint.of_string (sanitize n) in
-  (info, P4Int.{ value; width_signed=None })
+  P4int.{tags=info; value; width_signed=None}
 
 let parse_width_int s n info =
   let l_s = String.length s in
@@ -101,7 +100,7 @@ let parse_width_int s n info =
     | _ -> 
       raise (Error "Illegal integer constant")
   in
-  (info, P4Int.{value; width_signed })
+  P4int.{tags=info; value = value; width_signed}
 }
 
 let name = ['A'-'Z' 'a'-'z' '_'] ['A'-'Z' 'a'-'z' '0'-'9' '_']*
@@ -125,7 +124,7 @@ rule tokenize = parse
       { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
-        STRING_LITERAL (Info.merge (info lexbuf) end_info, str) }
+        STRING_LITERAL (P4string.{tags=Info.merge (info lexbuf) end_info; str}) }
   | whitespace
       { tokenize lexbuf }
   | '#'
@@ -241,7 +240,7 @@ rule tokenize = parse
   | "_"
       { DONTCARE (info lexbuf) }
   | name
-      { NAME (info lexbuf, Lexing.lexeme lexbuf) }
+      { NAME (P4string.{tags=info lexbuf; str=Lexing.lexeme lexbuf}) }
   | "<="
       { LE (info lexbuf) }
   | ">="
@@ -319,7 +318,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { UNEXPECTED_TOKEN(info lexbuf, lexeme lexbuf) }
+      { UNEXPECTED_TOKEN(P4string.{tags=info lexbuf; str=lexeme lexbuf}) }
       
 and string = parse
   | eof

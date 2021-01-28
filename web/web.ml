@@ -23,8 +23,8 @@ exception ParsingError of string
 let hash = Hashtbl.create(module String)
 
 module HashFS = struct
-  let exists path = 
-    match Hashtbl.find hash path with 
+  let exists path =
+    match Hashtbl.find hash path with
       | Some _ -> true
       | None -> false
 

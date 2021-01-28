@@ -1,6 +1,7 @@
 Require Import Strings.String.
 Require Import OrderedType.
 Open Scope string_scope.
+Require Import Coq.Classes.EquivDec.
 
 (* this is extracted to the OCaml String.t type *)
 Definition t := string.
@@ -119,6 +120,9 @@ Defined.
 
 Definition eq_dec (x y: t) : {eq x y} + {~ eq x y} :=
   Bool.reflect_dec _ _ (String.eqb_spec x y).
+
+Instance StringEqDec : EqDec t eq :=
+  { equiv_dec := eq_dec }.
 
 Module StringOT <: OrderedType.OrderedType.
   Definition t := t.

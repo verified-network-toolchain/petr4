@@ -1,22 +1,74 @@
 open Sexplib.Conv
-
+type name = Info.t
 type direction = [%import:Poulet4.Typed.direction]
   [@@deriving sexp,show,yojson]
 
-type positive = [%import:Poulet4.BinNums.positive]
-  [@@deriving sexp,show,yojson]
-type coq_Z = [%import:Poulet4.BinNums.coq_Z]
-  [@@deriving sexp,show,yojson]
-type name = [%import:Poulet4.Typed.name]
 type coq_FunctionKind = [%import:Poulet4.Typed.coq_FunctionKind]
+  [@@deriving sexp,show,yojson]
+type coq_StmType = [%import:Poulet4.Typed.coq_StmType]
+  [@@deriving sexp,show,yojson]
+type coq_ParamContextDeclaration = [%import:Poulet4.Typed.coq_ParamContextDeclaration]
+  [@@deriving sexp,show,yojson]
+type coq_ParamContext = [%import:Poulet4.Typed.coq_ParamContext]
+  [@@deriving sexp,show,yojson]
+type coq_ExprContext = [%import:Poulet4.Typed.coq_ExprContext]
+  [@@deriving sexp,show,yojson]
+type 'a pre_P4Type =
+  [%import:'a Poulet4.Typed.coq_P4Type
+    [@with name := P4name.pre_t;
+           Poulet4.P4String.t := P4string.pre_t;
+           coq_ControlType := pre_ControlType;
+           coq_P4Parameter := pre_P4Parameter;
+           coq_FunctionType := pre_FunctionType;
+           coq_FieldType := pre_FieldType]]
+  [@@deriving sexp,show,yojson]
+and 'a pre_FieldType =
+  [%import:'a Poulet4.Typed.coq_FieldType
+    [@with Poulet4.P4String.t := P4string.pre_t;
+           coq_P4Type := pre_P4Type]]
+  [@@deriving sexp,show,yojson]
+and 'a pre_FunctionType =
+  [%import:'a Poulet4.Typed.coq_FunctionType
+    [@with Poulet4.P4String.t := P4string.pre_t;
+           coq_P4Parameter := pre_P4Parameter;
+           coq_P4Type := pre_P4Type]]
+  [@@deriving sexp,show,yojson]
+and 'a pre_ControlType =
+  [%import:'a Poulet4.Typed.coq_ControlType
+          [@with Poulet4.P4String.t := P4string.pre_t;
+           coq_P4Parameter := pre_P4Parameter;
+           coq_P4Type := pre_P4Type]]
+  [@@deriving sexp,show,yojson]
+and pre_P4Parameter =
+  [%import:'a Poulet4.Typed.coq_P4Parameter
+    [@with Poulet4.P4String.t := P4string.pre_t;
+           coq_P4Type := pre_P4Type]]
+  [@@deriving sexp,show,yojson]
+type coq_P4Type = Info.t pre_P4Type
+[@@deriving sexp,show,yojson]
+type coq_FieldType = Info.t pre_FieldType
+[@@deriving sexp,show,yojson]
+type coq_FunctionType = Info.t pre_FunctionType
+[@@deriving sexp,show,yojson]
+type coq_ControlType = Info.t pre_ControlType
+[@@deriving sexp,show,yojson]
+type coq_P4Parameter = Info.t pre_P4Parameter
+[@@deriving sexp,show,yojson]
 
-type coq_P4Type = [%import:Poulet4.Typed.coq_P4Type]
-and coq_ArrayType = [%import:Poulet4.Typed.coq_ArrayType]
-and coq_FieldType = [%import:Poulet4.Typed.coq_FieldType]
-and coq_ControlType = [%import:Poulet4.Typed.coq_ControlType]
-and coq_FunctionType = [%import:Poulet4.Typed.coq_FunctionType]
-and coq_SpecializedType = [%import:Poulet4.Typed.coq_SpecializedType]
-and coq_P4Parameter = [%import:Poulet4.Typed.coq_P4Parameter]
+type 'a pre_StmtContext =
+  [%import:'a Poulet4.Typed.coq_StmtContext
+    [@with coq_P4Type := pre_P4Type]]
+  [@@deriving sexp,show,yojson]
+type coq_StmtContext = Info.t pre_StmtContext
+  [@@deriving sexp,show,yojson]
+
+type 'a pre_DeclContext =
+  [%import:'a Poulet4.Typed.coq_DeclContext
+          [@with coq_P4Type := pre_P4Type;
+                 coq_StmtContext := pre_StmtContext]]
+  [@@deriving sexp,show,yojson]
+type coq_DeclContext = Info.t pre_DeclContext
+  [@@deriving sexp,show,yojson]
 
 let eq_dir d1 d2 =
   match d1, d2 with
@@ -26,647 +78,19 @@ let eq_dir d1 d2 =
   | Directionless, Directionless -> true
   | _ -> false
 
-type 'a info = 'a Types.info [@@deriving sexp,show,yojson]
+let expr_ctxt_of_stmt_ctxt (s: coq_StmtContext) : coq_ExprContext =
+  match s with
+  | StmtCxFunction ret -> ExprCxFunction
+  | StmtCxAction -> ExprCxAction
+  | StmtCxParserState -> ExprCxParserState
+  | StmtCxApplyBlock -> ExprCxApplyBlock
+
+let expr_ctxt_of_decl_ctxt (s: coq_DeclContext) : coq_ExprContext =
+  match s with
+   | DeclCxTopLevel -> ExprCxConstant
+   | DeclCxNested -> ExprCxDeclLocals
+   | DeclCxStatement c -> expr_ctxt_of_stmt_ctxt c
+
+type 'a info = 'a Types.info
 
 module Annotation = Types.Annotation
-
-module Op = Types.Op
-
-module rec Parameter : sig
-  type t =
-    { annotations: Annotation.t list;
-      direction: direction;
-      typ: Type.t;
-      variable: Types.P4String.t;
-      opt_value: Types.Expression.t option }
-  [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-  val is_optional : t -> bool
-end = struct
-  type t =
-    { annotations: Annotation.t list;
-      direction: direction;
-      typ: Type.t;
-      variable: Types.P4String.t;
-      opt_value: Types.Expression.t option }
-  [@@deriving sexp,show,yojson]
-
-  let eq
-    (* ignoring annotations for now... *)
-    { direction=d1;
-      typ=t1;
-      variable=_,s1; _ }
-    { direction=d2;
-      typ=t2;
-      variable=_,s2; _ } =
-      eq_dir d1 d2 &&
-      Type.eq t1 t2 &&
-      Base.String.equal s1 s2
-
-  let is_optional {annotations; _} =
-    let open Annotation in
-    let is_opt ann =
-      match snd ann with
-      | {name = _, name; body = _, Empty} ->
-         name = "optional"
-      | _ -> false
-    in
-    List.exists is_opt annotations
-end
-
-and PackageType : sig
-  type t = {type_params: string list;
-            wildcard_params: string list;
-            parameters: Parameter.t list}
-             [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t = {type_params: string list;
-            wildcard_params: string list;
-            parameters: Parameter.t list}
-             [@@deriving sexp,show,yojson]
-
-  let eq
-    {type_params=t1; parameters=p1; _}
-    {type_params=t2; parameters=p2; _} =
-    Base.List.equal Base.String.equal t1 t2 &&
-    Base.List.equal Parameter.eq p1 p2
-end
-
-and ControlType : sig
-  type t = {type_params: string list;
-            parameters: Parameter.t list}
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t = {type_params: string list;
-            parameters: Parameter.t list}
-    [@@deriving sexp,show,yojson]
-
-  let eq
-    {type_params=s1; parameters=p1}
-    {type_params=s2; parameters=p2} =
-    Base.List.equal Base.String.equal s1 s2 &&
-    Base.List.equal Parameter.eq p1 p2
-end
-
-and ExternType : sig
-  type t =
-    { name: string; }
-  [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { name: string; }
-  [@@deriving sexp,show,yojson]
-
-  let eq extern1 extern2 =
-    Base.String.equal extern1.name extern2.name
-end
-
-and ExternMethods : sig
-  type extern_method =
-    { name: string;
-      typ: FunctionType.t; }
-  [@@deriving sexp,show,yojson]
-
-  type t = { type_params: string list;
-             methods: extern_method list }
-  [@@deriving sexp,show,yojson]
-end = struct
-  type extern_method =
-    { name: string;
-      typ: FunctionType.t; }
-  [@@deriving sexp,show,yojson]
-
-  type t = { type_params: string list;
-             methods: extern_method list }
-  [@@deriving sexp,show,yojson]
-end
-
-and IntType : sig
-  type t =
-    { width: int }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { width: int }
-    [@@deriving sexp,show,yojson]
-
-  let eq {width=i1} {width=i2} = i1 = i2
-end
-
-and ArrayType : sig
-  type t =
-    { typ: Type.t;
-      size: int; }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { typ: Type.t;
-      size: int; }
-    [@@deriving sexp,show,yojson]
-
-  let eq { typ=t1; size=s1 } { typ=t2; size=s2 } =
-    Type.eq t1 t2 && s1 = s2
-end
-
-and TupleType : sig
-  type t =
-    { types: Type.t list }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { types: Type.t list }
-    [@@deriving sexp,show,yojson]
-
-  let eq { types=t1 } { types=t2 } =
-    Base.List.equal Type.eq t1 t2
-end
-
-and NewType : sig
-  type t =
-    { name: string;
-      typ: Type.t }
-  [@@deriving sexp,show,yojson]
-
-    val eq : t -> t -> bool
-end = struct
-  type t =
-    { name: string;
-      typ: Type.t }
-  [@@deriving sexp,show,yojson]
-
-  let eq { name=s1; typ=t1 } { name=s2; typ=t2 } =
-    Base.String.equal s1 s2 && Type.eq t1 t2
-end
-
-and RecordType : sig
-  type field =
-    { name: string;
-      typ: Type.t; }
-    [@@deriving sexp,show,yojson]
-
-  type t =
-    { fields: field list; }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type field =
-    { name: string;
-      typ: Type.t; }
-    [@@deriving sexp,show,yojson]
-
-  type t =
-    { fields: field list; }
-    [@@deriving sexp,show,yojson]
-
-  let eq_field
-    { name=s1; typ=t1 }
-    { name=s2; typ=t2 } =
-    Base.String.equal s1 s2 && Type.eq t1 t2
-
-  let eq { fields=f1 } { fields=f2 } =
-    Base.List.equal eq_field f1 f2
-end
-
-and EnumType : sig
-  type t =
-    { name: string;
-      typ: Type.t option;
-      (* TODO remove this *)
-      members: string list; }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { name: string;
-      typ: Type.t option;
-      members: string list; }
-    [@@deriving sexp,show,yojson]
-
-  let eq
-    { name=s1; typ=t1; members=l1 }
-    { name=s2; typ=t2; members=l2 } =
-    Base.String.equal s1 s2 &&
-    Util.eq_opt ~f:Type.eq t1 t2 &&
-    Base.List.equal Base.String.equal l1 l2
-
-end
-
-and FunctionType : sig
-  type kind =
-  | Parser
-  | Control
-  | Extern
-  | Table
-  | Action
-  | Function
-  | Builtin
-  [@@deriving sexp,show,yojson]
-
-  type t =
-    { type_params: string list;
-      parameters: Parameter.t list;
-      kind: kind;
-      return: Type.t}
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type kind =
-  | Parser
-  | Control
-  | Extern
-  | Table
-  | Action
-  | Function
-  | Builtin
-  [@@deriving sexp,show,yojson]
-
-  type t =
-    { type_params: string list;
-      parameters: Parameter.t list;
-      kind: kind;
-      return: Type.t}
-    [@@deriving sexp,show,yojson]
-
-  let eq
-    { type_params=s1; parameters=p1; kind=_; return=t1}
-    { type_params=s2; parameters=p2; kind=_; return=t2} =
-    Base.List.equal Base.String.equal s1 s2 &&
-    Base.List.equal Parameter.eq p1 p2 &&
-    Type.eq t1 t2
-end
-
-and SpecializedType : sig
-  type t =
-    { base: Type.t;
-      args: Type.t list; }
-    [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t =
-    { base: Type.t;
-      args: Type.t list; }
-    [@@deriving sexp,show,yojson]
-
-  let eq { base=b1; args=a1 } { base=b2; args=a2 } =
-    Type.eq b1 b2 && Base.List.equal Type.eq a1 a2
-end
-
-and ActionType : sig
-  type t =
-    { data_params: Parameter.t list;
-      ctrl_params: Parameter.t list}
-      [@@deriving sexp,show,yojson]
-
-   val eq : t -> t -> bool
-end = struct
-  type t =
-  { data_params: Parameter.t list;
-    ctrl_params: Parameter.t list}
-      [@@deriving sexp,show,yojson]
-
-   let eq
-    { data_params=p1; ctrl_params=c1 }
-    { data_params=p2; ctrl_params=c2 } =
-    Base.List.equal Parameter.eq p1 p2 &&
-    Base.List.equal Parameter.eq c1 c2
-end
-
-and ConstructorType : sig
-  type t =
-    { type_params: string list;
-      wildcard_params: string list;
-      parameters: Parameter.t list;
-      return: Type.t }
-    [@@deriving sexp,show,yojson]
-
-   val eq : t -> t -> bool
-end = struct
-  type t =
-    { type_params: string list;
-      wildcard_params: string list;
-      parameters: Parameter.t list;
-      return: Type.t }
-    [@@deriving sexp,show,yojson]
-
-   let eq
-     { type_params=s1; parameters=c1; return=t1; _}
-     { type_params=s2; parameters=c2; return=t2; _} =
-     Base.List.equal Base.String.equal s1 s2 &&
-     Base.List.equal Parameter.eq c1 c2 &&
-     Type.eq t1 t2
-end
-
-and TableType : sig
-  type t = {result_typ_name:string}
-  [@@deriving sexp,show,yojson]
-
-  val eq : t -> t -> bool
-end = struct
-  type t = {result_typ_name:string}
-  [@@deriving sexp,show,yojson]
-
-  let eq {result_typ_name=s1} {result_typ_name=s2} =
-    Base.String.equal s1 s2
-end
-
-and Type : sig
-  type t =
-    (* bool *)
-    | Bool
-
-    (* string *)
-    | String
-
-    (* int *)
-    | Integer
-
-    (* int<width> *)
-    | Int of IntType.t
-
-    (* bit<width> *)
-    | Bit of IntType.t
-
-    (* varbit<width> *)
-    | VarBit of IntType.t
-
-    (* t[size] *)
-    | Array of ArrayType.t
-
-    (* (t1, ..., tn) *)
-    | Tuple of TupleType.t
-
-    (* A list expression (can be used as a Tuple or struct/header) *)
-    | List of TupleType.t
-
-    (* Struct initializers *)
-    | Record of RecordType.t
-
-    (* set<t> *)
-    | Set of t
-
-    (* General error type *)
-    | Error
-
-    (* match_kind *)
-    | MatchKind
-
-    (* References to other types, including top level types *)
-    | TypeName of Types.name
-
-    (* "Opaque" type introduced by newtype *)
-    | NewType of NewType.t
-
-    (* P4 void (acts like unit) *)
-    | Void
-
-    (* header { l1: t1, ..., ln : tn } *)
-    | Header of RecordType.t
-
-    (* header union {11 : h1, ..., ln : hn} *)
-    | HeaderUnion of RecordType.t
-
-    (* struct { l1: t1, ..., ln : tn } *)
-    | Struct of RecordType.t
-
-    (* enum X { l1, ..., ln } *)
-    | Enum of EnumType.t
-
-    (* Type application *)
-    | SpecializedType of SpecializedType.t
-
-    | Package of PackageType.t
-
-    | Control of ControlType.t
-
-    | Parser of ControlType.t
-
-    | Extern of ExternType.t
-
-    (* <return type> <function name>(x1,...,xn) {...} *)
-    | Function of FunctionType.t
-
-    | Action of ActionType.t
-
-    | Constructor of ConstructorType.t
-
-    | Table of TableType.t
-    [@@deriving sexp,show,yojson]
-
-    (* syntactic equality of types *)
-    val eq : t -> t -> bool
-end = struct
-  type t =
-  (* bool *)
-  | Bool
-
-  (* string *)
-  | String
-
-  (* int *)
-  | Integer
-
-  (* int<width> *)
-  | Int of IntType.t
-
-  (* bit<width> *)
-  | Bit of IntType.t
-
-  (* varbit<width> *)
-  | VarBit of IntType.t
-
-  (* t[size] *)
-  | Array of ArrayType.t
-
-  (* (t1, ..., tn) *)
-  | Tuple of TupleType.t
-
-  (* A list expression (can be used as a Tuple or struct/header) *)
-  | List of TupleType.t
-
-  (* Struct initializers *)
-  | Record of RecordType.t
-
-  (* set<t> *)
-  | Set of t
-
-  (* General error type *)
-  | Error
-
-  (* match_kind *)
-  | MatchKind
-
-  (* References to other types, including top level types *)
-  | TypeName of Types.name
-
-  (* "Opaque" type introduced by newtype *)
-  | NewType of NewType.t
-
-  (* P4 void (acts like unit) *)
-  | Void
-
-  (* header { l1: t1, ..., ln : tn } *)
-  | Header of RecordType.t
-
-  (* header union {11 : h1, ..., ln : hn} *)
-  | HeaderUnion of RecordType.t
-
-  (* struct { l1: t1, ..., ln : tn } *)
-  | Struct of RecordType.t
-
-  (* enum X { l1, ..., ln } *)
-  | Enum of EnumType.t
-
-  (* Type application *)
-  | SpecializedType of SpecializedType.t
-
-  | Package of PackageType.t
-
-  | Control of ControlType.t
-
-  | Parser of ControlType.t
-
-  | Extern of ExternType.t
-
-  (* <return type> <function name>(x1,...,xn) {...} *)
-  | Function of FunctionType.t
-
-  | Action of ActionType.t
-
-  | Constructor of ConstructorType.t
-
-  | Table of TableType.t
-  [@@deriving sexp,show,yojson]
-
-  (* syntactic equality of types *)
-  let rec eq t1 t2 =
-    match t1, t2 with
-    | Bool, Bool
-    | String, String
-    | Integer, Integer
-    | Error, Error
-    | MatchKind, MatchKind
-    | Void, Void -> true
-    | Int w1, Int w2
-    | Bit w1, Bit w2
-    | VarBit w1, VarBit w2 -> IntType.eq w1 w2
-    | Array a1, Array a2 -> ArrayType.eq a1 a2
-    | Tuple t1, Tuple t2
-    | List t1, List t2 -> TupleType.eq t1 t2
-    | Record r1, Record r2
-    | Header r1, Header r2
-    | HeaderUnion r1, HeaderUnion r2
-    | Struct r1, Struct r2 -> RecordType.eq r1 r2
-    | Set t1, Set t2 -> eq t1 t2
-    | TypeName n1, TypeName n2 -> Types.name_eq n1 n2
-    | NewType t1, NewType t2 -> NewType.eq t1 t2
-    | Enum e1, Enum e2 -> EnumType.eq e1 e2
-    | SpecializedType s1, SpecializedType s2
-      -> SpecializedType.eq s1 s2
-    | Package p1, Package p2 -> PackageType.eq p1 p2
-    | Control c1, Control c2
-    | Parser c1, Parser c2 -> ControlType.eq c1 c2
-    | Extern e1, Extern e2 -> ExternType.eq e1 e2
-    | Function f1, Function f2 -> FunctionType.eq f1 f2
-    | Action a1, Action a2 -> ActionType.eq a1 a2
-    | Constructor c1, Constructor c2 -> ConstructorType.eq c1 c2
-    | Table t1, Table t2 -> TableType.eq t1 t2
-    | _ -> false
-end
-
-and StmType : sig
-  type t =
-  | Unit
-  | Void
-  [@@deriving sexp,show,yojson]
-end = struct
-  type t =
-  | Unit
-  | Void
-  [@@deriving sexp,show,yojson]
-end
-
-and StmtContext : sig
-  type t =
-  | Function of Type.t
-  | Action
-  | ParserState
-  | ApplyBlock
-  [@@deriving sexp,show,yojson]
-end = struct
-  type t =
-  | Function of Type.t
-  | Action
-  | ParserState
-  | ApplyBlock
-  [@@deriving sexp,show,yojson]
-end
-
-and DeclContext : sig
-  type t =
-  | TopLevel
-  | Nested
-  | Statement of StmtContext.t
-  [@@deriving sexp,show,yojson]
-end = struct
-  type t =
-  | TopLevel
-  | Nested
-  | Statement of StmtContext.t
-  [@@deriving sexp,show,yojson]
-end
-
-module ParamContext = struct
-  type decl =
-  | Parser
-  | Control
-  | Method
-  | Action
-  | Function
-  | Package
-
-  type t =
-  | Runtime of decl
-  | Constructor of decl
-end
-
-module ExprContext = struct
-  type t =
-    | ParserState
-    | ApplyBlock
-    | DeclLocals
-    | TableAction
-    | Action
-    | Function
-    | Constant
-  [@@deriving sexp,show,yojson]
-
-  let of_stmt_context (s: StmtContext.t) : t =
-    match s with
-    | Function _ -> Function
-    | Action -> Action
-    | ParserState -> ParserState
-    | ApplyBlock -> ApplyBlock
-
-  let of_decl_context (d: DeclContext.t) : t =
-    match d with
-    | TopLevel -> Constant
-    | Nested -> DeclLocals
-    | Statement s -> of_stmt_context s
-end

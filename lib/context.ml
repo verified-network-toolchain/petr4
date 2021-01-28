@@ -15,6 +15,7 @@
 
 open Core_kernel
 open Util
+open P4string
 
 type t = (bool StringMap.t) list [@@deriving sexp]
 
@@ -33,7 +34,7 @@ let declare id b =
   | [] ->
     failwith "ill-formed context"
   | m :: l ->
-    context := StringMap.set m ~key:(snd id) ~data:b :: l
+    context := StringMap.set m ~key:id.str ~data:b :: l
 
 let declare_type id = declare id true
 let declare_var id = declare id false
@@ -45,7 +46,7 @@ let is_typename id =
     | [] ->
       false
     | m::rest ->
-      match StringMap.find m (snd id) with
+      match StringMap.find m id.str with
       | None -> loop rest
       | Some b -> b in
   loop !context

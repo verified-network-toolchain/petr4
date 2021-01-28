@@ -1,6 +1,6 @@
-module V = Prog.Value
-module Op = Typed.Op
-
-val interp_binary_op: Op.bin -> V.value -> V.value -> V.value
-val interp_unary_op:  Op.uni -> V.value -> V.value
-val interp_cast: type_lookup:(Types.name -> Typed.Type.t) -> Typed.Type.t -> V.value -> V.value
+open Typed
+open Prog
+    
+val interp_binary_op: coq_OpBin -> coq_ValueBase -> coq_ValueBase -> coq_ValueBase
+val interp_unary_op: coq_OpUni -> coq_ValueBase -> coq_ValueBase
+val interp_cast: type_lookup:(P4name.t -> coq_P4Type) -> coq_P4Type -> coq_ValueBase -> coq_ValueBase

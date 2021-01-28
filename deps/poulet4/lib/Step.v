@@ -11,23 +11,36 @@ Open Scope monad.
 Section Step.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
+  Notation P4String := (P4String.t tags_t).
+  Notation Statement := (Statement tags_t).
+  Notation Block := (Block tags_t).
+  Notation ParserState := (ParserState tags_t).
+  Notation ParserCase := (ParserCase tags_t).
+  Notation ParserTransition := (ParserTransition tags_t).
+  Notation Value := (Value tags_t).
+  Notation ValueObject := (ValueObject tags_t).
+  Notation accept := ({|P4String.tags:=tags_dummy;
+                        P4String.str:=StringConstants.accept|}).
+  Notation reject := ({|P4String.tags:=tags_dummy;
+                        P4String.str:=StringConstants.reject|}).
 
-  Definition states_to_block (ss: list (Statement tags_t)) : Block tags_t :=
+
+  Definition states_to_block (ss: list Statement) : Block :=
     List.fold_right (BlockCons _) (BlockEmpty _ tags_dummy) ss.
 
-  Fixpoint lookup_state (states: list (ParserState tags_t)) (name: String.t) : option (ParserState tags_t) := 
+  Fixpoint lookup_state (states: list ParserState) (name: P4String) : option ParserState := 
     match states with
     | List.nil => None
     | s :: states' =>
-      let 'MkParserState _ _ (MkP4String _ _ s_name) _ _ := s in
-      if String.eqb name s_name
+      let 'MkParserState _ _ s_name _ _ := s in
+      if P4String.equivb name s_name
       then Some s
       else lookup_state states' name
     end.
 
-  Definition step (p: (ValueObject tags_t)) (start: String.t) : env_monad tags_t String.t := 
+  Definition step (p: ValueObject) (start: P4String) : env_monad tags_t P4String := 
     match p with
-    | ValObjParser _ env params locals states =>
+    | ValObjParser _ env _ params locals states =>
       match lookup_state states start with
       | Some nxt => 
         let 'MkParserState _ _ _ statements transition := nxt in
@@ -44,13 +57,13 @@ Section Step.
   always makes forward progress then there exists a fuel value for which
   the parser either rejects or accepts (or errors, but not due to lack of fuel) 
    *)
-  Fixpoint step_trans (p: ValueObject tags_t) (fuel: nat) (start: String.t) : env_monad tags_t unit := 
+  Fixpoint step_trans (p: ValueObject) (fuel: nat) (start: P4String) : env_monad tags_t unit := 
     match fuel with 
     | 0   => state_fail Internal (* TODO: add a separate exception for out of fuel? *)
     | S x => let* state' := step p start in 
-            if String.eqb state' String.accept
+            if P4String.equivb state' accept
             then mret tt
-            else if String.eqb state' String.reject
+            else if P4String.equivb state' reject
             then state_fail Reject
             else step_trans p x state'
     end.

@@ -22,8 +22,8 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 all: build
 
-build:
-	dune build @install
+build: deps
+	dune build @install && echo
 
 deps:
 	$(MAKE) -C deps
@@ -41,7 +41,7 @@ claims:
 	@test/claims.py
 
 ci-test:
-	dune exec -- bin/test.exe
+	#dune exec -- bin/test.exe
 	cd test && dune exec -- ./test.exe test -q
 
 test-stf:

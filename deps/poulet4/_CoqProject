@@ -1,6 +1,7 @@
 -R lib Petr4
 
 lib/String.v
+lib/StringConstants.v
 lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
@@ -10,10 +11,18 @@ lib/Environment.v
 lib/Unpack.v
 lib/Eval.v
 lib/Info.v
+lib/P4String.v
+lib/P4Int.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
 lib/Unroll.v
+
+lib/P4light/P4Arith.v
+lib/P4light/AST.v
+lib/P4light/BigStep.v
+lib/P4light/Check.v
+lib/P4light/P4lightGen.v
 
 -R examples Petr4.Examples
 
@@ -24,3 +33,4 @@ examples/WeakestPre.v
 -R extraction Petr4
 
 extraction/Extract.v
+extraction/ExtractOcamlBinNumsBigint.v

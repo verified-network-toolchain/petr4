@@ -18,27 +18,30 @@ Definition pred_true {A: Type} (a : A) := True.
 
 Definition pred_false {A: Type} (a : A) := False.
 
-Definition pred_env_pushed (p: pred) (env: environment tag_t) :=
-    p (push_scope tag_t env)
+Definition pred_env_pushed (p: @pred environment) (env: environment) : Prop :=
+    match stack_push tag_t env with
+    | (inr _, _) => False
+    | (inl _, env') => p env'
+    end
 .
 
-Definition pred_env_popped (p: pred) (env: environment tag_t) :=
-    match pop_scope tag_t env with
-    | Some env' => p env'
-    | None => False
+Definition pred_env_popped (p: @pred environment) (env: environment) : Prop :=
+    match stack_pop tag_t env with
+    | (inr _, _) => False
+    | (inl _, env') => p env'
     end
 .
 
 Fixpoint weakest_precondition_expression
     (expr: Expression tag_t)
-    (post: @pred ((environment tag_t) * (Value tag_t)))
-    : @pred (environment tag_t)
+    (post: @pred (environment * (Value tag_t)))
+    : @pred environment
 :=
     pred_false
 with weakest_precondition_expression_lvalue
     (expr: Expression tag_t)
-    (post: @pred ((environment tag_t) * ValueLvalue))
-    : @pred (environment tag_t)
+    (post: @pred (environment * (ValueLvalue tag_t)))
+    : @pred environment
 :=
     pred_false
 .
@@ -74,10 +77,10 @@ Proof.
 Qed.
 
 Fixpoint weakest_precondition_arguments
-    (params: list P4Parameter)
+    (params: list (P4Parameter tag_t))
     (args: list (option (Expression tag_t)))
-    (post: @pred ((environment tag_t) * (list (option (Value tag_t)))))
-    : @pred (environment tag_t)
+    (post: @pred (environment * (list (option (Value tag_t)))))
+    : @pred environment
 :=
     fun env_pre =>
         match (args, params) with
@@ -87,7 +90,7 @@ Fixpoint weakest_precondition_arguments
               let post' := fun '(env_post, vals) =>
                 post (env_post, (Some val) :: vals)
               in weakest_precondition_arguments params' args' post' env_inter
-          in let '(MkParameter _ dir _ _) := param in
+          in let '(MkParameter _ _ dir _ _ _) := param in
           match dir with
           | In => weakest_precondition_expression arg inter env_pre
           | Out =>
@@ -166,15 +169,15 @@ Qed.
 
 Fixpoint weakest_precondition_statement
     (stmt: Statement tag_t)
-    (post: @pred (environment tag_t))
-    : @pred (environment tag_t)
+    (post: @pred environment)
+    : @pred environment
 :=
     let '(MkStatement _ _ stmt _) := stmt in
     weakest_precondition_statement_pre stmt post
 with weakest_precondition_statement_pre
     (stmt: StatementPreT tag_t)
-    (post: @pred (environment tag_t))
-    : @pred (environment tag_t)
+    (post: @pred environment)
+    : @pred environment
 :=
     match stmt with
     | StatBlock _ block =>
@@ -183,7 +186,7 @@ with weakest_precondition_statement_pre
     | StatAssignment _ lhs rhs =>
       let inter' := fun '(env_inter', lval) =>
           let inter := fun '(env_inter, rval) =>
-              match update_lvalue tag_t tag lval rval env_inter with
+              match env_update tag_t tag lval rval env_inter with
               | (inl tt, env_post) => post env_post
               | _ => False
               end
@@ -211,8 +214,8 @@ with weakest_precondition_statement_pre
     end
 with weakest_precondition_block
     (block: Block tag_t)
-    (post: @pred (environment tag_t))
-    : @pred (environment tag_t)
+    (post: @pred environment)
+    : @pred environment
 :=
     match block with
     | BlockEmpty _ _ => post
@@ -254,6 +257,14 @@ Definition weakest_precondition_statement_correct
             | _ => False
             end
 .
+
+Lemma foo:
+    forall block env env',
+        env_stack tag_t env <> nil ->
+        eval_block tag_t tag block env = (inl tt, env') ->
+        env_stack tag_t env' <> nil
+.
+Admitted.
 
 Lemma weakest_precondition_correctness:
     forall stmt, weakest_precondition_statement_correct stmt
@@ -316,31 +327,38 @@ Proof.
       intros s env_inter eval_expression_result.
       rewrite eval_expression_result in H.
       destruct s as [rval|]; try contradiction.
-      case_eq (update_lvalue tag_t tag lval rval env_inter).
-      intros s env_post update_lvalue_result.
-      rewrite update_lvalue_result in H.
+      case_eq (env_update tag_t tag lval rval env_inter).
+      intros s env_post env_update_result.
+      rewrite env_update_result in H.
       destruct s; try contradiction; destruct u.
       unfold eval_statement_pre.
       simpl; unfold state_bind.
       rewrite eval_lvalue_result.
       rewrite eval_expression_result.
-      rewrite update_lvalue_result.
+      rewrite env_update_result.
       exact H.
     - simpl in H0.
       unfold pred_env_pushed in H0.
-      specialize (H (push_scope tag_t env_pre) (pred_env_popped post) H0).
-      case_eq (eval_block tag_t tag block (push_scope tag_t env_pre)).
+      case_eq (stack_push tag_t env_pre); intros.
+      rewrite H1 in H0.
+      destruct s; try contradiction.
+      specialize (H e (pred_env_popped post) H0).
+      case_eq (eval_block tag_t tag block e).
       intros s env_post' eval_block_result.
       rewrite eval_block_result in H.
-      destruct s; try contradiction; destruct u.
+      destruct s; try contradiction; destruct u, u0.
       unfold eval_statement_pre.
       fold (eval_block tag_t tag block).
       simpl; unfold state_bind; simpl.
+      unfold stack_push in H1.
+      inversion H1.
+      rewrite H3.
       rewrite eval_block_result.
-      unfold lift_env_fn.
       unfold pred_env_popped in H.
-      destruct (pop_scope tag_t env_post') as [env_post|]; try contradiction.
-      simpl.
+      case_eq (stack_pop tag_t env_post'); intros.
+      rewrite H2 in H.
+      destruct s; try contradiction.
+      destruct u.
       exact H.
     - simpl in H.
       simpl.

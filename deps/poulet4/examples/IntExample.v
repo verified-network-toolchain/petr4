@@ -5,6 +5,7 @@ Require Import Strings.String.
 Require String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
+Require Import Environment.
 
 Require Import Step.
 
@@ -13,11 +14,18 @@ Open Scope list_scope.
 
 Definition tag_t := unit.
 Definition tag := tt.
-Definition constTyp : P4Type := TypInteger.
-Definition name : P4String tag_t := MkP4String tag_t tag "hello_world".
+
+Notation P4String := (P4String.t tag_t).
+
+
+Definition MkP4String (s: String.t) : P4String := {| P4String.tags := tag; P4String.str := s |}.
+
+
+Definition constTyp : P4Type tag_t := TypInteger tag_t.
+Definition name : P4String := MkP4String "hello_world".
 Definition value : ValueBase tag_t := ValBaseInteger tag_t 42.
 
-Definition parses (p: ValueObject tag_t) (fuel: nat) (start_state: String.t) (start_env: Environment.environment tag_t): bool :=
+Definition parses (p: ValueObject tag_t) (fuel: nat) (start_state: P4String) (start_env: Environment.environment tag_t): bool :=
   match run_with_state start_env (step_trans tag_t tag p fuel start_state) with
   | (inl _, _) => true
   | _ => false
@@ -37,99 +45,39 @@ parser IntExample (packet_in pkt, out int<2> output) {
 }
 *)
 
-Definition scope : Env_EvalEnv := MkEnv_EvalEnv nil nil "dummy".
+Definition scope : Env_EvalEnv tag_t := MkEnv_EvalEnv _ nil nil (MkP4String "dummy").
 
-Definition pkt_param : P4Parameter := MkParameter true Directionless (TypExtern "packet_in") "pkt".
-Definition pkt_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "pkt")) (TypExtern "packet_in") Directionless.
-Definition out_type : P4Type := TypInt 2.
-Definition out_param : P4Parameter := MkParameter true Out out_type "output".
+Definition pkt_param : P4Parameter tag_t := MkParameter _ true Directionless (TypExtern _ (MkP4String "packet_in")) None (MkP4String "pkt").
+Definition pkt_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName _ (MkP4String "pkt"))) (TypExtern _ (MkP4String "packet_in")) Directionless.
+Definition out_type : P4Type tag_t := TypInt _ 2.
+Definition out_param : P4Parameter tag_t := MkParameter _ true Out out_type None (MkP4String "output").
 Definition locals : list (Declaration tag_t) := nil.
-Definition output_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "output")) out_type Directionless.
-Definition pkt_extract_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "pkt")) (TypFunction (MkFunctionType nil ((MkParameter false Directionless out_type "t")::nil) FunBuiltin out_type)) Directionless.
-Definition build_extract_stmt (into_type: P4Type) (into_expr: Expression tag_t) := MkStatement _ tt (StatMethodCall _ (MkExpression _ tt (ExpExpressionMember _ pkt_extract_expr (MkP4String _ tt String.extract)) TypVoid Directionless) (into_type :: nil) (Some into_expr :: nil)) StmVoid.
+Definition output_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName _ (MkP4String "output"))) out_type Directionless.
+Definition pkt_extract_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName _ (MkP4String "pkt"))) (TypFunction _ (MkFunctionType _ nil ((MkParameter _ false Directionless out_type None (MkP4String "t"))::nil) FunBuiltin out_type)) Directionless.
+Definition build_extract_stmt (into_type: P4Type tag_t) (into_expr: Expression tag_t) := MkStatement _ tt (StatMethodCall _ (MkExpression _ tt (ExpExpressionMember _ pkt_extract_expr (MkP4String String.extract)) (TypVoid _) Directionless) (into_type :: nil) (Some into_expr :: nil)) StmVoid.
 Definition extract_stmt : Statement tag_t := build_extract_stmt out_type output_expr.
 
 
 Definition body: list (Statement tag_t) := extract_stmt :: nil.
-Definition start_st : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") body (ParserDirect _ tt (MkP4String _ tt String.accept)).
+Definition start_st : ParserState tag_t := MkParserState _ tt (MkP4String "start") body (ParserDirect _ tt (MkP4String String.accept)).
 
 Definition states : list (ParserState tag_t) := start_st :: nil.
 
-Definition IntParser : ValueObject tag_t := ValObjParser _ scope nil nil states.
-
-Definition bad_env : Environment.environment tag_t := nil.
-
-Lemma int_parses_fail : parses IntParser 2 "start" bad_env = false.
-Proof.
-  reflexivity.
-Qed.
+Definition IntParser : ValueObject tag_t := ValObjParser _ scope nil nil nil states.
 
 Definition pkt_value : Value tag_t := ValObj _ (ValObjPacket _ (true :: true :: nil)).
 Definition out_value : Value tag_t := ValBase _ (ValBaseInteger _ 0).
-Definition top_scope : Environment.scope tag_t :=
-  Environment.extend_scope _ "pkt" pkt_value (
-    Environment.extend_scope _ "output" out_value (
-      Environment.MStr.empty _
-    )
-  ).
 
-Definition inter_scope : Environment.scope tag_t :=
-  Environment.MStr.add "pkt"
-                              (ValObj tag_t (ValObjPacket tag_t nil))
-                              top_scope.
-Definition good_env: Environment.environment tag_t := top_scope :: nil.
+Notation environment := (environment tag_t).
 
+Definition good_env :=
+  let heap := MNat.add 0 pkt_value (MNat.add 1 out_value (MNat.empty _)) in
+  let scope := MStr.add "pkt" 0 (MStr.add "output" 1 (MStr.empty _)) in
+  MkEnvironment tag_t 0 (MStr.empty _ :: nil) (MNat.empty _)
+.
 
-(* OK, now consider the following two parsers: *)
-(*
-parser Tupled (packet_in pkt, out int x, out int y) {
-  state start {
-    pkt.extract(x);
-    pkt.extract(y);
-    transition accept;
-  }
-}
-
-parser Curried (packet_in pkt, out int x, out int y) {
-  state start {
-    pkt.extract(x);
-    transition middle;
-  }
-  state middle {
-    pkt.extract(y);
-    transition accept;
-  }
-}
-
-An interesting property is that Tupled and Curried behave the same on all packets!
-*)
-
-Definition x_param : P4Parameter := MkParameter true Out out_type "x".
-Definition y_param : P4Parameter := MkParameter true Out out_type "y".
-Definition x_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "x")) out_type Directionless.
-Definition y_expr : Expression tag_t := MkExpression _ tt (ExpName _ (BareName "y")) out_type Directionless.
-Definition extract_x := build_extract_stmt out_type x_expr.
-Definition extract_y := build_extract_stmt out_type y_expr.
-
-Definition body_tupled := extract_x :: extract_y :: nil.
-Definition body_1_curried := extract_x :: nil.
-Definition body_2_curried := extract_y :: nil.
-
-Definition start_st_tupled : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") body_tupled (ParserDirect _ tt (MkP4String _ tt String.accept)).
-Definition start_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") body_1_curried (ParserDirect _ tt (MkP4String _ tt "middle")).
-Definition mid_st_curried : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "middle") body_2_curried (ParserDirect _ tt (MkP4String _ tt String.accept)).
-
-Definition states_tupled : list (ParserState tag_t) := start_st_tupled :: nil.
-Definition states_curried : list (ParserState tag_t) := start_st_curried :: nil.
-
-Definition IntParserTupled := ValObjParser _ scope nil nil states_tupled.
-Definition IntParserCurried := ValObjParser _ scope nil nil states_curried.
-
-Definition build_env (bits: list bool): Environment.environment tag_t :=
-  Environment.extend_scope _ "pkt" (ValObj _ (ValObjPacket _ bits)) (
-    Environment.extend_scope _ "x" out_value (
-      Environment.extend_scope _ "y" out_value (
-        Environment.MStr.empty _
-      )
-    )
-  ) :: nil.
+Definition inter_env :=
+  let heap := MNat.add 0 (ValObj tag_t (ValObjPacket tag_t nil)) (MNat.add 1 out_value (MNat.empty _)) in
+  let scope := MStr.add "pkt" 0 (MStr.add "output" 1 (MStr.empty _)) in
+  MkEnvironment tag_t 0 (MStr.empty _ :: nil) (MNat.empty _)
+.

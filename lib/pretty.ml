@@ -56,11 +56,10 @@ let format_option f fmt o =
     f fmt x
 
 module P4Int = struct
-  open P4.P4Int
   let format_bigint fmt b =
     Format.fprintf fmt "%s" (Bigint.to_string b)
-  let format_t fmt e =
-    let i = snd e in
+
+  let format_t fmt (i: P4int.t) =
     Format.fprintf fmt "@[";
     (match i.width_signed with
      | None ->
@@ -72,11 +71,11 @@ module P4Int = struct
 end
 
 module P4String = struct
-  let format_t fmt e =
-    Format.fprintf fmt "%s" (snd e)
+  let format_t fmt (e: P4string.t) =
+    Format.fprintf fmt "%s" e.str
 end
 
-let name_format_t fmt (name: Types.name) =
+let name_format_t fmt (name: P4name.t) =
   match name with
   | BareName str ->
      P4String.format_t fmt str
@@ -163,13 +162,13 @@ end = struct
     | TypeMember x ->
       Format.fprintf fmt "@[<4>%a.%s@]"
         name_format_t x.typ
-        (snd x.name)
+        x.name.str
     | ErrorMember x ->
-      Format.fprintf fmt "@[<4>error.%s@]" (snd x)
+      Format.fprintf fmt "@[<4>error.%s@]" x.str
     | ExpressionMember x ->
       Format.fprintf fmt "@[<4>%a.%s@]"
         format_t x.expr
-        (snd x.name)
+        x.name.str
     | Ternary x ->
       Format.fprintf fmt "@[<4>(%a ?@ %a@ :@ %a)@]"
         format_t x.cond
@@ -305,7 +304,7 @@ end = struct
         Expression.format_t x.value
     | KeyValue x ->
       Format.fprintf fmt "@[<4>%s=%a@]"
-        (snd x.key)
+        x.key.str
         Expression.format_t x.value
     | Missing ->
       Format.fprintf fmt "_"
@@ -317,7 +316,7 @@ end
 and Type : sig
   val format_t : Format.formatter -> P4.Type.t -> unit
   val format_typ_args: Format.formatter -> P4.Type.t list -> unit
-  val format_type_params: Format.formatter -> P4.P4String.t list -> unit
+  val format_type_params: Format.formatter -> P4string.t list -> unit
 end = struct
   open P4.Type
   let rec format_t fmt e =
@@ -345,10 +344,10 @@ end = struct
         Expression.format_t x
     | TypeName (BareName x) ->
       Format.fprintf fmt "@[%s@]"
-        (snd x)
+        x.str
     | TypeName (QualifiedName ([], x)) ->
       Format.fprintf fmt "@[.%s@]"
-        (snd x);
+        x.str;
     | TypeName _ ->
        failwith "unimplemented"
     | SpecializedType x ->
@@ -455,7 +454,7 @@ end = struct
       (format_option Direction.format_t) p.direction
       (match p.direction with None -> "" | Some _ -> " ")
       Type.format_t p.typ
-      (snd p.variable)
+      p.variable.str
       (format_option
          (fun fmt e ->
             Format.fprintf fmt "= %a" Expression.format_t e)) p.opt_value
@@ -651,18 +650,18 @@ end = struct
       Format.fprintf fmt "@[<4>%aconst %a %s = %a;@]"
         Annotation.format_ts annotations
         Type.format_t typ
-        (snd name)
+        name.str
         Expression.format_t value
     | Action { annotations; name; params; body } ->
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[<4>action %s(@[%a@]) %a"
-        (snd name)
+        name.str
         Parameter.format_params params
         Block.format_t body
     | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
       Annotation.format_ts fmt annotations;
       Format.fprintf fmt "@[<4>control %s%a(%a)%a {@\n"
-        (snd name)
+        name.str
         Type.format_type_params type_params
         Parameter.format_params params
         Parameter.format_constructor_params constructor_params;
@@ -673,7 +672,7 @@ end = struct
     | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
       Format.fprintf fmt "@[%a" Annotation.format_ts annotations;
       Format.fprintf fmt "@[<4>parser %s%a(%a)%a {@\n"
-        (snd name)
+        name.str
         Type.format_type_params type_params
         Parameter.format_params params
         Parameter.format_constructor_params constructor_params;
@@ -734,23 +733,23 @@ end = struct
       Format.fprintf fmt "@[%atypedef %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
-        (snd name)
+        name.str
     | ControlType { annotations; name; type_params; params } ->
       Format.fprintf fmt "@[<4>%acontrol %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
-        (snd name)
+        name.str
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | ParserType { annotations; name; type_params; params } ->
       Format.fprintf fmt "@[<4>%aparser %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
-        (snd name)
+        name.str
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | PackageType { annotations; name; type_params; params } ->
       Format.fprintf fmt "@[<4>%apackage %s%a@,(@[%a@]);@]"
         Annotation.format_ts annotations
-        (snd name)
+        name.str
         Type.format_type_params type_params
         (format_list_sep Parameter.format_t ",") params
     | Struct { annotations; name; fields } ->
@@ -819,7 +818,7 @@ end = struct
       Format.fprintf fmt "@[%atype %a %s;@]"
         Annotation.format_ts annotations
         format_typ_or_decl typ_or_decl
-        (snd name)
+        name.str
 end
 
 let format_program fmt p =

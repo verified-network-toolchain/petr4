@@ -10,4 +10,6 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
+  "bignum"
+  "coq"
 ]

@@ -29,6 +29,10 @@ let option_collapse = function
   | Some (Some x) -> Some x
   | _ -> None
 
+let opt_to_exn e = function
+  | Some x -> x
+  | None -> raise e
+
 let list_option_flip l =
   let check checked x =
     match checked, x with

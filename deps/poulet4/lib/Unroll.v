@@ -4,6 +4,7 @@ Require Import Monads.Option.
 Require Import Step.
 Require Import String.
 Require Import Strings.String.
+Require Import Petr4.P4String.
 
 Open Scope list_scope.
 Open Scope string_scope.
@@ -13,63 +14,55 @@ Section Unroll.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
 
-  (* lift string equality to the P4String wrapper *)
-  Definition P4Str_eqb (l: P4String tags_t) (r: P4String tags_t) : bool := 
-    match (l, r) with 
-    | (MkP4String _ _ l', MkP4String _ _ r') => eqb l' r'
-    end.
+  Notation P4String := (P4String.t tags_t).
 
-  Definition builtin_state_name (x: P4String tags_t) : bool :=
-    let 'MkP4String _ _ name := x in
-    orb (eqb name accept) (eqb name reject).
+  Definition builtin_state_name (x: P4String) : bool :=
+    orb (eqb x.(P4String.str) StringConstants.accept)
+        (eqb x.(P4String.str) StringConstants.reject).
 
   (* Allocate a fresh name. For now, add a prime to the end of it. *)
   (* TODO make this sound *)
-  Definition fresh_name (old: P4String tags_t) :=
+  Definition fresh_name (old: P4String) :=
     if builtin_state_name old then old else
-    let 'MkP4String _ tag name := old in 
-      MkP4String _ tag (name ++ "'").
-
-  
-
+    {| P4String.tags := tags_dummy;
+       P4String.str := old.(P4String.str) ++ "'" |}
+  .
 
   (* Given a transition, return a list of outgoing labels *)
-  Definition label_of_trans (trans: ParserTransition tags_t) : list (P4String tags_t) :=
-    match trans with 
+  Definition label_of_trans (trans: ParserTransition tags_t) : list P4String :=
+    match trans with
     | ParserDirect _ _ x => x :: nil
     | ParserSelect _ _ _ cases => List.map (fun '(MkParserCase _ _ _ x) => x) cases
     end.
 
   (* Given a list of labels and a list of states, return a sublist of states corresponding to the labels *)
-  Definition labels_to_states (labs: list (P4String tags_t)) (states: list (ParserState tags_t)) : list (ParserState tags_t) :=
-    let l2st := fun '(MkP4String _ _ lab) => 
+  Definition labels_to_states (labs: list P4String) (states: list (ParserState tags_t)) : list (ParserState tags_t) :=
+    let l2st := fun lab =>
       match lookup_state _ states lab with
       | Some x => x :: nil
       | None => nil
       end in
     List.concat (List.map l2st labs).
 
-  Fixpoint nodup' (l : list (P4String tags_t)) : list (P4String tags_t) := 
+  Fixpoint nodup' (l : list P4String) : list P4String :=
     match l with
     | nil => nil
-    | x :: xs => if (List.existsb (P4Str_eqb x) xs) then nodup' xs else x :: nodup' xs
+    | x :: xs => if (List.existsb (equivb x) xs) then nodup' xs else x :: nodup' xs
     end.
-
 
   (* Given a set of visited labels and a start label, return a list of reachable labels
   from the start *)
   (* TODO: it should be the case that if fuel = | states |, then all reachable states are included in the result list *)
   (* TODO: to be more precise, this needs nodup mixed in *)
-  Fixpoint reachable_states (fuel: nat) (reached: list (P4String tags_t)) (start: P4String tags_t) (states: list (ParserState tags_t)) : list (P4String tags_t) :=
+  Fixpoint reachable_states (fuel: nat) (reached: list P4String) (start: P4String) (states: list (ParserState tags_t)) : list P4String :=
     (*   *)
-    let 'MkP4String _ _ name := start in 
-    match fuel, lookup_state _ states name with
-    | 0, Some _ 
+    match fuel, lookup_state _ states start with
+    | 0, Some _
     | 0, None   => reached
     | S _, None => reached
-    | S fuel', Some (MkParserState _ _ start_name _ trans) => 
-      let outgoing_labels := label_of_trans trans in 
-      let new_label := fun lab => negb (List.existsb (P4Str_eqb lab) reached) in
+    | S fuel', Some (MkParserState _ _ start_name _ trans) =>
+      let outgoing_labels := label_of_trans trans in
+      let new_label := fun lab => negb (List.existsb (equivb lab) reached) in
       let new_labels := nodup' (List.filter new_label outgoing_labels) in
         match new_labels with
         | nil => reached
@@ -78,40 +71,40 @@ Section Unroll.
 
     end.
 
-  Definition select_name (x: P4String tags_t) (old: P4String tags_t) (new: P4String tags_t):= 
-    if P4Str_eqb x old then new else x.
+  Definition select_name (x: P4String) (old: P4String) (new: P4String):=
+    if equivb x old then new else x.
 
-  Definition rename_case (old: P4String tags_t) (new: P4String tags_t) (case: ParserCase tags_t) : ParserCase tags_t :=
-    let 'MkParserCase _ _ matches next := case in 
+  Definition rename_case (old: P4String) (new: P4String) (case: ParserCase tags_t) : ParserCase tags_t :=
+    let 'MkParserCase _ _ matches next := case in
     MkParserCase tags_t tags_dummy matches (select_name next old new).
 
-  Definition rename_transition (old: P4String tags_t) (new: P4String tags_t) (trans: ParserTransition tags_t) :=
-    match trans with 
+  Definition rename_transition (old: P4String) (new: P4String) (trans: ParserTransition tags_t) :=
+    match trans with
     | ParserDirect _ _ name => ParserDirect tags_t tags_dummy (select_name name old new)
     | ParserSelect _ _ exprs cases => ParserSelect tags_t tags_dummy exprs (List.map (rename_case old new) cases)
     end.
 
-  Definition rename_state (old: P4String tags_t) (new: P4String tags_t) (state: ParserState tags_t) := 
+  Definition rename_state (old: P4String) (new: P4String) (state: ParserState tags_t) :=
     let 'MkParserState _ _ name stmts trans := state in
       MkParserState tags_t tags_dummy name stmts (rename_transition old new trans).
 
   (* Given a parser, as well as an old name and new name, replace all transitions
   in parser that use the old name, to use the new name *)
-  Definition rename_edge (p: ValueObject tags_t) (old: P4String tags_t) (new: P4String tags_t) : @option_monad (ValueObject tags_t) := 
+  Definition rename_edge (p: ValueObject tags_t) (old: P4String) (new: P4String) : @option_monad (ValueObject tags_t) :=
     match p with
-    | ValObjParser _ scope params locals states => 
-      mret (ValObjParser _ scope params locals (List.map (rename_state old new) states))
+    | ValObjParser _ scope constructor_params params locals states =>
+      mret (ValObjParser _ scope constructor_params params locals (List.map (rename_state old new) states))
     | _ => None
     end.
 
   (* Given a parser and an old/new pair of names, replace and substitute all states with the old name  *)
-  Definition rename_state_name (p: ValueObject tags_t) (old: P4String tags_t) (new: P4String tags_t) : @option_monad (ValueObject tags_t) := 
-    let rename_st_name := fun '(MkParserState _ _ name ss trans) => 
+  Definition rename_state_name (p: ValueObject tags_t) (old: P4String) (new: P4String) : @option_monad (ValueObject tags_t) :=
+    let rename_st_name := fun '(MkParserState _ _ name ss trans) =>
       MkParserState _ tags_dummy (select_name name old new) ss trans
     in
     match p with
-    | ValObjParser _ scope params locals states => 
-      mret (ValObjParser _ scope params locals (List.map rename_st_name states))
+    | ValObjParser _ scope constructor_params params locals states =>
+      mret (ValObjParser _ scope constructor_params params locals (List.map rename_st_name states))
     | _ => None
     end.
 
@@ -120,58 +113,57 @@ Section Unroll.
   (* Definition replace_state (states : list (ParserState tags_t)) (name: P4String tags_t) (new: P4String tags_t) :=
     let relevant_states, old_states := List.partition (fun '(MkParserState _ _ n _ _) => P4Str_eqb n name) states in *)
 
-
-  Definition up_state (acc: option (ValueObject tags_t)) (name : P4String tags_t) : option (ValueObject tags_t) :=
+  Definition up_state (acc: option (ValueObject tags_t)) (name : P4String) : option (ValueObject tags_t) :=
     match acc with
-    | Some p => 
+    | Some p =>
       let new_name := fresh_name name in
-      let* p' := rename_state_name p name new_name in 
+      let* p' := rename_state_name p name new_name in
         rename_edge p' name new_name
     | None => None
-    end. 
+    end.
 
-  Definition in_list (l: list (P4String tags_t)) (x: P4String tags_t) : bool := List.existsb (P4Str_eqb x) l.
-  
+  Definition in_list (l: list P4String) (x: P4String) : bool := List.existsb (equivb x) l.
+
   (* Given a start state for a loop, duplicate it and give fresh names to all duplicated states.
     return a tuple of stale state names and new states. *)
-  Definition rename_loop (p: (ValueObject tags_t)) (loop_head: ParserState tags_t) : option (list (P4String tags_t) * list (ParserState tags_t)) :=
-    match p return option (list (P4String tags_t) * list (ParserState tags_t)) with
-    | ValObjParser _ scope params locals states =>
+  Definition rename_loop (p: (ValueObject tags_t)) (loop_head: ParserState tags_t) : option (list P4String * list (ParserState tags_t)) :=
+    match p return option (list P4String * list (ParserState tags_t)) with
+    | ValObjParser _ scope constructor_params params locals states =>
       let 'MkParserState _ _ name _ _ := loop_head in
       let new_state_names := reachable_states (List.length states) nil name states in
       let stale_state_check := fun st =>
         let 'MkParserState _ _ name' _ _ := st in
         in_list new_state_names name'
       in
-      let new_parser := List.fold_left up_state new_state_names (Some (ValObjParser _ scope params locals (List.filter stale_state_check states))) in 
-      match new_parser return option (list (P4String tags_t) * list (ParserState tags_t)) with
-      | Some (ValObjParser _ _ _ _ ss') => Some (new_state_names, ss')
+      let new_parser := List.fold_left up_state new_state_names (Some (ValObjParser _ scope constructor_params params locals (List.filter stale_state_check states))) in
+      match new_parser return option (list P4String * list (ParserState tags_t)) with
+      | Some (ValObjParser _ _ _ _ _ ss') => Some (new_state_names, ss')
       | _ => Some (nil, nil)
       end
     | _ => Some (nil, nil)
     end.
 
-  Definition update_stale_name (old: P4String tags_t) (new: P4String tags_t) (acc: list (ParserState tags_t)) (stale: P4String tags_t) : list (ParserState tags_t) :=
+  Definition update_stale_name (old: P4String) (new: P4String) (acc: list (ParserState tags_t)) (stale: P4String) : list (ParserState tags_t) :=
     List.map (rename_state old new) acc.
 
-  Definition rename_stale_states (states: list (ParserState tags_t)) (stales: list (P4String tags_t)) (old: P4String tags_t) (new: P4String tags_t) : list (ParserState tags_t) :=
+  Definition rename_stale_states (states: list (ParserState tags_t)) (stales: list P4String) (old: P4String) (new: P4String) : list (ParserState tags_t) :=
     let stale_state_check := fun st =>
         let 'MkParserState _ _ name' _ _ := st in
         in_list stales name'
-      in  
+      in
     let (stale_states, ok_states) := List.partition stale_state_check states in
 
     ok_states ++ List.fold_left (update_stale_name old new) stales stale_states.
-  
+
 
   Definition unroll_loop (p: ValueObject tags_t) (loop_head: ParserState tags_t) : ValueObject tags_t :=
-    let 'MkParserState _ _ name _ _ := loop_head in  
-    let new_name := fresh_name name in 
+    let 'MkParserState _ _ name _ _ := loop_head in
+    let new_name := fresh_name name in
     match (rename_loop p loop_head, p) with
-      | (Some (stale_names, states'), ValObjParser _ scope params locals states) => 
+      | (Some (stale_names, states'), ValObjParser _ scope constructor_params params locals states) =>
         let unrolled_states := rename_stale_states states stale_names name new_name in
-          ValObjParser _ scope params locals ( unrolled_states ++ states')
+          ValObjParser _ scope constructor_params params locals ( unrolled_states ++ states')
       | _ => p (* maybe this case should be an error instead?*)
     end.
-        
+
 End Unroll.

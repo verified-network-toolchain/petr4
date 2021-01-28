@@ -4,12 +4,13 @@ type error =
   | Unbound of string
   | Mismatch of
       { expected: string; (* TODO: string or Typed.t? *)
-        found: Type.t; }
+        found: coq_P4Type; }
   | UnfoundMember of
       { expected_member: string}
-  | Type_Difference of Type.t * Type.t
+  | Type_Difference of coq_P4Type * coq_P4Type
   | Duplicate
   | UnreachableBlock
+  [@@deriving show]
 
 let format_error fmt = function
   | Unbound x -> 

@@ -49,7 +49,7 @@ Section Environment.
       | None => state_fail Internal env
       end.
 
-  Definition lift_option {A : Type} (x: option A) : env_monad A := fun env => 
+  Definition lift_option {A : Type} (x: option A) : env_monad A := fun env =>
                                                                      match x with
                                                                      | Some it => mret it env
                                                                      | None => (inr Internal, env)
@@ -122,7 +122,7 @@ Section Environment.
 
   (* TODO handle name resolution properly *)
   Definition str_of_name_warning_not_safe (t: Typed.name) : String.t :=
-    match t with 
+    match t with
     | Typed.BareName s => s
     | Typed.QualifiedName _ s => s
     end.
@@ -181,109 +181,6 @@ Section Environment.
       | (inl tt, env') => mret (ValBase _ (ValBaseNull _)) env'
       | (inr exc, env') => state_fail exc env'
       end.
-
-  (* Predicates for relating strings to values in a scope (MapsToS) and an Environment (MapsToE). *)
-  Inductive MapsToS : String.string -> Value tags_t -> scope -> Prop :=
-    (* a pair s,v is in an env if env is extended with s,v *)
-    | MapsToSE : forall s v env, MapsToS s v (extend_scope s v env)
-    (* if s1,v1 is already in an env, then extending the env with a distinct key does not forget the existing pair *)
-    | MapsToSI : forall s1 s2 v1 v2 env, s1 <> s2 -> MapsToS s1 v1 env -> MapsToS s1 v1 (extend_scope s2 v2 env)
-    .
-  Inductive MapsToE : String.string -> Value tags_t -> environment -> Prop :=
-    (* if a pair s,v is in a scope, then for any environment env, s,v is also in scope :: env*)
-    | MapsToES : forall s v env scope, MapsToS s v scope -> MapsToE s v (scope :: env).
-    (* TODO: a constructor for when a pair is in a nested scope. To properly do this, we need something like:
-      forall environments env, env_pre, 
-      a pair s,v is in env_pre ++ env iff s,v is in env and also s is not in the domain of env_pre
-    *)
-
-
-  
-  Lemma option_ineq : forall A, forall x: A, None <> Some x.
-  Proof.
-  Admitted.
-  
-  Lemma find_scope_corr : 
-    forall s v scope, MapsToS s v scope <-> find_scope s scope = Some v.
-  Proof using tags_t.
-  intros. split.
-    - 
-      intros.
-      unfold find_scope.
-      induction H.
-      -- 
-        unfold extend_scope.
-        eapply MStr.find_1.
-        eapply MStr.add_1.
-        auto.
-      --
-        eapply MStr.find_1.
-        unfold extend_scope.
-        eapply MStr.add_2. 
-          --- auto. 
-          ---
-            apply MStr.find_2.
-            assumption.
-    -
-      intros. unfold find_scope.
-      unfold find_scope in H.
-      destruct scope0.
-      induction this0.
-        --
-          unfold find in H.
-          unfold Raw.find in H.
-          simpl in H.
-          assert (HNeq := option_ineq).
-          specialize (HNeq (Value tags_t) v).
-          contradiction.
-        --
-          
-    
-
-
-  Admitted.
-
-  (* TODO: we replaced the iff version of the env_corr correctness because it made erewrites hard.
-      logically the iff version is stronger (and maybe preferable?) 
-    *)
-  (* Lemma find_env_corr : 
-    forall s v env scope, MapsToS s v scope <-> exists env_pre env_post env',
-      env = env_pre ++ scope :: env_post /\
-      (* ~ MapsToS s v env_pre /\  *)
-      MapsToS s v scope /\
-      find_environment s env = (inl v, env').
-  Proof.
-  Admitted. *)
-
-  Lemma find_env_corr : 
-    forall s v (env : Environment.environment) (scope : Environment.scope) env_pre env_post, 
-    Environment.MapsToS s v scope ->
-      env = env_pre ++ (scope :: env_post) ->
-      Environment.find_environment s env = (inl v, env).
-  Proof using tags_t.
-  Admitted.
-
-  Lemma find_lvalue_env_corr : 
-    forall s ty v (env : Environment.environment) (scope : Environment.scope) env_pre env_post, 
-    Environment.MapsToS s v scope ->
-      env = env_pre ++ (scope :: env_post) ->
-      Environment.find_lvalue (MkValueLvalue (ValLeftName (BareName s)) ty) env = (inl v, env).
-  Proof using tags_t.
-  Admitted.
-
-  Lemma lift_env_lookup_corr : 
-    forall s v env,
-    Environment.find_environment s env = (inl v, env) -> Environment.find_environment' s env = Some v.
-  Proof using tags_t.
-  Admitted.
-
-  Lemma insert_scope_corr_1 : 
-    forall s v v' scope scope', MapsToS s v scope -> insert_scope s v scope = Some scope' /\ MapsToS s v' scope'.
-  Proof using tags_t.
-  Admitted.
-
-
-
 End Environment.
 
 

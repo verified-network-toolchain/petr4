@@ -1,6 +1,5 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Numbers.BinNums.
-Require Import Coq.Bool.Bvector.
 
 Require Import Petr4.Info.
 Require Import Petr4.Typed.
@@ -10,19 +9,19 @@ Require Petr4.P4Int.
 
 Section Syntax.
 
-  Context (tags_t: Type).
+  Context {tags_t: Type}.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
 
   Inductive MethodPrototype :=
   | ProtoConstructor (tags: tags_t) (name: P4String)
-                     (params: list (P4Parameter tags_t))
-  | ProtoAbstractMethod (tags: tags_t) (ret: P4Type tags_t)
+                     (params: list (@P4Parameter tags_t))
+  | ProtoAbstractMethod (tags: tags_t) (ret: @P4Type tags_t)
                         (name: P4String) (type_params: list P4String)
-                        (params: list (P4Parameter tags_t))
-  | ProtoMethod (tags: tags_t) (ret: P4Type tags_t)
+                        (params: list (@P4Parameter tags_t))
+  | ProtoMethod (tags: tags_t) (ret: @P4Type tags_t)
                 (name: P4String) (type_params: list P4String)
-                (params: list (P4Parameter tags_t)).
+                (params: list (@P4Parameter tags_t)).
 
   Inductive OpUni : Type :=
   | Not
@@ -58,41 +57,41 @@ Section Syntax.
   | ExpBool (b: bool)
   | ExpInt (_: P4Int)
   | ExpString (_: P4String)
-  | ExpName (_: Typed.name tags_t)
+  | ExpName (_: @Typed.name tags_t)
   | ExpArrayAccess (array: Expression) (index: Expression)
   | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
   | ExpRecord (entries: list KeyValue)
   | ExpUnaryOp (op: OpUni) (arg: Expression)
   | ExpBinaryOp (op: OpBin) (args: (Expression * Expression))
-  | ExpCast (typ: P4Type tags_t) (expr: Expression)
-  | ExpTypeMember (typ: Typed.name tags_t) (name: P4String)
+  | ExpCast (typ: @P4Type tags_t) (expr: Expression)
+  | ExpTypeMember (typ: @Typed.name tags_t) (name: P4String)
   | ExpErrorMember (_: P4String)
   | ExpExpressionMember (expr: Expression) (name: P4String)
   | ExpTernary (cond: Expression) (tru: Expression) (fls: Expression)
-  | ExpFunctionCall (func: Expression) (type_args: list (P4Type tags_t))
+  | ExpFunctionCall (func: Expression) (type_args: list (@P4Type tags_t))
                     (args: list (option Expression))
-  | ExpNamelessInstantiation (typ: P4Type tags_t) (args: list Expression)
+  | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression)
   | ExpDontCare
   | ExpMask (expr: Expression) (mask: Expression)
   | ExpRange (lo: Expression) (hi: Expression)
   with Expression :=
-  | MkExpression (tags: tags_t) (expr: ExpressionPreT) (typ: P4Type tags_t) (dir: direction).
+  | MkExpression (tags: tags_t) (expr: ExpressionPreT) (typ: @P4Type tags_t) (dir: direction).
 
   Inductive MatchPreT :=
   | MatchDontCare
   | MatchExpression (expr: Expression).
 
   Inductive Match :=
-  | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: P4Type tags_t).
+  | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: @P4Type tags_t).
 
   Inductive TablePreActionRef :=
-  | MkTablePreActionRef (name: Typed.name tags_t)
+  | MkTablePreActionRef (name: @Typed.name tags_t)
                         (args: list (option Expression)).
 
   Inductive TableActionRef :=
   | MkTableActionRef (tags: tags_t) (action: TablePreActionRef)
-                     (typ: Typed.P4Type tags_t).
+                     (typ: @Typed.P4Type tags_t).
 
   Inductive TableKey :=
   | MkTableKey (tags: tags_t)  (key: Expression)
@@ -144,27 +143,31 @@ Section Syntax.
   | StatSwCaseAction (tags: tags_t) (label: StatementSwitchLabel) (code: Block)
   | StatSwCaseFallThrough (tags: tags_t) (label: StatementSwitchLabel)
   with StatementPreT :=
-  | StatMethodCall (func: Expression) (type_args: list (P4Type tags_t))
+  | StatMethodCall (func: Expression) (type_args: list (@P4Type tags_t))
                    (args: list (option Expression))
   | StatAssignment (lhs: Expression) (rhs: Expression)
-  | StatDirectApplication (typ: P4Type tags_t) (args: list Expression)
+  | StatDirectApplication (typ: @P4Type tags_t) (args: list Expression)
   | StatConditional (cond: Expression) (tru: Statement) (fls: option Statement)
   | StatBlock (block: Block)
   | StatExit
   | StatEmpty
   | StatReturn (expr: option Expression)
   | StatSwitch (expr: Expression) (cases: list StatementSwitchCase)
-  | StatConstant  (typ: P4Type tags_t)
+  | StatConstant  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
-  | StatVariable  (typ: P4Type tags_t)
+  | StatVariable  (typ: @P4Type tags_t)
                  (name: P4String) (init: option Expression)
-  | StatInstantiation  (typ: P4Type tags_t)
+  | StatInstantiation  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   with Statement :=
   | MkStatement (tags: tags_t) (stmt: StatementPreT) (typ: StmType)
   with Block :=
-  | BlockEmpty (tags: tags_t) 
+  | BlockEmpty (tags: tags_t)
   | BlockCons (statement: Statement) (rest: Block).
+
+  Scheme statement_mut := Induction for Statement Sort Prop
+    with statementpre_mut := Induction for StatementPreT Sort Prop
+    with block_mut := Induction for Block Sort Prop.
 
   Inductive ParserCase :=
   | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).
@@ -178,33 +181,33 @@ Section Syntax.
                   (statements: list Statement) (transition: ParserTransition).
 
   Inductive DeclarationField :=
-  | MkDeclarationField (tags: tags_t)  (typ: P4Type tags_t)
+  | MkDeclarationField (tags: tags_t)  (typ: @P4Type tags_t)
                        (name: P4String).
 
   Inductive Declaration :=
-  | DeclConstant (tags: tags_t)  (typ: P4Type tags_t)
+  | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
-  | DeclInstantiation (tags: tags_t)  (typ: P4Type tags_t)
+  | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   | DeclParser (tags: tags_t)  (name: P4String)
-               (type_params: list P4String) (params: list (P4Parameter tags_t))
-               (constructor_params: list (P4Parameter tags_t))
+               (type_params: list P4String) (params: list (@P4Parameter tags_t))
+               (constructor_params: list (@P4Parameter tags_t))
                (locals: list Declaration) (states: list ParserState)
   | DeclControl (tags: tags_t)  (name: P4String)
-                (type_params: list P4String) (params: list (P4Parameter tags_t))
-                (constructor_params: list (P4Parameter tags_t)) (locals: list Declaration)
+                (type_params: list P4String) (params: list (@P4Parameter tags_t))
+                (constructor_params: list (@P4Parameter tags_t)) (locals: list Declaration)
                 (apply: Block)
-  | DeclFunction (tags: tags_t) (ret: P4Type tags_t) (name: P4String)
-                 (type_params: list P4String) (params: list (P4Parameter tags_t)) (body: Block)
-  | DeclExternFunction (tags: tags_t)  (ret: P4Type tags_t)
+  | DeclFunction (tags: tags_t) (ret: @P4Type tags_t) (name: P4String)
+                 (type_params: list P4String) (params: list (@P4Parameter tags_t)) (body: Block)
+  | DeclExternFunction (tags: tags_t)  (ret: @P4Type tags_t)
                        (name: P4String) (type_params: list P4String)
-                       (params: list (P4Parameter tags_t))
-  | DeclVariable (tags: tags_t)  (typ: P4Type tags_t)
+                       (params: list (@P4Parameter tags_t))
+  | DeclVariable (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (init: option Expression)
-  | DeclValueSet (tags: tags_t)  (typ: P4Type tags_t)
+  | DeclValueSet (tags: tags_t)  (typ: @P4Type tags_t)
                  (size: Expression) (name: P4String)
   | DeclAction (tags: tags_t)  (name: P4String)
-               (data_params: list (P4Parameter tags_t)) (ctrl_params: list (P4Parameter tags_t))
+               (data_params: list (@P4Parameter tags_t)) (ctrl_params: list (@P4Parameter tags_t))
                (body: Block)
   | DeclTable (tags: tags_t)  (name: P4String)
               (key: list TableKey) (actions: list TableActionRef)
@@ -221,20 +224,20 @@ Section Syntax.
   | DeclMatchKind (tags: tags_t) (members: list P4String)
   | DeclEnum (tags: tags_t)  (name: P4String)
              (members: list P4String)
-  | DeclSerializableEnum (tags: tags_t)  (typ: P4Type tags_t)
+  | DeclSerializableEnum (tags: tags_t)  (typ: @P4Type tags_t)
                          (name: P4String) (members: list (P4String * Expression))
   | DeclExternObject (tags: tags_t)  (name: P4String)
                      (type_params: list P4String) (methods: list MethodPrototype)
   | DeclTypeDef (tags: tags_t)  (name: P4String)
-                (typ_or_decl: (P4Type tags_t + Declaration))
+                (typ_or_decl: (@P4Type tags_t + Declaration))
   | DeclNewType (tags: tags_t)  (name: P4String)
-                (typ_or_decl: (P4Type tags_t + Declaration))
+                (typ_or_decl: (@P4Type tags_t + Declaration))
   | DeclControlType (tags: tags_t)  (name: P4String)
-                    (type_params: list P4String) (params: list (P4Parameter tags_t))
+                    (type_params: list P4String) (params: list (@P4Parameter tags_t))
   | DeclParserType (tags: tags_t)  (name: P4String)
-                   (type_params: list P4String) (params: list (P4Parameter tags_t))
+                   (type_params: list P4String) (params: list (@P4Parameter tags_t))
   | DeclPackageType (tags: tags_t)  (name: P4String)
-                    (type_params: list P4String) (params: list (P4Parameter tags_t)).
+                    (type_params: list P4String) (params: list (@P4Parameter tags_t)).
 
   Definition ValueLoc := P4String.
 
@@ -246,58 +249,61 @@ Section Syntax.
   Definition Env_env binding := list (list (P4String * binding)).
 
   Inductive Env_EvalEnv :=
-  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (P4Type tags_t)) (namespace: P4String).
+  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@P4Type tags_t)) (namespace: P4String).
 
   Record ExternMethod :=
     { name: P4String;
-      typ: FunctionType tags_t }.
+      typ: @FunctionType tags_t }.
 
   Record ExternMethods :=
     { type_params: list P4String;
       methods: list ExternMethod }.
 
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: Typed.name tags_t)
+  | ValLeftName (name: @Typed.name tags_t)
   | ValLeftMember (expr: ValueLvalue) (name: P4String)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)
   with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: P4Type tags_t).
+  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: @P4Type tags_t).
+
+  Inductive ValueFunctionImplementation :=
+  | ValFuncImplUser (scope: Env_EvalEnv) (body: Block)
+  | ValFuncImplExtern (name: P4String) (caller: option (ValueLoc * P4String))
+  | ValFuncImplBuiltin (name: P4String) (caller: ValueLvalue).
 
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)
-                 (constructor_params: list (P4Parameter tags_t))
-                 (params: list (P4Parameter tags_t)) (locals: list Declaration)
+                 (constructor_params: list (@P4Parameter tags_t))
+                 (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                  (states: list ParserState)
   | ValObjTable (_: ValueTable)
   | ValObjControl (scope: Env_EvalEnv)
-                  (constructor_params: list (P4Parameter tags_t))
-                  (params: list (P4Parameter tags_t)) (locals: list Declaration)
+                  (constructor_params: list (@P4Parameter tags_t))
+                  (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                   (apply: Block)
   | ValObjPackage (args: list (P4String * ValueLoc))
   | ValObjRuntime (loc: ValueLoc) (obj_name: P4String)
-  | ValObjExternFun (name: P4String) (caller: option (ValueLoc * P4String))
-                   (params: list (P4Parameter tags_t))
-  | ValObjFun (scope: Env_EvalEnv) (params: list (P4Parameter tags_t)) (body: Block)
-  | ValObjBuiltinFun (name: P4String) (caller: ValueLvalue)
-  | ValObjAction (scope: Env_EvalEnv) (params: list (P4Parameter tags_t)) (body: Block)
+  | ValObjFun (params: list (@P4Parameter tags_t)) (impl: ValueFunctionImplementation)
+  | ValObjAction (scope: Env_EvalEnv) (params: list (@P4Parameter tags_t)) (body: Block)
   | ValObjPacket (bits: list bool).
 
   Inductive ValueConstructor :=
-  | ValConsParser (scope: Env_EvalEnv) (constructor_params: list (P4Parameter tags_t))
-                  (params: list (P4Parameter tags_t)) (locals: list Declaration)
+  | ValConsParser (scope: Env_EvalEnv) (constructor_params: list (@P4Parameter tags_t))
+                  (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                   (states: list ParserState)
   | ValConsTable (_: ValueTable)
-  | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (P4Parameter tags_t))
-                   (params: list (P4Parameter tags_t)) (locals: list Declaration)
+  | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (@P4Parameter tags_t))
+                   (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                    (apply: Block)
-  | ValConsPackage (params: list (P4Parameter tags_t)) (args: list (P4String * ValueLoc))
-  | ValConsExternObj (_: list (P4String * list (P4Parameter tags_t))).
+  | ValConsPackage (params: list (@P4Parameter tags_t)) (args: list (P4String * ValueLoc))
+  | ValConsExternObj (_: list (P4String * list (@P4Parameter tags_t))).
 
   Inductive Value :=
   | ValBase (_: ValueBase)
   | ValObj (_: ValueObject)
-  | ValCons (_: ValueConstructor).
+  | ValCons (_: ValueConstructor)
+  | ValLvalue (_: ValueLvalue).
 
   Inductive program := Program (_: list Declaration).
 

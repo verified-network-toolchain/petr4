@@ -12,13 +12,13 @@ Section Step.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
   Notation P4String := (P4String.t tags_t).
-  Notation Statement := (Statement tags_t).
-  Notation Block := (Block tags_t).
-  Notation ParserState := (ParserState tags_t).
-  Notation ParserCase := (ParserCase tags_t).
-  Notation ParserTransition := (ParserTransition tags_t).
-  Notation Value := (Value tags_t).
-  Notation ValueObject := (ValueObject tags_t).
+  Notation Statement := (@Statement tags_t).
+  Notation Block := (@Block tags_t).
+  Notation ParserState := (@ParserState tags_t).
+  Notation ParserCase := (@ParserCase tags_t).
+  Notation ParserTransition := (@ParserTransition tags_t).
+  Notation Value := (@Value tags_t).
+  Notation ValueObject := (@ValueObject tags_t).
   Notation accept := ({|P4String.tags:=tags_dummy;
                         P4String.str:=StringConstants.accept|}).
   Notation reject := ({|P4String.tags:=tags_dummy;
@@ -26,13 +26,13 @@ Section Step.
 
 
   Definition states_to_block (ss: list Statement) : Block :=
-    List.fold_right (BlockCons _) (BlockEmpty _ tags_dummy) ss.
+    List.fold_right BlockCons (BlockEmpty tags_dummy) ss.
 
   Fixpoint lookup_state (states: list ParserState) (name: P4String) : option ParserState := 
     match states with
     | List.nil => None
     | s :: states' =>
-      let 'MkParserState _ _ s_name _ _ := s in
+      let 'MkParserState _ s_name _ _ := s in
       if P4String.equivb name s_name
       then Some s
       else lookup_state states' name
@@ -40,12 +40,12 @@ Section Step.
 
   Definition step (p: ValueObject) (start: P4String) : env_monad tags_t P4String := 
     match p with
-    | ValObjParser _ env _ params locals states =>
+    | ValObjParser env _ params locals states =>
       match lookup_state states start with
       | Some nxt => 
-        let 'MkParserState _ _ _ statements transition := nxt in
-        let blk := StatBlock _ (states_to_block statements) in
-        let* _ := eval_statement _ tags_dummy (MkStatement _ tags_dummy blk Typed.StmUnit) in
+        let 'MkParserState _ _ statements transition := nxt in
+        let blk := StatBlock (states_to_block statements) in
+        let* _ := eval_statement _ tags_dummy (MkStatement tags_dummy blk Typed.StmUnit) in
         eval_transition tags_t tags_dummy transition
       | None =>
         state_fail Internal

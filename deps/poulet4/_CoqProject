@@ -16,11 +16,21 @@ lib/P4Int.v
 lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
+lib/Unroll.v
+
+lib/P4defs.v
+
 lib/P4light/P4Arith.v
 lib/P4light/AST.v
 lib/P4light/BigStep.v
 lib/P4light/Check.v
 lib/P4light/P4lightGen.v
+
+-R examples Petr4.Examples
+
+examples/IntExample.v
+examples/TwoState.v
+examples/WeakestPre.v
 
 -R extraction Petr4
 

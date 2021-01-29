@@ -34,14 +34,14 @@ Section TypeSynonyms.
     P4Int.IntEqDec tags_t.
   (**[]*)
 
-  Definition name : Type := Typed.name tags_t.
+  Definition name : Type := @Typed.name tags_t.
 
   Definition equivn (n1 n2 : name) : Prop :=
     match n1, n2 with
-    | Typed.BareName _ x1,
-      Typed.BareName _ x2          => P4String.equiv x1 x2
-    | Typed.QualifiedName _ xs1 x1,
-      Typed.QualifiedName _ xs2 x2 =>
+    | Typed.BareName x1,
+      Typed.BareName x2          => P4String.equiv x1 x2
+    | Typed.QualifiedName xs1 x1,
+      Typed.QualifiedName xs2 x2 =>
         P4String.equiv x1 x2 /\
         List.Forall2 (@P4String.equiv tags_t) xs1 xs2
     | _, _ => False

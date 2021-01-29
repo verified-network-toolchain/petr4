@@ -34,3 +34,6 @@ Definition run_with_state
   (st: State)
   (act: @state_monad State Exception Result)
   : (Result + Exception) * State := act st.
+
+Hint Unfold state_bind run_with_state state_fail state_return : core.
+Hint Extern 3 => unfold state_bind : core.

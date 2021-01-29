@@ -1,5 +1,4 @@
 open Sexplib.Conv
-type name = Info.t
 type direction = [%import:Poulet4.Typed.direction]
   [@@deriving sexp,show,yojson]
 

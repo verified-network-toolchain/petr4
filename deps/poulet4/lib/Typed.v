@@ -5,7 +5,7 @@ Require Petr4.P4Int.
 Require Import Coq.Classes.EquivDec.
 
 Section Typed.
-  Context (tags_t: Type).
+  Context {tags_t: Type}.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
 

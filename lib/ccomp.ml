@@ -53,7 +53,24 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
     let%bind cfields = translate_fields fields in
     let valid = C.CField (CBool, "__header_valid") in
     C.CStruct (snd name, valid :: cfields) |> return
+  | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
+    let%bind params = translate_params params in
+    C.CStruct (snd name, params) |> return 
+  (* todo: function  *)
+  (* C.CRec (C.CStruct (snd name, params), C.CFun (styp, sname, sparamlst, scstmtlist)) |> return  *)
+  | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+    let%bind params = translate_params params in
+    C.CStruct (snd name, params) |> return 
   | _ -> C.CInclude "todo" |> return
+
+and translate_param (param : Typed.Parameter.t) : C.cfield comp =
+  let%bind ctyp = translate_type param.typ in
+  C.CField (ctyp, snd param.variable) |> return
+
+and translate_params (params : Typed.Parameter.t list) : C.cfield list comp=
+  params
+  |> List.map ~f:translate_param
+  |> CompM.all
 
 and translate_field (field: Prog.Declaration.field) : C.cfield comp =
   let%bind ctyp = translate_type (snd field).typ in

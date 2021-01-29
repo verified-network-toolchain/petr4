@@ -23,8 +23,8 @@ let rec format_cdecl (decl: cdecl) =
       (text "typedef struct "
        ++ format_cname name
        ++ text " {\n"
-       ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields)
-       ++ text "\n} " ++ text name
+       ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields ++ text ";")
+    ++ text "\n} " ++ text name ++ text ";"
   | CFun (ret, name, params, body) ->
     format_ctyp ret
     ++ space
@@ -37,6 +37,8 @@ let rec format_cdecl (decl: cdecl) =
     text "#include \"" ++ text name ++ text "\""
   | CStdInclude name ->
     text "#include <" ++ text name ++ text ">"
+  | CRec (fst, snd) -> 
+    format_cdecl fst ++ newline ++ format_cdecl snd 
 
 and format_cfield ((CField (typ, name)): cfield) =
   format_ctyp typ ++ space ++ format_cname name

@@ -99,7 +99,7 @@ Module Typecheck.
     Definition gam : Type := Env.t (name tags_t) (E.t tags_t).
 
     Definition bare (x : string tags_t) : name tags_t :=
-      Typed.BareName tags_t x.
+      Typed.BareName x.
     (**[]*)
 
     Instance P4NameEquivalence : Equivalence (equivn tags_t) :=

@@ -18,6 +18,8 @@ lib/Syntax.v
 lib/Platform/Packet.v
 lib/Unroll.v
 
+lib/P4defs.v
+
 lib/P4light/P4Arith.v
 lib/P4light/AST.v
 lib/P4light/BigStep.v

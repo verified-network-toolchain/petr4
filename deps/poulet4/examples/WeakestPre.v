@@ -33,14 +33,14 @@ Definition pred_env_popped (p: @pred environment) (env: environment) : Prop :=
 .
 
 Fixpoint weakest_precondition_expression
-    (expr: Expression tag_t)
-    (post: @pred (environment * (Value tag_t)))
+    (expr: @Expression tag_t)
+    (post: @pred (environment * (@Value tag_t)))
     : @pred environment
 :=
     pred_false
 with weakest_precondition_expression_lvalue
-    (expr: Expression tag_t)
-    (post: @pred (environment * (ValueLvalue tag_t)))
+    (expr: @Expression tag_t)
+    (post: @pred (environment * (@ValueLvalue tag_t)))
     : @pred environment
 :=
     pred_false
@@ -77,9 +77,9 @@ Proof.
 Qed.
 
 Fixpoint weakest_precondition_arguments
-    (params: list (P4Parameter tag_t))
-    (args: list (option (Expression tag_t)))
-    (post: @pred (environment * (list (option (Value tag_t)))))
+    (params: list (@P4Parameter tag_t))
+    (args: list (option (@Expression tag_t)))
+    (post: @pred (environment * (list (option (@Value tag_t)))))
     : @pred environment
 :=
     fun env_pre =>
@@ -90,12 +90,12 @@ Fixpoint weakest_precondition_arguments
               let post' := fun '(env_post, vals) =>
                 post (env_post, (Some val) :: vals)
               in weakest_precondition_arguments params' args' post' env_inter
-          in let '(MkParameter _ _ dir _ _ _) := param in
+          in let '(MkParameter _ dir _ _ _) := param in
           match dir with
           | In => weakest_precondition_expression arg inter env_pre
           | Out =>
             let inter' := fun '(env_inter, val) =>
-                inter (env_inter, ValLvalue tag_t val)
+                inter (env_inter, ValLvalue val)
             in weakest_precondition_expression_lvalue arg inter' env_pre
           | _ => False
           end
@@ -168,22 +168,22 @@ Proof.
 Qed.
 
 Fixpoint weakest_precondition_statement
-    (stmt: Statement tag_t)
+    (stmt: @Statement tag_t)
     (post: @pred environment)
     : @pred environment
 :=
-    let '(MkStatement _ _ stmt _) := stmt in
+    let '(MkStatement _ stmt _) := stmt in
     weakest_precondition_statement_pre stmt post
 with weakest_precondition_statement_pre
-    (stmt: StatementPreT tag_t)
+    (stmt: @StatementPreT tag_t)
     (post: @pred environment)
     : @pred environment
 :=
     match stmt with
-    | StatBlock _ block =>
+    | StatBlock block =>
       let inter := weakest_precondition_block block (pred_env_popped post) in
       pred_env_pushed inter
-    | StatAssignment _ lhs rhs =>
+    | StatAssignment lhs rhs =>
       let inter' := fun '(env_inter', lval) =>
           let inter := fun '(env_inter, rval) =>
               match env_update tag_t tag lval rval env_inter with
@@ -192,13 +192,13 @@ with weakest_precondition_statement_pre
               end
           in weakest_precondition_expression rhs inter env_inter'
       in weakest_precondition_expression_lvalue lhs inter'
-    | StatMethodCall _ callee type_args args =>
+    | StatMethodCall callee type_args args =>
       let inter' := fun '(env_inter', func) =>
           match func with
-          | ValObj _ (ValObjFun _ params impl) =>
+          | ValObj (ValObjFun params impl) =>
             let inter := fun '(env_inter, arg_vals) =>
                 match impl with
-                | ValFuncImplBuiltin _ name obj =>
+                | ValFuncImplBuiltin name obj =>
                   match eval_builtin_func tag_t tag name obj type_args arg_vals env_inter with
                   | (inl val, env_post) => post env_post
                   | _ => False
@@ -209,24 +209,24 @@ with weakest_precondition_statement_pre
           | _ => False
           end
       in weakest_precondition_expression callee inter'
-    | StatEmpty _ => post
+    | StatEmpty => post
     | _ => pred_false
     end
 with weakest_precondition_block
-    (block: Block tag_t)
+    (block: @Block tag_t)
     (post: @pred environment)
     : @pred environment
 :=
     match block with
-    | BlockEmpty _ _ => post
-    | BlockCons _ stmt block' =>
+    | BlockEmpty _ => post
+    | BlockCons stmt block' =>
       let inter := weakest_precondition_block block' post in
       weakest_precondition_statement stmt inter
     end
 .
 
 Definition weakest_precondition_block_correct
-    (block: Block tag_t)
+    (block: @Block tag_t)
 :=
     forall env_pre post,
         weakest_precondition_block block post env_pre ->
@@ -237,7 +237,7 @@ Definition weakest_precondition_block_correct
 .
 
 Definition weakest_precondition_statement_pre_correct
-    (stmt: StatementPreT tag_t)
+    (stmt: @StatementPreT tag_t)
 :=
     forall env_pre post,
         weakest_precondition_statement_pre stmt post env_pre ->
@@ -248,7 +248,7 @@ Definition weakest_precondition_statement_pre_correct
 .
 
 Definition weakest_precondition_statement_correct
-    (stmt: Statement tag_t)
+    (stmt: @Statement tag_t)
 :=
     forall env_pre post,
         weakest_precondition_statement stmt post env_pre ->
@@ -258,21 +258,12 @@ Definition weakest_precondition_statement_correct
             end
 .
 
-Lemma foo:
-    forall block env env',
-        env_stack tag_t env <> nil ->
-        eval_block tag_t tag block env = (inl tt, env') ->
-        env_stack tag_t env' <> nil
-.
-Admitted.
-
 Lemma weakest_precondition_correctness:
     forall stmt, weakest_precondition_statement_correct stmt
 .
 Proof.
     intros.
     apply statement_mut with
-        (tags_t := tag_t)
         (P0 := weakest_precondition_statement_pre_correct)
         (P1 := weakest_precondition_block_correct);
         unfold weakest_precondition_statement_pre_correct;

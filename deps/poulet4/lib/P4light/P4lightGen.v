@@ -71,12 +71,12 @@ Module Pass1.
   Definition fresh : (@state_monad state exception P4String) :=
     unimplemented. (* TODO *)
 
-  Definition update_env (env : environment) (decls : list (Declaration tags_t)) : (@state_monad state exception environment) :=
+  Definition update_env (env : environment) (decls : list (@Declaration tags_t)) : (@state_monad state exception environment) :=
     unimplemented. (* TODO *)
 
-  Fixpoint transExpr (env : environment) (expr : Expression tags_t) : (@state_monad state exception (list (Declaration tags_t) * Expression tags_t)) :=
+  Fixpoint transExpr (env : environment) (expr : @Expression tags_t) : (@state_monad state exception (list (@Declaration tags_t) * @Expression tags_t)) :=
     match expr with
-    | MkExpression _ _ epre _ _ =>
+    | MkExpression _ epre _ _ =>
       match epre with
       (* | ExpBool (b : bool) => unimplemented
       | ExpInt (_ : P4Int) => unimplemented
@@ -95,10 +95,10 @@ Module Pass1.
       | ExpTernary (cond : Expression) (tru : Expression) (fls : Expression) => unimplemented
       | ExpFunctionCall (func : Expression) (type_args : list (P4Type tags_t))
                         (args : list (option Expression)) => unimplemented *)
-      | ExpNamelessInstantiation _ typ args =>
+      | ExpNamelessInstantiation typ args =>
           fresh_name <- fresh;;
           let* (env, decls, exprs) := fold_left_monad
-              (fun (acc : environment * (list (Declaration tags_t)) * (list (Expression tags_t))) e =>
+              (fun (acc : environment * (list (@Declaration tags_t)) * (list (@Expression tags_t))) e =>
                   let (t1, exprs) := acc in let (env, decls) := t1 in
                   let* (decls1, expr1) := transExpr env expr in
                   (env' <- update_env env decls1;;
@@ -106,9 +106,9 @@ Module Pass1.
               )
               args
               (env, [], []) in
-          mret (decls ++ 
-              [DeclInstantiation tags_t empty_tag typ exprs fresh_name None],
-              MkExpression tags_t empty_tag (ExpName tags_t (BareName tags_t fresh_name)) typ Directionless)
+          mret (decls ++
+              [DeclInstantiation empty_tag typ exprs fresh_name None],
+              MkExpression empty_tag (ExpName (BareName fresh_name)) typ Directionless)
       (* | ExpDontCare => unimplemented
       | ExpMask (expr : Expression) (mask : Expression) => unimplemented
       | ExpRange (lo : Expression) (hi : Expression) => unimplemented *)

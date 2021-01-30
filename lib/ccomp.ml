@@ -58,10 +58,26 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
     C.CStruct (snd name, params) |> return 
   (* todo: function  *)
   (* C.CRec (C.CStruct (snd name, params), C.CFun (styp, sname, sparamlst, scstmtlist)) |> return  *)
+  | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     let%bind params = translate_params params in
-    C.CStruct (snd name, params) |> return 
+    C.CRec (C.CStruct (snd name, params), 
+            C.CFun (CVoid, snd name ^ "_fun", 
+                    [CParam (CTypeName (snd name), "*state")], 
+                    (* (map_constructor ((snd apply).statements))))|> return  *)
+                    [C.CRet (CVar ("translate_emit function here "))])) |> return 
   | _ -> C.CInclude "todo" |> return
+
+and apply_translate_emit (apply : Prog.Block.t) = 
+  let m = List.map ~f:translate_emit (snd apply).statements in 
+  match m with
+  | [] -> ""
+  | h::t -> "d"
+
+and translate_emit (s) = 
+  match snd s with 
+  | Prog.Statement.MethodCall { func; type_args; args } -> "fdsf"
+  | _ -> "error" 
 
 and translate_param (param : Typed.Parameter.t) : C.cfield comp =
   let%bind ctyp = translate_type param.typ in

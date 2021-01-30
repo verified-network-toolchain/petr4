@@ -44,7 +44,7 @@ and format_cfield ((CField (typ, name)): cfield) =
   format_ctyp typ ++ space ++ format_cname name
 
 and format_cparam ((CParam (typ, name)): cparam) =
-  format_ctyp typ ++ space ++ format_cname name
+  text "(" ++ format_ctyp typ ++ space ++ format_cname name ++ text ")"
 
 and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params

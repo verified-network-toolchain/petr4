@@ -70,7 +70,7 @@ let create_if (condition : P4.Expression.pre_t) (true_branch : P4.Statement.pre_
   (Info.M "Created If", P4.Statement.Conditional {
       cond = Info.M "Created Condition", condition; (**Binop on im_t.getinport *)
       tru = Info.M "Created true branch", true_branch;
-      fls = Some (Info.M "Created false branch", false_branch))
+      fls = Some (Info.M "Created false branch", false_branch)})
 
 let block_merge (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t = 
   let open P4.Block in
@@ -99,7 +99,7 @@ let create_locals (parser_name : string) (local_name : string) : P4.Declaration.
 let merged_state : P4.Parser.state list = []
 
 let create_parser (parser_name) (parameters:P4.Parameter.t list) (locals:P4.Declaration.t list) 
-    (states:P4.Parser.state t): (P4.Declaration.t) = 
+    (states:P4.Parser.state list): (P4.Declaration.t) = 
   (Info.dummy, P4.Declaration.Parser {
       annotations = [];
       name = Info.dummy, parser_name;
@@ -111,7 +111,7 @@ let create_parser (parser_name) (parameters:P4.Parameter.t list) (locals:P4.Decl
     })
 
 let create_control (control_name) (parameters:P4.Parameter.t list) 
-    (locals:P4.Declaration.t list) (states:P4.Parser.state t): (P4.Declaration.t) = 
+    (locals:P4.Declaration.t list) (apply:P4.Block.t): (P4.Declaration.t) = 
   (Info.dummy, P4.Declaration.Control {
       annotations = [];
       name = Info.dummy, control_name;
@@ -119,7 +119,7 @@ let create_control (control_name) (parameters:P4.Parameter.t list)
       params = parameters;
       constructor_params = [];
       locals = locals;
-      states = states;
+      apply = apply;
     })
 
 let prog_merge (prog1 : P4.program) (prog2 : P4.program) : P4.program = prog1

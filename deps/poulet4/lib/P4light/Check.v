@@ -274,7 +274,7 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ Error err @ i ∈ error
     | chk_matchkind (mkd : string tags_t) (i : tags_t) :
         mkds mkd = Some tt ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd @ i ∈ error
+        ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
     where "⟦ ers ',' mks ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers mks gm e ty).
     (**[]*)

@@ -207,6 +207,13 @@ and 'a pre_ValueLvalue =
     [@with Poulet4.Typed.coq_P4Type := T.pre_P4Type;
            coq_ValuePreLvalue := pre_ValuePreLvalue]]
   [@@deriving sexp,show,yojson]
+type 'a pre_ValueFunctionImplementation =
+  [%import:'a Poulet4.Syntax.coq_ValueFunctionImplementation
+    [@with coq_Env_EvalEnv := pre_Env_EvalEnv;
+           coq_ValueLvalue := pre_ValueLvalue;
+           Poulet4.P4String.t := P4string.pre_t;
+           coq_Block := pre_Block]]
+  [@@deriving sexp,show,yojson]
 type 'a pre_ValueObject =
   [%import:'a Poulet4.Syntax.coq_ValueObject
     [@with Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
@@ -216,6 +223,7 @@ type 'a pre_ValueObject =
            coq_ParserState := pre_ParserState;
            coq_ValueTable := pre_ValueTable;
            coq_Block := pre_Block;
+           coq_ValueFunctionImplementation := pre_ValueFunctionImplementation;
            coq_ValueLvalue := pre_ValueLvalue]]
   [@@deriving sexp,show,yojson]
 type 'a pre_ValueConstructor =
@@ -231,6 +239,7 @@ type 'a pre_ValueConstructor =
 type 'a pre_Value =
   [%import:'a Poulet4.Syntax.coq_Value
     [@with coq_ValueBase := pre_ValueBase;
+           coq_ValueLvalue := pre_ValueLvalue;
            coq_ValueObject := pre_ValueObject;
            coq_ValueConstructor := pre_ValueConstructor]]
   [@@deriving sexp,show,yojson]
@@ -288,6 +297,8 @@ type coq_ExternMethods = Info.t pre_ExternMethods
 type coq_ValuePreLvalue = Info.t pre_ValuePreLvalue
   [@@deriving sexp,show,yojson]
 type coq_ValueLvalue = Info.t pre_ValueLvalue
+  [@@deriving sexp,show,yojson]
+type coq_ValueFunctionImplementation = Info.t pre_ValueFunctionImplementation
   [@@deriving sexp,show,yojson]
 type coq_ValueObject = Info.t pre_ValueObject
   [@@deriving sexp,show,yojson]

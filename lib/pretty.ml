@@ -542,7 +542,7 @@ end = struct
     | { annotations; typ; name } ->
       (annotations |> Annotation.format_ts |> box) ++
       ((Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
-                      (";" |> text))
+       (";" |> text))
 
   let format_typ_or_decl td =
     match td with

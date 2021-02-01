@@ -4,7 +4,7 @@
 struct metadata { }
 struct headers { }
 
-parser MyParser(packet_in packet,
+parser test(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
@@ -13,8 +13,27 @@ parser MyParser(packet_in packet,
     }
 }
 
-control MyChecksum(inout headers hdr, inout metadata meta, in bool condition) {
-    apply {if (condition) return;}
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+    test() subparser;
+    state start {
+        transition select (standard_metadata.ingress_port){
+            1..8 : subparser1;
+            _ : reject;
+        }
+    }
+
+    state subparser1 {
+        subparser.apply(packet, hdr, meta, standard_metadata);
+        transition accept;
+    }
+
+}
+
+control MyChecksum(inout headers hdr, inout metadata meta) {
+    apply {}
 }
 
 control MyIngress(inout headers hdr,

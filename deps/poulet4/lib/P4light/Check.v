@@ -2,6 +2,7 @@ Require Export Coq.Classes.EquivDec.
 Require Export Coq.PArith.BinPosDef.
 Export Pos.
 Require Export P4light.AST.
+Require Export P4light.P4Arith.
 
 (** * Environments *)
 
@@ -139,8 +140,10 @@ Module Typecheck.
     | chk_bool (b : bool) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ BOOL b @ i ∈ Bool
     | chk_bit (w : positive) (n : N) (i : tags_t) :
+        BitArith.bound w n ->
         ⟦ errs , mkds , Γ ⟧ ⊢ w W n @ i ∈ bit<w>
     | chk_int (w : positive) (n : Z) (i : tags_t) :
+        IntArith.bound w n ->
         ⟦ errs , mkds , Γ ⟧ ⊢ w S n @ i ∈ int<w>
     | chk_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
         Γ x = Some τ ->

@@ -153,17 +153,17 @@ Section Eval.
     mret (key.(P4String.str), value).
 
   Definition eval_is_valid (lvalue: ValueLvalue) : env_monad Value :=
-    let* (_, valid) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
+    let* (_, valid) := unpack_header _ (env_lookup _ lvalue) in
     mret (ValBase (ValBaseBool valid)).
 
   Definition eval_set_bool (lvalue: ValueLvalue) (valid: bool) : env_monad unit :=
-    let* (fields, _) := unpack_header _ (env_lookup _ tags_dummy lvalue) in
+    let* (fields, _) := unpack_header _ (env_lookup _ lvalue) in
     env_update _ tags_dummy lvalue (ValBase (ValBaseHeader fields valid)).
 
   Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
     match args with
     | Some (ValBase (ValBaseInteger count)) :: nil =>
-      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
+      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
       let* elements' := lift_option _ (rotate_left_z elements count padding) in
       let next_index' := next_index - (Z.to_nat count) in
@@ -175,7 +175,7 @@ Section Eval.
   Definition eval_push_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
     match args with
     | Some (ValBase (ValBaseInteger count)) :: nil =>
-      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ tags_dummy lvalue) in
+      let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
       let* elements' := lift_option _ (rotate_right_z elements count padding) in
       let next_index' := min size (next_index + (Z.to_nat count)) in
@@ -211,7 +211,7 @@ Section Eval.
     else false.
 
   Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option Value)) : env_monad unit :=
-    obj' <- env_lookup tags_t tags_dummy obj ;;
+    obj' <- env_lookup _ obj ;;
     match obj' with
     | ValObj (ValObjPacket bits) =>
       if String.eqb name String.extract

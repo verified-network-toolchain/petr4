@@ -5,7 +5,9 @@ lib/StringConstants.v
 lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
+lib/Monads/Transformers.v
 lib/Utils.v
+lib/Bitwise.v
 lib/Step.v
 lib/Environment.v
 lib/Unpack.v

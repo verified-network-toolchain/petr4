@@ -12,6 +12,10 @@ Definition state_return {State Exception Result: Type} (res: Result) : @state_mo
 Definition state_fail {State Exception Result: Type} (exc: Exception) : @state_monad State Exception Result :=
   fun env => (inr exc, env).
 
+Definition get_state {State Exception : Type} : @state_monad State Exception State := 
+  fun env => (inl env, env).
+
+
 Definition state_bind
   {State Exception Result Result': Type}
   (c: @state_monad State Exception Result)

@@ -5,13 +5,20 @@ Require Import Coq.Structures.OrderedTypeEx.
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
+Require Import Monads.Transformers.
+
+Require Import Coq.ZArith.BinIntDef.
+
+Require Import Bitwise.
 
 Require Import Typed.
 
 Require String.
 Require Import Syntax.
+Require Import P4String.
 
 Open Scope monad.
+Open Scope bool_scope.
 
 Module Import MNat := FMapList.Make(Nat_as_OT).
 Module Import MStr := FMapList.Make(String.StringOT).
@@ -131,8 +138,99 @@ Section Environment.
     let* l := heap_insert v in
     stack_insert name l.
 
-  Definition env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t).
-  Admitted.
+  Fixpoint top_scope (scopes: stack) : option scope :=
+    match scopes with
+    | nil => None
+    | x :: nil => Some x
+    | _ :: scopes' => top_scope scopes'
+    end.
+
+  Definition lookup_value' (key: P4String.t tags_t) (fields: list (P4String.t tags_t * @ValueBase tags_t)) : option_monad :=
+    let* '(_, v) := List.find (fun '(k, _) => equivb k key) fields in 
+    Some v.
+    
+  Definition lookup_value (v: @ValueBase tags_t) (field: P4String.t tags_t) : @option_monad (@ValueBase tags_t) :=
+    match v with
+    | ValBaseRecord fields
+    | ValBaseStruct fields
+    | ValBaseUnion fields
+    | ValBaseHeader fields _ 
+    | ValBaseSenum fields => lookup_value' field fields
+    | _ => None
+    end.
+
+  Definition bit_slice (v: @ValueBase tags_t) (msb: nat) (lsb: nat): @option_monad (@ValueBase tags_t) :=
+    match v with 
+    | ValBaseBit width val
+    | ValBaseInt width val
+    | ValBaseVarbit _ width val => 
+      if Nat.leb lsb msb && Nat.leb msb width 
+      then 
+        let w_out := msb - lsb in 
+        let bits := of_nat (Z.to_nat val) width in 
+        let* sliced := slice width bits lsb msb in 
+          Some (ValBaseBit w_out (Z.of_nat (to_nat sliced)))
+      else None
+    | _ => None
+    end.
+
+  Definition array_index (v: @ValueBase tags_t) (idx: nat): @option_monad (@ValueBase tags_t) :=
+    match v with
+    | ValBaseStack hdrs _ _ => nth_error hdrs idx
+    | _ => None
+    end.
+
+  Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
+    let 'MkValueLvalue lv _ := lvalue in 
+    match lv with 
+    | ValLeftName name => 
+      match name with
+      | BareName nm' => 
+        let* loc := stack_lookup (str nm') in 
+          heap_lookup loc
+
+      (* bare qualified names are interpreted as elements in the global namespace 
+          e.g.
+          .global_x + .global_y
+      *)
+      | QualifiedName nil nm' => 
+        let* env := get_state in 
+        let* scope := lift_opt Internal (top_scope (env_stack env)) in
+        let* loc := lift_opt Internal (stack_lookup' (str nm') (scope :: nil)) in
+          heap_lookup loc
+      (* otherwise, qualified names are not lvalues *)
+      | QualifiedName (_ :: _) _ => state_fail Internal
+      end
+
+      (* TODO: there's probably a way to refactor the following 3 cases *)
+    | ValLeftMember inner member =>
+      let* inner_val := env_lookup inner in 
+      match inner_val with 
+      | ValBase v => 
+        let* result := lift_opt Internal (lookup_value v member) in
+          state_return (ValBase result)
+      | _ => state_fail Internal
+      end
+    
+    | ValLeftBitAccess inner msb lsb => 
+      let* inner_val := env_lookup inner in 
+      match inner_val with 
+      | ValBase v => 
+        let* result := lift_opt Internal (bit_slice v msb lsb) in
+          state_return (ValBase result)
+      | _ => state_fail Internal
+      end
+
+    | ValLeftArrayAccess inner idx => 
+      let* inner_val := env_lookup inner in 
+      match inner_val with 
+      | ValBase v => 
+        let* result := lift_opt Internal (array_index v idx) in
+          state_return (ValBase result)
+      | _ => state_fail Internal
+      end
+      
+    end.
 
   Definition env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit.
   Admitted.

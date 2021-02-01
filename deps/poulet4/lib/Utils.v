@@ -73,18 +73,12 @@ Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list
   | (S lo', S hi')  =>
     match l with
     | nil      => None
-    | x :: xs => option_map (fun t => x :: t) (list_slice_nat xs lo' hi')
+    | x :: xs => list_slice_nat xs lo' hi'
     end
   end.
 
 Definition index_z_error {A} (xs: list A) (i: Z) : option A.
 Admitted.
-
-Fixpoint pow_two (w: nat) : Z :=
-  match w with
-  | 0     => 1
-  | S w'  => Z.double (pow_two w')
-  end.
 
 (* Coq Bvectors are little-endian *)
 Open Scope vector_scope.

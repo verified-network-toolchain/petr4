@@ -127,7 +127,7 @@ let up4comp_command =
      +> anon ("p4file1" %: string)
      +> anon ("p4file2" %: string))
     (fun verbose include_dirs split_port file1 file2 () ->
-       failwith "unimplemented")
+       up4comp_files verbose include_dirs split_port file1 file2)
 
 let command =
   Command.group

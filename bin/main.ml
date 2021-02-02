@@ -117,12 +117,25 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
         do_stf include_dir stf_file p4_file)
 
+let up4comp_command =
+  let open Command.Spec in
+  Command.basic_spec ~summary:"Compile uP4 programs"
+    (empty
+     +> flag "-v" no_arg ~doc:"Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-p" (required int) ~doc:"<port> Port number to split between files"
+     +> anon ("p4file1" %: string)
+     +> anon ("p4file2" %: string))
+    (fun verbose include_dirs split_port file1 file2 () ->
+       failwith "unimplemented")
+
 let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
     [ "parse", parse_command;
       "typecheck", check_command;
       "run", eval_command;
+      "up4comp", up4comp_command;
       "stf", stf_command ]
 
 let () = Command.run ~version: "0.1.2" command

@@ -1061,6 +1061,21 @@ and print_lvalue p (lvalue: coq_ValueLvalue) =
           print_value_pre_lvalue lvalue
           print_type typ
   
+let print_value_fun_imp p (val_fun_impl: coq_ValueFunctionImplementation) =
+  match val_fun_impl with
+  | ValFuncImplUser (scope, body) ->
+      fprintf p "(@[<hov 4>ValFuncImplUser@ %a@ %a)@]"
+          print_env_eval_env scope
+          print_block body
+  | ValFuncImplExtern (name, caller) ->
+      fprintf p "(@[<hov 4>ValFuncImplExtern@ %a@ %a)@]"
+          p4string name
+          (print_option (print_pair print_value_loc p4string)) caller
+  | ValFuncImplBuiltin (name, caller) ->
+      fprintf p "(@[<hov 4>ValFuncImplExtern@ %a@ %a)@]"
+          p4string name
+          print_lvalue caller
+
 let print_value_object p (value: coq_ValueObject) =
   match value with
   | ValObjParser (scope, constructor_params, params, locals, states) ->
@@ -1087,20 +1102,10 @@ let print_value_object p (value: coq_ValueObject) =
       fprintf p "(@[<hov 4>ValObjRuntime@ %a@ %a)@]"
           print_value_loc loc
           p4string obj_name
-  | ValObjExternFun (name, caller, params) ->
-      fprintf p "(@[<hov 4>ValObjExternFun@ %a@ %a@ %a)@]"
-          p4string name
-          (print_option (print_pair print_value_loc p4string)) caller
+  | ValObjFun (params, imp) ->
+      fprintf p "(@[<hov 4>ValObjFun@ %a@ %a)@]"
           print_params params
-  | ValObjFun (scope, params, body) ->
-      fprintf p "(@[<hov 4>ValObjFun@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params params
-          print_block body
-  | ValObjBuiltinFun (name, caller) ->
-      fprintf p "(@[<hov 4>ValObjBuiltinFun@ %a@ %a)@]"
-          p4string name
-          print_lvalue caller
+          print_value_fun_imp  imp
   | ValObjAction (scope, params, body) ->
       fprintf p "(@[<hov 4>ValObjAction@ %a@ %a@ %a)@]"
           print_env_eval_env scope
@@ -1148,6 +1153,9 @@ let print_value p (value: coq_Value) =
   | ValCons value ->
       fprintf p "(@[<hov 0>ValCons@ %a)@]"
           print_value_constructor value
+  | ValLvalue value ->
+      fprintf p "(@[<hov 0>ValLvalue@ %a)@]"
+          print_lvalue value
 
 let print_header p =
   fprintf p "Require Import Petr4.P4defs.@ ";

@@ -15,6 +15,7 @@ Module Value.
     | VInt (w : positive) (n : Z)
     | VBit (w : positive) (n : N)
     | VRecord (fs : Field.fs tags_t v)
+    | VHeader (fs : Field.fs tags_t v)
     | VError (err : string tags_t)
     | VMatchKind (mk : string tags_t).
 
@@ -30,6 +31,9 @@ Module Value.
 
       Hypothesis HVRecord : forall fs,
           Field.predfs_data P fs -> P (VRecord fs).
+
+      Hypothesis HVHeader : forall fs,
+          Field.predfs_data P fs -> P (VHeader fs).
 
       Hypothesis HVError : forall err, P (VError err).
 
@@ -49,6 +53,7 @@ Module Value.
           | VInt w n => HVInt w n
           | VBit w n => HVBit w n
           | VRecord vs     => HVRecord vs (fields_ind vs)
+          | VHeader vs     => HVHeader vs (fields_ind vs)
           | VError err     => HVError err
           | VMatchKind mk  => HVMatchKind mk
           end.
@@ -66,6 +71,9 @@ Module Value.
       | equivv_record (fs1 fs2 : Field.fs tags_t v) :
           Field.relfs equivv fs1 fs2 ->
           equivv (VRecord fs1) (VRecord fs2)
+      | equivv_header (fs1 fs2 : Field.fs tags_t v) :
+          Field.relfs equivv fs1 fs2 ->
+          equivv (VHeader fs1) (VHeader fs2)
       | equivv_error (err1 err2 : string tags_t) :
           P4String.equiv err1 err2 ->
           equivv (VError err1) (VError err2)
@@ -77,52 +85,49 @@ Module Value.
       Lemma equivv_reflexive : Reflexive equivv.
       Proof.
         intros v; induction v using custom_value_ind;
-          constructor; try reflexivity.
-        induction fs as [| [x v] vs];
-          inversion H; clear H; subst; constructor.
-        - unfold Field.predf_data in H2.
-          unfold Field.relf; simpl; split; auto. reflexivity.
-        - apply IHvs; auto.
+          constructor; try reflexivity;
+        try (induction fs as [| [x v] vs];
+             inversion H; subst; constructor;
+             [ unfold Field.predf_data in H2;
+               constructor; simpl; try reflexivity; auto
+             | apply IHvs; auto]).
       Qed.
 
       Lemma equivv_symmetric : Symmetric equivv.
       Proof.
         intros v1; induction v1 using custom_value_ind;
           intros [] HEQ; inversion HEQ; clear HEQ; subst;
-            constructor; try (symmetry; assumption).
-        rename fs into fs1; rename fs0 into fs2.
-          (* rename i into i1; rename i0 into i2. *)
-        generalize dependent fs2;
-          induction fs1 as [| [x1 v1] vs1 IHvs1];
-          intros [| [x2 v2] vs2] HSym;
-          inversion HSym; clear HSym; subst; constructor;
-            inversion H; clear H; subst.
-        - unfold Field.relf in *; simpl in *;
-            destruct H3; split; try (symmetry; assumption).
-          apply H2; assumption.
-        - apply IHvs1; auto.
+            constructor; try (symmetry; assumption);
+              try (rename fs into fs1; rename fs0 into fs2;
+                   generalize dependent fs2;
+                   induction fs1 as [| [x1 v1] vs1 IHvs1];
+                   intros [| [x2 v2] vs2] HSym;
+                   inversion HSym; clear HSym; subst; constructor;
+                   inversion H; clear H; subst;
+                   [ unfold Field.relf in *; simpl in *;
+                     destruct H3; split; try (symmetry; assumption);
+                     apply H2; assumption
+                   | apply IHvs1; auto ]).
       Qed.
 
       Lemma equivv_transitive : Transitive equivv.
       Proof.
         intros v1; induction v1 using custom_value_ind; intros v2 v3 H12 H23;
           inversion H12; subst; inversion H23; subst;
-            clear H12 H23; constructor.
-        - generalize dependent fs0; generalize dependent fs2.
-          (* rename i into i1; rename i0 into i3; *)
-            rename fs into fs1.
-          induction fs1 as [| [x1 v1] vs1 IHvs1];
-            intros [| [x2 v2] vs2] H12 [| [x3 v3] vs3] H23;
-            inversion H12; subst; inversion H23; subst;
-              clear H12 H23; constructor; inversion H; subst; clear H.
-          + unfold Field.relf in *; simpl in *;
-              unfold Field.predf_data;
-              destruct H3; destruct H4;
-                pose proof (H2 v2 v3) as H23; try split; auto.
-            transitivity x2; auto.
-          + apply IHvs1 with vs2; auto.
-        - transitivity err2; auto.
-        - transitivity mk2; auto.
+            clear H12 H23; constructor;
+              try (transitivity err2; auto); try (transitivity mk2; auto);
+        try (generalize dependent fs0; generalize dependent fs2;
+             rename fs into fs1;
+             induction fs1 as [| [x1 v1] vs1 IHvs1];
+             intros [| [x2 v2] vs2] H12 [| [x3 v3] vs3] H23;
+             inversion H12; subst; inversion H23; subst;
+             clear H12 H23; constructor; inversion H; subst; clear H;
+             [ unfold Field.relf in *; simpl in *;
+               unfold Field.predf_data;
+               destruct H3; destruct H4;
+               pose proof (H2 v2 v3) as H23; try split; auto;
+               transitivity x2; auto
+             | apply IHvs1 with vs2; auto]).
       Qed.
 
       Instance ValueEquivalence : Equivalence equivv.
@@ -149,6 +154,7 @@ Module Value.
   Arguments VInt {_}.
   Arguments VBit {_}.
   Arguments VRecord {_}.
+  Arguments VHeader {_}.
   Arguments VError {_}.
   Arguments VMatchKind {_}.
 
@@ -164,6 +170,9 @@ Module Value.
     Notation "w 'VW' n" := (VBit w n) (in custom p4value at level 0).
     Notation "w 'VS' n" := (VInt w n) (in custom p4value at level 0).
     Notation "'REC' { fs }" := (VRecord fs)
+                                 (in custom p4value at level 6,
+                                     no associativity).
+    Notation "'HDR' { fs }" := (VHeader fs)
                                  (in custom p4value at level 6,
                                      no associativity).
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
@@ -423,6 +432,31 @@ Module Step.
         ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
         ⟨ ϵ, ++ e1 :: bit<w1> e2 :: bit<w2> @ i end ⟩ ⇓ w VW n
+    (* Structs *)
+    | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
+                  (tfs : F.fs tags_t (E.t tags_t))
+                  (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+        F.get x vfs = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
+        ⟨ ϵ, Mem e :: rec { tfs } dot x @ i end ⟩ ⇓ v
+    | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
+                  (tfs : F.fs tags_t (E.t tags_t))
+                  (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+        F.get x vfs = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } ->
+        ⟨ ϵ, Mem e :: hdr { tfs } dot x @ i end ⟩ ⇓ v
+    | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                  (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+        F.relfs
+          (fun te v =>
+             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+        ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
+    | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                  (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+        F.relfs
+          (fun te v =>
+             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+        ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   End Step.
 End Step.

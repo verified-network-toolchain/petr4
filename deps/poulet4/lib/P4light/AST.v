@@ -176,6 +176,15 @@ Module Field.
                (fds : fs tags_t U) (init : V) : V :=
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
+
+    (** Member access. *)
+    Fixpoint get {U : Type} (x : string tags_t)
+             (fds : fs tags_t U) : option U :=
+      match fds with
+      | []            => None
+      | (x',u') :: fds => if equiv_dec x x' then Some u'
+                        else get x fds
+      end.
   End FieldLibrary.
 End Field.
 
@@ -482,11 +491,10 @@ Module P4light.
              (arg : e) (i : tags_t)                     (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t tags_t)
              (lhs rhs : e) (i : tags_t)                 (* binary operations *)
-      | ECast (cast_type : t tags_t)
-              (expr_type : t tags_t)
-              (arg : e) (i : tags_t)                   (* explicit casts *)
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
+      | EHeader (fields : F.fs tags_t (t tags_t * e))
+                (i : tags_t)                           (* header literals *)
       | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
@@ -495,7 +503,9 @@ Module P4light.
       (**[]*)
 
       (** Function call. *)
-      Definition arrowE : Type := arrow tags_t (t tags_t * e) (t tags_t * (name tags_t)).
+      Definition arrowE : Type :=
+        arrow tags_t (t tags_t * e) (t tags_t * (name tags_t)).
+      (**[]*)
     End Expressions.
 
     Arguments EBool {tags_t}.
@@ -504,8 +514,8 @@ Module P4light.
     Arguments EVar {tags_t}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
-    Arguments ECast {tags_t}.
     Arguments ERecord {tags_t}.
+    Arguments EHeader {_}.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
@@ -625,13 +635,11 @@ Module P4light.
             (in custom p4expr at level 6,
                 x custom p4expr, tx custom p4type,
                 y custom p4expr, ty custom p4type, left associativity).
-      Notation "'(' ty ')' x '::' tx @ i 'end'"
-        := (ECast ty tx x i)
-            (in custom p4expr at level 16,
-                x custom p4expr, ty custom p4type,
-                tx custom p4type, no associativity).
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
+            (in custom p4expr at level 6, no associativity).
+      Notation "'hdr' { fields } @ i "
+        := (EHeader fields i)
             (in custom p4expr at level 6, no associativity).
       Notation "'Mem' x '::' ty 'dot' y @ i 'end'"
               := (EExprMember y ty x i)
@@ -666,13 +674,14 @@ Module P4light.
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P (EBop op lt rt lhs rhs i).
 
-      Hypothesis HECast : forall (ct et : t tags_t) (ex : e tags_t) i,
-          P ex -> P <{ (ct) ex :: et @ i end }>.
-
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEExprMember : forall (x : string tags_t) (ty : t tags_t) (ex : e tags_t) i,
+      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
+          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} @ i }>.
+
+      Hypothesis HEExprMember : forall (x : string tags_t)
+                                  (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ Mem ex :: ty dot x @ i end }>.
 
       Hypothesis HEError : forall err i, P <{ Error err @ i }>.
@@ -700,8 +709,8 @@ Module P4light.
           | EBop op lt rt lhs rhs i =>
               HEBop op lt rt lhs rhs i
                     (custom_e_ind lhs) (custom_e_ind rhs)
-          | <{ (ct) exp :: et @ i end }> => HECast ct et exp i (custom_e_ind exp)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
+          | <{ hdr { fields } @ i }> => HEHeader fields i (fields_ind fields)
           | <{ Mem exp :: ty dot x @ i end }> =>
               HEExprMember x ty exp i (custom_e_ind exp)
           | <{ Error err @ i }> => HEError err i

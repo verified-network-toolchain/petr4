@@ -259,7 +259,7 @@ Module Typecheck.
         In (x, τ) fields ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ rec { fields } ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Mem e :: rec { fields } dot x @ i end ∈ τ
-    (* Records. *)
+    (* Structs. *)
     | chk_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                   (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
         F.relfs
@@ -268,6 +268,14 @@ Module Typecheck.
              let e := snd te in
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
+    | chk_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                  (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
+        F.relfs
+          (fun te τ =>
+             E.equivt (fst te) τ /\
+             let e := snd te in
+             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+        ⟦ errs , mkds , Γ ⟧ ⊢ hdr { efs } @ i ∈ hdr { tfs }
     (* Errors and matchkinds. *)
     | chk_error (err : string tags_t) (i : tags_t) :
         errs err = Some tt ->

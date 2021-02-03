@@ -286,37 +286,37 @@ Section Eval.
     let 'MkStatement _ stmt _ := stmt in
     eval_statement_pre stmt
   with eval_statement_pre (stmt: StatementPreT) : env_monad unit :=
-         match stmt with
-         | StatMethodCall func type_args args =>
-           @toss_value tags_t (eval_method_call func type_args args)
-         | StatAssignment lhs rhs =>
-           let* lval := eval_lvalue lhs in
-           let* val := eval_expression rhs in
-           env_update _ tags_dummy lval val
-         | StatBlock block =>
-           stack_push _ ;;
-           eval_block block ;;
-           stack_pop _
-         | StatConstant type name init =>
-           env_insert _ name.(P4String.str) (ValBase init)
-         | StatVariable type name init =>
-           let* value :=
-              match init with
-              | None => mret (default_value type)
-              | Some expr => eval_expression expr
-              end
-           in
-           env_insert _ name.(P4String.str) value
-         | StatEmpty =>
-           mret tt
-         | StatInstantiation _ _ _ _
-         | StatDirectApplication _ _
-         | StatConditional _ _ _
-         | StatExit
-         | StatReturn _
-         | StatSwitch _ _ =>
-           state_fail Internal
-         end.
+    match stmt with
+    | StatMethodCall func type_args args =>
+      @toss_value tags_t (eval_method_call func type_args args)
+    | StatAssignment lhs rhs =>
+      let* lval := eval_lvalue lhs in
+      let* val := eval_expression rhs in
+      env_update _ tags_dummy lval val
+    | StatBlock block =>
+      stack_push _ ;;
+      eval_block block ;;
+      stack_pop _
+    | StatConstant type name init =>
+      env_insert _ name.(P4String.str) (ValBase init)
+    | StatVariable type name init =>
+      let* value :=
+         match init with
+         | None => mret (default_value type)
+         | Some expr => eval_expression expr
+         end
+      in
+      env_insert _ name.(P4String.str) value
+    | StatEmpty =>
+      mret tt
+    | StatInstantiation _ _ _ _
+    | StatDirectApplication _ _
+    | StatConditional _ _ _
+    | StatExit
+    | StatReturn _
+    | StatSwitch _ _ =>
+      state_fail Internal
+    end.
 
   (* TODO: sophisticated pattern matching for the match expression as needed *)
   Fixpoint eval_match_expression (vals: list Value) (matches: list Match) : env_monad bool :=

@@ -35,6 +35,7 @@ and cstmt =
   | CIf of cexpr * cstmt * cstmt
   | CAssign of cexpr * cexpr
   | CVarInit of ctyp * cname * cexpr
+  | CMethodCall of cdecl 
 and cexpr =
     CIntLit of int
   | CVar of cname

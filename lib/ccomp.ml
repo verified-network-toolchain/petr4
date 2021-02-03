@@ -1,5 +1,6 @@
 open Core_kernel
 module C = Csyntax
+module P4 = Types
 
 module Map = Map.Make(String)
 module Env = struct
@@ -31,6 +32,7 @@ end
 module CompM = Monad.Make(CompOps)
 
 open CompM.Let_syntax
+open Types.Expression 
 
 let translate_expr (e: Prog.Expression.t) : C.cexpr comp =
   match (snd e).expr with
@@ -56,28 +58,26 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let%bind params = translate_params params in
     C.CStruct (snd name, params) |> return 
-  (* todo: function  *)
-  (* C.CRec (C.CStruct (snd name, params), C.CFun (styp, sname, sparamlst, scstmtlist)) |> return  *)
   | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     let%bind params = translate_params params in
     C.CRec (C.CStruct (snd name, params), 
             C.CFun (CVoid, snd name ^ "_fun", 
                     [CParam (CTypeName (snd name), "*state")], 
-                    (* (map_constructor ((snd apply).statements))))|> return  *)
-                    [C.CRet (CVar ("translate_emit function here "))])) |> return 
+                    apply_translate_emit apply)) |> return 
   | _ -> C.CInclude "todo" |> return
+and translate_emit (s:Prog.Statement.t) : C.cdecl comp = 
+  match (snd s).stmt with 
+  | MethodCall { func; type_args; args } -> 
+    C.CFun (CVoid, "func", [C.CParam (CVoid, "Fd")], [CRet (CVar "F")]) |> return 
+  | _ ->  C.CFun (CVoid, "hold", [C.CParam (CVoid, "Fd")], [CRet (CVar "F")]) |> return 
 
 and apply_translate_emit (apply : Prog.Block.t) = 
-  let m = List.map ~f:translate_emit (snd apply).statements in 
+  let stmt = (snd apply).statements in 
+  let rec m = List.map ~f:translate_emit stmt in 
   match m with
-  | [] -> ""
-  | h::t -> "d"
-
-and translate_emit (s) = 
-  match snd s with 
-  | Prog.Statement.MethodCall { func; type_args; args } -> "fdsf"
-  | _ -> "error" 
+  | [] -> [C.CRet (CVar "")]
+  | h::t -> C.CMethodCall h :: m t  
 
 and translate_param (param : Typed.Parameter.t) : C.cfield comp =
   let%bind ctyp = translate_type param.typ in

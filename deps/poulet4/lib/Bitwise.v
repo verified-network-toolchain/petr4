@@ -54,10 +54,18 @@ Section Bitwise.
     Admitted.
 
   Definition slice (w: nat) (bits: Bits) (lo: nat) (hi: nat) : option Bits :=
-    if (hi <? w) && (lo <=? hi) 
-    then Some (firstn (w - hi) (skipn lo bits)) 
-    else None.
+    if (hi <? w) && (lo <=? hi) then 
+    Some (firstn (w - hi) (skipn lo bits)) else 
+    None.
+
+  Definition splice (wl: nat) (lhs: Bits) (lo: nat) (hi: nat) (wr: nat) (rhs: Bits) : option Bits :=
+    if (lo <=? hi) && (wr <=? (hi - lo + 1)) then 
+    let pref := firstn lo lhs in 
+    let suff := skipn (wl - hi + 1) lhs in
+    Some (pref ++ rhs ++ suff) else
+    None.
 
   (* Compute slice 4 [false; true; true; false] 1 2. *)
+  (* Compute splice 5 [false; false; false; false; false] 2 3 2 [true; true]. *)
 End Bitwise.
 

@@ -158,7 +158,7 @@ Section Eval.
 
   Definition eval_set_bool (lvalue: ValueLvalue) (valid: bool) : env_monad unit :=
     let* (fields, _) := unpack_header _ (env_lookup _ lvalue) in
-    env_update _ tags_dummy lvalue (ValBase (ValBaseHeader fields valid)).
+    env_update _ lvalue (ValBase (ValBaseHeader fields valid)).
 
   Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
     match args with
@@ -168,7 +168,7 @@ Section Eval.
       let* elements' := lift_option _ (rotate_left_z elements count padding) in
       let next_index' := next_index - (Z.to_nat count) in
       let value' := ValBase (ValBaseStack elements' size next_index') in
-      env_update _ tags_dummy lvalue value'
+      env_update _ lvalue value'
     | _ => state_fail Internal
     end.
 
@@ -180,7 +180,7 @@ Section Eval.
       let* elements' := lift_option _ (rotate_right_z elements count padding) in
       let next_index' := min size (next_index + (Z.to_nat count)) in
       let value' := ValBase (ValBaseStack elements' size next_index') in
-      env_update _ tags_dummy lvalue value'
+      env_update _ lvalue value'
     | _ => state_fail Internal
     end.
 
@@ -220,12 +220,12 @@ Section Eval.
         | ((Some target_expr) :: _, into :: _) =>
           match eval_packet_extract_fixed tags_t into bits with
           | (inr error, bits') =>
-            env_update tags_t tags_dummy obj (ValObj (ValObjPacket bits')) ;;
+            env_update _ obj (ValObj (ValObjPacket bits')) ;;
             state_fail error
           | (inl value, bits') =>
-            env_update tags_t tags_dummy obj (ValObj (ValObjPacket bits')) ;;
+            env_update _ obj (ValObj (ValObjPacket bits')) ;;
             let* target := @unpack_lvalue tags_t (mret target_expr) in
-            env_update tags_t tags_dummy target (ValBase value) ;;
+            env_update _ target (ValBase value) ;;
             mret tt
           end
         | _ => state_fail Internal
@@ -292,7 +292,7 @@ Section Eval.
     | StatAssignment lhs rhs =>
       let* lval := eval_lvalue lhs in
       let* val := eval_expression rhs in
-      env_update _ tags_dummy lval val
+      env_update _ lval val
     | StatBlock block =>
       stack_push _ ;;
       eval_block block ;;

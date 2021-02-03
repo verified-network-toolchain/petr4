@@ -12,6 +12,8 @@ Require Import Unroll.
 Open Scope string_scope.
 Open Scope list_scope.
 
+Require Import IntExampleWeakestPre.
+
 (* 
   A simple loop example which iterates 5 times and then accepts
 
@@ -75,6 +77,10 @@ Definition LoopParser : ValueObject tag_t := ValObjParser _ scope nil locals sta
 (* Compute LoopParser. *)
 (* Compute rename_loop tag_t tt LoopParser loop_st. *)
 (* Compute unroll_loop tag_t tt LoopParser loop_st. *)
+
+Definition unrolledLP := unroll_loop _ tt LoopParser loop_st.
+
+Compute
 
 (* 
   The loop example should unroll to the following:

@@ -186,7 +186,7 @@ with weakest_precondition_statement_pre
     | StatAssignment lhs rhs =>
       let inter' := fun '(env_inter', lval) =>
           let inter := fun '(env_inter, rval) =>
-              match env_update tag_t tag lval rval env_inter with
+              match env_update _ lval rval env_inter with
               | (inl tt, env_post) => post env_post
               | _ => False
               end
@@ -199,7 +199,7 @@ with weakest_precondition_statement_pre
             let inter := fun '(env_inter, arg_vals) =>
                 match impl with
                 | ValFuncImplBuiltin name obj =>
-                  match eval_builtin_func tag_t tag name obj type_args arg_vals env_inter with
+                  match eval_builtin_func _ name obj type_args arg_vals env_inter with
                   | (inl val, env_post) => post env_post
                   | _ => False
                   end
@@ -294,7 +294,7 @@ Proof.
       rewrite eval_arguments_result in H.
       destruct s; try contradiction.
       destruct impl; try contradiction.
-      case_eq (eval_builtin_func tag_t tag name caller type_args l env_inter).
+      case_eq (eval_builtin_func _ name caller type_args l env_inter).
       intros s env_post eval_builtin_func_result.
       rewrite eval_builtin_func_result in H.
       destruct s; try contradiction.
@@ -318,7 +318,7 @@ Proof.
       intros s env_inter eval_expression_result.
       rewrite eval_expression_result in H.
       destruct s as [rval|]; try contradiction.
-      case_eq (env_update tag_t tag lval rval env_inter).
+      case_eq (env_update _ lval rval env_inter).
       intros s env_post env_update_result.
       rewrite env_update_result in H.
       destruct s; try contradiction; destruct u.

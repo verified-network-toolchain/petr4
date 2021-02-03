@@ -10,3 +10,5 @@ Definition push_front := "push_front".
 Definition extract := "extract".
 Definition accept := "accept".
 Definition reject := "reject".
+Definition last := "last".
+Definition next := "next".

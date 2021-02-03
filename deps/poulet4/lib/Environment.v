@@ -14,11 +14,13 @@ Require Import Bitwise.
 Require Import Typed.
 
 Require String.
+Require StringConstants.
 Require Import Syntax.
 Require Import P4String.
 
 Open Scope monad.
 Open Scope bool_scope.
+Open Scope N_scope.
 
 Module Import MNat := FMapList.Make(Nat_as_OT).
 Module Import MStr := FMapList.Make(String.StringOT).
@@ -156,6 +158,10 @@ Section Environment.
     | ValBaseUnion fields
     | ValBaseHeader fields _ 
     | ValBaseSenum fields => lookup_value' field fields
+    | ValBaseStack hdrs len next => 
+      if eq_const field StringConstants.last then List.nth_error hdrs (len - 1) else
+      if eq_const field StringConstants.next then List.nth_error hdrs next else
+      None
     | _ => None
     end.
 
@@ -169,7 +175,7 @@ Section Environment.
         let w_out := msb - lsb in 
         let bits := of_nat (Z.to_nat val) width in 
         let* sliced := slice width bits lsb msb in 
-          Some (ValBaseBit w_out (Z.of_nat (to_nat sliced)))
+        Some (ValBaseBit w_out (Z.of_nat (to_nat sliced)))
       else None
     | _ => None
     end.
@@ -180,27 +186,23 @@ Section Environment.
     | _ => None
     end.
 
+  Definition get_name_loc (name: @Typed.name tags_t) : env_monad loc :=
+    match name with 
+    | BareName nm => stack_lookup (str nm)
+    | QualifiedName nil nm => 
+      let* env := get_state in
+      let* scope := lift_opt Internal (top_scope (env_stack env)) in
+      lift_opt Internal (stack_lookup' (str nm) (scope :: nil))
+    | QualifiedName _ _ => state_fail Internal
+    end.
+
+
+
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in 
     match lv with 
     | ValLeftName name => 
-      match name with
-      | BareName nm' => 
-        let* loc := stack_lookup (str nm') in 
-          heap_lookup loc
-
-      (* bare qualified names are interpreted as elements in the global namespace 
-          e.g.
-          .global_x + .global_y
-      *)
-      | QualifiedName nil nm' => 
-        let* env := get_state in 
-        let* scope := lift_opt Internal (top_scope (env_stack env)) in
-        let* loc := lift_opt Internal (stack_lookup' (str nm') (scope :: nil)) in
-          heap_lookup loc
-      (* otherwise, qualified names are not lvalues *)
-      | QualifiedName (_ :: _) _ => state_fail Internal
-      end
+      get_name_loc name >>= heap_lookup
 
       (* TODO: there's probably a way to refactor the following 3 cases *)
     | ValLeftMember inner member =>
@@ -208,7 +210,7 @@ Section Environment.
       match inner_val with 
       | ValBase v => 
         let* result := lift_opt Internal (lookup_value v member) in
-          state_return (ValBase result)
+        state_return (ValBase result)
       | _ => state_fail Internal
       end
     
@@ -217,7 +219,7 @@ Section Environment.
       match inner_val with 
       | ValBase v => 
         let* result := lift_opt Internal (bit_slice v msb lsb) in
-          state_return (ValBase result)
+        state_return (ValBase result)
       | _ => state_fail Internal
       end
 
@@ -226,14 +228,93 @@ Section Environment.
       match inner_val with 
       | ValBase v => 
         let* result := lift_opt Internal (array_index v idx) in
-          state_return (ValBase result)
+        state_return (ValBase result)
       | _ => state_fail Internal
       end
-      
     end.
 
-  Definition env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit.
-  Admitted.
+  Fixpoint update_member' (fields: list (@P4String.t tags_t * @ValueBase tags_t)) (field: @P4String.t tags_t) (v: @ValueBase tags_t) : option_monad :=
+    match fields with 
+    | nil => None
+    | (fld, v') :: fields' => 
+      if equivb fld field 
+      then Some ((fld, v) :: fields) else 
+      let* fields'' := update_member' fields' field v in 
+      Some ((fld, v') :: fields'')
+    end.
+
+  Definition update_slice (lhs: @ValueBase tags_t) (msb: nat) (lsb: nat) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
+    match (lhs, rhs) with
+    | (ValBaseBit wl vl, ValBaseBit wr vr) => 
+      let (bitl, bitr) := (of_nat (Z.to_nat vl) wl, of_nat (Z.to_nat vr) wr) in 
+      let* bit_result := lift_opt Internal (splice wl bitl lsb msb wr bitr) in 
+      state_return (ValBaseBit wl (Z.of_nat (to_nat bit_result)))
+    | _ => state_fail Internal
+    end.
+
+  (*  split a list at an index, without including the index
+      e.g. split 2 [1;2;3;4;5] = ([1;2], [4;5]) 
+  *)
+  Definition split_list {A} (idx: nat) (xs: list A) : (list A * list A) := 
+    (firstn idx xs, skipn (length xs - idx) xs).
+
+  Definition update_array (lhs: @ValueBase tags_t) (idx: nat) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
+    match lhs with
+    | ValBaseStack hdrs len nxt =>
+      if Nat.leb len idx then state_fail Internal else
+      let (pref, suff) := split_list idx hdrs in 
+      state_return (ValBaseStack (pref ++ rhs :: suff) len nxt)
+    | _ => state_fail Internal
+    end.
+
+  Definition update_member (lhs: @ValueBase tags_t) (member: @P4String.t tags_t) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
+    match lhs with 
+    (* TODO: there must be a cleaner way... *)
+    | ValBaseRecord fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseRecord fields')
+    | ValBaseStruct fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseStruct fields')
+    | ValBaseHeader fields is_valid => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseHeader fields' is_valid)
+    | ValBaseUnion fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseRecord fields')
+    | ValBaseSenum fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseSenum fields')
+    | ValBaseStack hdrs len next => 
+      if eq_const member StringConstants.last then update_array lhs len rhs else
+      if eq_const member StringConstants.next then update_array lhs next rhs else
+      state_fail Internal
+    | _ => state_fail Internal
+    end.
+  
+  Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit :=
+    let 'MkValueLvalue lv _ := lvalue in 
+    match lv with 
+    | ValLeftName nm => 
+      let* loc := get_name_loc nm in 
+      heap_update loc value
+
+    (* TODO: again, it would be good to refactor some of this logic *)
+    | ValLeftMember inner member =>
+      let* lv' := env_lookup inner in 
+      match (lv', value) with 
+      | (ValBase lv'', ValBase value') => 
+        let* value'' := update_member lv'' member value' in 
+        env_update inner (ValBase value')
+      | _ => state_fail Internal
+      end
+    | ValLeftBitAccess inner msb lsb =>
+      let* lv' := env_lookup inner in 
+      match (lv', value) with 
+      | (ValBase lv'', ValBase value') =>
+        let* value'' := update_slice lv'' msb lsb value' in
+        env_update inner (ValBase value'')
+      | _ => state_fail Internal
+      end
+    | ValLeftArrayAccess inner idx =>
+      let* lv' := env_lookup inner in
+      match (lv', value) with 
+      | (ValBase lv'', ValBase value') => 
+        let* value'' := update_array lv'' idx value' in
+        env_update inner (ValBase value'')
+      | _ => state_fail Internal
+      end
+    end.
 
   Definition toss_value (original: env_monad (@Value tags_t)) : env_monad unit :=
     fun env =>

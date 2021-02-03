@@ -1,5 +1,5 @@
 Require Import Coq.Bool.Bool.
-(* Require Import Coq.ZArith.BinInt. *)
+Require Import Coq.ZArith.BinInt.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Petr4.Typed.
@@ -11,7 +11,10 @@ Class External {
 
 Section Semantics.
 
-Axiom val : Type. (* Basic values. *)
+Inductive val :=
+  | VInt (v : Z)
+  (* TODO *).
+
 
 Context {tags_t: Type}.
 Notation path := (@Typed.name tags_t).
@@ -26,6 +29,7 @@ Inductive memory_val :=
       including pointers to methods and functions,
         and pointers to instances. *)
   | MPointer (p : path).
+  (* Should these pointers be paths or locs? *)
 
 Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
   Nat.eqb (length al) (length bl) &&
@@ -91,20 +95,22 @@ Definition copy_in_copy_out (params : list path)
   s' = update_memory (set_args' params (map MVal args)) s /\
   map Some (map MVal args') = get_args (get_memory s) params.
 
-Inductive exec_expr : Prop :=
-with exec_stmt : env -> temp_env -> state -> (@Statement tags_t) -> (* trace -> *) temp_env -> state -> (* outcome -> *) Prop :=
-with exec_block : env -> temp_env -> state -> (@Block tags_t) -> (* trace -> *) temp_env -> state -> (* outcome -> *) Prop :=
-with exec_funcall : state -> fundef -> list val -> (* trace -> *) state -> list val -> Prop :=
-  | exec_funcall_control : forall envx temp_envx temp_envx' p module s apply args args' s' s'',
+Variable (this : path).
+
+Inductive exec_expr : env -> (* temp_env -> *) state -> (@Statement tags_t) -> (* trace -> *) (* temp_env -> *) state -> (* outcome -> *) Prop :=
+with exec_stmt : env -> (* temp_env -> *) state -> (@Statement tags_t) -> (* trace -> *) (* temp_env -> *) state -> (* outcome -> *) Prop :=
+with exec_block : env -> (* temp_env -> *) state -> (@Block tags_t) -> (* trace -> *) (* temp_env -> *) state -> (* outcome -> *) Prop :=
+with exec_funcall : state -> fundef -> list val -> (* trace -> *) state -> list val -> option val -> Prop :=
+  | exec_funcall_control : forall envx p module s apply args args' s' s'' ret,
       get (get_memory s) p = Some (MPointer (BareName module)) ->
-      exec_block envx temp_envx s' apply temp_envx' s'' ->
+      exec_block envx s' apply s'' -> (* return ? *)
       match get_decl ge module with
       | Some (DeclControl _ _ _ params _ _ apply') =>
           copy_in_copy_out (map (name_cons p) (map param_to_name params)) args args' s s' s'' /\
           apply = apply'
       | _ => False
       end ->
-      exec_funcall s (FInternal p) args s'' args'.
+      exec_funcall s (FInternal p) args s'' args' ret.
 (* with eval_funcall: mem -> fundef -> list val -> trace -> mem -> val -> Prop :=
   | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4,
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->

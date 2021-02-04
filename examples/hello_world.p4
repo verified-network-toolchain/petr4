@@ -1,5 +1,5 @@
-#include <core.p4>
-#include <v1model.p4>
+#include "core.p4"
+#include "v1model.p4"
 
 struct metadata { }
 struct headers { }

@@ -44,8 +44,11 @@ let get_argument_name (a : P4.Argument.t) : string = match (snd a) with
       | _ -> raise (IncorrectType "NamelessInstantiation expected"))
   | _ -> raise (IncorrectType "Argument Expression expected")
 
-let get_parameter_name (p : P4.Parameter.t) : string = match (snd p) with
+let get_parameter_typename (p:P4.Parameter.t) : string = match (snd p) with 
   | {annotations; direction; typ; variable; opt_value} -> get_typename_name typ
+
+let get_parameter_name (p : P4.Parameter.t) : string = match (snd p) with
+  | {annotations; direction; typ; variable; opt_value} -> snd variable
 
 let get_instantiation (prog:P4.Declaration.t) : P4.Declaration.t option = 
   match (snd prog) with 
@@ -56,6 +59,11 @@ let get_instantiation (prog:P4.Declaration.t) : P4.Declaration.t option =
 let get_instantiation_args (d : P4.Declaration.t) : P4.Argument.t list option = 
   match (snd d) with 
   | P4.Declaration.Instantiation {annotations; typ; args; name; init} -> Some args
+  | _ -> None
+
+let get_declaration_type (p:P4.Declaration.t) : P4.Type.t option = 
+  match (snd p) with 
+  | P4.Declaration.Instantiation {annotations; typ; args; name; init} -> Some typ
   | _ -> None
 
 let get_declaration_params (p:P4.Declaration.t) : P4.Parameter.t list option = 
@@ -78,7 +86,9 @@ let get_main_args (prog : P4.Declaration.t list) : string list =
   else if List.length main <> 1 then raise MultipleMains
   else (List.map get_argument_name (List.hd main))
 
-let declaration_name (d : P4.Declaration.t) : string = snd (P4.Declaration.name d)
+(** Failure s -> s is a hack that (I think) works, because declaration names won't have spaces *)
+let declaration_name (d : P4.Declaration.t) : string = try snd (P4.Declaration.name d) with 
+  | Failure s -> " This should never match to any declaration name"
 
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
@@ -89,12 +99,26 @@ let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Dec
 let find_declarations_by_names (prog:P4.Declaration.t list) (names:string list) : P4.Declaration.t list = 
   List.filter (fun p -> List.mem (declaration_name p) names) prog
 
-
 let remove_declaration (prog:P4.Declaration.t list) (to_remove_name:string) : P4.Declaration.t list = 
   List.filter (fun d -> declaration_name d <> to_remove_name) prog
 
 let remove_declarations (prog:P4.Declaration.t list) (to_remove_names:string list) : P4.Declaration.t list = 
   List.filter (fun d -> not (List.mem (declaration_name d) to_remove_names)) prog
+
+let rec unique_strings (lst:string list) : string list = 
+  match lst with 
+  | [] -> []
+  | hd::tl -> hd::unique_strings (List.filter (fun x -> x <> hd) tl)
+
+(** Removes all but the first the declaration that matches [name] or does nothing 
+    if there is no declaration with name of [name] *)
+let unique_declarations_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t list = 
+  let rec finding_unique (rest_of_prog:P4.Declaration.t list) (name:string) (found_first:bool) = 
+    if found_first then remove_declaration rest_of_prog name
+    else if declaration_name (List.hd rest_of_prog) == name then (List.hd rest_of_prog)::finding_unique (List.tl rest_of_prog) name true
+    else (List.hd rest_of_prog)::finding_unique (List.tl rest_of_prog) name false in 
+  finding_unique prog name false
+
 
 (**creating standard_meta, might be useless? *)
 let standard_meta : P4.Type.t = Info.M "Standard Meta", P4.Type.TypeName (P4.BareName (Info.M "Standard Meta", "standard_metadata_t"))
@@ -133,7 +157,7 @@ let create_type_typename (t : string) : P4.Type.t =
 let create_statement_if (condition : P4.Expression.pre_t) (true_branch : P4.Statement.pre_t)
     (false_branch : P4.Statement.pre_t) : P4.Statement.t =
   (Info.M "Created If", P4.Statement.Conditional {
-      cond = Info.M "Created Condition", condition; (**Binop on im_t.getinport *)
+      cond = Info.M "Created Condition", condition;
       tru = Info.M "Created true branch", true_branch;
       fls = Some (Info.M "Created false branch", false_branch)})
 
@@ -297,7 +321,7 @@ let high_ports_state (parser_name:string) (args:P4.Argument.t list) : P4.Parser.
   create_parser_state "high_ports_state" [high_port_parser_call] create_parser_transition_accept
 
 let new_parser (params:P4.Parameter.t list) (parser1:string) (parser2:string) (split_port:int) : P4.Declaration.t = 
-  let locals = (create_declaration_instantiation parser2 "parser2" [])::(create_declaration_instantiation parser1 "parser1" [])::[] in 
+  let locals = (create_declaration_instantiation "parser2" parser2 [])::(create_declaration_instantiation "parser1" parser1 [])::[] in 
   let args = List.map param_to_arg params in
   let states = (low_ports_state parser1 args)::(high_ports_state parser2 args)::(new_start_state split_port)::[] in
   create_declaration_parser "NewParser" params locals states
@@ -310,7 +334,7 @@ let merged_if_statement (args:P4.Argument.t list) (split_port:int) : P4.Statemen
   create_statement_if (snd conditional) (snd call_control1) (snd call_control2)
 
 let new_control (params:P4.Parameter.t list) (control1:string) (control2:string) (split_port:int) : P4.Declaration.t = 
-  let locals = (create_declaration_instantiation control2 "control2" [])::(create_declaration_instantiation control1 "control1" [])::[] in 
+  let locals = (create_declaration_instantiation "control2" control2  [])::(create_declaration_instantiation "control1" control1 [])::[] in 
   let args = List.map param_to_arg params in 
   let apply = create_block [merged_if_statement args split_port]  in 
   create_declaration_control "NewControl" params locals apply 
@@ -331,7 +355,8 @@ let prog_merge (program1 : P4.program) (program2 : P4.program) (split_port : int
   let names2 = get_main_args prog2 in 
   let package1 = verify_main (find_declarations_by_names prog1 names1) in 
   let package2 = verify_main (find_declarations_by_names prog2 names2) in 
-  let package_type = prog1 |> get_main |> declaration_name in 
+  let package_type = prog1 |> get_main |> get_declaration_type |> get |> get_typename_name in 
+  let package_name = prog1 |> get_main |> declaration_name in 
   let parser_params = (List.hd package1) |> get_declaration_params |> get in
   let control_params = (List.nth package1 1) |> get_declaration_params in 
   let new_parser = new_parser parser_params (List.hd names1) (List.hd names2) split_port in
@@ -339,5 +364,7 @@ let prog_merge (program1 : P4.program) (program2 : P4.program) (split_port : int
   let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
   let new_package = create_declaration_instantiation "main" package_type (List.map create_argument_expression package_arguments) in 
-  let merged_program = (remove_declarations prog1 [List.nth names1 2]) @ (remove_declarations prog2 [List.nth names2 2]) in
-  P4.Program (new_parser::merged_program @ [new_control; new_deparser; new_package])
+  let merged_program = (remove_declarations prog1 [List.nth names1 2; package_name]) @ (remove_declarations prog2 [List.nth names2 2; package_name]) in
+  let merged_program_names = unique_strings(List.map declaration_name merged_program) in 
+  let final_program = (List.fold_left unique_declarations_by_name merged_program merged_program_names) in 
+  P4.Program (final_program @ [new_parser; new_control; new_deparser; new_package])

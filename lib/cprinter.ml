@@ -26,13 +26,13 @@ let rec format_cdecl (decl: cdecl) =
        ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields ++ text ";")
     ++ text "\n} " ++ text name ++ text ";"
   | CFun (ret, name, params, body) ->
-    format_ctyp ret
-    ++ space
-    ++ format_cname name
-    ++ format_cparams params
-    ++ text "\n{"
-    ++ format_cstmts body
-    ++ text "}"
+    box ~indent:2 (format_ctyp ret
+                   ++ space
+                   ++ format_cname name
+                   ++ format_cparams params
+                   ++ text " {\n"
+                   ++ format_cstmts body ++ text ";")
+    ++ text "\n}"
   | CInclude name ->
     text "#include \"" ++ text name ++ text "\""
   | CStdInclude name ->
@@ -48,6 +48,12 @@ and format_cparam ((CParam (typ, name)): cparam) =
 
 and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params
+
+and format_cparam_method (name : cname) =
+  text "(" ++ format_cname name ++ text ")"
+
+and format_cparams_method (params : cname list) =
+  concat_map ~sep:(text ", ") ~f:format_cparam_method params
 
 and format_cstmt (stmt: cstmt) =
   match stmt with
@@ -69,6 +75,9 @@ and format_cstmt (stmt: cstmt) =
     ++ format_cname var
     ++ text " = "
     ++ format_cexpr rval
+  | CMethodCall (name, params) ->
+    format_cname name
+    ++ format_cparams_method params
 
 and format_cstmts (stmts: cstmt list) =
   concat_map ~sep:(text ";\n") ~f:format_cstmt stmts

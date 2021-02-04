@@ -32,7 +32,6 @@ end
 module CompM = Monad.Make(CompOps)
 
 open CompM.Let_syntax
-open Types.Expression 
 
 let translate_expr (e: Prog.Expression.t) : C.cexpr comp =
   match (snd e).expr with
@@ -66,18 +65,16 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
                     [CParam (CTypeName (snd name), "*state")], 
                     apply_translate_emit apply)) |> return 
   | _ -> C.CInclude "todo" |> return
-and translate_emit (s:Prog.Statement.t) : C.cdecl comp = 
+
+and translate_emit (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-    C.CFun (CVoid, "func", [C.CParam (CVoid, "Fd")], [CRet (CVar "F")]) |> return 
-  | _ ->  C.CFun (CVoid, "hold", [C.CParam (CVoid, "Fd")], [CRet (CVar "F")]) |> return 
+    C.CMethodCall ("func", ["param"]) 
+  | _ ->  C.CMethodCall ("hold", ["param"]) 
 
 and apply_translate_emit (apply : Prog.Block.t) = 
   let stmt = (snd apply).statements in 
-  let rec m = List.map ~f:translate_emit stmt in 
-  match m with
-  | [] -> [C.CRet (CVar "")]
-  | h::t -> C.CMethodCall h :: m t  
+  List.map ~f:translate_emit stmt 
 
 and translate_param (param : Typed.Parameter.t) : C.cfield comp =
   let%bind ctyp = translate_type param.typ in

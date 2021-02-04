@@ -33,7 +33,35 @@ module CompM = Monad.Make(CompOps)
 
 open CompM.Let_syntax
 
-let translate_expr (e: Prog.Expression.t) : C.cexpr comp =
+let get_expr_name (e: Prog.Expression.t) : C.cname =
+  match (snd e).expr with
+  | ExpressionMember x -> snd x.name
+  | _ -> failwith "unimplementeddj"
+
+let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
+  match (snd e).expr with
+  | Name name -> 
+    begin match name with 
+      | BareName str -> snd str
+      | _ -> failwith "unimplemented" end
+  | ExpressionMember x -> get_expr_mem x.expr 
+  | _ -> failwith "unimplemented!"
+
+let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cname list =
+  match e with
+  | [] -> []
+  | h::t -> let fst = begin match h with 
+      | None -> ""
+      | Some s -> begin match (snd s).expr with
+          | Name name -> 
+            begin match name with 
+              | BareName str -> snd str
+              | _ -> failwith "unimplemented--" end
+          | ExpressionMember x -> get_expr_mem x.expr ^ "." ^ (snd x.name)
+          | _ -> failwith "unimplemented!" end end in 
+    fst::get_expr_opt_lst t  
+
+let translate_expr_comp (e: Prog.Expression.t) : C.cexpr comp =
   match (snd e).expr with
   | Name (BareName x) ->
     begin match%bind CompOps.find_var (snd x) with
@@ -69,7 +97,8 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
 and translate_emit (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-    C.CMethodCall ("func", ["param"]) 
+    C.CMethodCall (get_expr_name func, 
+                   ["state->" ^ get_expr_mem func] @ get_expr_opt_lst args @ ["16"]) 
   | _ ->  C.CMethodCall ("hold", ["param"]) 
 
 and apply_translate_emit (apply : Prog.Block.t) = 

@@ -43,5 +43,7 @@ and cexpr =
   | CAddrOf of cexpr
   | CMember of cexpr * cname
   | CCall of cname * cexpr list
+  | CBoolExp of bool
+  | CString of cname 
 
 type cprog = cdecl list

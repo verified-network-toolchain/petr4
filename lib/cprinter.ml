@@ -50,10 +50,10 @@ and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params
 
 and format_cparam_method (name : cname) =
-  text "(" ++ format_cname name ++ text ")"
+  format_cname name 
 
 and format_cparams_method (params : cname list) =
-  concat_map ~sep:(text ", ") ~f:format_cparam_method params
+  text "(" ++ concat_map ~sep:(text ", ") ~f:format_cparam_method params ++ text ")"
 
 and format_cstmt (stmt: cstmt) =
   match stmt with
@@ -99,6 +99,11 @@ and format_cexpr (expr: cexpr) =
     ++ text "("
     ++ concat_map ~sep:(text ", ") ~f:format_cexpr args
     ++ text ")"
+  | CBoolExp bool -> 
+    begin match bool with 
+      | true -> text "true"
+      | false -> text "false" end 
+  | CString cname -> text cname 
 
 let format_cprog (prog: cprog) =
   concat_map ~sep:(text "\n") ~f:format_cdecl prog

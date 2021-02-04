@@ -57,7 +57,7 @@ let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cname list =
             begin match name with 
               | BareName str -> snd str
               | _ -> failwith "unimplemented--" end
-          | ExpressionMember x -> get_expr_mem x.expr ^ "." ^ (snd x.name)
+          | ExpressionMember x -> "&state->" ^ get_expr_mem x.expr ^ "." ^ (snd x.name)
           | _ -> failwith "unimplemented!" end end in 
     fst::get_expr_opt_lst t  
 
@@ -84,7 +84,10 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
     C.CStruct (snd name, valid :: cfields) |> return
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let%bind params = translate_params params in
-    C.CStruct (snd name, params) |> return 
+    C.CRec (C.CStruct (snd name, params) , 
+            C.CFun (CVoid, snd name ^ "_fun", 
+                    [CParam (CTypeName (snd name), "*state")], 
+                    translate_extract states)) |> return 
   | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     let%bind params = translate_params params in
@@ -94,7 +97,7 @@ let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
                     apply_translate_emit apply)) |> return 
   | _ -> C.CInclude "todo" |> return
 
-and translate_emit (s:Prog.Statement.t) : C.cstmt = 
+and translate_fun (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
     C.CMethodCall (get_expr_name func, 
@@ -103,7 +106,14 @@ and translate_emit (s:Prog.Statement.t) : C.cstmt =
 
 and apply_translate_emit (apply : Prog.Block.t) = 
   let stmt = (snd apply).statements in 
-  List.map ~f:translate_emit stmt 
+  List.map ~f:translate_fun stmt 
+
+and translate_extract (s : Prog.Parser.state list) : C.cstmt list= 
+  match s with 
+  | [] -> failwith "empty"
+  | h::t -> 
+    match snd h with 
+    | { annotations; name; statements; transition } -> List.map ~f:translate_fun statements
 
 and translate_param (param : Typed.Parameter.t) : C.cfield comp =
   let%bind ctyp = translate_type param.typ in

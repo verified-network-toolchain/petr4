@@ -18,6 +18,7 @@ extern packet_out {
 extern void verify(in bool check, in error toSignal);
 action NoAction() { 
 }
+typedef bit<9> PortId_t;
 typedef bit<16> PktInstId_t;
 typedef bit<16> GroupId_t;
 const PortId_t PORT_CPU = 255;

@@ -11,6 +11,8 @@ Require Import Utils.
 Require Import Syntax.
 Require Import Typed.
 
+Require Import Bitwise.
+
 Open Scope monad.
 
 Section Packet.
@@ -37,6 +39,9 @@ Section Packet.
         end
     end.
 
+  Definition convert_bits (width: nat) (bits: Bvector width) : Z :=
+    Z.of_nat (to_nat (Vector.to_list bits)).
+
   Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
     match into with
     | TypBool =>
@@ -45,14 +50,12 @@ Section Packet.
       | (bit :: [])%vector => mret (ValBaseBool bit)
       | _ => state_fail Internal
       end
-    (* TODO: fix numerics
     | TypBit width =>
       let* vec := read_first_bits width in
-      mret (ValBaseBit _ width vec)
+      mret (ValBaseBit width (convert_bits width vec))
     | TypInt width =>
       let* vec := read_first_bits width in
-      mret (ValBaseInt _ width vec)
-     *)
+      mret (ValBaseInt width (convert_bits width vec))
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseRecord field_vals)

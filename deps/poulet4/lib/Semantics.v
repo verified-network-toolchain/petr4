@@ -209,3 +209,4 @@ Inductive exec_instantiation : path -> ident -> state -> list memory_val -> stat
              s ->
       exec_instantiation p module s args s'.
 
+End Semantics.

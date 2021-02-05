@@ -35,7 +35,12 @@ and cstmt =
   | CIf of cexpr * cstmt * cstmt
   | CAssign of cexpr * cexpr
   | CVarInit of ctyp * cname * cexpr
-  | CMethodCall of cname * cname list  
+  | CMethodCall of cname * cexpr list  
+  | CSwitch of cexpr * ccase list
+  | CBlock of cstmt list
+  | CWhile of cexpr * cstmt
+and ccase =
+  | CCase of cexpr * cstmt list
 and cexpr =
     CIntLit of int
   | CVar of cname
@@ -45,5 +50,6 @@ and cexpr =
   | CCall of cname * cexpr list
   | CBoolExp of bool
   | CString of cname 
+  | CGeq of cexpr * cexpr
 
 type cprog = cdecl list

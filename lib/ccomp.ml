@@ -33,6 +33,9 @@ module CompM = Monad.Make(CompOps)
 
 open CompM.Let_syntax
 
+let next_state_name = "__next_state"
+let next_state_var = C.CVar next_state_name
+
 let get_expr_name (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
   | ExpressionMember x -> snd x.name
@@ -47,19 +50,23 @@ let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   | ExpressionMember x -> get_expr_mem x.expr 
   | _ -> failwith "unimplemented!"
 
-let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cname list =
+let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
   match e with
   | [] -> []
-  | h::t -> let fst = begin match h with 
-      | None -> ""
-      | Some s -> begin match (snd s).expr with
-          | Name name -> 
-            begin match name with 
-              | BareName str -> snd str
-              | _ -> failwith "unimplemented--" end
-          | ExpressionMember x -> get_expr_mem x.expr ^ "." ^ (snd x.name)
-          | _ -> failwith "unimplemented!" end end in 
-    fst::get_expr_opt_lst t  
+  | h::t ->
+     let fst =
+       match h with 
+       | None -> C.CVar "don't care compilation unimplemented"
+       | Some s -> begin match (snd s).expr with
+                   | Name name -> 
+                      begin match name with 
+                      | BareName str -> CVar (snd str)
+                      | _ -> failwith "unimplemented--" end
+                   | ExpressionMember x -> CMember (CVar (get_expr_mem x.expr), snd x.name)
+                   | _ -> failwith "unimplemented!"
+                   end
+     in
+     fst::get_expr_opt_lst t  
 
 let translate_expr_comp (e: Prog.Expression.t) : C.cexpr comp =
   match (snd e).expr with
@@ -70,36 +77,98 @@ let translate_expr_comp (e: Prog.Expression.t) : C.cexpr comp =
     end
   | _ -> (C.CIntLit 123) |> return
 
-let translate_stmt (s: Prog.Statement.t) : C.cstmt comp =
-  C.CVarInit (CInt, "todo", CIntLit 123) |> return
+let assert_packet_in (typ: Typed.Type.t) : unit =
+  (* TODO actually check the type is appropriate? *)
+  ()
 
-let rec translate_decl (d: Prog.Declaration.t) : C.cdecl comp =
+let translate_stmt (stmt: Prog.Statement.t) : C.cstmt comp =
+  match (snd stmt).stmt with 
+  | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
+                type_args = _;
+                args = [Some header]} ->
+     assert_packet_in (snd pkt).typ;
+     let header_type = (snd header).typ in
+     print_s [%message "type" ~typ:(header_type: Typed.Type.t)];
+     C.CMethodCall ("extract", [C.CIntLit 16]) |> return
+  | _ -> C.CVarInit (CInt, "todo", CIntLit 123) |> return
+
+let translate_stmts (stmts: Prog.Statement.t list) : (C.cstmt list) comp =
+  stmts
+  |> List.map ~f:translate_stmt
+  |> CompM.all
+
+let rec translate_decl (d: Prog.Declaration.t) : (C.cdecl list) comp =
   match snd d with
   | Struct {name; fields; _} ->
     let%bind cfields = translate_fields fields in
-    C.CStruct (snd name, cfields) |> return
+    [C.CStruct (snd name, cfields)] |> return
   | Header {name; fields; _} ->
     let%bind cfields = translate_fields fields in
     let valid = C.CField (CBool, "__header_valid") in
-    C.CStruct (snd name, valid :: cfields) |> return
+    [C.CStruct (snd name, valid :: cfields)] |> return
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let%bind params = translate_params params in
-    C.CStruct (snd name, params) |> return 
+    let state_type_name = snd name ^ "_state" in
+    let state_type = C.(CPtr (CTypeName state_type_name)) in
+    let state_param = C.CParam (state_type, "state") in
+    let struct_decl = C.CStruct (state_type_name, params) in
+    let%bind locals_stmts = translate_parser_locals locals in
+    let%bind state_stmts = translate_parser_states states in
+    let func_decl = C.CFun (CVoid, snd name, [state_param], locals_stmts @ state_stmts) in
+    [struct_decl; func_decl] |> return
   | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     let%bind params = translate_params params in
-    C.CRec (C.CStruct (snd name, params), 
+    [C.CRec (C.CStruct (snd name, params), 
             C.CFun (CVoid, snd name ^ "_fun", 
                     [CParam (CTypeName (snd name), "*state")], 
-                    apply_translate_emit apply)) |> return 
-  | _ -> C.CInclude "todo" |> return
+                    apply_translate_emit apply))] |> return 
+  | _ -> [C.CInclude "todo"] |> return
+
+and translate_parser_locals (locals: Prog.Declaration.t list) : (C.cstmt list) comp =
+  return []
+
+and translate_parser_states (states: Prog.Parser.state list) : (C.cstmt list) comp =
+  let add_state idx map (state: Prog.Parser.state) =
+    Map.add_exn map ~key:(snd (snd state).name) ~data:idx
+  in
+  let states_map =
+    states
+    |> List.foldi ~init:Map.empty ~f:add_state
+    |> Map.add_exn ~key:"accept" ~data:(-1)
+    |> Map.add_exn ~key:"reject" ~data:(-2)
+  in
+  let%bind cases = 
+    states
+    |> List.map ~f:(translate_parser_state states_map)
+    |> CompM.all
+  in
+  let start_id = Map.find_exn states_map "start" in
+  return C.[CVarInit (CInt, next_state_name, CIntLit start_id);
+            CWhile (CGeq (next_state_var, CIntLit 0),
+                    CSwitch (next_state_var, cases))]
+
+and translate_parser_state (states: int Map.t) (state: Prog.Parser.state) : C.ccase comp =
+  let%bind stmts = translate_stmts (snd state).statements in
+  let%bind annot = translate_trans states (snd state).transition in
+  let state_id = Map.find_exn states (snd (snd state).name) in
+  C.(CCase (CIntLit state_id, stmts @ annot)) |> return
+
+and translate_trans (states: int Map.t) (t: Prog.Parser.transition) : (C.cstmt list) comp =
+  match snd t with
+  | Direct {next} ->
+     let nextid = Map.find_exn states (snd next) in
+     return C.[CAssign (next_state_var, CIntLit nextid)]
+  | Select _ ->
+     failwith "translation of select() unimplemented"
 
 and translate_emit (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-    C.CMethodCall (get_expr_name func, 
-                   ["state->" ^ get_expr_mem func] @ get_expr_opt_lst args @ ["16"]) 
-  | _ ->  C.CMethodCall ("hold", ["param"]) 
+     let state_arg = C.(CMember (CDeref (CVar "state"), get_expr_mem func)) in
+     let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in
+     C.CMethodCall (get_expr_name func, args)
+  | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
 
 and apply_translate_emit (apply : Prog.Block.t) = 
   let stmt = (snd apply).statements in 
@@ -136,6 +205,7 @@ let translate_prog ((Program t): Prog.program) : C.cprog comp =
   t
   |> List.map ~f:translate_decl
   |> CompM.all
+  >>| List.concat
 
 let compile (prog: Prog.program) : C.cprog =
   CInclude "petr4-runtime.h" ::

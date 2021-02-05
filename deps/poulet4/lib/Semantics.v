@@ -41,8 +41,9 @@ End PathMap.
 
 End PathMap.
 
-Class External {
-  ExternalState : Type
+Class External := {
+  ExternalState : Type(* ;
+  ExternalDummy : Type *)
 }.
 
 Section Semantics.

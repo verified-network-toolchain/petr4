@@ -4,6 +4,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Petr4.Typed.
 Require Import Petr4.Syntax.
+Import ListNotations.
 
 Module IdentMap.
 
@@ -16,8 +17,10 @@ Context {A: Type}.
 Definition t := ident -> option A.
 
 Axiom empty : t.
-Axiom get : t -> ident -> option A.
-Axiom set : t -> ident -> A -> t.
+Axiom get : ident -> t -> option A.
+Axiom set : ident -> A -> t -> t.
+
+Axiom sets : list ident -> list A -> t -> t.
 
 End IdentMap.
 
@@ -28,14 +31,17 @@ Module PathMap.
 Section PathMap.
 
 Context {tags_t: Type}.
-Notation path := (@Typed.name tags_t).
+Notation ident := (P4String.t tags_t).
+Notation path := (list ident).
 Context {A: Type}.
 
 Definition t := path -> option A.
 
 Axiom empty : t.
-Axiom get : t -> path -> option A.
-Axiom set : t -> path -> A -> t.
+Axiom get : path -> t -> option A.
+Axiom set : path -> A -> t -> t.
+
+Axiom sets : list path -> list A -> t -> t.
 
 End PathMap.
 
@@ -54,7 +60,7 @@ Inductive val :=
 
 Context {tags_t: Type}.
 Notation ident := (P4String.t tags_t).
-Notation path := (@Typed.name tags_t).
+Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 
 Context `{External}.
@@ -71,28 +77,23 @@ Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
   Nat.eqb (length al) (length bl) &&
     forallb (uncurry eqb) (combine al bl).
 
-Definition path_equivb (p p' : path) :=
-  match (p, p') with
-  | (BareName n, BareName n') => P4String.equivb n n'
-  | (QualifiedName ns n, QualifiedName ns' n') =>
-      list_eqb (@P4String.equivb tags_t) ns ns' && P4String.equivb n n'
-  | _ => false
-  end.
+Definition path_equivb : path -> path -> bool :=
+  list_eqb (@P4String.equivb tags_t).
 
 Definition mem := @PathMap.t tags_t memory_val.
 
 (* Definition set : mem -> path -> memory_val -> mem :=
   (fun m p v => fun p' => if path_equivb p p' then Some v else m p'). *)
-Axiom set_args : mem -> list path -> list memory_val -> mem.
+Axiom set_args : list path -> list memory_val -> mem -> mem.
 (* Definition get : mem -> path -> option memory_val := id. *)
 
-Definition get_args : mem -> list path -> list (option memory_val) := (fun m => (map (PathMap.get m))).
+Definition get_args : mem -> list path -> list (option memory_val) := (fun m => (map (fun p => PathMap.get p m))).
 
-Definition set' p v (m : mem) :=
-  PathMap.set m p v.
+(* Definition set' p v (m : mem) :=
+  PathMap.set m p v. *)
 
-Definition set_args' p v m :=
-  set_args m p v.
+(* Definition set_args' p v m :=
+  set_args m p v. *)
 
 Definition state : Type := mem * ExternalState.
 
@@ -120,9 +121,16 @@ Axiom env_get : env -> P4String -> option path. *)
 
 Axiom ident_to_path : forall (e : env) (i : ident) (this : path), path.
 
+Inductive fundef :=
+  (* this_path = nil: global; this_path <> nil: instance *)
+  | FInternal (this_path : path) (decl_path : path) (e : env) (params : list ident) (body : @Block tags_t)
+  | FExternal.
+
+Axiom dummy_fundef : fundef.
+
 (* Definition genv := (@program tags_t) * (path -> option env). *)
 (* only give the Statement is not enough; need call convention. *)
-Definition genv := path -> option (@Statement tags_t * env).
+Definition genv := path -> option fundef.
 (* Definition get_decl (ge : genv) (p : path) : option (env * @Declaration tags_t) :=
   match p with
   | BareName  *)
@@ -135,13 +143,14 @@ Variable ge : genv.
       m (name_cons this name) = Some v ->
       deref_loc m this name v. *)
 
+
+
 (* Axiom temp_env : Type. *)
 
-Inductive fundef :=
-  | FInternal (p : path)
-  | FExternal.
+(* Definition name_to_path (e : env) (this_path : path) (name : ident) :=
+  match  *)
 
-(* Note that expressions don't use this pointer. *)
+(* Note that expressions don't need decl_path. *)
 Inductive exec_expr : env -> path -> (* temp_env -> *) state -> (@Expression tags_t) -> (* trace -> *) (* temp_env -> *) (* state -> *) (* outcome -> *) Prop :=
   .
 
@@ -150,7 +159,7 @@ Axiom param_to_name : (@P4Parameter tags_t) -> ident.
 Definition copy_in_copy_out (params : list path)
                             (args : list val) (args' : list val)
                             (s s' s'' : state) :=
-  s' = update_memory (set_args' params (map MVal args)) s /\
+  s' = update_memory (set_args params (map MVal args)) s /\
   map Some (map MVal args') = get_args (get_memory s) params.
 
 (* Variable (this : path). (* So this pointer only matters for declarations, not for using the variables. *) *)
@@ -162,16 +171,10 @@ Inductive outcome : Type :=
 Inductive exec_stmt : path -> path -> env -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
 with exec_block : path -> path -> env -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
 with exec_funcall : state -> fundef -> list val -> state -> list val -> option val -> Prop :=
-  | exec_funcall_control : forall p1 p2 envx p module s apply args args' s' s'' vret,
-      PathMap.get (get_memory s) p = Some (MPointer (BareName module)) ->
-      exec_block p1 p2 envx s' apply s'' (Out_return vret) ->
-      match get_decl ge module with
-      | Some (DeclControl _ _ _ params _ _ apply') =>
-          copy_in_copy_out (map (name_cons p) (map param_to_name params)) args args' s s' s'' /\
-          apply = apply'
-      | _ => False
-      end ->
-      exec_funcall s (FInternal p) args s'' args' vret.
+  | exec_funcall_internal : forall this_path decl_path e params body s args args' s' s'' vret,
+      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
+      exec_block this_path decl_path e s' body s'' (Out_return vret) ->
+      exec_funcall s (FInternal this_path decl_path e params body) args s'' args' vret.
 (* with eval_funcall: mem -> fundef -> list val -> trace -> mem -> val -> Prop :=
   | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4,
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
@@ -185,14 +188,12 @@ with exec_funcall : state -> fundef -> list val -> state -> list val -> option v
       external_call ef ge vargs m t vres m' ->
       eval_funcall m (External ef targs tres cconv) vargs t m' vres. *)
 
-
-
 Inductive exec_instantiation : path -> ident -> state -> list memory_val -> state -> Prop :=
   | exec_instantiation_control : forall p module s (constructor_params : list (@P4Parameter tags_t)) args s',
       match get_decl ge module with
       | Some (DeclControl _ _ _ _ constructor_params _ _) =>
-          s' = update_memory (compose (set' p (MPointer (BareName module)))
-                    (set_args' (map (name_cons p) (map param_to_name constructor_params)) args))
+          s' = update_memory (compose (PathMap.set p (MPointer [module]))
+                    (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
                     s
       | _ => False
       end ->
@@ -205,9 +206,60 @@ Inductive exec_instantiation : path -> ident -> state -> list memory_val -> stat
       | _ => False
       end ->
       s' = update_memory
-             (compose (set' p (MPointer (BareName module)))
-                 (set_args' (map (name_cons p) (map param_to_name constructor_params)) args))
+             (compose (PathMap.set p (MPointer [module]))
+                 (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
              s ->
       exec_instantiation p module s args s'.
+
+Inductive instantiate_prog : (@program tags_t) -> mem -> Prop :=
+  .
+
+(* Fixpoint load_decl (p : path) (decl : @Declaration tags_t) (e : env) (ge : genv) : env * genv :=
+  match decl with
+  | DeclConstant _ _ name _ =>
+      
+                 
+  | DeclControl _ _ _ _ constructor_params' _ _
+  | _ => PathMap.empty
+  end. *)
+
+Definition add_name (p : path) (name : ident) (e : env) : env :=
+  if path_equivb p nil then
+    IdentMap.set name (Global [name]) e
+  else
+    IdentMap.set name (Instance (tl p ++ [name])) e.
+
+Definition add_name' (p : path) (e : env) (name : ident) : env :=
+  add_name p name e.
+
+Definition add_names (p : path) (names : list ident) (e : env) : env :=
+  fold_left (add_name' p) names e.
+
+(* Fixpoint load_stmt (stmt : @Statement tags_t) (ge : genv) := *)
+Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : env * genv :=
+  let (e, ge) := ege in
+  match decl with
+  | DeclConstant _ _ name _ =>
+      (add_name p name e, ge)
+  | DeclControl _ name type_params params constructor_params locals apply =>
+      let params := map param_to_name params in
+      let constructor_params := map param_to_name constructor_params in
+      let e' := add_names (p ++ [name]) (params ++ constructor_params) e in
+      let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
+      (add_name p name e,
+        PathMap.set (p ++ [name]) (FInternal p [name] e' params apply) ge)
+  | DeclFunction _ _ name type_params params body =>
+      let params := map param_to_name params in
+      (add_name p name e,
+        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params body) ge)
+  | DeclVariable _ _ name _ =>
+      (add_name p name e, ge)
+  | _ => (IdentMap.empty, PathMap.empty)
+  end.
+
+Definition load_prog (prog : @program tags_t) : genv :=
+  match prog with
+  | Program decls => snd (fold_left (load_decl nil) decls (IdentMap.empty, PathMap.empty))
+  end.
 
 End Semantics.

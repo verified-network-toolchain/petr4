@@ -63,10 +63,7 @@ End PathMap.
 
 End PathMap.
 
-Class External := {
-  ExternalState : Type(* ;
-  ExternalDummy : Type *)
-}.
+
 
 Section Semantics.
 
@@ -79,6 +76,11 @@ Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 
+Class External := {
+  ExternalState : Type;
+  GetControlParam : ExternalState -> ident -> option val
+}.
+
 Context `{External}.
 
 Inductive memory_val :=
@@ -86,7 +88,8 @@ Inductive memory_val :=
   (* Pointer of program level references those are not available as normal values,
       including pointers to methods and functions,
         and pointers to instances. *)
-  | MPointer (p : path).
+  | MInstance (p : path)
+  | MClass (name : ident).
   (* Should these pointers be paths or locs? *)
 
 Definition mem := @PathMap.t tags_t memory_val.
@@ -137,7 +140,13 @@ Axiom ident_to_path : forall (e : env) (i : ident) (this : path), path.
 
 Inductive fundef :=
   (* this_path = nil: global; this_path <> nil: instance *)
-  | FInternal (this_path : path) (decl_path : path) (e : env) (params : list ident) (body : @Block tags_t)
+  | FInternal
+      (this_path : path)
+      (decl_path : path)
+      (e : env)
+      (params : list ident)
+      (ctrl_params : list ident)
+      (body : @Block tags_t)
   | FExternal.
 
 Axiom dummy_fundef : fundef.
@@ -149,7 +158,6 @@ Definition genv := path -> option fundef.
   match p with
   | BareName  *)
 
-Axiom get_decl : genv -> ident -> option (@Declaration tags_t).
 Variable ge : genv.
 
 (* Inductive deref_loc (* (ty: type) *) (m : mem) (this : path) (name : ident) : (* trace *) memory_val -> Prop :=
@@ -182,13 +190,20 @@ Inductive outcome : Type :=
    | Out_normal : outcome
    | Out_return : option val -> outcome.
 
+Definition get_external_state (s : state) :=
+  let (_, es) := s in es.
+
+Definition get_ctrl_params (s : state) : list ident -> list (option val) :=
+  map (GetControlParam (get_external_state s)).
+
 Inductive exec_stmt : path -> path -> env -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
 with exec_block : path -> path -> env -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
 with exec_funcall : state -> fundef -> list val -> state -> list val -> option val -> Prop :=
-  | exec_funcall_internal : forall this_path decl_path e params body s args args' s' s'' vret,
-      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
+  | exec_funcall_internal : forall this_path decl_path e params ctrl_params body s args control_args args' s' s'' vret,
+      get_ctrl_params s ctrl_params = map Some control_args ->
+      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) (params ++ ctrl_params)) (args ++ control_args) args' s s' s'' ->
       exec_block this_path decl_path e s' body s'' (Out_return vret) ->
-      exec_funcall s (FInternal this_path decl_path e params body) args s'' args' vret.
+      exec_funcall s (FInternal this_path decl_path e params ctrl_params body) args s'' args' vret.
 (* with eval_funcall: mem -> fundef -> list val -> trace -> mem -> val -> Prop :=
   | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4,
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
@@ -202,11 +217,11 @@ with exec_funcall : state -> fundef -> list val -> state -> list val -> option v
       external_call ef ge vargs m t vres m' ->
       eval_funcall m (External ef targs tres cconv) vargs t m' vres. *)
 
-Inductive exec_instantiation : path -> ident -> state -> list memory_val -> state -> Prop :=
+(* Inductive exec_instantiation : path -> ident -> state -> list memory_val -> state -> Prop :=
   | exec_instantiation_control : forall p module s (constructor_params : list (@P4Parameter tags_t)) args s',
       match get_decl ge module with
       | Some (DeclControl _ _ _ _ constructor_params _ _) =>
-          s' = update_memory (compose (PathMap.set p (MPointer [module]))
+          s' = update_memory (compose (PathMap.set p (MClass module))
                     (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
                     s
       | _ => False
@@ -220,22 +235,102 @@ Inductive exec_instantiation : path -> ident -> state -> list memory_val -> stat
       | _ => False
       end ->
       s' = update_memory
-             (compose (PathMap.set p (MPointer [module]))
+             (compose (PathMap.set p (MClass module))
                  (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
              s ->
-      exec_instantiation p module s args s'.
+      exec_instantiation p module s args s'. *)
 
-Inductive instantiate_prog : (@program tags_t) -> mem -> Prop :=
-  .
-
-(* Fixpoint load_decl (p : path) (decl : @Declaration tags_t) (e : env) (ge : genv) : env * genv :=
-  match decl with
-  | DeclConstant _ _ name _ =>
-      
-                 
-  | DeclControl _ _ _ _ constructor_params' _ _
+Fixpoint instantiate (rev_decls : list (@Declaration tags_t)) (class : ident) (args : list memory_val) (p : path) (m : mem) : mem :=
+  match rev_decls with
+  | decl :: rev_decls' =>
+      match decl with
+      | DeclControl _ name _ _ constructor_params locals _ =>
+          if P4String.equivb class name then
+            let m := fold_left
+                (fun m decl =>
+                  match decl with
+                  | DeclInstantiation _ typ args name _ =>
+                      PathMap.empty (* instantiate rev_decls' name p m *)
+                  | _ => m
+                  end)
+                locals m
+            in
+            set_args (map (name_cons p) (map param_to_name constructor_params)) args
+                (PathMap.set p (MClass class) m)
+          else
+            instantiate rev_decls' class args p m
+      | _ =>
+          instantiate rev_decls' class args p m
+      end
   | _ => PathMap.empty
-  end. *)
+  end.
+
+Axiom dummy_tag : tags_t.
+
+(* Return the declaration whose name is [name]. *)
+Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=
+  match rev_decls with
+  | decl :: rev_decls' =>
+      match decl with
+      | DeclPackageType _ package_name _ _ =>
+          if P4String.equivb name package_name then
+            decl
+          else
+            get_decl rev_decls' name
+      | _ => get_decl rev_decls' name
+      end
+  | [] => DeclError dummy_tag nil
+  end.
+
+Definition get_param_type_names (decl : @Declaration tags_t) : list ident :=
+  match decl with
+  | DeclPackageType _ _ _ params =>
+      fold_right
+          (fun param =>
+            match param with
+            | MkParameter _ _ (TypSpecializedType (TypTypeName (BareName name)) _) _ _ => cons name
+            | _ => id
+            end
+          )
+          nil
+          params
+  | _ => nil
+  end.
+
+Axiom dummy_ident : ident.
+
+Definition instantiate_prog (prog : @program tags_t) : mem :=
+  match prog with
+  | Program decls =>
+      let rev_decls := rev decls in
+      match rev_decls with
+      | DeclInstantiation _ typ args name _ :: rev_decls' =>
+          (* We IMPLICITLY assert the last declaration is "main". *)
+          (* if P4String.equiv name "main" then *)
+          let package_name :=
+              match typ with
+              | TypSpecializedType (TypTypeName (BareName package_name)) _ => package_name
+              | _ => dummy_ident
+              end in
+          let params := get_param_type_names (get_decl rev_decls' package_name) in
+          (* for args *)
+          let instantiate_arg arg_name arg m :=
+                instantiate rev_decls' arg nil [name; arg_name] m
+          in
+          let arg_classes :=
+              map (fun e =>
+                  match e with
+                  | MkExpression _ (ExpNamelessInstantiation (TypSpecializedType (TypTypeName (BareName name)) _) _) _ _ =>
+                      name
+                  | _ => dummy_ident
+                  end)
+                  args
+          in
+          fold_left (fun m x => uncurry instantiate_arg x m) (combine params arg_classes) PathMap.empty
+      | _ => PathMap.empty
+      end
+  end
+  .
 
 Definition add_name (p : path) (name : ident) (e : env) : env :=
   if path_equivb p nil then
@@ -261,13 +356,18 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let e' := add_names (p ++ [name]) (params ++ constructor_params) e in
       let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] e' params apply) ge)
+        PathMap.set (p ++ [name]) (FInternal p [name] e' params nil apply) ge)
   | DeclFunction _ _ name type_params params body =>
       let params := map param_to_name params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params body) ge)
+        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params nil body) ge)
   | DeclVariable _ _ name _ =>
       (add_name p name e, ge)
+  | DeclAction _ name params ctrl_params body =>
+      let params := map param_to_name params in
+      let ctrl_params := map param_to_name ctrl_params in
+      (add_name p name e,
+        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) params ctrl_params body) ge)
   | _ => (IdentMap.empty, PathMap.empty)
   end.
 

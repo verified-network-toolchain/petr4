@@ -30,10 +30,30 @@ let get = function
   | Some x -> x
   | None -> raise (IncorrectType "Got None when expected Some")
 
+(** None is a hack that (I think) works, because declaration names won't be "" *)
+let declaration_name (d : P4.Declaration.t) : string = match P4.Declaration.name_opt d with 
+  | Some s -> snd s
+  | None -> ""
+
 let program_to_declarations (prog:P4.program) : P4.Declaration.t list = match prog with
   | Program decls -> decls 
 
-(** Finding main declaration names*)
+let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
+  | P4.Declaration.Error{members} -> Some d
+  | _ -> None
+
+let get_matchkind (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
+  | P4.Declaration.MatchKind{members} -> Some d
+  | _ -> None
+
+let get_error_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd err) with 
+  | P4.Declaration.Error {members} -> members
+  | _ -> raise (IncorrectType "Expected Error")
+
+let get_matchkind_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd err) with 
+  | P4.Declaration.MatchKind {members} -> members
+  | _ -> raise (IncorrectType "Expected MatchKind")
+
 let get_typename_name (t : P4.Type.t) : string = match (snd t) with 
   | TypeName typename -> P4.name_only typename
   | _ -> raise (IncorrectType "Expected TypeName")
@@ -61,6 +81,11 @@ let get_instantiation_args (d : P4.Declaration.t) : P4.Argument.t list option =
   | P4.Declaration.Instantiation {annotations; typ; args; name; init} -> Some args
   | _ -> None
 
+(** returns [errors], [matchkinds] *)
+let get_unnamed_declarations (prog:P4.Declaration.t list) : P4.Declaration.t list * P4.Declaration.t list = 
+  let unnamed = List.filter (fun d -> compare (declaration_name d) "" == 0) prog in 
+  (List.filter_map get_error unnamed), (List.filter_map get_matchkind unnamed)
+
 let get_declaration_type (p:P4.Declaration.t) : P4.Type.t option = 
   match (snd p) with 
   | P4.Declaration.Instantiation {annotations; typ; args; name; init} -> Some typ
@@ -86,10 +111,6 @@ let get_main_args (prog : P4.Declaration.t list) : string list =
   else if List.length main <> 1 then raise MultipleMains
   else (List.map get_argument_name (List.hd main))
 
-(** Failure s -> s is a hack that (I think) works, because declaration names won't have spaces *)
-let declaration_name (d : P4.Declaration.t) : string = try snd (P4.Declaration.name d) with 
-  | Failure s -> " This should never match to any declaration name"
-
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
   let declarations = List.filter (fun p -> declaration_name p == name) prog in 
@@ -104,6 +125,10 @@ let remove_declaration (prog:P4.Declaration.t list) (to_remove_name:string) : P4
 
 let remove_declarations (prog:P4.Declaration.t list) (to_remove_names:string list) : P4.Declaration.t list = 
   List.filter (fun d -> not (List.mem (declaration_name d) to_remove_names)) prog
+
+let p4strings_to_strings (lst:P4.P4String.t list) : string list = List.map snd lst
+
+let strings_to_p4strings (lst:string list) : P4.P4String.t list = List.map (fun x -> Info.dummy, x) lst
 
 let rec unique_strings (lst:string list) : string list = 
   match lst with 
@@ -286,6 +311,28 @@ let merge_block (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t =
   (fst b1, { annotations = (snd b1).annotations @ (snd b2).annotations;
              statements = (snd b1).statements @ (snd b2).statements })
 
+let merge_error (e1:P4.Declaration.t) (e2:P4.Declaration.t) : P4.Declaration.t = 
+  Info.dummy, P4.Declaration.Error 
+    {members =((e1 |> get_error_members |> p4strings_to_strings) @ (e2 |> get_error_members |> p4strings_to_strings))
+              |> unique_strings |> strings_to_p4strings}
+
+let merge_matchkind (m1:P4.Declaration.t) (m2:P4.Declaration.t) : P4.Declaration.t = 
+  Info.dummy, P4.Declaration.MatchKind 
+    {members =((m1 |> get_matchkind_members |> p4strings_to_strings) @ (m2 |> get_matchkind_members |> p4strings_to_strings))
+              |> unique_strings |> strings_to_p4strings}
+
+let merge_unnamed_declaration (d1:P4.Declaration.t) (d2:P4.Declaration.t) : P4.Declaration.t= 
+  match (snd d1), (snd d2) with
+  | P4.Declaration.Error{members=m1}, P4.Declaration.Error{members=m2} -> merge_error d1 d2
+  | P4.Declaration.MatchKind{members=m1}, P4.Declaration.MatchKind{members=m2} -> merge_matchkind d1 d2
+  | _ -> raise (IncorrectType "Expected both errors or both matchkinds")
+
+(** Make sure d1 and d2 length should be != 0 *)
+let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t list) : P4.Declaration.t = 
+  if List.length d1 == 0 && List.length d2 == 0 then raise (IncorrectType "SD")
+  else if List.length d1 == 0 then List.fold_left merge_unnamed_declaration (List.hd d2) d2
+  else List.fold_left merge_unnamed_declaration (List.hd d1) (List.tl d1 @ d2)
+
 let merge_deparser (d1 : P4.Declaration.t) (d2: P4.Declaration.t) : P4.Declaration.t = 
   let dp1 = control_info d1 in 
   let dp2 = control_info d2 in 
@@ -341,7 +388,7 @@ let new_control (params:P4.Parameter.t list) (control1:string) (control2:string)
 
 
 (** Checks length of list is 3 *)
-let verify_main (l:'a list) : 'a list = if List.length l <> 3 
+let verify_length (l:'a list) (length:int) : 'a list = if List.length l <> length
   then raise MissingDeclaration else l
 
 
@@ -353,18 +400,20 @@ let prog_merge (program1 : P4.program) (program2 : P4.program) (split_port : int
   let prog2 = program_to_declarations program2 in 
   let names1 = get_main_args prog1 in 
   let names2 = get_main_args prog2 in 
-  let package1 = verify_main (find_declarations_by_names prog1 names1) in 
-  let package2 = verify_main (find_declarations_by_names prog2 names2) in 
+  let package1 = verify_length (find_declarations_by_names prog1 names1) 3 in 
+  let package2 = verify_length (find_declarations_by_names prog2 names2) 3 in 
   let package_type = prog1 |> get_main |> get_declaration_type |> get |> get_typename_name in 
   let package_name = prog1 |> get_main |> declaration_name in 
   let parser_params = (List.hd package1) |> get_declaration_params |> get in
   let control_params = (List.nth package1 1) |> get_declaration_params in 
+  let unnamed_decs = (get_unnamed_declarations prog1), (get_unnamed_declarations prog2) in 
+  let merged_unnamed_decs = [merge_unnamed_declarations (unnamed_decs |> fst |> fst) (unnamed_decs |> snd |> fst); merge_unnamed_declarations (unnamed_decs |> fst |> snd) (unnamed_decs |> snd |> snd)] in 
   let new_parser = new_parser parser_params (List.hd names1) (List.hd names2) split_port in
   let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
   let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
   let new_package = create_declaration_instantiation "main" package_type (List.map create_argument_expression package_arguments) in 
-  let merged_program = (remove_declarations prog1 [List.nth names1 2; package_name]) @ (remove_declarations prog2 [List.nth names2 2; package_name]) in
+  let merged_program = (remove_declarations prog1 [List.nth names1 2; package_name; ""]) @ (remove_declarations prog2 [List.nth names2 2; package_name; ""]) in
   let merged_program_names = unique_strings(List.map declaration_name merged_program) in 
   let final_program = (List.fold_left unique_declarations_by_name merged_program merged_program_names) in 
-  P4.Program (final_program @ [new_parser; new_control; new_deparser; new_package])
+  P4.Program (merged_unnamed_decs @ final_program @ [new_parser; new_control; new_deparser; new_package])

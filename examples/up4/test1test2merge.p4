@@ -1,6 +1,9 @@
 error {
   NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
-  ParserTimeout, ParserInvalidArgument
+  ParserTimeout, ParserInvalidArgument, HOBO
+}
+match_kind {
+  exact, ternary, lpm
 }
 extern packet_in {
   void extract<T>(out T hdr);

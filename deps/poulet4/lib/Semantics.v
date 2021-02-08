@@ -16,15 +16,27 @@ Context {A: Type}.
 
 Definition t := ident -> option A.
 
-Axiom empty : t.
-Axiom get : ident -> t -> option A.
-Axiom set : ident -> A -> t -> t.
+Definition empty : t := fun _ => None.
+Definition get : ident -> t -> option A := fun id idMap => idMap id.
+Definition set : ident -> A -> t -> t :=
+  fun id value idMap x => if P4String.equivb x id then Some value else idMap x.
 
-Axiom sets : list ident -> list A -> t -> t.
+Definition sets: list ident -> list A -> t -> t :=
+  fun idList valueList idMap =>
+    fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
+              (combine idList valueList) idMap.
 
 End IdentMap.
 
 End IdentMap.
+
+Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
+  Nat.eqb (length al) (length bl) &&
+  forallb (uncurry eqb) (combine al bl).
+
+Definition path_equivb {tags_t: Type} :
+  (list (P4String.t tags_t)) -> (list (P4String.t tags_t)) -> bool :=
+  list_eqb (@P4String.equivb tags_t).
 
 Module PathMap.
 
@@ -37,11 +49,15 @@ Context {A: Type}.
 
 Definition t := path -> option A.
 
-Axiom empty : t.
-Axiom get : path -> t -> option A.
-Axiom set : path -> A -> t -> t.
+Definition empty : t := fun _ => None.
+Definition get : path -> t -> option A := fun p pM => pM p.
+Definition set : path -> A -> t -> t :=
+  fun p v pM x => if path_equivb x p then Some v else pM x.
 
-Axiom sets : list path -> list A -> t -> t.
+Definition sets : list path -> list A -> t -> t :=
+  fun pList vList pMap =>
+    fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
+              (combine pList vList) pMap.
 
 End PathMap.
 
@@ -73,18 +89,11 @@ Inductive memory_val :=
   | MPointer (p : path).
   (* Should these pointers be paths or locs? *)
 
-Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
-  Nat.eqb (length al) (length bl) &&
-    forallb (uncurry eqb) (combine al bl).
-
-Definition path_equivb : path -> path -> bool :=
-  list_eqb (@P4String.equivb tags_t).
-
 Definition mem := @PathMap.t tags_t memory_val.
 
 (* Definition set : mem -> path -> memory_val -> mem :=
   (fun m p v => fun p' => if path_equivb p p' then Some v else m p'). *)
-Axiom set_args : list path -> list memory_val -> mem -> mem.
+Definition set_args : list path -> list memory_val -> mem -> mem := PathMap.sets.
 (* Definition get : mem -> path -> option memory_val := id. *)
 
 Definition get_args : mem -> list path -> list (option memory_val) := (fun m => (map (fun p => PathMap.get p m))).
@@ -106,7 +115,12 @@ Definition update_memory (f : mem -> mem) (s : state) : state :=
 Definition get_memory (s : state) : mem :=
   let (m, _) := s in m.
 
-Axiom name_cons : path-> ident -> path.
+Definition name_cons : path -> ident -> path :=
+  fix name_cons (p: path) (id: ident): path :=
+    match p with
+    | nil => cons id nil
+    | cons id' restIds => cons id' (name_cons restIds id)
+    end.
 
 (* Inductive env_enty... *)
 

@@ -136,7 +136,12 @@ Definition env := @IdentMap.t tags_t env_entry.
 (* Axiom env_set : env -> P4String -> path -> env.
 Axiom env_get : env -> P4String -> option path. *)
 
-Axiom ident_to_path : forall (e : env) (i : ident) (this : path), path.
+Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
+  match (IdentMap.get i e) with
+  | Some (Global p) => Some p
+  | Some (Instance p) => Some (this ++ p)
+  | None => None
+  end.
 
 Inductive fundef :=
   (* this_path = nil: global; this_path <> nil: instance *)
@@ -344,7 +349,6 @@ Definition add_name' (p : path) (e : env) (name : ident) : env :=
 Definition add_names (p : path) (names : list ident) (e : env) : env :=
   fold_left (add_name' p) names e.
 
-(* Fixpoint load_stmt (stmt : @Statement tags_t) (ge : genv) := *)
 Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : env * genv :=
   let (e, ge) := ege in
   match decl with

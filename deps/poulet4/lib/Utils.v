@@ -88,3 +88,43 @@ Fixpoint of_bvector {w} (bits: Bvector w) : Z :=
   | (b :: bits') => Z.add (if b then 1 else 0) (Z.double (of_bvector bits'))
   end.
 Close Scope vector_scope.
+
+Section list_rec.
+  Context
+    {A: Type}
+    (PA: A -> Type)
+    (PAList: list A -> Type)
+    (HAListNil: PAList nil)
+    (HAListCons: forall (a : A) (l: list A),
+                 PA a -> PAList l -> PAList (a :: l))
+  .
+
+  Variable (rec: forall a: A, PA a).
+
+  Fixpoint list_rec (l: list A) : PAList l :=
+    match l with
+    | nil => HAListNil
+    | f :: l' =>
+      HAListCons f l' (rec f) (list_rec l')
+    end
+  .
+End list_rec.
+
+Section option_rec.
+  Context
+    {A: Type}
+    (PA: A -> Type)
+    (PAOption: option A -> Type)
+    (PAOptionNone: PAOption None)
+    (PAOptionSome: forall a: A, PA a -> PAOption (Some a))
+  .
+
+  Variable (rec: forall a: A, PA a).
+
+  Definition option_rec (o: option A) : PAOption o :=
+    match o with
+    | None => PAOptionNone
+    | Some a => PAOptionSome a (rec a)
+    end
+  .
+End option_rec.

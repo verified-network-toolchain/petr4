@@ -49,11 +49,8 @@ and format_cparam ((CParam (typ, name)): cparam) =
 and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params
 
-and format_cparam_method (name : cname) =
-  format_cname name 
-
-and format_cparams_method (params : cname list) =
-  text "(" ++ concat_map ~sep:(text ", ") ~f:format_cparam_method params ++ text ")"
+and format_cparams_method (params : cexpr list) =
+  text "(" ++ concat_map ~sep:(text ", ") ~f:format_cexpr params ++ text ")"
 
 and format_cstmt (stmt: cstmt) =
   match stmt with
@@ -78,6 +75,12 @@ and format_cstmt (stmt: cstmt) =
   | CMethodCall (name, params) ->
     format_cname name
     ++ format_cparams_method params
+  | CSwitch (_, _) ->
+     text "TODO printing CSwitch"
+  | CBlock _ ->
+     text "TODO printing CBlock"
+  | CWhile _ ->
+     text "TODO printing CWhile"
 
 and format_cstmts (stmts: cstmt list) =
   concat_map ~sep:(text ";\n") ~f:format_cstmt stmts
@@ -104,6 +107,12 @@ and format_cexpr (expr: cexpr) =
       | true -> text "true"
       | false -> text "false" end 
   | CString cname -> text cname 
+  | CGeq (e1, e2) ->
+     text "("
+     ++ format_cexpr e1
+     ++ text " >= "
+     ++ format_cexpr e1
+     ++ text ")"
 
 let format_cprog (prog: cprog) =
   concat_map ~sep:(text "\n") ~f:format_cdecl prog

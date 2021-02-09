@@ -24,7 +24,7 @@ let rec format_cdecl (decl: cdecl) =
        ++ format_cname name
        ++ text " {\n"
        ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields ++ text ";")
-    ++ text "\n} " ++ text name ++ text ";"
+    ++ text "\n}" ++ text name ++ text ";"
   | CFun (ret, name, params, body) ->
     box ~indent:2 (format_ctyp ret
                    ++ space

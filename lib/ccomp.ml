@@ -62,7 +62,8 @@ let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
                       begin match name with 
                       | BareName str -> CVar (snd str)
                       | _ -> failwith "unimplemented--" end
-                   | ExpressionMember x -> CMember (CVar (get_expr_mem x.expr), snd x.name)
+                   | ExpressionMember {expr; name} ->
+                      CAddrOf (CMember (CMember (CDeref (CVar "state"), get_expr_mem expr), snd name))
                    | _ -> failwith "unimplemented!"
                    end
      in
@@ -162,7 +163,7 @@ and translate_trans (states: int Map.t) (t: Prog.Parser.transition) : (C.cstmt l
   | Select _ ->
      failwith "translation of select() unimplemented"
 
-and translate_emit (s:Prog.Statement.t) : C.cstmt = 
+and translate_fun (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
      let state_arg = C.(CMember (CDeref (CVar "state"), get_expr_mem func)) in
@@ -172,7 +173,14 @@ and translate_emit (s:Prog.Statement.t) : C.cstmt =
 
 and apply_translate_emit (apply : Prog.Block.t) = 
   let stmt = (snd apply).statements in 
-  List.map ~f:translate_emit stmt 
+  List.map ~f:translate_fun stmt 
+
+and translate_extract (s : Prog.Parser.state list) : C.cstmt list= 
+  match s with 
+  | [] -> failwith "empty"
+  | h::t -> 
+    match snd h with 
+    | { annotations; name; statements; transition } -> List.map ~f:translate_fun statements
 
 and translate_param (param : Typed.Parameter.t) : C.cfield comp =
   let%bind ctyp = translate_type param.typ in

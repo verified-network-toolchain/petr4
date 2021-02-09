@@ -334,8 +334,7 @@ Definition instantiate_prog (prog : @program tags_t) : mem :=
           fold_left (fun m x => uncurry instantiate_arg x m) (combine params arg_classes) PathMap.empty
       | _ => PathMap.empty
       end
-  end
-  .
+  end.
 
 Definition add_name (p : path) (name : ident) (e : env) : env :=
   if path_equivb p nil then
@@ -372,7 +371,7 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let ctrl_params := map param_to_name ctrl_params in
       (add_name p name e,
         PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) params ctrl_params body) ge)
-  | _ => (IdentMap.empty, PathMap.empty)
+  | _ => (e, ge)
   end.
 
 Definition load_prog (prog : @program tags_t) : genv :=

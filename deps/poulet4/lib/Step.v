@@ -28,7 +28,7 @@ Section Step.
   Definition states_to_block (ss: list Statement) : Block :=
     List.fold_right BlockCons (BlockEmpty tags_dummy) ss.
 
-  Fixpoint lookup_state (states: list ParserState) (name: P4String) : option ParserState := 
+  Fixpoint lookup_state (states: list ParserState) (name: P4String) : option ParserState :=
     match states with
     | List.nil => None
     | s :: states' =>
@@ -38,11 +38,11 @@ Section Step.
       else lookup_state states' name
     end.
 
-  Definition step (p: ValueObject) (start: P4String) : env_monad tags_t P4String := 
+  Definition step (p: ValueObject) (start: P4String) : env_monad tags_t P4String :=
     match p with
     | ValObjParser env _ params locals states =>
       match lookup_state states start with
-      | Some nxt => 
+      | Some nxt =>
         let 'MkParserState _ _ statements transition := nxt in
         let blk := StatBlock (states_to_block statements) in
         let* _ := eval_statement _ tags_dummy (MkStatement tags_dummy blk Typed.StmUnit) in
@@ -53,14 +53,14 @@ Section Step.
     | _ => state_fail Internal
     end.
 
-  (* TODO: formalize progress with respect to a header, such that if the parser 
+  (* TODO: formalize progress with respect to a header, such that if the parser
   always makes forward progress then there exists a fuel value for which
-  the parser either rejects or accepts (or errors, but not due to lack of fuel) 
+  the parser either rejects or accepts (or errors, but not due to lack of fuel)
    *)
-  Fixpoint step_trans (p: ValueObject) (fuel: nat) (start: P4String) : env_monad tags_t unit := 
-    match fuel with 
+  Fixpoint step_trans (p: ValueObject) (fuel: nat) (start: P4String) : env_monad tags_t unit :=
+    match fuel with
     | 0   => state_fail Internal (* TODO: add a separate exception for out of fuel? *)
-    | S x => let* state' := step p start in 
+    | S x => let* state' := step p start in
             if P4String.equivb state' accept
             then mret tt
             else if P4String.equivb state' reject

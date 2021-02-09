@@ -33,13 +33,13 @@ Fixpoint rotate_left_nat {A: Type} (elements: list A) (count: nat) (pad: A) : op
   end.
 
 Definition rotate_left_z {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
-  match count with 
+  match count with
   | Zneg _ => None
   | Zpos count' => rotate_left_nat elements (Pos.to_nat count') pad
   | Z0 => rotate_left_nat elements 0 pad
   end.
 
-  
+
 Fixpoint rotate_right_nat {A: Type} (elements: list A) (count: nat) (pad: A) : option (list A) :=
   match count with
   | 0 => Some elements
@@ -52,7 +52,7 @@ Fixpoint rotate_right_nat {A: Type} (elements: list A) (count: nat) (pad: A) : o
   end.
 
 Definition rotate_right_z {A: Type} (elements: list A) (count: Z) (pad: A) : option (list A) :=
-  match count with 
+  match count with
   | Zneg _ => None
   | Zpos count' => rotate_right_nat elements (Pos.to_nat count') pad
   | Z0 => rotate_right_nat elements 0 pad
@@ -61,7 +61,7 @@ Definition rotate_right_z {A: Type} (elements: list A) (count: Z) (pad: A) : opt
 Definition list_slice_z {A: Type} (l: list A) (lo: Z) (hi: Z) : option (list A).
 Admitted.
 
-Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) := 
+Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list A) :=
   match (lo, hi) with
   | (0, 0)          => Some nil
   | (S _, 0)        => None

@@ -31,7 +31,7 @@ let rec format_cdecl (decl: cdecl) =
                    ++ format_cname name
                    ++ format_cparams params
                    ++ text " {\n"
-                   ++ format_cstmts body ++ text ";")
+                   ++ format_cstmts body)
     ++ text "\n}"
   | CInclude name ->
     text "#include \"" ++ text name ++ text "\""
@@ -75,15 +75,22 @@ and format_cstmt (stmt: cstmt) =
   | CMethodCall (name, params) ->
     format_cname name
     ++ format_cparams_method params
-  | CSwitch (_, _) ->
-    text "TODO printing CSwitch"
-  | CBlock _ ->
-    text "TODO printing CBlock"
-  | CWhile _ ->
-    text "TODO printing CWhile"
+  | CSwitch (cond, cases) ->
+    box ~indent:2 (text "switch (" ++ format_cexpr cond ++ text ") {\n"
+                   ++ format_ccases cases)
+    ++ text "\n}"
+  | CBlock stmts ->
+    text "{\n"
+    ++ box ~indent:2 (format_cstmts stmts)
+    ++ text "\n}"
+  | CWhile (cond, body) ->
+    box ~indent:2 (text "while (" ++ format_cexpr cond ++ text ") {\n"
+                   ++ format_cstmt body)
+    ++ text "\n}"
 
 and format_cstmts (stmts: cstmt list) =
-  concat_map ~sep:(text ";\n") ~f:format_cstmt stmts
+  let f s = format_cstmt s ++ text ";" in
+  concat_map ~sep:(text "\n") ~f stmts
 
 and format_cexpr (expr: cexpr) =
   match expr with
@@ -94,7 +101,7 @@ and format_cexpr (expr: cexpr) =
   | CDeref exp ->
     text "(*" ++ format_cexpr exp ++ text ")"
   | CAddrOf exp ->
-    text "&" ++ format_cexpr exp
+    text "&" ++ text "(" ++ format_cexpr exp ++ text ")"
   | CMember (exp, field) ->
     text "(" ++ format_cexpr exp ++ text ")." ++ format_cname field
   | CCall (func, args) ->
@@ -108,13 +115,22 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname -> text cname 
   | CGeq (e1, e2) ->
-    text "("
-    ++ format_cexpr e1
-    ++ text " >= "
-    ++ format_cexpr e1
-    ++ text ")"
+     text "("
+     ++ format_cexpr e1
+     ++ text " >= "
+     ++ format_cexpr e2
+     ++ text ")"
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
+
+and format_ccases (cases: ccase list) =
+  concat_map ~sep:(text "\n") ~f:format_ccase cases
+
+and format_ccase (case: ccase) =
+  let (CCase (lbl, stmt)) = case in
+  box ~indent:2 (format_cexpr lbl ++ text ":\n"
+                 ++ format_cstmts stmt
+                 ++ text "\nbreak;")
 
 let format_cprog (prog: cprog) =
   concat_map ~sep:(text "\n") ~f:format_cdecl prog

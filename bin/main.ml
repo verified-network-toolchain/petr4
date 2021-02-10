@@ -50,10 +50,10 @@ let parse_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> anon ("p4file" %: string))
     (fun verbose include_dir p4file () ->
-      match parse_file include_dir p4file verbose with
-      | `Ok _ ->
+       match parse_file include_dir p4file verbose with
+       | `Ok _ ->
          ()
-      | `Error (info, exn) ->
+       | `Error (info, exn) ->
          Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
 
 let check_command =
@@ -85,24 +85,24 @@ let eval_command =
        print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
 
 let do_stf include_dir stf_file p4_file =
-    let print_err (e_port, e_pkt) (a_port, a_pkt) =
-        Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
-                      e_port e_pkt a_port a_pkt
-    in
-    let print_ok (a_port, a_pkt) =
-        Printf.printf "Packet matched the expected packet.\nPacket:   port %s pkt %s\n\n"
-                      a_port a_pkt
-    in
-    let check_pkt (expected_pkt, actual_pkt) =
-        if not (Petr4test.Test.packet_equal expected_pkt actual_pkt)
-        then print_err expected_pkt actual_pkt
-        else print_ok actual_pkt
-    in
-    let expected, results =
-      Petr4test.Test.run_stf include_dir stf_file p4_file
-    in
-    let pkts = List.zip_exn expected results in
-    List.iter ~f:check_pkt pkts
+  let print_err (e_port, e_pkt) (a_port, a_pkt) =
+    Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
+      e_port e_pkt a_port a_pkt
+  in
+  let print_ok (a_port, a_pkt) =
+    Printf.printf "Packet matched the expected packet.\nPacket:   port %s pkt %s\n\n"
+      a_port a_pkt
+  in
+  let check_pkt (expected_pkt, actual_pkt) =
+    if not (Petr4test.Test.packet_equal expected_pkt actual_pkt)
+    then print_err expected_pkt actual_pkt
+    else print_ok actual_pkt
+  in
+  let expected, results =
+    Petr4test.Test.run_stf include_dir stf_file p4_file
+  in
+  let pkts = List.zip_exn expected results in
+  List.iter ~f:check_pkt pkts
 
 
 let stf_command =
@@ -115,7 +115,7 @@ let stf_command =
      +> flag "-stf" (required string) ~doc: "<stf file> Select the .stf script to run"
      +> anon ("p4file" %: string))
     (fun verbose include_dir stf_file p4_file () ->
-        do_stf include_dir stf_file p4_file)
+       do_stf include_dir stf_file p4_file)
 
 let up4comp_command =
   let open Command.Spec in
@@ -125,9 +125,10 @@ let up4comp_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-p" (required int) ~doc:"<port> Port number to split between files"
      +> anon ("p4file1" %: string)
-     +> anon ("p4file2" %: string))
-    (fun verbose include_dirs split_port file1 file2 () ->
-       up4comp_files verbose include_dirs split_port file1 file2)
+     +> anon ("p4file2" %: string)
+     +> anon ("p4import" %: string))
+    (fun verbose include_dirs split_port file1 file2 import () ->
+       up4comp_files verbose include_dirs split_port file1 file2 import)
 
 let command =
   Command.group

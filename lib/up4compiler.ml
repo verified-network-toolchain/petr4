@@ -38,6 +38,9 @@ let declaration_name (d : P4.Declaration.t) : string = match P4.Declaration.name
 let program_to_declarations (prog:P4.program) : P4.Declaration.t list = match prog with
   | Program decls -> decls 
 
+let get_program_declaration_name (prog:P4.Declaration.t list) : string list = 
+  List.filter (fun x -> compare x "" <> 0) (List.map declaration_name prog)
+
 let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.Error{members} -> Some d
   | _ -> None
@@ -417,3 +420,28 @@ let prog_merge (program1 : P4.program) (program2 : P4.program) (split_port : int
   let merged_program_names = unique_strings(List.map declaration_name merged_program) in 
   let final_program = (List.fold_left unique_declarations_by_name merged_program merged_program_names) in 
   P4.Program (merged_unnamed_decs @ final_program @ [new_parser; new_control; new_deparser; new_package])
+
+(** This assumes program1 and program2 have the same argument in their parser.
+    names1 is [parser_name, control_name, deparser_name], a string list
+    package1 is [parser, control, deparser], a declaration.t list *)
+let prog_merge_package (program1 : P4.program) (program2 : P4.program) (split_port : int) (imported_package:P4.program) : P4.program = 
+  let prog1 = program_to_declarations program1 in 
+  let prog2 = program_to_declarations program2 in 
+  let imported = imported_package |> program_to_declarations |> get_program_declaration_name in
+  let names1 = get_main_args prog1 in 
+  let names2 = get_main_args prog2 in 
+  let package1 = verify_length (find_declarations_by_names prog1 names1) 3 in 
+  let package2 = verify_length (find_declarations_by_names prog2 names2) 3 in 
+  let package_type = prog1 |> get_main |> get_declaration_type |> get |> get_typename_name in 
+  let package_name = prog1 |> get_main |> declaration_name in 
+  let parser_params = (List.hd package1) |> get_declaration_params |> get in
+  let control_params = (List.nth package1 1) |> get_declaration_params in 
+  let unnamed_decs = (get_unnamed_declarations prog1), (get_unnamed_declarations prog2) in 
+  let merged_unnamed_decs = [merge_unnamed_declarations (unnamed_decs |> fst |> fst) (unnamed_decs |> snd |> fst); merge_unnamed_declarations (unnamed_decs |> fst |> snd) (unnamed_decs |> snd |> snd)] in 
+  let new_parser = new_parser parser_params (List.hd names1) (List.hd names2) split_port in
+  let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
+  let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
+  let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
+  let new_package = create_declaration_instantiation "main" package_type (List.map create_argument_expression package_arguments) in 
+  let merged_program = (remove_declarations prog1 [List.nth names1 2; package_name; ""]) @ (remove_declarations prog2 ([List.nth names2 2; package_name; ""] @ imported)) in
+  P4.Program (merged_unnamed_decs @ merged_program @ [new_parser; new_control; new_deparser; new_package])

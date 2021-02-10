@@ -54,20 +54,20 @@ let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
   match e with
   | [] -> []
   | h::t ->
-     let fst =
-       match h with 
-       | None -> C.CVar "don't care compilation unimplemented"
-       | Some s -> begin match (snd s).expr with
-                   | Name name -> 
-                      begin match name with 
-                      | BareName str -> CVar (snd str)
-                      | _ -> failwith "unimplemented--" end
-                   | ExpressionMember {expr; name} ->
-                      CAddrOf (CMember (CMember (CDeref (CVar "state"), get_expr_mem expr), snd name))
-                   | _ -> failwith "unimplemented!"
-                   end
-     in
-     fst::get_expr_opt_lst t  
+    let fst =
+      match h with 
+      | None -> C.CVar "don't care compilation unimplemented"
+      | Some s -> begin match (snd s).expr with
+          | Name name -> 
+            begin match name with 
+              | BareName str -> CVar (snd str)
+              | _ -> failwith "unimplemented--" end
+          | ExpressionMember {expr; name} ->
+            CAddrOf (CPointer (CMember ((CVar "state"), get_expr_mem expr), snd name))
+          | _ -> failwith "unimplemented!"
+        end
+    in
+    fst::get_expr_opt_lst t  
 
 let translate_expr_comp (e: Prog.Expression.t) : C.cexpr comp =
   match (snd e).expr with
@@ -87,10 +87,10 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt comp =
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
                 type_args = _;
                 args = [Some header]} ->
-     assert_packet_in (snd pkt).typ;
-     let header_type = (snd header).typ in
-     print_s [%message "type" ~typ:(header_type: Typed.Type.t)];
-     C.CMethodCall ("extract", [C.CIntLit 16]) |> return
+    assert_packet_in (snd pkt).typ;
+    let header_type = (snd header).typ in
+    print_s [%message "type" ~typ:(header_type: Typed.Type.t)];
+    C.CMethodCall ("extract", [C.CIntLit 16]) |> return
   | _ -> C.CVarInit (CInt, "todo", CIntLit 123) |> return
 
 let translate_stmts (stmts: Prog.Statement.t list) : (C.cstmt list) comp =
@@ -121,9 +121,9 @@ let rec translate_decl (d: Prog.Declaration.t) : (C.cdecl list) comp =
   | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     let%bind params = translate_params params in
     [C.CRec (C.CStruct (snd name, params), 
-            C.CFun (CVoid, snd name ^ "_fun", 
-                    [CParam (CTypeName (snd name), "*state")], 
-                    apply_translate_emit apply))] |> return 
+             C.CFun (CVoid, snd name ^ "_fun", 
+                     [CParam (CTypeName (snd name), "*state")], 
+                     apply_translate_emit apply))] |> return 
   | _ -> [C.CInclude "todo"] |> return
 
 and translate_parser_locals (locals: Prog.Declaration.t list) : (C.cstmt list) comp =
@@ -158,17 +158,17 @@ and translate_parser_state (states: int Map.t) (state: Prog.Parser.state) : C.cc
 and translate_trans (states: int Map.t) (t: Prog.Parser.transition) : (C.cstmt list) comp =
   match snd t with
   | Direct {next} ->
-     let nextid = Map.find_exn states (snd next) in
-     return C.[CAssign (next_state_var, CIntLit nextid)]
+    let nextid = Map.find_exn states (snd next) in
+    return C.[CAssign (next_state_var, CIntLit nextid)]
   | Select _ ->
-     failwith "translation of select() unimplemented"
+    failwith "translation of select() unimplemented"
 
 and translate_fun (s:Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-     let state_arg = C.(CMember (CDeref (CVar "state"), get_expr_mem func)) in
-     let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in
-     C.CMethodCall (get_expr_name func, args)
+    let state_arg = C.(CPointer (CVar "state", get_expr_mem func)) in
+    let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in
+    C.CMethodCall (get_expr_name func, args)
   | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
 
 and apply_translate_emit (apply : Prog.Block.t) = 

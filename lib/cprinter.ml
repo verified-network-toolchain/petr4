@@ -76,11 +76,11 @@ and format_cstmt (stmt: cstmt) =
     format_cname name
     ++ format_cparams_method params
   | CSwitch (_, _) ->
-     text "TODO printing CSwitch"
+    text "TODO printing CSwitch"
   | CBlock _ ->
-     text "TODO printing CBlock"
+    text "TODO printing CBlock"
   | CWhile _ ->
-     text "TODO printing CWhile"
+    text "TODO printing CWhile"
 
 and format_cstmts (stmts: cstmt list) =
   concat_map ~sep:(text ";\n") ~f:format_cstmt stmts
@@ -94,7 +94,7 @@ and format_cexpr (expr: cexpr) =
   | CDeref exp ->
     text "(*" ++ format_cexpr exp ++ text ")"
   | CAddrOf exp ->
-    text "(&" ++ format_cexpr exp ++ text ")"
+    text "&" ++ format_cexpr exp
   | CMember (exp, field) ->
     text "(" ++ format_cexpr exp ++ text ")." ++ format_cname field
   | CCall (func, args) ->
@@ -108,11 +108,13 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname -> text cname 
   | CGeq (e1, e2) ->
-     text "("
-     ++ format_cexpr e1
-     ++ text " >= "
-     ++ format_cexpr e1
-     ++ text ")"
+    text "("
+    ++ format_cexpr e1
+    ++ text " >= "
+    ++ format_cexpr e1
+    ++ text ")"
+  | CPointer (exp, field) ->
+    format_cexpr exp ++ text "->" ++ format_cname field
 
 let format_cprog (prog: cprog) =
   concat_map ~sep:(text "\n") ~f:format_cdecl prog

@@ -51,5 +51,6 @@ and cexpr =
   | CBoolExp of bool
   | CString of cname 
   | CGeq of cexpr * cexpr
+  | CPointer of cexpr * cname
 
 type cprog = cdecl list

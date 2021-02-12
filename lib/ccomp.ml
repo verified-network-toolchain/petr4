@@ -1,4 +1,6 @@
+module Petr4Info = Info
 open Core_kernel
+module Info = Petr4Info
 module C = Csyntax
 module P4 = Types
 
@@ -78,6 +80,12 @@ let translate_expr_comp (e: Prog.Expression.t) : C.cexpr comp =
     end
   | _ -> (C.CIntLit 123) |> return
 
+let type_width hdr_type =
+  let empty_env = Prog.Env.CheckerEnv.empty_t () in
+  hdr_type
+  |> Checker.min_size_in_bits empty_env Info.dummy
+  |> Bigint.to_int_exn
+
 let assert_packet_in (typ: Typed.Type.t) : unit =
   (* TODO actually check the type is appropriate? *)
   ()
@@ -85,12 +93,13 @@ let assert_packet_in (typ: Typed.Type.t) : unit =
 let translate_stmt (stmt: Prog.Statement.t) : C.cstmt comp =
   match (snd stmt).stmt with 
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
-                type_args = _;
-                args = [Some header]} ->
+                type_args = [hdr_typ];
+                args} ->
     assert_packet_in (snd pkt).typ;
-    let header_type = (snd header).typ in
-    print_s [%message "type" ~typ:(header_type: Typed.Type.t)];
-    C.CMethodCall ("extract", [C.CIntLit 16]) |> return
+    let width = type_width hdr_typ in
+    let args = get_expr_opt_lst args in
+    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
+    C.CMethodCall ("extract", pkt_arg :: args @ [C.CIntLit width]) |> return
   | _ -> C.CVarInit (CInt, "todo", CIntLit 123) |> return
 
 let translate_stmts (stmts: Prog.Statement.t list) : (C.cstmt list) comp =

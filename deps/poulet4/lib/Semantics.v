@@ -249,6 +249,21 @@ Fixpoint instantiate (rev_decls : list (@Declaration tags_t)) (class : ident) (a
   match rev_decls with
   | decl :: rev_decls' =>
       match decl with
+      | DeclParser _ name _ _ constructor_params _ _ =>
+          if P4String.equivb class name then
+            (* let m := fold_left
+                (fun m decl =>
+                  match decl with
+                  | DeclInstantiation _ typ args name _ =>
+                      PathMap.empty (* instantiate rev_decls' name p m *)
+                  | _ => m
+                  end)
+                locals m
+            in *)
+            set_args (map (name_cons p) (map param_to_name constructor_params)) args
+                (PathMap.set p (MClass class) m)
+          else
+            instantiate rev_decls' class args p m
       | DeclControl _ name _ _ constructor_params locals _ =>
           if P4String.equivb class name then
             let m := fold_left
@@ -270,6 +285,9 @@ Fixpoint instantiate (rev_decls : list (@Declaration tags_t)) (class : ident) (a
   | _ => PathMap.empty
   end.
 
+
+Axiom instantiate' : forall (rev_decls : list (@Declaration tags_t)) (class : ident) (args : list (@Expression tags_t)) (p : path) (m : mem), mem.
+
 Axiom dummy_tag : tags_t.
 
 (* Return the declaration whose name is [name]. *)
@@ -277,8 +295,10 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
   match rev_decls with
   | decl :: rev_decls' =>
       match decl with
-      | DeclPackageType _ package_name _ _ =>
-          if P4String.equivb name package_name then
+      | DeclParser _ name' _ _ _ _ _
+      | DeclControl _ name' _ _ _ _ _
+      | DeclPackageType _ name' _ _ =>
+          if P4String.equivb name name' then
             decl
           else
             get_decl rev_decls' name
@@ -287,24 +307,259 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
   | [] => DeclError dummy_tag nil
   end.
 
-Definition get_param_type_names (decl : @Declaration tags_t) : list ident :=
+Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident :=
   match decl with
-  | DeclPackageType _ _ _ params =>
+  | DeclParser _ _ _ _ constructor_params _ _
+  | DeclControl _ _ _ _ constructor_params _ _
+  | DeclPackageType _ _ _ constructor_params =>
       fold_right
           (fun param =>
             match param with
-            | MkParameter _ _ (TypSpecializedType (TypTypeName (BareName name)) _) _ _ => cons name
-            | _ => id
+            | MkParameter _ _ _ _ name => cons name
             end
           )
           nil
-          params
+          constructor_params
   | _ => nil
   end.
 
 Axiom dummy_ident : ident.
 
-Definition instantiate_prog (prog : @program tags_t) : mem :=
+Definition get_type_name (typ : @P4Type tags_t) : ident :=
+  match typ with
+  | TypSpecializedType (TypTypeName (BareName type_name)) _ => type_name
+  | TypTypeName (BareName type_name) => type_name
+  | _ => dummy_ident
+  end.
+
+(* Fixpoint fold_left2 {A B C} (f : A -> B -> C -> A) (acc : A) (al : list B) (bl : list C) : A :=
+  match al, bl with
+  | (x :: al), (y :: bl) => fold_left2 f (f acc x y) al bl
+  | _, _ => acc
+  end. *)
+
+(* Section Test.
+
+Inductive Tree :=
+  | nil
+  | node (childern : list Tree).
+
+Fixpoint size (rev_decls : list (@Declaration tags_t)) (t : Tree) :=
+  match t with
+  | nil => 0
+  | node childern =>
+      fold_left (fun acc t => acc + size rev_decls t) childern (length rev_decls)
+  end.
+
+Fixpoint size2 (rev_decls : list (@Declaration tags_t)) (t : Tree) (acc : nat) :=
+  match t with
+  | nil => acc
+  | node childern =>
+      fold_left (fun acc t => size2 rev_decls t acc) childern (acc + 1)
+  end.
+
+End Test. *)
+
+Fixpoint size_expr (rev_decls : list (@Declaration tags_t)) (expr : @Expression tags_t) :=
+  match expr with
+  | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+      let class_name := get_type_name typ in
+      let decl := get_decl rev_decls class_name in
+      let params := get_constructor_param_names decl in
+      (* let m := instantiate_exprs rev_decls args (map (name_cons p) params) m in *)
+      (* let m := fold_left2 (fun m param arg => instantiate_expr rev_decls arg (p ++ [param]) m) m params args in *)
+      let m := fold_left (fun acc arg => acc + size_expr rev_decls arg) args 1 in
+      m
+  | _ => 0
+  end.
+(* with instantiate_exprs (rev_decls : list (@Declaration tags_t)) (exprs : list (@Expression tags_t)) (ps : list path) (m : mem) : mem :=
+  match exprs, ps with
+  | expr :: exprs', p :: ps' =>
+      let m := instantiate_expr rev_decls expr p m in
+      instantiate_exprs rev_decls exprs' ps' m
+  | _, _ => m
+  end.
+
+  let instantiate_expr (rev_decls : list (@Declaration tags_t)) (expr : @Expression tags_t) (p : path) (m : mem) : mem :=
+    match expr with
+    | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+        let class_name := get_type_name typ in
+        let decl := get_decl rev_decls class_name in
+        let params := get_constructor_param_names decl in
+        let m := instantiate_exprs rev_decls args (map (name_cons p) params) m in
+        (* let m := fold_left2 (fun m param arg => instantiate_expr rev_decls arg (p ++ [param]) m) m params args in *)
+        m
+    | _ => m
+    end in *)
+
+(* (* Program *) Fixpoint instantiate_exprs (rev_decls : list (@Declaration tags_t)) (exprs : list (@Expression tags_t)) (ps : list path) (m : mem) {struct exprs} : mem :=
+
+
+  let instantiate_expr (rev_decls : list (@Declaration tags_t)) (expr : @Expression tags_t) (p : path) (m : mem) : mem :=
+    match expr with
+    | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+        let class_name := get_type_name typ in
+        let decl := get_decl rev_decls class_name in
+        let params := get_constructor_param_names decl in
+        let m := instantiate_exprs rev_decls args (map (name_cons p) params) m in
+        (* let m := fold_left2 (fun m param arg => instantiate_expr rev_decls arg (p ++ [param]) m) m params args in *)
+        m
+    | _ => m
+    end in
+
+
+
+  match exprs, ps with
+  | expr :: exprs', p :: ps' =>
+      let m := instantiate_expr rev_decls expr p m in
+      instantiate_exprs rev_decls exprs' ps' m
+  | _, _ => m
+  end. *)
+
+
+Definition ienv := @IdentMap.t tags_t path.
+
+
+Definition force {A} (default : A) (x : option A) : A :=
+  match x with
+  | Some x => x
+  | None => default
+  end.
+
+Axiom dummy_typ : @P4Type tags_t.
+
+(* Axiom A : Type.
+Axiom f g : nat -> nat.
+
+Definition bar' foo (l : list A) : nat :=
+  g (foo l).
+
+Fixpoint foo (l : list A) : nat :=
+  match l with
+  | _ :: l' => f (bar' foo l')
+  | nil => 0
+  end.
+
+Definition bar := bar' foo.
+
+with bar (l : list A) : nat :=
+  match l with
+  | _ :: l' => g (foo l')
+  | nil => 0
+  end.
+  g (foo l). *)
+
+Fixpoint instantiate_expr (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (args : list path) (p : path) (m : mem) {struct rev_decls} : path * mem :=
+  
+  
+  match rev_decls with
+  | decl :: rev_decls' =>
+      let instantiate_expr' :=
+        fix instantiate_expr' (* (rev_decls : list (@Declaration tags_t)) *) (e : ienv) (expr : @Expression tags_t) (p : path) (m : mem) {struct expr} : path * mem :=
+          match expr with
+          | MkExpression _ (ExpName (BareName name)) _ _ =>
+              (force nil (IdentMap.get name e), m)
+          | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+              let class_name := get_type_name typ in
+              let decl := get_decl rev_decls' class_name in
+              let params := get_constructor_param_names decl in
+              let instantiate_arg (acc : list path * mem * list ident) arg :=
+                let (acc', params) := acc in
+                let (args, m) := acc' in
+                let (arg, m) := instantiate_expr' (* rev_decls' *) e arg (p ++ [hd dummy_ident params]) m in
+                (* O(n^2) time complexity here. *)
+                (args ++ [arg], m, tl params) in
+              let (args, m) := fst (fold_left instantiate_arg args (nil, m, params)) in
+              let (_, m) := instantiate_expr rev_decls' e class_name args p m in
+              let m := PathMap.set p (MClass class_name) m in
+              (p, m)
+          | _ => (nil, m)
+          end in
+      let instantiate_decls (e : ienv) (decls : list (@Declaration tags_t)) (p : path) (m : mem) : mem :=
+        let instantiate_decl (em : ienv * mem) (decl : @Declaration tags_t) : ienv * mem :=
+          let (e, m) := em in
+          match decl with
+          | DeclInstantiation _ typ args name _ =>
+              let class_name := get_type_name typ in
+              let decl := get_decl rev_decls' class_name in
+              let (_, m) := instantiate_expr' (* rev_decls' *) e
+                                (MkExpression dummy_tag (ExpNamelessInstantiation typ args) dummy_typ Directionless) (p ++ [name]) m in
+              (IdentMap.set name (p ++ [name]) e, m)
+          | _ => (e, m)
+          end in
+        snd (fold_left instantiate_decl decls (e, m)) in
+      match decl with
+      | DeclParser _ class_name' _ _ _ _ _ =>
+          if P4String.equivb class_name class_name' then
+            (nil, m) (* TODO *)
+          else
+            instantiate_expr rev_decls' e class_name args p m
+      | DeclControl _ class_name' _ _ _ locals _ =>
+          if P4String.equivb class_name class_name' then
+            let params := get_constructor_param_names decl in
+            let m := PathMap.sets (map (name_cons p) params) (map MInstance args) m in
+            let e := IdentMap.sets params args e in
+            let m := instantiate_decls e locals p m in
+            (p, m)
+          else
+            instantiate_expr rev_decls' e class_name args p m
+      (* | DeclPackageType _ class_name' _ _ => *) (* Maybe we need this case. *)
+      | _ => instantiate_expr rev_decls' e class_name args p m
+      end
+  | nil => (nil, m)
+  end.
+
+Definition instantiate_expr' :=
+  fix instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path) (m : mem) {struct expr} : path * mem :=
+    match expr with
+    | MkExpression _ (ExpName (BareName name)) _ _ =>
+        (force nil (IdentMap.get name e), m)
+    | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+        let class_name := get_type_name typ in
+        let decl := get_decl rev_decls class_name in
+        let params := get_constructor_param_names decl in
+        let instantiate_arg (acc : list path * mem * list ident) arg :=
+          let (acc', params) := acc in
+          let (args, m) := acc' in
+          let (arg, m) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m in
+          (* O(n^2) time complexity here. *)
+          (args ++ [arg], m, tl params) in
+        let (args, m) := fst (fold_left instantiate_arg args (nil, m, params)) in
+        let (_, m) := instantiate_expr rev_decls e class_name args p m in
+        let m := PathMap.set p (MClass class_name) m in
+        (p, m)
+    | _ => (nil, m)
+    end.
+
+(* Program Fixpoint instantiate_expr (rev_decls : list (@Declaration tags_t)) (expr : @Expression tags_t) (p : path) (m : mem) {struct expr} : mem :=
+  match expr with
+  | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+      let class_name := get_type_name typ in
+      let decl := get_decl rev_decls class_name in
+      let params := get_constructor_param_names decl in
+      let m := instantiate_exprs rev_decls args (map (name_cons p) params) m in
+      (* let m := fold_left2 (fun m param arg => instantiate_expr rev_decls arg (p ++ [param]) m) m params args in *)
+      m
+  | _ => m
+  end
+with instantiate_exprs (rev_decls : list (@Declaration tags_t)) (exprs : list (@Expression tags_t)) (ps : list path) (m : mem) : mem :=
+  match exprs, ps with
+  | expr :: exprs', p :: ps' =>
+      let m := instantiate_expr rev_decls expr p m in
+      instantiate_exprs rev_decls exprs' ps' m
+  | _, _ => m
+  end. *)
+
+(* Fixpoint *) Definition instantiate_package (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t)
+                             (args : list (@Expression tags_t)) (p : path) (m : mem) : mem :=
+  let package_name := get_type_name typ in
+  let params := get_constructor_param_names (get_decl rev_decls package_name) in
+  (* for args *)
+  (* Only allow nameless instance as argument for package for now. *)
+  let instantiate_arg arg_name arg m :=
+    snd (instantiate_expr' rev_decls e arg (p ++ [arg_name]) m) in
+  fold_left (fun m x => uncurry instantiate_arg x m) (combine params args) PathMap.empty.
+(* Definition instantiate_prog (prog : @program tags_t) : mem :=
   match prog with
   | Program decls =>
       let rev_decls := rev decls in
@@ -317,11 +572,10 @@ Definition instantiate_prog (prog : @program tags_t) : mem :=
               | TypSpecializedType (TypTypeName (BareName package_name)) _ => package_name
               | _ => dummy_ident
               end in
-          let params := get_param_type_names (get_decl rev_decls' package_name) in
+          let params := get_constructor_param_names (get_decl rev_decls' package_name) in
           (* for args *)
           let instantiate_arg arg_name arg m :=
-                instantiate rev_decls' arg nil [name; arg_name] m
-          in
+                instantiate rev_decls' arg nil [name; arg_name] m in
           let arg_classes :=
               map (fun e =>
                   match e with
@@ -329,11 +583,33 @@ Definition instantiate_prog (prog : @program tags_t) : mem :=
                       name
                   | _ => dummy_ident
                   end)
-                  args
-          in
+                  args in
           fold_left (fun m x => uncurry instantiate_arg x m) (combine params arg_classes) PathMap.empty
       | _ => PathMap.empty
       end
+  end. *)
+
+Fixpoint instantiate_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t)) (e : ienv) (m : mem) : mem :=
+  match decls with
+  | [] => m
+  | decl :: decls' =>
+      match decl with
+      | DeclInstantiation _ typ args name _ =>
+          (* Currently, we only consider pakcage instantiation on the top level. *)
+          let m := instantiate_package rev_decls e typ args [name] m in
+          instantiate_decls' decls' (decl :: rev_decls) (IdentMap.set name [name] e) m
+      | _ =>
+          instantiate_decls' decls' (decl :: rev_decls) e m
+      end
+  end.
+
+Definition instantiate_decls (decls : list (@Declaration tags_t)) : forall (m : mem), mem :=
+  instantiate_decls' decls nil IdentMap.empty.
+
+Definition instantiate_prog (prog : @program tags_t) : mem :=
+  match prog with
+  | Program decls =>
+      instantiate_decls decls PathMap.empty
   end.
 
 Definition add_name (p : path) (name : ident) (e : env) : env :=
@@ -353,6 +629,7 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
   match decl with
   | DeclConstant _ _ name _ =>
       (add_name p name e, ge)
+  (* TODO parser *)
   | DeclControl _ name type_params params constructor_params locals apply =>
       let params := map param_to_name params in
       let constructor_params := map param_to_name constructor_params in

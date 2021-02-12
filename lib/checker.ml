@@ -3702,6 +3702,8 @@ and fold_unique members (_, member) =
 and type_error env info members =
   let add_err env (e_info, e) =
     let name = QualifiedName ([], (e_info, "error." ^ e)) in
+    if CheckerEnv.find_type_of_opt name env <> None
+    then raise_s [%message "error already declared" ~err:e];
     env
     |> CheckerEnv.insert_type_of name Type.Error
     |> CheckerEnv.insert_const name (VError e)
@@ -3713,6 +3715,8 @@ and type_error env info members =
 and type_match_kind env info members =
   let add_mk env e =
     let name = QualifiedName ([], e) in
+    if CheckerEnv.find_type_of_opt name env <> None
+    then raise_s [%message "match_kind already declared" ~match_kind:(snd e)];
     env
     |> CheckerEnv.insert_type_of name Type.MatchKind
     |> CheckerEnv.insert_const name (VMatchKind (snd e))

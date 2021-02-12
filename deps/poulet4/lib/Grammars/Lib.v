@@ -18,7 +18,6 @@ Infix "<||>" := (fun l r => (l @ inl) <|> (r @ inr)) (at level 100).
 Lemma inv_Map_g {T U: Set} s v (g: grammar T) (f: T -> U) (v': T):
    matches (g @ f) s v -> exists v', matches g s v' /\ f v' = v.
 Proof.
-  admit.
 Admitted.
 
 Definition filter {T: Set} (g:grammar T) (pred : T -> bool) : grammar T :=

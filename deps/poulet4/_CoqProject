@@ -42,6 +42,10 @@ examples/IntExample.v
 examples/TwoState.v
 examples/WeakestPre.v
 
+examples/IPv6/Header.v
+examples/IPv6/Extensions/HopByHop.v
+examples/IPv6/Extensions/Fragment.v
+
 -R extraction Petr4
 
 extraction/Extract.v

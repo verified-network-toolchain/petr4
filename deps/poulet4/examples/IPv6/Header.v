@@ -5,27 +5,25 @@ Require Import Grammars.Bits.
 Require Import Vector.
 Require Import Ascii.
 
-(* Require Import  *)
-
 Module IPV6Header.
   Record IPV6Header_t := {
     version : Nat.t ;
-    traffic_class : bit 8 ;
-    flow_label : bit 20 ;
+    traffic_class : bits 8 ;
+    flow_label : bits 20 ;
     payload_len : Nat.t ;
     next_hdr : Nat.t ;
     hop_limit : Nat.t ;
-    src_addr : bit 128 ;
-    dst_addr : bit 128
+    src_addr : bits 128 ;
+    dst_addr : bits 128
   }.
 
   Definition version_p := filter (gbin_n 4) (Nat.eqb 6).
-  Definition traffic_class_p := bits 8.
-  Definition flow_label_p := bits 20.
+  Definition traffic_class_p := bits_n 8.
+  Definition flow_label_p := bits_n 20.
   Definition payload_len_p := gbin_n 16.
   Definition next_hdr_p := gbin_n 8.
   Definition hop_limit_p := gbin_n 8.
-  Definition addr_p := bits 128.
+  Definition addr_p := bits_n 128.
 
   Definition IPV6Header_p : grammar IPV6Header_t :=
     (version_p >= fun ver =>

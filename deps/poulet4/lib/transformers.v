@@ -1,6 +1,7 @@
 Require Import Petr4.Syntax.
 Require Import Petr4.Typed.
 Require Import Coq.Strings.String.
+Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
 Require Import Coq.Lists.List.
 
@@ -8,15 +9,44 @@ Import Coq.Lists.List.ListNotations.
 
 Open Scope N_scope.
 
+Definition to_digit (n: N): ascii :=
+  match n with
+  | 0 => "0"
+  | 1 => "1"
+  | 2 => "2"
+  | 3 => "3"
+  | 4 => "4"
+  | 5 => "5"
+  | 6 => "6"
+  | 7 => "7"
+  | 8 => "8"
+  | _ => "9"
+  end.
+
+Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
+  let (ndiv10, nmod10) := N.div_eucl n 10 in
+  let acc' := String (to_digit nmod10) acc in
+  match time with
+  | O => acc'
+  | S time' => match ndiv10 with
+               | 0 => acc'
+               | n' => to_N_aux time' n' acc'
+               end
+  end.
+
+Definition to_N (n: N): string := to_N_aux (N.to_nat n) n EmptyString.
+
 Section Transformer.
 
   Context {tags_t: Type}.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
-  Variable tempName: string.
   Variable default_tag: tags_t.
 
-  Variable N_to_str: N -> P4String.
+  Definition N_to_str (n: N): P4String :=
+    P4String.Build_t _ default_tag ("temp" ++ (to_N n))%string.
+
+  Eval vm_compute in (N_to_str 1234).
 
   Fixpoint extractFunCall_ept (nameIdx: N) (exp: @ExpressionPreT tags_t)
            (tag: tags_t) (typ: @P4Type tags_t) (dir: direction):

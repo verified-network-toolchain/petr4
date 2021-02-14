@@ -183,31 +183,26 @@ Variable ge : genv.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
-    | None => ValBaseInteger (value n)
-    | Some (w, true) => ValBaseBit w (value n)
-    | Some (w, false) => ValBaseInt w (value n)
+  | None => ValBaseInteger (value n)
+  | Some (w, true) => ValBaseBit w (value n)
+  | Some (w, false) => ValBaseInt w (value n)
   end.
 
-Definition name_only (n: @Typed.name tags_t) : P4String :=
-  match n with
-    | BareName s
-    | QualifiedName _ s => s
-  end.
-
-Definition ident_to_val (e: env) (i : ident) (this : path) (s : state) : Val :=
-  match (IdentMap.get i e) with
-  | Some (Global p) => 
-    match PathMap.get p (get_memory s) with
-      | Some (MVal v) => v
-      | _ => ValBaseNull
+Definition ident_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
+  let p :=
+    match n with
+    | BareName i => ident_to_path e i this
+    | QualifiedName ns i => Some (name_cons ns i)
     end
-  | Some (Instance p) => 
-    match PathMap.get (this ++ p) (get_memory s) with
-      | Some (MVal v) => v
-      | _ => ValBaseNull
-    end
-  | None => ValBaseNull
-  end.
+  in 
+    match p with
+    | Some p' =>
+      match PathMap.get p' (get_memory s) with
+      | Some (MVal v) => Some v
+      | _ => None
+      end
+    | _ => None
+    end.
 
 (* Note that expressions don't need decl_path. *)
 Inductive exec_expr : env -> path -> (* temp_env -> *) state -> 
@@ -226,11 +221,15 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                        exec_expr e this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
-  | exec_expr_name: forall n e this st tag typ dir,
+  | exec_expr_name: forall n e v this st tag typ dir,
+                    ident_to_val e n this st = Some v ->
                     exec_expr e this st
                     (MkExpression tag (ExpName n) typ dir)
-                    (ident_to_val e (name_only n) this st)
-  (* | exec_expr_arrayaccess: forall a i e this st tag typ dir,
+                    v
+  (* | exec_expr_arrayaccess: forall a i headers size next e this st tag typ dir,
+                           
+                           exec_expr e this st a (ValBaseStack headers size next) ->
+                           
                            exec_expr e this st
                            (MkExpression tag (ExpArrayAccess a i) typ dir)
                            

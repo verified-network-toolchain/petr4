@@ -4,6 +4,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Petr4.Typed.
 Require Import Petr4.Syntax.
+Require Import Petr4.P4Int.
 Import ListNotations.
 
 Module IdentMap.
@@ -67,24 +68,27 @@ End PathMap.
 
 Section Semantics.
 
-Inductive val :=
+(* Inductive val :=
   | VInt (v : Z)
-  (* TODO *).
+  (* TODO *). *)
 
 Context {tags_t: Type}.
+Notation Val := (@ValueBase tags_t).
+
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
+Notation P4String := (P4String.t tags_t).
 
 Class External := {
   ExternalState : Type;
-  GetControlParam : ExternalState -> ident -> option val
+  GetControlParam : ExternalState -> ident -> option Val
 }.
 
 Context `{External}.
 
 Inductive memory_val :=
-  | MVal (v : val)
+  | MVal (v : Val)
   (* Pointer of program level references those are not available as normal values,
       including pointers to methods and functions,
         and pointers to instances. *)
@@ -177,14 +181,69 @@ Variable ge : genv.
 (* Definition name_to_path (e : env) (this_path : path) (name : ident) :=
   match  *)
 
+Definition eval_p4int (n: P4Int) : Val :=
+  match P4Int.width_signed n with
+    | None => ValBaseInteger (value n)
+    | Some (w, true) => ValBaseBit w (value n)
+    | Some (w, false) => ValBaseInt w (value n)
+  end.
+
+Definition name_only (n: @Typed.name tags_t) : P4String :=
+  match n with
+    | BareName s
+    | QualifiedName _ s => s
+  end.
+
+Definition ident_to_val (e: env) (i : ident) (this : path) (s : state) : Val :=
+  match (IdentMap.get i e) with
+  | Some (Global p) => 
+    match PathMap.get p (get_memory s) with
+      | Some (MVal v) => v
+      | _ => ValBaseNull
+    end
+  | Some (Instance p) => 
+    match PathMap.get (this ++ p) (get_memory s) with
+      | Some (MVal v) => v
+      | _ => ValBaseNull
+    end
+  | None => ValBaseNull
+  end.
+
 (* Note that expressions don't need decl_path. *)
-Inductive exec_expr : env -> path -> (* temp_env -> *) state -> (@Expression tags_t) -> (* trace -> *) (* temp_env -> *) (* state -> *) (* outcome -> *) Prop :=
+Inductive exec_expr : env -> path -> (* temp_env -> *) state -> 
+                      (@Expression tags_t) -> Val -> 
+                      (* trace -> *) (* temp_env -> *) (* state -> *) (* outcome -> *) Prop :=
+  | exec_expr_bool : forall b e this st tag typ dir,
+                     exec_expr e this st
+                     (MkExpression tag (ExpBool b) typ dir)
+                     (ValBaseBool b)
+  | exec_expr_int : forall i iv e this st tag typ dir,
+                    iv = eval_p4int i ->
+                    exec_expr e this st
+                    (MkExpression tag (ExpInt i) typ dir)
+                    iv
+  | exec_expr_string : forall s e this st tag typ dir,
+                       exec_expr e this st
+                       (MkExpression tag (ExpString s) typ dir)
+                       (ValBaseString s)
+  | exec_expr_name: forall n e this st tag typ dir,
+                    exec_expr e this st
+                    (MkExpression tag (ExpName n) typ dir)
+                    (ident_to_val e (name_only n) this st)
+  (* | exec_expr_arrayaccess: forall a i e this st tag typ dir,
+                           exec_expr e this st
+                           (MkExpression tag (ExpArrayAccess a i) typ dir)
+                           
+  ExpArrayAccess  *)
   .
+
+
+
 
 Axiom param_to_name : (@P4Parameter tags_t) -> ident.
 
 Definition copy_in_copy_out (params : list path)
-                            (args : list val) (args' : list val)
+                            (args : list Val) (args' : list Val)
                             (s s' s'' : state) :=
   s' = update_memory (set_args params (map MVal args)) s /\
   map Some (map MVal args') = get_args (get_memory s) params.
@@ -193,23 +252,23 @@ Definition copy_in_copy_out (params : list path)
 
 Inductive outcome : Type :=
    | Out_normal : outcome
-   | Out_return : option val -> outcome.
+   | Out_return : option Val -> outcome.
 
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
-Definition get_ctrl_params (s : state) : list ident -> list (option val) :=
+Definition get_ctrl_params (s : state) : list ident -> list (option Val) :=
   map (GetControlParam (get_external_state s)).
 
 Inductive exec_stmt : path -> path -> env -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
 with exec_block : path -> path -> env -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
-with exec_funcall : state -> fundef -> list val -> state -> list val -> option val -> Prop :=
+with exec_funcall : state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
   | exec_funcall_internal : forall this_path decl_path e params ctrl_params body s args control_args args' s' s'' vret,
       get_ctrl_params s ctrl_params = map Some control_args ->
       copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) (params ++ ctrl_params)) (args ++ control_args) args' s s' s'' ->
       exec_block this_path decl_path e s' body s'' (Out_return vret) ->
       exec_funcall s (FInternal this_path decl_path e params ctrl_params body) args s'' args' vret.
-(* with eval_funcall: mem -> fundef -> list val -> trace -> mem -> val -> Prop :=
+(* with eval_funcall: mem -> fundef -> list Val -> trace -> mem -> Val -> Prop :=
   | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4,
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
       list_norepet (var_names f.(fn_params) ++ var_names f.(fn_vars)) ->

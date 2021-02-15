@@ -1,5 +1,6 @@
 Require Export P4light.Check.
 Require Export P4light.P4Arith.
+Require Import Coq.Bool.Bool.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
@@ -219,6 +220,68 @@ Module Step.
   Section Step.
     Context {tags_t : Type}.
 
+    (** Unsigned integer binary operations. *)
+    Definition eval_bit_binop
+               (op : E.bop) (w : positive)
+               (n1 n2 : N) : option (V.v tags_t) :=
+      match op with
+      | E.Plus     => Some (V.VBit w (BitArith.plus_mod w n1 n2))
+      | E.PlusSat  => Some (V.VBit w (BitArith.plus_sat w n1 n2))
+      | E.Minus    => Some (V.VBit w (BitArith.minus_mod w n1 n2))
+      | E.MinusSat => Some (V.VBit w (N.sub n1 n2))
+      | E.Shl      => Some (V.VBit w (N.shiftl n1 n2))
+      | E.Shr      => Some (V.VBit w (BitArith.shift_right w n1 n2))
+      | E.Le       => Some (V.VBool (N.leb n1 n2))
+      | E.Ge       => Some (V.VBool (N.leb n2 n1))
+      | E.Lt       => Some (V.VBool (N.ltb n1 n2))
+      | E.Gt       => Some (V.VBool (N.ltb n2 n1))
+      | E.Eq       => Some (V.VBool (N.eqb n1 n2))
+      | E.NotEq    => Some (V.VBool (negb (N.eqb n1 n2)))
+      | E.BitAnd   => Some (V.VBit w (BitArith.bit_and w n1 n2))
+      | E.BitXor   => Some (V.VBit w (BitArith.bit_xor w n1 n2))
+      | E.BitOr    => Some (V.VBit w (BitArith.bit_or  w n1 n2))
+      | E.PlusPlus
+      | E.And
+      | E.Or       => None
+      end.
+    (**[]*)
+
+    (** Signed integer binary operations. *)
+    Definition eval_int_binop
+               (op : E.bop) (w : positive)
+               (z1 z2 : Z) : option (V.v tags_t) :=
+      match op with
+      | E.Plus     => Some (V.VInt w (IntArith.plus_mod w z1 z2))
+      | E.PlusSat  => Some (V.VInt w (IntArith.plus_sat w z1 z2))
+      | E.Minus    => Some (V.VInt w (IntArith.minus_mod w z1 z2))
+      | E.MinusSat => Some (V.VInt w (IntArith.minus_sat w z1 z2))
+      | E.Shl      => Some (V.VInt w (IntArith.shift_left w z1 z2))
+      | E.Shr      => Some (V.VInt w (IntArith.shift_right w z1 z2))
+      | E.Le       => Some (V.VBool (Z.leb z1 z2))
+      | E.Ge       => Some (V.VBool (Z.leb z2 z1))
+      | E.Lt       => Some (V.VBool (Z.ltb z1 z2))
+      | E.Gt       => Some (V.VBool (Z.ltb z2 z1))
+      | E.Eq       => Some (V.VBool (Z.eqb z1 z2))
+      | E.NotEq    => Some (V.VBool (negb (Z.eqb z1 z2)))
+      | E.BitAnd   => Some (V.VInt w (IntArith.bit_and w z1 z2))
+      | E.BitXor   => Some (V.VInt w (IntArith.bit_xor w z1 z2))
+      | E.BitOr    => Some (V.VInt w (IntArith.bit_or  w z1 z2))
+      | E.PlusPlus
+      | E.And
+      | E.Or       => None
+      end.
+    (**[]*)
+
+    (** Boolean binary operations. *)
+    Definition eval_bool_binop (op : E.bop) (b1 b2 : bool) : option bool :=
+      match op with
+      | E.Eq    => Some (eqb b1 b2)
+      | E.NotEq => Some (negb (eqb b1 b2))
+      | E.And   => Some (b1 && b2)
+      | E.Or    => Some (b1 || b2)
+      | _       => None
+      end.
+
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
@@ -257,148 +320,24 @@ Module Step.
         ⟨ ϵ, e ⟩ ⇓ w VS z ->
         ⟨ ϵ, ~ e :: int<w> @ i end ⟩ ⇓ w VS z'
     (* Binary Operations. *)
-    | ebs_plus_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                   (w : positive) (n n1 n2 : N) :
-        BitArith.plus_mod w n1 n2 = n ->
+    | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+                  (i : tags_t) (w : positive) (n1 n2 : N) :
+        eval_bit_binop op w n1 n2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, + e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_plus_int (e1 e2 : E.e tags_t) (i : tags_t)
-                   (w : positive) (z z1 z2 : Z) :
-        IntArith.plus_mod w z1 z2 = z ->
+        expr_big_step ϵ (E.EBop op {{bit<w>}} {{bit <w>}} e1 e2 i) v
+    | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+                  (i : tags_t) (w : positive) (z1 z2 : Z) :
+        eval_int_binop op w z1 z2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, + e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_minus_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                    (w : positive) (n n1 n2 : N) :
-        BitArith.minus_mod w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, -- e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_minus_int (e1 e2 : E.e tags_t) (i : tags_t)
-                    (w : positive) (z z1 z2 : Z) :
-        IntArith.minus_mod w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, -- e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_plussat_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                      (w : positive) (n n1 n2 : N) :
-        BitArith.plus_sat w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, |+| e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_plussat_int (e1 e2 : E.e tags_t) (i : tags_t)
-                      (w : positive) (z z1 z2 : Z) :
-        IntArith.plus_sat w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, |+| e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_minussat_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                       (w : positive) (n n1 n2 : N) :
-        N.sub n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, |-| e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_minussat_int (e1 e2 : E.e tags_t) (i : tags_t)
-                       (w : positive) (z z1 z2 : Z) :
-        IntArith.minus_sat w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, |-| e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_bitand_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                     (w : positive) (n n1 n2 : N) :
-        BitArith.bit_and w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, & e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_bitand_int (e1 e2 : E.e tags_t) (i : tags_t)
-                     (w : positive) (z z1 z2 : Z) :
-        IntArith.bit_and w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, & e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_bitor_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                    (w : positive) (n n1 n2 : N) :
-        BitArith.bit_or w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, | e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_bitor_int (e1 e2 : E.e tags_t) (i : tags_t)
-                   (w : positive) (z z1 z2 : Z) :
-        IntArith.bit_or w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, | e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_bitxor_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                     (w : positive) (n n1 n2 : N) :
-        BitArith.bit_xor w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, ^ e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_bitxor_int (e1 e2 : E.e tags_t) (i : tags_t)
-                     (w : positive) (z z1 z2 : Z) :
-        IntArith.bit_xor w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, ^ e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_and (e1 e2 : E.e tags_t) (i : tags_t) (b b1 b2 : bool) :
-        andb b1 b2 = b ->
+        expr_big_step ϵ (E.EBop op {{int<w>}} {{int <w>}} e1 e2 i) v
+    | ebs_bop_bool (e1 e2 : E.e tags_t) (op : E.bop)
+                   (i : tags_t) (b b1 b2 : bool) :
+        eval_bool_binop op b1 b2 = Some b ->
         ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
         ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-        ⟨ ϵ, && e1 :: Bool e2 :: Bool @ i end ⟩ ⇓ VBOOL b
-    | ebs_or (e1 e2 : E.e tags_t) (i : tags_t) (b b1 b2 : bool) :
-        orb b1 b2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-        ⟨ ϵ, || e1 :: Bool e2 :: Bool @ i end ⟩ ⇓ VBOOL b
-    | ebs_le_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (n1 n2 : N) (b : bool) :
-        N.leb n1 n2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, <= e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_le_int (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (z1 z2 : Z) (b : bool) :
-        Z.leb z1 z2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, <= e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_ge_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (n1 n2 : N) (b : bool) :
-        N.leb n2 n1 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, >= e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_ge_int (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (z1 z2 : Z) (b : bool) :
-        Z.leb z2 z1 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, >= e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_lt_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (n1 n2 : N) (b : bool) :
-        N.ltb n1 n2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, < e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_lt_int (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (z1 z2 : Z) (b : bool) :
-        Z.ltb z1 z2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, < e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_gt_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (n1 n2 : N) (b : bool) :
-        N.ltb n2 n1 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, > e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ VBOOL b
-    | ebs_gt_int (e1 e2 : E.e tags_t) (i : tags_t)
-                 (w : positive) (z1 z2 : Z) (b : bool) :
-        Z.ltb z2 z1 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, > e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ VBOOL b
+        expr_big_step ϵ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) *{VBOOL b}*
     | ebs_eq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
                   (i : tags_t) (v1 v2 : V.v tags_t) :
         V.equivv tags_t v1 v2 ->
@@ -423,37 +362,6 @@ Module Step.
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
         ⟨ ϵ, != e1 :: τ1 e2 :: τ2 @ i end ⟩ ⇓ FALSE
-    | ebs_shl_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                  (w : positive) (n n1 n2 : N) :
-        N.shiftl n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, << e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_shl_int (e1 e2 : E.e tags_t) (i : tags_t)
-                  (w : positive) (z z1 z2 : Z) :
-        IntArith.shift_left w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, << e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_shr_bit (e1 e2 : E.e tags_t) (i : tags_t)
-                  (w : positive) (n n1 n2 : N) :
-        BitArith.shift_right w n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, >> e1 :: bit<w> e2 :: bit<w> @ i end ⟩ ⇓ w VW n
-    | ebs_shr_int (e1 e2 : E.e tags_t) (i : tags_t)
-                  (w : positive) (z z1 z2 : Z) :
-        IntArith.shift_right w z1 z2 = z ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, >> e1 :: int<w> e2 :: int<w> @ i end ⟩ ⇓ w VS z
-    | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
-                   (w w1 w2 : positive) (n n1 n2 : N) :
-        (w1 + w2)%positive = w ->
-        BitArith.bit_concat w2 n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
-        ⟨ ϵ, ++ e1 :: bit<w1> e2 :: bit<w2> @ i end ⟩ ⇓ w VW n
     (* Structs *)
     | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
                   (tfs : F.fs tags_t (E.t tags_t))

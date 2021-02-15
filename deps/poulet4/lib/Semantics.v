@@ -1,5 +1,6 @@
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
+Require Export Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Petr4.Typed.
@@ -183,31 +184,44 @@ Variable ge : genv.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
-    | None => ValBaseInteger (value n)
-    | Some (w, true) => ValBaseBit w (value n)
-    | Some (w, false) => ValBaseInt w (value n)
+  | None => ValBaseInteger (value n)
+  | Some (w, true) => ValBaseBit w (value n)
+  | Some (w, false) => ValBaseInt w (value n)
   end.
 
-Definition name_only (n: @Typed.name tags_t) : P4String :=
-  match n with
-    | BareName s
-    | QualifiedName _ s => s
+Definition ident_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
+  let p :=
+    match n with
+    | BareName i => ident_to_path e i this
+    | QualifiedName ns i => Some (name_cons ns i)
+    end
+  in 
+    match p with
+    | Some p' =>
+      match PathMap.get p' (get_memory s) with
+      | Some (MVal v) => Some v
+      | _ => None
+      end
+    | _ => None
+    end.
+
+Fixpoint val_to_z (v : Val) : (option Z) :=
+  match v with
+  | ValBaseInt _ value
+  | ValBaseBit _ value
+  | ValBaseInteger value
+  | ValBaseVarbit _ _ value => Some value
+  | ValBaseSenumField _ _ value => val_to_z value
+  | ValBaseBool b => if b then Some (1%Z) else Some (0%Z)
+  | _ => None
   end.
 
-Definition ident_to_val (e: env) (i : ident) (this : path) (s : state) : Val :=
-  match (IdentMap.get i e) with
-  | Some (Global p) => 
-    match PathMap.get p (get_memory s) with
-      | Some (MVal v) => v
-      | _ => ValBaseNull
-    end
-  | Some (Instance p) => 
-    match PathMap.get (this ++ p) (get_memory s) with
-      | Some (MVal v) => v
-      | _ => ValBaseNull
-    end
-  | None => ValBaseNull
-  end.
+Definition z_to_nat (i : Z) : option nat :=
+  if (i >=? 0)%Z then Some (Z.to_nat i) else None.
+
+Definition bitstring_slice (i : Z) (lo : N) (hi : N) : Z :=
+  let mask := (Z.pow 2 (Z.of_N (hi - lo + 1)) - 1)%Z in
+  Z.land (Z.shiftr i (Z.of_N lo)) mask.
 
 (* Note that expressions don't need decl_path. *)
 Inductive exec_expr : env -> path -> (* temp_env -> *) state -> 
@@ -226,18 +240,43 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                        exec_expr e this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
-  | exec_expr_name: forall n e this st tag typ dir,
+  | exec_expr_name: forall name e v this st tag typ dir,
+                    ident_to_val e name this st = Some v ->
                     exec_expr e this st
-                    (MkExpression tag (ExpName n) typ dir)
-                    (ident_to_val e (name_only n) this st)
-  (* | exec_expr_arrayaccess: forall a i e this st tag typ dir,
+                    (MkExpression tag (ExpName name) typ dir)
+                    v
+  (* omitting undefined behavior *)
+  | exec_expr_arrayaccess: forall array headers size next idx idxv idxz idxn header e this st tag typ dir,
+                           exec_expr e this st array (ValBaseStack headers size next) ->
+                           exec_expr e this st idx idxv ->
+                           val_to_z idxv = Some idxz ->
+                           (0 <= idxz < (Z.of_nat size))%Z ->
+                           z_to_nat idxz = Some idxn ->
+                           List.nth_error headers idxn = Some header ->
                            exec_expr e this st
-                           (MkExpression tag (ExpArrayAccess a i) typ dir)
-                           
-  ExpArrayAccess  *)
+                           (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                           header
+  (* omitting bounds check in checker.ml *)
+  | exec_expr_bitstringaccess : forall bits bitsv bitsz lo hi e this st tag typ dir,
+                                exec_expr e this st bits bitsv ->
+                                val_to_z bitsv = Some bitsz ->
+                                exec_expr e this st
+                                (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
+                                (ValBaseBit (N.to_nat (hi - lo + 1)%N) (bitstring_slice bitsz lo hi))
+  | exec_expr_list_nil : forall e this st tag typ dir,
+                         exec_expr e this st
+                         (MkExpression tag (ExpList nil) typ dir)
+                         (ValBaseTuple nil)
+  | exec_expr_list_cons : forall expr v es vs e this st tag typ dir,
+                          exec_expr e this st expr v ->
+                          exec_expr e this st (MkExpression tag (ExpList es) typ dir) (ValBaseTuple vs) ->
+                          exec_expr e this st
+                          (MkExpression tag (ExpList (expr :: es)) typ dir)
+                          (ValBaseTuple (v :: vs))
   .
 
-
+(* Search N.
+Compute (Z.shiftr 2 (1)). *)
 
 
 Axiom param_to_name : (@P4Parameter tags_t) -> ident.

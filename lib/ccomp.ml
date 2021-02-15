@@ -35,6 +35,9 @@ module CompM = Monad.Make(CompOps)
 
 open CompM.Let_syntax
 
+let add_to_env (env : C.cexpr Map.t) (header : string) (header_to : C.cexpr) = 
+  Map.add env ~key: header ~data: header_to
+
 let next_state_name = "__next_state"
 let next_state_var = C.CVar next_state_name
 
@@ -125,9 +128,30 @@ let translate_stmts (stmts: Prog.Statement.t list) : (C.cstmt list) comp =
   |> List.map ~f:translate_stmt
   |> CompM.all
 
+let get_type (typ: Typed.Type.t) : C.ctyp  =
+  match typ with
+  | Typed.Type.Bool -> C.CBool 
+  | Typed.Type.TypeName (BareName n) ->
+    C.CTypeName (snd n) 
+  | Typed.Type.Bit {width = 8} ->
+    C.CBit8
+  | _ -> C.CInt 
+
+let add_headers_to_env (fields : Prog.Declaration.field list) = ignore() 
+(* match fields with 
+   | [] -> ignore()
+   | h::t -> begin match snd h with 
+    | {typ; name; _} -> let str = snd name 
+      in let t = get_type typ 
+      in ignore(add_to_env env str t) 
+   end  *)
+(* to do: change the type of the enviorment to ctyp (depending on ryan's answer). then 
+   also need to string environment through *)
+
 let rec translate_decl (d: Prog.Declaration.t) : (C.cdecl list) comp =
   match snd d with
   | Struct {name; fields; _} ->
+    add_headers_to_env fields; 
     let%bind cfields = translate_fields fields in
     [C.CStruct (snd name, cfields)] |> return
   | Header {name; fields; _} ->

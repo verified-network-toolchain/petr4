@@ -41,7 +41,25 @@ let next_state_var = C.CVar next_state_name
 let get_expr_name (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
   | ExpressionMember x -> snd x.name
+  | FunctionCall x -> failwith "a"
+  | NamelessInstantiation x -> failwith "b"
+  | String s -> failwith (snd s)
+  | Mask x -> failwith "dsjak"
+  | Name n -> begin match n with 
+      | BareName str -> snd str
+      | _ -> failwith "unimplemented" end 
+  | True ->  "true"
+  | False -> "false"
   | _ -> failwith "unimplementeddj"
+
+let get_expr_c (e: Prog.Expression.t) : C.cexpr =
+  match (snd e).expr with
+  | Name n -> begin match n with 
+      | BareName str -> CString (snd str) 
+      | _ -> failwith "unimplemented" end 
+  | True ->  CBoolExp true  
+  | False -> CBoolExp false   
+  | _ -> failwith "unimpl"
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
@@ -127,13 +145,25 @@ let rec translate_decl (d: Prog.Declaration.t) : (C.cdecl list) comp =
     let func_decl = C.CFun (CVoid, snd name, [state_param], locals_stmts @ state_stmts) in
     [struct_decl; func_decl] |> return
   | Function { return; name; type_params; params; body } -> failwith "Fds"
-  | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+  | Action { name; data_params; ctrl_params; body; _ } -> 
+    [C.CInclude ("fdjskfldsjkfldsjkflds")] |> return 
+  | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let%bind params = translate_params params in
-    [C.CRec (C.CStruct (snd name, params), 
-             C.CFun (CVoid, snd name ^ "_fun", 
-                     [CParam (CTypeName (snd name), "*state")], 
-                     apply_translate_emit apply))] |> return 
-  | _ -> [C.CInclude "todo"] |> return
+    let app_block = (List.map ~f:translate_act locals) in 
+    [C.CDecList ([C.CStruct (snd name, params)] @ 
+                 app_block @
+                 [C.CFun (CVoid, snd name ^ "_fun", 
+                          [CParam (CTypeName (snd name), "*state")], 
+                          apply_translate_emit apply)])]  |> return 
+  | _ -> [C.CInclude "todo"] |> return 
+
+and translate_act (locals : Prog.Declaration.t) : C.cdecl = 
+  match snd locals with 
+  | Action { name; data_params; ctrl_params; body; _ } -> 
+    C.CFun (CVoid, snd name, 
+            [CParam (CTypeName "C_state", "*state")], 
+            apply_translate_emit body)
+  | _ -> C.CInclude "not needed"
 
 and translate_parser_locals (locals: Prog.Declaration.t list) : (C.cstmt list) comp =
   return []
@@ -178,6 +208,7 @@ and translate_fun (s:Prog.Statement.t) : C.cstmt =
     let state_arg = C.(CPointer (CVar "state", get_expr_mem func)) in
     let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in
     C.CMethodCall (get_expr_name func, args)
+  | Assignment { lhs; rhs } -> C.CAssign ((get_expr_c lhs), (get_expr_c rhs)) 
   | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
 
 and apply_translate_emit (apply : Prog.Block.t) = 

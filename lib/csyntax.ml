@@ -26,7 +26,7 @@ type cdecl =
   | CFun of ctyp * cname * cparam list * cstmt list
   | CInclude of string
   | CStdInclude of string
-  | CRec of cdecl * cdecl 
+  | CDecList of cdecl list 
 and cfield = CField of ctyp * cname
 and cparam = CParam of ctyp * cname
 and cstmt =

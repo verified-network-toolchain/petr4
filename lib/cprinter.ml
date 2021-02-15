@@ -37,8 +37,8 @@ let rec format_cdecl (decl: cdecl) =
     text "#include \"" ++ text name ++ text "\""
   | CStdInclude name ->
     text "#include <" ++ text name ++ text ">"
-  | CRec (fst, snd) -> 
-    format_cdecl fst ++ newline ++ format_cdecl snd 
+  | CDecList lst -> 
+    Pretty.format_list_nl format_cdecl lst
 
 and format_cfield ((CField (typ, name)): cfield) =
   format_ctyp typ ++ space ++ format_cname name
@@ -115,11 +115,11 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname -> text cname 
   | CGeq (e1, e2) ->
-     text "("
-     ++ format_cexpr e1
-     ++ text " >= "
-     ++ format_cexpr e2
-     ++ text ")"
+    text "("
+    ++ format_cexpr e1
+    ++ text " >= "
+    ++ format_cexpr e2
+    ++ text ")"
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
 

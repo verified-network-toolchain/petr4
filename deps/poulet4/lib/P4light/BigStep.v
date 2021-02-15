@@ -183,15 +183,37 @@ End Value.
 Module Step.
   Module P := P4light.
   Module E := P.Expr.
+  Module ST := P.Stmt.
   Module F := P.F.
   Module V := Value.
 
   Import E.TypeNotations.
   Import E.ExprNotations.
+  Import ST.StmtNotations.
   Import V.ValueNotations.
+
+  (** Statement signals. *)
+  Inductive signal : Set :=
+  | SIG_Cont   (* continue *)
+  | SIG_Rtrn   (* return *)
+  | SIG_Exit   (* exit *).
+
+  Declare Custom Entry p4evalsignal.
+
+  Notation "x"
+    := x (in custom p4evalsignal at level 0, x constr at level 0).
+  Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
+  Notation "'R'" := SIG_Rtrn (in custom p4evalsignal at level 0).
+  Notation "'X'" := SIG_Exit (in custom p4evalsignal at level 0).
 
   Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
            (at level 40, e custom p4expr, v custom p4value).
+
+  Import Env.EnvNotations.
+
+  Reserved Notation "⟪ fenv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
+           (at level 40, s custom p4stmt,
+            ϵ2 custom p4env, sig custom p4evalsignal).
   (**[]*)
 
   Section Step.
@@ -458,5 +480,43 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
+
+    Inductive fbody : Type :=
+    | FBody (signature : E.arrowT tags_t) (body : ST.s tags_t).
+
+    Definition fenv : Type := Env.t (name tags_t) fbody.
+
+    Definition bare (x : string tags_t) : name tags_t :=
+      Typed.BareName x.
+    (**[]*)
+
+    Instance P4NameEquivalence : Equivalence (equivn tags_t) :=
+      NameEquivalence tags_t.
+    (**[]*)
+
+    Instance P4NameEqDec : EqDec (name tags_t) (equivn tags_t) :=
+      NameEqDec tags_t.
+    (**[]*)
+
+    Inductive stmt_big_step (fs : fenv) (ϵ : epsilon) :
+      ST.s tags_t -> epsilon -> signal -> Prop :=
+    | sbs_skip (i : tags_t) :
+        ⟪ fs, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
+    | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
+                   (ϵ' ϵ'' : epsilon) (sig : signal) :
+        ⟪ fs, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
+        ⟪ fs, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
+        ⟪ fs, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
+    | sbs_seq_rtrn_or_exit (s1 s2 : ST.s tags_t) (i : tags_t)
+                           (ϵ' : epsilon) (sig : signal) :
+        sig = SIG_Rtrn \/ sig = SIG_Exit ->
+        ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+    | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
+                  (e : E.e tags_t) (v : V.v tags_t) (i : tags_t) :
+        let x' := bare x in
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        ⟪ fs, ϵ, decl x ≜ e :: τ @ i fin ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
+    where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

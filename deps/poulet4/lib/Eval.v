@@ -4,6 +4,8 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Strings.String.
 
+Require Import Equations.Equations.
+
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
@@ -33,8 +35,10 @@ Section Eval.
   Notation P4Type := (@P4Type tags_t).
   Notation P4Parameter := (@P4Parameter tags_t).
   Notation Expression := (@Expression tags_t).
+  Notation ExpressionPreT := (@ExpressionPreT tags_t).
   Notation Block := (@Block tags_t).
   Notation Statement := (@Statement tags_t).
+  Notation StatementPreT := (@StatementPreT tags_t).
   Notation Match := (@Match tags_t).
   Notation ParserCase := (@ParserCase tags_t).
   Notation ParserTransition := (@ParserTransition tags_t).
@@ -82,11 +86,13 @@ Section Eval.
     ValObj (ValObjFun (param :: nil) func_impl)
   .
 
-  Fixpoint eval_expression (expr: Expression) : env_monad Value :=
-    let '(MkExpression tags_dummy expr _ _) := expr in
-    match expr with
-    | ExpBool value => mret (ValBase (ValBaseBool value))
-    | ExpInt value =>
+  Equations eval_expression (expr: Expression) : env_monad Value :=
+    eval_expression (MkExpression expr _ _) :=
+      eval_expression_pre expr
+  with eval_expression_pre (expr: ExpressionPreT) : env_monad Value :=
+    eval_expression_pre (ExpBool value) :=
+      mret (ValBase (ValBaseBool value));
+    eval_expression_pre (ExpInt value) :=
       match value.(P4Int.width_signed) with
       | Some (width, true) =>
         mret (ValBase (ValBaseInt width value.(P4Int.value)))
@@ -94,10 +100,10 @@ Section Eval.
         mret (ValBase (ValBaseBit width value.(P4Int.value)))
       | None =>
         mret (ValBase (ValBaseInteger value.(P4Int.value)))
-      end
-    | ExpString s =>
-      mret (ValBase (ValBaseString s))
-    | ExpArrayAccess array index =>
+      end;
+    eval_expression_pre (ExpString s) :=
+      mret (ValBase (ValBaseString s));
+    eval_expression_pre (ExpArrayAccess array index) :=
       let* index' := unpack_inf_int _ (eval_expression index) in
       let* array' := unpack_array _ (eval_expression array) in
       let element :=
@@ -105,15 +111,17 @@ Section Eval.
         | Some element' => Some (ValBase element')
         | None => None
         end in
-      lift_option _ element
-    | ExpBitStringAccess array hi lo =>
-      state_fail Internal
-(*     | ExpList _ exprs =>
+      lift_option _ element;
+    eval_expression_pre (ExpBitStringAccess array hi lo) :=
+      state_fail Internal;
+    (*
+    eval_expression_pre (ExpList _ exprs) :=
       lift_monad (ValTuple _) (sequence (List.map eval_expression exprs))
-    | ExpRecord _ entries =>
+    eval_expression_pre (ExpRecord _ entries) :=
       let actions := List.map eval_kv entries in
-      lift_monad (ValRecord _) (sequence actions) *)
-    | ExpUnaryOp op arg =>
+      lift_monad (ValRecord _) (sequence actions)
+    *)
+    eval_expression_pre (ExpUnaryOp op arg) =>
       match op with
       | Not =>
         let* b := unpack_bool _ (eval_expression arg) in
@@ -127,8 +135,8 @@ Section Eval.
       | UMinus =>
         let* inner := eval_expression arg in
         lift_option _ (eval_minus inner)
-      end
-    | ExpExpressionMember inner name =>
+      end;
+    eval_expression_pre (ExpExpressionMember inner name) :=
       let* inner_v := eval_expression inner in
       match inner_v with
       | ValObj (ValObjPacket bits) =>
@@ -141,11 +149,11 @@ Section Eval.
         end
       (* TODO real member lookup *)
       | _ => state_fail Internal
-      end
-    | _ => mret (ValBase (ValBaseBool false)) (* TODO *)
-    end.
-
-  Set Printing Implicit.
+      end;
+    eval_expression_pre _ :=
+      (* TODO *)
+      mret (ValBase (ValBaseBool false))
+  .
 
   Definition eval_kv (kv: KeyValue) : env_monad (String.t * Value) :=
     let '(MkKeyValue _ key expr) := kv in
@@ -274,49 +282,41 @@ Section Eval.
     | _ => state_fail Internal
     end.
 
-  Fixpoint eval_block (blk: Block) : env_monad unit :=
-    match blk with
-    | BlockEmpty _ =>
-      mret tt
-    | BlockCons stmt rest =>
-      eval_statement stmt;;
-      eval_block rest
-    end
-  with eval_statement (stmt: Statement) : env_monad unit :=
-    let 'MkStatement _ stmt _ := stmt in
-    eval_statement_pre stmt
+  Equations eval_statement (stmt: Statement) : env_monad unit :=
+    eval_statement (MkStatement _ stmt _) :=
+      eval_statement_pre stmt
   with eval_statement_pre (stmt: StatementPreT) : env_monad unit :=
-    match stmt with
-    | StatMethodCall func type_args args =>
-      @toss_value tags_t (eval_method_call func type_args args)
-    | StatAssignment lhs rhs =>
+    eval_statement_pre (StatMethodCall func type_args args) :=
+      @toss_value tags_t (eval_method_call func type_args args);
+    eval_statement_pre (StatAssignment lhs rhs) :=
       let* lval := eval_lvalue lhs in
       let* val := eval_expression rhs in
-      env_update _ lval val
-    | StatBlock block =>
+      env_update _ lval val;
+    eval_statement_pre (StatBlock block) :=
       stack_push _ ;;
       eval_block block ;;
-      stack_pop _
-    | StatConstant type name init =>
-      env_insert _ name.(P4String.str) (ValBase init)
-    | StatVariable type name init =>
+      stack_pop _;
+    eval_statement_pre (StatConstant type name init) :=
+      env_insert _ name.(P4String.str) (ValBase init);
+    eval_statement_pre (StatVariable type name init) :=
       let* value :=
          match init with
          | None => mret (default_value type)
          | Some expr => eval_expression expr
          end
       in
-      env_insert _ name.(P4String.str) value
-    | StatEmpty =>
-      mret tt
-    | StatInstantiation _ _ _ _
-    | StatDirectApplication _ _
-    | StatConditional _ _ _
-    | StatExit
-    | StatReturn _
-    | StatSwitch _ _ =>
+      env_insert _ name.(P4String.str) value;
+    eval_statement_pre StatEmpty :=
+      mret tt;
+    eval_statement_pre _ :=
       state_fail Internal
-    end.
+  with eval_block (blk: Block) : env_monad unit :=
+    eval_block BlockEmpty :=
+      mret tt;
+    eval_block (BlockCons stmt rest) :=
+      eval_statement stmt;;
+      eval_block rest
+  .
 
   (* TODO: sophisticated pattern matching for the match expression as needed *)
   Fixpoint eval_match_expression (vals: list Value) (matches: list Match) : env_monad bool :=

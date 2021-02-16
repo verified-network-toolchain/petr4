@@ -34,7 +34,7 @@ Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
                end
   end.
 
-Definition to_N (n: N): string := to_N_aux (N.to_nat n) n EmptyString.
+Definition N_to_string (n: N): string := to_N_aux (N.to_nat n) n EmptyString.
 
 Section Transformer.
 
@@ -43,14 +43,14 @@ Section Transformer.
   Notation P4Int := (P4Int.t tags_t).
   Variable default_tag: tags_t.
 
-  Definition N_to_str (n: N): P4String :=
-    P4String.Build_t _ default_tag ("temp" ++ (to_N n))%string.
+  Definition N_to_tempvar (n: N): P4String :=
+    P4String.Build_t _ default_tag ("t'" ++ (N_to_string n))%string.
 
-  Eval vm_compute in (N_to_str 1234).
+  Eval vm_compute in (N_to_tempvar 1234).
 
   Fixpoint extractFunCall_ept (nameIdx: N) (exp: @ExpressionPreT tags_t)
            (tag: tags_t) (typ: @P4Type tags_t) (dir: direction):
-    (list (N * (@Expression tags_t)) * (@Expression tags_t) * N) :=
+    (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
     | ExpBool b => (nil, MkExpression tag (ExpBool b) typ dir, nameIdx)
     | ExpInt i => (nil, MkExpression tag (ExpInt i) typ dir, nameIdx)
@@ -68,7 +68,8 @@ Section Transformer.
     | ExpList value =>
       let (l1e1, n1) :=
           ((fix extractFunCall_list (idx: N) (l: list (@Expression tags_t)):
-              (list (N * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
+              (list (P4String * (@Expression tags_t)) *
+               (list (@Expression tags_t)) * N) :=
               match l with
               | nil => (nil, nil, idx)
               | exp :: rest =>
@@ -81,7 +82,8 @@ Section Transformer.
     | ExpRecord entries =>
       let (l1e1, n1) :=
           ((fix extractFunCall_lkv (idx: N) (l: list (@KeyValue tags_t)):
-              (list (N * (@Expression tags_t)) * (list (@KeyValue tags_t)) * N) :=
+              (list (P4String * (@Expression tags_t)) *
+               (list (@KeyValue tags_t)) * N) :=
               match l with
               | nil => (nil, nil, idx)
               | kv :: rest =>
@@ -122,7 +124,7 @@ Section Transformer.
     | ExpFunctionCall func type_args args =>
       let (l1e1, n1) :=
           ((fix extractFunCall_lopt (idx: N) (l: list (option (@Expression tags_t))):
-              (list (N * (@Expression tags_t)) *
+              (list (P4String * (@Expression tags_t)) *
                (list (option (@Expression tags_t))) * N) :=
               match l with
               | nil => (nil, nil, idx)
@@ -136,12 +138,14 @@ Section Transformer.
                 let (l3, el3) := l3e3 in (l2 ++ l3, Some e2 :: el3, n3)
               end) nameIdx args) in
       let (l1, e1) := l1e1 in
-      (l1 ++ [(n1, MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_str n1))) typ dir, n1 + 1)
+      (l1 ++ [(N_to_tempvar n1,
+               MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
+       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, n1 + 1)
     | ExpNamelessInstantiation typ' args =>
       let (l1e1, n1) :=
           ((fix extractFunCall_list (idx: N) (l: list (@Expression tags_t)):
-              (list (N * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
+              (list (P4String * (@Expression tags_t)) *
+               (list (@Expression tags_t)) * N) :=
               match l with
               | nil => (nil, nil, idx)
               | exp :: rest =>
@@ -168,12 +172,12 @@ Section Transformer.
     end
   with
   extractFunCall_exp (nameIdx: N) (exp: @Expression tags_t):
-    (list (N * (@Expression tags_t)) * (@Expression tags_t) * N) :=
+    (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
     | MkExpression tag expr typ dir => extractFunCall_ept nameIdx expr tag typ dir
     end
   with extractFunCall_keyvalue (nameIdx: N) (kv: @KeyValue tags_t):
-         (list (N * (@Expression tags_t)) * (@KeyValue tags_t) * N) :=
+         (list (P4String * (@Expression tags_t)) * (@KeyValue tags_t) * N) :=
          match kv with
          | MkKeyValue tags key value =>
            let (l1e1, n1) := extractFunCall_exp nameIdx value in
@@ -181,27 +185,27 @@ Section Transformer.
          end.
 
   Definition extractFunCall_Expr (nameIdx: N) (exp: @Expression tags_t):
-    (list (N * (@Expression tags_t)) * (@Expression tags_t) * N) :=
+    (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
     | MkExpression _ (ExpFunctionCall _ _ _) _ _ => (nil, exp, nameIdx)
     | _ => extractFunCall_exp nameIdx exp
     end.
 
   Definition to_Statement (tags: tags_t) (typ: StmType)
-             (ne: (N * (@Expression tags_t))): (@Statement tags_t) :=
+             (ne: (P4String * (@Expression tags_t))): (@Statement tags_t) :=
     match ne with
-    | (n, MkExpression tag expr typ' dir) =>
+    | (name, MkExpression tag expr typ' dir) =>
       MkStatement tags
-                  (StatVariable typ' (N_to_str n)
+                  (StatVariable typ' name
                                 (Some (MkExpression tag expr typ' dir))) typ
     end.
 
   Definition to_StmtList (tags: tags_t) (typ: StmType)
-             (nel: list (N * (@Expression tags_t))): list (@Statement tags_t) :=
+             (nel: list (P4String * (@Expression tags_t))): list (@Statement tags_t) :=
     map (to_Statement tags typ) nel.
 
   Fixpoint extractFunCall_list (idx: N) (l: list (@Expression tags_t)):
-    (list (N * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
+    (list (P4String * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
     match l with
     | nil => (nil, nil, idx)
     | exp :: rest =>

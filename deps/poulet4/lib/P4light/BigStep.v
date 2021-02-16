@@ -420,19 +420,43 @@ Module Step.
       NameEqDec tags_t.
     (**[]*)
 
-(*
-    Definition out_fetch
-               (fs : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
-      : epsilon -> epsilon :=
-      fs
-        ▷ F.filter (fun '(d,_) =>
-                      match d with
-                      | P.Dir.DOut | P.Dir.DInOut => true
-                      | _ => false end)
-        ▷ F.fold (fun _ _ Γ =>
-                    let x' := bare x in
-                    !{ x' ↦ τ ;; Γ }!).
-*)
+    (** Create a new environment where
+        values of [In] args are substituted
+        into the function parameters. *)
+    Definition copy_in
+               (fs : F.fs tags_t
+                          (P.paramarg (V.v tags_t) (name tags_t)))
+               (ϵcall : epsilon) : epsilon :=
+      F.fold (fun x arg ϵ =>
+                let x' := bare x in
+                match arg with
+                | P.PAIn v    => !{ x' ↦ v ;; ϵ }!
+                | P.PAInOut y => match ϵcall y with
+                                | None   => ϵ
+                                | Some v => !{ x' ↦ v ;; ϵ }!
+                                end
+                | P.PAOut _   => ϵ
+                end) fs (Env.empty (name tags_t) (V.v tags_t)).
+    (**[]*)
+
+    (** Update current environment with
+        out variables from function call evaluation. *)
+    Definition copy_out
+               (fs : F.fs tags_t
+                          (P.paramarg (E.t tags_t * E.e tags_t)
+                                      (E.t tags_t * name tags_t)))
+               (ϵf : epsilon) : epsilon -> epsilon :=
+      F.fold (fun _ arg ϵ =>
+                match arg with
+                | P.PAIn _ => ϵ
+                | P.PAOut (_,x)
+                | P.PAInOut (_,x) =>
+                  match ϵf x with
+                  | None   => ϵ
+                  | Some v => !{ x ↦ v ;; ϵ }!
+                  end
+                end) fs.
+    (**[]*)
 
     (** Evidence that control-flow
         is interrupted by an exit or return statement. *)

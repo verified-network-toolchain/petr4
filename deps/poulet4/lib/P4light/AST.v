@@ -744,7 +744,8 @@ Module P4light.
               (i : tags_t)                               (* function/action/extern call *)
       | SReturnVoid (i : tags_t)                         (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
-                     (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *).
+                     (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *)
+      | SExit (i : tags_t)                               (* exit statement *).
     (**[]*)
     End Statements.
 
@@ -756,6 +757,7 @@ Module P4light.
     Arguments SCall {tags_t}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
+    Arguments SExit {_}.
 
     Module StmtNotations.
       Import E.TypeNotations.
@@ -802,6 +804,8 @@ Module P4light.
       Notation "'returns' @ i"
                := (SReturnVoid i)
                     (in custom p4stmt at level 0, no associativity).
+      Notation "'exit' @ i"
+               := (SExit i) (in custom p4stmt at level 0, no associativity).
     End StmtNotations.
   End Stmt.
 
@@ -883,7 +887,8 @@ Module P4light.
                  (params : F.fs tags_t (Dir.d * E.t tags_t))
                  (i : tags_t) (* TODO! *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
-                  (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
+                   (body : S.s tags_t) (i : tags_t)
+                   (* function/method declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.

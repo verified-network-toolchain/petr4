@@ -284,19 +284,21 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ lhs ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ rhs ∈ τ ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn lhs := rhs :: τ @ i fin ⊣ Γ, C)
-    | chk_cond (τ : E.t tags_t) (guard : E.e tags_t) (tru fls : ST.s tags_t)
+    | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
                (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
         lub sgt sgf = sg ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ guard ∈ τ ->
+        ⟦ errs , mkds , Γ ⟧ ⊢ guard ∈ Bool ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ tru ⊣ Γ1, sgt) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ fls ⊣ Γ2, sgf) ->
         ⦃ fns , errs , mkds , Γ ⦄
-          ⊢ if guard :: τ then tru else fls @ i fin ⊣ Γ, sg
+          ⊢ if guard :: Bool then tru else fls @ i fin ⊣ Γ, sg
     | chk_return_void (i : tags_t) :
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ returns @ i ⊣ Γ, R
     | chk_return_fruit (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
         (⦃ fns , errs, mkds , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ Γ, R)
+    | chk_exit (i : tags_t) :
+        ⦃ fns, errs, mkds , Γ ⦄ ⊢ exit @ i ⊣ Γ, R
     | chk_method_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
                       (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
                       (f : name tags_t) (i : tags_t) :

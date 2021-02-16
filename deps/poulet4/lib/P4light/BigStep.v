@@ -194,18 +194,25 @@ Module Step.
   Import V.ValueNotations.
 
   (** Statement signals. *)
-  Inductive signal : Set :=
-  | SIG_Cont   (* continue *)
-  | SIG_Rtrn   (* return *)
-  | SIG_Exit   (* exit *).
+  Inductive signal (tags_t : Type) : Type :=
+  | SIG_Cont                           (* continue *)
+  | SIG_Exit                           (* exit *)
+  | SIG_Rtrn (v : option (V.v tags_t)) (* return *).
+
+  Arguments SIG_Cont {_}.
+  Arguments SIG_Exit {_}.
+  Arguments SIG_Rtrn {_}.
 
   Declare Custom Entry p4evalsignal.
 
   Notation "x"
     := x (in custom p4evalsignal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
-  Notation "'R'" := SIG_Rtrn (in custom p4evalsignal at level 0).
   Notation "'X'" := SIG_Exit (in custom p4evalsignal at level 0).
+  Notation "'R' 'of' v ?"
+    := (SIG_Rtrn v) (in custom p4evalsignal at level 0).
+  Notation "'Void'" := (SIG_Rtrn None) (in custom p4evalsignal at level 0).
+  Notation "'Fruit' v" := (SIG_Rtrn (Some v)) (in custom p4evalsignal at level 0).
 
   Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
            (at level 40, e custom p4expr, v custom p4value).
@@ -413,18 +420,24 @@ Module Step.
       NameEqDec tags_t.
     (**[]*)
 
+    (** Evidence that control-flow
+        is interrupted by an exit or return statement. *)
+    Inductive interrupt : signal tags_t -> Prop :=
+    | interrupt_exit : interrupt SIG_Exit
+    | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
+
     Inductive stmt_big_step (fs : fenv) (ϵ : epsilon) :
-      ST.s tags_t -> epsilon -> signal -> Prop :=
+      ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
     | sbs_skip (i : tags_t) :
         ⟪ fs, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
     | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
-                   (ϵ' ϵ'' : epsilon) (sig : signal) :
+                   (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
         ⟪ fs, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
         ⟪ fs, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
         ⟪ fs, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
-    | sbs_seq_rtrn_or_exit (s1 s2 : ST.s tags_t) (i : tags_t)
-                           (ϵ' : epsilon) (sig : signal) :
-        sig = SIG_Rtrn \/ sig = SIG_Exit ->
+    | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
+                           (ϵ' : epsilon) (sig : signal tags_t) :
+        interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
     | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
@@ -432,6 +445,28 @@ Module Step.
         let x' := bare x in
         ⟨ ϵ, e ⟩ ⇓ v ->
         ⟪ fs, ϵ, decl x ≜ e :: τ @ i fin ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
+    | sbs_exit (i : tags_t) :
+        ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
+    | sbs_retvoid (i : tags_t) :
+        ⟪ fs, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
+    | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
+                   (i : tags_t) (v : V.v tags_t) :
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        ⟪ fs, ϵ, return e :: τ @ i fin ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+    | sbs_cond_true (guard : E.e tags_t)
+                    (tru fls : ST.s tags_t) (i : tags_t)
+                    (ϵ' : epsilon) (sig : signal tags_t) :
+        ⟨ ϵ, guard ⟩ ⇓ TRUE ->
+        ⟪ fs, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+          ⤋ ⟪ ϵ', sig ⟫
+    | sbs_cond_false (guard : E.e tags_t)
+                     (tru fls : ST.s tags_t) (i : tags_t)
+                     (ϵ' : epsilon) (sig : signal tags_t) :
+        ⟨ ϵ, guard ⟩ ⇓ FALSE ->
+        ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+          ⤋ ⟪ ϵ', sig ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

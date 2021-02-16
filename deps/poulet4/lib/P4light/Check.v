@@ -275,15 +275,10 @@ Module Typecheck.
     | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) :
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ⊣ Γ', R) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ Γ', R)
-    | chk_vardecl (τ : E.t tags_t) (x : string tags_t)
-                  (e : E.e tags_t) (i : tags_t) :
+    | chk_assign (τ : E.t tags_t) (x : name tags_t)
+                 (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
-        let x' := bare x in
-        ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ @ i fin ⊣ x' ↦ τ ;; Γ, C
-    | chk_assign (τ : E.t tags_t) (lhs rhs : E.e tags_t) (i : tags_t) :
-        ⟦ errs , mkds , Γ ⟧ ⊢ lhs ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ rhs ∈ τ ->
-        (⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn lhs := rhs :: τ @ i fin ⊣ Γ, C)
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn x := e :: τ @ i fin ⊣ x ↦ τ ;; Γ, C
     | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
                (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
         lub sgt sgf = sg ->

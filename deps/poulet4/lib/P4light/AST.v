@@ -729,23 +729,21 @@ Module P4light.
       Variable (tags_t : Type).
 
       Inductive s : Type :=
-      | SSkip (i : tags_t)                               (* skip, useful for
-                                                            small-step semantics *)
-      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
-                (i : tags_t)                             (* assignment *)
+      | SSkip (i : tags_t)                              (* skip, useful for
+                                                           small-step semantics *)
+      | SAssign (type : E.t tags_t) (x : name tags_t)
+                (e : E.e tags_t) (i : tags_t)           (* assignment *)
       | SConditional (guard_type : E.t tags_t)
                      (guard : E.e tags_t)
-                     (tru_blk fls_blk : s) (i : tags_t)  (* conditionals *)
-      | SSeq (s1 s2 : s) (i : tags_t)                    (* sequences,
-                                                            an alternative to blocks *)
-      | SVarDecl (typ : E.t tags_t) (var : string tags_t)
-                 (rhs : E.e tags_t) (i : tags_t)         (* variable declaration *)
+                     (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
+      | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
+                                                           an alternative to blocks *)
       | SCall (f : name tags_t) (args : E.arrowE tags_t)
-              (i : tags_t)                               (* function/action/extern call *)
-      | SReturnVoid (i : tags_t)                         (* void return statement *)
+              (i : tags_t)                              (* function/action/extern call *)
+      | SReturnVoid (i : tags_t)                        (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
-                     (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *)
-      | SExit (i : tags_t)                               (* exit statement *).
+                     (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
+      | SExit (i : tags_t)                              (* exit statement *).
     (**[]*)
     End Statements.
 
@@ -753,7 +751,6 @@ Module P4light.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
-    Arguments SVarDecl {tags_t}.
     Arguments SCall {tags_t}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
@@ -774,16 +771,10 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
-              := (SAssign t e1 e2 i)
-                    (in custom p4stmt at level 40,
-                        e1 custom p4expr, e2 custom p4expr,
+      Notation "'asgn' x ':=' e :: t @ i 'fin'"
+              := (SAssign t x e i)
+                    (in custom p4stmt at level 40, e custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'decl' x ≜ e :: t @ i 'fin'"
-              := (SVarDecl t x e i)
-                    (in custom p4stmt at level 40,
-                        e custom p4expr, t custom p4type,
-                        no associativity).
       Notation "'if' e :: t 'then' s1 'else' s2 @ i 'fin'"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,

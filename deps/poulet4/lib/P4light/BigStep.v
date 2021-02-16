@@ -420,6 +420,20 @@ Module Step.
       NameEqDec tags_t.
     (**[]*)
 
+(*
+    Definition out_fetch
+               (fs : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+      : epsilon -> epsilon :=
+      fs
+        ▷ F.filter (fun '(d,_) =>
+                      match d with
+                      | P.Dir.DOut | P.Dir.DInOut => true
+                      | _ => false end)
+        ▷ F.fold (fun _ _ Γ =>
+                    let x' := bare x in
+                    !{ x' ↦ τ ;; Γ }!).
+*)
+
     (** Evidence that control-flow
         is interrupted by an exit or return statement. *)
     Inductive interrupt : signal tags_t -> Prop :=
@@ -440,11 +454,10 @@ Module Step.
         interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
-                  (e : E.e tags_t) (v : V.v tags_t) (i : tags_t) :
-        let x' := bare x in
+    | sbs_assign (τ : E.t tags_t) (x : name tags_t)
+                 (e : E.e tags_t) (v : V.v tags_t) (i : tags_t) :
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ϵ, decl x ≜ e :: τ @ i fin ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
+        ⟪ fs, ϵ, asgn x := e :: τ @ i fin ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
     | sbs_exit (i : tags_t) :
         ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :

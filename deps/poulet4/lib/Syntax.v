@@ -319,10 +319,6 @@ Section Syntax.
     .
   End statement_rec.
 
-  Scheme statement_mut := Induction for Statement Sort Prop
-    with statementpre_mut := Induction for StatementPreT Sort Prop
-    with block_mut := Induction for Block Sort Prop.
-
   Inductive ParserCase :=
   | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).
 

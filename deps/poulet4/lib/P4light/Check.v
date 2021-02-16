@@ -112,15 +112,16 @@ Module Typecheck.
     (**[]*)
 
     Definition out_update
-               (fs : F.fs tags_t (dir * (E.t tags_t * E.e tags_t))) : gam -> gam :=
-      fs
-        ▷ F.filter (fun '(d,_) =>
-                      match d with
-                      | P.Dir.DOut | P.Dir.DInOut => true
-                      | _ => false end)
-        ▷ F.fold (fun x '(_, (τ,_)) Γ =>
-                    let x' := bare x in
-                    !{ x' ↦ τ ;; Γ }!).
+               (fs : F.fs tags_t
+                          (P.paramarg (E.t tags_t * E.e tags_t)
+                                      (E.t tags_t * name tags_t))) : gam -> gam :=
+      F.fold (fun x param Γ =>
+                match param with
+                | P.PAOut (τ,_)
+                | P.PAInOut (τ,_) => let x' := bare x in
+                                    !{ x' ↦ τ ;; Γ }!
+                | P.PAIn _        => Γ
+                end) fs.
 
     (** Evidence for a type being numeric. *)
     Inductive numeric : E.t tags_t -> Prop :=
@@ -294,30 +295,49 @@ Module Typecheck.
         (⦃ fns , errs, mkds , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ Γ, R)
     | chk_exit (i : tags_t) :
         ⦃ fns, errs, mkds , Γ ⦄ ⊢ exit @ i ⊣ Γ, R
-    | chk_method_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
-                      (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+    | chk_method_call (Γ' : gam)
+                      (params : F.fs tags_t
+                                     (P.paramarg (E.t tags_t)
+                                                 (E.t tags_t)))
+                      (args :
+                         F.fs tags_t
+                              (P.paramarg (E.t tags_t * E.e tags_t)
+                                          (E.t tags_t * name tags_t)))
                       (f : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
-        fns f = Some (E.Arrow params None) ->
+        fns f = Some (P.Arrow params None) ->
         F.relfs
-          (fun dte dt =>
-             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
-             let e := dte ▷ snd ▷ snd in
-             let τ := snd dt in
-             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (P.rel_paramarg
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+             (fun tx τ =>
+                E.equivt τ (tx ▷ fst) /\
+                let x := tx ▷ snd in
+                Γ x = Some τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C)
-    | chk_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
-               (τ : E.t tags_t)
-               (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+    | chk_call (Γ' : gam) (τ : E.t tags_t)
+               (params : F.fs tags_t
+                              (P.paramarg (E.t tags_t)
+                                                 (E.t tags_t)))
+               (args :
+                  F.fs tags_t
+                       (P.paramarg (E.t tags_t * E.e tags_t)
+                                   (E.t tags_t * name tags_t)))
                (f x : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
-        fns f = Some (E.Arrow params (Some τ)) ->
+        fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
-          (fun dte dt =>
-             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
-             let e := dte ▷ snd ▷ snd in
-             let τ := snd dt in
-             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (P.rel_paramarg
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+             (fun tx τ =>
+                E.equivt τ (tx ▷ fst) /\
+                let x := tx ▷ snd in
+                Γ x = Some τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄
            ⊢ let x :: τ := call f with args @ i fin ⊣ x ↦ τ ;; Γ', C)
     where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2 ',' sg"
@@ -336,8 +356,8 @@ Module Typecheck.
     (** Put parameters into environment. *)
     Definition bind_all (sig : E.arrowT tags_t) : gam -> gam :=
       match sig with
-      | E.Arrow params _ =>
-        F.fold (fun x '(_,τ) Γ =>
+      | P.Arrow params _ =>
+        F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ =>
                   let x' := bare x in
                   !{ x' ↦ τ ;; Γ }!) params
       end.
@@ -346,9 +366,9 @@ Module Typecheck.
     (** Appropriate signal. *)
     Inductive good_signal : E.arrowT tags_t -> signal -> Prop :=
       | good_signal_cont params :
-          good_signal (E.Arrow params None) SIG_Cont
+          good_signal (P.Arrow params None) SIG_Cont
       | good_signal_return params ret :
-          good_signal (E.Arrow params (Some ret)) SIG_Return.
+          good_signal (P.Arrow params (Some ret)) SIG_Return.
     (**[]*)
 
     Inductive check_decl

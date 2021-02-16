@@ -132,6 +132,30 @@ Module Typecheck.
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
 
+    (** Evidence that a binary operation is purely numeric. *)
+    Inductive numeric_bop : E.bop -> Prop :=
+    | numeric_bop_plus : numeric_bop E.Plus
+    | numeric_bop_plussat : numeric_bop E.PlusSat
+    | numeric_bop_minus : numeric_bop E.Minus
+    | numeric_bop_minussat : numeric_bop E.MinusSat
+    | numeric_bop_shl : numeric_bop E.Shl
+    | numeric_bop_shr : numeric_bop E.Shr
+    | numeric_bop_bitand : numeric_bop E.BitAnd
+    | numeric_bop_bitxor : numeric_bop E.BitXor
+    | numeric_bop_bitor : numeric_bop E.BitOr.
+
+    (** Evidence a binary operator gives a bool from numbers. *)
+    Inductive comp_bop : E.bop -> Prop :=
+    | comp_bop_le : comp_bop E.Le
+    | comp_bop_ge : comp_bop E.Ge
+    | comp_bop_lt : comp_bop E.Lt
+    | comp_bop_gt : comp_bop E.Gt.
+
+    (** Evidence a binary operator is purely boolean. *)
+    Inductive bool_bop : E.bop -> Prop :=
+    | bool_bop_and : bool_bop E.And
+    | bool_bop_or  : bool_bop E.Or.
+
     (** Expression typing as a relation. *)
     Inductive check
               (errs : errors) (mkds : matchkinds)
@@ -159,69 +183,23 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ int<w> ->
         ⟦ errs , mkds , Γ ⟧ ⊢ - e :: int<w> @ i end ∈ int<w>
     (* Binary Operations. *)
-    | chk_plus (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
+    | chk_numeric_bop (op : E.bop) (τ τ' : E.t tags_t)
+                      (e1 e2 : E.e tags_t) (i : tags_t) :
+        E.equivt τ τ' -> numeric τ -> numeric_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ + e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_minus (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
+        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) τ
+    | chk_comp_bop (op : E.bop) (τ τ' : E.t tags_t)
+                   (e1 e2 : E.e tags_t) (i : tags_t) :
+        E.equivt τ τ' -> numeric τ -> comp_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ -- e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_plussat (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ |+| e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_minussat (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ |-| e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitand (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ & e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitor (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ | e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitxor (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ ^ e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_and (e1 e2 : E.e tags_t) (i : tags_t) :
+        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) {{ Bool }}
+    | chk_bool_bop (op : E.bop) (e1 e2 : E.e tags_t) (i : tags_t) :
+        bool_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ Bool ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ && e1 :: Bool e2 :: Bool @ i end ∈ Bool
-    | chk_or (e1 e2 : E.e tags_t) (i : tags_t) :
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ || e1 :: Bool e2 :: Bool @ i end ∈ Bool
-    | chk_le (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ <= e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_ge (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ >= e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_lt (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ < e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_gt (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ > e1 :: τ e2 :: τ' @ i end ∈ Bool
+        check errs mkds Γ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) {{ Bool }}
     | chk_eq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
@@ -230,16 +208,6 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ != e1 :: τ e2 :: τ @ i end ∈ Bool
-    | chk_shl (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        numeric τ -> numeric τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ << e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_shr (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        numeric τ -> numeric τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ >> e1 :: τ e2 :: τ' @ i end ∈ τ
     | chk_plusplus_bit (τ : E.t tags_t) (m n w : positive)
                        (e1 e2 : E.e tags_t) (i : tags_t) :
         (m + n)%positive = w ->
@@ -249,7 +217,8 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ ++ e1 :: bit<m> e2 :: τ @ i end ∈ bit<w>
     (* Member expressions. *)
     | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
-                  (fields : F.fs tags_t (E.t tags_t)) (τ : E.t tags_t) (i : tags_t) :
+                  (fields : F.fs tags_t (E.t tags_t))
+                  (τ : E.t tags_t) (i : tags_t) :
         In (x, τ) fields ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ hdr { fields } ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Mem e :: hdr { fields } dot x @ i end ∈ τ

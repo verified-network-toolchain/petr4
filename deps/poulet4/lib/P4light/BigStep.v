@@ -326,6 +326,13 @@ Module Step.
         ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
         expr_big_step ϵ (E.EBop op {{bit<w>}} {{bit <w>}} e1 e2 i) v
+    | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
+                   (w w1 w2 : positive) (n n1 n2 : N) :
+        (w1 + w2)%positive = w ->
+        BitArith.bit_concat w2 n1 n2 = n ->
+        ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
+        ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
+        ⟨ ϵ, ++ e1 :: bit<w1> e2 :: bit<w2> @ i end ⟩ ⇓ w VW n
     | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
                   (i : tags_t) (w : positive) (z1 z2 : Z) :
         eval_int_binop op w z1 z2 = Some v ->

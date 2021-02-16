@@ -980,71 +980,106 @@ Definition MyIngress := DeclControl NoInfo
          (MkStatement NoInfo
               (StatConditional
                    (MkExpression NoInfo
-                        (ExpBinaryOp Eq
-                             ( (MkExpression NoInfo
-                                    (ExpBinaryOp Mod
-                                         ( (MkExpression NoInfo
-                                                (ExpExpressionMember
-                                                     (MkExpression NoInfo
-                                                          (ExpExpressionMember
-                                                               (MkExpression
-                                                                    NoInfo
-                                                                    (
-                                                                    ExpName
-                                                                    (
-                                                                    BareName
+                        (ExpFunctionCall
+                             (MkExpression NoInfo
+                                  (ExpExpressionMember
+                                       (MkExpression NoInfo
+                                            (ExpExpressionMember
+                                                 (MkExpression NoInfo
+                                                      (ExpExpressionMember
+                                                           (MkExpression
+                                                                NoInfo
+                                                                (ExpName
+                                                                 (BareName
+                                                                  {| 
+                                                                  stags := NoInfo;
+                                                                  str := "hdr" |}))
+                                                                (TypTypeName
+                                                                 (BareName
+                                                                  {| 
+                                                                  stags := NoInfo;
+                                                                  str := "headers" |}))
+                                                                InOut)
+                                                           {| stags := NoInfo;
+                                                              str := "t_or_u" |})
+                                                      (TypHeaderUnion
+                                                       [(MkFieldType
+                                                             {| stags := NoInfo;
+                                                                str := "udp" |}
+                                                             (TypHeader
+                                                              [(MkFieldType
                                                                     {| 
                                                                     stags := NoInfo;
-                                                                    str := "hdr" |}))
+                                                                    str := "sport" |}
                                                                     (
-                                                                    TypTypeName
-                                                                    (
-                                                                    BareName
+                                                                    TypBit 8));
+                                                               (MkFieldType
                                                                     {| 
                                                                     stags := NoInfo;
-                                                                    str := "headers" |}))
-                                                                    InOut)
-                                                               {| stags := NoInfo;
-                                                                  str := "ip" |})
-                                                          (TypHeader
-                                                           [(MkFieldType
-                                                                 {| stags := NoInfo;
-                                                                    str := "src" |}
-                                                                 (TypBit 8));
-                                                            (MkFieldType
-                                                                 {| stags := NoInfo;
-                                                                    str := "dst" |}
-                                                                 (TypBit 8));
-                                                            (MkFieldType
-                                                                 {| stags := NoInfo;
-                                                                    str := "proto" |}
-                                                                 (TypBit 4))])
-                                                          Directionless)
-                                                     {| stags := NoInfo;
-                                                        str := "dst" |})
-                                                (TypBit 8) Directionless),
-                                           (MkExpression NoInfo
-                                                (ExpCast (TypBit 8)
-                                                     (MkExpression NoInfo
-                                                          (ExpInt
-                                                           {| itags := NoInfo;
-                                                              value := 2;
-                                                              width_signed := 
-                                                              None |})
-                                                          TypInteger
-                                                          Directionless))
-                                                (TypBit 8) Directionless) ))
-                                    (TypBit 8) Directionless),
-                               (MkExpression NoInfo
-                                    (ExpCast (TypBit 8)
-                                         (MkExpression NoInfo
-                                              (ExpInt
-                                               {| itags := NoInfo;
-                                                  value := 0;
-                                                  width_signed := None |})
-                                              TypInteger Directionless))
-                                    (TypBit 8) Directionless) )) TypBool
-                        Directionless)
+                                                                    str := "dport" |}
+                                                                    (
+                                                                    TypBit 8));
+                                                               (MkFieldType
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "flags" |}
+                                                                    (
+                                                                    TypBit 4))]));
+                                                        (MkFieldType
+                                                             {| stags := NoInfo;
+                                                                str := "tcp" |}
+                                                             (TypHeader
+                                                              [(MkFieldType
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "sport" |}
+                                                                    (
+                                                                    TypBit 8));
+                                                               (MkFieldType
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "dport" |}
+                                                                    (
+                                                                    TypBit 8));
+                                                               (MkFieldType
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "flags" |}
+                                                                    (
+                                                                    TypBit 4));
+                                                               (MkFieldType
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "seq" |}
+                                                                    (
+                                                                    TypBit 8))]))])
+                                                      Directionless)
+                                                 {| stags := NoInfo;
+                                                    str := "tcp" |})
+                                            (TypHeader
+                                             [(MkFieldType
+                                                   {| stags := NoInfo;
+                                                      str := "sport" |}
+                                                   (TypBit 8));
+                                              (MkFieldType
+                                                   {| stags := NoInfo;
+                                                      str := "dport" |}
+                                                   (TypBit 8));
+                                              (MkFieldType
+                                                   {| stags := NoInfo;
+                                                      str := "flags" |}
+                                                   (TypBit 4));
+                                              (MkFieldType
+                                                   {| stags := NoInfo;
+                                                      str := "seq" |}
+                                                   (TypBit 8))])
+                                            Directionless)
+                                       {| stags := NoInfo;
+                                          str := "isValid" |})
+                                  (TypFunction
+                                   (MkFunctionType nil nil FunBuiltin
+                                        TypBool)) Directionless) nil nil)
+                        TypBool Directionless)
                    (MkStatement NoInfo
                         (StatBlock
                          (BlockCons

@@ -63,7 +63,7 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-    	  if (hdr.ip.dst % 2 == 0) {
+    	  if (hdr.t_or_u.tcp.isValid()) {
 	      standard_metadata.egress_spec = 0;
 	  }
 	  else {

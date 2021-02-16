@@ -47,7 +47,7 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-    	  if (hdr.comb.dst % 2 == 0) {
+    	  if (hdr.opt_suff.isValid()) {
 	      standard_metadata.egress_spec = 0;
 	  }
 	  else {

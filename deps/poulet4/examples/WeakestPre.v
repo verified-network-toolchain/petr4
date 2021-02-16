@@ -167,62 +167,49 @@ Proof.
         exact H.
 Qed.
 
-Fixpoint weakest_precondition_statement
-    (stmt: @Statement tag_t)
-    (post: @pred environment)
-    : @pred environment
-:=
-    let '(MkStatement _ stmt _) := stmt in
+Equations weakest_precondition_statement (stmt: @Statement tag_t) (post: @pred environment) : @pred environment :=
+  weakest_precondition_statement (MkStatement _ stmt _) post :=
     weakest_precondition_statement_pre stmt post
-with weakest_precondition_statement_pre
-    (stmt: @StatementPreT tag_t)
-    (post: @pred environment)
-    : @pred environment
-:=
-    match stmt with
-    | StatBlock block =>
-      let inter := weakest_precondition_block block (pred_env_popped post) in
-      pred_env_pushed inter
-    | StatAssignment lhs rhs =>
-      let inter' := fun '(env_inter', lval) =>
-          let inter := fun '(env_inter, rval) =>
-              match env_update _ lval rval env_inter with
-              | (inl tt, env_post) => post env_post
-              | _ => False
-              end
-          in weakest_precondition_expression rhs inter env_inter'
-      in weakest_precondition_expression_lvalue lhs inter'
-    | StatMethodCall callee type_args args =>
-      let inter' := fun '(env_inter', func) =>
-          match func with
-          | ValObj (ValObjFun params impl) =>
-            let inter := fun '(env_inter, arg_vals) =>
-                match impl with
-                | ValFuncImplBuiltin name obj =>
-                  match eval_builtin_func _ name obj type_args arg_vals env_inter with
-                  | (inl val, env_post) => post env_post
-                  | _ => False
-                  end
-                | _ => False
-                end
-            in weakest_precondition_arguments params args inter env_inter'
+with weakest_precondition_statement_pre (stmt: @StatementPreT tag_t) (post: @pred environment) : @pred environment :=
+  weakest_precondition_statement_pre (StatBlock block) post :=
+    let inter := weakest_precondition_block block (pred_env_popped post) in
+    pred_env_pushed inter;
+  weakest_precondition_statement_pre (StatAssignment lhs rhs) post :=
+    let inter' := fun '(env_inter', lval) =>
+      let inter := fun '(env_inter, rval) =>
+        match env_update _ lval rval env_inter with
+        | (inl tt, env_post) => post env_post
+        | _ => False
+        end
+      in weakest_precondition_expression rhs inter env_inter'
+    in weakest_precondition_expression_lvalue lhs inter';
+  weakest_precondition_statement_pre (StatMethodCall callee type_args args) post :=
+    let inter' := fun '(env_inter', func) =>
+      match func with
+      | ValObj (ValObjFun params impl) =>
+        let inter := fun '(env_inter, arg_vals) =>
+          match impl with
+          | ValFuncImplBuiltin name obj =>
+            match eval_builtin_func _ name obj type_args arg_vals env_inter with
+            | (inl val, env_post) => post env_post
+            | _ => False
+            end
           | _ => False
           end
-      in weakest_precondition_expression callee inter'
-    | StatEmpty => post
-    | _ => pred_false
-    end
-with weakest_precondition_block
-    (block: @Block tag_t)
-    (post: @pred environment)
-    : @pred environment
-:=
-    match block with
-    | BlockEmpty _ => post
-    | BlockCons stmt block' =>
-      let inter := weakest_precondition_block block' post in
-      weakest_precondition_statement stmt inter
-    end
+        in weakest_precondition_arguments params args inter env_inter'
+      | _ => False
+      end
+    in weakest_precondition_expression callee inter';
+  weakest_precondition_statement_pre StatEmpty post :=
+    post;
+  weakest_precondition_statement_pre _ _ :=
+    pred_false
+with weakest_precondition_block (block: @Block tag_t) (post: @pred environment) : @pred environment :=
+  weakest_precondition_block (BlockEmpty _) post :=
+    post;
+  weakest_precondition_block (BlockCons stmt rest) post :=
+    let inter := weakest_precondition_block rest post in
+    weakest_precondition_statement stmt inter
 .
 
 Definition weakest_precondition_block_correct
@@ -290,91 +277,56 @@ Proof.
         (PStatementSwitchCase := fun _ => True)
         (PStatementSwitchCaseList := fun _ => True); try easy.
     - unfold weakest_precondition_statement_pre_correct; intros.
-      case_eq (eval_statement_pre tag_t tag (StatMethodCall func type_args args) env_pre).
-      intros s env_post eval_statement_pre_result.
-      destruct s; try trivial; destruct u.
       unfold weakest_precondition_statement_pre in H.
       apply weakest_precondition_expression_correct in H.
-      case_eq (eval_expression tag_t tag func env_pre).
-      intros s env_inter' eval_expression_result.
-      rewrite eval_expression_result in H.
+      rewrite eval_statement_pre_equation_1.
+      unfold toss_value, eval_method_call; simpl.
+      unfold state_bind; simpl.
+      destruct (eval_expression tag_t tag func env_pre).
       destruct s; try contradiction.
-      repeat (destruct v; try contradiction).
-      simpl in H.
+      destruct v; try contradiction.
+      destruct v; try contradiction.
       apply weakest_precondition_arguments_correct in H.
-      case_eq (eval_arguments tag_t tag params args env_inter').
-      intros s env_inter eval_arguments_result.
-      rewrite eval_arguments_result in H.
-      destruct s, impl; try contradiction.
-      unfold eval_statement_pre in eval_statement_pre_result.
-      unfold toss_value in eval_statement_pre_result.
-      unfold eval_method_call in eval_statement_pre_result.
-      simpl in eval_statement_pre_result.
-      unfold state_bind in eval_statement_pre_result.
-      rewrite eval_expression_result in eval_statement_pre_result.
-      rewrite eval_arguments_result in eval_statement_pre_result.
-      case_eq (eval_builtin_func tag_t name caller type_args l env_inter).
-      intros s env_post' eval_builtin_func_result.
-      rewrite eval_builtin_func_result in eval_statement_pre_result.
-      rewrite eval_builtin_func_result in H.
+      destruct (eval_arguments tag_t tag params args e).
       destruct s; try contradiction.
-      inversion eval_statement_pre_result.
-      rewrite H1 in H.
+      destruct impl; try contradiction.
+      destruct (eval_builtin_func tag_t name caller type_args l e0).
+      destruct s; try contradiction.
       exact H.
     - unfold weakest_precondition_statement_pre_correct; intros.
-      case_eq (eval_statement_pre tag_t tag (StatAssignment lhs rhs) env_pre).
-      intros s env_post eval_statement_pre_result.
-      destruct s; try trivial; destruct u.
-      unfold eval_statement_pre in eval_statement_pre_result.
-      simpl in eval_statement_pre_result.
-      unfold state_bind in eval_statement_pre_result.
-      case_eq (eval_lvalue tag_t lhs env_pre).
-      intros s env_inter' eval_lvalue_result.
-      rewrite eval_lvalue_result in eval_statement_pre_result.
       unfold weakest_precondition_statement_pre in H.
       apply weakest_precondition_expression_lvalue_correct in H.
-      rewrite eval_lvalue_result in H.
+      rewrite eval_statement_pre_equation_2.
+      simpl; unfold state_bind; simpl.
+      destruct (eval_lvalue tag_t lhs env_pre).
       destruct s; try contradiction.
       apply weakest_precondition_expression_correct in H.
-      destruct (eval_expression tag_t tag rhs env_inter').
+      destruct (eval_expression tag_t tag rhs e).
       destruct s; try contradiction.
-      rewrite eval_statement_pre_result in H.
+      destruct (env_update tag_t v v0 e0).
+      destruct s; try contradiction.
       exact H.
     - unfold weakest_precondition_statement_pre_correct; intros.
-      unfold weakest_precondition_statement_pre in H.
+      rewrite weakest_precondition_statement_pre_equation_5 in H.
+      simpl in H; unfold pred_env_pushed in H.
       apply IHstmt in H.
-      unfold eval_statement_pre.
-      fold (eval_block tag_t tag block).
-      simpl; unfold state_bind; simpl.
-      destruct (eval_block tag_t tag block {|
-        env_fresh := env_fresh tag_t env_pre;
-        env_stack := MStr.empty loc :: env_stack tag_t env_pre;
-        env_heap := env_heap tag_t env_pre
-      |}).
-      destruct s; try trivial.
-      destruct u.
+      rewrite eval_statement_pre_equation_5; simpl.
+      unfold state_bind; simpl.
+      destruct (eval_block tag_t tag block _).
+      destruct s; try trivial; destruct u.
       unfold pred_env_popped in H.
       destruct (stack_pop tag_t e).
       destruct s; try trivial.
       destruct u; exact H.
     - unfold weakest_precondition_block_correct; intros.
-      unfold weakest_precondition_block in H.
-      apply IHstmt in H.
-      case_eq (eval_statement tag_t tag stmt env_pre).
-      intros s env_inter eval_statement_result.
-      rewrite eval_statement_result in H.
-      fold (weakest_precondition_block rest post env_inter) in H.
-      unfold eval_block.
-      fold (eval_statement tag_t tag stmt).
-      fold (eval_block tag_t tag rest).
+      rewrite weakest_precondition_block_equation_2 in H.
+      simpl in H; apply IHstmt in H.
+      rewrite eval_block_equation_2.
       simpl; unfold state_bind; simpl.
-      rewrite eval_statement_result.
-      case_eq (eval_block tag_t tag rest env_inter).
-      intros s' env_post eval_block_result.
+      destruct (eval_statement tag_t tag stmt env_pre).
       destruct s; try trivial.
-      destruct s'; try trivial.
-      destruct u0, u.
+      destruct u.
       apply IHstmt0 in H.
-      rewrite eval_block_result in H.
+      destruct (eval_block tag_t tag rest e).
       exact H.
 Qed.

@@ -6,6 +6,7 @@ Require Import Petr4.Typed.
 Require Petr4.String.
 Require Petr4.P4String.
 Require Petr4.P4Int.
+Require Import Petr4.Utils.
 
 Section Syntax.
 
@@ -140,34 +141,183 @@ Section Syntax.
   | StatSwLabName (tags: tags_t) (_: P4String).
 
   Inductive StatementSwitchCase :=
-  | StatSwCaseAction (tags: tags_t) (label: StatementSwitchLabel) (code: Block)
-  | StatSwCaseFallThrough (tags: tags_t) (label: StatementSwitchLabel)
+  | StatSwCaseAction (tags: tags_t)
+                     (label: StatementSwitchLabel)
+                     (code: Block)
+  | StatSwCaseFallThrough (tags: tags_t)
+                          (label: StatementSwitchLabel)
   with StatementPreT :=
-  | StatMethodCall (func: Expression) (type_args: list (@P4Type tags_t))
+  | StatMethodCall (func: Expression)
+                   (type_args: list (@P4Type tags_t))
                    (args: list (option Expression))
-  | StatAssignment (lhs: Expression) (rhs: Expression)
-  | StatDirectApplication (typ: @P4Type tags_t) (args: list Expression)
-  | StatConditional (cond: Expression) (tru: Statement) (fls: option Statement)
+  | StatAssignment (lhs: Expression)
+                   (rhs: Expression)
+  | StatDirectApplication (typ: @P4Type tags_t)
+                          (args: list Expression)
+  | StatConditional (cond: Expression)
+                    (tru: Statement)
+                    (fls: option Statement)
   | StatBlock (block: Block)
   | StatExit
   | StatEmpty
   | StatReturn (expr: option Expression)
-  | StatSwitch (expr: Expression) (cases: list StatementSwitchCase)
+  | StatSwitch (expr: Expression)
+               (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
-                 (name: P4String) (value: ValueBase)
+                  (name: P4String) (value: ValueBase)
   | StatVariable  (typ: @P4Type tags_t)
-                 (name: P4String) (init: option Expression)
+                  (name: P4String) (init: option Expression)
   | StatInstantiation  (typ: @P4Type tags_t)
-                      (args: list Expression) (name: P4String) (init: option Block)
+                       (args: list Expression)
+                       (name: P4String)
+                       (init: option Block)
   with Statement :=
-  | MkStatement (tags: tags_t) (stmt: StatementPreT) (typ: StmType)
+  | MkStatement (tags: tags_t)
+                (stmt: StatementPreT)
+                (typ: StmType)
   with Block :=
   | BlockEmpty (tags: tags_t)
-  | BlockCons (statement: Statement) (rest: Block).
+  | BlockCons (statement: Statement)
+              (rest: Block).
 
-  Scheme statement_mut := Induction for Statement Sort Prop
-    with statementpre_mut := Induction for StatementPreT Sort Prop
-    with block_mut := Induction for Block Sort Prop.
+  Section statement_rec.
+    Context
+      {PStatementSwitchCase: StatementSwitchCase -> Type}
+      {PStatementSwitchCaseList: list StatementSwitchCase -> Type}
+      {PStatementPreT: StatementPreT -> Type}
+      {PStatement: Statement -> Type}
+      {PStatementMaybe: option Statement -> Type}
+      {PBlock: Block -> Type}
+      {PBlockMaybe: option Block -> Type}
+    .
+
+    Hypotheses
+      (HStatSwCaseAction: forall tags label code,
+                          PBlock code ->
+                          PStatementSwitchCase
+                            (StatSwCaseAction tags label code))
+      (HStatSwCaseFallThrough: forall tags label,
+                               PStatementSwitchCase
+                                (StatSwCaseFallThrough tags label))
+      (HStatementSwitchCaseListNil: PStatementSwitchCaseList nil)
+      (HStatementSwitchCaseListCons: forall s l,
+                                     PStatementSwitchCase s ->
+                                     PStatementSwitchCaseList l ->
+                                     PStatementSwitchCaseList (s :: l))
+      (HStatMethodCall: forall func type_args args,
+                        PStatementPreT (StatMethodCall func type_args args))
+      (HStatAssignment: forall lhs rhs,
+                        PStatementPreT (StatAssignment lhs rhs))
+      (HStatDirectApplication: forall typ args,
+                               PStatementPreT
+                                (StatDirectApplication typ args))
+      (HStatConditional: forall cond tru fls,
+                         PStatement tru ->
+                         PStatementMaybe fls ->
+                         PStatementPreT (StatConditional cond tru fls))
+      (HStatBlock: forall block,
+                   PBlock block ->
+                   PStatementPreT (StatBlock block))
+      (HStatExit: PStatementPreT StatExit)
+      (HStatEmpty: PStatementPreT StatEmpty)
+      (HStatReturn: forall expr, PStatementPreT (StatReturn expr))
+      (HStatSwitch: forall expr cases,
+                    PStatementSwitchCaseList cases ->
+                    PStatementPreT (StatSwitch expr cases))
+      (HStatConstant: forall typ name value,
+                      PStatementPreT (StatConstant typ name value))
+      (HStatVariable: forall typ name init,
+                      PStatementPreT (StatVariable typ name init))
+      (HStatInstantiation: forall typ args name init,
+                           PBlockMaybe init ->
+                           PStatementPreT
+                            (StatInstantiation typ args name init))
+      (HMkStatement: forall tags stmt typ,
+                     PStatementPreT stmt ->
+                     PStatement (MkStatement tags stmt typ))
+      (HStatementMaybeNone: PStatementMaybe None)
+      (HStatementMaybeSome: forall s,
+                            PStatement s ->
+                            PStatementMaybe (Some s))
+      (HBlockEmpty: forall tags, PBlock (BlockEmpty tags))
+      (HBlockCons: forall stmt rest,
+                   PStatement stmt ->
+                   PBlock rest ->
+                   PBlock (BlockCons stmt rest))
+      (HBlockMaybeNone: PBlockMaybe None)
+      (HBlockMaybeSome: forall b, PBlock b -> PBlockMaybe (Some b))
+    .
+
+    Fixpoint statement_rec (s: Statement) : PStatement s :=
+      match s with
+      | MkStatement tags s' typ =>
+        HMkStatement tags s' typ (statement_pre_t_rec s')
+      end
+    with statement_pre_t_rec (s: StatementPreT) : PStatementPreT s :=
+      match s with
+      | StatMethodCall func type_args args =>
+        HStatMethodCall func type_args args
+      | StatAssignment lhs rhs =>
+        HStatAssignment lhs rhs
+      | StatDirectApplication typ args =>
+        HStatDirectApplication typ args
+      | StatConditional cond tru fls =>
+        HStatConditional cond tru fls
+          (statement_rec tru)
+          (option_rec (PStatement)
+                      (PStatementMaybe)
+                      (HStatementMaybeNone)
+                      (HStatementMaybeSome)
+                      (statement_rec)
+                      fls)
+      | StatBlock block =>
+        HStatBlock block (block_rec block)
+      | StatExit =>
+        HStatExit
+      | StatEmpty =>
+        HStatEmpty
+      | StatReturn expr =>
+        HStatReturn expr
+      | StatSwitch expr cases =>
+        HStatSwitch expr cases
+          (list_rec (PStatementSwitchCase)
+                    (PStatementSwitchCaseList)
+                    (HStatementSwitchCaseListNil)
+                    (HStatementSwitchCaseListCons)
+                    (statement_switch_case_rec)
+                    cases)
+      | StatConstant typ name value =>
+        HStatConstant typ name value
+      | StatVariable typ name init =>
+        HStatVariable typ name init
+      | StatInstantiation typ args name init =>
+        HStatInstantiation typ args name init
+          (option_rec (PBlock)
+                      (PBlockMaybe)
+                      (HBlockMaybeNone)
+                      (HBlockMaybeSome)
+                      (block_rec)
+                      init)
+      end
+    with statement_switch_case_rec
+      (s: StatementSwitchCase)
+      : PStatementSwitchCase s
+    :=
+      match s with
+      | StatSwCaseAction tags label code =>
+        HStatSwCaseAction tags label code (block_rec code)
+      | StatSwCaseFallThrough tags label =>
+        HStatSwCaseFallThrough tags label
+      end
+    with block_rec (b: Block) : PBlock b :=
+      match b with
+      | BlockEmpty tags =>
+        HBlockEmpty tags
+      | BlockCons stmt rest =>
+        HBlockCons stmt rest (statement_rec stmt) (block_rec rest)
+      end
+    .
+  End statement_rec.
 
   Inductive ParserCase :=
   | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).

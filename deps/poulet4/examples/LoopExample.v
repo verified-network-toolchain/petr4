@@ -14,7 +14,7 @@ Open Scope list_scope.
 
 Require Import IntExampleWeakestPre.
 
-(* 
+(*
   A simple loop example which iterates 5 times and then accepts
 
 parser LoopExample (packet_in pkt, out int<2> output) {
@@ -63,7 +63,7 @@ Definition loop_body: list (Statement tag_t) := decrement :: nil.
 
 Definition start_st : ParserState tag_t := MkParserState _ tt (MkP4String _ tt "start") start_body (ParserDirect _ tt (MkP4String _ tt "loop")).
 
-Definition loop_transition : ParserTransition tag_t := 
+Definition loop_transition : ParserTransition tag_t :=
   let loop_case := MkParserCase _ tt ((MkMatch _ tt (MatchExpression tag_t z_expr) TypInteger) :: nil) (MkP4String _ tt "loop") in
   let accept_case := MkParserCase _ tt ((MkMatch _ tt (MatchDontCare tag_t) TypInteger) :: nil) (MkP4String _ tt String.accept) in
     ParserSelect _ tt (iter_expr :: nil) (loop_case :: accept_case :: nil).
@@ -82,7 +82,7 @@ Definition unrolledLP := unroll_loop _ tt LoopParser loop_st.
 
 Compute
 
-(* 
+(*
   The loop example should unroll to the following:
 
 parser LoopExample (packet_in pkt, out int<2> output) {

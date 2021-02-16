@@ -6,6 +6,13 @@ lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
 lib/Monads/Transformers.v
+
+lib/Grammars/Grammar.v
+lib/Grammars/Lib.v
+lib/Grammars/Bits.v
+lib/Grammars/Binary.v
+lib/Grammars/Decimal.v
+
 lib/Utils.v
 lib/Bitwise.v
 lib/Step.v
@@ -19,6 +26,7 @@ lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
 lib/Unroll.v
+lib/Semantics.v
 
 lib/P4defs.v
 
@@ -33,6 +41,10 @@ lib/P4light/P4lightGen.v
 examples/IntExample.v
 examples/TwoState.v
 examples/WeakestPre.v
+
+examples/IPv6/Header.v
+examples/IPv6/Extensions/HopByHop.v
+examples/IPv6/Extensions/Fragment.v
 
 -R extraction Petr4
 

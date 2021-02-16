@@ -112,15 +112,16 @@ Module Typecheck.
     (**[]*)
 
     Definition out_update
-               (fs : F.fs tags_t (dir * (E.t tags_t * E.e tags_t))) : gam -> gam :=
-      fs
-        ▷ F.filter (fun '(d,_) =>
-                      match d with
-                      | P.Dir.DOut | P.Dir.DInOut => true
-                      | _ => false end)
-        ▷ F.fold (fun x '(_, (τ,_)) Γ =>
-                    let x' := bare x in
-                    !{ x' ↦ τ ;; Γ }!).
+               (fs : F.fs tags_t
+                          (P.paramarg (E.t tags_t * E.e tags_t)
+                                      (E.t tags_t * name tags_t))) : gam -> gam :=
+      F.fold (fun x param Γ =>
+                match param with
+                | P.PAOut (τ,_)
+                | P.PAInOut (τ,_) => let x' := bare x in
+                                    !{ x' ↦ τ ;; Γ }!
+                | P.PAIn _        => Γ
+                end) fs.
 
     (** Evidence for a type being numeric. *)
     Inductive numeric : E.t tags_t -> Prop :=
@@ -131,6 +132,30 @@ Module Typecheck.
     Inductive numeric_width (w : positive) : E.t tags_t -> Prop :=
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
+
+    (** Evidence that a binary operation is purely numeric. *)
+    Inductive numeric_bop : E.bop -> Prop :=
+    | numeric_bop_plus : numeric_bop E.Plus
+    | numeric_bop_plussat : numeric_bop E.PlusSat
+    | numeric_bop_minus : numeric_bop E.Minus
+    | numeric_bop_minussat : numeric_bop E.MinusSat
+    | numeric_bop_shl : numeric_bop E.Shl
+    | numeric_bop_shr : numeric_bop E.Shr
+    | numeric_bop_bitand : numeric_bop E.BitAnd
+    | numeric_bop_bitxor : numeric_bop E.BitXor
+    | numeric_bop_bitor : numeric_bop E.BitOr.
+
+    (** Evidence a binary operator gives a bool from numbers. *)
+    Inductive comp_bop : E.bop -> Prop :=
+    | comp_bop_le : comp_bop E.Le
+    | comp_bop_ge : comp_bop E.Ge
+    | comp_bop_lt : comp_bop E.Lt
+    | comp_bop_gt : comp_bop E.Gt.
+
+    (** Evidence a binary operator is purely boolean. *)
+    Inductive bool_bop : E.bop -> Prop :=
+    | bool_bop_and : bool_bop E.And
+    | bool_bop_or  : bool_bop E.Or.
 
     (** Expression typing as a relation. *)
     Inductive check
@@ -159,69 +184,23 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ int<w> ->
         ⟦ errs , mkds , Γ ⟧ ⊢ - e :: int<w> @ i end ∈ int<w>
     (* Binary Operations. *)
-    | chk_plus (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
+    | chk_numeric_bop (op : E.bop) (τ τ' : E.t tags_t)
+                      (e1 e2 : E.e tags_t) (i : tags_t) :
+        E.equivt τ τ' -> numeric τ -> numeric_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ + e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_minus (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
+        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) τ
+    | chk_comp_bop (op : E.bop) (τ τ' : E.t tags_t)
+                   (e1 e2 : E.e tags_t) (i : tags_t) :
+        E.equivt τ τ' -> numeric τ -> comp_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ -- e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_plussat (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ |+| e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_minussat (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ |-| e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitand (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ & e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitor (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ | e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_bitxor (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ ^ e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_and (e1 e2 : E.e tags_t) (i : tags_t) :
+        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) {{ Bool }}
+    | chk_bool_bop (op : E.bop) (e1 e2 : E.e tags_t) (i : tags_t) :
+        bool_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ Bool ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ && e1 :: Bool e2 :: Bool @ i end ∈ Bool
-    | chk_or (e1 e2 : E.e tags_t) (i : tags_t) :
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ || e1 :: Bool e2 :: Bool @ i end ∈ Bool
-    | chk_le (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ <= e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_ge (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ >= e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_lt (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ < e1 :: τ e2 :: τ' @ i end ∈ Bool
-    | chk_gt (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ > e1 :: τ e2 :: τ' @ i end ∈ Bool
+        check errs mkds Γ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) {{ Bool }}
     | chk_eq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
@@ -230,16 +209,6 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ != e1 :: τ e2 :: τ @ i end ∈ Bool
-    | chk_shl (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        numeric τ -> numeric τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ << e1 :: τ e2 :: τ' @ i end ∈ τ
-    | chk_shr (τ τ' : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        numeric τ -> numeric τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ >> e1 :: τ e2 :: τ' @ i end ∈ τ
     | chk_plusplus_bit (τ : E.t tags_t) (m n w : positive)
                        (e1 e2 : E.e tags_t) (i : tags_t) :
         (m + n)%positive = w ->
@@ -249,7 +218,8 @@ Module Typecheck.
         ⟦ errs , mkds , Γ ⟧ ⊢ ++ e1 :: bit<m> e2 :: τ @ i end ∈ bit<w>
     (* Member expressions. *)
     | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
-                  (fields : F.fs tags_t (E.t tags_t)) (τ : E.t tags_t) (i : tags_t) :
+                  (fields : F.fs tags_t (E.t tags_t))
+                  (τ : E.t tags_t) (i : tags_t) :
         In (x, τ) fields ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ hdr { fields } ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Mem e :: hdr { fields } dot x @ i end ∈ τ
@@ -306,52 +276,68 @@ Module Typecheck.
     | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) :
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ⊣ Γ', R) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ Γ', R)
-    | chk_vardecl (τ : E.t tags_t) (x : string tags_t)
-                  (e : E.e tags_t) (i : tags_t) :
+    | chk_assign (τ : E.t tags_t) (x : name tags_t)
+                 (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
-        let x' := bare x in
-        ⦃ fns , errs , mkds , Γ ⦄ ⊢ decl x ≜ e :: τ @ i fin ⊣ x' ↦ τ ;; Γ, C
-    | chk_assign (τ : E.t tags_t) (lhs rhs : E.e tags_t) (i : tags_t) :
-        ⟦ errs , mkds , Γ ⟧ ⊢ lhs ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ rhs ∈ τ ->
-        (⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn lhs := rhs :: τ @ i fin ⊣ Γ, C)
-    | chk_cond (τ : E.t tags_t) (guard : E.e tags_t) (tru fls : ST.s tags_t)
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn x := e :: τ @ i fin ⊣ x ↦ τ ;; Γ, C
+    | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
                (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
         lub sgt sgf = sg ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ guard ∈ τ ->
+        ⟦ errs , mkds , Γ ⟧ ⊢ guard ∈ Bool ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ tru ⊣ Γ1, sgt) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ fls ⊣ Γ2, sgf) ->
         ⦃ fns , errs , mkds , Γ ⦄
-          ⊢ if guard :: τ then tru else fls @ i fin ⊣ Γ, sg
+          ⊢ if guard :: Bool then tru else fls @ i fin ⊣ Γ, sg
     | chk_return_void (i : tags_t) :
         ⦃ fns , errs , mkds , Γ ⦄ ⊢ returns @ i ⊣ Γ, R
     | chk_return_fruit (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
         (⦃ fns , errs, mkds , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ Γ, R)
-    | chk_method_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
-                      (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+    | chk_exit (i : tags_t) :
+        ⦃ fns, errs, mkds , Γ ⦄ ⊢ exit @ i ⊣ Γ, R
+    | chk_method_call (Γ' : gam)
+                      (params : F.fs tags_t
+                                     (P.paramarg (E.t tags_t)
+                                                 (E.t tags_t)))
+                      (args :
+                         F.fs tags_t
+                              (P.paramarg (E.t tags_t * E.e tags_t)
+                                          (E.t tags_t * name tags_t)))
                       (f : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
-        fns f = Some (E.Arrow params None) ->
+        fns f = Some (P.Arrow params None) ->
         F.relfs
-          (fun dte dt =>
-             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
-             let e := dte ▷ snd ▷ snd in
-             let τ := snd dt in
-             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (P.rel_paramarg
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+             (fun tx τ =>
+                E.equivt τ (tx ▷ fst) /\
+                let x := tx ▷ snd in
+                Γ x = Some τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C)
-    | chk_call (Γ' : gam) (params : F.fs tags_t (dir * E.t tags_t))
-               (τ : E.t tags_t)
-               (args : F.fs tags_t (dir * (E.t tags_t * E.e tags_t)))
+    | chk_call (Γ' : gam) (τ : E.t tags_t)
+               (params : F.fs tags_t
+                              (P.paramarg (E.t tags_t)
+                                                 (E.t tags_t)))
+               (args :
+                  F.fs tags_t
+                       (P.paramarg (E.t tags_t * E.e tags_t)
+                                   (E.t tags_t * name tags_t)))
                (f x : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
-        fns f = Some (E.Arrow params (Some τ)) ->
+        fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
-          (fun dte dt =>
-             fst dt = fst dte /\ E.equivt (snd dt) (dte ▷ snd ▷ fst) /\
-             let e := dte ▷ snd ▷ snd in
-             let τ := snd dt in
-             ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) args params ->
+          (P.rel_paramarg
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
+             (fun tx τ =>
+                E.equivt τ (tx ▷ fst) /\
+                let x := tx ▷ snd in
+                Γ x = Some τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄
            ⊢ let x :: τ := call f with args @ i fin ⊣ x ↦ τ ;; Γ', C)
     where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2 ',' sg"
@@ -370,8 +356,8 @@ Module Typecheck.
     (** Put parameters into environment. *)
     Definition bind_all (sig : E.arrowT tags_t) : gam -> gam :=
       match sig with
-      | E.Arrow params _ =>
-        F.fold (fun x '(_,τ) Γ =>
+      | P.Arrow params _ =>
+        F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ =>
                   let x' := bare x in
                   !{ x' ↦ τ ;; Γ }!) params
       end.
@@ -380,9 +366,9 @@ Module Typecheck.
     (** Appropriate signal. *)
     Inductive good_signal : E.arrowT tags_t -> signal -> Prop :=
       | good_signal_cont params :
-          good_signal (E.Arrow params None) SIG_Cont
+          good_signal (P.Arrow params None) SIG_Cont
       | good_signal_return params ret :
-          good_signal (E.Arrow params (Some ret)) SIG_Return.
+          good_signal (P.Arrow params (Some ret)) SIG_Return.
     (**[]*)
 
     Inductive check_decl

@@ -192,6 +192,36 @@ End Field.
 Module P4light.
   Module F := Field.
 
+  (** Function call parameters/arguments. *)
+  Inductive paramarg (A B : Type) : Type :=
+  | PAIn (a : A)
+  | PAOut (b : B)
+  | PAInOut (b : B).
+
+  Arguments PAIn {_} {_}.
+  Arguments PAOut {_} {_}.
+  Arguments PAInOut {_} {_}.
+
+  (** Relating [paramarg]s. *)
+  Definition rel_paramarg {A1 A2 B1 B2 : Type}
+             (RA : A1 -> A2 -> Prop) (RB : B1 -> B2 -> Prop)
+             (pa1 : paramarg A1 B1)
+             (pa2 : paramarg A2 B2) : Prop :=
+    match pa1, pa2 with
+    | PAIn a1, PAIn a2       => RA a1 a2
+    | PAOut b1, PAOut b2
+    | PAInOut b1, PAInOut b2 => RB b1 b2
+    | _, _ => False
+    end.
+  (**[]*)
+
+  (** Function signatures/instantiations. *)
+  Inductive arrow (tags_t A B R : Type) : Type :=
+    Arrow (pas : F.fs tags_t (paramarg A B)) (returns : option R).
+  (**[]*)
+
+  Arguments Arrow {_} {_} {_} {_}.
+
   (** Directions. *)
   Module Dir.
     Inductive d : Set :=
@@ -219,15 +249,12 @@ Module P4light.
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *).
       (**[]*)
-
-      (** Function signatures. *)
-      Inductive arrow (A R : Type) : Type :=
-        Arrow (params : F.fs tags_t (Dir.d * A)) (returns : option R).
-      (**[]*)
-
-      (** Function types. *)
-      Definition arrowT : Type := arrow t t.
     End P4Types.
+
+    (** Function types. *)
+    Definition arrowT (tags_t : Type) : Type :=
+      arrow tags_t (t tags_t) (t tags_t) (t tags_t).
+    (**[]*)
 
     Arguments TBool {_}.
     Arguments TBit {_}.
@@ -236,7 +263,6 @@ Module P4light.
     Arguments TMatchKind {_}.
     Arguments TRecord {_}.
     Arguments THeader {_}.
-    Arguments Arrow {_} {_} {_}.
 
     Module TypeNotations.
       Declare Custom Entry p4type.
@@ -501,12 +527,14 @@ Module P4light.
       | EError (err : string tags_t) (i : tags_t)      (* error literals *)
       | EMatchKind (err : string tags_t) (i : tags_t)  (* matchkind literals *).
       (**[]*)
-
-      (** Function call. *)
-      Definition arrowE : Type :=
-        arrow tags_t (t tags_t * e) (t tags_t * (name tags_t)).
-      (**[]*)
     End Expressions.
+
+    (** Function call. *)
+    Definition arrowE (tags_t : Type) : Type :=
+      arrow tags_t (t tags_t * e tags_t)
+            (t tags_t * name tags_t)
+            (t tags_t * name tags_t).
+    (**[]*)
 
     Arguments EBool {tags_t}.
     Arguments EBit {_}.
@@ -729,22 +757,21 @@ Module P4light.
       Variable (tags_t : Type).
 
       Inductive s : Type :=
-      | SSkip (i : tags_t)                               (* skip, useful for
-                                                            small-step semantics *)
-      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
-                (i : tags_t)                             (* assignment *)
+      | SSkip (i : tags_t)                              (* skip, useful for
+                                                           small-step semantics *)
+      | SAssign (type : E.t tags_t) (x : name tags_t)
+                (e : E.e tags_t) (i : tags_t)           (* assignment *)
       | SConditional (guard_type : E.t tags_t)
                      (guard : E.e tags_t)
-                     (tru_blk fls_blk : s) (i : tags_t)  (* conditionals *)
-      | SSeq (s1 s2 : s) (i : tags_t)                    (* sequences,
-                                                            an alternative to blocks *)
-      | SVarDecl (typ : E.t tags_t) (var : string tags_t)
-                 (rhs : E.e tags_t) (i : tags_t)         (* variable declaration *)
+                     (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
+      | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
+                                                           an alternative to blocks *)
       | SCall (f : name tags_t) (args : E.arrowE tags_t)
-              (i : tags_t)                               (* function/action/extern call *)
-      | SReturnVoid (i : tags_t)                         (* void return statement *)
+              (i : tags_t)                              (* function/action/extern call *)
+      | SReturnVoid (i : tags_t)                        (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
-                     (e : E.e tags_t)(i : tags_t)        (* fruitful return statement *).
+                     (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
+      | SExit (i : tags_t)                              (* exit statement *).
     (**[]*)
     End Statements.
 
@@ -752,10 +779,10 @@ Module P4light.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
-    Arguments SVarDecl {tags_t}.
     Arguments SCall {tags_t}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
+    Arguments SExit {_}.
 
     Module StmtNotations.
       Import E.TypeNotations.
@@ -772,16 +799,10 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
-              := (SAssign t e1 e2 i)
-                    (in custom p4stmt at level 40,
-                        e1 custom p4expr, e2 custom p4expr,
+      Notation "'asgn' x ':=' e :: t @ i 'fin'"
+              := (SAssign t x e i)
+                    (in custom p4stmt at level 40, e custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'decl' x ≜ e :: t @ i 'fin'"
-              := (SVarDecl t x e i)
-                    (in custom p4stmt at level 40,
-                        e custom p4expr, t custom p4type,
-                        no associativity).
       Notation "'if' e :: t 'then' s1 'else' s2 @ i 'fin'"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,
@@ -789,10 +810,10 @@ Module P4light.
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
       Notation "'call' f 'with' args @ i 'fin'"
-        := (SCall f (E.Arrow args None) i)
+        := (SCall f (Arrow args None) i)
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e '::' t ':=' 'call' f 'with' args @ i 'fin'"
-               := (SCall f (E.Arrow args (Some (t,e))) i)
+               := (SCall f (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'return' e '::' t @ i 'fin'"
@@ -802,6 +823,8 @@ Module P4light.
       Notation "'returns' @ i"
                := (SReturnVoid i)
                     (in custom p4stmt at level 0, no associativity).
+      Notation "'exit' @ i"
+               := (SExit i) (in custom p4stmt at level 0, no associativity).
     End StmtNotations.
   End Stmt.
 
@@ -851,7 +874,7 @@ Module P4light.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | DAction (a : string tags_t)
-                (signature : (E.arrow (E.t tags_t) unit) tags_t)
+                (signature : F.fs tags_t (E.e tags_t))
                 (body : S.s tags_t) (i : tags_t) (* action declaration *)
       | DTable (keys : F.fs tags_t (E.t tags_t)) (* field names are matchkinds *)
                (actions : list (string tags_t))  (* action names *)
@@ -883,7 +906,8 @@ Module P4light.
                  (params : F.fs tags_t (Dir.d * E.t tags_t))
                  (i : tags_t) (* TODO! *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
-                  (body : S.s tags_t) (i : tags_t) (* function/method declaration *)
+                   (body : S.s tags_t) (i : tags_t)
+                   (* function/method declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.

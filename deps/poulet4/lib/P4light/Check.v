@@ -54,8 +54,7 @@ Module Typecheck.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import E.TypeNotations.
-  Import E.ExprNotations.
+  Import ST.StmtNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=
@@ -176,26 +175,26 @@ Module Typecheck.
     (* Unary operations. *)
     | chk_not (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ Bool ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ ! e :: Bool @ i end ∈ Bool
+        ⟦ errs , mkds , Γ ⟧ ⊢ UOP ! e :: Bool @ i end ∈ Bool
     | chk_bitnot (w : positive) (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ bit<w> ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ ~ e :: bit<w> @ i end ∈ bit<w>
+        ⟦ errs , mkds , Γ ⟧ ⊢ UOP ~ e :: bit<w> @ i end ∈ bit<w>
     | chk_uminus (w : positive) (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ int<w> ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ - e :: int<w> @ i end ∈ int<w>
+        ⟦ errs , mkds , Γ ⟧ ⊢ UOP - e :: int<w> @ i end ∈ int<w>
     (* Binary Operations. *)
     | chk_numeric_bop (op : E.bop) (τ τ' : E.t tags_t)
                       (e1 e2 : E.e tags_t) (i : tags_t) :
         E.equivt τ τ' -> numeric τ -> numeric_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) τ
+        ⟦ errs , mkds , Γ ⟧ ⊢ BOP e1 :: τ op e2 :: τ' @ i end ∈ τ
     | chk_comp_bop (op : E.bop) (τ τ' : E.t tags_t)
                    (e1 e2 : E.e tags_t) (i : tags_t) :
         E.equivt τ τ' -> numeric τ -> comp_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ' ->
-        check errs mkds Γ (E.EBop op τ τ' e1 e2 i) {{ Bool }}
+        ⟦ errs , mkds , Γ ⟧ ⊢ BOP e1 :: τ op e2 :: τ' @ i end ∈ Bool
     | chk_bool_bop (op : E.bop) (e1 e2 : E.e tags_t) (i : tags_t) :
         bool_bop op ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ Bool ->
@@ -204,18 +203,18 @@ Module Typecheck.
     | chk_eq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ == e1 :: τ e2 :: τ @ i end ∈ Bool
+        ⟦ errs , mkds , Γ ⟧ ⊢ BOP e1 :: τ == e2 :: τ @ i end ∈ Bool
     | chk_neq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ != e1 :: τ e2 :: τ @ i end ∈ Bool
+        ⟦ errs , mkds , Γ ⟧ ⊢ BOP e1 :: τ != e2 :: τ @ i end ∈ Bool
     | chk_plusplus_bit (τ : E.t tags_t) (m n w : positive)
                        (e1 e2 : E.e tags_t) (i : tags_t) :
         (m + n)%positive = w ->
         numeric_width n τ ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ bit<m> ->
         ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
-        ⟦ errs , mkds , Γ ⟧ ⊢ ++ e1 :: bit<m> e2 :: τ @ i end ∈ bit<w>
+        ⟦ errs , mkds , Γ ⟧ ⊢ BOP e1 :: bit<m> ++ e2 :: τ @ i end ∈ bit<w>
     (* Member expressions. *)
     | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
                   (fields : F.fs tags_t (E.t tags_t))
@@ -256,8 +255,6 @@ Module Typecheck.
     where "⟦ ers ',' mks ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers mks gm e ty).
     (**[]*)
-
-    Import ST.StmtNotations.
 
     (** Available functions. *)
     Definition fenv : Type := Env.t (name tags_t) (E.arrowT tags_t).

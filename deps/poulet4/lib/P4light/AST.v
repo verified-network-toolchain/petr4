@@ -291,10 +291,11 @@ Module P4light.
         := (THeader fields)
             (in custom p4type at level 6, no associativity).
     End TypeNotations.
-    Import TypeNotations.
 
     (** Custom induction principle for [t]. *)
     Section TypeInduction.
+      Import TypeNotations.
+
       Context {tags_t : Type}.
 
       (** An arbitrary property. *)
@@ -477,6 +478,15 @@ Module P4light.
     | UMinus (* integer negation *).
     (**[]*)
 
+    Module UopNotations.
+      Declare Custom Entry p4uop.
+
+      Notation "x" := x (in custom p4uop at level 0, x constr at level 0).
+      Notation "!" := Not (in custom p4uop at level 0).
+      Notation "~" := BitNot (in custom p4uop at level 0).
+      Notation "-" := UMinus (in custom p4uop at level 0).
+    End UopNotations.
+
     (** Binary operations.
         The "Sat" suffix denotes
         saturating arithmetic:
@@ -501,6 +511,30 @@ Module P4light.
     | And      (* boolean and *)
     | Or       (* boolean or *).
     (**[]*)
+
+    Module BopNotations.
+      Declare Custom Entry p4bop.
+
+      Notation "x" := x (in custom p4bop at level 0, x constr at level 0).
+      Notation "+" := Plus (in custom p4bop at level 0).
+      Notation "-" := Minus (in custom p4bop at level 0).
+      Notation "'|+|'" := PlusSat (in custom p4bop at level 0).
+      Notation "'|-|'" := MinusSat (in custom p4bop at level 0).
+      Notation "'<<'" := Shl (in custom p4bop at level 0).
+      Notation "'>>'" := Shr (in custom p4bop at level 0).
+      Notation "'<='" := Le (in custom p4bop at level 0).
+      Notation "'>='" := Ge (in custom p4bop at level 0).
+      Notation "<" := Lt (in custom p4bop at level 0).
+      Notation ">" := Gt (in custom p4bop at level 0).
+      Notation "'=='" := Eq (in custom p4bop at level 0).
+      Notation "'!='" := NotEq (in custom p4bop at level 0).
+      Notation "&" := BitAnd (in custom p4bop at level 0).
+      Notation "^" := BitXor (in custom p4bop at level 0).
+      Notation "|" := BitOr (in custom p4bop at level 0).
+      Notation "'&&'" := And (in custom p4bop at level 0).
+      Notation "'||'" := Or (in custom p4bop at level 0).
+      Notation "'++'" := PlusPlus (in custom p4bop at level 0).
+    End BopNotations.
 
     Section Expressions.
       Variable (tags_t : Type).
@@ -551,6 +585,10 @@ Module P4light.
     Module ExprNotations.
       Declare Custom Entry p4expr.
 
+      Export UopNotations.
+      Export BopNotations.
+      Export TypeNotations.
+
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
       Notation "( x )" := x (in custom p4expr, x at level 99).
       Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
@@ -561,108 +599,17 @@ Module P4light.
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x '::' ty @ i 'end'" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
-      Notation "'!' x '::' ty @ i 'end'" := (EUop Not ty x i)
-                                  (in custom p4expr at level 2,
-                                      x custom p4expr, ty custom p4type,
-                                      no associativity).
-      Notation "'~' x '::' ty @ i 'end'" := (EUop BitNot ty x i)
-                                  (in custom p4expr at level 2,
-                                      x custom p4expr, ty custom p4type,
-                                      no associativity).
-      Notation "'-' x '::' ty @ i 'end'" := (EUop UMinus ty x i)
-                                  (in custom p4expr at level 2,
-                                      x custom p4expr, ty custom p4type,
-                                      no associativity).
-      Notation "'+' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Plus tx ty x y i)
-            (in custom p4expr at level 3,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'|+|' x '::' tx y '::' ty @ i 'end'"
-        := (EBop PlusSat tx ty x y i)
-            (in custom p4expr at level 4,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'--' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Minus tx ty x y i)
-            (in custom p4expr at level 3,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'|-|' x '::' tx y '::' ty @ i 'end'"
-        := (EBop MinusSat tx ty x y i)
-            (in custom p4expr at level 4,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'<<' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Shl tx ty x y i)
-            (in custom p4expr at level 5,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'>>' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Shr tx ty x y i)
-            (in custom p4expr at level 5,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'<=' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Le tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'>=' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Ge tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'<' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Lt tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'>' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Gt tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'==' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Eq tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'!=' x '::' tx y '::' ty @ i 'end'"
-        := (EBop NotEq tx ty x y i)
-            (in custom p4expr at level 12,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'&' x '::' tx y '::' ty @ i 'end'"
-        := (EBop BitAnd tx ty x y i)
-            (in custom p4expr at level 7,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'^' x '::' tx y '::' ty @ i 'end'"
-        := (EBop BitXor tx ty x y i)
-            (in custom p4expr at level 8,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'|' x '::' tx y '::' ty @ i 'end'"
-        := (EBop BitOr tx ty x y i)
-            (in custom p4expr at level 9,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
-      Notation "'&&' x '::' tx y '::' ty @ i 'end'"
-        := (EBop And tx ty x y i)
-            (in custom p4expr at level 14,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'||' x '::' tx y '::' ty @ i 'end'"
-        := (EBop Or tx ty x y i)
-            (in custom p4expr at level 15,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, no associativity).
-      Notation "'++' x '::' tx y '::' ty @ i 'end'"
-        := (EBop PlusPlus tx ty x y i)
-            (in custom p4expr at level 6,
-                x custom p4expr, tx custom p4type,
-                y custom p4expr, ty custom p4type, left associativity).
+      Notation "'UOP' op x '::' ty @ i 'end'"
+               := (EUop op ty x i)
+                    (in custom p4expr at level 2,
+                        x custom p4expr, ty custom p4type,
+                        op custom p4uop, no associativity).
+      Notation "'BOP' x '::' tx op y '::' ty @ i 'end'"
+               := (EBop op tx ty x y i)
+                    (in custom p4expr at level 10,
+                        x custom p4expr, tx custom p4type,
+                        y custom p4expr, ty custom p4type,
+                        op custom p4bop, left associativity).
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
@@ -678,10 +625,11 @@ Module P4light.
       Notation "'Matchkind' x @ i" := (EMatchKind x i)
                               (in custom p4expr at level 0, no associativity).
     End ExprNotations.
-    Import ExprNotations.
 
     (** A custom induction principle for [e]. *)
     Section ExprInduction.
+      Import ExprNotations.
+
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
 
@@ -697,10 +645,10 @@ Module P4light.
           P <{ Var x :: ty @ i end }>.
 
       Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
-          P ex -> P (EUop op ty ex i).
+          P ex -> P <{ UOP op ex :: ty @ i end }>.
 
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
-          P lhs -> P rhs -> P (EBop op lt rt lhs rhs i).
+          P lhs -> P rhs -> P <{ BOP lhs :: lt op rhs :: rt @ i end }>.
 
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
@@ -733,8 +681,8 @@ Module P4light.
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x :: ty @ i end }> => HEVar ty x i
-          | EUop ty op exp i => HEUop ty op exp i (custom_e_ind exp)
-          | EBop op lt rt lhs rhs i =>
+          | <{ UOP op exp :: ty @ i end }> => HEUop op ty exp i (custom_e_ind exp)
+          | <{ BOP lhs :: lt op rhs :: rt @ i end }> =>
               HEBop op lt rt lhs rhs i
                     (custom_e_ind lhs) (custom_e_ind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
@@ -785,8 +733,7 @@ Module P4light.
     Arguments SExit {_}.
 
     Module StmtNotations.
-      Import E.TypeNotations.
-      Import E.ExprNotations.
+      Export E.ExprNotations.
 
       Declare Custom Entry p4stmt.
 

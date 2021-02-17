@@ -188,8 +188,6 @@ Module Step.
   Module F := P.F.
   Module V := Value.
 
-  Import E.TypeNotations.
-  Import E.ExprNotations.
   Import ST.StmtNotations.
   Import V.ValueNotations.
 
@@ -312,20 +310,20 @@ Module Step.
     | ebs_not (e : E.e tags_t) (i : tags_t) (b b' : bool) :
         negb b = b' ->
         ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-        ⟨ ϵ, ! e :: Bool @ i end ⟩ ⇓ VBOOL b'
+        ⟨ ϵ, UOP ! e :: Bool @ i end ⟩ ⇓ VBOOL b'
     (* TODO: bitnot case is incorrect,
        need to define negation for [N]. *)
     | ebs_bitnot (e : E.e tags_t) (i : tags_t)
                  (w : positive) (n n' : N) :
         ⟨ ϵ, e ⟩ ⇓ w VW n ->
-        ⟨ ϵ, ~ e :: bit<w> @ i end ⟩ ⇓ w VW n
+        ⟨ ϵ, UOP ~ e :: bit<w> @ i end ⟩ ⇓ w VW n
     (* TODO: uminus case is incorrect,
        need to define proper negation for [Z]. *)
     | ebs_uminus (e : E.e tags_t) (i : tags_t)
                  (w : positive) (z z' : Z) :
         Z.opp z = z' ->
         ⟨ ϵ, e ⟩ ⇓ w VS z ->
-        ⟨ ϵ, ~ e :: int<w> @ i end ⟩ ⇓ w VS z'
+        ⟨ ϵ, UOP - e :: int<w> @ i end ⟩ ⇓ w VS z'
     (* Binary Operations. *)
     | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
                   (i : tags_t) (w : positive) (n1 n2 : N) :
@@ -339,7 +337,7 @@ Module Step.
         BitArith.bit_concat w2 n1 n2 = n ->
         ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
-        ⟨ ϵ, ++ e1 :: bit<w1> e2 :: bit<w2> @ i end ⟩ ⇓ w VW n
+        ⟨ ϵ, BOP e1 :: bit<w1> ++ e2 :: bit<w2> @ i end ⟩ ⇓ w VW n
     | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
                   (i : tags_t) (w : positive) (z1 z2 : Z) :
         eval_int_binop op w z1 z2 = Some v ->
@@ -357,25 +355,25 @@ Module Step.
         V.equivv tags_t v1 v2 ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, == e1 :: τ1 e2 :: τ2 @ i end ⟩ ⇓ TRUE
+        ⟨ ϵ, BOP e1 :: τ1 == e2 :: τ2 @ i end ⟩ ⇓ TRUE
     | ebs_eq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
                    (i : tags_t) (v1 v2 : V.v tags_t) :
         ~ V.equivv tags_t v1 v2 ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, == e1 :: τ1 e2 :: τ2 @ i end ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1 :: τ1 == e2 :: τ2 @ i end ⟩ ⇓ FALSE
     | ebs_neq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
                    (i : tags_t) (v1 v2 : V.v tags_t) :
         ~ V.equivv tags_t v1 v2 ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, != e1 :: τ1 e2 :: τ2 @ i end ⟩ ⇓ TRUE
+        ⟨ ϵ, BOP e1 :: τ1 != e2 :: τ2 @ i end ⟩ ⇓ TRUE
     | ebs_neq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
                     (i : tags_t) (v1 v2 : V.v tags_t) :
         V.equivv tags_t v1 v2 ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, != e1 :: τ1 e2 :: τ2 @ i end ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1 :: τ1 != e2 :: τ2 @ i end ⟩ ⇓ FALSE
     (* Structs *)
     | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
                   (tfs : F.fs tags_t (E.t tags_t))

@@ -504,6 +504,62 @@ Module Step.
         ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
           ⤋ ⟪ ϵ', sig ⟫
+    | sbs_methodcall (params : F.fs tags_t
+                                    (P.paramarg (E.t tags_t)
+                                                (E.t tags_t)))
+                     (args :
+                        F.fs tags_t
+                             (P.paramarg (E.t tags_t * E.e tags_t)
+                                         (E.t tags_t * name tags_t)))
+                     (argsv :
+                        F.fs tags_t
+                             (P.paramarg (V.v tags_t) (name tags_t)))
+                     (f : name tags_t) (i : tags_t)
+                     (body : ST.s tags_t) (ϵ' ϵ'' ϵ''' : epsilon) :
+        (* Looking up function. *)
+        fs f = Some (FBody (P.Arrow params None) body) ->
+        (* Argument evaluation. *)
+        F.relfs
+          (P.rel_paramarg
+             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
+             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+        (* Copy-in. *)
+        copy_in argsv ϵ = ϵ' ->
+        (* Function evaluation
+           TODO: closures for epsilon and function environment. *)
+        ⟪ fs, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        (* Copy-out *)
+        copy_out args ϵ'' ϵ = ϵ''' ->
+        ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
+    | sbs_fruitcall (params : F.fs tags_t
+                                    (P.paramarg (E.t tags_t)
+                                                (E.t tags_t)))
+                     (args :
+                        F.fs tags_t
+                             (P.paramarg (E.t tags_t * E.e tags_t)
+                                         (E.t tags_t * name tags_t)))
+                     (argsv :
+                        F.fs tags_t
+                             (P.paramarg (V.v tags_t) (name tags_t)))
+                     (f x : name tags_t) (τ : E.t tags_t)
+                     (i : tags_t) (v : V.v tags_t)
+                     (body : ST.s tags_t) (ϵ' ϵ'' ϵ''' : epsilon) :
+        (* Looking up function. *)
+        fs f = Some (FBody (P.Arrow params (Some τ)) body) ->
+        (* Argument evaluation. *)
+        F.relfs
+          (P.rel_paramarg
+             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
+             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+        (* Copy-in. *)
+        copy_in argsv ϵ = ϵ' ->
+        (* Function evaluation
+           TODO: closures for epsilon and function environment. *)
+        ⟪ fs, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+        (* Copy-out *)
+        copy_out args ϵ'' ϵ = ϵ''' ->
+        ⟪ fs, ϵ, let x :: τ := call f with args @ i fin ⟫
+          ⤋ ⟪ x ↦ v ;; ϵ''', C ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

@@ -191,7 +191,7 @@ Section Transformer.
     | _ => extractFunCall_exp nameIdx exp
     end.
 
-  Definition to_Statement (tags: tags_t) (typ: StmType)
+  Definition expr_to_stmt (tags: tags_t) (typ: StmType)
              (ne: (P4String * (@Expression tags_t))): (@Statement tags_t) :=
     match ne with
     | (name, MkExpression tag expr typ' dir) =>
@@ -202,18 +202,22 @@ Section Transformer.
 
   Definition to_StmtList (tags: tags_t) (typ: StmType)
              (nel: list (P4String * (@Expression tags_t))): list (@Statement tags_t) :=
-    map (to_Statement tags typ) nel.
+    map (expr_to_stmt tags typ) nel.
 
-  Fixpoint extractFunCall_list (idx: N) (l: list (@Expression tags_t)):
-    (list (P4String * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
+  Fixpoint extractFunCall_list {A B C: Type} (f: N -> A -> (list B * C * N))
+           (idx: N) (l: list A): (list B * list C * N) :=
     match l with
     | nil => (nil, nil, idx)
     | exp :: rest =>
-      let (l2e2, n2) := extractFunCall_exp idx exp in
+      let (l2e2, n2) := f idx exp in
       let (l2, e2) := l2e2 in
-      let (l3e3, n3) := extractFunCall_list n2 rest in
+      let (l3e3, n3) := extractFunCall_list f n2 rest in
       let (l3, el3) := l3e3 in (l2 ++ l3, e2 :: el3, n3)
     end.
+
+  Definition extractFunCall_exprs (idx: N) (l: list (@Expression tags_t)):
+    (list (P4String * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
+    extractFunCall_list extractFunCall_exp idx l.
 
   Fixpoint prepend_to_block (l: list (@Statement tags_t)) (blk: @Block tags_t) :=
     match l with
@@ -235,7 +239,7 @@ Section Transformer.
 
   Definition extractFunCall_list_stmt (nameIdx: N) (l: list (@Expression tags_t)):
     (list (@Statement tags_t) * list (@Expression tags_t) * N) :=
-      let (l1e1, n1) := extractFunCall_list nameIdx l in
+      let (l1e1, n1) := extractFunCall_exprs nameIdx l in
       let (l1, e1) := l1e1 in
       let stl1 := to_StmtList default_tag StmVoid l1 in (stl1, e1, n1).
 
@@ -324,5 +328,236 @@ Section Transformer.
            (StatSwCaseAction tags label blk, n1)
          | StatSwCaseFallThrough _ _ => (ssc, nameIdx)
          end.
+
+  Definition expr_to_decl (ne: P4String * (@Expression tags_t)):
+    (@Declaration tags_t) :=
+    match ne with
+    | (name, MkExpression tags expr typ dir) =>
+      DeclVariable default_tag typ name (Some (MkExpression tags expr typ dir))
+    end.
+
+  Fixpoint extractFunCall_list' {A: Type} (f: N -> A -> (list A * N))
+           (nameIdx: N) (l: list A): (list A * N) :=
+    match l with
+    | nil => (nil, nameIdx)
+    | x :: rest =>
+      let (l1, n1) := f nameIdx x in
+      let (l2, n2) := extractFunCall_list' f n1 rest in (l1 ++ l2, n2)
+    end.
+
+  Definition extractFunCall_match (nameIdx: N) (mt: @Match tags_t):
+    (list (@Declaration tags_t) * (@Match tags_t) * N) :=
+    match mt with
+    | MkMatch tags expr typ =>
+      match expr with
+      | MatchDontCare => (nil, mt, nameIdx)
+      | MatchExpression exp =>
+        let (l1e1, n1) := extractFunCall_exp nameIdx exp in
+        let (l1, e1) := l1e1 in
+        (map expr_to_decl l1, MkMatch tags (MatchExpression e1) typ, n1)
+      end
+    end.
+
+  Definition extractFunCall_psrcase (nameIdx: N) (pc: @ParserCase tags_t):
+    (list (@Declaration tags_t) * (@ParserCase tags_t) * N) :=
+    match pc with
+    | MkParserCase tags matches next =>
+      let (l1m1, n1) := extractFunCall_list extractFunCall_match nameIdx matches in
+      let (l1, m1) := l1m1 in
+      (l1, MkParserCase tags m1 next, n1)
+    end.
+
+  Definition extractFunCall_psrtrans (nameIdx: N) (pt: @ParserTransition tags_t):
+    (list (@Declaration tags_t) * (@ParserTransition tags_t) * N) :=
+    match pt with
+    | ParserDirect _ _ => (nil, pt, nameIdx)
+    | ParserSelect tags exprs cases =>
+      let (l1e1, n1) := extractFunCall_exprs nameIdx exprs in
+      let (l1, e1) := l1e1 in
+      let (l2c2, n2) := extractFunCall_list extractFunCall_psrcase n1 cases in
+      let (l2, c2) := l2c2 in
+      (map expr_to_decl l1 ++ l2, ParserSelect tags e1 c2, n2)
+    end.
+
+  Definition extractFunCall_psrst (nameIdx: N) (ps: @ParserState tags_t):
+    (list (@Declaration tags_t) * (@ParserState tags_t) * N) :=
+    match ps with
+    | MkParserState tags name statements transition =>
+      let (l1, n1) := extractFunCall_list' extractFunCall_stmt nameIdx statements in
+      let (l2t2, n2) := extractFunCall_psrtrans n1 transition in
+      let (l2, t2) := l2t2 in (l2, MkParserState tags name l1 t2, n2)
+    end.
+
+  Definition extractFunCall_tblkey (nameIdx: N) (tk: @TableKey tags_t):
+    (list (@Declaration tags_t) * (@TableKey tags_t) * N) :=
+    match tk with
+    | MkTableKey tags key match_kind =>
+      let (l1e1, n1) := extractFunCall_exp nameIdx key in
+      let (l1, e1) := l1e1 in (map expr_to_decl l1, MkTableKey tags e1 match_kind, n1)
+    end.
+
+  Definition extractFunCall_opt (nameIdx: N) (opt: option (@Expression tags_t)):
+    (list (P4String * (@Expression tags_t)) * (option (@Expression tags_t)) * N) :=
+    match opt with
+    | None => (nil, None, nameIdx)
+    | Some exp =>
+      let (l1e1, n1) := extractFunCall_exp nameIdx exp in
+      let (l1, e1) := l1e1 in (l1, Some e1, n1)
+    end.
+
+  Definition extractFunCall_tpar (nameIdx: N) (tpar: @TablePreActionRef tags_t):
+    (list (@Declaration tags_t) * (@TablePreActionRef tags_t) * N) :=
+    match tpar with
+    | MkTablePreActionRef name args =>
+      let (l1e1, n1) := extractFunCall_list extractFunCall_opt nameIdx args in
+      let (l1, e1) := l1e1 in
+      (map expr_to_decl l1, MkTablePreActionRef name e1, n1)
+    end.
+
+  Definition extractFunCall_tar (nameIdx: N) (tar: @TableActionRef tags_t):
+    (list (@Declaration tags_t) * (@TableActionRef tags_t) * N) :=
+    match tar with
+    | MkTableActionRef tags action typ =>
+      let (l1e1, n1) := extractFunCall_tpar nameIdx action in
+      let (l1, e1) := l1e1 in (l1, MkTableActionRef tags e1 typ, n1)
+    end.
+
+  Definition extractFunCall_tblenty (nameIdx: N) (te: @TableEntry tags_t):
+    (list (@Declaration tags_t) * (@TableEntry tags_t) * N) :=
+    match te with
+    | MkTableEntry tags matches action =>
+      let (l1e1, n1) := extractFunCall_list extractFunCall_match nameIdx matches in
+      let (l1, e1) := l1e1 in
+      let (l2e2, n2) := extractFunCall_tar n1 action in
+      let (l2, e2) := l2e2 in (l1 ++ l2, MkTableEntry tags e1 e2, n2)
+    end.
+
+  Definition extractFunCall_tblprop (nameIdx: N) (tp: @TableProperty tags_t):
+    (list (@Declaration tags_t) * (@TableProperty tags_t) * N) :=
+    match tp with
+    | MkTableProperty tags const name value =>
+      let (l1e1, n1) := extractFunCall_exp nameIdx value in
+      let (l1, e1) := l1e1 in
+      (map expr_to_decl l1, MkTableProperty tags const name e1, n1)
+    end.
+
+  Definition extractFunCall_membr (nameIdx: N) (ne: (P4String * @Expression tags_t)):
+             (list (@Declaration tags_t) * (P4String * @Expression tags_t) * N) :=
+    match ne with
+    | (n, exp) =>
+      let (l1e1, n1) := extractFunCall_exp nameIdx exp in
+      let (l1, e1) := l1e1 in (map expr_to_decl l1, (n, e1), n1)
+    end.
+
+  Definition lastDecl (l: list (@Declaration tags_t)): (@Declaration tags_t) :=
+    last l (DeclError default_tag nil).
+
+  Fixpoint extractFunCall_decl (nameIdx: N) (decl: @Declaration tags_t):
+    (list (@Declaration tags_t) * N) :=
+    match decl with
+    | DeclConstant _ _ _ _ => ([decl], nameIdx)
+    | DeclInstantiation tags typ args name init =>
+      let (l1e1, n1) := extractFunCall_exprs nameIdx args in
+      let (l1, e1) := l1e1 in
+      let (init', n2) :=
+          match init with
+          | None => (None, n1)
+          | Some blk =>
+            let (blk', n3) := extractFunCall_blk n1 blk in (Some blk', n3)
+          end in
+      (map expr_to_decl l1 ++ [DeclInstantiation tags typ e1 name init'], n2)
+    | DeclParser tags name type_params params cparams locals states =>
+      let (local', n1) :=
+          ((fix extractFunCall_decl_list (idx: N) (l: list (@Declaration tags_t)):
+              (list (@Declaration tags_t) * N) :=
+              match l with
+              | nil => (nil, idx)
+              | x :: rest =>
+                let (l2, n2) := extractFunCall_decl idx x in
+                let (l3, n3) := extractFunCall_decl_list n2 rest in (l2 ++ l3, n3)
+              end) nameIdx locals) in
+      let (l2s2, n2) := extractFunCall_list extractFunCall_psrst n1 states in
+      let (l2, s2) := l2s2 in
+      (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n1)
+    | DeclControl tags name type_params params cparams locals appl =>
+      let (local', n1) :=
+          ((fix extractFunCall_decl_list (idx: N) (l: list (@Declaration tags_t)):
+              (list (@Declaration tags_t) * N) :=
+              match l with
+              | nil => (nil, idx)
+              | x :: rest =>
+                let (l2, n2) := extractFunCall_decl idx x in
+                let (l3, n3) := extractFunCall_decl_list n2 rest in (l2 ++ l3, n3)
+              end) nameIdx locals) in
+      let (blk, n2) := extractFunCall_blk n1 appl in
+      ([DeclControl tags name type_params params cparams local' blk], n2)
+    | DeclFunction tags ret name type_params params body =>
+      let (blk, n1) := extractFunCall_blk nameIdx body in
+      ([DeclFunction tags ret name type_params params blk], n1)
+    | DeclExternFunction _ _ _ _ _ => ([decl], nameIdx)
+    | DeclVariable _ _ _ None => ([decl], nameIdx)
+    | DeclVariable tags typ name (Some expr) =>
+      let (l1e1, n1) := extractFunCall_Expr nameIdx expr in
+      let (l1, e1) := l1e1 in
+      (map expr_to_decl l1 ++ [DeclVariable tags typ name (Some e1)], n1)
+    | DeclValueSet tags typ size name =>
+      let (l1e1, n1) := extractFunCall_Expr nameIdx size in
+      let (l1, e1) := l1e1 in
+      (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1)
+    | DeclAction tags name data_params ctrl_params body =>
+      let (blk, n1) := extractFunCall_blk nameIdx body in
+      ([DeclAction tags name data_params ctrl_params blk], n1)
+    | DeclTable tags name key actions entries default_action size
+                custom_properties =>
+      let (l1e1, n1) := extractFunCall_list extractFunCall_tblkey nameIdx key in
+      let (l1, e1) := l1e1 in
+      let (l2e2, n2) := extractFunCall_list extractFunCall_tar n1 actions in
+      let (l2, e2) := l2e2 in
+      let (l3e3, n3) :=
+          (match entries with
+           | None => (nil, None, n2)
+           | Some ets =>
+             let (l4e4, n4) := extractFunCall_list extractFunCall_tblenty n2 ets in
+             let (l4, e4) := l4e4 in (l4, Some e4, n4) end) in
+      let (l3, e3) := l3e3 in
+      let (l5e5, n5) := (match default_action with
+                         | None => (nil, None, n3)
+                         | Some da =>
+                           let (l6e6, n6) := extractFunCall_tar n3 da in
+                           let (l6, e6) := l6e6 in (l6, Some e6, n6)
+                         end) in
+      let(l5, e5) := l5e5 in
+      let (l6e6, n6) :=
+          extractFunCall_list extractFunCall_tblprop n5 custom_properties in
+      let (l6, e6) := l6e6 in
+      (l1 ++ l2 ++ l3 ++ l5 ++ l6 ++ [DeclTable tags name e1 e2 e3 e5 size e6], n6)
+    | DeclHeader _ _ _ => ([decl], nameIdx)
+    | DeclHeaderUnion _ _ _ => ([decl], nameIdx)
+    | DeclStruct _ _ _ => ([decl], nameIdx)
+    | DeclError _ _ => ([decl], nameIdx)
+    | DeclMatchKind _ _ => ([decl], nameIdx)
+    | DeclEnum _ _ _ => ([decl], nameIdx)
+    | DeclSerializableEnum tags typ name members =>
+      let (l1e1, n1) := extractFunCall_list extractFunCall_membr nameIdx members in
+      let (l1, e1) := l1e1 in (l1 ++ [DeclSerializableEnum tags typ name e1], n1)
+    | DeclExternObject _ _ _ _ => ([decl], nameIdx)
+    | DeclTypeDef _ _ (inl _) => ([decl], nameIdx)
+    | DeclTypeDef tags name (inr decl') =>
+      let (l1, n1) := extractFunCall_decl nameIdx decl' in
+      (removelast l1 ++ [DeclTypeDef tags name (inr (lastDecl l1))], n1)
+    | DeclNewType _ _ (inl _) => ([decl], nameIdx)
+    | DeclNewType tags name (inr decl') =>
+      let (l1, n1) := extractFunCall_decl nameIdx decl' in
+      (removelast l1 ++ [DeclNewType tags name (inr (lastDecl l1))], n1)
+    | DeclControlType _ _ _ _ => ([decl], nameIdx)
+    | DeclParserType _ _ _ _ => ([decl], nameIdx)
+    | DeclPackageType _ _ _ _ => ([decl], nameIdx)
+    end.
+
+  Definition extractFunCall_prog (prog: @program tags_t): (@program tags_t) :=
+    match prog with
+    | Program l =>
+      let (l', _) := extractFunCall_list' extractFunCall_decl 0 l in Program l'
+    end.
 
 End Transformer.

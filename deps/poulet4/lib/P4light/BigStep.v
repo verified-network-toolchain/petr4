@@ -403,15 +403,6 @@ Module Step.
         ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
 
-    Inductive fbody : Type :=
-    | FBody (signature : E.arrowT tags_t) (body : ST.s tags_t).
-
-    Definition fenv : Type := Env.t (name tags_t) fbody.
-
-    Definition bare (x : string tags_t) : name tags_t :=
-      Typed.BareName x.
-    (**[]*)
-
     Instance P4NameEquivalence : Equivalence (equivn tags_t) :=
       NameEquivalence tags_t.
     (**[]*)
@@ -420,13 +411,33 @@ Module Step.
       NameEqDec tags_t.
     (**[]*)
 
-    (** Create a new environment where
+    Definition bare (x : string tags_t) : name tags_t :=
+      Typed.BareName x.
+    (**[]*)
+
+    Inductive fdecl : Type :=
+      FDecl (closure : epsilon) (fs : fenv)
+            (signature : E.arrowT tags_t) (body : ST.s tags_t)
+    with fenv : Type :=
+      FEnv (fs : Env.t (name tags_t) fdecl).
+    (**[]*)
+
+    (** Function lookup. *)
+    Definition lookup '(FEnv fs : fenv) : name tags_t -> option fdecl := fs.
+
+    (** Bind a function declaration to an environment. *)
+    Definition update '(FEnv fs : fenv) (x : name tags_t) (d : fdecl) : fenv :=
+      FEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Create a new environment
+        from a closure environment where
         values of [In] args are substituted
         into the function parameters. *)
     Definition copy_in
-               (fs : F.fs tags_t
+               (params : F.fs tags_t
                           (P.paramarg (V.v tags_t) (name tags_t)))
-               (ϵcall : epsilon) : epsilon :=
+               (ϵcall : epsilon) : epsilon -> epsilon :=
       F.fold (fun x arg ϵ =>
                 let x' := bare x in
                 match arg with
@@ -436,13 +447,13 @@ Module Step.
                                 | Some v => !{ x' ↦ v ;; ϵ }!
                                 end
                 | P.PAOut _   => ϵ
-                end) fs (Env.empty (name tags_t) (V.v tags_t)).
+                end) params.
     (**[]*)
 
-    (** Update current environment with
+    (** Update call-site environment with
         out variables from function call evaluation. *)
     Definition copy_out
-               (fs : F.fs tags_t
+               (args : F.fs tags_t
                           (P.paramarg (E.t tags_t * E.e tags_t)
                                       (E.t tags_t * name tags_t)))
                (ϵf : epsilon) : epsilon -> epsilon :=
@@ -455,7 +466,7 @@ Module Step.
                   | None   => ϵ
                   | Some v => !{ x ↦ v ;; ϵ }!
                   end
-                end) fs.
+                end) args.
     (**[]*)
 
     (** Evidence that control-flow
@@ -515,19 +526,19 @@ Module Step.
                         F.fs tags_t
                              (P.paramarg (V.v tags_t) (name tags_t)))
                      (f : name tags_t) (i : tags_t)
-                     (body : ST.s tags_t) (ϵ' ϵ'' ϵ''' : epsilon) :
+                     (body : ST.s tags_t) (fclosure : fenv)
+                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
         (* Looking up function. *)
-        fs f = Some (FBody (P.Arrow params None) body) ->
+        lookup fs f = Some (FDecl closure fclosure (P.Arrow params None) body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
              (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
              (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
         (* Copy-in. *)
-        copy_in argsv ϵ = ϵ' ->
-        (* Function evaluation
-           TODO: closures for epsilon and function environment. *)
-        ⟪ fs, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        copy_in argsv ϵ closure = ϵ' ->
+        (* Function evaluation *)
+        ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
         copy_out args ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
@@ -543,19 +554,19 @@ Module Step.
                              (P.paramarg (V.v tags_t) (name tags_t)))
                      (f x : name tags_t) (τ : E.t tags_t)
                      (i : tags_t) (v : V.v tags_t)
-                     (body : ST.s tags_t) (ϵ' ϵ'' ϵ''' : epsilon) :
+                     (body : ST.s tags_t) (fclosure : fenv)
+                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
         (* Looking up function. *)
-        fs f = Some (FBody (P.Arrow params (Some τ)) body) ->
+        lookup fs f = Some (FDecl closure fclosure (P.Arrow params (Some τ)) body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
              (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
              (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
         (* Copy-in. *)
-        copy_in argsv ϵ = ϵ' ->
-        (* Function evaluation
-           TODO: closures for epsilon and function environment. *)
-        ⟪ fs, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+        copy_in argsv ϵ closure = ϵ' ->
+        (* Function evaluation *)
+        ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
         (* Copy-out *)
         copy_out args ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ϵ, let x :: τ := call f with args @ i fin ⟫

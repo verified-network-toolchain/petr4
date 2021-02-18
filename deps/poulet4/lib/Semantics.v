@@ -123,12 +123,8 @@ Definition update_memory (f : mem -> mem) (s : state) : state :=
 Definition get_memory (s : state) : mem :=
   let (m, _) := s in m.
 
-Definition name_cons : path -> ident -> path :=
-  fix name_cons (p: path) (id: ident): path :=
-    match p with
-    | nil => cons id nil
-    | cons id' restIds => cons id' (name_cons restIds id)
-    end.
+Definition name_cons (p: path) (id: ident) : path :=
+  p ++ [id].
 
 (* Inductive env_enty... *)
 

@@ -33,6 +33,10 @@ control MyC(inout header_t hdrs, out bool forward) {
     table t {
         key = { hdrs.simple.dst : exact; }
         actions = { do_forward; do_drop; }
+        default_action = do_drop;
+        const entries = {
+            0x0: do_drop();
+        }
     }
     apply {
         t.apply();

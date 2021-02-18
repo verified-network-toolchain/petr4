@@ -19,6 +19,13 @@ Module Value.
     | VHeader (fs : Field.fs tags_t v)
     | VError (err : string tags_t)
     | VMatchKind (mk : string tags_t).
+    (**[]*)
+
+    (** Lvalues. *)
+    Inductive lv : Type :=
+    | LVVar (x : name tags_t)                 (* Local variables. *)
+    | LVMember (arg : lv) (x : string tags_t) (* Member access. *).
+    (**[]*)
 
     (** A custom induction principle for value. *)
     Section ValueInduction.
@@ -158,6 +165,8 @@ Module Value.
   Arguments VHeader {_}.
   Arguments VError {_}.
   Arguments VMatchKind {_}.
+  Arguments LVVar {_}.
+  Arguments LVMember {_}.
 
   Module ValueNotations.
     Declare Custom Entry p4value.
@@ -179,6 +188,18 @@ Module Value.
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
     Notation "'MATCHKIND' x" := (VMatchKind x) (in custom p4value at level 0).
   End ValueNotations.
+
+  Module LValueNotations.
+    Declare Custom Entry p4lvalue.
+
+    Notation "'l{' lval '}l'" := lval (lval custom p4lvalue at level 99).
+    Notation "( x )" := x (in custom p4lvalue, x at level 99).
+    Notation "x" := x (in custom p4lvalue at level 0, x constr at level 0).
+    Notation "'VAR' x" := (LVVar x) (in custom p4lvalue at level 0).
+    Notation "lval 'DOT' x"
+      := (LVMember lval x) (in custom p4lvalue at level 1,
+                               lval custom p4lvalue).
+  End LValueNotations.
 End Value.
 
 Module Step.
@@ -190,6 +211,7 @@ Module Step.
 
   Import ST.StmtNotations.
   Import V.ValueNotations.
+  Import V.LValueNotations.
 
   (** Statement signals. *)
   Inductive signal (tags_t : Type) : Type :=
@@ -214,6 +236,9 @@ Module Step.
 
   Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
            (at level 40, e custom p4expr, v custom p4value).
+
+  Reserved Notation "⦑ ϵ , e ⦒ ⇓ lv"
+           (at level 40, e custom p4expr, lv custom p4lvalue).
 
   Import Env.EnvNotations.
 
@@ -400,6 +425,16 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
+
+    Inductive lvalue_big_step (ϵ : epsilon) : E.e tags_t -> V.lv tags_t -> Prop :=
+    | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
+        ⦑ ϵ, Var x :: τ @ i end ⦒ ⇓ VAR x
+    | lvbs_member (e : E.e tags_t) (x : string tags_t)
+                  (tfs : F.fs tags_t (E.t tags_t))
+                  (i : tags_t) (lv : V.lv tags_t) :
+        ⦑ ϵ, e ⦒ ⇓ lv ->
+        ⦑ ϵ, Mem e :: rec { tfs } dot x @ i end ⦒ ⇓ lv DOT x
+    where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
 
     Instance P4NameEquivalence : Equivalence (equivn tags_t) :=
       NameEquivalence tags_t.

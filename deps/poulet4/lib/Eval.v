@@ -76,90 +76,6 @@ Section Eval.
   Definition bvec_of_z (width: nat) (z: Z) : (Bvector width).
   Admitted.
 
-  Definition extract_value_func (caller: ValueLvalue): Value :=
-    let func_name := {|P4String.tags := tags_dummy;
-                       P4String.str := StringConstants.extract|} in
-    let func_impl := ValFuncImplBuiltin func_name caller in
-    let param_name := {|P4String.tags := tags_dummy;
-                        P4String.str := "headerLvalue"|} in
-    let param := MkParameter false Out TypVoid None param_name in
-    ValObj (ValObjFun (param :: nil) func_impl)
-  .
-
-  Equations eval_expression (expr: Expression) : env_monad Value :=
-    eval_expression (MkExpression expr _ _) :=
-      eval_expression_pre expr
-  with eval_expression_pre (expr: ExpressionPreT) : env_monad Value :=
-    eval_expression_pre (ExpBool value) :=
-      mret (ValBase (ValBaseBool value));
-    eval_expression_pre (ExpInt value) :=
-      match value.(P4Int.width_signed) with
-      | Some (width, true) =>
-        mret (ValBase (ValBaseInt width value.(P4Int.value)))
-      | Some (width, false) =>
-        mret (ValBase (ValBaseBit width value.(P4Int.value)))
-      | None =>
-        mret (ValBase (ValBaseInteger value.(P4Int.value)))
-      end;
-    eval_expression_pre (ExpString s) :=
-      mret (ValBase (ValBaseString s));
-    eval_expression_pre (ExpArrayAccess array index) :=
-      let* index' := unpack_inf_int _ (eval_expression index) in
-      let* array' := unpack_array _ (eval_expression array) in
-      let element :=
-        match index_z_error array' index' with
-        | Some element' => Some (ValBase element')
-        | None => None
-        end in
-      lift_option _ element;
-    eval_expression_pre (ExpBitStringAccess array hi lo) :=
-      state_fail Internal;
-    (*
-    eval_expression_pre (ExpList _ exprs) :=
-      lift_monad (ValTuple _) (sequence (List.map eval_expression exprs))
-    eval_expression_pre (ExpRecord _ entries) :=
-      let actions := List.map eval_kv entries in
-      lift_monad (ValRecord _) (sequence actions)
-    *)
-    eval_expression_pre (ExpUnaryOp op arg) =>
-      match op with
-      | Not =>
-        let* b := unpack_bool _ (eval_expression arg) in
-        mret (ValBase (ValBaseBool (negb b)))
-      | BitNot =>
-        let* inner := eval_expression arg in
-        match inner with
-        | ValBase (ValBaseBit w bits) => mret (ValBase (ValBaseBit w (BinInt.Z.lnot bits)))
-        | _ => state_fail Internal
-        end
-      | UMinus =>
-        let* inner := eval_expression arg in
-        lift_option _ (eval_minus inner)
-      end;
-    eval_expression_pre (ExpExpressionMember inner name) :=
-      let* inner_v := eval_expression inner in
-      match inner_v with
-      | ValObj (ValObjPacket bits) =>
-        match inner with
-        | MkExpression _ (ExpName inner_name) inner_typ _ =>
-          if P4String.eq_const name StringConstants.extract
-          then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
-          else state_fail Internal
-        | _ => state_fail Internal
-        end
-      (* TODO real member lookup *)
-      | _ => state_fail Internal
-      end;
-    eval_expression_pre _ :=
-      (* TODO *)
-      mret (ValBase (ValBaseBool false))
-  .
-
-  Definition eval_kv (kv: KeyValue) : env_monad (String.t * Value) :=
-    let '(MkKeyValue _ key expr) := kv in
-    let* value := eval_expression expr in
-    mret (key.(P4String.str), value).
-
   Definition eval_is_valid (lvalue: ValueLvalue) : env_monad Value :=
     let* (_, valid) := unpack_header _ (env_lookup _ lvalue) in
     mret (ValBase (ValBaseBool valid)).
@@ -189,27 +105,6 @@ Section Eval.
       let next_index' := min size (next_index + (Z.to_nat count)) in
       let value' := ValBase (ValBaseStack elements' size next_index') in
       env_update _ lvalue value'
-    | _ => state_fail Internal
-    end.
-
-  Fixpoint eval_arguments (params: list P4Parameter) (args: list (option Expression)) : env_monad (list (option Value)) :=
-    match (args, params) with
-    | (nil, nil) => mret nil
-    | (Some arg :: args', param :: params') =>
-      let '(MkParameter _ dir _ _ _) := param in
-      let* val := match dir with
-      | In => eval_expression arg
-      | Out =>
-        let* lvalue := eval_lvalue arg
-        in mret (ValLvalue lvalue)
-      (* TODO: Handle InOut and Directionless *)
-      | _ => state_fail Internal
-      end in
-      let* vals := eval_arguments params' args' in
-      mret (Some val :: vals)
-    | (None :: args', param :: params') =>
-      let* vals := eval_arguments params' args' in
-      mret (None :: vals)
     | _ => state_fail Internal
     end.
 
@@ -266,28 +161,158 @@ Section Eval.
   dummy_value (eval_packet_func obj name bits type_args args).
    *)
 
-  Definition eval_method_call (func: Expression) (type_args: list P4Type) (args: list (option Expression)) : env_monad Value :=
-    let* func' := eval_expression func in
-    match func' with
-    | ValObj (ValObjFun params impl) =>
-      (* TODO: Properly implement copy in/copy out semantics. *)
-      let* args' := eval_arguments params args in
-      match impl with
-      | ValFuncImplBuiltin name obj =>
-        eval_builtin_func name obj type_args args'
-      (* TODO: other function types *)
-      (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
+  Definition extract_value_func (caller: ValueLvalue): Value :=
+    let func_name := {|P4String.tags := tags_dummy;
+                       P4String.str := StringConstants.extract|} in
+    let func_impl := ValFuncImplBuiltin func_name caller in
+    let param_name := {|P4String.tags := tags_dummy;
+                        P4String.str := "headerLvalue"|} in
+    let param := MkParameter false Out TypVoid None param_name in
+    ValObj (ValObjFun (param :: nil) func_impl)
+  .
+
+  Section eval_arguments.
+    Variable (eval_expression: Expression -> env_monad Value).
+
+    Equations eval_arguments
+      (params: list P4Parameter)
+      (args: list (option Expression))
+      : env_monad (list (option Value))
+      by struct args
+    :=
+      eval_arguments nil nil :=
+        mret nil;
+      eval_arguments (param :: params) (Some arg :: args) :=
+        let '(MkParameter _ dir _ _ _) := param in
+        let* val := match dir with
+        | In => eval_expression arg
+        | Out =>
+          let* lvalue := eval_lvalue arg
+          in mret (ValLvalue lvalue)
+        (* TODO: Handle InOut and Directionless *)
+        | _ => state_fail Internal
+        end in
+        let* vals := eval_arguments params args in
+        mret (Some val :: vals);
+      eval_arguments (param :: params) (None :: args) :=
+        let* vals := eval_arguments params args in
+        mret (None :: vals);
+      eval_arguments _ _ :=
+        state_fail Internal
+    .
+  End eval_arguments.
+
+  Section eval_method_call.
+    Variable (eval_expression: Expression -> env_monad Value).
+
+    Definition eval_method_call
+      (func: Expression)
+      (type_args: list P4Type)
+      (args: list (option Expression))
+      : env_monad Value
+    :=
+      let* func' := eval_expression func in
+      match func' with
+      | ValObj (ValObjFun params impl) =>
+        (* TODO: Properly implement copy in/copy out semantics. *)
+        let* args' := eval_arguments (eval_expression) params args in
+        match impl with
+        | ValFuncImplBuiltin name obj =>
+          eval_builtin_func name obj type_args args'
+        (* TODO: other function types *)
+        (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
+        | _ => state_fail Internal
+        end
       | _ => state_fail Internal
       end
-    | _ => state_fail Internal
-    end.
+    .
+  End eval_method_call.
+
+  Equations eval_expression (expr: Expression) : env_monad Value :=
+    eval_expression (MkExpression expr _ _) :=
+      eval_expression_pre expr
+  with eval_expression_pre (expr: ExpressionPreT) : env_monad Value :=
+    eval_expression_pre (ExpBool value) :=
+      mret (ValBase (ValBaseBool value));
+    eval_expression_pre (ExpInt value) :=
+      match value.(P4Int.width_signed) with
+      | Some (width, true) =>
+        mret (ValBase (ValBaseInt width value.(P4Int.value)))
+      | Some (width, false) =>
+        mret (ValBase (ValBaseBit width value.(P4Int.value)))
+      | None =>
+        mret (ValBase (ValBaseInteger value.(P4Int.value)))
+      end;
+    eval_expression_pre (ExpString s) :=
+      mret (ValBase (ValBaseString s));
+    eval_expression_pre (ExpArrayAccess array index) :=
+      let* index' := unpack_inf_int _ (eval_expression index) in
+      let* array' := unpack_array _ (eval_expression array) in
+      let element :=
+        match index_z_error array' index' with
+        | Some element' => Some (ValBase element')
+        | None => None
+        end in
+      lift_option _ element;
+    eval_expression_pre (ExpBitStringAccess array hi lo) :=
+      state_fail Internal;
+    (* TODO: These cases recursively call eval_expression (either directly or
+       indirectly), which produces a Value. The values that these cases are
+       meant to produce, however, can only contain instances of ValueBase as a
+       result of stratification in the definition of values. To get around
+       this, we need to similarly stratify our definition of expressions.  *)
+    (* eval_expression_pre (ExpList _ exprs) :=
+      lift_monad (ValTuple _) (sequence (List.map eval_expression exprs)) *)
+    (* eval_expression_pre (ExpRecord entries) :=
+      let actions := List.map eval_kv entries in
+      lift_monad (ValRecord) (sequence actions); *)
+    eval_expression_pre (ExpUnaryOp op arg) :=
+      match op with
+      | Not =>
+        let* b := unpack_bool _ (eval_expression arg) in
+        mret (ValBase (ValBaseBool (negb b)))
+      | BitNot =>
+        let* inner := eval_expression arg in
+        match inner with
+        | ValBase (ValBaseBit w bits) => mret (ValBase (ValBaseBit w (BinInt.Z.lnot bits)))
+        | _ => state_fail Internal
+        end
+      | UMinus =>
+        let* inner := eval_expression arg in
+        lift_option _ (eval_minus inner)
+      end;
+    eval_expression_pre (ExpExpressionMember inner name) :=
+      let* inner_v := eval_expression inner in
+      match inner_v with
+      | ValObj (ValObjPacket bits) =>
+        match inner with
+        | MkExpression _ (ExpName inner_name) inner_typ _ =>
+          if P4String.eq_const name StringConstants.extract
+          then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
+          else state_fail Internal
+        | _ => state_fail Internal
+        end
+      (* TODO real member lookup *)
+      | _ => state_fail Internal
+      end;
+    eval_expression_pre (ExpFunctionCall func type_args args) :=
+      eval_method_call (eval_expression) func type_args args;
+    eval_expression_pre _ :=
+      (* TODO *)
+      mret (ValBase (ValBaseBool false))
+  (* TODO: see comment above *)
+  (* with eval_kv (kv: KeyValue) : env_monad (P4String * Value) :=
+    eval_kv (MkKeyValue key expr) :=
+      let* value := eval_expression expr in
+      mret (key, value) *)
+  .
 
   Equations eval_statement (stmt: Statement) : env_monad unit :=
     eval_statement (MkStatement _ stmt _) :=
       eval_statement_pre stmt
   with eval_statement_pre (stmt: StatementPreT) : env_monad unit :=
     eval_statement_pre (StatMethodCall func type_args args) :=
-      @toss_value tags_t (eval_method_call func type_args args);
+      @toss_value tags_t (eval_method_call eval_expression func type_args args);
     eval_statement_pre (StatAssignment lhs rhs) :=
       let* lval := eval_lvalue lhs in
       let* val := eval_expression rhs in

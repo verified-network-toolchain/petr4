@@ -87,3 +87,55 @@ Definition MyProg (pkt: list bool) : option Headers * unit * StandardMeta :=
   | res :: nil => MyIngress (Some res, tt, init_meta)
   | _ => MyIngress (None, tt, init_meta)
   end.
+
+Definition ProgOut : Type := option Headers * unit * StandardMeta.
+
+Definition HeaderWF (pkt : list bool) : Prop :=
+  (List.nth_error pkt 16 = Some false) /\
+  (List.nth_error pkt 17 = Some false) /\
+  (List.nth_error pkt 18 = Some false) /\
+  ((List.nth_error pkt 19 = Some false /\ length pkt = 40) \/
+   (List.nth_error pkt 19 = Some true /\ length pkt = 32)).
+
+Definition IPHeaderIsTCP (pkt : list bool) : Prop :=
+  length pkt = 40.
+
+Definition IPHeaderIsUDP (pkt : list bool) : Prop :=
+  length pkt = 32.
+
+Definition EgressSpecOne (out : ProgOut) : Prop :=
+  egress_spec (snd out) = one_bits.
+
+Definition EgressSpecZero (out : ProgOut) : Prop :=
+  egress_spec (snd out) = zero_bits 9.
+
+Definition PacketConsumed (out : ProgOut) : Prop :=
+  match fst (fst out) with
+  | Some _ => True
+  | _ => False
+  end.
+
+Lemma WFPacketLength : forall pkt : list bool, HeaderWF pkt ->
+                                       length pkt = 32 \/ length pkt = 40.
+Proof.
+  intros pkt [H16 [H17 [H18 H]]]. destruct H.
+  - right. apply H.
+  - left. apply H.
+Qed.
+
+Theorem ParseTCPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsTCP pkt ->
+                                          EgressSpecZero (MyProg pkt).
+Proof.
+  intros pkt Hwf Htcp.
+  repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
+  - unfold MyProg. simpl.
+Admitted.
+                                          
+Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->
+                                          EgressSpecOne (MyProg pkt).
+Admitted.
+
+Theorem ParseComplete : forall pkt : list bool, HeaderWF pkt ->
+                                        (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
+                                        PacketConsumed (MyProg pkt).
+Admitted.

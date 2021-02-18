@@ -1,7 +1,7 @@
-Require Import Grammars.Grammar.
-Require Import Grammars.Lib.
-Require Import Grammars.Binary.
-Require Import Grammars.Bits.
+Require Import Grammar.
+Require Import Lib.
+Require Import Binary.
+Require Import Bits.
 
 Record IPHeader := {
   src: bits 8;
@@ -53,14 +53,6 @@ Record Headers := {
   transport: option (TCP + UDP)
 }.
 
-Definition bits_foo : bits 2 := (true, (false, tt)).
-
-Definition bits_bar : bool := 
-  match bits_foo with
-  | (true, (false, tt)) => true
-  | _ => false
-  end.
-
 Definition babyParser : grammar Headers := 
   (IPHeader_p >= fun iph => 
   match proto iph return grammar (option (TCP + UDP)) with
@@ -72,3 +64,26 @@ Definition babyParser : grammar Headers :=
   end)
   @ fun x => let (ip, transport) := x in 
     {| ip := ip; transport := transport |}.
+
+
+Record StandardMeta := {
+  egress_spec : bits 9
+}.
+
+Definition init_meta : StandardMeta := {| egress_spec := zero_bits 9 |}.
+
+Definition IngressFunc (Hdrs: Type) (Meta: Type) : Type := 
+  (option Hdrs * Meta * StandardMeta) -> (option Hdrs * Meta * StandardMeta).
+
+Definition MyIngress : IngressFunc Headers unit := fun hms =>
+  let '(hdrs, m, sm) := hms in 
+  match hdrs with 
+  | Some _ => (hdrs, m, {| egress_spec := zero_bits 9 |})
+  | None   => (hdrs, m, {| egress_spec := one_bits |})
+  end.
+
+Definition MyProg (pkt: list bool) : option Headers * unit * StandardMeta :=
+  match parse babyParser pkt with
+  | res :: nil => MyIngress (Some res, tt, init_meta)
+  | _ => MyIngress (None, tt, init_meta)
+  end.

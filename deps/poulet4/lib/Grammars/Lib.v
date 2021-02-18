@@ -14,11 +14,16 @@ Notation "g >= f" := (Bind_g g f) (at level 70).
 Notation "a @ f" := (Map_g a f) (at level 110).
 Notation "g ?" := (option_g g) (at level 90).
 Infix "<||>" := (fun l r => (l @ inl) <|> (r @ inr)) (at level 100).
+  
 
-Lemma inv_Map_g {T U: Set} s v (g: grammar T) (f: T -> U) (v': T):
+Lemma inv_Map_g {T U: Set} s v (g: grammar T) (f: T -> U):
    matches (g @ f) s v -> exists v', matches g s v' /\ f v' = v.
 Proof.
-Admitted.
+  intros.
+  myinv H. 
+  exists v0.
+  auto.
+Qed.
 
 Definition filter {T: Set} (g:grammar T) (pred : T -> bool) : grammar T :=
   (g >= (fun v => if pred v then One_g else gzero)) @ (fun x => projT1 x).
@@ -48,13 +53,9 @@ Fixpoint prod (T:Set) (n:nat) : Set :=
     | S m => T * (prod T m)
   end.
   
-Definition whitespace : grammar ascii := glit "032" <|> glit "000" <|> glit "009" <|> glit "012" <|> glit "010" <|> glit "013".
-
 Definition gplus {A} (g:grammar A) := g $ (gstar g) @ fun p => (fst p)::(snd p).
 
 Definition ret {T: Set} (t: T) : grammar T := gone @ fun _ => t.
-Definition glitr {T: Set} (c: ascii) (t: T) := glit c @ fun _ => t.
-
 
 Lemma match_ret {T:Set} {v: T} :
   matches (ret v) List.nil v.
@@ -80,76 +81,6 @@ Proof.
   split. auto.
   auto.
 Qed.
-
-
-Definition gstr (str: string) := gprod List.cons (List.map glit (list_ascii_of_string str)) List.nil.
-
-Lemma match_gstr s : 
-  matches (gstr s) (list_ascii_of_string s) (list_ascii_of_string s).
-Proof.
-  
-  induction s. 
-  unfold gstr.
-  unfold gprod. simpl. apply match_ret.
-  simpl. unfold gstr. unfold gprod. simpl. 
-  unfold gstr in IHs. unfold gprod in IHs.
-  remember ((fix gprod
-  (A S : Set) (f : A -> S -> S) (gs : list (grammar A)) 
-  (base : S) {struct gs} : grammar S :=
-  match gs with
-  | Datatypes.nil => gone @ (fun _ : unit => base)
-  | g :: gs' =>
-      g $ gprod A S f gs' base @
-      (fun p : A * S => let (a', s) := p in f a' s)
-  end) ascii (list ascii) Datatypes.cons
- (List.map glit (list_ascii_of_string s)) Datatypes.nil) as g2.
-
-  pose proof (m_Lit_g a) as mlit.
-  remember (Lit_g a) as g1.
-
-  pose proof (matches_times g1 g2) as mtimes.
-  specialize (mtimes (a :: Datatypes.nil) a (list_ascii_of_string s) (list_ascii_of_string s)).
-  remember (conj mlit IHs) as mtimes_arg.
-  specialize (mtimes mtimes_arg). clear Heqmtimes_arg. clear mtimes_arg.
-  unfold glit.
-  rewrite <- Heqg1. 
-  rewrite <- app_comm_cons in mtimes. 
-  rewrite app_nil_l in mtimes. 
-  apply (m_Map_g (g1 $ g2) (a :: list_ascii_of_string s) (a, list_ascii_of_string s) (fun p : ascii * list ascii => let (a', s0) := p in a' :: s0)) in mtimes.
-  auto.
-  
-Qed.
-
-Lemma match_gstr_uniq s v1 v2 v3: 
-  matches (gstr s) v1 v1 /\ matches (gstr s) v2 v3 -> v1 = v2 /\ v2 = v3.
-Proof.
-  intros.
-  induction s. unfold gstr in H. unfold list_ascii_of_string in H. simpl.
-  unfold List.map in H. simpl.
-  destruct H as [H1 H2].
-  apply inv_Map_g in H1.
-  apply inv_Map_g in H2.
-  destruct H1 as [u1 [mv1 v1eq]].
-  destruct H2 as [u2 [mv2 v3eq]].
-
-  rewrite <- v1eq. rewrite <- v3eq.
-  myinv mv2. auto.
-  remember tt as u. auto.
-  remember tt as u. auto.
-
-  destruct H as [H1 H2].
-  myinv H1. myinv H2. simpl. fold (gstr s) in H6.
-  fold (gstr s) in H7. myinv H6. apply inv_Bind_g in H8. simpl.
-
-  destruct H8 as [s1 [s2 [v2' [v3 [Bod]]]]].
-
-
-  unfold gprod in H. simpl.
-  myinv H. myinv H0.
-  destruct v1. destruct v2. destruct v3. auto. auto.
-  unfold List.map in H.
-  admit.
-Admitted.
 
 
 Fixpoint repeat {T: Set} (n: nat) (g: grammar T) : grammar (Vector.t T n) := 
@@ -346,17 +277,6 @@ Proof.
   apply Forall_cons. auto. auto.
 Qed.
 
-Fixpoint between_helper (base: nat) (remainder: nat) : grammar ascii := match remainder with
-  | 0   => Lit_g (ascii_of_nat base)
-  | S x => Lit_g (ascii_of_nat base) <|> between_helper (S base) x
-end.
-
-Definition between (lo: ascii) (hi: ascii) : grammar ascii := 
-  between_helper (nat_of_ascii lo) ((nat_of_ascii hi) - (nat_of_ascii lo)).
-
 Definition Choose {A B} (proj : A -> grammar B) (choices: list A) : grammar B := gsum (List.map proj choices).
 
 Definition Star_Bound {A} (n: nat) (g: grammar A): grammar (list A) := filter (Star_g g) (fun xs => Nat.leb n (List.length xs)). 
-(* Definition Many {A} (g: grammar A)  *)
-
-Definition any : grammar ascii := between "000" "255".

@@ -48,11 +48,14 @@ Ltac depinv :=
 Ltac myinv H := inversion H ; subst ; repeat depinv ; subst.
 
 Inductive void : Set := .
+
+Definition Token : Set := bool.
+Definition Tok_dec : forall a b: Token, {a = b} + {a <> b} := Bool.bool_dec.
                                                              
 Inductive grammar : Set -> Type :=
 | Zero_g : grammar void  (* matches nothing *)
 | One_g : grammar unit  (* matches empty string, returns unit *)
-| Lit_g : ascii -> grammar ascii (* matches single character and returns it *)
+| Lit_g : Token -> grammar Token (* matches single character and returns it *)
 | Plus_g : forall {A:Set}, grammar A -> grammar A -> grammar A (* alternation *)
 | Star_g : forall {A:Set}, grammar A -> grammar (list A) (* kleene star *)
 | Map_g : forall {A B:Set}, grammar A -> (A->B) -> grammar B (* fmap for grammars *)
@@ -60,8 +63,8 @@ Inductive grammar : Set -> Type :=
    (* Bind -- note that this returns a dependent pair *)
 
 
-(* The semantics as a relation between strings (list ascii) and values. *)
-Inductive matches : forall {T}, grammar T -> list ascii -> T -> Prop :=
+(* The semantics as a relation between strings (list Token) and values. *)
+Inductive matches : forall {T}, grammar T -> list Token -> T -> Prop :=
 | m_One_g : matches One_g nil tt
 | m_Lit_g : forall c, matches (Lit_g c) (c::nil) c
 | m_l_Plus_g : forall {A:Set} (g1 g2:grammar A) s v, matches g1 s v -> matches (Plus_g g1 g2) s v
@@ -73,12 +76,12 @@ Inductive matches : forall {T}, grammar T -> list ascii -> T -> Prop :=
 | m_Map_g : forall {A B:Set} (g:grammar A) s v (f:A->B), matches g s v -> matches (Map_g g f) s (f v)
 | m_Bind_g : forall {A:Set} {F:A->Set} (g:grammar A) (f : forall x, grammar (F x)) s1 s2 v1 v2,
     matches g s1 v1 -> matches (f v1) s2 v2 -> matches (Bind_g g f) (s1 ++ s2) (existT _ v1 v2).
-Hint Constructors matches.
+Hint Constructors matches : core.
 
 (* Some smart constructors that simplify grammars. Correctness is established below. *)
 Definition gzero {S:Set} : grammar S := Map_g Zero_g (fun v => match v with end).
 Definition gone := One_g.
-Definition glit (c:ascii) := Lit_g c.
+Definition glit (c:Token) := Lit_g c.
 
 Fixpoint gmap {A:Set} (g:grammar A) : forall {B:Set}, (A -> B) -> grammar B :=
   match g in grammar A' return forall {B:Set}, (A' -> B) -> grammar B with
@@ -436,7 +439,6 @@ Proof.
   apply in_map. auto.
   destruct s1 ; try discriminate. destruct s2 ; simpl in * ; try discriminate.
   specialize (IHmatches1 eq_refl). specialize (IHmatches2 eq_refl).
-  Search (concat (map _ _)).
   rewrite <- flat_map_concat_map.
   apply in_flat_map. exists v1. split ; auto.
   rewrite in_map_iff.
@@ -450,7 +452,7 @@ Proof.
   rewrite in_app_iff in H. destruct H ; auto.
   destruct H ; try contradiction ; subst ; auto.
   rewrite in_map_iff in H. destruct H as [x [H1 H2]]. subst ; auto.
-  replace (@nil ascii) with (@nil ascii ++ nil) ; auto.
+  replace (@nil Token) with (@nil Token ++ nil) ; auto.
   destruct v. specialize (IHg x). specialize (H x f).
   rewrite <- flat_map_concat_map in H0.
   rewrite in_flat_map in H0.
@@ -468,11 +470,11 @@ Qed.
 
 
 (* Calculate the derivative of a grammar with respect to the character a. *)
-Fixpoint deriv {S} (a:ascii) (g:grammar S) : grammar S :=
+Fixpoint deriv {S} (a:Token) (g:grammar S) : grammar S :=
   match g with
   | Zero_g => gzero
   | One_g => gzero
-  | Lit_g b => if ascii_dec a b then gmap gone (fun _ => a) else gzero
+  | Lit_g b => if Tok_dec a b then gmap gone (fun _ => a) else gzero
   | Plus_g g1 g2 => gplus (deriv a g1) (deriv a g2)
   | Star_g g => gmap (gtimes' (deriv a g) (gstar g))
                      (fun p => (fst p)::(snd p))
@@ -487,7 +489,7 @@ Proof.
   induction g ; simpl ; intros.
   contradiction (not_matches_gzero _ _ H).
   contradiction (not_matches_gzero _ _ H).
-  destruct (ascii_dec c a).
+  destruct (Tok_dec c t).
   subst. inversion H ; subst ; repeat depinv ; subst ; clear H.
   inversion H5. subst ; repeat depinv ; subst. eauto.
   contradiction (not_matches_gzero _ _ H).
@@ -520,7 +522,7 @@ Lemma deriv_corr2 {T} (g:grammar T) : forall s v c, matches g (c::s) v -> matche
 Proof.
   induction g ; simpl ; intros.
   inversion H. inversion H.
-  destruct (ascii_dec c a). subst. inversion H. subst.
+  destruct (Tok_dec c t). subst. inversion H. subst.
   depinv. subst. eapply (m_Map_g One_g nil tt). auto.
   inversion H. congruence.
   myinv H ; clear H ; rewrite <- matches_gplus ; eauto.
@@ -551,7 +553,7 @@ Qed.
 
 
 (* Calculate the derivative with respect to the string a. *)
-Fixpoint derivs {S} (a:list ascii) (g:grammar S) : grammar S :=
+Fixpoint derivs {S} (a:list Token) (g:grammar S) : grammar S :=
   match a with
   | nil => g
   | c::cs => derivs cs (deriv c g)
@@ -566,10 +568,10 @@ Qed.
 
 (* To parse s, calculate the derivative with respect to s and then
    extract the values associated with the empty string. *)
-Definition parse {S} (g:grammar S) (str: list ascii) : list S :=
+Definition parse {S} (g:grammar S) (str: list Token) : list S :=
   extract (derivs str g).
 
-Lemma parse_corr : forall {T} (g:grammar T) (s:list ascii) v,
+Lemma parse_corr : forall {T} (g:grammar T) (s:list Token) v,
     In v (parse g s) <-> matches g s v.
 Proof.
   unfold parse. intros.

@@ -40,7 +40,12 @@ for information on the Petr4 artifact.
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
 
-1. Use OPAM to install dependencies. 
+1. Build bundled dependencies.
+   ```
+   make deps
+   ```
+
+1. Use OPAM to install public dependencies. 
    ```
    opam install . --deps-only
    ```

@@ -12,7 +12,15 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-all: Makefile.coq
+all: coq-all ml
+
+ml: coq-all
+	dune build -p ocaml-poulet4
+
+install:
+	dune install -p ocaml-poulet4
+
+coq-all: Makefile.coq
 	@+$(MAKE) -f Makefile.coq all
 
 clean: Makefile.coq
@@ -27,4 +35,4 @@ force _CoqProject Makefile: ;
 %: Makefile.coq force
 	@+$(MAKE) -f Makefile.coq $@
 
-.PHONY: all clean force
+.PHONY: all ml coq-all clean force

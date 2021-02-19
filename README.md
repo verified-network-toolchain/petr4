@@ -42,23 +42,15 @@ for information on the Petr4 artifact.
 
 1. Build bundled dependencies.
    ```
+   opam repo add coq-released https://coq.inria.fr/opam/released
    make deps
    ```
 
-1. Use OPAM to install public dependencies. 
+1. Use dune to build and install petr4.
    ```
-   opam install . --deps-only
+   dune build
+   dune install
    ```
-
-1. Build binaries using the supplied `Makefile`
-   ```
-   make
-   ```
-
-1. Install binaries in local OPAM directory
-   ```
-   make install
-   ``` 
 
 1. [Optional] Run tests
    ``` 

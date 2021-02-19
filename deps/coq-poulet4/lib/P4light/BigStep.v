@@ -6,6 +6,18 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
+Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
+Proof.
+  intros [a1 |] [a2 |].
+  - pose proof equiv_dec a1 a2 as HA.
+    unfold equiv in *; unfold complement in *.
+    destruct HA as [HA | HA]; subst; auto.
+    right; intros HA'; inversion HA'; contradiction.
+  - right; intros; discriminate.
+  - right; intros; discriminate.
+  - unfold equiv; auto.
+Defined.
+
 Module Value.
   Section Values.
     Variable (tags_t : Type).
@@ -17,8 +29,8 @@ Module Value.
     | VBit (w : positive) (n : N)
     | VRecord (fs : Field.fs tags_t v)
     | VHeader (fs : Field.fs tags_t v)
-    | VError (err : string tags_t)
-    | VMatchKind (mk : string tags_t).
+    | VError (err : option (string tags_t))
+    | VMatchKind (mk : P4light.Expr.matchkind).
     (**[]*)
 
     (** Lvalues. *)
@@ -26,6 +38,9 @@ Module Value.
     | LVVar (x : name tags_t)                 (* Local variables. *)
     | LVMember (arg : lv) (x : string tags_t) (* Member access. *).
     (**[]*)
+
+    (** Evaluated arguments. *)
+    Definition argsv : Type := Field.fs tags_t (P4light.paramarg v lv).
 
     (** A custom induction principle for value. *)
     Section ValueInduction.
@@ -82,12 +97,11 @@ Module Value.
       | equivv_header (fs1 fs2 : Field.fs tags_t v) :
           Field.relfs equivv fs1 fs2 ->
           equivv (VHeader fs1) (VHeader fs2)
-      | equivv_error (err1 err2 : string tags_t) :
-          P4String.equiv err1 err2 ->
+      | equivv_error (err1 err2 : option (string tags_t)) :
+          equiv err1 err2 ->
           equivv (VError err1) (VError err2)
-      | equivv_matchkind (mk1 mk2 : string tags_t) :
-          P4String.equiv mk1 mk2 ->
-          equivv (VMatchKind mk1) (VMatchKind mk2).
+      | equivv_matchkind (mk : P4light.Expr.matchkind) :
+          equivv (VMatchKind mk) (VMatchKind mk).
       (**[]*)
 
       Lemma equivv_reflexive : Reflexive equivv.
@@ -169,6 +183,8 @@ Module Value.
   Arguments LVMember {_}.
 
   Module ValueNotations.
+    Import P4light.Expr.MatchkindNotations.
+
     Declare Custom Entry p4value.
 
     Notation "'*{' val '}*'" := val (val custom p4value at level 99).
@@ -186,7 +202,9 @@ Module Value.
                                  (in custom p4value at level 6,
                                      no associativity).
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
-    Notation "'MATCHKIND' x" := (VMatchKind x) (in custom p4value at level 0).
+    Notation "'MATCHKIND' mk"
+      := (VMatchKind mk)
+           (in custom p4value at level 0, mk custom p4matchkind).
   End ValueNotations.
 
   Module LValueNotations.
@@ -327,9 +345,9 @@ Module Step.
     | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
         ϵ x = Some v ->
         ⟨ ϵ, Var x :: τ @ i end ⟩ ⇓ v
-    | ebs_error (err : string tags_t) (i : tags_t) :
+    | ebs_error (err : option (string tags_t)) (i : tags_t) :
         ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
-    | ebs_matchkind (mk : string tags_t) (i : tags_t) :
+    | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
         ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
     (* Unary Operations. *)
     | ebs_not (e : E.e tags_t) (i : tags_t) (b b' : bool) :
@@ -425,6 +443,7 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
+    (**[]*)
 
     Inductive lvalue_big_step (ϵ : epsilon) : E.e tags_t -> V.lv tags_t -> Prop :=
     | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
@@ -463,43 +482,70 @@ Module Step.
       FEnv !{ x ↦ d ;; fs }!.
     (**[]*)
 
+    (** Lookup an lvalue. *)
+    Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv tags_t) : option (V.v tags_t) :=
+      match lv with
+      | l{ VAR x }l => ϵ x
+      | l{ lv DOT x }l =>
+        (* TODO: use monadic bind. *)
+        match lv_lookup ϵ lv with
+        | None => None
+        | Some *{ REC { fs } }*
+        | Some *{ HDR { fs } }* => F.get x fs
+        | Some _ => None
+        end
+      end.
+    (**[]*)
+
+    (** Updating an lvalue in an environment. *)
+    Fixpoint lv_update (lv : V.lv tags_t) (v : V.v tags_t) (ϵ : epsilon) : epsilon :=
+      match lv with
+      | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
+      | l{ lv DOT x }l =>
+        match lv_lookup ϵ lv with
+        | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
+        | Some *{ HDR { vs } }* => lv_update lv (V.VHeader (F.update x v vs)) ϵ
+        | Some _ => ϵ
+        | None => ϵ
+        end
+      end.
+    (**[]*)
+
     (** Create a new environment
         from a closure environment where
         values of [In] args are substituted
         into the function parameters. *)
     Definition copy_in
-               (params : F.fs tags_t
-                          (P.paramarg (V.v tags_t) (name tags_t)))
+               (argsv : V.argsv tags_t)
                (ϵcall : epsilon) : epsilon -> epsilon :=
       F.fold (fun x arg ϵ =>
                 let x' := bare x in
                 match arg with
-                | P.PAIn v    => !{ x' ↦ v ;; ϵ }!
-                | P.PAInOut y => match ϵcall y with
-                                | None   => ϵ
-                                | Some v => !{ x' ↦ v ;; ϵ }!
+                | P.PAIn v     => !{ x' ↦ v ;; ϵ }!
+                | P.PAInOut lv => match lv_lookup ϵcall lv with
+                                 | None   => ϵ
+                                 | Some v => !{ x' ↦ v ;; ϵ }!
                                 end
-                | P.PAOut _   => ϵ
-                end) params.
+                | P.PAOut _    => ϵ
+                end) argsv.
     (**[]*)
 
     (** Update call-site environment with
         out variables from function call evaluation. *)
     Definition copy_out
-               (args : F.fs tags_t
-                          (P.paramarg (E.t tags_t * E.e tags_t)
-                                      (E.t tags_t * name tags_t)))
+               (argsv : V.argsv tags_t)
                (ϵf : epsilon) : epsilon -> epsilon :=
-      F.fold (fun _ arg ϵ =>
+      F.fold (fun x arg ϵ =>
+                let x' := bare x in
                 match arg with
                 | P.PAIn _ => ϵ
-                | P.PAOut (_,x)
-                | P.PAInOut (_,x) =>
-                  match ϵf x with
+                | P.PAOut lv
+                | P.PAInOut lv =>
+                  match ϵf x' with
                   | None   => ϵ
-                  | Some v => !{ x ↦ v ;; ϵ }!
+                  | Some v => lv_update lv v ϵ
                   end
-                end) args.
+                end) argsv.
     (**[]*)
 
     (** Evidence that control-flow
@@ -507,6 +553,25 @@ Module Step.
     Inductive interrupt : signal tags_t -> Prop :=
     | interrupt_exit : interrupt SIG_Exit
     | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
+    (**[]*)
+
+    (** Intial/Default value from a type. *)
+    Fixpoint vdefault (τ : E.t tags_t) : V.v tags_t :=
+      let fix fields_rec
+              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t (V.v tags_t) :=
+          match ts with
+          | [] => []
+          | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
+          end in
+      match τ with
+      | {{ error }}      => V.VError None
+      | {{ matchkind }}  => *{ MATCHKIND exact }*
+      | {{ Bool }}       => *{ FALSE }*
+      | {{ bit<w> }}     => *{ w VW N0 }*
+      | {{ int<w> }}     => *{ w VS Z0 }*
+      | {{ rec { ts } }} => V.VRecord (fields_rec ts)
+      | {{ hdr { ts } }} => V.VHeader (fields_rec ts)
+      end.
 
     Inductive stmt_big_step (fs : fenv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
@@ -522,10 +587,16 @@ Module Step.
         interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_assign (τ : E.t tags_t) (x : name tags_t)
-                 (e : E.e tags_t) (v : V.v tags_t) (i : tags_t) :
-        ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ϵ, asgn x := e :: τ @ i fin ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+    | sbs_vardecl (τ : E.t tags_t) (x : name tags_t)
+                  (i : tags_t) (v : V.v tags_t) :
+        vdefault τ = v ->
+        ⟪ fs, ϵ, var x :: τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+    | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
+                 (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
+        lv_update lv v ϵ = ϵ' ->
+        ⦑ ϵ, e1 ⦒ ⇓ lv ->
+        ⟨ ϵ, e2 ⟩ ⇓ v ->
+        ⟪ fs, ϵ, asgn e1 := e2 :: τ @ i fin ⟫ ⤋ ⟪ ϵ', C ⟫
     | sbs_exit (i : tags_t) :
         ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :
@@ -548,16 +619,9 @@ Module Step.
         ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
           ⤋ ⟪ ϵ', sig ⟫
-    | sbs_methodcall (params : F.fs tags_t
-                                    (P.paramarg (E.t tags_t)
-                                                (E.t tags_t)))
-                     (args :
-                        F.fs tags_t
-                             (P.paramarg (E.t tags_t * E.e tags_t)
-                                         (E.t tags_t * name tags_t)))
-                     (argsv :
-                        F.fs tags_t
-                             (P.paramarg (V.v tags_t) (name tags_t)))
+    | sbs_methodcall (params : E.params tags_t)
+                     (args : E.args tags_t)
+                     (argsv : V.argsv tags_t)
                      (f : name tags_t) (i : tags_t)
                      (body : ST.s tags_t) (fclosure : fenv)
                      (closure ϵ' ϵ'' ϵ''' : epsilon) :
@@ -566,44 +630,42 @@ Module Step.
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+             (fun te v  => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
+             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
-        copy_out args ϵ'' ϵ = ϵ''' ->
+        copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_fruitcall (params : F.fs tags_t
-                                    (P.paramarg (E.t tags_t)
-                                                (E.t tags_t)))
-                     (args :
-                        F.fs tags_t
-                             (P.paramarg (E.t tags_t * E.e tags_t)
-                                         (E.t tags_t * name tags_t)))
-                     (argsv :
-                        F.fs tags_t
-                             (P.paramarg (V.v tags_t) (name tags_t)))
-                     (f x : name tags_t) (τ : E.t tags_t)
-                     (i : tags_t) (v : V.v tags_t)
+    | sbs_fruitcall (params : E.params tags_t)
+                     (args : E.args tags_t)
+                     (argsv : V.argsv tags_t)
+                     (f : name tags_t)
+                     (e : E.e tags_t) (τ : E.t tags_t)
+                     (i : tags_t)
+                     (v : V.v tags_t) (lv : V.lv tags_t)
                      (body : ST.s tags_t) (fclosure : fenv)
-                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
+                     (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
         (* Looking up function. *)
         lookup fs f = Some (FDecl closure fclosure (P.Arrow params (Some τ)) body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
              (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
-        (* Function evaluation *)
+        (* Lvalue Evaluation. *)
+        ⦑ ϵ, e ⦒ ⇓ lv ->
+        (* Function evaluation. *)
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
-        (* Copy-out *)
-        copy_out args ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ϵ, let x :: τ := call f with args @ i fin ⟫
-          ⤋ ⟪ x ↦ v ;; ϵ''', C ⟫
+        (* Copy-out. *)
+        copy_out argsv ϵ'' ϵ = ϵ''' ->
+        (* Assignment to lvalue. *)
+        lv_update lv v ϵ''' = ϵ'''' ->
+        ⟪ fs, ϵ, let e :: τ := call f with args @ i fin ⟫ ⤋ ⟪ ϵ'''', C ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

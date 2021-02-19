@@ -185,6 +185,15 @@ Module Field.
       | (x',u') :: fds => if equiv_dec x x' then Some u'
                         else get x fds
       end.
+
+    (** Member update. *)
+    Fixpoint update {U : Type} (x : string tags_t) (u : U)
+             (fds : fs tags_t U) : fs tags_t U :=
+      match fds with
+      | [] => []
+      | (x',u') :: fds => (x', if equiv_dec x x' then u else u') :: update x u fds
+      end.
+    (**[]*)
   End FieldLibrary.
 End Field.
 
@@ -249,12 +258,13 @@ Module P4light.
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *).
       (**[]*)
-    End P4Types.
 
-    (** Function types. *)
-    Definition arrowT (tags_t : Type) : Type :=
-      arrow tags_t (t tags_t) (t tags_t) (t tags_t).
-    (**[]*)
+      (** Function parameters. *)
+      Definition params : Type := F.fs tags_t (paramarg t t).
+
+      (** Function types. *)
+      Definition arrowT : Type := arrow tags_t t t t.
+    End P4Types.
 
     Arguments TBool {_}.
     Arguments TBit {_}.
@@ -536,6 +546,22 @@ Module P4light.
       Notation "'++'" := PlusPlus (in custom p4bop at level 0).
     End BopNotations.
 
+    (** Default matchkinds. *)
+    Inductive matchkind : Set :=
+    | MKExact
+    | MKTernary
+    | MKLpm.
+    (**[]*)
+
+    Module MatchkindNotations.
+      Declare Custom Entry p4matchkind.
+
+      Notation "x" := x (in custom p4matchkind at level 0, x constr at level 0).
+      Notation "'exact'" := MKExact (in custom p4matchkind at level 0).
+      Notation "'ternary'" := MKTernary (in custom p4matchkind at level 0).
+      Notation "'lpm'" := MKLpm (in custom p4matchkind at level 0).
+    End MatchkindNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
@@ -558,17 +584,21 @@ Module P4light.
       | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
-      | EError (err : string tags_t) (i : tags_t)      (* error literals *)
-      | EMatchKind (err : string tags_t) (i : tags_t)  (* matchkind literals *).
+      | EError (err : option (string tags_t))
+               (i : tags_t)                            (* error literals *)
+      | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *).
+      (**[]*)
+
+      (** Function call arguments. *)
+      Definition args : Type :=
+        F.fs tags_t (paramarg (t tags_t * e) (t tags_t * e)).
+      (**[]*)
+
+      (** Function call. *)
+      Definition arrowE : Type :=
+        arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
       (**[]*)
     End Expressions.
-
-    (** Function call. *)
-    Definition arrowE (tags_t : Type) : Type :=
-      arrow tags_t (t tags_t * e tags_t)
-            (t tags_t * name tags_t)
-            (t tags_t * name tags_t).
-    (**[]*)
 
     Arguments EBool {tags_t}.
     Arguments EBit {_}.
@@ -587,6 +617,7 @@ Module P4light.
 
       Export UopNotations.
       Export BopNotations.
+      Export MatchkindNotations.
       Export TypeNotations.
 
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -622,8 +653,9 @@ Module P4light.
                         ty custom p4type, left associativity).
       Notation "'Error' x @ i" := (EError x i)
                               (in custom p4expr at level 0, no associativity).
-      Notation "'Matchkind' x @ i" := (EMatchKind x i)
-                              (in custom p4expr at level 0, no associativity).
+      Notation "'Matchkind' mk @ i" := (EMatchKind mk i)
+                              (in custom p4expr at level 0,
+                                  mk custom p4matchkind, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -707,8 +739,10 @@ Module P4light.
       Inductive s : Type :=
       | SSkip (i : tags_t)                              (* skip, useful for
                                                            small-step semantics *)
-      | SAssign (type : E.t tags_t) (x : name tags_t)
-                (e : E.e tags_t) (i : tags_t)           (* assignment *)
+      | SVardecl (type : E.t tags_t)
+                 (x : name tags_t) (i : tags_t)         (* Variable declaration. *)
+      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
+                (i : tags_t)                            (* assignment *)
       | SConditional (guard_type : E.t tags_t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
@@ -724,6 +758,7 @@ Module P4light.
     End Statements.
 
     Arguments SSkip {tags_t}.
+    Arguments SVardecl {_}.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
@@ -746,11 +781,15 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'asgn' x ':=' e :: t @ i 'fin'"
-              := (SAssign t x e i)
-                    (in custom p4stmt at level 40, e custom p4expr,
+      Notation "'var' x '::' t @ i"
+               := (SVardecl t x i)
+                    (in custom p4stmt at level 0, t custom p4type).
+      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
+              := (SAssign t e1 e2 i)
+                    (in custom p4stmt at level 40,
+                        e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'if' e :: t 'then' s1 'else' s2 @ i 'fin'"
+      Notation "'if' e '::' t 'then' s1 'else' s2 @ i 'fin'"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,
                         t custom p4type, e custom p4expr,

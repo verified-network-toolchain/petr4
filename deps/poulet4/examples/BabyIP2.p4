@@ -26,16 +26,16 @@ parser MyParser(packet_in packet,
                 inout standard_metadata_t standard_metadata) {
     state start {
         packet.extract(hdr.comb);
-	transition select(hdr.comb.proto) {
-	    1 : accept;
-	    0 : parse_tcp;
-	    default : reject;
-	}
+        transition select(hdr.comb.proto) {
+            1 : accept;
+            0 : parse_tcp;
+            default : reject;
+        }
     }
 
     state parse_tcp {
         packet.extract(hdr.opt_suff);
-	transition accept;
+        transition accept;
     }
 }
 
@@ -47,12 +47,12 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-    	  if (hdr.opt_suff.isValid()) {
-	      standard_metadata.egress_spec = 0;
-	  }
-	  else {
-	      standard_metadata.egress_spec = 1;
-	  }
+      if (hdr.opt_suff.isValid()) {
+          standard_metadata.egress_spec = 0;
+      }
+      else {
+          standard_metadata.egress_spec = 1;
+      }
     }
 }
 
@@ -64,7 +64,7 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
-	packet.emit(hdr.comb);
+        packet.emit(hdr.comb);
         packet.emit(hdr.opt_suff);
     }
 }

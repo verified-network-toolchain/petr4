@@ -552,10 +552,12 @@ Module Step.
         interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_assign (τ : E.t tags_t) (x : name tags_t)
-                 (e : E.e tags_t) (v : V.v tags_t) (i : tags_t) :
-        ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ϵ, asgn x := e :: τ @ i fin ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+    | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
+                 (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
+        lv_update lv v ϵ = ϵ' ->
+        ⦑ ϵ, e1 ⦒ ⇓ lv ->
+        ⟨ ϵ, e2 ⟩ ⇓ v ->
+        ⟪ fs, ϵ, asgn e1 := e2 :: τ @ i fin ⟫ ⤋ ⟪ ϵ', C ⟫
     | sbs_exit (i : tags_t) :
         ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :
@@ -601,10 +603,12 @@ Module Step.
     | sbs_fruitcall (params : E.params tags_t)
                      (args : E.args tags_t)
                      (argsv : V.argsv tags_t)
-                     (f x : name tags_t) (τ : E.t tags_t)
-                     (i : tags_t) (v : V.v tags_t)
+                     (f : name tags_t)
+                     (e : E.e tags_t) (τ : E.t tags_t)
+                     (i : tags_t)
+                     (v : V.v tags_t) (lv : V.lv tags_t)
                      (body : ST.s tags_t) (fclosure : fenv)
-                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
+                     (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
         (* Looking up function. *)
         lookup fs f = Some (FDecl closure fclosure (P.Arrow params (Some τ)) body) ->
         (* Argument evaluation. *)
@@ -614,12 +618,15 @@ Module Step.
              (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
-        (* Function evaluation *)
+        (* Lvalue Evaluation. *)
+        ⦑ ϵ, e ⦒ ⇓ lv ->
+        (* Function evaluation. *)
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
-        (* Copy-out *)
+        (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ϵ, let x :: τ := call f with args @ i fin ⟫
-          ⤋ ⟪ x ↦ v ;; ϵ''', C ⟫
+        (* Assignment to lvalue. *)
+        lv_update lv v ϵ''' = ϵ'''' ->
+        ⟪ fs, ϵ, let e :: τ := call f with args @ i fin ⟫ ⤋ ⟪ ϵ'''', C ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

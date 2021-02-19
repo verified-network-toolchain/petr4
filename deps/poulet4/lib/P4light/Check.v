@@ -110,16 +110,6 @@ Module Typecheck.
       NameEqDec tags_t.
     (**[]*)
 
-    Definition out_update
-               (fs : E.args tags_t) : gam -> gam :=
-      F.fold (fun x param Γ =>
-                match param with
-                | P.PAOut (τ,_)
-                | P.PAInOut (τ,_) => let x' := bare x in
-                                    !{ x' ↦ τ ;; Γ }!
-                | P.PAIn _        => Γ
-                end) fs.
-
     (** Evidence for a type being numeric. *)
     Inductive numeric : E.t tags_t -> Prop :=
     | numeric_bit (w : positive) : numeric {{ bit<w> }}
@@ -271,10 +261,12 @@ Module Typecheck.
     | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) :
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ⊣ Γ', R) ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ Γ', R)
-    | chk_assign (τ : E.t tags_t) (x : name tags_t)
-                 (e : E.e tags_t) (i : tags_t) :
-        ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn x := e :: τ @ i fin ⊣ x ↦ τ ;; Γ, C
+    | chk_vardecl (τ : E.t tags_t) (x : name tags_t) (i : tags_t) :
+        ⦃ fns, errs, mkds , Γ ⦄ ⊢ var x :: τ @ i ⊣ x ↦ τ ;; Γ, C
+    | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
+        ⟦ errs , mkds , Γ ⟧ ⊢ e1 ∈ τ ->
+        ⟦ errs , mkds , Γ ⟧ ⊢ e2 ∈ τ ->
+        ⦃ fns , errs , mkds , Γ ⦄ ⊢ asgn e1 := e2 :: τ @ i fin ⊣ Γ, C
     | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
                (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
         lub sgt sgf = sg ->
@@ -290,11 +282,9 @@ Module Typecheck.
         (⦃ fns , errs, mkds , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ Γ, R)
     | chk_exit (i : tags_t) :
         ⦃ fns, errs, mkds , Γ ⦄ ⊢ exit @ i ⊣ Γ, R
-    | chk_method_call (Γ' : gam)
-                      (params : E.params tags_t)
+    | chk_method_call (params : E.params tags_t)
                       (args : E.args tags_t)
                       (f : name tags_t) (i : tags_t) :
-        out_update args Γ = Γ' ->
         fns f = Some (P.Arrow params None) ->
         F.relfs
           (P.rel_paramarg
@@ -306,12 +296,11 @@ Module Typecheck.
                 E.equivt τ (te ▷ fst) /\
                 let e := te ▷ snd in
                 ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)) args params ->
-        (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C)
-    | chk_call (Γ' : gam) (τ : E.t tags_t)
+        (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ, C)
+    | chk_call (τ : E.t tags_t) (e : E.e tags_t)
                (params : E.params tags_t)
                (args : E.args tags_t)
-               (f x : name tags_t) (i : tags_t) :
-        out_update args Γ = Γ' ->
+               (f : name tags_t) (i : tags_t) :
         fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
           (P.rel_paramarg
@@ -323,8 +312,9 @@ Module Typecheck.
                 E.equivt τ (te ▷ fst) /\
                 let e := te ▷ snd in
                 ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)) args params ->
+        ⟦ errs, mkds, Γ ⟧ ⊢ e ∈ τ ->
         (⦃ fns , errs , mkds , Γ ⦄
-           ⊢ let x :: τ := call f with args @ i fin ⊣ x ↦ τ ;; Γ', C)
+           ⊢ let e :: τ := call f with args @ i fin ⊣ Γ, C)
     where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2 ',' sg"
             := (check_stmt fe ers mks g1 s g2 sg).
     (**[]*)

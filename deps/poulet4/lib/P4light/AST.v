@@ -579,7 +579,7 @@ Module P4light.
 
       (** Function call. *)
       Definition arrowE : Type :=
-        arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * name tags_t).
+        arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
       (**[]*)
     End Expressions.
 
@@ -720,8 +720,10 @@ Module P4light.
       Inductive s : Type :=
       | SSkip (i : tags_t)                              (* skip, useful for
                                                            small-step semantics *)
-      | SAssign (type : E.t tags_t) (x : name tags_t)
-                (e : E.e tags_t) (i : tags_t)           (* assignment *)
+      | SVardecl (type : E.t tags_t)
+                 (x : name tags_t) (i : tags_t)         (* Variable declaration. *)
+      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
+                (i : tags_t)                            (* assignment *)
       | SConditional (guard_type : E.t tags_t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
@@ -737,6 +739,7 @@ Module P4light.
     End Statements.
 
     Arguments SSkip {tags_t}.
+    Arguments SVardecl {_}.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
@@ -759,11 +762,15 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'asgn' x ':=' e :: t @ i 'fin'"
-              := (SAssign t x e i)
-                    (in custom p4stmt at level 40, e custom p4expr,
+      Notation "'var' x '::' t @ i"
+               := (SVardecl t x i)
+                    (in custom p4stmt at level 0, t custom p4type).
+      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
+              := (SAssign t e1 e2 i)
+                    (in custom p4stmt at level 40,
+                        e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'if' e :: t 'then' s1 'else' s2 @ i 'fin'"
+      Notation "'if' e '::' t 'then' s1 'else' s2 @ i 'fin'"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,
                         t custom p4type, e custom p4expr,

@@ -2,9 +2,10 @@ Require Import Coq.extraction.ExtrOcamlBasic.
 Require Import Coq.extraction.ExtrOcamlNativeString.
 Require Import Coq.extraction.ExtrOcamlNatInt.
 Require Import Petr4.ExtractOcamlBinNumsBigint.
-Require Syntax.
+Require Petr4.Syntax.
+Require Petr4.Typed.
 Require Extraction.
 
-Cd "extraction/lib/".
+Cd "lib".
 Separate Extraction Syntax Typed.
-Cd "../../".
+Cd "..".

@@ -1,0 +1,5 @@
+(library 
+  (name poulet4)
+  (public_name ocaml-poulet4)
+  (libraries bignum)
+  (flags (:standard -w -33)))

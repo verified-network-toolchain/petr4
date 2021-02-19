@@ -436,49 +436,29 @@ Module P4light.
           try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
                unfold equiv in *; unfold complement in *; subst;
                try (right; intros H'; inversion H'; contradiction);
-               try (left; reflexivity)).
-        - rename fields into fs1; rename fields0 into fs2.
-          generalize dependent fs2.
-          induction fs1 as [| [x1 t1] fs1 IHfs1]; intros [| [x2 t2] fs2];
-            try (left; reflexivity);
-            try (right; intros H';
-                 inversion H'; inversion H2; assumption); subst.
-          inversion H; clear H; subst; unfold F.predf_data in H2.
-          pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3.
-          destruct (equiv_dec x1 x2) as [H12 | H12];
-            unfold equiv in *; unfold complement in *;
-              destruct (H2 t2) as [HT | HT]; clear H2;
-              destruct IH as [IH | IH];
-              try (right; intros H'; inversion H';
-                   clear H'; subst; inversion H1;
-                   clear H1; subst; unfold F.relf in *;
-                   simpl in *; destruct H3; contradiction).
-          + left; constructor; inversion IH; subst;
-            constructor; auto; unfold F.relf; split; auto.
-          + right; intros H'; inversion H'; subst;
-              clear H'; inversion H1; subst; apply IH;
-                constructor; auto.
-        - rename fields into fs1; rename fields0 into fs2.
-          generalize dependent fs2.
-          induction fs1 as [| [x1 t1] fs1 IHfs1]; intros [| [x2 t2] fs2];
-            try (left; reflexivity);
-            try (right; intros H';
-                 inversion H'; inversion H2; assumption); subst.
-          inversion H; clear H; subst; unfold F.predf_data in H2.
-          pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3.
-          destruct (equiv_dec x1 x2) as [H12 | H12];
-            unfold equiv in *; unfold complement in *;
-              destruct (H2 t2) as [HT | HT]; clear H2;
-              destruct IH as [IH | IH];
-              try (right; intros H'; inversion H';
-                   clear H'; subst; inversion H1;
-                   clear H1; subst; unfold F.relf in *;
-                   simpl in *; destruct H3; contradiction).
-          + left; constructor; inversion IH; subst;
-            constructor; auto; unfold F.relf; split; auto.
-          + right; intros H'; inversion H'; subst;
-              clear H'; inversion H1; subst; apply IH;
-                constructor; auto.
+               try (left; reflexivity));
+          try (rename fields into fs1; rename fields0 into fs2;
+               generalize dependent fs2;
+               induction fs1 as [| [x1 t1] fs1 IHfs1];
+               intros [| [x2 t2] fs2];
+               try (left; reflexivity);
+               try (right; intros H';
+                    inversion H'; inversion H2; assumption); subst;
+               inversion H; clear H; subst; unfold F.predf_data in H2;
+               pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
+               destruct (equiv_dec x1 x2) as [H12 | H12];
+               unfold equiv in *; unfold complement in *;
+               destruct (H2 t2) as [HT | HT]; clear H2;
+               destruct IH as [IH | IH];
+               try (right; intros H'; inversion H';
+                    clear H'; subst; inversion H1;
+                    clear H1; subst; unfold F.relf in *;
+                    simpl in *; destruct H3; contradiction);
+               [ left; constructor; inversion IH; subst;
+                 constructor; auto; unfold F.relf; split; auto
+               | right; intros H'; inversion H'; subst;
+                 clear H'; inversion H1; subst; apply IH;
+                 constructor; auto ]).
       Qed.
     End TypeEquivalence.
 
@@ -628,14 +608,14 @@ Module P4light.
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
       Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
-      Notation "'Var' x '::' ty @ i 'end'" := (EVar ty x i)
+      Notation "'Var' x : ty @ i" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
-      Notation "'UOP' op x '::' ty @ i 'end'"
+      Notation "'UOP' op x : ty @ i"
                := (EUop op ty x i)
                     (in custom p4expr at level 2,
                         x custom p4expr, ty custom p4type,
                         op custom p4uop, no associativity).
-      Notation "'BOP' x '::' tx op y '::' ty @ i 'end'"
+      Notation "'BOP' x : tx op y : ty @ i"
                := (EBop op tx ty x y i)
                     (in custom p4expr at level 10,
                         x custom p4expr, tx custom p4type,
@@ -647,7 +627,7 @@ Module P4light.
       Notation "'hdr' { fields } @ i "
         := (EHeader fields i)
             (in custom p4expr at level 6, no associativity).
-      Notation "'Mem' x '::' ty 'dot' y @ i 'end'"
+      Notation "'Mem' x : ty 'dot' y @ i"
               := (EExprMember y ty x i)
                     (in custom p4expr at level 10, x custom p4expr,
                         ty custom p4type, left associativity).
@@ -674,13 +654,13 @@ Module P4light.
       Hypothesis HEInt : forall w n i, P <{ w S n @ i }>.
 
       Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
-          P <{ Var x :: ty @ i end }>.
+          P <{ Var x : ty @ i }>.
 
       Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
-          P ex -> P <{ UOP op ex :: ty @ i end }>.
+          P ex -> P <{ UOP op ex : ty @ i }>.
 
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
-          P lhs -> P rhs -> P <{ BOP lhs :: lt op rhs :: rt @ i end }>.
+          P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
 
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
@@ -690,7 +670,7 @@ Module P4light.
 
       Hypothesis HEExprMember : forall (x : string tags_t)
                                   (ty : t tags_t) (ex : e tags_t) i,
-          P ex -> P <{ Mem ex :: ty dot x @ i end }>.
+          P ex -> P <{ Mem ex:ty dot x @ i }>.
 
       Hypothesis HEError : forall err i, P <{ Error err @ i }>.
 
@@ -712,14 +692,14 @@ Module P4light.
           | <{ BOOL b @ i }> => HEBool b i
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
-          | <{ Var x :: ty @ i end }> => HEVar ty x i
-          | <{ UOP op exp :: ty @ i end }> => HEUop op ty exp i (custom_e_ind exp)
-          | <{ BOP lhs :: lt op rhs :: rt @ i end }> =>
+          | <{ Var x:ty @ i }> => HEVar ty x i
+          | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (custom_e_ind exp)
+          | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i
                     (custom_e_ind lhs) (custom_e_ind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } @ i }> => HEHeader fields i (fields_ind fields)
-          | <{ Mem exp :: ty dot x @ i end }> =>
+          | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (custom_e_ind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i

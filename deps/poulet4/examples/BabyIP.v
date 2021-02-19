@@ -1,4 +1,5 @@
 Require Import Petr4.P4defs.
+
 Open Scope string_scope.
 
 Import ListNotations.
@@ -1819,4 +1820,38 @@ Definition prog := Program
      btcp_or_budp; metadata; headers; MyParser; MyChecksum; MyIngress;
      MyEgress; MyDeparser; main].
 
+Require Import Coq.FSets.FMapList.
+Require Import Coq.Structures.OrderedTypeEx.
 
+Module Import MNat := FMapList.Make(Nat_as_OT).
+Module Import MStr := FMapList.Make(String.StringOT).
+
+Require Import Petr4.P4String.
+Notation P4String := (P4String.t Info).
+Definition MkP4String (s: String.t) : P4String := {| P4String.tags := NoInfo; P4String.str := s |}.
+Require Import Petr4.Step.
+
+Require Import Environment.
+Require Import Petr4.Monads.Monad.
+
+Open Scope nat_scope.
+Open Scope monad_scope.
+
+Definition foo :=
+  match MyParser with
+  | DeclParser _ _ _ params constructor_params locals states =>
+    let env := {|
+      env_fresh := 0;
+      env_stack := MStr.empty loc :: nil;
+      env_heap := MNat.empty (@Value Info);
+    |} in
+    let scope := MkEnv_EvalEnv nil nil (MkP4String "dummy") in
+    let parser := ValObjParser scope params constructor_params locals states in
+    let packet := ValObj (ValObjPacket (List.repeat true 40)) in
+    let stepper := step_trans _ NoInfo parser 2 (MkP4String "start") in
+    Some ((env_insert Info "packet" packet ;; stepper) env)
+  | _ => None
+  end
+.
+
+(* Compute foo. *)

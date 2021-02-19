@@ -546,6 +546,22 @@ Module P4light.
       Notation "'++'" := PlusPlus (in custom p4bop at level 0).
     End BopNotations.
 
+    (** Default matchkinds. *)
+    Inductive matchkind : Set :=
+    | MKExact
+    | MKTernary
+    | MKLpm.
+    (**[]*)
+
+    Module MatchkindNotations.
+      Declare Custom Entry p4matchkind.
+
+      Notation "x" := x (in custom p4matchkind at level 0, x constr at level 0).
+      Notation "'exact'" := MKExact (in custom p4matchkind at level 0).
+      Notation "'ternary'" := MKTernary (in custom p4matchkind at level 0).
+      Notation "'lpm'" := MKLpm (in custom p4matchkind at level 0).
+    End MatchkindNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
@@ -568,8 +584,9 @@ Module P4light.
       | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
-      | EError (err : string tags_t) (i : tags_t)      (* error literals *)
-      | EMatchKind (err : string tags_t) (i : tags_t)  (* matchkind literals *).
+      | EError (err : option (string tags_t))
+               (i : tags_t)                            (* error literals *)
+      | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -600,6 +617,7 @@ Module P4light.
 
       Export UopNotations.
       Export BopNotations.
+      Export MatchkindNotations.
       Export TypeNotations.
 
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -635,8 +653,9 @@ Module P4light.
                         ty custom p4type, left associativity).
       Notation "'Error' x @ i" := (EError x i)
                               (in custom p4expr at level 0, no associativity).
-      Notation "'Matchkind' x @ i" := (EMatchKind x i)
-                              (in custom p4expr at level 0, no associativity).
+      Notation "'Matchkind' mk @ i" := (EMatchKind mk i)
+                              (in custom p4expr at level 0,
+                                  mk custom p4matchkind, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)

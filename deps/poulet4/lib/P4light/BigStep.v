@@ -6,6 +6,18 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
+Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
+Proof.
+  intros [a1 |] [a2 |].
+  - pose proof equiv_dec a1 a2 as HA.
+    unfold equiv in *; unfold complement in *.
+    destruct HA as [HA | HA]; subst; auto.
+    right; intros HA'; inversion HA'; contradiction.
+  - right; intros; discriminate.
+  - right; intros; discriminate.
+  - unfold equiv; auto.
+Defined.
+
 Module Value.
   Section Values.
     Variable (tags_t : Type).
@@ -17,8 +29,8 @@ Module Value.
     | VBit (w : positive) (n : N)
     | VRecord (fs : Field.fs tags_t v)
     | VHeader (fs : Field.fs tags_t v)
-    | VError (err : string tags_t)
-    | VMatchKind (mk : string tags_t).
+    | VError (err : option (string tags_t))
+    | VMatchKind (mk : P4light.Expr.matchkind).
     (**[]*)
 
     (** Lvalues. *)
@@ -85,12 +97,11 @@ Module Value.
       | equivv_header (fs1 fs2 : Field.fs tags_t v) :
           Field.relfs equivv fs1 fs2 ->
           equivv (VHeader fs1) (VHeader fs2)
-      | equivv_error (err1 err2 : string tags_t) :
-          P4String.equiv err1 err2 ->
+      | equivv_error (err1 err2 : option (string tags_t)) :
+          equiv err1 err2 ->
           equivv (VError err1) (VError err2)
-      | equivv_matchkind (mk1 mk2 : string tags_t) :
-          P4String.equiv mk1 mk2 ->
-          equivv (VMatchKind mk1) (VMatchKind mk2).
+      | equivv_matchkind (mk : P4light.Expr.matchkind) :
+          equivv (VMatchKind mk) (VMatchKind mk).
       (**[]*)
 
       Lemma equivv_reflexive : Reflexive equivv.
@@ -172,6 +183,8 @@ Module Value.
   Arguments LVMember {_}.
 
   Module ValueNotations.
+    Import P4light.Expr.MatchkindNotations.
+
     Declare Custom Entry p4value.
 
     Notation "'*{' val '}*'" := val (val custom p4value at level 99).
@@ -189,7 +202,9 @@ Module Value.
                                  (in custom p4value at level 6,
                                      no associativity).
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
-    Notation "'MATCHKIND' x" := (VMatchKind x) (in custom p4value at level 0).
+    Notation "'MATCHKIND' mk"
+      := (VMatchKind mk)
+           (in custom p4value at level 0, mk custom p4matchkind).
   End ValueNotations.
 
   Module LValueNotations.
@@ -330,9 +345,9 @@ Module Step.
     | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
         ϵ x = Some v ->
         ⟨ ϵ, Var x :: τ @ i end ⟩ ⇓ v
-    | ebs_error (err : string tags_t) (i : tags_t) :
+    | ebs_error (err : option (string tags_t)) (i : tags_t) :
         ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
-    | ebs_matchkind (mk : string tags_t) (i : tags_t) :
+    | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
         ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
     (* Unary Operations. *)
     | ebs_not (e : E.e tags_t) (i : tags_t) (b b' : bool) :
@@ -428,6 +443,7 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
+    (**[]*)
 
     Inductive lvalue_big_step (ϵ : epsilon) : E.e tags_t -> V.lv tags_t -> Prop :=
     | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
@@ -537,6 +553,25 @@ Module Step.
     Inductive interrupt : signal tags_t -> Prop :=
     | interrupt_exit : interrupt SIG_Exit
     | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
+    (**[]*)
+
+    (** Intial/Default value from a type. *)
+    Fixpoint vdefault (τ : E.t tags_t) : V.v tags_t :=
+      let fix fields_rec
+              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t (V.v tags_t) :=
+          match ts with
+          | [] => []
+          | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
+          end in
+      match τ with
+      | {{ error }}      => V.VError None
+      | {{ matchkind }}  => *{ MATCHKIND exact }*
+      | {{ Bool }}       => *{ FALSE }*
+      | {{ bit<w> }}     => *{ w VW N0 }*
+      | {{ int<w> }}     => *{ w VS Z0 }*
+      | {{ rec { ts } }} => V.VRecord (fields_rec ts)
+      | {{ hdr { ts } }} => V.VHeader (fields_rec ts)
+      end.
 
     Inductive stmt_big_step (fs : fenv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
@@ -552,6 +587,10 @@ Module Step.
         interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+    | sbs_vardecl (τ : E.t tags_t) (x : name tags_t)
+                  (i : tags_t) (v : V.v tags_t) :
+        vdefault τ = v ->
+        ⟪ fs, ϵ, var x :: τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
     | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
                  (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
         lv_update lv v ϵ = ϵ' ->

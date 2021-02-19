@@ -144,6 +144,14 @@ Module Typecheck.
     | bool_bop_and : bool_bop E.And
     | bool_bop_or  : bool_bop E.Or.
 
+    (** Evidence an error is ok. *)
+    Inductive error_ok (errs : errors) : option (string tags_t) -> Prop :=
+    | NoErrorOk : error_ok errs None
+    | ErrorOk (x : string tags_t) :
+        errs x = Some tt ->
+        error_ok errs (Some x).
+    (**[]*)
+
     (** Expression typing as a relation. *)
     Inductive check
               (errs : errors) (mkds : matchkinds)
@@ -234,11 +242,10 @@ Module Typecheck.
              ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , mkds , Γ ⟧ ⊢ hdr { efs } @ i ∈ hdr { tfs }
     (* Errors and matchkinds. *)
-    | chk_error (err : string tags_t) (i : tags_t) :
-        errs err = Some tt ->
+    | chk_error (err : option (string tags_t)) (i : tags_t) :
+        error_ok errs err ->
         ⟦ errs , mkds , Γ ⟧ ⊢ Error err @ i ∈ error
-    | chk_matchkind (mkd : string tags_t) (i : tags_t) :
-        mkds mkd = Some tt ->
+    | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
         ⟦ errs , mkds , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
     where "⟦ ers ',' mks ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers mks gm e ty).

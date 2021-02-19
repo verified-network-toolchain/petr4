@@ -27,6 +27,9 @@ Module Value.
     | LVMember (arg : lv) (x : string tags_t) (* Member access. *).
     (**[]*)
 
+    (** Evaluated arguments. *)
+    Definition argsv : Type := Field.fs tags_t (P4light.paramarg v lv).
+
     (** A custom induction principle for value. *)
     Section ValueInduction.
       Variable P : v -> Prop.
@@ -463,43 +466,70 @@ Module Step.
       FEnv !{ x ↦ d ;; fs }!.
     (**[]*)
 
+    (** Lookup an lvalue. *)
+    Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv tags_t) : option (V.v tags_t) :=
+      match lv with
+      | l{ VAR x }l => ϵ x
+      | l{ lv DOT x }l =>
+        (* TODO: use monadic bind. *)
+        match lv_lookup ϵ lv with
+        | None => None
+        | Some *{ REC { fs } }*
+        | Some *{ HDR { fs } }* => F.get x fs
+        | Some _ => None
+        end
+      end.
+    (**[]*)
+
+    (** Updating an lvalue in an environment. *)
+    Fixpoint lv_update (lv : V.lv tags_t) (v : V.v tags_t) (ϵ : epsilon) : epsilon :=
+      match lv with
+      | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
+      | l{ lv DOT x }l =>
+        match lv_lookup ϵ lv with
+        | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
+        | Some *{ HDR { vs } }* => lv_update lv (V.VHeader (F.update x v vs)) ϵ
+        | Some _ => ϵ
+        | None => ϵ
+        end
+      end.
+    (**[]*)
+
     (** Create a new environment
         from a closure environment where
         values of [In] args are substituted
         into the function parameters. *)
     Definition copy_in
-               (params : F.fs tags_t
-                          (P.paramarg (V.v tags_t) (name tags_t)))
+               (argsv : V.argsv tags_t)
                (ϵcall : epsilon) : epsilon -> epsilon :=
       F.fold (fun x arg ϵ =>
                 let x' := bare x in
                 match arg with
-                | P.PAIn v    => !{ x' ↦ v ;; ϵ }!
-                | P.PAInOut y => match ϵcall y with
-                                | None   => ϵ
-                                | Some v => !{ x' ↦ v ;; ϵ }!
+                | P.PAIn v     => !{ x' ↦ v ;; ϵ }!
+                | P.PAInOut lv => match lv_lookup ϵcall lv with
+                                 | None   => ϵ
+                                 | Some v => !{ x' ↦ v ;; ϵ }!
                                 end
-                | P.PAOut _   => ϵ
-                end) params.
+                | P.PAOut _    => ϵ
+                end) argsv.
     (**[]*)
 
     (** Update call-site environment with
         out variables from function call evaluation. *)
     Definition copy_out
-               (args : F.fs tags_t
-                          (P.paramarg (E.t tags_t * E.e tags_t)
-                                      (E.t tags_t * name tags_t)))
+               (argsv : V.argsv tags_t)
                (ϵf : epsilon) : epsilon -> epsilon :=
-      F.fold (fun _ arg ϵ =>
+      F.fold (fun x arg ϵ =>
+                let x' := bare x in
                 match arg with
                 | P.PAIn _ => ϵ
-                | P.PAOut (_,x)
-                | P.PAInOut (_,x) =>
-                  match ϵf x with
+                | P.PAOut lv
+                | P.PAInOut lv =>
+                  match ϵf x' with
                   | None   => ϵ
-                  | Some v => !{ x ↦ v ;; ϵ }!
+                  | Some v => lv_update lv v ϵ
                   end
-                end) args.
+                end) argsv.
     (**[]*)
 
     (** Evidence that control-flow
@@ -548,16 +578,9 @@ Module Step.
         ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
           ⤋ ⟪ ϵ', sig ⟫
-    | sbs_methodcall (params : F.fs tags_t
-                                    (P.paramarg (E.t tags_t)
-                                                (E.t tags_t)))
-                     (args :
-                        F.fs tags_t
-                             (P.paramarg (E.t tags_t * E.e tags_t)
-                                         (E.t tags_t * name tags_t)))
-                     (argsv :
-                        F.fs tags_t
-                             (P.paramarg (V.v tags_t) (name tags_t)))
+    | sbs_methodcall (params : E.params tags_t)
+                     (args : E.args tags_t)
+                     (argsv : V.argsv tags_t)
                      (f : name tags_t) (i : tags_t)
                      (body : ST.s tags_t) (fclosure : fenv)
                      (closure ϵ' ϵ'' ϵ''' : epsilon) :
@@ -566,25 +589,18 @@ Module Step.
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+             (fun te v  => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
+             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
-        copy_out args ϵ'' ϵ = ϵ''' ->
+        copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_fruitcall (params : F.fs tags_t
-                                    (P.paramarg (E.t tags_t)
-                                                (E.t tags_t)))
-                     (args :
-                        F.fs tags_t
-                             (P.paramarg (E.t tags_t * E.e tags_t)
-                                         (E.t tags_t * name tags_t)))
-                     (argsv :
-                        F.fs tags_t
-                             (P.paramarg (V.v tags_t) (name tags_t)))
+    | sbs_fruitcall (params : E.params tags_t)
+                     (args : E.args tags_t)
+                     (argsv : V.argsv tags_t)
                      (f x : name tags_t) (τ : E.t tags_t)
                      (i : tags_t) (v : V.v tags_t)
                      (body : ST.s tags_t) (fclosure : fenv)
@@ -595,13 +611,13 @@ Module Step.
         F.relfs
           (P.rel_paramarg
              (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun tx y => equivn tags_t (snd tx) y)) args argsv ->
+             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
         (* Copy-out *)
-        copy_out args ϵ'' ϵ = ϵ''' ->
+        copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ϵ, let x :: τ := call f with args @ i fin ⟫
           ⤋ ⟪ x ↦ v ;; ϵ''', C ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).

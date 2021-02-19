@@ -111,9 +111,7 @@ Module Typecheck.
     (**[]*)
 
     Definition out_update
-               (fs : F.fs tags_t
-                          (P.paramarg (E.t tags_t * E.e tags_t)
-                                      (E.t tags_t * name tags_t))) : gam -> gam :=
+               (fs : E.args tags_t) : gam -> gam :=
       F.fold (fun x param Γ =>
                 match param with
                 | P.PAOut (τ,_)
@@ -293,13 +291,8 @@ Module Typecheck.
     | chk_exit (i : tags_t) :
         ⦃ fns, errs, mkds , Γ ⦄ ⊢ exit @ i ⊣ Γ, R
     | chk_method_call (Γ' : gam)
-                      (params : F.fs tags_t
-                                     (P.paramarg (E.t tags_t)
-                                                 (E.t tags_t)))
-                      (args :
-                         F.fs tags_t
-                              (P.paramarg (E.t tags_t * E.e tags_t)
-                                          (E.t tags_t * name tags_t)))
+                      (params : E.params tags_t)
+                      (args : E.args tags_t)
                       (f : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
         fns f = Some (P.Arrow params None) ->
@@ -309,19 +302,14 @@ Module Typecheck.
                 E.equivt τ (te ▷ fst) /\
                 let e := te ▷ snd in
                 ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
-             (fun tx τ =>
-                E.equivt τ (tx ▷ fst) /\
-                let x := tx ▷ snd in
-                Γ x = Some τ)) args params ->
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄ ⊢ call f with args @ i fin ⊣ Γ', C)
     | chk_call (Γ' : gam) (τ : E.t tags_t)
-               (params : F.fs tags_t
-                              (P.paramarg (E.t tags_t)
-                                                 (E.t tags_t)))
-               (args :
-                  F.fs tags_t
-                       (P.paramarg (E.t tags_t * E.e tags_t)
-                                   (E.t tags_t * name tags_t)))
+               (params : E.params tags_t)
+               (args : E.args tags_t)
                (f x : name tags_t) (i : tags_t) :
         out_update args Γ = Γ' ->
         fns f = Some (P.Arrow params (Some τ)) ->
@@ -331,10 +319,10 @@ Module Typecheck.
                 E.equivt τ (te ▷ fst) /\
                 let e := te ▷ snd in
                 ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)
-             (fun tx τ =>
-                E.equivt τ (tx ▷ fst) /\
-                let x := tx ▷ snd in
-                Γ x = Some τ)) args params ->
+             (fun te τ =>
+                E.equivt τ (te ▷ fst) /\
+                let e := te ▷ snd in
+                ⟦ errs , mkds , Γ ⟧ ⊢ e ∈ τ)) args params ->
         (⦃ fns , errs , mkds , Γ ⦄
            ⊢ let x :: τ := call f with args @ i fin ⊣ x ↦ τ ;; Γ', C)
     where "⦃ fe ',' ers ',' mks ',' g1 ⦄ ⊢ s ⊣ g2 ',' sg"

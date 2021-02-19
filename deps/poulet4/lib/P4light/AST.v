@@ -185,6 +185,15 @@ Module Field.
       | (x',u') :: fds => if equiv_dec x x' then Some u'
                         else get x fds
       end.
+
+    (** Member update. *)
+    Fixpoint update {U : Type} (x : string tags_t) (u : U)
+             (fds : fs tags_t U) : fs tags_t U :=
+      match fds with
+      | [] => []
+      | (x',u') :: fds => (x', if equiv_dec x x' then u else u') :: update x u fds
+      end.
+    (**[]*)
   End FieldLibrary.
 End Field.
 
@@ -249,12 +258,13 @@ Module P4light.
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *).
       (**[]*)
-    End P4Types.
 
-    (** Function types. *)
-    Definition arrowT (tags_t : Type) : Type :=
-      arrow tags_t (t tags_t) (t tags_t) (t tags_t).
-    (**[]*)
+      (** Function parameters. *)
+      Definition params : Type := F.fs tags_t (paramarg t t).
+
+      (** Function types. *)
+      Definition arrowT : Type := arrow tags_t t t t.
+    End P4Types.
 
     Arguments TBool {_}.
     Arguments TBit {_}.
@@ -561,14 +571,17 @@ Module P4light.
       | EError (err : string tags_t) (i : tags_t)      (* error literals *)
       | EMatchKind (err : string tags_t) (i : tags_t)  (* matchkind literals *).
       (**[]*)
-    End Expressions.
 
-    (** Function call. *)
-    Definition arrowE (tags_t : Type) : Type :=
-      arrow tags_t (t tags_t * e tags_t)
-            (t tags_t * name tags_t)
-            (t tags_t * name tags_t).
-    (**[]*)
+      (** Function call arguments. *)
+      Definition args : Type :=
+        F.fs tags_t (paramarg (t tags_t * e) (t tags_t * e)).
+      (**[]*)
+
+      (** Function call. *)
+      Definition arrowE : Type :=
+        arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * name tags_t).
+      (**[]*)
+    End Expressions.
 
     Arguments EBool {tags_t}.
     Arguments EBit {_}.

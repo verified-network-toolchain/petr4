@@ -587,16 +587,17 @@ Module Step.
         interrupt sig ->
         ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_vardecl (τ : E.t tags_t) (x : name tags_t)
+    | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
                   (i : tags_t) (v : V.v tags_t) :
         vdefault τ = v ->
-        ⟪ fs, ϵ, var x :: τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+        let x' := bare x in
+        ⟪ fs, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
     | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
                  (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
         lv_update lv v ϵ = ϵ' ->
         ⦑ ϵ, e1 ⦒ ⇓ lv ->
         ⟨ ϵ, e2 ⟩ ⇓ v ->
-        ⟪ fs, ϵ, asgn e1 := e2 :: τ @ i fin ⟫ ⤋ ⟪ ϵ', C ⟫
+        ⟪ fs, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
     | sbs_exit (i : tags_t) :
         ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :
@@ -604,20 +605,20 @@ Module Step.
     | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
                    (i : tags_t) (v : V.v tags_t) :
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ϵ, return e :: τ @ i fin ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+        ⟪ fs, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
     | sbs_cond_true (guard : E.e tags_t)
                     (tru fls : ST.s tags_t) (i : tags_t)
                     (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ TRUE ->
         ⟪ fs, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+        ⟪ fs, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_cond_false (guard : E.e tags_t)
                      (tru fls : ST.s tags_t) (i : tags_t)
                      (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ FALSE ->
         ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+        ⟪ fs, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_methodcall (params : E.params tags_t)
                      (args : E.args tags_t)
@@ -638,7 +639,7 @@ Module Step.
         ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
+        ⟪ fs, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
     | sbs_fruitcall (params : E.params tags_t)
                      (args : E.args tags_t)
                      (argsv : V.argsv tags_t)
@@ -665,7 +666,7 @@ Module Step.
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         (* Assignment to lvalue. *)
         lv_update lv v ϵ''' = ϵ'''' ->
-        ⟪ fs, ϵ, let e :: τ := call f with args @ i fin ⟫ ⤋ ⟪ ϵ'''', C ⟫
+        ⟪ fs, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
     where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
   End Step.
 End Step.

@@ -54,7 +54,7 @@ Module Typecheck.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import ST.StmtNotations.
+  Import D.DeclNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=
@@ -72,8 +72,7 @@ Module Typecheck.
 
   Declare Custom Entry p4signal.
 
-  Notation "x"
-    := x (in custom p4signal at level 0, x constr at level 0).
+  Notation "x" := x (in custom p4signal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4signal at level 0).
   Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
@@ -85,6 +84,9 @@ Module Typecheck.
   Reserved Notation "⦃ fe ',' errs ',' g1 ⦄ ⊢ s ⊣ ⦃ g2 ',' sg ⦄"
            (at level 40, s custom p4stmt,
             g2 custom p4env, sg custom p4signal).
+
+  Reserved Notation "⦗ cenv , ienv1 , fenv , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
+           (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
   Section TypeCheck.
     Variable (tags_t : Type).
@@ -107,15 +109,16 @@ Module Typecheck.
       NameEqDec tags_t.
     (**[]*)
 
-    (** Evidence for a type being numeric. *)
-    Inductive numeric : E.t tags_t -> Prop :=
-    | numeric_bit (w : positive) : numeric {{ bit<w> }}
-    | numeric_int (w : positive) : numeric {{ int<w> }}.
-
     (** Evidence for a type being a numeric of a given width. *)
     Inductive numeric_width (w : positive) : E.t tags_t -> Prop :=
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
+
+    (** Evidence for a type being numeric. *)
+    Inductive numeric : E.t tags_t -> Prop :=
+      Numeric (w : positive) (τ : E.t tags_t) :
+        numeric_width w τ -> numeric τ.
+    (**[]*)
 
     (** Evidence that a binary operation is purely numeric. *)
     Inductive numeric_bop : E.bop -> Prop :=
@@ -263,12 +266,13 @@ Module Typecheck.
     | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) :
         ⦃ fns , errs , Γ ⦄ ⊢ s1 ⊣ ⦃ Γ', R ⦄ ->
         ⦃ fns , errs , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ ⦃ Γ', R ⦄
-    | chk_vardecl (τ : E.t tags_t) (x : name tags_t) (i : tags_t) :
-        ⦃ fns , errs , Γ ⦄ ⊢ var x :: τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
+    | chk_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+        let x' := bare x in
+        ⦃ fns , errs , Γ ⦄ ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
     | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ asgn e1 := e2 :: τ @ i fin ⊣ ⦃ Γ, C ⦄
+        ⦃ fns , errs , Γ ⦄ ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
     | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
                (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
         lub sgt sgf = sg ->
@@ -276,12 +280,12 @@ Module Typecheck.
         ⦃ fns , errs , Γ ⦄ ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
         ⦃ fns , errs , Γ ⦄ ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
         ⦃ fns , errs , Γ ⦄
-          ⊢ if guard :: Bool then tru else fls @ i fin ⊣ ⦃ Γ, sg ⦄
+          ⊢ if guard:Bool then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
     | chk_return_void (i : tags_t) :
         ⦃ fns , errs , Γ ⦄ ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
     | chk_return_fruit (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
         ⟦ errs , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ ⦃ Γ, R ⦄
+        ⦃ fns , errs , Γ ⦄ ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
     | chk_exit (i : tags_t) :
         ⦃ fns, errs , Γ ⦄ ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
     | chk_method_call (params : E.params tags_t)
@@ -298,7 +302,7 @@ Module Typecheck.
                 E.equivt τ (te ▷ fst) /\
                 let e := te ▷ snd in
                 ⟦ errs , Γ ⟧ ⊢ e ∈ τ)) args params ->
-        ⦃ fns , errs , Γ ⦄ ⊢ call f with args @ i fin ⊣ ⦃ Γ, C ⦄
+        ⦃ fns , errs , Γ ⦄ ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
     | chk_call (τ : E.t tags_t) (e : E.e tags_t)
                (params : E.params tags_t)
                (args : E.args tags_t)
@@ -316,7 +320,7 @@ Module Typecheck.
                 ⟦ errs , Γ ⟧ ⊢ e ∈ τ)) args params ->
         ⟦ errs , Γ ⟧ ⊢ e ∈ τ ->
         ⦃ fns , errs , Γ ⦄
-          ⊢ let e :: τ := call f with args @ i fin ⊣ ⦃ Γ, C ⦄
+          ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
     where "⦃ fe ',' ers ',' g1 ⦄ ⊢ s ⊣ ⦃ g2 ',' sg ⦄"
             := (check_stmt fe ers g1 s g2 sg).
     (**[]*)
@@ -351,17 +355,15 @@ Module Typecheck.
     Inductive check_decl
               (cs : cenv) (ins : ienv)
               (fns : fenv) (errs : errors)
-              (Γ : gam) : D.d tags_t -> gam -> fenv -> ienv -> Prop :=
+              (Γ : gam) : D.d tags_t -> gam -> ienv -> Prop :=
     | chk_vardeclare (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DVardecl τ x i) !{ x' ↦ τ ;; Γ }! fns ins
+        ⦗ cs, ins, fns, errs, Γ ⦘ ⊢ Var x:τ @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
     | chk_varinit (τ : E.t tags_t) (x : string tags_t)
                   (e : E.e tags_t) (i : tags_t) :
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DVarinit τ x e i) !{ x' ↦ τ ;; Γ }! fns ins
+        ⦗ cs, ins, fns, errs, Γ ⦘ ⊢ Let x:τ := e @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
     | chk_instantiate (c : name tags_t) (x : string tags_t)
                       (params : F.fs tags_t (E.t tags_t))
                       (args : F.fs tags_t (E.t tags_t * E.e tags_t))
@@ -372,8 +374,7 @@ Module Typecheck.
              E.equivt τ τ' /\ ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
           args params ->
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DInstantiate c x args i) Γ fns !{ x' ↦ tt ;; ins }!
+        ⦗ cs, ins, fns, errs, Γ ⦘ ⊢ Instance x of c(args) @ i ⊣ ⦗ Γ, x' ↦ tt ;; ins ⦘
 (* Functions belong only to the top-level declarations.
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
@@ -383,11 +384,13 @@ Module Typecheck.
         good_signal sig sg ->
         check_decl cs ins fns errs mkds Γ
                    (D.DFunction f sig body i) Γ !{ f ↦ sig ;; fns }! ins *)
-    | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t) (ins' ins'' : ienv)
-                  (fns' fns'' : fenv) (Γ' Γ'' : gam) :
-        check_decl cs ins fns errs Γ d1 Γ' fns' ins' ->
-        check_decl cs ins' fns' errs Γ' d2 Γ'' fns'' ins'' ->
-        check_decl cs ins fns errs Γ (D.DSeq d1 d2 i) Γ'' fns'' ins''.
+    | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
+                  (ins' ins'' : ienv) (Γ' Γ'' : gam) :
+        ⦗ cs, ins,  fns, errs, Γ  ⦘ ⊢ d1 ⊣ ⦗ Γ',  ins' ⦘ ->
+        ⦗ cs, ins', fns, errs, Γ' ⦘ ⊢ d2 ⊣ ⦗ Γ'', ins'' ⦘ ->
+        ⦗ cs, ins, fns,  errs, Γ  ⦘ ⊢ d1 ;; d2 @ i ⊣ ⦗ Γ'', ins'' ⦘
+    where "⦗ cenv , ienv1 , fenv , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
+            := (check_decl cenv ienv1 fenv errs g1 d g2 ienv2).
     (**[]*)
   End TypeCheck.
 End Typecheck.

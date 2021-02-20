@@ -720,7 +720,7 @@ Module P4light.
       | SSkip (i : tags_t)                              (* skip, useful for
                                                            small-step semantics *)
       | SVardecl (type : E.t tags_t)
-                 (x : name tags_t) (i : tags_t)         (* Variable declaration. *)
+                 (x : string tags_t) (i : tags_t)       (* Variable declaration. *)
       | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                            (* assignment *)
       | SConditional (guard_type : E.t tags_t)
@@ -761,28 +761,28 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'var' x '::' t @ i"
+      Notation "'var' x : t @ i"
                := (SVardecl t x i)
                     (in custom p4stmt at level 0, t custom p4type).
-      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
+      Notation "'asgn' e1 ':=' e2 : t @ i"
               := (SAssign t e1 e2 i)
                     (in custom p4stmt at level 40,
                         e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'if' e '::' t 'then' s1 'else' s2 @ i 'fin'"
+      Notation "'if' e : t 'then' s1 'else' s2 @ i"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
-      Notation "'call' f 'with' args @ i 'fin'"
+      Notation "'call' f 'with' args @ i"
         := (SCall f (Arrow args None) i)
              (in custom p4stmt at level 30, no associativity).
-      Notation "'let' e '::' t ':=' 'call' f 'with' args @ i 'fin'"
+      Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SCall f (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
-      Notation "'return' e '::' t @ i 'fin'"
+      Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4type, no associativity).
@@ -825,6 +825,32 @@ Module P4light.
     Arguments DConst {tags_t}.
     Arguments DInstantiate {tags_t}.
     Arguments DSeq {tags_t}.
+
+    Module DeclNotations.
+      Export S.StmtNotations.
+
+      Declare Custom Entry p4decl.
+
+      Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
+      Notation "( x )" := x (in custom p4decl, x at level 99).
+      Notation "x"
+        := x (in custom p4decl at level 0, x constr at level 0).
+      Notation "'Var' x : t @ i"
+        := (DVardecl t x i) (in custom p4decl at level 0, t custom p4type).
+      Notation "'Let' x : t ':=' e @ i"
+        := (DVarinit t x e i)
+             (in custom p4decl at level 0, t custom p4type, e custom p4expr).
+      Notation "'Const' x : t ':=' e @ i"
+               := (DConst x t e i)
+                    (in custom p4decl at level 0, t custom p4type, e custom p4expr).
+      Notation "'Instance' x 'of' c ( args ) @ i"
+               := (DInstantiate c x args i) (in custom p4decl at level 0).
+      Notation "d1 ';;' d2 @ i"
+               := (DSeq d1 d2 i)
+                    (in custom p4decl at level 10,
+                        d1 custom p4decl, d2 custom p4decl,
+                        right associativity).
+    End DeclNotations.
   End Decl.
 
   (** * Controls *)
@@ -842,13 +868,19 @@ Module P4light.
       | DAction (a : string tags_t)
                 (signature : F.fs tags_t (E.e tags_t))
                 (body : S.s tags_t) (i : tags_t) (* action declaration *)
-      | DTable (keys : F.fs tags_t (E.t tags_t)) (* field names are matchkinds *)
+      | DTable (keys : list
+                         (E.t tags_t * E.e tags_t * E.matchkind))
                (actions : list (string tags_t))  (* action names *)
                (i : tags_t)                      (* table declaration *)
       | DDecl (d : D.d tags_t) (i : tags_t)
       | DSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End ControlDecls.
+
+    Arguments DAction {_}.
+    Arguments DTable {_}.
+    Arguments DDecl {_}.
+    Arguments DSeq {_}.
   End Control.
 
   (** * Top-Level Declarations *)
@@ -877,5 +909,11 @@ Module P4light.
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.
+
+    Arguments TPDecl {_}.
+    Arguments TPControl {_}.
+    Arguments TPParser {_}.
+    Arguments TPFunction {_}.
+    Arguments TPSeq {_}.
   End TopDecl.
 End P4light.

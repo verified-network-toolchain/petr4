@@ -23,6 +23,9 @@ Module BitArith.
       if (n <? upper_bound)%N then n else maxN.
     (**[]*)
 
+    (** Bitwise negation. *)
+    Definition neg (n : N) : N := (maxN - n)%N.
+
     (** Saturating Addition *)
     Definition plus_sat (a b : N) : N := return_bound (a + b)%N.
 
@@ -82,6 +85,9 @@ Module IntArith.
         else
           z.
     (**[]*)
+
+    (** Negation. *)
+    Definition neg (z : Z) : Z := return_bound (Z.opp z).
 
     (** Saturating Addition *)
     Definition plus_sat (a b : Z) : Z := return_bound (a + b)%Z.

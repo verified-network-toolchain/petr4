@@ -6,16 +6,34 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
-Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
+Inductive relop {A : Type} (R : A -> A -> Prop) : option A -> option A -> Prop :=
+| relop_none : relop R None None
+| relop_some (a1 a2 : A) : R a1 a2 -> relop R (Some a1) (Some a2).
+
+Instance OptionEquivalence
+         (A : Type) (R : A -> A -> Prop)
+         `{Equivalence A R} : Equivalence (relop R).
 Proof.
-  intros [a1 |] [a2 |].
-  - pose proof equiv_dec a1 a2 as HA.
-    unfold equiv in *; unfold complement in *.
-    destruct HA as [HA | HA]; subst; auto.
-    right; intros HA'; inversion HA'; contradiction.
-  - right; intros; discriminate.
-  - right; intros; discriminate.
-  - unfold equiv; auto.
+  inversion H; constructor;
+    unfold Reflexive, Symmetric, Transitive in *.
+  - intros [a |]; constructor; auto.
+  - intros [a1 |] [a2 |] H'; inversion H';
+      subst; constructor; auto.
+  - intros [a1 |] [a2 |] [a3 |] H12 H23;
+      inversion H12; inversion H23;
+        subst; constructor; eauto.
+Defined.
+
+Instance OptionEqDec
+         (A : Type) (R : A -> A -> Prop)
+         `{HR : EqDec A R} : EqDec (option A) (relop R).
+Proof.
+  unfold EqDec in *;
+    unfold equiv, complement in *;
+    intros [a1 |] [a2 |];
+    try (specialize HR with a1 a2; destruct HR as [HR | HR]);
+    try (right; intros H'; inversion H'; contradiction);
+    try (left; constructor; auto).
 Defined.
 
 Module Value.
@@ -83,6 +101,43 @@ Module Value.
     End ValueInduction.
 
     Section ValueEquality.
+      Instance P4StringEquivalence : Equivalence (@P4String.equiv tags_t) :=
+        P4String.EquivEquivalence tags_t.
+      (**[]*)
+
+      Instance P4StringEqDec : EqDec (string tags_t) (@P4String.equiv tags_t) :=
+        P4String.P4StringEqDec tags_t.
+      (**[]*)
+
+      (** Computational Value equality *)
+      Fixpoint eqbv (v1 v2 : v) : bool :=
+        let fix fields_rec (vs1 vs2 : Field.fs tags_t v) : bool :=
+            match vs1, vs2 with
+            | [],           []           => true
+            | (x1, v1)::vs1, (x2, v2)::vs2 => if P4String.equivb x1 x2 then
+                                             eqbv v1 v2 && fields_rec vs1 vs2
+                                           else false
+            | [],            _::_
+            | _::_,           []          => false
+            end in
+        match v1, v2 with
+        | VBool b1,       VBool b2       => eqb b1 b2
+        | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
+                                           (z1 =? z2)%Z
+        | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%positive &&
+                                           (n1 =? n2)%N
+        | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
+                                           then true
+                                           else false
+        | VError err1,    VError err2    => if equiv_dec err1 err2
+                                           then true
+                                           else false
+        | VHeader vs1,    VHeader vs2
+        | VRecord vs1,    VHeader vs2    => fields_rec vs1 vs2
+        | _,              _              => false
+        end.
+      (**[]*)
+
       (** Value equivalence relation. *)
       Inductive equivv : v -> v -> Prop :=
       | equivv_bool (b : bool) :
@@ -354,17 +409,14 @@ Module Step.
         negb b = b' ->
         ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
         ⟨ ϵ, UOP ! e:Bool @ i ⟩ ⇓ VBOOL b'
-    (* TODO: bitnot case is incorrect,
-       need to define negation for [N]. *)
     | ebs_bitnot (e : E.e tags_t) (i : tags_t)
                  (w : positive) (n n' : N) :
+        BitArith.neg w n = n' ->
         ⟨ ϵ, e ⟩ ⇓ w VW n ->
-        ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n
-    (* TODO: uminus case is incorrect,
-       need to define proper negation for [Z]. *)
+        ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n'
     | ebs_uminus (e : E.e tags_t) (i : tags_t)
                  (w : positive) (z z' : Z) :
-        Z.opp z = z' ->
+        IntArith.neg w z = z' ->
         ⟨ ϵ, e ⟩ ⇓ w VS z ->
         ⟨ ϵ, UOP - e:int<w> @ i ⟩ ⇓ w VS z'
     (* Binary Operations. *)
@@ -393,30 +445,18 @@ Module Step.
         ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
         ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
         expr_big_step ϵ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) *{VBOOL b}*
-    | ebs_eq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                  (i : tags_t) (v1 v2 : V.v tags_t) :
-        V.equivv tags_t v1 v2 ->
+    | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
+                  (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+        V.eqbv tags_t v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ TRUE
-    | ebs_eq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                   (i : tags_t) (v1 v2 : V.v tags_t) :
-        ~ V.equivv tags_t v1 v2 ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
     | ebs_neq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                   (i : tags_t) (v1 v2 : V.v tags_t) :
-        ~ V.equivv tags_t v1 v2 ->
+                   (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+        V.eqbv tags_t v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ TRUE
-    | ebs_neq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                    (i : tags_t) (v1 v2 : V.v tags_t) :
-        V.equivv tags_t v1 v2 ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
     (* Structs *)
     | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
                   (tfs : F.fs tags_t (E.t tags_t))

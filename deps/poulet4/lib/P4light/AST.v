@@ -533,6 +533,13 @@ Module P4light.
     | MKLpm.
     (**[]*)
 
+    Instance MatchKindEqDec : EqDec matchkind eq.
+    Proof.
+      unfold EqDec; unfold equiv, complement.
+      intros [] []; try (left; reflexivity);
+        try (right; intros H; inversion H).
+    Defined.
+
     Module MatchkindNotations.
       Declare Custom Entry p4matchkind.
 

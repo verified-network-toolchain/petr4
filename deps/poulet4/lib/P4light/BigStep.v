@@ -671,8 +671,9 @@ Module Step.
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v  => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
+             (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
+             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+          args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
@@ -694,8 +695,9 @@ Module Step.
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
+             (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+          args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Lvalue Evaluation. *)

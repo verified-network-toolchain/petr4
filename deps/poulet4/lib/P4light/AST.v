@@ -224,6 +224,12 @@ Module P4light.
     end.
   (**[]*)
 
+  Definition rel_paramarg_same
+             {A B : Type} (R : A -> B -> Prop)
+             (paa : paramarg A A) (pab : paramarg B B) : Prop :=
+    rel_paramarg R R paa pab.
+  (**[]*)
+
   (** Function signatures/instantiations. *)
   Inductive arrow (tags_t A B R : Type) : Type :=
     Arrow (pas : F.fs tags_t (paramarg A B)) (returns : option R).
@@ -740,7 +746,11 @@ Module P4light.
       | SReturnVoid (i : tags_t)                        (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
                      (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
-      | SExit (i : tags_t)                              (* exit statement *).
+      | SExit (i : tags_t)                              (* exit statement *)
+      | SApply (x : name tags_t)
+               (args : E.args tags_t) (i : tags_t)      (* apply statements,
+                                                           where [x] is the
+                                                           name of an instance *).
     (**[]*)
     End Statements.
 
@@ -753,6 +763,7 @@ Module P4light.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
+    Arguments SApply {_}.
 
     Module StmtNotations.
       Export E.ExprNotations.
@@ -798,6 +809,8 @@ Module P4light.
                     (in custom p4stmt at level 0, no associativity).
       Notation "'exit' @ i"
                := (SExit i) (in custom p4stmt at level 0, no associativity).
+      Notation "'apply' x 'with' args @ i"
+               := (SApply x args i) (in custom p4stmt at level 0, no associativity).
     End StmtNotations.
   End Stmt.
 
@@ -904,11 +917,11 @@ Module P4light.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t)
-      | TPControl (cparams : F.fs tags_t (E.t tags_t))
-                  (params : F.fs tags_t (Dir.d * tags_t))
+      | TPControl (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                  (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (cparams : F.fs tags_t (E.t tags_t))
-                 (params : F.fs tags_t (Dir.d * E.t tags_t))
+      | TPParser (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                 (params : E.params tags_t) (* invocation params *)
                  (i : tags_t) (* TODO! *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)

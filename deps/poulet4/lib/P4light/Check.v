@@ -152,6 +152,16 @@ Module Typecheck.
         error_ok errs (Some x).
     (**[]*)
 
+    (** Typing header operations. *)
+    Definition type_hdr_op
+               (op : E.hdr_op) (ts : F.fs tags_t (E.t tags_t)) : E.t tags_t :=
+      match op with
+      | E.HOIsValid => {{ Bool }}
+      | E.HOSetValid
+      | E.HOSetInValid => {{ hdr { ts } }}
+      end.
+    (**[]*)
+
     (** Expression typing as a relation. *)
     Inductive check
               (errs : errors) (Γ : gam) : E.e tags_t -> E.t tags_t -> Prop :=
@@ -233,19 +243,26 @@ Module Typecheck.
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
     | chk_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
+                  (tfs : F.fs tags_t (E.t tags_t))
+                  (i : tags_t) (b : E.e tags_t) :
         F.relfs
           (fun te τ =>
              E.equivt (fst te) τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-        ⟦ errs , Γ ⟧ ⊢ hdr { efs } @ i ∈ hdr { tfs }
+        ⟦ errs, Γ ⟧ ⊢ b ∈ Bool ->
+        ⟦ errs , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
     (* Errors and matchkinds. *)
     | chk_error (err : option (string tags_t)) (i : tags_t) :
         error_ok errs err ->
         ⟦ errs , Γ ⟧ ⊢ Error err @ i ∈ error
     | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
         ⟦ errs , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
+    | chk_isvalid (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+                  (τ : E.t tags_t) (ts : F.fs tags_t (E.t tags_t)) :
+        type_hdr_op op ts = τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
+        ⟦ errs, Γ ⟧ ⊢ H op e @ i ∈ τ
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers gm e ty).
     (**[]*)

@@ -555,6 +555,22 @@ Module P4light.
       Notation "'lpm'" := MKLpm (in custom p4matchkind at level 0).
     End MatchkindNotations.
 
+    (** Header operations. *)
+    Inductive hdr_op : Set :=
+    | HOIsValid
+    | HOSetValid
+    | HOSetInValid.
+    (**[]*)
+
+    Module HeaderOpNotations.
+      Declare Custom Entry p4hdr_op.
+
+      Notation "x" := x (in custom p4hdr_op at level 0, x constr at level 0).
+      Notation "'isValid'" := HOIsValid (in custom p4hdr_op at level 0).
+      Notation "'setValid'" := HOSetValid (in custom p4hdr_op at level 0).
+      Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
+    End HeaderOpNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
@@ -573,7 +589,9 @@ Module P4light.
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs tags_t (t tags_t * e))
-                (i : tags_t)                           (* header literals *)
+                (valid : e) (i : tags_t)               (* header literals *)
+      | EHeaderOp (op : hdr_op) (header : e)
+                  (i : tags_t)                         (* header operations *)
       | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
@@ -601,6 +619,7 @@ Module P4light.
     Arguments EBop {tags_t}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
+    Arguments EHeaderOp {_}.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
@@ -611,6 +630,7 @@ Module P4light.
       Export UopNotations.
       Export BopNotations.
       Export MatchkindNotations.
+      Export HeaderOpNotations.
       Export TypeNotations.
 
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -637,9 +657,14 @@ Module P4light.
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
-      Notation "'hdr' { fields } @ i "
-        := (EHeader fields i)
-            (in custom p4expr at level 6, no associativity).
+      Notation "'hdr' { fields } 'valid' ':=' b @ i "
+        := (EHeader fields b i)
+            (in custom p4expr at level 6,
+                b custom p4expr, no associativity).
+      Notation "'H' op exp @ i"
+               := (EHeaderOp op exp i)
+                    (in custom p4expr at level 5, exp custom p4expr,
+                        op custom p4hdr_op, no associativity).
       Notation "'Mem' x : ty 'dot' y @ i"
               := (EExprMember y ty x i)
                     (in custom p4expr at level 10, x custom p4expr,
@@ -678,8 +703,11 @@ Module P4light.
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
-          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} @ i }>.
+      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) b i,
+          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} valid:=b @ i }>.
+
+      Hypothesis HEHeaderOp : forall op exp i,
+          P exp -> P <{ H op exp @ i }>.
 
       Hypothesis HEExprMember : forall (x : string tags_t)
                                   (ty : t tags_t) (ex : e tags_t) i,
@@ -711,7 +739,8 @@ Module P4light.
               HEBop op lt rt lhs rhs i
                     (custom_e_ind lhs) (custom_e_ind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
-          | <{ hdr { fields } @ i }> => HEHeader fields i (fields_ind fields)
+          | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
+          | <{ H op exp @ i }> => HEHeaderOp op exp i (custom_e_ind exp)
           | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (custom_e_ind exp)
           | <{ Error err @ i }> => HEError err i

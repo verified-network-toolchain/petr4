@@ -46,7 +46,7 @@ Module Value.
     | VInt (w : positive) (n : Z)
     | VBit (w : positive) (n : N)
     | VRecord (fs : Field.fs tags_t v)
-    | VHeader (fs : Field.fs tags_t v)
+    | VHeader (fs : Field.fs tags_t v) (validity : bool)
     | VError (err : option (string tags_t))
     | VMatchKind (mk : P4light.Expr.matchkind).
     (**[]*)
@@ -73,8 +73,8 @@ Module Value.
       Hypothesis HVRecord : forall fs,
           Field.predfs_data P fs -> P (VRecord fs).
 
-      Hypothesis HVHeader : forall fs,
-          Field.predfs_data P fs -> P (VHeader fs).
+      Hypothesis HVHeader : forall fs b,
+          Field.predfs_data P fs -> P (VHeader fs b).
 
       Hypothesis HVError : forall err, P (VError err).
 
@@ -94,7 +94,7 @@ Module Value.
           | VInt w n => HVInt w n
           | VBit w n => HVBit w n
           | VRecord vs     => HVRecord vs (fields_ind vs)
-          | VHeader vs     => HVHeader vs (fields_ind vs)
+          | VHeader vs b   => HVHeader vs b (fields_ind vs)
           | VError err     => HVError err
           | VMatchKind mk  => HVMatchKind mk
           end.
@@ -132,8 +132,8 @@ Module Value.
         | VError err1,    VError err2    => if equiv_dec err1 err2
                                            then true
                                            else false
-        | VHeader vs1,    VHeader vs2
-        | VRecord vs1,    VHeader vs2    => fields_rec vs1 vs2
+        | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_rec vs1 vs2
+        | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
         | _,              _              => false
         end.
       (**[]*)
@@ -149,9 +149,9 @@ Module Value.
       | equivv_record (fs1 fs2 : Field.fs tags_t v) :
           Field.relfs equivv fs1 fs2 ->
           equivv (VRecord fs1) (VRecord fs2)
-      | equivv_header (fs1 fs2 : Field.fs tags_t v) :
+      | equivv_header (fs1 fs2 : Field.fs tags_t v) (b : bool) :
           Field.relfs equivv fs1 fs2 ->
-          equivv (VHeader fs1) (VHeader fs2)
+          equivv (VHeader fs1 b) (VHeader fs2 b)
       | equivv_error (err1 err2 : option (string tags_t)) :
           equiv err1 err2 ->
           equivv (VError err1) (VError err2)
@@ -253,7 +253,7 @@ Module Value.
     Notation "'REC' { fs }" := (VRecord fs)
                                  (in custom p4value at level 6,
                                      no associativity).
-    Notation "'HDR' { fs }" := (VHeader fs)
+    Notation "'HDR' { fs } 'VALID' ':=' b" := (VHeader fs b)
                                  (in custom p4value at level 6,
                                      no associativity).
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
@@ -385,6 +385,17 @@ Module Step.
       | _       => None
       end.
 
+    (** Header operations. *)
+    Definition eval_hdr_op
+               (op : E.hdr_op) (vs : F.fs tags_t (V.v tags_t))
+               (b : bool) : V.v tags_t :=
+      match op with
+      | E.HOIsValid => *{ VBOOL b }*
+      | E.HOSetValid => *{ HDR { vs } VALID:=true }*
+      | E.HOSetInValid => *{ HDR { vs } VALID:=false }*
+      end.
+    (**[]*)
+
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
@@ -465,10 +476,10 @@ Module Step.
         ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
         ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
     | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                  (tfs : F.fs tags_t (E.t tags_t))
+                  (tfs : F.fs tags_t (E.t tags_t)) (b : bool)
                   (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
         F.get x vfs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
         ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
     | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                   (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
@@ -477,11 +488,18 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
     | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+                  (e : E.e tags_t) (i : tags_t) (b : bool)
+                  (vfs : F.fs tags_t (V.v tags_t)) :
         F.relfs
           (fun te v =>
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-        ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
+        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+        ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
+    | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+                  (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
+        eval_hdr_op op vs b = v ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+        ⟨ ϵ, H op e @ i ⟩ ⇓ v
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
@@ -555,7 +573,7 @@ Module Step.
         match lv_lookup ϵ lv with
         | None => None
         | Some *{ REC { fs } }*
-        | Some *{ HDR { fs } }* => F.get x fs
+        | Some *{ HDR { fs } VALID:=_ }* => F.get x fs
         | Some _ => None
         end
       end.
@@ -568,7 +586,8 @@ Module Step.
       | l{ lv DOT x }l =>
         match lv_lookup ϵ lv with
         | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
-        | Some *{ HDR { vs } }* => lv_update lv (V.VHeader (F.update x v vs)) ϵ
+        | Some *{ HDR { vs } VALID:=b }* =>
+          lv_update lv (V.VHeader (F.update x v vs) b) ϵ
         | Some _ => ϵ
         | None => ϵ
         end
@@ -634,7 +653,7 @@ Module Step.
       | {{ bit<w> }}     => *{ w VW N0 }*
       | {{ int<w> }}     => *{ w VS Z0 }*
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
-      | {{ hdr { ts } }} => V.VHeader (fields_rec ts)
+      | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
       end.
 
     Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :

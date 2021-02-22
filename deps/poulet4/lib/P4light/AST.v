@@ -1,128 +1,7 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
-Require Export Coq.Classes.EquivDec.
-Require Export Coq.Numbers.BinNums. (** Integers. *)
-Require Petr4.String.
-Require Petr4.P4String. (** Strings. *)
-Require Petr4.Typed. (** Names. *)
-
-Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
-
-Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
-
-Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
-
-Instance StringEqDec : EqDec Petr4.String.t eq := Petr4.String.StringEqDec.
-
-Section TypeSynonyms.
-  Variable (tags_t : Type).
-
-  Definition string : Type := Petr4.P4String.t tags_t.
-
-  Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
-    P4String.P4StringEqDec tags_t.
-  (**[]*)
-
-  Definition int : Type := Petr4.P4Int.t tags_t.
-
-  Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
-    P4Int.IntEquivalence tags_t.
-  (**[]*)
-
-  Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
-    P4Int.IntEqDec tags_t.
-  (**[]*)
-
-  Definition name : Type := @Typed.name tags_t.
-
-  Definition equivn (n1 n2 : name) : Prop :=
-    match n1, n2 with
-    | Typed.BareName x1,
-      Typed.BareName x2          => P4String.equiv x1 x2
-    | Typed.QualifiedName xs1 x1,
-      Typed.QualifiedName xs2 x2 =>
-        P4String.equiv x1 x2 /\
-        List.Forall2 (@P4String.equiv tags_t) xs1 xs2
-    | _, _ => False
-    end.
-
-  Lemma equivn_reflexive : Reflexive equivn.
-  Proof.
-    intros [x | xs x]; simpl.
-    - reflexivity.
-    - split; try reflexivity.
-      induction xs as [| h xs IHxs];
-        constructor; auto. reflexivity.
-  Qed.
-
-  Lemma equivn_symmetric : Symmetric equivn.
-  Proof.
-    intros [x | xs x] [y | ys y] H; simpl in *; auto.
-    - symmetry. assumption.
-    - destruct H as [Hxy H]. split; try (symmetry; assumption).
-      generalize dependent ys; induction xs as [| hx xs IHxs];
-        intros [| hy ys] H; inversion H; clear H; subst; auto;
-      constructor; auto. symmetry. assumption.
-  Qed.
-
-  Lemma equivn_transitive : Transitive equivn.
-  Proof.
-    intros [x | xs x] [y | ys y] [z | zs z] Hxy Hyz;
-      simpl in *; auto; try contradiction.
-    - transitivity y; auto.
-    - destruct Hxy as [Hxy Hxys]; destruct Hyz as [Hyz Hyzs]; split.
-      + transitivity y; auto.
-      + clear x y z Hxy Hyz.
-        generalize dependent zs; generalize dependent ys.
-        induction xs as [| x xs IHxs];
-          intros [| y ys] Hxy [| z zs] Hyz;
-          inversion Hxy; clear Hxy;
-            inversion Hyz; clear Hyz; subst; auto.
-        constructor.
-        * transitivity y; auto.
-        * apply IHxs with ys; auto.
-  Qed.
-
-  Instance NameEquivalence : Equivalence equivn.
-  Proof.
-    constructor; [ apply equivn_reflexive
-                 | apply equivn_symmetric
-                 | apply equivn_transitive].
-  Defined.
-
-  Definition equivn_dec : forall n1 n2 : name,
-      { equivn n1 n2 } + { ~ equivn n1 n2 }.
-  Proof.
-    intros [x | xs x] [y | ys y]; simpl; auto.
-    - pose proof equiv_dec x y; auto.
-    - assert (H : {List.Forall2 (@P4String.equiv tags_t) xs ys} +
-                  {~ List.Forall2 (@P4String.equiv tags_t) xs ys}).
-      { clear x y; generalize dependent ys.
-        induction xs as [| x xs IHxs]; intros [| y ys];
-          try (right; intros H'; inversion H'; contradiction).
-        - left; constructor.
-        - pose proof equiv_dec x y as Hxy; specialize IHxs with ys;
-            unfold equiv in *; unfold complement in *.
-          destruct Hxy as [Hxy | Hxy]; destruct IHxs as [IH | IH];
-            try (right; intros H'; inversion H'; contradiction).
-          left. constructor; auto. }
-      destruct (equiv_dec x y) as [Hxy | Hxy]; destruct H as [H | H];
-        unfold equiv in *; unfold complement in *;
-          try (right; intros [Hxy' H']; contradiction).
-      left; auto.
-  Defined.
-
-  Instance NameEqDec : EqDec name equivn :=
-    { equiv_dec := equivn_dec }.
-  (**[]*)
-End TypeSynonyms.
-
-Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
-
-Infix "▷" := pipeline (at level 45, left associativity).
-
-Infix "∘" := Basics.compose (at level 40, left associativity).
+Require Export P4light.Utiliser.
 
 (** * Definitions and Lemmas regarding Fields *)
 Module Field.
@@ -776,8 +655,9 @@ Module P4light.
       | SReturnFruit (t : E.t tags_t)
                      (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
       | SExit (i : tags_t)                              (* exit statement *)
+      | SInvoke (x : name tags_t) (i : tags_t)          (* table invocation *)
       | SApply (x : name tags_t)
-               (args : E.args tags_t) (i : tags_t)      (* apply statements,
+               (args : E.args tags_t) (i : tags_t)      (* control apply statements,
                                                            where [x] is the
                                                            name of an instance *).
     (**[]*)
@@ -793,6 +673,7 @@ Module P4light.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
     Arguments SApply {_}.
+    Arguments SInvoke {_}.
 
     Module StmtNotations.
       Export E.ExprNotations.
@@ -840,6 +721,8 @@ Module P4light.
                := (SExit i) (in custom p4stmt at level 0, no associativity).
       Notation "'apply' x 'with' args @ i"
                := (SApply x args i) (in custom p4stmt at level 0, no associativity).
+      Notation "'invoke' tbl @ i"
+               := (SInvoke tbl i) (in custom p4stmt at level 0).
     End StmtNotations.
   End Stmt.
 
@@ -908,54 +791,76 @@ Module P4light.
     Module S := Stmt.
     Module D := Decl.
 
-    Section ControlDecls.
-      Variable (tags_t : Type).
+    Module ControlDecl.
+      Section ControlDecls.
+        Variable (tags_t : Type).
 
-      (** Declarations that may occur within Controls. *)
-      (* TODO, this is a stub. *)
-      Inductive d : Type :=
-      | CDAction (a : string tags_t)
-                (signature : E.params tags_t)
-                (body : S.s tags_t) (i : tags_t) (* action declaration *)
-      | CDTable (t : string tags_t)
-                (keys : list
-                          (E.t tags_t * E.e tags_t * E.matchkind))
-                (actions : list (string tags_t))  (* action names *)
-                (i : tags_t)                      (* table declaration *)
-      | CDDecl (d : D.d tags_t) (i : tags_t)
-      | CDSeq (d1 d2 : d) (i : tags_t).
-      (**[]*)
-    End ControlDecls.
+        (** Declarations that may occur within Controls. *)
+        (* TODO, this is a stub. *)
+        Inductive d : Type :=
+        | CDAction (a : string tags_t)
+                   (signature : E.params tags_t)
+                   (body : S.s tags_t) (i : tags_t) (* action declaration *)
+        | CDTable (t : string tags_t)
+                  (keys : list
+                            (E.t tags_t * E.e tags_t * E.matchkind))
+                  (actions : list (string tags_t))  (* action names *)
+                  (i : tags_t)                      (* table declaration *)
+        | CDDecl (d : D.d tags_t) (i : tags_t)
+        | CDSeq (d1 d2 : d) (i : tags_t).
+        (**[]*)
+      End ControlDecls.
 
-    Arguments CDAction {_}.
-    Arguments CDTable {_}.
-    Arguments CDDecl {_}.
-    Arguments CDSeq {_}.
+      Arguments CDAction {_}.
+      Arguments CDTable {_}.
+      Arguments CDDecl {_}.
+      Arguments CDSeq {_}.
 
-    Module ControlDeclNotations.
-      Export D.DeclNotations.
+      Module ControlDeclNotations.
+        Export D.DeclNotations.
 
-      Declare Custom Entry p4ctrldecl.
+        Declare Custom Entry p4ctrldecl.
 
-      Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
-      Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
-      Notation "x"
-        := x (in custom p4ctrldecl at level 0, x constr at level 0).
-      Notation "d1 ';c;' d2 @ i"
-               := (CDSeq d1 d2 i)
-                    (in custom p4ctrldecl at level 10,
-                        d1 custom p4ctrldecl, d2 custom p4ctrldecl,
-                        right associativity).
-      Notation "'Decl' d @ i"
-        := (CDDecl d i)
-             (in custom p4ctrldecl at level 0, d custom p4decl).
-      Notation "'action' a ( params ) { body } @ i"
-               := (CDAction a params body i)
-                    (in custom p4ctrldecl at level 0, body custom p4stmt).
-      Notation "'table' t 'where' 'keys' ':=' keys 'actions' ':=' actions 'end' @ i"
-               := (CDTable t keys actions i)
-                    (in custom p4ctrldecl at level 0).
-    End ControlDeclNotations.
+        Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
+        Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
+        Notation "x"
+          := x (in custom p4ctrldecl at level 0, x constr at level 0).
+        Notation "d1 ';c;' d2 @ i"
+          := (CDSeq d1 d2 i)
+               (in custom p4ctrldecl at level 10,
+                   d1 custom p4ctrldecl, d2 custom p4ctrldecl,
+                   right associativity).
+        Notation "'Decl' d @ i"
+          := (CDDecl d i)
+               (in custom p4ctrldecl at level 0, d custom p4decl).
+        Notation "'action' a ( params ) { body } @ i"
+          := (CDAction a params body i)
+               (in custom p4ctrldecl at level 0, body custom p4stmt).
+        Notation "'table' t 'where' 'keys' ':=' keys 'actions' ':=' actions 'end' @ i"
+          := (CDTable t keys actions i)
+               (in custom p4ctrldecl at level 0).
+      End ControlDeclNotations.
+    End ControlDecl.
+
+    (* Module ApplyBlock.
+      Section ApplyBlockStmt.
+        Variable (tags_t : Type).
+
+        (** Statements that may occur within control blocks. *)
+        Inductive s : Type :=
+        | ABTableApply (tbl : name tags_t) (* table apply statements *)
+        | ABStmt (stmt : S.s tags_t)       (* standard statements *)
+        | ABSeq (s1 s2 : s)                (* statement sequences *).
+        (**[]*)
+      End ApplyBlockStmt.
+
+      Arguments ABTableApply {_}.
+      Arguments ABStmt {_}.
+      Arguments ABSeq {_}.
+
+      Module ApplyBlockStmtNotations.
+      End ApplyBlockStmtNotations.
+    End ApplyBlock. *)
   End Control.
 
   (** * Top-Level Declarations *)
@@ -963,7 +868,7 @@ Module P4light.
     Module E := Expr.
     Module S := Stmt.
     Module D := Decl.
-    Module C := Control.
+    Module C := Control.ControlDecl.
 
     Section TopDeclarations.
       Variable (tags_t : Type).

@@ -6,36 +6,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
-Inductive relop {A : Type} (R : A -> A -> Prop) : option A -> option A -> Prop :=
-| relop_none : relop R None None
-| relop_some (a1 a2 : A) : R a1 a2 -> relop R (Some a1) (Some a2).
-
-Instance OptionEquivalence
-         (A : Type) (R : A -> A -> Prop)
-         `{Equivalence A R} : Equivalence (relop R).
-Proof.
-  inversion H; constructor;
-    unfold Reflexive, Symmetric, Transitive in *.
-  - intros [a |]; constructor; auto.
-  - intros [a1 |] [a2 |] H'; inversion H';
-      subst; constructor; auto.
-  - intros [a1 |] [a2 |] [a3 |] H12 H23;
-      inversion H12; inversion H23;
-        subst; constructor; eauto.
-Defined.
-
-Instance OptionEqDec
-         (A : Type) (R : A -> A -> Prop)
-         `{HR : EqDec A R} : EqDec (option A) (relop R).
-Proof.
-  unfold EqDec in *;
-    unfold equiv, complement in *;
-    intros [a1 |] [a2 |];
-    try (specialize HR with a1 a2; destruct HR as [HR | HR]);
-    try (right; intros H'; inversion H'; contradiction);
-    try (left; constructor; auto).
-Defined.
-
+(** * Values and LValues *)
 Module Value.
   Section Values.
     Variable (tags_t : Type).
@@ -759,7 +730,7 @@ Module Step.
                     (i : tags_t)
                     (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
                     (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
-        (* Looking up function. *)
+        (* Instance lookup. *)
         ilookup ins x = Some (CInst closure fclosure iins params body) ->
         (* Argument evaluation. *)
         F.relfs
@@ -769,7 +740,7 @@ Module Step.
           args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
-        (* Function evaluation. *)
+        (* Apply block evaluation. *)
         ⟪ fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->

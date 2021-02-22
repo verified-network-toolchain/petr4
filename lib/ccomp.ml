@@ -175,7 +175,7 @@ and translate_parser_states (states: Prog.Parser.state list) : C.cstmt list =
   C.[CVarInit (CInt, next_state_name, CIntLit start_id);
      CWhile (CGeq (next_state_var, CIntLit 0),
              CSwitch (next_state_var, cases))]
-    
+
 and translate_parser_state (states: int StrMap.t) (state: Prog.Parser.state) : C.ccase =
   let stmts = translate_stmts (snd state).statements in
   let annot = translate_trans states (snd state).transition in
@@ -193,10 +193,13 @@ and translate_trans (states: int StrMap.t) (t: Prog.Parser.transition) : C.cstmt
 and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-    let state_arg = StrMap.find_exn map (get_expr_mem func) in
-    let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in
+    (* let state_arg = StrMap.find_exn map (get_expr_mem func) in *)
+    (* let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in *)
+    let args = get_expr_opt_lst args @ [CIntLit 16] in
     C.CMethodCall (get_expr_name func, args)
-  | Assignment { lhs; rhs } -> C.CAssign ((get_expr_c lhs), (get_expr_c rhs)) 
+  | Assignment { lhs; rhs } -> 
+    let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
+    C.CAssign (left, (get_expr_c rhs)) 
   | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
 
 and apply_translate_emit (map: varmap) (apply : Prog.Block.t) = 

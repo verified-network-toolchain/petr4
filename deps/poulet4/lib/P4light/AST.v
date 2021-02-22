@@ -885,22 +885,48 @@ Module P4light.
       (** Declarations that may occur within Controls. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | DAction (a : string tags_t)
-                (signature : F.fs tags_t (E.e tags_t))
+      | CDAction (a : string tags_t)
+                (signature : E.params tags_t)
                 (body : S.s tags_t) (i : tags_t) (* action declaration *)
-      | DTable (keys : list
-                         (E.t tags_t * E.e tags_t * E.matchkind))
-               (actions : list (string tags_t))  (* action names *)
-               (i : tags_t)                      (* table declaration *)
-      | DDecl (d : D.d tags_t) (i : tags_t)
-      | DSeq (d1 d2 : d) (i : tags_t).
+      | CDTable (t : string tags_t)
+                (keys : list
+                          (E.t tags_t * E.e tags_t * E.matchkind))
+                (actions : list (string tags_t))  (* action names *)
+                (i : tags_t)                      (* table declaration *)
+      | CDDecl (d : D.d tags_t) (i : tags_t)
+      | CDSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End ControlDecls.
 
-    Arguments DAction {_}.
-    Arguments DTable {_}.
-    Arguments DDecl {_}.
-    Arguments DSeq {_}.
+    Arguments CDAction {_}.
+    Arguments CDTable {_}.
+    Arguments CDDecl {_}.
+    Arguments CDSeq {_}.
+
+    Module ControlDeclNotations.
+      Export D.DeclNotations.
+
+      Declare Custom Entry p4ctrldecl.
+
+      Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
+      Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
+      Notation "x"
+        := x (in custom p4ctrldecl at level 0, x constr at level 0).
+      Notation "d1 ';c;' d2 @ i"
+               := (CDSeq d1 d2 i)
+                    (in custom p4ctrldecl at level 10,
+                        d1 custom p4ctrldecl, d2 custom p4ctrldecl,
+                        right associativity).
+      Notation "'Decl' d @ i"
+        := (CDDecl d i)
+             (in custom p4ctrldecl at level 0, d custom p4decl).
+      Notation "'action' a ( params ) { body } @ i"
+               := (CDAction a params body i)
+                    (in custom p4ctrldecl at level 0, body custom p4stmt).
+      Notation "'table' t 'where' 'keys' ':=' keys 'actions' ':=' actions 'end' @ i"
+               := (CDTable t keys actions i)
+                    (in custom p4ctrldecl at level 0).
+    End ControlDeclNotations.
   End Control.
 
   (** * Top-Level Declarations *)
@@ -917,10 +943,12 @@ Module P4light.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t)
-      | TPControl (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+      | TPControl (c : string tags_t)
+                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
                   (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+      | TPParser (p : string tags_t)
+                 (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
                  (params : E.params tags_t) (* invocation params *)
                  (i : tags_t) (* TODO! *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
@@ -935,5 +963,35 @@ Module P4light.
     Arguments TPParser {_}.
     Arguments TPFunction {_}.
     Arguments TPSeq {_}.
+
+    Module TopDeclNotations.
+      Export C.ControlDeclNotations.
+
+      Declare Custom Entry p4topdecl.
+
+      Notation "'%{' decl '}%'" := decl (decl custom p4topdecl at level 99).
+      Notation "( x )" := x (in custom p4topdecl, x at level 99).
+      Notation "x"
+        := x (in custom p4topdecl at level 0, x constr at level 0).
+      Notation "d1 ';%;' d2 @ i"
+               := (TPSeq d1 d2 i)
+                    (in custom p4topdecl at level 10,
+                        d1 custom p4topdecl, d2 custom p4topdecl,
+                        right associativity).
+      Notation "'DECL' d @ i"
+        := (TPDecl d i)
+             (in custom p4topdecl at level 0, d custom p4decl).
+      Notation "'void' f ( params ) { body } @ i"
+               := (TPFunction f (Arrow params None) body i)
+                    (in custom p4topdecl at level 0, body custom p4stmt).
+      Notation "'fn' f ( params ) '->' t { body } @ i"
+               := (TPFunction f (Arrow params (Some t)) body i)
+                    (in custom p4topdecl at level 0,
+                        t custom p4type, body custom p4stmt).
+      Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
+               := (TPControl c cparams params body blk i)
+                    (in custom p4topdecl at level 0,
+                        blk custom p4stmt, body custom p4ctrldecl).
+    End TopDeclNotations.
   End TopDecl.
 End P4light.

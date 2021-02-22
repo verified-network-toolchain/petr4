@@ -52,4 +52,9 @@ package uP4Switch<H, M, I, O, IO>(
     micro_control<H, M, I, O, IO> c,
     micro_deparser<H> d);
 
+package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>(
+    uP4Switch<H1, M1, I1, O1, IO1> left,
+    uP4Switch<H2, M2, I2, O2, IO2> right,
+    int split_port);
+
 #endif  /* _msa_P4_ */

@@ -297,7 +297,17 @@ Section Eval.
         | _ => state_fail (SupportError "Can only look up members of names.")
         end
       (* TODO real member lookup *)
-      | _ => state_fail (SupportError "Can only look up members of a packet.")
+      | ValBase (ValBaseHeader fields valid) =>
+        let fix lookup f :=
+          match f with
+          | nil => state_fail (AssertError (P4String.str name))
+          | (fld, v) :: f' =>
+            if P4String.equivb fld name
+            then mret (ValBase v)
+            else state_fail (AssertError fld.(P4String.str))
+          end in
+        lookup fields
+      | _ => state_fail (SupportError "Can only look up members of a packet or header.")
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
       eval_method_call (eval_expression) func type_args args;

@@ -1850,8 +1850,7 @@ Definition foo :=
     let packet := ValObj (ValObjPacket (List.repeat true 40)) in
     let stepper := step_trans _ NoInfo parser 2 (MkP4String "start") in
     Some ((env_insert Info "packet" packet ;;
-           env_insert Info "hdr" (ValBase ValBaseNull) ;;
-           stepper) env)
+           env_insert Info "hdr" (ValBase (ValBaseHeader ((MkP4String "ip", ValBaseHeader ((MkP4String "src", ValBaseBit 8 0) :: (MkP4String "dst", ValBaseBit 8 0) :: (MkP4String "proto", ValBaseBit 4 0) :: nil) false) :: (MkP4String "t_or_u", ValBaseUnion ((MkP4String "udp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: nil) false) :: (MkP4String "tcp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: (MkP4String "seq", ValBaseBit 8 0) :: nil) false) :: nil)) :: nil) false)) ;; stepper) env)
   | _ => None
   end
 .

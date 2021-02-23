@@ -6,18 +6,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
-Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
-Proof.
-  intros [a1 |] [a2 |].
-  - pose proof equiv_dec a1 a2 as HA.
-    unfold equiv in *; unfold complement in *.
-    destruct HA as [HA | HA]; subst; auto.
-    right; intros HA'; inversion HA'; contradiction.
-  - right; intros; discriminate.
-  - right; intros; discriminate.
-  - unfold equiv; auto.
-Defined.
-
+(** * Values and LValues *)
 Module Value.
   Section Values.
     Variable (tags_t : Type).
@@ -28,7 +17,7 @@ Module Value.
     | VInt (w : positive) (n : Z)
     | VBit (w : positive) (n : N)
     | VRecord (fs : Field.fs tags_t v)
-    | VHeader (fs : Field.fs tags_t v)
+    | VHeader (fs : Field.fs tags_t v) (validity : bool)
     | VError (err : option (string tags_t))
     | VMatchKind (mk : P4light.Expr.matchkind).
     (**[]*)
@@ -55,8 +44,8 @@ Module Value.
       Hypothesis HVRecord : forall fs,
           Field.predfs_data P fs -> P (VRecord fs).
 
-      Hypothesis HVHeader : forall fs,
-          Field.predfs_data P fs -> P (VHeader fs).
+      Hypothesis HVHeader : forall fs b,
+          Field.predfs_data P fs -> P (VHeader fs b).
 
       Hypothesis HVError : forall err, P (VError err).
 
@@ -76,13 +65,50 @@ Module Value.
           | VInt w n => HVInt w n
           | VBit w n => HVBit w n
           | VRecord vs     => HVRecord vs (fields_ind vs)
-          | VHeader vs     => HVHeader vs (fields_ind vs)
+          | VHeader vs b   => HVHeader vs b (fields_ind vs)
           | VError err     => HVError err
           | VMatchKind mk  => HVMatchKind mk
           end.
     End ValueInduction.
 
     Section ValueEquality.
+      Instance P4StringEquivalence : Equivalence (@P4String.equiv tags_t) :=
+        P4String.EquivEquivalence tags_t.
+      (**[]*)
+
+      Instance P4StringEqDec : EqDec (string tags_t) (@P4String.equiv tags_t) :=
+        P4String.P4StringEqDec tags_t.
+      (**[]*)
+
+      (** Computational Value equality *)
+      Fixpoint eqbv (v1 v2 : v) : bool :=
+        let fix fields_rec (vs1 vs2 : Field.fs tags_t v) : bool :=
+            match vs1, vs2 with
+            | [],           []           => true
+            | (x1, v1)::vs1, (x2, v2)::vs2 => if P4String.equivb x1 x2 then
+                                             eqbv v1 v2 && fields_rec vs1 vs2
+                                           else false
+            | [],            _::_
+            | _::_,           []          => false
+            end in
+        match v1, v2 with
+        | VBool b1,       VBool b2       => eqb b1 b2
+        | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
+                                           (z1 =? z2)%Z
+        | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%positive &&
+                                           (n1 =? n2)%N
+        | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
+                                           then true
+                                           else false
+        | VError err1,    VError err2    => if equiv_dec err1 err2
+                                           then true
+                                           else false
+        | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_rec vs1 vs2
+        | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
+        | _,              _              => false
+        end.
+      (**[]*)
+
       (** Value equivalence relation. *)
       Inductive equivv : v -> v -> Prop :=
       | equivv_bool (b : bool) :
@@ -94,9 +120,9 @@ Module Value.
       | equivv_record (fs1 fs2 : Field.fs tags_t v) :
           Field.relfs equivv fs1 fs2 ->
           equivv (VRecord fs1) (VRecord fs2)
-      | equivv_header (fs1 fs2 : Field.fs tags_t v) :
+      | equivv_header (fs1 fs2 : Field.fs tags_t v) (b : bool) :
           Field.relfs equivv fs1 fs2 ->
-          equivv (VHeader fs1) (VHeader fs2)
+          equivv (VHeader fs1 b) (VHeader fs2 b)
       | equivv_error (err1 err2 : option (string tags_t)) :
           equiv err1 err2 ->
           equivv (VError err1) (VError err2)
@@ -198,7 +224,7 @@ Module Value.
     Notation "'REC' { fs }" := (VRecord fs)
                                  (in custom p4value at level 6,
                                      no associativity).
-    Notation "'HDR' { fs }" := (VHeader fs)
+    Notation "'HDR' { fs } 'VALID' ':=' b" := (VHeader fs b)
                                  (in custom p4value at level 6,
                                      no associativity).
     Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
@@ -260,7 +286,7 @@ Module Step.
 
   Import Env.EnvNotations.
 
-  Reserved Notation "⟪ fenv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
+  Reserved Notation "⟪ fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
            (at level 40, s custom p4stmt,
             ϵ2 custom p4env, sig custom p4evalsignal).
   (**[]*)
@@ -330,6 +356,17 @@ Module Step.
       | _       => None
       end.
 
+    (** Header operations. *)
+    Definition eval_hdr_op
+               (op : E.hdr_op) (vs : F.fs tags_t (V.v tags_t))
+               (b : bool) : V.v tags_t :=
+      match op with
+      | E.HOIsValid => *{ VBOOL b }*
+      | E.HOSetValid => *{ HDR { vs } VALID:=true }*
+      | E.HOSetInValid => *{ HDR { vs } VALID:=false }*
+      end.
+    (**[]*)
+
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
@@ -354,17 +391,14 @@ Module Step.
         negb b = b' ->
         ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
         ⟨ ϵ, UOP ! e:Bool @ i ⟩ ⇓ VBOOL b'
-    (* TODO: bitnot case is incorrect,
-       need to define negation for [N]. *)
     | ebs_bitnot (e : E.e tags_t) (i : tags_t)
                  (w : positive) (n n' : N) :
+        BitArith.neg w n = n' ->
         ⟨ ϵ, e ⟩ ⇓ w VW n ->
-        ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n
-    (* TODO: uminus case is incorrect,
-       need to define proper negation for [Z]. *)
+        ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n'
     | ebs_uminus (e : E.e tags_t) (i : tags_t)
                  (w : positive) (z z' : Z) :
-        Z.opp z = z' ->
+        IntArith.neg w z = z' ->
         ⟨ ϵ, e ⟩ ⇓ w VS z ->
         ⟨ ϵ, UOP - e:int<w> @ i ⟩ ⇓ w VS z'
     (* Binary Operations. *)
@@ -393,30 +427,18 @@ Module Step.
         ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
         ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
         expr_big_step ϵ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) *{VBOOL b}*
-    | ebs_eq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                  (i : tags_t) (v1 v2 : V.v tags_t) :
-        V.equivv tags_t v1 v2 ->
+    | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
+                  (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+        V.eqbv tags_t v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ TRUE
-    | ebs_eq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                   (i : tags_t) (v1 v2 : V.v tags_t) :
-        ~ V.equivv tags_t v1 v2 ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
     | ebs_neq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                   (i : tags_t) (v1 v2 : V.v tags_t) :
-        ~ V.equivv tags_t v1 v2 ->
+                   (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+        V.eqbv tags_t v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ TRUE
-    | ebs_neq_false (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                    (i : tags_t) (v1 v2 : V.v tags_t) :
-        V.equivv tags_t v1 v2 ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ FALSE
+        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
     (* Structs *)
     | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
                   (tfs : F.fs tags_t (E.t tags_t))
@@ -425,10 +447,10 @@ Module Step.
         ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
         ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
     | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                  (tfs : F.fs tags_t (E.t tags_t))
+                  (tfs : F.fs tags_t (E.t tags_t)) (b : bool)
                   (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
         F.get x vfs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
         ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
     | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                   (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
@@ -437,11 +459,18 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
     | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+                  (e : E.e tags_t) (i : tags_t) (b : bool)
+                  (vfs : F.fs tags_t (V.v tags_t)) :
         F.relfs
           (fun te v =>
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-        ⟨ ϵ, hdr { efs } @ i ⟩ ⇓ HDR { vfs }
+        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+        ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
+    | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+                  (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
+        eval_hdr_op op vs b = v ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+        ⟨ ϵ, H op e @ i ⟩ ⇓ v
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
@@ -467,12 +496,28 @@ Module Step.
       Typed.BareName x.
     (**[]*)
 
+    (** Function declarations and closures. *)
     Inductive fdecl : Type :=
-      FDecl (closure : epsilon) (fs : fenv)
+    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv)
             (signature : E.arrowT tags_t) (body : ST.s tags_t)
     with fenv : Type :=
-      FEnv (fs : Env.t (name tags_t) fdecl).
+    | FEnv (fs : Env.t (name tags_t) fdecl)
+    (** Instances and Environment. *)
+    with inst : Type :=
+    | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
+            (params : E.params tags_t) (* apply block parameters *)
+            (apply_blk : ST.s tags_t)  (* control apply block *)
+    with ienv : Type :=
+    | IEnv (ins : Env.t (name tags_t) inst).
     (**[]*)
+
+    (* tables can only be applied in a control apply block.
+       apply for tables takes "keys" as an argument,
+       but there are no syntactic keys in table invocation.
+       need control plane configuration for table invocation.
+       control plane config: maps table names to match-action tables.
+       match-action tables are a mapping from key-values "p4 values" wink wink
+       to an action call *)
 
     (** Function lookup. *)
     Definition lookup '(FEnv fs : fenv) : name tags_t -> option fdecl := fs.
@@ -480,6 +525,14 @@ Module Step.
     (** Bind a function declaration to an environment. *)
     Definition update '(FEnv fs : fenv) (x : name tags_t) (d : fdecl) : fenv :=
       FEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Instance lookup. *)
+    Definition ilookup '(IEnv fs : ienv) : name tags_t -> option inst := fs.
+
+    (** Bind a function declaration to an environment. *)
+    Definition iupdate '(IEnv fs : ienv) (x : name tags_t) (d : inst) : ienv :=
+      IEnv !{ x ↦ d ;; fs }!.
     (**[]*)
 
     (** Lookup an lvalue. *)
@@ -491,7 +544,7 @@ Module Step.
         match lv_lookup ϵ lv with
         | None => None
         | Some *{ REC { fs } }*
-        | Some *{ HDR { fs } }* => F.get x fs
+        | Some *{ HDR { fs } VALID:=_ }* => F.get x fs
         | Some _ => None
         end
       end.
@@ -504,7 +557,8 @@ Module Step.
       | l{ lv DOT x }l =>
         match lv_lookup ϵ lv with
         | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
-        | Some *{ HDR { vs } }* => lv_update lv (V.VHeader (F.update x v vs)) ϵ
+        | Some *{ HDR { vs } VALID:=b }* =>
+          lv_update lv (V.VHeader (F.update x v vs) b) ϵ
         | Some _ => ϵ
         | None => ϵ
         end
@@ -570,102 +624,127 @@ Module Step.
       | {{ bit<w> }}     => *{ w VW N0 }*
       | {{ int<w> }}     => *{ w VS Z0 }*
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
-      | {{ hdr { ts } }} => V.VHeader (fields_rec ts)
+      | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
       end.
 
-    Inductive stmt_big_step (fs : fenv) (ϵ : epsilon) :
+    Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
     | sbs_skip (i : tags_t) :
-        ⟪ fs, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
+        ⟪ fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
     | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
                    (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
-        ⟪ fs, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
-        ⟪ fs, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
-        ⟪ fs, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
+        ⟪ fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
+        ⟪ fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
+        ⟪ fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
     | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
                            (ϵ' : epsilon) (sig : signal tags_t) :
         interrupt sig ->
-        ⟪ fs, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_vardecl (τ : E.t tags_t) (x : name tags_t)
+        ⟪ fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+    | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
                   (i : tags_t) (v : V.v tags_t) :
         vdefault τ = v ->
-        ⟪ fs, ϵ, var x :: τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+        let x' := bare x in
+        ⟪ fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
     | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
                  (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
         lv_update lv v ϵ = ϵ' ->
         ⦑ ϵ, e1 ⦒ ⇓ lv ->
         ⟨ ϵ, e2 ⟩ ⇓ v ->
-        ⟪ fs, ϵ, asgn e1 := e2 :: τ @ i fin ⟫ ⤋ ⟪ ϵ', C ⟫
+        ⟪ fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
     | sbs_exit (i : tags_t) :
-        ⟪ fs, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
+        ⟪ fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :
-        ⟪ fs, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
+        ⟪ fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
     | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
                    (i : tags_t) (v : V.v tags_t) :
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ϵ, return e :: τ @ i fin ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+        ⟪ fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
     | sbs_cond_true (guard : E.e tags_t)
                     (tru fls : ST.s tags_t) (i : tags_t)
                     (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ TRUE ->
-        ⟪ fs, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+        ⟪ fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_cond_false (guard : E.e tags_t)
                      (tru fls : ST.s tags_t) (i : tags_t)
                      (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ FALSE ->
-        ⟪ fs, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ϵ, if guard :: Bool then tru else fls @ i fin ⟫
+        ⟪ fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_methodcall (params : E.params tags_t)
                      (args : E.args tags_t)
                      (argsv : V.argsv tags_t)
                      (f : name tags_t) (i : tags_t)
-                     (body : ST.s tags_t) (fclosure : fenv)
+                     (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
                      (closure ϵ' ϵ'' ϵ''' : epsilon) :
         (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure (P.Arrow params None) body) ->
+        lookup fs f = Some (FDecl closure fclosure fins (P.Arrow params None) body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v  => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
+             (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
+             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+          args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
-        ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        ⟪ fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ϵ, call f with args @ i fin ⟫ ⤋ ⟪ ϵ''', C ⟫
+        ⟪ fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
     | sbs_fruitcall (params : E.params tags_t)
-                     (args : E.args tags_t)
-                     (argsv : V.argsv tags_t)
-                     (f : name tags_t)
-                     (e : E.e tags_t) (τ : E.t tags_t)
-                     (i : tags_t)
-                     (v : V.v tags_t) (lv : V.lv tags_t)
-                     (body : ST.s tags_t) (fclosure : fenv)
-                     (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+                    (args : E.args tags_t)
+                    (argsv : V.argsv tags_t)
+                    (f : name tags_t)
+                    (e : E.e tags_t) (τ : E.t tags_t)
+                    (i : tags_t)
+                    (v : V.v tags_t) (lv : V.lv tags_t)
+                    (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
+                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
         (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure (P.Arrow params (Some τ)) body) ->
+        lookup fs f = Some (FDecl closure fclosure fins (P.Arrow params (Some τ)) body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
-             (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v)
-             (fun te lv => let e := snd te in ⦑ ϵ, e ⦒ ⇓ lv)) args argsv ->
+             (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+          args argsv ->
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Lvalue Evaluation. *)
         ⦑ ϵ, e ⦒ ⇓ lv ->
         (* Function evaluation. *)
-        ⟪ fclosure, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+        ⟪ fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         (* Assignment to lvalue. *)
         lv_update lv v ϵ''' = ϵ'''' ->
-        ⟪ fs, ϵ, let e :: τ := call f with args @ i fin ⟫ ⤋ ⟪ ϵ'''', C ⟫
-    where "⟪ fs , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ϵ s ϵ' sig).
+        ⟪ fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+    | sbs_apply (params : E.params tags_t)
+                    (args : E.args tags_t)
+                    (argsv : V.argsv tags_t)
+                    (x : name tags_t)
+                    (i : tags_t)
+                    (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
+                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+        (* Instance lookup. *)
+        ilookup ins x = Some (CInst closure fclosure iins params body) ->
+        (* Argument evaluation. *)
+        F.relfs
+          (P.rel_paramarg
+             (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+          args argsv ->
+        (* Copy-in. *)
+        copy_in argsv ϵ closure = ϵ' ->
+        (* Apply block evaluation. *)
+        ⟪ fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        (* Copy-out. *)
+        copy_out argsv ϵ'' ϵ = ϵ''' ->
+        ⟪ fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+    where "⟪ fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ins ϵ s ϵ' sig).
   End Step.
 End Step.

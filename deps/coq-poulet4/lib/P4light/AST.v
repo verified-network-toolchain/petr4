@@ -1,128 +1,7 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
-Require Export Coq.Classes.EquivDec.
-Require Export Coq.Numbers.BinNums. (** Integers. *)
-Require Petr4.String.
-Require Petr4.P4String. (** Strings. *)
-Require Petr4.Typed. (** Names. *)
-
-Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
-
-Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
-
-Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
-
-Instance StringEqDec : EqDec Petr4.String.t eq := Petr4.String.StringEqDec.
-
-Section TypeSynonyms.
-  Variable (tags_t : Type).
-
-  Definition string : Type := Petr4.P4String.t tags_t.
-
-  Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
-    P4String.P4StringEqDec tags_t.
-  (**[]*)
-
-  Definition int : Type := Petr4.P4Int.t tags_t.
-
-  Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
-    P4Int.IntEquivalence tags_t.
-  (**[]*)
-
-  Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
-    P4Int.IntEqDec tags_t.
-  (**[]*)
-
-  Definition name : Type := @Typed.name tags_t.
-
-  Definition equivn (n1 n2 : name) : Prop :=
-    match n1, n2 with
-    | Typed.BareName x1,
-      Typed.BareName x2          => P4String.equiv x1 x2
-    | Typed.QualifiedName xs1 x1,
-      Typed.QualifiedName xs2 x2 =>
-        P4String.equiv x1 x2 /\
-        List.Forall2 (@P4String.equiv tags_t) xs1 xs2
-    | _, _ => False
-    end.
-
-  Lemma equivn_reflexive : Reflexive equivn.
-  Proof.
-    intros [x | xs x]; simpl.
-    - reflexivity.
-    - split; try reflexivity.
-      induction xs as [| h xs IHxs];
-        constructor; auto. reflexivity.
-  Qed.
-
-  Lemma equivn_symmetric : Symmetric equivn.
-  Proof.
-    intros [x | xs x] [y | ys y] H; simpl in *; auto.
-    - symmetry. assumption.
-    - destruct H as [Hxy H]. split; try (symmetry; assumption).
-      generalize dependent ys; induction xs as [| hx xs IHxs];
-        intros [| hy ys] H; inversion H; clear H; subst; auto;
-      constructor; auto. symmetry. assumption.
-  Qed.
-
-  Lemma equivn_transitive : Transitive equivn.
-  Proof.
-    intros [x | xs x] [y | ys y] [z | zs z] Hxy Hyz;
-      simpl in *; auto; try contradiction.
-    - transitivity y; auto.
-    - destruct Hxy as [Hxy Hxys]; destruct Hyz as [Hyz Hyzs]; split.
-      + transitivity y; auto.
-      + clear x y z Hxy Hyz.
-        generalize dependent zs; generalize dependent ys.
-        induction xs as [| x xs IHxs];
-          intros [| y ys] Hxy [| z zs] Hyz;
-          inversion Hxy; clear Hxy;
-            inversion Hyz; clear Hyz; subst; auto.
-        constructor.
-        * transitivity y; auto.
-        * apply IHxs with ys; auto.
-  Qed.
-
-  Instance NameEquivalence : Equivalence equivn.
-  Proof.
-    constructor; [ apply equivn_reflexive
-                 | apply equivn_symmetric
-                 | apply equivn_transitive].
-  Defined.
-
-  Definition equivn_dec : forall n1 n2 : name,
-      { equivn n1 n2 } + { ~ equivn n1 n2 }.
-  Proof.
-    intros [x | xs x] [y | ys y]; simpl; auto.
-    - pose proof equiv_dec x y; auto.
-    - assert (H : {List.Forall2 (@P4String.equiv tags_t) xs ys} +
-                  {~ List.Forall2 (@P4String.equiv tags_t) xs ys}).
-      { clear x y; generalize dependent ys.
-        induction xs as [| x xs IHxs]; intros [| y ys];
-          try (right; intros H'; inversion H'; contradiction).
-        - left; constructor.
-        - pose proof equiv_dec x y as Hxy; specialize IHxs with ys;
-            unfold equiv in *; unfold complement in *.
-          destruct Hxy as [Hxy | Hxy]; destruct IHxs as [IH | IH];
-            try (right; intros H'; inversion H'; contradiction).
-          left. constructor; auto. }
-      destruct (equiv_dec x y) as [Hxy | Hxy]; destruct H as [H | H];
-        unfold equiv in *; unfold complement in *;
-          try (right; intros [Hxy' H']; contradiction).
-      left; auto.
-  Defined.
-
-  Instance NameEqDec : EqDec name equivn :=
-    { equiv_dec := equivn_dec }.
-  (**[]*)
-End TypeSynonyms.
-
-Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
-
-Infix "▷" := pipeline (at level 45, left associativity).
-
-Infix "∘" := Basics.compose (at level 40, left associativity).
+Require Export P4light.Utiliser.
 
 (** * Definitions and Lemmas regarding Fields *)
 Module Field.
@@ -222,6 +101,12 @@ Module P4light.
     | PAInOut b1, PAInOut b2 => RB b1 b2
     | _, _ => False
     end.
+  (**[]*)
+
+  Definition rel_paramarg_same
+             {A B : Type} (R : A -> B -> Prop)
+             (paa : paramarg A A) (pab : paramarg B B) : Prop :=
+    rel_paramarg R R paa pab.
   (**[]*)
 
   (** Function signatures/instantiations. *)
@@ -533,6 +418,13 @@ Module P4light.
     | MKLpm.
     (**[]*)
 
+    Instance MatchKindEqDec : EqDec matchkind eq.
+    Proof.
+      unfold EqDec; unfold equiv, complement.
+      intros [] []; try (left; reflexivity);
+        try (right; intros H; inversion H).
+    Defined.
+
     Module MatchkindNotations.
       Declare Custom Entry p4matchkind.
 
@@ -541,6 +433,22 @@ Module P4light.
       Notation "'ternary'" := MKTernary (in custom p4matchkind at level 0).
       Notation "'lpm'" := MKLpm (in custom p4matchkind at level 0).
     End MatchkindNotations.
+
+    (** Header operations. *)
+    Inductive hdr_op : Set :=
+    | HOIsValid
+    | HOSetValid
+    | HOSetInValid.
+    (**[]*)
+
+    Module HeaderOpNotations.
+      Declare Custom Entry p4hdr_op.
+
+      Notation "x" := x (in custom p4hdr_op at level 0, x constr at level 0).
+      Notation "'isValid'" := HOIsValid (in custom p4hdr_op at level 0).
+      Notation "'setValid'" := HOSetValid (in custom p4hdr_op at level 0).
+      Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
+    End HeaderOpNotations.
 
     Section Expressions.
       Variable (tags_t : Type).
@@ -560,7 +468,9 @@ Module P4light.
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs tags_t (t tags_t * e))
-                (i : tags_t)                           (* header literals *)
+                (valid : e) (i : tags_t)               (* header literals *)
+      | EHeaderOp (op : hdr_op) (header : e)
+                  (i : tags_t)                         (* header operations *)
       | EExprMember (mem : string tags_t)
                     (expr_type : t tags_t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
@@ -588,6 +498,7 @@ Module P4light.
     Arguments EBop {tags_t}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
+    Arguments EHeaderOp {_}.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
@@ -598,6 +509,7 @@ Module P4light.
       Export UopNotations.
       Export BopNotations.
       Export MatchkindNotations.
+      Export HeaderOpNotations.
       Export TypeNotations.
 
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -624,9 +536,14 @@ Module P4light.
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
-      Notation "'hdr' { fields } @ i "
-        := (EHeader fields i)
-            (in custom p4expr at level 6, no associativity).
+      Notation "'hdr' { fields } 'valid' ':=' b @ i "
+        := (EHeader fields b i)
+            (in custom p4expr at level 6,
+                b custom p4expr, no associativity).
+      Notation "'H' op exp @ i"
+               := (EHeaderOp op exp i)
+                    (in custom p4expr at level 5, exp custom p4expr,
+                        op custom p4hdr_op, no associativity).
       Notation "'Mem' x : ty 'dot' y @ i"
               := (EExprMember y ty x i)
                     (in custom p4expr at level 10, x custom p4expr,
@@ -665,8 +582,11 @@ Module P4light.
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
-          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} @ i }>.
+      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) b i,
+          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} valid:=b @ i }>.
+
+      Hypothesis HEHeaderOp : forall op exp i,
+          P exp -> P <{ H op exp @ i }>.
 
       Hypothesis HEExprMember : forall (x : string tags_t)
                                   (ty : t tags_t) (ex : e tags_t) i,
@@ -698,7 +618,8 @@ Module P4light.
               HEBop op lt rt lhs rhs i
                     (custom_e_ind lhs) (custom_e_ind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
-          | <{ hdr { fields } @ i }> => HEHeader fields i (fields_ind fields)
+          | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
+          | <{ H op exp @ i }> => HEHeaderOp op exp i (custom_e_ind exp)
           | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (custom_e_ind exp)
           | <{ Error err @ i }> => HEError err i
@@ -720,7 +641,7 @@ Module P4light.
       | SSkip (i : tags_t)                              (* skip, useful for
                                                            small-step semantics *)
       | SVardecl (type : E.t tags_t)
-                 (x : name tags_t) (i : tags_t)         (* Variable declaration. *)
+                 (x : string tags_t) (i : tags_t)       (* Variable declaration. *)
       | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                            (* assignment *)
       | SConditional (guard_type : E.t tags_t)
@@ -733,7 +654,12 @@ Module P4light.
       | SReturnVoid (i : tags_t)                        (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
                      (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
-      | SExit (i : tags_t)                              (* exit statement *).
+      | SExit (i : tags_t)                              (* exit statement *)
+      | SInvoke (x : name tags_t) (i : tags_t)          (* table invocation *)
+      | SApply (x : name tags_t)
+               (args : E.args tags_t) (i : tags_t)      (* control apply statements,
+                                                           where [x] is the
+                                                           name of an instance *).
     (**[]*)
     End Statements.
 
@@ -746,6 +672,8 @@ Module P4light.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
+    Arguments SApply {_}.
+    Arguments SInvoke {_}.
 
     Module StmtNotations.
       Export E.ExprNotations.
@@ -761,28 +689,28 @@ Module P4light.
         := (SSeq s1 s2 i) (in custom p4stmt at level 99,
                             s1 custom p4stmt, s2 custom p4stmt,
                             right associativity).
-      Notation "'var' x '::' t @ i"
+      Notation "'var' x : t @ i"
                := (SVardecl t x i)
                     (in custom p4stmt at level 0, t custom p4type).
-      Notation "'asgn' e1 ':=' e2 :: t @ i 'fin'"
+      Notation "'asgn' e1 ':=' e2 : t @ i"
               := (SAssign t e1 e2 i)
                     (in custom p4stmt at level 40,
                         e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'if' e '::' t 'then' s1 'else' s2 @ i 'fin'"
+      Notation "'if' e : t 'then' s1 'else' s2 @ i"
               := (SConditional t e s1 s2 i)
                     (in custom p4stmt at level 80,
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
-      Notation "'call' f 'with' args @ i 'fin'"
+      Notation "'call' f 'with' args @ i"
         := (SCall f (Arrow args None) i)
              (in custom p4stmt at level 30, no associativity).
-      Notation "'let' e '::' t ':=' 'call' f 'with' args @ i 'fin'"
+      Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SCall f (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
-      Notation "'return' e '::' t @ i 'fin'"
+      Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4type, no associativity).
@@ -791,6 +719,10 @@ Module P4light.
                     (in custom p4stmt at level 0, no associativity).
       Notation "'exit' @ i"
                := (SExit i) (in custom p4stmt at level 0, no associativity).
+      Notation "'apply' x 'with' args @ i"
+               := (SApply x args i) (in custom p4stmt at level 0, no associativity).
+      Notation "'invoke' tbl @ i"
+               := (SInvoke tbl i) (in custom p4stmt at level 0).
     End StmtNotations.
   End Stmt.
 
@@ -825,6 +757,32 @@ Module P4light.
     Arguments DConst {tags_t}.
     Arguments DInstantiate {tags_t}.
     Arguments DSeq {tags_t}.
+
+    Module DeclNotations.
+      Export S.StmtNotations.
+
+      Declare Custom Entry p4decl.
+
+      Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
+      Notation "( x )" := x (in custom p4decl, x at level 99).
+      Notation "x"
+        := x (in custom p4decl at level 0, x constr at level 0).
+      Notation "'Var' x : t @ i"
+        := (DVardecl t x i) (in custom p4decl at level 0, t custom p4type).
+      Notation "'Let' x : t ':=' e @ i"
+        := (DVarinit t x e i)
+             (in custom p4decl at level 0, t custom p4type, e custom p4expr).
+      Notation "'Const' x : t ':=' e @ i"
+               := (DConst x t e i)
+                    (in custom p4decl at level 0, t custom p4type, e custom p4expr).
+      Notation "'Instance' x 'of' c ( args ) @ i"
+               := (DInstantiate c x args i) (in custom p4decl at level 0).
+      Notation "d1 ';;' d2 @ i"
+               := (DSeq d1 d2 i)
+                    (in custom p4decl at level 10,
+                        d1 custom p4decl, d2 custom p4decl,
+                        right associativity).
+    End DeclNotations.
   End Decl.
 
   (** * Controls *)
@@ -833,22 +791,76 @@ Module P4light.
     Module S := Stmt.
     Module D := Decl.
 
-    Section ControlDecls.
-      Variable (tags_t : Type).
+    Module ControlDecl.
+      Section ControlDecls.
+        Variable (tags_t : Type).
 
-      (** Declarations that may occur within Controls. *)
-      (* TODO, this is a stub. *)
-      Inductive d : Type :=
-      | DAction (a : string tags_t)
-                (signature : F.fs tags_t (E.e tags_t))
-                (body : S.s tags_t) (i : tags_t) (* action declaration *)
-      | DTable (keys : F.fs tags_t (E.t tags_t)) (* field names are matchkinds *)
-               (actions : list (string tags_t))  (* action names *)
-               (i : tags_t)                      (* table declaration *)
-      | DDecl (d : D.d tags_t) (i : tags_t)
-      | DSeq (d1 d2 : d) (i : tags_t).
-      (**[]*)
-    End ControlDecls.
+        (** Declarations that may occur within Controls. *)
+        (* TODO, this is a stub. *)
+        Inductive d : Type :=
+        | CDAction (a : string tags_t)
+                   (signature : E.params tags_t)
+                   (body : S.s tags_t) (i : tags_t) (* action declaration *)
+        | CDTable (t : string tags_t)
+                  (keys : list
+                            (E.t tags_t * E.e tags_t * E.matchkind))
+                  (actions : list (string tags_t))  (* action names *)
+                  (i : tags_t)                      (* table declaration *)
+        | CDDecl (d : D.d tags_t) (i : tags_t)
+        | CDSeq (d1 d2 : d) (i : tags_t).
+        (**[]*)
+      End ControlDecls.
+
+      Arguments CDAction {_}.
+      Arguments CDTable {_}.
+      Arguments CDDecl {_}.
+      Arguments CDSeq {_}.
+
+      Module ControlDeclNotations.
+        Export D.DeclNotations.
+
+        Declare Custom Entry p4ctrldecl.
+
+        Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
+        Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
+        Notation "x"
+          := x (in custom p4ctrldecl at level 0, x constr at level 0).
+        Notation "d1 ';c;' d2 @ i"
+          := (CDSeq d1 d2 i)
+               (in custom p4ctrldecl at level 10,
+                   d1 custom p4ctrldecl, d2 custom p4ctrldecl,
+                   right associativity).
+        Notation "'Decl' d @ i"
+          := (CDDecl d i)
+               (in custom p4ctrldecl at level 0, d custom p4decl).
+        Notation "'action' a ( params ) { body } @ i"
+          := (CDAction a params body i)
+               (in custom p4ctrldecl at level 0, body custom p4stmt).
+        Notation "'table' t 'where' 'keys' ':=' keys 'actions' ':=' actions 'end' @ i"
+          := (CDTable t keys actions i)
+               (in custom p4ctrldecl at level 0).
+      End ControlDeclNotations.
+    End ControlDecl.
+
+    (* Module ApplyBlock.
+      Section ApplyBlockStmt.
+        Variable (tags_t : Type).
+
+        (** Statements that may occur within control blocks. *)
+        Inductive s : Type :=
+        | ABTableApply (tbl : name tags_t) (* table apply statements *)
+        | ABStmt (stmt : S.s tags_t)       (* standard statements *)
+        | ABSeq (s1 s2 : s)                (* statement sequences *).
+        (**[]*)
+      End ApplyBlockStmt.
+
+      Arguments ABTableApply {_}.
+      Arguments ABStmt {_}.
+      Arguments ABSeq {_}.
+
+      Module ApplyBlockStmtNotations.
+      End ApplyBlockStmtNotations.
+    End ApplyBlock. *)
   End Control.
 
   (** * Top-Level Declarations *)
@@ -856,7 +868,7 @@ Module P4light.
     Module E := Expr.
     Module S := Stmt.
     Module D := Decl.
-    Module C := Control.
+    Module C := Control.ControlDecl.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
@@ -865,11 +877,13 @@ Module P4light.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t)
-      | TPControl (cparams : F.fs tags_t (E.t tags_t))
-                  (params : F.fs tags_t (Dir.d * tags_t))
+      | TPControl (c : string tags_t)
+                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                  (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (cparams : F.fs tags_t (E.t tags_t))
-                 (params : F.fs tags_t (Dir.d * E.t tags_t))
+      | TPParser (p : string tags_t)
+                 (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                 (params : E.params tags_t) (* invocation params *)
                  (i : tags_t) (* TODO! *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
@@ -877,5 +891,41 @@ Module P4light.
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.
+
+    Arguments TPDecl {_}.
+    Arguments TPControl {_}.
+    Arguments TPParser {_}.
+    Arguments TPFunction {_}.
+    Arguments TPSeq {_}.
+
+    Module TopDeclNotations.
+      Export C.ControlDeclNotations.
+
+      Declare Custom Entry p4topdecl.
+
+      Notation "'%{' decl '}%'" := decl (decl custom p4topdecl at level 99).
+      Notation "( x )" := x (in custom p4topdecl, x at level 99).
+      Notation "x"
+        := x (in custom p4topdecl at level 0, x constr at level 0).
+      Notation "d1 ';%;' d2 @ i"
+               := (TPSeq d1 d2 i)
+                    (in custom p4topdecl at level 10,
+                        d1 custom p4topdecl, d2 custom p4topdecl,
+                        right associativity).
+      Notation "'DECL' d @ i"
+        := (TPDecl d i)
+             (in custom p4topdecl at level 0, d custom p4decl).
+      Notation "'void' f ( params ) { body } @ i"
+               := (TPFunction f (Arrow params None) body i)
+                    (in custom p4topdecl at level 0, body custom p4stmt).
+      Notation "'fn' f ( params ) '->' t { body } @ i"
+               := (TPFunction f (Arrow params (Some t)) body i)
+                    (in custom p4topdecl at level 0,
+                        t custom p4type, body custom p4stmt).
+      Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
+               := (TPControl c cparams params body blk i)
+                    (in custom p4topdecl at level 0,
+                        blk custom p4stmt, body custom p4ctrldecl).
+    End TopDeclNotations.
   End TopDecl.
 End P4light.

@@ -54,7 +54,7 @@ Module Typecheck.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import ST.StmtNotations.
+  Import D.DeclNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=
@@ -72,19 +72,23 @@ Module Typecheck.
 
   Declare Custom Entry p4signal.
 
-  Notation "x"
-    := x (in custom p4signal at level 0, x constr at level 0).
+  Notation "x" := x (in custom p4signal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4signal at level 0).
   Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
-  Reserved Notation "⟦ ers ',' gm ⟧ ⊢ e ∈ t"
+  Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
            (at level 40, e custom p4expr, t custom p4type at level 0).
 
   Import Env.EnvNotations.
 
-  Reserved Notation "⦃ fe ',' errs ',' g1 ⦄ ⊢ s ⊣ ⦃ g2 ',' sg ⦄"
-           (at level 40, s custom p4stmt,
+  Declare Custom Entry p4context.
+
+  Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
+           (at level 40, s custom p4stmt, ctx custom p4context,
             g2 custom p4env, sg custom p4signal).
+
+  Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
+           (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
   Section TypeCheck.
     Variable (tags_t : Type).
@@ -107,15 +111,16 @@ Module Typecheck.
       NameEqDec tags_t.
     (**[]*)
 
-    (** Evidence for a type being numeric. *)
-    Inductive numeric : E.t tags_t -> Prop :=
-    | numeric_bit (w : positive) : numeric {{ bit<w> }}
-    | numeric_int (w : positive) : numeric {{ int<w> }}.
-
     (** Evidence for a type being a numeric of a given width. *)
     Inductive numeric_width (w : positive) : E.t tags_t -> Prop :=
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
+
+    (** Evidence for a type being numeric. *)
+    Inductive numeric : E.t tags_t -> Prop :=
+      Numeric (w : positive) (τ : E.t tags_t) :
+        numeric_width w τ -> numeric τ.
+    (**[]*)
 
     (** Evidence that a binary operation is purely numeric. *)
     Inductive numeric_bop : E.bop -> Prop :=
@@ -147,6 +152,16 @@ Module Typecheck.
     | ErrorOk (x : string tags_t) :
         errs x = Some tt ->
         error_ok errs (Some x).
+    (**[]*)
+
+    (** Typing header operations. *)
+    Definition type_hdr_op
+               (op : E.hdr_op) (ts : F.fs tags_t (E.t tags_t)) : E.t tags_t :=
+      match op with
+      | E.HOIsValid => {{ Bool }}
+      | E.HOSetValid
+      | E.HOSetInValid => {{ hdr { ts } }}
+      end.
     (**[]*)
 
     (** Expression typing as a relation. *)
@@ -230,19 +245,26 @@ Module Typecheck.
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
     | chk_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
+                  (tfs : F.fs tags_t (E.t tags_t))
+                  (i : tags_t) (b : E.e tags_t) :
         F.relfs
           (fun te τ =>
              E.equivt (fst te) τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-        ⟦ errs , Γ ⟧ ⊢ hdr { efs } @ i ∈ hdr { tfs }
+        ⟦ errs, Γ ⟧ ⊢ b ∈ Bool ->
+        ⟦ errs , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
     (* Errors and matchkinds. *)
     | chk_error (err : option (string tags_t)) (i : tags_t) :
         error_ok errs err ->
         ⟦ errs , Γ ⟧ ⊢ Error err @ i ∈ error
     | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
         ⟦ errs , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
+    | chk_isvalid (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+                  (τ : E.t tags_t) (ts : F.fs tags_t (E.t tags_t)) :
+        type_hdr_op op ts = τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
+        ⟦ errs, Γ ⟧ ⊢ H op e @ i ∈ τ
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers gm e ty).
     (**[]*)
@@ -250,85 +272,124 @@ Module Typecheck.
     (** Available functions. *)
     Definition fenv : Type := Env.t (name tags_t) (E.arrowT tags_t).
 
+    (** Instance environment. *)
+    Definition ienv : Type := Env.t (name tags_t) (E.params tags_t).
+
+    (** Available table names. *)
+    Definition tblenv : Type := Env.t (name tags_t) unit.
+
+    (** Statement context. *)
+    Inductive ctx : Type :=
+    | CAction
+    | CMethod
+    | CFunction (return_type : E.t tags_t)
+    | CApplyBlock (tables : tblenv).
+    (**[]*)
+
+    (** Evidence an exit context ok. *)
+    Inductive exit_ctx_ok : ctx -> Prop :=
+    | exit_action_ok : exit_ctx_ok CAction
+    | exit_applyblk_ok (tables : tblenv) : exit_ctx_ok (CApplyBlock tables).
+    (**[]*)
+
+    (** Evidence a void return is ok. *)
+    Inductive return_void_ok : ctx -> Prop :=
+    | return_void_action : return_void_ok CAction
+    | return_void_method : return_void_ok CMethod
+    | return_void_applyblk (tbls : tblenv) : return_void_ok (CApplyBlock tbls).
+    (**[]*)
+
+    Notation "x" := x (in custom p4context at level 0, x constr at level 0).
+    Notation "'Action'" := CAction (in custom p4context at level 0).
+    Notation "'Method'" := CMethod (in custom p4context at level 0).
+    Notation "'Function' t"
+      := (CFunction t)
+           (in custom p4context at level 0, t custom p4type).
+    Notation "'ApplyBlock' tbls"
+             := (CApplyBlock tbls)
+                  (in custom p4context at level 0, tbls custom p4env).
+
     Inductive check_stmt
-              (fns : fenv) (errs : errors)
-              (Γ : gam) : ST.s tags_t -> gam -> signal -> Prop :=
-    | chk_skip (i : tags_t) :
-        ⦃ fns , errs , Γ ⦄ ⊢ skip @ i ⊣ ⦃ Γ, C ⦄
+              (fns : fenv) (ins : ienv)
+              (errs : errors) (Γ : gam) : ctx -> ST.s tags_t -> gam -> signal -> Prop :=
+    | chk_skip (i : tags_t) (con : ctx) :
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ skip @ i ⊣ ⦃ Γ, C ⦄
     | chk_seq_cont (s1 s2 : ST.s tags_t) (Γ' Γ'' : gam)
-                   (i : tags_t) (sig : signal) :
-        ⦃ fns , errs , Γ  ⦄ ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
-        ⦃ fns , errs , Γ' ⦄ ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
-        ⦃ fns , errs , Γ  ⦄ ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
-    | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) :
-        ⦃ fns , errs , Γ ⦄ ⊢ s1 ⊣ ⦃ Γ', R ⦄ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ s1 ; s2 @ i ⊣ ⦃ Γ', R ⦄
-    | chk_vardecl (τ : E.t tags_t) (x : name tags_t) (i : tags_t) :
-        ⦃ fns , errs , Γ ⦄ ⊢ var x :: τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
-    | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ asgn e1 := e2 :: τ @ i fin ⊣ ⦃ Γ, C ⦄
+                   (i : tags_t) (sig : signal) (con : ctx) :
+        ⦃ fns, ins, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
+        ⦃ fns, ins, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
+        ⦃ fns, ins, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
+    | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) (con : ctx) :
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ s1 ⊣ ⦃ Γ', R ⦄ ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ', R ⦄
+    | chk_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) (con : ctx) :
+        let x' := bare x in
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
+    | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :
+        ⟦ errs, Γ ⟧ ⊢ e1 ∈ τ ->
+        ⟦ errs, Γ ⟧ ⊢ e2 ∈ τ ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
     | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
-               (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) :
+               (Γ1 Γ2 : gam) (i : tags_t) (sgt sgf sg : signal) (con : ctx) :
         lub sgt sgf = sg ->
-        ⟦ errs , Γ ⟧ ⊢ guard ∈ Bool ->
-        ⦃ fns , errs , Γ ⦄ ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
-        ⦃ fns , errs , Γ ⦄
-          ⊢ if guard :: Bool then tru else fls @ i fin ⊣ ⦃ Γ, sg ⦄
-    | chk_return_void (i : tags_t) :
-        ⦃ fns , errs , Γ ⦄ ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
-    | chk_return_fruit (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
-        ⟦ errs , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ fns , errs , Γ ⦄ ⊢ return e :: τ @ i fin ⊣ ⦃ Γ, R ⦄
-    | chk_exit (i : tags_t) :
-        ⦃ fns, errs , Γ ⦄ ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
+        ⟦ errs, Γ ⟧ ⊢ guard ∈ Bool ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
+        ⦃ fns, ins, errs, Γ ⦄
+          con ⊢ if guard:Bool then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
+    | chk_return_void (i : tags_t) (con : ctx) :
+        return_void_ok con ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
+    | chk_return_fruit (τ' τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
+        E.equivt τ τ' ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        ⦃ fns, ins, errs, Γ ⦄ Function τ' ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
+    | chk_exit (i : tags_t) (con : ctx) :
+        exit_ctx_ok con ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
     | chk_method_call (params : E.params tags_t)
                       (args : E.args tags_t)
-                      (f : name tags_t) (i : tags_t) :
+                      (f : name tags_t) (i : tags_t) (con : ctx) :
         fns f = Some (P.Arrow params None) ->
         F.relfs
-          (P.rel_paramarg
-             (fun te τ =>
-                E.equivt τ (te ▷ fst) /\
-                let e := te ▷ snd in
-                ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
-             (fun te τ =>
-                E.equivt τ (te ▷ fst) /\
-                let e := te ▷ snd in
-                ⟦ errs , Γ ⟧ ⊢ e ∈ τ)) args params ->
-        ⦃ fns , errs , Γ ⦄ ⊢ call f with args @ i fin ⊣ ⦃ Γ, C ⦄
+          (P.rel_paramarg_same
+             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          args params ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
     | chk_call (τ : E.t tags_t) (e : E.e tags_t)
                (params : E.params tags_t)
                (args : E.args tags_t)
-               (f : name tags_t) (i : tags_t) :
+               (f : name tags_t) (i : tags_t) (con : ctx) :
         fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
-          (P.rel_paramarg
-             (fun te τ =>
-                E.equivt τ (te ▷ fst) /\
-                let e := te ▷ snd in
-                ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
-             (fun te τ =>
-                E.equivt τ (te ▷ fst) /\
-                let e := te ▷ snd in
-                ⟦ errs , Γ ⟧ ⊢ e ∈ τ)) args params ->
-        ⟦ errs , Γ ⟧ ⊢ e ∈ τ ->
-        ⦃ fns , errs , Γ ⦄
-          ⊢ let e :: τ := call f with args @ i fin ⊣ ⦃ Γ, C ⦄
-    where "⦃ fe ',' ers ',' g1 ⦄ ⊢ s ⊣ ⦃ g2 ',' sg ⦄"
-            := (check_stmt fe ers g1 s g2 sg).
+          (P.rel_paramarg_same
+             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          args params ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        ⦃ fns, ins, errs , Γ ⦄
+          con ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
+    | chk_apply (args : E.args tags_t) (x : name tags_t)
+                (i : tags_t) (params : E.params tags_t) (con : ctx) :
+        ins x = Some params ->
+        F.relfs
+          (P.rel_paramarg_same
+             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          args params ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
+    | chk_invoke (tbl : name tags_t) (i : tags_t) (tbls : tblenv) :
+        tbls tbl = Some tt ->
+        ⦃ fns, ins, errs, Γ ⦄ ApplyBlock tbls ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
+    where "⦃ fe , ins , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
+            := (check_stmt fe ins ers g1 con s g2 sg).
     (**[]*)
 
-    (** Control Constructors. *)
-    Inductive cctor : Type := CCtor (params : F.fs tags_t (E.t tags_t)).
+    (** Control Constructor Types. *)
+    Inductive cctor : Type :=
+    | CCtor (cparams : F.fs tags_t (E.t tags_t)) (params : E.params tags_t).
+    (**[]*)
 
     (** Environment with Controls. *)
     Definition cenv : Type := Env.t (name tags_t) cctor.
-
-    (** Instance environment. *)
-    Definition ienv : Type := Env.t (name tags_t) unit.
 
     (** Put parameters into environment. *)
     Definition bind_all (sig : E.arrowT tags_t) : gam -> gam :=
@@ -349,31 +410,28 @@ Module Typecheck.
     (**[]*)
 
     Inductive check_decl
-              (cs : cenv) (ins : ienv)
-              (fns : fenv) (errs : errors)
-              (Γ : gam) : D.d tags_t -> gam -> fenv -> ienv -> Prop :=
+              (cs : cenv) (fns : fenv)
+              (ins : ienv) (errs : errors)
+              (Γ : gam) : D.d tags_t -> gam -> ienv -> Prop :=
     | chk_vardeclare (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DVardecl τ x i) !{ x' ↦ τ ;; Γ }! fns ins
+        ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Var x:τ @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
     | chk_varinit (τ : E.t tags_t) (x : string tags_t)
                   (e : E.e tags_t) (i : tags_t) :
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DVarinit τ x e i) !{ x' ↦ τ ;; Γ }! fns ins
+        ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Let x:τ := e @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
     | chk_instantiate (c : name tags_t) (x : string tags_t)
-                      (params : F.fs tags_t (E.t tags_t))
-                      (args : F.fs tags_t (E.t tags_t * E.e tags_t))
-                      (i : tags_t) :
-        cs c = Some (CCtor params) ->
+                      (cparams : F.fs tags_t (E.t tags_t))
+                      (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                      (i : tags_t) (params : E.params tags_t) :
+        cs c = Some (CCtor cparams params) ->
         F.relfs
           (fun '(τ,e) τ' =>
              E.equivt τ τ' /\ ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
-          args params ->
+          cargs cparams ->
         let x' := bare x in
-        check_decl cs ins fns errs Γ
-                   (D.DInstantiate c x args i) Γ fns !{ x' ↦ tt ;; ins }!
+        ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, x' ↦ params ;; ins ⦘
 (* Functions belong only to the top-level declarations.
     | chk_function (f : name tags_t) (sig : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
@@ -383,11 +441,13 @@ Module Typecheck.
         good_signal sig sg ->
         check_decl cs ins fns errs mkds Γ
                    (D.DFunction f sig body i) Γ !{ f ↦ sig ;; fns }! ins *)
-    | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t) (ins' ins'' : ienv)
-                  (fns' fns'' : fenv) (Γ' Γ'' : gam) :
-        check_decl cs ins fns errs Γ d1 Γ' fns' ins' ->
-        check_decl cs ins' fns' errs Γ' d2 Γ'' fns'' ins'' ->
-        check_decl cs ins fns errs Γ (D.DSeq d1 d2 i) Γ'' fns'' ins''.
+    | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
+                  (ins' ins'' : ienv) (Γ' Γ'' : gam) :
+        ⦗ cs, fns, ins,  errs, Γ  ⦘ ⊢ d1 ⊣ ⦗ Γ',  ins' ⦘ ->
+        ⦗ cs, fns, ins', errs, Γ' ⦘ ⊢ d2 ⊣ ⦗ Γ'', ins'' ⦘ ->
+        ⦗ cs, fns, ins,  errs, Γ  ⦘ ⊢ d1 ;; d2 @ i ⊣ ⦗ Γ'', ins'' ⦘
+    where "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
+            := (check_decl cenv fenv ienv1 errs g1 d g2 ienv2).
     (**[]*)
   End TypeCheck.
 End Typecheck.

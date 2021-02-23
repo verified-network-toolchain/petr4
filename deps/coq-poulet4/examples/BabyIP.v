@@ -1824,7 +1824,7 @@ Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 
 Module Import MNat := FMapList.Make(Nat_as_OT).
-Module Import MStr := FMapList.Make(String.StringOT).
+Module Import MStr := FMapList.Make(String_as_OT).
 
 Require Import Petr4.P4String.
 Notation P4String := (P4String.t Info).

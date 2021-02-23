@@ -2,7 +2,6 @@ Require Import Syntax.
 Require Import Eval.
 Require Import Typed.
 Require Import Strings.String.
-Require String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
 Require Import Environment.
@@ -17,8 +16,7 @@ Definition tag := tt.
 
 Notation P4String := (P4String.t tag_t).
 
-
-Definition MkP4String (s: String.t) : P4String := {| P4String.tags := tag; P4String.str := s |}.
+Definition MkP4String (s: string) : P4String := {| P4String.tags := tag; P4String.str := s |}.
 
 
 Definition constTyp : P4Type := @TypInteger tag_t.
@@ -54,12 +52,12 @@ Definition out_param : @P4Parameter tag_t := MkParameter true Out out_type None 
 Definition locals : list (@Declaration tag_t) := nil.
 Definition output_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "output"))) out_type Directionless.
 Definition pkt_extract_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "pkt"))) (TypFunction (MkFunctionType nil ((MkParameter false Directionless out_type None (MkP4String "t"))::nil) FunBuiltin out_type)) Directionless.
-Definition build_extract_stmt (into_type: @P4Type tag_t) (into_expr: @Expression tag_t) := MkStatement tt (StatMethodCall (MkExpression tt (ExpExpressionMember pkt_extract_expr (MkP4String String.extract)) TypVoid Directionless) (into_type :: nil) (Some into_expr :: nil)) StmVoid.
+Definition build_extract_stmt (into_type: @P4Type tag_t) (into_expr: @Expression tag_t) := MkStatement tt (StatMethodCall (MkExpression tt (ExpExpressionMember pkt_extract_expr (MkP4String StringConstants.extract)) TypVoid Directionless) (into_type :: nil) (Some into_expr :: nil)) StmVoid.
 Definition extract_stmt : @Statement tag_t := build_extract_stmt out_type output_expr.
 
 
 Definition body: list (@Statement tag_t) := extract_stmt :: nil.
-Definition start_st : @ParserState tag_t := MkParserState tt (MkP4String "start") body (ParserDirect tt (MkP4String String.accept)).
+Definition start_st : @ParserState tag_t := MkParserState tt (MkP4String "start") body (ParserDirect tt (MkP4String StringConstants.accept)).
 
 Definition states : list (@ParserState tag_t) := start_st :: nil.
 

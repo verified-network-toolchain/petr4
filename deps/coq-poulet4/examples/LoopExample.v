@@ -2,7 +2,6 @@ Require Import Syntax.
 Require Import Eval.
 Require Import Typed.
 Require Import Strings.String.
-Require String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
 

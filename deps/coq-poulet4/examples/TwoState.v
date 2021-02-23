@@ -2,7 +2,6 @@ Require Import Syntax.
 Require Import Eval.
 Require Import Typed.
 Require Import Strings.String.
-Require String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
 Require Import Environment.
@@ -52,9 +51,9 @@ Definition body_tupled := extract_x :: extract_y :: nil.
 Definition body_1_curried := extract_x :: nil.
 Definition body_2_curried := extract_y :: nil.
 
-Definition start_st_tupled : @ParserState tag_t := MkParserState tt (MkP4String "start") body_tupled (ParserDirect tt (MkP4String String.accept)).
+Definition start_st_tupled : @ParserState tag_t := MkParserState tt (MkP4String "start") body_tupled (ParserDirect tt (MkP4String StringConstants.accept)).
 Definition start_st_curried : @ParserState tag_t := MkParserState tt (MkP4String "start") body_1_curried (ParserDirect tt (MkP4String "middle")).
-Definition mid_st_curried : @ParserState tag_t := MkParserState tt (MkP4String "middle") body_2_curried (ParserDirect tt (MkP4String String.accept)).
+Definition mid_st_curried : @ParserState tag_t := MkParserState tt (MkP4String "middle") body_2_curried (ParserDirect tt (MkP4String StringConstants.accept)).
 
 Definition states_tupled : list (@ParserState tag_t) := start_st_tupled :: nil.
 Definition states_curried : list (@ParserState tag_t) := start_st_curried :: nil.

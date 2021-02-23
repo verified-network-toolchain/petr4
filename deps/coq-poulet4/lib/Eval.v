@@ -117,7 +117,7 @@ Section Eval.
     obj' <- env_lookup _ obj ;;
     match obj' with
     | ValObj (ValObjPacket bits) =>
-      if String.eqb name String.extract
+      if String.eqb name StringConstants.extract
       then
         match (args, type_args) with
         | ((Some target_expr) :: _, into :: _) =>
@@ -140,15 +140,15 @@ Section Eval.
 
   Definition eval_builtin_func (name: P4String) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option Value)) : env_monad Value :=
     let name := P4String.str name in
-    if String.eqb name String.isValid
+    if StringConstants.eqb name StringConstants.isValid
     then eval_is_valid obj
-    else if String.eqb name String.setValid
+    else if StringConstants.eqb name StringConstants.setValid
     then dummy_value _ (eval_set_bool obj true)
-    else if String.eqb name String.setInvalid
+    else if StringConstants.eqb name StringConstants.setInvalid
     then dummy_value _ (eval_set_bool obj false)
-    else if String.eqb name String.pop_front
+    else if StringConstants.eqb name StringConstants.pop_front
     then dummy_value _ (eval_pop_front obj args)
-    else if String.eqb name String.push_front
+    else if StringConstants.eqb name StringConstants.push_front
     then dummy_value _ (eval_push_front obj args)
     else if is_packet_func name
     then dummy_value _ (eval_packet_func obj name type_args args)

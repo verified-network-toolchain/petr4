@@ -1,6 +1,7 @@
 Require Import Coq.Lists.List.
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Strings.String.
 
 Require Import Monads.Monad.
 Require Import Monads.Option.
@@ -13,7 +14,6 @@ Require Import Bitwise.
 
 Require Import Typed.
 
-Require String.
 Require StringConstants.
 Require Import Syntax.
 Require Import P4String.
@@ -21,9 +21,10 @@ Require Import P4String.
 Open Scope monad.
 Open Scope bool_scope.
 Open Scope N_scope.
+Open Scope string_scope.
 
 Module Import MNat := FMapList.Make(Nat_as_OT).
-Module Import MStr := FMapList.Make(String.StringOT).
+Module Import MStr := FMapList.Make(String_as_OT).
 
 Inductive exception :=
 | PacketTooShort

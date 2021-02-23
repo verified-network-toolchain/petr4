@@ -1,12 +1,13 @@
 Require Import Coq.Lists.List.
+Require Import Coq.Strings.String.
 Require Import Syntax.
 Require Import Eval.
 Require Import Environment.
 Require Import Monads.Monad.
 Require Import Monads.State.
-Require String.
 
 Open Scope monad.
+Open Scope string_scope.
 
 Section Step.
   Context (tags_t: Type).

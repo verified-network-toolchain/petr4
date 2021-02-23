@@ -1,11 +1,11 @@
 Require Import Coq.Bool.Bvector.
+Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 Require Import Coq.ZArith.BinIntDef.
 
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require String.
 Require Import Environment.
 Require Import Utils.
 Require Import Syntax.
@@ -14,6 +14,7 @@ Require Import Typed.
 Require Import Bitwise.
 
 Open Scope monad.
+Open Scope string_scope.
 
 Section Packet.
   Context (tags_t: Type).

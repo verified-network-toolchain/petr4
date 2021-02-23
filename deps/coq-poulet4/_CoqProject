@@ -1,6 +1,5 @@
 -R lib Petr4
 
-lib/String.v
 lib/StringConstants.v
 lib/Monads/Monad.v
 lib/Monads/Option.v

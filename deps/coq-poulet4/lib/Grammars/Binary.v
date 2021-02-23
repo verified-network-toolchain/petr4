@@ -2,7 +2,6 @@ Require Import Ascii.
 Require Import Lists.List.
 
 Require Import Grammar.
-Require Import String.
 Require Import Lib.
 Require Import Vector.
 Import List.ListNotations.

@@ -1,14 +1,16 @@
 Require Import Coq.Numbers.BinNums.
 Require Import Coq.Program.Basics.
+Require Import Coq.Strings.String.
 
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require String.
+Require Petr4.String.
 Require Import Syntax.
 Require Import Environment.
 Require Import Typed.
 
+Open Scope string_scope.
 Open Scope type_scope.
 
 Section Unpack.

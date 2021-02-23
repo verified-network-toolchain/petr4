@@ -12,9 +12,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-.PHONY: all poulet4
+.PHONY: all ocaml-poulet4 coq-poulet4
 
-all: poulet4
+all: ocaml-poulet4 coq-poulet4
 
-poulet4:
-	$(MAKE) -C poulet4
+ocaml-poulet4: coq-poulet4
+	opam install ./ocaml-poulet4 --working-dir
+
+coq-poulet4:
+	opam install ./coq-poulet4 --working-dir

@@ -297,6 +297,8 @@ Section Eval.
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
       eval_method_call (eval_expression) func type_args args;
+    eval_expression_pre (ExpName name) :=
+      get_name_loc _ name >>= heap_lookup _;
     eval_expression_pre _ :=
       (* TODO *)
       mret (ValBase (ValBaseBool false))

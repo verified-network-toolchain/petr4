@@ -1849,9 +1849,51 @@ Definition foo :=
     let parser := ValObjParser scope params constructor_params locals states in
     let packet := ValObj (ValObjPacket (List.repeat true 40)) in
     let stepper := step_trans _ NoInfo parser 2 (MkP4String "start") in
-    Some ((env_insert Info "packet" packet ;; stepper) env)
+    Some ((env_insert Info "packet" packet ;;
+           env_insert Info "hdr" (ValBase ValBaseNull) ;;
+           stepper) env)
   | _ => None
   end
 .
 
-(* Compute foo. *)
+Lemma testing_foo :
+  forall P, P foo.
+Proof.
+  intros.
+  unfold foo.
+  repeat unfold mbind, State.state_monad_inst, State.state_bind.
+  match goal with
+  | [ |- context [ (let (_,_) := ?X in _) ] ] => destruct X eqn:?
+  end.
+  simpl in Heqp.
+  repeat unfold mret, mbind, State.state_monad_inst, State.state_bind,
+                env_insert, State.state_return, stack_insert, heap_insert in Heqp.
+  simpl in Heqp.
+  inversion Heqp; subst; clear Heqp.
+  match goal with
+  | [ |- context [ (let (_,_) := ?X in _) ] ] => destruct X eqn:?
+  end.
+  native_compute  in Heqp.
+
+  repeat (unfold mret, mbind, State.state_monad_inst, State.state_bind,
+                env_insert, State.state_return, stack_insert, heap_insert, MStr.find in Heqp; 
+  simpl in Heqp).
+  inversion Heqp; subst; clear Heqp.
+  simpl.
+
+  
+  
+  destruct (env_insert Info "packet" (ValObj (ValObjPacket (repeat true 40))) _) with [.
+  simpl mret.
+  unfold 
+  simpl (heap_insert _).
+  cbn.
+  simpl.
+  simpl env_insert.
+  cbn.
+  Set Printing All.
+  set (env':=env_insert Info "packet" (ValObj (ValObjPacket (repeat true 40)))).
+  simpl in env'.
+  subst env'.
+  simpl.
+  repeat simpl || unfold State.state_bind.

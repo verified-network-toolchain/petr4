@@ -2,6 +2,7 @@ Require Import Strings.String.
 Require Import OrderedType.
 Open Scope string_scope.
 Require Import Coq.Classes.EquivDec.
+Require Import Program.
 
 (* this is extracted to the OCaml String.t type *)
 Definition t := string.
@@ -33,8 +34,7 @@ Proof.
 Qed.
 
 Definition ascii_compare:
-  forall x y : Ascii.ascii,
-    OrderedType.Compare ascii_lt (@eq Ascii.ascii) x y.
+  forall x y : Ascii.ascii, OrderedType.Compare ascii_lt (@eq Ascii.ascii) x y.
 Proof.
   intros x y.
   set (x' := Ascii.N_of_ascii x).
@@ -101,22 +101,45 @@ Proof.
     congruence.
 Qed.
 
-Definition compare:
-  forall x y : t, OrderedType.Compare lt eq x y.
-Proof.
-  induction x, y.
-  - apply EQ; constructor.
-  - apply LT; constructor.
-  - apply GT; constructor.
-  - destruct (ascii_compare a a0).
-    + apply LT; now constructor.
-    + subst.
-      destruct (IHx y).
-      * apply LT; apply LtCons; eauto.
-      * subst; apply EQ; constructor.
-      * apply GT; apply LtCons; eauto.
-    + apply GT; now constructor.
-Defined.
+Program Fixpoint compare (x y : t) {measure (String.length x)} : OrderedType.Compare lt eq x y :=
+  match x, y with
+  | EmptyString, EmptyString => EQ _
+  | EmptyString, String _ _ => LT _
+  | String _ _, EmptyString => GT _
+  | String c1 s1, String c2 s2 =>
+    match ascii_compare c1 c2 with
+    | LT _ => LT _
+    | EQ pf =>
+      match compare s1 s2 with
+      | LT _ => LT _
+      | EQ _ => EQ _
+      | GT _ => GT _
+      end
+    | GT _ => GT _
+    end
+  end.
+Next Obligation.
+  constructor.
+Qed.
+Next Obligation.
+  constructor.
+Qed.
+Next Obligation.
+  constructor.
+  assumption.
+Qed.
+Next Obligation.
+  apply LtCons.
+  assumption.
+Qed.
+Next Obligation.
+  apply LtCons.
+  assumption.
+Qed.
+Next Obligation.
+  constructor.
+  assumption.
+Qed.
 
 Definition eq_dec (x y: t) : {eq x y} + {~ eq x y} :=
   Bool.reflect_dec _ _ (String.eqb_spec x y).

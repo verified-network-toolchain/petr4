@@ -17,7 +17,7 @@
 all: ocaml-poulet4 coq-poulet4
 
 ocaml-poulet4: coq-poulet4
-	opam install ./ocaml-poulet4
+	opam install ./ocaml-poulet4 --working-dir
 
 coq-poulet4:
-	opam install ./coq-poulet4
+	opam install ./coq-poulet4 --working-dir

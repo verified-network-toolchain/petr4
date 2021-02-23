@@ -47,11 +47,13 @@ Section Eval.
   Definition default_value (A: P4Type) : Value.
   Admitted.
 
-  Definition eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
+  Fixpoint eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
     let '(MkExpression _ expr' type _) := expr in
     match expr' with
     | ExpName name => mret (MkValueLvalue (ValLeftName name) type)
-    | ExpExpressionMember _ _
+    | ExpExpressionMember lexpr name =>
+      let* lval := eval_lvalue lexpr in
+      mret (MkValueLvalue (ValLeftMember lval name) type)
     | ExpArrayAccess _ _
     | ExpBitStringAccess _ _ _ =>
       state_fail (SupportError "Unimplemented lvalue expression.")

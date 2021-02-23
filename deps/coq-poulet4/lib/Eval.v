@@ -304,7 +304,7 @@ Section Eval.
           | (fld, v) :: f' =>
             if P4String.equivb fld name
             then mret (ValBase v)
-            else state_fail (AssertError fld.(P4String.str))
+            else lookup f'
           end in
         lookup fields
       | _ => state_fail (SupportError "Can only look up members of a packet or header.")

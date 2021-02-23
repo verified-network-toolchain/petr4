@@ -49,7 +49,7 @@ Section Packet.
       let* vec := read_first_bits 1 in
       match vec with
       | (bit :: [])%vector => mret (ValBaseBool bit)
-      | _ => state_fail Internal
+      | _ => state_fail Internal (* Does not happen -- vec has length exactly 1. *)
       end
     | TypBit width =>
       let* vec := read_first_bits width in
@@ -63,7 +63,7 @@ Section Packet.
     | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseHeader field_vals true)
-    | _ => state_fail Internal
+    | _ => state_fail (TypeError "Unsupported type passed to extract.")
     end
 
   with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (P4String * ValueBase) :=

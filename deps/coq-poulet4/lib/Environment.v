@@ -31,7 +31,10 @@ Inductive exception :=
 | Reject
 | Exit
 | Internal
-| AssertError (error_msg: String.t).
+| TypeError (error_msg: String.t)
+| AssertError (error_msg: String.t)
+| SupportError (error_msg: String.t)
+.
 
 Section Environment.
 
@@ -51,13 +54,6 @@ Section Environment.
 
   Definition env_monad := @state_monad environment exception.
 
-  Definition lift_option {A : Type} (x: option A) : env_monad A :=
-    fun env =>
-      match x with
-      | Some it => mret it env
-      | None => (inr Internal, env)
-      end.
-
   Fixpoint stack_lookup' (key: String.t) (st: stack) : option loc :=
     match st with
     | nil => None
@@ -71,7 +67,7 @@ Section Environment.
   Definition stack_lookup (key: String.t) : env_monad loc :=
     fun env =>
       match stack_lookup' key (env_stack env) with
-      | None => state_fail Internal env
+      | None => state_fail (AssertError "Could not look up variable on stack.") env
       | Some l => mret l env
       end.
 
@@ -87,13 +83,18 @@ Section Environment.
 
   Definition stack_insert (key: String.t) (l: loc) : env_monad unit :=
     fun env =>
-      match stack_insert' key l (env_stack env) with
-      | None => state_fail Internal env
-      | Some st => mret tt {|
-          env_fresh := env_fresh env;
-          env_stack := st;
-          env_heap := env_heap env;
-        |}
+      match env_stack env with
+      | nil => state_fail (AssertError "No top scope to add name from.") env
+      | top :: rest =>
+        match MStr.find key top with
+        | None =>
+          mret tt {|
+            env_fresh := env_fresh env;
+            env_stack := (MStr.add key l top) :: rest;
+            env_heap := env_heap env;
+          |}
+        | Some _ => state_fail (AssertError "Name already present in top scope.") env
+        end
       end.
 
   Definition stack_push : env_monad unit :=
@@ -106,7 +107,7 @@ Section Environment.
   Definition stack_pop : env_monad unit :=
     fun env =>
       match env_stack env with
-      | nil => state_fail Internal env
+      | nil => state_fail (AssertError "No top scope to pop from the stack.") env
       | _ :: rest => mret tt {|
           env_fresh := env_fresh env;
           env_stack := rest;
@@ -117,7 +118,7 @@ Section Environment.
   Definition heap_lookup (l: loc) : env_monad (@Value tags_t) :=
     fun env =>
       match MNat.find l (env_heap env) with
-      | None => state_fail Internal env
+      | None => state_fail (AssertError "Unable to look up location on heap.") env
       | Some val => mret val env
       end.
 
@@ -192,12 +193,11 @@ Section Environment.
     | BareName nm => stack_lookup (str nm)
     | QualifiedName nil nm =>
       let* env := get_state in
-      let* scope := lift_opt Internal (top_scope (env_stack env)) in
-      lift_opt Internal (stack_lookup' (str nm) (scope :: nil))
-    | QualifiedName _ _ => state_fail Internal
+      let* scope := lift_opt (AssertError "Could not find top scope.") (top_scope (env_stack env)) in
+      lift_opt (AssertError "Could not find name in scope.") (stack_lookup' (str nm) (scope :: nil))
+    | QualifiedName _ _ =>
+      state_fail (SupportError "Qualified name lookup is not implemented.")
     end.
-
-
 
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in
@@ -210,27 +210,27 @@ Section Environment.
       let* inner_val := env_lookup inner in
       match inner_val with
       | ValBase v =>
-        let* result := lift_opt Internal (lookup_value v member) in
+        let* result := lift_opt (AssertError "Unable to find member in value.") (lookup_value v member) in
         state_return (ValBase result)
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Member access on something that is not a base value.")
       end
 
     | ValLeftBitAccess inner msb lsb =>
       let* inner_val := env_lookup inner in
       match inner_val with
       | ValBase v =>
-        let* result := lift_opt Internal (bit_slice v msb lsb) in
+        let* result := lift_opt (AssertError "Unable to take bit slice of a value.") (bit_slice v msb lsb) in
         state_return (ValBase result)
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Bit string access on something that is not a base value.")
       end
 
     | ValLeftArrayAccess inner idx =>
       let* inner_val := env_lookup inner in
       match inner_val with
       | ValBase v =>
-        let* result := lift_opt Internal (array_index v idx) in
+        let* result := lift_opt (AssertError "Unable to access index of a value.") (array_index v idx) in
         state_return (ValBase result)
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Array access on something that is not a base value.")
       end
     end.
 
@@ -248,39 +248,54 @@ Section Environment.
     match (lhs, rhs) with
     | (ValBaseBit wl vl, ValBaseBit wr vr) =>
       let (bitl, bitr) := (of_nat (Z.to_nat vl) wl, of_nat (Z.to_nat vr) wr) in
-      let* bit_result := lift_opt Internal (splice wl bitl lsb msb wr bitr) in
+      let* bit_result := lift_opt (AssertError "Could not splice bits.") (splice wl bitl lsb msb wr bitr) in
       state_return (ValBaseBit wl (Z.of_nat (to_nat bit_result)))
-    | _ => state_fail Internal
+    | _ => state_fail (TypeError "Bit slice update requires bit values on both sides.")
     end.
 
   (*  split a list at an index, without including the index
       e.g. split 2 [1;2;3;4;5] = ([1;2], [4;5])
   *)
   Definition split_list {A} (idx: nat) (xs: list A) : (list A * list A) :=
-    (firstn idx xs, skipn (length xs - idx) xs).
+    (firstn idx xs, skipn (List.length xs - idx) xs).
 
   Definition update_array (lhs: @ValueBase tags_t) (idx: nat) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
     match lhs with
     | ValBaseStack hdrs len nxt =>
-      if Nat.leb len idx then state_fail Internal else
+      if Nat.leb len idx then state_fail (AssertError "Out of bounds header stack write.") else
       let (pref, suff) := split_list idx hdrs in
       state_return (ValBaseStack (pref ++ rhs :: suff) len nxt)
-    | _ => state_fail Internal
+    | _ => state_fail (TypeError "Attempt to update something that is not a header stack.")
     end.
 
   Definition update_member (lhs: @ValueBase tags_t) (member: @P4String.t tags_t) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
     match lhs with
     (* TODO: there must be a cleaner way... *)
-    | ValBaseRecord fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseRecord fields')
-    | ValBaseStruct fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseStruct fields')
-    | ValBaseHeader fields is_valid => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseHeader fields' is_valid)
-    | ValBaseUnion fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseRecord fields')
-    | ValBaseSenum fields => let* fields' := lift_opt Internal (update_member' fields member rhs) in state_return (ValBaseSenum fields')
+    | ValBaseRecord fields =>
+      let* fields' := lift_opt (AssertError "Unable to update member of record.")
+                               (update_member' fields member rhs) in
+      state_return (ValBaseRecord fields')
+    | ValBaseStruct fields =>
+      let* fields' := lift_opt (AssertError "Unable to update member of struct.")
+                               (update_member' fields member rhs) in
+      state_return (ValBaseStruct fields')
+    | ValBaseHeader fields is_valid =>
+      let* fields' := lift_opt (AssertError "Unable to update member of header.")
+                               (update_member' fields member rhs) in
+      state_return (ValBaseHeader fields' is_valid)
+    | ValBaseUnion fields =>
+      let* fields' := lift_opt (AssertError "Unable to update member of union")
+                               (update_member' fields member rhs) in
+      state_return (ValBaseRecord fields')
+    | ValBaseSenum fields =>
+      let* fields' := lift_opt (AssertError "Unable to update member of enum.")
+                               (update_member' fields member rhs) in
+      state_return (ValBaseSenum fields')
     | ValBaseStack hdrs len next =>
       if eq_const member StringConstants.last then update_array lhs len rhs else
       if eq_const member StringConstants.next then update_array lhs next rhs else
-      state_fail Internal
-    | _ => state_fail Internal
+      state_fail (AssertError "Can only update next and last members of header stack.")
+    | _ => state_fail (AssertError "Unsupported value in member update.")
     end.
 
   Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit :=
@@ -297,7 +312,7 @@ Section Environment.
       | (ValBase lv'', ValBase value') =>
         let* value'' := update_member lv'' member value' in
         env_update inner (ValBase value')
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Member expression did not evaluate to base values.")
       end
     | ValLeftBitAccess inner msb lsb =>
       let* lv' := env_lookup inner in
@@ -305,7 +320,7 @@ Section Environment.
       | (ValBase lv'', ValBase value') =>
         let* value'' := update_slice lv'' msb lsb value' in
         env_update inner (ValBase value'')
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Bit access expression did not evaluate to base values.")
       end
     | ValLeftArrayAccess inner idx =>
       let* lv' := env_lookup inner in
@@ -313,7 +328,7 @@ Section Environment.
       | (ValBase lv'', ValBase value') =>
         let* value'' := update_array lv'' idx value' in
         env_update inner (ValBase value'')
-      | _ => state_fail Internal
+      | _ => state_fail (TypeError "Array access expression did not evaluate to base values.")
       end
     end.
 

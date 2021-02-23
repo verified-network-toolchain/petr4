@@ -9,6 +9,7 @@ Require Import Equations.Equations.
 Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Monads.State.
+Require Import Monads.Transformers.
 
 Require Petr4.String.
 Require Petr4.StringConstants.
@@ -52,8 +53,9 @@ Section Eval.
     | ExpName name => mret (MkValueLvalue (ValLeftName name) type)
     | ExpExpressionMember _ _
     | ExpArrayAccess _ _
-    | ExpBitStringAccess _ _ _
-    | _ => state_fail Internal
+    | ExpBitStringAccess _ _ _ =>
+      state_fail (SupportError "Unimplemented lvalue expression.")
+    | _ => state_fail (TypeError "Cannot evaluate this expression as an lvalue.")
     end.
 
   Definition bvector_negate {n: nat} (b: Bvector n) : Bvector n.
@@ -65,12 +67,12 @@ Section Eval.
   Definition eq_value (v1 v2: Value) : bool.
   Admitted.
 
-  Definition eval_minus (v: Value) : option Value :=
+  Definition eval_minus (v: Value) : env_monad Value :=
     match v with
-    | ValBase (ValBaseBit width bits) => Some (ValBase (ValBaseBit width (Z.opp bits)))
-    | ValBase (ValBaseInt width bits) => Some (ValBase (ValBaseInt width (Z.opp bits)))
-    | ValBase (ValBaseInteger n) => Some (ValBase (ValBaseInteger (Z.opp n)))
-    | _ => None
+    | ValBase (ValBaseBit width bits) => mret (ValBase (ValBaseBit width (Z.opp bits)))
+    | ValBase (ValBaseInt width bits) => mret (ValBase (ValBaseInt width (Z.opp bits)))
+    | ValBase (ValBaseInteger n) => mret (ValBase (ValBaseInteger (Z.opp n)))
+    | _ => state_fail (TypeError "Cannot compute unary negation of this value.")
     end.
 
   Definition bvec_of_z (width: nat) (z: Z) : (Bvector width).
@@ -86,26 +88,28 @@ Section Eval.
 
   Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
     match args with
-    | Some (ValBase (ValBaseInteger count)) :: nil =>
+    | Some arg :: nil =>
+      let* count := unpack_inf_int _ (mret arg) in
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
-      let* elements' := lift_option _ (rotate_left_z elements count padding) in
+      let* elements' := lift_opt (AssertError "Cannot rotate left by a negative amount.") (rotate_left_z elements count padding) in
       let next_index' := next_index - (Z.to_nat count) in
       let value' := ValBase (ValBaseStack elements' size next_index') in
       env_update _ lvalue value'
-    | _ => state_fail Internal
+    | _ => state_fail (AssertError "Not enough arguments to pop_front.")
     end.
 
   Definition eval_push_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
     match args with
-    | Some (ValBase (ValBaseInteger count)) :: nil =>
+    | Some arg :: nil =>
+      let* count := unpack_inf_int _ (mret arg) in
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
-      let* elements' := lift_option _ (rotate_right_z elements count padding) in
+      let* elements' := lift_opt (AssertError "Cannot rotate right by a negative amount.") (rotate_right_z elements count padding) in
       let next_index' := min size (next_index + (Z.to_nat count)) in
       let value' := ValBase (ValBaseStack elements' size next_index') in
       env_update _ lvalue value'
-    | _ => state_fail Internal
+    | _ => state_fail (AssertError "Not enough arguments to push_front.")
     end.
 
   Definition is_packet_func (str: String.t) : bool :=
@@ -114,45 +118,47 @@ Section Eval.
     else false.
 
   Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option Value)) : env_monad unit :=
-    obj' <- env_lookup _ obj ;;
-    match obj' with
-    | ValObj (ValObjPacket bits) =>
-      if String.eqb name StringConstants.extract
-      then
-        match (args, type_args) with
-        | ((Some target_expr) :: _, into :: _) =>
-          match eval_packet_extract_fixed tags_t into bits with
-          | (inr error, bits') =>
-            env_update _ obj (ValObj (ValObjPacket bits')) ;;
-            state_fail error
-          | (inl value, bits') =>
-            env_update _ obj (ValObj (ValObjPacket bits')) ;;
-            let* target := @unpack_lvalue tags_t (mret target_expr) in
-            env_update _ target (ValBase value) ;;
-            mret tt
-          end
-        | _ => state_fail Internal
+    let* bits := unpack_packet _ (env_lookup _ obj) in
+    if String.eqb name StringConstants.extract then
+      match (args, type_args) with
+      | ((Some target_expr) :: _, into :: _) =>
+        match eval_packet_extract_fixed tags_t into bits with
+        | (inr error, bits') =>
+          env_update _ obj (ValObj (ValObjPacket bits')) ;;
+          state_fail error
+        | (inl value, bits') =>
+          env_update _ obj (ValObj (ValObjPacket bits')) ;;
+          let* target := unpack_lvalue _ (mret target_expr) in
+          env_update _ target (ValBase value)
         end
-
-      else state_fail Internal
-    | _ => state_fail Internal
-    end.
+      | _ => state_fail (AssertError "Not enough arguments to extract.")
+      end
+    else if String.eqb name StringConstants.lookahead then
+      state_fail (SupportError "Packet lookahead is not implemented.")
+    else if String.eqb name StringConstants.advance then
+      state_fail (SupportError "Packet advance is not implemented.")
+    else if String.eqb name StringConstants.length then
+      state_fail (SupportError "Packet length is not implemented.")
+    else
+      state_fail (AssertError "Unknown method called on a packet.")
+    .
 
   Definition eval_builtin_func (name: P4String) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option Value)) : env_monad Value :=
     let name := P4String.str name in
-    if StringConstants.eqb name StringConstants.isValid
-    then eval_is_valid obj
-    else if StringConstants.eqb name StringConstants.setValid
-    then dummy_value _ (eval_set_bool obj true)
-    else if StringConstants.eqb name StringConstants.setInvalid
-    then dummy_value _ (eval_set_bool obj false)
-    else if StringConstants.eqb name StringConstants.pop_front
-    then dummy_value _ (eval_pop_front obj args)
-    else if StringConstants.eqb name StringConstants.push_front
-    then dummy_value _ (eval_push_front obj args)
-    else if is_packet_func name
-    then dummy_value _ (eval_packet_func obj name type_args args)
-    else state_fail Internal.
+    if String.eqb name StringConstants.isValid then
+      eval_is_valid obj
+    else if String.eqb name StringConstants.setValid then
+      dummy_value _ (eval_set_bool obj true)
+    else if String.eqb name StringConstants.setInvalid then
+      dummy_value _ (eval_set_bool obj false)
+    else if String.eqb name StringConstants.pop_front then
+      dummy_value _ (eval_pop_front obj args)
+    else if String.eqb name StringConstants.push_front then
+      dummy_value _ (eval_push_front obj args)
+    else if is_packet_func name then
+      dummy_value _ (eval_packet_func obj name type_args args)
+    else state_fail (SupportError "Unknown built-in function.")
+  .
 
   Definition eval_extern_func (name: String.t) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option Expression)): env_monad Value.
   Admitted.
@@ -190,7 +196,7 @@ Section Eval.
           let* lvalue := eval_lvalue arg
           in mret (ValLvalue lvalue)
         (* TODO: Handle InOut and Directionless *)
-        | _ => state_fail Internal
+        | _ => state_fail (SupportError "Unsupported parameter direction.")
         end in
         let* vals := eval_arguments params args in
         mret (Some val :: vals);
@@ -198,7 +204,7 @@ Section Eval.
         let* vals := eval_arguments params args in
         mret (None :: vals);
       eval_arguments _ _ :=
-        state_fail Internal
+        state_fail (AssertError "Mismatch between argument and parameter count.")
     .
   End eval_arguments.
 
@@ -211,19 +217,15 @@ Section Eval.
       (args: list (option Expression))
       : env_monad Value
     :=
-      let* func' := eval_expression func in
-      match func' with
-      | ValObj (ValObjFun params impl) =>
-        (* TODO: Properly implement copy in/copy out semantics. *)
-        let* args' := eval_arguments (eval_expression) params args in
-        match impl with
-        | ValFuncImplBuiltin name obj =>
-          eval_builtin_func name obj type_args args'
-        (* TODO: other function types *)
-        (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
-        | _ => state_fail Internal
-        end
-      | _ => state_fail Internal
+      let* (params, impl) := unpack_func _ (eval_expression func) in
+      (* TODO: Properly implement copy in/copy out semantics. *)
+      let* args' := eval_arguments (eval_expression) params args in
+      match impl with
+      | ValFuncImplBuiltin name obj =>
+        eval_builtin_func name obj type_args args'
+      (* TODO: other function types *)
+      (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
+      | _ => state_fail (SupportError "Unsupported function type.")
       end
     .
   End eval_method_call.
@@ -248,14 +250,10 @@ Section Eval.
     eval_expression_pre (ExpArrayAccess array index) :=
       let* index' := unpack_inf_int _ (eval_expression index) in
       let* array' := unpack_array _ (eval_expression array) in
-      let element :=
-        match index_z_error array' index' with
-        | Some element' => Some (ValBase element')
-        | None => None
-        end in
-      lift_option _ element;
-    eval_expression_pre (ExpBitStringAccess array hi lo) :=
-      state_fail Internal;
+      match index_z_error array' index' with
+      | Some element' => mret (ValBase element')
+      | None => state_fail (AssertError "Out-of-bounds array read.")
+      end;
     (* TODO: These cases recursively call eval_expression (either directly or
        indirectly), which produces a Value. The values that these cases are
        meant to produce, however, can only contain instances of ValueBase as a
@@ -272,14 +270,12 @@ Section Eval.
         let* b := unpack_bool _ (eval_expression arg) in
         mret (ValBase (ValBaseBool (negb b)))
       | BitNot =>
-        let* inner := eval_expression arg in
-        match inner with
-        | ValBase (ValBaseBit w bits) => mret (ValBase (ValBaseBit w (BinInt.Z.lnot bits)))
-        | _ => state_fail Internal
-        end
+        let* (w, bits) := unpack_fixed_bits _ (eval_expression arg )in
+        mret (ValBase (ValBaseBit w (BinInt.Z.lnot bits)))
       | UMinus =>
         let* inner := eval_expression arg in
-        lift_option _ (eval_minus inner)
+        let* negation := eval_minus inner in
+        mret negation
       end;
     eval_expression_pre (ExpExpressionMember inner name) :=
       let* inner_v := eval_expression inner in
@@ -287,13 +283,19 @@ Section Eval.
       | ValObj (ValObjPacket bits) =>
         match inner with
         | MkExpression _ (ExpName inner_name) inner_typ _ =>
-          if P4String.eq_const name StringConstants.extract
-          then mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
-          else state_fail Internal
-        | _ => state_fail Internal
+          if P4String.eq_const name StringConstants.extract then
+            mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
+          else if P4String.eq_const name StringConstants.lookahead then
+            state_fail (SupportError "Packet lookahead is not implemented.")
+          else if P4String.eq_const name StringConstants.advance then
+            state_fail (SupportError "Packet advance is not implemented.")
+          else if P4String.eq_const name StringConstants.length then
+            state_fail (SupportError "Packet length is not implemented.")
+          else state_fail (AssertError "Unknown member of packet extern.")
+        | _ => state_fail (SupportError "Can only look up members of names.")
         end
       (* TODO real member lookup *)
-      | _ => state_fail Internal
+      | _ => state_fail (SupportError "Can only look up members of a packet.")
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
       eval_method_call (eval_expression) func type_args args;
@@ -301,7 +303,7 @@ Section Eval.
       get_name_loc _ name >>= heap_lookup _;
     eval_expression_pre _ :=
       (* TODO *)
-      mret (ValBase (ValBaseBool false))
+      state_fail (SupportError "Unimplemented expression type")
   (* TODO: see comment above *)
   (* with eval_kv (kv: KeyValue) : env_monad (P4String * Value) :=
     eval_kv (MkKeyValue key expr) :=
@@ -336,7 +338,7 @@ Section Eval.
     eval_statement_pre StatEmpty :=
       mret tt;
     eval_statement_pre _ :=
-      state_fail Internal
+      state_fail (SupportError "Unimplemented statement type")
   with eval_block (blk: Block) : env_monad unit :=
     eval_block BlockEmpty :=
       mret tt;
@@ -361,7 +363,7 @@ Section Eval.
 
   Fixpoint eval_cases (vals: list Value) (cases: list ParserCase) : env_monad P4String :=
     match cases with
-    | List.nil    => state_fail Internal
+    | List.nil    => state_fail (AssertError "No cases to evaluate against.")
     | MkParserCase _ matches next :: cases' =>
       let* passes := eval_match_expression vals matches in
       if passes then mret next else eval_cases vals cases'

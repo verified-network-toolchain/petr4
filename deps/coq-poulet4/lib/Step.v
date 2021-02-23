@@ -49,9 +49,9 @@ Section Step.
         let* _ := eval_statement _ tags_dummy (MkStatement tags_dummy blk Typed.StmUnit) in
         eval_transition tags_t tags_dummy transition
       | None =>
-        state_fail Internal
+        state_fail (AssertError "State not found.")
       end
-    | _ => state_fail Internal
+    | _ => state_fail (AssertError "Value provided for stepping is not a parser.")
     end.
 
   (* TODO: formalize progress with respect to a header, such that if the parser
@@ -60,7 +60,7 @@ Section Step.
    *)
   Fixpoint step_trans (p: ValueObject) (fuel: nat) (start: P4String) : env_monad tags_t unit :=
     match fuel with
-    | 0   => state_fail Internal (* TODO: add a separate exception for out of fuel? *)
+    | 0   => state_fail (AssertError "Ran out of fuel.")
     | S x => let* state' := step p start in
             if P4String.equivb state' accept
             then mret tt

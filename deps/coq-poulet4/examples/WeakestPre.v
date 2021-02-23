@@ -204,14 +204,14 @@ Lemma weakest_precondition_method_call_correct:
 .
 Proof.
   intros.
-  unfold eval_method_call; simpl.
+  unfold eval_method_call, Unpack.unpack_func; simpl.
   unfold state_bind; simpl.
   apply weakest_precondition_expression_correct in H.
   destruct (eval_expression tag_t tag callee env_pre).
   destruct s; try contradiction.
   destruct v; try contradiction.
   destruct v; try contradiction.
-  simpl in H.
+  simpl; simpl in H.
   apply weakest_precondition_arguments_correct in H.
   destruct (eval_arguments tag_t (eval_expression tag_t tag) params args e).
   destruct s; try contradiction.

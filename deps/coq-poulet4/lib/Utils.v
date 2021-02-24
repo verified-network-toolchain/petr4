@@ -80,6 +80,81 @@ Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list
 Definition index_z_error {A} (xs: list A) (i: Z) : option A.
 Admitted.
 
+Fixpoint truncate_bits (bits: positive) (count: nat) : N :=
+  match count with
+  | 0 => N0
+  | S count' =>
+    match bits with
+    | xH => Npos xH
+    | xO bits' =>
+      match truncate_bits bits' count' with
+      | N0 => N0
+      | Npos rest => Npos (xO rest)
+      end
+    | xI bits' =>
+      match truncate_bits bits' count' with
+      | N0 => Npos xH
+      | Npos rest => Npos (xI rest)
+      end
+    end
+  end
+.
+
+Fixpoint glue_msb (bits: positive) :=
+  match bits with
+  | xH => xI xH
+  | xO bits' => xO (glue_msb bits')
+  | xI bits' => xI (glue_msb bits')
+  end
+.
+
+Definition cast_bits_unsigned (bits: Z) (wold wnew: nat) : Z :=
+  if Nat.eqb wold wnew then
+    (* No difference in width; pass along old value. *)
+    bits
+  else if Nat.leb wold wnew then
+    (* Strict widening. *)
+    match bits with
+    | Z0
+    | Zpos _ =>
+      bits
+    | Zneg bits' =>
+      (* Sign bit becomes part of the regular bits. *)
+      Zpos (glue_msb bits')
+    end
+  else
+    (* Strict truncation, i.e., wnew < wold. We can safely
+       truncate without caring about the sign bit, because
+       that is always discarded. *)
+    match bits with
+    | Z0 => Z0
+    | Zpos bits'
+    | Zneg bits' =>
+      match truncate_bits bits' wnew with
+      | N0 => Z0
+      | Npos bits'' =>
+        Zpos bits''
+      end
+    end
+.
+
+Fixpoint bits_length_positive (bits: positive) : nat :=
+  match bits with
+  | xH => 1
+  | xO bits'
+  | xI bits' =>
+    1 + bits_length_positive bits'
+  end
+.
+
+Definition bits_length_Z (bits: Z) : nat :=
+  match bits with
+  | Z0 => 0
+  | Zpos bits' => bits_length_positive bits'
+  | Zneg bits' => 1 + bits_length_positive bits'
+  end
+.
+
 (* Coq Bvectors are little-endian *)
 Open Scope vector_scope.
 Fixpoint of_bvector {w} (bits: Bvector w) : Z :=

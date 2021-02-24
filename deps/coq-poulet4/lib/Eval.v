@@ -231,6 +231,59 @@ Section Eval.
     .
   End eval_method_call.
 
+  Section eval_cast.
+    Variable (eval_expression: Expression -> env_monad Value).
+
+    Definition eval_cast
+      (typ: P4Type)
+      (expr: Expression)
+      : env_monad Value
+    :=
+      let* val := eval_expression expr in
+      match typ with
+      | TypBool =>
+        match val with
+        | ValBase (ValBaseBit 1 bits) =>
+          match bits with
+          | Z0 => mret (ValBase (ValBaseBool false))
+          | Zpos xH => mret (ValBase (ValBaseBool true))
+          | _ => state_fail (AssertError "Boolean with more than one bit.")
+          end
+        | _ => state_fail (TypeError "Cannot cast value to a bool.")
+        end
+      | TypBit wnew =>
+        match val with
+        | ValBase (ValBaseInt wold bits) =>
+          if Nat.eqb wnew wold then
+            (* No difference in widths; copy over the bit string. *)
+            mret (ValBase (ValBaseBit wnew bits))
+          else
+            state_fail (TypeError "Cast from int to bits with different lengths.")
+        | ValBase (ValBaseBit wold bits) =>
+          let bits' := cast_bits_unsigned bits wold wnew in
+          mret (ValBase (ValBaseBit wnew bits'))
+        | ValBase (ValBaseInteger bits) =>
+          (* TODO: Two's complement? *)
+          let wold := bits_length_Z bits in
+          let bits' := cast_bits_unsigned bits wold wnew in
+          mret (ValBase (ValBaseBit wnew bits'))
+        | _ => state_fail (TypeError "Cannot cast this value to bits.")
+        end
+      | TypInt wn =>
+        match val with
+        | ValBase (ValBaseBit wb bits) =>
+          if Nat.eqb wn wb then
+            mret (ValBase (ValBaseInt wn bits))
+          else
+            state_fail (TypeError "Cast from bits to int with different lengths.")
+        | _ => state_fail (TypeError "Cannot cast value to an integer")
+        end
+      | _ =>
+        state_fail (SupportError "Unsupported type cast.")
+      end
+    .
+  End eval_cast.
+
   Equations eval_expression (expr: Expression) : env_monad Value :=
     eval_expression (MkExpression expr _ _) :=
       eval_expression_pre expr
@@ -312,6 +365,8 @@ Section Eval.
       eval_method_call (eval_expression) func type_args args;
     eval_expression_pre (ExpName name) :=
       get_name_loc _ name >>= heap_lookup _;
+    eval_expression_pre (ExpCast typ expr) :=
+      eval_cast (eval_expression) typ expr;
     eval_expression_pre _ :=
       (* TODO *)
       state_fail (SupportError "Unimplemented expression type")

@@ -278,6 +278,13 @@ Section Eval.
             state_fail (TypeError "Cast from bits to int with different lengths.")
         | _ => state_fail (TypeError "Cannot cast value to an integer")
         end
+      | TypSet inner =>
+        match val with
+        | ValBase (ValBaseBit w bits) =>
+          mret (ValBase (ValBaseSet (ValSetSingleton w bits)))
+        (* TODO: Convert other types of values to sets. *)
+        | _ => state_fail (SupportError "Cannot cast this value to a set.")
+        end
       | _ =>
         state_fail (SupportError "Unsupported type cast.")
       end
@@ -421,10 +428,20 @@ Section Eval.
       match m with
       | MatchDontCare => eval_match_expression vals' matches'
       | MatchExpression e =>
-        let* v' := eval_expression e in
-        if eq_value v v' then eval_match_expression vals' matches' else mret false
+        let* set := unpack_set _ (eval_expression e) in
+        match set with
+        | ValSetSingleton width bits =>
+          match v with
+          | ValBase (ValBaseBit width' bits') =>
+            if Nat.eqb width width' && Z.eqb bits bits' then
+              eval_match_expression vals' matches'
+            else mret false
+          | _ => state_fail (SupportError "Can only compare singletons against bits.")
+          end
+        | _ => state_fail (SupportError "Only singleton sets are implemented.")
+        end
       end
-    | _ => mret false
+    | _ => state_fail (AssertError "Number of values does not match number of match expressions in match case.")
     end.
 
   Fixpoint eval_cases (vals: list Value) (cases: list ParserCase) : env_monad P4String :=

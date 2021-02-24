@@ -129,4 +129,11 @@ Section Unpack.
     | _ => state_fail (TypeError "Cannot unpack value as lvalue.")
     end.
 
+  Definition unpack_set (wrapped: env_monad Value) : env_monad (ValueSet) :=
+    let* unwrapped := wrapped in
+    match unwrapped with
+    | ValBase (ValBaseSet s) => mret s
+    | _ => state_fail (TypeError "Cannot unpack value as set.")
+    end.
+
 End Unpack.

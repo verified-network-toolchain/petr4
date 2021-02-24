@@ -40,20 +40,17 @@ for information on the Petr4 artifact.
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
 
-1. Use OPAM to install dependencies. 
+1. Build bundled dependencies.
    ```
-   opam install . --deps-only
-   ```
-
-1. Build binaries using the supplied `Makefile`
-   ```
-   make
+   opam repo add coq-released https://coq.inria.fr/opam/released
+   make deps
    ```
 
-1. Install binaries in local OPAM directory
+1. Use dune to build and install petr4.
    ```
-   make install
-   ``` 
+   dune build
+   dune install
+   ```
 
 1. [Optional] Run tests
    ``` 

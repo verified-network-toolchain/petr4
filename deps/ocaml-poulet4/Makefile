@@ -12,12 +12,27 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-.PHONY: all ocaml-poulet4 coq-poulet4
+all: coq-all ml
 
-all: ocaml-poulet4 coq-poulet4
+ml: coq-all
+	dune build -p ocaml-poulet4
 
-ocaml-poulet4: coq-poulet4
-	opam install ./ocaml-poulet4 --working-dir
+install:
+	dune install -p ocaml-poulet4
 
-coq-poulet4:
-	opam install ./coq-poulet4 --working-dir
+coq-all: Makefile.coq
+	@+$(MAKE) -f Makefile.coq all
+
+clean: Makefile.coq
+	@+$(MAKE) -f Makefile.coq cleanall
+	@rm -f Makefile.coq Makefile.coq.conf
+
+Makefile.coq: _CoqProject
+	$(COQBIN)coq_makefile -f _CoqProject -o Makefile.coq
+
+force _CoqProject Makefile: ;
+
+%: Makefile.coq force
+	@+$(MAKE) -f Makefile.coq $@
+
+.PHONY: all ml coq-all clean force

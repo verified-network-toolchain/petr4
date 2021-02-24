@@ -32,6 +32,7 @@ install:
 - sudo apt install ocaml-nox opam dune coq
 - opam init --no-setup
 - eval $(opam env)
+- opam repo add coq-released https://coq.inria.fr/opam/released
 
 script:
 - make deps

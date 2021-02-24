@@ -14,7 +14,7 @@ build: [
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
-  "poulet4"
+  "ocaml-poulet4"
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.1"}

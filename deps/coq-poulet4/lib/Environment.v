@@ -239,7 +239,7 @@ Section Environment.
     | nil => None
     | (fld, v') :: fields' =>
       if equivb fld field
-      then Some ((fld, v) :: fields) else
+      then Some ((fld, v) :: fields') else
       let* fields'' := update_member' fields' field v in
       Some ((fld, v') :: fields'')
     end.

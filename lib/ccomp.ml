@@ -112,6 +112,11 @@ let add_param (state_name: string) (map: varmap) (param: Typed.Parameter.t) : va
   let expr = C.CPointer (CVar state_name, var) in
   StrMap.add_exn map ~key:var ~data:expr
 
+let update_map (map : varmap ) (params : Typed.Parameter.t list) =
+  match params with 
+  | [] -> map 
+  | h::t -> add_param "state" map h
+
 let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl list =
   match snd d with
   | Struct {name; fields; _} ->
@@ -122,7 +127,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let valid = C.CField (CBool, "__header_valid") in
     map, [C.CStruct (snd name, valid :: cfields)]
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
-    let map_update = StrMap.add_exn map ~key:"hello" ~data:(C.CString "g") in 
+    let map_update = update_map map params in 
     let params = translate_params params in
     let state_type_name = snd name ^ "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
@@ -136,15 +141,15 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | Action { name; data_params; ctrl_params; body; _ } -> 
     map, [C.CInclude ("fdjskfldsjkfldsjkflds")] 
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
-    let map_with_params = List.fold ~init:map ~f:(add_param "state") params in
+    (* let map_with_params = List.fold ~init:map ~f:(add_param "state") params in *)
     let fields = translate_params params in
     let state_struct = C.CStruct (snd name, fields) in
-    let app_block = List.map ~f:(translate_act map_with_params) locals in 
+    let app_block = List.map ~f:(translate_act map) locals in 
     map, state_struct ::
          app_block @
          [C.CFun (CVoid, snd name ^ "_fun", 
                   [CParam (CPtr (CTypeName (snd name)), "state")], 
-                  apply_translate_emit map_with_params apply)]
+                  apply_translate_emit map apply)]
   | _ -> map, [C.CInclude "todo"] 
 
 and translate_act (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 

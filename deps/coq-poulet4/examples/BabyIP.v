@@ -1828,7 +1828,7 @@ Module Import MStr := FMapList.Make(String_as_OT).
 
 Require Import Petr4.P4String.
 Notation P4String := (P4String.t Info).
-Definition MkP4String (s: String.t) : P4String := {| P4String.tags := NoInfo; P4String.str := s |}.
+Definition MkP4String (s: string) : P4String := {| P4String.tags := NoInfo; P4String.str := s |}.
 Require Import Petr4.Step.
 
 Require Import Environment.

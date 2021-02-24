@@ -28,6 +28,9 @@ Definition sets: list ident -> list A -> t -> t :=
     fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
               (combine idList valueList) idMap.
 
+Definition gets (kl : list ident) (m : t) : list (option A) :=
+  map (fun k => get k m) kl.
+
 End IdentMap.
 
 End IdentMap.
@@ -61,6 +64,9 @@ Definition sets : list path -> list A -> t -> t :=
     fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
               (combine pList vList) pMap.
 
+Definition gets (kl : list path) (m : t) : list (option A) :=
+  map (fun k => get k m) kl.
+
 End PathMap.
 
 End PathMap.
@@ -81,10 +87,18 @@ Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 
+(* Because the entries can refer to constructor parameters, we need to refer the arguments as expressions. *)
+(* Maybe we can just use the definition in Syntax.v. *)
+Inductive table_entry :=
+  Entry (matches : list (@Match tags_t)) (action : ident) (args : list (option (@Expression tags_t))).
+
 Class External := {
   ExternalState : Type;
-  GetControlParam : ExternalState -> ident -> option Val
+  GetEntries : ExternalState -> path -> list table_entry;
+  GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *)
 }.
+
+Section UseExternal.
 
 Context `{External}.
 
@@ -98,19 +112,6 @@ Inductive memory_val :=
   (* Should these pointers be paths or locs? *)
 
 Definition mem := @PathMap.t tags_t memory_val.
-
-(* Definition set : mem -> path -> memory_val -> mem :=
-  (fun m p v => fun p' => if path_equivb p p' then Some v else m p'). *)
-Definition set_args : list path -> list memory_val -> mem -> mem := PathMap.sets.
-(* Definition get : mem -> path -> option memory_val := id. *)
-
-Definition get_args : mem -> list path -> list (option memory_val) := (fun m => (map (fun p => PathMap.get p m))).
-
-(* Definition set' p v (m : mem) :=
-  PathMap.set m p v. *)
-
-(* Definition set_args' p v m :=
-  set_args m p v. *)
 
 Definition state : Type := mem * ExternalState.
 
@@ -145,14 +146,20 @@ Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
   end.
 
 Inductive fundef :=
-  (* this_path = nil: global; this_path <> nil: instance *)
   | FInternal
+      (* this_path = nil: global; this_path <> nil: instance *)
       (this_path : path)
       (decl_path : path)
       (e : env)
       (params : list ident)
-      (ctrl_params : list ident)
       (body : @Block tags_t)
+  | FTable
+      (name : ident)
+      (e : env)
+      (keys : list (@TableKey tags_t))
+      (actions : list (@Expression tags_t))
+      (default_action : option (@Expression tags_t))
+      (entries : option (list table_entry))
   | FExternal.
 
 Axiom dummy_fundef : fundef.
@@ -271,8 +278,12 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                           (ValBaseTuple (v :: vs))
   .
 
-(* Search N.
-Compute (Z.shiftr 2 (1)). *)
+Inductive exec_exprs : env -> path -> state -> list (@Expression tags_t) -> list Val -> Prop :=
+  .
+  (* TODO *)
+  (* | exec_exprs_nil
+  | exec_exprs_cons *)
+
 
 
 Axiom param_to_name : (@P4Parameter tags_t) -> ident.
@@ -280,10 +291,8 @@ Axiom param_to_name : (@P4Parameter tags_t) -> ident.
 Definition copy_in_copy_out (params : list path)
                             (args : list Val) (args' : list Val)
                             (s s' s'' : state) :=
-  s' = update_memory (set_args params (map MVal args)) s /\
-  map Some (map MVal args') = get_args (get_memory s) params.
-
-(* Variable (this : path). (* So this pointer only matters for declarations, not for using the variables. *) *)
+  s' = update_memory (PathMap.sets params (map MVal args)) s /\
+  map Some (map MVal args') = PathMap.gets params (get_memory s).
 
 Inductive outcome : Type :=
    | Out_normal : outcome
@@ -292,52 +301,59 @@ Inductive outcome : Type :=
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
-Definition get_ctrl_params (s : state) : list ident -> list (option Val) :=
-  map (GetControlParam (get_external_state s)).
+Axiom get_action : forall (actions : list (@Expression tags_t)) (name : ident), (@Expression tags_t).
+Axiom add_ctrl_args : forall (action : @Expression tags_t) (ctrl_args : list (option (@Expression tags_t))), (@Expression tags_t).
+
+Definition TableKeyKey (key : @TableKey tags_t) : (@Expression tags_t) :=
+  match key with
+  | MkTableKey _ e _ => e
+  end.
+
+Definition TableKeyMatchKind (key : @TableKey tags_t) : ident :=
+  match key with
+  | MkTableKey _ _ match_kind => match_kind
+  end.
+
+Definition getEntries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
+  match const_entries with
+  | Some entries => entries
+  | None => GetEntries (get_external_state s) table
+  end.
+
+Inductive exec_table_match : env -> path -> state -> ident -> option (list table_entry) -> option table_entry -> Prop :=
+  | exec_table_match_intro : forall this_path name e keys keyvals const_entries s matched_entry,
+      let entries := getEntries s (this_path ++ [name]) const_entries in
+      let match_kinds := map TableKeyMatchKind keys in
+      exec_exprs e this_path s (map TableKeyKey keys) keyvals ->
+      GetMatch (combine keyvals match_kinds) entries = matched_entry ->
+      exec_table_match e this_path s name const_entries matched_entry.
 
 Inductive exec_stmt : path -> path -> env -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
 with exec_block : path -> path -> env -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
+with exec_func : state -> (@Expression tags_t) -> state -> option Val -> Prop :=
+  (* eval the call expression:
+       1. lookup the function to call;
+       2. eval arguments;
+       3. call the function by exec_funcall;
+       4. write back out parameters.
+  *)
 with exec_funcall : state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_funcall_internal : forall this_path decl_path e params ctrl_params body s args control_args args' s' s'' vret,
-      get_ctrl_params s ctrl_params = map Some control_args ->
-      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) (params ++ ctrl_params)) (args ++ control_args) args' s s' s'' ->
+  | exec_funcall_internal : forall this_path decl_path e params body s args args' s' s'' vret,
+      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
       exec_block this_path decl_path e s' body s'' (Out_return vret) ->
-      exec_funcall s (FInternal this_path decl_path e params ctrl_params body) args s'' args' vret.
-(* with eval_funcall: mem -> fundef -> list Val -> trace -> mem -> Val -> Prop :=
-  | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4,
-      alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
-      list_norepet (var_names f.(fn_params) ++ var_names f.(fn_vars)) ->
-      bind_parameters ge e m1 f.(fn_params) vargs m2 ->
-      exec_stmt e (create_undef_temps f.(fn_temps)) m2 f.(fn_body) t le m3 out ->
-      outcome_result_value out f.(fn_return) vres m3 ->
-      Mem.free_list m3 (blocks_of_env ge e) = Some m4 ->
-      eval_funcall m (Internal f) vargs t m4 vres
-  | eval_funcall_external: forall m ef targs tres cconv vargs t vres m',
-      external_call ef ge vargs m t vres m' ->
-      eval_funcall m (External ef targs tres cconv) vargs t m' vres. *)
-
-(* Inductive exec_instantiation : path -> ident -> state -> list memory_val -> state -> Prop :=
-  | exec_instantiation_control : forall p module s (constructor_params : list (@P4Parameter tags_t)) args s',
-      match get_decl ge module with
-      | Some (DeclControl _ _ _ _ constructor_params _ _) =>
-          s' = update_memory (compose (PathMap.set p (MClass module))
-                    (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
-                    s
-      | _ => False
-      end ->
-      exec_instantiation p module s args s'
-  (* which one is better? *)
-  | exec_instantiation_control' : forall p module s (constructor_params : list (@P4Parameter tags_t)) args s',
-      match get_decl ge module with
-      | Some (DeclControl _ _ _ _ constructor_params' _ _) =>
-          constructor_params' = constructor_params
-      | _ => False
-      end ->
-      s' = update_memory
-             (compose (PathMap.set p (MClass module))
-                 (set_args (map (name_cons p) (map param_to_name constructor_params)) args))
-             s ->
-      exec_instantiation p module s args s'. *)
+      (* TODO What does this_path do here? *)
+      exec_funcall s (FInternal this_path decl_path e params body) args s'' args' vret
+  | exec_funcall_table_match : forall this_path name e keys actions matches action_name ctrl_args default_action const_entries s s',
+      exec_table_match e this_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
+      exec_func s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
+      exec_funcall s (FTable name e keys actions default_action const_entries) nil s' nil None
+  | exec_funcall_table_default : forall this_path name e keys actions default_action const_entries s s',
+      exec_table_match e this_path s name const_entries None ->
+      exec_func s default_action s' None ->
+      exec_funcall s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
+  | exec_funcall_table_noaction : forall this_path name e keys actions const_entries s,
+      exec_table_match e this_path s name const_entries None ->
+      exec_funcall s (FTable name e keys actions None const_entries) nil s nil None.
 
 Axiom dummy_tag : tags_t.
 
@@ -355,7 +371,7 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
             get_decl rev_decls' name
       | _ => get_decl rev_decls' name
       end
-  | [] => DeclError dummy_tag nil
+  | [] => DeclError dummy_tag nil (* Abuse DeclError to report not found. *)
   end.
 
 Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident :=
@@ -391,6 +407,7 @@ Definition force {A} (default : A) (x : option A) : A :=
   | None => default
   end.
 
+(* A trick to define mutually recursive functions. *)
 Section instantiate_class_body.
 
 Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : mem), path * mem.
@@ -532,18 +549,19 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let e' := add_names (p ++ [name]) (params ++ constructor_params) e in
       let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] e' params nil apply) ge)
+        PathMap.set (p ++ [name]) (FInternal p [name] e' params apply) ge)
   | DeclFunction _ _ name type_params params body =>
       let params := map param_to_name params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params nil body) ge)
+        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params body) ge)
   | DeclVariable _ _ name _ =>
       (add_name p name e, ge)
   | DeclAction _ name params ctrl_params body =>
       let params := map param_to_name params in
       let ctrl_params := map param_to_name ctrl_params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) params ctrl_params body) ge)
+        (* Maybe we need to replace directionless with in in ctrl_params. *)
+        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) (params ++ ctrl_params) body) ge)
   | _ => (e, ge)
   end.
 
@@ -552,4 +570,16 @@ Definition load_prog (prog : @program tags_t) : genv :=
   | Program decls => snd (fold_left (load_decl nil) decls (IdentMap.empty, PathMap.empty))
   end.
 
+End UseExternal.
+
+Class Architecture := {
+  ExternalSem : External;
+  Evoker : (path -> list Val -> list Val -> Prop) -> Prop
+}.
+
 End Semantics.
+
+
+
+
+

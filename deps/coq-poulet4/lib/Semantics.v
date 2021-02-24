@@ -71,7 +71,8 @@ End PathMap.
 
 End PathMap.
 
-
+Arguments IdentMap.t {_} _.
+Arguments PathMap.t {_} _.
 
 Section Semantics.
 
@@ -147,8 +148,8 @@ Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
 
 Inductive fundef :=
   | FInternal
-      (* this_path = nil: global; this_path <> nil: instance *)
-      (this_path : path)
+      (* true -> global; false -> instance *)
+      (global : bool)
       (decl_path : path)
       (e : env)
       (params : list ident)
@@ -182,8 +183,13 @@ Variable ge : genv.
 
 (* Axiom temp_env : Type. *)
 
-(* Definition name_to_path (e : env) (this_path : path) (name : ident) :=
-  match  *)
+Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t) : option path :=
+  match name with
+  | QualifiedName p n =>
+      Some (p ++ [n])
+  | BareName id =>
+      ident_to_path e id this_path
+  end.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
@@ -328,32 +334,75 @@ Inductive exec_table_match : env -> path -> state -> ident -> option (list table
       GetMatch (combine keyvals match_kinds) entries = matched_entry ->
       exec_table_match e this_path s name const_entries matched_entry.
 
+Inductive Lval : Type.
+
+Definition argument : Type := (option Val) * (option Lval).
+(* Inductive argument :=
+  | MkArgument (ov : option Val) (olv : option Lval). *)
+
+Definition get_arg_directions (func : @Expression tags_t) : list direction.
+Admitted.
+
+Inductive exec_args : env -> path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
+
+Inductive exec_copy_out : env -> path -> state -> list argument -> list Val -> state -> Prop :=.
+
+Definition lookup_func (e : env) (m : mem) (func : @Expression tags_t) (this_path : path) : option (path * fundef) :=
+  (* Cases:
+      1. apply
+      2. function/action
+      3. builtin
+  *)
+  (* function/action *)
+  match func with
+  | MkExpression _ (ExpName name) _ _ =>
+      (* Option monad can help here. *)
+      match name_to_path e this_path name with
+      (* TODO: this doesn't work for instance actions. *)
+      | Some func_path => (fun p => option_map (fun fd => (nil, fd)) (PathMap.get p ge)) func_path
+      | None => None
+      end
+  | _ => None
+  end.
+
+Definition extract_argvals : list argument -> list Val.
+Admitted.
+
 Inductive exec_stmt : path -> path -> env -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
 with exec_block : path -> path -> env -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
-with exec_func : state -> (@Expression tags_t) -> state -> option Val -> Prop :=
+with exec_func_caller : path -> env-> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:
        1. lookup the function to call;
        2. eval arguments;
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-with exec_funcall : state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_funcall_internal : forall this_path decl_path e params body s args args' s' s'' vret,
+  | exec_func_caller_function : forall this_path e s tag func call_path fd args argvals outvals typ dir s' s'' vret,
+      let dirs := get_arg_directions func in
+      exec_args e this_path s args dirs argvals -> 
+      lookup_func e (get_memory s) func this_path = Some (call_path, fd) ->
+      exec_func_callee call_path s fd (extract_argvals argvals) s' outvals vret ->
+      exec_copy_out e this_path s' argvals outvals s'' ->
+      exec_func_caller this_path e s (MkExpression tag (ExpFunctionCall func nil args) typ dir) s' vret
+  (* | exec_func_instance_apply *)
+  
+with exec_func_callee : path -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
+  | exec_func_callee_internal : forall this_path global decl_path e params body s args args' s' s'' vret,
       copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
       exec_block this_path decl_path e s' body s'' (Out_return vret) ->
       (* TODO What does this_path do here? *)
-      exec_funcall s (FInternal this_path decl_path e params body) args s'' args' vret
-  | exec_funcall_table_match : forall this_path name e keys actions matches action_name ctrl_args default_action const_entries s s',
+      exec_func_callee this_path s (FInternal global decl_path e params body) args s'' args' vret
+  | exec_func_callee_table_match : forall this_path name e keys actions matches action_name ctrl_args default_action const_entries s s',
       exec_table_match e this_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
-      exec_func s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
-      exec_funcall s (FTable name e keys actions default_action const_entries) nil s' nil None
-  | exec_funcall_table_default : forall this_path name e keys actions default_action const_entries s s',
+      exec_func_caller this_path e s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
+      exec_func_callee this_path s (FTable name e keys actions default_action const_entries) nil s' nil None
+  | exec_func_callee_table_default : forall this_path name e keys actions default_action const_entries s s',
       exec_table_match e this_path s name const_entries None ->
-      exec_func s default_action s' None ->
-      exec_funcall s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
-  | exec_funcall_table_noaction : forall this_path name e keys actions const_entries s,
+      exec_func_caller this_path e s default_action s' None ->
+      exec_func_callee this_path s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
+  | exec_func_callee_table_noaction : forall this_path name e keys actions const_entries s,
       exec_table_match e this_path s name const_entries None ->
-      exec_funcall s (FTable name e keys actions None const_entries) nil s nil None.
+      exec_func_callee this_path s (FTable name e keys actions None const_entries) nil s nil None.
 
 Axiom dummy_tag : tags_t.
 
@@ -549,11 +598,11 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let e' := add_names (p ++ [name]) (params ++ constructor_params) e in
       let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] e' params apply) ge)
+        PathMap.set (p ++ [name]) (FInternal false [name] e' params apply) ge)
   | DeclFunction _ _ name type_params params body =>
       let params := map param_to_name params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) params e) params body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) params e) params body) ge)
   | DeclVariable _ _ name _ =>
       (add_name p name e, ge)
   | DeclAction _ name params ctrl_params body =>
@@ -561,7 +610,7 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let ctrl_params := map param_to_name ctrl_params in
       (add_name p name e,
         (* Maybe we need to replace directionless with in in ctrl_params. *)
-        PathMap.set (p ++ [name]) (FInternal p [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) (params ++ ctrl_params) body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) (params ++ ctrl_params) body) ge)
   | _ => (e, ge)
   end.
 

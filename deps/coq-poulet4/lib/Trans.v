@@ -34,7 +34,7 @@ Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
                end
   end.
 
-Definition N_to_string (n: N): string := to_N_aux (N.to_nat n) n EmptyString.
+Definition N_to_string (n: N): string := to_N_aux (N.to_nat (N.log2 n)) n EmptyString.
 
 Section Transformer.
 
@@ -46,7 +46,7 @@ Section Transformer.
   Definition N_to_tempvar (n: N): P4String :=
     P4String.Build_t _ default_tag ("t'" ++ (N_to_string n))%string.
 
-  Eval vm_compute in (N_to_tempvar 1234).
+  Eval vm_compute in (N_to_tempvar 123412341234).
 
   Fixpoint transform_ept (nameIdx: N) (exp: @ExpressionPreT tags_t)
            (tag: tags_t) (typ: @P4Type tags_t) (dir: direction):

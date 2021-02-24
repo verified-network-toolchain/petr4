@@ -25,6 +25,7 @@ lib/Syntax.v
 lib/Platform/Packet.v
 lib/Unroll.v
 lib/Semantics.v
+lib/Trans.v
 
 lib/P4defs.v
 

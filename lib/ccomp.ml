@@ -122,6 +122,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let valid = C.CField (CBool, "__header_valid") in
     map, [C.CStruct (snd name, valid :: cfields)]
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
+    let map_update = StrMap.add_exn map ~key:"hello" ~data:(C.CString "g") in 
     let params = translate_params params in
     let state_type_name = snd name ^ "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
@@ -130,7 +131,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let locals_stmts = translate_parser_locals locals in
     let state_stmts = translate_parser_states states in
     let func_decl = C.CFun (CVoid, snd name, [state_param], locals_stmts @ state_stmts) in
-    map, [struct_decl; func_decl]
+    map_update, [struct_decl; func_decl]
   | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Action { name; data_params; ctrl_params; body; _ } -> 
     map, [C.CInclude ("fdjskfldsjkfldsjkflds")] 

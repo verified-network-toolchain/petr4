@@ -285,16 +285,67 @@ Module Value.
           rewrite H2; auto.
       Qed.
 
+      Lemma eqbv_equivv : forall v1 v2 : v, eqbv v1 v2 = true -> equivv v1 v2.
+      Proof.
+        induction v1 using custom_value_ind; intros [] Heqbv; simpl in *;
+          try discriminate.
+        - apply eqb_prop in Heqbv; subst; constructor.
+        - apply andb_prop in Heqbv as [Hw Hn];
+            apply Peqb_true_eq in Hw; apply N.eqb_eq in Hn;
+              subst; constructor.
+        - apply andb_prop in Heqbv as [Hw Hn];
+            apply Peqb_true_eq in Hw; apply Z.eqb_eq in Hn;
+              subst; constructor.
+        - constructor. generalize dependent fs0.
+          induction fs as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
+            inversion IH; subst; inversion H; subst; clear IH H; simpl in *;
+              constructor; auto; simpl in *;
+                destruct (P4String.equivb x1 x2) eqn:Hx;
+                destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
+          + split; simpl; auto.
+            pose proof P4String.equiv_reflect x1 x2 as H';
+              inversion H'; subst; auto.
+            rewrite Hx in H. discriminate.
+          + apply IHvs1; auto.
+        - apply andb_true_iff in Heqbv as [Hb Hfs].
+          apply eqb_prop in Hb; subst. constructor.
+          generalize dependent fs0.
+          induction fs as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
+            inversion IH; subst; inversion H; subst; clear IH H; simpl in *;
+              constructor; auto; simpl in *;
+                destruct (P4String.equivb x1 x2) eqn:Hx;
+                destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
+          + split; simpl; auto.
+            pose proof P4String.equiv_reflect x1 x2 as H';
+              inversion H'; subst; auto.
+            rewrite Hx in H. discriminate.
+          + apply IHvs1; auto.
+        - destruct (equiv_dec err err0) as [H | H];
+            try discriminate; constructor; auto.
+        - destruct (equiv_dec mk mk0) as [H | H];
+            try discriminate; inversion H; constructor; auto.
+      Qed.
+
+      Lemma equivv_eqbv_iff : forall v1 v2 : v, equivv v1 v2 <-> eqbv v1 v2 = true.
+      Proof.
+        intros v1 v2; split; [apply equivv_eqbv | apply eqbv_equivv].
+      Qed.
+
+      Lemma equivv_reflect : forall v1 v2, reflect (equivv v1 v2) (eqbv v1 v2).
+      Proof.
+        intros v1 v2.
+        destruct (eqbv v1 v2) eqn:Heqbv; constructor.
+        - apply eqbv_equivv; assumption.
+        - intros H. apply equivv_eqbv in H.
+          rewrite H in Heqbv. discriminate.
+      Qed.
+
       Lemma equivv_dec : forall v1 v2 : v,
           equivv v1 v2 \/ ~ equivv v1 v2.
       Proof.
-        induction v1 using custom_value_ind; intros [];
-          try (right; intros H'; inversion H'; contradiction).
-        - destruct (equiv_dec b b0) as [Hb | Hb];
-            unfold equiv in *; unfold complement in *; subst;
-              [ left; constructor
-              | right; intros H'; inversion H'; contradiction ].
-      Abort.
+        intros v1 v2. pose proof equivv_reflect v1 v2 as H.
+        inversion H; subst; auto.
+      Qed.
     End ValueEquality.
   End Values.
 

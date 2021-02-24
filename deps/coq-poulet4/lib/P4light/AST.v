@@ -40,6 +40,17 @@ Module Field.
       Forall2 (relf R).
     (**[]*)
 
+    (** A predicate from a relation between fields. *)
+    Definition relf_pred {U V : Type}
+    {R1 : U -> V -> Prop} {R2 : U -> V -> Prop}
+    {u : f tags_t U} {v : f tags_t V}
+    (Q : forall (u' : U) (v' : V), R1 u' v' -> R2 u' v')
+    (H : relf R1 u v) :=
+      match H with
+      | conj Hname HR1 => conj Hname (Q (snd u) (snd v) HR1)
+      end.
+    (**[]*)
+
     (** Filter. *)
     Definition filter {U : Type} (f : U -> bool) : fs tags_t U -> fs tags_t U :=
       List.filter (f ∘ snd).
@@ -841,26 +852,6 @@ Module P4light.
                (in custom p4ctrldecl at level 0).
       End ControlDeclNotations.
     End ControlDecl.
-
-    (* Module ApplyBlock.
-      Section ApplyBlockStmt.
-        Variable (tags_t : Type).
-
-        (** Statements that may occur within control blocks. *)
-        Inductive s : Type :=
-        | ABTableApply (tbl : name tags_t) (* table apply statements *)
-        | ABStmt (stmt : S.s tags_t)       (* standard statements *)
-        | ABSeq (s1 s2 : s)                (* statement sequences *).
-        (**[]*)
-      End ApplyBlockStmt.
-
-      Arguments ABTableApply {_}.
-      Arguments ABStmt {_}.
-      Arguments ABSeq {_}.
-
-      Module ApplyBlockStmtNotations.
-      End ApplyBlockStmtNotations.
-    End ApplyBlock. *)
   End Control.
 
   (** * Top-Level Declarations *)

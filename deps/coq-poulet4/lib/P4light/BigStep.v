@@ -145,6 +145,62 @@ Module Value.
           equivv (VMatchKind mk) (VMatchKind mk).
       (**[]*)
 
+      (** A custom induction principle for value equivalence. *)
+      Section ValueEquivalenceInduction.
+        (** An arbitrary predicate. *)
+        Variable P : v -> v -> Prop.
+
+        Hypothesis HBool : forall b, P (VBool b) (VBool b).
+
+        Hypothesis HBit : forall w n, P (VBit w n) (VBit w n).
+
+        Hypothesis HInt : forall w z, P (VInt w z) (VInt w z).
+
+        Hypothesis HError : forall err1 err2,
+            equiv err1 err2 -> P (VError err1) (VError err2).
+
+        Hypothesis HMatchkind : forall mk, P (VMatchKind mk) (VMatchKind mk).
+
+        Hypothesis HRecord : forall fs1 fs2,
+            Field.relfs equivv fs1 fs2 ->
+            Field.relfs P fs1 fs2 ->
+            P (VRecord fs1) (VRecord fs2).
+
+        Hypothesis HHeader : forall fs1 fs2 b,
+            Field.relfs equivv fs1 fs2 ->
+            Field.relfs P fs1 fs2 ->
+            P (VHeader fs1 b) (VHeader fs2 b).
+
+        (** Custom [eqiuvv] induction principle.
+            Do [induction ?H using custom_equivv_ind] *)
+        Definition custom_equivv_ind : forall (v1 v2 : v) (H : equivv v1 v2), P v1 v2 :=
+          fix vind v1 v2 H :=
+            let fix find
+                    {vs1 vs2 : Field.fs tags_t v}
+                    (HR : Field.relfs equivv vs1 vs2) : Field.relfs P vs1 vs2 :=
+                match HR in Forall2 _ v1s v2s return Forall2 (Field.relf P) v1s v2s with
+                | Forall2_nil _ => Forall2_nil (Field.relf P)
+                | Forall2_cons v1 v2
+                               (conj HName Hequivv)
+                               Htail => Forall2_cons
+                                         v1 v2
+                                         (conj
+                                            HName
+                                            (vind (snd v1) (snd v2) Hequivv))
+                                         (find Htail)
+                  end in
+            match H in (equivv v1' v2') return P v1' v2' with
+            | equivv_bool b => HBool b
+            | equivv_bit w n => HBit w n
+            | equivv_int w z => HInt w z
+            | equivv_error err1 err2 H12 => HError err1 err2 H12
+            | equivv_matchkind mk => HMatchkind mk
+            | equivv_record vs1 vs2 H12 => HRecord vs1 vs2 H12 (find H12)
+            | equivv_header vs1 vs2 b H12 => HHeader vs1 vs2 b H12 (find H12)
+            end.
+        (**[]*)
+      End ValueEquivalenceInduction.
+
       Lemma equivv_reflexive : Reflexive equivv.
       Proof.
         intros v; induction v using custom_value_ind;
@@ -199,6 +255,35 @@ Module Value.
                      | apply equivv_symmetric
                      | apply equivv_transitive].
       Defined.
+
+      Lemma equivv_eqbv : forall v1 v2 : v, equivv v1 v2 -> eqbv v1 v2 = true.
+      Proof.
+        intros v1 v2 H.
+        induction H using custom_equivv_ind;
+          simpl in *; try rewrite eqb_reflx; try rewrite Pos.eqb_refl; simpl; auto.
+        - apply N.eqb_refl.
+        - apply Z.eqb_refl.
+        - unfold equiv in H. inversion H; subst.
+          + destruct (equiv_dec None None) as [H' | H'];
+              unfold equiv, complement in *; try contradiction; auto.
+          + destruct (equiv_dec (Some a1) (Some a2)) as [H' | H'];
+              unfold equiv, complement in *; try inversion H';
+                try contradiction; auto.
+        - destruct (equiv_dec mk mk) as [H' | H'];
+            unfold equiv, complement in *; try contradiction; auto.
+        - clear H. induction H0; auto.
+          destruct x as [x1 v1]; destruct y as [x2 v2];
+            inversion H; simpl in *.
+          pose proof P4String.equiv_reflect x1 x2 as Hx.
+          inversion Hx; subst; try contradiction.
+          rewrite H2; auto.
+        - clear H. induction H0; auto.
+          destruct x as [x1 v1]; destruct y as [x2 v2];
+            inversion H; simpl in *.
+          pose proof P4String.equiv_reflect x1 x2 as Hx.
+          inversion Hx; subst; try contradiction.
+          rewrite H2; auto.
+      Qed.
 
       Lemma equivv_dec : forall v1 v2 : v,
           equivv v1 v2 \/ ~ equivv v1 v2.

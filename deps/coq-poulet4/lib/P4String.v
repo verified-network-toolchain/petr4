@@ -1,6 +1,7 @@
 Require Coq.Strings.String.
 Module CoqString := Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
+Require Import Coq.Bool.Bool.
 
 (** Coq string type. *)
 Definition string := CoqString.string.
@@ -37,3 +38,10 @@ Proof.
   unfold Equivalence.equiv; unfold complement; simpl; unfold equiv; simpl.
   apply String.string_dec.
 Defined.
+
+Lemma equiv_reflect {tags_t : Type} : forall s1 s2 : t tags_t,
+    reflect (equiv s1 s2) (equivb s1 s2).
+Proof.
+  intros [s1 t1] [s2 t2]. unfold equiv, equivb; simpl.
+  apply CoqString.eqb_spec.
+Qed.

@@ -6,6 +6,21 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
+(** Notation entries. *)
+Declare Custom Entry p4value.
+Declare Custom Entry p4lvalue.
+Declare Custom Entry p4evalsignal.
+
+Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
+         (at level 40, e custom p4expr, v custom p4value).
+
+Reserved Notation "⦑ ϵ , e ⦒ ⇓ lv"
+         (at level 40, e custom p4expr, lv custom p4lvalue).
+
+Reserved Notation "⟪ fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
+         (at level 40, s custom p4stmt,
+          ϵ2 custom p4env, sig custom p4evalsignal).
+
 (** * Values and LValues *)
 Module Value.
   Section Values.
@@ -209,10 +224,6 @@ Module Value.
   Arguments LVMember {_}.
 
   Module ValueNotations.
-    Import P4light.Expr.MatchkindNotations.
-
-    Declare Custom Entry p4value.
-
     Notation "'*{' val '}*'" := val (val custom p4value at level 99).
     Notation "( x )" := x (in custom p4value, x at level 99).
     Notation "x" := x (in custom p4value at level 0, x constr at level 0).
@@ -234,8 +245,6 @@ Module Value.
   End ValueNotations.
 
   Module LValueNotations.
-    Declare Custom Entry p4lvalue.
-
     Notation "'l{' lval '}l'" := lval (lval custom p4lvalue at level 99).
     Notation "( x )" := x (in custom p4lvalue, x at level 99).
     Notation "x" := x (in custom p4lvalue at level 0, x constr at level 0).
@@ -267,8 +276,6 @@ Module Step.
   Arguments SIG_Exit {_}.
   Arguments SIG_Rtrn {_}.
 
-  Declare Custom Entry p4evalsignal.
-
   Notation "x"
     := x (in custom p4evalsignal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
@@ -278,18 +285,7 @@ Module Step.
   Notation "'Void'" := (SIG_Rtrn None) (in custom p4evalsignal at level 0).
   Notation "'Fruit' v" := (SIG_Rtrn (Some v)) (in custom p4evalsignal at level 0).
 
-  Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
-           (at level 40, e custom p4expr, v custom p4value).
-
-  Reserved Notation "⦑ ϵ , e ⦒ ⇓ lv"
-           (at level 40, e custom p4expr, lv custom p4lvalue).
-
   Import Env.EnvNotations.
-
-  Reserved Notation "⟪ fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
-           (at level 40, s custom p4stmt,
-            ϵ2 custom p4env, sig custom p4evalsignal).
-  (**[]*)
 
   Section Step.
     Context {tags_t : Type}.

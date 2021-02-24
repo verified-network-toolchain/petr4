@@ -3,9 +3,26 @@ Export ListNotations.
 Require Export Coq.Bool.Bool.
 Require Export P4light.Utiliser.
 
+(** Notation entries. *)
+Declare Custom Entry p4type.
+
+Reserved Notation "∫ ty1 ≡ ty2"
+         (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
+
+Declare Custom Entry p4uop.
+Declare Custom Entry p4bop.
+Declare Custom Entry p4matchkind.
+Declare Custom Entry p4hdr_op.
+Declare Custom Entry p4expr.
+Declare Custom Entry p4stmt.
+Declare Custom Entry p4decl.
+Declare Custom Entry p4ctrldecl.
+Declare Custom Entry p4topdecl.
+
 (** * Definitions and Lemmas regarding Fields *)
 Module Field.
   Section FieldTypes.
+
     Variable (tags_t : Type).
 
     (** Field type. *)
@@ -171,20 +188,16 @@ Module P4light.
     Arguments THeader {_}.
 
     Module TypeNotations.
-      Declare Custom Entry p4type.
-
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
       Notation "( x )" := x (in custom p4type, x at level 99).
       Notation "x" := x (in custom p4type at level 0, x constr at level 0).
       Notation "'Bool'" := TBool (in custom p4type at level 0).
-      Notation "'bit' '<' w '>'"
+      Notation "'bit' < w >"
         := (TBit w)
-            (in custom p4type at level 2,
-                w custom p4type at level 99, no associativity).
-      Notation "'int' '<' w '>'"
+            (in custom p4type at level 2, no associativity).
+      Notation "'int' < w >"
         := (TInt w)
-            (in custom p4type at level 2,
-                w custom p4type at level 99, no associativity).
+            (in custom p4type at level 2, no associativity).
       Notation "'error'" := TError
                               (in custom p4type at level 0,
                                   no associativity).
@@ -200,9 +213,9 @@ Module P4light.
 
     (** Custom induction principle for [t]. *)
     Section TypeInduction.
-      Import TypeNotations.
-
       Context {tags_t : Type}.
+
+      Import TypeNotations.
 
       (** An arbitrary property. *)
       Variable P : t tags_t -> Prop.
@@ -254,108 +267,165 @@ Module P4light.
       (**[]*)
     End TypeInduction.
 
-    Section TypeEquivalence.
-      Context {tags_t : Type}.
+    Module TypeEquivalence.
+      Section TypeEquivalence.
+        Context {tags_t : Type}.
 
-      (** Equality of types. *)
-      Inductive equivt : t tags_t -> t tags_t -> Prop :=
-      | equivt_bool : equivt TBool TBool
-      | equivt_bit (w : positive) : equivt (TBit w) (TBit w)
-      | equivt_int (w : positive) : equivt (TInt w) (TInt w)
-      | equivt_error : equivt TError TError
-      | equivt_matchkind : equivt TMatchKind TMatchKind
-      | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
-          F.relfs equivt fs1 fs2 ->
-          equivt (TRecord fs1) (TRecord fs2)
-      | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
-          F.relfs equivt fs1 fs2 ->
-          equivt (THeader fs1) (THeader fs2).
-      (**[]*)
+        Import TypeNotations.
 
-      Lemma equivt_reflexive : Reflexive equivt.
-      Proof.
-        intros ty;
-          induction ty using custom_t_ind; constructor;
-            try (induction H; constructor; auto;
-                 destruct x as [x ty]; unfold F.relf; simpl in *;
-                 split; auto; try reflexivity).
-      Qed.
+        (** Equality of types. *)
+        Inductive equivt : t tags_t -> t tags_t -> Prop :=
+        | equivt_bool : ∫ Bool ≡ Bool
+        | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
+        | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
+        | equivt_error : ∫ error ≡ error
+        | equivt_matchkind : ∫ matchkind ≡ matchkind
+        | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
+            F.relfs equivt fs1 fs2 ->
+            ∫ rec { fs1 } ≡ rec { fs2 }
+        | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
+            F.relfs equivt fs1 fs2 ->
+            ∫ hdr { fs1 } ≡ hdr { fs2 }
+        where "∫ t1 ≡ t2" := (equivt t1 t2).
+        (**[]*)
 
-      Lemma equivt_symmetric : Symmetric equivt.
-      Proof.
-        intros t1;
-        induction t1 using custom_t_ind;
-          intros [] HEQ; inversion HEQ; clear HEQ; constructor;
-            symmetry in H0, H1; subst;
-              induction H2; constructor;
-                inversion H; clear H; subst;
-                  try (destruct x as [x1 t1];
-                       destruct y as [x2 t2];
-                       unfold F.predf_data in H4;
-                       unfold F.relf in *; simpl in *;
-                       destruct H0; split; auto;
-                       symmetry; assumption);
-        try (apply IHForall2; auto).
-      Qed.
+        (** A custom induction principle for type equivalence. *)
+        Section TypeEquivInduction.
+          (** An arbitrary predicate. *)
+          Variable P : t tags_t -> t tags_t -> Prop.
 
-      Lemma equivt_transitive : Transitive equivt.
-      Proof.
-        intros x; induction x using custom_t_ind;
-          intros [] [] Hxy Hyz; auto;
-          inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz;
-        try (rename fields into fs1; rename fields0 into fs2;
-             rename fields1 into fs3; constructor;
-             generalize dependent fs3; generalize dependent fs2;
-             induction fs1 as [| [x1 t1] fs1 IHfs1];
-             intros [| [x2 t2] fs2] H12; intros [| [x3 t3] fs3] H23;
-             inversion H12; inversion H23; inversion H;
-             clear H12 H23 H; subst; constructor;
-             [ unfold F.relf in *; simpl in *;
-               destruct H3; destruct H9; split; eauto;
-               transitivity x2; assumption
-             | eapply IHfs1; eauto]).
-      Qed.
+          Hypothesis HBool : P {{ Bool }} {{ Bool }}.
 
-      Instance TypeEquivalence : Equivalence equivt.
-      Proof.
-        constructor; [ apply equivt_reflexive
-                     | apply equivt_symmetric
-                     | apply equivt_transitive].
-      Defined.
+          Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
 
-      Lemma equivt_dec : forall (t1 t2 : t tags_t),
-          equivt t1 t2 \/ ~ equivt t1 t2.
-      Proof.
-        induction t1 using custom_t_ind; intros [];
-          try (left; apply equivt_reflexive);
-          try (right; intros HR; inversion HR; assumption);
-          try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
-               unfold equiv in *; unfold complement in *; subst;
-               try (right; intros H'; inversion H'; contradiction);
-               try (left; reflexivity));
-          try (rename fields into fs1; rename fields0 into fs2;
-               generalize dependent fs2;
-               induction fs1 as [| [x1 t1] fs1 IHfs1];
-               intros [| [x2 t2] fs2];
-               try (left; reflexivity);
-               try (right; intros H';
-                    inversion H'; inversion H2; assumption); subst;
-               inversion H; clear H; subst; unfold F.predf_data in H2;
-               pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
-               destruct (equiv_dec x1 x2) as [H12 | H12];
-               unfold equiv in *; unfold complement in *;
-               destruct (H2 t2) as [HT | HT]; clear H2;
-               destruct IH as [IH | IH];
-               try (right; intros H'; inversion H';
-                    clear H'; subst; inversion H1;
-                    clear H1; subst; unfold F.relf in *;
-                    simpl in *; destruct H3; contradiction);
-               [ left; constructor; inversion IH; subst;
-                 constructor; auto; unfold F.relf; split; auto
-               | right; intros H'; inversion H'; subst;
-                 clear H'; inversion H1; subst; apply IH;
-                 constructor; auto ]).
-      Qed.
+          Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
+
+          Hypothesis HError : P {{ error }} {{ error }}.
+
+          Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
+
+          Hypothesis HRecord : forall fs1 fs2,
+              F.relfs equivt fs1 fs2 ->
+              F.relfs P fs1 fs2 ->
+              P {{ rec { fs1 } }} {{ rec { fs2 } }}.
+
+          Hypothesis HHeader : forall fs1 fs2,
+              F.relfs equivt fs1 fs2 ->
+              F.relfs P fs1 fs2 ->
+              P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
+
+          (** A custom induction principle for type equivalence.
+              Do [induction ?H using custom_equivt_ind]. *)
+          Definition custom_equivt_ind :
+            forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
+            fix cind t1 t2 H :=
+              let fix find
+                      {ts1 ts2 : F.fs tags_t (t tags_t)}
+                      (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
+                  match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
+                  | Forall2_nil _ => Forall2_nil (F.relf P)
+                  | Forall2_cons t1 t2
+                                 (conj HName Hequivt)
+                                 Htail => Forall2_cons
+                                           t1 t2
+                                           (conj
+                                              HName
+                                              (cind (snd t1) (snd t2) Hequivt))
+                                           (find Htail)
+                  end in
+                      match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
+                      | equivt_bool => HBool
+                      | equivt_bit w => HBit w
+                      | equivt_int w => HInt w
+                      | equivt_error => HError
+                      | equivt_matchkind => HMatchkind
+                      | equivt_record fs1 fs2 Hequiv => HRecord fs1 fs2 Hequiv (find Hequiv)
+                      | equivt_header fs1 fs2 Hequiv => HHeader fs1 fs2 Hequiv (find Hequiv)
+                      end.
+                  (**[]*)
+        End TypeEquivInduction.
+
+        Lemma equivt_reflexive : Reflexive equivt.
+        Proof.
+          intros ty;
+            induction ty using custom_t_ind; constructor;
+              try (induction H; constructor; auto;
+                   destruct x as [x ty]; unfold F.relf; simpl in *;
+                   split; auto; try reflexivity).
+        Qed.
+
+        Lemma equivt_symmetric : Symmetric equivt.
+        Proof.
+          unfold Symmetric; intros t1 t2 H;
+            induction H using custom_equivt_ind;
+            constructor; auto;
+              try (induction H; inversion H0; subst; repeat constructor; auto;
+                   destruct x as [x1 t1]; destruct y as [x2 t2];
+                   repeat match goal with
+                          | H: F.relf _ _ _ |- _ => inversion H; subst; clear H
+                          end; simpl in *; auto;
+                   [ symmetry | apply IHForall2 ]; auto).
+        Qed.
+
+        Lemma equivt_transitive : Transitive equivt.
+        Proof.
+          intros x; induction x using custom_t_ind;
+            intros [] [] Hxy Hyz; auto;
+              inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz;
+                try (rename fields into fs1; rename fields0 into fs2;
+                     rename fields1 into fs3; constructor;
+                     generalize dependent fs3; generalize dependent fs2;
+                     induction fs1 as [| [x1 t1] fs1 IHfs1];
+                     intros [| [x2 t2] fs2] H12; intros [| [x3 t3] fs3] H23;
+                     inversion H12; inversion H23; inversion H;
+                     clear H12 H23 H; subst; constructor;
+                     [ unfold F.relf in *; simpl in *;
+                       destruct H3; destruct H9; split; eauto;
+                       transitivity x2; assumption
+                     | eapply IHfs1; eauto]).
+        Qed.
+
+        Instance TypeEquivalence : Equivalence equivt.
+        Proof.
+          constructor; [ apply equivt_reflexive
+                       | apply equivt_symmetric
+                       | apply equivt_transitive].
+        Defined.
+
+        Lemma equivt_dec : forall (t1 t2 : t tags_t),
+            equivt t1 t2 \/ ~ equivt t1 t2.
+        Proof.
+          induction t1 using custom_t_ind; intros [];
+            try (left; apply equivt_reflexive);
+            try (right; intros HR; inversion HR; assumption);
+            try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
+                 unfold equiv in *; unfold complement in *; subst;
+                 try (right; intros H'; inversion H'; contradiction);
+                 try (left; reflexivity));
+            try (rename fields into fs1; rename fields0 into fs2;
+                 generalize dependent fs2;
+                 induction fs1 as [| [x1 t1] fs1 IHfs1];
+                 intros [| [x2 t2] fs2];
+                 try (left; reflexivity);
+                 try (right; intros H';
+                      inversion H'; inversion H2; assumption); subst;
+                 inversion H; clear H; subst; unfold F.predf_data in H2;
+                 pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
+                 destruct (equiv_dec x1 x2) as [H12 | H12];
+                 unfold equiv in *; unfold complement in *;
+                 destruct (H2 t2) as [HT | HT]; clear H2;
+                 destruct IH as [IH | IH];
+                 try (right; intros H'; inversion H';
+                      clear H'; subst; inversion H1;
+                      clear H1; subst; unfold F.relf in *;
+                      simpl in *; destruct H3; contradiction);
+                 [ left; constructor; inversion IH; subst;
+                   constructor; auto; unfold F.relf; split; auto
+                 | right; intros H'; inversion H'; subst;
+                   clear H'; inversion H1; subst; apply IH;
+                   constructor; auto ]).
+        Qed.
+      End TypeEquivalence.
     End TypeEquivalence.
 
     Inductive uop : Set :=
@@ -365,8 +435,6 @@ Module P4light.
     (**[]*)
 
     Module UopNotations.
-      Declare Custom Entry p4uop.
-
       Notation "x" := x (in custom p4uop at level 0, x constr at level 0).
       Notation "!" := Not (in custom p4uop at level 0).
       Notation "~" := BitNot (in custom p4uop at level 0).
@@ -399,8 +467,6 @@ Module P4light.
     (**[]*)
 
     Module BopNotations.
-      Declare Custom Entry p4bop.
-
       Notation "x" := x (in custom p4bop at level 0, x constr at level 0).
       Notation "+" := Plus (in custom p4bop at level 0).
       Notation "-" := Minus (in custom p4bop at level 0).
@@ -437,8 +503,6 @@ Module P4light.
     Defined.
 
     Module MatchkindNotations.
-      Declare Custom Entry p4matchkind.
-
       Notation "x" := x (in custom p4matchkind at level 0, x constr at level 0).
       Notation "'exact'" := MKExact (in custom p4matchkind at level 0).
       Notation "'ternary'" := MKTernary (in custom p4matchkind at level 0).
@@ -453,8 +517,6 @@ Module P4light.
     (**[]*)
 
     Module HeaderOpNotations.
-      Declare Custom Entry p4hdr_op.
-
       Notation "x" := x (in custom p4hdr_op at level 0, x constr at level 0).
       Notation "'isValid'" := HOIsValid (in custom p4hdr_op at level 0).
       Notation "'setValid'" := HOSetValid (in custom p4hdr_op at level 0).
@@ -515,8 +577,6 @@ Module P4light.
     Arguments EMatchKind {tags_t}.
 
     Module ExprNotations.
-      Declare Custom Entry p4expr.
-
       Export UopNotations.
       Export BopNotations.
       Export MatchkindNotations.
@@ -689,8 +749,6 @@ Module P4light.
     Module StmtNotations.
       Export E.ExprNotations.
 
-      Declare Custom Entry p4stmt.
-
       Notation "'-{' stmt '}-'" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"
@@ -772,8 +830,6 @@ Module P4light.
     Module DeclNotations.
       Export S.StmtNotations.
 
-      Declare Custom Entry p4decl.
-
       Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
       Notation "( x )" := x (in custom p4decl, x at level 99).
       Notation "x"
@@ -829,8 +885,6 @@ Module P4light.
 
       Module ControlDeclNotations.
         Export D.DeclNotations.
-
-        Declare Custom Entry p4ctrldecl.
 
         Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
         Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
@@ -891,8 +945,6 @@ Module P4light.
 
     Module TopDeclNotations.
       Export C.ControlDeclNotations.
-
-      Declare Custom Entry p4topdecl.
 
       Notation "'%{' decl '}%'" := decl (decl custom p4topdecl at level 99).
       Notation "( x )" := x (in custom p4topdecl, x at level 99).

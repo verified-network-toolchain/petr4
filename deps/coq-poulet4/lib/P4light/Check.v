@@ -4,6 +4,21 @@ Export Pos.
 Require Export P4light.AST.
 Require Export P4light.P4Arith.
 
+(** Notation entries. *)
+Declare Custom Entry p4env.
+Declare Custom Entry p4signal.
+Declare Custom Entry p4context.
+
+Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
+         (at level 40, e custom p4expr, t custom p4type at level 0).
+
+Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
+         (at level 40, s custom p4stmt, ctx custom p4context,
+          g2 custom p4env, sg custom p4signal).
+
+Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
+         (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
+
 (** * Environments *)
 
 (** Note how the type of the environment's domain
@@ -33,8 +48,6 @@ Module Env.
   End EnvDefs.
 
   Module EnvNotations.
-    Declare Custom Entry p4env.
-
     Notation "'!{' env '}!'" := env (env custom p4env at level 99).
     Notation "x" := x (in custom p4env at level 0, x constr at level 0).
     Notation "x ↦ v ';;' e"
@@ -49,6 +62,9 @@ Module Typecheck.
   Module P := P4light.
 
   Module E := P.Expr.
+
+  Import E.TypeEquivalence.
+
   Module ST := P.Stmt.
   Module D := P.Decl.
   Module F := P.F.
@@ -70,25 +86,11 @@ Module Typecheck.
     end.
   (**[]*)
 
-  Declare Custom Entry p4signal.
-
   Notation "x" := x (in custom p4signal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4signal at level 0).
   Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
-  Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
-           (at level 40, e custom p4expr, t custom p4type at level 0).
-
   Import Env.EnvNotations.
-
-  Declare Custom Entry p4context.
-
-  Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
-           (at level 40, s custom p4stmt, ctx custom p4context,
-            g2 custom p4env, sg custom p4signal).
-
-  Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
-           (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
   Section TypeCheck.
     Variable (tags_t : Type).
@@ -193,13 +195,13 @@ Module Typecheck.
     (* Binary Operations. *)
     | chk_numeric_bop (op : E.bop) (τ τ' : E.t tags_t)
                       (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ -> numeric_bop op ->
+        equivt τ τ' -> numeric τ -> numeric_bop op ->
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
         ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ' @ i ∈ τ
     | chk_comp_bop (op : E.bop) (τ τ' : E.t tags_t)
                    (e1 e2 : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' -> numeric τ -> comp_bop op ->
+        equivt τ τ' -> numeric τ -> comp_bop op ->
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
         ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
         ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ' @ i ∈ Bool
@@ -241,7 +243,7 @@ Module Typecheck.
                   (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
         F.relfs
           (fun te τ =>
-             E.equivt (fst te) τ /\
+             equivt (fst te) τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
@@ -250,7 +252,7 @@ Module Typecheck.
                   (i : tags_t) (b : E.e tags_t) :
         F.relfs
           (fun te τ =>
-             E.equivt (fst te) τ /\
+             equivt (fst te) τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         ⟦ errs, Γ ⟧ ⊢ b ∈ Bool ->
@@ -310,7 +312,7 @@ Module Typecheck.
       (**[]*)
 
       Hypothesis HNumericBOP : forall errs Γ op τ τ' e1 e2 i,
-          E.equivt τ τ' -> numeric τ -> numeric_bop op ->
+          equivt τ τ' -> numeric τ -> numeric_bop op ->
           ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
           P errs Γ e1 τ ->
           ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
@@ -319,7 +321,7 @@ Module Typecheck.
       (**[]*)
 
       Hypothesis HCompBOP : forall errs Γ op τ τ' e1 e2 i,
-          E.equivt τ τ' -> numeric τ -> comp_bop op ->
+          equivt τ τ' -> numeric τ -> comp_bop op ->
           ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
           P errs Γ e1 τ ->
           ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
@@ -379,7 +381,7 @@ Module Typecheck.
       Hypothesis HRecLit : forall errs Γ efs tfs i,
           F.relfs
             (fun te τ =>
-               E.equivt (fst te) τ /\
+               equivt (fst te) τ /\
                let e := snd te in
                ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
           F.relfs
@@ -391,7 +393,7 @@ Module Typecheck.
       Hypothesis HHdrLit : forall errs Γ efs tfs i b,
           F.relfs
             (fun te τ =>
-               E.equivt (fst te) τ /\
+               equivt (fst te) τ /\
                let e := snd te in
                ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
           F.relfs
@@ -429,7 +431,7 @@ Module Typecheck.
                       {tfs : F.fs tags_t (E.t tags_t)}
                       (HRs : F.relfs
                                (fun te τ =>
-                                  E.equivt (fst te) τ /\
+                                  equivt (fst te) τ /\
                                   let e := snd te in
                                   ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs)
                   : F.relfs
@@ -600,7 +602,7 @@ Module Typecheck.
         return_void_ok con ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
     | chk_return_fruit (τ' τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
-        E.equivt τ τ' ->
+        equivt τ τ' ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         ⦃ fns, ins, errs, Γ ⦄ Function τ' ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
     | chk_exit (i : tags_t) (con : ctx) :
@@ -612,7 +614,7 @@ Module Typecheck.
         fns f = Some (P.Arrow params None) ->
         F.relfs
           (P.rel_paramarg_same
-             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+             (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
           args params ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
     | chk_call (τ : E.t tags_t) (e : E.e tags_t)
@@ -622,7 +624,7 @@ Module Typecheck.
         fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
           (P.rel_paramarg_same
-             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+             (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
           args params ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         ⦃ fns, ins, errs , Γ ⦄
@@ -632,7 +634,7 @@ Module Typecheck.
         ins x = Some params ->
         F.relfs
           (P.rel_paramarg_same
-             (fun '(t,e) τ => E.equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+             (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
           args params ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
     | chk_invoke (tbl : name tags_t) (i : tags_t) (tbls : tblenv) :
@@ -687,7 +689,7 @@ Module Typecheck.
         cs c = Some (CCtor cparams params) ->
         F.relfs
           (fun '(τ,e) τ' =>
-             E.equivt τ τ' /\ ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
+             equivt τ τ' /\ ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
           cargs cparams ->
         let x' := bare x in
         ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, x' ↦ params ;; ins ⦘

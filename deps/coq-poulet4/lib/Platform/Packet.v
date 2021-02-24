@@ -41,7 +41,7 @@ Section Packet.
     end.
 
   Definition convert_bits (width: nat) (bits: Bvector width) : Z :=
-    Z.of_nat (to_nat (Vector.to_list bits)).
+    Z.of_nat (to_nat (rev (Vector.to_list bits))).
 
   Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
     match into with

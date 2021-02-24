@@ -1847,7 +1847,7 @@ Definition foo :=
     |} in
     let scope := MkEnv_EvalEnv nil nil (MkP4String "dummy") in
     let parser := ValObjParser scope params constructor_params locals states in
-    let packet := ValObj (ValObjPacket ((List.repeat true 16) ++ (true :: false :: false :: false :: nil) ++ (List.repeat true 20))) in
+    let packet := ValObj (ValObjPacket ((List.repeat true 16) ++ (false :: false :: false :: true :: nil) ++ (List.repeat true 20))) in
     let stepper := step_trans _ NoInfo parser 2 (MkP4String "start") in
     Some ((env_insert Info "packet" packet ;;
            env_insert Info "hdr" (ValBase (ValBaseHeader ((MkP4String "ip", ValBaseHeader ((MkP4String "src", ValBaseBit 8 0) :: (MkP4String "dst", ValBaseBit 8 0) :: (MkP4String "proto", ValBaseBit 4 0) :: nil) false) :: (MkP4String "t_or_u", ValBaseUnion ((MkP4String "udp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: nil) false) :: (MkP4String "tcp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: (MkP4String "seq", ValBaseBit 8 0) :: nil) false) :: nil)) :: nil) false)) ;; stepper) env)

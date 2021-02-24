@@ -311,7 +311,7 @@ Section Environment.
       match (lv', value) with
       | (ValBase lv'', ValBase value') =>
         let* value'' := update_member lv'' member value' in
-        env_update inner (ValBase value')
+        env_update inner (ValBase value'')
       | _ => state_fail (TypeError "Member expression did not evaluate to base values.")
       end
     | ValLeftBitAccess inner msb lsb =>

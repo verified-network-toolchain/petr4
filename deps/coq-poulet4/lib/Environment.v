@@ -31,9 +31,9 @@ Inductive exception :=
 | Reject
 | Exit
 | Internal
-| TypeError (error_msg: String.t)
-| AssertError (error_msg: String.t)
-| SupportError (error_msg: String.t)
+| TypeError (error_msg: string)
+| AssertError (error_msg: string)
+| SupportError (error_msg: string)
 .
 
 Section Environment.
@@ -54,7 +54,7 @@ Section Environment.
 
   Definition env_monad := @state_monad environment exception.
 
-  Fixpoint stack_lookup' (key: String.t) (st: stack) : option loc :=
+  Fixpoint stack_lookup' (key: string) (st: stack) : option loc :=
     match st with
     | nil => None
     | top :: rest =>
@@ -64,14 +64,14 @@ Section Environment.
       end
     end.
 
-  Definition stack_lookup (key: String.t) : env_monad loc :=
+  Definition stack_lookup (key: string) : env_monad loc :=
     fun env =>
       match stack_lookup' key (env_stack env) with
       | None => state_fail (AssertError "Could not look up variable on stack.") env
       | Some l => mret l env
       end.
 
-  Definition stack_insert' (key: String.t) (l: loc) (st: stack) : option stack :=
+  Definition stack_insert' (key: string) (l: loc) (st: stack) : option stack :=
     match st with
     | nil => None
     | top :: rest =>
@@ -81,7 +81,7 @@ Section Environment.
       end
     end.
 
-  Definition stack_insert (key: String.t) (l: loc) : env_monad unit :=
+  Definition stack_insert (key: string) (l: loc) : env_monad unit :=
     fun env =>
       match env_stack env with
       | nil => state_fail (AssertError "No top scope to add name from.") env
@@ -138,7 +138,7 @@ Section Environment.
         env_heap := MNat.add l v (env_heap env);
       |}.
 
-  Definition env_insert (name: String.t) (v: @Value tags_t) : env_monad unit :=
+  Definition env_insert (name: string) (v: @Value tags_t) : env_monad unit :=
     let* l := heap_insert v in
     stack_insert name l.
 

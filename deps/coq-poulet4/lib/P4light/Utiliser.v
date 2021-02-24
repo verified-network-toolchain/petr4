@@ -1,6 +1,7 @@
 Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Integers. *)
-Require Petr4.String.
+Require Coq.Strings.String.
+Module Strings := Coq.Strings.String.
 Require Petr4.P4String. (** Strings. *)
 Require Petr4.Typed. (** Names. *)
 
@@ -40,7 +41,7 @@ Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
 
 Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 
-Instance StringEqDec : EqDec Petr4.String.t eq := Petr4.String.StringEqDec.
+Instance StringEqDec : EqDec Strings.string eq := { equiv_dec := Strings.string_dec }.
 
 Section TypeSynonyms.
   Variable (tags_t : Type).

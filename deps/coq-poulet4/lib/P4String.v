@@ -1,9 +1,13 @@
-Require Petr4.String.
+Require Coq.Strings.String.
+Module CoqString := Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
+
+(** Coq string type. *)
+Definition string := CoqString.string.
 
 Record t (tags_t: Type) :=
   { tags: tags_t;
-    str: String.t }.
+    str: string }.
 Arguments tags [tags_t] _.
 Arguments str [tags_t] _.
 
@@ -16,12 +20,8 @@ Definition equiv [tags_t: Type] (s1 s2: t tags_t) : Prop :=
 Definition equivb [tags_t: Type] (s1 s2: t tags_t) :=
   String.eqb s1.(str) s2.(str).
 
-Definition eq_const [tags_t: Type] (s1: t tags_t) (s2: String.t) :=
+Definition eq_const [tags_t: Type] (s1: t tags_t) (s2: string) :=
   String.eqb s1.(str) s2.
-
-(* TODO: this is going bye bye. *)
-Definition make {tags_t : Type} (tgs : tags_t) (x : String.t) :=
-  {| tags := tgs; str := x |}.
 
 Instance EquivEquivalence (tags_t : Type) : Equivalence (@equiv tags_t).
 Proof.
@@ -33,7 +33,7 @@ Defined.
 
 Instance P4StringEqDec (tags_t : Type) : EqDec (t tags_t) (@equiv tags_t).
 Proof.
-  intros [t1 s1] [t2 s2]. Locate "===".
+  intros [t1 s1] [t2 s2].
   unfold Equivalence.equiv; unfold complement; simpl; unfold equiv; simpl.
-  apply equiv_dec.
+  apply String.string_dec.
 Defined.

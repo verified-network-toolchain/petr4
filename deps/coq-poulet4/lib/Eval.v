@@ -11,7 +11,6 @@ Require Import Monads.Option.
 Require Import Monads.State.
 Require Import Monads.Transformers.
 
-Require Petr4.String.
 Require Petr4.StringConstants.
 Require Import Petr4.Environment.
 Require Import Petr4.Syntax.
@@ -114,12 +113,12 @@ Section Eval.
     | _ => state_fail (AssertError "Not enough arguments to push_front.")
     end.
 
-  Definition is_packet_func (str: String.t) : bool :=
+  Definition is_packet_func (str: string) : bool :=
     if String.eqb str StringConstants.extract
     then true
     else false.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: String.t) (type_args: list P4Type) (args: list (option Value)) : env_monad unit :=
+  Definition eval_packet_func (obj: ValueLvalue) (name: string) (type_args: list P4Type) (args: list (option Value)) : env_monad unit :=
     let* bits := unpack_packet _ (env_lookup _ obj) in
     if String.eqb name StringConstants.extract then
       match (args, type_args) with
@@ -162,7 +161,7 @@ Section Eval.
     else state_fail (SupportError "Unknown built-in function.")
   .
 
-  Definition eval_extern_func (name: String.t) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option Expression)): env_monad Value.
+  Definition eval_extern_func (name: string) (obj: ValueLvalue) (type_args: list P4Type) (args: list (option Expression)): env_monad Value.
   Admitted.
   (* TODO fix
   let* Packet bits := unpack_extern_obj (find_lvalue obj) in

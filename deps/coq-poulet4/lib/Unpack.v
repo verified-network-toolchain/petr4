@@ -5,7 +5,6 @@ Require Import Coq.Strings.String.
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require Petr4.String.
 Require Import Syntax.
 Require Import Environment.
 Require Import Typed.
@@ -60,7 +59,7 @@ Section Unpack.
     | _ => state_fail (TypeError "Cannot unpack value as variable-width integer.")
     end.
 
-  Definition unpack_string (wrapped: env_monad Value) : env_monad String.t :=
+  Definition unpack_string (wrapped: env_monad Value) : env_monad string :=
     let* unwrapped := wrapped in
     match unwrapped with
     | ValBase (ValBaseString s) => mret s.(P4String.str)

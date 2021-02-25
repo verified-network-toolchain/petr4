@@ -27,6 +27,12 @@ module type Interpreter = sig
 
   val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
     state * (buf * Bigint.t) option
+
+  val init_switch : env -> program -> env * state
+
+  val switch_packet : ctrl -> env -> state ->  buf -> Bigint.t ->
+    state * (buf * Bigint.t) option
+
 end
 
 module MakeInterpreter (T : Target) = struct
@@ -1426,6 +1432,18 @@ module MakeInterpreter (T : Target) = struct
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
     let st', pkt', port = eval_main ctrl env st pkt in_port in
     st', pkt' >>| fun pkt' -> (Cstruct.append pkt'.emitted pkt'.main, port)
+
+  let init_switch (env : env) (prog : program) : env * state =
+    match prog with Program l ->
+    List.fold l ~init:(env, empty_state)
+      ~f:(fun (e,s) -> eval_declaration (([], []),[]) e s)
+
+  let switch_packet (ctrl : ctrl) (env : env) (st : state) (pkt : buf)
+      (pt : Bigint.t) : state * (buf * Bigint.t) option  =
+    let (>>|) = Option.(>>|) in
+    let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
+    let (st, pkt, pt) = eval_main ctrl env st pkt pt in
+    st, pkt >>| fun pkt -> (Cstruct.append pkt.emitted pkt.main, pt)
 
 end
 

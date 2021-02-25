@@ -43,6 +43,11 @@ module type Interpreter = sig
   val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
     state * (buf * Bigint.t) option
 
+  val init_switch : env -> program -> env * state
+
+  val switch_packet : ctrl -> env -> state -> buf -> Bigint.t ->
+    state * (buf * Bigint.t) option
+
 end
 
 (** [MakeInterpreter(T)] is a P4 interpreter instantiated on the target [T]. *)

@@ -104,7 +104,6 @@ let do_stf include_dir stf_file p4_file =
     let pkts = List.zip_exn expected results in
     List.iter ~f:check_pkt pkts
 
-
 let stf_command =
   let open Command.Spec in
   Command.basic_spec
@@ -115,7 +114,32 @@ let stf_command =
      +> flag "-stf" (required string) ~doc: "<stf file> Select the .stf script to run"
      +> anon ("p4file" %: string))
     (fun verbose include_dir stf_file p4_file () ->
-        do_stf include_dir stf_file p4_file)
+	 do_stf include_dir stf_file p4_file)
+
+let start_server verbose include_dir target p4_file =
+  match parse_file include_dir p4_file verbose with
+  | `Ok prog ->
+    let elab_prog, renamer = Elaborate.elab prog in
+    let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
+    let _env = Env.CheckerEnv.eval_env_of_t cenv in
+    (* let open Eval in *)
+    failwith "TODO: unimplemented"
+  | `Error (info, exn) ->
+    let exn_msg = Exn.to_string exn in
+    let info_string = Info.to_string info in
+    Format.sprintf "%s\n%s" info_string exn_msg |> print_string
+
+let server_command =
+  let open Command.Spec in
+  Command.basic_spec
+    ~summary: "Set up a server that behaves as a P4-programmable switch"
+    (empty
+     +> flag "-v" no_arg ~doc: "Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
+     +> anon ("p4file" %: string))
+    (fun verbose include_dir target p4_file () ->
+	 start_server verbose include_dir target p4_file)
 
 let command =
   Command.group
@@ -123,6 +147,7 @@ let command =
     [ "parse", parse_command;
       "typecheck", check_command;
       "run", eval_command;
-      "stf", stf_command ]
+      "stf", stf_command;
+      "server", server_command; ]
 
 let () = Command.run ~version: "0.1.2" command

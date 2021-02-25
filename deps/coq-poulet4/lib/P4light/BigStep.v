@@ -539,7 +539,7 @@ Module Step.
         eval_bit_binop op w n1 n2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        expr_big_step ϵ (E.EBop op {{bit<w>}} {{bit <w>}} e1 e2 i) v
+        ⟨ ϵ, BOP e1:bit<w> op e2:bit<w> @ i ⟩ ⇓ v
     | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
                    (w w1 w2 : positive) (n n1 n2 : N) :
         (w1 + w2)%positive = w ->
@@ -552,22 +552,22 @@ Module Step.
         eval_int_binop op w z1 z2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
         ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        expr_big_step ϵ (E.EBop op {{int<w>}} {{int <w>}} e1 e2 i) v
+        ⟨ ϵ, BOP e1:int<w> op e2:int <w> @ i ⟩ ⇓ v
     | ebs_bop_bool (e1 e2 : E.e tags_t) (op : E.bop)
                    (i : tags_t) (b b1 b2 : bool) :
         eval_bool_binop op b1 b2 = Some b ->
         ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
         ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-        expr_big_step ϵ (E.EBop op {{ Bool }} {{ Bool }} e1 e2 i) *{VBOOL b}*
+        ⟨ ϵ, BOP e1:Bool op e2:Bool @ i⟩ ⇓ VBOOL b
     | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
                   (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
         V.eqbv tags_t v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
         ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
-    | ebs_neq_true (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                   (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
-        V.eqbv tags_t v1 v2 = b ->
+    | ebs_neq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
+              (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+        negb (V.eqbv tags_t v1 v2) = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
         ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
@@ -606,15 +606,233 @@ Module Step.
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
+    (** A custom induction principle for
+        the expression big-step relation. *)
+    Section ExprEvalInduction.
+      Variable P : epsilon -> E.e tags_t -> V.v tags_t -> Prop.
+
+      Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> *{ VBOOL b }*.
+
+      Hypothesis HBit : forall ϵ w n i, P ϵ <{ w W n @ i }> *{ w VW n }*.
+
+      Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> *{ w VS z }*.
+
+      Hypothesis HVar : forall ϵ x τ i v,
+          ϵ x = Some v ->
+          P ϵ <{ Var x:τ @ i }> v.
+
+      Hypothesis HError : forall ϵ err i,
+          P ϵ <{ Error err @ i }> *{ ERROR err }*.
+
+      Hypothesis HMatchkind : forall ϵ mk i,
+          P ϵ <{ Matchkind mk @ i }> *{ MATCHKIND mk }*.
+
+      Hypothesis HNot : forall ϵ e i b b',
+          negb b = b' ->
+          ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+          P ϵ e *{ VBOOL b }* ->
+          P ϵ <{ UOP ! e:Bool @ i }> *{ VBOOL b'}*.
+
+      Hypothesis HBitNot : forall ϵ e i w n n',
+          BitArith.neg w n = n' ->
+          ⟨ ϵ, e ⟩ ⇓ w VW n ->
+          P ϵ e *{ w VW n }* ->
+          P ϵ <{ UOP ~ e:bit<w> @ i }> *{ w VW n' }*.
+
+      Hypothesis HUMinus : forall ϵ e i w z z',
+          IntArith.neg w z = z' ->
+          ⟨ ϵ, e ⟩ ⇓ w VS z ->
+          P ϵ e *{ w VS z }* ->
+          P ϵ <{ UOP - e:int<w> @ i }> *{ w VS z' }*.
+
+      Hypothesis HBOPBit : forall ϵ e1 e2 op v i w n1 n2,
+          eval_bit_binop op w n1 n2 = Some v ->
+          ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
+          P ϵ e1 *{ w VW n1 }* ->
+          ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
+          P ϵ e2 *{ w VW n2 }* ->
+          P ϵ <{ BOP e1:bit<w> op e2:bit<w> @ i }> v.
+
+      Hypothesis HPlusPlus : forall ϵ e1 e2 i w w1 w2 n n1 n2,
+        (w1 + w2)%positive = w ->
+        BitArith.bit_concat w2 n1 n2 = n ->
+        ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
+        P ϵ e1 *{ w1 VW n1 }* ->
+        ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
+        P ϵ e2 *{ w2 VW n2 }* ->
+        P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> *{ w VW n }*.
+
+      Hypothesis HBOPInt : forall ϵ e1 e2 op v i w z1 z2,
+        eval_int_binop op w z1 z2 = Some v ->
+        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
+        P ϵ e1 *{ w VS z1 }* ->
+        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
+        P ϵ e2 *{ w VS z2 }* ->
+        P ϵ <{ BOP e1:int<w> op e2:int<w> @ i }> v.
+
+      Hypothesis HBOPBool : forall ϵ e1 e2 op i b b1 b2,
+        eval_bool_binop op b1 b2 = Some b ->
+        ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
+        P ϵ e1 *{ VBOOL b1 }* ->
+        ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
+        P ϵ e2 *{ VBOOL b2 }* ->
+        P ϵ <{ BOP e1:Bool op e2:Bool @ i }> *{VBOOL b}*.
+
+      Hypothesis HEq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
+          V.eqbv tags_t v1 v2 = b ->
+          ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+          P ϵ e1 v1 ->
+          ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+          P ϵ e2 v2 ->
+          P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> *{ VBOOL b }*.
+
+      Hypothesis HNeq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
+          negb (V.eqbv tags_t v1 v2) = b ->
+          ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+          P ϵ e1 v1 ->
+          ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+          P ϵ e2 v2 ->
+          P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> *{ VBOOL b }*.
+
+      Hypothesis HRecMem : forall ϵ e x i ts vs v,
+          F.get x vs = Some v ->
+          ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
+          P ϵ e *{ REC { vs } }* ->
+          P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
+
+      Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
+          F.get x vs = Some v ->
+          ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+          P ϵ e *{ HDR { vs } VALID:=b }* ->
+          P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
+
+      Hypothesis HRecLit : forall ϵ efs i vfs,
+          F.relfs
+            (fun te v =>
+               let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+          F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
+          P ϵ <{ rec { efs } @ i }> *{ REC { vfs } }*.
+
+      Hypothesis HHdrLit : forall ϵ efs e i b vfs,
+          F.relfs
+            (fun te v =>
+               let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+          F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
+          ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+          P ϵ e *{ VBOOL b }* ->
+          P ϵ <{ hdr { efs } valid:=e @ i }> *{ HDR { vfs } VALID:=b }*.
+
+      Hypothesis HHdrOp : forall ϵ op e i v vs b,
+          eval_hdr_op op vs b = v ->
+          ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+          P ϵ e *{ HDR { vs } VALID:=b }* ->
+          P ϵ <{ H op e @ i }> v.
+
+      (** Custom induction principle for
+          the expression big-step relation.
+          [Do induction ?H using custom_expr_big_step_ind]. *)
+      Definition custom_expr_big_step :
+        forall (ϵ : epsilon) (e : E.e tags_t)
+          (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
+        fix ebsind ϵ e v Hy :=
+          let fix fsind
+                  {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
+                  {vfs : F.fs tags_t (V.v tags_t)}
+                  (HRs : F.relfs
+                           (fun te v =>
+                              let e := snd te in
+                              ⟨ ϵ , e ⟩ ⇓ v) efs vfs)
+                  : F.relfs
+                      (fun te v => let e := snd te in P ϵ e v)
+                      efs vfs :=
+                  match HRs
+                        in (Forall2 _ es vs)
+                        return
+                        (Forall2
+                           (F.relf (fun te v => let e := snd te in P ϵ e v))
+                           es vs) with
+                  | Forall2_nil _ => Forall2_nil
+                                      (F.relf (fun te v => let e := snd te in P ϵ e v))
+                  | Forall2_cons te v
+                                 (conj Hname Hhead)
+                                 Htail => Forall2_cons
+                                           te v
+                                           (conj Hname (ebsind ϵ _ _ Hhead))
+                                           (fsind Htail)
+                  end in
+          match Hy in (⟨ _, e' ⟩ ⇓ v') return P ϵ e' v' with
+          | ebs_bool _ b i => HBool ϵ b i
+          | ebs_bit _ w n i => HBit ϵ w n i
+          | ebs_int _ w z i => HInt ϵ w z i
+          | ebs_var _ x τ i v Hx => HVar ϵ x τ i v Hx
+          | ebs_error _ err i => HError ϵ err i
+          | ebs_matchkind _ mk i => HMatchkind ϵ mk i
+          | ebs_not _ e i b b' Hnot He => HNot ϵ e i b b' Hnot
+                                              He (ebsind ϵ e *{ VBOOL b }* He)
+          | ebs_bitnot _ e i w n n'
+                       Hnot He => HBitNot ϵ e i w n n' Hnot
+                                         He (ebsind ϵ e *{ w VW n }* He)
+          | ebs_uminus _ e i w z z'
+                       Hneg He => HUMinus ϵ e i w z z' Hneg
+                                         He (ebsind ϵ e *{ w VS z }* He)
+          | ebs_bop_bit _ e1 e2 op v i w n1 n2
+                        Hv He1 He2 => HBOPBit ϵ e1 e2 op v i w n1 n2 Hv
+                                             He1 (ebsind ϵ e1 *{ w VW n1 }* He1)
+                                             He2 (ebsind ϵ e2 *{ w VW n2 }* He2)
+          | ebs_plusplus _ e1 e2 i w w1 w2 n n1 n2
+                         Hw Hconcat He1 He2 => HPlusPlus ϵ e1 e2 i w w1 w2 n n1 n2
+                                                        Hw Hconcat
+                                                        He1 (ebsind ϵ e1 *{ w1 VW n1 }* He1)
+                                                        He2 (ebsind ϵ e2 *{ w2 VW n2 }* He2)
+          | ebs_bop_int _ e1 e2 op v i w z1 z2
+                        Hv He1 He2 => HBOPInt ϵ e1 e2 op v i w z1 z2 Hv
+                                             He1 (ebsind ϵ e1 *{ w VS z1 }* He1)
+                                             He2 (ebsind ϵ e2 *{ w VS z2 }* He2)
+          | ebs_bop_bool _ e1 e2 op i b b1 b2
+                        Hb He1 He2 => HBOPBool ϵ e1 e2 op i b b1 b2 Hb
+                                             He1 (ebsind ϵ e1 *{ VBOOL b1 }* He1)
+                                             He2 (ebsind ϵ e2 *{ VBOOL b2 }* He2)
+          | ebs_eq _ e1 e2 τ1 τ2 i v1 v2 b
+                   Hb He1 He2 => HEq ϵ e1 e2 τ1 τ2 i v1 v2 b Hb
+                                    He1 (ebsind ϵ e1 v1 He1)
+                                    He2 (ebsind ϵ e2 v2 He2)
+          | ebs_neq _ e1 e2 τ1 τ2 i v1 v2 b
+                    Hb He1 He2 => HNeq ϵ e1 e2 τ1 τ2 i v1 v2 b Hb
+                                     He1 (ebsind ϵ e1 v1 He1)
+                                     He2 (ebsind ϵ e2 v2 He2)
+          | ebs_hdr_mem _ e x i ts b vs v
+                        Hget He => HHdrMem ϵ e x i ts b vs v Hget
+                                          He (ebsind ϵ e *{ HDR { vs } VALID:=b }* He)
+          | ebs_rec_mem _ e x i ts vs v
+                        Hget He => HRecMem ϵ e x i ts vs v Hget
+                                          He (ebsind ϵ e *{ REC { vs } }* He)
+          | ebs_hdr_op _ op e i v vs b
+                       Hv He => HHdrOp ϵ op e i v vs b Hv
+                                      He (ebsind ϵ e *{ HDR { vs } VALID:=b }* He)
+          | ebs_rec_lit _ es i vs HR => HRecLit ϵ es i vs HR (fsind HR)
+          | ebs_hdr_lit _ es e i b vs
+                        HR He => HHdrLit ϵ es e i b vs
+                                        HR (fsind HR)
+                                        He (ebsind ϵ e *{ VBOOL b }* He)
+          end.
+      (**[]*)
+    End ExprEvalInduction.
+
     Inductive lvalue_big_step (ϵ : epsilon) : E.e tags_t -> V.lv tags_t -> Prop :=
     | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
         ⦑ ϵ, Var x:τ @ i ⦒ ⇓ VAR x
-    | lvbs_member (e : E.e tags_t) (x : string tags_t)
+    | lvbs_rec_member (e : E.e tags_t) (x : string tags_t)
                   (tfs : F.fs tags_t (E.t tags_t))
                   (i : tags_t) (lv : V.lv tags_t) :
         ⦑ ϵ, e ⦒ ⇓ lv ->
         ⦑ ϵ, Mem e:rec { tfs } dot x @ i ⦒ ⇓ lv DOT x
+    | lvbs_hdr_member (e : E.e tags_t) (x : string tags_t)
+                      (tfs : F.fs tags_t (E.t tags_t))
+                      (i : tags_t) (lv : V.lv tags_t):
+        ⦑ ϵ, e ⦒ ⇓ lv ->
+        ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
     where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
+    (**[]*)
 
     Instance P4NameEquivalence : Equivalence (equivn tags_t) :=
       NameEquivalence tags_t.

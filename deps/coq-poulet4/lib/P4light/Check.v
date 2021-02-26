@@ -19,6 +19,10 @@ Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
 Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
          (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
+Reserved Notation "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
+         (at level 60, d custom p4ctrldecl, g2 custom p4env,
+          ienv2 custom p4env, tbls2 custom p4env, acts2 custom p4env).
+
 (** * Environments *)
 
 (** Note how the type of the environment's domain
@@ -67,10 +71,11 @@ Module Typecheck.
 
   Module ST := P.Stmt.
   Module D := P.Decl.
+  Module CD := P.Control.ControlDecl.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import D.DeclNotations.
+  Import CD.ControlDeclNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=
@@ -95,8 +100,14 @@ Module Typecheck.
   Section TypeCheck.
     Variable (tags_t : Type).
 
+    (** Available strings. *)
+    Definition strs : Type := Env.t (string tags_t) unit.
+
+    (** Available names. *)
+    Definition names : Type := Env.t (name tags_t) unit.
+
     (** Available error names. *)
-    Definition errors : Type := Env.t (string tags_t) unit.
+    Definition errors : Type := strs.
 
     (** Typing context. *)
     Definition gam : Type := Env.t (name tags_t) (E.t tags_t).
@@ -537,7 +548,7 @@ Module Typecheck.
     Definition ienv : Type := Env.t (name tags_t) (E.params tags_t).
 
     (** Available table names. *)
-    Definition tblenv : Type := Env.t (name tags_t) unit.
+    Definition tblenv : Type := names.
 
     (** Statement context. *)
     Inductive ctx : Type :=
@@ -653,13 +664,10 @@ Module Typecheck.
     Definition cenv : Type := Env.t (name tags_t) cctor.
 
     (** Put parameters into environment. *)
-    Definition bind_all (sig : E.arrowT tags_t) : gam -> gam :=
-      match sig with
-      | P.Arrow params _ =>
-        F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ =>
-                  let x' := bare x in
-                  !{ x' ↦ τ ;; Γ }!) params
-      end.
+    Definition bind_all : E.params tags_t -> gam -> gam :=
+      F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ =>
+                let x' := bare x in
+                !{ x' ↦ τ ;; Γ }!).
     (**[]*)
 
     (** Appropriate signal. *)
@@ -709,6 +717,50 @@ Module Typecheck.
         ⦗ cs, fns, ins,  errs, Γ  ⦘ ⊢ d1 ;; d2 @ i ⊣ ⦗ Γ'', ins'' ⦘
     where "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
             := (check_decl cenv fenv ienv1 errs g1 d g2 ienv2).
+    (**[]*)
+
+    (** Available actions. *)
+    Definition aenv : Type := strs.
+
+    Inductive check_ctrldecl
+              (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
+              (ins : ienv) (errs : errors) (Γ : gam)
+      : CD.d tags_t -> gam -> ienv -> aenv -> tblenv -> Prop :=
+    | chk_action (a : string tags_t)
+                 (signature : E.params tags_t)
+                 (body : ST.s tags_t) (i : tags_t)
+                 (Γ' Γ'' : gam) (sg : signal) :
+        bind_all signature Γ = Γ' ->
+        ⦃ fns, ins, errs, Γ ⦄ Action ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+        ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆
+          ⊢ action a ( signature ) { body } @ i
+          ⊣ ⦅ Γ, ins, a ↦ tt ;; acts, tbls ⦆
+    | chk_table (t : string tags_t)
+                (kys : list
+                          (E.t tags_t * E.e tags_t * E.matchkind))
+                (actns : list (string tags_t))
+                (i : tags_t) :
+        (* Keys type. *)
+        Forall (fun '(τ,e,_) => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) kys ->
+        (* Actions available *)
+        Forall (fun a => acts a = Some tt) actns ->
+        let t' := bare t in
+        ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆
+          ⊢ table t keys:=kys actions:=actns @ i ⊣ ⦅ Γ, ins, acts, t' ↦ tt;; tbls ⦆
+    | chk_decl (d : D.d tags_t) (i : tags_t)
+               (Γ' : gam) (ins' : ienv) :
+        ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ d ⊣ ⦗ Γ', ins' ⦘ ->
+        ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆ ⊢ Decl d @ i ⊣ ⦅ Γ', ins', acts, tbls ⦆
+    | chk_ctrldecl_seq (d1 d2 : CD.d tags_t) (i : tags_t)
+                       (Γ' Γ'' : gam) (ins' ins'' : ienv)
+                       (acts' acts'' : aenv) (tbls' tbls'' : tblenv) :
+        ⦅ tbls,  acts,  cs, fns, ins,  errs, Γ  ⦆ ⊢ d1 ⊣ ⦅ Γ',  ins',  acts',  tbls'  ⦆ ->
+        ⦅ tbls', acts', cs, fns, ins', errs, Γ' ⦆ ⊢ d2 ⊣ ⦅ Γ'', ins'', acts'', tbls'' ⦆ ->
+        ⦅ tbls,  acts,  cs, fns, ins,  errs, Γ  ⦆
+          ⊢ d1 ;c; d2 @ i ⊣ ⦅ Γ'', ins'', acts'', tbls'' ⦆
+    where
+    "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
+      := (check_ctrldecl tbls1 acts1 cenv fenv ienv1 errs g1 d g2 ienv2 acts2 tbls2).
     (**[]*)
   End TypeCheck.
 End Typecheck.

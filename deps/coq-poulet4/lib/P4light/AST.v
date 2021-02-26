@@ -901,7 +901,7 @@ Module P4light.
         Notation "'action' a ( params ) { body } @ i"
           := (CDAction a params body i)
                (in custom p4ctrldecl at level 0, body custom p4stmt).
-        Notation "'table' t 'where' 'keys' ':=' keys 'actions' ':=' actions 'end' @ i"
+        Notation "'table' t 'keys' ':=' keys 'actions' ':=' actions @ i"
           := (CDTable t keys actions i)
                (in custom p4ctrldecl at level 0).
       End ControlDeclNotations.

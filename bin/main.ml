@@ -116,14 +116,25 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
 	 do_stf include_dir stf_file p4_file)
 
+let start_v1server env prog =
+  let open Eval in
+  let open V1Interpreter in
+  let (_env, _st) = init_switch env prog in
+  (* setup n sockets and bind to names from command line args *)
+  (* set socket options for non-blocking receive *)
+  (* setup control plane socket and bind *)
+  (* inifinite loop - non-blocking recv?; call petr4 interpreter; sento call *)
+  failwith "TODO: unimplemented"
+
 let start_server verbose include_dir target p4_file =
   match parse_file include_dir p4_file verbose with
   | `Ok prog ->
     let elab_prog, renamer = Elaborate.elab prog in
     let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
-    let _env = Env.CheckerEnv.eval_env_of_t cenv in
-    (* let open Eval in *)
-    failwith "TODO: unimplemented"
+    let env = Env.CheckerEnv.eval_env_of_t cenv in
+    begin match target with
+      | "v1" -> start_v1server env typed_prog
+      | _ -> failwith "mininet server unsupported on this architecture" end      
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
     let info_string = Info.to_string info in

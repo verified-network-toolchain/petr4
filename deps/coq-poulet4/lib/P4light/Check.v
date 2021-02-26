@@ -19,9 +19,15 @@ Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
 Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
          (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
-Reserved Notation "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
+Reserved Notation
+         "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
          (at level 60, d custom p4ctrldecl, g2 custom p4env,
           ienv2 custom p4env, tbls2 custom p4env, acts2 custom p4env).
+
+Reserved Notation
+         "$ cenv1 , fenv1 , ienv1 , errs , g1 $ ⊢ d ⊣ $ g2 , ienv2 , fenv2 , cenv2 $"
+         (at level 70, d custom p4topdecl, g2 custom p4env,
+          ienv2 custom p4env, fenv2 custom p4env, cenv2 custom p4env).
 
 (** * Environments *)
 
@@ -72,10 +78,11 @@ Module Typecheck.
   Module ST := P.Stmt.
   Module D := P.Decl.
   Module CD := P.Control.ControlDecl.
+  Module TD := P.TopDecl.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import CD.ControlDeclNotations.
+  Import TD.TopDeclNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=
@@ -553,7 +560,7 @@ Module Typecheck.
     (** Statement context. *)
     Inductive ctx : Type :=
     | CAction
-    | CMethod
+    | CVoid
     | CFunction (return_type : E.t tags_t)
     | CApplyBlock (tables : tblenv).
     (**[]*)
@@ -567,13 +574,13 @@ Module Typecheck.
     (** Evidence a void return is ok. *)
     Inductive return_void_ok : ctx -> Prop :=
     | return_void_action : return_void_ok CAction
-    | return_void_method : return_void_ok CMethod
+    | return_void_void : return_void_ok CVoid
     | return_void_applyblk (tbls : tblenv) : return_void_ok (CApplyBlock tbls).
     (**[]*)
 
     Notation "x" := x (in custom p4context at level 0, x constr at level 0).
     Notation "'Action'" := CAction (in custom p4context at level 0).
-    Notation "'Method'" := CMethod (in custom p4context at level 0).
+    Notation "'Void'" := CVoid (in custom p4context at level 0).
     Notation "'Function' t"
       := (CFunction t)
            (in custom p4context at level 0, t custom p4type).
@@ -670,6 +677,11 @@ Module Typecheck.
                 !{ x' ↦ τ ;; Γ }!).
     (**[]*)
 
+    (** Put (constructor) parameters into environment. *)
+    Definition cbind_all : F.fs tags_t (E.t tags_t) -> gam -> gam :=
+      F.fold (fun x τ Γ => let x' := bare x in !{ x' ↦ τ ;; Γ }!).
+    (**[]*)
+
     (** Appropriate signal. *)
     Inductive good_signal : E.arrowT tags_t -> signal -> Prop :=
       | good_signal_cont params :
@@ -761,6 +773,60 @@ Module Typecheck.
     where
     "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
       := (check_ctrldecl tbls1 acts1 cenv fenv ienv1 errs g1 d g2 ienv2 acts2 tbls2).
+    (**[]*)
+
+    Inductive check_topdecl
+              (cs : cenv) (fns : fenv) (ins : ienv) (errs : errors) (Γ : gam)
+              : TD.d tags_t -> gam -> ienv -> fenv -> cenv -> Prop :=
+    | chk_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+                  (params : E.params tags_t) (body : CD.d tags_t)
+                  (apply_blk : ST.s tags_t) (i : tags_t)
+                  (Γ' Γ'' Γ''' Γ'''' : gam) (sg : signal)
+                  (tbls : tblenv) (acts : aenv) (ins' ins'' : ienv) :
+        cbind_all cparams Γ = Γ' ->
+        let empty_tbls := Env.empty (name tags_t) unit in
+        let empty_acts := Env.empty (string tags_t) unit in
+        (* Control declarations. *)
+        ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆ ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
+        bind_all params Γ'' = Γ''' ->
+        (* Apply block. *)
+        ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
+        let c' := bare c in
+        let ctor := CCtor cparams params in
+        $ cs, fns, ins, errs, Γ $
+          ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
+          ⊣ $ Γ, ins, fns, c' ↦ ctor;; cs $
+    | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
+                         (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
+                         (Γ' Γ'' : gam) (sg : signal) :
+        bind_all params Γ = Γ' ->
+        ⦃ fns, ins, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+        let f' := bare f in
+        let func := P.Arrow params (Some τ) in
+        $ cs, fns, ins, errs, Γ $
+          ⊢ fn f (params) -> τ { body } @ i ⊣ $ Γ, ins, f' ↦ func;;  fns, cs $
+    | chk_void_function (f : string tags_t) (params : E.params tags_t)
+                        (body : ST.s tags_t) (i : tags_t)
+                        (Γ' Γ'' : gam) (sg : signal) :
+        bind_all params Γ = Γ' ->
+        ⦃ fns, ins, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+        let f' := bare f in
+        let func := P.Arrow params None in
+        $ cs, fns, ins, errs, Γ $
+          ⊢ void f (params) { body } @ i ⊣ $ Γ, ins, f' ↦ func;;  fns, cs $
+    | chk_topdecl (d : D.d tags_t) (i : tags_t)
+                  (Γ' : gam) (ins' : ienv) :
+        ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ d ⊣ ⦗ Γ', ins' ⦘ ->
+        $ cs, fns, ins, errs, Γ $ ⊢ DECL d @ i ⊣ $ Γ', ins', fns, cs $
+    | chk_topdecl_seq (d1 d2 : TD.d tags_t) (i : tags_t)
+                      (Γ' Γ'' : gam) (ins' ins'' : ienv)
+                      (fns' fns'' : fenv) (cs' cs'' : cenv) :
+        $ cs,  fns,  ins,  errs, Γ  $ ⊢ d1 ⊣ $ Γ',  ins',  fns',  cs'  $ ->
+        $ cs', fns', ins', errs, Γ' $ ⊢ d2 ⊣ $ Γ'', ins'', fns'', cs'' $ ->
+        $ cs,  fns,  ins,  errs, Γ  $ ⊢ d1 ;%; d2 @ i ⊣ $ Γ'', ins'', fns'', cs'' $
+    where
+    "$ cenv1 , fenv1 , ienv1 , errs , g1 $ ⊢ d ⊣ $ g2 , ienv2 , fenv2 , cenv2 $"
+      := (check_topdecl cenv1 fenv1 ienv1 errs g1 d g2 ienv2 fenv2 cenv2).
     (**[]*)
   End TypeCheck.
 End Typecheck.

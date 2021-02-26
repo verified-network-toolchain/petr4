@@ -52,7 +52,6 @@ Section Unroll.
   (* Given a set of visited labels and a start label, return a list of reachable labels
   from the start *)
   (* TODO: it should be the case that if fuel = | states |, then all reachable states are included in the result list *)
-  (* TODO: to be more precise, this needs nodup mixed in *)
   Fixpoint reachable_states (fuel: nat) (reached: list P4String) (start: P4String) (states: list ParserState) : list P4String :=
     (*   *)
     match fuel, lookup_state _ states start with
@@ -106,11 +105,6 @@ Section Unroll.
       mret (ValObjParser scope constructor_params params locals (List.map rename_st_name states))
     | _ => None
     end.
-
-  (* Definition rename_all_states  *)
-
-  (* Definition replace_state (states : list ParserState) (name: P4String tags_t) (new: P4String tags_t) :=
-    let relevant_states, old_states := List.partition (fun '(MkParserState _ _ n _ _) => P4Str_eqb n name) states in *)
 
   Definition up_state (acc: option ValueObject) (name : P4String) : option ValueObject :=
     match acc with

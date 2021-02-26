@@ -70,6 +70,19 @@ Definition next_bit : PktParser (option bool) :=
   | _ => pure None
   end.
     
+Lemma next_bit_nil : forall st, 
+  pkt st = nil <-> exists st', run_with_state st next_bit = (inl None, st').
+Proof.
+  intros.
+  split.
+  - 
+    intros. 
+    exists st.
+    cbv.
+Admitted.
+Lemma next_bit_cons : forall st, 
+  exists b bs, pkt st = b :: bs <-> exists st', run_with_state st next_bit = (inl (Some b), st').
+Admitted.
 
 Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
   match n as n' return PktParser (option (bits n')) with
@@ -164,7 +177,8 @@ Definition MyIngress (hdr: Headers) : PktParser Headers :=
   match (transport hdr) with 
   | inl tcp => 
     if TCP_valid tcp 
-    then set_std_meta (fun mt => mt <| egress_spec := one_bits |>) ;; pure hdr else pure hdr
+    then set_std_meta (fun mt => mt <| egress_spec := one_bits |>) ;; pure hdr 
+    else set_std_meta (fun mt => mt <| egress_spec := zero_bits |>) ;; pure hdr
   | _ => pure hdr
   end.
 
@@ -173,7 +187,6 @@ Definition MyProg (pkt: list bool) : PktParser Headers :=
   let* hdr := Headers_p in 
     MyIngress hdr.
 
-Definition ProgOut : Type := option Headers * unit * StandardMeta.
 
 Definition HeaderWF (pkt : list bool) : Prop :=
   (List.nth_error pkt 16 = Some false) /\
@@ -188,14 +201,44 @@ Definition IPHeaderIsTCP (pkt : list bool) : Prop :=
 Definition IPHeaderIsUDP (pkt : list bool) : Prop :=
   length pkt = 32.
 
-Definition EgressSpecOne (out : ProgOut) : Prop :=
-  egress_spec (snd out) = one_bits.
+Definition EgressSpecOne (out : @ParserState Meta) : Prop :=
+  egress_spec (std_meta out) = one_bits.
 
-Definition EgressSpecZero (out : ProgOut) : Prop :=
-  egress_spec (snd out) = zero_bits.
+Definition EgressSpecZero (out : @ParserState Meta) : Prop :=
+  egress_spec (std_meta out) = zero_bits.
 
-Definition PacketConsumed (out : ProgOut) : Prop :=
-  match fst (fst out) with
-  | Some _ => True
+Definition PacketConsumed (out : @ParserState Meta) : Prop :=
+  match pkt out with
+  | nil => True
   | _ => False
   end.
+
+
+Lemma WFPacketLength : forall pkt : list bool, HeaderWF pkt ->
+  length pkt = 32 \/ length pkt = 40.
+Proof.
+  intros pkt [H16 [H17 [H18 H]]]. destruct H.
+  - right. apply H.
+  - left. apply H.
+Qed.
+
+Definition final_state {R} (st: ParserState) (p: PktParser R) := 
+  let (_, st') := run_with_state st p in st'.
+
+
+Theorem ParseTCPCorrect : forall (pkt : list bool) (st: ParserState), HeaderWF pkt -> IPHeaderIsTCP pkt ->
+     EgressSpecZero (final_state st (MyProg pkt)).
+Proof.
+  intros pkt st Hwf Htcp.
+  repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
+  - cbv.
+Admitted.
+
+Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->
+     EgressSpecOne (MyProg pkt).
+Admitted.
+
+Theorem ParseComplete : forall pkt : list bool, HeaderWF pkt ->
+   (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
+   PacketConsumed (MyProg pkt).
+Admitted.

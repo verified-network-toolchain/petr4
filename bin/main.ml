@@ -116,31 +116,61 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
 	 do_stf include_dir stf_file p4_file)
 
-let start_v1server env prog =
+let start_v1switch env prog sockets =
   let open Eval in
   let open V1Interpreter in
-  let (_env, _st) = init_switch env prog in
-  (* setup n sockets and bind to names from command line args *)
-  (* set socket options for non-blocking receive *)
-  (* setup control plane socket and bind *)
+  let (env, st) = init_switch env prog in
+  let rec loop ctrl st =
+    let st, pkts =
+      List.map sockets ~f:(fun sock -> sock, Bytes.create 1024)
+      |> List.map
+        ~f:(fun (sock, buf) -> buf, Unix.recv sock ~buf ~pos:0 ~len:1024 ~mode:[])
+      |> List.map
+        ~f:(fun (buf, len) -> String.sub (Bytes.to_string buf) ~pos:0 ~len)
+      |> List.map
+        ~f:(fun pkt -> Cstruct.of_string pkt)
+      |> List.fold_mapi
+        ~init:st
+        ~f:(fun i st pkt -> switch_packet ctrl env st pkt (Bigint.of_int i)) in
+    let () =
+      List.filter_map pkts ~f:Fn.id
+      |> List.map ~f:(fun (pkt, pt) -> Cstruct.to_string pkt, Bigint.to_int_exn pt)
+      |> List.map ~f:(fun (pkt, pt) -> pkt, List.nth sockets pt)
+      |> List.filter_map ~f:(fun (pkt, pt) -> Option.map pt ~f:(fun pt -> pkt, pt))
+      |> List.map ~f:(fun (buf, pt) -> Unix.send_substring pt ~buf ~pos:0 ~len:(String.length buf) ~mode:[])
+      |> List.iter ~f:ignore in
+    loop ctrl st in
+  loop (([],[]), []) st
   (* inifinite loop - non-blocking recv?; call petr4 interpreter; sento call *)
-  failwith "TODO: unimplemented"
 
-let start_server verbose include_dir target p4_file =
+let start_switch verbose include_dir target n pts p4_file =
+  let sockets = List.init n
+    ~f:(fun _ -> Unix.socket ~domain:Unix.PF_UNIX ~kind:Unix.SOCK_RAW ~protocol:0 ()) in
+  let pts = List.map pts ~f:(fun pt -> Unix.ADDR_UNIX pt) in
+  let bind_sockets () = List.iter2 sockets pts
+    ~f:(fun sock addr -> Unix.bind sock ~addr) in
+  let () = match bind_sockets () with
+    | Ok _ -> ()
+    | Unequal_lengths ->
+       failwith "Error: number of ports did not match the number of port names" in
+  List.iter sockets ~f:(Unix.listen ~backlog:1);
+  List.iter sockets ~f:(fun sock -> Unix.accept sock |> ignore);
+  (* TODO: set socket options for timeout on recv? *)
+  (* TODO: add a control plane socket *)
   match parse_file include_dir p4_file verbose with
   | `Ok prog ->
     let elab_prog, renamer = Elaborate.elab prog in
     let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
     let env = Env.CheckerEnv.eval_env_of_t cenv in
     begin match target with
-      | "v1" -> start_v1server env typed_prog
-      | _ -> failwith "mininet server unsupported on this architecture" end      
+      | "v1" -> start_v1switch env typed_prog sockets
+      | _ -> failwith "mininet switches unsupported on this architecture" end      
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
     let info_string = Info.to_string info in
     Format.sprintf "%s\n%s" info_string exn_msg |> print_string
 
-let server_command =
+let switch_command =
   let open Command.Spec in
   Command.basic_spec
     ~summary: "Set up a server that behaves as a P4-programmable switch"
@@ -148,9 +178,11 @@ let server_command =
      +> flag "-v" no_arg ~doc: "Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
+     +> flag "-n" (optional_with_default 0 int) ~doc: "Specify the number of ports with which to set up the switch"
+     +> flag "-p" (listed string) ~doc: "Specify the names by which the port will be identified"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir target p4_file () ->
-	 start_server verbose include_dir target p4_file)
+    (fun verbose include_dir target n pts p4_file () ->
+	 start_switch verbose include_dir target n pts p4_file)
 
 let command =
   Command.group
@@ -159,6 +191,6 @@ let command =
       "typecheck", check_command;
       "run", eval_command;
       "stf", stf_command;
-      "server", server_command; ]
+      "switch", switch_command; ]
 
 let () = Command.run ~version: "0.1.2" command

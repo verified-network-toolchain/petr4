@@ -102,6 +102,21 @@ Module Field.
       end.
     (**[]*)
   End FieldLibrary.
+
+  Module FieldTactics.
+    Ltac invert_nil_cons_relate :=
+      match goal with
+      | H:relfs _ [] (_::_) |- _ => inversion H
+      | H:relfs _ (_::_) [] |- _ => inversion H
+      end.
+    (**[]*)
+
+    Ltac invert_cons_cons_relate :=
+      match goal with
+      | H:relfs _ (_::_) (_::_) |- _ => inv H; unfold relf in *
+      end.
+    (**[]*)
+  End FieldTactics.
 End Field.
 
 (** * P4light AST *)
@@ -169,7 +184,9 @@ Module P4light.
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
-      | THeader (fields : F.fs tags_t t) (* the header type *).
+      | THeader (fields : F.fs tags_t t) (* the header type *)
+      | THeaderStack (fields : F.fs tags_t t)
+                     (size : positive)   (* header stack type *).
       (**[]*)
 
       (** Function parameters. *)
@@ -186,6 +203,7 @@ Module P4light.
     Arguments TMatchKind {_}.
     Arguments TRecord {_}.
     Arguments THeader {_}.
+    Arguments THeaderStack {_}.
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -209,6 +227,8 @@ Module P4light.
       Notation "'hdr' { fields }"
         := (THeader fields)
             (in custom p4type at level 6, no associativity).
+      Notation "'stack' [ n ] fields"
+               := (THeaderStack fields n) (in custom p4type at level 7).
     End TypeNotations.
 
     (** Custom induction principle for [t]. *)
@@ -236,6 +256,9 @@ Module P4light.
       Hypothesis HTHeader : forall fields,
           F.predfs_data P fields -> P {{ hdr { fields } }}.
 
+      Hypothesis HTHeaderStack : forall fields size,
+          F.predfs_data P fields -> P {{ stack [size] fields }}.
+
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t tags_t, P ty :=
@@ -247,14 +270,6 @@ Module P4light.
               | (_, hft) as hf :: tf =>
                 Forall_cons hf (custom_t_ind hft) (fields_ind tf)
               end in
-          let fix fields_ind_dir
-                  (flds : F.fs tags_t (d * t tags_t)) :
-                F.predfs_data (P ∘ snd) flds :=
-              match flds as fs_ty return F.predfs_data (P ∘ snd) fs_ty with
-              | [] => Forall_nil (F.predf_data (P ∘ snd))
-              | (_, (_, hft)) as hf :: tf =>
-                Forall_cons hf (custom_t_ind hft) (fields_ind_dir tf)
-              end in
           match type as ty return P ty with
           | {{ Bool }} => HTBool
           | {{ bit<w> }} => HTBit w
@@ -263,11 +278,14 @@ Module P4light.
           | {{ matchkind }} => HTMatchKind
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
+          | {{ stack[n] fields }} => HTHeaderStack fields n (fields_ind fields)
           end.
       (**[]*)
     End TypeInduction.
 
     Module TypeEquivalence.
+      Import Field.FieldTactics.
+
       Section TypeEquivalence.
         Context {tags_t : Type}.
 
@@ -286,6 +304,9 @@ Module P4light.
         | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
             F.relfs equivt fs1 fs2 ->
             ∫ hdr { fs1 } ≡ hdr { fs2 }
+        | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
+            F.relfs equivt fs1 fs2 ->
+            ∫ stack[n] fs1 ≡ stack[n] fs2
         where "∫ t1 ≡ t2" := (equivt t1 t2).
         (**[]*)
 
@@ -314,6 +335,11 @@ Module P4light.
               F.relfs P fs1 fs2 ->
               P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
 
+          Hypothesis HStack : forall n fs1 fs2,
+              F.relfs equivt fs1 fs2 ->
+              F.relfs P fs1 fs2 ->
+              P {{ stack[n] fs1 }} {{ stack[n] fs2 }}.
+
           (** A custom induction principle for type equivalence.
               Do [induction ?H using custom_equivt_ind]. *)
           Definition custom_equivt_ind :
@@ -330,7 +356,7 @@ Module P4light.
                                            t1 t2
                                            (conj
                                               HName
-                                              (cind (snd t1) (snd t2) Hequivt))
+                                              (cind _ _ Hequivt))
                                            (find Htail)
                   end in
                       match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
@@ -339,8 +365,9 @@ Module P4light.
                       | equivt_int w => HInt w
                       | equivt_error => HError
                       | equivt_matchkind => HMatchkind
-                      | equivt_record fs1 fs2 Hequiv => HRecord fs1 fs2 Hequiv (find Hequiv)
-                      | equivt_header fs1 fs2 Hequiv => HHeader fs1 fs2 Hequiv (find Hequiv)
+                      | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
+                      | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
+                      | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
                       end.
                   (**[]*)
         End TypeEquivInduction.
@@ -402,27 +429,30 @@ Module P4light.
                  unfold equiv in *; unfold complement in *; subst;
                  try (right; intros H'; inversion H'; contradiction);
                  try (left; reflexivity));
+            try (destruct (equiv_dec size size0) as [Hsize | Hsize];
+                 unfold equiv in *; unfold complement in *; subst;
+                 try (right; intros H'; inversion H'; contradiction));
             try (rename fields into fs1; rename fields0 into fs2;
                  generalize dependent fs2;
                  induction fs1 as [| [x1 t1] fs1 IHfs1];
                  intros [| [x2 t2] fs2];
                  try (left; reflexivity);
                  try (right; intros H';
-                      inversion H'; inversion H2; assumption); subst;
-                 inversion H; clear H; subst; unfold F.predf_data in H2;
+                      inversion H'; try invert_nil_cons_relate; assumption); subst;
+                 inversion H; clear H; subst; unfold F.predf_data in *;
                  pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
                  destruct (equiv_dec x1 x2) as [H12 | H12];
                  unfold equiv in *; unfold complement in *;
                  destruct (H2 t2) as [HT | HT]; clear H2;
                  destruct IH as [IH | IH];
                  try (right; intros H'; inversion H';
-                      clear H'; subst; inversion H1;
-                      clear H1; subst; unfold F.relf in *;
+                      clear H'; subst; invert_cons_cons_relate;
+                      subst; unfold F.relf in *;
                       simpl in *; destruct H3; contradiction);
                  [ left; constructor; inversion IH; subst;
                    constructor; auto; unfold F.relf; split; auto
                  | right; intros H'; inversion H'; subst;
-                   clear H'; inversion H1; subst; apply IH;
+                   clear H'; invert_cons_cons_relate; subst; apply IH;
                    constructor; auto ]).
         Qed.
       End TypeEquivalence.

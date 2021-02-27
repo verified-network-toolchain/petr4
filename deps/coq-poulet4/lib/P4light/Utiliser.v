@@ -5,6 +5,8 @@ Module Strings := Coq.Strings.String.
 Require Petr4.P4String. (** Strings. *)
 Require Petr4.Typed. (** Names. *)
 
+(** * Option Equivalence *)
+
 Inductive relop {A : Type} (R : A -> A -> Prop) : option A -> option A -> Prop :=
 | relop_none : relop R None None
 | relop_some (a1 a2 : A) : R a1 a2 -> relop R (Some a1) (Some a2).
@@ -34,6 +36,8 @@ Proof.
     try (right; intros H'; inversion H'; contradiction);
     try (left; constructor; auto).
 Defined.
+
+(** * Equivalence for Petr4 Base Data Types *)
 
 Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
 
@@ -146,8 +150,14 @@ Section TypeSynonyms.
   (**[]*)
 End TypeSynonyms.
 
+(** * Useful Operators *)
+
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 
 Infix "▷" := pipeline (at level 45, left associativity).
 
 Infix "∘" := Basics.compose (at level 40, left associativity).
+
+(** * Useful Tactics *)
+
+Ltac inv H := inversion H; clear H; subst.

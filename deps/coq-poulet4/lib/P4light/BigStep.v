@@ -5,6 +5,8 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
+(* Require Coq.Vectors.Vector.
+Module Vector := Coq.Vectors.Vector. *)
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -34,7 +36,9 @@ Module Value.
     | VRecord (fs : Field.fs tags_t v)
     | VHeader (fs : Field.fs tags_t v) (validity : bool)
     | VError (err : option (string tags_t))
-    | VMatchKind (mk : P4light.Expr.matchkind).
+    | VMatchKind (mk : P4light.Expr.matchkind)
+    | VHeaderStack (headers : list (Field.fs tags_t v))
+                   (size : positive) (nextIndex : N).
     (**[]*)
 
     (** Lvalues. *)
@@ -66,6 +70,9 @@ Module Value.
 
       Hypothesis HVMatchKind : forall mk, P (VMatchKind mk).
 
+      Hypothesis HVHeaderStack : forall hs size ni,
+          Forall (Field.predfs_data P) hs -> P (VHeaderStack hs size ni).
+
       Definition custom_value_ind : forall v' : v, P v' :=
         fix custom_value_ind (val : v) : P val :=
           let fix fields_ind
@@ -75,6 +82,13 @@ Module Value.
               | (_, hfv) as hf :: tf =>
                 Forall_cons hf (custom_value_ind hfv) (fields_ind tf)
               end in
+          let fix ffind
+                  (fflds : list (Field.fs tags_t v))
+              : Forall (Field.predfs_data P) fflds :=
+              match fflds as ffs return Forall (Field.predfs_data P) ffs with
+              | [] => Forall_nil (Field.predfs_data P)
+              | vs :: ffs => Forall_cons vs (fields_ind vs) (ffind ffs)
+              end in
           match val as v' return P v' with
           | VBool b  => HVBool b
           | VInt w n => HVInt w n
@@ -83,6 +97,7 @@ Module Value.
           | VHeader vs b   => HVHeader vs b (fields_ind vs)
           | VError err     => HVError err
           | VMatchKind mk  => HVMatchKind mk
+          | VHeaderStack hs size ni => HVHeaderStack hs size ni (ffind hs)
           end.
     End ValueInduction.
 
@@ -204,13 +219,13 @@ Module Value.
       Lemma equivv_reflexive : Reflexive equivv.
       Proof.
         intros v; induction v using custom_value_ind;
-          constructor; try reflexivity;
+          try constructor; try reflexivity;
         try (induction fs as [| [x v] vs];
              inversion H; subst; constructor;
              [ unfold Field.predf_data in H2;
                constructor; simpl; try reflexivity; auto
              | apply IHvs; auto]).
-      Qed.
+      Admitted.
 
       Lemma equivv_symmetric : Symmetric equivv.
       Proof.
@@ -254,7 +269,7 @@ Module Value.
         constructor; [ apply equivv_reflexive
                      | apply equivv_symmetric
                      | apply equivv_transitive].
-      Defined.
+      Admitted.
 
       Lemma equivv_eqbv : forall v1 v2 : v, equivv v1 v2 -> eqbv v1 v2 = true.
       Proof.
@@ -356,6 +371,7 @@ Module Value.
   Arguments VHeader {_}.
   Arguments VError {_}.
   Arguments VMatchKind {_}.
+  Arguments VHeaderStack {_}.
   Arguments LVVar {_}.
   Arguments LVMember {_}.
 
@@ -378,6 +394,9 @@ Module Value.
     Notation "'MATCHKIND' mk"
       := (VMatchKind mk)
            (in custom p4value at level 0, mk custom p4matchkind).
+    Notation "'STACK' vs [ n ] 'NEXT' ':=' ni"
+             := (VHeaderStack vs n ni)
+                  (in custom p4value at level 0, no associativity).
   End ValueNotations.
 
   Module LValueNotations.
@@ -975,6 +994,7 @@ Module Step.
       | {{ int<w> }}     => *{ w VS Z0 }*
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
       | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
+      | {{ stack [n] fs }} => V.VHeaderStack (repeat (fields_rec fs) (Pos.to_nat n)) n 0
       end.
 
     Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :

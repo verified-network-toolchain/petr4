@@ -6,7 +6,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 (* Require Coq.Vectors.Vector.
-Module Vector := Coq.Vectors.Vector. *)
+   Module Vector := Coq.Vectors.Vector. *)
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -102,6 +102,8 @@ Module Value.
     End ValueInduction.
 
     Section ValueEquality.
+      Import Field.FieldTactics.
+
       Instance P4StringEquivalence : Equivalence (@P4String.equiv tags_t) :=
         P4String.EquivEquivalence tags_t.
       (**[]*)
@@ -121,6 +123,12 @@ Module Value.
             | [],            _::_
             | _::_,           []          => false
             end in
+        let fix ffrec (v1ss v2ss : list (Field.fs tags_t v)) : bool :=
+            match v1ss, v2ss with
+            | [], _::_ | _::_, [] => false
+            | [], [] => true
+            | vs1::v1ss, vs2::v2ss => fields_rec vs1 vs2 && ffrec v1ss v2ss
+            end in
         match v1, v2 with
         | VBool b1,       VBool b2       => eqb b1 b2
         | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
@@ -135,6 +143,9 @@ Module Value.
                                            else false
         | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_rec vs1 vs2
         | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
+        | VHeaderStack vss1 n1 ni1,
+          VHeaderStack vss2 n2 ni2       => (n1 =? n2)%positive &&
+                                           (ni1 =? ni2)%N && ffrec vss1 vss2
         | _,              _              => false
         end.
       (**[]*)
@@ -157,7 +168,11 @@ Module Value.
           equiv err1 err2 ->
           equivv (VError err1) (VError err2)
       | equivv_matchkind (mk : P4light.Expr.matchkind) :
-          equivv (VMatchKind mk) (VMatchKind mk).
+          equivv (VMatchKind mk) (VMatchKind mk)
+      | equivv_stack (n : positive) (ni : N)
+                     (vss1 vss2 : list (Field.fs tags_t v)) :
+          Forall2 (Field.relfs equivv) vss1 vss2 ->
+          equivv (VHeaderStack vss1 n ni) (VHeaderStack vss2 n ni).
       (**[]*)
 
       (** A custom induction principle for value equivalence. *)
@@ -186,6 +201,11 @@ Module Value.
             Field.relfs P fs1 fs2 ->
             P (VHeader fs1 b) (VHeader fs2 b).
 
+        Hypothesis HStack : forall n ni vss1 vss2,
+            Forall2 (Field.relfs equivv) vss1 vss2 ->
+            Forall2 (Field.relfs P) vss1 vss2 ->
+            P (VHeaderStack vss1 n ni) (VHeaderStack vss2 n ni).
+
         (** Custom [eqiuvv] induction principle.
             Do [induction ?H using custom_equivv_ind] *)
         Definition custom_equivv_ind : forall (v1 v2 : v) (H : equivv v1 v2), P v1 v2 :=
@@ -201,8 +221,21 @@ Module Value.
                                          v1 v2
                                          (conj
                                             HName
-                                            (vind (snd v1) (snd v2) Hequivv))
+                                            (vind _ _ Hequivv))
                                          (find Htail)
+                  end in
+            let fix ffind
+                    {vss1 vss2 : list (Field.fs tags_t v)}
+                    (HR : Forall2 (Field.relfs equivv) vss1 vss2)
+                : Forall2 (Field.relfs P) vss1 vss2 :=
+                match HR
+                      in Forall2 _ v1ss v2ss
+                      return Forall2 (Field.relfs P) v1ss v2ss with
+                | Forall2_nil _ => Forall2_nil (Field.relfs P)
+                | Forall2_cons _ _ Hhead Htail => Forall2_cons
+                                                   _ _
+                                                   (find Hhead)
+                                                   (ffind Htail)
                   end in
             match H in (equivv v1' v2') return P v1' v2' with
             | equivv_bool b => HBool b
@@ -210,8 +243,9 @@ Module Value.
             | equivv_int w z => HInt w z
             | equivv_error err1 err2 H12 => HError err1 err2 H12
             | equivv_matchkind mk => HMatchkind mk
-            | equivv_record vs1 vs2 H12 => HRecord vs1 vs2 H12 (find H12)
-            | equivv_header vs1 vs2 b H12 => HHeader vs1 vs2 b H12 (find H12)
+            | equivv_record _ _ H12 => HRecord _ _ H12 (find H12)
+            | equivv_header _ _ b H12 => HHeader _ _ b H12 (find H12)
+            | equivv_stack n ni _ _ H12 => HStack n ni _ _ H12 (ffind H12)
             end.
         (**[]*)
       End ValueEquivalenceInduction.
@@ -219,29 +253,38 @@ Module Value.
       Lemma equivv_reflexive : Reflexive equivv.
       Proof.
         intros v; induction v using custom_value_ind;
-          try constructor; try reflexivity;
+          constructor; try reflexivity;
         try (induction fs as [| [x v] vs];
              inversion H; subst; constructor;
              [ unfold Field.predf_data in H2;
                constructor; simpl; try reflexivity; auto
-             | apply IHvs; auto]).
-      Admitted.
+             | apply IHvs; auto]);
+        try (induction hs as [| vs hs IHhs];
+             inv H; constructor; auto;
+             induction vs as [| [x v] vs IHvs];
+             constructor; invert_cons_predfs; simpl in *;
+             [ split; simpl; auto; reflexivity
+             | apply IHvs; auto ]).
+      Qed.
 
       Lemma equivv_symmetric : Symmetric equivv.
       Proof.
-        intros v1; induction v1 using custom_value_ind;
-          intros [] HEQ; inversion HEQ; clear HEQ; subst;
-            constructor; try (symmetry; assumption);
-              try (rename fs into fs1; rename fs0 into fs2;
-                   generalize dependent fs2;
-                   induction fs1 as [| [x1 v1] vs1 IHvs1];
-                   intros [| [x2 v2] vs2] HSym;
-                   inversion HSym; clear HSym; subst; constructor;
-                   inversion H; clear H; subst;
-                   [ unfold Field.relf in *; simpl in *;
-                     destruct H3; split; try (symmetry; assumption);
-                     apply H2; assumption
-                   | apply IHvs1; auto ]).
+        unfold Symmetric.
+        intros v1 v2 Hv;
+          induction Hv using custom_equivv_ind;
+          constructor; try (symmetry; assumption);
+        try (induction H; inv H0; constructor;
+            destruct x as [x1 v1]; destruct y as [x2 v2];
+              unfold Field.relf in *; simpl in *;
+          [ destruct H5; split; try symmetry; auto
+          | apply IHForall2; auto ]);
+        try (induction H; inv H0; constructor;
+             rename x into vs1; rename y into vs2; auto;
+             induction H; inv H5; constructor;
+             destruct x as [x1 v1]; destruct y as [x2 v2];
+             unfold Field.relf in *; simpl in *;
+             [ destruct H6; split; try symmetry; auto
+             | apply IHForall0; auto ]).
       Qed.
 
       Lemma equivv_transitive : Transitive equivv.
@@ -262,6 +305,22 @@ Module Value.
                pose proof (H2 v2 v3) as H23; try split; auto;
                transitivity x2; auto
              | apply IHvs1 with vs2; auto]).
+        - rename hs into vss1; rename vss0 into vss3.
+          generalize dependent vss3;
+            generalize dependent vss2.
+          induction vss1 as [| vs1 vss1 IHvss1];
+            intros [| vs2 vss2] H12ss [| vs3 vss3] H23ss;
+            inv H; inv H12ss; inv H23ss; constructor; eauto.
+          clear H8 H6 IHvss1 size0 ni vss1 vss2 vss3 H3.
+          generalize dependent vs3; generalize dependent vs2.
+          induction vs1 as [| [x1 v1] vs1 IHvs1];
+            intros [| [x2 v2] vs2] H12s [| [x3 v3] vs3] H23s;
+            inv H2; inv H12s; inv H23s; constructor.
+          + unfold Field.relf in *; simpl in *.
+            destruct H4; destruct H5; split;
+              try (etransitivity; eassumption).
+            eapply H1; eauto.
+          + eapply IHvs1; eauto.
       Qed.
 
       Instance ValueEquivalence : Equivalence equivv.
@@ -269,15 +328,17 @@ Module Value.
         constructor; [ apply equivv_reflexive
                      | apply equivv_symmetric
                      | apply equivv_transitive].
-      Admitted.
+      Defined.
 
       Lemma equivv_eqbv : forall v1 v2 : v, equivv v1 v2 -> eqbv v1 v2 = true.
       Proof.
         intros v1 v2 H.
-        induction H using custom_equivv_ind;
-          simpl in *; try rewrite eqb_reflx; try rewrite Pos.eqb_refl; simpl; auto.
-        - apply N.eqb_refl.
-        - apply Z.eqb_refl.
+        induction H using custom_equivv_ind; simpl in *;
+          try rewrite eqb_reflx;
+          try rewrite Pos.eqb_refl;
+          try rewrite N.eqb_refl;
+          try rewrite Z.eqb_refl;
+          simpl; auto.
         - unfold equiv in H. inversion H; subst.
           + destruct (equiv_dec None None) as [H' | H'];
               unfold equiv, complement in *; try contradiction; auto.
@@ -298,6 +359,16 @@ Module Value.
           pose proof P4String.equiv_reflect x1 x2 as Hx.
           inversion Hx; subst; try contradiction.
           rewrite H2; auto.
+        - induction H; inv H0; auto.
+          rewrite IHForall2 by auto; clear IHForall2.
+          rewrite andb_true_r. clear l l' H1 H7 n ni.
+          rename x into vs1; rename y into vs2.
+          induction H; inv H5; auto.
+          destruct x as [x1 v1]; destruct y as [x2 v2].
+          invert_relf; simpl in *.
+          pose proof P4String.equiv_reflect x1 x2 as Hx.
+          inv Hx; try contradiction. rewrite H2.
+          rewrite IHForall2 by auto; auto.
       Qed.
 
       Lemma eqbv_equivv : forall v1 v2 : v, eqbv v1 v2 = true -> equivv v1 v2.
@@ -339,6 +410,27 @@ Module Value.
             try discriminate; constructor; auto.
         - destruct (equiv_dec mk mk0) as [H | H];
             try discriminate; inversion H; constructor; auto.
+        - apply andb_true_iff in Heqbv as [Hsizeni Hffs].
+          apply andb_true_iff in Hsizeni as [Hsize Hni].
+          apply Peqb_true_eq in Hsize; apply N.eqb_eq in Hni;
+            symmetry in Hni; subst; constructor. clear size1 ni.
+          rename hs into hs1; rename headers into hs2.
+          generalize dependent hs2.
+          induction hs1 as [| vs1 hs1 IHhs1];
+            intros [| vs2 hs2] Heqbv; simpl in *; inv H;
+              try discriminate; constructor;
+                apply andb_true_iff in Heqbv as [Hfs Hffs]; auto.
+          rename H2 into H. generalize dependent vs2. clear IHhs1 hs1 Hffs H3.
+          induction vs1 as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
+            inv IH; inv H; simpl in *;
+              constructor; auto; simpl in *;
+                destruct (P4String.equivb x1 x2) eqn:Hx;
+                destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
+          + split; simpl; auto.
+            pose proof P4String.equiv_reflect x1 x2 as H';
+              inversion H'; subst; auto.
+            rewrite Hx in H. discriminate.
+          + apply IHvs1; auto.
       Qed.
 
       Lemma equivv_eqbv_iff : forall v1 v2 : v, equivv v1 v2 <-> eqbv v1 v2 = true.

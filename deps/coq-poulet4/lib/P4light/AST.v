@@ -104,10 +104,28 @@ Module Field.
   End FieldLibrary.
 
   Module FieldTactics.
+    Ltac invert_predf :=
+      match goal with
+      | H:predf_data _ _ |- _ => inv H
+      end.
+    (**[]*)
+
+    Ltac invert_cons_predfs :=
+      match goal with
+      | H:predfs_data _ (_::_) |- _ => inv H
+      end.
+    (**[]*)
+
     Ltac invert_nil_cons_relate :=
       match goal with
       | H:relfs _ [] (_::_) |- _ => inversion H
       | H:relfs _ (_::_) [] |- _ => inversion H
+      end.
+    (**[]*)
+
+    Ltac invert_relf :=
+      match goal with
+      | H:relf _ _ _ |- _ => inv H
       end.
     (**[]*)
 

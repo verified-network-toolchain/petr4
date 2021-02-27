@@ -281,11 +281,17 @@ Module Typecheck.
         ⟦ errs , Γ ⟧ ⊢ Error err @ i ∈ error
     | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
         ⟦ errs , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
-    | chk_isvalid (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+    | chk_hdr_op (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
                   (τ : E.t tags_t) (ts : F.fs tags_t (E.t tags_t)) :
         type_hdr_op op ts = τ ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
         ⟦ errs, Γ ⟧ ⊢ H op e @ i ∈ τ
+    | chk_stack (ts : F.fs tags_t (E.t tags_t))
+                (hs : list (E.e tags_t))
+                (n : positive) (ni : N) :
+        Pos.to_nat n = length hs ->
+        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+        ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers gm e ty).
     (**[]*)
@@ -438,12 +444,30 @@ Module Typecheck.
           P errs Γ <{ H op e @ i }> τ.
       (**[]*)
 
+      Hypothesis HStack : forall errs Γ ts hs n ni,
+          Pos.to_nat n = length hs ->
+          Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+          Forall (fun e => P errs Γ e {{ hdr { ts } }}) hs ->
+          P errs Γ <{ Stack hs:ts[n] nextIndex:=ni }> {{ stack ts[n] }}.
+      (**[]*)
+
       (** Custom induction principle for expression typing.
           Do [induction ?H using custom_check_ind]. *)
       Definition custom_check_ind :
         forall (errs : errors) (Γ : gam) (e : E.e tags_t) (τ : E.t tags_t)
           (HY : ⟦ errs, Γ ⟧ ⊢ e ∈ τ), P errs Γ e τ :=
             fix chind errs Γ e τ HY :=
+              let fix lind
+                      {es : list (E.e tags_t)} {τ : E.t tags_t}
+                      (HRs : Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es)
+                  : Forall (fun e => P errs Γ e τ) es :=
+                  match HRs with
+                  | Forall_nil _ => Forall_nil _
+                  | Forall_cons _
+                                Hhead Htail => Forall_cons _
+                                                          (chind _ _ _ _ Hhead)
+                                                          (lind Htail)
+                  end in
               let fix fields_ind
                       {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
                       {tfs : F.fs tags_t (E.t tags_t)}
@@ -473,77 +497,79 @@ Module Typecheck.
                   end in
               match HY in ⟦ _, _ ⟧ ⊢ e' ∈ τ' return P errs Γ e' τ' with
               | chk_bool _ _ b i     => HBool errs Γ b i
-              | chk_bit _ _ w n i HB => HBit errs Γ w n i HB
-              | chk_int _ _ w n i HB => HInt errs Γ w n i HB
-              | chk_var _ _ x τ i HV => HVar errs Γ x τ i HV
-              | chk_not _ _ e i He   => HNot
-                                         errs Γ e i He
-                                         (chind errs Γ e {{ Bool }} He)
-              | chk_bitnot _ _ w e i He => HBitNot
-                                            errs Γ w e i He
-                                            (chind errs Γ e {{ bit<w> }} He)
-              | chk_uminus _ _ w e i He => HUMinus
-                                            errs Γ w e i He
-                                            (chind errs Γ e {{ int<w> }} He)
-              | chk_numeric_bop _ _ op τ τ' e1 e2 i
+              | chk_bit _ _ _ _ i HB => HBit _ _ _ _ i HB
+              | chk_int _ _ _ _ i HB => HInt _ _ _ _ i HB
+              | chk_var _ _ _ _ i HV => HVar _ _ _ _ i HV
+              | chk_not _ _ _ i He   => HNot
+                                         _ _ _ i He
+                                         (chind _ _ _ _ He)
+              | chk_bitnot _ _ _ _ i He => HBitNot
+                                            _ _ _ _ i He
+                                            (chind _ _ _ _ He)
+              | chk_uminus _ _ _ _ i He => HUMinus
+                                            _ _ _ _ i He
+                                            (chind _ _ _ _ He)
+              | chk_numeric_bop _ _ _ _ _ _ _ i
                                 Hequiv Hnum Hnumbop
                                 He1 He2 => HNumericBOP
-                                            errs Γ op τ τ' e1 e2 i
+                                            _ _ _ _ _ _ _ i
                                             Hequiv Hnum Hnumbop
-                                            He1 (chind errs Γ e1 τ He1)
-                                            He2 (chind errs Γ e2 τ' He2)
-              | chk_comp_bop _ _ op τ τ' e1 e2 i
+                                            He1 (chind _ _ _ _ He1)
+                                            He2 (chind _ _ _ _ He2)
+              | chk_comp_bop _ _ _ _ _ _ _ i
                              Hequiv Hnum Hcomp
                              He1 He2 => HCompBOP
-                                         errs Γ op τ τ' e1 e2 i
+                                         _ _ _ _ _ _ _ i
                                          Hequiv Hnum Hcomp
-                                         He1 (chind errs Γ e1 τ He1)
-                                         He2 (chind errs Γ e2 τ' He2)
-              | chk_bool_bop _ _ op e1 e2 i Hboolbop
+                                         He1 (chind _ _ _ _ He1)
+                                         He2 (chind _ _ _ _ He2)
+              | chk_bool_bop _ _ _ _ _ i Hboolbop
                              He1 He2 => HBoolBOP
-                                         errs Γ op e1 e2 i Hboolbop
-                                         He1 (chind errs Γ e1 {{ Bool }} He1)
-                                         He2 (chind errs Γ e2 {{ Bool }} He2)
-              | chk_eq _ _ τ e1 e2 i
+                                         _ _ _ _ _ i Hboolbop
+                                         He1 (chind _ _ _ _ He1)
+                                         He2 (chind _ _ _ _ He2)
+              | chk_eq _ _ _ _ _ i
                        He1 He2 => HEq
-                                   errs Γ τ e1 e2 i
-                                   He1 (chind errs Γ e1 τ He1)
-                                   He2 (chind errs Γ e2 τ He2)
-              | chk_neq _ _ τ e1 e2 i
+                                   _ _ _ _ _ i
+                                   He1 (chind _ _ _ _ He1)
+                                   He2 (chind _ _ _ _ He2)
+              | chk_neq _ _ _ _ _ i
                         He1 He2 => HNeq
-                                    errs Γ τ e1 e2 i
-                                    He1 (chind errs Γ e1 τ He1)
-                                    He2 (chind errs Γ e2 τ He2)
-              | chk_plusplus_bit _ _ τ m n w e1 e2 i
+                                    _ _ _ _ _ i
+                                    He1 (chind _ _ _ _ He1)
+                                    He2 (chind _ _ _ _ He2)
+              | chk_plusplus_bit _ _ _ _ _ _ _ _ i
                                  Hmnw Hnum
                                  He1 He2 => HPlusPlus
-                                             errs Γ τ m n w e1 e2 i
+                                             _ _ _ _ _ _ _ _ i
                                              Hmnw Hnum
-                                             He1 (chind errs Γ e1 {{ bit<m> }} He1)
-                                             He2 (chind errs Γ e2 τ He2)
-              | chk_hdr_mem _ _ e x ts τ i
+                                             He1 (chind _ _ _ _ He1)
+                                             He2 (chind _ _ _ _ He2)
+              | chk_hdr_mem _ _ _ x _ _ i
                             HIn He => HHdrMem
-                                       errs Γ e x ts τ i HIn
-                                       He (chind errs Γ e {{ hdr { ts } }} He)
-              | chk_rec_mem _ _ e x ts τ i
+                                       _ _ _ x _ _ i HIn
+                                       He (chind _ _ _ _ He)
+              | chk_rec_mem _ _ _ x _ _ i
                             HIn He => HRecMem
-                                       errs Γ e x ts τ i HIn
-                                       He (chind errs Γ e {{ rec { ts } }} He)
-              | chk_error _ _ err i HOK => HError errs Γ err i HOK
+                                       _ _ _ x _ _ i HIn
+                                       He (chind _ _ _ _ He)
+              | chk_error _ _ _ i HOK => HError errs Γ _ i HOK
               | chk_matchkind _ _ mk i  => HMatchKind errs Γ mk i
-              | chk_isvalid _ _ op e i τ ts
-                            Hhop He => HValid
-                                        errs Γ op e i τ ts Hhop
-                                        He (chind errs Γ e {{ hdr { ts } }} He)
-              | chk_rec_lit _ _ es ts i
+              | chk_hdr_op _ _ _ _ i _ _
+                           Hhop He => HValid
+                                       _ _ _ _ i _ _ Hhop
+                                       He (chind _ _ _ _ He)
+              | chk_rec_lit _ _ _ _ i
                             HRs => HRecLit
-                                    errs Γ es ts i
+                                    _ _ _ _ i
                                     HRs (fields_ind HRs)
-              | chk_hdr_lit _ _ es ts i b
+              | chk_hdr_lit _ _ _ _ i _
                             HRs Hb => HHdrLit
-                                       errs Γ es ts i b
+                                       _ _ _ _ i _
                                        HRs (fields_ind HRs)
-                                       Hb (chind errs Γ b {{ Bool }} Hb)
+                                       Hb (chind _ _ _ _ Hb)
+              | chk_stack _ _ _ _ _ ni
+                          Hlen HRs => HStack _ _ _ _ _ ni Hlen HRs (lind HRs)
               end.
        (**[]*)
     End CheckExprInduction.

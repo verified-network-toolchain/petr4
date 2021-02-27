@@ -746,6 +746,17 @@ Module Step.
         eval_hdr_op op vs b = v ->
         ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
         ⟨ ϵ, H op e @ i ⟩ ⇓ v
+    | ebs_hdr_stack (ts : F.fs tags_t (E.t tags_t))
+                    (hs : list (E.e tags_t))
+                    (n : positive) (ni : N)
+                    (vss : list (bool * F.fs tags_t (V.v tags_t))) :
+        Forall2
+          (fun e bvs =>
+             let b := fst bvs in
+             let vs := snd bvs in
+             ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+          hs vss ->
+        ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss[n] NEXT:=ni
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
@@ -871,6 +882,21 @@ Module Step.
           P ϵ e *{ HDR { vs } VALID:=b }* ->
           P ϵ <{ H op e @ i }> v.
 
+      Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
+          Forall2
+            (fun e bvs =>
+               let b := fst bvs in
+               let vs := snd bvs in
+               ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+            hs vss ->
+          Forall2
+            (fun e bvs =>
+               let b := fst bvs in
+               let vs := snd bvs in
+               P ϵ e *{ HDR { vs } VALID:=b}*)
+            hs vss ->
+          P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss[n] NEXT:=ni }*.
+
       (** Custom induction principle for
           the expression big-step relation.
           [Do induction ?H using custom_expr_big_step_ind]. *)
@@ -894,69 +920,92 @@ Module Step.
                         (Forall2
                            (F.relf (fun te v => let e := snd te in P ϵ e v))
                            es vs) with
-                  | Forall2_nil _ => Forall2_nil
-                                      (F.relf (fun te v => let e := snd te in P ϵ e v))
-                  | Forall2_cons te v
+                  | Forall2_nil _ => Forall2_nil _
+                  | Forall2_cons _ _
                                  (conj Hname Hhead)
                                  Htail => Forall2_cons
-                                           te v
-                                           (conj Hname (ebsind ϵ _ _ Hhead))
+                                           _ _
+                                           (conj Hname (ebsind _ _ _ Hhead))
                                            (fsind Htail)
                   end in
+          let fix ffind
+                  {es : list (E.e tags_t)}
+                  {vss : list (bool * F.fs tags_t (V.v tags_t))}
+                  (HRs : Forall2
+                           (fun e bvs =>
+                              let b := fst bvs in
+                              let vs := snd bvs in
+                              ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+                           es vss)
+              : Forall2
+                  (fun e bvs =>
+                     let b := fst bvs in
+                     let vs := snd bvs in
+                     P ϵ e *{ HDR { vs } VALID:=b}* )
+                  es vss :=
+              match HRs with
+              | Forall2_nil _ => Forall2_nil _
+              | Forall2_cons _ _ Hhead Htail => Forall2_cons
+                                                 _ _
+                                                 (ebsind _ _ _ Hhead)
+                                                 (ffind Htail)
+              end in
           match Hy in (⟨ _, e' ⟩ ⇓ v') return P ϵ e' v' with
           | ebs_bool _ b i => HBool ϵ b i
           | ebs_bit _ w n i => HBit ϵ w n i
           | ebs_int _ w z i => HInt ϵ w z i
-          | ebs_var _ x τ i v Hx => HVar ϵ x τ i v Hx
-          | ebs_error _ err i => HError ϵ err i
-          | ebs_matchkind _ mk i => HMatchkind ϵ mk i
-          | ebs_not _ e i b b' Hnot He => HNot ϵ e i b b' Hnot
-                                              He (ebsind ϵ e *{ VBOOL b }* He)
-          | ebs_bitnot _ e i w n n'
-                       Hnot He => HBitNot ϵ e i w n n' Hnot
-                                         He (ebsind ϵ e *{ w VW n }* He)
-          | ebs_uminus _ e i w z z'
-                       Hneg He => HUMinus ϵ e i w z z' Hneg
-                                         He (ebsind ϵ e *{ w VS z }* He)
-          | ebs_bop_bit _ e1 e2 op v i w n1 n2
-                        Hv He1 He2 => HBOPBit ϵ e1 e2 op v i w n1 n2 Hv
-                                             He1 (ebsind ϵ e1 *{ w VW n1 }* He1)
-                                             He2 (ebsind ϵ e2 *{ w VW n2 }* He2)
-          | ebs_plusplus _ e1 e2 i w w1 w2 n n1 n2
-                         Hw Hconcat He1 He2 => HPlusPlus ϵ e1 e2 i w w1 w2 n n1 n2
+          | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
+          | ebs_error _ err i => HError _ err i
+          | ebs_matchkind _ mk i => HMatchkind _ mk i
+          | ebs_not _ _ i _ _ Hnot He => HNot _ _ i _ _ Hnot
+                                              He (ebsind _ _ _ He)
+          | ebs_bitnot _ _ i _ _ _
+                       Hnot He => HBitNot _ _ i _ _ _ Hnot
+                                         He (ebsind _ _ _ He)
+          | ebs_uminus _ _ i _ _ _
+                       Hneg He => HUMinus _ _ i _ _ _ Hneg
+                                         He (ebsind _ _ _ He)
+          | ebs_bop_bit _ _ _ _ _ i _ _ _
+                        Hv He1 He2 => HBOPBit _ _ _ _ _ i _ _ _ Hv
+                                             He1 (ebsind _ _ _ He1)
+                                             He2 (ebsind _ _ _ He2)
+          | ebs_plusplus _ _ _ i _ _ _ _ _ _
+                         Hw Hconcat He1 He2 => HPlusPlus _ _ _ i _ _ _ _ _ _
                                                         Hw Hconcat
-                                                        He1 (ebsind ϵ e1 *{ w1 VW n1 }* He1)
-                                                        He2 (ebsind ϵ e2 *{ w2 VW n2 }* He2)
-          | ebs_bop_int _ e1 e2 op v i w z1 z2
-                        Hv He1 He2 => HBOPInt ϵ e1 e2 op v i w z1 z2 Hv
-                                             He1 (ebsind ϵ e1 *{ w VS z1 }* He1)
-                                             He2 (ebsind ϵ e2 *{ w VS z2 }* He2)
-          | ebs_bop_bool _ e1 e2 op i b b1 b2
-                        Hb He1 He2 => HBOPBool ϵ e1 e2 op i b b1 b2 Hb
-                                             He1 (ebsind ϵ e1 *{ VBOOL b1 }* He1)
-                                             He2 (ebsind ϵ e2 *{ VBOOL b2 }* He2)
-          | ebs_eq _ e1 e2 τ1 τ2 i v1 v2 b
-                   Hb He1 He2 => HEq ϵ e1 e2 τ1 τ2 i v1 v2 b Hb
-                                    He1 (ebsind ϵ e1 v1 He1)
-                                    He2 (ebsind ϵ e2 v2 He2)
-          | ebs_neq _ e1 e2 τ1 τ2 i v1 v2 b
-                    Hb He1 He2 => HNeq ϵ e1 e2 τ1 τ2 i v1 v2 b Hb
-                                     He1 (ebsind ϵ e1 v1 He1)
-                                     He2 (ebsind ϵ e2 v2 He2)
-          | ebs_hdr_mem _ e x i ts b vs v
-                        Hget He => HHdrMem ϵ e x i ts b vs v Hget
-                                          He (ebsind ϵ e *{ HDR { vs } VALID:=b }* He)
-          | ebs_rec_mem _ e x i ts vs v
-                        Hget He => HRecMem ϵ e x i ts vs v Hget
-                                          He (ebsind ϵ e *{ REC { vs } }* He)
-          | ebs_hdr_op _ op e i v vs b
-                       Hv He => HHdrOp ϵ op e i v vs b Hv
-                                      He (ebsind ϵ e *{ HDR { vs } VALID:=b }* He)
-          | ebs_rec_lit _ es i vs HR => HRecLit ϵ es i vs HR (fsind HR)
-          | ebs_hdr_lit _ es e i b vs
-                        HR He => HHdrLit ϵ es e i b vs
+                                                        He1 (ebsind _ _ _ He1)
+                                                        He2 (ebsind _ _ _ He2)
+          | ebs_bop_int _ _ _ _ _ i _ _ _
+                        Hv He1 He2 => HBOPInt _ _ _ _ _ i _ _ _ Hv
+                                             He1 (ebsind _ _ _ He1)
+                                             He2 (ebsind _ _ _ He2)
+          | ebs_bop_bool _ _ _ _ i _ _ _
+                        Hb He1 He2 => HBOPBool _ _ _ _ i _ _ _ Hb
+                                             He1 (ebsind _ _ _ He1)
+                                             He2 (ebsind _ _ _ He2)
+          | ebs_eq _ _ _ _ _ i _ _ _
+                   Hb He1 He2 => HEq _ _ _ _ _ i _ _ _ Hb
+                                    He1 (ebsind _ _ _ He1)
+                                    He2 (ebsind _ _ _ He2)
+          | ebs_neq _ _ _ _ _ i _ _ _
+                    Hb He1 He2 => HNeq _ _ _ _ _ i _ _ _ Hb
+                                     He1 (ebsind _ _ _ He1)
+                                     He2 (ebsind _ _ _ He2)
+          | ebs_hdr_mem _ _ _ i _ _ _ _
+                        Hget He => HHdrMem _ _ _ i _ _ _ _ Hget
+                                          He (ebsind _ _ _ He)
+          | ebs_rec_mem _ _ _ i _ _ _
+                        Hget He => HRecMem _ _ _ i _ _ _ Hget
+                                          He (ebsind _ _ _ He)
+          | ebs_hdr_op _ _ _ i _ _ _
+                       Hv He => HHdrOp _ _ _ i _ _ _ Hv
+                                      He (ebsind _ _ _ He)
+          | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
+          | ebs_hdr_lit _ _ _ i _ _
+                        HR He => HHdrLit _ _ _ i _ _
                                         HR (fsind HR)
-                                        He (ebsind ϵ e *{ VBOOL b }* He)
+                                        He (ebsind _ _ _ He)
+          | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
+                                                    HR (ffind HR)
           end.
       (**[]*)
     End ExprEvalInduction.

@@ -37,7 +37,7 @@ Module Value.
     | VHeader (fs : Field.fs tags_t v) (validity : bool)
     | VError (err : option (string tags_t))
     | VMatchKind (mk : P4light.Expr.matchkind)
-    | VHeaderStack (headers : list (Field.fs tags_t v))
+    | VHeaderStack (headers : list (bool * Field.fs tags_t v))
                    (size : positive) (nextIndex : N).
     (**[]*)
 
@@ -71,7 +71,7 @@ Module Value.
       Hypothesis HVMatchKind : forall mk, P (VMatchKind mk).
 
       Hypothesis HVHeaderStack : forall hs size ni,
-          Forall (Field.predfs_data P) hs -> P (VHeaderStack hs size ni).
+          Forall (Field.predfs_data P ∘ snd) hs -> P (VHeaderStack hs size ni).
 
       Definition custom_value_ind : forall v' : v, P v' :=
         fix custom_value_ind (val : v) : P val :=
@@ -83,11 +83,12 @@ Module Value.
                 Forall_cons hf (custom_value_ind hfv) (fields_ind tf)
               end in
           let fix ffind
-                  (fflds : list (Field.fs tags_t v))
-              : Forall (Field.predfs_data P) fflds :=
-              match fflds as ffs return Forall (Field.predfs_data P) ffs with
-              | [] => Forall_nil (Field.predfs_data P)
-              | vs :: ffs => Forall_cons vs (fields_ind vs) (ffind ffs)
+                  (fflds : list (bool * Field.fs tags_t v))
+              : Forall (Field.predfs_data P ∘ snd) fflds :=
+              match fflds as ffs
+                    return Forall (Field.predfs_data P ∘ snd) ffs with
+              | [] => Forall_nil (Field.predfs_data P ∘ snd)
+              | (_, vs) as bv :: ffs => Forall_cons bv (fields_ind vs) (ffind ffs)
               end in
           match val as v' return P v' with
           | VBool b  => HVBool b
@@ -123,11 +124,13 @@ Module Value.
             | [],            _::_
             | _::_,           []          => false
             end in
-        let fix ffrec (v1ss v2ss : list (Field.fs tags_t v)) : bool :=
+        let fix ffrec (v1ss v2ss : list (bool * Field.fs tags_t v)) : bool :=
             match v1ss, v2ss with
             | [], _::_ | _::_, [] => false
             | [], [] => true
-            | vs1::v1ss, vs2::v2ss => fields_rec vs1 vs2 && ffrec v1ss v2ss
+            | (b1,vs1) :: v1ss, (b2, vs2) :: v2ss => (eqb b1 b2)%bool &&
+                                                  fields_rec vs1 vs2 &&
+                                                  ffrec v1ss v2ss
             end in
         match v1, v2 with
         | VBool b1,       VBool b2       => eqb b1 b2
@@ -170,8 +173,11 @@ Module Value.
       | equivv_matchkind (mk : P4light.Expr.matchkind) :
           equivv (VMatchKind mk) (VMatchKind mk)
       | equivv_stack (n : positive) (ni : N)
-                     (vss1 vss2 : list (Field.fs tags_t v)) :
-          Forall2 (Field.relfs equivv) vss1 vss2 ->
+                     (vss1 vss2 : list (bool * Field.fs tags_t v)) :
+          Forall2 (fun bv1 bv2 =>
+                     fst bv1 = fst bv2 /\
+                     Field.relfs equivv (snd bv1) (snd bv2))
+                  vss1 vss2 ->
           equivv (VHeaderStack vss1 n ni) (VHeaderStack vss2 n ni).
       (**[]*)
 
@@ -202,8 +208,11 @@ Module Value.
             P (VHeader fs1 b) (VHeader fs2 b).
 
         Hypothesis HStack : forall n ni vss1 vss2,
-            Forall2 (Field.relfs equivv) vss1 vss2 ->
-            Forall2 (Field.relfs P) vss1 vss2 ->
+            Forall2 (fun bv1 bv2 =>
+                       fst bv1 = fst bv2 /\
+                       Field.relfs equivv (snd bv1) (snd bv2))
+                    vss1 vss2 ->
+            Forall2 (fun vss1 vss2 => Field.relfs P (snd vss1) (snd vss2)) vss1 vss2 ->
             P (VHeaderStack vss1 n ni) (VHeaderStack vss2 n ni).
 
         (** Custom [eqiuvv] induction principle.
@@ -225,17 +234,26 @@ Module Value.
                                          (find Htail)
                   end in
             let fix ffind
-                    {vss1 vss2 : list (Field.fs tags_t v)}
-                    (HR : Forall2 (Field.relfs equivv) vss1 vss2)
-                : Forall2 (Field.relfs P) vss1 vss2 :=
+                    {vss1 vss2 : list (bool * Field.fs tags_t v)}
+                    (HR : Forall2
+                            (fun bv1 bv2 =>
+                               fst bv1 = fst bv2 /\
+                               Field.relfs equivv (snd bv1) (snd bv2))
+                            vss1 vss2)
+                : Forall2
+                    (fun vss1 vss2 =>
+                       Field.relfs P (snd vss1) (snd vss2)) vss1 vss2 :=
                 match HR
                       in Forall2 _ v1ss v2ss
-                      return Forall2 (Field.relfs P) v1ss v2ss with
-                | Forall2_nil _ => Forall2_nil (Field.relfs P)
-                | Forall2_cons _ _ Hhead Htail => Forall2_cons
-                                                   _ _
-                                                   (find Hhead)
-                                                   (ffind Htail)
+                      return Forall2
+                               (fun vss1 vss2 => Field.relfs P (snd vss1) (snd vss2))
+                               v1ss v2ss with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons head _ (conj _ Hhead)
+                               Htail => Forall2_cons
+                                         head _
+                                         (find Hhead)
+                                         (ffind Htail)
                   end in
             match H in (equivv v1' v2') return P v1' v2' with
             | equivv_bool b => HBool b
@@ -258,13 +276,15 @@ Module Value.
              inversion H; subst; constructor;
              [ unfold Field.predf_data in H2;
                constructor; simpl; try reflexivity; auto
-             | apply IHvs; auto]);
-        try (induction hs as [| vs hs IHhs];
-             inv H; constructor; auto;
-             induction vs as [| [x v] vs IHvs];
-             constructor; invert_cons_predfs; simpl in *;
-             [ split; simpl; auto; reflexivity
-             | apply IHvs; auto ]).
+             | apply IHvs; auto]).
+        - induction hs as [| [b vs] hs IHhs];
+            inv H; constructor; auto; simpl; split; auto.
+          unfold Basics.compose in H2; simpl in H2.
+          rename H2 into H. clear b hs IHhs H3 ni size0.
+          induction vs as [| [x v] vs IHvs];
+            constructor; invert_cons_predfs; simpl in *;
+          [ split; simpl; auto; reflexivity
+          | apply IHvs; auto ].
       Qed.
 
       Lemma equivv_symmetric : Symmetric equivv.
@@ -277,14 +297,17 @@ Module Value.
             destruct x as [x1 v1]; destruct y as [x2 v2];
               unfold Field.relf in *; simpl in *;
           [ destruct H5; split; try symmetry; auto
-          | apply IHForall2; auto ]);
-        try (induction H; inv H0; constructor;
-             rename x into vs1; rename y into vs2; auto;
-             induction H; inv H5; constructor;
-             destruct x as [x1 v1]; destruct y as [x2 v2];
-             unfold Field.relf in *; simpl in *;
-             [ destruct H6; split; try symmetry; auto
-             | apply IHForall0; auto ]).
+          | apply IHForall2; auto ]; assumption).
+        - induction H; inv H0; constructor;
+            destruct x as [b1 vs1];
+            destruct y as [b2 vs2]; auto; simpl in *.
+          destruct H as [Hb H]; subst; split; auto.
+          clear b2 l l' H1 IHForall2 H7 n ni.
+          induction H; inv H5; constructor;
+            destruct x as [x1 v1]; destruct y as [x2 v2].
+              unfold Field.relf in *; simpl in *.
+              + destruct H4; split; try symmetry; auto.
+              + apply IHForall2; auto.
       Qed.
 
       Lemma equivv_transitive : Transitive equivv.
@@ -308,10 +331,13 @@ Module Value.
         - rename hs into vss1; rename vss0 into vss3.
           generalize dependent vss3;
             generalize dependent vss2.
-          induction vss1 as [| vs1 vss1 IHvss1];
-            intros [| vs2 vss2] H12ss [| vs3 vss3] H23ss;
-            inv H; inv H12ss; inv H23ss; constructor; eauto.
-          clear H8 H6 IHvss1 size0 ni vss1 vss2 vss3 H3.
+          induction vss1 as [| [b1 vs1] vss1 IHvss1];
+            intros [| [b2 vs2] vss2] H12ss [| [b3 vs3] vss3] H23ss;
+            inv H; inv H12ss; inv H23ss;
+              constructor; eauto; simpl in *.
+          destruct H4; destruct H5; subst; split; auto.
+          unfold Basics.compose in H2; simpl in H2.
+          clear b3 IHvss1 size0 ni vss1 vss2 vss3 H3 H6 H8.
           generalize dependent vs3; generalize dependent vs2.
           induction vs1 as [| [x1 v1] vs1 IHvs1];
             intros [| [x2 v2] vs2] H12s [| [x3 v3] vs3] H23s;
@@ -361,8 +387,10 @@ Module Value.
           rewrite H2; auto.
         - induction H; inv H0; auto.
           rewrite IHForall2 by auto; clear IHForall2.
-          rewrite andb_true_r. clear l l' H1 H7 n ni.
-          rename x into vs1; rename y into vs2.
+          destruct x as [b1 vs1]; destruct y as [b2 vs2];
+            simpl in *; destruct H as [Hb H]; subst.
+          rewrite andb_true_r. rewrite eqb_reflx.
+          clear l l' H1 H7 n ni b2.
           induction H; inv H5; auto.
           destruct x as [x1 v1]; destruct y as [x2 v2].
           invert_relf; simpl in *.
@@ -416,11 +444,15 @@ Module Value.
             symmetry in Hni; subst; constructor. clear size1 ni.
           rename hs into hs1; rename headers into hs2.
           generalize dependent hs2.
-          induction hs1 as [| vs1 hs1 IHhs1];
-            intros [| vs2 hs2] Heqbv; simpl in *; inv H;
+          induction hs1 as [| [b1 vs1] hs1 IHhs1];
+            intros [| [b2 vs2] hs2] Heqbv; simpl in *; inv H;
               try discriminate; constructor;
-                apply andb_true_iff in Heqbv as [Hfs Hffs]; auto.
-          rename H2 into H. generalize dependent vs2. clear IHhs1 hs1 Hffs H3.
+                apply andb_true_iff in Heqbv as [Hfs Hffs];
+                auto; simpl in *. unfold Basics.compose in H2.
+          simpl in H2. rename H2 into H.
+          apply andb_true_iff in Hfs as [Hb Hfs].
+          apply eqb_prop in Hb; subst; split; auto.
+          clear IHhs1 hs1 Hffs H3 b2. generalize dependent vs2.
           induction vs1 as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
             inv IH; inv H; simpl in *;
               constructor; auto; simpl in *;
@@ -1086,8 +1118,11 @@ Module Step.
       | {{ int<w> }}     => *{ w VS Z0 }*
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
       | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
-      | {{ stack [n] fs }} => V.VHeaderStack (repeat (fields_rec fs) (Pos.to_nat n)) n 0
+      | {{ stack fs[n] }} => V.VHeaderStack
+                              (repeat (false, fields_rec fs)
+                                      (Pos.to_nat n)) n 0
       end.
+    (**[]*)
 
     Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=

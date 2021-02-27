@@ -245,7 +245,7 @@ Module P4light.
       Notation "'hdr' { fields }"
         := (THeader fields)
             (in custom p4type at level 6, no associativity).
-      Notation "'stack' [ n ] fields"
+      Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
     End TypeNotations.
 
@@ -275,7 +275,7 @@ Module P4light.
           F.predfs_data P fields -> P {{ hdr { fields } }}.
 
       Hypothesis HTHeaderStack : forall fields size,
-          F.predfs_data P fields -> P {{ stack [size] fields }}.
+          F.predfs_data P fields -> P {{ stack fields[size] }}.
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
@@ -296,7 +296,7 @@ Module P4light.
           | {{ matchkind }} => HTMatchKind
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
-          | {{ stack[n] fields }} => HTHeaderStack fields n (fields_ind fields)
+          | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
           end.
       (**[]*)
     End TypeInduction.
@@ -324,7 +324,7 @@ Module P4light.
             ∫ hdr { fs1 } ≡ hdr { fs2 }
         | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
             F.relfs equivt fs1 fs2 ->
-            ∫ stack[n] fs1 ≡ stack[n] fs2
+            ∫ stack fs1[n] ≡ stack fs2[n]
         where "∫ t1 ≡ t2" := (equivt t1 t2).
         (**[]*)
 
@@ -356,7 +356,7 @@ Module P4light.
           Hypothesis HStack : forall n fs1 fs2,
               F.relfs equivt fs1 fs2 ->
               F.relfs P fs1 fs2 ->
-              P {{ stack[n] fs1 }} {{ stack[n] fs2 }}.
+              P {{ stack fs1[n] }} {{ stack fs2[n] }}.
 
           (** A custom induction principle for type equivalence.
               Do [induction ?H using custom_equivt_ind]. *)
@@ -597,7 +597,11 @@ Module P4light.
                     (arg : e) (i : tags_t)             (* member-expressions *)
       | EError (err : option (string tags_t))
                (i : tags_t)                            (* error literals *)
-      | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *).
+      | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
+      | EHeaderStack (fields : F.fs tags_t (t tags_t))
+                     (headers : list e)
+                     (size : positive) (next_index : N) (* header stack literals,
+                                                           unique to p4light *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -623,6 +627,7 @@ Module P4light.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
+    Arguments EHeaderStack {_}.
 
     Module ExprNotations.
       Export UopNotations.
@@ -672,6 +677,9 @@ Module P4light.
       Notation "'Matchkind' mk @ i" := (EMatchKind mk i)
                               (in custom p4expr at level 0,
                                   mk custom p4matchkind, no associativity).
+      Notation "'Stack' hdrs : ts [ n ] 'nextIndex' ':=' ni"
+               := (EHeaderStack ts hdrs n ni)
+                    (in custom p4expr at level 0).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -715,6 +723,10 @@ Module P4light.
 
       Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
 
+      Hypothesis HEStack : forall ts hs size ni,
+          Forall P hs ->
+          P <{ Stack hs:ts [size] nextIndex:=ni }>.
+
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
@@ -726,6 +738,11 @@ Module P4light.
               | [] => Forall_nil (F.predf_data (P ∘ snd))
               | (_, (_, hfe)) as hf :: tf =>
                 Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
+              end in
+          let fix list_ind (es : list (e tags_t)) : Forall P es :=
+              match es as ees return Forall P ees with
+              | [] => Forall_nil P
+              | exp :: ees => Forall_cons exp (custom_e_ind exp) (list_ind ees)
               end in
           match expr as e' return P e' with
           | <{ BOOL b @ i }> => HEBool b i
@@ -743,6 +760,7 @@ Module P4light.
               HEExprMember x ty exp i (custom_e_ind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
+          | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
           end.
       (**[]*)
     End ExprInduction.

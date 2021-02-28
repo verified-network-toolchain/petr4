@@ -292,6 +292,14 @@ Module Typecheck.
         Pos.to_nat n = length hs ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
         ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
+    | chk_access (e1 e2 : E.e tags_t) (i : tags_t)
+                 (ts : F.fs tags_t (E.t tags_t)) (n : positive) :
+        (* TODO, e2 must be compile-time known,
+           so it is within bounds. *)
+        let w := 32%positive in
+        ⟦ errs, Γ ⟧ ⊢ e1 ∈ stack ts[n] ->
+        ⟦ errs, Γ ⟧ ⊢ e2 ∈ bit<w> ->
+        ⟦ errs, Γ ⟧ ⊢ Access e1[e2] @ i ∈ hdr { ts }
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers gm e ty).
     (**[]*)
@@ -451,6 +459,15 @@ Module Typecheck.
           P errs Γ <{ Stack hs:ts[n] nextIndex:=ni }> {{ stack ts[n] }}.
       (**[]*)
 
+      Hypothesis HAccess : forall errs Γ e1 e2 i ts n,
+          let w := 32%positive in
+          ⟦ errs, Γ ⟧ ⊢ e1 ∈ stack ts[n] ->
+          P errs Γ e1 {{ stack ts[n] }} ->
+          ⟦ errs, Γ ⟧ ⊢ e2 ∈ bit<w> ->
+          P errs Γ e2 {{ bit<w> }} ->
+          P errs Γ <{ Access e1[e2] @ i }> {{ hdr { ts } }}.
+      (**[]*)
+
       (** Custom induction principle for expression typing.
           Do [induction ?H using custom_check_ind]. *)
       Definition custom_check_ind :
@@ -570,6 +587,10 @@ Module Typecheck.
                                        Hb (chind _ _ _ _ Hb)
               | chk_stack _ _ _ _ _ ni
                           Hlen HRs => HStack _ _ _ _ _ ni Hlen HRs (lind HRs)
+              | chk_access _ _ _ _ i _ _
+                           He1 He2 => HAccess _ _ _ _ i _ _
+                                             He1 (chind _ _ _ _ He1)
+                                             He2 (chind _ _ _ _ He2)
               end.
        (**[]*)
     End CheckExprInduction.

@@ -44,7 +44,8 @@ Module Value.
     (** Lvalues. *)
     Inductive lv : Type :=
     | LVVar (x : name tags_t)                 (* Local variables. *)
-    | LVMember (arg : lv) (x : string tags_t) (* Member access. *).
+    | LVMember (arg : lv) (x : string tags_t) (* Member access. *)
+    | LVAccess (stack : lv) (index : N)       (* Header stack indexing. *).
     (**[]*)
 
     (** Evaluated arguments. *)
@@ -498,6 +499,7 @@ Module Value.
   Arguments VHeaderStack {_}.
   Arguments LVVar {_}.
   Arguments LVMember {_}.
+  Arguments LVAccess {_}.
 
   Module ValueNotations.
     Notation "'*{' val '}*'" := val (val custom p4value at level 99).
@@ -531,6 +533,9 @@ Module Value.
     Notation "lval 'DOT' x"
       := (LVMember lval x) (in custom p4lvalue at level 1,
                                lval custom p4lvalue).
+    Notation "lval [ n ]"
+             := (LVAccess lval n) (in custom p4lvalue at level 1,
+                                     lval custom p4lvalue).
   End LValueNotations.
 End Value.
 
@@ -757,6 +762,15 @@ Module Step.
              ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
           hs vss ->
         ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss[n] NEXT:=ni
+    | ebs_access (e1 e2 : E.e tags_t) (i : tags_t)
+                 (n : positive) (index ni : N)
+                 (vss : list (bool * F.fs tags_t (V.v tags_t)))
+                 (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
+        let w := 32%positive in
+        nth_error vss (N.to_nat index) = Some (b,vs) ->
+        ⟨ ϵ, e1 ⟩ ⇓ STACK vss[n] NEXT:=ni ->
+        ⟨ ϵ, e2 ⟩ ⇓ w VW index ->
+        ⟨ ϵ, Access e1[e2] @ i ⟩ ⇓ HDR { vs } VALID:=b
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
@@ -774,30 +788,34 @@ Module Step.
       Hypothesis HVar : forall ϵ x τ i v,
           ϵ x = Some v ->
           P ϵ <{ Var x:τ @ i }> v.
+      (**[]*)
 
-      Hypothesis HError : forall ϵ err i,
-          P ϵ <{ Error err @ i }> *{ ERROR err }*.
+      Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
 
       Hypothesis HMatchkind : forall ϵ mk i,
           P ϵ <{ Matchkind mk @ i }> *{ MATCHKIND mk }*.
+      (**[]*)
 
       Hypothesis HNot : forall ϵ e i b b',
           negb b = b' ->
           ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
           P ϵ e *{ VBOOL b }* ->
           P ϵ <{ UOP ! e:Bool @ i }> *{ VBOOL b'}*.
+      (**[]*)
 
       Hypothesis HBitNot : forall ϵ e i w n n',
           BitArith.neg w n = n' ->
           ⟨ ϵ, e ⟩ ⇓ w VW n ->
           P ϵ e *{ w VW n }* ->
           P ϵ <{ UOP ~ e:bit<w> @ i }> *{ w VW n' }*.
+      (**[]*)
 
       Hypothesis HUMinus : forall ϵ e i w z z',
           IntArith.neg w z = z' ->
           ⟨ ϵ, e ⟩ ⇓ w VS z ->
           P ϵ e *{ w VS z }* ->
           P ϵ <{ UOP - e:int<w> @ i }> *{ w VS z' }*.
+      (**[]*)
 
       Hypothesis HBOPBit : forall ϵ e1 e2 op v i w n1 n2,
           eval_bit_binop op w n1 n2 = Some v ->
@@ -806,6 +824,7 @@ Module Step.
           ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
           P ϵ e2 *{ w VW n2 }* ->
           P ϵ <{ BOP e1:bit<w> op e2:bit<w> @ i }> v.
+      (**[]*)
 
       Hypothesis HPlusPlus : forall ϵ e1 e2 i w w1 w2 n n1 n2,
         (w1 + w2)%positive = w ->
@@ -815,6 +834,7 @@ Module Step.
         ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
         P ϵ e2 *{ w2 VW n2 }* ->
         P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> *{ w VW n }*.
+      (**[]*)
 
       Hypothesis HBOPInt : forall ϵ e1 e2 op v i w z1 z2,
         eval_int_binop op w z1 z2 = Some v ->
@@ -823,6 +843,7 @@ Module Step.
         ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
         P ϵ e2 *{ w VS z2 }* ->
         P ϵ <{ BOP e1:int<w> op e2:int<w> @ i }> v.
+      (**[]*)
 
       Hypothesis HBOPBool : forall ϵ e1 e2 op i b b1 b2,
         eval_bool_binop op b1 b2 = Some b ->
@@ -831,6 +852,7 @@ Module Step.
         ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
         P ϵ e2 *{ VBOOL b2 }* ->
         P ϵ <{ BOP e1:Bool op e2:Bool @ i }> *{VBOOL b}*.
+      (**[]*)
 
       Hypothesis HEq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
           V.eqbv tags_t v1 v2 = b ->
@@ -839,6 +861,7 @@ Module Step.
           ⟨ ϵ, e2 ⟩ ⇓ v2 ->
           P ϵ e2 v2 ->
           P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> *{ VBOOL b }*.
+      (**[]*)
 
       Hypothesis HNeq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
           negb (V.eqbv tags_t v1 v2) = b ->
@@ -847,18 +870,21 @@ Module Step.
           ⟨ ϵ, e2 ⟩ ⇓ v2 ->
           P ϵ e2 v2 ->
           P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> *{ VBOOL b }*.
+      (**[]*)
 
       Hypothesis HRecMem : forall ϵ e x i ts vs v,
           F.get x vs = Some v ->
           ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
           P ϵ e *{ REC { vs } }* ->
           P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
+      (**[]*)
 
       Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
           F.get x vs = Some v ->
           ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
           P ϵ e *{ HDR { vs } VALID:=b }* ->
           P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
+      (**[]*)
 
       Hypothesis HRecLit : forall ϵ efs i vfs,
           F.relfs
@@ -866,6 +892,7 @@ Module Step.
                let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
           F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
           P ϵ <{ rec { efs } @ i }> *{ REC { vfs } }*.
+      (**[]*)
 
       Hypothesis HHdrLit : forall ϵ efs e i b vfs,
           F.relfs
@@ -875,12 +902,14 @@ Module Step.
           ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
           P ϵ e *{ VBOOL b }* ->
           P ϵ <{ hdr { efs } valid:=e @ i }> *{ HDR { vfs } VALID:=b }*.
+      (**[]*)
 
       Hypothesis HHdrOp : forall ϵ op e i v vs b,
           eval_hdr_op op vs b = v ->
           ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
           P ϵ e *{ HDR { vs } VALID:=b }* ->
           P ϵ <{ H op e @ i }> v.
+      (**[]*)
 
       Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
           Forall2
@@ -896,6 +925,17 @@ Module Step.
                P ϵ e *{ HDR { vs } VALID:=b}*)
             hs vss ->
           P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss[n] NEXT:=ni }*.
+      (**[]*)
+
+      Hypothesis HAccess : forall ϵ e1 e2 i n index ni vss b vs,
+                 let w := 32%positive in
+                 nth_error vss (N.to_nat index) = Some (b,vs) ->
+                 ⟨ ϵ, e1 ⟩ ⇓ STACK vss[n] NEXT:=ni ->
+                 P ϵ e1 *{ STACK vss[n] NEXT:=ni }* ->
+                 ⟨ ϵ, e2 ⟩ ⇓ w VW index ->
+                 P ϵ e2 *{ w VW index }* ->
+                 P ϵ <{ Access e1[e2] @ i }> *{ HDR { vs } VALID:=b }*.
+      (**[]*)
 
       (** Custom induction principle for
           the expression big-step relation.
@@ -1006,6 +1046,10 @@ Module Step.
                                         He (ebsind _ _ _ He)
           | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
                                                     HR (ffind HR)
+          | ebs_access _ _ _ i n index ni _ _ _
+                       Hnth He1 He2 => HAccess _ _ _ i n index ni _ _ _ Hnth
+                                              He1 (ebsind _ _ _ He1)
+                                              He2 (ebsind _ _ _ He2)
           end.
       (**[]*)
     End ExprEvalInduction.
@@ -1023,6 +1067,12 @@ Module Step.
                       (i : tags_t) (lv : V.lv tags_t):
         ⦑ ϵ, e ⦒ ⇓ lv ->
         ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
+    | lvbs_stack_access (e1 e2 : E.e tags_t) (i : tags_t)
+                        (lv : V.lv tags_t) (n : N) :
+        let w := 32%positive in
+        ⦑ ϵ, e1 ⦒ ⇓ lv ->
+        ⟨ ϵ, e2 ⟩ ⇓ w VW n ->
+        ⦑ ϵ, Access e1[e2] @ i ⦒ ⇓ lv[n]
     where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
     (**[]*)
 
@@ -1089,6 +1139,16 @@ Module Step.
         | Some *{ HDR { fs } VALID:=_ }* => F.get x fs
         | Some _ => None
         end
+      | l{ lv[n] }l =>
+        match lv_lookup ϵ lv with
+        | None => None
+        | Some *{ STACK vss[_] NEXT:=_ }* =>
+          match nth_error vss (N.to_nat n) with
+          | None => None
+          | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
+          end
+        | Some _ => None
+        end
       end.
     (**[]*)
 
@@ -1101,8 +1161,15 @@ Module Step.
         | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
         | Some *{ HDR { vs } VALID:=b }* =>
           lv_update lv (V.VHeader (F.update x v vs) b) ϵ
-        | Some _ => ϵ
-        | None => ϵ
+        | Some _ | None => ϵ
+        end
+      | l{ lv[n] }l =>
+        match v, lv_lookup ϵ lv with
+        | *{ HDR { vs } VALID:=b }* ,
+          Some *{ STACK vss[size] NEXT:=ni }* =>
+          let vss := nth_update (N.to_nat n) (b,vs) vss in
+          lv_update lv *{ STACK vss[size] NEXT:=ni }* ϵ
+        | _, Some _ | _, None => ϵ
         end
       end.
     (**[]*)

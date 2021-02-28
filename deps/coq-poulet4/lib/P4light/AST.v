@@ -599,9 +599,10 @@ Module P4light.
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
       | EHeaderStack (fields : F.fs tags_t (t tags_t))
-                     (headers : list e)
-                     (size : positive) (next_index : N) (* header stack literals,
-                                                           unique to p4light *).
+                     (headers : list e) (size : positive)
+                     (next_index : N)                  (* header stack literals,
+                                                          unique to p4light *)
+      | EHeaderStackAccess (stack index : e) (i : tags_t) (* header stack indexing *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -628,6 +629,7 @@ Module P4light.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
+    Arguments EHeaderStackAccess {_}.
 
     Module ExprNotations.
       Export UopNotations.
@@ -680,6 +682,10 @@ Module P4light.
       Notation "'Stack' hdrs : ts [ n ] 'nextIndex' ':=' ni"
                := (EHeaderStack ts hdrs n ni)
                     (in custom p4expr at level 0).
+      Notation "'Access' e1 [ e2 ] @ i"
+               := (EHeaderStackAccess e1 e2 i)
+                    (in custom p4expr at level 10,
+                        e1 custom p4expr, e2 custom p4expr, left associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -727,40 +733,44 @@ Module P4light.
           Forall P hs ->
           P <{ Stack hs:ts [size] nextIndex:=ni }>.
 
+      Hypothesis HAccess : forall e1 e2 i,
+          P e1 -> P e2 -> P <{ Access e1[e2] @ i }>.
+
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
-        fix custom_e_ind (expr : e tags_t) : P expr :=
+        fix eind (expr : e tags_t) : P expr :=
           let fix fields_ind {A:Type} (flds : F.fs tags_t (A * e tags_t))
               : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ex
                     return F.predfs_data (P ∘ snd) fs_ex with
               | [] => Forall_nil (F.predf_data (P ∘ snd))
               | (_, (_, hfe)) as hf :: tf =>
-                Forall_cons hf (custom_e_ind hfe) (fields_ind tf)
+                Forall_cons hf (eind hfe) (fields_ind tf)
               end in
           let fix list_ind (es : list (e tags_t)) : Forall P es :=
               match es as ees return Forall P ees with
               | [] => Forall_nil P
-              | exp :: ees => Forall_cons exp (custom_e_ind exp) (list_ind ees)
+              | exp :: ees => Forall_cons exp (eind exp) (list_ind ees)
               end in
           match expr as e' return P e' with
           | <{ BOOL b @ i }> => HEBool b i
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x:ty @ i }> => HEVar ty x i
-          | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (custom_e_ind exp)
+          | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i
-                    (custom_e_ind lhs) (custom_e_ind rhs)
+                    (eind lhs) (eind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
-          | <{ H op exp @ i }> => HEHeaderOp op exp i (custom_e_ind exp)
+          | <{ H op exp @ i }> => HEHeaderOp op exp i (eind exp)
           | <{ Mem exp:ty dot x @ i }> =>
-              HEExprMember x ty exp i (custom_e_ind exp)
+              HEExprMember x ty exp i (eind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
+          | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1) (eind e2)
           end.
       (**[]*)
     End ExprInduction.

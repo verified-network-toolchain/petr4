@@ -4,6 +4,21 @@ Require Coq.Strings.String.
 Module Strings := Coq.Strings.String.
 Require Petr4.P4String. (** Strings. *)
 Require Petr4.Typed. (** Names. *)
+Require Import Coq.Lists.List.
+Import ListNotations.
+
+(** * Useful functions *)
+
+(** Update position [n] of list [l],
+    or return [l] if [n] is too large. *)
+Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
+  match n, l with
+  | O, _::t   => a::t
+  | S n, h::t => h :: nth_update n a t
+  | O, []
+  | S _, []  => []
+  end.
+(**[]*)
 
 (** * Option Equivalence *)
 

@@ -1240,6 +1240,11 @@ Module Step.
       end.
     (**[]*)
 
+    Definition entries : Type := list (V.v tags_t) -> ST.s tags_t.
+    
+    Definition ctrl : Type :=
+      Env.t (name tags_t) entries.
+
     Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
     | sbs_skip (i : tags_t) :
@@ -1358,6 +1363,21 @@ Module Step.
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+    | sbs_invoke (ctrl : ctrl)
+                 (es : entries)
+                 (x : name tags_t)
+                 (i : tags_t)
+                 (keys : list (E.e tags_t))
+                 (vkeys : list (V.v tags_t))
+                 (ϵ' : epsilon)
+                 (sig : signal tags_t) :
+        ctrl x = Some es ->
+        Forall2 (fun k v => ⟨ ϵ, k ⟩ ⇓ v) keys vkeys ->
+        let s := es (vkeys) in
+        ⟪ fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+        
+                 
     where "⟪ fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ins ϵ s ϵ' sig).
   End Step.
 End Step.

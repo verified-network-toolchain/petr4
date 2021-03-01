@@ -598,6 +598,9 @@ Module Typecheck.
     (** Available functions. *)
     Definition fenv : Type := Env.t (name tags_t) (E.arrowT tags_t).
 
+    (** Available actions. *)
+    Definition aenv : Type := Env.t (name tags_t) (E.params tags_t).
+
     (** Instance environment. *)
     Definition ienv : Type := Env.t (name tags_t) (E.params tags_t).
 
@@ -606,33 +609,42 @@ Module Typecheck.
 
     (** Statement context. *)
     Inductive ctx : Type :=
-    | CAction
+    | CAction (available_actions : aenv)
     | CVoid
     | CFunction (return_type : E.t tags_t)
-    | CApplyBlock (tables : tblenv).
+    | CApplyBlock (tables : tblenv) (available_actions : aenv).
+    (**[]*)
+
+    (** Evidence an action call context is ok. *)
+    Inductive action_call_ok (aa : aenv) : ctx -> Prop :=
+    | action_action_ok : action_call_ok aa (CAction aa)
+    | action_apply_block_ok (tbls : tblenv) :
+        action_call_ok aa (CApplyBlock tbls aa).
     (**[]*)
 
     (** Evidence an exit context ok. *)
     Inductive exit_ctx_ok : ctx -> Prop :=
-    | exit_action_ok : exit_ctx_ok CAction
-    | exit_applyblk_ok (tables : tblenv) : exit_ctx_ok (CApplyBlock tables).
+    | exit_action_ok (aa : aenv) : exit_ctx_ok (CAction aa)
+    | exit_applyblk_ok (tbls : tblenv) (aa : aenv) :
+        exit_ctx_ok (CApplyBlock tbls aa).
     (**[]*)
 
     (** Evidence a void return is ok. *)
     Inductive return_void_ok : ctx -> Prop :=
-    | return_void_action : return_void_ok CAction
+    | return_void_action (aa : aenv) : return_void_ok (CAction aa)
     | return_void_void : return_void_ok CVoid
-    | return_void_applyblk (tbls : tblenv) : return_void_ok (CApplyBlock tbls).
+    | return_void_applyblk (tbls : tblenv) (aa : aenv) :
+        return_void_ok (CApplyBlock tbls aa).
     (**[]*)
 
     Notation "x" := x (in custom p4context at level 0, x constr at level 0).
-    Notation "'Action'" := CAction (in custom p4context at level 0).
+    Notation "'Action' aa" := (CAction aa) (in custom p4context at level 0).
     Notation "'Void'" := CVoid (in custom p4context at level 0).
     Notation "'Function' t"
       := (CFunction t)
            (in custom p4context at level 0, t custom p4type).
-    Notation "'ApplyBlock' tbls"
-             := (CApplyBlock tbls)
+    Notation "'ApplyBlock' tbls aa"
+             := (CApplyBlock tbls aa)
                   (in custom p4context at level 0, tbls custom p4env).
 
     Inductive check_stmt
@@ -645,9 +657,6 @@ Module Typecheck.
         ⦃ fns, ins, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
         ⦃ fns, ins, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
         ⦃ fns, ins, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
-    | chk_seq_ret (s1 s2 : ST.s tags_t) (Γ' : gam) (i : tags_t) (con : ctx) :
-        ⦃ fns, ins, errs, Γ ⦄ con ⊢ s1 ⊣ ⦃ Γ', R ⦄ ->
-        ⦃ fns, ins, errs, Γ ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ', R ⦄
     | chk_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) (con : ctx) :
         let x' := bare x in
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
@@ -673,19 +682,30 @@ Module Typecheck.
     | chk_exit (i : tags_t) (con : ctx) :
         exit_ctx_ok con ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
-    | chk_method_call (params : E.params tags_t)
-                      (args : E.args tags_t)
-                      (f : name tags_t) (i : tags_t) (con : ctx) :
+    | chk_void_call (params : E.params tags_t)
+                    (args : E.args tags_t)
+                    (f : name tags_t) (i : tags_t) (con : ctx) :
         fns f = Some (P.Arrow params None) ->
         F.relfs
           (P.rel_paramarg_same
              (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
           args params ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
-    | chk_call (τ : E.t tags_t) (e : E.e tags_t)
-               (params : E.params tags_t)
-               (args : E.args tags_t)
-               (f : name tags_t) (i : tags_t) (con : ctx) :
+    | chk_act_call (params : E.params tags_t)
+                   (args : E.args tags_t)
+                   (a : name tags_t) (i : tags_t)
+                   (aa : aenv) (con : ctx) :
+        action_call_ok aa con ->
+        aa a = Some params ->
+        F.relfs
+          (P.rel_paramarg_same
+             (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          args params ->
+        ⦃ fns, ins, errs, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
+    | chk_fun_call (τ : E.t tags_t) (e : E.e tags_t)
+                   (params : E.params tags_t)
+                   (args : E.args tags_t)
+                   (f : name tags_t) (i : tags_t) (con : ctx) :
         fns f = Some (P.Arrow params (Some τ)) ->
         F.relfs
           (P.rel_paramarg_same
@@ -702,9 +722,10 @@ Module Typecheck.
              (fun '(t,e) τ => equivt τ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
           args params ->
         ⦃ fns, ins, errs, Γ ⦄ con ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
-    | chk_invoke (tbl : name tags_t) (i : tags_t) (tbls : tblenv) :
+    | chk_invoke (tbl : name tags_t) (i : tags_t)
+                 (tbls : tblenv) (aa : aenv) :
         tbls tbl = Some tt ->
-        ⦃ fns, ins, errs, Γ ⦄ ApplyBlock tbls ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
+        ⦃ fns, ins, errs, Γ ⦄ ApplyBlock tbls aa ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
     where "⦃ fe , ins , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
             := (check_stmt fe ins ers g1 con s g2 sg).
     (**[]*)
@@ -778,9 +799,6 @@ Module Typecheck.
             := (check_decl cenv fenv ienv1 errs g1 d g2 ienv2).
     (**[]*)
 
-    (** Available actions. *)
-    Definition aenv : Type := strs.
-
     Inductive check_ctrldecl
               (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
               (ins : ienv) (errs : errors) (Γ : gam)
@@ -789,11 +807,12 @@ Module Typecheck.
                  (signature : E.params tags_t)
                  (body : ST.s tags_t) (i : tags_t)
                  (Γ' Γ'' : gam) (sg : signal) :
+        let a' := bare a in
         bind_all signature Γ = Γ' ->
-        ⦃ fns, ins, errs, Γ ⦄ Action ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+        ⦃ fns, ins, errs, Γ ⦄ Action acts ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
         ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆
           ⊢ action a ( signature ) { body } @ i
-          ⊣ ⦅ Γ, ins, a ↦ tt ;; acts, tbls ⦆
+          ⊣ ⦅ Γ, ins, a' ↦ signature ;; acts, tbls ⦆
     | chk_table (t : string tags_t)
                 (kys : list
                           (E.t tags_t * E.e tags_t * E.matchkind))
@@ -802,7 +821,9 @@ Module Typecheck.
         (* Keys type. *)
         Forall (fun '(τ,e,_) => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) kys ->
         (* Actions available *)
-        Forall (fun a => acts a = Some tt) actns ->
+        Forall
+          (fun a => exists pms, let a' := bare a in acts a' = Some pms)
+          actns ->
         let t' := bare t in
         ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆
           ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, ins, acts, t' ↦ tt;; tbls ⦆
@@ -832,12 +853,12 @@ Module Typecheck.
                   (tbls : tblenv) (acts : aenv) (ins' ins'' : ienv) :
         cbind_all cparams Γ = Γ' ->
         let empty_tbls := Env.empty (name tags_t) unit in
-        let empty_acts := Env.empty (string tags_t) unit in
+        let empty_acts := Env.empty (name tags_t) (E.params tags_t) in
         (* Control declarations. *)
         ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆ ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
         bind_all params Γ'' = Γ''' ->
         (* Apply block. *)
-        ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
+        ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
         let c' := bare c in
         let ctor := CCtor cparams params in
         $ cs, fns, ins, errs, Γ $

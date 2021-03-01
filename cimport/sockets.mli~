@@ -1,0 +1,5 @@
+val setup_raw_socket : string -> int
+
+val recv_raw_socket : int -> string
+
+val send_raw_socket : int -> string -> unit

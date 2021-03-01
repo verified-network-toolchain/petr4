@@ -1,0 +1,3 @@
+(library
+  (name cImport)
+  (foreign_stubs (language c) (names raw_socket.c)))

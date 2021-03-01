@@ -805,7 +805,7 @@ Module Typecheck.
         Forall (fun a => acts a = Some tt) actns ->
         let t' := bare t in
         ⦅ tbls, acts, cs, fns, ins, errs, Γ ⦆
-          ⊢ table t keys:=kys actions:=actns @ i ⊣ ⦅ Γ, ins, acts, t' ↦ tt;; tbls ⦆
+          ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, ins, acts, t' ↦ tt;; tbls ⦆
     | chk_decl (d : D.d tags_t) (i : tags_t)
                (Γ' : gam) (ins' : ienv) :
         ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ d ⊣ ⦗ Γ', ins' ⦘ ->

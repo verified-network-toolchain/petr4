@@ -796,8 +796,10 @@ Module P4light.
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
                                                            an alternative to blocks *)
-      | SCall (f : name tags_t) (args : E.arrowE tags_t)
-              (i : tags_t)                              (* function/action/extern call *)
+      | SFunCall (f : name tags_t)
+                 (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
+      | SActCall (f : name tags_t)
+                 (args : E.args tags_t) (i : tags_t)    (* action call *)
       | SReturnVoid (i : tags_t)                        (* void return statement *)
       | SReturnFruit (t : E.t tags_t)
                      (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
@@ -815,7 +817,8 @@ Module P4light.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
-    Arguments SCall {tags_t}.
+    Arguments SFunCall {_}.
+    Arguments SActCall {_}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
@@ -849,12 +852,14 @@ Module P4light.
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
       Notation "'call' f 'with' args @ i"
-        := (SCall f (Arrow args None) i)
+        := (SFunCall f (Arrow args None) i)
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e : t ':=' 'call' f 'with' args @ i"
-               := (SCall f (Arrow args (Some (t,e))) i)
+               := (SFunCall f (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 30,
                         e custom p4expr, t custom p4stmt, no associativity).
+      Notation "'calling' a 'with' args @ i"
+               := (SActCall a args i) (in custom p4stmt at level 3).
       Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,
@@ -938,22 +943,26 @@ Module P4light.
       Section ControlDecls.
         Variable (tags_t : Type).
 
+        (** Table. *)
+        Inductive table : Type :=
+        | Table (key : list (E.t tags_t * E.e tags_t * E.matchkind))
+                (actions : list (string tags_t)).
+        (**[]*)
+
         (** Declarations that may occur within Controls. *)
         (* TODO, this is a stub. *)
         Inductive d : Type :=
         | CDAction (a : string tags_t)
                    (signature : E.params tags_t)
                    (body : S.s tags_t) (i : tags_t) (* action declaration *)
-        | CDTable (t : string tags_t)
-                  (keys : list
-                            (E.t tags_t * E.e tags_t * E.matchkind))
-                  (actions : list (string tags_t))  (* action names *)
+        | CDTable (t : string tags_t) (bdy : table)
                   (i : tags_t)                      (* table declaration *)
         | CDDecl (d : D.d tags_t) (i : tags_t)
         | CDSeq (d1 d2 : d) (i : tags_t).
         (**[]*)
       End ControlDecls.
 
+      Arguments Table {_}.
       Arguments CDAction {_}.
       Arguments CDTable {_}.
       Arguments CDDecl {_}.
@@ -977,8 +986,8 @@ Module P4light.
         Notation "'action' a ( params ) { body } @ i"
           := (CDAction a params body i)
                (in custom p4ctrldecl at level 0, body custom p4stmt).
-        Notation "'table' t 'keys' ':=' keys 'actions' ':=' actions @ i"
-          := (CDTable t keys actions i)
+        Notation "'table' t 'key' ':=' ems 'actions' ':=' acts @ i"
+          := (CDTable t (Table ems acts) i)
                (in custom p4ctrldecl at level 0).
       End ControlDeclNotations.
     End ControlDecl.

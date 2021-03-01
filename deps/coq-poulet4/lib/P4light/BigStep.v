@@ -19,7 +19,7 @@ Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
 Reserved Notation "⦑ ϵ , e ⦒ ⇓ lv"
          (at level 40, e custom p4expr, lv custom p4lvalue).
 
-Reserved Notation "⟪ fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
+Reserved Notation "⟪ cp , tenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
          (at level 40, s custom p4stmt,
           ϵ2 custom p4env, sig custom p4evalsignal).
 
@@ -543,10 +543,13 @@ Module Step.
   Module P := P4light.
   Module E := P.Expr.
   Module ST := P.Stmt.
+  Module D := P.Decl.
+  Module CD := P.Control.ControlDecl.
+  Module TP := P.TopDecl.
   Module F := P.F.
   Module V := Value.
 
-  Import ST.StmtNotations.
+  Import TP.TopDeclNotations.
   Import V.ValueNotations.
   Import V.LValueNotations.
 
@@ -650,7 +653,7 @@ Module Step.
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
-    (* TODO: Handle Errors! *)
+    (** Expression big-step semantics. *)
     Inductive expr_big_step (ϵ : epsilon) : E.e tags_t -> V.v tags_t -> Prop :=
     (* Literals. *)
     | ebs_bool (b : bool) (i : tags_t) :
@@ -1103,13 +1106,8 @@ Module Step.
     | IEnv (ins : Env.t (name tags_t) inst).
     (**[]*)
 
-    (* tables can only be applied in a control apply block.
-       apply for tables takes "keys" as an argument,
-       but there are no syntactic keys in table invocation.
-       need control plane configuration for table invocation.
-       control plane config: maps table names to match-action tables.
-       match-action tables are a mapping from key-values "p4 values" wink wink
-       to an action call *)
+    (** Table environment. *)
+    Definition tenv : Type := Env.t (name tags_t) (CD.table tags_t).
 
     (** Function lookup. *)
     Definition lookup '(FEnv fs : fenv) : name tags_t -> option fdecl := fs.
@@ -1240,57 +1238,65 @@ Module Step.
       end.
     (**[]*)
 
-    Definition entries : Type := list (V.v tags_t) -> ST.s tags_t.
-    
-    Definition ctrl : Type :=
-      Env.t (name tags_t) entries.
+    (** Control plane table entries,
+        essentially mapping tables to an action call. *)
+    Definition entries : Type :=
+      list (V.v tags_t * E.matchkind) ->
+      list (string tags_t) ->
+      name tags_t * E.args tags_t.
+    (**[]*)
 
-    Inductive stmt_big_step (fs : fenv) (ins : ienv) (ϵ : epsilon) :
+    (** Control plane tables. *)
+    Definition ctrl : Type := Env.t (name tags_t) entries.
+
+    (** Statement big-step semantics. *)
+    Inductive stmt_big_step
+              (cp : ctrl) (ts : tenv) (fs : fenv) (ins : ienv) (ϵ : epsilon) :
       ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
     | sbs_skip (i : tags_t) :
-        ⟪ fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
+        ⟪ cp, ts, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
     | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
                    (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
-        ⟪ fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
-        ⟪ fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
-        ⟪ fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
+        ⟪ cp, ts, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
     | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
                            (ϵ' : epsilon) (sig : signal tags_t) :
         interrupt sig ->
-        ⟪ fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+        ⟪ cp, ts, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
     | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
                   (i : tags_t) (v : V.v tags_t) :
         vdefault τ = v ->
         let x' := bare x in
-        ⟪ fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
+        ⟪ cp, ts, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
     | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
                  (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
         lv_update lv v ϵ = ϵ' ->
         ⦑ ϵ, e1 ⦒ ⇓ lv ->
         ⟨ ϵ, e2 ⟩ ⇓ v ->
-        ⟪ fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
+        ⟪ cp, ts, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
     | sbs_exit (i : tags_t) :
-        ⟪ fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
+        ⟪ cp, ts, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
     | sbs_retvoid (i : tags_t) :
-        ⟪ fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
+        ⟪ cp, ts, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
     | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
                    (i : tags_t) (v : V.v tags_t) :
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+        ⟪ cp, ts, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
     | sbs_cond_true (guard : E.e tags_t)
                     (tru fls : ST.s tags_t) (i : tags_t)
                     (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ TRUE ->
-        ⟪ fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⟪ cp, ts, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_cond_false (guard : E.e tags_t)
                      (tru fls : ST.s tags_t) (i : tags_t)
                      (ϵ' : epsilon) (sig : signal tags_t) :
         ⟨ ϵ, guard ⟩ ⇓ FALSE ->
-        ⟪ fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⟪ cp, ts, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
     | sbs_methodcall (params : E.params tags_t)
                      (args : E.args tags_t)
@@ -1309,10 +1315,10 @@ Module Step.
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Function evaluation *)
-        ⟪ fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        ⟪ cp, ts, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+        ⟪ cp, ts, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
     | sbs_fruitcall (params : E.params tags_t)
                     (args : E.args tags_t)
                     (argsv : V.argsv tags_t)
@@ -1335,12 +1341,12 @@ Module Step.
         (* Lvalue Evaluation. *)
         ⦑ ϵ, e ⦒ ⇓ lv ->
         (* Function evaluation. *)
-        ⟪ fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+        ⟪ cp, ts, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         (* Assignment to lvalue. *)
         lv_update lv v ϵ''' = ϵ'''' ->
-        ⟪ fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+        ⟪ cp, ts, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
     | sbs_apply (params : E.params tags_t)
                     (args : E.args tags_t)
                     (argsv : V.argsv tags_t)
@@ -1359,25 +1365,26 @@ Module Step.
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Apply block evaluation. *)
-        ⟪ fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        ⟪ cp, ts, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-    | sbs_invoke (ctrl : ctrl)
+        ⟪ cp, ts, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+    | sbs_invoke (x : name tags_t) (i : tags_t)
                  (es : entries)
-                 (x : name tags_t)
-                 (i : tags_t)
-                 (keys : list (E.e tags_t))
-                 (vkeys : list (V.v tags_t))
+                 (ky : list (E.t tags_t * E.e tags_t * E.matchkind))
+                 (acts : list (string tags_t))
+                 (vky : list (V.v tags_t * E.matchkind))
+                 (a : name tags_t) (args : E.args tags_t)
                  (ϵ' : epsilon)
                  (sig : signal tags_t) :
-        ctrl x = Some es ->
-        Forall2 (fun k v => ⟨ ϵ, k ⟩ ⇓ v) keys vkeys ->
-        let s := es (vkeys) in
-        ⟪ fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-        
-                 
-    where "⟪ fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫" := (stmt_big_step fs ins ϵ s ϵ' sig).
+        cp x = Some es ->
+        ts x = Some (CD.Table ky acts) ->
+        Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
+        (* Black box, need extra assumption for soundness *)
+        es vky acts = (a,args) ->
+        ⟪ cp, ts, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+        ⟪ cp, ts, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+    where "⟪ cp , ts , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
+            := (stmt_big_step cp ts fs ins ϵ s ϵ' sig).
   End Step.
 End Step.

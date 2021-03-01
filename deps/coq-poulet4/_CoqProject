@@ -35,6 +35,7 @@ lib/P4light/BigStep.v
 lib/P4light/Check.v
 lib/P4light/P4lightGen.v
 lib/P4light/Utiliser.v
+lib/P4light/Value.v
 
 -R examples Petr4.Examples
 

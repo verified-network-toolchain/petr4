@@ -602,7 +602,8 @@ Module P4light.
                      (headers : list e) (size : positive)
                      (next_index : N)                  (* header stack literals,
                                                           unique to p4light *)
-      | EHeaderStackAccess (stack index : e) (i : tags_t) (* header stack indexing *).
+      | EHeaderStackAccess (stack : e) (index : N)
+                           (i : tags_t)                (* header stack indexing *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -684,8 +685,7 @@ Module P4light.
                     (in custom p4expr at level 0).
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
-                    (in custom p4expr at level 10,
-                        e1 custom p4expr, e2 custom p4expr, left associativity).
+                    (in custom p4expr at level 10, e1 custom p4expr).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -734,7 +734,7 @@ Module P4light.
           P <{ Stack hs:ts [size] nextIndex:=ni }>.
 
       Hypothesis HAccess : forall e1 e2 i,
-          P e1 -> P e2 -> P <{ Access e1[e2] @ i }>.
+          P e1 -> P <{ Access e1[e2] @ i }>.
 
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
@@ -770,7 +770,7 @@ Module P4light.
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
-          | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1) (eind e2)
+          | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
           end.
       (**[]*)
     End ExprInduction.
@@ -892,8 +892,6 @@ Module P4light.
                  (i : tags_t)                      (* unitialized variable *)
       | DVarinit (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
-      | DConst   (typ : E.t tags_t) (x : string tags_t)
-                 (rhs : E.e tags_t) (i : tags_t)   (* constant *)
       | DInstantiate (C : name tags_t) (x : string tags_t)
                      (args : F.fs tags_t (E.t tags_t * E.e tags_t))
                      (i : tags_t)                  (* constructor [C]
@@ -904,7 +902,6 @@ Module P4light.
 
     Arguments DVardecl {tags_t}.
     Arguments DVarinit {tags_t}.
-    Arguments DConst {tags_t}.
     Arguments DInstantiate {tags_t}.
     Arguments DSeq {tags_t}.
 
@@ -920,9 +917,6 @@ Module P4light.
       Notation "'Let' x : t ':=' e @ i"
         := (DVarinit t x e i)
              (in custom p4decl at level 0, t custom p4type, e custom p4expr).
-      Notation "'Const' x : t ':=' e @ i"
-               := (DConst x t e i)
-                    (in custom p4decl at level 0, t custom p4type, e custom p4expr).
       Notation "'Instance' x 'of' c ( args ) @ i"
                := (DInstantiate c x args i) (in custom p4decl at level 0).
       Notation "d1 ';;' d2 @ i"

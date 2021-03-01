@@ -765,15 +765,13 @@ Module Step.
              ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
           hs vss ->
         ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss[n] NEXT:=ni
-    | ebs_access (e1 e2 : E.e tags_t) (i : tags_t)
+    | ebs_access (e : E.e tags_t) (i : tags_t)
                  (n : positive) (index ni : N)
                  (vss : list (bool * F.fs tags_t (V.v tags_t)))
                  (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
-        let w := 32%positive in
         nth_error vss (N.to_nat index) = Some (b,vs) ->
-        ⟨ ϵ, e1 ⟩ ⇓ STACK vss[n] NEXT:=ni ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW index ->
-        ⟨ ϵ, Access e1[e2] @ i ⟩ ⇓ HDR { vs } VALID:=b
+        ⟨ ϵ, e ⟩ ⇓ STACK vss[n] NEXT:=ni ->
+        ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
 
@@ -930,14 +928,11 @@ Module Step.
           P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss[n] NEXT:=ni }*.
       (**[]*)
 
-      Hypothesis HAccess : forall ϵ e1 e2 i n index ni vss b vs,
-                 let w := 32%positive in
+      Hypothesis HAccess : forall ϵ e i n index ni vss b vs,
                  nth_error vss (N.to_nat index) = Some (b,vs) ->
-                 ⟨ ϵ, e1 ⟩ ⇓ STACK vss[n] NEXT:=ni ->
-                 P ϵ e1 *{ STACK vss[n] NEXT:=ni }* ->
-                 ⟨ ϵ, e2 ⟩ ⇓ w VW index ->
-                 P ϵ e2 *{ w VW index }* ->
-                 P ϵ <{ Access e1[e2] @ i }> *{ HDR { vs } VALID:=b }*.
+                 ⟨ ϵ, e ⟩ ⇓ STACK vss[n] NEXT:=ni ->
+                 P ϵ e *{ STACK vss[n] NEXT:=ni }* ->
+                 P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
       (**[]*)
 
       (** Custom induction principle for
@@ -1049,10 +1044,9 @@ Module Step.
                                         He (ebsind _ _ _ He)
           | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
                                                     HR (ffind HR)
-          | ebs_access _ _ _ i n index ni _ _ _
-                       Hnth He1 He2 => HAccess _ _ _ i n index ni _ _ _ Hnth
-                                              He1 (ebsind _ _ _ He1)
-                                              He2 (ebsind _ _ _ He2)
+          | ebs_access _ _ i n index ni _ _ _
+                       Hnth He => HAccess _ _ i n index ni _ _ _ Hnth
+                                         He (ebsind _ _ _ He)
           end.
       (**[]*)
     End ExprEvalInduction.
@@ -1070,12 +1064,11 @@ Module Step.
                       (i : tags_t) (lv : V.lv tags_t):
         ⦑ ϵ, e ⦒ ⇓ lv ->
         ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
-    | lvbs_stack_access (e1 e2 : E.e tags_t) (i : tags_t)
+    | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
                         (lv : V.lv tags_t) (n : N) :
         let w := 32%positive in
-        ⦑ ϵ, e1 ⦒ ⇓ lv ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n ->
-        ⦑ ϵ, Access e1[e2] @ i ⦒ ⇓ lv[n]
+        ⦑ ϵ, e ⦒ ⇓ lv ->
+        ⦑ ϵ, Access e[n] @ i ⦒ ⇓ lv[n]
     where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
     (**[]*)
 

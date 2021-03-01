@@ -1,6 +1,7 @@
 Require Export Coq.Classes.EquivDec.
 Require Export Coq.PArith.BinPosDef.
 Export Pos.
+Require Export Coq.NArith.BinNat.
 Require Export P4light.AST.
 Require Export P4light.P4Arith.
 
@@ -289,17 +290,15 @@ Module Typecheck.
     | chk_stack (ts : F.fs tags_t (E.t tags_t))
                 (hs : list (E.e tags_t))
                 (n : positive) (ni : N) :
+        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
         Pos.to_nat n = length hs ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
         ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
-    | chk_access (e1 e2 : E.e tags_t) (i : tags_t)
+    | chk_access (e : E.e tags_t) (idx : N) (i : tags_t)
                  (ts : F.fs tags_t (E.t tags_t)) (n : positive) :
-        (* TODO, e2 must be compile-time known,
-           so it is within bounds. *)
-        let w := 32%positive in
-        ⟦ errs, Γ ⟧ ⊢ e1 ∈ stack ts[n] ->
-        ⟦ errs, Γ ⟧ ⊢ e2 ∈ bit<w> ->
-        ⟦ errs, Γ ⟧ ⊢ Access e1[e2] @ i ∈ hdr { ts }
+        N.lt idx (Npos n) ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
+        ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
             := (check ers gm e ty).
     (**[]*)
@@ -453,19 +452,18 @@ Module Typecheck.
       (**[]*)
 
       Hypothesis HStack : forall errs Γ ts hs n ni,
+          BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
           Pos.to_nat n = length hs ->
           Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
           Forall (fun e => P errs Γ e {{ hdr { ts } }}) hs ->
           P errs Γ <{ Stack hs:ts[n] nextIndex:=ni }> {{ stack ts[n] }}.
       (**[]*)
 
-      Hypothesis HAccess : forall errs Γ e1 e2 i ts n,
-          let w := 32%positive in
-          ⟦ errs, Γ ⟧ ⊢ e1 ∈ stack ts[n] ->
-          P errs Γ e1 {{ stack ts[n] }} ->
-          ⟦ errs, Γ ⟧ ⊢ e2 ∈ bit<w> ->
-          P errs Γ e2 {{ bit<w> }} ->
-          P errs Γ <{ Access e1[e2] @ i }> {{ hdr { ts } }}.
+      Hypothesis HAccess : forall errs Γ e idx i ts n,
+          N.lt idx (Npos n) ->
+          ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
+          P errs Γ e {{ stack ts[n] }} ->
+          P errs Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
       (**[]*)
 
       (** Custom induction principle for expression typing.
@@ -586,11 +584,11 @@ Module Typecheck.
                                        HRs (fields_ind HRs)
                                        Hb (chind _ _ _ _ Hb)
               | chk_stack _ _ _ _ _ ni
-                          Hlen HRs => HStack _ _ _ _ _ ni Hlen HRs (lind HRs)
+                          Hn Hnin
+                          Hlen HRs => HStack _ _ _ _ _ ni Hn Hnin Hlen HRs (lind HRs)
               | chk_access _ _ _ _ i _ _
-                           He1 He2 => HAccess _ _ _ _ i _ _
-                                             He1 (chind _ _ _ _ He1)
-                                             He2 (chind _ _ _ _ He2)
+                           Hidx He => HAccess _ _ _ _ i _ _ Hidx
+                                             He (chind _ _ _ _ He)
               end.
        (**[]*)
     End CheckExprInduction.

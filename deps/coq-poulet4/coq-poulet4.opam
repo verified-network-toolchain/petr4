@@ -15,4 +15,5 @@ install: [
 depends: [
   "coq"
   "coq-equations"
+  "coq-record-update"
 ]

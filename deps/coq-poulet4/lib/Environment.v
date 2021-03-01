@@ -199,11 +199,17 @@ Section Environment.
       state_fail (SupportError "Qualified name lookup is not implemented.")
     end.
 
+  Definition env_name_lookup (name: Typed.name) : env_monad (@Value tags_t) :=
+    get_name_loc name >>= heap_lookup.
+
+  Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t) :=
+    env_name_lookup (BareName name).
+
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in
     match lv with
     | ValLeftName name =>
-      get_name_loc name >>= heap_lookup
+      env_name_lookup name
 
       (* TODO: there's probably a way to refactor the following 3 cases *)
     | ValLeftMember inner member =>

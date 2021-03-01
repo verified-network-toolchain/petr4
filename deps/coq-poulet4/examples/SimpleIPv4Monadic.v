@@ -234,6 +234,7 @@ Proof.
   - cbv.
 Admitted.
 
+(*
 Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->
      EgressSpecOne (MyProg pkt).
 Admitted.
@@ -242,3 +243,4 @@ Theorem ParseComplete : forall pkt : list bool, HeaderWF pkt ->
    (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
    PacketConsumed (MyProg pkt).
 Admitted.
+ *)

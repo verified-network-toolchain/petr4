@@ -145,7 +145,7 @@ let start_v1switch env prog sockets =
 
 let start_switch verbose include_dir target n pts p4_file =
   let sockets = List.init n
-    ~f:(fun _ -> Unix.socket ~domain:Unix.PF_UNIX ~kind:Unix.SOCK_RAW ~protocol:0 ()) in
+    ~f:(fun _ -> Unix.socket ~domain:Unix.PF_INET ~kind:Unix.SOCK_RAW ~protocol:0 ()) in
   let pts = List.map pts ~f:(fun pt -> Unix.ADDR_UNIX pt) in
   let bind_sockets () = List.iter2 sockets pts
     ~f:(fun sock addr -> Unix.bind sock ~addr) in
@@ -153,11 +153,21 @@ let start_switch verbose include_dir target n pts p4_file =
     | Ok _ -> ()
     | Unequal_lengths ->
        failwith "Error: number of ports did not match the number of port names" in
-  List.iter sockets ~f:(Unix.listen ~backlog:1);
-  List.iter sockets ~f:(fun sock -> Unix.accept sock |> ignore);
+  (* List.iter sockets ~f:(Unix.listen ~backlog:1); *)
+  (* List.iter sockets ~f:(fun sock -> Unix.accept sock |> ignore); *)
   (* TODO: set socket options for timeout on recv? *)
   (* TODO: add a control plane socket *)
-  match parse_file include_dir p4_file verbose with
+  let rec loop () =
+    let sock = List.hd_exn sockets in
+    let buf = Bytes.create 1024 in
+    let len, _ = Unix.recvfrom sock ~buf ~pos:0 ~len:1024 ~mode:[] in
+    if len = 0 then loop ()
+    else
+      let pkt = String.sub (Bytes.to_string buf) ~pos:0 ~len in
+      Format.sprintf "packet: %s" pkt |> print_endline;
+      Unix.shutdown sock ~mode:Unix.SHUTDOWN_ALL in
+  loop ()
+  (* match parse_file include_dir p4_file verbose with
   | `Ok prog ->
     let elab_prog, renamer = Elaborate.elab prog in
     let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
@@ -168,7 +178,7 @@ let start_switch verbose include_dir target n pts p4_file =
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
     let info_string = Info.to_string info in
-    Format.sprintf "%s\n%s" info_string exn_msg |> print_string
+    Format.sprintf "%s\n%s" info_string exn_msg |> print_string *)
 
 let switch_command =
   let open Command.Spec in

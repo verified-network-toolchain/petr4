@@ -160,25 +160,13 @@ module Make_parse (Conf: Parse_config) = struct
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg
 
-  let up4comp_files verbose include_dirs split_port file1 file2 imported =
+  let up4comp_files verbose include_dirs split_port file1 =
     match check_file' include_dirs file1 verbose with
     | `Ok (prog1, _) ->
-      begin match check_file' include_dirs file2 verbose with
-        | `Ok (prog2, _) ->
-          begin match check_file' include_dirs imported verbose with 
-            | `Ok (imported_prog, _) ->
-              Up4compiler.prog_merge_package prog1 prog2 split_port imported_prog
-              |> Pretty.format_program
-              |> print
-            | `Error (info, exn) ->
-              Up4compiler.prog_merge prog1 prog2 split_port
-              |> Pretty.format_program
-              |> print
-          end
-        | `Error (info, exn) ->
-          let exn_msg = Exn.to_string exn in
-          let info_string = Info.to_string info in
-          Printf.printf "%s\n%s" info_string exn_msg
+      begin
+        Up4compiler.prog_merge_package prog1
+        |> Pretty.format_program
+        |> print
       end
     | `Error (info, exn) ->
       let exn_msg = Exn.to_string exn in

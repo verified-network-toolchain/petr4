@@ -124,11 +124,9 @@ let up4comp_command =
      +> flag "-v" no_arg ~doc:"Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-p" (required int) ~doc:"<port> Port number to split between files"
-     +> anon ("p4file1" %: string)
-     +> anon ("p4file2" %: string)
-     +> anon ("p4import" %: string))
-    (fun verbose include_dirs split_port file1 file2 import () ->
-       up4comp_files verbose include_dirs split_port file1 file2 import)
+     +> anon ("p4file1" %: string))
+    (fun verbose include_dirs split_port file1 () ->
+       up4comp_files verbose include_dirs split_port file1)
 
 let command =
   Command.group

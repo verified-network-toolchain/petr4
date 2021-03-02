@@ -2616,14 +2616,9 @@ and type_statements env ctx statements =
   List.fold_left ~f:fold ~init:(StmUnit, [], env) statements
 
 
-and rev_list_to_block info: Prog.coq_Statement list -> Prog.coq_Block =
-  let f block stmt: Prog.coq_Block = BlockCons (stmt, block) in
-  let init: Prog.coq_Block = BlockEmpty info in
-  List.fold_left ~f ~init
-
 and type_block env ctx stmt_info block =
   let typ, stmts, env' = type_statements env ctx (snd block).statements in
-  let block = rev_list_to_block stmt_info stmts in
+  let block : Prog.coq_Block = MkBlock (stmt_info, stmts) in
   MkStatement (stmt_info, StatBlock block, typ), env
 
 (* Section 11.4

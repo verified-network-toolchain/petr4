@@ -626,13 +626,10 @@ and print_stmt p (stmt : coq_Statement) =
           print_stmt_type typ
 and print_block p (block : coq_Block) =
   match block with
-  | BlockEmpty info ->
-      fprintf p "(@[<hov 0>BlockEmpty@ %a)@]" 
+  | MkBlock (info, stmts) ->
+      fprintf p "(@[<hov 4>MkBlock@ %a@ %a)@]"
           print_info info
-  | BlockCons (stmt, block) ->
-      fprintf p "(@[<hov 4>BlockCons@ %a@ %a)@]"
-          print_stmt stmt
-          print_block block
+          (print_list print_stmt) stmts
 
 let print_stmts = 
   print_list print_stmt

@@ -27,6 +27,9 @@ Reserved Notation "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ �
          (at level 40, d custom p4ctrldecl,
           ϵ2 custom p4env, ts2 custom p4env).
 
+Reserved Notation "⦇ cp , cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ϵ2 , ins2 , fns2 , cs2 ⦈"
+         (at level 40, d custom p4topdecl, ϵ2 custom p4env).
+
 Module Step.
   Module P := P4light.
   Module E := P.Expr.
@@ -987,6 +990,45 @@ Module Step.
           ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊
     where "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
             := (ctrldecl_big_step cp cs fns ins1 ϵ1 ts1 aa1 d ϵ2 ins2 aa2 ts2).
+    (**[]*)
+
+    (** Top-level declaration big-step semantics. *)
+    Inductive topdecl_big_step
+              (cp : ctrl) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
+      : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
+    | tpbs_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+                   (params : E.params tags_t) (body : CD.d tags_t)
+                   (apply_blk : ST.s tags_t) (i : tags_t) (cs' : cenv) :
+        let c' := bare c in
+        let cs' := cupdate cs c' (CDecl cs ϵ fns ins body apply_blk) in
+        ⦇ cp, cs, fns, ins, ϵ,
+          control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
+          ⟱  ⦇ ϵ, ins, fns, cs' ⦈
+    | tpbs_fruit_function (f : string tags_t) (params : E.params tags_t)
+                          (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t) :
+        let f' := bare f in
+        let fns' := update fns f' (FDecl ϵ fns ins body) in
+        ⦇ cp, cs, fns, ins, ϵ, fn f (params) -> τ { body } @ i ⦈
+          ⟱  ⦇ ϵ, ins, fns', cs ⦈
+    | tpbs_void_function (f : string tags_t) (params : E.params tags_t)
+                         (body : ST.s tags_t) (i : tags_t) :
+        let f' := bare f in
+        let fns' := update fns f' (FDecl ϵ fns ins body) in
+        ⦇ cp, cs, fns, ins, ϵ, void f (params) { body } @ i ⦈
+          ⟱  ⦇ ϵ, ins, fns', cs ⦈
+    | tpbs_decl (d : D.d tags_t) (i : tags_t)
+                (ϵ' : epsilon) (ins' : ienv) :
+        ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
+        ⦇ cp, cs, fns, ins, ϵ, DECL d @ i ⦈ ⟱  ⦇ ϵ', ins', fns, cs ⦈
+    | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t)
+               (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
+               (fns' fns'' : fenv) (cs' cs'' : cenv) :
+        ⦇ cp, cs,  fns,  ins,  ϵ,  d1 ⦈ ⟱  ⦇ ϵ',  ins',  fns',  cs'  ⦈ ->
+        ⦇ cp, cs', fns', ins', ϵ', d2 ⦈ ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈ ->
+        ⦇ cp, cs,  fns,  ins,  ϵ, d1 ;%; d2 @ i ⦈
+          ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈
+    where "⦇ cp , cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ϵ2 , ins2 , fns2 , cs2 ⦈"
+            := (topdecl_big_step cp cs1 fns1 ins1 ϵ1 d ϵ2 ins2 fns2 cs2).
     (**[]*)
   End Step.
 End Step.

@@ -18,10 +18,10 @@ NAME=petr4
 
 all: build
 
-web/pack.ml:
+pack:
 	bin/pack.py examples web/pack.ml
 
-build: web/pack.ml
+build: pack
 	dune build @install
 
 doc:

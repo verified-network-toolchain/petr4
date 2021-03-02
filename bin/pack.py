@@ -29,13 +29,13 @@ Folder=arguments.Location
 Destination =arguments.Destination
 
 
-
 def load_code(f_name):
   file = open(f_name, "r")
   code = file.read()
   file.close()
   return code
-
+list_of_all_examples=""
+file_names=[]
 Ocaml_code_header='''
 module type Map = sig
   type ('k, 'v) t
@@ -57,6 +57,7 @@ let pack= AssocListMap.empty
 # loads the list of p4 files inside a folder that is found in petr4 into a
 #dictionary pointing from a file name to file content
 def load_list_of_files (destination):
+  global file_names
   if os.path.isfile(destination):
     if (".p4" in destination):
       [destination]
@@ -64,6 +65,7 @@ def load_list_of_files (destination):
       while ("/" in dest):
         dest=dest[dest.find("/")+1:]
       d={}
+      file_names+=[dest]
       d["/include/"+dest]=load_code(destination)
       return d
     else: return {}
@@ -80,7 +82,15 @@ def add_to_map(f_name, code):
 files_and_code=load_list_of_files(Folder)
 for file_name in files_and_code.keys() :
   Ocaml_code_header+= add_to_map(file_name, files_and_code[file_name])
+for file_name in file_names:
+  list_of_all_examples+='<option value="/include/'+file_name+'">'+file_name+'</option>'+'\n'
+
 
 f=open(Destination, "w")
 f.write(Ocaml_code_header)
+f.close()
+f=open("html_build/all_examples.html", "w")
+f.write('<select id="demo_options" onchange="select_demo()" style="width: 400px;">\n'
++list_of_all_examples
++'</select>')
 f.close()

@@ -1,7 +1,7 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
-Require Export P4light.Utiliser.
+Require Export P4cub.Utiliser.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
@@ -139,8 +139,8 @@ Module Field.
   End FieldTactics.
 End Field.
 
-(** * P4light AST *)
-Module P4light.
+(** * P4cub AST *)
+Module P4cub.
   Module F := Field.
 
   (** Function call parameters/arguments. *)
@@ -1101,7 +1101,7 @@ Module P4light.
     End TopDeclNotations.
   End TopDecl.
 
-  Module P4lightNotations.
+  Module P4cubNotations.
     Export Expr.TypeNotations.
     Export Expr.UopNotations.
     Export Expr.BopNotations.
@@ -1113,5 +1113,5 @@ Module P4light.
     Export Parser.ParserState.ParserNotations.
     Export Control.ControlDecl.ControlDeclNotations.
     Export TopDecl.TopDeclNotations.
-  End P4lightNotations.
-End P4light.
+  End P4cubNotations.
+End P4cub.

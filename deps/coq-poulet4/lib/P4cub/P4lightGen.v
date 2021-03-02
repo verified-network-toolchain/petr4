@@ -1,6 +1,6 @@
 Require Import Petr4.Syntax.
 Require Import Petr4.Typed.
-Require Import Petr4.P4light.AST.
+Require Import Petr4.P4cub.AST.
 Require Import Petr4.Monads.Monad.
 Require Import Petr4.Monads.State.
 Require Import Petr4.Info.
@@ -20,7 +20,7 @@ Inductive virloc :=
 Definition instantiation_expression := unit. (* TODO *)
 (* Should contain name of the instance, and a closure-ish. *)
 
-Definition decl_list := list (P4light.TopDecl.d Info + instantiation_expression).
+Definition decl_list := list (P4cub.TopDecl.d Info + instantiation_expression).
 Definition state := decl_list * path.
 Inductive exception :=
   | NotFound

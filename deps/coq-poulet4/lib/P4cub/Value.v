@@ -3,7 +3,7 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
-Require Import P4light.AST.
+Require Import P4cub.AST.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -20,7 +20,7 @@ Section Values.
   | VRecord (fs : Field.fs tags_t v)
   | VHeader (fs : Field.fs tags_t v) (validity : bool)
   | VError (err : option (string tags_t))
-  | VMatchKind (mk : P4light.Expr.matchkind)
+  | VMatchKind (mk : P4cub.Expr.matchkind)
   | VHeaderStack (headers : list (bool * Field.fs tags_t v))
                  (size : positive) (nextIndex : N).
   (**[]*)
@@ -33,7 +33,7 @@ Section Values.
   (**[]*)
 
   (** Evaluated arguments. *)
-  Definition argsv : Type := Field.fs tags_t (P4light.paramarg v lv).
+  Definition argsv : Type := Field.fs tags_t (P4cub.paramarg v lv).
 
   (** A custom induction principle for value. *)
   Section ValueInduction.
@@ -155,7 +155,7 @@ Section Values.
     | equivv_error (err1 err2 : option (string tags_t)) :
         equiv err1 err2 ->
         equivv (VError err1) (VError err2)
-    | equivv_matchkind (mk : P4light.Expr.matchkind) :
+    | equivv_matchkind (mk : P4cub.Expr.matchkind) :
         equivv (VMatchKind mk) (VMatchKind mk)
     | equivv_stack (n : positive) (ni : N)
                    (vss1 vss2 : list (bool * Field.fs tags_t v)) :

@@ -1,5 +1,5 @@
-Require Export P4light.Check.
-Require Export P4light.P4Arith.
+Require Export P4cub.Check.
+Require Export P4cub.P4Arith.
 Require Import Coq.Bool.Bool.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
@@ -31,7 +31,7 @@ Reserved Notation "⦇ cp , cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ϵ2 , ins2 
          (at level 40, d custom p4topdecl, ϵ2 custom p4env).
 
 Module Step.
-  Module P := P4light.
+  Module P := P4cub.
   Module E := P.Expr.
   Module ST := P.Stmt.
   Module D := P.Decl.
@@ -40,7 +40,7 @@ Module Step.
   Module F := P.F.
   Module V := Value.
 
-  Import P.P4lightNotations.
+  Import P.P4cubNotations.
   Import V.ValueNotations.
   Import V.LValueNotations.
 

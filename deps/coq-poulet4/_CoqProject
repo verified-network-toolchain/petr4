@@ -29,13 +29,13 @@ lib/Trans.v
 
 lib/P4defs.v
 
-lib/P4light/P4Arith.v
-lib/P4light/AST.v
-lib/P4light/BigStep.v
-lib/P4light/Check.v
-lib/P4light/P4lightGen.v
-lib/P4light/Utiliser.v
-lib/P4light/Value.v
+lib/P4cub/P4Arith.v
+lib/P4cub/AST.v
+lib/P4cub/BigStep.v
+lib/P4cub/Check.v
+lib/P4cub/P4lightGen.v
+lib/P4cub/Utiliser.v
+lib/P4cub/Value.v
 
 -R examples Petr4.Examples
 

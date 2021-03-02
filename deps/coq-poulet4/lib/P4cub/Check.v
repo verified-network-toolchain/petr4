@@ -2,8 +2,8 @@ Require Export Coq.Classes.EquivDec.
 Require Export Coq.PArith.BinPosDef.
 Export Pos.
 Require Export Coq.NArith.BinNat.
-Require Export P4light.AST.
-Require Export P4light.P4Arith.
+Require Export P4cub.AST.
+Require Export P4cub.P4Arith.
 
 (** Notation entries. *)
 Declare Custom Entry p4env.
@@ -70,7 +70,7 @@ End Env.
 
 (** * Typechecking *)
 Module Typecheck.
-  Module P := P4light.
+  Module P := P4cub.
 
   Module E := P.Expr.
 
@@ -83,7 +83,7 @@ Module Typecheck.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import P4light.P4lightNotations.
+  Import P.P4cubNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=

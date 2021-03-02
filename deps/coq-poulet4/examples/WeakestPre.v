@@ -221,13 +221,25 @@ Proof.
   exact H.
 Qed.
 
+Section weakest_precondition_statements.
+  Variable (weakest_precondition_statement: @Statement tag_t -> @pred environment -> @pred environment).
+
+  Fixpoint weakest_precondition_statements (stmts: list (@Statement tag_t)) (post: @pred environment) :=
+    match stmts with
+    | nil => post
+    | stmt :: stmts' =>
+      let inter := weakest_precondition_statements stmts' post in
+      weakest_precondition_statement stmt inter
+    end
+  .
+End weakest_precondition_statements.
+
 Equations weakest_precondition_statement (stmt: @Statement tag_t) (post: @pred environment) : @pred environment :=
   weakest_precondition_statement (MkStatement _ stmt _) post :=
     weakest_precondition_statement_pre stmt post
 with weakest_precondition_statement_pre (stmt: @StatementPreT tag_t) (post: @pred environment) : @pred environment :=
   weakest_precondition_statement_pre (StatBlock block) post :=
-    let inter := weakest_precondition_block block (pred_env_popped post) in
-    pred_env_pushed inter;
+    weakest_precondition_block block post;
   weakest_precondition_statement_pre (StatAssignment lhs rhs) post :=
     let inter' := fun '(env_inter', lval) =>
       let inter := fun '(env_inter, rval) =>
@@ -245,11 +257,9 @@ with weakest_precondition_statement_pre (stmt: @StatementPreT tag_t) (post: @pre
   weakest_precondition_statement_pre _ _ :=
     pred_false
 with weakest_precondition_block (block: @Block tag_t) (post: @pred environment) : @pred environment :=
-  weakest_precondition_block (BlockEmpty _) post :=
-    post;
-  weakest_precondition_block (BlockCons stmt rest) post :=
-    let inter := weakest_precondition_block rest post in
-    weakest_precondition_statement stmt inter
+  weakest_precondition_block (MkBlock stmts) post :=
+    let inter := weakest_precondition_statements (weakest_precondition_statement) stmts (pred_env_popped post) in
+    pred_env_pushed inter
 .
 
 Definition weakest_precondition_block_correct
@@ -285,6 +295,17 @@ Definition weakest_precondition_statement_correct
             end
 .
 
+Definition weakest_precondition_statements_correct
+    (stmts: list (@Statement tag_t))
+:=
+    forall env_pre post,
+        weakest_precondition_statements (weakest_precondition_statement) stmts post env_pre ->
+            match eval_statements tag_t (eval_statement tag_t tag) stmts env_pre with
+            | (inl tt, env_post) => post env_post
+            | _ => True
+            end
+.
+
 Definition weakest_precondition_statement_maybe_correct
     (stmt_maybe: option (@Statement tag_t))
 :=
@@ -313,6 +334,7 @@ Proof.
         (PStatementPreT := weakest_precondition_statement_pre_correct)
         (PBlock := weakest_precondition_block_correct)
         (PBlockMaybe := weakest_precondition_block_maybe_correct)
+        (PStatementList := weakest_precondition_statements_correct)
         (PStatementSwitchCase := fun _ => True)
         (PStatementSwitchCaseList := fun _ => True); try easy.
     - unfold weakest_precondition_statement_pre_correct; intros.
@@ -336,27 +358,29 @@ Proof.
       destruct (env_update tag_t v v0 e0).
       destruct s; try contradiction.
       exact H.
-    - unfold weakest_precondition_statement_pre_correct; intros.
-      rewrite weakest_precondition_statement_pre_equation_5 in H.
-      simpl in H; unfold pred_env_pushed in H.
+    - unfold weakest_precondition_statements_correct; intros.
+      simpl eval_statements.
+      unfold state_bind.
+      simpl in H.
       apply IHstmt in H.
-      rewrite eval_statement_pre_equation_5; simpl.
-      unfold state_bind; simpl.
-      destruct (eval_block tag_t tag block _).
-      destruct s; try trivial; destruct u.
-      unfold pred_env_popped in H.
-      destruct (stack_pop tag_t e).
-      destruct s; try trivial.
-      destruct u; exact H.
-    - unfold weakest_precondition_block_correct; intros.
-      rewrite weakest_precondition_block_equation_2 in H.
-      simpl in H; apply IHstmt in H.
-      rewrite eval_block_equation_2.
-      simpl; unfold state_bind; simpl.
       destruct (eval_statement tag_t tag stmt env_pre).
       destruct s; try trivial.
       destruct u.
       apply IHstmt0 in H.
-      destruct (eval_block tag_t tag rest e).
-      exact H.
+      destruct (eval_statements tag_t (eval_statement tag_t tag) rest e).
+      assumption.
+    - unfold weakest_precondition_block_correct; intros.
+      simpl in H.
+      unfold pred_env_pushed in H.
+      rewrite eval_block_equation_1.
+      simpl; unfold state_bind.
+      destruct (stack_push tag_t env_pre).
+      destruct s; try contradiction.
+      apply IHstmt in H.
+      destruct (eval_statements tag_t (eval_statement tag_t tag) statements e).
+      destruct s; try trivial.
+      unfold pred_env_popped in H.
+      destruct (stack_pop tag_t e0).
+      destruct s; try trivial.
+      destruct u0, u1; assumption.
 Qed.

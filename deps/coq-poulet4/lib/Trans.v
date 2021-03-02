@@ -225,10 +225,9 @@ Section Transformer.
     (list (P4String * (@Expression tags_t)) * (list (@Expression tags_t)) * N) :=
     transform_list transform_exp idx l.
 
-  Fixpoint prepend_to_block (l: list (@Statement tags_t)) (blk: @Block tags_t) :=
-    match l with
-    | nil => blk
-    | x :: rest => BlockCons x (prepend_to_block rest blk)
+  Definition prepend_to_block (l: list (@Statement tags_t)) (blk: @Block tags_t) :=
+    match blk with
+    | MkBlock tags rest => MkBlock tags (l ++ rest)
     end.
 
   Definition transform_exp_stmt (nameIdx: N) (exp: @Expression tags_t):
@@ -317,13 +316,17 @@ Section Transformer.
          | MkStatement tags stmt typ => transform_stmtpt nameIdx tags stmt typ
          end
   with transform_blk (nameIdx: N) (blk: @Block tags_t): (@Block tags_t * N) :=
-         match blk with
-         | BlockEmpty tag => (BlockEmpty tag, nameIdx)
-         | BlockCons stmt blk' =>
-           let (stl1, n1) := transform_stmt nameIdx stmt in
-           let (blk2, n2) := transform_blk n1 blk' in
-           (prepend_to_block stl1 blk2, n2)
-         end
+        let fix transform_stmts n stmts :=
+          match stmts with
+          | nil => (nil, n)
+          | stmt :: stmts' =>
+            let (stl1, n1) := transform_stmt n stmt in
+            let (stmts2, n2) := transform_stmts n1 stmts' in
+            (stl1 ++ stmts2, n2)
+          end in
+        let '(MkBlock tags stmts) := blk in
+        let (stmts', n) := transform_stmts nameIdx stmts in
+        (MkBlock tags stmts', n)
   with transform_ssc (nameIdx: N) (ssc: @StatementSwitchCase tags_t):
          (@StatementSwitchCase tags_t * N) :=
          match ssc with

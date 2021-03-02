@@ -175,9 +175,8 @@ Section Syntax.
                 (stmt: StatementPreT)
                 (typ: StmType)
   with Block :=
-  | BlockEmpty (tags: tags_t)
-  | BlockCons (statement: Statement)
-              (rest: Block).
+  | MkBlock (tags: tags_t) (statements: list Statement)
+  .
 
   Section statement_rec.
     Context
@@ -185,6 +184,7 @@ Section Syntax.
       {PStatementSwitchCaseList: list StatementSwitchCase -> Type}
       {PStatementPreT: StatementPreT -> Type}
       {PStatement: Statement -> Type}
+      {PStatementList: list Statement -> Type}
       {PBlock: Block -> Type}
       {PBlockMaybe: option Block -> Type}
     .
@@ -233,11 +233,14 @@ Section Syntax.
       (HMkStatement: forall tags stmt typ,
                      PStatementPreT stmt ->
                      PStatement (MkStatement tags stmt typ))
-      (HBlockEmpty: forall tags, PBlock (BlockEmpty tags))
-      (HBlockCons: forall stmt rest,
-                   PStatement stmt ->
-                   PBlock rest ->
-                   PBlock (BlockCons stmt rest))
+      (HStatementListNil: PStatementList nil)
+      (HStatementListCons: forall stmt rest,
+                        PStatement stmt ->
+                        PStatementList rest ->
+                        PStatementList (stmt :: rest))
+      (HBlock: forall tags statements,
+               PStatementList statements ->
+               PBlock (MkBlock tags statements))
       (HBlockMaybeNone: PBlockMaybe None)
       (HBlockMaybeSome: forall b, PBlock b -> PBlockMaybe (Some b))
     .
@@ -300,10 +303,14 @@ Section Syntax.
       end
     with block_rec (b: Block) : PBlock b :=
       match b with
-      | BlockEmpty tags =>
-        HBlockEmpty tags
-      | BlockCons stmt rest =>
-        HBlockCons stmt rest (statement_rec stmt) (block_rec rest)
+      | MkBlock tags statements =>
+        HBlock tags statements
+          (list_rec (PStatement)
+                    (PStatementList)
+                    (HStatementListNil)
+                    (HStatementListCons)
+                    (statement_rec)
+                    statements)
       end
     .
   End statement_rec.

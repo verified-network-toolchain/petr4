@@ -384,6 +384,19 @@ Section Eval.
       mret (key, value) *)
   .
 
+  Section eval_statements.
+    Variable (eval_statement: Statement -> env_monad unit).
+
+    Fixpoint eval_statements (statements: list Statement) : env_monad unit :=
+      match statements with
+      | nil => mret tt
+      | statement :: statements' =>
+        eval_statement statement ;;
+        eval_statements statements'
+      end
+    .
+  End eval_statements.
+
   Equations eval_statement (stmt: Statement) : env_monad unit :=
     eval_statement (MkStatement _ stmt _) :=
       eval_statement_pre stmt
@@ -395,9 +408,7 @@ Section Eval.
       let* val := eval_expression rhs in
       env_update _ lval val;
     eval_statement_pre (StatBlock block) :=
-      stack_push _ ;;
-      eval_block block ;;
-      stack_pop _;
+      eval_block block;
     eval_statement_pre (StatConstant type name init) :=
       env_insert _ name.(P4String.str) (ValBase init);
     eval_statement_pre (StatVariable type name init) :=
@@ -405,19 +416,17 @@ Section Eval.
          match init with
          | None => mret (default_value type)
          | Some expr => eval_expression expr
-         end
-      in
+         end in
       env_insert _ name.(P4String.str) value;
     eval_statement_pre StatEmpty :=
       mret tt;
     eval_statement_pre _ :=
       state_fail (SupportError "Unimplemented statement type")
   with eval_block (blk: Block) : env_monad unit :=
-    eval_block BlockEmpty :=
-      mret tt;
-    eval_block (BlockCons stmt rest) :=
-      eval_statement stmt;;
-      eval_block rest
+    eval_block (MkBlock _ statements) :=
+      stack_push _ ;;
+      eval_statements (eval_statement) statements ;;
+      stack_pop _
   .
 
   (* TODO: sophisticated pattern matching for the match expression as needed *)

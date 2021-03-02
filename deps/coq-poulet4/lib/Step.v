@@ -25,10 +25,6 @@ Section Step.
   Notation reject := ({|P4String.tags:=tags_dummy;
                         P4String.str:=StringConstants.reject|}).
 
-
-  Definition states_to_block (ss: list Statement) : Block :=
-    List.fold_right BlockCons (BlockEmpty tags_dummy) ss.
-
   Fixpoint lookup_state (states: list ParserState) (name: P4String) : option ParserState :=
     match states with
     | List.nil => None
@@ -45,7 +41,7 @@ Section Step.
       match lookup_state states start with
       | Some nxt =>
         let 'MkParserState _ _ statements transition := nxt in
-        let blk := StatBlock (states_to_block statements) in
+        let blk := StatBlock (MkBlock tags_dummy statements) in
         let* _ := eval_statement _ tags_dummy (MkStatement tags_dummy blk Typed.StmUnit) in
         eval_transition tags_t tags_dummy transition
       | None =>

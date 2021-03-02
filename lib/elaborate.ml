@@ -87,7 +87,7 @@ let rec subst_vars_statement env stmt =
   | Conditional { cond; tru; fls } ->
      Conditional { cond = subst_vars_expression env cond;
                    tru = subst_vars_statement env tru;
-                   fls = option_map (subst_vars_statement env) fls }
+                   fls = subst_vars_statement env fls }
   | BlockStatement { block } ->
      BlockStatement { block = subst_vars_block env block }
   | Exit -> Exit

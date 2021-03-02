@@ -557,7 +557,7 @@ and Statement : sig
     | Conditional of
         { cond: Expression.t;
           tru: t;
-          fls: t option }
+          fls: t }
     (** If-Then-Else *)
     | BlockStatement of
         { block: Block.t }

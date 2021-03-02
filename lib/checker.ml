@@ -2591,19 +2591,15 @@ and type_conditional env ctx stmt_info cond true_branch false_branch =
   let type' stmt = fst (type_statement env ctx stmt) in
   let true_typed = type' true_branch in
   let true_type = type_of_stmt true_typed in
-  let false_typed = option_map type' false_branch in
-  let stmt_out: Prog.coq_StatementPreT =
-    StatConditional (expr_typed, true_typed, false_typed)
+  let false_typed = type' false_branch in
+  let false_type = type_of_stmt false_typed in
+  let stmt_out : Prog.coq_StatementPreT =
+    StatConditional (expr_typed, true_typed, false_typed) in
+  let typ = match true_type, false_type with
+    | StmVoid, StmVoid -> StmVoid
+    | _ -> StmUnit
   in
-  match false_typed with
-  | None -> MkStatement (stmt_info, stmt_out, StmUnit), env
-  | Some false_typed ->
-    let typ =
-      match true_type, type_of_stmt false_typed with
-      | StmVoid, StmVoid -> StmVoid
-      | _ -> StmUnit
-    in
-    MkStatement (stmt_info, stmt_out, typ), env
+  MkStatement (stmt_info, stmt_out, typ), env
 
 and type_statements env ctx statements =
   let fold (prev_type, stmts, env) statement =

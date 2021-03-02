@@ -965,7 +965,7 @@ and Statement : sig
         | Conditional of
             { cond: Expression.t;
               tru: t;
-              fls: t option }
+              fls: t }
         | BlockStatement of
             { block: Block.t }
         | Exit
@@ -1012,7 +1012,7 @@ end = struct
     | Conditional of
         { cond: Expression.t;
           tru: t;
-          fls: t option } [@name "conditional"]
+          fls: t } [@name "conditional"]
     | BlockStatement of
         { block: Block.t } [@name "block"]
     | Exit [@name "exit"]

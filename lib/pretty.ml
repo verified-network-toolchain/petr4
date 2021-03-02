@@ -239,23 +239,23 @@ end = struct
          | BlockStatement { block=tru_block } ->
            Block.format_t fmt tru_block;
            (match fls with
-            | None ->
+            | (_, EmptyStatement) ->
               ()
-            | Some (_, BlockStatement { block=fls_block }) ->
+            | (_, BlockStatement { block=fls_block }) ->
               Format.fprintf fmt "@[<4>else@ %a"
                 Block.format_t fls_block
-            | Some sfls ->
+            | sfls ->
               Format.fprintf fmt "@\nelse@ %a"
                 format_t sfls)
          | _ ->
            Format.fprintf fmt "@\n%a@]" format_t tru;
            (match fls with
-            | None ->
+            | (_, EmptyStatement) ->
               ()
-            | Some (_, BlockStatement { block=fls_block }) ->
+            | (_, BlockStatement { block=fls_block }) ->
               Format.fprintf fmt "@\n@[<4>else@ %a"
                 Block.format_t fls_block
-            | Some sfls ->
+            | sfls ->
               Format.fprintf fmt "@\n@[<4>else@\n%a@]"
                 format_t sfls));
     | BlockStatement { block } ->

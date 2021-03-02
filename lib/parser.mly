@@ -993,11 +993,10 @@ exitStatement:
 conditionalStatement:
 | info1 = IF L_PAREN cond = expression R_PAREN tru = statement ELSE fls = statement
     { let info2 = info fls in
-      let fls = Some fls in
       (Info.merge info1 info2,
        Statement.Conditional { cond; tru; fls }) }
 | info1 = IF L_PAREN cond = expression R_PAREN tru = statement   %prec THEN
-    { let fls = None in
+    { let fls = (Info.dummy, Statement.EmptyStatement) in
       (Info.merge info1 (info tru),
        Statement.Conditional { cond; tru; fls }) }
 ;

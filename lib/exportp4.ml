@@ -586,7 +586,7 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
       fprintf p "(@[<hov 4>StatConditional@ %a@ %a@ %a)@]"
           print_expr cond
           print_stmt tru
-          (print_option print_stmt) fls
+          print_stmt fls
   | StatBlock block ->
       fprintf p "(@[<hov 0>StatBlock@ %a)@]"
           print_block block

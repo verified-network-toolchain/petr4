@@ -950,9 +950,41 @@ Module Step.
         ⧼ cp, cs, fns, ins,  ϵ,  d1 ;; d2 @ i ⧽ ⟱  ⧼ ϵ'', ins'' ⧽
     where "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
             := (decl_big_step cp cs fnv ins1 ϵ1 d ϵ2 ins2)
+    (**[]*)
+
+    (** Control declaration big-step semantics. *)
     with ctrldecl_big_step
       (cp : ctrl) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
          : tenv -> aenv -> CD.d tags_t -> epsilon -> ienv -> aenv -> tenv -> Prop :=
+    | cdbs_action (tbls : tenv) (aa aa' : aenv)
+                  (a : string tags_t)
+                  (params : E.params tags_t)
+                  (body : ST.s tags_t) (i : tags_t) :
+        let a' := bare a in
+        let aa' := aupdate aa a' (ADecl ϵ fns ins aa body) in
+        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, action a (params) {body} @ i ⦊
+          ⟱  ⦉ ϵ, ins, aa', tbls ⦊
+    | cdbs_table (tbls : tenv) (aa : aenv) (t : string tags_t)
+                 (kys : list
+                          (E.t tags_t * E.e tags_t * E.matchkind))
+                 (actns : list (string tags_t))
+                 (i : tags_t) :
+        let t' := bare t in
+        let tbl := CD.Table kys actns in
+        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, table t key:=kys actions:=actns @ i ⦊
+          ⟱  ⦉ ϵ, ins, aa, t' ↦ tbl;; tbls ⦊
+    | cdbs_decl (tbls : tenv) (aa : aenv)
+                (d : D.d tags_t) (i : tags_t)
+                (ϵ' : epsilon) (ins' : ienv) :
+        ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
+        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, Decl d @ i ⦊ ⟱  ⦉ ϵ', ins', aa, tbls ⦊
+    | cdbs_seq (d1 d2 : CD.d tags_t) (i : tags_t)
+               (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
+               (aa aa' aa'' : aenv) (tbls tbls' tbls'' : tenv) :
+        ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ,  d1 ⦊ ⟱  ⦉ ϵ',  ins',  aa',  tbls'  ⦊ ->
+        ⦉ cp, cs, tbls', aa', fns, ins', ϵ', d2 ⦊ ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊ ->
+        ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ, d1 ;c; d2 @ i ⦊
+          ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊
     where "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
             := (ctrldecl_big_step cp cs fns ins1 ϵ1 ts1 aa1 d ϵ2 ins2 aa2 ts2).
     (**[]*)

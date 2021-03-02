@@ -20,6 +20,13 @@ Reserved Notation "⟪ cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 
          (at level 40, s custom p4stmt,
           ϵ2 custom p4env, sig custom p4evalsignal).
 
+Reserved Notation "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
+         (at level 40, d custom p4decl, ϵ2 custom p4env).
+
+Reserved Notation "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
+         (at level 40, d custom p4ctrldecl,
+          ϵ2 custom p4env, ts2 custom p4env).
+
 Module Step.
   Module P := P4light.
   Module E := P.Expr.
@@ -565,29 +572,27 @@ Module Step.
       Typed.BareName x.
     (**[]*)
 
+    (** Table environment. *)
+    Definition tenv : Type := Env.t (name tags_t) (CD.table tags_t).
+
     (** Function declarations and closures. *)
     Inductive fdecl : Type :=
-    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv)
-            (signature : E.arrowT tags_t) (body : ST.s tags_t)
+    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
     with fenv : Type :=
     | FEnv (fs : Env.t (name tags_t) fdecl)
     (** Action declarations and closures *)
     with adecl : Type :=
-    | ADecl (closure : epsilon) (ins : ienv) (aa : aenv)
-            (params : E.params tags_t) (body : ST.s tags_t)
+    | ADecl (closure : epsilon) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
     with aenv : Type :=
     | AEnv (aa : Env.t (name tags_t) adecl)
     (** Instances and Environment. *)
     with inst : Type :=
     | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
-            (params : E.params tags_t) (* apply block parameters *)
+            (tbls : tenv) (aa : aenv)
             (apply_blk : ST.s tags_t)  (* control apply block *)
     with ienv : Type :=
     | IEnv (ins : Env.t (name tags_t) inst).
     (**[]*)
-
-    (** Table environment. *)
-    Definition tenv : Type := Env.t (name tags_t) (CD.table tags_t).
 
     (** Function lookup. *)
     Definition lookup '(FEnv fs : fenv) : name tags_t -> option fdecl := fs.
@@ -787,14 +792,14 @@ Module Step.
         ⟪ cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
         ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
           ⤋ ⟪ ϵ', sig ⟫
-    | sbs_action_call (params : E.params tags_t)
-                      (args : E.args tags_t)
+    | sbs_action_call (args : E.args tags_t)
                       (argsv : V.argsv tags_t)
                       (a : name tags_t) (i : tags_t)
-                      (body : ST.s tags_t) (aclosure : aenv) (ains : ienv)
+                      (body : ST.s tags_t) (aclosure : aenv)
+                      (fclosure : fenv) (ains : ienv)
                       (closure ϵ' ϵ'' ϵ''' : epsilon) :
         (* Looking up action. *)
-        alookup aa a = Some (ADecl closure ains aclosure params body) ->
+        alookup aa a = Some (ADecl closure fclosure ains aclosure body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
@@ -804,18 +809,17 @@ Module Step.
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Action evaluation *)
-        ⟪ cp, ts, aclosure, fs, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        ⟪ cp, ts, aclosure, fclosure, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_void_call (params : E.params tags_t)
-                    (args : E.args tags_t)
+    | sbs_void_call (args : E.args tags_t)
                     (argsv : V.argsv tags_t)
                     (f : name tags_t) (i : tags_t)
                     (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
         (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure fins (P.Arrow params None) body) ->
+        lookup fs f = Some (FDecl closure fclosure fins body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
@@ -829,16 +833,15 @@ Module Step.
         (* Copy-out *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_fruit_call (params : E.params tags_t)
-                     (args : E.args tags_t)
+    | sbs_fruit_call (args : E.args tags_t)
                      (argsv : V.argsv tags_t)
-                     (f : name tags_t) (e : E.e tags_t)
-                     (τ : E.t tags_t) (i : tags_t)
+                     (f : name tags_t) (τ : E.t tags_t)
+                     (e : E.e tags_t) (i : tags_t)
                      (v : V.v tags_t) (lv : V.lv tags_t)
                      (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
                      (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
         (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure fins (P.Arrow params (Some τ)) body) ->
+        lookup fs f = Some (FDecl closure fclosure fins body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
@@ -856,15 +859,14 @@ Module Step.
         (* Assignment to lvalue. *)
         lv_update lv v ϵ''' = ϵ'''' ->
         ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-    | sbs_apply (params : E.params tags_t)
-                    (args : E.args tags_t)
-                    (argsv : V.argsv tags_t)
-                    (x : name tags_t)
-                    (i : tags_t)
-                    (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
-                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+    | sbs_apply (args : E.args tags_t)
+                (argsv : V.argsv tags_t)
+                (x : name tags_t) (i : tags_t)
+                (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
+                (tblclosure : tenv) (aclosure : aenv)
+                (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
         (* Instance lookup. *)
-        ilookup ins x = Some (CInst closure fclosure iins params body) ->
+        ilookup ins x = Some (CInst closure fclosure iins tblclosure aclosure body) ->
         (* Argument evaluation. *)
         F.relfs
           (P.rel_paramarg
@@ -874,7 +876,7 @@ Module Step.
         (* Copy-in. *)
         copy_in argsv ϵ closure = ϵ' ->
         (* Apply block evaluation. *)
-        ⟪ cp, ts, aa, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+        ⟪ cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
         (* Copy-out. *)
         copy_out argsv ϵ'' ϵ = ϵ''' ->
         ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
@@ -895,5 +897,64 @@ Module Step.
         ⟪ cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
     where "⟪ cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
             := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig).
+
+    (** Control declarations and closures. *)
+    Inductive cdecl : Type :=
+    | CDecl (cs : cenv) (closure : epsilon) (fs : fenv) (ins : ienv)
+            (body : CD.d tags_t) (apply_block : ST.s tags_t)
+    with cenv : Type :=
+    | CEnv (cs : Env.t (name tags_t) cdecl).
+    (**[]*)
+
+    (** Control lookup. *)
+    Definition clookup '(CEnv cs : cenv) : name tags_t -> option cdecl := cs.
+
+    (** Bind an instance to an environment. *)
+    Definition cupdate '(CEnv cs : cenv) (x : name tags_t) (d : cdecl) : cenv :=
+      CEnv !{ x ↦ d ;; cs }!.
+    (**[]*)
+
+    (** Declaration big-step semantics. *)
+    Inductive decl_big_step
+              (cp : ctrl) (cs : cenv) (fns : fenv)
+              (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
+    | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+        let x' := bare x in
+        let v := vdefault τ in
+        ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
+    | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
+                  (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :
+        let x' := bare x in
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
+    | dbs_instantiate (c : name tags_t) (x : string tags_t)
+                      (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                      (vargs : F.fs tags_t (V.v tags_t)) (i : tags_t)
+                      (ctrlclosure : cenv) (fclosure : fenv) (iclosure ins' : ienv)
+                      (body : CD.d tags_t) (applyblk : ST.s tags_t)
+                      (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
+        clookup cs c = Some (CDecl ctrlclosure closure fclosure iclosure body applyblk) ->
+        F.relfs (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v) cargs vargs ->
+        F.fold (fun x v acc => let x' := bare x in !{ x' ↦ v;; acc }!) vargs closure = ϵ' ->
+        let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
+        let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
+        ⦉ cp, cs, empty_tbls, empty_acts, fclosure, iclosure, ϵ', body ⦊
+          ⟱  ⦉ ϵ'', ins', aa, tbls ⦊ ->
+        let x' := bare x in
+        let ins'' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
+        ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins'' ⧽
+    | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
+                  (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
+        ⧼ cp, cs, fns, ins,  ϵ,  d1 ⧽ ⟱  ⧼ ϵ',  ins'  ⧽ ->
+        ⧼ cp, cs, fns, ins', ϵ', d2 ⧽ ⟱  ⧼ ϵ'', ins'' ⧽ ->
+        ⧼ cp, cs, fns, ins,  ϵ,  d1 ;; d2 @ i ⧽ ⟱  ⧼ ϵ'', ins'' ⧽
+    where "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
+            := (decl_big_step cp cs fnv ins1 ϵ1 d ϵ2 ins2)
+    with ctrldecl_big_step
+      (cp : ctrl) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
+         : tenv -> aenv -> CD.d tags_t -> epsilon -> ienv -> aenv -> tenv -> Prop :=
+    where "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
+            := (ctrldecl_big_step cp cs fns ins1 ϵ1 ts1 aa1 d ϵ2 ins2 aa2 ts2).
+    (**[]*)
   End Step.
 End Step.

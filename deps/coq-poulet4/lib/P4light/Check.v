@@ -779,15 +779,6 @@ Module Typecheck.
           cargs cparams ->
         let x' := bare x in
         ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, x' ↦ params ;; ins ⦘
-(* Functions belong only to the top-level declarations.
-    | chk_function (f : name tags_t) (sig : E.arrowT tags_t)
-                   (body : S.s tags_t) (i : tags_t)
-                   (Γ' Γ'' : gam) (sg : signal) :
-        bind_all sig Γ = Γ' ->
-        (⦃ fns, errs, mkds, Γ' ⦄ ⊢ body ⊣ Γ'', sg) ->
-        good_signal sig sg ->
-        check_decl cs ins fns errs mkds Γ
-                   (D.DFunction f sig body i) Γ !{ f ↦ sig ;; fns }! ins *)
     | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                   (ins' ins'' : ienv) (Γ' Γ'' : gam) :
         ⦗ cs, fns, ins,  errs, Γ  ⦘ ⊢ d1 ⊣ ⦗ Γ',  ins' ⦘ ->

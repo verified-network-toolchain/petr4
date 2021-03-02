@@ -311,7 +311,6 @@ Proof.
     induction stmt
         using @statement_rec with
         (PStatementPreT := weakest_precondition_statement_pre_correct)
-        (PStatementMaybe := weakest_precondition_statement_maybe_correct)
         (PBlock := weakest_precondition_block_correct)
         (PBlockMaybe := weakest_precondition_block_maybe_correct)
         (PStatementSwitchCase := fun _ => True)

@@ -155,7 +155,7 @@ Section Syntax.
                           (args: list Expression)
   | StatConditional (cond: Expression)
                     (tru: Statement)
-                    (fls: option Statement)
+                    (fls: Statement)
   | StatBlock (block: Block)
   | StatExit
   | StatEmpty
@@ -185,7 +185,6 @@ Section Syntax.
       {PStatementSwitchCaseList: list StatementSwitchCase -> Type}
       {PStatementPreT: StatementPreT -> Type}
       {PStatement: Statement -> Type}
-      {PStatementMaybe: option Statement -> Type}
       {PBlock: Block -> Type}
       {PBlockMaybe: option Block -> Type}
     .
@@ -212,7 +211,7 @@ Section Syntax.
                                 (StatDirectApplication typ args))
       (HStatConditional: forall cond tru fls,
                          PStatement tru ->
-                         PStatementMaybe fls ->
+                         PStatement fls ->
                          PStatementPreT (StatConditional cond tru fls))
       (HStatBlock: forall block,
                    PBlock block ->
@@ -234,10 +233,6 @@ Section Syntax.
       (HMkStatement: forall tags stmt typ,
                      PStatementPreT stmt ->
                      PStatement (MkStatement tags stmt typ))
-      (HStatementMaybeNone: PStatementMaybe None)
-      (HStatementMaybeSome: forall s,
-                            PStatement s ->
-                            PStatementMaybe (Some s))
       (HBlockEmpty: forall tags, PBlock (BlockEmpty tags))
       (HBlockCons: forall stmt rest,
                    PStatement stmt ->
@@ -263,12 +258,7 @@ Section Syntax.
       | StatConditional cond tru fls =>
         HStatConditional cond tru fls
           (statement_rec tru)
-          (option_rec (PStatement)
-                      (PStatementMaybe)
-                      (HStatementMaybeNone)
-                      (HStatementMaybeSome)
-                      (statement_rec)
-                      fls)
+          (statement_rec fls)
       | StatBlock block =>
         HStatBlock block (block_rec block)
       | StatExit =>

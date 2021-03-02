@@ -16,6 +16,8 @@ Declare Custom Entry p4hdr_op.
 Declare Custom Entry p4expr.
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4decl.
+Declare Custom Entry p4prsrexpr.
+Declare Custom Entry p4prsrstate.
 Declare Custom Entry p4ctrldecl.
 Declare Custom Entry p4topdecl.
 
@@ -633,12 +635,6 @@ Module P4light.
     Arguments EHeaderStackAccess {_}.
 
     Module ExprNotations.
-      Export UopNotations.
-      Export BopNotations.
-      Export MatchkindNotations.
-      Export HeaderOpNotations.
-      Export TypeNotations.
-
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
       Notation "( x )" := x (in custom p4expr, x at level 99).
       Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
@@ -690,7 +686,12 @@ Module P4light.
 
     (** A custom induction principle for [e]. *)
     Section ExprInduction.
+      Import TypeNotations.
+      Import UopNotations.
       Import ExprNotations.
+      Import BopNotations.
+      Import MatchkindNotations.
+      Import HeaderOpNotations.
 
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
@@ -826,8 +827,6 @@ Module P4light.
     Arguments SInvoke {_}.
 
     Module StmtNotations.
-      Export E.ExprNotations.
-
       Notation "'-{' stmt '}-'" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"
@@ -906,8 +905,6 @@ Module P4light.
     Arguments DSeq {tags_t}.
 
     Module DeclNotations.
-      Export S.StmtNotations.
-
       Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
       Notation "( x )" := x (in custom p4decl, x at level 99).
       Notation "x"
@@ -926,6 +923,63 @@ Module P4light.
                         right associativity).
     End DeclNotations.
   End Decl.
+
+  (** * Parsers *)
+  Module Parser.
+    Module E := Expr.
+    Module S := Stmt.
+
+    Module ParserState.
+      Section Parsers.
+        Variable (tags_t : Type).
+
+        (** Parser expressions, which evaluate to state names *)
+        Inductive e : Type :=
+        | PAccept (i : tags_t)        (* accept the packet *)
+        | PReject (i : tags_t)        (* reject the packet. *)
+        | PState (st : string tags_t)
+                 (i : tags_t)         (* user-defined state name. *)
+        | PSelect (exp : E.e tags_t)
+                  (cases : list (option (E.e tags_t) * e))
+                  (i : tags_t)        (* select expressions,
+                                         where an optional represents
+                                         the possibility of a "dontcare". *).
+        (**[]*)
+
+        (** Parser States. *)
+        Inductive state : Type :=
+        | State (stmt : S.s tags_t) (transition : e).
+        (**[]*)
+      End Parsers.
+
+      Arguments PAccept {_}.
+      Arguments PReject {_}.
+      Arguments PState {_}.
+      Arguments PSelect {_}.
+      Arguments State {_}.
+
+      Module ParserNotations.
+        Notation "'p{' exp '}p'" := exp (exp custom p4prsrexpr at level 99).
+        Notation "( x )" := x (in custom p4prsrexpr, x at level 99).
+        Notation "x"
+          := x (in custom p4prsrexpr at level 0, x constr at level 0).
+        Notation "'accept' @ i" := (PAccept i) (in custom p4prsrexpr at level 0).
+        Notation "'reject' @ i" := (PReject i) (in custom p4prsrexpr at level 0).
+        Notation "'goto' st @ i"
+                 := (PState st i) (in custom p4prsrexpr at level 0).
+        Notation "'select' exp { cases } @ i"
+                 := (PSelect exp cases i)
+                      (in custom p4prsrexpr at level 10,
+                          exp custom p4expr).
+        Notation "'state' s 'transition' pe @ i"
+                 := (State s pe i)
+                      (in custom p4prsrstate at level 0,
+                          s custom p4stmt, pe custom p4prsrexpr).
+      End ParserNotations.
+
+      (* TODO: induction principle for parser expressions. *)
+    End ParserState.
+  End Parser.
 
   (** * Controls *)
   Module Control.
@@ -963,8 +1017,6 @@ Module P4light.
       Arguments CDSeq {_}.
 
       Module ControlDeclNotations.
-        Export D.DeclNotations.
-
         Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
         Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
         Notation "x"
@@ -1023,8 +1075,6 @@ Module P4light.
     Arguments TPSeq {_}.
 
     Module TopDeclNotations.
-      Export C.ControlDeclNotations.
-
       Notation "'%{' decl '}%'" := decl (decl custom p4topdecl at level 99).
       Notation "( x )" := x (in custom p4topdecl, x at level 99).
       Notation "x"
@@ -1050,4 +1100,18 @@ Module P4light.
                         blk custom p4stmt, body custom p4ctrldecl).
     End TopDeclNotations.
   End TopDecl.
+
+  Module P4lightNotations.
+    Export Expr.TypeNotations.
+    Export Expr.UopNotations.
+    Export Expr.BopNotations.
+    Export Expr.MatchkindNotations.
+    Export Expr.HeaderOpNotations.
+    Export Expr.ExprNotations.
+    Export Stmt.StmtNotations.
+    Export Decl.DeclNotations.
+    Export Parser.ParserState.ParserNotations.
+    Export Control.ControlDecl.ControlDeclNotations.
+    Export TopDecl.TopDeclNotations.
+  End P4lightNotations.
 End P4light.

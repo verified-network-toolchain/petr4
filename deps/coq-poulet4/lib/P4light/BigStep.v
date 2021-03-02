@@ -40,7 +40,7 @@ Module Step.
   Module F := P.F.
   Module V := Value.
 
-  Import TP.TopDeclNotations.
+  Import P.P4lightNotations.
   Import V.ValueNotations.
   Import V.LValueNotations.
 

@@ -83,7 +83,7 @@ Module Typecheck.
   Module F := P.F.
   Definition dir := P.Dir.d.
 
-  Import TD.TopDeclNotations.
+  Import P4light.P4lightNotations.
 
   (** Statement signals. *)
   Inductive signal : Set :=

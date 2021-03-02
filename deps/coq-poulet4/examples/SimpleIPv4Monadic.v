@@ -225,13 +225,34 @@ Qed.
 Definition final_state {R} (st: ParserState) (p: PktParser R) := 
   let (_, st') := run_with_state st p in st'.
 
+Definition IPHeader_p_spec : Prop :=
+  forall st, (length (pkt st) >= 20 <-> exists bits st', run_with_state st IPHeader_p = (bits, st')
+         /\ length (pkt st') = length (pkt st) - 20).
 
-Theorem ParseTCPCorrect : forall (pkt : list bool) (st: ParserState), HeaderWF pkt -> IPHeaderIsTCP pkt ->
-     EgressSpecZero (final_state st (MyProg pkt)).
+Definition TCP_p_spec : Prop :=
+  forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
+         /\ length (pkt st') = length (pkt st') - 28).                        
+
+Lemma IPHeader_p_Correct : IPHeader_p_spec.
+Admitted.
+
+Lemma TCP_p_Correct : TCP_p_spec.
+Admitted.
+
+Theorem ParseTCPCorrect : forall (pckt : list bool) (st: ParserState),
+    (pkt st = pckt) -> HeaderWF pckt -> IPHeaderIsTCP pckt ->
+    EgressSpecZero (final_state st (MyProg pckt)).
 Proof.
-  intros pkt st Hwf Htcp.
-  repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
-  - cbv.
+  intros pckt st Hdum Hwf Htcp.
+  destruct Hwf as [H16 [H17 [H18 H19]]].
+  assert (P : length pckt >= 20). {
+    destruct H19.
+    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
+    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
+  }  
+  rewrite <- Hdum in P. apply IPHeader_p_Correct in P.
+  destruct P as [bits [st' [P1 P2]]].
+  unfold MyProg. unfold Headers_p. rewrite P1.
 Admitted.
 
 (*

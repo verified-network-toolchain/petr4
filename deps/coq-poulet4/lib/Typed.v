@@ -1,6 +1,6 @@
 Require Import Coq.Numbers.BinNums.
-Require Petr4.P4String.
-Require Petr4.P4Int.
+Require P4String.
+Require P4Int.
 Require Import Coq.Classes.EquivDec.
 
 Section Typed.

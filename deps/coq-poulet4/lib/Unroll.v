@@ -3,7 +3,7 @@ Require Import Monads.Monad.
 Require Import Monads.Option.
 Require Import Step.
 Require Import Strings.String.
-Require Import Petr4.P4String.
+Require Import P4String.
 
 Open Scope list_scope.
 Open Scope string_scope.

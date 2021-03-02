@@ -11,13 +11,13 @@ Require Import Monads.Option.
 Require Import Monads.State.
 Require Import Monads.Transformers.
 
-Require Petr4.StringConstants.
-Require Import Petr4.Environment.
-Require Import Petr4.Syntax.
-Require Import Petr4.Typed.
-Require Import Petr4.Utils.
-Require Import Petr4.Unpack.
-Require Import Petr4.Platform.Packet.
+Require StringConstants.
+Require Import Environment.
+Require Import Syntax.
+Require Import Typed.
+Require Import Utils.
+Require Import Unpack.
+Require Import Platform.Packet.
 
 Import ListNotations.
 

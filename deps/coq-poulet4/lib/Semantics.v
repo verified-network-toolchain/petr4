@@ -3,9 +3,9 @@ Require Import Coq.ZArith.BinInt.
 Require Export Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Petr4.Typed.
-Require Import Petr4.Syntax.
-Require Import Petr4.P4Int.
+Require Import Typed.
+Require Import Syntax.
+Require Import P4Int.
 Import ListNotations.
 
 Module IdentMap.

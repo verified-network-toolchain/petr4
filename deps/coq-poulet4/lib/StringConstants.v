@@ -1,5 +1,5 @@
 Require Import Coq.Strings.String.
-Require Import Petr4.P4String.
+Require Import P4String.
 Open Scope string_scope.
 
 Definition isValid := "isValid".

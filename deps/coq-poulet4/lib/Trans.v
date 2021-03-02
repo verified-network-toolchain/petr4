@@ -1,5 +1,5 @@
-Require Import Petr4.Syntax.
-Require Import Petr4.Typed.
+Require Import Syntax.
+Require Import Typed.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.

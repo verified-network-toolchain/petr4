@@ -1,11 +1,11 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Numbers.BinNums.
 
-Require Import Petr4.Info.
-Require Import Petr4.Typed.
-Require Petr4.P4String.
-Require Petr4.P4Int.
-Require Import Petr4.Utils.
+Require Import Info.
+Require Import Typed.
+Require P4String.
+Require P4Int.
+Require Import Utils.
 
 Section Syntax.
 

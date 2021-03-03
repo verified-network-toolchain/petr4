@@ -164,9 +164,12 @@ and translate_act (map: varmap) (locals : Prog.Declaration.t) : C.cdecl =
     begin match key with 
       | [] -> failwith "nothing"
       (* problem - where should C actually come from? The map? *)
+      (* problem - the parameter for the void function should be in the map, but need a 
+         type of block to get it - I dont have acces to that info here *)
+      (* problem - key is .dst, not the entire hdrs.simple.dst *)
       | [k] -> C.CFun 
-                 (CVoid, "C", [], 
-                  C.[CIf ((C.CVar "state->hdrs.simple.dst != 0"),
+                 (CVoid, "C", [CParam (CTypeName "C_state", "*state")], 
+                  C.[CIf ((C.CPointer ((C.CString "state"), "hdrs.simple.dst != 0")),
                           (CMethodCall ("C_do_forward", [C.CString "state"])),
                           (CMethodCall ("C_do_drop", [C.CString "state"])))])
       | _ -> failwith "no" end 

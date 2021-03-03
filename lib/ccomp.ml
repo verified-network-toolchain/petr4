@@ -70,7 +70,7 @@ let translate_expr (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName (_, x)) ->
     varmap_find map x
-  | _ -> C.CIntLit 123
+  | _ -> C.CIntLit 12355
 
 let type_width hdr_type =
   let empty_env = Prog.Env.CheckerEnv.empty_t () in
@@ -117,6 +117,9 @@ let update_map (map : varmap ) (params : Typed.Parameter.t list) =
   | [] -> map 
   | h::t -> add_param "state" map h
 
+let translate_key (key : Prog.Table.key) = 
+  get_expr_name (snd key).key
+
 let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl list =
   match snd d with
   | Struct {name; fields; _} ->
@@ -141,7 +144,6 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | Action { name; data_params; ctrl_params; body; _ } -> 
     map, [C.CInclude ("fdjskfldsjkfldsjkflds")] 
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
-    (* let map_with_params = List.fold ~init:map ~f:(add_param "state") params in *)
     let fields = translate_params params in
     let state_struct = C.CStruct (snd name, fields) in
     let app_block = List.map ~f:(translate_act map) locals in 
@@ -158,6 +160,16 @@ and translate_act (map: varmap) (locals : Prog.Declaration.t) : C.cdecl =
     C.CFun (CVoid, snd name, 
             [CParam (CTypeName "C_state", "*state")], 
             apply_translate_emit map body)
+  | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
+    begin match key with 
+      | [] -> failwith "nothing"
+      (* problem - where should C actually come from? The map? *)
+      | [k] -> C.CFun 
+                 (CVoid, "C", [], 
+                  C.[CIf ((C.CVar "state->hdrs.simple.dst != 0"),
+                          (CMethodCall ("C_do_forward", [C.CString "state"])),
+                          (CMethodCall ("C_do_drop", [C.CString "state"])))])
+      | _ -> failwith "no" end 
   | _ -> C.CInclude "not needed"
 
 and translate_parser_locals (locals: Prog.Declaration.t list) : C.cstmt list =

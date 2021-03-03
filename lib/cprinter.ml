@@ -59,10 +59,11 @@ and format_cstmt (stmt: cstmt) =
   | CSeq (e1, e2) ->
     format_cstmt e1 ++ text ";\n" ++ format_cstmt e2
   | CIf (cond, true_branch, false_branch) ->
-    text "if (" ++ format_cexpr cond ++ text ") {\n"
-    ++ format_cstmt true_branch
-    ++ text "\n} else {\n"
-    ++ format_cstmt false_branch
+    box ~indent:2 (text "if (" ++ format_cexpr cond ++ text ") {\n"
+                   ++ format_cstmt true_branch ++ text ";")
+    ++ (text "\n}")
+    ++ box ~indent:2 (text "else {\n"
+                      ++ format_cstmt false_branch ++ text ";")
     ++ text "\n}"
   | CAssign (lval, rval) ->
     format_cexpr lval ++ text " = " ++ format_cexpr rval

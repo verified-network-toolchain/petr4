@@ -141,7 +141,7 @@ control MyIngress(inout headers_t hdr, inout meta_t meta, inout std_meta_t std_m
   table acl {
     key = { hdr.standard.src : exact; hdr.standard.dst : exact; }
     actions = { allow; deny; }
-    const entries = { (0xAA, 0xBB) : deny(); }
+    const entries = { (0xCC, 0xDD) : deny(); }
     default_action = allow();
   }
   apply {

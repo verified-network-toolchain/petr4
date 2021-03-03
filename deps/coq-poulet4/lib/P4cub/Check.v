@@ -20,6 +20,8 @@ Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
 Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
          (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
+Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrexpr).
+
 Reserved Notation
          "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
          (at level 60, d custom p4ctrldecl, g2 custom p4env,
@@ -78,6 +80,7 @@ Module Typecheck.
 
   Module ST := P.Stmt.
   Module D := P.Decl.
+  Module PS := P.Parser.ParserState.
   Module CD := P.Control.ControlDecl.
   Module TD := P.TopDecl.
   Module F := P.F.
@@ -187,7 +190,7 @@ Module Typecheck.
     (**[]*)
 
     (** Expression typing as a relation. *)
-    Inductive check
+    Inductive check_expr
               (errs : errors) (Γ : gam) : E.e tags_t -> E.t tags_t -> Prop :=
     (* Literals. *)
     | chk_bool (b : bool) (i : tags_t) :
@@ -300,7 +303,7 @@ Module Typecheck.
         ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
         ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
-            := (check ers gm e ty).
+            := (check_expr ers gm e ty).
     (**[]*)
 
     (** Custom induction principle for expression typing. *)
@@ -645,6 +648,7 @@ Module Typecheck.
              := (CApplyBlock tbls aa)
                   (in custom p4context at level 0, tbls custom p4env).
 
+    (** Statement typing. *)
     Inductive check_stmt
               (fns : fenv) (ins : ienv)
               (errs : errors) (Γ : gam) : ctx -> ST.s tags_t -> gam -> signal -> Prop :=
@@ -756,6 +760,7 @@ Module Typecheck.
           good_signal (P.Arrow params (Some ret)) SIG_Return.
     (**[]*)
 
+    (** Declaration typing. *)
     Inductive check_decl
               (cs : cenv) (fns : fenv)
               (ins : ienv) (errs : errors)
@@ -788,6 +793,35 @@ Module Typecheck.
             := (check_decl cenv fenv ienv1 errs g1 d g2 ienv2).
     (**[]*)
 
+    (** Valid parser states. *)
+    Definition states : Type := strs.
+
+    (** Parser-expression typing. *)
+    Inductive check_prsrexpr (sts : states) (errs : errors) (Γ : gam)
+      : PS.e tags_t -> Prop :=
+    | chk_accept (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ accept @ i
+    | chk_reject (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ reject @ i
+    | chk_state (st : string tags_t) (i : tags_t) :
+        sts st = Some tt ->
+        ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
+    | chk_select (e : E.e tags_t)
+                 (cases : list (option (E.e tags_t) * PS.e tags_t))
+                 (i : tags_t) (τ : E.t tags_t) :
+        Forall
+          (fun oe =>
+             let o := fst oe in
+             let e := snd oe in
+             ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                          match o with
+                          | None => True
+                          | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                          end) cases ->
+        ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } @ i
+    where "⟅ sts , ers , gm ⟆ ⊢ e"
+            := (check_prsrexpr sts ers gm e).
+    (**[]*)
+
+    (** Control declaration typing. *)
     Inductive check_ctrldecl
               (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
               (ins : ienv) (errs : errors) (Γ : gam)
@@ -832,6 +866,7 @@ Module Typecheck.
       := (check_ctrldecl tbls1 acts1 cenv fenv ienv1 errs g1 d g2 ienv2 acts2 tbls2).
     (**[]*)
 
+    (** Top-level declaration typing. *)
     Inductive check_topdecl
               (cs : cenv) (fns : fenv) (ins : ienv) (errs : errors) (Γ : gam)
               : TD.d tags_t -> gam -> ienv -> fenv -> cenv -> Prop :=

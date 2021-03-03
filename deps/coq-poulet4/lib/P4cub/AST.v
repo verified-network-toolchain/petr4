@@ -638,8 +638,8 @@ Module P4cub.
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
       Notation "( x )" := x (in custom p4expr, x at level 99).
       Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
-      Notation "'True' @ i" := (EBool true i) (in custom p4expr at level 0).
-      Notation "'False' @ i" := (EBool false i) (in custom p4expr at level 0).
+      Notation "'TRUE' @ i" := (EBool true i) (in custom p4expr at level 0).
+      Notation "'FALSE' @ i" := (EBool false i) (in custom p4expr at level 0).
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
       Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
@@ -977,7 +977,47 @@ Module P4cub.
                           s custom p4stmt, pe custom p4prsrexpr).
       End ParserNotations.
 
-      (* TODO: induction principle for parser expressions. *)
+      (** A custom induction principle
+          for parser expressions. *)
+      Section ParserExpreInduction.
+        Import ParserNotations.
+        Import E.ExprNotations.
+
+        Context {tags_t : Type}.
+
+        (** An arbitrary predicate. *)
+        Variable P : e tags_t -> Prop.
+
+        Hypothesis HAccept : forall i, P p{ accept @ i }p.
+
+        Hypothesis HReject : forall i, P p{ reject @ i }p.
+
+        Hypothesis HState : forall st i, P p{ goto st @ i }p.
+
+        Hypothesis HSelect : forall exp cases i,
+            Forall (P ∘ snd) cases ->
+            P p{ select exp { cases } @ i }p.
+        (**[]*)
+
+        (** A custom induction principle,
+            do [induction ?H using pe_ind] *)
+        Definition pe_ind : forall pe : e tags_t, P pe :=
+          fix peind pe : P pe :=
+            let fix lind {A : Type} (es : list (A * e tags_t))
+                : Forall (P ∘ snd) es :=
+                match es with
+                | [] => Forall_nil _
+                | (_,pe) as oe :: es =>
+                  Forall_cons oe (peind pe) (lind es)
+                end in
+            match pe with
+            | p{ accept @ i }p => HAccept i
+            | p{ reject @ i }p => HReject i
+            | p{ goto st @ i }p => HState st i
+            | p{ select exp { cases } @ i }p => HSelect exp _ i (lind cases)
+            end.
+        (**[]*)
+      End ParserExpreInduction.
     End ParserState.
   End Parser.
 
@@ -1045,6 +1085,7 @@ Module P4cub.
     Module S := Stmt.
     Module D := Decl.
     Module C := Control.ControlDecl.
+    Module P := Parser.ParserState.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
@@ -1059,8 +1100,9 @@ Module P4cub.
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string tags_t)
                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
-                 (params : E.params tags_t) (* invocation params *)
-                 (i : tags_t) (* TODO! *)
+                 (params : E.params tags_t)           (* invocation params *)
+                 (states : F.fs tags_t (P.state tags_t)) (* parser states *)
+                 (i : tags_t) (* TODO: start state? *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
                    (* function/method declaration *)
@@ -1098,6 +1140,9 @@ Module P4cub.
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,
                         blk custom p4stmt, body custom p4ctrldecl).
+      Notation "'parser' p ( cparams ) ( params ) { states } @ i"
+               := (TPParser p cparams params states i)
+                    (in custom p4topdecl at level 0).
     End TopDeclNotations.
   End TopDecl.
 

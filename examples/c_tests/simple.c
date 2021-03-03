@@ -34,6 +34,7 @@ void C_do_drop(C_state *state)
 }
 void C(C_state *state)
 {
+  //if the ey is 0, then do_drop. else -
   if (state->hdrs.simple.dst != 0)
   {
     C_do_forward(state);

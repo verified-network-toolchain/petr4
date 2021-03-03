@@ -958,7 +958,8 @@ Module Typecheck.
         let empty_tbls := Env.empty (name tags_t) unit in
         let empty_acts := Env.empty (name tags_t) (E.params tags_t) in
         (* Control declarations. *)
-        ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆ ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
+        ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆
+          ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
         bind_all params Γ'' = Γ''' ->
         (* Apply block. *)
         ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
@@ -967,6 +968,21 @@ Module Typecheck.
         $ cs, fns, ins, errs, Γ $
           ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
           ⊣ $ Γ, ins, fns, c' ↦ ctor;; cs $
+    | chk_parser (p : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+                 (params : E.params tags_t)
+                 (states : F.fs tags_t (PS.state tags_t)) (i : tags_t)
+                 (Γ' Γ'' : gam) :
+        let empty_sts := Env.empty (string tags_t) unit in
+        let sts := fold_right
+                     (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
+                     empty_sts states in
+        cbind_all cparams Γ = Γ' ->
+        bind_all params Γ' = Γ'' ->
+        Forall
+          (fun '(_,pst) => check_state fns ins sts errs Γ'' pst)
+          states ->
+        $ cs, fns, ins, errs, Γ $
+          ⊢ parser p (cparams)(params) { states } @ i ⊣ $ Γ, ins, fns, cs $
     | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
                          (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
                          (Γ' Γ'' : gam) (sg : signal) :

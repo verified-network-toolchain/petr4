@@ -52,6 +52,7 @@ test:
 
 clean:
 	dune clean
+	make -C deps clean
 
 web:
 	mkdir -p html_build/p4

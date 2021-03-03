@@ -12,12 +12,15 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-.PHONY: all poulet4
+.PHONY: all build install clean
 
-all: poulet4
+all: build
 
-poulet4:
-	opam install ./poulet4 --working-dir
+build:
+	dune build -p poulet4
+
+install:
+	dune install -p poulet4
 
 clean:
-	make -C poulet4 clean
+	dune clean -p poulet4

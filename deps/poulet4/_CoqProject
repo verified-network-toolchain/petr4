@@ -1,0 +1,2 @@
+-R _build/default/lib Poulet4
+-R _build/default/examples Poulet4.Examples

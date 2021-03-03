@@ -1,0 +1,7 @@
+(coq.theory
+ (name Poulet4)
+ (package poulet4)
+ (modules :standard \ Grammars.Decimal)
+ (synopsis "Coq definitions for Petr4")
+)
+(include_subdirs qualified)

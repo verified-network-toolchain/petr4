@@ -809,6 +809,7 @@ Module Typecheck.
     | chk_select (e : E.e tags_t)
                  (cases : list (option (E.e tags_t) * PS.e tags_t))
                  (i : tags_t) (τ : E.t tags_t) :
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         Forall
           (fun oe =>
              let o := fst oe in
@@ -822,6 +823,71 @@ Module Typecheck.
     where "⟅ sts , ers , gm ⟆ ⊢ e"
             := (check_prsrexpr sts ers gm e).
     (**[]*)
+
+    (** A custom induction principle for parser-expression typing. *)
+    Section CheckParserExprInduction.
+      (** An arbitrary predicate. *)
+      Variable P : states -> errors -> gam -> PS.e tags_t -> Prop.
+
+      Hypothesis HAccept : forall sts errs Γ i, P sts errs Γ p{ accept @ i }p.
+
+      Hypothesis HReject : forall sts errs Γ i, P sts errs Γ p{ reject @ i }p.
+
+      Hypothesis HGotoState : forall sts errs Γ st i,
+          sts st = Some tt ->
+          P sts errs Γ p{ goto st @ i }p.
+
+      Hypothesis HSelect : forall sts errs Γ e cases i τ,
+          ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+          Forall
+            (fun oe =>
+               let o := fst oe in let e := snd oe in
+               ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                            match o with
+                            | None => True
+                            | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                            end) cases ->
+          Forall
+            (fun oe =>
+               let e := snd oe in
+               P sts errs Γ e) cases ->
+          P sts errs Γ p{ select e { cases } @ i }p.
+
+      (** Custom induction principle.
+          Do [induction ?H using custom_check_prsrexpr_ind] *)
+      Definition custom_check_prsrexpr_ind :
+        forall (sts : states) (errs : errors) (Γ : gam) (e : PS.e tags_t)
+          (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
+        fix chind sts errs Γ e Hy :=
+          let fix lind
+                  {cases : list (option (E.e tags_t) * PS.e tags_t)} {τ : E.t tags_t}
+                  (HR : Forall
+                          (fun oe =>
+                             let o := fst oe in
+                             let e := snd oe in
+                             ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                                          match o with
+                                          | None => True
+                                          | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                                          end) cases)
+              : Forall (fun oe => P sts errs Γ (snd oe)) cases :=
+              match HR with
+              | Forall_nil _ => Forall_nil _
+              | Forall_cons _ (conj He _) Htail => Forall_cons
+                                                    _
+                                                    (chind _ _ _ _ He)
+                                                    (lind Htail)
+              end in
+          match Hy with
+          | chk_accept _ _ _ i => HAccept _ _ _ i
+          | chk_reject _ _ _ i => HReject _ _ _ i
+          | chk_goto_state _ _ _ _ Hst i => HGotoState _ _ _ _ Hst i
+          | chk_select _ _ _ _ _ i _
+                       He Hcases => HSelect _ _ _ _ _ i _ He
+                                           Hcases (lind Hcases)
+          end.
+      (**[]*)
+    End CheckParserExprInduction.
 
     (** Parser State typing. *)
     Inductive check_state

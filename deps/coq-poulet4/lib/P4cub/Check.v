@@ -613,7 +613,8 @@ Module Typecheck.
     | CAction (available_actions : aenv)
     | CVoid
     | CFunction (return_type : E.t tags_t)
-    | CApplyBlock (tables : tblenv) (available_actions : aenv).
+    | CApplyBlock (tables : tblenv) (available_actions : aenv)
+    | CParserState.
     (**[]*)
 
     (** Evidence an action call context is ok. *)
@@ -647,6 +648,7 @@ Module Typecheck.
     Notation "'ApplyBlock' tbls aa"
              := (CApplyBlock tbls aa)
                   (in custom p4context at level 0, tbls custom p4env).
+    Notation "'Parser'" := CParserState (in custom p4context at level 0).
 
     (** Statement typing. *)
     Inductive check_stmt
@@ -801,7 +803,7 @@ Module Typecheck.
       : PS.e tags_t -> Prop :=
     | chk_accept (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ accept @ i
     | chk_reject (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ reject @ i
-    | chk_state (st : string tags_t) (i : tags_t) :
+    | chk_goto_state (st : string tags_t) (i : tags_t) :
         sts st = Some tt ->
         ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
     | chk_select (e : E.e tags_t)
@@ -819,6 +821,17 @@ Module Typecheck.
         ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } @ i
     where "⟅ sts , ers , gm ⟆ ⊢ e"
             := (check_prsrexpr sts ers gm e).
+    (**[]*)
+
+    (** Parser State typing. *)
+    Inductive check_state
+              (fns : fenv) (ins : ienv) (sts : states)
+              (errs : errors) (Γ : gam) : PS.state tags_t -> Prop :=
+    | chk_state (s : ST.s tags_t) (e : PS.e tags_t)
+                (Γ' : gam) (sg : signal) :
+        ⦃ fns , ins , errs , Γ ⦄ Parser ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
+        ⟅ sts, errs, Γ' ⟆ ⊢ e ->
+        check_state fns ins sts errs Γ &{ state { s } transition e }&.
     (**[]*)
 
     (** Control declaration typing. *)

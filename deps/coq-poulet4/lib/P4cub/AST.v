@@ -971,8 +971,9 @@ Module P4cub.
                  := (PSelect exp cases i)
                       (in custom p4prsrexpr at level 10,
                           exp custom p4expr).
-        Notation "'state' s 'transition' pe @ i"
-                 := (State s pe i)
+        Notation "'&{' st '}&'" := st (st custom p4prsrstate at level 99).
+        Notation "'state' { s } 'transition' pe"
+                 := (State s pe)
                       (in custom p4prsrstate at level 0,
                           s custom p4stmt, pe custom p4prsrexpr).
       End ParserNotations.

@@ -4,6 +4,8 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import P4cub.AST.
+Require Import Envn.
+Require Import P4Arith.
 
 Module E := P4cub.Expr.
 Module TE := E.TypeEquivalence.
@@ -11,6 +13,9 @@ Module TE := E.TypeEquivalence.
 (** Notation entries. *)
 Declare Custom Entry p4value.
 Declare Custom Entry p4lvalue.
+
+Reserved Notation "∇ errs ⊢ v ∈ τ"
+         (at level 40, v custom p4value, τ custom p4type).
 
 Section Values.
   Variable (tags_t : Type).
@@ -589,3 +594,49 @@ Module LValueNotations.
            := (LVAccess lval n) (in custom p4lvalue at level 1,
                                    lval custom p4lvalue).
 End LValueNotations.
+
+Section ValueTyping.
+  Import ValueNotations.
+  Import P4cub.P4cubNotations.
+
+  Context {tags_t : Type}.
+
+  Definition errors : Type := Env.t (string tags_t) unit.
+
+  Inductive type_value (errs : errors) : v tags_t -> E.t tags_t -> Prop :=
+  | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
+  | typ_bit (w : positive) (n : N) :
+      BitArith.bound w n ->
+      ∇ errs ⊢ w VW n ∈ bit<w>
+  | typ_int (w : positive) (z : Z) :
+      IntArith.bound w z ->
+      ∇ errs ⊢ w VS z ∈ int<w>
+  | typ_rec (vs : Field.fs tags_t (v tags_t))
+            (ts : Field.fs tags_t (E.t tags_t)) :
+      Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
+      ∇ errs ⊢ REC { vs } ∈ rec { ts }
+  | typ_hdr (vs : Field.fs tags_t (v tags_t)) (b : bool)
+            (ts : Field.fs tags_t (E.t tags_t)) :
+      Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
+      ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
+  | typ_error (err : option (string tags_t)) :
+      match err with
+      | None => True
+      | Some err => errs err = Some tt
+      end ->
+      ∇ errs ⊢ ERROR err ∈ error
+  | typ_matchkind (mk : E.matchkind) :
+      ∇ errs ⊢ MATCHKIND mk ∈ matchkind
+  | typ_headerstack (ts : Field.fs tags_t (E.t tags_t))
+                    (hs : list (bool * Field.fs tags_t (v tags_t)))
+                    (n : positive) (ni : N) :
+      BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+      Pos.to_nat n = length hs ->
+      Forall
+        (fun bvs =>
+           let b := fst bvs in
+           let vs := snd bvs in
+           ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
+      ∇ errs ⊢ STACK hs:ts[n] NEXT:=ni ∈ stack ts[n]
+  where "∇ errs ⊢ vl ∈ τ" := (type_value errs vl τ).
+End ValueTyping.

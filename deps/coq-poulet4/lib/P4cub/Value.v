@@ -639,4 +639,105 @@ Section ValueTyping.
            ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
       ∇ errs ⊢ STACK hs:ts[n] NEXT:=ni ∈ stack ts[n]
   where "∇ errs ⊢ vl ∈ τ" := (type_value errs vl τ).
+
+  (** Custom induction for value typing. *)
+  Section ValueTypingInduction.
+    (** Arbitrary predicate. *)
+    Variable P : errors -> v tags_t -> E.t tags_t -> Prop.
+
+    Hypothesis HBool : forall errs b, P errs *{ VBOOL b }* {{ Bool }}.
+
+    Hypothesis HBit : forall errs w n,
+        BitArith.bound w n ->
+        P errs *{ w VW n }* {{ bit<w> }}.
+
+    Hypothesis HInt : forall errs w z,
+        IntArith.bound w z ->
+        P errs *{ w VS z }* {{ int<w> }}.
+
+    Hypothesis HMatchkind : forall errs mk, P errs *{ MATCHKIND mk }* {{ matchkind }}.
+
+    Hypothesis HError : forall errs err,
+        match err with
+        | None => True
+        | Some err => errs err = Some tt
+        end ->
+        P errs *{ ERROR err }* {{ error }}.
+
+    Hypothesis HRecord : forall errs vs ts,
+        Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
+        Field.relfs (fun vl τ => P errs vl τ) vs ts ->
+        P errs *{ REC { vs } }* {{ rec { ts } }}.
+
+    Hypothesis HHeader : forall errs vs b ts,
+        Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
+        Field.relfs (fun vl τ => P errs vl τ) vs ts ->
+        P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}.
+
+    Hypothesis HStack : forall errs ts hs n ni,
+        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        Pos.to_nat n = length hs ->
+        Forall
+          (fun bvs =>
+             let b := fst bvs in
+             let vs := snd bvs in
+             ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
+        Forall
+          (fun bvs =>
+             let b := fst bvs in
+             let vs := snd bvs in
+             P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}) hs ->
+        P errs *{ STACK hs:ts[n] NEXT:=ni }* {{ stack ts[n] }}.
+
+    (** Custom induction principle.
+        Do [induction ?H using custom_type_value_ind]. *)
+    Definition custom_type_value_ind :
+      forall (errs : errors) (vl : v tags_t) (τ : E.t tags_t)
+        (Hy : ∇ errs ⊢ vl ∈ τ), P errs vl τ :=
+          fix tvind errs vl τ Hy :=
+            let fix fsind {vs : Field.fs tags_t (v tags_t)}
+                    {ts : Field.fs tags_t (E.t tags_t)}
+                    (HR : Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts)
+                : Field.relfs (fun vl τ => P errs vl τ) vs ts :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _ (conj Hname Hvt)
+                               Htail => Forall2_cons
+                                         _ _
+                                         (conj Hname (tvind _ _ _ Hvt))
+                                         (fsind Htail)
+                end in
+            let fix hsind {hs : list (bool * Field.fs tags_t (v tags_t))}
+                    {ts : Field.fs tags_t (E.t tags_t)}
+                    (HR :
+                       Forall
+                         (fun bvs =>
+                            let b := fst bvs in
+                            let vs := snd bvs in
+                            ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs)
+                : Forall
+                    (fun bvs =>
+                       let b := fst bvs in
+                       let vs := snd bvs in
+                       P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}) hs :=
+                match HR with
+                | Forall_nil _ => Forall_nil _
+                | Forall_cons _ Hhead Htail => Forall_cons
+                                                _ (tvind _ _ _ Hhead)
+                                                (hsind Htail)
+                end in
+            match Hy with
+            | typ_bool _ b => HBool _ b
+            | typ_bit _ _ _ Hwn => HBit _ _ _ Hwn
+            | typ_int _ _ _ Hwz => HInt _ _ _ Hwz
+            | typ_matchkind _ mk => HMatchkind _ mk
+            | typ_error _ _ Herr => HError _ _ Herr
+            | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
+            | typ_hdr _ _ b _ Hfs => HHeader _ _ b _ Hfs (fsind Hfs)
+            | typ_headerstack _ _ _ _ _ Hbound Hni Hlen
+                              Hhs => HStack _ _ _ _ _
+                                           Hbound Hni Hlen
+                                           Hhs (hsind Hhs)
+            end.
+  End ValueTypingInduction.
 End ValueTyping.

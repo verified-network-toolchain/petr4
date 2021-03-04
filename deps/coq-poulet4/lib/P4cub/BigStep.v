@@ -5,7 +5,8 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
-Require Import Value.
+Require Export Value.
+Module V := Val.
 
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
@@ -38,7 +39,6 @@ Module Step.
   Module CD := P.Control.ControlDecl.
   Module TP := P.TopDecl.
   Module F := P.F.
-  Module V := Value.
 
   Import P.P4cubNotations.
   Import V.ValueNotations.

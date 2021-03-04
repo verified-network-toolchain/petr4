@@ -17,6 +17,7 @@ Declare Custom Entry p4lvalue.
 Reserved Notation "∇ errs ⊢ v ∈ τ"
          (at level 40, v custom p4value, τ custom p4type).
 
+Module Val.
 Section Values.
   Variable (tags_t : Type).
 
@@ -638,7 +639,7 @@ Section ValueTyping.
            let vs := snd bvs in
            ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
       ∇ errs ⊢ STACK hs:ts[n] NEXT:=ni ∈ stack ts[n]
-  where "∇ errs ⊢ vl ∈ τ" := (type_value errs vl τ).
+  where "∇ errs ⊢ vl ∈ τ" := (type_value errs vl τ) : type_scope.
 
   (** Custom induction for value typing. *)
   Section ValueTypingInduction.
@@ -741,3 +742,4 @@ Section ValueTyping.
             end.
   End ValueTypingInduction.
 End ValueTyping.
+End Val.

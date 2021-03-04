@@ -352,7 +352,7 @@ Module P4cub.
         | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
             F.relfs equivt fs1 fs2 ->
             ∫ stack fs1[n] ≡ stack fs2[n]
-        where "∫ t1 ≡ t2" := (equivt t1 t2).
+        where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
         (**[]*)
 
         (** A custom induction principle for type equivalence. *)

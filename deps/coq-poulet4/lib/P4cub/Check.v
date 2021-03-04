@@ -70,7 +70,7 @@ Module Typecheck.
   Import Env.EnvNotations.
 
   Section TypeCheck.
-    Variable (tags_t : Type).
+    Context {tags_t : Type}.
 
     (** Available strings. *)
     Definition strs : Type := Env.t (string tags_t) unit.
@@ -264,7 +264,7 @@ Module Typecheck.
         ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
         ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
-            := (check_expr ers gm e ty).
+            := (check_expr ers gm e ty) : type_scope.
     (**[]*)
 
     (** Custom induction principle for expression typing. *)

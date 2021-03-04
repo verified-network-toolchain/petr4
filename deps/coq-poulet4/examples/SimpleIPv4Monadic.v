@@ -252,7 +252,9 @@ Proof.
   }  
   rewrite <- Hdum in P. apply IPHeader_p_Correct in P.
   destruct P as [bits [st' [P1 P2]]].
-  unfold MyProg. unfold Headers_p. rewrite P1.
+  unfold MyProg. unfold Headers_p.
+  (* rewrite P1.
+     Error: Found no subterm matching "run_with_state st IPHeader_p" in the current goal. *)
 Admitted.
 
 (*

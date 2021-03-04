@@ -373,7 +373,7 @@ let update_loop (hdr : string) (states : string list)
     List.filter l.states
       ~f:(fun st -> not (mem st states)) |> (@) new_nodes; }  
 
-(** [unroll_loop cfg loops max term i] is an updated version of both [cfg] and [loops],
+(** [unroll_loop max term cfg loops i] is an updated version of both [cfg] and [loops],
     updated to reflect the fact that the loop at index [i] in [loops] has been
     unrolled. The computation attempts to establish the appropriate number of
     unrollings to perform based on header stack size. If unable to do so, it
@@ -525,8 +525,53 @@ let unroll_parsers (n : int) (term : bool) (p : Types.program) : Types.program =
       params;
       constructor_params;
       locals;
-      states = unroll_parser n term states;
+      states = unroll_parser n term states |> List.rev ;
     })
     | d -> d in
   match p with Program ds ->
-  Program (List.map ds ~f)
+    Program (List.map ds ~f)
+
+(* The above is an implementation of loop unrolling for P4 parsers. At the time
+   of implementation, the only existing pretty-printer was for the raw AST
+   emitted by the parser. I wanted to be able to pretty-print output for testing
+   and run petr4 end-to-end on our full test suite, so I chose to use raw
+   AST for my implementation. 
+   
+   The user provides an integer for the maximum number [max] of unrollings to
+   perform per loop, and a boolean flag indicating whether to keep loops in
+   the emitted AST or simply transition to the reject state after [max]
+   iterations. The code implements:
+
+   STATIC CHECKS: 
+   - the control flow must be reducible (via Tarjans algorithm for SCCs)
+     + pretty sure P4c assumes this without even checking for their unrolling pass
+     + Tarjan's is implemented and verified in Coq already
+   - each natural loop must advance the packet cursor (mod some
+     complications due to using the raw AST)
+     + current implementation unsound; cannot properly detect things like
+       functions whose bodies call [extract], subparser applications;
+       would probably require dataflow analysis if done on raw ASTs
+     + properly checking this condition would be much easier on P4cub
+     + could get more refined using well-known induction variable analyses etc.
+
+   example: 
+
+   PROGRAM TRANSFORMATIONS:
+   - duplicates the body of each natural loop in each parser [max] times,
+     producing an exapanded version of the original program with (presumably)
+     the same behavior
+   - if the [term] flag is true, the output is straightline code where every
+     backedge in the expanded program is replaced with [transition reject]
+   - (STUBBED) for each individual natural loop, static analysis attempts to
+     replace [max] based on certain heuristics (e.g. header stacks)
+
+   FUTURE DIRECTIONS:
+   - port to P4cub in coq; future iterations of p4cub should produce verified
+     transformations that simplify certain checks
+   - two dynamic semantics for parsers: 1 uses fuel, the other assumes the code
+     is straightline
+   - sample bisimulation theorem: [p] in the fuel semantics is equivalent to
+     [unroll p max] in the straightline semantics iff. [p] is reducible and
+     [p] with fuel [max] produces a value.
+   - bisimulation between straightline semantics and monad semantics
+   - heavy-weight verification tasks performed on monad semantics *)

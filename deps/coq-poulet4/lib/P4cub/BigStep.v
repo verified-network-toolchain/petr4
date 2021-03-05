@@ -5,7 +5,7 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
-Require Export Value.
+Require Import Value.
 Module V := Val.
 
 (** Notation entries. *)
@@ -65,7 +65,7 @@ Module Step.
 
   Import Env.EnvNotations.
 
-  Section Step.
+  Section StepDefs.
     Context {tags_t : Type}.
 
     (** Unsigned integer binary operations. *)
@@ -143,434 +143,6 @@ Module Step.
 
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
-
-    (** Expression big-step semantics. *)
-    Inductive expr_big_step (ϵ : epsilon) : E.e tags_t -> V.v tags_t -> Prop :=
-    (* Literals. *)
-    | ebs_bool (b : bool) (i : tags_t) :
-        ⟨ ϵ, BOOL b @ i ⟩ ⇓ VBOOL b
-    | ebs_bit (w : positive) (n : N) (i : tags_t) :
-        ⟨ ϵ, w W n @ i ⟩ ⇓ w VW n
-    | ebs_int (w : positive) (z : Z) (i : tags_t) :
-        ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
-    | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
-        ϵ x = Some v ->
-        ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
-    | ebs_error (err : option (string tags_t)) (i : tags_t) :
-        ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
-    | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
-        ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
-    (* Unary Operations. *)
-    | ebs_not (e : E.e tags_t) (i : tags_t) (b b' : bool) :
-        negb b = b' ->
-        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-        ⟨ ϵ, UOP ! e:Bool @ i ⟩ ⇓ VBOOL b'
-    | ebs_bitnot (e : E.e tags_t) (i : tags_t)
-                 (w : positive) (n n' : N) :
-        BitArith.neg w n = n' ->
-        ⟨ ϵ, e ⟩ ⇓ w VW n ->
-        ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n'
-    | ebs_uminus (e : E.e tags_t) (i : tags_t)
-                 (w : positive) (z z' : Z) :
-        IntArith.neg w z = z' ->
-        ⟨ ϵ, e ⟩ ⇓ w VS z ->
-        ⟨ ϵ, UOP - e:int<w> @ i ⟩ ⇓ w VS z'
-    (* Binary Operations. *)
-    | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
-                  (i : tags_t) (w : positive) (n1 n2 : N) :
-        eval_bit_binop op w n1 n2 = Some v ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        ⟨ ϵ, BOP e1:bit<w> op e2:bit<w> @ i ⟩ ⇓ v
-    | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
-                   (w w1 w2 : positive) (n n1 n2 : N) :
-        (w1 + w2)%positive = w ->
-        BitArith.bit_concat w2 n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
-        ⟨ ϵ, BOP e1:bit<w1> ++ e2:bit<w2> @ i ⟩ ⇓ w VW n
-    | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
-                  (i : tags_t) (w : positive) (z1 z2 : Z) :
-        eval_int_binop op w z1 z2 = Some v ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        ⟨ ϵ, BOP e1:int<w> op e2:int <w> @ i ⟩ ⇓ v
-    | ebs_bop_bool (e1 e2 : E.e tags_t) (op : E.bop)
-                   (i : tags_t) (b b1 b2 : bool) :
-        eval_bool_binop op b1 b2 = Some b ->
-        ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-        ⟨ ϵ, BOP e1:Bool op e2:Bool @ i⟩ ⇓ VBOOL b
-    | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                  (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
-        V.eqbv tags_t v1 v2 = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
-    | ebs_neq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-              (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
-        negb (V.eqbv tags_t v1 v2) = b ->
-        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-        ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
-    (* Structs *)
-    | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                  (tfs : F.fs tags_t (E.t tags_t))
-                  (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
-        F.get x vfs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
-        ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
-    | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                  (tfs : F.fs tags_t (E.t tags_t)) (b : bool)
-                  (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
-        F.get x vfs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
-        ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
-    | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
-        F.relfs
-          (fun te v =>
-             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-        ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
-    | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                  (e : E.e tags_t) (i : tags_t) (b : bool)
-                  (vfs : F.fs tags_t (V.v tags_t)) :
-        F.relfs
-          (fun te v =>
-             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-        ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
-    | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
-                  (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
-        eval_hdr_op op vs b = v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-        ⟨ ϵ, H op e @ i ⟩ ⇓ v
-    | ebs_hdr_stack (ts : F.fs tags_t (E.t tags_t))
-                    (hs : list (E.e tags_t))
-                    (n : positive) (ni : N)
-                    (vss : list (bool * F.fs tags_t (V.v tags_t))) :
-        Forall2
-          (fun e bvs =>
-             let b := fst bvs in
-             let vs := snd bvs in
-             ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
-          hs vss ->
-        ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
-    | ebs_access (e : E.e tags_t) (i : tags_t)
-                 (n : positive) (index ni : N)
-                 (ts : F.fs tags_t (E.t tags_t))
-                 (vss : list (bool * F.fs tags_t (V.v tags_t)))
-                 (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
-        nth_error vss (N.to_nat index) = Some (b,vs) ->
-        ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
-        ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
-    where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
-    (**[]*)
-
-    (** A custom induction principle for
-        the expression big-step relation. *)
-    Section ExprEvalInduction.
-      Variable P : epsilon -> E.e tags_t -> V.v tags_t -> Prop.
-
-      Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> *{ VBOOL b }*.
-
-      Hypothesis HBit : forall ϵ w n i, P ϵ <{ w W n @ i }> *{ w VW n }*.
-
-      Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> *{ w VS z }*.
-
-      Hypothesis HVar : forall ϵ x τ i v,
-          ϵ x = Some v ->
-          P ϵ <{ Var x:τ @ i }> v.
-      (**[]*)
-
-      Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
-
-      Hypothesis HMatchkind : forall ϵ mk i,
-          P ϵ <{ Matchkind mk @ i }> *{ MATCHKIND mk }*.
-      (**[]*)
-
-      Hypothesis HNot : forall ϵ e i b b',
-          negb b = b' ->
-          ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-          P ϵ e *{ VBOOL b }* ->
-          P ϵ <{ UOP ! e:Bool @ i }> *{ VBOOL b'}*.
-      (**[]*)
-
-      Hypothesis HBitNot : forall ϵ e i w n n',
-          BitArith.neg w n = n' ->
-          ⟨ ϵ, e ⟩ ⇓ w VW n ->
-          P ϵ e *{ w VW n }* ->
-          P ϵ <{ UOP ~ e:bit<w> @ i }> *{ w VW n' }*.
-      (**[]*)
-
-      Hypothesis HUMinus : forall ϵ e i w z z',
-          IntArith.neg w z = z' ->
-          ⟨ ϵ, e ⟩ ⇓ w VS z ->
-          P ϵ e *{ w VS z }* ->
-          P ϵ <{ UOP - e:int<w> @ i }> *{ w VS z' }*.
-      (**[]*)
-
-      Hypothesis HBOPBit : forall ϵ e1 e2 op v i w n1 n2,
-          eval_bit_binop op w n1 n2 = Some v ->
-          ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-          P ϵ e1 *{ w VW n1 }* ->
-          ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-          P ϵ e2 *{ w VW n2 }* ->
-          P ϵ <{ BOP e1:bit<w> op e2:bit<w> @ i }> v.
-      (**[]*)
-
-      Hypothesis HPlusPlus : forall ϵ e1 e2 i w w1 w2 n n1 n2,
-        (w1 + w2)%positive = w ->
-        BitArith.bit_concat w2 n1 n2 = n ->
-        ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
-        P ϵ e1 *{ w1 VW n1 }* ->
-        ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
-        P ϵ e2 *{ w2 VW n2 }* ->
-        P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> *{ w VW n }*.
-      (**[]*)
-
-      Hypothesis HBOPInt : forall ϵ e1 e2 op v i w z1 z2,
-        eval_int_binop op w z1 z2 = Some v ->
-        ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-        P ϵ e1 *{ w VS z1 }* ->
-        ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-        P ϵ e2 *{ w VS z2 }* ->
-        P ϵ <{ BOP e1:int<w> op e2:int<w> @ i }> v.
-      (**[]*)
-
-      Hypothesis HBOPBool : forall ϵ e1 e2 op i b b1 b2,
-        eval_bool_binop op b1 b2 = Some b ->
-        ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
-        P ϵ e1 *{ VBOOL b1 }* ->
-        ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-        P ϵ e2 *{ VBOOL b2 }* ->
-        P ϵ <{ BOP e1:Bool op e2:Bool @ i }> *{VBOOL b}*.
-      (**[]*)
-
-      Hypothesis HEq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
-          V.eqbv tags_t v1 v2 = b ->
-          ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-          P ϵ e1 v1 ->
-          ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-          P ϵ e2 v2 ->
-          P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> *{ VBOOL b }*.
-      (**[]*)
-
-      Hypothesis HNeq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
-          negb (V.eqbv tags_t v1 v2) = b ->
-          ⟨ ϵ, e1 ⟩ ⇓ v1 ->
-          P ϵ e1 v1 ->
-          ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-          P ϵ e2 v2 ->
-          P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> *{ VBOOL b }*.
-      (**[]*)
-
-      Hypothesis HRecMem : forall ϵ e x i ts vs v,
-          F.get x vs = Some v ->
-          ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
-          P ϵ e *{ REC { vs } }* ->
-          P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
-      (**[]*)
-
-      Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
-          F.get x vs = Some v ->
-          ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-          P ϵ e *{ HDR { vs } VALID:=b }* ->
-          P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
-      (**[]*)
-
-      Hypothesis HRecLit : forall ϵ efs i vfs,
-          F.relfs
-            (fun te v =>
-               let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-          F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
-          P ϵ <{ rec { efs } @ i }> *{ REC { vfs } }*.
-      (**[]*)
-
-      Hypothesis HHdrLit : forall ϵ efs e i b vfs,
-          F.relfs
-            (fun te v =>
-               let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-          F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
-          ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-          P ϵ e *{ VBOOL b }* ->
-          P ϵ <{ hdr { efs } valid:=e @ i }> *{ HDR { vfs } VALID:=b }*.
-      (**[]*)
-
-      Hypothesis HHdrOp : forall ϵ op e i v vs b,
-          eval_hdr_op op vs b = v ->
-          ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-          P ϵ e *{ HDR { vs } VALID:=b }* ->
-          P ϵ <{ H op e @ i }> v.
-      (**[]*)
-
-      Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
-          Forall2
-            (fun e bvs =>
-               let b := fst bvs in
-               let vs := snd bvs in
-               ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
-            hs vss ->
-          Forall2
-            (fun e bvs =>
-               let b := fst bvs in
-               let vs := snd bvs in
-               P ϵ e *{ HDR { vs } VALID:=b}*)
-            hs vss ->
-          P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss:ts[n] NEXT:=ni }*.
-      (**[]*)
-
-      Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
-                 nth_error vss (N.to_nat index) = Some (b,vs) ->
-                 ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
-                 P ϵ e *{ STACK vss:ts[n] NEXT:=ni }* ->
-                 P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
-      (**[]*)
-
-      (** Custom induction principle for
-          the expression big-step relation.
-          [Do induction ?H using custom_expr_big_step_ind]. *)
-      Definition custom_expr_big_step :
-        forall (ϵ : epsilon) (e : E.e tags_t)
-          (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
-        fix ebsind ϵ e v Hy :=
-          let fix fsind
-                  {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
-                  {vfs : F.fs tags_t (V.v tags_t)}
-                  (HRs : F.relfs
-                           (fun te v =>
-                              let e := snd te in
-                              ⟨ ϵ , e ⟩ ⇓ v) efs vfs)
-                  : F.relfs
-                      (fun te v => let e := snd te in P ϵ e v)
-                      efs vfs :=
-                  match HRs
-                        in (Forall2 _ es vs)
-                        return
-                        (Forall2
-                           (F.relf (fun te v => let e := snd te in P ϵ e v))
-                           es vs) with
-                  | Forall2_nil _ => Forall2_nil _
-                  | Forall2_cons _ _
-                                 (conj Hname Hhead)
-                                 Htail => Forall2_cons
-                                           _ _
-                                           (conj Hname (ebsind _ _ _ Hhead))
-                                           (fsind Htail)
-                  end in
-          let fix ffind
-                  {es : list (E.e tags_t)}
-                  {vss : list (bool * F.fs tags_t (V.v tags_t))}
-                  (HRs : Forall2
-                           (fun e bvs =>
-                              let b := fst bvs in
-                              let vs := snd bvs in
-                              ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
-                           es vss)
-              : Forall2
-                  (fun e bvs =>
-                     let b := fst bvs in
-                     let vs := snd bvs in
-                     P ϵ e *{ HDR { vs } VALID:=b}* )
-                  es vss :=
-              match HRs with
-              | Forall2_nil _ => Forall2_nil _
-              | Forall2_cons _ _ Hhead Htail => Forall2_cons
-                                                 _ _
-                                                 (ebsind _ _ _ Hhead)
-                                                 (ffind Htail)
-              end in
-          match Hy in (⟨ _, e' ⟩ ⇓ v') return P ϵ e' v' with
-          | ebs_bool _ b i => HBool ϵ b i
-          | ebs_bit _ w n i => HBit ϵ w n i
-          | ebs_int _ w z i => HInt ϵ w z i
-          | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
-          | ebs_error _ err i => HError _ err i
-          | ebs_matchkind _ mk i => HMatchkind _ mk i
-          | ebs_not _ _ i _ _ Hnot He => HNot _ _ i _ _ Hnot
-                                              He (ebsind _ _ _ He)
-          | ebs_bitnot _ _ i _ _ _
-                       Hnot He => HBitNot _ _ i _ _ _ Hnot
-                                         He (ebsind _ _ _ He)
-          | ebs_uminus _ _ i _ _ _
-                       Hneg He => HUMinus _ _ i _ _ _ Hneg
-                                         He (ebsind _ _ _ He)
-          | ebs_bop_bit _ _ _ _ _ i _ _ _
-                        Hv He1 He2 => HBOPBit _ _ _ _ _ i _ _ _ Hv
-                                             He1 (ebsind _ _ _ He1)
-                                             He2 (ebsind _ _ _ He2)
-          | ebs_plusplus _ _ _ i _ _ _ _ _ _
-                         Hw Hconcat He1 He2 => HPlusPlus _ _ _ i _ _ _ _ _ _
-                                                        Hw Hconcat
-                                                        He1 (ebsind _ _ _ He1)
-                                                        He2 (ebsind _ _ _ He2)
-          | ebs_bop_int _ _ _ _ _ i _ _ _
-                        Hv He1 He2 => HBOPInt _ _ _ _ _ i _ _ _ Hv
-                                             He1 (ebsind _ _ _ He1)
-                                             He2 (ebsind _ _ _ He2)
-          | ebs_bop_bool _ _ _ _ i _ _ _
-                        Hb He1 He2 => HBOPBool _ _ _ _ i _ _ _ Hb
-                                             He1 (ebsind _ _ _ He1)
-                                             He2 (ebsind _ _ _ He2)
-          | ebs_eq _ _ _ _ _ i _ _ _
-                   Hb He1 He2 => HEq _ _ _ _ _ i _ _ _ Hb
-                                    He1 (ebsind _ _ _ He1)
-                                    He2 (ebsind _ _ _ He2)
-          | ebs_neq _ _ _ _ _ i _ _ _
-                    Hb He1 He2 => HNeq _ _ _ _ _ i _ _ _ Hb
-                                     He1 (ebsind _ _ _ He1)
-                                     He2 (ebsind _ _ _ He2)
-          | ebs_hdr_mem _ _ _ i _ _ _ _
-                        Hget He => HHdrMem _ _ _ i _ _ _ _ Hget
-                                          He (ebsind _ _ _ He)
-          | ebs_rec_mem _ _ _ i _ _ _
-                        Hget He => HRecMem _ _ _ i _ _ _ Hget
-                                          He (ebsind _ _ _ He)
-          | ebs_hdr_op _ _ _ i _ _ _
-                       Hv He => HHdrOp _ _ _ i _ _ _ Hv
-                                      He (ebsind _ _ _ He)
-          | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
-          | ebs_hdr_lit _ _ _ i _ _
-                        HR He => HHdrLit _ _ _ i _ _
-                                        HR (fsind HR)
-                                        He (ebsind _ _ _ He)
-          | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
-                                                    HR (ffind HR)
-          | ebs_access _ _ i n index ni ts _ _ _
-                       Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
-                                         He (ebsind _ _ _ He)
-          end.
-      (**[]*)
-    End ExprEvalInduction.
-
-    Inductive lvalue_big_step (ϵ : epsilon) : E.e tags_t -> V.lv tags_t -> Prop :=
-    | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
-        ⦑ ϵ, Var x:τ @ i ⦒ ⇓ VAR x
-    | lvbs_rec_member (e : E.e tags_t) (x : string tags_t)
-                  (tfs : F.fs tags_t (E.t tags_t))
-                  (i : tags_t) (lv : V.lv tags_t) :
-        ⦑ ϵ, e ⦒ ⇓ lv ->
-        ⦑ ϵ, Mem e:rec { tfs } dot x @ i ⦒ ⇓ lv DOT x
-    | lvbs_hdr_member (e : E.e tags_t) (x : string tags_t)
-                      (tfs : F.fs tags_t (E.t tags_t))
-                      (i : tags_t) (lv : V.lv tags_t):
-        ⦑ ϵ, e ⦒ ⇓ lv ->
-        ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
-    | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
-                        (lv : V.lv tags_t) (n : N) :
-        let w := 32%positive in
-        ⦑ ϵ, e ⦒ ⇓ lv ->
-        ⦑ ϵ, Access e[n] @ i ⦒ ⇓ lv[n]
-    where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
-    (**[]*)
-
-    Instance P4NameEquivalence : Equivalence (equivn tags_t) :=
-      NameEquivalence tags_t.
-    (**[]*)
-
-    Instance P4NameEqDec : EqDec (name tags_t) (equivn tags_t) :=
-      NameEqDec tags_t.
-    (**[]*)
 
     Definition bare (x : string tags_t) : name tags_t :=
       Typed.BareName x.
@@ -746,162 +318,6 @@ Module Step.
     (** Control plane tables. *)
     Definition ctrl : Type := Env.t (name tags_t) entries.
 
-    (** Statement big-step semantics. *)
-    Inductive stmt_big_step
-              (cp : ctrl) (ts : tenv) (aa : aenv)
-              (fs : fenv) (ins : ienv) (ϵ : epsilon) :
-      ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
-    | sbs_skip (i : tags_t) :
-        ⟪ cp, ts, aa, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
-    | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
-                   (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
-        ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
-    | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
-                           (ϵ' : epsilon) (sig : signal tags_t) :
-        interrupt sig ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
-                  (i : tags_t) (v : V.v tags_t) :
-        vdefault τ = v ->
-        let x' := bare x in
-        ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
-    | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
-                 (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
-        lv_update lv v ϵ = ϵ' ->
-        ⦑ ϵ, e1 ⦒ ⇓ lv ->
-        ⟨ ϵ, e2 ⟩ ⇓ v ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
-    | sbs_exit (i : tags_t) :
-        ⟪ cp, ts, aa, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
-    | sbs_retvoid (i : tags_t) :
-        ⟪ cp, ts, aa, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
-    | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
-                   (i : tags_t) (v : V.v tags_t) :
-        ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
-    | sbs_cond_true (guard : E.e tags_t)
-                    (tru fls : ST.s tags_t) (i : tags_t)
-                    (ϵ' : epsilon) (sig : signal tags_t) :
-        ⟨ ϵ, guard ⟩ ⇓ TRUE ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
-          ⤋ ⟪ ϵ', sig ⟫
-    | sbs_cond_false (guard : E.e tags_t)
-                     (tru fls : ST.s tags_t) (i : tags_t)
-                     (ϵ' : epsilon) (sig : signal tags_t) :
-        ⟨ ϵ, guard ⟩ ⇓ FALSE ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
-          ⤋ ⟪ ϵ', sig ⟫
-    | sbs_action_call (args : E.args tags_t)
-                      (argsv : V.argsv tags_t)
-                      (a : name tags_t) (i : tags_t)
-                      (body : ST.s tags_t) (aclosure : aenv)
-                      (fclosure : fenv) (ains : ienv)
-                      (closure ϵ' ϵ'' ϵ''' : epsilon) :
-        (* Looking up action. *)
-        alookup aa a = Some (ADecl closure fclosure ains aclosure body) ->
-        (* Argument evaluation. *)
-        F.relfs
-          (P.rel_paramarg
-             (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
-          args argsv ->
-        (* Copy-in. *)
-        copy_in argsv ϵ closure = ϵ' ->
-        (* Action evaluation *)
-        ⟪ cp, ts, aclosure, fclosure, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
-        (* Copy-out *)
-        copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_void_call (args : E.args tags_t)
-                    (argsv : V.argsv tags_t)
-                    (f : name tags_t) (i : tags_t)
-                    (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
-                    (closure ϵ' ϵ'' ϵ''' : epsilon) :
-        (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure fins body) ->
-        (* Argument evaluation. *)
-        F.relfs
-          (P.rel_paramarg
-             (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
-          args argsv ->
-        (* Copy-in. *)
-        copy_in argsv ϵ closure = ϵ' ->
-        (* Function evaluation *)
-        ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
-        (* Copy-out *)
-        copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
-    | sbs_fruit_call (args : E.args tags_t)
-                     (argsv : V.argsv tags_t)
-                     (f : name tags_t) (τ : E.t tags_t)
-                     (e : E.e tags_t) (i : tags_t)
-                     (v : V.v tags_t) (lv : V.lv tags_t)
-                     (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
-                     (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
-        (* Looking up function. *)
-        lookup fs f = Some (FDecl closure fclosure fins body) ->
-        (* Argument evaluation. *)
-        F.relfs
-          (P.rel_paramarg
-             (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
-          args argsv ->
-        (* Copy-in. *)
-        copy_in argsv ϵ closure = ϵ' ->
-        (* Lvalue Evaluation. *)
-        ⦑ ϵ, e ⦒ ⇓ lv ->
-        (* Function evaluation. *)
-        ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
-        (* Copy-out. *)
-        copy_out argsv ϵ'' ϵ = ϵ''' ->
-        (* Assignment to lvalue. *)
-        lv_update lv v ϵ''' = ϵ'''' ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-    | sbs_apply (args : E.args tags_t)
-                (argsv : V.argsv tags_t)
-                (x : name tags_t) (i : tags_t)
-                (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
-                (tblclosure : tenv) (aclosure : aenv)
-                (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
-        (* Instance lookup. *)
-        ilookup ins x = Some (CInst closure fclosure iins tblclosure aclosure body) ->
-        (* Argument evaluation. *)
-        F.relfs
-          (P.rel_paramarg
-             (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-             (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
-          args argsv ->
-        (* Copy-in. *)
-        copy_in argsv ϵ closure = ϵ' ->
-        (* Apply block evaluation. *)
-        ⟪ cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
-        (* Copy-out. *)
-        copy_out argsv ϵ'' ϵ = ϵ''' ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-    | sbs_invoke (x : name tags_t) (i : tags_t)
-                 (es : entries)
-                 (ky : list (E.t tags_t * E.e tags_t * E.matchkind))
-                 (acts : list (string tags_t))
-                 (vky : list (V.v tags_t * E.matchkind))
-                 (a : name tags_t) (args : E.args tags_t)
-                 (ϵ' : epsilon)
-                 (sig : signal tags_t) :
-        cp x = Some es ->
-        ts x = Some (CD.Table ky acts) ->
-        Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
-        (* Black box, need extra assumption for soundness *)
-        es vky acts = (a,args) ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-        ⟪ cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-    where "⟪ cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
-            := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig).
-
     (** Control declarations and closures. *)
     Inductive cdecl : Type :=
     | CDecl (cs : cenv) (closure : epsilon) (fs : fenv) (ins : ienv)
@@ -917,119 +333,700 @@ Module Step.
     Definition cupdate '(CEnv cs : cenv) (x : name tags_t) (d : cdecl) : cenv :=
       CEnv !{ x ↦ d ;; cs }!.
     (**[]*)
+  End StepDefs.
 
-    (** Declaration big-step semantics. *)
-    Inductive decl_big_step
-              (cp : ctrl) (cs : cenv) (fns : fenv)
-              (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
-    | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
-        let x' := bare x in
-        let v := vdefault τ in
-        ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
-    | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
-                  (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :
-        let x' := bare x in
-        ⟨ ϵ, e ⟩ ⇓ v ->
-        ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
-    | dbs_instantiate (c : name tags_t) (x : string tags_t)
-                      (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                      (vargs : F.fs tags_t (V.v tags_t)) (i : tags_t)
-                      (ctrlclosure : cenv) (fclosure : fenv) (iclosure ins' : ienv)
-                      (body : CD.d tags_t) (applyblk : ST.s tags_t)
-                      (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
-        clookup cs c = Some (CDecl ctrlclosure closure fclosure iclosure body applyblk) ->
-        F.relfs (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v) cargs vargs ->
-        F.fold (fun x v acc => let x' := bare x in !{ x' ↦ v;; acc }!) vargs closure = ϵ' ->
-        let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
-        let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
-        ⦉ cp, cs, empty_tbls, empty_acts, fclosure, iclosure, ϵ', body ⦊
-          ⟱  ⦉ ϵ'', ins', aa, tbls ⦊ ->
-        let x' := bare x in
-        let ins'' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
-        ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins'' ⧽
-    | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
-                  (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
-        ⧼ cp, cs, fns, ins,  ϵ,  d1 ⧽ ⟱  ⧼ ϵ',  ins'  ⧽ ->
-        ⧼ cp, cs, fns, ins', ϵ', d2 ⧽ ⟱  ⧼ ϵ'', ins'' ⧽ ->
-        ⧼ cp, cs, fns, ins,  ϵ,  d1 ;; d2 @ i ⧽ ⟱  ⧼ ϵ'', ins'' ⧽
-    where "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
-            := (decl_big_step cp cs fnv ins1 ϵ1 d ϵ2 ins2)
+  (** Expression big-step semantics. *)
+  Inductive expr_big_step {tags_t : Type} (ϵ : epsilon) : E.e tags_t -> V.v tags_t -> Prop :=
+  (* Literals. *)
+  | ebs_bool (b : bool) (i : tags_t) :
+      ⟨ ϵ, BOOL b @ i ⟩ ⇓ VBOOL b
+  | ebs_bit (w : positive) (n : N) (i : tags_t) :
+      ⟨ ϵ, w W n @ i ⟩ ⇓ w VW n
+  | ebs_int (w : positive) (z : Z) (i : tags_t) :
+      ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
+  | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
+      ϵ x = Some v ->
+      ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
+  | ebs_error (err : option (string tags_t)) (i : tags_t) :
+      ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
+  | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
+      ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
+  (* Unary Operations. *)
+  | ebs_not (e : E.e tags_t) (i : tags_t) (b b' : bool) :
+      negb b = b' ->
+      ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+      ⟨ ϵ, UOP ! e:Bool @ i ⟩ ⇓ VBOOL b'
+  | ebs_bitnot (e : E.e tags_t) (i : tags_t)
+               (w : positive) (n n' : N) :
+      BitArith.neg w n = n' ->
+      ⟨ ϵ, e ⟩ ⇓ w VW n ->
+      ⟨ ϵ, UOP ~ e:bit<w> @ i ⟩ ⇓ w VW n'
+  | ebs_uminus (e : E.e tags_t) (i : tags_t)
+               (w : positive) (z z' : Z) :
+      IntArith.neg w z = z' ->
+      ⟨ ϵ, e ⟩ ⇓ w VS z ->
+      ⟨ ϵ, UOP - e:int<w> @ i ⟩ ⇓ w VS z'
+  (* Binary Operations. *)
+  | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+                (i : tags_t) (w : positive) (n1 n2 : N) :
+      eval_bit_binop op w n1 n2 = Some v ->
+      ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
+      ⟨ ϵ, BOP e1:bit<w> op e2:bit<w> @ i ⟩ ⇓ v
+  | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
+                 (w w1 w2 : positive) (n n1 n2 : N) :
+      (w1 + w2)%positive = w ->
+      BitArith.bit_concat w2 n1 n2 = n ->
+      ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
+      ⟨ ϵ, BOP e1:bit<w1> ++ e2:bit<w2> @ i ⟩ ⇓ w VW n
+  | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+                (i : tags_t) (w : positive) (z1 z2 : Z) :
+      eval_int_binop op w z1 z2 = Some v ->
+      ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
+      ⟨ ϵ, BOP e1:int<w> op e2:int <w> @ i ⟩ ⇓ v
+  | ebs_bop_bool (e1 e2 : E.e tags_t) (op : E.bop)
+                 (i : tags_t) (b b1 b2 : bool) :
+      eval_bool_binop op b1 b2 = Some b ->
+      ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
+      ⟨ ϵ, BOP e1:Bool op e2:Bool @ i⟩ ⇓ VBOOL b
+  | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
+                (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+      V.eqbv tags_t v1 v2 = b ->
+      ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+      ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
+  | ebs_neq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
+            (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
+      negb (V.eqbv tags_t v1 v2) = b ->
+      ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+      ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+      ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
+  (* Structs *)
+  | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
+                (tfs : F.fs tags_t (E.t tags_t))
+                (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+      F.get x vfs = Some v ->
+      ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
+      ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
+  | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
+                (tfs : F.fs tags_t (E.t tags_t)) (b : bool)
+                (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+      F.get x vfs = Some v ->
+      ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
+      ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
+  | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+      F.relfs
+        (fun te v =>
+           let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+      ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
+  | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                (e : E.e tags_t) (i : tags_t) (b : bool)
+                (vfs : F.fs tags_t (V.v tags_t)) :
+      F.relfs
+        (fun te v =>
+           let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+      ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+      ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
+  | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
+                (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
+      eval_hdr_op op vs b = v ->
+      ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+      ⟨ ϵ, H op e @ i ⟩ ⇓ v
+  | ebs_hdr_stack (ts : F.fs tags_t (E.t tags_t))
+                  (hs : list (E.e tags_t))
+                  (n : positive) (ni : N)
+                  (vss : list (bool * F.fs tags_t (V.v tags_t))) :
+      Forall2
+        (fun e bvs =>
+           let b := fst bvs in
+           let vs := snd bvs in
+           ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+        hs vss ->
+      ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
+  | ebs_access (e : E.e tags_t) (i : tags_t)
+               (n : positive) (index ni : N)
+               (ts : F.fs tags_t (E.t tags_t))
+               (vss : list (bool * F.fs tags_t (V.v tags_t)))
+               (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
+      nth_error vss (N.to_nat index) = Some (b,vs) ->
+      ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
+      ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
+  where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
+  (**[]*)
+
+  (** A custom induction principle for
+      the expression big-step relation. *)
+  Section ExprEvalInduction.
+
+    Context {tags_t: Type}.
+
+    Variable P : @epsilon tags_t -> E.e tags_t -> V.v tags_t -> Prop.
+
+    Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> *{ VBOOL b }*.
+
+    Hypothesis HBit : forall ϵ w n i, P ϵ <{ w W n @ i }> *{ w VW n }*.
+
+    Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> *{ w VS z }*.
+
+    Hypothesis HVar : forall ϵ x τ i v,
+        ϵ x = Some v ->
+        P ϵ <{ Var x:τ @ i }> v.
     (**[]*)
 
-    (** Control declaration big-step semantics. *)
-    with ctrldecl_big_step
-      (cp : ctrl) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
-         : tenv -> aenv -> CD.d tags_t -> epsilon -> ienv -> aenv -> tenv -> Prop :=
-    | cdbs_action (tbls : tenv) (aa aa' : aenv)
-                  (a : string tags_t)
-                  (params : E.params tags_t)
-                  (body : ST.s tags_t) (i : tags_t) :
-        let a' := bare a in
-        let aa' := aupdate aa a' (ADecl ϵ fns ins aa body) in
-        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, action a (params) {body} @ i ⦊
-          ⟱  ⦉ ϵ, ins, aa', tbls ⦊
-    | cdbs_table (tbls : tenv) (aa : aenv) (t : string tags_t)
-                 (kys : list
-                          (E.t tags_t * E.e tags_t * E.matchkind))
-                 (actns : list (string tags_t))
-                 (i : tags_t) :
-        let t' := bare t in
-        let tbl := CD.Table kys actns in
-        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, table t key:=kys actions:=actns @ i ⦊
-          ⟱  ⦉ ϵ, ins, aa, t' ↦ tbl;; tbls ⦊
-    | cdbs_decl (tbls : tenv) (aa : aenv)
-                (d : D.d tags_t) (i : tags_t)
-                (ϵ' : epsilon) (ins' : ienv) :
-        ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
-        ⦉ cp, cs, tbls, aa, fns, ins, ϵ, Decl d @ i ⦊ ⟱  ⦉ ϵ', ins', aa, tbls ⦊
-    | cdbs_seq (d1 d2 : CD.d tags_t) (i : tags_t)
-               (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
-               (aa aa' aa'' : aenv) (tbls tbls' tbls'' : tenv) :
-        ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ,  d1 ⦊ ⟱  ⦉ ϵ',  ins',  aa',  tbls'  ⦊ ->
-        ⦉ cp, cs, tbls', aa', fns, ins', ϵ', d2 ⦊ ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊ ->
-        ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ, d1 ;c; d2 @ i ⦊
-          ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊
-    where "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
-            := (ctrldecl_big_step cp cs fns ins1 ϵ1 ts1 aa1 d ϵ2 ins2 aa2 ts2).
+    Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
+
+    Hypothesis HMatchkind : forall ϵ mk i,
+        P ϵ <{ Matchkind mk @ i }> *{ MATCHKIND mk }*.
     (**[]*)
 
-    (** Top-level declaration big-step semantics. *)
-    Inductive topdecl_big_step
-              (cp : ctrl) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
-      : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
-    | tpbs_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
-                   (params : E.params tags_t) (body : CD.d tags_t)
-                   (apply_blk : ST.s tags_t) (i : tags_t) (cs' : cenv) :
-        let c' := bare c in
-        let cs' := cupdate cs c' (CDecl cs ϵ fns ins body apply_blk) in
-        ⦇ cp, cs, fns, ins, ϵ,
-          control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
-          ⟱  ⦇ ϵ, ins, fns, cs' ⦈
-    | tpbs_fruit_function (f : string tags_t) (params : E.params tags_t)
-                          (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t) :
-        let f' := bare f in
-        let fns' := update fns f' (FDecl ϵ fns ins body) in
-        ⦇ cp, cs, fns, ins, ϵ, fn f (params) -> τ { body } @ i ⦈
-          ⟱  ⦇ ϵ, ins, fns', cs ⦈
-    | tpbs_void_function (f : string tags_t) (params : E.params tags_t)
-                         (body : ST.s tags_t) (i : tags_t) :
-        let f' := bare f in
-        let fns' := update fns f' (FDecl ϵ fns ins body) in
-        ⦇ cp, cs, fns, ins, ϵ, void f (params) { body } @ i ⦈
-          ⟱  ⦇ ϵ, ins, fns', cs ⦈
-    | tpbs_decl (d : D.d tags_t) (i : tags_t)
-                (ϵ' : epsilon) (ins' : ienv) :
-        ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
-        ⦇ cp, cs, fns, ins, ϵ, DECL d @ i ⦈ ⟱  ⦇ ϵ', ins', fns, cs ⦈
-    | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t)
-               (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
-               (fns' fns'' : fenv) (cs' cs'' : cenv) :
-        ⦇ cp, cs,  fns,  ins,  ϵ,  d1 ⦈ ⟱  ⦇ ϵ',  ins',  fns',  cs'  ⦈ ->
-        ⦇ cp, cs', fns', ins', ϵ', d2 ⦈ ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈ ->
-        ⦇ cp, cs,  fns,  ins,  ϵ, d1 ;%; d2 @ i ⦈
-          ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈
-    where "⦇ cp , cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ϵ2 , ins2 , fns2 , cs2 ⦈"
-            := (topdecl_big_step cp cs1 fns1 ins1 ϵ1 d ϵ2 ins2 fns2 cs2).
+    Hypothesis HNot : forall ϵ e i b b',
+        negb b = b' ->
+        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+        P ϵ e *{ VBOOL b }* ->
+        P ϵ <{ UOP ! e:Bool @ i }> *{ VBOOL b'}*.
     (**[]*)
-  End Step.
+
+    Hypothesis HBitNot : forall ϵ e i w n n',
+        BitArith.neg w n = n' ->
+        ⟨ ϵ, e ⟩ ⇓ w VW n ->
+        P ϵ e *{ w VW n }* ->
+        P ϵ <{ UOP ~ e:bit<w> @ i }> *{ w VW n' }*.
+    (**[]*)
+
+    Hypothesis HUMinus : forall ϵ e i w z z',
+        IntArith.neg w z = z' ->
+        ⟨ ϵ, e ⟩ ⇓ w VS z ->
+        P ϵ e *{ w VS z }* ->
+        P ϵ <{ UOP - e:int<w> @ i }> *{ w VS z' }*.
+    (**[]*)
+
+    Hypothesis HBOPBit : forall ϵ e1 e2 op v i w n1 n2,
+        eval_bit_binop op w n1 n2 = Some v ->
+        ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
+        P ϵ e1 *{ w VW n1 }* ->
+        ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
+        P ϵ e2 *{ w VW n2 }* ->
+        P ϵ <{ BOP e1:bit<w> op e2:bit<w> @ i }> v.
+    (**[]*)
+
+    Hypothesis HPlusPlus : forall ϵ e1 e2 i w w1 w2 n n1 n2,
+      (w1 + w2)%positive = w ->
+      BitArith.bit_concat w2 n1 n2 = n ->
+      ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
+      P ϵ e1 *{ w1 VW n1 }* ->
+      ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
+      P ϵ e2 *{ w2 VW n2 }* ->
+      P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> *{ w VW n }*.
+    (**[]*)
+
+    Hypothesis HBOPInt : forall ϵ e1 e2 op v i w z1 z2,
+      eval_int_binop op w z1 z2 = Some v ->
+      ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
+      P ϵ e1 *{ w VS z1 }* ->
+      ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
+      P ϵ e2 *{ w VS z2 }* ->
+      P ϵ <{ BOP e1:int<w> op e2:int<w> @ i }> v.
+    (**[]*)
+
+    Hypothesis HBOPBool : forall ϵ e1 e2 op i b b1 b2,
+      eval_bool_binop op b1 b2 = Some b ->
+      ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
+      P ϵ e1 *{ VBOOL b1 }* ->
+      ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
+      P ϵ e2 *{ VBOOL b2 }* ->
+      P ϵ <{ BOP e1:Bool op e2:Bool @ i }> *{VBOOL b}*.
+    (**[]*)
+
+    Hypothesis HEq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
+        V.eqbv tags_t v1 v2 = b ->
+        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+        P ϵ e1 v1 ->
+        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+        P ϵ e2 v2 ->
+        P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> *{ VBOOL b }*.
+    (**[]*)
+
+    Hypothesis HNeq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
+        negb (V.eqbv tags_t v1 v2) = b ->
+        ⟨ ϵ, e1 ⟩ ⇓ v1 ->
+        P ϵ e1 v1 ->
+        ⟨ ϵ, e2 ⟩ ⇓ v2 ->
+        P ϵ e2 v2 ->
+        P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> *{ VBOOL b }*.
+    (**[]*)
+
+    Hypothesis HRecMem : forall ϵ e x i ts vs v,
+        F.get x vs = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
+        P ϵ e *{ REC { vs } }* ->
+        P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
+    (**[]*)
+
+    Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
+        F.get x vs = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+        P ϵ e *{ HDR { vs } VALID:=b }* ->
+        P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
+    (**[]*)
+
+    Hypothesis HRecLit : forall ϵ efs i vfs,
+        F.relfs
+          (fun te v =>
+             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+        F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
+        P ϵ <{ rec { efs } @ i }> *{ REC { vfs } }*.
+    (**[]*)
+
+    Hypothesis HHdrLit : forall ϵ efs e i b vfs,
+        F.relfs
+          (fun te v =>
+             let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+        F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
+        ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
+        P ϵ e *{ VBOOL b }* ->
+        P ϵ <{ hdr { efs } valid:=e @ i }> *{ HDR { vfs } VALID:=b }*.
+    (**[]*)
+
+    Hypothesis HHdrOp : forall ϵ op e i v vs b,
+        eval_hdr_op op vs b = v ->
+        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
+        P ϵ e *{ HDR { vs } VALID:=b }* ->
+        P ϵ <{ H op e @ i }> v.
+    (**[]*)
+
+    Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
+        Forall2
+          (fun e bvs =>
+             let b := fst bvs in
+             let vs := snd bvs in
+             ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+          hs vss ->
+        Forall2
+          (fun e bvs =>
+             let b := fst bvs in
+             let vs := snd bvs in
+             P ϵ e *{ HDR { vs } VALID:=b}*)
+          hs vss ->
+        P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss:ts[n] NEXT:=ni }*.
+    (**[]*)
+
+    Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
+               nth_error vss (N.to_nat index) = Some (b,vs) ->
+               ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
+               P ϵ e *{ STACK vss:ts[n] NEXT:=ni }* ->
+               P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
+    (**[]*)
+
+    (** Custom induction principle for
+        the expression big-step relation.
+        [Do induction ?H using custom_expr_big_step_ind]. *)
+    Definition custom_expr_big_step :
+      forall (ϵ : epsilon) (e : E.e tags_t)
+        (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
+      fix ebsind ϵ e v Hy :=
+        let fix fsind
+                {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
+                {vfs : F.fs tags_t (V.v tags_t)}
+                (HRs : F.relfs
+                         (fun te v =>
+                            let e := snd te in
+                            ⟨ ϵ , e ⟩ ⇓ v) efs vfs)
+                : F.relfs
+                    (fun te v => let e := snd te in P ϵ e v)
+                    efs vfs :=
+                match HRs
+                      in (Forall2 _ es vs)
+                      return
+                      (Forall2
+                         (F.relf (fun te v => let e := snd te in P ϵ e v))
+                         es vs) with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _
+                               (conj Hname Hhead)
+                               Htail => Forall2_cons
+                                         _ _
+                                         (conj Hname (ebsind _ _ _ Hhead))
+                                         (fsind Htail)
+                end in
+        let fix ffind
+                {es : list (E.e tags_t)}
+                {vss : list (bool * F.fs tags_t (V.v tags_t))}
+                (HRs : Forall2
+                         (fun e bvs =>
+                            let b := fst bvs in
+                            let vs := snd bvs in
+                            ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
+                         es vss)
+            : Forall2
+                (fun e bvs =>
+                   let b := fst bvs in
+                   let vs := snd bvs in
+                   P ϵ e *{ HDR { vs } VALID:=b}* )
+                es vss :=
+            match HRs with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ Hhead Htail => Forall2_cons
+                                               _ _
+                                               (ebsind _ _ _ Hhead)
+                                               (ffind Htail)
+            end in
+        match Hy in (⟨ _, e' ⟩ ⇓ v') return P ϵ e' v' with
+        | ebs_bool _ b i => HBool ϵ b i
+        | ebs_bit _ w n i => HBit ϵ w n i
+        | ebs_int _ w z i => HInt ϵ w z i
+        | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
+        | ebs_error _ err i => HError _ err i
+        | ebs_matchkind _ mk i => HMatchkind _ mk i
+        | ebs_not _ _ i _ _ Hnot He => HNot _ _ i _ _ Hnot
+                                            He (ebsind _ _ _ He)
+        | ebs_bitnot _ _ i _ _ _
+                     Hnot He => HBitNot _ _ i _ _ _ Hnot
+                                       He (ebsind _ _ _ He)
+        | ebs_uminus _ _ i _ _ _
+                     Hneg He => HUMinus _ _ i _ _ _ Hneg
+                                       He (ebsind _ _ _ He)
+        | ebs_bop_bit _ _ _ _ _ i _ _ _
+                      Hv He1 He2 => HBOPBit _ _ _ _ _ i _ _ _ Hv
+                                           He1 (ebsind _ _ _ He1)
+                                           He2 (ebsind _ _ _ He2)
+        | ebs_plusplus _ _ _ i _ _ _ _ _ _
+                       Hw Hconcat He1 He2 => HPlusPlus _ _ _ i _ _ _ _ _ _
+                                                      Hw Hconcat
+                                                      He1 (ebsind _ _ _ He1)
+                                                      He2 (ebsind _ _ _ He2)
+        | ebs_bop_int _ _ _ _ _ i _ _ _
+                      Hv He1 He2 => HBOPInt _ _ _ _ _ i _ _ _ Hv
+                                           He1 (ebsind _ _ _ He1)
+                                           He2 (ebsind _ _ _ He2)
+        | ebs_bop_bool _ _ _ _ i _ _ _
+                      Hb He1 He2 => HBOPBool _ _ _ _ i _ _ _ Hb
+                                           He1 (ebsind _ _ _ He1)
+                                           He2 (ebsind _ _ _ He2)
+        | ebs_eq _ _ _ _ _ i _ _ _
+                 Hb He1 He2 => HEq _ _ _ _ _ i _ _ _ Hb
+                                  He1 (ebsind _ _ _ He1)
+                                  He2 (ebsind _ _ _ He2)
+        | ebs_neq _ _ _ _ _ i _ _ _
+                  Hb He1 He2 => HNeq _ _ _ _ _ i _ _ _ Hb
+                                   He1 (ebsind _ _ _ He1)
+                                   He2 (ebsind _ _ _ He2)
+        | ebs_hdr_mem _ _ _ i _ _ _ _
+                      Hget He => HHdrMem _ _ _ i _ _ _ _ Hget
+                                        He (ebsind _ _ _ He)
+        | ebs_rec_mem _ _ _ i _ _ _
+                      Hget He => HRecMem _ _ _ i _ _ _ Hget
+                                        He (ebsind _ _ _ He)
+        | ebs_hdr_op _ _ _ i _ _ _
+                     Hv He => HHdrOp _ _ _ i _ _ _ Hv
+                                    He (ebsind _ _ _ He)
+        | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
+        | ebs_hdr_lit _ _ _ i _ _
+                      HR He => HHdrLit _ _ _ i _ _
+                                      HR (fsind HR)
+                                      He (ebsind _ _ _ He)
+        | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
+                                                  HR (ffind HR)
+        | ebs_access _ _ i n index ni ts _ _ _
+                     Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
+                                       He (ebsind _ _ _ He)
+        end.
+    (**[]*)
+
+  End ExprEvalInduction.
+
+  Inductive lvalue_big_step {tags_t : Type} (ϵ : @epsilon tags_t) : E.e tags_t -> V.lv tags_t -> Prop :=
+  | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
+      ⦑ ϵ, Var x:τ @ i ⦒ ⇓ VAR x
+  | lvbs_rec_member (e : E.e tags_t) (x : string tags_t)
+                (tfs : F.fs tags_t (E.t tags_t))
+                (i : tags_t) (lv : V.lv tags_t) :
+      ⦑ ϵ, e ⦒ ⇓ lv ->
+      ⦑ ϵ, Mem e:rec { tfs } dot x @ i ⦒ ⇓ lv DOT x
+  | lvbs_hdr_member (e : E.e tags_t) (x : string tags_t)
+                    (tfs : F.fs tags_t (E.t tags_t))
+                    (i : tags_t) (lv : V.lv tags_t):
+      ⦑ ϵ, e ⦒ ⇓ lv ->
+      ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
+  | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
+                      (lv : V.lv tags_t) (n : N) :
+      let w := 32%positive in
+      ⦑ ϵ, e ⦒ ⇓ lv ->
+      ⦑ ϵ, Access e[n] @ i ⦒ ⇓ lv[n]
+  where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
+  (**[]*)
+
+  (** Statement big-step semantics. *)
+  Inductive stmt_big_step
+            {tags_t : Type} (cp : ctrl) (ts : tenv) (aa : aenv)
+            (fs : fenv) (ins : ienv) (ϵ : epsilon) :
+    ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
+  | sbs_skip (i : tags_t) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
+  | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
+                 (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
+      ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
+  | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
+                         (ϵ' : epsilon) (sig : signal tags_t) :
+      interrupt sig ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+  | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
+                (i : tags_t) (v : V.v tags_t) :
+      vdefault τ = v ->
+      let x' := bare x in
+      ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
+  | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
+               (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
+      lv_update lv v ϵ = ϵ' ->
+      ⦑ ϵ, e1 ⦒ ⇓ lv ->
+      ⟨ ϵ, e2 ⟩ ⇓ v ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
+  | sbs_exit (i : tags_t) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
+  | sbs_retvoid (i : tags_t) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
+  | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
+                 (i : tags_t) (v : V.v tags_t) :
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+  | sbs_cond_true (guard : E.e tags_t)
+                  (tru fls : ST.s tags_t) (i : tags_t)
+                  (ϵ' : epsilon) (sig : signal tags_t) :
+      ⟨ ϵ, guard ⟩ ⇓ TRUE ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⤋ ⟪ ϵ', sig ⟫
+  | sbs_cond_false (guard : E.e tags_t)
+                   (tru fls : ST.s tags_t) (i : tags_t)
+                   (ϵ' : epsilon) (sig : signal tags_t) :
+      ⟨ ϵ, guard ⟩ ⇓ FALSE ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⤋ ⟪ ϵ', sig ⟫
+  | sbs_action_call (args : E.args tags_t)
+                    (argsv : V.argsv tags_t)
+                    (a : name tags_t) (i : tags_t)
+                    (body : ST.s tags_t) (aclosure : aenv)
+                    (fclosure : fenv) (ains : ienv)
+                    (closure ϵ' ϵ'' ϵ''' : epsilon) :
+      (* Looking up action. *)
+      alookup aa a = Some (ADecl closure fclosure ains aclosure body) ->
+      (* Argument evaluation. *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+        args argsv ->
+      (* Copy-in. *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* Action evaluation *)
+      ⟪ cp, ts, aclosure, fclosure, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      (* Copy-out *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+  | sbs_void_call (args : E.args tags_t)
+                  (argsv : V.argsv tags_t)
+                  (f : name tags_t) (i : tags_t)
+                  (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
+                  (closure ϵ' ϵ'' ϵ''' : epsilon) :
+      (* Looking up function. *)
+      lookup fs f = Some (FDecl closure fclosure fins body) ->
+      (* Argument evaluation. *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+        args argsv ->
+      (* Copy-in. *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* Function evaluation *)
+      ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      (* Copy-out *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+  | sbs_fruit_call (args : E.args tags_t)
+                   (argsv : V.argsv tags_t)
+                   (f : name tags_t) (τ : E.t tags_t)
+                   (e : E.e tags_t) (i : tags_t)
+                   (v : V.v tags_t) (lv : V.lv tags_t)
+                   (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
+                   (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+      (* Looking up function. *)
+      lookup fs f = Some (FDecl closure fclosure fins body) ->
+      (* Argument evaluation. *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+        args argsv ->
+      (* Copy-in. *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* Lvalue Evaluation. *)
+      ⦑ ϵ, e ⦒ ⇓ lv ->
+      (* Function evaluation. *)
+      ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+      (* Copy-out. *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      (* Assignment to lvalue. *)
+      lv_update lv v ϵ''' = ϵ'''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+  | sbs_apply (args : E.args tags_t)
+              (argsv : V.argsv tags_t)
+              (x : name tags_t) (i : tags_t)
+              (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
+              (tblclosure : tenv) (aclosure : aenv)
+              (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+      (* Instance lookup. *)
+      ilookup ins x = Some (CInst closure fclosure iins tblclosure aclosure body) ->
+      (* Argument evaluation. *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+        args argsv ->
+      (* Copy-in. *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* Apply block evaluation. *)
+      ⟪ cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      (* Copy-out. *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+  | sbs_invoke (x : name tags_t) (i : tags_t)
+               (es : entries)
+               (ky : list (E.t tags_t * E.e tags_t * E.matchkind))
+               (acts : list (string tags_t))
+               (vky : list (V.v tags_t * E.matchkind))
+               (a : name tags_t) (args : E.args tags_t)
+               (ϵ' : epsilon)
+               (sig : signal tags_t) :
+      cp x = Some es ->
+      ts x = Some (CD.Table ky acts) ->
+      Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
+      (* Black box, need extra assumption for soundness *)
+      es vky acts = (a,args) ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+  where "⟪ cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
+          := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig).
+
+  (** Declaration big-step semantics. *)
+  Inductive decl_big_step
+            {tags_t : Type} (cp : @ctrl tags_t) (cs : cenv) (fns : fenv)
+            (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
+  | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+      let x' := bare x in
+      let v := vdefault τ in
+      ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
+  | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
+                (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :
+      let x' := bare x in
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
+  | dbs_instantiate (c : name tags_t) (x : string tags_t)
+                    (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                    (vargs : F.fs tags_t (V.v tags_t)) (i : tags_t)
+                    (ctrlclosure : cenv) (fclosure : fenv) (iclosure ins' : ienv)
+                    (body : CD.d tags_t) (applyblk : ST.s tags_t)
+                    (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
+      clookup cs c = Some (CDecl ctrlclosure closure fclosure iclosure body applyblk) ->
+      F.relfs (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v) cargs vargs ->
+      F.fold (fun x v acc => let x' := bare x in !{ x' ↦ v;; acc }!) vargs closure = ϵ' ->
+      let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
+      let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
+      ⦉ cp, cs, empty_tbls, empty_acts, fclosure, iclosure, ϵ', body ⦊
+        ⟱  ⦉ ϵ'', ins', aa, tbls ⦊ ->
+      let x' := bare x in
+      let ins'' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
+      ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins'' ⧽
+  | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
+                (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
+      ⧼ cp, cs, fns, ins,  ϵ,  d1 ⧽ ⟱  ⧼ ϵ',  ins'  ⧽ ->
+      ⧼ cp, cs, fns, ins', ϵ', d2 ⧽ ⟱  ⧼ ϵ'', ins'' ⧽ ->
+      ⧼ cp, cs, fns, ins,  ϵ,  d1 ;; d2 @ i ⧽ ⟱  ⧼ ϵ'', ins'' ⧽
+  where "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
+          := (decl_big_step cp cs fnv ins1 ϵ1 d ϵ2 ins2)
+  (**[]*)
+  
+  (** Control declaration big-step semantics. *)
+  with ctrldecl_big_step
+       {tags_t : Type} (cp : @ctrl tags_t) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
+       : tenv -> aenv -> CD.d tags_t -> epsilon -> ienv -> aenv -> tenv -> Prop :=
+  | cdbs_action (tbls : tenv) (aa aa' : @aenv tags_t)
+                (a : string tags_t)
+                (params : E.params tags_t)
+                (body : ST.s tags_t) (i : tags_t) :
+      let a' := bare a in
+      let aa' := aupdate aa a' (ADecl ϵ fns ins aa body) in
+      ⦉ cp, cs, tbls, aa, fns, ins, ϵ, action a (params) {body} @ i ⦊
+        ⟱  ⦉ ϵ, ins, aa', tbls ⦊
+  | cdbs_table (tbls : tenv) (aa : aenv) (t : string tags_t)
+               (kys : list
+                        (E.t tags_t * E.e tags_t * E.matchkind))
+               (actns : list (string tags_t))
+               (i : tags_t) :
+      let t' := bare t in
+      let tbl := CD.Table kys actns in
+      ⦉ cp, cs, tbls, aa, fns, ins, ϵ, table t key:=kys actions:=actns @ i ⦊
+        ⟱  ⦉ ϵ, ins, aa, t' ↦ tbl;; tbls ⦊
+  | cdbs_decl (tbls : tenv) (aa : aenv)
+              (d : D.d tags_t) (i : tags_t)
+              (ϵ' : epsilon) (ins' : ienv) :
+      ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
+      ⦉ cp, cs, tbls, aa, fns, ins, ϵ, Decl d @ i ⦊ ⟱  ⦉ ϵ', ins', aa, tbls ⦊
+  | cdbs_seq (d1 d2 : CD.d tags_t) (i : tags_t)
+             (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
+             (aa aa' aa'' : aenv) (tbls tbls' tbls'' : tenv) :
+      ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ,  d1 ⦊ ⟱  ⦉ ϵ',  ins',  aa',  tbls'  ⦊ ->
+      ⦉ cp, cs, tbls', aa', fns, ins', ϵ', d2 ⦊ ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊ ->
+      ⦉ cp, cs, tbls,  aa,  fns, ins,  ϵ, d1 ;c; d2 @ i ⦊
+        ⟱  ⦉ ϵ'', ins'', aa'', tbls'' ⦊
+  where "⦉ cp , cs , ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ ϵ2 , ins2 , aa2 , ts2 ⦊"
+          := (ctrldecl_big_step cp cs fns ins1 ϵ1 ts1 aa1 d ϵ2 ins2 aa2 ts2).
+  (**[]*)
+
+  (** Top-level declaration big-step semantics. *)
+  Inductive topdecl_big_step
+            {tags_t : Type} (cp : ctrl) (cs : cenv)
+            (fns : fenv) (ins : ienv) (ϵ : epsilon)
+    : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
+  | tpbs_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+                 (params : E.params tags_t) (body : CD.d tags_t)
+                 (apply_blk : ST.s tags_t) (i : tags_t) (cs' : @cenv tags_t) :
+      let c' := bare c in
+      let cs' := cupdate cs c' (CDecl cs ϵ fns ins body apply_blk) in
+      ⦇ cp, cs, fns, ins, ϵ,
+        control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
+        ⟱  ⦇ ϵ, ins, fns, cs' ⦈
+  | tpbs_fruit_function (f : string tags_t) (params : E.params tags_t)
+                        (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t) :
+      let f' := bare f in
+      let fns' := update fns f' (FDecl ϵ fns ins body) in
+      ⦇ cp, cs, fns, ins, ϵ, fn f (params) -> τ { body } @ i ⦈
+        ⟱  ⦇ ϵ, ins, fns', cs ⦈
+  | tpbs_void_function (f : string tags_t) (params : E.params tags_t)
+                       (body : ST.s tags_t) (i : tags_t) :
+      let f' := bare f in
+      let fns' := update fns f' (FDecl ϵ fns ins body) in
+      ⦇ cp, cs, fns, ins, ϵ, void f (params) { body } @ i ⦈
+        ⟱  ⦇ ϵ, ins, fns', cs ⦈
+  | tpbs_decl (d : D.d tags_t) (i : tags_t)
+              (ϵ' : epsilon) (ins' : ienv) :
+      ⧼ cp, cs, fns, ins, ϵ, d ⧽ ⟱  ⧼ ϵ', ins' ⧽ ->
+      ⦇ cp, cs, fns, ins, ϵ, DECL d @ i ⦈ ⟱  ⦇ ϵ', ins', fns, cs ⦈
+  | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t)
+             (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv)
+             (fns' fns'' : fenv) (cs' cs'' : cenv) :
+      ⦇ cp, cs,  fns,  ins,  ϵ,  d1 ⦈ ⟱  ⦇ ϵ',  ins',  fns',  cs'  ⦈ ->
+      ⦇ cp, cs', fns', ins', ϵ', d2 ⦈ ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈ ->
+      ⦇ cp, cs,  fns,  ins,  ϵ, d1 ;%; d2 @ i ⦈
+        ⟱  ⦇ ϵ'', ins'', fns'', cs'' ⦈
+  where "⦇ cp , cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ϵ2 , ins2 , fns2 , cs2 ⦈"
+          := (topdecl_big_step cp cs1 fns1 ins1 ϵ1 d ϵ2 ins2 fns2 cs2).
+  (**[]*)
 End Step.

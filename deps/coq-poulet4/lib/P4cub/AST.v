@@ -61,17 +61,6 @@ Module Field.
       Forall2 (relf R).
     (**[]*)
 
-    (** A predicate from a relation between fields. *)
-    Definition relf_pred {U V : Type}
-    {R1 : U -> V -> Prop} {R2 : U -> V -> Prop}
-    {u : f tags_t U} {v : f tags_t V}
-    (Q : forall (u' : U) (v' : V), R1 u' v' -> R2 u' v')
-    (H : relf R1 u v) :=
-      match H with
-      | conj Hname HR1 => conj Hname (Q (snd u) (snd v) HR1)
-      end.
-    (**[]*)
-
     (** Filter. *)
     Definition filter {U : Type} (f : U -> bool) : fs tags_t U -> fs tags_t U :=
       List.filter (f ∘ snd).
@@ -307,11 +296,93 @@ Module P4cub.
 
     Module TypeEquivalence.
       Import Field.FieldTactics.
+      Import TypeNotations.
+
+      (** Equality of types. *)
+      Inductive equivt {tags_t : Type} : t tags_t -> t tags_t -> Prop :=
+      | equivt_bool : ∫ Bool ≡ Bool
+      | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
+      | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
+      | equivt_error : ∫ error ≡ error
+      | equivt_matchkind : ∫ matchkind ≡ matchkind
+      | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ rec { fs1 } ≡ rec { fs2 }
+      | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ hdr { fs1 } ≡ hdr { fs2 }
+      | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ stack fs1[n] ≡ stack fs2[n]
+      where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
+      (**[]*)
+
+      (** A custom induction principle for type equivalence. *)
+      Section TypeEquivInduction.
+        Context {tags_t : Type}.
+
+        (** An arbitrary predicate. *)
+        Variable P : t tags_t -> t tags_t -> Prop.
+
+        Hypothesis HBool : P {{ Bool }} {{ Bool }}.
+
+        Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
+
+        Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
+
+        Hypothesis HError : P {{ error }} {{ error }}.
+
+        Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
+
+        Hypothesis HRecord : forall fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ rec { fs1 } }} {{ rec { fs2 } }}.
+
+        Hypothesis HHeader : forall fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
+
+        Hypothesis HStack : forall n fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ stack fs1[n] }} {{ stack fs2[n] }}.
+            
+        (** A custom induction principle for type equivalence.
+            Do [induction ?H using custom_equivt_ind]. *)
+        Definition custom_equivt_ind :
+          forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
+          fix cind t1 t2 H :=
+            let fix find
+                    {ts1 ts2 : F.fs tags_t (t tags_t)}
+                    (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
+                match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
+                | Forall2_nil _ => Forall2_nil (F.relf P)
+                | Forall2_cons t1 t2
+                               (conj HName Hequivt)
+                               Htail => Forall2_cons
+                                         t1 t2
+                                         (conj
+                                            HName
+                                            (cind _ _ Hequivt))
+                                         (find Htail)
+                end in
+                    match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
+                    | equivt_bool => HBool
+                    | equivt_bit w => HBit w
+                    | equivt_int w => HInt w
+                    | equivt_error => HError
+                    | equivt_matchkind => HMatchkind
+                    | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
+                    | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
+                    | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
+                    end.
+                (**[]*)
+      End TypeEquivInduction.
 
       Section TypeEquivalence.
         Context {tags_t : Type}.
-
-        Import TypeNotations.
 
         (** Decidable equality. *)
         Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
@@ -336,88 +407,7 @@ Module P4cub.
           end.
         (**[]*)
 
-        (** Equality of types. *)
-        Inductive equivt : t tags_t -> t tags_t -> Prop :=
-        | equivt_bool : ∫ Bool ≡ Bool
-        | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
-        | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
-        | equivt_error : ∫ error ≡ error
-        | equivt_matchkind : ∫ matchkind ≡ matchkind
-        | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ rec { fs1 } ≡ rec { fs2 }
-        | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ hdr { fs1 } ≡ hdr { fs2 }
-        | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ stack fs1[n] ≡ stack fs2[n]
-        where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
-        (**[]*)
-
-        (** A custom induction principle for type equivalence. *)
-        Section TypeEquivInduction.
-          (** An arbitrary predicate. *)
-          Variable P : t tags_t -> t tags_t -> Prop.
-
-          Hypothesis HBool : P {{ Bool }} {{ Bool }}.
-
-          Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
-
-          Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
-
-          Hypothesis HError : P {{ error }} {{ error }}.
-
-          Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
-
-          Hypothesis HRecord : forall fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ rec { fs1 } }} {{ rec { fs2 } }}.
-
-          Hypothesis HHeader : forall fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
-
-          Hypothesis HStack : forall n fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ stack fs1[n] }} {{ stack fs2[n] }}.
-
-          (** A custom induction principle for type equivalence.
-              Do [induction ?H using custom_equivt_ind]. *)
-          Definition custom_equivt_ind :
-            forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
-            fix cind t1 t2 H :=
-              let fix find
-                      {ts1 ts2 : F.fs tags_t (t tags_t)}
-                      (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
-                  match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
-                  | Forall2_nil _ => Forall2_nil (F.relf P)
-                  | Forall2_cons t1 t2
-                                 (conj HName Hequivt)
-                                 Htail => Forall2_cons
-                                           t1 t2
-                                           (conj
-                                              HName
-                                              (cind _ _ Hequivt))
-                                           (find Htail)
-                  end in
-                      match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
-                      | equivt_bool => HBool
-                      | equivt_bit w => HBit w
-                      | equivt_int w => HInt w
-                      | equivt_error => HError
-                      | equivt_matchkind => HMatchkind
-                      | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
-                      | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
-                      | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
-                      end.
-                  (**[]*)
-        End TypeEquivInduction.
-
-        Lemma equivt_reflexive : Reflexive equivt.
+        Lemma equivt_reflexive : Reflexive (@equivt tags_t).
         Proof.
           intros ty;
             induction ty using custom_t_ind; constructor;
@@ -426,10 +416,10 @@ Module P4cub.
                    split; auto; try reflexivity).
         Qed.
 
-        Lemma equivt_symmetric : Symmetric equivt.
+        Lemma equivt_symmetric : Symmetric (@equivt tags_t).
         Proof.
-          unfold Symmetric; intros t1 t2 H;
-            induction H using custom_equivt_ind;
+          unfold Symmetric; apply custom_equivt_ind; intros;
+            (* induction H using custom_equivt_ind. *)
             constructor; auto;
               try (induction H; inversion H0; subst; repeat constructor; auto;
                    destruct x as [x1 t1]; destruct y as [x2 t2];
@@ -439,7 +429,7 @@ Module P4cub.
                    [ symmetry | apply IHForall2 ]; auto).
         Qed.
 
-        Lemma equivt_transitive : Transitive equivt.
+        Lemma equivt_transitive : Transitive (@equivt tags_t).
         Proof.
           intros x; induction x using custom_t_ind;
             intros [] [] Hxy Hyz; auto;
@@ -457,7 +447,7 @@ Module P4cub.
                      | eapply IHfs1; eauto]).
         Qed.
 
-        Instance TypeEquivalence : Equivalence equivt.
+        Instance TypeEquivalence : Equivalence (@equivt tags_t).
         Proof.
           constructor; [ apply equivt_reflexive
                        | apply equivt_symmetric
@@ -466,8 +456,8 @@ Module P4cub.
 
         Lemma equivt_eqbt : forall t1 t2, equivt t1 t2 -> eqbt t1 t2 = true.
         Proof.
-          intros t1 t2 H.
-          induction H using custom_equivt_ind;
+          apply custom_equivt_ind; intros;
+          (* induction H using custom_equivt_ind; *)
             simpl in *; try rewrite Pos.eqb_refl; auto;
               rename H0 into HR;
               try (induction H; inv HR; auto;

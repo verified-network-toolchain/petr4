@@ -16,6 +16,13 @@ Section HAList.
     | [] => False
     end.
 
+  Inductive alist_NoDup {A} : list (K * A) -> Prop :=
+  | NoDupNil: alist_NoDup []
+  | NoDupCons:
+      forall k a l,
+        ~ alist_In k l ->
+        alist_NoDup ((k, a) :: l).
+
   Definition valid_key {A} (l: list (K * A)) :=
     {k: K | alist_In k l}.
 
@@ -43,7 +50,7 @@ Section HAList.
   Lemma valid_key_cons:
     forall {A} k (a: A) l x,
       alist_In x ((k, a)::l) ->
-      {x === k} + {alist_In x l}.
+      (x === k) + alist_In x l.
   Proof.
     intros.
     simpl in *.
@@ -53,59 +60,95 @@ Section HAList.
 
   (* This should be replaced with a library function. *)
   Fixpoint alist_get {A} (l: list (K * A)) (k: valid_key l) : A.
-    induction l.
+    destruct l.
     - exfalso.
       eauto with halist.
-    - destruct k, a.
-      assert (H:{x === k} + {alist_In x l})
+    - destruct k, p.
+      assert (H:(x === k) + alist_In x l)
         by eauto with halist.
       destruct H.
-      + exact a.
-      + apply IHl.
+      + exact a0.
+      + eapply alist_get.
         exists x.
         exact a1.
   Defined.
 
-  Fixpoint t (field_types: list (K * Type)) : Type :=
-    match field_types with
+  Definition signature := list (K * Type).
+  Definition valid_signature (s: signature) := alist_NoDup s.
+
+  Fixpoint t (fields: signature) : Type :=
+    match fields as f return Type with
     | (field_name, field_type) :: rest =>
-      ({k: K | k === field_name} * field_type) * t rest
+      field_type * t rest
     | [] => unit
     end.
 
   Lemma alist_get_hd:
-    forall k (T: Type) signature x a0,
-      alist_get ((k, T) :: signature) (exist (fun k0 : K => alist_In k0 ((k, T) :: signature)) x a0) = T.
+    forall k (T: Type) fields a0,
+      alist_get ((k, T) :: fields) (exist (fun k0 : K => alist_In k0 ((k, T) :: fields)) k a0) = T.
   Proof.
     intros.
     simpl.
-    destruct (valid_key_cons k T signature x a0) eqn:?.
+    destruct (valid_key_cons k T fields k a0) eqn:?.
     - reflexivity.
     - exfalso.
+      simpl in Heqs.
       unfold valid_key_cons in Heqs.
-      set (e := KEqDec k x).
-      change (KEqDec k x) with e in Heqs.
-      revert Heqs.
-      admit.
-  Admitted.
+      simpl in a0.
+      destruct (KEqDec k k); congruence.
+  Defined.
+
+  Lemma alist_In_unique:
+    forall k A l (p q: @alist_In A k l),
+      p = q.
+  Proof.
+    induction l as [|[k' v] l].
+    - cbv; tauto.
+    - intros.
+      cbn in *.
+      destruct (KEqDec k' k).
+      + destruct p, q; reflexivity.
+      + apply IHl.
+  Qed.
+
+  Lemma alist_get_cons:
+    forall k (T: Type) fields x a0 (a1: alist_In x fields),
+      k <> x ->
+      alist_get ((k, T) :: fields) (exist (fun k0 : K => alist_In k0 ((k, T) :: fields)) x a0) = 
+      alist_get fields (exist (fun k0 : K => alist_In k0 fields) x a1).
+  Proof.
+    intros.
+    destruct (valid_key_cons k T fields x a0) eqn:?.
+    - congruence.
+    - simpl.
+      rewrite Heqs.
+      f_equal.
+      f_equal.
+      eapply alist_In_unique.
+  Defined.
 
   Definition get {signature} (l: t signature) (f: valid_key signature)
     : alist_get signature f.
+    revert l.
+    revert f.
     induction signature.
-    - exfalso.
+    - intros.
+      exfalso.
       eauto with halist.
-    - destruct f, a.
-      assert (H:{x === k} + {alist_In x signature})
-        by eauto with halist.
-      destruct H.
-      + rewrite alist_get_hd.
-        simpl in a0.
-        destruct l.
-        destruct p.
-        exact t1.
-      + destruct (KEqDec k x) eqn:?.
-        * simpl.
-          unfold valid_key_cons.
-  Admitted.
+    - intros.
+      destruct f, a.
+      destruct (KEqDec k x).
+      + simpl in a0.
+        inversion e.
+        subst.
+        rewrite alist_get_hd.
+        exact (fst l).
+      + pose proof (g := a0).
+        simpl in g.
+        destruct (KEqDec k x) in g; try congruence.
+        erewrite alist_get_cons with (a1:=g); eauto.
+        eapply IHsignature.
+        now inversion l.
+  Defined.
 
 End HAList.

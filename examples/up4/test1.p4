@@ -1,5 +1,5 @@
-#include <core.p4>
-#include <up4.p4>
+#include "core.p4"
+#include "up4.p4"
 
 struct empty1_t { }
 struct hdr1_t { }

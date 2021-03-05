@@ -45,6 +45,9 @@ let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with
   | P4.Declaration.Error{members} -> Some d
   | _ -> None
 
+let get_P4int_value (i:P4.P4Int.t) : int = match (snd i) with 
+  | {value;width_signed} -> get (Bigint.to_int value)
+
 let get_matchkind (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.MatchKind{members} -> Some d
   | _ -> None
@@ -64,7 +67,14 @@ let get_typename_name (t : P4.Type.t) : string = match (snd t) with
 let get_argument_name (a : P4.Argument.t) : string = match (snd a) with 
   | P4.Argument.Expression {value} -> (match (snd value) with 
       | P4.Expression.NamelessInstantiation {typ; args} -> get_typename_name typ
+      | P4.Expression.Name n -> P4.name_only n
       | _ -> raise (IncorrectType "NamelessInstantiation expected"))
+  | _ -> raise (IncorrectType "Argument Expression expected")
+
+let get_argument_int (a : P4.Argument.t) : int = match (snd a) with
+  |  P4.Argument.Expression {value} -> (match (snd value) with 
+      | P4.Expression.Int i -> get_P4int_value i
+      | _ -> raise (IncorrectType "Int expected"))
   | _ -> raise (IncorrectType "Argument Expression expected")
 
 let get_parameter_typename (p:P4.Parameter.t) : string = match (snd p) with 
@@ -100,23 +110,9 @@ let get_declaration_params (p:P4.Declaration.t) : P4.Parameter.t list option =
   | P4.Declaration.Control {annotations; name; type_params; params; constructor_params; locals; apply} -> Some params
   | _ -> None
 
-let get_main (prog:P4.Declaration.t list) : P4.Declaration.t = 
-  let main = List.filter_map get_instantiation prog in 
-  if List.length main == 0 then raise (DeclarationNotFound "main")
-  else if List.length main <> 1 then raise MultipleMains
-  else (List.hd main)
-
-(** Finding main declaration names from package. 
-    For up4, should return [package_name, parser_name, control_name, deparser_name] *)
-let get_main_args (prog : P4.Declaration.t list) : string list = 
-  let main = (List.filter_map get_instantiation_args prog) in 
-  if List.length main == 0 then raise (DeclarationNotFound "main")
-  else if List.length main <> 1 then raise MultipleMains
-  else (List.map get_argument_name (List.hd main))
-
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
-  let declarations = List.filter (fun p -> declaration_name p == name) prog in 
+  let declarations = List.filter (fun p -> compare (declaration_name p) name == 0) prog in 
   if List.length declarations == 0 then raise (DeclarationNotFound name)
   else List.hd declarations
 
@@ -128,6 +124,27 @@ let remove_declaration (prog:P4.Declaration.t list) (to_remove_name:string) : P4
 
 let remove_declarations (prog:P4.Declaration.t list) (to_remove_names:string list) : P4.Declaration.t list = 
   List.filter (fun d -> not (List.mem (declaration_name d) to_remove_names)) prog
+
+let remove_unnamed_decl (prog:P4.Declaration.t list) : P4.Declaration.t list = 
+  List.filter (fun p -> compare (declaration_name p) "" <> 0) prog
+
+let get_main (prog:P4.Declaration.t list) : P4.Declaration.t = 
+  find_declaration_by_name prog "main"
+(* let main = List.filter_map get_instantiation prog in 
+   if List.length main == 0 then raise (DeclarationNotFound "main")
+   else if List.length main <> 1 then raise MultipleMains
+   else (List.hd main) *)
+
+(** Finding main declaration names from package. 
+    For up4, should return [package_name, parser_name, control_name, deparser_name] *)
+let get_main_args (prog : P4.Declaration.t list) : P4.Argument.t list = 
+  let main = find_declaration_by_name prog "main" in 
+  main |> get_instantiation_args |> get 
+(* (List.filter_map get_instantiation_args prog) in 
+   let main =  in 
+   if List.length main == 0 then raise (DeclarationNotFound "main")
+   else if List.length main <> 1 then raise MultipleMains
+   else (List.map get_argument_name (List.hd main)) *)
 
 let p4strings_to_strings (lst:P4.P4String.t list) : string list = List.map snd lst
 
@@ -343,7 +360,7 @@ let merge_deparser (d1 : P4.Declaration.t) (d2: P4.Declaration.t) : P4.Declarati
   ((fst d1), Control { annotations = dp1.annotations;
                        name = Info.dummy, "NewDeparser";
                        type_params = dp1.type_params;
-                       params = dp1.params; (**might need to check for difference *)
+                       params = dp1.params; (*might need to check for difference *)
                        constructor_params = dp1.constructor_params;
                        locals = dp1.locals @ dp2.locals;
                        apply = merge_block dp1.apply dp2.apply})
@@ -395,42 +412,16 @@ let new_control (params:P4.Parameter.t list) (control1:string) (control2:string)
 let verify_length (l:'a list) (length:int) : 'a list = if List.length l <> length
   then raise MissingDeclaration else l
 
-
-(** This assumes program1 and program2 have the same argument in their parser.
-    names1 is [parser_name, control_name, deparser_name], a string list
-    package1 is [parser, control, deparser], a declaration.t list *)
-let prog_merge (program1 : P4.program) (program2 : P4.program) (split_port : int) : P4.program = 
-  let prog1 = program_to_declarations program1 in 
-  let prog2 = program_to_declarations program2 in 
-  let names1 = get_main_args prog1 in 
-  let names2 = get_main_args prog2 in 
-  let package1 = verify_length (find_declarations_by_names prog1 names1) 3 in 
-  let package2 = verify_length (find_declarations_by_names prog2 names2) 3 in 
-  let package_type = prog1 |> get_main |> get_declaration_type |> get |> get_typename_name in 
-  let package_name = prog1 |> get_main |> declaration_name in 
-  let parser_params = (List.hd package1) |> get_declaration_params |> get in
-  let control_params = (List.nth package1 1) |> get_declaration_params in 
-  let unnamed_decs = (get_unnamed_declarations prog1), (get_unnamed_declarations prog2) in 
-  let merged_unnamed_decs = [merge_unnamed_declarations (unnamed_decs |> fst |> fst) (unnamed_decs |> snd |> fst); merge_unnamed_declarations (unnamed_decs |> fst |> snd) (unnamed_decs |> snd |> snd)] in 
-  let new_parser = new_parser parser_params (List.hd names1) (List.hd names2) split_port in
-  let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
-  let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
-  let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
-  let new_package = create_declaration_instantiation "main" package_type (List.map create_argument_expression package_arguments) in 
-  let merged_program = (remove_declarations prog1 [List.nth names1 2; package_name; ""]) @ (remove_declarations prog2 [List.nth names2 2; package_name; ""]) in
-  let merged_program_names = unique_strings(List.map declaration_name merged_program) in 
-  let final_program = (List.fold_left unique_declarations_by_name merged_program merged_program_names) in 
-  P4.Program (merged_unnamed_decs @ final_program @ [new_parser; new_control; new_deparser; new_package])
-
 (** This assumes program1 and program2 have the same argument in their parser.
     names1 is [parser_name, control_name, deparser_name], a string list
     package1 is [parser, control, deparser], a declaration.t list *)
 let prog_merge_package (program : P4.program) : P4.program = 
   let prog = program_to_declarations program in 
-  let names = get_main_args prog in 
+  let main_args = get_main_args prog in 
+  let names = List.map get_argument_name [(List.nth main_args 0); (List.nth main_args 1)] in 
   let names1 = find_declaration_by_name prog (List.nth names 0) |> get_instantiation_args |> get |> List.map get_argument_name in 
   let names2 = find_declaration_by_name prog (List.nth names 1) |> get_instantiation_args |> get |> List.map get_argument_name in 
-  let split_port = int_of_string (List.nth names 2) in 
+  let split_port = get_argument_int (List.nth main_args 2) in 
   let package1 = verify_length (find_declarations_by_names prog names1) 3 in 
   let package2 = verify_length (find_declarations_by_names prog names2) 3 in 
   let parser_params = (List.hd package1) |> get_declaration_params |> get in
@@ -441,7 +432,7 @@ let prog_merge_package (program : P4.program) : P4.program =
   let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
   let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
-  let new_package = create_declaration_instantiation "main" "up4Merge" (List.map create_argument_expression package_arguments) in 
-  let final_prog = remove_declaration prog (prog |> get_main |> declaration_name) in 
+  let new_package = create_declaration_instantiation "main" "uP4Switch" (List.map create_argument_expression package_arguments) in 
+  let final_prog = remove_unnamed_decl (remove_declaration prog (prog |> get_main |> declaration_name)) in 
   P4.Program (merged_unnamed_decs @ final_prog @ [new_parser; new_control; new_deparser; new_package])
 

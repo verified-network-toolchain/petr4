@@ -2,7 +2,6 @@ Require Import Monads.Monad.
 
 Open Scope monad.
 
-
 Definition state_monad {State Exception Result: Type} :=
   State -> (Result + Exception) * State.
 

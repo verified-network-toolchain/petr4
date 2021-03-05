@@ -5,6 +5,7 @@ lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
 lib/Monads/Transformers.v
+lib/Monads/Hoare.v
 
 lib/Grammars/Grammar.v
 lib/Grammars/Lib.v

@@ -2,6 +2,8 @@ Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
 Require Export P4cub.Utiliser.
+Require Import Coq.PArith.BinPosDef.
+Require Import Coq.PArith.BinPos.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
@@ -311,6 +313,29 @@ Module P4cub.
 
         Import TypeNotations.
 
+        (** Decidable equality. *)
+        Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
+          let fix frec (ts1 ts2 : F.fs tags_t (t tags_t)) : bool :=
+              match ts1, ts2 with
+              | [], [] => true
+              | (x1,t1)::ts1, (x2,t2)::ts2 => if P4String.equivb x1 x2 then
+                                             eqbt t1 t2 && frec ts1 ts2
+                                           else false
+              | [], _::_ | _::_, [] => false
+              end in
+          match τ1, τ2 with
+          | {{ Bool }}, {{ Bool }}
+          | {{ error }}, {{ error }}
+          | {{ matchkind }}, {{ matchkind }} => true
+          | {{ bit<w1> }}, {{ bit<w2> }}
+          | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
+          | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
+          | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
+          | {{ stack ts1[n1] }}, {{ stack ts2[n2] }} => (n1 =? n2)%positive && frec ts1 ts2
+          | _, _ => false
+          end.
+        (**[]*)
+
         (** Equality of types. *)
         Inductive equivt : t tags_t -> t tags_t -> Prop :=
         | equivt_bool : ∫ Bool ≡ Bool
@@ -327,7 +352,7 @@ Module P4cub.
         | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
             F.relfs equivt fs1 fs2 ->
             ∫ stack fs1[n] ≡ stack fs2[n]
-        where "∫ t1 ≡ t2" := (equivt t1 t2).
+        where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
         (**[]*)
 
         (** A custom induction principle for type equivalence. *)
@@ -439,41 +464,62 @@ Module P4cub.
                        | apply equivt_transitive].
         Defined.
 
-        Lemma equivt_dec : forall (t1 t2 : t tags_t),
-            equivt t1 t2 \/ ~ equivt t1 t2.
+        Lemma equivt_eqbt : forall t1 t2, equivt t1 t2 -> eqbt t1 t2 = true.
         Proof.
-          induction t1 using custom_t_ind; intros [];
-            try (left; apply equivt_reflexive);
-            try (right; intros HR; inversion HR; assumption);
-            try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
-                 unfold equiv in *; unfold complement in *; subst;
-                 try (right; intros H'; inversion H'; contradiction);
-                 try (left; reflexivity));
-            try (destruct (equiv_dec size size0) as [Hsize | Hsize];
-                 unfold equiv in *; unfold complement in *; subst;
-                 try (right; intros H'; inversion H'; contradiction));
+          intros t1 t2 H.
+          induction H using custom_equivt_ind;
+            simpl in *; try rewrite Pos.eqb_refl; auto;
+              rename H0 into HR;
+              try (induction H; inv HR; auto;
+                   destruct x as [x1 t1]; destruct y as [x2 t2];
+                     simpl in *; repeat invert_relf; simpl in *;
+                       pose proof P4String.equiv_reflect x1 x2 as Hx;
+                       inv Hx; try contradiction; rewrite H2; auto).
+          Qed.
+
+        Lemma eqbt_equivt : forall t1 t2, eqbt t1 t2 = true -> equivt t1 t2.
+        Proof.
+          induction t1 using custom_t_ind; intros [] Heqbt; simpl in *;
+            try apply andb_true_iff in Heqbt as [Hpos Heqbt];
+            try discriminate;
+            try match goal with
+                | H: (_ =? _)%positive = true |- _ => apply Peqb_true_eq in H; subst
+                end;
+            constructor;
             try (rename fields into fs1; rename fields0 into fs2;
                  generalize dependent fs2;
-                 induction fs1 as [| [x1 t1] fs1 IHfs1];
-                 intros [| [x2 t2] fs2];
-                 try (left; reflexivity);
-                 try (right; intros H';
-                      inversion H'; try invert_nil_cons_relate; assumption); subst;
-                 inversion H; clear H; subst; unfold F.predf_data in *;
-                 pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
-                 destruct (equiv_dec x1 x2) as [H12 | H12];
-                 unfold equiv in *; unfold complement in *;
-                 destruct (H2 t2) as [HT | HT]; clear H2;
-                 destruct IH as [IH | IH];
-                 try (right; intros H'; inversion H';
-                      clear H'; subst; invert_cons_cons_relate;
-                      subst; unfold F.relf in *;
-                      simpl in *; destruct H3; contradiction);
-                 [ left; constructor; inversion IH; subst;
-                   constructor; auto; unfold F.relf; split; auto
-                 | right; intros H'; inversion H'; subst;
-                   clear H'; invert_cons_cons_relate; subst; apply IH;
-                   constructor; auto ]).
+                   induction fs1 as [| [x1 t1] fs1 IHfs1];
+                   intros [| [x2 t2] fs2] IH; inv H; simpl in *;
+                     try discriminate; constructor;
+                       destruct (P4String.equivb x1 x2) eqn:Hx;
+                       destruct (eqbt t1 t2) eqn:Heqbt;
+                       try discriminate; simpl in *;
+                         [ split; simpl; auto;
+                           pose proof P4String.equiv_reflect x1 x2 as Hx';
+                           inv Hx'; try contradiction; auto;
+                           rewrite Hx in H; discriminate
+                         | apply IHfs1; auto ]).
+          Qed.
+
+        Lemma equivt_eqbt_iff : forall t1 t2 : t tags_t, equivt t1 t2 <-> eqbt t1 t2 = true.
+        Proof.
+          intros t1 t2; split; [apply equivt_eqbt | apply eqbt_equivt].
+        Qed.
+
+        Lemma equivt_reflect : forall t1 t2, reflect (equivt t1 t2) (eqbt t1 t2).
+        Proof.
+          intros t1 t2.
+          destruct (eqbt t1 t2) eqn:Heqbt; constructor.
+          - apply eqbt_equivt; assumption.
+          - intros H. apply equivt_eqbt in H.
+            rewrite H in Heqbt. discriminate.
+        Qed.
+
+        Lemma equivt_dec : forall t1 t2 : t tags_t,
+            equivt t1 t2 \/ ~ equivt t1 t2.
+        Proof.
+          intros t1 t2. pose proof equivt_reflect t1 t2 as H.
+          inversion H; subst; auto.
         Qed.
       End TypeEquivalence.
     End TypeEquivalence.
@@ -638,8 +684,8 @@ Module P4cub.
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
       Notation "( x )" := x (in custom p4expr, x at level 99).
       Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
-      Notation "'True' @ i" := (EBool true i) (in custom p4expr at level 0).
-      Notation "'False' @ i" := (EBool false i) (in custom p4expr at level 0).
+      Notation "'TRUE' @ i" := (EBool true i) (in custom p4expr at level 0).
+      Notation "'FALSE' @ i" := (EBool false i) (in custom p4expr at level 0).
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
       Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
@@ -971,13 +1017,54 @@ Module P4cub.
                  := (PSelect exp cases i)
                       (in custom p4prsrexpr at level 10,
                           exp custom p4expr).
-        Notation "'state' s 'transition' pe @ i"
-                 := (State s pe i)
+        Notation "'&{' st '}&'" := st (st custom p4prsrstate at level 99).
+        Notation "'state' { s } 'transition' pe"
+                 := (State s pe)
                       (in custom p4prsrstate at level 0,
                           s custom p4stmt, pe custom p4prsrexpr).
       End ParserNotations.
 
-      (* TODO: induction principle for parser expressions. *)
+      (** A custom induction principle
+          for parser expressions. *)
+      Section ParserExpreInduction.
+        Import ParserNotations.
+        Import E.ExprNotations.
+
+        Context {tags_t : Type}.
+
+        (** An arbitrary predicate. *)
+        Variable P : e tags_t -> Prop.
+
+        Hypothesis HAccept : forall i, P p{ accept @ i }p.
+
+        Hypothesis HReject : forall i, P p{ reject @ i }p.
+
+        Hypothesis HState : forall st i, P p{ goto st @ i }p.
+
+        Hypothesis HSelect : forall exp cases i,
+            Forall (P ∘ snd) cases ->
+            P p{ select exp { cases } @ i }p.
+        (**[]*)
+
+        (** A custom induction principle,
+            do [induction ?H using pe_ind] *)
+        Definition pe_ind : forall pe : e tags_t, P pe :=
+          fix peind pe : P pe :=
+            let fix lind {A : Type} (es : list (A * e tags_t))
+                : Forall (P ∘ snd) es :=
+                match es with
+                | [] => Forall_nil _
+                | (_,pe) as oe :: es =>
+                  Forall_cons oe (peind pe) (lind es)
+                end in
+            match pe with
+            | p{ accept @ i }p => HAccept i
+            | p{ reject @ i }p => HReject i
+            | p{ goto st @ i }p => HState st i
+            | p{ select exp { cases } @ i }p => HSelect exp _ i (lind cases)
+            end.
+        (**[]*)
+      End ParserExpreInduction.
     End ParserState.
   End Parser.
 
@@ -1045,6 +1132,7 @@ Module P4cub.
     Module S := Stmt.
     Module D := Decl.
     Module C := Control.ControlDecl.
+    Module P := Parser.ParserState.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
@@ -1059,8 +1147,9 @@ Module P4cub.
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string tags_t)
                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
-                 (params : E.params tags_t) (* invocation params *)
-                 (i : tags_t) (* TODO! *)
+                 (params : E.params tags_t)           (* invocation params *)
+                 (states : F.fs tags_t (P.state tags_t)) (* parser states *)
+                 (i : tags_t) (* TODO: start state? *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
                    (* function/method declaration *)
@@ -1098,6 +1187,9 @@ Module P4cub.
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,
                         blk custom p4stmt, body custom p4ctrldecl).
+      Notation "'parser' p ( cparams ) ( params ) { states } @ i"
+               := (TPParser p cparams params states i)
+                    (in custom p4topdecl at level 0).
     End TopDeclNotations.
   End TopDecl.
 

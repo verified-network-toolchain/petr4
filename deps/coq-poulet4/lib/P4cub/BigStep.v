@@ -5,7 +5,8 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
-Require Import Value.
+Require Export Value.
+Module V := Val.
 
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
@@ -38,7 +39,6 @@ Module Step.
   Module CD := P.Control.ControlDecl.
   Module TP := P.TopDecl.
   Module F := P.F.
-  Module V := Value.
 
   Import P.P4cubNotations.
   Import V.ValueNotations.
@@ -255,13 +255,14 @@ Module Step.
              let vs := snd bvs in
              ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
           hs vss ->
-        ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss[n] NEXT:=ni
+        ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
     | ebs_access (e : E.e tags_t) (i : tags_t)
                  (n : positive) (index ni : N)
+                 (ts : F.fs tags_t (E.t tags_t))
                  (vss : list (bool * F.fs tags_t (V.v tags_t)))
                  (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
         nth_error vss (N.to_nat index) = Some (b,vs) ->
-        ⟨ ϵ, e ⟩ ⇓ STACK vss[n] NEXT:=ni ->
+        ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
         ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
     where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
     (**[]*)
@@ -416,13 +417,13 @@ Module Step.
                let vs := snd bvs in
                P ϵ e *{ HDR { vs } VALID:=b}*)
             hs vss ->
-          P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss[n] NEXT:=ni }*.
+          P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss:ts[n] NEXT:=ni }*.
       (**[]*)
 
-      Hypothesis HAccess : forall ϵ e i n index ni vss b vs,
+      Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
                  nth_error vss (N.to_nat index) = Some (b,vs) ->
-                 ⟨ ϵ, e ⟩ ⇓ STACK vss[n] NEXT:=ni ->
-                 P ϵ e *{ STACK vss[n] NEXT:=ni }* ->
+                 ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
+                 P ϵ e *{ STACK vss:ts[n] NEXT:=ni }* ->
                  P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
       (**[]*)
 
@@ -535,8 +536,8 @@ Module Step.
                                         He (ebsind _ _ _ He)
           | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
                                                     HR (ffind HR)
-          | ebs_access _ _ i n index ni _ _ _
-                       Hnth He => HAccess _ _ i n index ni _ _ _ Hnth
+          | ebs_access _ _ i n index ni ts _ _ _
+                       Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
                                          He (ebsind _ _ _ He)
           end.
       (**[]*)
@@ -636,7 +637,7 @@ Module Step.
       | l{ lv[n] }l =>
         match lv_lookup ϵ lv with
         | None => None
-        | Some *{ STACK vss[_] NEXT:=_ }* =>
+        | Some *{ STACK vss:_[_] NEXT:=_ }* =>
           match nth_error vss (N.to_nat n) with
           | None => None
           | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
@@ -660,9 +661,9 @@ Module Step.
       | l{ lv[n] }l =>
         match v, lv_lookup ϵ lv with
         | *{ HDR { vs } VALID:=b }* ,
-          Some *{ STACK vss[size] NEXT:=ni }* =>
+          Some *{ STACK vss:ts[size] NEXT:=ni }* =>
           let vss := nth_update (N.to_nat n) (b,vs) vss in
-          lv_update lv *{ STACK vss[size] NEXT:=ni }* ϵ
+          lv_update lv *{ STACK vss:ts[size] NEXT:=ni }* ϵ
         | _, Some _ | _, None => ϵ
         end
       end.
@@ -729,8 +730,8 @@ Module Step.
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
       | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
       | {{ stack fs[n] }} => V.VHeaderStack
-                              (repeat (false, fields_rec fs)
-                                      (Pos.to_nat n)) n 0
+                              fs (repeat (false, fields_rec fs)
+                                         (Pos.to_nat n)) n 0
       end.
     (**[]*)
 

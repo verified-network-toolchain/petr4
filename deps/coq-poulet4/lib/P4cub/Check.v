@@ -1,12 +1,11 @@
-Require Export Coq.Classes.EquivDec.
 Require Export Coq.PArith.BinPosDef.
 Export Pos.
 Require Export Coq.NArith.BinNat.
 Require Export P4cub.AST.
 Require Export P4cub.P4Arith.
+Require Export Envn.
 
 (** Notation entries. *)
-Declare Custom Entry p4env.
 Declare Custom Entry p4signal.
 Declare Custom Entry p4context.
 
@@ -20,6 +19,8 @@ Reserved Notation "⦃ fe , ienv , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
 Reserved Notation "⦗ cenv , fenv , ienv1 , errs , g1 ⦘ ⊢ d ⊣ ⦗ g2 , ienv2 ⦘"
          (at level 50, d custom p4decl, g2 custom p4env, ienv2 custom p4env).
 
+Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrexpr).
+
 Reserved Notation
          "⦅ tbls1 , acts1 , cenv , fenv , ienv1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ienv2 , acts2 , tbls2 ⦆"
          (at level 60, d custom p4ctrldecl, g2 custom p4env,
@@ -29,44 +30,6 @@ Reserved Notation
          "$ cenv1 , fenv1 , ienv1 , errs , g1 $ ⊢ d ⊣ $ g2 , ienv2 , fenv2 , cenv2 $"
          (at level 70, d custom p4topdecl, g2 custom p4env,
           ienv2 custom p4env, fenv2 custom p4env, cenv2 custom p4env).
-
-(** * Environments *)
-
-(** Note how the type of the environment's domain
-    is an argument to the environment functor. *)
-Module Env.
-
-  (** Definition of environments. *)
-  Definition t (D T : Type) : Type := D -> option T.
-
-  (** The empty environment. *)
-  Definition empty (D T : Type) : t D T := fun _ => None.
-
-  Section EnvDefs.
-    Context {D T : Type}.
-
-    Context {equiv_rel : D -> D -> Prop}.
-
-    Context {HEquiv : Equivalence equiv_rel}.
-
-    Context {HE : EqDec D equiv_rel}.
-
-    (** Updating the environment. *)
-    Definition bind (x : D) (v : T) (e : t D T) : t D T :=
-      fun y => if x == y then Some v else e y.
-
-    (* TODO: whatever lemmas needed. *)
-  End EnvDefs.
-
-  Module EnvNotations.
-    Notation "'!{' env '}!'" := env (env custom p4env at level 99).
-    Notation "x" := x (in custom p4env at level 0, x constr at level 0).
-    Notation "x ↦ v ';;' e"
-      := (bind x v e)
-           (in custom p4env at level 40, e custom p4env,
-               right associativity).
-  End EnvNotations.
-End Env.
 
 (** * Typechecking *)
 Module Typecheck.
@@ -78,6 +41,7 @@ Module Typecheck.
 
   Module ST := P.Stmt.
   Module D := P.Decl.
+  Module PS := P.Parser.ParserState.
   Module CD := P.Control.ControlDecl.
   Module TD := P.TopDecl.
   Module F := P.F.
@@ -106,7 +70,7 @@ Module Typecheck.
   Import Env.EnvNotations.
 
   Section TypeCheck.
-    Variable (tags_t : Type).
+    Context {tags_t : Type}.
 
     (** Available strings. *)
     Definition strs : Type := Env.t (string tags_t) unit.
@@ -187,7 +151,7 @@ Module Typecheck.
     (**[]*)
 
     (** Expression typing as a relation. *)
-    Inductive check
+    Inductive check_expr
               (errs : errors) (Γ : gam) : E.e tags_t -> E.t tags_t -> Prop :=
     (* Literals. *)
     | chk_bool (b : bool) (i : tags_t) :
@@ -300,7 +264,7 @@ Module Typecheck.
         ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
         ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
     where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
-            := (check ers gm e ty).
+            := (check_expr ers gm e ty) : type_scope.
     (**[]*)
 
     (** Custom induction principle for expression typing. *)
@@ -610,7 +574,8 @@ Module Typecheck.
     | CAction (available_actions : aenv)
     | CVoid
     | CFunction (return_type : E.t tags_t)
-    | CApplyBlock (tables : tblenv) (available_actions : aenv).
+    | CApplyBlock (tables : tblenv) (available_actions : aenv)
+    | CParserState.
     (**[]*)
 
     (** Evidence an action call context is ok. *)
@@ -644,7 +609,9 @@ Module Typecheck.
     Notation "'ApplyBlock' tbls aa"
              := (CApplyBlock tbls aa)
                   (in custom p4context at level 0, tbls custom p4env).
+    Notation "'Parser'" := CParserState (in custom p4context at level 0).
 
+    (** Statement typing. *)
     Inductive check_stmt
               (fns : fenv) (ins : ienv)
               (errs : errors) (Γ : gam) : ctx -> ST.s tags_t -> gam -> signal -> Prop :=
@@ -756,6 +723,7 @@ Module Typecheck.
           good_signal (P.Arrow params (Some ret)) SIG_Return.
     (**[]*)
 
+    (** Declaration typing. *)
     Inductive check_decl
               (cs : cenv) (fns : fenv)
               (ins : ienv) (errs : errors)
@@ -788,6 +756,112 @@ Module Typecheck.
             := (check_decl cenv fenv ienv1 errs g1 d g2 ienv2).
     (**[]*)
 
+    (** Valid parser states. *)
+    Definition states : Type := strs.
+
+    (** Parser-expression typing. *)
+    Inductive check_prsrexpr (sts : states) (errs : errors) (Γ : gam)
+      : PS.e tags_t -> Prop :=
+    | chk_accept (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ accept @ i
+    | chk_reject (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ reject @ i
+    | chk_goto_state (st : string tags_t) (i : tags_t) :
+        sts st = Some tt ->
+        ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
+    | chk_select (e : E.e tags_t)
+                 (cases : list (option (E.e tags_t) * PS.e tags_t))
+                 (i : tags_t) (τ : E.t tags_t) :
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        Forall
+          (fun oe =>
+             let o := fst oe in
+             let e := snd oe in
+             ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                          match o with
+                          | None => True
+                          | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                          end) cases ->
+        ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } @ i
+    where "⟅ sts , ers , gm ⟆ ⊢ e"
+            := (check_prsrexpr sts ers gm e).
+    (**[]*)
+
+    (** A custom induction principle for parser-expression typing. *)
+    Section CheckParserExprInduction.
+      (** An arbitrary predicate. *)
+      Variable P : states -> errors -> gam -> PS.e tags_t -> Prop.
+
+      Hypothesis HAccept : forall sts errs Γ i, P sts errs Γ p{ accept @ i }p.
+
+      Hypothesis HReject : forall sts errs Γ i, P sts errs Γ p{ reject @ i }p.
+
+      Hypothesis HGotoState : forall sts errs Γ st i,
+          sts st = Some tt ->
+          P sts errs Γ p{ goto st @ i }p.
+
+      Hypothesis HSelect : forall sts errs Γ e cases i τ,
+          ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+          Forall
+            (fun oe =>
+               let o := fst oe in let e := snd oe in
+               ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                            match o with
+                            | None => True
+                            | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                            end) cases ->
+          Forall
+            (fun oe =>
+               let e := snd oe in
+               P sts errs Γ e) cases ->
+          P sts errs Γ p{ select e { cases } @ i }p.
+
+      (** Custom induction principle.
+          Do [induction ?H using custom_check_prsrexpr_ind] *)
+      Definition custom_check_prsrexpr_ind :
+        forall (sts : states) (errs : errors) (Γ : gam) (e : PS.e tags_t)
+          (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
+        fix chind sts errs Γ e Hy :=
+          let fix lind
+                  {cases : list (option (E.e tags_t) * PS.e tags_t)} {τ : E.t tags_t}
+                  (HR : Forall
+                          (fun oe =>
+                             let o := fst oe in
+                             let e := snd oe in
+                             ⟅ sts, errs, Γ ⟆ ⊢ e /\
+                                          match o with
+                                          | None => True
+                                          | Some e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ
+                                          end) cases)
+              : Forall (fun oe => P sts errs Γ (snd oe)) cases :=
+              match HR with
+              | Forall_nil _ => Forall_nil _
+              | Forall_cons _ (conj He _) Htail => Forall_cons
+                                                    _
+                                                    (chind _ _ _ _ He)
+                                                    (lind Htail)
+              end in
+          match Hy with
+          | chk_accept _ _ _ i => HAccept _ _ _ i
+          | chk_reject _ _ _ i => HReject _ _ _ i
+          | chk_goto_state _ _ _ _ Hst i => HGotoState _ _ _ _ Hst i
+          | chk_select _ _ _ _ _ i _
+                       He Hcases => HSelect _ _ _ _ _ i _ He
+                                           Hcases (lind Hcases)
+          end.
+      (**[]*)
+    End CheckParserExprInduction.
+
+    (** Parser State typing. *)
+    Inductive check_state
+              (fns : fenv) (ins : ienv) (sts : states)
+              (errs : errors) (Γ : gam) : PS.state tags_t -> Prop :=
+    | chk_state (s : ST.s tags_t) (e : PS.e tags_t)
+                (Γ' : gam) (sg : signal) :
+        ⦃ fns , ins , errs , Γ ⦄ Parser ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
+        ⟅ sts, errs, Γ' ⟆ ⊢ e ->
+        check_state fns ins sts errs Γ &{ state { s } transition e }&.
+    (**[]*)
+
+    (** Control declaration typing. *)
     Inductive check_ctrldecl
               (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
               (ins : ienv) (errs : errors) (Γ : gam)
@@ -832,6 +906,7 @@ Module Typecheck.
       := (check_ctrldecl tbls1 acts1 cenv fenv ienv1 errs g1 d g2 ienv2 acts2 tbls2).
     (**[]*)
 
+    (** Top-level declaration typing. *)
     Inductive check_topdecl
               (cs : cenv) (fns : fenv) (ins : ienv) (errs : errors) (Γ : gam)
               : TD.d tags_t -> gam -> ienv -> fenv -> cenv -> Prop :=
@@ -844,7 +919,8 @@ Module Typecheck.
         let empty_tbls := Env.empty (name tags_t) unit in
         let empty_acts := Env.empty (name tags_t) (E.params tags_t) in
         (* Control declarations. *)
-        ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆ ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
+        ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆
+          ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
         bind_all params Γ'' = Γ''' ->
         (* Apply block. *)
         ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
@@ -853,6 +929,21 @@ Module Typecheck.
         $ cs, fns, ins, errs, Γ $
           ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
           ⊣ $ Γ, ins, fns, c' ↦ ctor;; cs $
+    | chk_parser (p : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+                 (params : E.params tags_t)
+                 (states : F.fs tags_t (PS.state tags_t)) (i : tags_t)
+                 (Γ' Γ'' : gam) :
+        let empty_sts := Env.empty (string tags_t) unit in
+        let sts := fold_right
+                     (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
+                     empty_sts states in
+        cbind_all cparams Γ = Γ' ->
+        bind_all params Γ' = Γ'' ->
+        Forall
+          (fun '(_,pst) => check_state fns ins sts errs Γ'' pst)
+          states ->
+        $ cs, fns, ins, errs, Γ $
+          ⊢ parser p (cparams)(params) { states } @ i ⊣ $ Γ, ins, fns, cs $
     | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
                          (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
                          (Γ' Γ'' : gam) (sg : signal) :

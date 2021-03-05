@@ -67,17 +67,17 @@ Section TypeSynonyms.
 
   Definition string : Type := Petr4.P4String.t tags_t.
 
-  Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
+  Global Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
     P4String.P4StringEqDec tags_t.
   (**[]*)
 
   Definition int : Type := Petr4.P4Int.t tags_t.
 
-  Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
+  Global Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
     P4Int.IntEquivalence tags_t.
   (**[]*)
 
-  Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
+  Global Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
     P4Int.IntEqDec tags_t.
   (**[]*)
 
@@ -131,7 +131,7 @@ Section TypeSynonyms.
         * apply IHxs with ys; auto.
   Qed.
 
-  Instance NameEquivalence : Equivalence equivn.
+  Global Instance NameEquivalence : Equivalence equivn.
   Proof.
     constructor; [ apply equivn_reflexive
                  | apply equivn_symmetric
@@ -160,7 +160,7 @@ Section TypeSynonyms.
       left; auto.
   Defined.
 
-  Instance NameEqDec : EqDec name equivn :=
+  Global Instance NameEqDec : EqDec name equivn :=
     { equiv_dec := equivn_dec }.
   (**[]*)
 End TypeSynonyms.

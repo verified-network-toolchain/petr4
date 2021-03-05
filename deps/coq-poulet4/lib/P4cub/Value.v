@@ -14,9 +14,6 @@ Module TE := E.TypeEquivalence.
 Declare Custom Entry p4value.
 Declare Custom Entry p4lvalue.
 
-Reserved Notation "∇ errs ⊢ v ∈ τ"
-         (at level 40, v custom p4value, τ custom p4type).
-
 Module Val.
 Section Values.
   Variable (tags_t : Type).
@@ -596,15 +593,16 @@ Module LValueNotations.
                                    lval custom p4lvalue).
 End LValueNotations.
 
-Section ValueTyping.
+Module ValueTyping.
   Import ValueNotations.
   Import P4cub.P4cubNotations.
 
-  Context {tags_t : Type}.
+  Definition errors {tags_t: Type} : Type := Env.t (string tags_t) unit.
 
-  Definition errors : Type := Env.t (string tags_t) unit.
+  Reserved Notation "∇ errs ⊢ v ∈ τ"
+           (at level 40, v custom p4value, τ custom p4type).
 
-  Inductive type_value (errs : errors) : v tags_t -> E.t tags_t -> Prop :=
+  Inductive type_value {tags_t: Type} (errs : errors) : v tags_t -> E.t tags_t -> Prop :=
   | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
   | typ_bit (w : positive) (n : N) :
       BitArith.bound w n ->
@@ -643,8 +641,10 @@ Section ValueTyping.
 
   (** Custom induction for value typing. *)
   Section ValueTypingInduction.
+    Context {tags_t : Type}.
+
     (** Arbitrary predicate. *)
-    Variable P : errors -> v tags_t -> E.t tags_t -> Prop.
+    Variable P : @errors tags_t -> v tags_t -> E.t tags_t -> Prop.
 
     Hypothesis HBool : forall errs b, P errs *{ VBOOL b }* {{ Bool }}.
 

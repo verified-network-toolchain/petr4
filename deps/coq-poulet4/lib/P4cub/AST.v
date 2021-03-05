@@ -319,7 +319,7 @@ Module P4cub.
 
       (** A custom induction principle for type equivalence. *)
       Section TypeEquivInduction.
-        Context {tags_t : Type}.
+        Variable (tags_t : Type).
 
         (** An arbitrary predicate. *)
         Variable P : t tags_t -> t tags_t -> Prop.
@@ -348,7 +348,7 @@ Module P4cub.
             F.relfs equivt fs1 fs2 ->
             F.relfs P fs1 fs2 ->
             P {{ stack fs1[n] }} {{ stack fs2[n] }}.
-            
+
         (** A custom induction principle for type equivalence.
             Do [induction ?H using custom_equivt_ind]. *)
         Definition custom_equivt_ind :
@@ -418,8 +418,9 @@ Module P4cub.
 
         Lemma equivt_symmetric : Symmetric (@equivt tags_t).
         Proof.
-          unfold Symmetric; apply custom_equivt_ind; intros;
-            (* induction H using custom_equivt_ind. *)
+          unfold Symmetric;
+            (* apply custom_equivt_ind; intros; *)
+            intros t1 t2 H; induction H using custom_equivt_ind;
             constructor; auto;
               try (induction H; inversion H0; subst; repeat constructor; auto;
                    destruct x as [x1 t1]; destruct y as [x2 t2];
@@ -456,8 +457,7 @@ Module P4cub.
 
         Lemma equivt_eqbt : forall t1 t2, equivt t1 t2 -> eqbt t1 t2 = true.
         Proof.
-          apply custom_equivt_ind; intros;
-          (* induction H using custom_equivt_ind; *)
+          intros t1 t2 H; induction H using custom_equivt_ind;
             simpl in *; try rewrite Pos.eqb_refl; auto;
               rename H0 into HR;
               try (induction H; inv HR; auto;
@@ -699,7 +699,7 @@ Module P4cub.
         := (EHeader fields b i)
             (in custom p4expr at level 6,
                 b custom p4expr, no associativity).
-      Notation "'H' op exp @ i"
+      Notation "'HDR_OP' op exp @ i"
                := (EHeaderOp op exp i)
                     (in custom p4expr at level 5, exp custom p4expr,
                         op custom p4hdr_op, no associativity).
@@ -756,7 +756,7 @@ Module P4cub.
           F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} valid:=b @ i }>.
 
       Hypothesis HEHeaderOp : forall op exp i,
-          P exp -> P <{ H op exp @ i }>.
+          P exp -> P <{ HDR_OP op exp @ i }>.
 
       Hypothesis HEExprMember : forall (x : string tags_t)
                                   (ty : t tags_t) (ex : e tags_t) i,
@@ -801,7 +801,7 @@ Module P4cub.
                     (eind lhs) (eind rhs)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
-          | <{ H op exp @ i }> => HEHeaderOp op exp i (eind exp)
+          | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
           | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (eind exp)
           | <{ Error err @ i }> => HEError err i

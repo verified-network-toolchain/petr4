@@ -328,7 +328,7 @@ Module Typecheck.
                 (τ : E.t tags_t) (ts : F.fs tags_t (E.t tags_t)) :
       type_hdr_op op ts = τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
-      ⟦ errs, Γ ⟧ ⊢ H op e @ i ∈ τ
+      ⟦ errs, Γ ⟧ ⊢ HDR_OP op e @ i ∈ τ
   | chk_stack (ts : F.fs tags_t (E.t tags_t))
               (hs : list (E.e tags_t))
               (n : positive) (ni : N) :
@@ -347,10 +347,11 @@ Module Typecheck.
 
   (** Custom induction principle for expression typing. *)
   Section CheckExprInduction.
-    Context {tags_t : Type}.
+    Variable (tags_t : Type).
+
     (** An arbitrary predicate. *)
     Variable P : @errors tags_t -> @gamma tags_t -> E.e tags_t -> E.t tags_t -> Prop.
-    
+
     Hypothesis HBool : forall errs Γ b i,
       P errs Γ <{ BOOL b @ i }> {{ Bool }}.
     (**[]*)
@@ -491,7 +492,7 @@ Module Typecheck.
         type_hdr_op op ts = τ ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
         P errs Γ e {{ hdr { ts } }} ->
-        P errs Γ <{ H op e @ i }> τ.
+        P errs Γ <{ HDR_OP op e @ i }> τ.
     (**[]*)
 
     Hypothesis HStack : forall errs Γ ts hs n ni,

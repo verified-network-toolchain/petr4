@@ -14,7 +14,7 @@ Declare Custom Entry p4evalsignal.
 Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
          (at level 40, e custom p4expr, v custom p4value).
 
-Reserved Notation "⦑ ϵ , e ⦒ ⇓ lv"
+Reserved Notation "⧠ e ⇓ lv"
          (at level 40, e custom p4expr, lv custom p4lvalue).
 
 Reserved Notation "⟪ cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
@@ -435,7 +435,7 @@ Module Step.
                 (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
       eval_hdr_op op vs b = v ->
       ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-      ⟨ ϵ, H op e @ i ⟩ ⇓ v
+      ⟨ ϵ, HDR_OP op e @ i ⟩ ⇓ v
   | ebs_hdr_stack (ts : F.fs tags_t (E.t tags_t))
                   (hs : list (E.e tags_t))
                   (n : positive) (ni : N)
@@ -461,8 +461,7 @@ Module Step.
   (** A custom induction principle for
       the expression big-step relation. *)
   Section ExprEvalInduction.
-
-    Context {tags_t: Type}.
+    Variable (tags_t: Type).
 
     Variable P : @epsilon tags_t -> E.e tags_t -> V.v tags_t -> Prop.
 
@@ -595,7 +594,7 @@ Module Step.
         eval_hdr_op op vs b = v ->
         ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
         P ϵ e *{ HDR { vs } VALID:=b }* ->
-        P ϵ <{ H op e @ i }> v.
+        P ϵ <{ HDR_OP op e @ i }> v.
     (**[]*)
 
     Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
@@ -624,7 +623,7 @@ Module Step.
     (** Custom induction principle for
         the expression big-step relation.
         [Do induction ?H using custom_expr_big_step_ind]. *)
-    Definition custom_expr_big_step :
+    Definition custom_expr_big_step_ind :
       forall (ϵ : epsilon) (e : E.e tags_t)
         (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
       fix ebsind ϵ e v Hy :=
@@ -738,25 +737,25 @@ Module Step.
 
   End ExprEvalInduction.
 
-  Inductive lvalue_big_step {tags_t : Type} (ϵ : @epsilon tags_t) : E.e tags_t -> V.lv tags_t -> Prop :=
+  Inductive lvalue_big_step {tags_t : Type} : E.e tags_t -> V.lv tags_t -> Prop :=
   | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
-      ⦑ ϵ, Var x:τ @ i ⦒ ⇓ VAR x
+      ⧠ Var x:τ @ i ⇓ VAR x
   | lvbs_rec_member (e : E.e tags_t) (x : string tags_t)
                 (tfs : F.fs tags_t (E.t tags_t))
                 (i : tags_t) (lv : V.lv tags_t) :
-      ⦑ ϵ, e ⦒ ⇓ lv ->
-      ⦑ ϵ, Mem e:rec { tfs } dot x @ i ⦒ ⇓ lv DOT x
+      ⧠ e ⇓ lv ->
+      ⧠ Mem e:rec { tfs } dot x @ i ⇓ lv DOT x
   | lvbs_hdr_member (e : E.e tags_t) (x : string tags_t)
                     (tfs : F.fs tags_t (E.t tags_t))
                     (i : tags_t) (lv : V.lv tags_t):
-      ⦑ ϵ, e ⦒ ⇓ lv ->
-      ⦑ ϵ, Mem e:hdr { tfs } dot x @ i ⦒ ⇓ lv DOT x
+      ⧠ e ⇓ lv ->
+      ⧠ Mem e:hdr { tfs } dot x @ i ⇓ lv DOT x
   | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
                       (lv : V.lv tags_t) (n : N) :
       let w := 32%positive in
-      ⦑ ϵ, e ⦒ ⇓ lv ->
-      ⦑ ϵ, Access e[n] @ i ⦒ ⇓ lv[n]
-  where "⦑ ϵ , e ⦒ ⇓ lv" := (lvalue_big_step ϵ e lv).
+      ⧠ e ⇓ lv ->
+      ⧠ Access e[n] @ i ⇓ lv[n]
+  where "⧠ e ⇓ lv" := (lvalue_big_step e lv).
   (**[]*)
 
   (** Statement big-step semantics. *)
@@ -784,7 +783,7 @@ Module Step.
   | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
                (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
       lv_update lv v ϵ = ϵ' ->
-      ⦑ ϵ, e1 ⦒ ⇓ lv ->
+      ⧠ e1 ⇓ lv ->
       ⟨ ϵ, e2 ⟩ ⇓ v ->
       ⟪ cp, ts, aa, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
   | sbs_exit (i : tags_t) :
@@ -821,7 +820,7 @@ Module Step.
       F.relfs
         (P.rel_paramarg
            (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -841,7 +840,7 @@ Module Step.
       F.relfs
         (P.rel_paramarg
            (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -863,12 +862,12 @@ Module Step.
       F.relfs
         (P.rel_paramarg
            (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
       (* Lvalue Evaluation. *)
-      ⦑ ϵ, e ⦒ ⇓ lv ->
+      ⧠ e ⇓ lv ->
       (* Function evaluation. *)
       ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
       (* Copy-out. *)
@@ -888,7 +887,7 @@ Module Step.
       F.relfs
         (P.rel_paramarg
            (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⦑ ϵ, e ⦒ ⇓ lv))
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->

@@ -31,17 +31,25 @@ Module BitArith.
       if (n <? upper_bound)%N then n else maxN.
     (**[]*)
 
+    Lemma upper_bound_ge_1 : (1 <= upper_bound)%N.
+    Proof. unfold upper_bound; apply exp_ge_one; lia. Qed.
+
     Lemma return_bound_bound : forall n, bound (return_bound n).
     Proof.
       intros n; unfold return_bound, bound, maxN, upper_bound.
       destruct (n <? 2 ^ pos width)%N eqn:eqnn.
       - apply ltb_lt; auto.
-      - apply sub_lt; try lia.
-        apply exp_ge_one; lia.
+      - apply sub_lt; try lia; apply upper_bound_ge_1.
     Qed.
 
     (** Bitwise negation. *)
     Definition neg (n : N) : N := (maxN - n)%N.
+
+    Lemma neg_bound : forall n : N, bound (neg n).
+    Proof.
+      intros n; unfold bound, neg, maxN.
+      pose proof upper_bound_ge_1 as H. lia.
+    Qed.
 
     (** Saturating Addition *)
     Definition plus_sat (a b : N) : N := return_bound (a + b)%N.
@@ -49,15 +57,25 @@ Module BitArith.
     (** Modular Addition *)
     Definition plus_mod (a b : N) : N := (a + b) mod upper_bound.
 
+    Lemma plus_mod_bound : forall a b : N, bound (plus_mod a b).
+    Proof.
+      intros a b; unfold bound, plus_mod;
+        pose proof upper_bound_ge_1 as H.
+      apply mod_lt; lia.
+    Qed.
+
     (** Modular Subtraction *)
     Definition minus_mod (a b : N) : N :=
       let z := Z.sub (Z.of_N a) (Z.of_N b) in
       let z' := Z.modulo z (Z.of_N upper_bound) in
-      Z.to_N z'.
+      return_bound (Z.to_N z').
     (**[]*)
 
     (** Logical Right Shift *)
     Definition shift_right (a b : N) : N := return_bound (shiftr a b).
+
+    (** Left Shift *)
+    Definition shift_left (a b : N) : N := return_bound (shiftl a b).
 
     (** Bitwise And *)
     Definition bit_and (a b : N) := return_bound (land a b).
@@ -70,18 +88,19 @@ Module BitArith.
   End Operations.
 
   (** Bitwise concatination *)
-  Definition bit_concat (w2 : positive) (n1 n2 : N) : N :=
-    shiftl n1 (pos w2) + n2.
+  Definition bit_concat (w1 w2 : positive) (n1 n2 : N) : N :=
+    return_bound (w1 + w2) (shiftl n1 (pos w2) + n2).
   (**[]*)
 End BitArith.
 
 Ltac unfold_bit_operation :=
   match goal with
-  | |- context [ BitArith.neg _ ] => unfold BitArith.neg
+  (* | |- context [ BitArith.neg _ ] => unfold BitArith.neg *)
   | |- context [ BitArith.plus_sat _ _ ] => unfold BitArith.plus_sat
-  | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod
+  (* | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod *)
   | |- context [ BitArith.minus_mod _ _ ] => unfold BitArith.minus_mod
   | |- context [ BitArith.shift_right _ _ ] => unfold BitArith.shift_right
+  | |- context [ BitArith.shift_left _ _ ] => unfold BitArith.shift_left
   | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
   | |- context [ BitArith.bit_xor _ _ ] => unfold BitArith.bit_xor
   | |- context [ BitArith.bit_or _ _ ] => unfold BitArith.bit_or
@@ -106,6 +125,9 @@ Module IntArith.
 
     Definition upper_bound : Z := 2 ^ (pos width - 1).
 
+    Lemma upper_bound_ge_1 : (1 <= upper_bound)%Z.
+    Proof. unfold upper_bound; apply exp_ge_one; lia. Qed.
+
     Definition maxZ : Z := upper_bound - 1.
 
     Definition minZ : Z := - upper_bound.
@@ -125,19 +147,15 @@ Module IntArith.
 
     Lemma return_bound_bound : forall z, bound (return_bound z).
     Proof.
-      intros z; unfold return_bound, bound, minZ, maxZ, upper_bound.
-      destruct (z >? 2 ^ (pos width - 1) - 1)%Z eqn:eqnz.
+      intros z; unfold return_bound, bound, minZ, maxZ.
+      destruct (z >? upper_bound - 1)%Z eqn:eqnz.
       - clear z eqnz; split; try lia.
-        apply le_0_sub.
-        rewrite sub_opp_r.
-        assert (Hone : (1 <= 2 ^ (pos width - 1))%Z).
-        { apply exp_ge_one; lia. } lia.
+        pose proof upper_bound_ge_1; lia.
       - rewrite gtb_ltb in eqnz.
         apply ltb_ge in eqnz.
-        destruct (z <? - 2 ^ (pos width - 1))%Z eqn:eqnz'.
+        destruct (z <? - upper_bound)%Z eqn:eqnz'.
         + clear z eqnz eqnz' z; try lia.
-          assert (Hone : (1 <= 2 ^ (pos width - 1))%Z).
-          { apply exp_ge_one; lia. } lia.
+          pose proof upper_bound_ge_1; lia.
         + apply ltb_ge in eqnz'. lia.
     Qed.
 
@@ -151,10 +169,16 @@ Module IntArith.
     Definition minus_sat (a b : Z) : Z := return_bound (a - b)%Z.
 
     (** Modular Addition *)
-    Definition plus_mod (a b : Z) : Z := ((a + b) mod mod_amt)%Z.
+    Definition plus_mod (a b : Z) : Z := return_bound ((a + b) mod mod_amt)%Z.
 
     (** Modular Subtraction *)
-    Definition minus_mod (a b : Z) : Z := ((a - b) mod mod_amt)%Z.
+    Definition minus_mod (a b : Z) : Z := return_bound ((a - b) mod mod_amt)%Z.
+
+    Lemma mod_mod_amt_bound : forall z : Z, bound (z mod mod_amt)%Z.
+    Proof.
+      intros z; unfold bound, mod_amt, minZ, maxZ.
+      pose proof upper_bound_ge_1 as H; unfold upper_bound in *; split.
+    Abort.
 
     (** Arithmetic shift left *)
     Definition shift_left (a b : Z) : Z := return_bound (shiftl a b).

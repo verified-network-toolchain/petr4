@@ -36,24 +36,17 @@ Section BigStepTheorems.
     induction Hev using custom_expr_big_step_ind;
       intros t Ht; inv Ht; try constructor; eauto.
     - inv H2; auto.
-    - unfold BitArith.neg; unfold BitArith.bound;
-        unfold BitArith.maxN; unfold BitArith.upper_bound. admit.
-    - unfold IntArith.bound; unfold IntArith.neg;
-      unfold IntArith.return_bound; unfold IntArith.maxZ;
-        unfold IntArith.minZ. admit.
+    - apply BitArith.neg_bound.
+    - unfold_int_operation; apply IntArith.return_bound_bound.
     - apply IHHev1 in H10; auto; clear IHHev1.
       apply IHHev2 in H11; auto; clear IHHev2.
       destruct op; unfold eval_bit_binop in *;
         inv H; inv H9; constructor;
+          try apply BitArith.plus_mod_bound;
           try unfold_bit_operation;
           try apply BitArith.return_bound_bound.
-      + admit.
-      + admit.
-      + inv H10; inv H11.
-        unfold BitArith.bound, BitArith.upper_bound in *. lia.
-      + inv H10; inv H11.
-        unfold BitArith.bound, BitArith.upper_bound in *.
-        admit.
+      inv H10; inv H11.
+      unfold BitArith.bound, BitArith.upper_bound in *. lia.
     - destruct op; unfold eval_bool_binop in *;
         inv H; inv H9; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
@@ -61,15 +54,14 @@ Section BigStepTheorems.
     - unfold eval_bit_binop in *; inv H; constructor.
     - inv H10.
     - inv H10.
-    - inv H8; constructor. admit.
+    - inv H8; constructor.
+      unfold BitArith.bit_concat; apply BitArith.return_bound_bound.
     - apply IHHev1 in H10; auto; clear IHHev1.
       apply IHHev2 in H11; auto; clear IHHev2.
       destruct op; unfold eval_bit_binop in *;
         inv H; inv H9; constructor;
           unfold_int_operation;
-          try apply IntArith.return_bound_bound;
-          inv H10; inv H11;
-            unfold IntArith.mod_amt, IntArith.bound in *; admit.
+          try apply IntArith.return_bound_bound.
     - destruct op; unfold eval_bool_binop in *;
         inv H; inv H9; constructor.
     - inv H; constructor.
@@ -105,7 +97,7 @@ Section BigStepTheorems.
       + apply IHForall2; auto.
     - destruct op; simpl in *; constructor;
         pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH; auto.
-    - admit.
+    - rewrite H8. eapply Forall2_length; eauto.
     - clear n ni H5 H7 H8.
       rename H0 into Hhsvss; rename H9 into Hhs.
       induction H; inv Hhsvss; inv Hhs; constructor;

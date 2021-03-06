@@ -77,7 +77,7 @@ Module Step.
       | E.PlusSat  => Some (V.VBit w (BitArith.plus_sat w n1 n2))
       | E.Minus    => Some (V.VBit w (BitArith.minus_mod w n1 n2))
       | E.MinusSat => Some (V.VBit w (N.sub n1 n2))
-      | E.Shl      => Some (V.VBit w (N.shiftl n1 n2))
+      | E.Shl      => Some (V.VBit w (BitArith.shift_left w n1 n2))
       | E.Shr      => Some (V.VBit w (BitArith.shift_right w n1 n2))
       | E.Le       => Some (V.VBool (N.leb n1 n2))
       | E.Ge       => Some (V.VBool (N.leb n2 n1))
@@ -376,7 +376,7 @@ Module Step.
   | ebs_plusplus (e1 e2 : E.e tags_t) (i : tags_t)
                  (w w1 w2 : positive) (n n1 n2 : N) :
       (w1 + w2)%positive = w ->
-      BitArith.bit_concat w2 n1 n2 = n ->
+      BitArith.bit_concat w1 w2 n1 n2 = n ->
       ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
       ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
       ⟨ ϵ, BOP e1:bit<w1> ++ e2:bit<w2> @ i ⟩ ⇓ w VW n
@@ -514,7 +514,7 @@ Module Step.
 
     Hypothesis HPlusPlus : forall ϵ e1 e2 i w w1 w2 n n1 n2,
       (w1 + w2)%positive = w ->
-      BitArith.bit_concat w2 n1 n2 = n ->
+      BitArith.bit_concat w1 w2 n1 n2 = n ->
       ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
       P ϵ e1 *{ w1 VW n1 }* ->
       ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->

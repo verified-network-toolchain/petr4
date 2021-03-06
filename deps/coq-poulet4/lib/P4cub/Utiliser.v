@@ -7,7 +7,7 @@ Require Petr4.Typed. (** Names. *)
 Require Import Coq.Lists.List.
 Import ListNotations.
 
-(** * Useful functions *)
+(** * Useful Functions And Lemmas *)
 
 (** Update position [n] of list [l],
     or return [l] if [n] is too large. *)
@@ -19,6 +19,10 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   | S _, []  => []
   end.
 (**[]*)
+
+Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> length l1 = length l2.
+Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.
 
 (** * Option Equivalence *)
 

@@ -27,6 +27,7 @@ lib/Platform/Packet.v
 lib/Unroll.v
 lib/Semantics.v
 lib/Trans.v
+lib/HAList.v
 
 lib/P4defs.v
 
@@ -47,6 +48,7 @@ examples/TwoState.v
 examples/WeakestPre.v
 examples/BabyIP.v
 examples/SimpleIPv4Monadic.v
+examples/HAListExample.v
 
 examples/IPv6/Header.v
 examples/IPv6/Extensions/HopByHop.v

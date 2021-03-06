@@ -3,8 +3,10 @@ Require Import Coq.Lists.List.
 Require Import Coq.Program.Equality.
 Import ListNotations.
 
+Set Universe Polymorphism.
+
 Section HAList.
-  Parameter (K: Type).
+  Variable (K: Type).
   Context `{KEqDec: EqDec K eq}.
 
   Fixpoint alist_In {A} (k: K) (l: list (K * A)) :=
@@ -33,7 +35,7 @@ Section HAList.
     intros.
     destruct x.
     auto.
-  Qed.
+  Defined.
   Hint Resolve valid_key_nil: halist.
 
   Lemma valid_key_cons_In:
@@ -109,7 +111,7 @@ Section HAList.
       destruct (KEqDec k' k).
       + destruct p, q; reflexivity.
       + apply IHl.
-  Qed.
+  Defined.
 
   Lemma alist_get_cons:
     forall k (T: Type) fields x a0 (a1: alist_In x fields),
@@ -127,28 +129,23 @@ Section HAList.
       eapply alist_In_unique.
   Defined.
 
-  Definition get {signature} (l: t signature) (f: valid_key signature)
+  Fixpoint get {signature} (l: t signature) (f: valid_key signature)
     : alist_get signature f.
-    revert l.
-    revert f.
-    induction signature.
-    - intros.
-      exfalso.
-      eauto with halist.
-    - intros.
-      destruct f, a.
+    destruct signature as [|[k T] ?].
+    - exfalso.
+      eapply valid_key_nil.
+      exact f.
+    - destruct f.
+      pose proof (g := a).
+      simpl in g.
       destruct (KEqDec k x).
-      + simpl in a0.
-        inversion e.
-        subst.
+      + inversion e; subst.
         rewrite alist_get_hd.
         exact (fst l).
-      + pose proof (g := a0).
-        simpl in g.
-        destruct (KEqDec k x) in g; try congruence.
-        erewrite alist_get_cons with (a1:=g); eauto.
-        eapply IHsignature.
-        now inversion l.
+      + erewrite alist_get_cons with (a1:=g).
+        * eapply get, l.
+        * exact c.
   Defined.
 
 End HAList.
+

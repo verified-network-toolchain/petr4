@@ -36,7 +36,7 @@ Section BigStepTheorems.
     induction Hev using custom_expr_big_step_ind;
       intros t Ht; inv Ht; try constructor; eauto.
     - inv H2; auto.
-    - unfold BitArith.neg;  unfold BitArith.bound;
+    - unfold BitArith.neg; unfold BitArith.bound;
         unfold BitArith.maxN; unfold BitArith.upper_bound. admit.
     - unfold IntArith.bound; unfold IntArith.neg;
       unfold IntArith.return_bound; unfold IntArith.maxZ;
@@ -44,7 +44,16 @@ Section BigStepTheorems.
     - apply IHHev1 in H10; auto; clear IHHev1.
       apply IHHev2 in H11; auto; clear IHHev2.
       destruct op; unfold eval_bit_binop in *;
-        inv H; inv H9; constructor; admit.
+        inv H; inv H9; constructor;
+          try unfold_bit_operation;
+          try apply BitArith.return_bound_bound.
+      + admit.
+      + admit.
+      + inv H10; inv H11.
+        unfold BitArith.bound, BitArith.upper_bound in *. lia.
+      + inv H10; inv H11.
+        unfold BitArith.bound, BitArith.upper_bound in *.
+        admit.
     - destruct op; unfold eval_bool_binop in *;
         inv H; inv H9; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
@@ -56,7 +65,11 @@ Section BigStepTheorems.
     - apply IHHev1 in H10; auto; clear IHHev1.
       apply IHHev2 in H11; auto; clear IHHev2.
       destruct op; unfold eval_bit_binop in *;
-        inv H; inv H9; constructor; admit.
+        inv H; inv H9; constructor;
+          unfold_int_operation;
+          try apply IntArith.return_bound_bound;
+          inv H10; inv H11;
+            unfold IntArith.mod_amt, IntArith.bound in *; admit.
     - destruct op; unfold eval_bool_binop in *;
         inv H; inv H9; constructor.
     - inv H; constructor.

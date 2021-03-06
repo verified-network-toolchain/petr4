@@ -4,10 +4,18 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.micromega.Lia.
 
 (** * Unsigned Integers *)
 Module BitArith.
   Import N.
+
+  Lemma exp_ge_one : forall n1 n2 : N, (0 < n1)%N -> (1 <= n1 ^ n2)%N.
+  Proof.
+    intros n1 n2 H.
+    rewrite <- pow_0_r with n1.
+    apply pow_le_mono_r; lia.
+  Qed.
 
   Section Operations.
     Variable (width : positive).
@@ -22,6 +30,15 @@ Module BitArith.
     Definition return_bound (n : N) : N :=
       if (n <? upper_bound)%N then n else maxN.
     (**[]*)
+
+    Lemma return_bound_bound : forall n, bound (return_bound n).
+    Proof.
+      intros n; unfold return_bound, bound, maxN, upper_bound.
+      destruct (n <? 2 ^ pos width)%N eqn:eqnn.
+      - apply ltb_lt; auto.
+      - apply sub_lt; try lia.
+        apply exp_ge_one; lia.
+    Qed.
 
     (** Bitwise negation. *)
     Definition neg (n : N) : N := (maxN - n)%N.
@@ -58,9 +75,29 @@ Module BitArith.
   (**[]*)
 End BitArith.
 
+Ltac unfold_bit_operation :=
+  match goal with
+  | |- context [ BitArith.neg _ ] => unfold BitArith.neg
+  | |- context [ BitArith.plus_sat _ _ ] => unfold BitArith.plus_sat
+  | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod
+  | |- context [ BitArith.minus_mod _ _ ] => unfold BitArith.minus_mod
+  | |- context [ BitArith.shift_right _ _ ] => unfold BitArith.shift_right
+  | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
+  | |- context [ BitArith.bit_xor _ _ ] => unfold BitArith.bit_xor
+  | |- context [ BitArith.bit_or _ _ ] => unfold BitArith.bit_or
+  end.
+
 (** * Signed Integers *)
 Module IntArith.
   Import Z.
+
+  Lemma exp_ge_one : forall z1 z2,
+      (0 < z1)%Z -> (0 <= z2)%Z -> (1 <= z1 ^ z2)%Z.
+  Proof.
+    intros z1 z2 Hz1 Hz2.
+    rewrite <- pow_0_r with z1.
+    apply pow_le_mono_r; lia.
+  Qed.
 
   Section Operations.
     Variable (width : positive).
@@ -85,6 +122,24 @@ Module IntArith.
         else
           z.
     (**[]*)
+
+    Lemma return_bound_bound : forall z, bound (return_bound z).
+    Proof.
+      intros z; unfold return_bound, bound, minZ, maxZ, upper_bound.
+      destruct (z >? 2 ^ (pos width - 1) - 1)%Z eqn:eqnz.
+      - clear z eqnz; split; try lia.
+        apply le_0_sub.
+        rewrite sub_opp_r.
+        assert (Hone : (1 <= 2 ^ (pos width - 1))%Z).
+        { apply exp_ge_one; lia. } lia.
+      - rewrite gtb_ltb in eqnz.
+        apply ltb_ge in eqnz.
+        destruct (z <? - 2 ^ (pos width - 1))%Z eqn:eqnz'.
+        + clear z eqnz eqnz' z; try lia.
+          assert (Hone : (1 <= 2 ^ (pos width - 1))%Z).
+          { apply exp_ge_one; lia. } lia.
+        + apply ltb_ge in eqnz'. lia.
+    Qed.
 
     (** Negation. *)
     Definition neg (z : Z) : Z := return_bound (Z.opp z).
@@ -122,3 +177,17 @@ Module IntArith.
     shiftl z1 (pos w2) + z2.
   (**[]*)
 End IntArith.
+
+Ltac unfold_int_operation :=
+  match goal with
+  | |- context [ IntArith.neg _ ] => unfold IntArith.neg
+  | |- context [ IntArith.plus_sat _ _ ] => unfold IntArith.plus_sat
+  | |- context [ IntArith.minus_sat _ _ ] => unfold IntArith.minus_sat
+  | |- context [ IntArith.plus_mod _ _ ] => unfold IntArith.plus_mod
+  | |- context [ IntArith.minus_mod _ _ ] => unfold IntArith.minus_mod
+  | |- context [ IntArith.shift_right _ _ ] => unfold IntArith.shift_right
+  | |- context [ IntArith.shift_left _ _ ] => unfold IntArith.shift_left
+  | |- context [ IntArith.bit_and _ _ ] => unfold IntArith.bit_and
+  | |- context [ IntArith.bit_xor _ _ ] => unfold IntArith.bit_xor
+  | |- context [ IntArith.bit_or _ _ ] => unfold IntArith.bit_or
+  end.

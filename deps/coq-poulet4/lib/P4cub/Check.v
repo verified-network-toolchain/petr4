@@ -282,10 +282,10 @@ Module Typecheck.
   | chk_plusplus_bit (τ : E.t tags_t) (m n w : positive)
                      (e1 e2 : E.e tags_t) (i : tags_t) :
       (m + n)%positive = w ->
-      numeric_width n τ ->
+      (* numeric_width n τ -> *)
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:bit<m> ++ e2:τ @ i ∈ bit<w>
+      ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
+      ⟦ errs , Γ ⟧ ⊢ BOP e1:bit<m> ++ e2:bit<n> @ i ∈ bit<w>
   (* Member expressions. *)
   | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
                 (fields : F.fs tags_t (E.t tags_t))
@@ -431,12 +431,12 @@ Module Typecheck.
 
     Hypothesis HPlusPlus : forall errs Γ τ m n w e1 e2 i,
         (m + n)%positive = w ->
-        numeric_width n τ ->
+        (* numeric_width n τ -> *)
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
         P errs Γ e1 {{ bit<m> }} ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+        ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
         P errs Γ e2 τ ->
-        P errs Γ <{ BOP e1:bit<m> ++ e2:τ @ i }> {{ bit<w> }}.
+        P errs Γ <{ BOP e1:bit<m> ++ e2:bit<n> @ i }> {{ bit<w> }}.
     (**[]*)
 
     Hypothesis HHdrMem : forall errs Γ e x fields τ i,
@@ -598,10 +598,9 @@ Module Typecheck.
                                   He1 (chind _ _ _ _ He1)
                                   He2 (chind _ _ _ _ He2)
             | chk_plusplus_bit _ _ _ _ _ _ _ _ i
-                               Hmnw Hnum
+                               Hmnw
                                He1 He2 => HPlusPlus
-                                           _ _ _ _ _ _ _ _ i
-                                           Hmnw Hnum
+                                           _ _ _ _ _ _ _ _ i Hmnw
                                            He1 (chind _ _ _ _ He1)
                                            He2 (chind _ _ _ _ He2)
             | chk_hdr_mem _ _ _ x _ _ i

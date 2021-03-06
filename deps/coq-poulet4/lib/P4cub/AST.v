@@ -86,6 +86,48 @@ Module Field.
                         else get x fds
       end.
 
+    Lemma relfs_get_l : forall {U V : Type} x (u : U) us vs R,
+        relfs R us vs ->
+        get x us = Some u -> exists v : V, get x vs = Some v /\ R u v.
+    Proof.
+      intros U V x u us vs R HRs.
+      generalize dependent x;
+        generalize dependent u.
+      induction HRs; intros u z Hu;
+        simpl in *; try discriminate;
+      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu. exists v'; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
+
+    Lemma relfs_get_r : forall {U V : Type} x (v : V) us vs R,
+        relfs R us vs ->
+        get x vs = Some v -> exists u : U, get x us = Some u /\ R u v.
+    Proof.
+      intros U V x v us vs R HRs.
+      generalize dependent x;
+        generalize dependent v.
+      induction HRs; intros v z Hu;
+        simpl in *; try discriminate;
+      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu. exists u'; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
+
     Lemma get_relfs : forall {U V : Type} x (u : U) (v : V) us vs R,
         get x us = Some u -> get x vs = Some v ->
         relfs R us vs -> R u v.

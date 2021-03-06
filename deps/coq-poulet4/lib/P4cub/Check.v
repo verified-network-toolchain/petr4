@@ -290,13 +290,13 @@ Module Typecheck.
   | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
                 (fields : F.fs tags_t (E.t tags_t))
                 (τ : E.t tags_t) (i : tags_t) :
-      In (x, τ) fields ->
+      F.get x fields = Some τ ->
       ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
       ⟦ errs , Γ ⟧ ⊢ Mem e:hdr { fields } dot x @ i ∈ τ
   | chk_rec_mem (e : E.e tags_t) (x : string tags_t)
                 (fields : F.fs tags_t (E.t tags_t))
                 (τ : E.t tags_t) (i : tags_t) :
-      In (x, τ) fields ->
+      F.get x fields = Some τ ->
       ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
       ⟦ errs , Γ ⟧ ⊢ Mem e:rec { fields } dot x @ i ∈ τ
   (* Structs. *)
@@ -430,27 +430,27 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HPlusPlus : forall errs Γ τ m n w e1 e2 i,
-      (m + n)%positive = w ->
-      numeric_width n τ ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
-      P errs Γ e1 {{ bit<m> }} ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      P errs Γ e2 τ ->
-      P errs Γ <{ BOP e1:bit<m> ++ e2:τ @ i }> {{ bit<w> }}.
+        (m + n)%positive = w ->
+        numeric_width n τ ->
+        ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
+        P errs Γ e1 {{ bit<m> }} ->
+        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+        P errs Γ e2 τ ->
+        P errs Γ <{ BOP e1:bit<m> ++ e2:τ @ i }> {{ bit<w> }}.
     (**[]*)
 
     Hypothesis HHdrMem : forall errs Γ e x fields τ i,
-      In (x, τ) fields ->
-      ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
-      P errs Γ e {{ hdr { fields } }} ->
-      P errs Γ <{ Mem e:hdr { fields } dot x @ i }> τ.
+        F.get x fields = Some τ ->
+        ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
+        P errs Γ e {{ hdr { fields } }} ->
+        P errs Γ <{ Mem e:hdr { fields } dot x @ i }> τ.
     (**[]*)
 
     Hypothesis HRecMem : forall errs Γ e x fields τ i,
-      In (x, τ) fields ->
-      ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
-      P errs Γ e {{ rec { fields } }} ->
-      P errs Γ <{ Mem e:rec { fields } dot x @ i }> τ.
+        F.get x fields = Some τ ->
+        ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
+        P errs Γ e {{ rec { fields } }} ->
+        P errs Γ <{ Mem e:rec { fields } dot x @ i }> τ.
     (**[]*)
 
     Hypothesis HRecLit : forall errs Γ efs tfs i,

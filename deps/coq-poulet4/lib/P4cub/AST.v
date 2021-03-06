@@ -86,6 +86,29 @@ Module Field.
                         else get x fds
       end.
 
+    Lemma get_relfs : forall {U V : Type} x (u : U) (v : V) us vs R,
+        get x us = Some u -> get x vs = Some v ->
+        relfs R us vs -> R u v.
+    Proof.
+      intros U V x u v us vs R Hu Hv HRs.
+      generalize dependent x;
+        generalize dependent v;
+        generalize dependent u.
+      induction HRs; intros u v z Hu Hv;
+        simpl in *; try discriminate.
+      destruct x as [xu u']; destruct y as [xv v']; simpl in *.
+      inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu; inv Hv; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
+
     (** Member update. *)
     Fixpoint update {U : Type} (x : string tags_t) (u : U)
              (fds : fs tags_t U) : fs tags_t U :=

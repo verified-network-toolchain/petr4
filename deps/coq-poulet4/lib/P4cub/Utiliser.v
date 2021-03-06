@@ -20,6 +20,14 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   end.
 (**[]*)
 
+Lemma Forall_nth_error : forall {A : Type} (P : A -> Prop) l n a,
+    Forall P l -> nth_error l n = Some a -> P a.
+Proof.
+  intros A P l n a HPl Hnth.
+  eapply Forall_forall in HPl; eauto.
+  eapply nth_error_In; eauto.
+Qed.
+
 Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
     Forall2 R l1 l2 -> length l1 = length l2.
 Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.

@@ -22,7 +22,7 @@ Section BigStepTheorems.
       Γ x = Some τ -> ϵ x = Some v -> ∇ errs ⊢ v ∈ τ.
   (**[]*)
 
-  Theorem big_step_preservation :
+  Theorem expr_big_step_preservation :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
       (τ : E.t tags_t) (ϵ : epsilon) (v : V.v tags_t),
       envs_type errs Γ ϵ ->
@@ -68,14 +68,10 @@ Section BigStepTheorems.
     - inv H; constructor.
     - inv H9.
     - inv H9.
-    - pose proof IHHev Het _ H6 as IH; clear IHHev.
-      inv IH. Search (In _ ?l -> Forall2 _ ?l _ -> _).
-      (** TODO: Need lemma:
-          [forall R x1 l1 l2, In x1 l1 -> Forall2 R l1 l2 -> exists x2, In x2 l2 /\ R x1 x2],
-          and some Field-specific lemma:
-          [forall x a1 a2 l1 l2 R, F.get x l1 = Some a1 -> F.get x l2 = a2 ->]
-          [F.relfs R l1 l2 -> R a1 a2] *) admit.
-    - admit.
+    - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
+      eapply F.get_relfs in H2; eauto.
+    - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
+      eapply F.get_relfs in H1; eauto.
     - generalize dependent tfs; rename H0 into Hesvs.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
@@ -102,6 +98,8 @@ Section BigStepTheorems.
       rename H0 into Hhsvss; rename H9 into Hhs.
       induction H; inv Hhsvss; inv Hhs; constructor;
         destruct y as [b vs]; eauto.
-    - (* TODO: about a specific header in the header stack. *) admit.
-  Abort.
+    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
+      eapply Forall_nth_error in H11; eauto; simpl in *.
+      inv H11; auto.
+  Qed.
 End BigStepTheorems.

@@ -40,8 +40,7 @@ Module Field.
     Context {tags_t : Type}.
 
     (** Predicate on a field's data. *)
-    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop :=
-      fun '(_, t) => P t.
+    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop := P ∘ snd.
     (**[]*)
 
     (** Predicate over every data in fields. *)
@@ -578,6 +577,47 @@ Module P4cub.
         Qed.
       End TypeEquivalence.
     End TypeEquivalence.
+
+    (** Restrictions on type-nesting. *)
+    Module ProperType.
+      Import TypeNotations.
+
+      Section ProperTypeNesting.
+        Context {tags_t : Type}.
+
+        (** Evidence a type is a base type. *)
+        Inductive base_type : t tags_t -> Prop :=
+        | base_bool : base_type {{ Bool }}
+        | base_bit (w : positive) : base_type {{ bit<w> }}
+        | base_int (w : positive) : base_type {{ int<w> }}.
+
+        (** Allowed types within headers. *)
+        Inductive proper_inside_header : t tags_t -> Prop :=
+        | pih_bool (τ : t tags_t) :
+            base_type τ ->
+            proper_inside_header τ
+        | pih_record (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data base_type ts ->
+            proper_inside_header {{ rec { ts } }}.
+
+        (** Properly nested type. *)
+        Inductive proper_nesting : t tags_t -> Prop :=
+        | pn_base (τ : t tags_t) :
+            base_type τ -> proper_nesting τ
+        | pn_error : proper_nesting {{ error }}
+        | pn_matchkind : proper_nesting {{ matchkind }}
+        | pn_record (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data proper_nesting ts ->
+            proper_nesting {{ rec { ts } }}
+        | pn_header (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data proper_inside_header ts ->
+            proper_nesting {{ rec { ts } }}
+        | pn_header_stack (ts : F.fs tags_t (t tags_t))
+                          (n : positive) :
+            F.predfs_data proper_inside_header ts ->
+            proper_nesting {{ stack ts[n] }}.
+      End ProperTypeNesting.
+    End ProperType.
 
     Inductive uop : Set :=
     | Not    (* boolean negation *)

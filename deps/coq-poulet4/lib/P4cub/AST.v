@@ -611,7 +611,7 @@ Module P4cub.
             proper_nesting {{ rec { ts } }}
         | pn_header (ts : F.fs tags_t (t tags_t)) :
             F.predfs_data proper_inside_header ts ->
-            proper_nesting {{ rec { ts } }}
+            proper_nesting {{ hdr { ts } }}
         | pn_header_stack (ts : F.fs tags_t (t tags_t))
                           (n : positive) :
             F.predfs_data proper_inside_header ts ->

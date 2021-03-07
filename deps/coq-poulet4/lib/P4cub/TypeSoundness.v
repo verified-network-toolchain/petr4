@@ -95,7 +95,7 @@ Section BigStepTheorems.
     - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
       eapply F.get_relfs in H2; eauto.
     - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
-      eapply F.get_relfs in H1; eauto.
+      eapply F.get_relfs in H4; eauto.
     - generalize dependent tfs; rename H0 into Hesvs.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
@@ -105,7 +105,7 @@ Section BigStepTheorems.
           try (transitivity x; auto; symmetry; assumption);
           destruct H2; auto.
       + apply IHForall2; auto.
-    - clear e H6 IHHev Hev.
+    - clear e H4 H7 IHHev Hev.
       generalize dependent tfs; rename H0 into Hesvs.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
@@ -118,13 +118,15 @@ Section BigStepTheorems.
     - destruct op; simpl in *; constructor;
         pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH; auto.
     - rewrite H8. eapply Forall2_length; eauto.
-    - clear n ni H5 H7 H8.
-      rename H0 into Hhsvss; rename H9 into Hhs.
+    - clear n ni H5 H6 H8 H9.
+      rename H0 into Hhsvss; rename H10 into Hhs.
       induction H; inv Hhsvss; inv Hhs; constructor;
         destruct y as [b vs]; eauto.
     - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
-      eapply Forall_nth_error in H11; eauto; simpl in *.
-      inv H11; auto.
+      inv H11. inv H0. apply PT.pn_header. assumption.
+    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
+      eapply Forall_nth_error in H12; eauto; simpl in *.
+      inv H12; auto.
   Qed.
 
   Theorem expr_big_step_progress :
@@ -136,9 +138,7 @@ Section BigStepTheorems.
   Proof.
     intros errs Γ τ e ϵ [Htyp Hsub] Ht.
     unfold envs_subset, envs_type in *.
-    (* generalize dependent ϵ. *)
-    induction Ht using custom_check_ind;
-      (* intros ϵ Het; *)
+    induction Ht using custom_check_expr_ind;
       try (eexists; constructor; assumption).
     - apply Hsub in H. destruct H as [v H'].
       exists v; constructor; auto.
@@ -208,7 +208,7 @@ Section BigStepTheorems.
         econstructor; eauto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
-      eapply F.relfs_get_r in H2 as [v [Hget HR]]; eauto.
+      eapply F.relfs_get_r in H3 as [v [Hget HR]]; eauto.
       exists v. econstructor; eauto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
@@ -228,12 +228,16 @@ Section BigStepTheorems.
         exists (V.VRecord ((x,v)::vs)). repeat constructor; auto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
+      rename H into HPT; rename H0 into H; rename H1 into H0.
       induction H; inv H0.
       + exists *{ HDR { [] } VALID:=b0 }*. repeat constructor; auto.
       + destruct x as [x [τ e]]. destruct y as [x' τ'].
         rename l into es. rename l' into ts.
         repeat invert_relf; simpl in *.
-        pose proof IHForall2 H7 as [v IHs]; clear IHForall2 H7.
+        assert (HPT' : PT.proper_nesting {{ hdr { ts } }}).
+        { inv HPT. inv H. inv H5.
+          apply PT.pn_header; assumption. }
+        pose proof IHForall2 HPT' H7 as [v IHs]; clear IHForall2 H7.
         assert (Hes : ⟦ errs, Γ ⟧ ⊢ hdr {es} valid:=b @ i ∈ hdr {ts}).
         { econstructor; eauto. }
         pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IHs Hes as HP; inv HP.
@@ -248,10 +252,10 @@ Section BigStepTheorems.
       + exists *{ HDR {vs} VALID:=false}*. econstructor; simpl; eauto.
     - generalize dependent n;
         generalize dependent ni.
-      induction H2; inv H3; intros ni n Hbound Hni Hlen;
+      induction H3; inv H4; intros ni n Hbound Hni Hlen Hproper;
         simpl in *; try lia.
       rename l into hs.
-      pose proof H4 Htyp Hsub as [v IH]; clear H4.
+      pose proof H2 Htyp Hsub as [v IH]; clear H2.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH H as HP; inv HP.
       destruct hs as [| h hs]; simpl in *.
       + assert (Hn : n = 1%positive) by lia.
@@ -262,7 +266,10 @@ Section BigStepTheorems.
         { unfold BitArith.bound in *; lia. }
         assert (Hni' : (ni - 1 < N.pos (n - 1))%N) by lia.
         assert (Hlen' : (to_nat (n - 1)%positive = 1 + (length hs))%nat) by lia.
-        simpl in *. pose proof IHs Hbound' Hni' Hlen' as [v IHs']; clear IHs.
+        assert (Hproper' : PT.proper_nesting (E.THeaderStack ts (n-1)%positive)).
+        { inv Hproper. inv H0.
+          apply PT.pn_header_stack. assumption. }
+        simpl in *. pose proof IHs Hbound' Hni' Hlen' Hproper' as [v IHs']; clear IHs.
         assert (Hstk : check_expr
                            errs Γ
                            (E.EHeaderStack ts (h::hs) (n-1) (ni-1))
@@ -275,7 +282,7 @@ Section BigStepTheorems.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       assert (Hidx : N.to_nat idx < length hs) by lia.
       pose proof nth_error_exists _ _ Hidx as [[b vs] Hnth].
-      pose proof Forall_nth_error _ _ _ _ H6 Hnth as HP; simpl in *.
+      pose proof Forall_nth_error _ _ _ _ H7 Hnth as HP; simpl in *.
       exists *{ HDR {vs} VALID:=b }*. econstructor; eauto.
   Qed.
 End BigStepTheorems.

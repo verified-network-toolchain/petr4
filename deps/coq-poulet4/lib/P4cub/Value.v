@@ -9,6 +9,7 @@ Require Import P4Arith.
 
 Module E := P4cub.Expr.
 Module TE := E.TypeEquivalence.
+Module PT := E.ProperType.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -616,6 +617,7 @@ Module ValueTyping.
       ∇ errs ⊢ REC { vs } ∈ rec { ts }
   | typ_hdr (vs : Field.fs tags_t (v tags_t)) (b : bool)
             (ts : Field.fs tags_t (E.t tags_t)) :
+      PT.proper_nesting {{ hdr { ts } }} ->
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
       ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
   | typ_error (err : option (string tags_t)) :
@@ -631,6 +633,7 @@ Module ValueTyping.
                     (n : positive) (ni : N) :
       BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
       Pos.to_nat n = length hs ->
+      PT.proper_nesting {{ stack ts[n] }} ->
       Forall
         (fun bvs =>
            let b := fst bvs in
@@ -671,6 +674,7 @@ Module ValueTyping.
         P errs *{ REC { vs } }* {{ rec { ts } }}.
 
     Hypothesis HHeader : forall errs vs b ts,
+        PT.proper_nesting {{ hdr { ts } }} ->
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
         P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}.
@@ -678,6 +682,7 @@ Module ValueTyping.
     Hypothesis HStack : forall errs ts hs n ni,
         BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
         Pos.to_nat n = length hs ->
+        PT.proper_nesting {{ stack ts[n] }} ->
         Forall
           (fun bvs =>
              let b := fst bvs in
@@ -734,10 +739,10 @@ Module ValueTyping.
             | typ_matchkind _ mk => HMatchkind _ mk
             | typ_error _ _ Herr => HError _ _ Herr
             | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
-            | typ_hdr _ _ b _ Hfs => HHeader _ _ b _ Hfs (fsind Hfs)
-            | typ_headerstack _ _ _ _ _ Hbound Hni Hlen
+            | typ_hdr _ _ b _ HP Hfs => HHeader _ _ b _ HP Hfs (fsind Hfs)
+            | typ_headerstack _ _ _ _ _ Hbound Hni Hlen HP
                               Hhs => HStack _ _ _ _ _
-                                           Hbound Hni Hlen
+                                           Hbound Hni Hlen HP
                                            Hhs (hsind Hhs)
             end.
   End ValueTypingInduction.

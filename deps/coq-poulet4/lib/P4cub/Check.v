@@ -36,8 +36,8 @@ Module Typecheck.
   Module P := P4cub.
 
   Module E := P.Expr.
-
   Import E.TypeEquivalence.
+  Module PT := E.ProperType.
 
   Module ST := P.Stmt.
   Module D := P.Decl.
@@ -213,7 +213,7 @@ Module Typecheck.
           good_signal (P.Arrow params (Some ret)) SIG_Return.
     (**[]*)
 
-(** Valid parser states. *)
+    (** Valid parser states. *)
     Definition states : Type := strs.
   End TypeCheckDefs.
 
@@ -242,6 +242,7 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ w S n @ i ∈ int<w>
   | chk_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
       Γ x = Some τ ->
+      PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
   (* Unary operations. *)
   | chk_not (e : E.e tags_t) (i : tags_t) :
@@ -311,6 +312,7 @@ Module Typecheck.
   | chk_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                 (tfs : F.fs tags_t (E.t tags_t))
                 (i : tags_t) (b : E.e tags_t) :
+      PT.proper_nesting {{ hdr { tfs } }} ->
       F.relfs
         (fun te τ =>
            equivt (fst te) τ /\
@@ -334,6 +336,7 @@ Module Typecheck.
               (n : positive) (ni : N) :
       BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
       Pos.to_nat n = length hs ->
+      PT.proper_nesting {{ stack ts[n] }} ->
       Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
       ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
   | chk_access (e : E.e tags_t) (idx : N) (i : tags_t)
@@ -365,7 +368,9 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HVar : forall errs Γ x τ i,
-        Γ x = Some τ -> P errs Γ <{ Var x:τ @ i }> τ.
+        Γ x = Some τ ->
+        PT.proper_nesting τ ->
+        P errs Γ <{ Var x:τ @ i }> τ.
     (**[]*)
 
     Hypothesis HNot : forall errs Γ e i,
@@ -466,6 +471,7 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HHdrLit : forall errs Γ efs tfs i b,
+        PT.proper_nesting {{ hdr { tfs } }} ->
         F.relfs
           (fun te τ =>
              equivt (fst te) τ /\
@@ -498,6 +504,7 @@ Module Typecheck.
     Hypothesis HStack : forall errs Γ ts hs n ni,
         BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
         Pos.to_nat n = length hs ->
+        PT.proper_nesting {{ stack ts[n] }} ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
         Forall (fun e => P errs Γ e {{ hdr { ts } }}) hs ->
         P errs Γ <{ Stack hs:ts[n] nextIndex:=ni }> {{ stack ts[n] }}.
@@ -511,8 +518,8 @@ Module Typecheck.
     (**[]*)
 
     (** Custom induction principle for expression typing.
-        Do [induction ?H using custom_check_ind]. *)
-    Definition custom_check_ind :
+        Do [induction ?H using custom_check_expr_ind]. *)
+    Definition custom_check_expr_ind :
       forall (errs : errors) (Γ : gamma) (e : E.e tags_t) (τ : E.t tags_t)
         (HY : ⟦ errs, Γ ⟧ ⊢ e ∈ τ), P errs Γ e τ :=
           fix chind errs Γ e τ HY :=
@@ -558,7 +565,7 @@ Module Typecheck.
             | chk_bool _ _ b i     => HBool errs Γ b i
             | chk_bit _ _ _ _ i HB => HBit _ _ _ _ i HB
             | chk_int _ _ _ _ i HB => HInt _ _ _ _ i HB
-            | chk_var _ _ _ _ i HV => HVar _ _ _ _ i HV
+            | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
             | chk_not _ _ _ i He   => HNot
                                        _ _ _ i He
                                        (chind _ _ _ _ He)
@@ -622,13 +629,13 @@ Module Typecheck.
                                   _ _ _ _ i
                                   HRs (fields_ind HRs)
             | chk_hdr_lit _ _ _ _ i _
-                          HRs Hb => HHdrLit
-                                     _ _ _ _ i _
-                                     HRs (fields_ind HRs)
-                                     Hb (chind _ _ _ _ Hb)
+                          HP HRs Hb => HHdrLit
+                                        _ _ _ _ i _ HP
+                                        HRs (fields_ind HRs)
+                                        Hb (chind _ _ _ _ Hb)
             | chk_stack _ _ _ _ _ ni
-                        Hn Hnin
-                        Hlen HRs => HStack _ _ _ _ _ ni Hn Hnin Hlen HRs (lind HRs)
+                        Hn Hnin Hlen
+                        HP HRs => HStack _ _ _ _ _ ni Hn Hnin Hlen HP HRs (lind HRs)
             | chk_access _ _ _ _ i _ _
                          Hidx He => HAccess _ _ _ _ i _ _ Hidx
                                            He (chind _ _ _ _ He)
@@ -726,6 +733,7 @@ Module Typecheck.
           (ins : ienv) (errs : errors)
           (Γ : gamma) : D.d tags_t -> gamma -> ienv -> Prop :=
   | chk_vardeclare (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+      PT.proper_nesting τ ->
       let x' := bare x in
       ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Var x:τ @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
   | chk_varinit (τ : E.t tags_t) (x : string tags_t)

@@ -6,6 +6,7 @@ Require Petr4.P4String. (** Strings. *)
 Require Petr4.Typed. (** Names. *)
 Require Import Coq.Lists.List.
 Import ListNotations.
+Require Import Coq.micromega.Lia.
 
 (** * Useful Functions And Lemmas *)
 
@@ -19,6 +20,15 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   | S _, []  => []
   end.
 (**[]*)
+
+Lemma nth_error_exists : forall {A:Type} (l : list A) n,
+    n < length l -> exists a, nth_error l n = Some a.
+Proof.
+  intros A l; induction l as [| h t IHt];
+    intros [] Hnl; simpl in *; try lia.
+  - exists h; reflexivity.
+  - apply IHt; lia.
+Qed.
 
 Lemma Forall_nth_error : forall {A : Type} (P : A -> Prop) l n a,
     Forall P l -> nth_error l n = Some a -> P a.

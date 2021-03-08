@@ -7,6 +7,7 @@ Require Import P4String.
 
 Require Import Environment.
 Require Import Petr4.Monads.Monad.
+Require Import Petr4.Monads.P4Monad.
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 
@@ -54,6 +55,42 @@ Definition eval_parser pkt parser : option (Value * list bool) :=
 
 Inductive bits_repr (n: nat) : bits n -> @ValueBase P4defs.Info -> Prop :=
 .
+
+Definition get_header_field (v: @Value P4defs.Info) (field: string) : option (@ValueBase P4defs.Info).
+Admitted.
+
+Inductive type_repr: forall (t: Type), t -> @ValueBase P4defs.Info -> Prop :=
+| BitsRepr: forall n u v,
+    bits_repr n u v ->
+    type_repr (bits n) u v.
+
+Fixpoint header_repr  (fields: list (string * Type)) (v: @Value P4defs.Info) (rec: HAList.t _ fields) {struct fields}: Prop.
+  revert rec.
+  refine (match fields as f return HAList.t _ f -> Prop with
+          | [] => fun rec => True
+          | (field_name, type) :: rest => _
+          end).
+  intro rec.
+  refine (exists field_val,
+             get_header_field v field_name = Some field_val /\
+             type_repr type _ field_val /\
+             header_repr rest v (snd rec)).
+  refine (let field_valid := (_ : @HAList.valid_key _ _ StrEqDec _ ((field_name, type) :: rest)) in _).
+  Unshelve.
+  all:swap 1 2.
+  {
+    unfold HAList.valid_key.
+    exists field_name.
+    cbn.
+    destruct (StrEqDec field_name field_name); try congruence.
+    exact I.
+  }
+  
+
+
+    
+
+  
 
 Inductive header_repr_ip: @Value P4defs.Info -> IPHeader -> Prop :=
 | IPRepr: forall src_v dest_v proto_v src_b dest_b proto_b,

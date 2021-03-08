@@ -147,5 +147,9 @@ Section HAList.
         * exact c.
   Defined.
 
+  Definition set {signature} (l: t signature) (f: valid_key signature) (v: alist_get signature f)
+    : t signature.
+  Admitted.
+
 End HAList.
 

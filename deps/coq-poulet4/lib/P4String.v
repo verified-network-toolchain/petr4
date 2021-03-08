@@ -1,6 +1,13 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Bool.Bool.
+Require Import Coq.Classes.EquivDec.
+
+Instance StrEqDec:EqDec string eq.
+Proof.
+  unfold EqDec.
+  apply string_dec.
+Defined.
 
 Record t (tags_t: Type) :=
   { tags: tags_t;

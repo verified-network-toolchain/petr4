@@ -5,7 +5,7 @@ Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import P4cub.AST.
 Require Import Envn.
-Require Import P4Arith.
+Require Import P4cub.P4Arith.
 
 Module E := P4cub.Expr.
 Module TE := E.TypeEquivalence.

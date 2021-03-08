@@ -101,13 +101,12 @@ Section WeakestPre.
                 in weakest_precondition_arguments params' args' post' env_inter
             in let '(MkParameter _ dir _ _ _) := param in
             match dir with
-            | In => weakest_precondition_expression arg inter env_pre
-            (* TODO: @Tobias, please check these out? *)
-            (* | Out =>
+            | Typed.In => weakest_precondition_expression arg inter env_pre
+            | Out =>
               let inter' := fun '(env_inter, val) =>
                   inter (env_inter, ValLvalue val)
-              in weakest_precondition_expression_lvalue arg inter' env_pre *)
-            (* | _ => False *)
+              in weakest_precondition_expression_lvalue arg inter' env_pre
+            | _ => False
             end
           | (None :: args', param :: params') =>
             let post' := fun '(env_post, vals) =>
@@ -152,9 +151,7 @@ Section WeakestPre.
             simpl.
             exact H.
           -- simpl in H.
-  Admitted.
-          (* TODO: it looks like an lvalue refactoring broke this? *)
-            (* apply weakest_precondition_expression_lvalue_correct in H.
+            apply weakest_precondition_expression_lvalue_correct in H.
             case_eq (eval_lvalue tags_t expr env_pre).
             intros s env_inter eval_lvalue_result.
             rewrite eval_lvalue_result in H.
@@ -180,7 +177,7 @@ Section WeakestPre.
           rewrite eval_arguments_result.
           simpl.
           exact H.
-  Qed. *)
+  Qed. 
 
   Definition weakest_precondition_method_call
     (callee: @Expression tags_t)

@@ -71,9 +71,8 @@ Section BigStepTheorems.
           try unfold_bit_operation;
           try apply BitArith.return_bound_bound.
       inv H10; inv H11.
-      (* unfold BitArith.bound, BitArith.upper_bound in *. lia. *)
-  Admitted.
-    (* - destruct op; unfold eval_bool_binop in *;
+      unfold BitArith.bound, BitArith.upper_bound in *. lia.
+    - destruct op; unfold eval_bool_binop in *;
         inv H; inv H9; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
@@ -128,7 +127,7 @@ Section BigStepTheorems.
     - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
       eapply Forall_nth_error in H12; eauto; simpl in *.
       inv H12; auto.
-  Qed. *)
+  Qed.
 
   Theorem expr_big_step_progress :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)

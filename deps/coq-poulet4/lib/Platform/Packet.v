@@ -6,7 +6,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.Monad.
 Require Import Monads.State.
 
-Require Import Environment.
+Require Import Environment.Environment.
 Require Import Utils.
 Require Import Syntax.
 Require Import Typed.

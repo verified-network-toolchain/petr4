@@ -38,22 +38,22 @@ Ltac gregsimp :=
                 | _ => assert False ; [ lia | contradiction ]
               end) ; subst ; simpl in * ; try firstorder ; auto with arith.
 
-Lemma hoare_consequence {State Exception Result: Type} :
-  forall (P P': @Pred State) (Q Q': Result + Exception -> State -> @Pred State) (c: @state_monad State Exception Result),
+Lemma hoare_consequence {State Exception Result: Type} {c: @state_monad State Exception Result}:
+  forall {P P': @Pred State} {Q Q': Result + Exception -> State -> @Pred State},
+  {{ P }} c {{ Q }} ->
   (forall i, P' i -> P i) ->
   (forall v i f, Q v i f -> Q' v i f) ->
-  {{ P }} c {{ Q }} ->
   {{ P' }} c {{ Q' }}.
 Proof.
   intros.
   unfold hoare_triple_partial in *.
   intros.
-  specialize (H1 st).
+  specialize (H0 st).
   specialize (H st).
-  specialize (H H2).
-  specialize (H1 H).
+  specialize (H0 H2).
+  specialize (H H0).
   destruct (c st).
-  specialize (H0 s st s0).
+  specialize (H1 s st s0).
   auto.
 Qed.
 
@@ -75,8 +75,20 @@ Proof.
   cbv. intros. auto.
 Qed.
 
+Lemma hoare_get' {State Exception: Type} {P}:
+  {{ fun s => P s }} @get_state State Exception {{ fun r s s' => P s /\ s = s' /\ r = inl s}}.
+Proof.
+  cbv. intros. auto.
+Qed.
+
 Lemma hoare_put {State Exception: Type} :
   forall f, {{ top }} @put_state State Exception f {{ fun _ s s' => s' = f s}}.
+Proof.
+  cbv. intros. auto.
+Qed.
+
+Lemma hoare_put' {State Exception: Type} {P} :
+  forall f, {{ fun s => P (f s) }} @put_state State Exception f {{ fun _ s s' => P (f s) /\ s' = f s}}.
 Proof.
   cbv. intros. auto.
 Qed.
@@ -126,3 +138,29 @@ Proof.
   - auto.
   - auto.
 Qed.
+
+Lemma hoare_bind'
+  {State A B Exception: Type}
+  {P: @Pred State}
+  {P': @Pred State}
+  {Q: A + Exception -> State -> @Pred State}
+  {Q': B + Exception -> State -> @Pred State}
+  {c: @state_monad State Exception A}
+  {f: A -> @state_monad State Exception B}
+  :
+  {{ P }} c {{ Q }} ->
+  (forall r: A, {{ P' }} (f r) {{ Q' }}) ->
+  (forall (e: Exception) (st: State), P' st -> Q' (inr e) st st) ->
+    (* (forall (e: Exception) (st: State), P st -> Q (inr e) st st -> *)
+  {{ fun st_init => P st_init /\ forall (r: A + Exception) (st: State), Q r st_init st -> P' st}}
+  c >>= f
+  {{ fun r st_init st_final => exists a st_middle, Q a st_init st_middle /\ Q' r st_middle st_final }}.
+Proof.
+Admitted.
+
+
+Notation "x <-- c ; f" := (hoare_bind c (fun x => f) _)
+  (right associativity, at level 84, c at next level) : hoare_scope.
+Notation "x <-- c ;; f" := (hoare_bind' c (fun x => f))
+  (right associativity, at level 84, c at next level) : hoare_scope.
+Notation "c ;;; f" := (hoare_bind c (fun _ => f)) (right associativity, at level 84) : hoare_scope.

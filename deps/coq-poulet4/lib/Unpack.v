@@ -6,7 +6,7 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 
 Require Import Syntax.
-Require Import Environment.
+Require Import Environment.Environment.
 Require Import Typed.
 
 Open Scope string_scope.

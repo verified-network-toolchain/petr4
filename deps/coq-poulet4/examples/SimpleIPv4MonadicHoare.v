@@ -57,11 +57,13 @@ Definition next_bit : PktParser (option bool) :=
   | _ => pure None
   end.
 
-Definition next_bit_post (bo: option bool) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+
+Definition next_bit_post (bo: option bool + Error) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
   match (bo, pkt st) with 
-  | (None, _) => st = st'
-  | (Some _, nil) => False (* should not exist *)
-  | (Some b, b' :: bits') =>
+  | (inr _, _) => False
+  | (inl None, _) => st = st'
+  | (inl (Some _), nil) => False (* should not exist *)
+  | (inl (Some b), b' :: bits') =>
     b = b' /\
     fuel st = fuel st' /\
     pkt st' = bits' /\ 
@@ -69,11 +71,76 @@ Definition next_bit_post (bo: option bool) (st: @ParserState Meta) (st': @Parser
     std_meta st = std_meta st'
   end.
 
+(* Check hoare_consequence.
+Check hoare_return None. *)
+
+Lemma hoare_return' {State Exception Result : Type} {P: State -> Prop} : 
+  forall x: Result, {{ fun s => P s}} @state_return State Exception Result x {{ fun r s s' => P s /\ r = inl x /\ s = s'}}.
+Proof.
+  cbv. intros. auto.
+Qed.
+
+Definition bar : @state_monad nat unit nat :=
+  state_return 15.
+
+Lemma bar_weaken : 
+  {{ top }} bar {{ fun r s s' => exists r', r = inl r' /\ r' > 0 }}.
+Proof.
+  refine (hoare_consequence (hoare_return 15) _ _).
+Admitted.
+
+Definition incr_st : @state_monad nat unit nat :=
+  x <- get_state ;;
+  state_return (x+1).
+
+Lemma incr_weaken : 
+  {{ top }} incr_st {{ fun r s s' => exists r', r = inl r' /\ r' > s }}.
+Proof.
+  refine (hoare_consequence (
+    st <-- hoare_get ; hoare_return (st + 1)
+  ) _ _).
+Admitted.
+
+
+
+
+Definition foo : @state_monad nat unit nat := 
+  st <- get_state ;;
+  pure st.
+
+Lemma foo_idem: 
+  {{ top }} foo {{ fun r s s' => r =  }}.
+Proof.
+  refine (hoare_consequence (
+    st <-- hoare_get  ;;
+    hoare_put (fun _ => st)
+  ) _ _).
+
+Definition foo {P P'} {Q Q'} (it: option bool) := 
+  hoare_bind 
+    (P := P)
+    (P' := P')
+    (Q := Q)
+    (Q' := Q')
+    (@hoare_get' unit unit P)
+    (fun st => @hoare_return' _ _ _ _ st).
+
+Check foo.
+
+
 Lemma next_bit_spec : 
   {{ top }} 
-    next_bit 
+    next_bit
   {{ next_bit_post }}.
 Proof.
+  intros.
+  refine (hoare_consequence (State := @ParserState Meta) (Exception := Error) (Result := option bool) (
+    st <-- @hoare_get (@ParserState Meta) Error ;
+    match pkt st return {{ _ }} pure None {{ _ }} with 
+    | x :: pkt' => @hoare_return (@ParserState Meta) Error (option bool) None
+    | nil => @hoare_return (@ParserState Meta) Error (option bool) None
+    end
+  ) _ _).
 Admitted.
 
 Fixpoint extract_n (n: nat) : PktParser (option (Bits n)) :=
@@ -92,126 +159,26 @@ Definition extract_n_post (n: nat) (ob: option (Bits n)) (st: @ParserState Meta)
   if leb n (length (pkt st)) 
   then exists pref suff, 
     pref = firstn n (pkt st) /\
+    st' = st <| pkt := suff |> /\
     pkt st = pref ++ suff /\
-    pkt st' = suff /\
-    fuel st = fuel st' /\
-    usr_meta st = usr_meta st' /\
-    std_meta st = std_meta st' /\
     ob = Some (n, pref)
   else exists pref,
     pref = firstn n (pkt st) /\
     pkt st = pref /\
-    pkt st' = nil /\
-    usr_meta st = usr_meta st' /\
-    std_meta st = std_meta st' /\
+    st' = st <| pkt := nil |> /\
     ob = None.
-    
-(* 
-(* Preconditions are predicates over states *)
-Definition PreCond := (@ParserState Meta) -> Prop.
-(* Postconditions have access to the return value of the monad 
-   and relate an input state to the resulting state *)
-Definition PostCond {Result: Type} := 
-  Result -> (@ParserState Meta) -> (@ParserState Meta) -> Prop.
 
-Definition sp_pure {R} : @PostCond R := 
-  fun r st st' => st = st'.
-
-Definition sp_reject {R} : @PostCond R := 
-  fun r st st' => False.
-
-Definition sp_next_bit : @PostCond (option bool) :=
-  fun r st st' => 
-    (exists b bs, 
-      r = Some b /\ 
-      pkt st = b :: bs /\ 
-      st' = st <| pkt := bs |>
-    ) \/ (
-      r = None /\
-      pkt st = nil /\
-      st = st'
-    ) 
-  .
-
-Lemma sp_next_bit_correct : forall st pre,
-  pre st -> 
-    match run_with_state st next_bit with 
-    | (inl v, st') => sp_next_bit v st st'
-    | _ => False
-    end.
-Proof.
-  intros.
-  unfold run_with_state, next_bit.
-  simpl.
-  destruct st.
-  destruct pkt0.
-    - 
-      cbv.
-      right. auto.
-    - 
-      cbv.
-      left.
-      exists b, pkt0.
-      auto.
-Qed.
-
-
-Fixpoint sp_extract_n (n: nat) : @PostCond (option (bits n)) := 
-  match n as n' return @PostCond (option (bits n')) with
-  | 0    => fun r st st' => r = Some tt
-  | S n' => fun r st st' => 
-    match pkt st with 
-    | b :: bs => exists r' st'', 
-      sp_extract_n n' r' st' st'' /\ 
-      match r' with 
-        | Some bs' => r = Some (b, bs') /\ st = st'' <| pkt := bs |>
-        | None => r = None /\ st = st''
-      end
-    | nil     => r = None /\ st = st'
-    end
-  end.
-
-Lemma sp_extract_n_correct : forall st pre n,
-  pre st -> 
-    match run_with_state st (extract_n n) with 
-    | (inl v, st') => sp_extract_n n v st st'
-    | _ => False
-    end.
-Proof.
-  intros.
-  unfold run_with_state.
-  induction n.
-    - 
-      cbv. reflexivity.
-    - 
-      destruct st.
-      destruct pkt0.
-      --
-        unf
-        cbv in IHn.
-        eapply IHn.
-        eapply sp_next_bit_correct.
-        rewrite sp_next_bit_correct.
-      unfold sp_extract_n. simpl.
-  simpl.
-  destruct st.
-  destruct pkt0.
-    - 
-      cbv.
-      right. auto.
-    - 
-      cbv.
-      left.
-      exists b, pkt0.
-      auto.
-Qed.
-
-
+Lemma extract_n_spec : 
+  forall n,
+  {{ top }}
+    extract_n n
+  {{ extract_n_post n }}.
+Admitted.
 
 Record IPHeader := {
-  src: option (bits 8);
-  dest: option (bits 8);
-  proto: option (bits 4)
+  src: option (Bits 8);
+  dest: option (Bits 8);
+  proto: option (Bits 4)
 }.
 
 Definition IPHeader_p : PktParser IPHeader :=
@@ -221,6 +188,44 @@ Definition IPHeader_p : PktParser IPHeader :=
     pure {| src := src ; dest := dest; proto := proto |}
   .
 
+Definition IPHeader_p_post (r: IPHeader) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  length (pkt st') = length (pkt st) - 20 /\
+  exists s d p, 
+  src r = Some s /\
+  dest r = Some d /\
+  proto r = Some p.
+
+
+Lemma IPHeader_p_forward :
+  {{ fun st => length (pkt st) >= 20 }}
+    IPHeader_p
+  {{ IPHeader_p_post }}.
+Admitted.
+  
+Lemma IPHeader_p_spec :
+  forall st, (length (pkt st) >= 20 <-> exists bits st', run_with_state st IPHeader_p = (inl bits, st')
+           /\ length (pkt st') = length (pkt st) - 20).
+Proof.
+  intros.
+  split.
+  -
+    intros.
+    pose proof IPHeader_p_forward.
+    specialize (H0 st). 
+    simpl in H0.
+    specialize (H0 H).
+    destruct (IPHeader_p st).
+    induction s.
+    -- 
+      exists a.
+      exists p.
+      unfold IPHeader_p_post in H0.
+
+
+  
+Definition TCP_p_spec : Prop :=
+    forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
+           /\ length (pkt st') = length (pkt st') - 28).     
 Record TCP := {
   sport_t: option (bits 8);
   dport_t: option (bits 8);
@@ -344,7 +349,7 @@ Proof.
   intros pkt st Hwf Htcp.
   repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
   - cbv.
-Admitted. *)
+Admitted.
 
 (*
 Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->

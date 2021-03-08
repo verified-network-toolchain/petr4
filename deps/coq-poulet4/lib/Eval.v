@@ -12,7 +12,7 @@ Require Import Monads.State.
 Require Import Monads.Transformers.
 
 Require StringConstants.
-Require Import Environment.
+Require Import Environment.Environment.
 Require Import Syntax.
 Require Import Typed.
 Require Import Utils.

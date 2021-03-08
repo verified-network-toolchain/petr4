@@ -5,7 +5,7 @@ Require Import P4defs.
 Require Import Step.
 Require Import P4String.
 
-Require Import Environment.
+Require Import Environment.Environment.
 Require Import Petr4.Monads.Monad.
 Require Import Petr4.Monads.P4Monad.
 Require Import Coq.Lists.List.

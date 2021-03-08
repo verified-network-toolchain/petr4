@@ -1,6 +1,7 @@
 -R lib Petr4
 
 lib/StringConstants.v
+
 lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
@@ -8,15 +9,13 @@ lib/Monads/Transformers.v
 lib/Monads/Hoare.v
 lib/Monads/P4Monad.v
 
-lib/Grammars/Grammar.v
-lib/Grammars/Lib.v
-lib/Grammars/Bits.v
-lib/Grammars/Binary.v
-
 lib/Utils.v
 lib/Bitwise.v
 lib/Step.v
-lib/Environment.v
+
+lib/Environment/Environment.v
+lib/Environment/WeakestPre.v
+
 lib/Unpack.v
 lib/Eval.v
 lib/Info.v
@@ -46,11 +45,6 @@ lib/P4cub/Value.v
 
 examples/IntExample.v
 examples/TwoState.v
-examples/WeakestPre.v
 examples/BabyIP.v
 examples/SimpleIPv4Monadic.v
 examples/HAListExample.v
-
-examples/IPv6/Header.v
-examples/IPv6/Extensions/HopByHop.v
-examples/IPv6/Extensions/Fragment.v

@@ -4,7 +4,7 @@ Require Import Typed.
 Require Import Strings.String.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Monads.State.
-Require Import Environment.
+Require Import Environment.Environment.
 
 Require Import Step.
 

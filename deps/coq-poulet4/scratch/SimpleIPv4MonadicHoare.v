@@ -65,14 +65,15 @@ Lemma greater_spec :
     | inr _ => False
     end 
   }}.
-Proof.
-  refine (hoare_consequence (
+Admitted.
+(* Proof. *)
+  (* refine (hoare_consequence (
     st <-- @hoare_get nat unit ;;
-    match st as st' return {{ _ }} _ {{ _ }} with 
+    match st as st' with 
     | 0 => @hoare_return nat unit (option unit) (Some tt)
     | _ => @hoare_return nat unit (option unit) None
     end
-  ) _ _).
+  ) _ _). *)
 
 Definition Bits (n: nat) : Set := (nat * list bool).
 
@@ -155,19 +156,20 @@ Lemma next_bit_spec :
     end
   }}.
 Proof.
-  intros.
+Admitted.
+  (* intros.
   refine (hoare_consequence (
     hoare_bind' 
       (@hoare_get (@ParserState Meta) unit)
       (fun st => 
         hoare_return (Some true)
-        (* match pkt st with 
+        match pkt st with 
         | x :: pkt' => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
         | nil => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
-        end *)
+        end
       )
   ) _ _).
-Admitted.
+Admitted. *)
 
 Fixpoint extract_n (n: nat) : PktParser (option (Bits n)) :=
   match n as n' return PktParser (option (Bits n')) with
@@ -194,12 +196,12 @@ Definition extract_n_post (n: nat) (ob: option (Bits n)) (st: @ParserState Meta)
     st' = st <| pkt := nil |> /\
     ob = None.
 
-Lemma extract_n_spec : 
+(* Lemma extract_n_spec : 
   forall n,
   {{ top }}
     extract_n n
   {{ extract_n_post n }}.
-Admitted.
+Admitted. *)
 
 Record IPHeader := {
   src: option (Bits 8);
@@ -222,7 +224,7 @@ Definition IPHeader_p_post (r: IPHeader) (st: @ParserState Meta) (st': @ParserSt
   proto r = Some p.
 
 
-Lemma IPHeader_p_forward :
+(* Lemma IPHeader_p_forward :
   {{ fun st => length (pkt st) >= 20 }}
     IPHeader_p
   {{ IPHeader_p_post }}.
@@ -246,10 +248,11 @@ Proof.
       exists a.
       exists p.
       unfold IPHeader_p_post in H0.
+Admitted. *)
 
 
   
-Definition TCP_p_spec : Prop :=
+(* Definition TCP_p_spec : Prop :=
     forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
            /\ length (pkt st') = length (pkt st') - 28).     
 Record TCP := {
@@ -257,8 +260,8 @@ Record TCP := {
   dport_t: option (bits 8);
   flags_t: option (bits 4);
   seq: option (bits 8)
-}.
-
+}. *)
+(* 
 Definition TCP_p : PktParser TCP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
@@ -375,7 +378,7 @@ Proof.
   intros pkt st Hwf Htcp.
   repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
   - cbv.
-Admitted.
+Admitted. *)
 
 (*
 Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->

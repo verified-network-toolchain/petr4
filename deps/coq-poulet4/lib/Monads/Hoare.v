@@ -174,4 +174,3 @@ Notation "x <-- c ; f" := (hoare_bind c (fun x => f) _)
 Notation "x <-- c ;; f" := (hoare_bind' c (fun x => f))
   (right associativity, at level 84, c at next level) : hoare_scope.
 Notation "c ;;; f" := (hoare_bind c (fun _ => f)) (right associativity, at level 84) : hoare_scope.
-

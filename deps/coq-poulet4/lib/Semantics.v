@@ -99,7 +99,10 @@ Inductive table_entry :=
 Class External := {
   ExternalState : Type;
   GetEntries : ExternalState -> path -> list table_entry;
-  GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *)
+  GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *);
+  (* Allocation should be a function; calling may be fine as a relation. *)
+  AllocExtern : ExternalState -> ident (* class *) -> path -> list Val -> ExternalState;
+  CallExtern : ExternalState -> ident (* class *) -> ident (* method *) -> path -> list Val -> ExternalState -> list Val -> option Val -> Prop
 }.
 
 Section UseExternal.
@@ -164,7 +167,9 @@ Inductive fundef :=
       (actions : list (@Expression tags_t))
       (default_action : option (@Expression tags_t))
       (entries : option (list table_entry))
-  | FExternal.
+  | FExternal
+      (class : ident)
+      (name : ident).
 
 Axiom dummy_fundef : fundef.
 
@@ -347,17 +352,11 @@ Definition inst_mem := @PathMap.t tags_t memory_val.
 Axiom dummy_tag : tags_t.
 Definition apply_string : ident := {| P4String.tags := dummy_tag; P4String.str := "apply" |}.
 
-Definition lookup_func (e : env) (inst_m : inst_mem) (func : @Expression tags_t) (this_path : path) : option (path * fundef) :=
-  (* Cases:
-      1. apply
-      2. function/action
-      3. builtin
-  *)
-  
+Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
+  (* We should think about using option monad in this function. *)
   match func with
   (* function/action *)
   | MkExpression _ (ExpName name) _ _ =>
-      (* Option monad can help here. *)
       match name with
       | BareName id =>
           match IdentMap.get id e with
@@ -398,8 +397,31 @@ Definition lookup_func (e : env) (inst_m : inst_mem) (func : @Expression tags_t)
             end
         | _ => None
         end
+      (* If the method name does not match any of the keywords, it is an external method. *)
       else
-        None
+        match expr with
+        (* Instances should only be referred with bare names. *)
+        | MkExpression _ (ExpName (BareName name)) _ _ =>
+            let oinst_path :=
+              match PathMap.get (this_path ++ [name]) inst_m with
+              | Some (MInstance inst) =>
+                  Some inst
+              | Some (MClass _) =>
+                  Some (this_path ++ [name])
+              | _ => None
+              end
+            in
+            match oinst_path with
+            | Some inst_path =>
+                match PathMap.get inst_path inst_m with
+                | Some (MClass class_name) =>
+                    Some (inst_path, FExternal class_name name)
+                | _ => None
+                end
+            | None => None
+            end
+        | _ => None
+        end
   | _ => None
   end.
 
@@ -415,32 +437,37 @@ with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) 
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_func_caller_function : forall this_path e inst_m s tag func call_path fd args argvals outvals typ dir s' s'' vret,
+  | exec_func_function : forall this_path e inst_m s tag func args typ dir argvals obj_path fd outvals s' s'' vret,
       let dirs := get_arg_directions func in
-      exec_args e this_path s args dirs argvals -> 
-      lookup_func e inst_m func this_path = Some (call_path, fd) ->
-      exec_func_callee call_path inst_m s fd (extract_argvals argvals) s' outvals vret ->
+      exec_args e this_path s args dirs argvals ->
+      lookup_func this_path e inst_m func = Some (obj_path, fd) ->
+      exec_func_callee obj_path inst_m s fd (extract_argvals argvals) s' outvals vret ->
       exec_copy_out e this_path s' argvals outvals s'' ->
       exec_func_caller this_path e inst_m s (MkExpression tag (ExpFunctionCall func nil args) typ dir) s' vret
-  (* | exec_func_instance_apply *)
-  
+
 with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_func_callee_internal : forall this_path global decl_path e inst_m params body s args args' s' s'' vret,
-      copy_in_copy_out (map (fun param => this_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
-      exec_block this_path decl_path e inst_m s' body s'' (Out_return vret) ->
-      (* TODO What does this_path do here? *)
-      exec_func_callee this_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
-  | exec_func_callee_table_match : forall this_path name e inst_m keys actions matches action_name ctrl_args default_action const_entries s s',
-      exec_table_match e this_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
-      exec_func_caller this_path e inst_m s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
-      exec_func_callee this_path inst_m s (FTable name e keys actions default_action const_entries) nil s' nil None
-  | exec_func_callee_table_default : forall this_path name e inst_m keys actions default_action const_entries s s',
-      exec_table_match e this_path s name const_entries None ->
-      exec_func_caller this_path e inst_m s default_action s' None ->
-      exec_func_callee this_path inst_m s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
-  | exec_func_callee_table_noaction : forall this_path name e inst_m keys actions const_entries s,
-      exec_table_match e this_path s name const_entries None ->
-      exec_func_callee this_path inst_m s (FTable name e keys actions None const_entries) nil s nil None.
+  | exec_func_internal : forall obj_path global decl_path e inst_m params body s args args' s' s'' vret,
+      copy_in_copy_out (map (fun param => obj_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
+      exec_block obj_path decl_path e inst_m s' body s'' (Out_return vret) ->
+      exec_func_callee obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
+
+  | exec_func_table_match : forall obj_path name e inst_m keys actions matches action_name ctrl_args default_action const_entries s s',
+      exec_table_match e obj_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
+      exec_func_caller obj_path e inst_m s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
+      exec_func_callee obj_path inst_m s (FTable name e keys actions default_action const_entries) nil s' nil None
+
+  | exec_func_table_default : forall obj_path name e inst_m keys actions default_action const_entries s s',
+      exec_table_match e obj_path s name const_entries None ->
+      exec_func_caller obj_path e inst_m s default_action s' None ->
+      exec_func_callee obj_path inst_m s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
+
+  | exec_func_table_noaction : forall obj_path name e inst_m keys actions const_entries s,
+      exec_table_match e obj_path s name const_entries None ->
+      exec_func_callee obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
+
+  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret (*   e inst_m keys actions const_entries s *),
+      CallExtern es class_name name obj_path args es' args' vret ->
+      exec_func_callee obj_path inst_m (m, es) (FExternal class_name name) args (m, es') args' vret.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=

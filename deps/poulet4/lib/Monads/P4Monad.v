@@ -1,0 +1,104 @@
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
+Require Import Poulet4.P4String.
+Require Poulet4.HAList.
+
+Require Import Coq.Lists.List.
+Require Export Coq.Strings.String.
+Require Import Coq.Program.Equality.
+Import ListNotations.
+
+Open Scope monad.
+Open Scope string_scope.
+
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
+
+Require Import Coq.Lists.List.
+
+Fixpoint prod (T:Set) (n:nat) : Set :=
+  match n with
+    | 0   => unit
+    | S m => T * (prod T m)
+  end.
+
+Definition bits (n: nat) : Set := prod bool n.
+
+Fixpoint zero_bits {n: nat} : bits n :=
+  match n with
+  | 0 => tt
+  | S n' => (false, zero_bits)
+  end.
+
+Fixpoint one_bits {w: nat} : bits (S w) :=
+  match w with
+  | 0 => (true, tt)
+  | S w' => (false, one_bits)
+  end.
+
+Definition StandardMeta :=
+  HAList.t string [("egress_spec", bits 9)].
+
+Record ParserState {Meta: Type} := mkParserState {
+  fuel: nat;
+  pkt: list bool;
+  usr_meta: Meta;
+  std_meta: StandardMeta
+}.
+
+Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
+
+Definition Error := unit.
+Definition Meta := unit.
+
+Definition PktParser (Result: Type) := @state_monad (@ParserState Meta) Error Result.
+
+Definition set_std_meta (f: StandardMeta -> StandardMeta) : PktParser unit :=
+  put_state (fun st => st <| std_meta ::= f |>).
+
+(* Definition skip : PktParser  *)
+
+Definition pure {R} : R -> PktParser R := state_return.
+
+Definition reject {R} : PktParser R := state_fail tt.
+
+Definition next_bit : PktParser (option bool) :=
+  let* st := get_state in
+  match pkt st return PktParser (option bool) with
+  | x :: pkt' =>
+    put_state (fun st => st <| pkt := pkt' |>) ;;
+    pure (Some x)
+  | _ => pure None
+  end.
+
+Lemma next_bit_nil : forall st,
+  pkt st = nil <-> exists st', run_with_state st next_bit = (inl None, st').
+Proof.
+  intros.
+  split.
+  -
+    intros.
+    exists st.
+    cbv.
+Admitted.
+
+Lemma next_bit_cons : forall st,
+  exists b bs, pkt st = b :: bs <-> exists st', run_with_state st next_bit = (inl (Some b), st').
+Admitted.
+
+Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
+  match n as n' return PktParser (option (bits n')) with
+  | 0 => pure (Some tt)
+  | S n' =>
+    let* bits := extract_n n' in
+    let* bit := next_bit in
+    match (bit, bits) with
+    | (Some bit', Some bits') => pure (Some (bit', bits'))
+    | _ => pure None
+    end
+  end.
+
+Definition init_meta : StandardMeta := (zero_bits, tt).
+
+Definition init_state (pkt: list bool) : ParserState :=
+  {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.

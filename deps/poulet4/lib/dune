@@ -1,0 +1,6 @@
+(coq.theory
+ (name Poulet4)
+ (package poulet4)
+ (synopsis "Coq definitions for Petr4")
+)
+(include_subdirs qualified)

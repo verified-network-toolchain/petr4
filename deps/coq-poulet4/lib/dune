@@ -1,4 +1,0 @@
-(coq.theory
-  (name Poulet4)
-  (synopsis "Poulet4: Coq semantics for P4")
-  (theories Equations))

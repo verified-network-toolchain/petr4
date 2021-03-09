@@ -2,6 +2,7 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 Require Import Monads.Hoare.
 Require Import Coq.Init.Nat.
+Require Import Lia.
 Open Scope monad.
 Open Scope hoare.
 
@@ -9,6 +10,69 @@ From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Require Import Coq.Lists.List.
+
+Lemma foo {B} : forall x y: nat, @inl _ B x = inl y <-> x = y.
+Admitted.
+
+Definition incr_st : @state_monad nat unit nat :=
+  x <- get_state ;;
+  state_return (x+1).
+
+Lemma incr_weaken : 
+  {{ top }} incr_st 
+  {{ fun r s s' => 
+    exists r', r = inl r' /\ r' > s }}.
+Proof.
+  refine (hoare_consequence (
+    st <-- hoare_get ;; hoare_return (st + 1)
+  ) _ _).
+  2 : {
+    intros.
+    destruct H as [st_middle HI].
+    destruct HI.
+      - destruct H as [a H]. exists (a + 1).
+      split. 
+        -- destruct H as [_ [H' _]]. exact H'.
+        -- 
+          destruct H as [[HL1 HL2] [HR1 HR2]].
+          assert (a = i).
+          eapply foo. exact HL2.
+          lia.
+      - exfalso.
+      destruct H as [e [_ H]].
+      discriminate.
+  }
+  intros. split. auto.
+  intros.
+  destruct r; auto.
+  
+Qed.
+
+Definition greater_cond : @state_monad nat unit (option unit) :=
+  st <- get_state ;; 
+  match st with 
+  | 0 => state_return (Some tt)
+  | _ => state_return None
+  end.
+
+Lemma greater_spec : 
+  {{ top }}
+  greater_cond 
+  {{ fun r s s' => 
+    match r with 
+    | inl (Some tt) => s = 0
+    | (inl _) => s > 0
+    | inr _ => False
+    end 
+  }}.
+Proof.
+  refine (hoare_consequence (
+    st <-- @hoare_get nat unit ;;
+    match st as st' return {{ _ }} _ {{ _ }} with 
+    | 0 => @hoare_return nat unit (option unit) (Some tt)
+    | _ => @hoare_return nat unit (option unit) None
+    end
+  ) _ _).
 
 Definition Bits (n: nat) : Set := (nat * list bool).
 
@@ -58,7 +122,7 @@ Definition next_bit : PktParser (option bool) :=
   end.
 
 
-Definition next_bit_post (bo: option bool + Error) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+Definition next_bit_post {r: option bool} (bo: option bool + Error) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
   match (bo, pkt st) with 
   | (inr _, _) => False
   | (inl None, _) => st = st'
@@ -71,75 +135,37 @@ Definition next_bit_post (bo: option bool + Error) (st: @ParserState Meta) (st':
     std_meta st = std_meta st'
   end.
 
-(* Check hoare_consequence.
-Check hoare_return None. *)
-
-Lemma hoare_return' {State Exception Result : Type} {P: State -> Prop} : 
-  forall x: Result, {{ fun s => P s}} @state_return State Exception Result x {{ fun r s s' => P s /\ r = inl x /\ s = s'}}.
-Proof.
-  cbv. intros. auto.
-Qed.
-
-Definition bar : @state_monad nat unit nat :=
-  state_return 15.
-
-Lemma bar_weaken : 
-  {{ top }} bar {{ fun r s s' => exists r', r = inl r' /\ r' > 0 }}.
-Proof.
-  refine (hoare_consequence (hoare_return 15) _ _).
-Admitted.
-
-Definition incr_st : @state_monad nat unit nat :=
-  x <- get_state ;;
-  state_return (x+1).
-
-Lemma incr_weaken : 
-  {{ top }} incr_st {{ fun r s s' => exists r', r = inl r' /\ r' > s }}.
-Proof.
-  refine (hoare_consequence (
-    st <-- hoare_get ; hoare_return (st + 1)
-  ) _ _).
-Admitted.
-
-
-
-
-Definition foo : @state_monad nat unit nat := 
-  st <- get_state ;;
-  pure st.
-
-Lemma foo_idem: 
-  {{ top }} foo {{ fun r s s' => r =  }}.
-Proof.
-  refine (hoare_consequence (
-    st <-- hoare_get  ;;
-    hoare_put (fun _ => st)
-  ) _ _).
-
-Definition foo {P P'} {Q Q'} (it: option bool) := 
-  hoare_bind 
-    (P := P)
-    (P' := P')
-    (Q := Q)
-    (Q' := Q')
-    (@hoare_get' unit unit P)
-    (fun st => @hoare_return' _ _ _ _ st).
-
-Check foo.
-
 
 Lemma next_bit_spec : 
   {{ top }} 
     next_bit
-  {{ next_bit_post }}.
+  {{ fun r s s' => 
+    match r with 
+    | inr _ => False
+    | inl (Some b) => 
+      match pkt s with
+      | nil => False
+      | b' :: bits => b = b' /\ s' = s <| pkt := bits |>
+      end
+    | inl None =>
+      match pkt s with
+      | nil => s = s'
+      | _ :: _ => False
+      end
+    end
+  }}.
 Proof.
   intros.
-  refine (hoare_consequence (State := @ParserState Meta) (Exception := Error) (Result := option bool) (
-    st <-- @hoare_get (@ParserState Meta) Error ;
-    match pkt st return {{ _ }} pure None {{ _ }} with 
-    | x :: pkt' => @hoare_return (@ParserState Meta) Error (option bool) None
-    | nil => @hoare_return (@ParserState Meta) Error (option bool) None
-    end
+  refine (hoare_consequence (
+    hoare_bind' 
+      (@hoare_get (@ParserState Meta) unit)
+      (fun st => 
+        hoare_return (Some true)
+        (* match pkt st with 
+        | x :: pkt' => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
+        | nil => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
+        end *)
+      )
   ) _ _).
 Admitted.
 

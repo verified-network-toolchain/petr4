@@ -2,6 +2,8 @@ Require Import Monads.Monad.
 Require Import Monads.State.
 Require Import Lia.
 
+Require Import Coq.Init.Nat.
+
 Declare Scope hoare_scope.
 Delimit Scope hoare_scope with hoare.
 Open Scope hoare_scope.
@@ -142,19 +144,27 @@ Qed.
 Lemma hoare_bind'
   {State A B Exception: Type}
   {P: @Pred State}
-  {P': @Pred State}
+  {P': A -> @Pred State}
   {Q: A + Exception -> State -> @Pred State}
-  {Q': B + Exception -> State -> @Pred State}
+  {Q': A -> B + Exception -> State -> @Pred State}
   {c: @state_monad State Exception A}
   {f: A -> @state_monad State Exception B}
   :
   {{ P }} c {{ Q }} ->
-  (forall r: A, {{ P' }} (f r) {{ Q' }}) ->
-  (forall (e: Exception) (st: State), P' st -> Q' (inr e) st st) ->
-    (* (forall (e: Exception) (st: State), P st -> Q (inr e) st st -> *)
-  {{ fun st_init => P st_init /\ forall (r: A + Exception) (st: State), Q r st_init st -> P' st}}
+  (forall r: A, {{ P' r }} (f r) {{ Q' r }}) ->
+  {{ 
+    fun st_init => 
+      P st_init /\ 
+      forall (r: A) (st: State), 
+        Q (inl r) st_init st -> P' r st
+  }}
   c >>= f
-  {{ fun r st_init st_final => exists a st_middle, Q a st_init st_middle /\ Q' r st_middle st_final }}.
+  {{ 
+    fun r st_init st_final => 
+      exists st_middle, 
+      (exists a, Q (inl a) st_init st_middle /\ Q' a r st_middle st_final) \/
+      (exists e, Q (inr e) st_init st_middle)
+  }}.
 Proof.
 Admitted.
 
@@ -164,3 +174,4 @@ Notation "x <-- c ; f" := (hoare_bind c (fun x => f) _)
 Notation "x <-- c ;; f" := (hoare_bind' c (fun x => f))
   (right associativity, at level 84, c at next level) : hoare_scope.
 Notation "c ;;; f" := (hoare_bind c (fun _ => f)) (right associativity, at level 84) : hoare_scope.
+

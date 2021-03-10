@@ -16,6 +16,7 @@
 open Core
 open Petr4
 open Common
+open Lwt.Infix
 
 exception ParsingError of string
 
@@ -144,28 +145,17 @@ let start_v1switch env prog sockets =
   (* inifinite loop - non-blocking recv?; call petr4 interpreter; sento call *)
 
 let start_switch verbose include_dir target n pts p4_file =
-  let sockets = List.init n
-    ~f:(fun _ -> Unix.socket ~domain:Unix.PF_INET ~kind:Unix.SOCK_RAW ~protocol:0 ()) in
-  let pts = List.map pts ~f:(fun pt -> Unix.ADDR_UNIX pt) in
-  let bind_sockets () = List.iter2 sockets pts
-    ~f:(fun sock addr -> Unix.bind sock ~addr) in
-  let () = match bind_sockets () with
-    | Ok _ -> ()
-    | Unequal_lengths ->
-       failwith "Error: number of ports did not match the number of port names" in
   (* List.iter sockets ~f:(Unix.listen ~backlog:1); *)
   (* List.iter sockets ~f:(fun sock -> Unix.accept sock |> ignore); *)
   (* TODO: set socket options for timeout on recv? *)
   (* TODO: add a control plane socket *)
   let rec loop () =
-    let sock = List.hd_exn sockets in
-    let buf = Bytes.create 1024 in
-    let len, _ = Unix.recvfrom sock ~buf ~pos:0 ~len:1024 ~mode:[] in
-    if len = 0 then loop ()
-    else
-      let pkt = String.sub (Bytes.to_string buf) ~pos:0 ~len in
-      Format.sprintf "packet: %s" pkt |> print_endline;
-      Unix.shutdown sock ~mode:Unix.SHUTDOWN_ALL in
+    let sock = Lwt_rawlink.open_link "tap0" in
+    let buf = Lwt_rawlink.read_packet sock in
+    buf >>= fun cstruct ->
+      let msg = Cstruct.to_string cstruct in
+      Format.sprintf "packet: %s" msg |> print_endline;
+      Lwt.return () >>= loop in
   loop ()
   (* match parse_file include_dir p4_file verbose with
   | `Ok prog ->
@@ -192,7 +182,7 @@ let switch_command =
      +> flag "-p" (listed string) ~doc: "Specify the names by which the port will be identified"
      +> anon ("p4file" %: string))
     (fun verbose include_dir target n pts p4_file () ->
-	 start_switch verbose include_dir target n pts p4_file)
+	 start_switch verbose include_dir target n pts p4_file |> Lwt_main.run)
 
 let command =
   Command.group

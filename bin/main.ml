@@ -157,7 +157,7 @@ let start_switch verbose include_dir target n pts p4_file =
       Format.sprintf "packet: %s" msg |> print_endline;
       Lwt.return () >>= loop in
   loop () *)
-  let sock = Lwt_rawlink.open_link "tap1" in
+  let sock = Lwt_rawlink.open_link "tap0" in
   let msg = Cstruct.of_string "Hi" in
   Lwt_rawlink.send_packet sock msg >>= fun _ ->
   Lwt_rawlink.close_link sock

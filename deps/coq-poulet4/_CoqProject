@@ -25,6 +25,7 @@ lib/Typed.v
 lib/Syntax.v
 lib/Platform/Packet.v
 lib/Unroll.v
+lib/Ops.v
 lib/Semantics.v
 lib/Trans.v
 lib/HAList.v

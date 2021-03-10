@@ -99,51 +99,6 @@ Qed.
 Lemma hoare_bind
   {State A B Exception: Type}
   {P: @Pred State}
-  {P': A + Exception -> @Pred State}
-  {Q: A + Exception -> State -> @Pred State}
-  {Q': A + Exception -> B + Exception -> State -> @Pred State}
-  {c: @state_monad State Exception A}
-  {f: A -> @state_monad State Exception B}
-  :
-  {{ P }} c {{ Q }} ->
-  (forall r: A, {{ P' (inl r) }} (f r) {{ Q' (inl r)}}) ->
-  (forall (e: Exception) (st: State), P' (inr e) st -> Q' (inr e) (inr e) st st) ->
-    (* (forall (e: Exception) (st: State), P st -> Q (inr e) st st -> *)
-  {{ fun st_init => P st_init /\ forall (r: A + Exception) (st: State), Q r st_init st -> P' r st}}
-  c >>= f
-  {{ fun r st_init st_final => exists a st_middle, Q a st_init st_middle /\ Q' a r st_middle st_final }}.
-Proof.
-  cbv.
-  intros.
-  specialize (H st).
-  induction (c st).
-  induction a.
-  
-  2 : {
-    destruct H2 as [H2 H3].
-    exists (inr b0).
-    exists b.
-    split.
-    - auto.
-    -
-      specialize (H3 (inr b0) b).
-      specialize (H1 b0 b).
-      auto.
-  }
-  specialize (H0 a b).
-  destruct H2 as [H2 H3].
-  specialize (H3 (inl a) b).
-  induction (f a b).
-  exists (inl a).
-  exists b.
-  split.
-  - auto.
-  - auto.
-Qed.
-
-Lemma hoare_bind'
-  {State A B Exception: Type}
-  {P: @Pred State}
   {P': A -> @Pred State}
   {Q: A + Exception -> State -> @Pred State}
   {Q': A -> B + Exception -> State -> @Pred State}
@@ -166,11 +121,96 @@ Lemma hoare_bind'
       (exists e, Q (inr e) st_init st_middle)
   }}.
 Proof.
-Admitted.
+  cbv. intros.
+  specialize (H st). 
+  destruct H1 as [H1 H2].
+  specialize (H H1).
+  destruct (c st).
+  destruct s.
+    - 
+      specialize (H0 a s0).
+      destruct (f a s0).
+      exists s0.
+      destruct s.
+      -- left.
+        exists a.
+        split.
+        --- trivial.
+        ---
+          apply H0.
+          eapply H2. 
+          trivial.
+      -- left.
+      exists a.
+      split.
+      --- trivial.
+      ---
+        apply H0.
+        eapply H2. 
+        trivial.
+    - exists s0.
+      right.
+      exists e.
+      trivial.
+Qed.
 
-
-Notation "x <-- c ; f" := (hoare_bind c (fun x => f) _)
-  (right associativity, at level 84, c at next level) : hoare_scope.
-Notation "x <-- c ;; f" := (hoare_bind' c (fun x => f))
+Notation "x <-- c ;; f" := (hoare_bind c (fun x => f))
   (right associativity, at level 84, c at next level) : hoare_scope.
 Notation "c ;;; f" := (hoare_bind c (fun _ => f)) (right associativity, at level 84) : hoare_scope.
+
+Lemma hoare_cond 
+  {State Exception Result : Type} 
+  {c1 c2: @state_monad State Exception Result}
+  {P: @Pred State}
+  {Q1 Q2 b}: 
+  {{ fun st => P st /\ b = true }} c1 {{ Q1 }} ->
+  {{ fun st => P st /\ b = false }} c2 {{ Q2 }} -> 
+  {{ P }} if b then c1 else c2 {{ fun r s st => Q1 r s st \/ Q2 r s st}}.
+Proof.
+  cbv. intros.
+  destruct b.
+  - specialize (H st).
+    assert (P st /\ true = true).
+    split; trivial.
+    specialize (H H2).
+    destruct (c1 st).
+    left. trivial.
+  - specialize (H0 st).
+    assert (P st /\ false = false).
+    split; trivial.
+    specialize (H0 H2).
+    destruct (c2 st).
+    right. trivial.
+Qed.
+  
+Definition greater_cond : @state_monad nat unit (option unit) :=
+  st <- get_state ;; 
+  match st with 
+  | 0 => state_return (Some tt)
+  | _ => state_return None
+  end.
+
+Lemma hoare_return' {State Exception Result: Type} {P} (x: Result) : 
+  {{ P }} @state_return State Exception Result x {{ fun r st st' => P st' /\ r = inl x /\ st = st' }}.
+Proof.
+  cbv. intros. auto.
+Qed.
+
+Lemma greater_spec : 
+  {{ top }}
+  greater_cond 
+  {{ fun r s s' => 
+    match r with 
+    | inl (Some tt) => s = 0
+    | (inl _) => s > 0
+    | inr _ => False
+    end 
+  }}.
+Proof.
+  (* refine (hoare_consequence ( 
+    st <-- hoare_get ;;
+    (hoare_cond 
+      (hoare_return' (Some tt)) 
+      (hoare_return' None))
+  ) _ _). *)
+Admitted.

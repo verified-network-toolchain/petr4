@@ -47,5 +47,5 @@ lib/P4cub/Value.v
 examples/IntExample.v
 examples/TwoState.v
 examples/BabyIP.v
-examples/SimpleIPv4Monadic.v
+examples/SimpleIPv4.v
 examples/HAListExample.v

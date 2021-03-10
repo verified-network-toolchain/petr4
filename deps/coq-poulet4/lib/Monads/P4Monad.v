@@ -9,6 +9,8 @@ Open Scope string_scope.
 Require Import Coq.Program.Equality.
 Require Import P4String.
 
+Require Monads.Transformers.
+
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
@@ -100,3 +102,6 @@ Definition init_meta : StandardMeta := (zero_bits, tt).
 
 Definition init_state (pkt: list bool) : ParserState := 
   {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.
+
+Definition lift_option {A : Type} (x: option A) : PktParser A :=
+  Transformers.lift_opt tt x.

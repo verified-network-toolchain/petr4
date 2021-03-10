@@ -22,67 +22,60 @@ Definition IPHeader_p : PktParser IPHeader :=
   let* proto := extract_n 4 in 
   pure (src, (dst, (proto, tt))).
 
-Record TCP := {
-  sport_t: option (bits 8);
-  dport_t: option (bits 8);
-  flags_t: option (bits 4);
-  seq: option (bits 8)
-}.
+Definition TCP :=
+  HAList.t _ 
+  [("sport", option (bits 8));
+   ("dport", option (bits 8));
+   ("flags", option (bits 4));
+   ("seq", option (bits 8))].
 
 Definition TCP_p : PktParser TCP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
   let* seq := extract_n 8 in 
-    pure {| sport_t := sport ; dport_t := dport; flags_t := flags; seq := seq |}
-  .
+    pure (sport, (dport, (flags, (seq, tt)))).
 
-Record UDP := {
-  sport_u: option (bits 8);
-  dport_u: option (bits 8);
-  flags_u: option (bits 4)
-}.
+Definition UDP := 
+  HAList.t _ 
+  [("sport", option (bits 8)); 
+   ("dport", option (bits 8));
+   ("flags", option (bits 4))].
+
 
 Definition UDP_p : PktParser UDP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
-    pure {| sport_u := sport ; dport_u := dport; flags_u := flags|}
-  .
+    pure (sport, (dport, (flags, tt))).
 
-Record Headers := {
-  ip: IPHeader;
-  transport: TCP + UDP
-}.
-
-Definition lift_option {A : Type} (x: option A) : PktParser A :=
-  match x with 
-  | Some y => pure y
-  | _ => reject 
-  end.
+Definition Headers := 
+  HAList.t _ 
+  [("ip", IPHeader); 
+   ("transport", (TCP + UDP)%type)].
 
 Definition Headers_p : PktParser Headers := 
   let* iph := IPHeader_p in 
-  let* proto := lift_option (HAList.get _ iph (exist _ "proto" I)) in 
+  let proto_opt := HAList.get _ iph (exist _ "proto" I) in
+  let* proto := lift_option proto_opt in 
   match proto with 
   | (false, (false, (false, (false, tt)))) =>
     let* tcp := TCP_p in 
-      pure {| ip := iph ; transport := inl tcp |}
+      pure (iph, (inl tcp, tt))
   | (false, (false, (false, (true, tt)))) =>
-      let* udp := UDP_p in 
-        pure {| ip := iph ; transport := inr udp |}
+    let* udp := UDP_p in 
+      pure (iph, (inr udp, tt))
   | _ => reject
   end.
 
-
 Definition TCP_valid (tcp: TCP) : bool :=
   match tcp with 
-  | {| sport_t := Some _; dport_t := Some _; flags_t := Some _; seq := Some _ |} => true
+  | (Some _, (Some _, (Some _, (Some _, tt)))) => true
   | _ => false
   end.
 
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
-  match (transport hdr) with 
+  match HAList.get _ hdr (exist _ "transport" I) with 
   | inl tcp => 
     if TCP_valid tcp 
     then set_std_meta (fun mt => HAList.set _ mt (exist _ "egress_spec" I) one_bits) ;; pure hdr 

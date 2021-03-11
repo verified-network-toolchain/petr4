@@ -112,12 +112,8 @@ Context `{External}.
 
 Inductive memory_val :=
   | MVal (v : Val)
-  (* Pointer of program level references those are not available as normal values,
-      including pointers to methods and functions,
-        and pointers to instances. *)
-  | MInstance (p : path)
-  | MClass (name : ident).
-  (* Should these pointers be paths or locs? *)
+  (* Instances, including parsers, controls, and external objects. *)
+  | MInstance (class : ident) (p : path).
 
 Definition mem := @PathMap.t tags_t Val.
 
@@ -449,7 +445,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
           | Some (Global p) => option_map (fun fd => (nil, fd)) (PathMap.get p ge)
           | Some (Instance p) =>
               match PathMap.get this_path inst_m with
-              | Some (MClass class_name) =>
+              | Some (MInstance class_name _) =>
                   option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge)
               | _ => None
               end
@@ -463,23 +459,10 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         match expr with
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
-            let oinst_path :=
-              match PathMap.get (this_path ++ [name]) inst_m with
-              | Some (MInstance inst) =>
-                  Some inst
-              | Some (MClass _) =>
-                  Some (this_path ++ [name])
-              | _ => None
-              end
-            in
-            match oinst_path with
-            | Some inst_path =>
-                match PathMap.get inst_path inst_m with
-                | Some (MClass class_name) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
-                | _ => None
-                end
-            | None => None
+            match PathMap.get (this_path ++ [name]) inst_m with
+            | Some (MInstance class_name inst_path) =>
+                option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
+            | _ => None
             end
         | _ => None
         end
@@ -488,23 +471,10 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         match expr with
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
-            let oinst_path :=
-              match PathMap.get (this_path ++ [name]) inst_m with
-              | Some (MInstance inst) =>
-                  Some inst
-              | Some (MClass _) =>
-                  Some (this_path ++ [name])
-              | _ => None
-              end
-            in
-            match oinst_path with
-            | Some inst_path =>
-                match PathMap.get inst_path inst_m with
-                | Some (MClass class_name) =>
-                    Some (inst_path, FExternal class_name name)
-                | _ => None
-                end
-            | None => None
+            match PathMap.get (this_path ++ [name]) inst_m with
+            | Some (MInstance class_name inst_path) =>
+                Some (inst_path, FExternal class_name name)
+            | _ => None
             end
         | _ => None
         end
@@ -617,7 +587,7 @@ with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state
       exec_table_match e obj_path s name const_entries None ->
       exec_func_callee obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
 
-  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret (*   e inst_m keys actions const_entries s *),
+  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret,
       CallExtern es class_name name obj_path args es' args' vret ->
       exec_func_callee obj_path inst_m (m, es) (FExternal class_name name) args (m, es') args' vret.
 
@@ -706,7 +676,7 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
   match expr with
   | MkExpression _ (ExpName (BareName name)) _ _ =>
       let inst := force nil (IdentMap.get name e) in
-      (inst, PathMap.set p (MInstance inst) m)
+      (inst, PathMap.set p (MInstance name inst) m)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m
   | _ => (nil, m)
@@ -732,13 +702,6 @@ Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv
 
 End instantiate_class_body.
 
-(* Definition get_instantce_path (p : path) (m : inst_mem) : path :=
-  match PathMap.get p m with
-  | Some (MClass _) => p
-  | Some (MInstance p') => p'
-  | _ => nil (* dummy *)
-  end. *)
-
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path) (m : inst_mem) {struct rev_decls} : path * inst_mem :=
   match rev_decls with
   | decl :: rev_decls' =>
@@ -746,14 +709,14 @@ Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ie
       match decl with
       | DeclParser _ class_name' _ _ _ _ _ =>
           if P4String.equivb class_name class_name' then
-            let m := PathMap.set p (MClass class_name) m in
+            let m := PathMap.set p (MInstance class_name p) m in
             (nil, m) (* TODO *)
           else
             instantiate_class_body rev_decls' e class_name p m
       | DeclControl _ class_name' _ _ _ locals _ =>
           if P4String.equivb class_name class_name' then
             let m := instantiate_decls rev_decls' e locals p m in
-            let m := PathMap.set p (MClass class_name) m in
+            let m := PathMap.set p (MInstance class_name p) m in
             (p, m)
           else
             instantiate_class_body rev_decls' e class_name p m

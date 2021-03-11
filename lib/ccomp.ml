@@ -15,7 +15,7 @@ let varmap_find (map: varmap) (var: string) : C.cexpr =
 let next_state_name = "__next_state"
 let next_state_var = C.CVar next_state_name
 
-let get_expr_name (e: Prog.Expression.t) : C.cname =
+let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
   | ExpressionMember x -> snd x.name
   | FunctionCall x -> failwith "a"
@@ -27,6 +27,8 @@ let get_expr_name (e: Prog.Expression.t) : C.cname =
       | _ -> failwith "unimplemented" end 
   | True ->  "true"
   | False -> "false"
+  | Int i -> Bigint.to_string (snd i).value
+  | Cast {typ ; expr} -> get_expr_name expr
   | _ -> failwith "unimplementeddj"
 
 let get_expr_c (e: Prog.Expression.t) : C.cexpr =
@@ -146,15 +148,17 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let fields = translate_params params in
     let state_struct = C.CStruct (snd name, fields) in
-    let app_block = List.map ~f:(translate_act map) locals in 
+    let app_block = List.map ~f:(translate_act (snd name) map) locals in 
     map, state_struct ::
          app_block @
          [C.CFun (CVoid, snd name ^ "_fun", 
                   [CParam (CPtr (CTypeName (snd name)), "state")], 
                   apply_translate_emit map apply)]
+  (* [C.CMethodCall ((snd name), [C.CString "TODO??"])])] *)
+  (* use commented out version if myC, for myd use the current version *)
   | _ -> map, [C.CInclude "todo"] 
 
-and translate_act (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
+and translate_act (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
   match snd locals with 
   | Action { name; data_params; ctrl_params; body; _ } -> 
     C.CFun (CVoid, snd name, 
@@ -163,17 +167,71 @@ and translate_act (map: varmap) (locals : Prog.Declaration.t) : C.cdecl =
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
     begin match key with 
       | [] -> failwith "nothing"
-      (* problem - where should C actually come from? The map? *)
-      (* problem - the parameter for the void function should be in the map, but need a 
-         type of block to get it - I dont have acces to that info here *)
-      (* problem - key is .dst, not the entire hdrs.simple.dst *)
-      | [k] -> C.CFun 
-                 (CVoid, "C", [CParam (CTypeName "C_state", "*state")], 
-                  C.[CIf ((C.CPointer ((C.CString "state"), "hdrs.simple.dst != 0")),
-                          (CMethodCall ("C_do_forward", [C.CString "state"])),
-                          (CMethodCall ("C_do_drop", [C.CString "state"])))])
+      | [k] -> parse_table(n, k, actions, entries, default_action, size, custom_properties)
       | _ -> failwith "no" end 
   | _ -> C.CInclude "not needed"
+
+and ext_action (lst : Prog.Expression.t option ) =
+  begin match lst with 
+    | None -> failwith "unimplemented" 
+    | Some s -> begin match (snd s).expr with
+        | ExpressionMember x -> snd x.name
+        | FunctionCall x -> failwith "a"
+        | NamelessInstantiation x -> failwith "b"
+        | String s -> failwith (snd s)
+        | Mask x -> failwith "dsjak"
+        | Name n -> begin match n with 
+            | BareName str -> snd str
+            | _ -> failwith "unimplemented" end 
+        | True ->  "true"
+        | False -> "false"
+        | _ -> failwith "uni"
+      end 
+  end 
+
+and parse_action_ref (actions : Prog.Table.action_ref list) = 
+  match actions with
+  | [] -> []
+  | h::t -> let n = snd h 
+    in  [(n.action).name] @ parse_action_ref t
+(* List.map ~f:ext_action *)
+
+and get_name (n: P4.name) = 
+  match n with 
+  | BareName b -> b
+  | _ -> failwith "f"
+
+and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
+  let k = (snd key).key in 
+  begin match entries with 
+    | None -> failwith "n"
+    | Some e -> begin match e with 
+        | [] -> failwith "f"
+        | h::t -> let m = (snd h).matches in
+          let equal = begin match m with 
+            | [] -> failwith "F"
+            | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
+            | _ -> failwith "f"
+          end in 
+          (* let a = (snd (snd h).action).action.name in  *)
+          C.CPointer ((C.CString "state"), (get_expr_name k) ^ "!=" ^ (get_expr_name equal)) 
+          (* C.CPointer ((C.CString "state"), (snd (get_name a)) ^ "!=" ^ (get_expr_name equal))  *)
+      end 
+  end 
+
+and parse_table(name, k, actions, entries, default_action, size, custom_properties) = 
+  let l = parse_action_ref actions in 
+  let first = match l with 
+    | h::t -> h
+    | _ -> failwith "mistake" in 
+  let second = match l with 
+    | h::s::t -> s
+    | _ -> failwith "mistake!" in
+  C.CFun 
+    (CVoid, name, [CParam (CTypeName "C_state", "*state")], 
+     C.[CIf ((get_cond_logic entries k),
+             (CMethodCall ((snd (get_name first)), [C.CString "state"])),
+             (CMethodCall (snd (get_name  second), [C.CString "state"])))])
 
 and translate_parser_locals (locals: Prog.Declaration.t list) : C.cstmt list =
   []

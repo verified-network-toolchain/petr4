@@ -20,12 +20,20 @@ Module Ops.
     | _ => None
     end. *)
 
-  Definition eval_binary_op (op: OpBin) (v1 : Val) (v2 : Val) : option Val.
-  Admitted.
+  Definition eval_binary_op (op: OpBin) (v1 : Val) (v2 : Val) : option Val :=
+    match op, v1, v2 with
+    | Plus, ValBaseBit w1 v1, ValBaseBit _ v2 => 
+      Some (ValBaseBit w1 (Z.land (v1 + v2) (Z.pow 2 (Z.of_nat w1) - 1))%Z)
+    | _, _, _ => None
+    end.
+  (* Admitted. *)
 
-  Definition eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val.
-  Admitted.
-  
-  
+  Definition eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+    match newtyp, oldv with
+    | TypBit w, ValBaseInteger v => Some (ValBaseBit w (Z.land v (Z.pow 2 (Z.of_nat w) - 1))%Z)
+    | _, _ => None
+    end.
+  (* Admitted. *)
+
   End Operations.
 End Ops.

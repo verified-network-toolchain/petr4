@@ -78,10 +78,6 @@ Arguments PathMap.t {_} _.
 
 Section Semantics.
 
-(* Inductive val :=
-  | VInt (v : Z)
-  (* TODO *). *)
-
 Context {tags_t: Type}.
 Notation Val := (@ValueBase tags_t).
 
@@ -101,6 +97,7 @@ Class External := {
   ExternalState : Type;
   GetEntries : ExternalState -> path -> list table_entry;
   GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *);
+  EmptyState : ExternalState;
   (* Allocation should be a function; calling may be fine as a relation. *)
   AllocExtern : ExternalState -> ident (* class *) -> path -> list Val -> ExternalState;
   CallExtern : ExternalState -> ident (* class *) -> ident (* method *) -> path -> list Val -> ExternalState -> list Val -> option Val -> Prop
@@ -109,11 +106,6 @@ Class External := {
 Section UseExternal.
 
 Context `{External}.
-
-Inductive memory_val :=
-  | MVal (v : Val)
-  (* Instances, including parsers, controls, and external objects. *)
-  | MInstance (class : ident) (p : path).
 
 Definition mem := @PathMap.t tags_t Val.
 
@@ -131,16 +123,11 @@ Definition get_memory (s : state) : mem :=
 Definition name_cons (p: path) (id: ident) : path :=
   p ++ [id].
 
-(* Inductive env_enty... *)
-
 Inductive env_entry :=
   | Global (p : path)
   | Instance (p : path).
 
 Definition env := @IdentMap.t tags_t env_entry.
-
-(* Axiom env_set : env -> P4String -> path -> env.
-Axiom env_get : env -> P4String -> option path. *)
 
 Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
   match (IdentMap.get i e) with
@@ -170,12 +157,7 @@ Inductive fundef :=
 
 Axiom dummy_fundef : fundef.
 
-(* Definition genv := (@program tags_t) * (path -> option env). *)
-(* only give the Statement is not enough; need call convention. *)
 Definition genv := path -> option fundef.
-(* Definition get_decl (ge : genv) (p : path) : option (env * @Declaration tags_t) :=
-  match p with
-  | BareName  *)
 
 Variable ge : genv.
 
@@ -428,8 +410,12 @@ Inductive exec_args : env -> path -> state -> list (option (@Expression tags_t))
 
 Inductive exec_copy_out : env -> path -> state -> list argument -> list Val -> state -> Prop :=.
 
-(* We split the memory into constant and non-constant parts. *)
-Definition inst_mem := @PathMap.t tags_t memory_val.
+Inductive inst_mem_val :=
+  | IMVal (v : Val)
+  (* Instances, including parsers, controls, and external objects. *)
+  | IMInst (class : ident) (p : path).
+
+Definition inst_mem := @PathMap.t tags_t inst_mem_val.
 
 Axiom dummy_tag : tags_t.
 Definition apply_string : ident := {| P4String.tags := dummy_tag; P4String.str := "apply" |}.
@@ -445,7 +431,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
           | Some (Global p) => option_map (fun fd => (nil, fd)) (PathMap.get p ge)
           | Some (Instance p) =>
               match PathMap.get this_path inst_m with
-              | Some (MInstance class_name _) =>
+              | Some (IMInst class_name _) =>
                   option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge)
               | _ => None
               end
@@ -460,7 +446,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
-            | Some (MInstance class_name inst_path) =>
+            | Some (IMInst class_name inst_path) =>
                 option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
             | _ => None
             end
@@ -472,7 +458,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
-            | Some (MInstance class_name inst_path) =>
+            | Some (IMInst class_name inst_path) =>
                 Some (inst_path, FExternal class_name name)
             | _ => None
             end
@@ -598,6 +584,7 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
       match decl with
       | DeclParser _ name' _ _ _ _ _
       | DeclControl _ name' _ _ _ _ _
+      | DeclExternObject _ name' _ _
       | DeclPackageType _ name' _ _ =>
           if P4String.equivb name name' then
             decl
@@ -606,6 +593,12 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
       | _ => get_decl rev_decls' name
       end
   | [] => DeclError dummy_tag nil (* Abuse DeclError to report not found. *)
+  end.
+
+Definition is_decl_extern_obj (decl : @Declaration tags_t) : bool :=
+  match decl with
+  | DeclExternObject _ _ _ _ => true
+  | _ => false
   end.
 
 Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident :=
@@ -625,6 +618,8 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   end.
 
 Axiom dummy_ident : ident.
+Axiom dummy_val : Val.
+Axiom dummy_inst_mem_val : inst_mem_val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
@@ -633,7 +628,7 @@ Definition get_type_name (typ : @P4Type tags_t) : ident :=
   | _ => dummy_ident
   end.
 
-Definition ienv := @IdentMap.t tags_t path.
+Definition ienv := @IdentMap.t tags_t inst_mem_val.
 
 Definition force {A} (default : A) (x : option A) : A :=
   match x with
@@ -644,26 +639,40 @@ Definition force {A} (default : A) (x : option A) : A :=
 (* A trick to define mutually recursive functions. *)
 Section instantiate_class_body.
 
-Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem), path * inst_mem.
+Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
+      (s : ExternalState), path * inst_mem * ExternalState.
 
 Section instantiate_expr'.
 
-Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path) (m : inst_mem), path * inst_mem.
+Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t)
+      (p : path) (m : inst_mem) (s : ExternalState), inst_mem_val * inst_mem * ExternalState.
 
-Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t) (args : list (@Expression tags_t)) (p : path) (m : inst_mem) : path * inst_mem :=
+Definition extract_val (val : inst_mem_val) :=
+  match val with
+  | IMVal val => val
+  | IMInst _ _ => dummy_val
+  end.
+
+Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t)
+      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : ExternalState) : inst_mem_val * inst_mem * ExternalState :=
   let class_name := get_type_name typ in
   let decl := get_decl rev_decls class_name in
+  (* params := nil if decl is an external object, but params is only used to name the instances. *)
   let params := get_constructor_param_names decl in
-  let instantiate_arg (acc : list path * inst_mem * list ident) arg :=
-    let (acc', params) := acc in
-    let (args, m) := acc' in
-    let (arg, m) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m in
+  let instantiate_arg (acc : list inst_mem_val * inst_mem * ExternalState * list ident) arg :=
+    let '(args, m, s, params) := acc in
+    let '(arg, m, s) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m s in
     (* O(n^2) time complexity here. *)
-    (args ++ [arg], m, tl params) in
-  let (args, m) := fst (fold_left instantiate_arg args (nil, m, params)) in
-  let e := IdentMap.sets params args e in
-  let (_, m) := instantiate_class_body_rev_decls e class_name p m in
-  (p, m).
+    (args ++ [arg], m, s, tl params) in
+  let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
+  if is_decl_extern_obj decl then
+    let m := PathMap.set p (IMInst class_name p) m in
+    let s := AllocExtern s class_name p (map extract_val args) in
+    (IMInst class_name p, m, s)
+  else
+    let e := IdentMap.sets params args e in
+    let '(_, m, s) := instantiate_class_body_rev_decls e class_name p m s in
+    (IMInst class_name p, m, s).
 
 End instantiate_expr'.
 
@@ -671,58 +680,62 @@ End instantiate_expr'.
   To support value expressions, we need a Gallina function to evaluate expressions.
   And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
 
-Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path) (m : inst_mem) {struct expr} : path * inst_mem :=
+Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path)
+      (m : inst_mem) (s : ExternalState) {struct expr} : inst_mem_val * inst_mem * ExternalState :=
   let instantiate' := instantiate'' instantiate_expr' in
   match expr with
   | MkExpression _ (ExpName (BareName name)) _ _ =>
-      let inst := force nil (IdentMap.get name e) in
-      (inst, PathMap.set p (MInstance name inst) m)
+      let inst := force dummy_inst_mem_val (IdentMap.get name e) in
+      (inst, PathMap.set p inst m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
-      instantiate' rev_decls e typ args p m
-  | _ => (nil, m)
+      instantiate' rev_decls e typ args p m s
+  (* TODO evaluate val parameters. *)
+  | _ => (dummy_inst_mem_val, m, s)
   end.
 
 Definition instantiate' :=
   instantiate'' instantiate_expr'.
 
-Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decl : @Declaration tags_t) (p : path) (m : inst_mem) : ienv * inst_mem :=
+Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decl : @Declaration tags_t)
+      (p : path) (m : inst_mem) (s : ExternalState) : ienv * inst_mem * ExternalState :=
   match decl with
   | DeclInstantiation _ typ args name _ =>
-      let class_name := get_type_name typ in
-      let decl := get_decl rev_decls class_name in
-      let (_, m) := instantiate' rev_decls e typ args (p ++ [name]) m in
-      (IdentMap.set name (p ++ [name]) e, m)
-  | _ => (e, m)
+      let '(inst, m, s) := instantiate' rev_decls e typ args (p ++ [name]) m s in
+      (IdentMap.set name inst e, m, s)
+  | _ => (e, m, s)
   end.
 
-Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decls : list (@Declaration tags_t)) (p : path) (m : inst_mem) : inst_mem :=
-  let instantiate_decl'' (em : ienv * inst_mem) (decl : @Declaration tags_t) : ienv * inst_mem :=
-    let (e, m) := em in instantiate_decl' rev_decls e decl p m in
-  snd (fold_left instantiate_decl'' decls (e, m)).
+Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decls : list (@Declaration tags_t))
+      (p : path) (m : inst_mem) (s : ExternalState) : inst_mem * ExternalState :=
+  let instantiate_decl'' (ems : ienv * inst_mem * ExternalState) (decl : @Declaration tags_t) : ienv * inst_mem * ExternalState :=
+    let '(e, m, s) := ems in instantiate_decl' rev_decls e decl p m s in
+  let '(_, m, s) := fold_left instantiate_decl'' decls (e, m, s) in
+  (m, s).
 
 End instantiate_class_body.
 
-Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path) (m : inst_mem) {struct rev_decls} : path * inst_mem :=
+Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
+      (m : inst_mem) (s : ExternalState) {struct rev_decls} : path * inst_mem * ExternalState :=
   match rev_decls with
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
       match decl with
       | DeclParser _ class_name' _ _ _ _ _ =>
           if P4String.equivb class_name class_name' then
-            let m := PathMap.set p (MInstance class_name p) m in
-            (nil, m) (* TODO *)
+            let m := PathMap.set p (IMInst class_name p) m in
+            (nil, m, s) (* TODO *)
           else
-            instantiate_class_body rev_decls' e class_name p m
+            instantiate_class_body rev_decls' e class_name p m s
       | DeclControl _ class_name' _ _ _ locals _ =>
           if P4String.equivb class_name class_name' then
-            let m := instantiate_decls rev_decls' e locals p m in
-            let m := PathMap.set p (MInstance class_name p) m in
-            (p, m)
+            let (m, s) := instantiate_decls rev_decls' e locals p m s in
+            let m := PathMap.set p (IMInst class_name p) m in
+            (p, m, s)
           else
-            instantiate_class_body rev_decls' e class_name p m
-      | _ => instantiate_class_body rev_decls' e class_name p m
+            instantiate_class_body rev_decls' e class_name p m s
+      | _ => instantiate_class_body rev_decls' e class_name p m s
       end
-  | nil => (nil, m)
+  | nil => (nil, m, s)
   end.
 
 Definition instantiate_expr (rev_decls : list (@Declaration tags_t)) :=
@@ -738,21 +751,23 @@ Definition instantiate_decls (rev_decls : list (@Declaration tags_t)) :=
   instantiate_decls' (instantiate_class_body rev_decls) rev_decls.
 
 
-Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t)) (e : ienv) (m : inst_mem) : inst_mem :=
+Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t))
+      (e : ienv) (m : inst_mem) (s : ExternalState) : inst_mem * ExternalState :=
   match decls with
-  | [] => m
+  | [] => (m, s)
   | decl :: decls' =>
-      let (e, m) := instantiate_decl rev_decls e decl nil m in
-      instantiate_global_decls' decls' (decl :: rev_decls) e m
+      let '(e, m, s) := instantiate_decl rev_decls e decl nil m s in
+      instantiate_global_decls' decls' (decl :: rev_decls) e m s
   end.
 
-Definition instantiate_global_decls (decls : list (@Declaration tags_t)) : forall (m : inst_mem), inst_mem :=
+Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
+      forall (m : inst_mem) (s: ExternalState), inst_mem * ExternalState :=
   instantiate_global_decls' decls nil IdentMap.empty.
 
-Definition instantiate_prog (prog : @program tags_t) : inst_mem :=
+Definition instantiate_prog (prog : @program tags_t) : inst_mem * ExternalState :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls PathMap.empty
+      instantiate_global_decls decls PathMap.empty EmptyState
   end.
 
 

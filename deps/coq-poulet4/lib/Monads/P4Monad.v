@@ -44,7 +44,7 @@ Definition bits2list {n} (bs: bits n) : list bool.
 Defined.
 
 Definition StandardMeta :=
-  HAList.t string [("egress_spec", bits 9)].
+  HAList.t [("egress_spec", bits 9)].
 
 Record ParserState {Meta: Type} := mkParserState {
   fuel: nat;
@@ -90,7 +90,7 @@ Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
     end
   end.
 
-Definition init_meta : StandardMeta := (zero_bits, tt).
+Definition init_meta : StandardMeta := HAList.RCons zero_bits HAList.REmp.
 
 Definition init_state (pkt: list bool) : ParserState := 
   {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.

@@ -1,7 +1,7 @@
 (coq.theory
  (name Poulet4.Examples)
  (package poulet4)
- (modules :standard \ BabyIPGrammarRel SimpleIPv4)
+ (modules :standard \ BabyIPGrammarRel)
  (synopsis "Verification examples for Petr4")
  (theories Poulet4)
 )

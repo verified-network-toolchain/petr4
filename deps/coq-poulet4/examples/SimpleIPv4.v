@@ -1,6 +1,7 @@
 Require Import Monads.Monad.
 Require Import Monads.State.
 Require Import Monads.P4Monad.
+Require Import Monads.Hoare.WP.
 Open Scope monad.
 Require Import Lists.List.
 Import ListNotations.
@@ -130,9 +131,65 @@ Definition IPHeader_p_spec : Prop :=
 
 Definition TCP_p_spec : Prop :=
   forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
-         /\ length (pkt st') = length (pkt st') - 28).                        
+         /\ length (pkt st') = length (pkt st) - 28).     
+         
+
+
+Definition extract_n_post (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  if Nat.leb n (length (pkt st)) 
+  then exists pref suff bits, 
+    pref = firstn n (pkt st) /\
+    st' = st <| pkt := suff |> /\
+    pkt st = pref ++ suff /\
+    ob = Some bits /\
+    pref = bits2list bits
+  else exists pref,
+    pref = firstn n (pkt st) /\
+    pkt st = pref /\
+    st' = st <| pkt := nil |> /\
+    ob = None.
+
+Definition hd_extract (bs: list bool) := 
+  match bs with
+  | nil => false
+  | _ => true
+  end.
+
+
+Lemma extract_post st:
+  {{ fun s => s = st }}
+    next_bit
+  {{ fun r s' => 
+    s' = st <| pkt := firstn 1 (pkt st) |> /\ 
+    if hd_extract (pkt st) then exists r', r = inl (Some r') else r = inl None 
+  }}.
+Proof.
+  unfold next_bit.
+Admitted.
+
+Lemma extract_n_forward n st:
+  {{ fun s => s = st }}
+    extract_n n
+  {{ fun r s' => exists r', r = inl r' /\ extract_n_post n r' st s' }}.
+Proof.
+
+Admitted.
+
+Lemma IPHeader_p_spec' st : 
+  {{ fun s => s = st /\ length (pkt st) >= 28 }}
+    IPHeader_p
+  {{ fun r s' => 
+    (exists iph, r = inl iph) /\ 
+    length (pkt s') = length (pkt st) - 28
+  }}.
+Proof.
+Admitted.
 
 Lemma IPHeader_p_Correct : IPHeader_p_spec.
+Proof.
+  unfold IPHeader_p_spec.
+  unfold IPHeader_p.
+  split.
 Admitted.
 
 Lemma TCP_p_Correct : TCP_p_spec.

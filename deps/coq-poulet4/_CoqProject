@@ -6,7 +6,8 @@ lib/Monads/Monad.v
 lib/Monads/Option.v
 lib/Monads/State.v
 lib/Monads/Transformers.v
-lib/Monads/Hoare.v
+lib/Monads/Hoare/SP.v
+lib/Monads/Hoare/WP.v
 lib/Monads/P4Monad.v
 
 lib/Utils.v

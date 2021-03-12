@@ -182,35 +182,9 @@ Proof.
     destruct (c2 st).
     right. trivial.
 Qed.
-  
-Definition greater_cond : @state_monad nat unit (option unit) :=
-  st <- get_state ;; 
-  match st with 
-  | 0 => state_return (Some tt)
-  | _ => state_return None
-  end.
 
 Lemma hoare_return' {State Exception Result: Type} {P} (x: Result) : 
   {{ P }} @state_return State Exception Result x {{ fun r st st' => P st' /\ r = inl x /\ st = st' }}.
 Proof.
   cbv. intros. auto.
 Qed.
-
-Lemma greater_spec : 
-  {{ top }}
-  greater_cond 
-  {{ fun r s s' => 
-    match r with 
-    | inl (Some tt) => s = 0
-    | (inl _) => s > 0
-    | inr _ => False
-    end 
-  }}.
-Proof.
-  (* refine (hoare_consequence ( 
-    st <-- hoare_get ;;
-    (hoare_cond 
-      (hoare_return' (Some tt)) 
-      (hoare_return' None))
-  ) _ _). *)
-Admitted.

@@ -36,6 +36,13 @@ Fixpoint one_bits {w: nat} : bits (S w) :=
   | S w' => (false, one_bits)
   end.
 
+Definition bits2list {n} (bs: bits n) : list bool.
+  induction n.
+  - exact nil.
+  - destruct bs.
+    exact (b :: IHn p).
+Defined.
+
 Definition StandardMeta :=
   HAList.t string [("egress_spec", bits 9)].
 
@@ -70,21 +77,6 @@ Definition next_bit : PktParser (option bool) :=
     pure (Some x)
   | _ => pure None
   end.
-    
-Lemma next_bit_nil : forall st, 
-  pkt st = nil <-> exists st', run_with_state st next_bit = (inl None, st').
-Proof.
-  intros.
-  split.
-  - 
-    intros. 
-    exists st.
-    cbv.
-Admitted.
-
-Lemma next_bit_cons : forall st, 
-  exists b bs, pkt st = b :: bs <-> exists st', run_with_state st next_bit = (inl (Some b), st').
-Admitted.
 
 Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
   match n as n' return PktParser (option (bits n')) with

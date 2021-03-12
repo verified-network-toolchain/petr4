@@ -1,13 +1,14 @@
-Require Import Strings.String.
+Require Import Coq.Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
-Require Export Coq.ZArith.ZArith.
+Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.P4Int.
+Require Import Poulet4.Ops.
 
 Import ListNotations.
 
@@ -113,12 +114,8 @@ Context `{External}.
 
 Inductive memory_val :=
   | MVal (v : Val)
-  (* Pointer of program level references those are not available as normal values,
-      including pointers to methods and functions,
-        and pointers to instances. *)
-  | MInstance (p : path)
-  | MClass (name : ident).
-  (* Should these pointers be paths or locs? *)
+  (* Instances, including parsers, controls, and external objects. *)
+  | MInstance (class : ident) (p : path).
 
 Definition mem := @PathMap.t tags_t Val.
 
@@ -194,12 +191,12 @@ Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t)
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
-  | None => ValBaseInteger (value n)
-  | Some (w, true) => ValBaseBit w (value n)
-  | Some (w, false) => ValBaseInt w (value n)
+  | None => ValBaseInteger (P4Int.value n)
+  | Some (w, true) => ValBaseInt w (P4Int.value n)
+  | Some (w, false) => ValBaseBit w (P4Int.value n)
   end.
 
-Definition ident_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
+Definition name_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
   let p :=
     match n with
     | BareName i => ident_to_path e i this
@@ -215,28 +212,37 @@ Definition ident_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : sta
     | _ => None
     end.
 
-Fixpoint val_to_z (v : Val) : (option Z) :=
+Definition array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
   | ValBaseInt _ value
   | ValBaseBit _ value
-  | ValBaseInteger value
-  | ValBaseVarbit _ _ value => Some value
-  | ValBaseSenumField _ _ value => val_to_z value
-  | ValBaseBool b => if b then Some (1%Z) else Some (0%Z)
+  | ValBaseInteger value => Some value
+  | _ => None
+  end.
+
+Definition bitstring_slice_bits_to_z (v : Val) : option (nat * Z) :=
+  match v with
+  | ValBaseInt width value
+  | ValBaseBit width value => Some (width, value)
   | _ => None
   end.
 
 Definition z_to_nat (i : Z) : option nat :=
   if (i >=? 0)%Z then Some (Z.to_nat i) else None.
 
+
+(* Ref:When accessing the bits of negative numbers, all functions below will
+   use the two's complement representation. 
+   For instance, -1 will correspond to an infinite stream of true bits. 
+   https://coq.inria.fr/library/Coq.ZArith.BinIntDef.html *)
 Definition bitstring_slice (i : Z) (lo : N) (hi : N) : Z :=
   let mask := (Z.pow 2 (Z.of_N (hi - lo + 1)) - 1)%Z in
   Z.land (Z.shiftr i (Z.of_N lo)) mask.
 
 (* Note that expressions don't need decl_path. *)
-Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
-                      (@Expression tags_t) -> Val ->
-                      (* trace -> *) (* temp_env -> *) (* state -> *) (* outcome -> *) Prop :=
+Inductive exec_expr : env -> path -> (* temp_env -> *) state -> 
+                      (@Expression tags_t) -> Val -> 
+                      (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_expr_bool : forall b e this st tag typ dir,
                      exec_expr e this st
                      (MkExpression tag (ExpBool b) typ dir)
@@ -251,28 +257,35 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
   | exec_expr_name: forall name e v this st tag typ dir,
-                    ident_to_val e name this st = Some v ->
+                    name_to_val e name this st = Some v ->
                     exec_expr e this st
                     (MkExpression tag (ExpName name) typ dir)
                     v
-  (* omitting undefined behavior *)
-  | exec_expr_arrayaccess: forall array headers size next idx idxv idxz idxn header e this st tag typ dir,
-                           exec_expr e this st array (ValBaseStack headers size next) ->
-                           exec_expr e this st idx idxv ->
-                           val_to_z idxv = Some idxz ->
-                           (0 <= idxz < (Z.of_nat size))%Z ->
-                           z_to_nat idxz = Some idxn ->
-                           List.nth_error headers idxn = Some header ->
-                           exec_expr e this st
-                           (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                           header
-  (* omitting bounds check in checker.ml *)
-  | exec_expr_bitstringaccess : forall bits bitsv bitsz lo hi e this st tag typ dir,
-                                exec_expr e this st bits bitsv ->
-                                val_to_z bitsv = Some bitsz ->
-                                exec_expr e this st
-                                (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
-                                (ValBaseBit (N.to_nat (hi - lo + 1)%N) (bitstring_slice bitsz lo hi))
+  | exec_expr_array_access: forall array headers size next idx idxv idxz idxn header e this st tag typ dir,
+                            exec_expr e this st array (ValBaseStack headers size next) ->
+                            exec_expr e this st idx idxv ->
+                            array_access_idx_to_z idxv = Some idxz ->
+                            (0 <= idxz < (Z.of_nat size))%Z ->
+                            z_to_nat idxz = Some idxn ->
+                            List.nth_error headers idxn = Some header ->
+                            exec_expr e this st
+                            (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                            header
+  | exec_expr_array_access_undef: forall array headers size next idx idxv idxz v e this st tag typ dir,
+                                  exec_expr e this st array (ValBaseStack headers size next) ->
+                                  exec_expr e this st idx idxv ->
+                                  array_access_idx_to_z idxv = Some idxz ->
+                                  (idxz < 0)%Z \/ (idxz >= (Z.of_nat size))%Z ->
+                                  exec_expr e this st
+                                  (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                                  v
+  | exec_expr_bitstring_access : forall bits bitsv bitsz w lo hi e this st tag typ dir,
+                                 exec_expr e this st bits bitsv ->
+                                 bitstring_slice_bits_to_z bitsv = Some (w, bitsz) ->
+                                 (lo <= hi < (N.of_nat w))%N ->
+                                 exec_expr e this st
+                                 (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
+                                 (ValBaseBit (N.to_nat (hi - lo + 1)%N) (bitstring_slice bitsz lo hi))
   | exec_expr_list_nil : forall e this st tag typ dir,
                          exec_expr e this st
                          (MkExpression tag (ExpList nil) typ dir)
@@ -283,14 +296,80 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                           exec_expr e this st
                           (MkExpression tag (ExpList (expr :: es)) typ dir)
                           (ValBaseTuple (v :: vs))
+  | exec_expr_record_nil : forall e this st tag typ dir,
+                           exec_expr e this st
+                           (MkExpression tag (ExpRecord nil) typ dir)
+                           (ValBaseRecord nil)
+  | exec_expr_record_cons : forall exprk exprv v es kvs e this st tag_expr tag_kv typ dir,
+                            exec_expr e this st exprv v ->
+                            exec_expr e this st (MkExpression tag_expr (ExpRecord es) typ dir) (ValBaseRecord kvs) ->
+                            exec_expr e this st
+                            (MkExpression tag_expr (ExpRecord ((MkKeyValue tag_kv exprk exprv) :: es)) typ dir)
+                            (ValBaseRecord ((exprk, v) :: kvs))
+  | exec_expr_unary_op : forall op arg argv v e this st tag typ dir,
+                         exec_expr e this st arg argv ->
+                         Ops.eval_unary_op op argv = Some v ->
+                         exec_expr e this st
+                         (MkExpression tag (ExpUnaryOp op arg) typ dir)
+                         v
+  | exec_expr_binary_op : forall op larg largv rarg rargv v e this st tag typ dir,
+                          exec_expr e this st larg largv ->
+                          exec_expr e this st rarg rargv ->
+                          Ops.eval_binary_op op largv rargv = Some v ->
+                          exec_expr e this st
+                          (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
+                          v
+  | exec_expr_cast : forall newtyp expr oldv newv e this st tag typ dir,
+                     exec_expr e this st expr oldv ->
+                     (* eval_cast need env and state of new types *)
+                     Ops.eval_cast newtyp oldv = Some newv ->
+                     exec_expr e this st
+                     (MkExpression tag (ExpCast newtyp expr) typ dir)
+                     newv
+  (* | exec_expr_type_member omitted for now *)
+  | exec_expr_error_member : forall err e this st tag typ dir,
+                             exec_expr e this st
+                             (MkExpression tag (ExpErrorMember err) typ dir)
+                             (ValBaseError err)
+  (* | exec_expr_expression_member omitted for now *)
+  | exec_expr_ternary_tru : forall cond tru truv fls e this st tag typ dir,
+                            exec_expr e this st cond (ValBaseBool true) ->
+                            exec_expr e this st tru truv ->
+                            exec_expr e this st
+                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
+                            truv
+  | exec_expr_ternary_fls : forall cond tru fls flsv e this st tag typ dir,
+                            exec_expr e this st cond (ValBaseBool false) ->
+                            exec_expr e this st fls flsv ->
+                            exec_expr e this st
+                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
+                            flsv
+  | exec_expr_dont_care : forall e this st tag typ dir,
+                          exec_expr e this st
+                          (MkExpression tag ExpDontCare typ dir)
+                          ValBaseNull
+  (* the following two expressions output ValueSet instead of ValueBase *)
+  (* | exec_expr_mask : forall expr exprv mask maskv e this st tag typ dir,
+                     exec_expr e this st expr exprv ->
+                     exec_expr e this st mask maskv ->
+                     exec_expr e this st
+                     (MkExpression tag (ExpMask expr mask) typ dir)
+                     (ValSetMask exprv maskv)
+  | exec_expr_range : forall lo lov hi hiv e this st tag typ dir,
+                      exec_expr e this st lo lov ->
+                      exec_expr e this st hi hiv ->
+                      exec_expr e this st
+                      (MkExpression tag (ExpRange lo hi) typ dir)
+                      (ValSetRange lov hiv) *)
   .
 
 Inductive exec_exprs : env -> path -> state -> list (@Expression tags_t) -> list Val -> Prop :=
-  .
-  (* TODO *)
-  (* | exec_exprs_nil
-  | exec_exprs_cons *)
-
+  | exec_exprs_nil : forall e this st,
+                     exec_exprs e this st nil nil
+  | exec_exprs_cons : forall e this st expr es v vs,
+                      exec_expr e this st expr v ->
+                      exec_exprs e this st es vs ->
+                      exec_exprs e this st (expr :: es) (v :: vs).
 
 
 Axiom param_to_name : (@P4Parameter tags_t) -> ident.
@@ -301,9 +380,12 @@ Definition copy_in_copy_out (params : list path)
   s' = update_memory (PathMap.sets params args) s /\
   map Some args' = PathMap.gets params (get_memory s).
 
-Inductive outcome : Type :=
-   | Out_normal : outcome
-   | Out_return : option Val -> outcome.
+Inductive signal : Type :=
+   | SContinue : signal
+   | SReturn : option Val -> signal
+   | SExit
+   (* parser's states include accept and reject *)
+   | SReject : string -> signal. 
 
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
@@ -365,7 +447,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
           | Some (Global p) => option_map (fun fd => (nil, fd)) (PathMap.get p ge)
           | Some (Instance p) =>
               match PathMap.get this_path inst_m with
-              | Some (MClass class_name) =>
+              | Some (MInstance class_name _) =>
                   option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge)
               | _ => None
               end
@@ -379,23 +461,10 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         match expr with
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
-            let oinst_path :=
-              match PathMap.get (this_path ++ [name]) inst_m with
-              | Some (MInstance inst) =>
-                  Some inst
-              | Some (MClass _) =>
-                  Some (this_path ++ [name])
-              | _ => None
-              end
-            in
-            match oinst_path with
-            | Some inst_path =>
-                match PathMap.get inst_path inst_m with
-                | Some (MClass class_name) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
-                | _ => None
-                end
-            | None => None
+            match PathMap.get (this_path ++ [name]) inst_m with
+            | Some (MInstance class_name inst_path) =>
+                option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
+            | _ => None
             end
         | _ => None
         end
@@ -404,23 +473,10 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         match expr with
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
-            let oinst_path :=
-              match PathMap.get (this_path ++ [name]) inst_m with
-              | Some (MInstance inst) =>
-                  Some inst
-              | Some (MClass _) =>
-                  Some (this_path ++ [name])
-              | _ => None
-              end
-            in
-            match oinst_path with
-            | Some inst_path =>
-                match PathMap.get inst_path inst_m with
-                | Some (MClass class_name) =>
-                    Some (inst_path, FExternal class_name name)
-                | _ => None
-                end
-            | None => None
+            match PathMap.get (this_path ++ [name]) inst_m with
+            | Some (MInstance class_name inst_path) =>
+                Some (inst_path, FExternal class_name name)
+            | _ => None
             end
         | _ => None
         end
@@ -430,8 +486,74 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
 Definition extract_argvals : list argument -> list Val.
 Admitted.
 
-Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement tags_t) -> state -> outcome -> Prop :=
-with exec_block : path -> path -> env -> inst_mem -> state -> (@Block tags_t) -> state -> outcome -> Prop :=
+Inductive exec_lvalue_expr : env -> path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
+  | exec_lvalue_expr_name : forall name e this st tag typ dir,
+                            exec_lvalue_expr e this st 
+                            (MkExpression tag (ExpName name) typ dir)
+                            (MkValueLvalue (ValLeftName name) typ)
+  | exec_lvalue_expr_member : forall expr lv name e this st tag typ dir,
+                              exec_lvalue_expr e this st expr lv ->
+                              exec_lvalue_expr e this st 
+                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
+                              (MkValueLvalue (ValLeftMember lv name) typ)
+  (* ATTN: lo and hi interchanged here *)
+  | exec_lvalue_bitstring_access : forall bits lv lo hi e this st tag typ dir,
+                                   exec_lvalue_expr e this st bits lv ->
+                                   exec_lvalue_expr e this st 
+                                   (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
+                                   (MkValueLvalue (ValLeftBitAccess lv (N.to_nat hi) (N.to_nat lo)) typ)
+  (* Since array size is unknown here, only the lower-bound undefined behavior is defined.
+     The upper bound should be handled after getting the value from lvalue. *)
+  | exec_lvalue_array_access : forall array lv idx idxv idxz idxn e this st tag typ dir,
+                               exec_lvalue_expr e this st array lv ->
+                               exec_expr e this st idx idxv ->
+                               array_access_idx_to_z idxv = Some idxz ->
+                               z_to_nat idxz = Some idxn ->
+                               exec_lvalue_expr e this st 
+                               (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                               (MkValueLvalue (ValLeftArrayAccess lv idxn) typ)
+  | exec_lvalue_array_access_undef_lo : forall array alv idx idxv idxz lv e this st tag typ dir,
+                                        exec_lvalue_expr e this st array alv ->
+                                        exec_expr e this st idx idxv ->
+                                        array_access_idx_to_z idxv = Some idxz ->
+                                        (idxz < 0)%Z ->
+                                        exec_lvalue_expr e this st 
+                                        (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                                        lv.
+
+Definition update_val_by_name (e: env) (this : path) (s : state) (n : @Typed.name tags_t) (v : Val): option state :=
+  let p :=
+    match n with
+    | BareName i => ident_to_path e i this
+    | QualifiedName ns i => Some (name_cons ns i)
+    end
+  in 
+    match p with
+    | Some p' => Some (update_memory (PathMap.set p' v) s)
+    | _ => None
+    end.
+
+Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
+  match lhs with
+  | MkValueLvalue (ValLeftName name) _ =>
+    let opt_st := update_val_by_name e this st name rhs in
+      match opt_st with 
+      | Some st' => Some (st', SContinue)
+      | _ => None
+      end
+  | _ => None (* omitted for now *)
+  end.
+
+(*this_path -> decl_path*)
+Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
+  | eval_stmt_assignment : forall lhs lv rhs v this_path decl_path e inst_m st tag typ st' sig,
+                           exec_lvalue_expr e this_path st lhs lv ->
+                           exec_expr e this_path st rhs v ->
+                           assign_lvalue e this_path st lv v = Some (st', SContinue) ->
+                           exec_stmt this_path decl_path e inst_m st
+                           (MkStatement tag (StatAssignment lhs rhs) typ) st' sig
+  
+with exec_block : path -> path -> env -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
 with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:
        1. lookup the function to call;
@@ -450,7 +572,7 @@ with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) 
 with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
   | exec_func_internal : forall obj_path global decl_path e inst_m params body s args args' s' s'' vret,
       copy_in_copy_out (map (fun param => obj_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
-      exec_block obj_path decl_path e inst_m s' body s'' (Out_return vret) ->
+      exec_block obj_path decl_path e inst_m s' body s'' (SReturn vret) ->
       exec_func_callee obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
 
   | exec_func_table_match : forall obj_path name e inst_m keys actions matches action_name ctrl_args default_action const_entries s s',
@@ -467,7 +589,7 @@ with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state
       exec_table_match e obj_path s name const_entries None ->
       exec_func_callee obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
 
-  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret (*   e inst_m keys actions const_entries s *),
+  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret,
       CallExtern es class_name name obj_path args es' args' vret ->
       exec_func_callee obj_path inst_m (m, es) (FExternal class_name name) args (m, es') args' vret.
 
@@ -556,7 +678,7 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
   match expr with
   | MkExpression _ (ExpName (BareName name)) _ _ =>
       let inst := force nil (IdentMap.get name e) in
-      (inst, PathMap.set p (MInstance inst) m)
+      (inst, PathMap.set p (MInstance name inst) m)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m
   | _ => (nil, m)
@@ -582,13 +704,6 @@ Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv
 
 End instantiate_class_body.
 
-(* Definition get_instantce_path (p : path) (m : inst_mem) : path :=
-  match PathMap.get p m with
-  | Some (MClass _) => p
-  | Some (MInstance p') => p'
-  | _ => nil (* dummy *)
-  end. *)
-
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path) (m : inst_mem) {struct rev_decls} : path * inst_mem :=
   match rev_decls with
   | decl :: rev_decls' =>
@@ -596,14 +711,14 @@ Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ie
       match decl with
       | DeclParser _ class_name' _ _ _ _ _ =>
           if P4String.equivb class_name class_name' then
-            let m := PathMap.set p (MClass class_name) m in
+            let m := PathMap.set p (MInstance class_name p) m in
             (nil, m) (* TODO *)
           else
             instantiate_class_body rev_decls' e class_name p m
       | DeclControl _ class_name' _ _ _ locals _ =>
           if P4String.equivb class_name class_name' then
             let m := instantiate_decls rev_decls' e locals p m in
-            let m := PathMap.set p (MClass class_name) m in
+            let m := PathMap.set p (MInstance class_name p) m in
             (p, m)
           else
             instantiate_class_body rev_decls' e class_name p m

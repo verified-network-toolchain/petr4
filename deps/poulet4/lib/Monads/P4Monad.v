@@ -11,6 +11,8 @@ Import ListNotations.
 Open Scope monad.
 Open Scope string_scope.
 
+Require Monads.Transformers.
+
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
@@ -35,6 +37,13 @@ Fixpoint one_bits {w: nat} : bits (S w) :=
   | 0 => (true, tt)
   | S w' => (false, one_bits)
   end.
+
+Definition bits2list {n} (bs: bits n) : list bool.
+  induction n.
+  - exact nil.
+  - destruct bs.
+    exact (b :: IHn p).
+Defined.
 
 Definition StandardMeta :=
   HAList.t string [("egress_spec", bits 9)].
@@ -71,21 +80,6 @@ Definition next_bit : PktParser (option bool) :=
   | _ => pure None
   end.
 
-Lemma next_bit_nil : forall st,
-  pkt st = nil <-> exists st', run_with_state st next_bit = (inl None, st').
-Proof.
-  intros.
-  split.
-  -
-    intros.
-    exists st.
-    cbv.
-Admitted.
-
-Lemma next_bit_cons : forall st,
-  exists b bs, pkt st = b :: bs <-> exists st', run_with_state st next_bit = (inl (Some b), st').
-Admitted.
-
 Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
   match n as n' return PktParser (option (bits n')) with
   | 0 => pure (Some tt)
@@ -102,3 +96,6 @@ Definition init_meta : StandardMeta := (zero_bits, tt).
 
 Definition init_state (pkt: list bool) : ParserState :=
   {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.
+
+Definition lift_option {A : Type} (x: option A) : PktParser A :=
+  Transformers.lift_opt tt x.

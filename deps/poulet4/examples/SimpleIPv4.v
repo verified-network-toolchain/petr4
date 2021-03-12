@@ -1,101 +1,99 @@
-Require Import Grammar.
-Require Import Lib.
-Require Import Binary.
-Require Import Bits.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
+Require Import Poulet4.Monads.P4Monad.
+Require Import Poulet4.Monads.Hoare.WP.
+Open Scope monad.
 
-Record IPHeader := {
-  src: bits 8;
-  dest: bits 8;
-  proto: bits 4
-}.
+Require Import Coq.Lists.List.
+Import ListNotations.
 
-Definition IPHeader_p : grammar IPHeader :=
-  (
-    bits_n 8 >= fun src =>
-    bits_n 8 >= fun dest =>
-    bits_n 4 >= fun proto =>
-      ret {| src := src; dest := dest; proto := proto |}
-  ) @ fun x => projT2 (projT2 (projT2 x)).
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
+
+Definition IPHeader :=
+  HAList.t _
+  [("src", option (bits 8));
+   ("dst", option (bits 8));
+   ("proto", option (bits 4))].
+
+Definition IPHeader_p : PktParser IPHeader :=
+  let* src := extract_n 8 in 
+  let* dst := extract_n 8 in 
+  let* proto := extract_n 4 in 
+  pure (src, (dst, (proto, tt))).
+
+Definition TCP :=
+  HAList.t _ 
+  [("sport", option (bits 8));
+   ("dport", option (bits 8));
+   ("flags", option (bits 4));
+   ("seq", option (bits 8))].
+
+Definition TCP_p : PktParser TCP :=
+  let* sport := extract_n 8 in 
+  let* dport := extract_n 8 in 
+  let* flags := extract_n 4 in 
+  let* seq := extract_n 8 in 
+    pure (sport, (dport, (flags, (seq, tt)))).
+
+Definition UDP := 
+  HAList.t _ 
+  [("sport", option (bits 8)); 
+   ("dport", option (bits 8));
+   ("flags", option (bits 4))].
 
 
-Record TCP := {
-  sport_t: bits 8;
-  dport_t: bits 8;
-  flags_t: bits 4;
-  seq: bits 8
-}.
+Definition UDP_p : PktParser UDP :=
+  let* sport := extract_n 8 in 
+  let* dport := extract_n 8 in 
+  let* flags := extract_n 4 in 
+    pure (sport, (dport, (flags, tt))).
 
-Definition TCP_p : grammar TCP :=
-  (
-    bits_n 8 >= fun sport_t =>
-    bits_n 8 >= fun dport_t =>
-    bits_n 4 >= fun flags_t =>
-    bits_n 8 >= fun seq =>
-      ret {| sport_t := sport_t; dport_t := dport_t; flags_t := flags_t; seq := seq |}
-  ) @ fun x => projT2 (projT2 (projT2 (projT2 x))).
+Definition Headers := 
+  HAList.t _ 
+  [("ip", IPHeader); 
+   ("transport", (TCP + UDP)%type)].
 
-Record UDP := {
-  sport_u: bits 8;
-  dport_u: bits 8;
-  flags_u: bits 4
-}.
-
-Definition UDP_p : grammar UDP :=
-  (
-    bits_n 8 >= fun sport_u =>
-    bits_n 8 >= fun dport_u =>
-    bits_n 4 >= fun flags_u =>
-      ret {| sport_u := sport_u; dport_u := dport_u; flags_u := flags_u |}
-  ) @ fun x => projT2 (projT2 (projT2 x)).
-
-Record Headers := {
-  ip: IPHeader;
-  transport: option (TCP + UDP)
-}.
-
-Definition babyParser : grammar Headers :=
-  (IPHeader_p >= fun iph =>
-  match proto iph return grammar (option (TCP + UDP)) with
+Definition Headers_p : PktParser Headers := 
+  let* iph := IPHeader_p in 
+  let proto_opt := HAList.get _ iph (exist _ "proto" I) in
+  let* proto := lift_option proto_opt in 
+  match proto with 
   | (false, (false, (false, (false, tt)))) =>
-    TCP_p @ inl @ Some
+    let* tcp := TCP_p in 
+      pure (iph, (inl tcp, tt))
   | (false, (false, (false, (true, tt)))) =>
-    UDP_p @ inr @ Some
-  | _ => ret None
-  end)
-  @ fun x => let (ip, transport) := x in
-    {| ip := ip; transport := transport |}.
-
-Record StandardMeta := {
-  egress_spec : bits 9
-}.
-
-Definition init_meta : StandardMeta := {| egress_spec := zero_bits 9 |}.
-
-Definition IngressFunc (Hdrs: Type) (Meta: Type) : Type :=
-  (option Hdrs * Meta * StandardMeta) -> (option Hdrs * Meta * StandardMeta).
-
-Definition MyIngress : IngressFunc Headers unit := fun hms =>
-  let '(hdrs, m, sm) := hms in
-  match hdrs with
-  | Some _ => (hdrs, m, {| egress_spec := zero_bits 9 |})
-  | None   => (hdrs, m, {| egress_spec := one_bits |})
+    let* udp := UDP_p in 
+      pure (iph, (inr udp, tt))
+  | _ => reject
   end.
 
-Definition MyProg (pkt: list bool) : option Headers * unit * StandardMeta :=
-  match parse babyParser pkt with
-  | res :: nil => MyIngress (Some res, tt, init_meta)
-  | _ => MyIngress (None, tt, init_meta)
+Definition TCP_valid (tcp: TCP) : bool :=
+  match tcp with 
+  | (Some _, (Some _, (Some _, (Some _, tt)))) => true
+  | _ => false
   end.
-<<<<<<< HEAD
 
-Definition ProgOut : Type := option Headers * unit * StandardMeta.
+Definition MyIngress (hdr: Headers) : PktParser Headers := 
+  match HAList.get _ hdr (exist _ "transport" I) with 
+  | inl tcp => 
+    if TCP_valid tcp 
+    then set_std_meta (fun mt => HAList.set _ mt (exist _ "egress_spec" I) one_bits) ;; pure hdr 
+    else set_std_meta (fun mt => HAList.set _ mt (exist _ "egress_spec" I) zero_bits) ;; pure hdr 
+  | _ => pure hdr
+  end.
+
+Definition MyProg (pkt: list bool) : PktParser Headers :=
+  put_state (fun _ => init_state pkt) ;;
+  let* hdr := Headers_p in 
+    MyIngress hdr.
 
 Definition HeaderWF (pkt : list bool) : Prop :=
   (List.nth_error pkt 16 = Some false) /\
   (List.nth_error pkt 17 = Some false) /\
   (List.nth_error pkt 18 = Some false) /\
   ((List.nth_error pkt 19 = Some false /\ length pkt = 40) \/
-   (List.nth_error pkt 19 = Some true /\ length pkt = 32)).
+    (List.nth_error pkt 19 = Some true /\ length pkt = 32)).
 
 Definition IPHeaderIsTCP (pkt : list bool) : Prop :=
   length pkt = 40.
@@ -103,39 +101,124 @@ Definition IPHeaderIsTCP (pkt : list bool) : Prop :=
 Definition IPHeaderIsUDP (pkt : list bool) : Prop :=
   length pkt = 32.
 
-Definition EgressSpecOne (out : ProgOut) : Prop :=
-  egress_spec (snd out) = one_bits.
+Definition EgressSpecOne (out : @ParserState Meta) : Prop :=
+  HAList.get _ (std_meta out) (exist _ "egress_spec" I) = one_bits.
 
-Definition EgressSpecZero (out : ProgOut) : Prop :=
-  egress_spec (snd out) = zero_bits 9.
+Definition EgressSpecZero (out : @ParserState Meta) : Prop :=
+  HAList.get _ (std_meta out) (exist _ "egress_spec" I) = zero_bits.
 
-Definition PacketConsumed (out : ProgOut) : Prop :=
-  match fst (fst out) with
-  | Some _ => True
+Definition PacketConsumed (out : @ParserState Meta) : Prop :=
+  match pkt out with
+  | nil => True
   | _ => False
   end.
 
 Lemma WFPacketLength : forall pkt : list bool, HeaderWF pkt ->
-                                       length pkt = 32 \/ length pkt = 40.
+  length pkt = 32 \/ length pkt = 40.
 Proof.
   intros pkt [H16 [H17 [H18 H]]]. destruct H.
   - right. apply H.
   - left. apply H.
 Qed.
 
-Theorem ParseTCPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsTCP pkt ->
-                                          EgressSpecZero (MyProg pkt).
+Definition final_state {R} (st: ParserState) (p: PktParser R) := 
+  let (_, st') := run_with_state st p in st'.
+
+Definition IPHeader_p_spec : Prop :=
+  forall st, (length (pkt st) >= 20 <-> exists bits st', run_with_state st IPHeader_p = (bits, st')
+         /\ length (pkt st') = length (pkt st) - 20).
+
+Definition TCP_p_spec : Prop :=
+  forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
+         /\ length (pkt st') = length (pkt st) - 28).     
+         
+
+
+Definition extract_n_post (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  if Nat.leb n (length (pkt st)) 
+  then exists pref suff bits, 
+    pref = firstn n (pkt st) /\
+    st' = st <| pkt := suff |> /\
+    pkt st = pref ++ suff /\
+    ob = Some bits /\
+    pref = bits2list bits
+  else exists pref,
+    pref = firstn n (pkt st) /\
+    pkt st = pref /\
+    st' = st <| pkt := nil |> /\
+    ob = None.
+
+Definition hd_extract (bs: list bool) := 
+  match bs with
+  | nil => false
+  | _ => true
+  end.
+
+
+Lemma extract_post st:
+  {{ fun s => s = st }}
+    next_bit
+  {{ fun r s' => 
+    s' = st <| pkt := firstn 1 (pkt st) |> /\ 
+    if hd_extract (pkt st) then exists r', r = inl (Some r') else r = inl None 
+  }}.
 Proof.
-  intros pkt Hwf Htcp.
-  repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
-  - unfold MyProg. simpl.
+  unfold next_bit.
 Admitted.
 
+Lemma extract_n_forward n st:
+  {{ fun s => s = st }}
+    extract_n n
+  {{ fun r s' => exists r', r = inl r' /\ extract_n_post n r' st s' }}.
+Proof.
+
+Admitted.
+
+Lemma IPHeader_p_spec' st : 
+  {{ fun s => s = st /\ length (pkt st) >= 28 }}
+    IPHeader_p
+  {{ fun r s' => 
+    (exists iph, r = inl iph) /\ 
+    length (pkt s') = length (pkt st) - 28
+  }}.
+Proof.
+Admitted.
+
+Lemma IPHeader_p_Correct : IPHeader_p_spec.
+Proof.
+  unfold IPHeader_p_spec.
+  unfold IPHeader_p.
+  split.
+Admitted.
+
+Lemma TCP_p_Correct : TCP_p_spec.
+Admitted.
+
+Theorem ParseTCPCorrect : forall (pckt : list bool) (st: ParserState),
+    (pkt st = pckt) -> HeaderWF pckt -> IPHeaderIsTCP pckt ->
+    EgressSpecZero (final_state st (MyProg pckt)).
+Proof.
+  intros pckt st Hdum Hwf Htcp.
+  destruct Hwf as [H16 [H17 [H18 H19]]].
+  assert (P : length pckt >= 20). {
+    destruct H19.
+    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
+    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
+  }  
+  rewrite <- Hdum in P. apply IPHeader_p_Correct in P.
+  destruct P as [bits [st' [P1 P2]]].
+  unfold MyProg. unfold Headers_p.
+  (* rewrite P1.
+     Error: Found no subterm matching "run_with_state st IPHeader_p" in the current goal. *)
+Admitted.
+
+(*
 Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->
-                                          EgressSpecOne (MyProg pkt).
+     EgressSpecOne (MyProg pkt).
 Admitted.
 
 Theorem ParseComplete : forall pkt : list bool, HeaderWF pkt ->
-                                        (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
-                                        PacketConsumed (MyProg pkt).
+   (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
+   PacketConsumed (MyProg pkt).
 Admitted.
+ *)

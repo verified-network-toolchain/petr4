@@ -28,7 +28,7 @@ lib/Platform/Packet.v
 lib/Unroll.v
 lib/Ops.v
 lib/Semantics.v
-lib/Trans.v
+lib/SimplExpr.v
 lib/HAList.v
 lib/Target.v
 lib/Maps.v

@@ -8,6 +8,7 @@ Require Import Typed.
 Require Import Syntax.
 Require Import P4Int.
 Require Import Ops.
+Require Export Target.
 Import ListNotations.
 
 Module IdentMap.
@@ -86,30 +87,12 @@ Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 
-(* We want to share the notation of External between P4light and P4cub, so later we need to
-  have a parameter `ActionRef`, while `Match` is just shared. *)
-(* Because the entries can refer to constructor parameters, we need to refer the arguments as expressions. *)
-(* Maybe we can just use the definition in Syntax.v. *)
-Inductive table_entry :=
-  Entry (matches : list (@Match tags_t)) (action : ident) (args : list (option (@Expression tags_t))).
-
-Class External := {
-  ExternalState : Type;
-  GetEntries : ExternalState -> path -> list table_entry;
-  GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *);
-  EmptyState : ExternalState;
-  (* Allocation should be a function; calling may be fine as a relation. *)
-  AllocExtern : ExternalState -> ident (* class *) -> path -> list Val -> ExternalState;
-  CallExtern : ExternalState -> ident (* class *) -> ident (* method *) -> path -> list Val -> ExternalState -> list Val -> option Val -> Prop
-}.
-
-Section UseExternal.
-
-Context `{External}.
+Context `{@Target tags_t (@Expression tags_t)}.
+Local Hint Resolve extern_sem : typeclass_instances.
 
 Definition mem := @PathMap.t tags_t Val.
 
-Definition state : Type := mem * ExternalState.
+Definition state : Type := mem * extern_state.
 
 Definition set_memory m (s : state) : state :=
   let (_, es) := s in (m, es).
@@ -150,7 +133,7 @@ Inductive fundef :=
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
       (default_action : option (@Expression tags_t))
-      (entries : option (list table_entry))
+      (entries : option (list (@table_entry tags_t (@Expression tags_t))))
   | FExternal
       (class : ident)
       (name : ident).
@@ -386,16 +369,16 @@ Definition TableKeyMatchKind (key : @TableKey tags_t) : ident :=
 Definition getEntries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
   match const_entries with
   | Some entries => entries
-  | None => GetEntries (get_external_state s) table
+  | None => extern_get_entries (get_external_state s) table
   end.
 
-Inductive exec_table_match : env -> path -> state -> ident -> option (list table_entry) -> option table_entry -> Prop :=
-  | exec_table_match_intro : forall this_path name e keys keyvals const_entries s matched_entry,
+Inductive exec_table_match : env -> path -> state -> ident -> option (list table_entry) -> option action_ref -> Prop :=
+  | exec_table_match_intro : forall this_path name e keys keyvals const_entries s matched_action,
       let entries := getEntries s (this_path ++ [name]) const_entries in
       let match_kinds := map TableKeyMatchKind keys in
       exec_exprs e this_path s (map TableKeyKey keys) keyvals ->
-      GetMatch (combine keyvals match_kinds) entries = matched_entry ->
-      exec_table_match e this_path s name const_entries matched_entry.
+      extern_match (combine keyvals match_kinds) entries = matched_action ->
+      exec_table_match e this_path s name const_entries matched_action.
 
 Inductive Lval : Type.
 
@@ -559,8 +542,8 @@ with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state
       exec_block obj_path decl_path e inst_m s' body s'' (SReturn vret) ->
       exec_func_callee obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
 
-  | exec_func_table_match : forall obj_path name e inst_m keys actions matches action_name ctrl_args default_action const_entries s s',
-      exec_table_match e obj_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
+  | exec_func_table_match : forall obj_path name e inst_m keys actions action_name ctrl_args default_action const_entries s s',
+      exec_table_match e obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
       exec_func_caller obj_path e inst_m s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
       exec_func_callee obj_path inst_m s (FTable name e keys actions default_action const_entries) nil s' nil None
 
@@ -574,7 +557,7 @@ with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state
       exec_func_callee obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
 
   | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret,
-      CallExtern es class_name name obj_path args es' args' vret ->
+      exec_extern es class_name name obj_path args es' args' vret ->
       exec_func_callee obj_path inst_m (m, es) (FExternal class_name name) args (m, es') args' vret.
 
 (* Return the declaration whose name is [name]. *)
@@ -640,12 +623,12 @@ Definition force {A} (default : A) (x : option A) : A :=
 Section instantiate_class_body.
 
 Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
-      (s : ExternalState), path * inst_mem * ExternalState.
+      (s : extern_state), path * inst_mem * extern_state.
 
 Section instantiate_expr'.
 
 Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t)
-      (p : path) (m : inst_mem) (s : ExternalState), inst_mem_val * inst_mem * ExternalState.
+      (p : path) (m : inst_mem) (s : extern_state), inst_mem_val * inst_mem * extern_state.
 
 Definition extract_val (val : inst_mem_val) :=
   match val with
@@ -654,12 +637,12 @@ Definition extract_val (val : inst_mem_val) :=
   end.
 
 Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t)
-      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : ExternalState) : inst_mem_val * inst_mem * ExternalState :=
+      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : inst_mem_val * inst_mem * extern_state :=
   let class_name := get_type_name typ in
   let decl := get_decl rev_decls class_name in
   (* params := nil if decl is an external object, but params is only used to name the instances. *)
   let params := get_constructor_param_names decl in
-  let instantiate_arg (acc : list inst_mem_val * inst_mem * ExternalState * list ident) arg :=
+  let instantiate_arg (acc : list inst_mem_val * inst_mem * extern_state * list ident) arg :=
     let '(args, m, s, params) := acc in
     let '(arg, m, s) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m s in
     (* O(n^2) time complexity here. *)
@@ -667,7 +650,7 @@ Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (ty
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
     let m := PathMap.set p (IMInst class_name p) m in
-    let s := AllocExtern s class_name p (map extract_val args) in
+    let s := alloc_extern s class_name p (map extract_val args) in
     (IMInst class_name p, m, s)
   else
     let e := IdentMap.sets params args e in
@@ -681,7 +664,7 @@ End instantiate_expr'.
   And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
 
 Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path)
-      (m : inst_mem) (s : ExternalState) {struct expr} : inst_mem_val * inst_mem * ExternalState :=
+      (m : inst_mem) (s : extern_state) {struct expr} : inst_mem_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
   match expr with
   | MkExpression _ (ExpName (BareName name)) _ _ =>
@@ -697,7 +680,7 @@ Definition instantiate' :=
   instantiate'' instantiate_expr'.
 
 Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decl : @Declaration tags_t)
-      (p : path) (m : inst_mem) (s : ExternalState) : ienv * inst_mem * ExternalState :=
+      (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
   | DeclInstantiation _ typ args name _ =>
       let '(inst, m, s) := instantiate' rev_decls e typ args (p ++ [name]) m s in
@@ -706,8 +689,8 @@ Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv)
   end.
 
 Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decls : list (@Declaration tags_t))
-      (p : path) (m : inst_mem) (s : ExternalState) : inst_mem * ExternalState :=
-  let instantiate_decl'' (ems : ienv * inst_mem * ExternalState) (decl : @Declaration tags_t) : ienv * inst_mem * ExternalState :=
+      (p : path) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
+  let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
     let '(e, m, s) := ems in instantiate_decl' rev_decls e decl p m s in
   let '(_, m, s) := fold_left instantiate_decl'' decls (e, m, s) in
   (m, s).
@@ -715,7 +698,7 @@ Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv
 End instantiate_class_body.
 
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
-      (m : inst_mem) (s : ExternalState) {struct rev_decls} : path * inst_mem * ExternalState :=
+      (m : inst_mem) (s : extern_state) {struct rev_decls} : path * inst_mem * extern_state :=
   match rev_decls with
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
@@ -752,7 +735,7 @@ Definition instantiate_decls (rev_decls : list (@Declaration tags_t)) :=
 
 
 Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t))
-      (e : ienv) (m : inst_mem) (s : ExternalState) : inst_mem * ExternalState :=
+      (e : ienv) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
   match decls with
   | [] => (m, s)
   | decl :: decls' =>
@@ -761,13 +744,13 @@ Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_dec
   end.
 
 Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
-      forall (m : inst_mem) (s: ExternalState), inst_mem * ExternalState :=
+      forall (m : inst_mem) (s: extern_state), inst_mem * extern_state :=
   instantiate_global_decls' decls nil IdentMap.empty.
 
-Definition instantiate_prog (prog : @program tags_t) : inst_mem * ExternalState :=
+Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls PathMap.empty EmptyState
+      instantiate_global_decls decls PathMap.empty extern_empty
   end.
 
 
@@ -815,13 +798,6 @@ Definition load_prog (prog : @program tags_t) : genv :=
   match prog with
   | Program decls => snd (fold_left (load_decl nil) decls (IdentMap.empty, PathMap.empty))
   end.
-
-End UseExternal.
-
-Class Architecture := {
-  ExternalSem : External;
-  Evoker : (path -> list Val -> list Val -> Prop) -> Prop
-}.
 
 End Semantics.
 

@@ -30,6 +30,7 @@ lib/Ops.v
 lib/Semantics.v
 lib/Trans.v
 lib/HAList.v
+lib/Target.v
 
 lib/P4defs.v
 

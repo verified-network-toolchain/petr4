@@ -31,12 +31,12 @@ Inductive table_entry :=
 
 Class ExternSem := {
   extern_state : Type;
-  extern_get_entries : extern_state -> path -> list table_entry;
-  extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *);
   extern_empty : extern_state;
   (* Allocation should be a function; calling may be fine as a relation. *)
   alloc_extern : extern_state -> ident (* class *) -> path -> list Val -> extern_state;
-  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> option Val -> Prop
+  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> option Val -> Prop;
+  extern_get_entries : extern_state -> path -> list table_entry;
+  extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
 
 Class Target := {

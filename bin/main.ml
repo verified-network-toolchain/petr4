@@ -150,7 +150,7 @@ let start_switch verbose include_dir target n pts p4_file =
   (* TODO: set socket options for timeout on recv? *)
   (* TODO: add a control plane socket *)
   (* let rec loop () =
-    let sock = Lwt_rawlink.open_link "tap0" in
+    let sock = Lwt_rawlink.open_link "tap1" in
     let buf = Lwt_rawlink.read_packet sock in
     buf >>= fun cstruct ->
       let msg = Cstruct.to_string cstruct in
@@ -158,7 +158,7 @@ let start_switch verbose include_dir target n pts p4_file =
       Lwt.return () >>= loop in
   loop () *)
   let sock = Lwt_rawlink.open_link "tap0" in
-  let msg = Cstruct.of_string "Hi" in
+  let msg = Cstruct.of_string "Hi; maybe the packet is too short so im spamming characters in here blah blah" in
   Lwt_rawlink.send_packet sock msg >>= fun _ ->
   Lwt_rawlink.close_link sock
   (* match parse_file include_dir p4_file verbose with

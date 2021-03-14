@@ -65,6 +65,21 @@ and format_cstmt (stmt: cstmt) =
     ++ box ~indent:2 (text "else {\n"
                       ++ format_cstmt false_branch ++ text ";")
     ++ text "\n}"
+  | CIfElifElse (cond, first_branch, lst, else_branch) ->
+    box ~indent:2 (text "if (" ++ format_cexpr cond ++ text ") {\n"
+                   ++ format_cstmt first_branch ++ text ";")
+    ++ (text "\n}") ++ 
+    begin match lst with 
+      | [] -> nop 
+      | h::t -> begin match h with 
+          | (c, s) -> box ~indent:2 (text "else if (" ++ format_cexpr c ++ 
+                                     text ") {\n" ++ format_cstmt s ++ text ";")
+                      ++ (text "\n}") 
+        end 
+    end 
+    ++ box ~indent:2 (text "else {\n"
+                      ++ format_cstmt else_branch ++ text ";")
+    ++ text "\n}"
   | CAssign (lval, rval) ->
     format_cexpr lval ++ text " = " ++ format_cexpr rval
   | CVarInit (typ, var, rval) ->

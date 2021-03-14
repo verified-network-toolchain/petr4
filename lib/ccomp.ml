@@ -167,7 +167,7 @@ and translate_act (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cd
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
     begin match key with 
       | [] -> failwith "nothing"
-      | [k] -> parse_table(n, k, actions, entries, default_action, size, custom_properties)
+      | [k] -> get_table(n, k, actions, entries, default_action, size, custom_properties)
       | _ -> failwith "no" end 
   | _ -> C.CInclude "not needed"
 
@@ -189,11 +189,11 @@ and ext_action (lst : Prog.Expression.t option ) =
       end 
   end 
 
-and parse_action_ref (actions : Prog.Table.action_ref list) = 
+and get_action_ref (actions : Prog.Table.action_ref list) = 
   match actions with
   | [] -> []
   | h::t -> let n = snd h 
-    in  [(n.action).name] @ parse_action_ref t
+    in  [(n.action).name] @ get_action_ref t
 (* List.map ~f:ext_action *)
 
 and get_name (n: P4.name) = 
@@ -213,14 +213,12 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
             | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
             | _ -> failwith "f"
           end in 
-          (* let a = (snd (snd h).action).action.name in  *)
           C.CPointer ((C.CString "state"), (get_expr_name k) ^ "!=" ^ (get_expr_name equal)) 
-          (* C.CPointer ((C.CString "state"), (snd (get_name a)) ^ "!=" ^ (get_expr_name equal))  *)
       end 
   end 
 
-and parse_table(name, k, actions, entries, default_action, size, custom_properties) = 
-  let l = parse_action_ref actions in 
+and get_table(name, k, actions, entries, default_action, size, custom_properties) = 
+  let l = get_action_ref actions in 
   let first = match l with 
     | h::t -> h
     | _ -> failwith "mistake" in 
@@ -272,8 +270,6 @@ and translate_trans (states: int StrMap.t) (t: Prog.Parser.transition) : C.cstmt
 and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
   | MethodCall { func; type_args; args } -> 
-    (* let state_arg = StrMap.find_exn map (get_expr_mem func) in *)
-    (* let args = state_arg :: get_expr_opt_lst args @ [CIntLit 16] in *)
     let args = get_expr_opt_lst args @ [CIntLit 16] in
     C.CMethodCall (get_expr_name func, args)
   | Assignment { lhs; rhs } -> 

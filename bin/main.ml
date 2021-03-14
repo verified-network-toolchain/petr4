@@ -122,8 +122,9 @@ let start_v1switch env prog sockets =
   let open V1Interpreter in
   let (env, st) = init_switch env prog in
   let rec loop ctrl st : unit Lwt.t =
-    List.mapi sockets ~f:(fun i sock -> Lwt_rawlink.read_packet sock >|= fun sock -> i, sock) |>
-    fun pkts -> Lwt.npick pkts >|=
+    List.mapi sockets
+      ~f:(fun i sock -> Lwt_rawlink.read_packet sock >|= fun sock -> i, sock)
+    |> Lwt.npick >|=
     List.fold_map ~init:st
       ~f:(fun st (i,pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i)) >>=
     fun (st, pkts) ->

@@ -144,7 +144,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     map_update, [struct_decl; func_decl]
   | Function { return; name; type_params; params; body } -> failwith "Fds"
   | Action { name; data_params; ctrl_params; body; _ } -> 
-    map, [C.CInclude ("fdjskfldsjkfldsjkflds")] 
+    map, [C.CInclude ("action " ^ snd name)] 
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let fields = translate_params params in
     let state_struct = C.CStruct (snd name, fields) in

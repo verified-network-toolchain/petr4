@@ -387,6 +387,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
   | _ => None
   end.
 
+(* find only in and inout arguments, i.e. those with the Val part as a Some. *)
 Definition extract_argvals : list argument -> list Val.
 Admitted.
 
@@ -448,7 +449,7 @@ Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalu
   | _ => None (* omitted for now *)
   end.
 
-(*this_path -> decl_path*)
+(* this_path -> decl_path -> ... *)
 Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | eval_stmt_assignment : forall lhs lv rhs v this_path decl_path e inst_m st tag typ st' sig,
                            exec_lvalue_expr e this_path st lhs lv ->
@@ -456,7 +457,7 @@ Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement ta
                            assign_lvalue e this_path st lv v = Some (st', SContinue) ->
                            exec_stmt this_path decl_path e inst_m st
                            (MkStatement tag (StatAssignment lhs rhs) typ) st' sig
-  
+
 with exec_block : path -> path -> env -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
 with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:
@@ -472,6 +473,8 @@ with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) 
       exec_func_callee obj_path inst_m s fd (extract_argvals argvals) s' outvals vret ->
       exec_copy_out e this_path s' argvals outvals s'' ->
       exec_func_caller this_path e inst_m s (MkExpression tag (ExpFunctionCall func nil args) typ dir) s' vret
+
+(* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
 with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
   | exec_func_internal : forall obj_path global decl_path e inst_m params body s args args' s' s'' vret,
@@ -548,6 +551,12 @@ Definition get_type_name (typ : @P4Type tags_t) : ident :=
   | _ => dummy_ident
   end.
 
+Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
+  match typ with
+  | TypSpecializedType _ params => params
+  | _ => nil
+  end.
+
 Definition ienv := @IdentMap.t tags_t inst_mem_val.
 
 Definition force {A} (default : A) (x : option A) : A :=
@@ -587,7 +596,8 @@ Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (ty
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
     let m := PathMap.set p (IMInst class_name p) m in
-    let s := alloc_extern s class_name p (map extract_val args) in
+    let type_params := get_type_params typ in
+    let s := alloc_extern s class_name type_params p (map extract_val args) in
     (IMInst class_name p, m, s)
   else
     let e := IdentMap.sets params args e in

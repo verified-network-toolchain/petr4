@@ -133,29 +133,15 @@ let start_v1switch env prog sockets =
       |> List.map ~f:(fun (pkt, pt) -> pkt, List.nth sockets pt)
       |> List.filter_map ~f:(fun (pkt, pt) -> Option.map pt ~f:(fun pt -> pkt, pt))
       |> List.map ~f:(fun (buf, pt) -> Lwt_rawlink.send_packet pt buf)
-      |> List.iter ~f:ignore
-      |> Lwt.return >>=
-    fun () -> loop ctrl st in
+      |> Lwt.join >>=
+    fun _ -> loop ctrl st in
+  (* only concern: should the output of the evaluator be bound to the next iteration
+     of the loop? would this cause us to miss some packets that arrive while the first
+     ones are still being put through the interpreter? *)
   loop (([],[]), []) st
-  (* inifinite loop - non-blocking recv?; call petr4 interpreter; sento call *)
 
 let start_switch verbose include_dir target n pts p4_file =
-  (* List.iter sockets ~f:(Unix.listen ~backlog:1); *)
-  (* List.iter sockets ~f:(fun sock -> Unix.accept sock |> ignore); *)
-  (* TODO: set socket options for timeout on recv? *)
   (* TODO: add a control plane socket *)
-  (* let rec loop () =
-    let sock = Lwt_rawlink.open_link "tap1" in
-    let buf = Lwt_rawlink.read_packet sock in
-    buf >>= fun cstruct ->
-      let msg = Cstruct.to_string cstruct in
-      Format.sprintf "packet: %s" msg |> print_endline;
-      Lwt.return () >>= loop in
-  loop () *)
-  (* let sock = Lwt_rawlink.open_link "tap0" in
-  let msg = Cstruct.of_string "Hi; maybe the packet is too short so im spamming characters in here blah blah" in
-  Lwt_rawlink.send_packet sock msg >>= fun _ ->
-  Lwt_rawlink.close_link sock *)
   let sockets = List.map pts ~f:(fun if_name -> Lwt_rawlink.open_link if_name) in
   match parse_file include_dir p4_file verbose with
   | `Ok prog ->

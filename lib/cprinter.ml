@@ -34,9 +34,9 @@ let rec format_cdecl (decl: cdecl) =
                    ++ format_cstmts body)
     ++ text "\n}"
   | CInclude name ->
-    text "#include \"" ++ text name ++ text "\""
+    hbox (text "#include \"" ++ text name ++ text "\"")
   | CStdInclude name ->
-    text "#include <" ++ text name ++ text ">"
+    hbox (text "#include <" ++ text name ++ text ">")
   | CDecList lst -> 
     Pretty.format_list_nl format_cdecl lst
 
@@ -148,5 +148,5 @@ and format_ccase (case: ccase) =
                  ++ format_cstmts stmt
                  ++ text "\nbreak;")
 
-let format_cprog (prog: cprog) =
-  concat_map ~sep:(text "\n") ~f:format_cdecl prog
+let format_cprog (prog: cprog) =  
+  format_cdecl (CDecList prog)

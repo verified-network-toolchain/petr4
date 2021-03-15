@@ -14,7 +14,7 @@ let format_list_sep f sep l =
   format_list_pp_sep f (text sep) l
 
 let format_list_nl f l =
-  format_list_sep f "\n" l
+  format_list_pp_sep f newline l
 
 let format_option f o =
   match o with

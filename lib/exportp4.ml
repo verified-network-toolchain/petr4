@@ -1166,9 +1166,8 @@ let print_header p =
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";
   print_header p;
-  let program' = Poulet4.SimplExpr.transform_prog Info.dummy program in
-  let existing = collect_decl_names program' in
-  let decl_names = List.map (print_top_decl p existing) program' in
+  let existing = collect_decl_names program in
+  let decl_names = List.map (print_top_decl p existing) program in
   let prog_name = Some "prog" in
   let (f_str, prog_name) = (gen_format_string prog_name "Program@ %a")
   in fprintf p f_str

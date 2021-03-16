@@ -1,3 +1,4 @@
 -R extraction Petr4
+-Q ../coq-poulet4/lib Petr4
 extraction/Extract.v
 extraction/ExtractOcamlBinNumsBigint.v

@@ -11,20 +11,23 @@ Import RecordSetNotations.
 
 Require Import Coq.Lists.List.
 
+Notation REmp := HAList.REmp.
+Notation RCons := HAList.RCons.
+
 Definition IPHeader :=
-  HAList.t _
-  [("src", option (bits 8));
-   ("dst", option (bits 8));
-   ("proto", option (bits 4))].
+  HAList.t
+    [("src", option (bits 8));
+     ("dst", option (bits 8));
+     ("proto", option (bits 4))].
 
 Definition IPHeader_p : PktParser IPHeader :=
   let* src := extract_n 8 in 
   let* dst := extract_n 8 in 
   let* proto := extract_n 4 in 
-  pure (src, (dst, (proto, tt))).
+  pure (RCons src (RCons dst (RCons proto REmp))).
 
 Definition TCP :=
-  HAList.t _ 
+  HAList.t
   [("sport", option (bits 8));
    ("dport", option (bits 8));
    ("flags", option (bits 4));
@@ -35,52 +38,51 @@ Definition TCP_p : PktParser TCP :=
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
   let* seq := extract_n 8 in 
-    pure (sport, (dport, (flags, (seq, tt)))).
+    pure (RCons sport (RCons dport (RCons flags (RCons seq REmp)))).
 
 Definition UDP := 
-  HAList.t _ 
+  HAList.t
   [("sport", option (bits 8)); 
    ("dport", option (bits 8));
    ("flags", option (bits 4))].
-
 
 Definition UDP_p : PktParser UDP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
-    pure (sport, (dport, (flags, tt))).
+    pure (RCons sport (RCons dport (RCons flags REmp))).
 
 Definition Headers := 
-  HAList.t _ 
+  HAList.t
   [("ip", IPHeader); 
    ("transport", (TCP + UDP)%type)].
 
 Definition Headers_p : PktParser Headers := 
   let* iph := IPHeader_p in 
-  let proto_opt := HAList.get _ iph (exist _ "proto" I) in
+  let proto_opt := HAList.get iph (exist _ "proto" I) in
   let* proto := lift_option proto_opt in 
   match proto with 
   | (false, (false, (false, (false, tt)))) =>
     let* tcp := TCP_p in 
-      pure (iph, (inl tcp, tt))
+      pure (RCons iph (RCons (inl tcp) REmp))
   | (false, (false, (false, (true, tt)))) =>
     let* udp := UDP_p in 
-      pure (iph, (inr udp, tt))
+      pure (RCons iph (RCons (inr udp) REmp))
   | _ => reject
   end.
 
-Definition TCP_valid (tcp: TCP) : bool :=
-  match tcp with 
-  | (Some _, (Some _, (Some _, (Some _, tt)))) => true
-  | _ => false
-  end.
+Equations TCP_valid (tcp: TCP) : bool :=
+  {
+    TCP_valid (RCons (Some _) (RCons (Some _) (RCons (Some _) (RCons (Some _) _)))) := true;
+    TCP_valid _ := false
+  }.
 
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
-  match HAList.get _ hdr (exist _ "transport" I) with 
+  match HAList.get hdr (exist _ "transport" I) with 
   | inl tcp => 
     if TCP_valid tcp 
-    then set_std_meta (fun mt => HAList.set _ mt (exist _ "egress_spec" I) one_bits) ;; pure hdr 
-    else set_std_meta (fun mt => HAList.set _ mt (exist _ "egress_spec" I) zero_bits) ;; pure hdr 
+    then set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) one_bits) ;; pure hdr 
+    else set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) zero_bits) ;; pure hdr 
   | _ => pure hdr
   end.
 
@@ -103,10 +105,10 @@ Definition IPHeaderIsUDP (pkt : list bool) : Prop :=
   length pkt = 32.
 
 Definition EgressSpecOne (out : @ParserState Meta) : Prop :=
-  HAList.get _ (std_meta out) (exist _ "egress_spec" I) = one_bits.
+  HAList.get (std_meta out) (exist _ "egress_spec" I) = one_bits.
 
 Definition EgressSpecZero (out : @ParserState Meta) : Prop :=
-  HAList.get _ (std_meta out) (exist _ "egress_spec" I) = zero_bits.
+  HAList.get (std_meta out) (exist _ "egress_spec" I) = zero_bits.
 
 Definition PacketConsumed (out : @ParserState Meta) : Prop :=
   match pkt out with

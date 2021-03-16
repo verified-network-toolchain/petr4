@@ -3,6 +3,7 @@ Require Import Monads.State.
 Require Import Lia.
 
 Require Import Coq.Init.Nat.
+Require Import Coq.Lists.List.
 
 Declare Scope hoare_scope_wp.
 Delimit Scope hoare_scope_wp with hoare_wp.
@@ -182,4 +183,37 @@ Lemma case_nat_wp
   }}.
 Proof.
   destruct n; mysimp.
+Qed.
+
+Definition destruct_list' {A} (xs: list A) (default: A) : A * list A := 
+  match xs with
+  | nil => (default, nil)
+  | x :: xs' => (x, xs')
+  end.
+
+
+Lemma case_list_wp
+  {State Exception Result A: Type} 
+  {P1 P2 Q c1} 
+  {dummy: A }
+  {c2: A -> list A -> @state_monad State Exception Result} xs : 
+  {{ fun s => P1 s /\ xs = nil }} c1 {{ Q }} ->
+  {{ fun s => exists x xs', xs = x :: xs' /\ P2 x xs' s }} 
+    (c2 (fst (destruct_list' xs dummy)) (snd (destruct_list' xs dummy))) 
+  {{ Q }} ->
+  {{ 
+    match xs with 
+    | nil => P1
+    | x :: xs' => P2 x xs' 
+    end
+  }}
+    match xs with 
+    | nil => c1 
+    | x :: xs' => c2 x xs'
+    end
+  {{
+    Q
+  }}.
+Proof.
+  destruct xs; mysimp.
 Qed.

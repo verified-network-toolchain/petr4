@@ -151,23 +151,70 @@ Definition extract_n_post (n: nat) (ob: option (bits n)) (st: @ParserState Meta)
     st' = st <| pkt := nil |> /\
     ob = None.
 
-Definition hd_extract (bs: list bool) := 
-  match bs with
-  | nil => false
-  | _ => true
-  end.
-
 
 Lemma extract_post st:
   {{ fun s => s = st }}
     next_bit
-  {{ fun r s' => 
-    s' = st <| pkt := firstn 1 (pkt st) |> /\ 
-    if hd_extract (pkt st) then exists r', r = inl (Some r') else r = inl None 
+  {{ fun r s => 
+    match (pkt st) with
+    | nil => r = inl None /\ s = st
+    | b :: bs => r = inl (Some b) /\ s = st <| pkt := bs |>
+    end
   }}.
 Proof.
   unfold next_bit.
-Admitted.
+  eapply weaken_pre.
+  eapply bind_wp.
+  all: swap 2 1.
+  intros.
+  eapply weaken_pre.
+  eapply (case_list_wp (pkt r) (dummy := false)).
+
+  eapply weaken_pre.
+  eapply return_wp.
+  intros. simpl.
+  destruct H as [it eq].
+  assert (r = st /\ h = st).
+  apply it. 
+  simpl in it.
+  destruct it as [L R].
+  rewrite <- L.
+  rewrite eq.
+  mysimp.
+
+
+  eapply weaken_pre.
+  eapply bind_wp.
+
+  all: swap 2 1.
+  intros.
+  eapply weaken_pre.
+  eapply return_wp.
+  intros. simpl.
+  eapply H.
+
+  eapply put_wp.
+  intros.
+  eapply H.
+  intros. simpl.
+  destruct H as [b' [xs' [lhs it]]].
+  eapply it.
+
+  intros. eapply H.
+  all: swap 2 1.
+
+  intros. eapply H.
+
+  eapply get_wp.
+  intros. simpl.
+  mysimp.
+  destruct (pkt st).
+  mysimp.
+  mysimp.
+  
+  Unshelve.
+  exact unit.
+Qed.
 
 Lemma extract_n_forward n st:
   {{ fun s => s = st }}

@@ -1,7 +1,7 @@
--R lib Poulet4
--R lib/Environment Poulet4.Environment
--R lib/Monads Poulet4.Monads
--R lib/P4cub Poulet4.P4cub
--R lib/Platform Poulet4.Platform
+-R _build/default/lib Poulet4
+-R _build/default/lib/Environment Poulet4.Environment
+-R _build/default/lib/Monads Poulet4.Monads
+-R _build/default/lib/P4cub Poulet4.P4cub
+-R _build/default/lib/Platform Poulet4.Platform
 
--R examples Poulet4.Examples
+-R _build/default/examples Poulet4.Examples

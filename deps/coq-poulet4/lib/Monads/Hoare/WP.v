@@ -16,17 +16,27 @@ Definition Pred (State: Type) := State -> Prop.
  *)
 Definition Post (State: Type) (Value: Type) := Value -> Pred State. 
 Definition top {State: Type} : Pred State := fun _ => True.
+Definition bot {State: Type} : Pred State := fun _ => False.
+
 Hint Unfold top : core.
+Hint Unfold bot: core.
 
 Definition hoare_triple_wp
     {State Exception Result: Type}
     {P: Pred State}
     {c: @state_monad State Exception Result}
-    {Q: Post State (Result + Exception)} : Prop := 
+    {Q: Post State (Result + Exception)}
+    : Prop := 
   forall st, P st -> 
-    let (v, st') := c st in
-      Q v st'
-    .
+  let (v, st') := c st in
+    Q v st'.
+
+Definition Norm {A State Exception} (f: A -> State -> Prop) : Post State (A + Exception) := fun r s => 
+  match r with 
+  | inl v => f v s
+  | inr _ => False
+  end.
+  
 
 Notation "{{ P }} c {{ Q }}" := (@hoare_triple_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
 Ltac mysimp := 
@@ -49,37 +59,24 @@ Ltac mysimp :=
                 | _ => assert False ; [ lia | contradiction ]
               end) ; subst ; simpl in * ; try firstorder ; auto with arith.
 
-Lemma weaken_pre 
+
+Lemma weaken_pre
   {State Exception Result:Type} 
   {P1: Pred State} 
+  {P2: Pred State}
   {c: @state_monad State Exception Result}
-  {Q : Post State (Result + Exception)} :
+  {Q : Post State (Result + Exception)} 
+  :
   {{ P1 }} c {{ Q }} ->
-  forall (P2: Pred State), (forall h, P2 h -> P1 h) ->
+  (forall h, P2 h -> P1 h) ->
   {{ P2 }} c {{ Q }}.
 Proof.
   mysimp.
 Qed.
-(* Lemma hoare_consequence {State Exception Result: Type} {c: @state_monad State Exception Result}:
-  forall {P P': @Pred State} {Q Q': Result + Exception -> State -> @Pred State},
-  {{ P }} c {{ Q }} ->
-  (forall i, P' i -> P i) ->
-  (forall v i f, Q v i f -> Q' v i f) ->
-  {{ P' }} c {{ Q' }}.
-Proof.
-  intros.
-  unfold hoare_triple_partial in *.
-  intros.
-  specialize (H0 st).
-  specialize (H st).
-  specialize (H0 H2).
-  specialize (H H0).
-  destruct (c st).
-  specialize (H1 s st s0).
-  auto.
-Qed. *)
 
-Lemma return_wp {State Exception Result: Type} {Q: Post State (Result + Exception)} (x: Result) : 
+Lemma return_wp {State Exception Result: Type} 
+  {Q: Post State (Result + Exception)} 
+  (x: Result) : 
   {{ Q (inl x) }} 
     @state_return State Exception Result x 
   {{ Q }}.
@@ -87,78 +84,102 @@ Proof.
   mysimp.
 Qed.
 
-Lemma fail_wp {State Exception Result: Type} {Q: Post State (Result + Exception)} (e: Exception) : 
-  {{ Q (inr e) }} 
+Lemma fail_wp {State Exception Result: Type} 
+  {Q: Post State (Result + Exception)}
+  (e: Exception) : 
+  {{ Q (inr e)}} 
     @state_fail State Exception Result e 
   {{ Q }}.
 Proof.
   mysimp.
 Qed.
 
-
-Lemma get_wp {State Exception: Type} {Q: Post State (State + Exception)} :
-  {{ fun s => Q (inl s) s }} @get_state State Exception {{ Q }}.
+Lemma get_wp {State Exception: Type} 
+  {Q: Post State (State + Exception)}
+  :
+  {{ fun s => Q (inl s) s }} 
+    @get_state State Exception 
+  {{ Q }}.
 Proof.
   mysimp.
 Qed.
 
-Lemma put_wp {State Exception Result: Type} {Q: Post State (unit + Exception)} f :
-  {{ fun s => Q (inl tt) (f s) }} @put_state State Exception f {{ Q }}.
+Lemma put_wp {State Exception Result: Type} 
+  {Q: Post State (unit + Exception)}  
+  f :
+  {{ fun s => Q (inl tt) (f s) }} 
+    @put_state State Exception f 
+  {{ Q }}.
 Proof.
   mysimp.
 Qed.
-
 
 Lemma bind_wp
   {State A B Exception: Type}
   {P: Pred State}
-  {P': Post State (A + Exception)}
+  {Pa: A -> Pred State}
+  {Pe: Exception -> Pred State}
   {Q: Post State (B + Exception)}
   {c: @state_monad State Exception A}
   {f: A -> @state_monad State Exception B}
   :
-  {{ P }} c {{ P' }} ->
-  (forall r: A, {{ P' (inl r) }} (f r) {{ Q }}) ->
-  (forall (e: Exception) s, P' (inr e) s -> Q (inr e) s) ->
+  {{ P }} c {{ fun r s => 
+    match r with 
+    | inl a => Pa a s
+    | inr e => Pe e s 
+    end
+    }} ->
+  (forall r: A, {{ Pa r }} (f r) {{ Q }}) -> 
+  (forall (e: Exception) (st: State), Pe e st -> Q (inr e) st) ->
   {{ P }} c >>= f {{ Q }}.
 Proof.
+  intros.
   mysimp.
-  cbv.
+  mysimp.
   destruct (c st).
   destruct s.
-  specialize (H0 a s0).
-    - 
-      destruct (f a s0).
-      destruct s.
-      mysimp.
-      mysimp.
-    -
-      specialize (H1 e s0).
-      mysimp.
+    - eapply H0.  
+      trivial.
+    - eapply H1.
+      trivial.
 Qed.
 
 Lemma cond_pre 
   {State Exception Result: Type} 
-  {P Q b} 
+  {b: bool}
+  {P1 P2 Q} 
   {c1 c2 : @state_monad State Exception Result}: 
-  {{ fun s => P s /\ b = true }} c1 {{ Q }} ->
-  {{ fun s => P s /\ b = false }} c2 {{ Q }} ->
-  {{ P }} if b then c1 else c2 {{ Q }}.
+  {{ P1 }} c1 {{ Q }} ->
+  {{ P2 }} c2 {{ Q }} ->
+  {{ fun s => if b then P1 s else P2 s }} 
+    if b then c1 else c2 
+  {{ Q }}.
 Proof.
   intros.
   destruct b; mysimp.
 Qed.
 
-Lemma cond_pre2 
+Lemma case_nat_wp
   {State Exception Result: Type} 
-  {P1 P2 Q b} 
-  {c1 c2 : @state_monad State Exception Result}: 
-  {{ fun s => P1 s /\ b = true }} c1 {{ Q }} -> 
-  {{ fun s => P2 s /\ b = false }} c2 {{ Q }} ->
-  {{ fun s => (b = true -> P1 s) /\ (b = false -> P2 s) }}
-    if b then c1 else c2
-  {{ Q }}.
+  {P1 P2 Q c1} 
+  {c2: nat -> @state_monad State Exception Result} n : 
+  {{ fun s => P1 s /\ n = 0 }} c1 {{ Q }} ->
+  {{ fun s => exists n', n = S n' /\ P2 n' s }} 
+    (c2 (Nat.pred n)) 
+  {{ Q }} ->
+  {{ 
+    match n with 
+    | 0 => P1
+    | S n' => P2 n' 
+    end
+  }}
+    match n with 
+    | 0 => c1 
+    | S n' => c2 n'
+    end
+  {{
+    Q
+  }}.
 Proof.
-  intros.
-  destruct b; mysimp.
+  destruct n; mysimp.
 Qed.

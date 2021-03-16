@@ -41,5 +41,8 @@ Definition run_with_state
   (act: @state_monad State Exception Result)
   : (Result + Exception) * State := act st.
 
+Definition skip {State Exception: Type}: @state_monad State Exception unit := state_return tt.
+
+
 Hint Unfold state_bind run_with_state state_fail state_return : core.
 Hint Extern 3 => unfold state_bind : core.

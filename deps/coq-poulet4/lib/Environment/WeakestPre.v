@@ -19,7 +19,7 @@ Section WeakestPre.
   Context (tags_dummy: tags_t).
 
   Definition environment := @Environment.environment tags_t.
-  
+
 
   Definition pred {A: Type} := A -> Prop.
 
@@ -85,149 +85,30 @@ Section WeakestPre.
       contradiction.
   Qed.
 
-  Fixpoint weakest_precondition_arguments
-      (params: list (@P4Parameter tags_t))
-      (args: list (option (@Expression tags_t)))
-      (post: @pred (environment * (list (option (@Value tags_t)))))
-      : @pred environment
-  :=
-      fun env_pre =>
-          match (args, params) with
-          | (nil, nil) => post (env_pre, nil)
-          | (Some arg :: args', param :: params') =>
-            let inter := fun '(env_inter, val) =>
-                let post' := fun '(env_post, vals) =>
-                  post (env_post, (Some val) :: vals)
-                in weakest_precondition_arguments params' args' post' env_inter
-            in let '(MkParameter _ dir _ _ _) := param in
-            match dir with
-            | Typed.In => weakest_precondition_expression arg inter env_pre
-            | Out =>
-              let inter' := fun '(env_inter, val) =>
-                  inter (env_inter, ValLvalue val)
-              in weakest_precondition_expression_lvalue arg inter' env_pre
-            | _ => False
-            end
-          | (None :: args', param :: params') =>
-            let post' := fun '(env_post, vals) =>
-              post (env_post, None :: vals)
-            in weakest_precondition_arguments params' args' post' env_pre
-          | _ => False
-          end
-  .
-
-  Lemma weakest_precondition_arguments_correct:
-      forall params args env_pre post,
-          weakest_precondition_arguments params args post env_pre ->
-              match eval_arguments tags_t (eval_expression tags_t tags_dummy) params args env_pre with
-              | (inl vals_post, env_post) => post (env_post, vals_post)
-              | _ => False
-              end
-  .
-  Proof.
-      intro params.
-      induction params; intro args; destruct args; intros.
-      - simpl.
-        exact H.
-      - destruct o; simpl in H; contradiction.
-      - simpl in H; contradiction.
-      - destruct o as [expr|].
-        * destruct a, direction; try contradiction.
-          -- simpl in H.
-            apply weakest_precondition_expression_correct in H.
-            case_eq (eval_expression tags_t tags_dummy expr env_pre).
-            intros s env_inter eval_expression_result.
-            rewrite eval_expression_result in H.
-            destruct s as [val_inter|]; try contradiction.
-            apply IHparams in H.
-            case_eq (eval_arguments tags_t (eval_expression tags_t tags_dummy) params args env_inter).
-            intros s env_post eval_arguments_result.
-            rewrite eval_arguments_result in H.
-            destruct s as [vals_post|]; try contradiction.
-            rewrite eval_arguments_equation_4.
-            simpl; unfold state_bind.
-            rewrite eval_expression_result.
-            rewrite eval_arguments_result.
-            simpl.
-            exact H.
-          -- simpl in H.
-            apply weakest_precondition_expression_lvalue_correct in H.
-            case_eq (eval_lvalue tags_t expr env_pre).
-            intros s env_inter eval_lvalue_result.
-            rewrite eval_lvalue_result in H.
-            destruct s as [val_inter|]; try contradiction.
-            apply IHparams in H.
-            case_eq (eval_arguments tags_t (eval_expression tags_t tags_dummy) params args env_inter).
-            intros vals env_post eval_arguments_result.
-            rewrite eval_arguments_result in H.
-            destruct vals; try contradiction.
-            rewrite eval_arguments_equation_4.
-            simpl; unfold state_bind.
-            rewrite eval_lvalue_result; simpl.
-            rewrite eval_arguments_result; simpl.
-            exact H.
-        * simpl in H.
-          apply IHparams in H.
-          case_eq (eval_arguments tags_t (eval_expression tags_t tags_dummy) params args env_pre).
-          intros s env_post eval_arguments_result.
-          rewrite eval_arguments_result in H.
-          destruct s as [vals_post|]; try contradiction.
-          rewrite eval_arguments_equation_5.
-          simpl; unfold state_bind.
-          rewrite eval_arguments_result.
-          simpl.
-          exact H.
-  Qed. 
-
   Definition weakest_precondition_method_call
     (callee: @Expression tags_t)
     (type_args: list (@P4Type tags_t))
     (args: list (option (@Expression tags_t)))
     (post: @pred (environment * (@Value tags_t)))
+    : @pred environment
   :=
-    let inter' := fun '(env_inter', func) =>
-      match func with
-      | ValObj (ValObjFun params impl) =>
-        let inter := fun '(env_inter, arg_vals) =>
-          match impl with
-          | ValFuncImplBuiltin name obj =>
-            match eval_builtin_func _ name obj type_args arg_vals env_inter with
-            | (inl val, env_post) => post (env_post, val)
-            | _ => False
-            end
-          | _ => False
-          end
-        in weakest_precondition_arguments params args inter env_inter'
-      | _ => False
-      end
-    in weakest_precondition_expression callee inter'
+    pred_false
   .
 
   Lemma weakest_precondition_method_call_correct:
     forall env_pre callee type_args args post,
       weakest_precondition_method_call callee type_args args post env_pre ->
-        match eval_method_call tags_t (eval_expression tags_t tags_dummy) callee type_args args env_pre with
+        match eval_method_call tags_t tags_dummy
+        (eval_expression tags_t tags_dummy) callee type_args args env_pre with
         | (inl val_post, env_post) => post (env_post, val_post)
         | _ => False
         end
   .
   Proof.
     intros.
-    unfold eval_method_call, Unpack.unpack_func; simpl.
-    unfold state_bind; simpl.
-    apply weakest_precondition_expression_correct in H.
-    destruct (eval_expression tags_t tags_dummy callee env_pre).
-    destruct s; try contradiction.
-    destruct v; try contradiction.
-    destruct v; try contradiction.
-    simpl; simpl in H.
-    apply weakest_precondition_arguments_correct in H.
-    destruct (eval_arguments tags_t (eval_expression tags_t tags_dummy) params args e).
-    destruct s; try contradiction.
-    destruct impl; try contradiction.
-    destruct (eval_builtin_func tags_t name caller type_args l e0).
-    destruct s; try contradiction.
-    exact H.
+    unfold weakest_precondition_method_call in H.
+    unfold pred_false in H.
+    contradiction H.
   Qed.
 
   Equations weakest_precondition_statement (stmt: @Statement tags_t) (post: @pred environment) : @pred environment :=
@@ -325,14 +206,6 @@ Section WeakestPre.
           (PBlockMaybe := weakest_precondition_block_maybe_correct)
           (PStatementSwitchCase := fun _ => True)
           (PStatementSwitchCaseList := fun _ => True); try easy.
-      - unfold weakest_precondition_statement_pre_correct; intros.
-        rewrite weakest_precondition_statement_pre_equation_1 in H; simpl in H.
-        apply weakest_precondition_method_call_correct in H.
-        rewrite eval_statement_pre_equation_1.
-        unfold toss_value; simpl.
-        destruct (eval_method_call tags_t (eval_expression tags_t tags_dummy) func type_args args).
-        destruct s; try contradiction.
-        exact H.
       - unfold weakest_precondition_statement_pre_correct; intros.
         unfold weakest_precondition_statement_pre in H.
         apply weakest_precondition_expression_lvalue_correct in H.

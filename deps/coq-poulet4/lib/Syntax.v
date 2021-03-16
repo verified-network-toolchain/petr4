@@ -451,8 +451,7 @@ Section Syntax.
   Inductive Value :=
   | ValBase (_: ValueBase)
   | ValObj (_: ValueObject)
-  | ValCons (_: ValueConstructor)
-  | ValLvalue (_: ValueLvalue).
+  | ValCons (_: ValueConstructor).
 
   Inductive program := Program (_: list Declaration).
 

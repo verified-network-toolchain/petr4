@@ -85,12 +85,13 @@ Section Eval.
 
   Definition eval_set_bool (lvalue: ValueLvalue) (valid: bool) : env_monad unit :=
     let* (fields, _) := unpack_header _ (env_lookup _ lvalue) in
-    env_update _ lvalue (ValBase (ValBaseHeader fields valid)).
+    env_update _ lvalue (ValBase (ValBaseHeader fields valid))
+  .
 
-  Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
+  Definition eval_pop_front (lvalue: ValueLvalue) (args: list (option loc)) : env_monad unit :=
     match args with
-    | Some arg :: nil =>
-      let* count := unpack_inf_int _ (mret arg) in
+    | Some loc :: nil =>
+      let* count := unpack_inf_int _ (heap_lookup _ loc) in
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
       let* elements' := lift_opt (AssertError "Cannot rotate left by a negative amount.") (rotate_left_z elements count padding) in
@@ -100,10 +101,10 @@ Section Eval.
     | _ => state_fail (AssertError "Not enough arguments to pop_front.")
     end.
 
-  Definition eval_push_front (lvalue: ValueLvalue) (args: list (option Value)) : env_monad unit :=
+  Definition eval_push_front (lvalue: ValueLvalue) (args: list (option loc)) : env_monad unit :=
     match args with
-    | Some arg :: nil =>
-      let* count := unpack_inf_int _ (mret arg) in
+    | Some loc :: nil =>
+      let* count := unpack_inf_int _ (heap_lookup _ loc) in
       let* '(elements, size, next_index) := unpack_header_stack _ (env_lookup _ lvalue) in
       let padding := ValBaseHeader [] false in
       let* elements' := lift_opt (AssertError "Cannot rotate right by a negative amount.") (rotate_right_z elements count padding) in
@@ -118,19 +119,18 @@ Section Eval.
     then true
     else false.
 
-  Definition eval_packet_func (obj: ValueLvalue) (name: string) (type_args: list P4Type) (args: list (option Value)) : env_monad unit :=
+  Definition eval_packet_func (obj: ValueLvalue) (name: string) (type_args: list P4Type) (args: list (option loc)) : env_monad Value :=
     let* bits := unpack_packet _ (env_lookup _ obj) in
     if String.eqb name StringConstants.extract then
       match (args, type_args) with
-      | ((Some target_expr) :: _, into :: _) =>
+      | (Some loc :: _, into :: _) =>
         match eval_packet_extract_fixed tags_t into bits with
         | (inr error, bits') =>
           env_update _ obj (ValObj (ValObjPacket bits')) ;;
           state_fail error
         | (inl value, bits') =>
           env_update _ obj (ValObj (ValObjPacket bits')) ;;
-          let* target := unpack_lvalue _ (mret target_expr) in
-          env_update _ target (ValBase value)
+          dummy_value _ (heap_update _ loc (ValBase value))
         end
       | _ => state_fail (AssertError "Not enough arguments to extract.")
       end
@@ -144,7 +144,13 @@ Section Eval.
       state_fail (AssertError "Unknown method called on a packet.")
     .
 
-  Definition eval_builtin_func (name: P4String) (obj: ValueLvalue) (type_args : list P4Type) (args: list (option Value)) : env_monad Value :=
+  Definition eval_builtin_func
+    (name: P4String)
+    (obj: ValueLvalue)
+    (type_args : list P4Type)
+    (args: list (option loc))
+    : env_monad Value
+  :=
     let name := P4String.str name in
     if String.eqb name StringConstants.isValid then
       eval_is_valid obj
@@ -157,7 +163,7 @@ Section Eval.
     else if String.eqb name StringConstants.push_front then
       dummy_value _ (eval_push_front obj args)
     else if is_packet_func name then
-      dummy_value _ (eval_packet_func obj name type_args args)
+      eval_packet_func obj name type_args args
     else state_fail (SupportError "Unknown built-in function.")
   .
 
@@ -178,36 +184,68 @@ Section Eval.
     ValObj (ValObjFun (param :: nil) func_impl)
   .
 
-  Section eval_arguments.
+  Section eval_copy_in.
     Variable (eval_expression: Expression -> env_monad Value).
 
-    Equations eval_arguments
+    Equations eval_copy_in
       (params: list P4Parameter)
       (args: list (option Expression))
-      : env_monad (list (option Value))
+      : env_monad (list (option loc * option ValueLvalue))
       by struct args
     :=
-      eval_arguments nil nil :=
+      eval_copy_in nil nil :=
         mret nil;
-      eval_arguments (param :: params) (Some arg :: args) :=
-        let '(MkParameter _ dir _ _ _) := param in
-        let* val := match dir with
-        | In => eval_expression arg
+      eval_copy_in (param :: params) (Some arg :: args) :=
+        let '(MkParameter optional dir typ _ _) := param in
+        let* result := match dir with
+        | In =>
+          let* val := eval_expression arg in
+          let* l := heap_insert _ val in
+          mret (Some l, None)
         | Out =>
-          let* lvalue := eval_lvalue arg
-          in mret (ValLvalue lvalue)
-        (* TODO: Handle InOut and Directionless *)
+          let* lval := eval_lvalue arg in
+          let* l := heap_insert _ (default_value typ) in
+          mret (Some l, Some lval)
+        | InOut =>
+          let* lval := eval_lvalue arg in
+          let* val := env_lookup _ lval in
+          let* l := heap_insert _ val in
+          mret (Some l, Some lval)
+        (* TODO: Handle Directionless *)
         | _ => state_fail (SupportError "Unsupported parameter direction.")
         end in
-        let* vals := eval_arguments params args in
-        mret (Some val :: vals);
-      eval_arguments (param :: params) (None :: args) :=
-        let* vals := eval_arguments params args in
-        mret (None :: vals);
-      eval_arguments _ _ :=
+        let* results := eval_copy_in params args in
+        mret (result :: results);
+      eval_copy_in (param :: params) (None :: args) :=
+        let '(MkParameter optional dir typ _ _) := param in
+        if optional then
+            let* vals := eval_copy_in params args in
+            mret ((None, None) :: vals)
+        else
+            state_fail (AssertError "A required argument was omitted.");
+      eval_copy_in _ _ :=
         state_fail (AssertError "Mismatch between argument and parameter count.")
     .
-  End eval_arguments.
+  End eval_copy_in.
+
+  Equations eval_copy_out
+    (args_and_lvals: list (option loc * option ValueLvalue))
+    : env_monad unit
+  :=
+    eval_copy_out nil :=
+      mret tt;
+    eval_copy_out ((Some loc, Some lval) :: loc_and_lvals) :=
+      (* Copy the value at loc back into the lvalue saved before calling
+         the function. This covers out and inout parameters. *)
+      val <- heap_lookup _ loc ;;
+      env_update _ lval val ;;
+      eval_copy_out loc_and_lvals;
+    eval_copy_out (_ :: loc_and_lvals) :=
+      (* No location, or no lvalue to save it back to; skip this parameter.
+         This covers the cases of omitted optional out parameters and in-
+         parameters. *)
+      eval_copy_out loc_and_lvals
+  .
 
   Section eval_method_call.
     Variable (eval_expression: Expression -> env_monad Value).
@@ -220,14 +258,18 @@ Section Eval.
     :=
       let* (params, impl) := unpack_func _ (eval_expression func) in
       (* TODO: Properly implement copy in/copy out semantics. *)
-      let* args' := eval_arguments (eval_expression) params args in
-      match impl with
-      | ValFuncImplBuiltin name obj =>
-        eval_builtin_func name obj type_args args'
-      (* TODO: other function types *)
-      (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
-      | _ => state_fail (SupportError "Unsupported function type.")
-      end
+      let* locs_and_lvals := eval_copy_in (eval_expression) params args in
+      let locs := map fst locs_and_lvals in
+      let* ret :=
+        match impl with
+        | ValFuncImplBuiltin name obj =>
+          eval_builtin_func name obj type_args locs
+        (* TODO: other function types *)
+        (* | ValFuncImplExtern _ name caller => eval_extern_func name obj type_args args' *)
+        | _ => state_fail (SupportError "Unsupported function type.")
+        end in
+      let* _ := eval_copy_out locs_and_lvals in
+      mret ret
     .
   End eval_method_call.
 

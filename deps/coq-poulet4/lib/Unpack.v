@@ -122,13 +122,6 @@ Section Unpack.
     | _ => state_fail (TypeError "Cannot unpack value as header stack.")
     end.
 
-  Definition unpack_lvalue (wrapped: env_monad Value) : env_monad (ValueLvalue) :=
-    let* unwrapped := wrapped in
-    match unwrapped with
-    | ValLvalue lvalue  => mret lvalue
-    | _ => state_fail (TypeError "Cannot unpack value as lvalue.")
-    end.
-
   Definition unpack_set (wrapped: env_monad Value) : env_monad (ValueSet) :=
     let* unwrapped := wrapped in
     match unwrapped with

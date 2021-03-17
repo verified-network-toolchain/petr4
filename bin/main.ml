@@ -121,24 +121,30 @@ let start_v1switch env prog sockets =
   let open Eval in
   let open V1Interpreter in
   let (env, st) = init_switch env prog in
-  let rec loop ctrl st : unit Lwt.t =
-    List.map sockets
-      ~f:(fun (i,sock) -> Lwt_rawlink.read_packet sock >|= fun sock -> i, sock)
-    |> Lwt.npick >|=
-    List.fold_map ~init:st
-      ~f:(fun st (i,pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i)) >>=
-    fun (st, pkts) ->
-      List.filter_map pkts ~f:Fn.id
-      |> List.map ~f:(fun (pkt, pt) -> pkt, Bigint.to_int_exn pt)
-      |> List.map ~f:(fun (pkt, pt) -> pkt, List.Assoc.find sockets pt ~equal:Int.equal)
-      |> List.filter_map ~f:(fun (pkt, pt) -> Option.map pt ~f:(fun pt -> pkt, pt))
-      |> List.map ~f:(fun (buf, pt) -> Lwt_rawlink.send_packet pt buf)
-      |> Lwt.join >>=
-    fun _ -> loop ctrl st in
+  let socks = List.map sockets
+    ~f:(fun (i, sock) -> i, Lwt_rawlink.read_packet sock) in
+  let rec loop socks ctrl st : unit Lwt.t =
+    List.map socks
+      ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
+    |> Lwt.choose >>=
+    fun (i, pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i) |> Lwt.return >>=
+    fun (st, pkt) ->
+    begin match pkt with
+      | Some (pkt, pt) ->
+        let pt = pt |> Bigint.to_int_exn |> List.Assoc.find sockets ~equal:Int.equal in
+        begin match pt with
+	  | Some pt -> Lwt_rawlink.send_packet pt pkt
+          | None -> Lwt.return () end
+      | None -> Lwt.return () end >>=
+    fun _ ->
+      let socks = List.Assoc.remove socks i ~equal:Int.equal in
+      let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
+      let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
+      loop socks ctrl st in
   (* only concern: should the output of the evaluator be bound to the next iteration
      of the loop? would this cause us to miss some packets that arrive while the first
      ones are still being put through the interpreter? *)
-  loop (([],[]), []) st
+  loop socks (([],[]), []) st
 
 let start_switch verbose include_dir target pts p4_file =
   (* TODO: add a control plane socket *)

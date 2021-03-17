@@ -122,15 +122,15 @@ let start_v1switch env prog sockets =
   let open V1Interpreter in
   let (env, st) = init_switch env prog in
   let rec loop ctrl st : unit Lwt.t =
-    List.mapi sockets
-      ~f:(fun i sock -> Lwt_rawlink.read_packet sock >|= fun sock -> i, sock)
+    List.map sockets
+      ~f:(fun (i,sock) -> Lwt_rawlink.read_packet sock >|= fun sock -> i, sock)
     |> Lwt.npick >|=
     List.fold_map ~init:st
       ~f:(fun st (i,pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i)) >>=
     fun (st, pkts) ->
       List.filter_map pkts ~f:Fn.id
       |> List.map ~f:(fun (pkt, pt) -> pkt, Bigint.to_int_exn pt)
-      |> List.map ~f:(fun (pkt, pt) -> pkt, List.nth sockets pt)
+      |> List.map ~f:(fun (pkt, pt) -> pkt, List.Assoc.find sockets pt ~equal:Int.equal)
       |> List.filter_map ~f:(fun (pkt, pt) -> Option.map pt ~f:(fun pt -> pkt, pt))
       |> List.map ~f:(fun (buf, pt) -> Lwt_rawlink.send_packet pt buf)
       |> Lwt.join >>=
@@ -140,9 +140,14 @@ let start_v1switch env prog sockets =
      ones are still being put through the interpreter? *)
   loop (([],[]), []) st
 
-let start_switch verbose include_dir target n pts p4_file =
+let start_switch verbose include_dir target pts p4_file =
   (* TODO: add a control plane socket *)
-  let sockets = List.map pts ~f:(fun if_name -> Lwt_rawlink.open_link if_name) in
+  let f str =
+    let pt_num, if_name = String.lsplit2_exn str ~on:'@' in
+    String.strip pt_num |> Int.of_string, String.strip if_name in
+  let ifnames = List.map ~f pts in
+  let sockets = List.map ifnames
+    ~f:(fun (pt_num, if_name) -> pt_num, Lwt_rawlink.open_link if_name) in
   match parse_file include_dir p4_file verbose with
   | `Ok prog ->
     let elab_prog, renamer = Elaborate.elab prog in
@@ -164,11 +169,10 @@ let switch_command =
      +> flag "-v" no_arg ~doc: "Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
-     +> flag "-n" (optional_with_default 0 int) ~doc: "Specify the number of ports with which to set up the switch"
-     +> flag "-p" (listed string) ~doc: "Specify the names by which the ports will be identified"
+     +> flag "-i" (listed string) ~doc: "Specify the names by which the ports will be identified"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir target n pts p4_file () ->
-	 start_switch verbose include_dir target n pts p4_file |> Lwt_main.run)
+    (fun verbose include_dir target pts p4_file () ->
+	 start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
 let command =
   Command.group

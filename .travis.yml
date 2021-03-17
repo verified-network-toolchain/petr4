@@ -34,6 +34,10 @@ install:
 - eval $(opam env)
 
 script:
+- opam --version
+- ocamlc --version
+- dune --version  
+- opam list
 - opam install . --deps-only
 - make
 - make install

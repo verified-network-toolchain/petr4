@@ -62,7 +62,7 @@ let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
               | BareName str -> CVar (snd str)
               | _ -> failwith "unimplemented--" end
           | ExpressionMember {expr; name} ->
-            CAddrOf (CPointer (CMember ((CVar "state"), get_expr_mem expr), snd name))
+            CAddrOf (CMember (CPointer (CVar "state", get_expr_mem expr), snd name))
           | _ -> failwith "unimplemented!"
         end
     in
@@ -84,6 +84,10 @@ let assert_packet_in (typ: Typed.Type.t) : unit =
   (* TODO actually check the type is appropriate? *)
   ()
 
+let assert_packet_out (typ: Typed.Type.t) : unit =
+  (* TODO actually check the type is appropriate? *)
+  ()
+
 let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
   match (snd stmt).stmt with 
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
@@ -96,9 +100,13 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     C.CMethodCall ("extract", pkt_arg :: args @ [C.CIntLit width])
   | _ -> C.CVarInit (CInt, "todo", CIntLit 123)
 
-let translate_stmts (stmts: Prog.Statement.t list) : C.cstmt list =
+let translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =
   stmts
   |> List.map ~f:translate_stmt
+
+let translate_block map (block: Prog.Block.t) : C.cstmt list =
+  (snd block).statements
+  |> translate_stmts map
 
 let get_type (typ: Typed.Type.t) : C.ctyp  =
   match typ with
@@ -122,6 +130,9 @@ let update_map (map : varmap ) (params : Typed.Parameter.t list) =
 let translate_key (key : Prog.Table.key) = 
   get_expr_name (snd key).key
 
+let translate_local_decls (map: varmap) (d: Prog.Declaration.t list) : varmap * C.cdecl list * C.cstmt list =
+  map, [], []
+
 let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl list =
   match snd d with
   | Struct {name; fields; _} ->
@@ -143,23 +154,24 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
     let struct_decl = C.CStruct (state_type_name, params) in
-    let locals_stmts = translate_parser_locals locals in
-    let state_stmts = translate_parser_states states in
+    let map, locals_decls, locals_stmts = translate_local_decls map locals in
+    let state_stmts = translate_parser_states map states in
     let func_decl = C.CFun (CVoid, snd name, [state_param], locals_stmts @ state_stmts) in
-    map_update, [struct_decl; func_decl]
+    map_update, struct_decl :: locals_decls @ [func_decl]
   | Function { return; name; type_params; params; body } ->
     map, [C.CComment "todo: Function"]
   | Action { name; data_params; ctrl_params; body; _ } -> 
     map, [C.CComment "todo: Action"]
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let fields = translate_params params in
-    let state_struct = C.CStruct (snd name, fields) in
+    let state_type_name = snd name ^ "_state" in
+    let state_struct = C.CStruct (state_type_name, fields) in
     let app_block = List.map ~f:(translate_act (snd name) map) locals in 
     map, state_struct ::
          app_block @
          [C.CFun (CVoid, snd name ^ "_fun", 
-                  [CParam (CPtr (CTypeName (snd name)), "state")], 
-                  apply_translate_emit map apply)]
+                  [CParam (CPtr (CTypeName state_type_name), "state")], 
+                  translate_block map apply)]
   (* [C.CMethodCall ((snd name), [C.CString "TODO??"])])] *)
   (* use commented out version if myC, for myd use the current version *)
   | Constant _ ->
@@ -182,12 +194,19 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | TypeDef _ ->
     map, []
 
+and translate_decls (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.cdecl list =
+  let f (map, decls) decl =
+    let map', decls' = translate_decl map decl in
+    map', decls @ decls'
+  in
+  List.fold ~init:(map, []) ~f decls
+
 and translate_act (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
   match snd locals with 
   | Action { name; data_params; ctrl_params; body; _ } -> 
     C.CFun (CVoid, snd name, 
-            [CParam (CTypeName "C_state", "*state")], 
-            apply_translate_emit map body)
+            [CParam (CTypeName "MyC_state", "*state")], 
+            translate_block map body)
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
     begin match key with 
       | [] -> failwith "nothing"
@@ -250,7 +269,7 @@ and get_table(name, k, actions, entries, default_action, size, custom_properties
     | h::s::t -> s
     | _ -> failwith "mistake!" in
   C.CFun 
-    (CVoid, name, [CParam (CTypeName "C_state", "*state")], 
+    (CVoid, name, [CParam (CTypeName "MyC_state", "*state")], 
      C.[CIf ((get_cond_logic entries k),
              (CMethodCall ((snd (get_name first)), [C.CString "state"])),
              (CMethodCall (snd (get_name  second), [C.CString "state"])))])
@@ -258,7 +277,7 @@ and get_table(name, k, actions, entries, default_action, size, custom_properties
 and translate_parser_locals (locals: Prog.Declaration.t list) : C.cstmt list =
   []
 
-and translate_parser_states (states: Prog.Parser.state list) : C.cstmt list =
+and translate_parser_states map (states: Prog.Parser.state list) : C.cstmt list =
   let add_state idx map (state: Prog.Parser.state) =
     Map.add_exn map ~key:(snd (snd state).name) ~data:idx
   in
@@ -270,15 +289,15 @@ and translate_parser_states (states: Prog.Parser.state list) : C.cstmt list =
   in
   let cases = 
     states
-    |> List.map ~f:(translate_parser_state states_map)
+    |> List.map ~f:(translate_parser_state map states_map)
   in
   let start_id = Map.find_exn states_map "start" in
   C.[CVarInit (CInt, next_state_name, CIntLit start_id);
      CWhile (CGeq (next_state_var, CIntLit 0),
              CSwitch (next_state_var, cases))]
 
-and translate_parser_state (states: int StrMap.t) (state: Prog.Parser.state) : C.ccase =
-  let stmts = translate_stmts (snd state).statements in
+and translate_parser_state map (states: int StrMap.t) (state: Prog.Parser.state) : C.ccase =
+  let stmts = translate_stmts map (snd state).statements in
   let annot = translate_trans states (snd state).transition in
   let state_id = Map.find_exn states (snd (snd state).name) in
   C.(CCase (CIntLit state_id, stmts @ annot))
@@ -293,24 +312,21 @@ and translate_trans (states: int StrMap.t) (t: Prog.Parser.transition) : C.cstmt
 
 and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt = 
   match (snd s).stmt with 
+  | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
+                type_args = [hdr_typ];
+                args} ->
+    assert_packet_out (snd pkt).typ;
+    let width = type_width hdr_typ in
+    let args = get_expr_opt_lst args in
+    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
+    C.CMethodCall ("emit", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall { func; type_args; args } -> 
-    let args = get_expr_opt_lst args @ [CIntLit 16] in
+    let args = get_expr_opt_lst args in
     C.CMethodCall (get_expr_name func, args)
   | Assignment { lhs; rhs } -> 
     let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
     C.CAssign (left, (get_expr_c rhs)) 
   | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
-
-and apply_translate_emit (map: varmap) (apply : Prog.Block.t) = 
-  let stmt = (snd apply).statements in 
-  List.map ~f:(translate_fun map) stmt 
-
-and translate_extract (map: varmap) (s : Prog.Parser.state list) : C.cstmt list =
-  match s with 
-  | [] -> failwith "empty"
-  | h::t -> 
-    match snd h with 
-    | { annotations; name; statements; transition } -> List.map ~f:(translate_fun map) statements
 
 and translate_param (param : Typed.Parameter.t) : C.cfield =
   let ctyp = translate_type param.typ in
@@ -337,14 +353,9 @@ and translate_type (typ: Typed.Type.t) : C.ctyp =
     C.CBit8
   | _ -> C.CInt
 
-let translate_prog ((Program t): Prog.program) : C.cprog =
-  let init = StrMap.empty, [] in
-  let f (map, decls) decl =
-    let map', decls' = translate_decl map decl in
-    map', decls @ decls'
-  in
-  t
-  |> List.fold ~init ~f
+let translate_prog ((Program prog): Prog.program) : C.cprog =
+  prog
+  |> translate_decls StrMap.empty
   |> snd
 
 let compile (prog: Prog.program) : C.cprog =

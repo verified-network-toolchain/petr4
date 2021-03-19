@@ -43,6 +43,17 @@ Definition bits2list {n} (bs: bits n) : list bool.
     exact (b :: IHn p).
 Defined.
 
+Definition bits2N {n} (bs: bits n) : option BinNums.N :=
+  if Nat.eqb n 0
+  then None
+  else Some (Ascii.N_of_digits (bits2list bs)).
+
+Definition bits2Z {n} (bs: bits n) : option BinNums.Z :=
+  match bits2N bs with
+  | None => None
+  | Some n => Some (BinInt.Z.of_N n)
+  end.
+
 Definition StandardMeta :=
   HAList.t [("egress_spec", bits 9)].
 

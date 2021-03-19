@@ -93,14 +93,6 @@ Definition value_repr {fields} (rec: HAList.t fields) (val: @Value P4defs.Info):
 
 Notation P4String := (P4String.t Info).
 
-Fixpoint assoc_get {A: Type} (map: list (P4String * A)) (key: P4String) : option A :=
-  match map with
-  | nil => None
-  | (k, v) :: map' =>
-    if eqb k.(str) key.(str) then Some v else assoc_get map' key
-  end
-.
-
 Inductive bits_pos_equiv : positive -> {n: nat & bits n} -> Prop :=
 | bits_pos_equiv_base: bits_pos_equiv xH (existT bits 1 (true, tt))
 (* TODO: Sensible way to implement this comparison; note that bits are given msb to lsb *)
@@ -112,8 +104,8 @@ Inductive bits_Z_equiv : Z -> {n: nat & bits n} -> Prop :=
 (* | bits_Z_equiv_pos: forall n p b, bits_pos_equiv p b -> bits_Z_equiv (Zpos p) (existT bits (S n) (false, projT2 b)) *)
 .
 
-Definition bits_equiv_header (val: list (P4String * @ValueBase P4defs.Info)) (key: string) (n: nat) (other: option (bits n)) :=
-  match assoc_get val (MkP4String key), other with
+Definition bits_equiv_header (val: P4String.AList P4defs.Info (@ValueBase P4defs.Info)) (key: string) (n: nat) (other: option (bits n)) :=
+  match AList.get val (MkP4String key), other with
   | Some (ValBaseBit n' b), Some other' =>
     n = n' /\ bits_Z_equiv b (existT bits n other')
   | _, _ => False

@@ -116,15 +116,33 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
         do_stf include_dir stf_file p4_file)
 
+(* This belongs in lib/common.ml, but it uses the Unix module. Since
+   lib/ all has to be javascript-compilable and js_of_ocaml cannot
+   translate the Unix API, it's here instead. *)
+let cc include_dirs contents =
+  let include_flags =
+    include_dirs
+    |> List.map ~f:(fun d -> "-I " ^ d)
+    |> String.concat
+  in
+  let cmd = Printf.sprintf "cc -x c -c -o p4prog.o %s -" include_flags in
+  let cc_stdin = Core.Unix.open_process_out cmd in
+  Common.fprint cc_stdin contents;
+  Core.Unix.close_process_out cc_stdin
+
 let ccomp_command =
   let open Command.Spec in
   Command.basic_spec ~summary:"Compile a P4 program to C"
     (empty
      +> flag "-v" no_arg ~doc:" Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-i" (listed string) ~doc:"<dir> Add directory to C include search path"
+     +> flag "-c" no_arg ~doc:"Enable cc compilation"
      +> anon ("p4file" %: string))
-    (fun verbose include_dirs p4_file () ->
-       ccomp_file verbose include_dirs p4_file)
+    (fun verbose include_dirs c_include_dirs yes_cc p4_file () ->
+       if yes_cc
+       then ccomp_file verbose include_dirs p4_file |> cc c_include_dirs |> ignore
+       else ccomp_file verbose include_dirs p4_file |> Common.print)
 
 let command =
   Command.group

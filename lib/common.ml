@@ -18,9 +18,11 @@ open Core_kernel
 module Info = P4Info
 module Env = Prog.Env
 
-let print pp = Format.printf "%a@." Pp.to_fmt pp
+let fprint (chan: Out_channel.t) (pp: 'a Pp.t) =
+  Format.fprintf (Format.formatter_of_out_channel chan) "%a@." Pp.to_fmt pp
 
-let fmt_print s = Format.printf "%s" s
+let print (pp: 'a Pp.t) =
+  fprint stdout pp
 
 module type Parse_config = sig
   val red: string -> string
@@ -166,9 +168,8 @@ module Make_parse (Conf: Parse_config) = struct
       checked_prog
       |> Ccomp.compile
       |> Cprinter.format_cprog
-      |> print
     | `Error (info, err) ->
       let exn_msg = Exn.to_string err in
       let info_string = Info.to_string info in
-      info_string ^ "\n" ^ exn_msg |> fmt_print
+      info_string ^ "\n" ^ exn_msg |> Pp.text
 end

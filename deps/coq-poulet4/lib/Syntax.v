@@ -114,17 +114,17 @@ Section Syntax.
   | ValBaseVarbit (max: nat) (width: nat) (value: Z)
   | ValBaseString (_: P4String)
   | ValBaseTuple (_: list ValueBase)
-  | ValBaseRecord (_: list (P4String * ValueBase))
+  | ValBaseRecord (_: P4String.AList tags_t ValueBase)
   | ValBaseSet (_: ValueSet)
   | ValBaseError (_: P4String)
   | ValBaseMatchKind (_: P4String)
-  | ValBaseStruct (fields: list (P4String * ValueBase))
-  | ValBaseHeader (fields: list (P4String * ValueBase)) (is_valid: bool)
-  | ValBaseUnion (fields: list (P4String * ValueBase))
+  | ValBaseStruct (fields: P4String.AList tags_t ValueBase)
+  | ValBaseHeader (fields: P4String.AList tags_t ValueBase) (is_valid: bool)
+  | ValBaseUnion (fields: P4String.AList tags_t ValueBase)
   | ValBaseStack (headers: list ValueBase) (size: nat) (next: nat)
   | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)
   | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: ValueBase)
-  | ValBaseSenum (_: list (P4String * ValueBase))
+  | ValBaseSenum (_: P4String.AList tags_t ValueBase)
   with ValueSet :=
   | ValSetSingleton (width: nat) (value: Z)
   | ValSetUniversal
@@ -374,7 +374,7 @@ Section Syntax.
   | DeclEnum (tags: tags_t)  (name: P4String)
              (members: list P4String)
   | DeclSerializableEnum (tags: tags_t)  (typ: @P4Type tags_t)
-                         (name: P4String) (members: list (P4String * Expression))
+                         (name: P4String) (members: P4String.AList tags_t Expression)
   | DeclExternObject (tags: tags_t)  (name: P4String)
                      (type_params: list P4String) (methods: list MethodPrototype)
   | DeclTypeDef (tags: tags_t)  (name: P4String)
@@ -395,7 +395,7 @@ Section Syntax.
                (actions: list TableActionRef) (default_action: TableActionRef)
                (const_entries: list TableEntry).
 
-  Definition Env_env binding := list (list (P4String * binding)).
+  Definition Env_env binding := list (P4String.AList tags_t binding).
 
   Inductive Env_EvalEnv :=
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@P4Type tags_t)) (namespace: P4String).
@@ -431,7 +431,7 @@ Section Syntax.
                   (constructor_params: list (@P4Parameter tags_t))
                   (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                   (apply: Block)
-  | ValObjPackage (args: list (P4String * ValueLoc))
+  | ValObjPackage (args: P4String.AList tags_t ValueLoc)
   | ValObjRuntime (loc: ValueLoc) (obj_name: P4String)
   | ValObjFun (params: list (@P4Parameter tags_t)) (impl: ValueFunctionImplementation)
   | ValObjAction (scope: Env_EvalEnv) (params: list (@P4Parameter tags_t)) (body: Block)
@@ -445,8 +445,8 @@ Section Syntax.
   | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (@P4Parameter tags_t))
                    (params: list (@P4Parameter tags_t)) (locals: list Declaration)
                    (apply: Block)
-  | ValConsPackage (params: list (@P4Parameter tags_t)) (args: list (P4String * ValueLoc))
-  | ValConsExternObj (_: list (P4String * list (@P4Parameter tags_t))).
+  | ValConsPackage (params: list (@P4Parameter tags_t)) (args: P4String.AList tags_t ValueLoc)
+  | ValConsExternObj (_: P4String.AList tags_t (list (@P4Parameter tags_t))).
 
   Inductive Value :=
   | ValBase (_: ValueBase)

@@ -20,6 +20,7 @@ Require Import Unpack.
 Require Import Platform.Packet.
 
 Import ListNotations.
+Import AList.
 
 Open Scope string_scope.
 Open Scope monad.
@@ -408,17 +409,11 @@ Section Eval.
           else state_fail (AssertError "Unknown member of packet extern.")
         | _ => state_fail (SupportError "Can only look up members of names.")
         end
-      (* TODO real member lookup *)
       | ValBase (ValBaseHeader fields valid) =>
-        let fix lookup f :=
-          match f with
-          | nil => state_fail (AssertError (P4String.str name))
-          | (fld, v) :: f' =>
-            if P4String.equivb fld name
-            then mret (ValBase v)
-            else lookup f'
-          end in
-        lookup fields
+        match (AList.get fields name) with
+        | None => state_fail (AssertError ("Could not look up header member " ++ (P4String.str name)))
+        | Some v => mret (ValBase v)
+        end
       | _ => state_fail (SupportError "Can only look up members of a packet or header.")
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=

@@ -258,6 +258,7 @@ Module P4cub.
       | TInt (width : positive)          (* signed integers *)
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
+      | TTuple (types : list t)          (* tuple type *)
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *)
       | THeaderStack (fields : F.fs tags_t t)
@@ -276,6 +277,7 @@ Module P4cub.
     Arguments TInt {_}.
     Arguments TError {_}.
     Arguments TMatchKind {_}.
+    Arguments TTuple {_}.
     Arguments TRecord {_}.
     Arguments THeader {_}.
     Arguments THeaderStack {_}.
@@ -296,6 +298,8 @@ Module P4cub.
                                   no associativity).
       Notation "'matchkind'"
         := TMatchKind (in custom p4type at level 0, no associativity).
+      Notation "'tuple' ts"
+               := (TTuple ts) (in custom p4type at level 0, no associativity).
       Notation "'rec' { fields }"
         := (TRecord fields)
             (in custom p4type at level 6, no associativity).
@@ -325,6 +329,9 @@ Module P4cub.
 
       Hypothesis HTMatchKind : P {{ matchkind }}.
 
+      Hypothesis HTTuple : forall ts,
+          Forall P ts -> P {{ tuple ts }}.
+
       Hypothesis HTRecord : forall fields,
           F.predfs_data P fields -> P {{ rec { fields } }}.
 
@@ -338,6 +345,12 @@ Module P4cub.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t tags_t, P ty :=
         fix custom_t_ind (type : t tags_t) : P type :=
+          let fix list_ind (ts : list (t tags_t)) :
+                Forall P ts :=
+              match ts with
+              | [] => Forall_nil _
+              | h :: ts => Forall_cons _ (custom_t_ind h) (list_ind ts)
+              end in
           let fix fields_ind
                   (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
@@ -351,6 +364,7 @@ Module P4cub.
           | {{ int<w> }} => HTInt w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
+          | {{ tuple ts }}  => HTTuple ts (list_ind ts)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
@@ -369,6 +383,9 @@ Module P4cub.
       | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
       | equivt_error : ∫ error ≡ error
       | equivt_matchkind : ∫ matchkind ≡ matchkind
+      | equivt_tuple (ts1 ts2 : list (t tags_t)) :
+          Forall2 equivt ts1 ts2 ->
+          ∫ tuple ts1 ≡ tuple ts2
       | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
           F.relfs equivt fs1 fs2 ->
           ∫ rec { fs1 } ≡ rec { fs2 }
@@ -398,6 +415,11 @@ Module P4cub.
 
         Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
 
+        Hypothesis HTuple : forall ts1 ts2,
+            Forall2 equivt ts1 ts2 ->
+            Forall2 P ts1 ts2 ->
+            P {{ tuple ts1 }} {{ tuple ts2 }}.
+
         Hypothesis HRecord : forall fs1 fs2,
             F.relfs equivt fs1 fs2 ->
             F.relfs P fs1 fs2 ->
@@ -418,6 +440,16 @@ Module P4cub.
         Definition custom_equivt_ind :
           forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
           fix cind t1 t2 H :=
+            let fix lind {ts1 ts2 : list (t tags_t)}
+                    (HR : Forall2 equivt ts1 ts2) : Forall2 P ts1 ts2 :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _
+                               HE HTail => Forall2_cons
+                                            _ _
+                                            (cind _ _ HE)
+                                            (lind HTail)
+                end in
             let fix find
                     {ts1 ts2 : F.fs tags_t (t tags_t)}
                     (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
@@ -438,6 +470,7 @@ Module P4cub.
                     | equivt_int w => HInt w
                     | equivt_error => HError
                     | equivt_matchkind => HMatchkind
+                    | equivt_tuple _ _ Hequiv => HTuple _ _ Hequiv (lind Hequiv)
                     | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
                     | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
                     | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
@@ -450,6 +483,12 @@ Module P4cub.
 
         (** Decidable equality. *)
         Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
+          let fix lrec (ts1 ts2 : list (t tags_t)) : bool :=
+              match ts1, ts2 with
+              | [], [] => true
+              | t1::ts1, t2::ts2 => eqbt t1 t2 && lrec ts1 ts2
+              | [], _::_ | _::_, [] => false
+              end in
           let fix frec (ts1 ts2 : F.fs tags_t (t tags_t)) : bool :=
               match ts1, ts2 with
               | [], [] => true
@@ -464,6 +503,7 @@ Module P4cub.
           | {{ matchkind }}, {{ matchkind }} => true
           | {{ bit<w1> }}, {{ bit<w2> }}
           | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
+          | {{ tuple ts1 }}, {{ tuple ts2 }} => lrec ts1 ts2
           | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
           | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
           | {{ stack ts1[n1] }}, {{ stack ts2[n2] }} => (n1 =? n2)%positive && frec ts1 ts2
@@ -486,12 +526,13 @@ Module P4cub.
             (* apply custom_equivt_ind; intros; *)
             intros t1 t2 H; induction H using custom_equivt_ind;
             constructor; auto;
-              try (induction H; inversion H0; subst; repeat constructor; auto;
+              try (induction H; inv H0; repeat constructor; auto;
                    destruct x as [x1 t1]; destruct y as [x2 t2];
                    repeat match goal with
                           | H: F.relf _ _ _ |- _ => inversion H; subst; clear H
                           end; simpl in *; auto;
-                   [ symmetry | apply IHForall2 ]; auto).
+                   [ symmetry | apply IHForall2 ]; auto);
+          try (induction H; inv H0; repeat constructor; auto).
         Qed.
 
         Lemma equivt_transitive : Transitive (@equivt tags_t).
@@ -509,7 +550,13 @@ Module P4cub.
                      [ unfold F.relf in *; simpl in *;
                        destruct H3; destruct H9; split; eauto;
                        transitivity x2; assumption
-                     | eapply IHfs1; eauto]).
+                     | eapply IHfs1; eauto]);
+                try (rename ts into ts1; rename types into ts2;
+                     rename types0 into ts3; constructor;
+                     generalize dependent ts3; generalize dependent ts2;
+                     induction ts1 as [| t1 ts1 IHts1];
+                       intros [| t2 ts2] H12 [| t3 ts3] H23;
+                       inv H; inv H12; inv H23; constructor; eauto).
         Qed.
 
         Instance TypeEquivalence : Equivalence (@equivt tags_t).
@@ -528,7 +575,9 @@ Module P4cub.
                    destruct x as [x1 t1]; destruct y as [x2 t2];
                      simpl in *; repeat invert_relf; simpl in *;
                        pose proof P4String.equiv_reflect x1 x2 as Hx;
-                       inv Hx; try contradiction; rewrite H2; auto).
+                       inv Hx; try contradiction; rewrite H2; auto);
+              try (induction H; inv HR; auto;
+                   rewrite IHForall2; try rewrite H4; auto).
           Qed.
 
         Lemma eqbt_equivt : forall t1 t2, eqbt t1 t2 = true -> equivt t1 t2.
@@ -553,7 +602,12 @@ Module P4cub.
                            inv Hx'; try contradiction; auto;
                            rewrite Hx in H; discriminate
                          | apply IHfs1; auto ]).
-          Qed.
+          try (rename ts into ts1; rename types into ts2;
+               generalize dependent ts2;
+               induction ts1 as [| t1 ts1 IHts1];
+                 intros [| t2 ts2] IH; inv H; try discriminate; constructor;
+                   apply andb_prop in IH as [Hhd Htl]; auto).
+        Qed.
 
         Lemma equivt_eqbt_iff : forall t1 t2 : t tags_t, equivt t1 t2 <-> eqbt t1 t2 = true.
         Proof.
@@ -606,6 +660,9 @@ Module P4cub.
             base_type τ -> proper_nesting τ
         | pn_error : proper_nesting {{ error }}
         | pn_matchkind : proper_nesting {{ matchkind }}
+        | pn_tuple (ts : list (t tags_t)) :
+            Forall proper_nesting ts ->
+            proper_nesting {{ tuple ts }}
         | pn_record (ts : F.fs tags_t (t tags_t)) :
             F.predfs_data proper_nesting ts ->
             proper_nesting {{ rec { ts } }}

@@ -287,6 +287,11 @@ Module Step.
 
     (** Intial/Default value from a type. *)
     Fixpoint vdefault (τ : E.t tags_t) : V.v tags_t :=
+      let fix lrec (ts : list (E.t tags_t)) : list (V.v tags_t) :=
+          match ts with
+          | [] => []
+          | τ :: ts => vdefault τ :: lrec ts
+          end in
       let fix fields_rec
               (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t (V.v tags_t) :=
           match ts with
@@ -299,6 +304,7 @@ Module Step.
       | {{ Bool }}       => *{ FALSE }*
       | {{ bit<w> }}     => *{ w VW N0 }*
       | {{ int<w> }}     => *{ w VS Z0 }*
+      | {{ tuple ts }}   => V.VTuple (lrec ts)
       | {{ rec { ts } }} => V.VRecord (fields_rec ts)
       | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
       | {{ stack fs[n] }} => V.VHeaderStack

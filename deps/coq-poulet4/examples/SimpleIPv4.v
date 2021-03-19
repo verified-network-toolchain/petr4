@@ -134,23 +134,7 @@ Definition IPHeader_p_spec : Prop :=
 Definition TCP_p_spec : Prop :=
   forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
          /\ length (pkt st') = length (pkt st) - 28).     
-         
-
-
-Definition extract_n_post (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
-  if Nat.leb n (length (pkt st)) 
-  then exists pref suff bits, 
-    pref = firstn n (pkt st) /\
-    st' = st <| pkt := suff |> /\
-    pkt st = pref ++ suff /\
-    ob = Some bits /\
-    pref = bits2list bits
-  else exists pref,
-    pref = firstn n (pkt st) /\
-    pkt st = pref /\
-    st' = st <| pkt := nil |> /\
-    ob = None.
-
+        
 
 Lemma extract_post st:
   {{ fun s => s = st }}
@@ -163,14 +147,14 @@ Lemma extract_post st:
   }}.
 Proof.
   unfold next_bit.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply bind_wp.
   all: swap 2 1.
   intros.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply (case_list_wp (pkt r) (dummy := false)).
 
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply return_wp.
   intros. simpl.
   destruct H as [it eq].
@@ -183,12 +167,12 @@ Proof.
   mysimp.
 
 
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply bind_wp.
 
   all: swap 2 1.
   intros.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply return_wp.
   intros. simpl.
   eapply H.
@@ -216,22 +200,257 @@ Proof.
   exact unit.
 Qed.
 
+Definition extract_n_post_fixed (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  if Nat.leb n (length (pkt st)) 
+  then exists pref suff bits, 
+    pref = firstn n (pkt st) /\
+    st' = st <| pkt := suff |> /\
+    pkt st = pref ++ suff /\
+    ob = Some bits /\
+    pref = bits2list bits
+  else exists pref,
+    pref = firstn n (pkt st) /\
+    pkt st = pref /\
+    st' = st <| pkt := nil |> /\
+    ob = None.
+
+Lemma extract_2_fixed st:
+  {{ fun s => s = st /\ Nat.leb 2 (length (pkt st)) = true }}
+    extract_n 2
+  {{ Norm (fun r s' => extract_n_post_fixed 2 r st s') }}.
+Proof.
+  unfold extract_n.
+  eapply strengthen_pre.
+  wp.
+  all: swap 3 1.
+  intros. unfold Norm. exact H.
+
+  intros.
+  eapply strengthen_pre. 
+  wp.
+  all: swap 2 1.
+  intros. eapply strengthen_pre.
+  wp.
+  eapply strengthen_pre. 
+  unfold pure. wp.
+  intros.
+  destruct H as [it _].
+  exact it.
+  all: swap 4 1.
+  intros. unfold Norm. exact H.
+
+  all: swap 3 1.
+  eapply strengthen_pre.
+  wp.
+  eapply strengthen_pre.
+  unfold pure. wp.
+  intros. destruct H as [it eq]. exact it. 
+  
+  eapply strengthen_pre.
+  unfold pure. wp.
+  intros.
+  destruct H as [x' [eq it]].
+  simpl.
+  exact it.
+Admitted.
+
+
+Definition unwrap_bits {n} (bts: bits n) (default: bool) : (bool * bits (pred n)).
+induction n.
+  - exact (default, tt).
+  - destruct bts.
+    exact (b, p).
+Defined.
+
+
+Fixpoint extract_n_post (n: nat) (ob: option (bits n)) (st_initial: @ParserState Meta) (st_final: @ParserState Meta) : Prop :=
+  match n as n' with 
+  | 0 =>
+    exists bits', 
+    ob = Some bits' /\
+    st_initial = st_final
+  | S n' => 
+    exists ob' st_mid,
+    extract_n_post n' ob' st_mid st_final /\
+    match ob' with 
+    | Some bts => 
+      exists bit bits' pref suff,
+      (bit, bits') = unwrap_bits bts false /\
+      pkt st_initial = bit :: pref ++ suff /\
+      st_mid = st_initial <| pkt := (pref ++ suff) |> /\
+      st_final = st_mid <| pkt := suff |> /\
+      bits2list bts = bit :: pref
+    | None => 
+      st_final = st_initial <| pkt := nil |>
+    end
+  end.
+
+
+
+
 Lemma extract_n_forward n st:
   {{ fun s => s = st }}
     extract_n n
   {{ fun r s' => exists r', r = inl r' /\ extract_n_post n r' st s' }}.
 Proof.
+  induction n.
+  - unfold extract_n.
+    unfold extract_n_post.
+    eapply strengthen_pre. eapply return_wp.
+    intros.
+    mysimp.
+    unfold bits.
+    simpl.
+    exists (Some tt).
+    mysimp.
+    exists tt.
+    mysimp.
+  - unfold extract_n.
+    fold extract_n.
+    unfold extract_n_post.
+    fold extract_n_post.
+    eapply bind_wp.
 
+    all: swap 3 1.
+    intros. apply H.
+    intros.
+
+    eapply bind_wp.
+    all: swap 3 1.
+    intros.
+    exact H.
+    intros.
+    eapply (case_option_wp r0).
+    eapply strengthen_pre.
+    eapply return_wp.
+    intros.
+    simpl.
+    exists None.
+    split.
+    trivial.
+    exists None, h.
+    destruct H as [it _].
+    exact it.
+
+    unfold hoare_triple_wp.
+    intros.
+    destruct H as [x' [eq it]].
+    unfold destruct_opt.
+    rewrite eq.
+    exact it.
+
+    eapply hoare_consequence.
+    eapply extract_post.
+    intros.
+    simpl.
+    exact H.
+    mysimp.
+    destruct o.
+    destruct r.
+    simpl in *.
+    exists (Some (b, b0)).
+    split.
+    reflexivity.
+    exists (Some b0).
+    (* oh boy... *)
 Admitted.
+
+Lemma extract_n_length n st: 
+  {{ fun s => s = st /\ length (pkt st) >= n }}
+    extract_n n 
+  {{ Norm (fun r s' => extract_n_post_fixed n r st s') }}.
+Admitted.
+ 
+Lemma extract_2 st: 
+  {{ fun s => s = st }}
+    extract_n 2
+  {{ Norm (fun r s' => extract_n_post 2 r st s') }}.
+Proof.
+  unfold extract_n, extract_n_post.
+  eapply strengthen_pre.
+  eapply bind_wp.
+  all: swap 2 1.
+  intros.
+  eapply bind_wp.
+  eapply weaken_post.
+  eapply (extract_post st).
+  intros.
+
+  all: swap 2 1.
+  intros.
+  wp.
+
+  eapply strengthen_pre.
+  eapply return_wp.
+  intros.
+  destruct H as [it eq].
+  exact it.
+  
+  eapply strengthen_pre.
+  wp.
+  eapply strengthen_pre.
+  unfold pure.
+  wp.
+  intros.
+  destruct H as [it eq].
+  exact it.
+
+  eapply strengthen_pre.
+  unfold pure.
+  wp.
+  intros.
+  destruct H as [x' [eq it]].
+  exact it.
+  intros.
+  destruct H as [x' [eq it]].
+  exact it.
+
+  all: swap 2 1.
+  intros.
+  unfold Norm.
+  exact H.
+  unfold Norm.
+  simpl in H.
+
+  destruct (pkt st).
+  destruct H as [vr str].
+  rewrite vr.
+  exists r.
+  destruct r.
+Admitted.
+
 
 Lemma IPHeader_p_spec' st : 
   {{ fun s => s = st /\ length (pkt st) >= 28 }}
     IPHeader_p
-  {{ fun r s' => 
-    (exists iph, r = inl iph) /\ 
+  {{ Norm (fun _ s' => 
     length (pkt s') = length (pkt st) - 28
+    )
   }}.
 Proof.
+  eapply strengthen_pre.
+  unfold IPHeader_p.
+  eapply bind_wp.
+  all: swap 3 1.
+  unfold Norm.
+  intros.
+  apply H.
+  all: swap 2 1.
+  apply (extract_n_length 8 st).
+  intros.
+
+  eapply bind_wp.
+  all: swap 3 1.
+  unfold Norm.
+  intros.
+  apply H.
+
+  all: swap 2 1.
+  eapply strengthen_pre.
+  eapply (extract_n_length 8).
+  intros.
+  simpl.
+  split.
 Admitted.
 
 Lemma IPHeader_p_Correct : IPHeader_p_spec.

@@ -4,6 +4,7 @@ Require Import Monads.Hoare.WP.
 Require Import Lia.
 
 Require Import Coq.Init.Nat.
+Require Import Coq.Lists.List.
 
 
 Definition either_or (n: nat): @state_monad nat unit bool := 
@@ -41,7 +42,7 @@ Proof.
   eapply bind_wp.
   all: swap 2 1. 
   intros.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply fail_wp.
   intros.
   simpl.
@@ -51,13 +52,22 @@ Proof.
   apply H.
 
 
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply put_wp.
   mysimp.
   Unshelve.
   exact unit.
 Qed.
 
+Example cond_fail b:
+  {{ fun s => s = b /\ b = true }}
+    if b then state_fail tt else state_return true
+  {{ fun r s => r = inr tt }}.
+Proof.
+  eapply strengthen_pre.
+  repeat wp.
+  mysimp.
+Qed.
 Example eo_pres n:
   {{ top }}
     either_or n
@@ -69,19 +79,19 @@ Example eo_pres n:
   }}.
 Proof.
   unfold either_or.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply (case_nat_wp n).
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply return_wp.
   intros.
   destruct H as [it _].
   exact it.
 
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply bind_wp.
   all: swap 2 1.
   intros.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   eapply fail_wp.
   intros.
   exact H.
@@ -94,6 +104,45 @@ Proof.
   destruct H as [n' [_ it]].
   exact it.
   mysimp.
+  destruct n; mysimp.
+  Unshelve.
+  exact unit.
+Qed.
+
+Example eo_pres' n:
+  {{ top }}
+    either_or n
+  {{ fun r s => 
+    match r with 
+    | inl r' => r' = true
+    | inr _  => s = 0
+    end
+  }}.
+Proof.
+  unfold either_or.
+  eapply strengthen_pre.
+  wp.
+  eapply strengthen_pre.
+  wp.
+
+  intros.
+  destruct H as [it _].
+  exact it.
+
+  wp.
+  all: swap 2 1.
+  intros.
+  eapply strengthen_pre.
+  wp.
+  intros.
+  exact H.
+  eapply strengthen_pre.
+  wp.
+  intros.
+  destruct H as [n' [eq it]].
+  exact it.
+  intros.
+  exact H.
   destruct n; mysimp.
   Unshelve.
   exact unit.
@@ -112,16 +161,48 @@ Example branch_splits :
     end
    }}.
 Proof.
-  eapply weaken_pre.
+  eapply strengthen_pre.
   unfold get_branch.
-  eapply bind_wp.
+  wp.
   all: swap 2 1.
 
   intros.
   apply (eo_pres r).
-  all: swap 2 1.
+  wp.
   intros.
   exact H.
-  eapply get_wp.
   mysimp.
 Qed.
+
+Fixpoint iter_incr (n: nat) : @state_monad nat unit unit :=
+  match n with 
+  | 0 => skip
+  | S n' => iter_incr n' ;; put_state (fun x => x + 1)
+  end.
+
+Lemma iter_incr_n n m:
+  {{ fun s => s = n }}
+    iter_incr m
+  {{ Norm (fun r s' => s' = n + m )}}.
+Proof.
+  induction m.
+  - unfold iter_incr.
+    mysimp.
+  - unfold iter_incr. fold iter_incr.
+    eapply strengthen_pre.
+    wp.
+    all: swap 2 1.
+    intros. 
+    wp.
+    eapply weaken_post.
+    apply IHm.
+    all: swap 2 1.
+    intros.
+    exact H.
+    mysimp.
+    lia.
+    mysimp.
+  Unshelve.
+  exact unit.
+Qed.
+  

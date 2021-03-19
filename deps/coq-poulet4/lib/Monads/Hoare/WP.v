@@ -37,12 +37,13 @@ Definition Norm {A State Exception} (f: A -> State -> Prop) : Post State (A + Ex
   | inl v => f v s
   | inr _ => False
   end.
-  
+
 
 Notation "{{ P }} c {{ Q }}" := (@hoare_triple_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
 Ltac mysimp := 
     unfold Pred, Post, hoare_triple_wp, state_return, state_bind, get_state, put_state in * ; intros ; 
       repeat (match goal with
+                | [ H : ?P |- ?P ] => exact H
                 | [ H : _ /\ _ |- _] => destruct H
                 | [ H : (_ * _)%type |- _] => destruct H
                 | [ H : (_ + _)%type |- _] => destruct H
@@ -61,7 +62,7 @@ Ltac mysimp :=
               end) ; subst ; simpl in * ; try firstorder ; auto with arith.
 
 
-Lemma weaken_pre
+Lemma strengthen_pre
   {State Exception Result:Type} 
   {P1: Pred State} 
   {P2: Pred State}
@@ -145,7 +146,7 @@ Proof.
       trivial.
 Qed.
 
-Lemma cond_pre 
+Lemma cond_wp
   {State Exception Result: Type} 
   {b: bool}
   {P1 P2 Q} 
@@ -217,3 +218,83 @@ Lemma case_list_wp
 Proof.
   destruct xs; mysimp.
 Qed.
+
+Definition destruct_opt {A} (opt: option A) (dummy: A) :=
+  match opt with
+  | Some x => x
+  | None => dummy
+  end.
+
+Lemma case_option_wp
+  {State Exception Result A: Type} 
+  {P1 P2 Q c1} 
+  {dummy: A}
+  {c2: A -> @state_monad State Exception Result} x : 
+  {{ fun s => P1 s /\ x = None }} c1 {{ Q }} ->
+  {{ fun s => exists x', x = Some x' /\ P2 x' s }} 
+    (c2 (destruct_opt x dummy)) 
+  {{ Q }} ->
+  {{ 
+    match x with 
+    | None => P1
+    | Some x' => P2 x' 
+    end
+  }}
+    match x with 
+    | None => c1
+    | Some x' => c2 x'
+    end
+  {{
+    Q
+  }}.
+Proof.
+  destruct x; mysimp.
+Qed.
+
+Lemma hoare_consequence
+  {State Exception Result:Type} 
+  {P1: Pred State} 
+  {P2: Pred State}
+  {Q1: Post State (Result + Exception)}
+  {Q2: Post State (Result + Exception)}
+  {c: @state_monad State Exception Result}
+  :
+  {{ P1 }} c {{ Q1 }} ->
+  (forall h, P2 h -> P1 h) ->
+  (forall v h, Q1 v h -> Q2 v h) ->
+  {{ P2 }} c {{ Q2 }}.
+Proof.
+  mysimp.
+  destruct (c st).
+  mysimp.
+Qed.
+
+Lemma weaken_post
+  {State Exception Result:Type} 
+  {P: Pred State} 
+  {Q1: Post State (Result + Exception)}
+  {Q2: Post State (Result + Exception)}
+  {c: @state_monad State Exception Result} :
+  {{ P }} c {{ Q1 }} -> 
+  (forall v s, Q1 v s -> Q2 v s) ->
+  {{ P }} c {{ Q2 }}.
+Proof.
+  intros.
+  apply (hoare_consequence H).
+  mysimp.
+  intros.
+  apply H0; trivial.
+Qed.
+
+Ltac wp :=
+  match goal with
+  | [ |- {{ _ }} mbind _ _ {{ _ }} ] => eapply bind_wp
+  | [ |- {{ _ }} get_state {{ _ }} ] => eapply get_wp
+  | [ |- {{ _ }} put_state ?e {{ _ }} ] => eapply (put_wp e)
+  | [ |- {{ _ }} state_fail ?e {{ _ }} ] => eapply (fail_wp e)
+  | [ |- {{ _ }} state_return ?e {{ _ }} ] => eapply (return_wp e)
+  | [ |- {{ _ }} if _ then _ else _ {{ _ }} ] => eapply cond_wp
+  | [ |- {{ _ }} match ?e with | 0 => _ | S _ => _ end {{ _ }} ] => eapply (case_nat_wp e)
+  | [ |- {{ _ }} match ?e with | nil => _ | _ :: _ => _ end {{ _ }} ] => eapply (case_list_wp e)
+  | [ |- {{ _ }} match ?e with | Some _ => _ | None => _ end {{ _ }} ] => eapply (case_option_wp e)
+  end.

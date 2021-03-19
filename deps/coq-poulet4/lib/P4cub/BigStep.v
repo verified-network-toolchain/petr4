@@ -423,6 +423,10 @@ Module Step.
       F.get x vfs = Some v ->
       ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
       ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
+  | ebs_tuple (es : list (E.e tags_t)) (i : tags_t)
+              (vs : list (V.v tags_t)) :
+      Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
+      ⟨ ϵ, tup es @ i ⟩ ⇓ TUPLE vs
   | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                 (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
       F.relfs
@@ -578,6 +582,12 @@ Module Step.
         P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
     (**[]*)
 
+    Hypothesis HTuple : forall ϵ es i vs,
+        Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
+        Forall2 (P ϵ) es vs ->
+        P ϵ <{ tup es @ i }> *{ TUPLE vs }*.
+    (**[]*)
+
     Hypothesis HRecLit : forall ϵ efs i vfs,
         F.relfs
           (fun te v =>
@@ -633,6 +643,18 @@ Module Step.
       forall (ϵ : epsilon) (e : E.e tags_t)
         (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
       fix ebsind ϵ e v Hy :=
+        let fix lind
+                {es : list (E.e tags_t)}
+                {vs : list (V.v tags_t)}
+                (HR : Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs)
+            : Forall2 (P ϵ) es vs :=
+            match HR with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ Hh Ht => Forall2_cons
+                                         _ _
+                                         (ebsind _ _ _ Hh)
+                                         (lind Ht)
+            end in
         let fix fsind
                 {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
                 {vfs : F.fs tags_t (V.v tags_t)}
@@ -728,6 +750,7 @@ Module Step.
         | ebs_hdr_op _ _ _ i _ _ _
                      Hv He => HHdrOp _ _ _ i _ _ _ Hv
                                     He (ebsind _ _ _ He)
+        | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
         | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
         | ebs_hdr_lit _ _ _ i _ _
                       HR He => HHdrLit _ _ _ i _ _

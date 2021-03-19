@@ -301,6 +301,10 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
       ⟦ errs , Γ ⟧ ⊢ Mem e:rec { fields } dot x @ i ∈ τ
   (* Structs. *)
+  | chk_tuple (es : list (E.e tags_t)) (i : tags_t)
+              (ts : list (E.t tags_t)) :
+      Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts ->
+      ⟦ errs, Γ ⟧ ⊢ tup es @ i ∈ tuple ts
   | chk_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                 (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
       F.relfs
@@ -458,6 +462,12 @@ Module Typecheck.
         P errs Γ <{ Mem e:rec { fields } dot x @ i }> τ.
     (**[]*)
 
+    Hypothesis HTuple : forall errs Γ es i ts,
+        Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts ->
+        Forall2 (P errs Γ) es ts ->
+        P errs Γ <{ tup es @ i }> {{ tuple ts }}.
+    (**[]*)
+
     Hypothesis HRecLit : forall errs Γ efs tfs i,
         F.relfs
           (fun te τ =>
@@ -524,6 +534,19 @@ Module Typecheck.
         (HY : ⟦ errs, Γ ⟧ ⊢ e ∈ τ), P errs Γ e τ :=
           fix chind errs Γ e τ HY :=
             let fix lind
+                    {es : list (E.e tags_t)}
+                    {ts : list (E.t tags_t)}
+                    (HR : Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts)
+                : Forall2 (P errs Γ) es ts :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _
+                              Hh Htail => Forall2_cons
+                                           _ _
+                                           (chind _ _ _ _ Hh)
+                                           (lind Htail)
+                end in
+            let fix lind_stk
                     {es : list (E.e tags_t)} {τ : E.t tags_t}
                     (HRs : Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es)
                 : Forall (fun e => P errs Γ e τ) es :=
@@ -532,7 +555,7 @@ Module Typecheck.
                 | Forall_cons _
                               Hhead Htail => Forall_cons _
                                                         (chind _ _ _ _ Hhead)
-                                                        (lind Htail)
+                                                        (lind_stk Htail)
                 end in
             let fix fields_ind
                     {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
@@ -624,6 +647,9 @@ Module Typecheck.
                          Hhop He => HValid
                                      _ _ _ _ i _ _ Hhop
                                      He (chind _ _ _ _ He)
+            | chk_tuple _ _ _ i _
+                        HR => HTuple _ _ _ i _
+                                    HR (lind HR)
             | chk_rec_lit _ _ _ _ i
                           HRs => HRecLit
                                   _ _ _ _ i
@@ -635,7 +661,8 @@ Module Typecheck.
                                         Hb (chind _ _ _ _ Hb)
             | chk_stack _ _ _ _ _ ni
                         Hn Hnin Hlen
-                        HP HRs => HStack _ _ _ _ _ ni Hn Hnin Hlen HP HRs (lind HRs)
+                        HP HRs => HStack _ _ _ _ _ ni Hn Hnin Hlen HP
+                                        HRs (lind_stk HRs)
             | chk_access _ _ _ _ i _ _
                          Hidx He => HAccess _ _ _ _ i _ _ Hidx
                                            He (chind _ _ _ _ He)

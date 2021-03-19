@@ -96,6 +96,8 @@ Section BigStepTheorems.
       eapply F.get_relfs in H2; eauto.
     - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
       eapply F.get_relfs in H4; eauto.
+    - generalize dependent ts; rename H0 into Hesvs.
+      induction H; inv Hesvs; intros ts Hests; inv Hests; constructor; eauto.
     - generalize dependent tfs; rename H0 into Hesvs.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
@@ -214,6 +216,14 @@ Section BigStepTheorems.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       eapply F.relfs_get_r in H2 as [v [Hget HR]]; eauto.
       exists v. econstructor; eauto.
+    - induction H; inv H0.
+      + exists *{ TUPLE [] }*. repeat constructor.
+      + pose proof IHForall2 H7 as [v IH]; clear IHForall2 H7.
+        assert (Hes : ⟦ errs, Γ ⟧ ⊢ tup l @ i ∈ tuple l').
+        { econstructor; eauto. }
+        pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Hes as HP; inv HP.
+        pose proof H5 Htyp Hsub as [v Hev]. inv IH.
+        exists (V.VTuple (v :: vs)). repeat constructor; auto.
     - induction H; inv H0.
       + exists *{ REC { [] } }*. repeat constructor.
       + destruct x as [x [τ e]]. destruct y as [x' τ'].

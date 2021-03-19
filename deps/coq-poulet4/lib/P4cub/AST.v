@@ -1,7 +1,7 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
-Require Export P4cub.Utiliser.
+Require Export Utiliser.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 
@@ -777,15 +777,16 @@ Module P4cub.
       (** Expressions annotated with types,
           unless the type is obvious. *)
       Inductive e : Type :=
-      | EBool (b : bool) (i : tags_t)                      (* booleans *)
-      | EBit (width : positive) (val : N) (i : tags_t)  (* unsigned integers *)
-      | EInt (width : positive) (val : Z) (i : tags_t)  (* signed integers *)
+      | EBool (b : bool) (i : tags_t)                     (* booleans *)
+      | EBit (width : positive) (val : N) (i : tags_t) (* unsigned integers *)
+      | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t tags_t) (x : name tags_t)
-             (i : tags_t)                               (* variables *)
+             (i : tags_t)                              (* variables *)
       | EUop (op : uop) (type : t tags_t)
-             (arg : e) (i : tags_t)                     (* unary operations *)
+             (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t tags_t)
-             (lhs rhs : e) (i : tags_t)                 (* binary operations *)
+             (lhs rhs : e) (i : tags_t)                (* binary operations *)
+      | ETuple (es : list e) (i : tags_t)              (* tuples *)
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs tags_t (t tags_t * e))
@@ -823,6 +824,7 @@ Module P4cub.
     Arguments EVar {tags_t}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
+    Arguments ETuple {_}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
     Arguments EHeaderOp {_}.
@@ -854,6 +856,9 @@ Module P4cub.
                         x custom p4expr, tx custom p4type,
                         y custom p4expr, ty custom p4type,
                         op custom p4bop, left associativity).
+      Notation "'tup' es @ i"
+               := (ETuple es i)
+                    (in custom p4expr at level 0).
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
@@ -911,6 +916,9 @@ Module P4cub.
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
 
+      Hypothesis HETuple : forall es i,
+          Forall P es -> P <{ tup es @ i }>.
+
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
@@ -961,6 +969,7 @@ Module P4cub.
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i
                     (eind lhs) (eind rhs)
+          | <{ tup es @ i }>         => HETuple es i (list_ind es)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
           | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)

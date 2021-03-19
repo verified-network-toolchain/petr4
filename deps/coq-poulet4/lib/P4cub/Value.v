@@ -656,6 +656,10 @@ Module ValueTyping.
   | typ_int (w : positive) (z : Z) :
       IntArith.bound w z ->
       ∇ errs ⊢ w VS z ∈ int<w>
+  | typ_tuple (vs : list (v tags_t))
+              (ts : list (E.t tags_t)) :
+      Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
+      ∇ errs ⊢ TUPLE vs ∈ tuple ts
   | typ_rec (vs : Field.fs tags_t (v tags_t))
             (ts : Field.fs tags_t (E.t tags_t)) :
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
@@ -713,6 +717,11 @@ Module ValueTyping.
         end ->
         P errs *{ ERROR err }* {{ error }}.
 
+    Hypothesis HTuple : forall errs vs ts,
+        Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
+        Forall2 (P errs) vs ts ->
+        P errs *{ TUPLE vs }* {{ tuple ts }}.
+
     Hypothesis HRecord : forall errs vs ts,
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
@@ -746,6 +755,17 @@ Module ValueTyping.
       forall (errs : errors) (vl : v tags_t) (τ : E.t tags_t)
         (Hy : ∇ errs ⊢ vl ∈ τ), P errs vl τ :=
           fix tvind errs vl τ Hy :=
+            let fix lind {vs : list (v tags_t)}
+                    {ts : list (E.t tags_t)}
+                    (HR : Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts)
+                : Forall2 (P errs) vs ts :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _ Hh Ht => Forall2_cons
+                                             _ _
+                                             (tvind _ _ _ Hh)
+                                             (lind Ht)
+                end in
             let fix fsind {vs : Field.fs tags_t (v tags_t)}
                     {ts : Field.fs tags_t (E.t tags_t)}
                     (HR : Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts)
@@ -783,6 +803,7 @@ Module ValueTyping.
             | typ_int _ _ _ Hwz => HInt _ _ _ Hwz
             | typ_matchkind _ mk => HMatchkind _ mk
             | typ_error _ _ Herr => HError _ _ Herr
+            | typ_tuple _ _ _ Hvs => HTuple _ _ _ Hvs (lind Hvs)
             | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
             | typ_hdr _ _ b _ HP Hfs => HHeader _ _ b _ HP Hfs (fsind Hfs)
             | typ_headerstack _ _ _ _ _ Hbound Hni Hlen HP

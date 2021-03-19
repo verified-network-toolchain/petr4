@@ -14,7 +14,7 @@ let rec format_ctyp (typ: ctyp) =
   | CUInt -> text "unsigned int"
   | CBool -> text "bool"
   | CTypeName name -> format_cname name
-  | CPtr typ -> text "(" ++ format_ctyp typ ++ text "*)"
+  | CPtr typ -> format_ctyp typ ++ text "*"
 
 let rec format_cdecl (decl: cdecl) =
   match decl with
@@ -29,7 +29,9 @@ let rec format_cdecl (decl: cdecl) =
     box ~indent:2 (format_ctyp ret
                    ++ space
                    ++ format_cname name
+                   ++ text "("
                    ++ format_cparams params
+                   ++ text ")"
                    ++ text " {\n"
                    ++ format_cstmts body)
     ++ text "\n}"
@@ -46,7 +48,7 @@ and format_cfield ((CField (typ, name)): cfield) =
   format_ctyp typ ++ space ++ format_cname name
 
 and format_cparam ((CParam (typ, name)): cparam) =
-  text "(" ++ format_ctyp typ ++ space ++ format_cname name ++ text ")"
+  format_ctyp typ ++ space ++ format_cname name
 
 and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params
@@ -146,7 +148,9 @@ and format_ccases (cases: ccase list) =
 
 and format_ccase (case: ccase) =
   let (CCase (lbl, stmt)) = case in
-  box ~indent:2 (format_cexpr lbl ++ text ":\n"
+  box ~indent:2 (text "case "
+                 ++ format_cexpr lbl
+                 ++ text ":\n"
                  ++ format_cstmts stmt
                  ++ text "\nbreak;")
 

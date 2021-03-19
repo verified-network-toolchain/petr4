@@ -35,6 +35,8 @@ let rec format_cdecl (decl: cdecl) =
     ++ text "\n}"
   | CInclude name ->
     hbox (text "#include \"" ++ text name ++ text "\"")
+  | CComment comment ->
+    hbox (text "/*" ++ text comment ++ text "*/")
   | CStdInclude name ->
     hbox (text "#include <" ++ text name ++ text ">")
   | CDecList lst -> 

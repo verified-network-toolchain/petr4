@@ -25,6 +25,7 @@ type cdecl =
     CStruct of cname * cfield list
   | CFun of ctyp * cname * cparam list * cstmt list
   | CInclude of string
+  | CComment of string
   | CStdInclude of string
   | CDecList of cdecl list 
 and cfield = CField of ctyp * cname

@@ -131,6 +131,11 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let cfields = translate_fields fields in
     let valid = C.CField (CBool, "__header_valid") in
     map, [C.CStruct (snd name, valid :: cfields)]
+  | HeaderUnion {name; fields; _} ->
+    map, [C.CComment "todo: Header union"]
+  | Enum _
+  | SerializableEnum _ ->
+    map, [C.CComment "todo: Enum/SerializableEnum"]
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let map_update = update_map map params in 
     let params = translate_params params in
@@ -142,9 +147,10 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let state_stmts = translate_parser_states states in
     let func_decl = C.CFun (CVoid, snd name, [state_param], locals_stmts @ state_stmts) in
     map_update, [struct_decl; func_decl]
-  | Function { return; name; type_params; params; body } -> failwith "Fds"
+  | Function { return; name; type_params; params; body } ->
+    map, [C.CComment "todo: Function"]
   | Action { name; data_params; ctrl_params; body; _ } -> 
-    map, [C.CInclude ("action " ^ snd name)] 
+    map, [C.CComment "todo: Action"]
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let fields = translate_params params in
     let state_struct = C.CStruct (snd name, fields) in
@@ -156,7 +162,25 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
                   apply_translate_emit map apply)]
   (* [C.CMethodCall ((snd name), [C.CString "TODO??"])])] *)
   (* use commented out version if myC, for myd use the current version *)
-  | _ -> map, [C.CInclude "todo"] 
+  | Constant _ ->
+    map, [C.CComment "todo: Constant"]
+  | Instantiation _ ->
+    map, [C.CComment "todo: Instantiation"]
+  | Variable _ ->
+    map, [C.CComment "todo: Variable"]
+  | Table _ -> 
+    map, [C.CComment "todo: Table"]
+  | ValueSet _
+  | ControlType _
+  | ParserType _
+  | PackageType _
+  | ExternObject _
+  | ExternFunction _
+  | Error _
+  | MatchKind _
+  | NewType _
+  | TypeDef _ ->
+    map, []
 
 and translate_act (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
   match snd locals with 

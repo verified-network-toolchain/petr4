@@ -12,6 +12,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 
 Import ListNotations.
+Import AList.
 
 Open Scope nat_scope.
 Open Scope monad_scope.
@@ -68,7 +69,7 @@ Inductive val_repr: forall (t: Type), t -> @ValueBase P4defs.Info -> Prop :=
 
 (* I wrote this by using tactics and then hand-simplifying the
    resulting term. - Ryan *)
-Definition header_repr (fields: list (string * Type)) (rec: HAList.t fields)
+Definition header_repr (fields: AList.AList string Type eq) (rec: HAList.t fields)
   : list (P4String.t P4defs.Info * @ValueBase P4defs.Info) -> Prop :=
   HAList.t_rect
     (fun fields (t1 : HAList.t fields) => forall rec0, rec0 = t1 -> list (t Info * ValueBase) -> Prop)
@@ -93,21 +94,10 @@ Definition value_repr {fields} (rec: HAList.t fields) (val: @Value P4defs.Info):
 
 Notation P4String := (P4String.t Info).
 
-Inductive bits_pos_equiv : positive -> {n: nat & bits n} -> Prop :=
-| bits_pos_equiv_base: bits_pos_equiv xH (existT bits 1 (true, tt))
-(* TODO: Sensible way to implement this comparison; note that bits are given msb to lsb *)
-.
-
-Inductive bits_Z_equiv : Z -> {n: nat & bits n} -> Prop :=
-| bits_Z_equiv_zero : forall n, bits_Z_equiv Z0 (existT bits n zero_bits)
-(* TODO: A way to make the stuff below typecheck. *)
-(* | bits_Z_equiv_pos: forall n p b, bits_pos_equiv p b -> bits_Z_equiv (Zpos p) (existT bits (S n) (false, projT2 b)) *)
-.
-
 Definition bits_equiv_header (val: P4String.AList P4defs.Info (@ValueBase P4defs.Info)) (key: string) (n: nat) (other: option (bits n)) :=
   match AList.get val (MkP4String key), other with
   | Some (ValBaseBit n' b), Some other' =>
-    n = n' /\ bits_Z_equiv b (existT bits n other')
+    n = n' /\ bits2Z other' = Some b
   | _, _ => False
   end
 .

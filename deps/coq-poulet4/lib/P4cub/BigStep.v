@@ -141,6 +141,28 @@ Module Step.
       end.
     (**[]*)
 
+    Definition eval_cast
+               (target : E.t tags_t) (v : V.v tags_t) : option (V.v tags_t) :=
+      match target, v with
+      | {{ bit<xH> }}, *{ TRUE }*         => Some (V.VBit 1%positive 1%N)
+      | {{ bit<xH> }}, *{ FALSE }*        => Some (V.VBit 1%positive 0%N)
+      | {{ Bool }}, V.VBit 1%positive 1%N => Some *{ TRUE }*
+      | {{ Bool }}, V.VBit 1%positive 0%N => Some *{ FALSE }*
+      | {{ bit<w> }}, *{ _ VS Z0 }*       => Some *{ w VW N0 }*
+      | {{ bit<w> }}, V.VInt _ (Zneg p)
+      | {{ bit<w> }}, V.VInt _ (Zpos p)   => let n := BitArith.return_bound w (Npos p) in
+                                            Some *{ w VW n }*
+      (* TODO: casting bit -> int is incorrect. *)
+      | {{ int<w> }}, *{ _ VW n }* => let z := IntArith.return_bound w (Z.of_N n) in
+                                     Some *{ w VS z }*
+      | {{ bit<w> }}, *{ _ VW n }* => let n := BitArith.return_bound w n in
+                                     Some *{ w VW n }*
+      | {{ int<w> }}, *{ _ VS z }* => let z := IntArith.return_bound w z in
+                                     Some *{ w VS z }*
+      | _, _ => None
+      end.
+    (**[]*)
+
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
@@ -353,6 +375,10 @@ Module Step.
   | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
       ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
+  | ebs_cast (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) (v v' : V.v tags_t) :
+      eval_cast τ v = Some v' ->
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⟨ ϵ, Cast e:τ @ i ⟩ ⇓ v'
   | ebs_error (err : option (string tags_t)) (i : tags_t) :
       ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
   | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
@@ -484,6 +510,13 @@ Module Step.
     Hypothesis HVar : forall ϵ x τ i v,
         ϵ x = Some v ->
         P ϵ <{ Var x:τ @ i }> v.
+    (**[]*)
+
+    Hypothesis HCast : forall ϵ τ e i v v',
+        eval_cast τ v = Some v' ->
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        P ϵ e v ->
+        P ϵ <{ Cast e:τ @ i }> v'.
     (**[]*)
 
     Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
@@ -706,6 +739,9 @@ Module Step.
         | ebs_bit _ w n i => HBit ϵ w n i
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
+        | ebs_cast _ _ _ i _ _
+                   Hcast He => HCast _ _ _ i _ _ Hcast
+                                    He (ebsind _ _ _ He)
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
         | ebs_not _ _ i _ _ Hnot He => HNot _ _ i _ _ Hnot

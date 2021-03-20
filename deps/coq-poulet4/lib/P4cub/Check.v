@@ -142,6 +142,14 @@ Module Typecheck.
       end.
     (**[]*)
 
+    (** Evidence a cast is proper.
+        This is a bi-directional relation. *)
+    Inductive proper_cast : E.t tags_t -> E.t tags_t -> Prop :=
+    | pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
+    | pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
+    | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
+    | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}.
+
     (** Available functions. *)
     Definition fenv : Type := Env.t (name tags_t) (E.arrowT tags_t).
 
@@ -244,6 +252,10 @@ Module Typecheck.
       Γ x = Some τ ->
       PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
+  | chk_cast (τ τ' : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
+      proper_cast τ τ' ->
+      ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
+      ⟦ errs, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
   (* Unary operations. *)
   | chk_not (e : E.e tags_t) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ e ∈ Bool ->
@@ -376,6 +388,14 @@ Module Typecheck.
         PT.proper_nesting τ ->
         P errs Γ <{ Var x:τ @ i }> τ.
     (**[]*)
+
+    Hypothesis HCast : forall errs Γ τ τ' e i,
+        proper_cast τ τ' ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
+        P errs Γ e τ' ->
+        P errs Γ <{ Cast e:τ @ i }> τ.
+    (**[]*)
+
 
     Hypothesis HNot : forall errs Γ e i,
         ⟦ errs , Γ ⟧ ⊢ e ∈ Bool ->
@@ -589,6 +609,8 @@ Module Typecheck.
             | chk_bit _ _ _ _ i HB => HBit _ _ _ _ i HB
             | chk_int _ _ _ _ i HB => HInt _ _ _ _ i HB
             | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
+            | chk_cast _ _ _ _ _ i HPC He => HCast _ _ _ _ _ i HPC
+                                                  He (chind _ _ _ _ He)
             | chk_not _ _ _ i He   => HNot
                                        _ _ _ i He
                                        (chind _ _ _ _ He)

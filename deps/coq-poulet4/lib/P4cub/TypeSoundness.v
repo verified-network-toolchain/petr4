@@ -60,6 +60,18 @@ Section BigStepTheorems.
     unfold envs_type in Het.
     induction Hev using custom_expr_big_step_ind;
       intros t Ht; inv Ht; try constructor; eauto.
+    - pose proof IHHev Het _ H5 as IH; clear IHHev H5.
+      inv H4; inv IH; simpl in *.
+      + destruct n; try discriminate; inv H; try constructor.
+        destruct p; try discriminate; inv H1; constructor.
+      + destruct w; destruct z; inv H; constructor;
+          try apply BitArith.return_bound_bound;
+          unfold BitArith.bound; unfold BitArith.upper_bound.
+        * pose proof BitArith.exp_ge_one 2 (N.pos w~1); lia.
+        * pose proof BitArith.exp_ge_one 2 (N.pos w~0); lia.
+        * simpl; lia.
+      + destruct w1; inv H; constructor; apply BitArith.return_bound_bound.
+      + inv H; constructor; apply IntArith.return_bound_bound.
     - inv H2; auto.
     - apply BitArith.neg_bound.
     - unfold_int_operation; apply IntArith.return_bound_bound.
@@ -144,6 +156,25 @@ Section BigStepTheorems.
       try (eexists; constructor; assumption).
     - apply Hsub in H. destruct H as [v H'].
       exists v; constructor; auto.
+    - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
+      pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
+      (* remember (eval_cast τ v) as ecr eqn:Hcast;
+         generalize dependent ecr. *)
+      inv H; inv Hpres.
+      + unfold BitArith.bound, BitArith.upper_bound in *;
+          simpl in *. assert (Hn : n = 0%N \/ n = 1%N); try lia.
+        destruct Hn as [Hn | Hn]; subst;
+          [ exists *{ FALSE }* | exists *{ TRUE }* ];
+          econstructor; eauto; reflexivity.
+      + destruct z;
+          [ exists *{ w VW N0 }*
+          | exists (V.VBit w (BitArith.return_bound w (Npos p)))
+          | exists (V.VBit w (BitArith.return_bound w (Npos p))) ];
+          econstructor; eauto; destruct w; reflexivity.
+      + exists (V.VBit w1 (BitArith.return_bound w1 n));
+          econstructor; eauto; destruct w1; reflexivity.
+      + exists (V.VInt w1 (IntArith.return_bound w1 z));
+          econstructor; eauto; destruct w1; reflexivity.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
       inv Hpres. exists (V.VBool (negb b)); econstructor; eauto.

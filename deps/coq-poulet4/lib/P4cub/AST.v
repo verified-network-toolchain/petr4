@@ -635,6 +635,7 @@ Module P4cub.
     (** Restrictions on type-nesting. *)
     Module ProperType.
       Import TypeNotations.
+      Import TypeEquivalence.
 
       Section ProperTypeNesting.
         Context {tags_t : Type}.
@@ -660,12 +661,14 @@ Module P4cub.
             base_type τ -> proper_nesting τ
         | pn_error : proper_nesting {{ error }}
         | pn_matchkind : proper_nesting {{ matchkind }}
-        | pn_tuple (ts : list (t tags_t)) :
-            Forall proper_nesting ts ->
-            proper_nesting {{ tuple ts }}
         | pn_record (ts : F.fs tags_t (t tags_t)) :
-            F.predfs_data proper_nesting ts ->
+            F.predfs_data
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
             proper_nesting {{ rec { ts } }}
+        | pn_tuple (ts : list (t tags_t)) :
+            Forall
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+            proper_nesting {{ tuple ts }}
         | pn_header (ts : F.fs tags_t (t tags_t)) :
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ hdr { ts } }}
@@ -782,6 +785,7 @@ Module P4cub.
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t tags_t) (x : name tags_t)
              (i : tags_t)                              (* variables *)
+      | ECast (type : t tags_t) (arg : e) (i : tags_t) (* explicit casts *)
       | EUop (op : uop) (type : t tags_t)
              (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t tags_t)
@@ -822,6 +826,7 @@ Module P4cub.
     Arguments EBit {_}.
     Arguments EInt {_}.
     Arguments EVar {tags_t}.
+    Arguments ECast {_}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
     Arguments ETuple {_}.
@@ -845,6 +850,10 @@ Module P4cub.
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x : ty @ i" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
+      Notation "'Cast' e : τ @ i"
+        := (ECast τ e i)
+             (in custom p4expr at level 10, τ custom p4type,
+                 e custom p4expr, right associativity).
       Notation "'UOP' op x : ty @ i"
                := (EUop op ty x i)
                     (in custom p4expr at level 2,
@@ -910,6 +919,9 @@ Module P4cub.
       Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
           P <{ Var x : ty @ i }>.
 
+      Hypothesis HECast : forall τ exp i,
+          P exp -> P <{ Cast exp:τ @ i }>.
+
       Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ UOP op ex : ty @ i }>.
 
@@ -965,6 +977,7 @@ Module P4cub.
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x:ty @ i }> => HEVar ty x i
+          | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
           | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i

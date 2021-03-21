@@ -8,6 +8,16 @@ Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Coq.micromega.Lia.
 
+(** * Useful Data Types *)
+
+Inductive either (A B : Type) : Type :=
+| Left (a : A)
+| Right (b : B).
+(**[]*)
+
+Arguments Left {_ _}.
+Arguments Right {_ _}.
+
 (** * Useful Functions And Lemmas *)
 
 (** Update position [n] of list [l],

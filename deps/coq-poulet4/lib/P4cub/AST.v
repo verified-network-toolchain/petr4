@@ -270,6 +270,21 @@ Module P4cub.
 
       (** Function types. *)
       Definition arrowT : Type := arrow tags_t t t t.
+
+      (** Constructor Types. *)
+      Inductive ct : Type :=
+      | CTType (type : t)                   (* expression types *)
+      | CTControl (cparams : F.fs tags_t ct)
+                  (parameters : params)     (* control types *)
+      | CTParser (cparams : F.fs tags_t ct)
+                 (parameters : params)      (* parser types *)
+      (* | CTName (x : name tags_t)            (* constructor type name *)
+         | CTLambda (lambda : t -> ct)          (* parametric types *)
+         | CTApplication (polymorph : ct)
+                      (type_arg : t)        (* type specialization *)*).
+      (**[]*)
+
+      Definition constructor_params : Type := F.fs tags_t ct.
     End P4Types.
 
     Arguments TBool {_}.
@@ -281,6 +296,9 @@ Module P4cub.
     Arguments TRecord {_}.
     Arguments THeader {_}.
     Arguments THeaderStack {_}.
+    Arguments CTType {_}.
+    Arguments CTControl {_}.
+    Arguments CTParser {_}.
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -820,6 +838,14 @@ Module P4cub.
       Definition arrowE : Type :=
         arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
       (**[]*)
+
+      (** Constructor arguments. *)
+      Inductive constructor_arg : Type :=
+      | CAExpr (expr : e) (* plain expression *)
+      | CAName (x : name tags_t) (* name of parser, control, etc *).
+      (**[]*)
+
+      Definition constructor_args : Type := F.fs tags_t constructor_arg.
     End Expressions.
 
     Arguments EBool {tags_t}.
@@ -838,6 +864,8 @@ Module P4cub.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
+    Arguments CAExpr {_}.
+    Arguments CAName {_}.
 
     Module ExprNotations.
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -1112,9 +1140,11 @@ Module P4cub.
       | DVarinit (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
       | DInstantiate (C : name tags_t) (x : string tags_t)
-                     (args : F.fs tags_t (E.t tags_t * E.e tags_t))
+                     (* (targs : list (E.t tags_t)) *)
+                     (cargs : E.constructor_args tags_t)
                      (i : tags_t)                  (* constructor [C]
-                                                      with [args] makes [x] *)
+                                                      with constructor [args]
+                                                      makes instance [x]. *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
     End Declarations.
@@ -1316,11 +1346,11 @@ Module P4cub.
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t)
       | TPControl (c : string tags_t)
-                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                  (cparams : E.constructor_params tags_t) (* constructor params *)
                   (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string tags_t)
-                 (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                 (cparams : E.constructor_params tags_t) (* constructor params *)
                  (params : E.params tags_t)           (* invocation params *)
                  (states : F.fs tags_t (P.state tags_t)) (* parser states *)
                  (i : tags_t) (* TODO: start state? *)

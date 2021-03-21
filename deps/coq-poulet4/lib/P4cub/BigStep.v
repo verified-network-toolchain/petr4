@@ -1,3 +1,4 @@
+
 Require Export P4cub.Check.
 Require Export P4cub.P4Arith.
 Require Import Coq.Bool.Bool.
@@ -993,21 +994,33 @@ Module Step.
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
   | dbs_instantiate (c : name tags_t) (x : string tags_t)
-                    (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                    (vargs : F.fs tags_t (V.v tags_t)) (i : tags_t)
-                    (ctrlclosure : cenv) (fclosure : fenv) (iclosure ins' : ienv)
+                    (cargs : E.constructor_args tags_t)
+                    (vargs : F.fs tags_t (either (V.v tags_t) inst)) (i : tags_t)
+                    (ctrlclosure : cenv) (fclosure : fenv)
+                    (iclosure ins' ins'' : ienv)
                     (body : CD.d tags_t) (applyblk : ST.s tags_t)
                     (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
       clookup cs c = Some (CDecl ctrlclosure closure fclosure iclosure body applyblk) ->
-      F.relfs (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v) cargs vargs ->
-      F.fold (fun x v acc => let x' := bare x in !{ x' ↦ v;; acc }!) vargs closure = ϵ' ->
+      F.relfs
+        (fun carg v =>
+           match carg,v with
+           | E.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
+           | E.CAName c, Right cinst => ilookup ins c = Some cinst
+           | _, _ => False
+           end) cargs vargs ->
+      F.fold (fun x v '(ϵ,ins) =>
+                let x' := bare x in
+                match v with
+                | Left v => (!{ x' ↦ v;; ϵ }!, ins)
+                | Right cinst => (ϵ, iupdate ins x' cinst)
+                end) vargs (closure,iclosure) = (ϵ',ins') ->
       let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
       let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
-      ⦉ cp, cs, empty_tbls, empty_acts, fclosure, iclosure, ϵ', body ⦊
-        ⟱  ⦉ ϵ'', ins', aa, tbls ⦊ ->
+      ⦉ cp, cs, empty_tbls, empty_acts, fclosure, ins', ϵ', body ⦊
+        ⟱  ⦉ ϵ'', ins'', aa, tbls ⦊ ->
       let x' := bare x in
-      let ins'' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
-      ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins'' ⧽
+      let ins''' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
+      ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins''' ⧽
   | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                 (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
       ⧼ cp, cs, fns, ins,  ϵ,  d1 ⧽ ⟱  ⧼ ϵ',  ins'  ⧽ ->
@@ -1016,7 +1029,7 @@ Module Step.
   where "⧼ cp , cs , fnv , ins1 , ϵ1 , d ⧽ ⟱  ⧼ ϵ2 , ins2 ⧽"
           := (decl_big_step cp cs fnv ins1 ϵ1 d ϵ2 ins2)
   (**[]*)
-  
+
   (** Control declaration big-step semantics. *)
   with ctrldecl_big_step
        {tags_t : Type} (cp : @ctrl tags_t) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
@@ -1059,7 +1072,7 @@ Module Step.
             {tags_t : Type} (cp : ctrl) (cs : cenv)
             (fns : fenv) (ins : ienv) (ϵ : epsilon)
     : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
-  | tpbs_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+  | tpbs_control (c : string tags_t) (cparams : E.constructor_params tags_t)
                  (params : E.params tags_t) (body : CD.d tags_t)
                  (apply_blk : ST.s tags_t) (i : tags_t) (cs' : @cenv tags_t) :
       let c' := bare c in

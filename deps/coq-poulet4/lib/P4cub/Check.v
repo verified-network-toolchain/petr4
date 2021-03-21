@@ -192,14 +192,15 @@ Module Typecheck.
     | return_void_applyblk (tbls : tblenv) (aa : aenv) :
         return_void_ok (CApplyBlock tbls aa).
     (**[]*)
-
+    (*
     (** Control Constructor Types. *)
     Inductive cctor : Type :=
     | CCtor (cparams : F.fs tags_t (E.t tags_t)) (params : E.params tags_t).
     (**[]*)
+     *)
 
     (** Environment with Controls. *)
-    Definition cenv : Type := Env.t (name tags_t) cctor.
+    Definition cenv : Type := Env.t (name tags_t) (E.ct tags_t).
 
     (** Put parameters into environment. *)
     Definition bind_all : E.params tags_t -> gamma -> gamma :=
@@ -209,8 +210,15 @@ Module Typecheck.
     (**[]*)
 
     (** Put (constructor) parameters into environment. *)
-    Definition cbind_all : F.fs tags_t (E.t tags_t) -> gamma -> gamma :=
-      F.fold (fun x τ Γ => let x' := bare x in !{ x' ↦ τ ;; Γ }!).
+    Definition cbind_all :
+      E.constructor_params tags_t -> gamma * ienv -> gamma * ienv :=
+      F.fold (fun x c '(Γ, ins) =>
+                let x' := bare x in
+                match c with
+                | E.CTType τ => (!{ x' ↦ τ;; Γ }!, ins)
+                | E.CTControl _ pars => (Γ, !{ x' ↦ pars;; ins }!)
+                | _ => (Γ, ins) (*TODO!, should parsers get their own environment?*)
+                end).
     (**[]*)
 
     (** Appropriate signal. *)
@@ -791,14 +799,19 @@ Module Typecheck.
       let x' := bare x in
       ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Let x:τ := e @ i ⊣ ⦗ x' ↦ τ ;; Γ, ins ⦘
   | chk_instantiate (c : name tags_t) (x : string tags_t)
-                    (cparams : F.fs tags_t (E.t tags_t))
-                    (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
+                    (cparams : E.constructor_params tags_t)
+                    (cargs : E.constructor_args tags_t)
                     (i : tags_t) (params : E.params tags_t) :
-      cs c = Some (CCtor cparams params) ->
+      cs c = Some (E.CTControl cparams params) ->
       F.relfs
-        (fun '(τ,e) τ' =>
-           ∫ τ ≡ τ' /\ ⟦ errs , Γ ⟧ ⊢ e ∈ τ)
-        cargs cparams ->
+        (fun carg cparam =>
+           match carg, cparam with
+           | E.CAExpr e, E.CTType τ
+             => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+           | E.CAName ctrl, E.CTControl cas cps
+             => cs ctrl = Some (E.CTControl cas cps) (* equivalence under tags_t *)
+           | _, _ => False
+           end) cargs cparams ->
       let x' := bare x in
       ⦗ cs, fns, ins, errs, Γ ⦘ ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, x' ↦ params ;; ins ⦘
   | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
@@ -964,40 +977,44 @@ Module Typecheck.
             {tags_t : Type} (cs : cenv) (fns : fenv)
             (ins : ienv) (errs : errors) (Γ : gamma)
             : TD.d tags_t -> gamma -> ienv -> fenv -> cenv -> Prop :=
-  | chk_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+  | chk_control (c : string tags_t) (cparams : E.constructor_params tags_t)
                 (params : E.params tags_t) (body : CD.d tags_t)
                 (apply_blk : ST.s tags_t) (i : tags_t)
                 (Γ' Γ'' Γ''' Γ'''' : gamma) (sg : signal)
                 (tbls : tblenv) (acts : aenv) (ins' ins'' : @ienv tags_t) :
-      cbind_all cparams Γ = Γ' ->
+      cbind_all cparams (Γ,ins) = (Γ',ins') ->
       let empty_tbls := Env.empty (name tags_t) unit in
       let empty_acts := Env.empty (name tags_t) (E.params tags_t) in
       (* Control declarations. *)
-      ⦅ empty_tbls, empty_acts, cs, fns, ins, errs, Γ' ⦆
-        ⊢ body ⊣ ⦅ Γ'', ins', acts, tbls ⦆ ->
+      ⦅ empty_tbls, empty_acts, cs, fns, ins', errs, Γ' ⦆
+        ⊢ body ⊣ ⦅ Γ'', ins'', acts, tbls ⦆ ->
       bind_all params Γ'' = Γ''' ->
       (* Apply block. *)
-      ⦃ fns, ins', errs, Γ''' ⦄ ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
+      ⦃ fns, ins'', errs, Γ''' ⦄ ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
       let c' := bare c in
-      let ctor := CCtor cparams params in
+      let ctor := E.CTControl cparams params in
       $ cs, fns, ins, errs, Γ $
         ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
         ⊣ $ Γ, ins, fns, c' ↦ ctor;; cs $
-  | chk_parser (p : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+  | chk_parser (p : string tags_t)
+               (cparams : E.constructor_params tags_t)
                (params : E.params tags_t)
                (states : F.fs tags_t (PS.state tags_t)) (i : tags_t)
-               (Γ' Γ'' : gamma) :
+               (Γ' Γ'' : gamma) (ins' : ienv) :
       let empty_sts := Env.empty (string tags_t) unit in
       let sts := fold_right
                    (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
                    empty_sts states in
-      cbind_all cparams Γ = Γ' ->
+      cbind_all cparams (Γ,ins) = (Γ',ins') ->
       bind_all params Γ' = Γ'' ->
       Forall
-        (fun '(_,pst) => check_state fns ins sts errs Γ'' pst)
+        (fun '(_,pst) => check_state fns ins' sts errs Γ'' pst)
         states ->
+      let p' := bare p in
+      let prsr := E.CTParser cparams params in
       $ cs, fns, ins, errs, Γ $
-        ⊢ parser p (cparams)(params) { states } @ i ⊣ $ Γ, ins, fns, cs $
+        ⊢ parser p (cparams)(params) { states } @ i
+        ⊣ $ Γ, ins, fns, p' ↦ prsr;; cs $
   | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
                        (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
                        (Γ' Γ'' : gamma) (sg : signal) :

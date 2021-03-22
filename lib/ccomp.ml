@@ -98,6 +98,20 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     let args = get_expr_opt_lst args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
     C.CMethodCall ("extract", pkt_arg :: args @ [C.CIntLit width])
+  | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
+                type_args = [hdr_typ];
+                args} ->
+    assert_packet_out (snd pkt).typ;
+    let width = type_width hdr_typ in
+    let args = get_expr_opt_lst args in
+    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
+    C.CMethodCall ("emit", pkt_arg :: args @ [C.CIntLit width])
+  | MethodCall { func; type_args; args } -> 
+    let args = get_expr_opt_lst args in
+    C.CMethodCall (get_expr_name func, args)
+  | Assignment { lhs; rhs } -> 
+    let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
+    C.CAssign (left, (get_expr_c rhs)) 
   | _ -> C.CVarInit (CInt, "todo", CIntLit 123)
 
 let translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =

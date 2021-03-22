@@ -188,7 +188,9 @@ Module Step.
     with inst : Type :=
     | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
             (tbls : tenv) (aa : aenv)
-            (apply_blk : ST.s tags_t)  (* control apply block *)
+            (apply_blk : ST.s tags_t)  (* control instance *)
+    | PInst (* TODO: parser instance *)
+    | EInst (* TODO: extern object instance *)
     with ienv : Type :=
     | IEnv (ins : Env.t (name tags_t) inst).
     (**[]*)

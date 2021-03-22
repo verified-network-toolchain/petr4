@@ -278,6 +278,8 @@ Module P4cub.
                   (parameters : params)     (* control types *)
       | CTParser (cparams : F.fs tags_t ct)
                  (parameters : params)      (* parser types *)
+      | CTExtern (cparams : F.fs tags_t ct)
+                 (methods : F.fs tags_t arrowT) (* extern types *)
       (* | CTName (x : name tags_t)            (* constructor type name *)
          | CTLambda (lambda : t -> ct)          (* parametric types *)
          | CTApplication (polymorph : ct)
@@ -299,6 +301,7 @@ Module P4cub.
     Arguments CTType {_}.
     Arguments CTControl {_}.
     Arguments CTParser {_}.
+    Arguments CTExtern {_}.
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -1045,6 +1048,9 @@ Module P4cub.
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
                                                            an alternative to blocks *)
+      | SExternMethodCall (e : name tags_t) (f : string tags_t)
+                          (args : E.arrowE tags_t)
+                          (i : tags_t)                  (* extern method calls *)
       | SFunCall (f : name tags_t)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
       | SActCall (f : name tags_t)
@@ -1068,6 +1074,7 @@ Module P4cub.
     Arguments SSeq {tags_t}.
     Arguments SFunCall {_}.
     Arguments SActCall {_}.
+    Arguments SExternMethodCall {_}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
@@ -1103,10 +1110,13 @@ Module P4cub.
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SFunCall f (Arrow args (Some (t,e))) i)
-                    (in custom p4stmt at level 30,
+                    (in custom p4stmt at level 0,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'calling' a 'with' args @ i"
-               := (SActCall a args i) (in custom p4stmt at level 3).
+               := (SActCall a args i) (in custom p4stmt at level 0).
+      Notation "'extern' e 'calls' f 'with' args 'gives' x @ i"
+               := (SExternMethodCall e f (Arrow args x) i)
+                    (in custom p4stmt at level 0, no associativity).
       Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,

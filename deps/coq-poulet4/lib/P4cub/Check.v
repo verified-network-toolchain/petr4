@@ -12,7 +12,7 @@ Declare Custom Entry p4context.
 Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
          (at level 40, e custom p4expr, t custom p4type at level 0).
 
-Reserved Notation "⦃ fe , cis , pis , eis , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
+Reserved Notation "⦃ fns , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
          (at level 40, s custom p4stmt, ctx custom p4context,
           g2 custom p4env, sg custom p4signal).
 
@@ -23,9 +23,9 @@ Reserved Notation "⦗ cs , fs , ci1 , pi1 , ei1 , ers , g1 ⦘ ⊢ d ⊣ ⦗ g2
 Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrexpr).
 
 Reserved Notation
-         "⦅ ts1 , as1 , cs , fs , ci1 , pi1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ei2 , pi2 , ci2 , as2 , ts2 ⦆"
+         "⦅ ts1 , as1 , cs , fs , ci1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ei2 , ci2 , as2 , ts2 ⦆"
          (at level 60, d custom p4ctrldecl, g2 custom p4env,
-          ei2 custom p4env, pi2 custom p4env, ci2 custom p4env,
+          ei2 custom p4env, ci2 custom p4env,
           ts2 custom p4env, as2 custom p4env).
 
 Reserved Notation
@@ -174,39 +174,55 @@ Module Typecheck.
     (** Statement context. *)
     Inductive ctx : Type :=
     | CAction (available_actions : aenv)
-    | CVoid
-    | CFunction (return_type : E.t tags_t)
-    | CApplyBlock (tables : tblenv) (available_actions : aenv)
-    | CParserState.
+              (available_externs : eienv) (* action block *)
+    | CVoid (* void function *)
+    | CFunction (return_type : E.t tags_t) (* fruitful function *)
+    | CApplyBlock (tables : tblenv)
+                  (available_actions : aenv)
+                  (available_controls : cienv)
+                  (available_externs : eienv) (* control apply block *)
+    | CParserState (available_parsers : pienv)
+                   (available_externs : eienv) (* parser state *).
+    (**[]*)
+
+    (** Evidence an extern method call context is ok. *)
+    Inductive extern_call_ok (eis : eienv) : ctx -> Prop :=
+    | extern_action_ok {aa : aenv} :
+        extern_call_ok eis (CAction aa eis)
+    | extern_apply_block_ok {tbls : tblenv} {aa : aenv} {cis : cienv} :
+        extern_call_ok eis (CApplyBlock tbls aa cis eis)
+    | extern_parser_state_ok {pis : pienv} :
+        extern_call_ok eis (CParserState pis eis).
     (**[]*)
 
     (** Evidence an action call context is ok. *)
-    Inductive action_call_ok (aa : aenv) : ctx -> Prop :=
-    | action_action_ok : action_call_ok aa (CAction aa)
-    | action_apply_block_ok (tbls : tblenv) :
-        action_call_ok aa (CApplyBlock tbls aa).
+    Inductive action_call_ok
+              (aa : aenv) : ctx -> Prop :=
+    | action_action_ok {eis : eienv} :
+        action_call_ok aa (CAction aa eis)
+    | action_apply_block_ok {tbls : tblenv} {cis : cienv} {eis : eienv} :
+        action_call_ok aa (CApplyBlock tbls aa cis eis).
     (**[]*)
 
     (** Evidence an exit context ok. *)
     Inductive exit_ctx_ok : ctx -> Prop :=
-    | exit_action_ok (aa : aenv) : exit_ctx_ok (CAction aa)
-    | exit_applyblk_ok (tbls : tblenv) (aa : aenv) :
-        exit_ctx_ok (CApplyBlock tbls aa).
+    | exit_action_ok {aa : aenv} {eis : eienv} :
+        exit_ctx_ok (CAction aa eis)
+    | exit_applyblk_ok {tbls : tblenv} {aa : aenv}
+                       {cis : cienv} {eis : eienv} :
+        exit_ctx_ok (CApplyBlock tbls aa cis eis).
     (**[]*)
 
     (** Evidence a void return is ok. *)
     Inductive return_void_ok : ctx -> Prop :=
-    | return_void_action (aa : aenv) : return_void_ok (CAction aa)
-    | return_void_void : return_void_ok CVoid
-    | return_void_applyblk (tbls : tblenv) (aa : aenv) :
-        return_void_ok (CApplyBlock tbls aa).
+    | return_void_action {aa : aenv} {eis : eienv} :
+        return_void_ok (CAction aa eis)
+    | return_void_void :
+        return_void_ok CVoid
+    | return_void_applyblk {tbls : tblenv} {aa : aenv}
+                           {cis : cienv} {eis : eienv} :
+        return_void_ok (CApplyBlock tbls aa cis eis).
     (**[]*)
-    (*
-    (** Control Constructor Types. *)
-    Inductive cctor : Type :=
-    | CCtor (cparams : F.fs tags_t (E.t tags_t)) (params : E.params tags_t).
-    (**[]*)
-     *)
 
     (** Available Constructor Types. *)
     Definition cenv : Type := Env.t (name tags_t) (E.ct tags_t).
@@ -245,15 +261,22 @@ Module Typecheck.
   End TypeCheckDefs.
 
   Notation "x" := x (in custom p4context at level 0, x constr at level 0).
-  Notation "'Action' aa" := (CAction aa) (in custom p4context at level 0).
+  Notation "'Action' aa eis"
+    := (CAction aa eis)
+         (in custom p4context at level 0,
+             aa custom p4env, eis custom p4env).
   Notation "'Void'" := CVoid (in custom p4context at level 0).
   Notation "'Function' t"
     := (CFunction t)
          (in custom p4context at level 0, t custom p4type).
-  Notation "'ApplyBlock' tbls aa"
-           := (CApplyBlock tbls aa)
-                (in custom p4context at level 0, tbls custom p4env).
-  Notation "'Parser'" := CParserState (in custom p4context at level 0).
+  Notation "'ApplyBlock' tbls aa cis eis"
+    := (CApplyBlock tbls aa cis eis)
+         (in custom p4context at level 0, tbls custom p4env,
+             aa custom p4env, cis custom p4env, eis custom p4env).
+  Notation "'Parser' pis eis"
+    := (CParserState pis eis)
+         (in custom p4context at level 0,
+             pis custom p4env, eis custom p4env).
 
   (** Expression typing as a relation. *)
   Inductive check_expr
@@ -713,41 +736,40 @@ Module Typecheck.
 
   (** Statement typing. *)
   Inductive check_stmt
-            {tags_t : Type} (fns : fenv)
-            (cis : cienv) (pis : @pienv tags_t) (eis : @eienv tags_t)
-            (errs : errors) (Γ : gamma) : ctx -> ST.s tags_t -> gamma -> signal -> Prop :=
+            {tags_t : Type} (fns : fenv) (errs : errors) (Γ : gamma)
+    : ctx -> ST.s tags_t -> gamma -> signal -> Prop :=
   | chk_skip (i : tags_t) (con : ctx) :
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ skip @ i ⊣ ⦃ Γ, C ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ skip @ i ⊣ ⦃ Γ, C ⦄
   | chk_seq_cont (s1 s2 : ST.s tags_t) (Γ' Γ'' : gamma)
                  (i : tags_t) (sig : signal) (con : ctx) :
-      ⦃ fns, cis, pis, eis, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
-      ⦃ fns, cis, pis, eis, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
-      ⦃ fns, cis, pis, eis, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
+      ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
+      ⦃ fns, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
+      ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
   | chk_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) (con : ctx) :
       let x' := bare x in
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
   | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :
       ⟦ errs, Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs, Γ ⟧ ⊢ e2 ∈ τ ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
   | chk_cond (guard : E.e tags_t) (tru fls : ST.s tags_t)
              (Γ1 Γ2 : gamma) (i : tags_t) (sgt sgf sg : signal) (con : ctx) :
       lub sgt sgf = sg ->
       ⟦ errs, Γ ⟧ ⊢ guard ∈ Bool ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
+      ⦃ fns, errs, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
+      ⦃ fns, errs, Γ ⦄
         con ⊢ if guard:Bool then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
   | chk_return_void (i : tags_t) (con : ctx) :
       return_void_ok con ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
   | chk_return_fruit (τ' τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
       ∫ τ ≡ τ' ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ Function τ' ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
+      ⦃ fns, errs, Γ ⦄ Function τ' ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
   | chk_exit (i : tags_t) (con : ctx) :
       exit_ctx_ok con ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
   | chk_void_call (params : E.params tags_t)
                   (args : E.args tags_t)
                   (f : name tags_t) (i : tags_t) (con : ctx) :
@@ -756,7 +778,7 @@ Module Typecheck.
         (P.rel_paramarg_same
            (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_act_call (params : E.params tags_t)
                  (args : E.args tags_t)
                  (a : name tags_t) (i : tags_t)
@@ -767,7 +789,7 @@ Module Typecheck.
         (P.rel_paramarg_same
            (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
+      ⦃ fns, errs, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_fun_call (τ : E.t tags_t) (e : E.e tags_t)
                  (params : E.params tags_t)
                  (args : E.args tags_t)
@@ -778,22 +800,51 @@ Module Typecheck.
            (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄
+      ⦃ fns, errs, Γ ⦄
         con ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_apply (args : E.args tags_t) (x : name tags_t)
-              (i : tags_t) (params : E.params tags_t) (con : ctx) :
+              (i : tags_t) (params : E.params tags_t)
+              (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
       cis x = Some params ->
       F.relfs
         (P.rel_paramarg_same
            (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ con ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
-  | chk_invoke (tbl : name tags_t) (i : tags_t)
-               (tbls : tblenv) (aa : aenv) :
+      ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
+  | chk_invoke (tbl : name tags_t) (i : tags_t) (tbls : tblenv)
+               (aa : aenv) (cis : cienv) (eis : eienv) :
       tbls tbl = Some tt ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ ApplyBlock tbls aa ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
-  where "⦃ fe , cis , pis , eis , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
-          := (check_stmt fe cis pis eis ers g1 con s g2 sg).
+      ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
+  | chk_extern_call_void (e : name tags_t) (f : string tags_t)
+                         (args : E.args tags_t) (i : tags_t) (con : ctx)
+                         (eis : eienv) (params: E.params tags_t)
+                         (mhds : F.fs tags_t (E.arrowT tags_t)) :
+      eis e = Some mhds ->
+      F.get f mhds = Some (P.Arrow params None) ->
+      extern_call_ok eis con ->
+      F.relfs
+        (P.rel_paramarg_same
+           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        args params ->
+      ⦃ fns, errs, Γ ⦄
+      con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
+  | chk_extern_call_fruit (extrn : name tags_t) (f : string tags_t)
+                          (args : E.args tags_t) (e : E.e tags_t)
+                          (i : tags_t) (con : ctx) (eis : eienv)
+                          (params: E.params tags_t) (τ : E.t tags_t)
+                          (mhds : F.fs tags_t (E.arrowT tags_t)) :
+      eis extrn = Some mhds ->
+      F.get f mhds = Some (P.Arrow params (Some τ)) ->
+      extern_call_ok eis con ->
+      F.relfs
+        (P.rel_paramarg_same
+           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        args params ->
+      let result := Some (τ,e) in
+      ⦃ fns, errs, Γ ⦄
+      con ⊢ extern extrn calls f with args gives result @ i ⊣ ⦃ Γ, C ⦄
+  where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
+          := (check_stmt fe ers g1 con s g2 sg).
   (**[]*)
 
   (** Declaration typing. *)
@@ -937,34 +988,32 @@ Module Typecheck.
   (** Parser State typing. *)
   (* TODO: control environment is superfluous here. *)
   Inductive check_state
-            {tags_t : Type} (fns : fenv)
-            (cis : cienv) (pis : @pienv tags_t) (eis : @eienv tags_t)
+            {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
             (sts : states) (errs : errors) (Γ : gamma)
     : PS.state tags_t -> Prop :=
   | chk_state (s : ST.s tags_t) (e : PS.e tags_t)
               (Γ' : gamma) (sg : signal) :
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ Parser ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
+      ⦃ fns, errs, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
       ⟅ sts, errs, Γ' ⟆ ⊢ e ->
-      check_state fns cis pis eis sts errs Γ &{ state { s } transition e }&.
+      check_state fns pis eis sts errs Γ &{ state { s } transition e }&.
   (**[]*)
 
   (** Control declaration typing. *)
-  (* TODO: parser instance environment isn't really useful here...*)
   Inductive check_ctrldecl
             {tags_t : Type} (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
-            (cis : cienv) (pis : @pienv tags_t) (eis : @eienv tags_t)
+            (cis : cienv) (eis : @eienv tags_t)
             (errs : errors) (Γ : gamma)
-    : CD.d tags_t -> gamma -> eienv -> pienv -> cienv -> aenv -> tblenv -> Prop :=
+    : CD.d tags_t -> gamma -> eienv -> cienv -> aenv -> tblenv -> Prop :=
   | chk_action (a : string tags_t)
                (signature : E.params tags_t)
                (body : ST.s tags_t) (i : tags_t)
                (Γ' Γ'' : gamma) (sg : signal) :
       let a' := bare a in
       bind_all signature Γ = Γ' ->
-      ⦃ fns, cis, pis, eis, errs, Γ ⦄ Action acts ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-      ⦅ tbls, acts, cs, fns, cis, pis, eis, errs, Γ ⦆
+      ⦃ fns, errs, Γ ⦄ Action acts eis ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+      ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
         ⊢ action a ( signature ) { body } @ i
-        ⊣ ⦅ Γ, eis, pis, cis, a' ↦ signature ;; acts, tbls ⦆
+        ⊣ ⦅ Γ, eis, cis, a' ↦ signature ;; acts, tbls ⦆
   | chk_table (t : string tags_t)
               (kys : list
                         (E.t tags_t * E.e tags_t * E.matchkind))
@@ -977,27 +1026,28 @@ Module Typecheck.
         (fun a => exists pms, let a' := bare a in acts a' = Some pms)
         actns ->
       let t' := bare t in
-      ⦅ tbls, acts, cs, fns, cis, pis, eis, errs, Γ ⦆
-        ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, eis, pis, cis, acts, t' ↦ tt;; tbls ⦆
+      ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+        ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, eis, cis, acts, t' ↦ tt;; tbls ⦆
   | chk_decl (d : D.d tags_t) (i : tags_t)
-             (Γ' : gamma) (cis' : cienv)
-             (pis' : pienv) (eis' : eienv) :
-      ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘ ⊢ d ⊣ ⦗ Γ', eis', pis', cis' ⦘ ->
-      ⦅ tbls, acts, cs, fns, cis, pis, eis, errs, Γ ⦆
-        ⊢ Decl d @ i ⊣ ⦅ Γ', eis', pis', cis', acts, tbls ⦆
+             (Γ' : gamma) (cis' : cienv) (eis' : eienv) :
+      let empty_parsers := Env.empty _ _ in
+      ⦗ cs, fns, cis, empty_parsers, eis, errs, Γ ⦘
+        ⊢ d ⊣ ⦗ Γ', eis', empty_parsers, cis' ⦘ ->
+      ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+        ⊢ Decl d @ i ⊣ ⦅ Γ', eis', cis', acts, tbls ⦆
   | chk_ctrldecl_seq (d1 d2 : CD.d tags_t) (i : tags_t)
                      (Γ' Γ'' : gamma) (eis' eis'' : eienv)
-                     (pis' pis'' : pienv) (cis' cis'' : cienv)
-                     (acts' acts'' : aenv) (tbls' tbls'' : tblenv) :
-      ⦅ tbls, acts, cs, fns, cis, pis, eis, errs, Γ ⦆
-        ⊢ d1 ⊣ ⦅ Γ', eis', pis', cis', acts', tbls'  ⦆ ->
-      ⦅ tbls', acts', cs, fns, cis', pis', eis', errs, Γ' ⦆
-        ⊢ d2 ⊣ ⦅ Γ'', eis'', pis'', cis'', acts'', tbls'' ⦆ ->
-      ⦅ tbls, acts, cs, fns, cis, pis, eis, errs, Γ  ⦆
-        ⊢ d1 ;c; d2 @ i ⊣ ⦅ Γ'', eis'', pis'', cis'', acts'', tbls'' ⦆
+                     (cis' cis'' : cienv) (acts' acts'' : aenv)
+                     (tbls' tbls'' : tblenv) :
+      ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+        ⊢ d1 ⊣ ⦅ Γ', eis', cis', acts', tbls'  ⦆ ->
+      ⦅ tbls', acts', cs, fns, cis', eis', errs, Γ' ⦆
+        ⊢ d2 ⊣ ⦅ Γ'', eis'', cis'', acts'', tbls'' ⦆ ->
+      ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ  ⦆
+        ⊢ d1 ;c; d2 @ i ⊣ ⦅ Γ'', eis'', cis'', acts'', tbls'' ⦆
   where
-  "⦅ ts1 , as1 , cs , fs , ci1 , pi1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ei2 , pi2 , ci2 , as2 , ts2 ⦆"
-    := (check_ctrldecl ts1 as1 cs fs ci1 pi1 ei1 errs g1 d g2 ei2 pi2 ci2 as2 ts2).
+  "⦅ ts1 , as1 , cs , fs , ci1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ g2 , ei2 , ci2 , as2 , ts2 ⦆"
+    := (check_ctrldecl ts1 as1 cs fs ci1 ei1 errs g1 d g2 ei2 ci2 as2 ts2).
   (**[]*)
 
   (** Top-level declaration typing. *)
@@ -1012,18 +1062,17 @@ Module Typecheck.
                 (Γ' Γ'' Γ''' Γ'''' : gamma) (sg : signal)
                 (tbls : tblenv) (acts : aenv)
                 (eis' eis'' : @eienv tags_t)
-                (pis' pis'' : @pienv tags_t)
                 (cis' cis'' : @cienv tags_t) :
-      cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis',eis') ->
-      let empty_tbls := Env.empty (name tags_t) unit in
-      let empty_acts := Env.empty (name tags_t) (E.params tags_t) in
+      cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis,eis') ->
+      let empty_tbls := Env.empty _ _ in
+      let empty_acts := Env.empty _ _ in
       (* Control declarations. *)
-      ⦅ empty_tbls, empty_acts, cs, fns, cis', pis', eis', errs, Γ' ⦆
-        ⊢ body ⊣ ⦅ Γ'', eis'', pis'', cis'', acts, tbls ⦆ ->
+      ⦅ empty_tbls, empty_acts, cs, fns, cis', eis', errs, Γ' ⦆
+        ⊢ body ⊣ ⦅ Γ'', eis'', cis'', acts, tbls ⦆ ->
       bind_all params Γ'' = Γ''' ->
       (* Apply block. *)
-      ⦃ fns, cis'', pis'', eis'', errs, Γ''' ⦄
-        ApplyBlock tbls acts ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
+      ⦃ fns, errs, Γ''' ⦄
+        ApplyBlock tbls acts cis'' eis'' ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
       let c' := bare c in
       let ctor := E.CTControl cparams params in
       $ cs, fns, cis, pis, eis, errs, Γ $
@@ -1034,16 +1083,15 @@ Module Typecheck.
                (params : E.params tags_t)
                (states : F.fs tags_t (PS.state tags_t)) (i : tags_t)
                (Γ' Γ'' : gamma) (eis' eis'' : @eienv tags_t)
-               (pis' pis'' : @pienv tags_t)
-               (cis' cis'' : @cienv tags_t) :
+               (pis' pis'' : @pienv tags_t) :
       let empty_sts := Env.empty (string tags_t) unit in
       let sts := fold_right
                    (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
                    empty_sts states in
-      cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis',eis') ->
+      cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis,pis',eis') ->
       bind_all params Γ' = Γ'' ->
       Forall
-        (fun '(_,pst) => check_state fns cis' pis' eis' sts errs Γ'' pst)
+        (fun '(_,pst) => check_state fns pis' eis' sts errs Γ'' pst)
         states ->
       let p' := bare p in
       let prsr := E.CTParser cparams params in
@@ -1054,7 +1102,7 @@ Module Typecheck.
                        (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
                        (Γ' Γ'' : gamma) (sg : signal) :
       bind_all params Γ = Γ' ->
-      ⦃ fns, cis, pis, eis, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+      ⦃ fns, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
       let f' := bare f in
       let func := P.Arrow params (Some τ) in
       $ cs, fns, cis, pis, eis, errs, Γ $
@@ -1063,7 +1111,7 @@ Module Typecheck.
                       (body : ST.s tags_t) (i : tags_t)
                       (Γ' Γ'' : gamma) (sg : signal) :
       bind_all params Γ = Γ' ->
-      ⦃ fns, cis, pis, eis, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
+      ⦃ fns, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
       let f' := bare f in
       let func := P.Arrow params None in
       $ cs, fns, cis, pis, eis, errs, Γ $

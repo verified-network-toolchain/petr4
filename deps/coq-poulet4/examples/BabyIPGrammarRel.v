@@ -137,10 +137,18 @@ Qed.
 Scheme LVal_ind := Induction for ValueLvalue Sort Prop
   with PreLVal_ind := Induction for ValuePreLvalue Sort Prop.
 
+Definition env_invariant
+  {St Exception Result}
+  (m: @State.state_monad St Exception Result)
+:=
+  forall env,
+    snd (m env) = env
+.
+
 Lemma env_name_lookup_no_write:
-  forall env name res env',
-    env_name_lookup P4defs.Info name env = (res, env') ->
-    env = env'.
+  forall name,
+    env_invariant (env_name_lookup P4defs.Info name)
+.
 Proof.
 Admitted.
 
@@ -180,20 +188,70 @@ Ltac break_match_goal :=
     goal. *)
 Ltac break_match := break_match_goal || break_match_hyp.
 
+Lemma env_invariant_preserve
+  {St Result Result' Exception: Type}:
+  forall m (f: Result -> @State.state_monad St Exception Result'),
+    env_invariant m ->
+    (forall r, env_invariant (f r)) ->
+    env_invariant (State.state_bind m f)
+.
+Proof.
+  unfold env_invariant.
+  intros.
+  unfold State.state_bind.
+  break_let.
+  break_match.
+  - rewrite H0.
+    rewrite <- H.
+    rewrite Heqp.
+    reflexivity.
+  - simpl.
+    rewrite <- H.
+    rewrite Heqp.
+    reflexivity.
+Qed.
+
+Lemma env_invariant_lift_opt_some
+  {St Exception Result: Type}:
+  forall e f, @env_invariant St Exception Result (Transformers.lift_opt e f).
+Proof.
+  unfold env_invariant, Transformers.lift_opt; intros.
+  break_match; reflexivity.
+Qed.
+
 Lemma env_lookup_no_write:
-  forall lval env res env',
-    env_lookup P4defs.Info lval env = (res, env') ->
-    env = env'.
+  forall lval,
+    env_invariant (env_lookup P4defs.Info lval)
+.
 Proof.
   set (P0 := fun pre_lval =>
-               forall env res env' t,
-                 env_lookup P4defs.Info (MkValueLvalue pre_lval t) env = (res, env') ->
-                 env = env').
+               forall t,
+                 env_invariant (env_lookup P4defs.Info (MkValueLvalue pre_lval t))).
   induction lval using LVal_ind with (P0 := P0);
-    unfold P0; intros; simpl in *.
-  - eauto using env_name_lookup_no_write.
-  - eauto using env_name_lookup_no_write.
-  - unfold State.state_bind in H.
+    unfold P0 in *; intros; simpl in *.
+  - eauto using env_invariant_preserve, env_name_lookup_no_write, IHlval.
+  - apply env_invariant_preserve.
+    + apply env_name_lookup_no_write.
+    + unfold env_invariant; intros.
+      reflexivity.
+  -
+    + break_match.
+
+  - unfold Transformers.lift_opt in H.
+    unfold State.state_bind in H.
+
+    break_let.
+
+      inversion H.
+      rewrite H1, H2 in Heqp.
+      eapply env_name_lookup_no_write.
+      exact Heqp.
+    + inversion H.
+      rewrite H1, H2 in Heqp.
+      eapply env_name_lookup_no_write.
+      exact Heqp.
+  -
+      inversion H.
     destruct (env_lookup Info lval env) eqn:Heq.
     assert (env = e).
     {

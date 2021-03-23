@@ -201,40 +201,44 @@ Section Environment.
   Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t) :=
     env_name_lookup (BareName name).
 
+  Definition env_dig (val: @Value tags_t) (lval: @ValuePreLvalue tags_t) : option_monad :=
+    match lval with
+    | ValLeftName _ => Some val
+    | ValLeftMember _ member =>
+      match val with
+      | ValBase v =>
+        let* v' := lookup_value v member in
+        Some (ValBase v')
+      | _ => None
+      end
+    | ValLeftBitAccess _ msb lsb =>
+      match val with
+      | ValBase v =>
+        let* v' := bit_slice v msb lsb in
+        Some (ValBase v')
+      | _ => None
+      end
+    | ValLeftArrayAccess _ idx =>
+      match val with
+      | ValBase v =>
+        let* v' := array_index v idx in
+        Some (ValBase v')
+      | _ => None
+      end
+    end
+  .
+
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in
-    match lv with
-    | ValLeftName name =>
-      env_name_lookup name
-
-      (* TODO: there's probably a way to refactor the following 3 cases *)
-    | ValLeftMember inner member =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to find member in value.") (lookup_value v member) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Member access on something that is not a base value.")
-      end
-
-    | ValLeftBitAccess inner msb lsb =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to take bit slice of a value.") (bit_slice v msb lsb) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Bit string access on something that is not a base value.")
-      end
-
-    | ValLeftArrayAccess inner idx =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to access index of a value.") (array_index v idx) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Array access on something that is not a base value.")
-      end
-    end.
+    let* val_inner := match lv with
+    | ValLeftName name => env_name_lookup name
+    | ValLeftMember inner _
+    | ValLeftBitAccess inner _ _
+    | ValLeftArrayAccess inner _ =>
+      env_lookup inner
+    end in
+    lift_opt (AssertError "Could not dig into value.") (env_dig val_inner lv)
+  .
 
   Definition update_slice (lhs: @ValueBase tags_t) (msb: nat) (lsb: nat) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
     match (lhs, rhs) with

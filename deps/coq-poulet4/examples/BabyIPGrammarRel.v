@@ -18,39 +18,41 @@ Open Scope monad_scope.
 
 Definition MkP4String s := {| tags := NoInfo; str := s |}.
 
-Definition eval_parser' pkt parser :=
-  match parser with
-  | DeclParser _ _ _ params constructor_params locals states =>
-    let env := {|
-          env_fresh := 0;
-          env_stack := MStr.empty loc :: nil;
-          env_heap := MNat.empty (@Value P4defs.Info);
-        |} in
+Definition empty_env :=
+    {| env_fresh := 0;
+       env_stack := MStr.empty loc :: nil;
+       env_heap := MNat.empty (@Value P4defs.Info); |}.
+
+Definition init_parser_state pkt :=
+  let packet := ValObj (ValObjPacket pkt) in
+  env_insert P4defs.Info "packet" packet ;;
+  env_insert P4defs.Info "hdr" (ValBase (ValBaseHeader ((MkP4String "ip", ValBaseHeader ((MkP4String "src", ValBaseBit 8 0) :: (MkP4String "dst", ValBaseBit 8 0) :: (MkP4String "proto", ValBaseBit 4 0) :: nil) false) :: (MkP4String "t_or_u", ValBaseUnion ((MkP4String "udp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: nil) false) :: (MkP4String "tcp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: (MkP4String "seq", ValBaseBit 8 0) :: nil) false) :: nil)) :: nil) false)).
+
+Definition make_stepper params constructor_params locals states :=
     let scope := MkEnv_EvalEnv nil nil (MkP4String "dummy") in
     let parser := ValObjParser scope params constructor_params locals states in
-    let packet := ValObj (ValObjPacket pkt) in
-    let stepper := step_trans _ NoInfo parser 2 (MkP4String "start") in
-    Some ((env_insert P4defs.Info "packet" packet ;;
-           env_insert P4defs.Info "hdr" (ValBase (ValBaseHeader ((MkP4String "ip", ValBaseHeader ((MkP4String "src", ValBaseBit 8 0) :: (MkP4String "dst", ValBaseBit 8 0) :: (MkP4String "proto", ValBaseBit 4 0) :: nil) false) :: (MkP4String "t_or_u", ValBaseUnion ((MkP4String "udp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: nil) false) :: (MkP4String "tcp", ValBaseHeader ((MkP4String "sport", ValBaseBit 8 0) :: (MkP4String "dport", ValBaseBit 8 0) :: (MkP4String "flags", ValBaseBit 4 0) :: (MkP4String "seq", ValBaseBit 8 0) :: nil) false) :: nil)) :: nil) false)) ;; stepper) env)
-  | _ => None
-  end
-.
+    step_trans _ NoInfo parser 2 (MkP4String "start").
+
+Definition make_parser pkt parser :=
+  match parser with
+  | DeclParser _ _ _ params constructor_params locals states =>
+    init_parser_state pkt ;; make_stepper params constructor_params locals states
+  | _ => State.state_fail Internal
+  end.
 
 Definition eval_parser pkt parser : option (Value * list bool) :=
-  match eval_parser' pkt parser with
-  | Some (inl _, env) =>
+  match make_parser pkt parser empty_env with
+  | (inl _, env) =>
     let get_pkt_and_hdr :=
         let* pkt_val := env_str_lookup P4defs.Info (MkP4String "packet") in
         let* hdr_val := env_str_lookup P4defs.Info (MkP4String "hdr") in
         mret (hdr_val, pkt_val)
     in
     match get_pkt_and_hdr env  with
-    | (inl (hdr, (ValObj (ValObjPacket pkt))), env) =>
-      Some (hdr, pkt)
+    | (inl (hdr, (ValObj (ValObjPacket pkt))), env) => Some (hdr, pkt)
     | _ => None
     end
-  | Some (inr _, _)
-  | None => None
+  | (inr _, _) => None
   end.
 
 Definition bits_repr (n: nat) (bs: bits n) (v: @ValueBase P4defs.Info) : Prop :=
@@ -118,12 +120,53 @@ Definition bits_equiv_header (val: list (P4String * @ValueBase P4defs.Info)) (ke
   end
 .
 
+Definition packet_repr (bits: list bool) (pkt: @Value P4defs.Info) : Prop :=
+  pkt = ValObj (ValObjPacket bits).
+
+Lemma init_parser_state_ok:
+  forall pk res st,
+    init_parser_state pk empty_env = (res, st) ->
+    res = inl tt.
+Proof.
+  unfold init_parser_state.
+  cbv.
+  congruence.
+Qed.
+
+Theorem init_parser_state_sound:
+  forall pk init_state_p4 init_state_monad,
+    init_parser_state pk empty_env = (inl tt, init_state_p4) ->
+    init_state pk = init_state_monad ->
+    exists pk' env',
+      env_str_lookup P4defs.Info (MkP4String "packet") init_state_p4 = (inl pk', env') /\
+      packet_repr init_state_monad.(pkt) pk'.
+Proof.
+  intros.
+  cbv in H.
+  inversion H.
+  do 2 eexists.
+  cbv.
+  split.
+  - reflexivity.
+  - rewrite <- H0.
+    reflexivity.
+Qed.
+
 Theorem parser_grammar_sound :
   forall p p' hdr hdr_rec parser_state,
     eval_parser p MyParser = Some (hdr, p') ->
     State.run_with_state (init_state p) Headers_p = (inl hdr_rec, parser_state) ->
-    value_repr hdr_rec hdr /\
+    (*value_repr hdr_rec hdr /\*)
     p' = parser_state.(pkt).
 Proof.
+  unfold eval_parser, make_parser.
   intros.
+  destruct MyParser eqn:?; try (unfold MyParser in *; congruence).
+  simpl in H.
+  unfold State.state_bind in H.
+  destruct (init_parser_state p empty_env) eqn:?.
+  pose proof (Hieq := Heqp0).
+  apply init_parser_state_ok in Hieq; subst.
+  eapply init_parser_state_sound in Heqp0; eauto.
+  destruct Heqp0 as [pk' [env' [Hlookup Hrepr]]].
 Admitted.

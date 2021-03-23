@@ -2,10 +2,6 @@ language: minimal
 
 dist: focal
 
-cache:
-  directories:
-  - $HOME/.opam
-
 env:
 - DEBIAN_FRONTEND=noninteractive OPAMYES=true
 

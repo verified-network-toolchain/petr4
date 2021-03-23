@@ -24,7 +24,7 @@ let rec format_cdecl (decl: cdecl) =
        ++ format_cname name
        ++ text " {\n"
        ++ concat_map ~sep:(text ";\n") ~f:format_cfield fields ++ text ";")
-    ++ text "\n}" ++ text name ++ text ";"
+    ++ text "\n} " ++ text name ++ text ";"
   | CFun (ret, name, params, body) ->
     box ~indent:2 (format_ctyp ret
                    ++ space
@@ -54,7 +54,7 @@ and format_cparams (params: cparam list) =
   concat_map ~sep:(text ", ") ~f:format_cparam params
 
 and format_cparams_method (params : cexpr list) =
-  text "(" ++ concat_map ~sep:(text ", ") ~f:format_cexpr params ++ text ")"
+  box (text "(" ++ concat_map ~sep:(text ", ") ~f:format_cexpr params ++ text ")")
 
 and format_cstmt (stmt: cstmt) =
   match stmt with
@@ -85,26 +85,26 @@ and format_cstmt (stmt: cstmt) =
                       ++ format_cstmt else_branch ++ text ";")
     ++ text "\n}"
   | CAssign (lval, rval) ->
-    format_cexpr lval ++ text " = " ++ format_cexpr rval
+    box (format_cexpr lval ++ text " = " ++ format_cexpr rval)
   | CVarInit (typ, var, rval) ->
-    format_ctyp typ
-    ++ space
-    ++ format_cname var
-    ++ text " = "
-    ++ format_cexpr rval
+    hbox (format_ctyp typ
+          ++ space
+          ++ format_cname var
+          ++ text " = "
+          ++ format_cexpr rval)
   | CMethodCall (name, params) ->
-    format_cname name
-    ++ format_cparams_method params
+    box (format_cname name
+         ++ format_cparams_method params) 
   | CSwitch (cond, cases) ->
-    box ~indent:2 (text "switch (" ++ format_cexpr cond ++ text ") {\n"
-                   ++ format_ccases cases)
+    box ~indent:2 (text "switch (" ++ format_cexpr cond ++ text ") {\n") 
+    ++ format_ccases cases
     ++ text "\n}"
   | CBlock stmts ->
     text "{\n"
     ++ box ~indent:2 (format_cstmts stmts)
     ++ text "\n}"
   | CWhile (cond, body) ->
-    box ~indent:2 (text "while (" ++ format_cexpr cond ++ text ") {\n"
+    box ~indent:2 ((text "while (" ++ format_cexpr cond ++ text ")" ++ text " {\n")
                    ++ format_cstmt body)
     ++ text "\n}"
 
@@ -135,11 +135,11 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname -> text cname 
   | CGeq (e1, e2) ->
-    text "("
-    ++ format_cexpr e1
-    ++ text " >= "
-    ++ format_cexpr e2
-    ++ text ")"
+    box (text "("
+         ++ format_cexpr e1
+         ++ text " >= "
+         ++ format_cexpr e2
+         ++ text ")") 
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
 
@@ -148,11 +148,11 @@ and format_ccases (cases: ccase list) =
 
 and format_ccase (case: ccase) =
   let (CCase (lbl, stmt)) = case in
-  box ~indent:2 (text "case "
-                 ++ format_cexpr lbl
-                 ++ text ":\n"
-                 ++ format_cstmts stmt
-                 ++ text "\nbreak;")
+  hbox (text "case "
+        ++ format_cexpr lbl
+        ++ text ":\n"
+        ++ format_cstmts stmt
+        ++ text "\nbreak;")
 
 let format_cprog (prog: cprog) =  
   format_cdecl (CDecList prog)

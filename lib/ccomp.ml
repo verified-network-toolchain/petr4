@@ -259,7 +259,7 @@ and get_name (n: P4.name) =
   | _ -> failwith "f"
 
 and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
-  let k = (snd key).key in 
+  let k = translate_key key in 
   begin match entries with 
     | None -> failwith "n"
     | Some e -> begin match e with 
@@ -270,7 +270,7 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
             | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
             | _ -> failwith "f"
           end in 
-          C.CPointer ((C.CString "state"), (get_expr_name k) ^ "!=" ^ (get_expr_name equal)) 
+          C.CPointer ((C.CString "state"), k ^ "!=" ^ (get_expr_name equal)) 
       end 
   end 
 

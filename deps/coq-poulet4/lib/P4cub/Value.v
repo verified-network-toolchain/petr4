@@ -24,6 +24,7 @@ Section Values.
   | VBool (b : bool)
   | VInt (w : positive) (n : Z)
   | VBit (w : positive) (n : N)
+  | VTuple (vs : list v)
   | VRecord (fs : Field.fs tags_t v)
   | VHeader (fs : Field.fs tags_t v) (validity : bool)
   | VError (err : option (string tags_t))
@@ -53,6 +54,9 @@ Section Values.
 
     Hypothesis HVInt : forall w n, P (VInt w n).
 
+    Hypothesis HVTuple : forall vs,
+        Forall P vs -> P (VTuple vs).
+
     Hypothesis HVRecord : forall fs,
         Field.predfs_data P fs -> P (VRecord fs).
 
@@ -68,6 +72,11 @@ Section Values.
 
     Definition custom_value_ind : forall v' : v, P v' :=
       fix custom_value_ind (val : v) : P val :=
+        let fix lind (vs : list v) : Forall P vs :=
+            match vs with
+            | [] => Forall_nil _
+            | hv :: vs => Forall_cons _ (custom_value_ind hv) (lind vs)
+            end in
         let fix fields_ind
                 (flds : Field.fs tags_t v) : Field.predfs_data P flds :=
             match flds as fs return Field.predfs_data P fs with
@@ -87,6 +96,7 @@ Section Values.
         | VBool b  => HVBool b
         | VInt w n => HVInt w n
         | VBit w n => HVBit w n
+        | VTuple vs      => HVTuple vs (lind vs)
         | VRecord vs     => HVRecord vs (fields_ind vs)
         | VHeader vs b   => HVHeader vs b (fields_ind vs)
         | VError err     => HVError err
@@ -98,16 +108,15 @@ Section Values.
   Section ValueEquality.
 
     Import Field.FieldTactics.
-    Instance P4StringEquivalence : Equivalence (@P4String.equiv tags_t) :=
-      P4String.EquivEquivalence tags_t.
-    (**[]*)
-
-    Instance P4StringEqDec : EqDec (string tags_t) (@P4String.equiv tags_t) :=
-      P4String.P4StringEqDec tags_t.
-    (**[]*)
 
     (** Computational Value equality *)
     Fixpoint eqbv (v1 v2 : v) : bool :=
+      let fix lrec (vs1 vs2 : list v) : bool :=
+          match vs1, vs2 with
+          | [], [] => true
+          | v1::vs1, v2::vs2 => eqbv v1 v2 && lrec vs1 vs2
+          | [], _::_ | _::_, [] => false
+          end in
       let fix fields_rec (vs1 vs2 : Field.fs tags_t v) : bool :=
           match vs1, vs2 with
           | [],           []           => true
@@ -147,6 +156,7 @@ Section Values.
       | VError err1,    VError err2    => if equiv_dec err1 err2
                                          then true
                                          else false
+      | VTuple vs1, VTuple vs2         => lrec vs1 vs2
       | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_rec vs1 vs2
       | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
       | VHeaderStack ts1 vss1 n1 ni1,
@@ -165,6 +175,9 @@ Section Values.
         equivv (VInt w n) (VInt w n)
     | equivv_bit (w : positive) (n : N) :
         equivv (VBit w n) (VBit w n)
+    | equivv_tuple (vs1 vs2 : list v) :
+        Forall2 equivv vs1 vs2 ->
+        equivv (VTuple vs1) (VTuple vs2)
     | equivv_record (fs1 fs2 : Field.fs tags_t v) :
         Field.relfs equivv fs1 fs2 ->
         equivv (VRecord fs1) (VRecord fs2)
@@ -203,6 +216,11 @@ Section Values.
 
       Hypothesis HMatchkind : forall mk, P (VMatchKind mk) (VMatchKind mk).
 
+      Hypothesis HTuple : forall vs1 vs2,
+          Forall2 equivv vs1 vs2 ->
+          Forall2 P vs1 vs2 ->
+          P (VTuple vs1) (VTuple vs2).
+
       Hypothesis HRecord : forall fs1 fs2,
           Field.relfs equivv fs1 fs2 ->
           Field.relfs P fs1 fs2 ->
@@ -226,6 +244,17 @@ Section Values.
           Do [induction ?H using custom_equivv_ind] *)
       Definition custom_equivv_ind : forall (v1 v2 : v) (H : equivv v1 v2), P v1 v2 :=
         fix vind v1 v2 H :=
+          let fix lind
+                  {vs1 vs2 : list v}
+                  (HR : Forall2 equivv vs1 vs2) : Forall2 P vs1 vs2 :=
+              match HR with
+              | Forall2_nil _ => Forall2_nil _
+              | Forall2_cons _ _
+                             HE HTail => Forall2_cons
+                                          _ _
+                                          (vind _ _ HE)
+                                          (lind HTail)
+              end in
           let fix find
                   {vs1 vs2 : Field.fs tags_t v}
                   (HR : Field.relfs equivv vs1 vs2) : Field.relfs P vs1 vs2 :=
@@ -268,6 +297,7 @@ Section Values.
           | equivv_int w z => HInt w z
           | equivv_error err1 err2 H12 => HError err1 err2 H12
           | equivv_matchkind mk => HMatchkind mk
+          | equivv_tuple _ _ H12 => HTuple _ _ H12 (lind H12)
           | equivv_record _ _ H12 => HRecord _ _ H12 (find H12)
           | equivv_header _ _ b H12 => HHeader _ _ b H12 (find H12)
           | equivv_stack n ni _ _ _ _ Ht Hvs => HStack n ni _ _ _ _ Ht
@@ -285,6 +315,7 @@ Section Values.
            [ unfold Field.predf_data in H2;
              constructor; simpl; try reflexivity; auto
            | apply IHvs; auto]).
+      - induction H; constructor; auto.
       - clear ni H hs size.
         induction ts as [| [x t] ts IHts]; constructor; auto.
         split; simpl; try reflexivity.
@@ -310,6 +341,7 @@ Section Values.
             unfold Field.relf in *; simpl in *;
         [ destruct H5; split; try symmetry; auto
         | apply IHForall2; auto ]; assumption).
+      - induction H; inv H0; constructor; eauto.
       - clear H1 H0 vss1 vss2 n ni.
         induction H; constructor;
           destruct x as [x1 t1]; destruct y as [x2 t2];
@@ -348,6 +380,11 @@ Section Values.
              pose proof (H2 v2 v3) as H23; try split; auto;
              transitivity x2; auto
            | apply IHvs1 with vs2; auto]).
+      - rename vs into vs1; rename vs0 into vs3.
+        generalize dependent vs3; generalize dependent vs2.
+        induction vs1 as [| v1 vs1 IHvs1];
+          intros [| v2 vs2] H12 [| v3 vs3] H23;
+          inv H; inv H12; inv H23; constructor; eauto.
       - clear vss0 vss2 hs H H6 H8 size ni.
         rename ts into ts1; rename ts0 into ts3.
         generalize dependent ts3; generalize dependent ts2.
@@ -405,6 +442,8 @@ Section Values.
       - destruct (equiv_dec mk mk) as [H' | H'];
           unfold equiv, complement in *; try contradiction; auto.
       - clear H. induction H0; auto.
+        rewrite IHForall2. rewrite H. reflexivity.
+      - clear H. induction H0; auto.
         destruct x as [x1 v1]; destruct y as [x2 v2];
           inversion H; simpl in *.
         pose proof P4String.equiv_reflect x1 x2 as Hx.
@@ -451,6 +490,10 @@ Section Values.
       - apply andb_prop in Heqbv as [Hw Hn];
           apply Peqb_true_eq in Hw; apply Z.eqb_eq in Hn;
             subst; constructor.
+      - constructor. generalize dependent vs0.
+        induction vs as [| v1 vs1 IHvs1];
+          intros [| v2 vs2] IH; try discriminate; constructor;
+            inv H; apply andb_prop in IH as [Hhd Htail]; auto.
       - constructor. generalize dependent fs0.
         induction fs as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
           inversion IH; subst; inversion H; subst; clear IH H; simpl in *;
@@ -548,6 +591,7 @@ End Values.
 Arguments VBool {_}.
 Arguments VInt {_}.
 Arguments VBit {_}.
+Arguments VTuple {_}.
 Arguments VRecord {_}.
 Arguments VHeader {_}.
 Arguments VError {_}.
@@ -566,6 +610,7 @@ Module ValueNotations.
   Notation "'VBOOL' b" := (VBool b) (in custom p4value at level 0).
   Notation "w 'VW' n" := (VBit w n) (in custom p4value at level 0).
   Notation "w 'VS' n" := (VInt w n) (in custom p4value at level 0).
+  Notation "'TUPLE' vs" := (VTuple vs) (in custom p4value at level 0).
   Notation "'REC' { fs }" := (VRecord fs)
                                (in custom p4value at level 6,
                                    no associativity).
@@ -611,6 +656,10 @@ Module ValueTyping.
   | typ_int (w : positive) (z : Z) :
       IntArith.bound w z ->
       ∇ errs ⊢ w VS z ∈ int<w>
+  | typ_tuple (vs : list (v tags_t))
+              (ts : list (E.t tags_t)) :
+      Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
+      ∇ errs ⊢ TUPLE vs ∈ tuple ts
   | typ_rec (vs : Field.fs tags_t (v tags_t))
             (ts : Field.fs tags_t (E.t tags_t)) :
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
@@ -668,6 +717,11 @@ Module ValueTyping.
         end ->
         P errs *{ ERROR err }* {{ error }}.
 
+    Hypothesis HTuple : forall errs vs ts,
+        Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
+        Forall2 (P errs) vs ts ->
+        P errs *{ TUPLE vs }* {{ tuple ts }}.
+
     Hypothesis HRecord : forall errs vs ts,
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
@@ -701,6 +755,17 @@ Module ValueTyping.
       forall (errs : errors) (vl : v tags_t) (τ : E.t tags_t)
         (Hy : ∇ errs ⊢ vl ∈ τ), P errs vl τ :=
           fix tvind errs vl τ Hy :=
+            let fix lind {vs : list (v tags_t)}
+                    {ts : list (E.t tags_t)}
+                    (HR : Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts)
+                : Forall2 (P errs) vs ts :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _ Hh Ht => Forall2_cons
+                                             _ _
+                                             (tvind _ _ _ Hh)
+                                             (lind Ht)
+                end in
             let fix fsind {vs : Field.fs tags_t (v tags_t)}
                     {ts : Field.fs tags_t (E.t tags_t)}
                     (HR : Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts)
@@ -738,6 +803,7 @@ Module ValueTyping.
             | typ_int _ _ _ Hwz => HInt _ _ _ Hwz
             | typ_matchkind _ mk => HMatchkind _ mk
             | typ_error _ _ Herr => HError _ _ Herr
+            | typ_tuple _ _ _ Hvs => HTuple _ _ _ Hvs (lind Hvs)
             | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
             | typ_hdr _ _ b _ HP Hfs => HHeader _ _ b _ HP Hfs (fsind Hfs)
             | typ_headerstack _ _ _ _ _ Hbound Hni Hlen HP

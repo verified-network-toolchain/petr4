@@ -51,6 +51,16 @@ Section Unroll.
   Definition to_cfg (states : list ParserState) : CFG :=
     ([], []).
 
+  (* TODO *)
+  Definition ParserWF (states : list ParserState) : Prop :=
+    forall (st : ParserState),
+      In st states ->
+      False.
+
+  (* TODO *)
+  Theorem ToCFGCorrect : False.
+  Admitted.
+
   Definition of_cfg (cfg : CFG) : list ParserState :=
     List.map (snd) (cfg_states cfg).
 
@@ -85,9 +95,38 @@ Section Unroll.
   (* TODO: implement check of strongly-connected component property *)
   Definition is_natural (cfg : CFG) (doms : DomMap) (scc : Loop) : bool :=
     false.
+
+  (* TODO *)
+  Definition is_irreducible (cfg : CFG) (doms : DomMap) : bool :=
+    false.
+
+  (* TODO *)
+  Definition Reachable (p q : P4String) (cfg : CFG) : Prop :=
+    False.
+  
+  Definition StronglyConnected (scc : list P4String) (cfg : CFG) : Prop :=
+    forall (p : P4String) (q : P4String),
+      In p (List.map fst (cfg_states cfg)) ->
+      In q (List.map fst (cfg_states cfg)) ->
+      Reachable p q cfg.
+
+  (* TODO *)
+  Definition Natural (scc : list P4String) (cfg : CFG) : Prop := False.
+
+  (* TODO *)
+  Definition Trivial (scc : list P4String) : Prop := False.
+  
+  Definition Reducible (cfg : CFG) (doms : DomMap) : Prop :=
+    forall (scc : list P4String),
+      (forall state : P4String, In state scc -> In state (List.map fst (cfg_states cfg))) ->
+      StronglyConnected scc cfg ->
+      Natural scc cfg \/ Trivial scc.
   
   (* TODO *)
   Definition unroll_parser (unrolls : nat) (states : list ParserState) : list ParserState :=
+    let cfg := to_cfg states in
+    let doms := get_dom_map cfg in
+    if is_irreducible cfg doms then states else
     states.
 
   Definition unroll_decl (unrolls : nat) (d : Declaration) : Declaration :=

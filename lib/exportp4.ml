@@ -1153,9 +1153,6 @@ let print_value p (value: coq_Value) =
   | ValCons value ->
       fprintf p "(@[<hov 0>ValCons@ %a)@]"
           print_value_constructor value
-  | ValLvalue value ->
-      fprintf p "(@[<hov 0>ValLvalue@ %a)@]"
-          print_lvalue value
 
 let print_header p =
   fprintf p "Require Import Petr4.P4defs.@ ";

@@ -20,6 +20,7 @@ Require Import Unpack.
 Require Import Platform.Packet.
 
 Import ListNotations.
+Import AList.
 
 Open Scope string_scope.
 Open Scope monad.
@@ -357,16 +358,27 @@ Section Eval.
       | Some element' => mret (ValBase element')
       | None => state_fail (AssertError "Out-of-bounds array read.")
       end;
-    (* TODO: These cases recursively call eval_expression (either directly or
-       indirectly), which produces a Value. The values that these cases are
-       meant to produce, however, can only contain instances of ValueBase as a
-       result of stratification in the definition of values. To get around
-       this, we need to similarly stratify our definition of expressions.  *)
-    (* eval_expression_pre (ExpList _ exprs) :=
-      lift_monad (ValTuple _) (sequence (List.map eval_expression exprs)) *)
-    (* eval_expression_pre (ExpRecord entries) :=
-      let actions := List.map eval_kv entries in
-      lift_monad (ValRecord) (sequence actions); *)
+    eval_expression_pre (ExpList exprs) :=
+      let eval_then_unpack := fun e =>
+        v <- eval_expression e ;;
+        match v with
+        | ValBase v' => mret v'
+        | _ => state_fail (AssertError "Tuple member did not evaluate to base value.")
+        end in
+      let pack_as_tuple := fun v =>
+        ValBase (ValBaseTuple v) in
+      lift_monad pack_as_tuple (sequence (List.map eval_then_unpack exprs));
+    eval_expression_pre (ExpRecord entries) :=
+      let eval_then_unpack := fun k_and_e =>
+        let 'MkKeyValue _ k e := k_and_e in
+        v <- eval_expression e ;;
+        match v with
+        | ValBase v' => mret (k, v')
+        | _ => state_fail (AssertError "Record member did not evaluate to base value.")
+        end in
+      let pack_as_record := fun v =>
+        ValBase (ValBaseRecord v) in
+      lift_monad pack_as_record (sequence (List.map eval_then_unpack entries));
     eval_expression_pre (ExpUnaryOp op arg) :=
       match op with
       | Not =>
@@ -397,17 +409,11 @@ Section Eval.
           else state_fail (AssertError "Unknown member of packet extern.")
         | _ => state_fail (SupportError "Can only look up members of names.")
         end
-      (* TODO real member lookup *)
       | ValBase (ValBaseHeader fields valid) =>
-        let fix lookup f :=
-          match f with
-          | nil => state_fail (AssertError (P4String.str name))
-          | (fld, v) :: f' =>
-            if P4String.equivb fld name
-            then mret (ValBase v)
-            else lookup f'
-          end in
-        lookup fields
+        match (AList.get fields name) with
+        | None => state_fail (AssertError ("Could not look up header member " ++ (P4String.str name)))
+        | Some v => mret (ValBase v)
+        end
       | _ => state_fail (SupportError "Can only look up members of a packet or header.")
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
@@ -419,11 +425,6 @@ Section Eval.
     eval_expression_pre _ :=
       (* TODO *)
       state_fail (SupportError "Unimplemented expression type")
-  (* TODO: see comment above *)
-  (* with eval_kv (kv: KeyValue) : env_monad (P4String * Value) :=
-    eval_kv (MkKeyValue key expr) :=
-      let* value := eval_expression expr in
-      mret (key, value) *)
   .
 
   Equations eval_statement (stmt: Statement) : env_monad unit :=

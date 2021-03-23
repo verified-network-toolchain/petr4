@@ -29,6 +29,7 @@ lib/Unroll.v
 lib/Ops.v
 lib/Semantics.v
 lib/SimplExpr.v
+lib/AList.v
 lib/HAList.v
 lib/Target.v
 lib/Maps.v

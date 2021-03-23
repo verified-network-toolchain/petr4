@@ -38,7 +38,7 @@ script:
 - ocamlc --version
 - dune --version  
 - opam list
-- opam pin list
+- opam update
 - opam install . --deps-only
 - make
 - make install

@@ -2,10 +2,6 @@ language: minimal
 
 dist: focal
 
-cache:
-  directories:
-  - $HOME/.opam
-
 env:
 - DEBIAN_FRONTEND=noninteractive OPAMYES=true
 
@@ -34,6 +30,10 @@ install:
 - eval $(opam env)
 
 script:
+- opam --version
+- ocamlc --version
+- dune --version  
+- opam list
 - opam install . --deps-only
 - make
 - make install

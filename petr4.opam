@@ -6,13 +6,15 @@ authors: ["Nate Foster <jnfoster@cs.cornell.edu>"]
 homepage: "https://github.com/cornell-netlab/petr4"
 dev-repo: "git+https://github.com/cornell-netlab/petr4/"
 bug-reports: "https://github.com/cornell-netlab/petr4/issues"
-license: "Apache2"
+license: "Apache-2.0"
+
 build: [
   ["dune" "subst"] {pinned}
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
+
 depends: [
   "alcotest"
   "bignum"
@@ -30,7 +32,7 @@ depends: [
   "js_of_ocaml"
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
-  "p4pp" {>= "0.1.5"}
+  "p4pp" {>= "0.1.6"}
   "odoc"
   "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}

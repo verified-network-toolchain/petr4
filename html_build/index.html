@@ -73,8 +73,100 @@
     <div class="row">
       <div class="col-lg-10">
         <h3>P4 Program</h3>
-        <div id="code-area" style="opacity:0" >
-        </div>
+        <div id="code-area" style="opacity:0" >#include &lt;core.p4&gt;
+#include &lt;v1model.p4&gt;
+
+const int MAX_HOPS = 10;
+const int STANDARD = 0x00;
+const int HOPS = 0x01;
+
+typedef standard_metadata_t std_meta_t;
+
+header type_t {
+  bit<8> tag;
+}
+
+header hop_t {
+  bit<8> port;
+  bit<8> bos;
+}
+
+header standard_t {
+  bit<8> src;
+  bit<8> dst;
+}
+
+struct headers_t {
+  type_t type;
+  hop_t[MAX_HOPS] hops;
+  standard_t standard;
+}
+
+struct meta_t { }
+
+parser MyParser(packet_in pkt, out headers_t hdr, inout meta_t meta, inout std_meta_t std_meta) {
+    state start {
+        pkt.extract(hdr.type);
+        transition select(hdr.type.tag) {
+            HOPS: parse_hops;
+            STANDARD: parse_standard;
+            default: accept;
+        }
+    }
+    state parse_hops {
+        pkt.extract(hdr.hops.next);
+        transition select(hdr.hops.last.bos) {
+            1: parse_standard;
+            default: parse_hops;
+        }
+    }
+    
+    state parse_standard {
+        pkt.extract(hdr.standard);
+        transition accept;
+    }
+}
+
+control MyVerifyChecksum(inout headers_t hdr, inout meta_t meta) {
+    apply { }
+}
+
+control MyComputeChecksum(inout headers_t hdr, inout meta_t meta) {
+    apply { }
+}
+
+control MyIngress(inout headers_t hdr, inout meta_t meta, inout std_meta_t std_meta) {
+  action allow() { }
+  action deny() { std_meta.egress_spec = 9w511; }
+  table acl {
+    key = { hdr.standard.src : exact; hdr.standard.dst : exact; }
+    actions = { allow; deny; }
+    const entries = { (0xCC, 0xDD) : deny(); }
+    default_action = allow();
+  }
+  apply {
+    std_meta.egress_spec = (bit<9>) hdr.hops[0].port;
+    hdr.hops.pop_front(1);
+    if (!hdr.hops[0].isValid()) {
+        hdr.type.tag = 0x00;
+    }
+    acl.apply();
+  }
+}
+
+control MyEgress(inout headers_t hdr, inout meta_t meta, inout std_meta_t std_meta) {
+    apply { }
+}
+
+control MyDeparser(packet_out pkt, in headers_t hdr) {
+    apply {
+        pkt.emit(hdr.type);
+        pkt.emit(hdr.hops);
+        pkt.emit(hdr.standard);
+    }
+}
+
+V1Switch(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;</div>
       </div>
     </div>
     <div class="row"></div>
@@ -86,17 +178,24 @@
     <div class="row">
       <div class="col-lg-3">
         <h3>Input Packet</h3>
-        <textarea rows="2" cols="50" id="packet-in" style="font-family: 'Consolas'; font-size:10pt;" spellcheck="false">01 01 01 01</textarea>
+        <textarea rows="4" cols="100" id="packet-in" style="font-family: 'Consolas'; font-size:10pt;" spellcheck="false">01
+0F 01
+AA BB
+50 65 74 72 34 20 69 73 20 61 77 65 73 6f 6d 65 21</textarea>
       </div>
     </div>
     <div class="row">
       <div class="col-lg-3">
         <h3>Output</h3>
-        <textarea rows="2" cols="50" id="packet-out" style="font-family: 'Consolas'; font-size:10pt;" readonly></textarea></br/>
+        <textarea rows="4" cols="100" id="packet-out" style="font-family: 'Consolas'; font-size:10pt;" readonly></textarea></br/>
         <button id="evaluate" class="btn btn-primary">Evaluate!</button>
+        <br/>
+        <br/>
+        &nbsp;
       </div>
     </div>
 </div>
+
 
 <script src="https://pagecdn.io/lib/ace/1.4.8/ace.js" type="text/javascript" charset="utf-8"></script>
 <script src="web.bc.js"></script>
@@ -109,7 +208,7 @@
     control_editor.container.style.opacity = "";
     control_editor.setFontSize("12px");
     control_editor.setOptions({
-        maxLines: 40,
+        maxLines: 30,
         mode: "ace/mode/json",
         autoScrollEditorIntoView: true
     });
@@ -118,7 +217,7 @@
     p4_editor.setFontSize("12px");
     p4_editor.setShowPrintMargin(false);
     p4_editor.setOptions({
-        maxLines: 40,
+        maxLines: 30,
         mode: "ace/mode/c_cpp",
         autoScrollEditorIntoView: true
     });
@@ -130,13 +229,12 @@
     }
     
     function select_demo(){
-      var selected_option=document.getElementById("demo_options").value;
-      var code_file=new XMLHttpRequest();
-      code_file.open("GET", "p4/"+selected_option,false);
-      code_file.send();
-      var code=code_file.responseText;
-      p4_editor.setValue(code, -1);
-            
+//      var selected_option=document.getElementById("demo_options").value;
+//      var code_file=new XMLHttpRequest();
+//      code_file.open("GET", "p4/"+selected_option,false);
+//      code_file.send();
+//      var code=code_file.responseText;
+//      p4_editor.setValue(code, -1);            
     }
     select_demo();
     </script>

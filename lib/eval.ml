@@ -1267,9 +1267,10 @@ module MakeInterpreter (T : Target) = struct
       let ms = List.map ss' ~f:(fun (x,y,z) -> (values_match_set st'' vs x, y,z)) in
       let ms' = List.zip_exn ms cases
                 |> List.map ~f:(fun ((b,env,st),c) -> (b,(env,st,c))) in
-      let next = List.Assoc.find ms' true ~equal:Poly.(=) in
+      let next = List.Assoc.find ms' true ~equal:Bool.equal in
       begin match next with
-        | None -> (env'', st'', SReject "NoMatch")
+        | None -> 
+           (env'', st'', SReject "NoMatch")
         | Some (fenv,st,next) ->
           let next' = snd (snd next).next in
           eval_direct ctrl fenv st states next' end

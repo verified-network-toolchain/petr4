@@ -147,15 +147,16 @@ Lemma extract_post st:
   }}.
 Proof.
   unfold next_bit.
-  eapply strengthen_pre.
-  eapply bind_wp.
+  eapply strengthen_pre_t.
+  wp.
   all: swap 2 1.
   intros.
-  eapply strengthen_pre.
-  eapply (case_list_wp (pkt r) (dummy := false)).
+  eapply strengthen_pre_t.
+  wp.
 
-  eapply strengthen_pre.
-  eapply return_wp.
+  eapply strengthen_pre_t.
+  unfold pure.
+  wp.
   intros. simpl.
   destruct H as [it eq].
   assert (r = st /\ h = st).
@@ -167,17 +168,17 @@ Proof.
   mysimp.
 
 
-  eapply strengthen_pre.
-  eapply bind_wp.
+  eapply strengthen_pre_t.
+  wp.
 
   all: swap 2 1.
   intros.
-  eapply strengthen_pre.
-  eapply return_wp.
+  eapply strengthen_pre_t.
+  unfold pure.
+  wp.
   intros. simpl.
   eapply H.
-
-  eapply put_wp.
+  wp.
   intros.
   eapply H.
   intros. simpl.
@@ -189,7 +190,7 @@ Proof.
 
   intros. eapply H.
 
-  eapply get_wp.
+  wp.
   intros. simpl.
   mysimp.
   destruct (pkt st).
@@ -197,7 +198,7 @@ Proof.
   mysimp.
   
   Unshelve.
-  exact unit.
+  exact true.
 Qed.
 
 Definition extract_n_post_fixed (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
@@ -214,24 +215,71 @@ Definition extract_n_post_fixed (n: nat) (ob: option (bits n)) (st: @ParserState
     st' = st <| pkt := nil |> /\
     ob = None.
 
+Lemma extract_n_simple n st:
+  {{ fun s => s = st /\ length (pkt st) >= n }}
+    extract_n n
+  {{ Norm (fun _ s' => length (pkt s') = length (pkt st) - n) }}.
+Proof.
+  induction n.
+  - unfold extract_n, pure.
+    eapply strengthen_pre_t.
+    wp.
+    mysimp.
+  - unfold extract_n.
+    fold extract_n.
+    eapply strengthen_pre_t.
+    wp.
+    eapply IHn.
+    intros.
+    eapply strengthen_pre_t. wp. 
+    all: swap 3 1.
+    intros. unfold Norm. simpl.
+    exact H.
+    intros.
+    wp.
+    eapply strengthen_pre_t.
+    unfold pure. wp.
+    intros.
+    unfold Norm. simpl.
+    destruct H as [it _].
+    exact it.
+
+    eapply strengthen_pre_t. wp.
+    eapply strengthen_pre_t. unfold pure. wp.
+    intros. destruct H as [it eq]. exact it.
+    unfold pure.
+    eapply strengthen_pre_t. wp.
+    intros.
+    destruct H as [x' [eq it]].
+    rewrite eq.
+    exact it.
+    intros.
+    destruct H as [x' [eq it]].
+    rewrite eq. exact it.
+
+
+    all: swap 4 1.
+    intros. simpl.
+Admitted.
+  
 Lemma extract_2_fixed st:
   {{ fun s => s = st /\ Nat.leb 2 (length (pkt st)) = true }}
     extract_n 2
   {{ Norm (fun r s' => extract_n_post_fixed 2 r st s') }}.
 Proof.
   unfold extract_n.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   wp.
   all: swap 3 1.
   intros. unfold Norm. exact H.
 
   intros.
-  eapply strengthen_pre. 
+  eapply strengthen_pre_t. 
   wp.
   all: swap 2 1.
-  intros. eapply strengthen_pre.
+  intros. eapply strengthen_pre_t.
   wp.
-  eapply strengthen_pre. 
+  eapply strengthen_pre_t. 
   unfold pure. wp.
   intros.
   destruct H as [it _].
@@ -240,13 +288,13 @@ Proof.
   intros. unfold Norm. exact H.
 
   all: swap 3 1.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   wp.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   unfold pure. wp.
   intros. destruct H as [it eq]. exact it. 
   
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   unfold pure. wp.
   intros.
   destruct H as [x' [eq it]].
@@ -296,7 +344,9 @@ Proof.
   induction n.
   - unfold extract_n.
     unfold extract_n_post.
-    eapply strengthen_pre. eapply return_wp.
+    eapply strengthen_pre_t.
+    unfold pure.
+    wp.
     intros.
     mysimp.
     unfold bits.
@@ -309,20 +359,21 @@ Proof.
     fold extract_n.
     unfold extract_n_post.
     fold extract_n_post.
-    eapply bind_wp.
+    wp.
 
     all: swap 3 1.
     intros. apply H.
     intros.
+    wp.
 
-    eapply bind_wp.
     all: swap 3 1.
     intros.
     exact H.
     intros.
-    eapply (case_option_wp r0).
-    eapply strengthen_pre.
-    eapply return_wp.
+    wp.
+    eapply strengthen_pre_t.
+    unfold pure.
+    wp.
     intros.
     simpl.
     exists None.
@@ -331,27 +382,6 @@ Proof.
     exists None, h.
     destruct H as [it _].
     exact it.
-
-    unfold hoare_triple_wp.
-    intros.
-    destruct H as [x' [eq it]].
-    unfold destruct_opt.
-    rewrite eq.
-    exact it.
-
-    eapply hoare_consequence.
-    eapply extract_post.
-    intros.
-    simpl.
-    exact H.
-    mysimp.
-    destruct o.
-    destruct r.
-    simpl in *.
-    exists (Some (b, b0)).
-    split.
-    reflexivity.
-    exists (Some b0).
     (* oh boy... *)
 Admitted.
 
@@ -367,12 +397,12 @@ Lemma extract_2 st:
   {{ Norm (fun r s' => extract_n_post 2 r st s') }}.
 Proof.
   unfold extract_n, extract_n_post.
-  eapply strengthen_pre.
-  eapply bind_wp.
+  eapply strengthen_pre_t.
+  wp.
   all: swap 2 1.
   intros.
-  eapply bind_wp.
-  eapply weaken_post.
+  wp.
+  eapply weaken_post_t.
   eapply (extract_post st).
   intros.
 
@@ -380,22 +410,23 @@ Proof.
   intros.
   wp.
 
-  eapply strengthen_pre.
-  eapply return_wp.
+  eapply strengthen_pre_t.
+  unfold pure.
+  wp.
   intros.
   destruct H as [it eq].
   exact it.
   
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   wp.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   unfold pure.
   wp.
   intros.
   destruct H as [it eq].
   exact it.
 
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   unfold pure.
   wp.
   intros.
@@ -428,9 +459,9 @@ Lemma IPHeader_p_spec' st :
     )
   }}.
 Proof.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   unfold IPHeader_p.
-  eapply bind_wp.
+  wp.
   all: swap 3 1.
   unfold Norm.
   intros.
@@ -439,14 +470,14 @@ Proof.
   apply (extract_n_length 8 st).
   intros.
 
-  eapply bind_wp.
+  wp.
   all: swap 3 1.
   unfold Norm.
   intros.
   apply H.
 
   all: swap 2 1.
-  eapply strengthen_pre.
+  eapply strengthen_pre_t.
   eapply (extract_n_length 8).
   intros.
   simpl.

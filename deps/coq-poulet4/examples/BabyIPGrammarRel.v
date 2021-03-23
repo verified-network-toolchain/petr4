@@ -152,6 +152,124 @@ Proof.
     reflexivity.
 Qed.
 
+Scheme LVal_ind := Induction for ValueLvalue Sort Prop
+  with PreLVal_ind := Induction for ValuePreLvalue Sort Prop.
+
+Lemma env_name_lookup_no_write:
+  forall env name res env',
+    env_name_lookup P4defs.Info name env = (res, env') ->
+    env = env'.
+Proof.
+Admitted.
+
+(** [break_let] breaks a destructuring [let] for a pair. *)
+Ltac break_let :=
+  match goal with
+    | [ H : context [ (let (_,_) := ?X in _) ] |- _ ] => destruct X eqn:?
+    | [ |- context [ (let (_,_) := ?X in _) ] ] => destruct X eqn:?
+  end.
+
+(** [break_match_hyp] looks for a [match] construct in some
+    hypothesis, and destructs the discriminee, while retaining the
+    information about the discriminee's value leading to the branch
+    being taken. *)
+Ltac break_match_hyp :=
+  match goal with
+    | [ H : context [ match ?X with _ => _ end ] |- _] =>
+      match type of X with
+        | sumbool _ _ => destruct X
+        | _ => destruct X eqn:?
+      end
+  end.
+
+(** [break_match_goal] looks for a [match] construct in your goal, and
+    destructs the discriminee, while retaining the information about
+    the discriminee's value leading to the branch being taken. *)
+Ltac break_match_goal :=
+  match goal with
+    | [ |- context [ match ?X with _ => _ end ] ] =>
+      match type of X with
+        | sumbool _ _ => destruct X
+        | _ => destruct X eqn:?
+      end
+  end.
+
+(** [break_match] breaks a match, either in a hypothesis or in your
+    goal. *)
+Ltac break_match := break_match_goal || break_match_hyp.
+
+Lemma env_lookup_no_write:
+  forall lval env res env',
+    env_lookup P4defs.Info lval env = (res, env') ->
+    env = env'.
+Proof.
+  set (P0 := fun pre_lval =>
+               forall env res env' t,
+                 env_lookup P4defs.Info (MkValueLvalue pre_lval t) env = (res, env') ->
+                 env = env').
+  induction lval using LVal_ind with (P0 := P0);
+    unfold P0; intros; simpl in *.
+  - eauto using env_name_lookup_no_write.
+  - eauto using env_name_lookup_no_write.
+  - unfold State.state_bind in H.
+    destruct (env_lookup Info lval env) eqn:Heq.
+    assert (env = e).
+    {
+      eapply IHlval.
+      eauto.
+    }
+    subst.
+    destruct s eqn:Hres; subst.
+    + destruct v.
+      * unfold Transformers.lift_opt in H.
+        break_let.
+        unfold State.state_return in H.
+        repeat break_match; congruence.
+      * cbv in H.
+        congruence.
+      * cbv in H.
+        congruence.
+    + congruence.
+  - unfold State.state_bind in H.
+    destruct (env_lookup Info lval env) eqn:Heq.
+    assert (env = e).
+    {
+      eapply IHlval.
+      eauto.
+    }
+    subst.
+    destruct s eqn:Hres; subst.
+    + destruct v.
+      * unfold Transformers.lift_opt in H.
+        break_let.
+        unfold State.state_return in H.
+        repeat break_match; congruence.
+      * cbv in H.
+        congruence.
+      * cbv in H.
+        congruence.
+    + congruence.
+  - unfold State.state_bind in H.
+    destruct (env_lookup Info lval env) eqn:Heq.
+    assert (env = e).
+    {
+      eapply IHlval.
+      eauto.
+    }
+    subst.
+    destruct s eqn:Hres; subst.
+    + destruct v.
+      * unfold Transformers.lift_opt in H.
+        break_let.
+        unfold State.state_return in H.
+        repeat break_match; congruence.
+      * cbv in H.
+        congruence.
+      * cbv in H.
+        congruence.
+    + congruence.
+Qed.
+
 Theorem parser_grammar_sound :
   forall p p' hdr hdr_rec parser_state,
     eval_parser p MyParser = Some (hdr, p') ->

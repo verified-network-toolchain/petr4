@@ -405,6 +405,22 @@ Section BigStepTheorems.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       remember (eval_stk_op op size0 ni ts hs) as result eqn:evalopeq.
-      destruct op; simpl in *.
-  Admitted.
+      destruct op; simpl in *;
+        try (match goal with
+        | H: context [if ?exp then _ else _] |- _ => destruct exp
+        end;
+          match goal with
+          | H: _ = Some ?v |- _ => exists v
+          end; econstructor; simpl in *; eauto;
+            match goal with
+            | |- context [ if ?exp then _ else _ ] => destruct exp
+            end; auto; contradiction).
+      + assert (Hnth : exists v, nth_error hs (N.to_nat ni) = Some v).
+        { apply nth_error_exists; lia. }
+        destruct Hnth as [[b vs] Hnth];
+        exists *{ HDR {vs}VALID := b }*. econstructor; simpl; eauto.
+        rewrite Hnth; reflexivity.
+      + exists (BigStep.V.VBit 32 (N.pos size0)).
+        econstructor; simpl; eauto.
+  Qed.
 End BigStepTheorems.

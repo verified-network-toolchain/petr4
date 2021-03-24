@@ -228,86 +228,10 @@ Proof.
                forall t,
                  env_invariant (env_lookup P4defs.Info (MkValueLvalue pre_lval t))).
   induction lval using LVal_ind with (P0 := P0);
-    unfold P0 in *; intros; simpl in *.
-  - eauto using env_invariant_preserve, env_name_lookup_no_write, IHlval.
-  - apply env_invariant_preserve.
-    + apply env_name_lookup_no_write.
-    + unfold env_invariant; intros.
-      reflexivity.
-  -
-    + break_match.
-
-  - unfold Transformers.lift_opt in H.
-    unfold State.state_bind in H.
-
-    break_let.
-
-      inversion H.
-      rewrite H1, H2 in Heqp.
-      eapply env_name_lookup_no_write.
-      exact Heqp.
-    + inversion H.
-      rewrite H1, H2 in Heqp.
-      eapply env_name_lookup_no_write.
-      exact Heqp.
-  -
-      inversion H.
-    destruct (env_lookup Info lval env) eqn:Heq.
-    assert (env = e).
-    {
-      eapply IHlval.
-      eauto.
-    }
-    subst.
-    destruct s eqn:Hres; subst.
-    + destruct v.
-      * unfold Transformers.lift_opt in H.
-        break_let.
-        unfold State.state_return in H.
-        repeat break_match; congruence.
-      * cbv in H.
-        congruence.
-      * cbv in H.
-        congruence.
-    + congruence.
-  - unfold State.state_bind in H.
-    destruct (env_lookup Info lval env) eqn:Heq.
-    assert (env = e).
-    {
-      eapply IHlval.
-      eauto.
-    }
-    subst.
-    destruct s eqn:Hres; subst.
-    + destruct v.
-      * unfold Transformers.lift_opt in H.
-        break_let.
-        unfold State.state_return in H.
-        repeat break_match; congruence.
-      * cbv in H.
-        congruence.
-      * cbv in H.
-        congruence.
-    + congruence.
-  - unfold State.state_bind in H.
-    destruct (env_lookup Info lval env) eqn:Heq.
-    assert (env = e).
-    {
-      eapply IHlval.
-      eauto.
-    }
-    subst.
-    destruct s eqn:Hres; subst.
-    + destruct v.
-      * unfold Transformers.lift_opt in H.
-        break_let.
-        unfold State.state_return in H.
-        repeat break_match; congruence.
-      * cbv in H.
-        congruence.
-      * cbv in H.
-        congruence.
-    + congruence.
+    unfold P0 in *; intros; simpl in *;
+    eauto using env_invariant_preserve,
+        env_name_lookup_no_write,
+        env_invariant_lift_opt_some.
 Qed.
 
 Theorem parser_grammar_sound :

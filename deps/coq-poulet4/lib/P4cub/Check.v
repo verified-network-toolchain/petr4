@@ -238,7 +238,7 @@ Module Typecheck.
         return_void_ok (CApplyBlock tbls aa cis eis).
     (**[]*)
 
-    (** Available Constructor Types. *)
+    (** Available Constructors and their signatures. *)
     Definition cenv : Type := Env.t (name tags_t) (E.ct tags_t).
 
     (** Put parameters into environment. *)
@@ -898,19 +898,58 @@ Module Typecheck.
                             (cparams : E.constructor_params tags_t)
                             (cargs : E.constructor_args tags_t)
                             (i : tags_t) (params : E.params tags_t) :
-      cs c = Some (E.CTControl cparams params) ->
+      cs c = Some {{{ ControlType cparams params }}} ->
       F.relfs
         (fun carg cparam =>
            match carg, cparam with
            | E.CAExpr e, E.CTType τ
              => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
-           | E.CAName ctrl, E.CTControl cas cps
-             => cs ctrl = Some (E.CTControl cas cps) (* equivalence under tags_t *)
+           | E.CAName ctrl, {{{ ControlType cps ps }}}
+             => cs ctrl = Some {{{ ControlType cps ps }}}
+           | E.CAName extrn, {{{ Extern cps { mthds } }}}
+             => cs extrn = Some {{{ Extern cps { mthds } }}}
+           (* TODO equivalence under tags_t *)
            | _, _ => False
            end) cargs cparams ->
       let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
         ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, eis, pis, x' ↦ params ;; cis ⦘
+  | chk_instantiate_parser (p : name tags_t) (x : string tags_t)
+                           (cparams : E.constructor_params tags_t)
+                           (cargs : E.constructor_args tags_t)
+                           (i : tags_t) (params : E.params tags_t) :
+      cs p = Some {{{ ParserType cparams params }}} ->
+      F.relfs
+        (fun carg cparam =>
+           match carg, cparam with
+           | E.CAExpr e, E.CTType τ
+             => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+           | E.CAName prsr, {{{ ParserType cps ps }}}
+             => cs prsr = Some {{{ ParserType cps ps }}} (* equivalence under tags_t *)
+           | E.CAName extrn, {{{ Extern cps { mthds } }}}
+             => cs extrn = Some {{{ Extern cps { mthds } }}}
+           | _, _ => False
+           end) cargs cparams ->
+      let x' := bare x in
+      ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
+        ⊢ Instance x of p(cargs) @ i ⊣ ⦗ Γ, eis, x' ↦ params ;; pis, cis ⦘
+  | chk_instantiate_extern (e : name tags_t) (x : string tags_t)
+                           (cparams : E.constructor_params tags_t)
+                           (cargs : E.constructor_args tags_t) (i : tags_t)
+                           (mthds : F.fs tags_t (E.arrowT tags_t)) :
+      cs e = Some {{{ Extern cparams { mthds } }}} ->
+      F.relfs
+        (fun carg cparam =>
+           match carg, cparam with
+           | E.CAExpr e, E.CTType τ
+             => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+           | E.CAName extrn, {{{ Extern cps { mthds } }}}
+             => cs extrn = Some {{{ Extern cps { mthds } }}}
+           | _, _ => False
+           end) cargs cparams ->
+      let x' := bare x in
+      ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
+        ⊢ Instance x of e(cargs) @ i ⊣ ⦗ Γ, x' ↦ mthds ;; eis, pis, cis ⦘
   | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                 (cis' cis'' : cienv) (pis' pis'' : pienv)
                 (eis' eis'' : eienv) (Γ' Γ'' : gamma) :
@@ -1016,7 +1055,6 @@ Module Typecheck.
   End CheckParserExprInduction.
 
   (** Parser State typing. *)
-  (* TODO: control environment is superfluous here. *)
   Inductive check_state
             {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
             (sts : states) (errs : errors) (Γ : gamma)
@@ -1128,6 +1166,14 @@ Module Typecheck.
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ parser p (cparams)(params) { states } @ i
         ⊣ $ Γ, eis, pis, cis, fns, p' ↦ prsr;; cs $
+  | chk_extern (e : string tags_t)
+               (cparams : E.constructor_params tags_t)
+               (mthds : F.fs tags_t (E.arrowT tags_t)) (i : tags_t) :
+      let e' := bare e in
+      let extrn := {{{ Extern cparams { mthds } }}} in
+      $ cs, fns, cis, pis, eis, errs, Γ $
+        ⊢ extern e (cparams) { mthds } @ i
+        ⊣ $ Γ, eis, pis, cis, fns, e' ↦ extrn;; cs $
   | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
                        (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
                        (Γ' Γ'' : gamma) (sg : signal) :
@@ -1146,6 +1192,10 @@ Module Typecheck.
       let func := P.Arrow params None in
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ void f (params) { body } @ i ⊣ $ Γ, eis, pis, cis, f' ↦ func;;  fns, cs $
+  (*| chk_typedecl (t : E.ct tags_t) (x : string tags_t) (i : tags_t) :
+      let x' := bare x in
+      $ cs, fns, cis, pis, eis, errs, Γ $ ⊢ TYPE x t @ i
+      ⊣ $ Γ, eis, pis, cis, fns, cs $ *)
   | chk_topdecl (d : D.d tags_t) (i : tags_t)
                 (Γ' : gamma) (eis' : eienv)
                 (pis' : pienv) (cis' : cienv) :

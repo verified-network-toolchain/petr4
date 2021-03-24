@@ -12,6 +12,7 @@ Declare Custom Entry p4type.
 Reserved Notation "∫ ty1 ≡ ty2"
          (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
 
+Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
@@ -331,6 +332,23 @@ Module P4cub.
             (in custom p4type at level 6, no associativity).
       Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
+
+      Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
+      Notation "( x )" := x (in custom p4constructortype, x at level 99).
+      Notation "x" := x (in custom p4constructortype at level 0, x constr at level 0).
+      Notation "'Type' τ"
+        := (CTType τ)
+             (in custom p4constructortype at level 0,
+                 τ custom p4type).
+      Notation "'ControlType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'ParserType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'Extern' cps { mthds }"
+               := (CTExtern cps mthds)
+                    (in custom p4constructortype at level 0).
     End TypeNotations.
 
     (** Custom induction principle for [t]. *)
@@ -1403,7 +1421,13 @@ Module P4cub.
       (** Top-level declarations. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | TPDecl (d : D.d tags_t) (i : tags_t)
+      | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
+      (* | TPTypeDecl (x : string tags_t) (ct : E.ct tags_t)
+                   (i : tags_t)(* type declaration *) *)
+      | TPExtern (e : string tags_t)
+                 (cparams : E.constructor_params tags_t)
+                 (methods : F.fs tags_t (E.arrowT tags_t))
+                 (i : tags_t) (* extern declarations *)
       | TPControl (c : string tags_t)
                   (cparams : E.constructor_params tags_t) (* constructor params *)
                   (params : E.params tags_t) (* apply block params *)
@@ -1421,6 +1445,8 @@ Module P4cub.
     End TopDeclarations.
 
     Arguments TPDecl {_}.
+    (* Arguments TPTypeDecl {_}. *)
+    Arguments TPExtern {_}.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
     Arguments TPFunction {_}.
@@ -1439,6 +1465,10 @@ Module P4cub.
       Notation "'DECL' d @ i"
         := (TPDecl d i)
              (in custom p4topdecl at level 0, d custom p4decl).
+      (* Notation "'TYPE' x t @ i"
+               := (TPTypeDecl x t i)
+                    (in custom p4topdecl at level 0,
+                        t custom p4constructortype). *)
       Notation "'void' f ( params ) { body } @ i"
                := (TPFunction f (Arrow params None) body i)
                     (in custom p4topdecl at level 0, body custom p4stmt).
@@ -1446,6 +1476,9 @@ Module P4cub.
                := (TPFunction f (Arrow params (Some t)) body i)
                     (in custom p4topdecl at level 0,
                         t custom p4type, body custom p4stmt).
+      Notation "'extern' e ( cparams ) { methods } @ i"
+               := (TPExtern e cparams methods i)
+                    (in custom p4topdecl at level 0).
       Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,

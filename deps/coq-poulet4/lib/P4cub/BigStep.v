@@ -1,4 +1,3 @@
-
 Require Export P4cub.Check.
 Require Export P4cub.P4Arith.
 Require Import Coq.Bool.Bool.
@@ -6,6 +5,7 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.Arith.Compare_dec.
 Require Import Value.
 Module V := Val.
 
@@ -139,6 +139,42 @@ Module Step.
       | E.HOIsValid => *{ VBOOL b }*
       | E.HOSetValid => *{ HDR { vs } VALID:=true }*
       | E.HOSetInValid => *{ HDR { vs } VALID:=false }*
+      end.
+    (**[]*)
+
+    (** Header stack operations. *)
+    Definition eval_stk_op
+               (op : E.hdr_stk_op) (size : positive)
+               (nextIndex : N) (ts : F.fs tags_t (E.t tags_t))
+               (bvss : list (bool * F.fs tags_t (V.v tags_t)))
+      : option (V.v tags_t) :=
+      let w := 32%positive in
+      let sizenat := Pos.to_nat size in
+      match op with
+      | E.HSOSize => let s := (Npos size)%N in Some *{ w VW s }*
+      | E.HSONext => match nth_error bvss (N.to_nat nextIndex) with
+                    | None => None
+                    | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
+                    end
+      | E.HSOPush n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := firstn (sizenat - nnat) bvss in
+            let new_nextIndex := N.min (nextIndex + n) (N.pos size - 1)%N in
+            Some (V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex)
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some (V.VHeaderStack ts new_hdrs size ((N.pos size) - 1)%N)
+      | E.HSOPop  n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := skipn nnat bvss in
+            Some (V.VHeaderStack ts (remains ++ new_hdrs) size (nextIndex - n))
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some (V.VHeaderStack ts new_hdrs size 0%N)
       end.
     (**[]*)
 
@@ -310,34 +346,6 @@ Module Step.
     | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
     (**[]*)
 
-    (** Intial/Default value from a type. *)
-    Fixpoint vdefault (τ : E.t tags_t) : V.v tags_t :=
-      let fix lrec (ts : list (E.t tags_t)) : list (V.v tags_t) :=
-          match ts with
-          | [] => []
-          | τ :: ts => vdefault τ :: lrec ts
-          end in
-      let fix fields_rec
-              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t (V.v tags_t) :=
-          match ts with
-          | [] => []
-          | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
-          end in
-      match τ with
-      | {{ error }}      => V.VError None
-      | {{ matchkind }}  => *{ MATCHKIND exact }*
-      | {{ Bool }}       => *{ FALSE }*
-      | {{ bit<w> }}     => *{ w VW N0 }*
-      | {{ int<w> }}     => *{ w VS Z0 }*
-      | {{ tuple ts }}   => V.VTuple (lrec ts)
-      | {{ rec { ts } }} => V.VRecord (fields_rec ts)
-      | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
-      | {{ stack fs[n] }} => V.VHeaderStack
-                              fs (repeat (false, fields_rec fs)
-                                         (Pos.to_nat n)) n 0
-      end.
-    (**[]*)
-
     (** Control plane table entries,
         essentially mapping tables to an action call. *)
     Definition entries : Type :=
@@ -494,6 +502,13 @@ Module Step.
       nth_error vss (N.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
+  | ebs_stk_op  (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
+                (v : V.v tags_t) (ts : F.fs tags_t (E.t tags_t))
+                (bvss : list (bool * F.fs tags_t (V.v tags_t)))
+                (size : positive) (nextIndex : N) :
+      eval_stk_op op size nextIndex ts bvss = Some v ->
+      ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
+      ⟨ ϵ, STK_OP op e @ i ⟩ ⇓ v
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   (**[]*)
 
@@ -672,6 +687,13 @@ Module Step.
                P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
     (**[]*)
 
+    Hypothesis HStackOp : forall ϵ op e i v ts bvss size nextIndex,
+        eval_stk_op op size nextIndex ts bvss = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
+        P ϵ e *{ STACK bvss:ts[size] NEXT:=nextIndex }* ->
+        P ϵ <{ STK_OP op e @ i }> v.
+    (**[]*)
+
     (** Custom induction principle for
         the expression big-step relation.
         [Do induction ?H using custom_expr_big_step_ind]. *)
@@ -800,6 +822,9 @@ Module Step.
         | ebs_access _ _ i n index ni ts _ _ _
                      Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
                                        He (ebsind _ _ _ He)
+        | ebs_stk_op _ _ _ i _ _ _ _ _
+                     Hv He => HStackOp _ _ _ i _ _ _ _ _ Hv
+                                      He (ebsind _ _ _ He)
         end.
     (**[]*)
 
@@ -845,7 +870,7 @@ Module Step.
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
   | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
                 (i : tags_t) (v : V.v tags_t) :
-      vdefault τ = v ->
+      V.vdefault τ = v ->
       let x' := bare x in
       ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
   | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
@@ -988,7 +1013,7 @@ Module Step.
             (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
   | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
       let x' := bare x in
-      let v := vdefault τ in
+      let v := V.vdefault τ in
       ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
   | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
                 (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :

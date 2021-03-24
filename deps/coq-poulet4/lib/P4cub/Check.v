@@ -145,6 +145,20 @@ Module Typecheck.
       end.
     (**[]*)
 
+    (** Typing header stack operations. *)
+    Definition type_hdr_stk_op
+               (op : E.hdr_stk_op) (size : positive)
+               (ts : F.fs tags_t (E.t tags_t))
+      : E.t tags_t :=
+      let w := 32%positive in
+      match op with
+      | E.HSONext   => {{ hdr { ts } }}
+      | E.HSOSize   => {{ bit<w> }}
+      | E.HSOPush _
+      | E.HSOPop  _ => {{ stack ts[size] }}
+      end.
+    (**[]*)
+
     (** Evidence a cast is proper.
         This is a bi-directional relation. *)
     Inductive proper_cast : E.t tags_t -> E.t tags_t -> Prop :=
@@ -402,6 +416,12 @@ Module Typecheck.
       N.lt idx (Npos n) ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
       ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
+  | chk_stk_op (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
+                (τ : E.t tags_t) (size : positive)
+                (ts : F.fs tags_t (E.t tags_t)) :
+      type_hdr_stk_op op size ts = τ ->
+      ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[size] ->
+      ⟦ errs, Γ ⟧ ⊢ STK_OP op e @ i ∈ τ
   where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
           := (check_expr ers gm e ty) : type_scope.
   (**[]*)
@@ -589,6 +609,13 @@ Module Typecheck.
         P errs Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
     (**[]*)
 
+    Hypothesis HStackOp : forall errs Γ op e i τ size ts,
+        type_hdr_stk_op op size ts = τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[size] ->
+        P errs Γ e {{ stack ts[size] }} ->
+        P errs Γ <{ STK_OP op e @ i }> τ.
+    (**[]*)
+
     (** Custom induction principle for expression typing.
         Do [induction ?H using custom_check_expr_ind]. *)
     Definition custom_check_expr_ind :
@@ -730,6 +757,9 @@ Module Typecheck.
             | chk_access _ _ _ _ i _ _
                          Hidx He => HAccess _ _ _ _ i _ _ Hidx
                                            He (chind _ _ _ _ He)
+            | chk_stk_op _ _ _ _ i _ _ _
+                         Ht He => HStackOp _ _ _ _ i _ _ _ Ht
+                                          He (chind _ _ _ _ He)
             end.
      (**[]*)
   End CheckExprInduction.

@@ -3,10 +3,13 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.micromega.Lia.
 Require Import P4cub.AST.
 Require Import Envn.
 Require Import P4cub.P4Arith.
+Import P4cub.P4cubNotations.
 
+Module F := P4cub.F.
 Module E := P4cub.Expr.
 Module TE := E.TypeEquivalence.
 Module PT := E.ProperType.
@@ -38,11 +41,39 @@ Section Values.
   Inductive lv : Type :=
   | LVVar (x : name tags_t)                 (* Local variables. *)
   | LVMember (arg : lv) (x : string tags_t) (* Member access. *)
-  | LVAccess (stack : lv) (index : N)       (* Header stack indexing. *).
+  | LVAccess (stk : lv) (index : N)       (* Header stack indexing. *).
   (**[]*)
 
   (** Evaluated arguments. *)
   Definition argsv : Type := Field.fs tags_t (P4cub.paramarg v lv).
+
+  (** Intial/Default value from a type. *)
+  Fixpoint vdefault (τ : E.t tags_t) : v :=
+      let fix lrec (ts : list (E.t tags_t)) : list v :=
+          match ts with
+          | [] => []
+          | τ :: ts => vdefault τ :: lrec ts
+          end in
+      let fix fields_rec
+              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t v :=
+          match ts with
+          | [] => []
+          | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
+          end in
+      match τ with
+      | {{ error }}      => VError None
+      | {{ matchkind }}  => VMatchKind E.MKExact
+      | {{ Bool }}       => VBool false
+      | {{ bit<w> }}     => VBit w 0%N
+      | {{ int<w> }}     => VInt w 0%Z
+      | {{ tuple ts }}   => VTuple (lrec ts)
+      | {{ rec { ts } }} => VRecord (fields_rec ts)
+      | {{ hdr { ts } }} => VHeader (fields_rec ts) false
+      | {{ stack fs[n] }} => VHeaderStack
+                              fs (repeat (false, fields_rec fs)
+                                         (Pos.to_nat n)) n 0
+      end.
+    (**[]*)
 
   (** A custom induction principle for value. *)
   Section ValueInduction.
@@ -600,6 +631,7 @@ Arguments VHeaderStack {_}.
 Arguments LVVar {_}.
 Arguments LVMember {_}.
 Arguments LVAccess {_}.
+Arguments vdefault {_}.
 
 Module ValueNotations.
   Notation "'*{' val '}*'" := val (val custom p4value at level 99).
@@ -641,7 +673,6 @@ End LValueNotations.
 
 Module ValueTyping.
   Import ValueNotations.
-  Import P4cub.P4cubNotations.
 
   Definition errors {tags_t: Type} : Type := Env.t (string tags_t) unit.
 
@@ -812,5 +843,67 @@ Module ValueTyping.
                                            Hhs (hsind Hhs)
             end.
   End ValueTypingInduction.
+
+  Import F.FieldTactics.
+
+  Lemma vdefault_types :
+    forall {tags_t : Type} (errs : errors) (τ : E.t tags_t),
+      PT.proper_nesting τ ->
+      let val := vdefault τ in
+      ∇ errs ⊢ val ∈ τ.
+  Proof.
+    intros tags_t errs τ HPN; simpl.
+    induction τ using E.custom_t_ind; simpl; constructor; auto.
+    - unfold BitArith.bound.
+      pose proof BitArith.upper_bound_ge_1 w; lia.
+    - unfold IntArith.bound, IntArith.minZ, IntArith.maxZ.
+      pose proof IntArith.upper_bound_ge_1 w; lia.
+    - induction ts as [| t ts IHts]; inv H; inv HPN; constructor;
+        try match goal with
+            | H: PT.base_type (E.TTuple _) |- _ => inv H
+            end;
+        try match goal with
+            | H: Forall _ (_ :: _) |- _ => inv H
+            end; intuition.
+      apply IHts; auto. apply PT.pn_tuple; auto.
+    - induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
+        try match goal with
+            | H: PT.base_type {{ rec { _ } }} |- _ => inv H
+            end; invert_cons_predfs;
+          unfold F.predf_data, Basics.compose in *; simpl in *.
+      + split; try reflexivity; intuition.
+      + apply IHfs; intuition. apply PT.pn_record; auto.
+    - induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
+        try match goal with
+            | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
+            end; invert_cons_predfs;
+          unfold F.predf_data, Basics.compose in *; simpl in *.
+      + split; try reflexivity; simpl.
+        pose proof PT.proper_inside_header_nesting t;
+          intuition.
+      + apply IHfs; intuition; apply PT.pn_header; auto.
+    - inv HPN;
+        try match goal with
+            | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+            end; auto.
+    - lia.
+    - rewrite repeat_length; reflexivity.
+    - apply repeat_Forall; simpl;
+        constructor.
+      + apply PT.pn_header.
+        inv HPN;
+          try match goal with
+              | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+              end; auto.
+      + induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
+          try match goal with
+              | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+              end; invert_cons_predfs;
+            unfold F.predf_data, Basics.compose in *; simpl in *.
+        * split; try reflexivity; simpl;
+            pose proof PT.proper_inside_header_nesting t;
+            intuition.
+        * apply IHfs; intuition. apply PT.pn_header_stack; auto.
+  Qed.
 End ValueTyping.
 End Val.

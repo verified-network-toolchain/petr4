@@ -141,6 +141,83 @@ Section BigStepTheorems.
     - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
       eapply Forall_nth_error in H12; eauto; simpl in *.
       inv H12; auto.
+    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv H.
+      destruct op; simpl in *; inv IH.
+      + destruct (nth_error bvss (N.to_nat nextIndex))
+          as [[b vs] |] eqn:eqnth; try discriminate; inv H1.
+        apply nth_error_In in eqnth.
+        eapply Forall_forall in H11; eauto; simpl in *; auto.
+      + inv H1; constructor; auto.
+      + destruct
+          (Compare_dec.lt_dec (N.to_nat n) (BinPos.Pos.to_nat size1))
+          as [Hlt | Hlt]; inv H1; constructor; auto.
+        * destruct size1; try lia.
+        * rewrite app_length.
+          rewrite repeat_length.
+          rewrite firstn_length_le by lia.
+          rewrite Minus.le_plus_minus_r; lia.
+        * apply Forall_app; split.
+          -- inv H10;
+               try match goal with
+                   | H:PT.base_type {{ stack _[_] }} |- _ => inv H
+                   end.
+             clear bvss Hev H9 H11 size1 H1 H5 Hlt H7 H8 nextIndex e i.
+             apply repeat_Forall; simpl; constructor.
+             ++ apply PT.pn_header; assumption.
+             ++ induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
+                  unfold F.predf_data, Basics.compose in *; simpl in *;
+                    intuition. split; simpl; try reflexivity.
+                apply vdefault_types.
+                apply PT.proper_inside_header_nesting; auto.
+          -- apply Forall_firstn; auto.
+        * destruct size1; lia.
+        * rewrite repeat_length; reflexivity.
+        * inv H10;
+            try match goal with
+                | H:PT.base_type {{ stack _[_] }} |- _ => inv H
+                end.
+          clear bvss Hev H9 H11 H1 H5 Hlt H7 H8 nextIndex e i.
+          apply repeat_Forall; simpl; constructor.
+          -- apply PT.pn_header; assumption.
+          -- induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
+               unfold F.predf_data, Basics.compose in *; simpl in *;
+                 intuition. split; simpl; try reflexivity.
+             apply vdefault_types.
+             apply PT.proper_inside_header_nesting; auto.
+      + destruct
+          (Compare_dec.lt_dec (N.to_nat n) (BinPos.Pos.to_nat size1))
+          as [Hlt | Hlt]; inv H1; constructor; auto; try lia.
+        * rewrite app_length.
+          rewrite repeat_length.
+          rewrite skipn_length.
+          rewrite PeanoNat.Nat.sub_add by lia; lia.
+        * apply Forall_app; split.
+          -- apply Forall_skipn; auto.
+          -- inv H10;
+               try match goal with
+                   | H:PT.base_type {{ stack _[_] }} |- _ => inv H
+                   end.
+             clear bvss Hev H9 H11 size1 H1 H5 Hlt H7 H8 nextIndex e i.
+             apply repeat_Forall; simpl; constructor.
+             ++ apply PT.pn_header; assumption.
+             ++ induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
+                  unfold F.predf_data, Basics.compose in *; simpl in *;
+                    intuition. split; simpl; try reflexivity.
+                apply vdefault_types.
+                apply PT.proper_inside_header_nesting; auto.
+        * rewrite repeat_length; reflexivity.
+        * inv H10;
+            try match goal with
+                | H:PT.base_type {{ stack _[_] }} |- _ => inv H
+                end.
+          clear bvss Hev H9 H11 H1 H5 Hlt H7 H8 nextIndex e i.
+          apply repeat_Forall; simpl; constructor.
+          -- apply PT.pn_header; assumption.
+          -- induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
+               unfold F.predf_data, Basics.compose in *; simpl in *;
+                 intuition. split; simpl; try reflexivity.
+             apply vdefault_types.
+             apply PT.proper_inside_header_nesting; auto.
   Qed.
 
   Theorem expr_big_step_progress :
@@ -309,7 +386,7 @@ Section BigStepTheorems.
         assert (Hlen' : (to_nat (n - 1)%positive = 1 + (length hs))%nat) by lia.
         assert (Hproper' : PT.proper_nesting (E.THeaderStack ts (n-1)%positive)).
         { inv Hproper. inv H0.
-          apply PT.pn_header_stack. assumption. }
+          apply PT.pn_header_stack; assumption. }
         simpl in *. pose proof IHs Hbound' Hni' Hlen' Hproper' as [v IHs']; clear IHs.
         assert (Hstk : check_expr
                            errs Γ
@@ -325,5 +402,9 @@ Section BigStepTheorems.
       pose proof nth_error_exists _ _ Hidx as [[b vs] Hnth].
       pose proof Forall_nth_error _ _ _ _ H7 Hnth as HP; simpl in *.
       exists *{ HDR {vs} VALID:=b }*. econstructor; eauto.
-  Qed.
+    - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
+      pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
+      remember (eval_stk_op op size0 ni ts hs) as result eqn:evalopeq.
+      destruct op; simpl in *.
+  Admitted.
 End BigStepTheorems.

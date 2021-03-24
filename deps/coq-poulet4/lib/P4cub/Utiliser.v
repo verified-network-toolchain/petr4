@@ -48,6 +48,41 @@ Proof.
   eapply nth_error_In; eauto.
 Qed.
 
+Lemma In_repeat : forall {A : Type} (a : A) n,
+    0 < n -> In a (repeat a n).
+Proof.
+  intros A a [|] H; try lia; simpl; intuition.
+Qed.
+
+Lemma Forall_repeat : forall {A : Type} (P : A -> Prop) n a,
+    0 < n -> Forall P (repeat a n) -> P a.
+Proof.
+  intros A P n a Hn H.
+  eapply Forall_forall in H; eauto.
+  apply In_repeat; auto.
+Qed.
+
+Lemma repeat_Forall : forall {A : Type} (P : A -> Prop) n a,
+    P a -> Forall P (repeat a n).
+Proof.
+  intros A P n a H.
+  induction n as [| n IHn]; simpl; constructor; auto.
+Qed.
+
+Lemma Forall_firstn : forall {A : Type} (P : A -> Prop) n l,
+    Forall P l -> Forall P (firstn n l).
+Proof.
+  intros A P n l H. rewrite <- firstn_skipn with (n := n) in H.
+  apply Forall_app in H. intuition.
+Qed.
+
+Lemma Forall_skipn : forall {A : Type} (P : A -> Prop) n l,
+    Forall P l -> Forall P (skipn n l).
+Proof.
+  intros A P n l H. rewrite <- firstn_skipn with (n := n) in H.
+  apply Forall_app in H. intuition.
+Qed.
+
 Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
     Forall2 R l1 l2 -> length l1 = length l2.
 Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.

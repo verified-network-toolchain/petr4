@@ -4,6 +4,7 @@ Require Export Coq.Bool.Bool.
 Require Export Utiliser.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
+Require Import P4Arith.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
@@ -15,6 +16,7 @@ Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
 Declare Custom Entry p4hdr_op.
+Declare Custom Entry p4hdr_stk_op.
 Declare Custom Entry p4expr.
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4decl.
@@ -695,8 +697,26 @@ Module P4cub.
             proper_nesting {{ hdr { ts } }}
         | pn_header_stack (ts : F.fs tags_t (t tags_t))
                           (n : positive) :
+            BitArith.bound 32%positive (Npos n) ->
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ stack ts[n] }}.
+
+        Import F.FieldTactics.
+
+        Lemma proper_inside_header_nesting : forall τ : t tags_t,
+            proper_inside_header τ ->
+            proper_nesting τ.
+        Proof.
+          intros τ H. induction H.
+          - inv H; repeat econstructor.
+          - apply pn_record.
+            induction H; constructor; auto.
+            destruct x as [x τ]; invert_predf;
+              split; simpl in *; subst; repeat econstructor;
+                try match goal with
+                    | |- ~ ∫ _ ≡ matchkind => intros H'; inv H'
+                    end.
+        Qed.
       End ProperTypeNesting.
     End ProperType.
 
@@ -795,6 +815,23 @@ Module P4cub.
       Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
     End HeaderOpNotations.
 
+    (** Header Stack Operations.. *)
+    Inductive hdr_stk_op : Set :=
+    | HSONext         (* get element at [nextIndex] *)
+    | HSOSize         (* get the size *)
+    | HSOPush (n : N) (* "push_front," shift stack right by [n] *)
+    | HSOPop  (n : N) (* "push_front," shift stack left by [n] *).
+
+    Module HeaderStackOpNotations.
+      Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
+      Notation "'Next'" := HSONext (in custom p4hdr_stk_op at level 0).
+      Notation "'Size'" := HSOSize (in custom p4hdr_stk_op at level 0).
+      Notation "'Push' n"
+        := (HSOPush n) (in custom p4hdr_stk_op at level 0).
+      Notation "'Pop' n"
+        := (HSOPop n) (in custom p4hdr_stk_op at level 0).
+    End HeaderStackOpNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
@@ -829,7 +866,9 @@ Module P4cub.
                      (next_index : N)                  (* header stack literals,
                                                           unique to p4light *)
       | EHeaderStackAccess (stack : e) (index : N)
-                           (i : tags_t)                (* header stack indexing *).
+                           (i : tags_t)                (* header stack indexing *)
+      | EHeaderStackOp (stack : e) (op : hdr_stk_op)
+                       (i : tags_t)                    (* header stack builtin *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -867,6 +906,7 @@ Module P4cub.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
+    Arguments EHeaderStackOp {_}.
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -925,6 +965,10 @@ Module P4cub.
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
+      Notation "'STK_OP' op exp @ i"
+               := (EHeaderStackOp exp op i)
+                    (in custom p4expr at level 5, exp custom p4expr,
+                        op custom p4hdr_stk_op, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -935,6 +979,7 @@ Module P4cub.
       Import BopNotations.
       Import MatchkindNotations.
       Import HeaderOpNotations.
+      Import HeaderStackOpNotations.
 
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
@@ -986,6 +1031,9 @@ Module P4cub.
       Hypothesis HAccess : forall e1 e2 i,
           P e1 -> P <{ Access e1[e2] @ i }>.
 
+      Hypothesis HEHeaderStackOp : forall op exp i,
+          P exp -> P <{ STK_OP op exp @ i }>.
+
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
@@ -1023,6 +1071,7 @@ Module P4cub.
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
           | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
+          | <{ STK_OP op exp @ i }> => HEHeaderStackOp op exp i (eind exp)
           end.
       (**[]*)
     End ExprInduction.
@@ -1413,6 +1462,7 @@ Module P4cub.
     Export Expr.BopNotations.
     Export Expr.MatchkindNotations.
     Export Expr.HeaderOpNotations.
+    Export Expr.HeaderStackOpNotations.
     Export Expr.ExprNotations.
     Export Stmt.StmtNotations.
     Export Decl.DeclNotations.

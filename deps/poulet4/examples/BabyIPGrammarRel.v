@@ -67,79 +67,6 @@ Definition bits_repr (n: nat) (bs: bits n) (v: @ValueBase P4defs.Info) : Prop :=
 Inductive val_repr: forall (t: Type), t -> @ValueBase P4defs.Info -> Prop :=
 | VRBits: forall n u v,
     bits_repr n u v ->
-<<<<<<< HEAD:deps/poulet4/examples/BabyIPGrammarRel.v
-    type_repr (bits n) u v.
-
-Fixpoint header_repr  (fields: list (string * Type)) (v: @Value P4defs.Info) (rec: HAList.t _ fields) {struct fields}: Prop.
-  revert rec.
-  refine (match fields as f return HAList.t _ f -> Prop with
-          | [] => fun rec => True
-          | (field_name, type) :: rest => _
-          end).
-  intro rec.
-  refine (exists field_val,
-             get_header_field v field_name = Some field_val /\
-             type_repr type _ field_val /\
-             header_repr rest v (snd rec)).
-  refine (let field_valid := (_ : @HAList.valid_key _ _ StrEqDec _ ((field_name, type) :: rest)) in _).
-  Unshelve.
-  all:swap 1 2.
-  {
-    unfold HAList.valid_key.
-    exists field_name.
-    cbn.
-    destruct (StrEqDec field_name field_name); try congruence.
-    exact I.
-  }
-
-
-
-
-
-
-
-Inductive header_repr_ip: @Value P4defs.Info -> IPHeader -> Prop :=
-| IPRepr: forall src_v dest_v proto_v src_b dest_b proto_b,
-    bits_repr 8 src_b src_v ->
-    bits_repr 8 dest_b dest_v ->
-    bits_repr 4 proto_b proto_v ->
-    header_repr_ip (ValBase (ValBaseHeader [(MkP4String "src", src_v);
-                                            (MkP4String "dst", dest_v);
-                                            (MkP4String "proto", proto_v)] true))
-                   {|src:=Some src_b; dest:=Some dest_b; proto:=Some proto_b|}.
-
-Inductive header_repr_tcp: @Value P4defs.Info -> TCP -> Prop :=
-| TCPRepr: forall sport_v dport_v flags_v seq_v sport_b dport_b flags_b seq_b,
-    bits_repr 8 sport_b sport_v ->
-    bits_repr 8 dport_b dport_v ->
-    bits_repr 4 flags_b flags_v ->
-    bits_repr 8 seq_b seq_v ->
-    header_repr_tcp (ValBase (ValBaseHeader [(MkP4String "sport", sport_v);
-                                            (MkP4String "dport", dport_v);
-                                            (MkP4String "flags", flags_v);
-                                            (MkP4String "seq", seq_v)] true))
-                    {|sport_t:=Some sport_b;
-                      dport_t:=Some dport_b;
-                      flags_t:=Some flags_b;
-                      SimpleIPv4Monadic.seq:=Some seq_b|}.
-
-Inductive header_repr_udp: @Value P4defs.Info -> UDP -> Prop :=
-| UDPRepr: forall sport_v dport_v flags_v seq_v sport_b dport_b flags_b seq_b,
-    bits_repr 8 sport_b sport_v ->
-    bits_repr 8 dport_b dport_v ->
-    bits_repr 4 flags_b flags_v ->
-    bits_repr 8 seq_b seq_v ->
-    header_repr_udp (ValBase (ValBaseHeader [(MkP4String "sport", sport_v);
-                                            (MkP4String "dport", dport_v);
-                                            (MkP4String "flags", flags_v);
-                                            (MkP4String "seq", seq_v)] true))
-                    {|sport_u:=Some sport_b;
-                      dport_u:=Some dport_b;
-                      flags_u:=Some flags_b|}.
-
-Inductive header_repr: @Value P4defs.Info -> Headers -> Prop :=
-.
-=======
     val_repr (bits n) u v.
 
 (* I wrote this by using tactics and then hand-simplifying the
@@ -166,7 +93,6 @@ Definition value_repr {fields} (rec: HAList.t fields) (val: @Value P4defs.Info):
   | ValBase (ValBaseHeader hdr true) => header_repr rec hdr
   | _ => False
   end.
->>>>>>> poulet4:deps/coq-poulet4/examples/BabyIPGrammarRel.v
 
 Notation P4String := (P4String.t Info).
 

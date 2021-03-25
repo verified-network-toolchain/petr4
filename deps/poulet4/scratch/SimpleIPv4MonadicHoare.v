@@ -1,40 +1,100 @@
+<<<<<<< HEAD:deps/poulet4/examples/SimpleIPv4Monadic.v
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.State.
 
+=======
+Require Import Monads.Monad.
+Require Import Monads.State.
+Require Import Monads.Hoare.
+Require Import Coq.Init.Nat.
+Require Import Lia.
+>>>>>>> poulet4-dune-build:deps/poulet4/scratch/SimpleIPv4MonadicHoare.v
 Open Scope monad.
+Open Scope hoare.
 
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Require Import Coq.Lists.List.
 
-Fixpoint prod (T:Set) (n:nat) : Set :=
-  match n with
-    | 0   => unit
-    | S m => T * (prod T m)
+Lemma foo {B} : forall x y: nat, @inl _ B x = inl y <-> x = y.
+Admitted.
+
+Definition incr_st : @state_monad nat unit nat :=
+  x <- get_state ;;
+  state_return (x+1).
+
+Lemma incr_weaken : 
+  {{ top }} incr_st 
+  {{ fun r s s' => 
+    exists r', r = inl r' /\ r' > s }}.
+Proof.
+  refine (hoare_consequence (
+    st <-- hoare_get ;; hoare_return (st + 1)
+  ) _ _).
+  2 : {
+    intros.
+    destruct H as [st_middle HI].
+    destruct HI.
+      - destruct H as [a H]. exists (a + 1).
+      split. 
+        -- destruct H as [_ [H' _]]. exact H'.
+        -- 
+          destruct H as [[HL1 HL2] [HR1 HR2]].
+          assert (a = i).
+          eapply foo. exact HL2.
+          lia.
+      - exfalso.
+      destruct H as [e [_ H]].
+      discriminate.
+  }
+  intros. split. auto.
+  intros.
+  destruct r; auto.
+  
+Qed.
+
+Definition greater_cond : @state_monad nat unit (option unit) :=
+  st <- get_state ;; 
+  match st with 
+  | 0 => state_return (Some tt)
+  | _ => state_return None
   end.
 
-Definition bits (n: nat) : Set := prod bool n.
+Lemma greater_spec : 
+  {{ top }}
+  greater_cond 
+  {{ fun r s s' => 
+    match r with 
+    | inl (Some tt) => s = 0
+    | (inl _) => s > 0
+    | inr _ => False
+    end 
+  }}.
+Admitted.
+(* Proof. *)
+  (* refine (hoare_consequence (
+    st <-- @hoare_get nat unit ;;
+    match st as st' with 
+    | 0 => @hoare_return nat unit (option unit) (Some tt)
+    | _ => @hoare_return nat unit (option unit) None
+    end
+  ) _ _). *)
 
-Fixpoint zero_bits {n: nat} : bits n :=
-  match n with
-  | 0 => tt
-  | S n' => (false, zero_bits)
-  end.
+Definition Bits (n: nat) : Set := (nat * list bool).
 
-Fixpoint one_bits {w: nat} : bits (S w) :=
-  match w with
-  | 0 => (true, tt)
-  | S w' => (false, one_bits)
-  end.
+Definition bits2list {n: nat} (bs: Bits n) : list bool := snd bs.
 
+Definition zero_bits {n: nat} : Bits n := (n, repeat false n).
+
+Definition one_bits {w: nat} : Bits (S w) :=
+  let (_, bs') := @zero_bits w in (S w, app bs' (true :: nil)).
 
 Record StandardMeta := mkStandardMeta {
-  egress_spec : bits 9
+  egress_spec : Bits 9
 }.
 
 Instance etaStandardMeta : Settable _ := settable! mkStandardMeta <egress_spec>.
-
 
 Record ParserState {Meta: Type} := mkParserState {
   fuel: nat;
@@ -43,12 +103,10 @@ Record ParserState {Meta: Type} := mkParserState {
   std_meta: StandardMeta
 }.
 
-
 Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
 
 Definition Error := unit.
 Definition Meta := unit.
-
 
 Definition PktParser (Result: Type) := @state_monad (@ParserState Meta) Error Result.
 
@@ -58,7 +116,6 @@ Definition set_std_meta (f: StandardMeta -> StandardMeta) : PktParser unit :=
 (* Definition skip : PktParser  *)
 
 Definition pure {R} : R -> PktParser R := state_return.
-
 Definition reject {R} : PktParser R := state_fail tt.
 
 
@@ -70,37 +127,92 @@ Definition next_bit : PktParser (option bool) :=
     pure (Some x)
   | _ => pure None
   end.
-    
-Lemma next_bit_nil : forall st, 
-  pkt st = nil <-> exists st', run_with_state st next_bit = (inl None, st').
-Proof.
-  intros.
-  split.
-  - 
-    intros. 
-    exists st.
-    cbv.
-Admitted.
-Lemma next_bit_cons : forall st, 
-  exists b bs, pkt st = b :: bs <-> exists st', run_with_state st next_bit = (inl (Some b), st').
-Admitted.
 
-Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
-  match n as n' return PktParser (option (bits n')) with
-  | 0 => pure (Some tt)
+
+Definition next_bit_post {r: option bool} (bo: option bool + Error) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  match (bo, pkt st) with 
+  | (inr _, _) => False
+  | (inl None, _) => st = st'
+  | (inl (Some _), nil) => False (* should not exist *)
+  | (inl (Some b), b' :: bits') =>
+    b = b' /\
+    fuel st = fuel st' /\
+    pkt st' = bits' /\ 
+    usr_meta st = usr_meta st' /\ 
+    std_meta st = std_meta st'
+  end.
+
+
+Lemma next_bit_spec : 
+  {{ top }} 
+    next_bit
+  {{ fun r s s' => 
+    match r with 
+    | inr _ => False
+    | inl (Some b) => 
+      match pkt s with
+      | nil => False
+      | b' :: bits => b = b' /\ s' = s <| pkt := bits |>
+      end
+    | inl None =>
+      match pkt s with
+      | nil => s = s'
+      | _ :: _ => False
+      end
+    end
+  }}.
+Proof.
+Admitted.
+  (* intros.
+  refine (hoare_consequence (
+    hoare_bind' 
+      (@hoare_get (@ParserState Meta) unit)
+      (fun st => 
+        hoare_return (Some true)
+        match pkt st with 
+        | x :: pkt' => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
+        | nil => @hoare_return (@ParserState Meta) unit (option bool) (Some true)
+        end
+      )
+  ) _ _).
+Admitted. *)
+
+Fixpoint extract_n (n: nat) : PktParser (option (Bits n)) :=
+  match n as n' return PktParser (option (Bits n')) with
+  | 0 => pure (Some (0, nil))
   | S n' => 
-    let* bits := extract_n n' in 
     let* bit := next_bit in 
+    let* bits := extract_n n' in 
     match (bit, bits) with
-    | (Some bit', Some bits') => pure (Some (bit', bits'))
+    | (Some bit', Some (w, bits')) => pure (Some (S w, bit' :: bits'))
     | _ => pure None
     end
   end.
 
+Definition extract_n_post (n: nat) (ob: option (Bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  if leb n (length (pkt st)) 
+  then exists pref suff, 
+    pref = firstn n (pkt st) /\
+    st' = st <| pkt := suff |> /\
+    pkt st = pref ++ suff /\
+    ob = Some (n, pref)
+  else exists pref,
+    pref = firstn n (pkt st) /\
+    pkt st = pref /\
+    st' = st <| pkt := nil |> /\
+    ob = None.
+
+(* Lemma extract_n_spec : 
+  forall n,
+  {{ top }}
+    extract_n n
+  {{ extract_n_post n }}.
+Admitted. *)
+
 Record IPHeader := {
-  src: option (bits 8);
-  dest: option (bits 8);
-  proto: option (bits 4)
+  src: option (Bits 8);
+  dest: option (Bits 8);
+  proto: option (Bits 4)
 }.
 
 Definition IPHeader_p : PktParser IPHeader :=
@@ -110,13 +222,52 @@ Definition IPHeader_p : PktParser IPHeader :=
     pure {| src := src ; dest := dest; proto := proto |}
   .
 
+Definition IPHeader_p_post (r: IPHeader) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
+  length (pkt st') = length (pkt st) - 20 /\
+  exists s d p, 
+  src r = Some s /\
+  dest r = Some d /\
+  proto r = Some p.
+
+
+(* Lemma IPHeader_p_forward :
+  {{ fun st => length (pkt st) >= 20 }}
+    IPHeader_p
+  {{ IPHeader_p_post }}.
+Admitted.
+  
+Lemma IPHeader_p_spec :
+  forall st, (length (pkt st) >= 20 <-> exists bits st', run_with_state st IPHeader_p = (inl bits, st')
+           /\ length (pkt st') = length (pkt st) - 20).
+Proof.
+  intros.
+  split.
+  -
+    intros.
+    pose proof IPHeader_p_forward.
+    specialize (H0 st). 
+    simpl in H0.
+    specialize (H0 H).
+    destruct (IPHeader_p st).
+    induction s.
+    -- 
+      exists a.
+      exists p.
+      unfold IPHeader_p_post in H0.
+Admitted. *)
+
+
+  
+(* Definition TCP_p_spec : Prop :=
+    forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
+           /\ length (pkt st') = length (pkt st') - 28).     
 Record TCP := {
   sport_t: option (bits 8);
   dport_t: option (bits 8);
   flags_t: option (bits 4);
   seq: option (bits 8)
-}.
-
+}. *)
+(* 
 Definition TCP_p : PktParser TCP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
@@ -233,7 +384,7 @@ Proof.
   intros pkt st Hwf Htcp.
   repeat (destruct pkt; (destruct Hwf as [_ [_ [_ [[ _ H] | [_ H]]]]]; simpl in H; inversion H)).
   - cbv.
-Admitted.
+Admitted. *)
 
 (*
 Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->

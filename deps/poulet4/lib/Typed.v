@@ -1,7 +1,8 @@
 Require Import Coq.Numbers.BinNums.
-Require P4String.
-Require P4Int.
 Require Import Coq.Classes.EquivDec.
+
+Require Poulet4.P4String.
+Require Poulet4.P4Int.
 
 Section Typed.
   Context {tags_t: Type}.

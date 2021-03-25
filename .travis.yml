@@ -29,12 +29,15 @@ install:
   EOF
   | sudo tee /etc/apt/preferences.d/ocaml.pref
 - sudo add-apt-repository "deb http://ftp.us.debian.org/debian sid main"
-- sudo apt install ocaml-nox opam dune coq
+- sudo apt install ocaml-nox opam dune coq git
 - opam init --no-setup
 - eval $(opam env)
 - opam repo add coq-released https://coq.inria.fr/opam/released
+- git clone https://github.com/tchajed/coq-record-update
+- opam install ./coq-record-update
 
 script:
+- opam update
 - make deps
 - opam install . --deps-only
 - make

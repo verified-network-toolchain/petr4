@@ -2,12 +2,12 @@ Require Import Coq.Numbers.BinNums.
 Require Import Coq.Program.Basics.
 Require Import Coq.Strings.String.
 
-Require Import Monads.Monad.
-Require Import Monads.State.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 
-Require Import Syntax.
-Require Import Environment.
-Require Import Typed.
+Require Import Poulet4.Syntax.
+Require Import Poulet4.Environment.Environment.
+Require Import Poulet4.Typed.
 
 Open Scope string_scope.
 Open Scope type_scope.
@@ -120,13 +120,6 @@ Section Unpack.
     match unwrapped with
     | ValBase (ValBaseStack hdrs size next)  => mret (hdrs, size, next)
     | _ => state_fail (TypeError "Cannot unpack value as header stack.")
-    end.
-
-  Definition unpack_lvalue (wrapped: env_monad Value) : env_monad (ValueLvalue) :=
-    let* unwrapped := wrapped in
-    match unwrapped with
-    | ValLvalue lvalue  => mret lvalue
-    | _ => state_fail (TypeError "Cannot unpack value as lvalue.")
     end.
 
   Definition unpack_set (wrapped: env_monad Value) : env_monad (ValueSet) :=

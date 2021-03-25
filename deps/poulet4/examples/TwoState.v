@@ -1,14 +1,14 @@
-Require Import Coq.Strings.String.
-Require Import Coq.ZArith.BinIntDef.
-
 Require Import Poulet4.Syntax.
 Require Import Poulet4.Eval.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Monads.State.
-Require Import Poulet4.Environment.
+Require Import Poulet4.Environment.Environment.
 Require Import Poulet4.Step.
 
 Require Import Poulet4.Examples.IntExample.
+
+Require Import Coq.Strings.String.
+Require Import Coq.ZArith.BinIntDef.
 
 Open Scope string_scope.
 Open Scope list_scope.

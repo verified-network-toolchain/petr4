@@ -1,8 +1,8 @@
 Require Import Coq.Lists.List.
+Require Import Coq.Arith.PeanoNat.
 
 Import ListNotations.
 
-Require Import Coq.Arith.PeanoNat.
 Open Scope bool_scope.
 Open Scope nat_scope.
 

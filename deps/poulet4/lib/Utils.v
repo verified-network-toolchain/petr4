@@ -6,8 +6,8 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.PArith.BinPos.
 Require Import Coq.Structures.OrderedTypeEx.
 
-Require Import Monads.Monad.
-Require Import Monads.Option.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Option.
 
 Open Scope monad.
 

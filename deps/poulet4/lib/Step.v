@@ -1,10 +1,11 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
-Require Import Syntax.
-Require Import Eval.
-Require Import Environment.
-Require Import Monads.Monad.
-Require Import Monads.State.
+
+Require Import Poulet4.Syntax.
+Require Import Poulet4.Eval.
+Require Import Poulet4.Environment.Environment.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 
 Open Scope monad.
 Open Scope string_scope.

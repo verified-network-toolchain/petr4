@@ -1,4 +1,4 @@
-Require Import Monads.Monad.
+Require Import Poulet4.Monads.Monad.
 
 Open Scope monad.
 Open Scope list_scope.
@@ -23,7 +23,7 @@ Global Instance option_monad_inst : Monad option :=
 Definition option_fail {A : Type} : @option_monad A := None.
 
 Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (base: A) : option A :=
-  match acts with 
+  match acts with
   | nil => Some base
   | None :: _ => None
   | Some x :: xs => reduce_option xs f (f x base)

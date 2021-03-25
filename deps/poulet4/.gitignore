@@ -15,4 +15,4 @@ makefile.conf
 .merlin
 extraction/lib/*.ml*
 _build
-*.install
+poulet4.install

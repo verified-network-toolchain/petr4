@@ -1,6 +1,15 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Bool.Bool.
+Require Import Coq.Classes.EquivDec.
+
+Require AList.
+
+Instance StrEqDec:EqDec string eq.
+Proof.
+  unfold EqDec.
+  apply string_dec.
+Defined.
 
 Record t (tags_t: Type) :=
   { tags: tags_t;
@@ -41,3 +50,5 @@ Proof.
   intros [s1 t1] [s2 t2]. unfold equiv, equivb; simpl.
   apply Coq.Strings.String.eqb_spec.
 Qed.
+
+Definition AList (tags_t V: Type) := AList.AList (t tags_t) V (@equiv tags_t).

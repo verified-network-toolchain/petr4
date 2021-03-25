@@ -1,7 +1,11 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
-Require Export P4light.Utiliser.
+Require Import Coq.PArith.BinPosDef.
+Require Import Coq.PArith.BinPos.
+
+Require Import Poulet4.P4cub.P4Arith.
+Require Export Poulet4.P4cub.Utiliser.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
@@ -9,13 +13,17 @@ Declare Custom Entry p4type.
 Reserved Notation "∫ ty1 ≡ ty2"
          (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
 
+Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
 Declare Custom Entry p4hdr_op.
+Declare Custom Entry p4hdr_stk_op.
 Declare Custom Entry p4expr.
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4decl.
+Declare Custom Entry p4prsrexpr.
+Declare Custom Entry p4prsrstate.
 Declare Custom Entry p4ctrldecl.
 Declare Custom Entry p4topdecl.
 
@@ -36,8 +44,7 @@ Module Field.
     Context {tags_t : Type}.
 
     (** Predicate on a field's data. *)
-    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop :=
-      fun '(_, t) => P t.
+    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop := P ∘ snd.
     (**[]*)
 
     (** Predicate over every data in fields. *)
@@ -55,17 +62,6 @@ Module Field.
     Definition relfs {U V : Type}
                (R : U -> V -> Prop) : fs tags_t U -> fs tags_t V -> Prop :=
       Forall2 (relf R).
-    (**[]*)
-
-    (** A predicate from a relation between fields. *)
-    Definition relf_pred {U V : Type}
-    {R1 : U -> V -> Prop} {R2 : U -> V -> Prop}
-    {u : f tags_t U} {v : f tags_t V}
-    (Q : forall (u' : U) (v' : V), R1 u' v' -> R2 u' v')
-    (H : relf R1 u v) :=
-      match H with
-      | conj Hname HR1 => conj Hname (Q (snd u) (snd v) HR1)
-      end.
     (**[]*)
 
     (** Filter. *)
@@ -92,6 +88,71 @@ Module Field.
       | (x',u') :: fds => if equiv_dec x x' then Some u'
                         else get x fds
       end.
+
+    Lemma relfs_get_l : forall {U V : Type} x (u : U) us vs R,
+        relfs R us vs ->
+        get x us = Some u -> exists v : V, get x vs = Some v /\ R u v.
+    Proof.
+      intros U V x u us vs R HRs.
+      generalize dependent x;
+        generalize dependent u.
+      induction HRs; intros u z Hu;
+        simpl in *; try discriminate;
+      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu. exists v'; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
+
+    Lemma relfs_get_r : forall {U V : Type} x (v : V) us vs R,
+        relfs R us vs ->
+        get x vs = Some v -> exists u : U, get x us = Some u /\ R u v.
+    Proof.
+      intros U V x v us vs R HRs.
+      generalize dependent x;
+        generalize dependent v.
+      induction HRs; intros v z Hu;
+        simpl in *; try discriminate;
+      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu. exists u'; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
+
+    Lemma get_relfs : forall {U V : Type} x (u : U) (v : V) us vs R,
+        get x us = Some u -> get x vs = Some v ->
+        relfs R us vs -> R u v.
+    Proof.
+      intros U V x u v us vs R Hu Hv HRs.
+      generalize dependent x;
+        generalize dependent v;
+        generalize dependent u.
+      induction HRs; intros u v z Hu Hv;
+        simpl in *; try discriminate.
+      destruct x as [xu u']; destruct y as [xv v']; simpl in *.
+      inv H; simpl in *.
+      destruct (equiv_dec z xu) as [Hzu | Hzu];
+        destruct (equiv_dec z xv) as [Hzv | Hzv];
+        unfold equiv, complement in *; eauto.
+      - inv Hu; inv Hv; auto.
+      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+        contradiction.
+      - symmetry in H0.
+        assert (P4String.equiv z xu) by (etransitivity; eauto).
+        contradiction.
+    Qed.
 
     (** Member update. *)
     Fixpoint update {U : Type} (x : string tags_t) (u : U)
@@ -137,8 +198,8 @@ Module Field.
   End FieldTactics.
 End Field.
 
-(** * P4light AST *)
-Module P4light.
+(** * P4cub AST *)
+Module P4cub.
   Module F := Field.
 
   (** Function call parameters/arguments. *)
@@ -201,6 +262,7 @@ Module P4light.
       | TInt (width : positive)          (* signed integers *)
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
+      | TTuple (types : list t)          (* tuple type *)
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *)
       | THeaderStack (fields : F.fs tags_t t)
@@ -212,6 +274,23 @@ Module P4light.
 
       (** Function types. *)
       Definition arrowT : Type := arrow tags_t t t t.
+
+      (** Constructor Types. *)
+      Inductive ct : Type :=
+      | CTType (type : t)                   (* expression types *)
+      | CTControl (cparams : F.fs tags_t ct)
+                  (parameters : params)     (* control types *)
+      | CTParser (cparams : F.fs tags_t ct)
+                 (parameters : params)      (* parser types *)
+      | CTExtern (cparams : F.fs tags_t ct)
+                 (methods : F.fs tags_t arrowT) (* extern types *)
+      (* | CTName (x : name tags_t)            (* constructor type name *)
+         | CTLambda (lambda : t -> ct)          (* parametric types *)
+         | CTApplication (polymorph : ct)
+                      (type_arg : t)        (* type specialization *)*).
+      (**[]*)
+
+      Definition constructor_params : Type := F.fs tags_t ct.
     End P4Types.
 
     Arguments TBool {_}.
@@ -219,9 +298,14 @@ Module P4light.
     Arguments TInt {_}.
     Arguments TError {_}.
     Arguments TMatchKind {_}.
+    Arguments TTuple {_}.
     Arguments TRecord {_}.
     Arguments THeader {_}.
     Arguments THeaderStack {_}.
+    Arguments CTType {_}.
+    Arguments CTControl {_}.
+    Arguments CTParser {_}.
+    Arguments CTExtern {_}.
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -239,6 +323,8 @@ Module P4light.
                                   no associativity).
       Notation "'matchkind'"
         := TMatchKind (in custom p4type at level 0, no associativity).
+      Notation "'tuple' ts"
+               := (TTuple ts) (in custom p4type at level 0, no associativity).
       Notation "'rec' { fields }"
         := (TRecord fields)
             (in custom p4type at level 6, no associativity).
@@ -247,6 +333,23 @@ Module P4light.
             (in custom p4type at level 6, no associativity).
       Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
+
+      Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
+      Notation "( x )" := x (in custom p4constructortype, x at level 99).
+      Notation "x" := x (in custom p4constructortype at level 0, x constr at level 0).
+      Notation "'Type' τ"
+        := (CTType τ)
+             (in custom p4constructortype at level 0,
+                 τ custom p4type).
+      Notation "'ControlType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'ParserType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'Extern' cps { mthds }"
+               := (CTExtern cps mthds)
+                    (in custom p4constructortype at level 0).
     End TypeNotations.
 
     (** Custom induction principle for [t]. *)
@@ -268,6 +371,9 @@ Module P4light.
 
       Hypothesis HTMatchKind : P {{ matchkind }}.
 
+      Hypothesis HTTuple : forall ts,
+          Forall P ts -> P {{ tuple ts }}.
+
       Hypothesis HTRecord : forall fields,
           F.predfs_data P fields -> P {{ rec { fields } }}.
 
@@ -281,6 +387,12 @@ Module P4light.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t tags_t, P ty :=
         fix custom_t_ind (type : t tags_t) : P type :=
+          let fix list_ind (ts : list (t tags_t)) :
+                Forall P ts :=
+              match ts with
+              | [] => Forall_nil _
+              | h :: ts => Forall_cons _ (custom_t_ind h) (list_ind ts)
+              end in
           let fix fields_ind
                   (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
@@ -294,6 +406,7 @@ Module P4light.
           | {{ int<w> }} => HTInt w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
+          | {{ tuple ts }}  => HTTuple ts (list_ind ts)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
@@ -303,94 +416,144 @@ Module P4light.
 
     Module TypeEquivalence.
       Import Field.FieldTactics.
+      Import TypeNotations.
+
+      (** Equality of types. *)
+      Inductive equivt {tags_t : Type} : t tags_t -> t tags_t -> Prop :=
+      | equivt_bool : ∫ Bool ≡ Bool
+      | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
+      | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
+      | equivt_error : ∫ error ≡ error
+      | equivt_matchkind : ∫ matchkind ≡ matchkind
+      | equivt_tuple (ts1 ts2 : list (t tags_t)) :
+          Forall2 equivt ts1 ts2 ->
+          ∫ tuple ts1 ≡ tuple ts2
+      | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ rec { fs1 } ≡ rec { fs2 }
+      | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ hdr { fs1 } ≡ hdr { fs2 }
+      | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
+          F.relfs equivt fs1 fs2 ->
+          ∫ stack fs1[n] ≡ stack fs2[n]
+      where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
+      (**[]*)
+
+      (** A custom induction principle for type equivalence. *)
+      Section TypeEquivInduction.
+        Variable (tags_t : Type).
+
+        (** An arbitrary predicate. *)
+        Variable P : t tags_t -> t tags_t -> Prop.
+
+        Hypothesis HBool : P {{ Bool }} {{ Bool }}.
+
+        Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
+
+        Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
+
+        Hypothesis HError : P {{ error }} {{ error }}.
+
+        Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
+
+        Hypothesis HTuple : forall ts1 ts2,
+            Forall2 equivt ts1 ts2 ->
+            Forall2 P ts1 ts2 ->
+            P {{ tuple ts1 }} {{ tuple ts2 }}.
+
+        Hypothesis HRecord : forall fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ rec { fs1 } }} {{ rec { fs2 } }}.
+
+        Hypothesis HHeader : forall fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
+
+        Hypothesis HStack : forall n fs1 fs2,
+            F.relfs equivt fs1 fs2 ->
+            F.relfs P fs1 fs2 ->
+            P {{ stack fs1[n] }} {{ stack fs2[n] }}.
+
+        (** A custom induction principle for type equivalence.
+            Do [induction ?H using custom_equivt_ind]. *)
+        Definition custom_equivt_ind :
+          forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
+          fix cind t1 t2 H :=
+            let fix lind {ts1 ts2 : list (t tags_t)}
+                    (HR : Forall2 equivt ts1 ts2) : Forall2 P ts1 ts2 :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _
+                               HE HTail => Forall2_cons
+                                            _ _
+                                            (cind _ _ HE)
+                                            (lind HTail)
+                end in
+            let fix find
+                    {ts1 ts2 : F.fs tags_t (t tags_t)}
+                    (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
+                match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
+                | Forall2_nil _ => Forall2_nil (F.relf P)
+                | Forall2_cons t1 t2
+                               (conj HName Hequivt)
+                               Htail => Forall2_cons
+                                         t1 t2
+                                         (conj
+                                            HName
+                                            (cind _ _ Hequivt))
+                                         (find Htail)
+                end in
+                    match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
+                    | equivt_bool => HBool
+                    | equivt_bit w => HBit w
+                    | equivt_int w => HInt w
+                    | equivt_error => HError
+                    | equivt_matchkind => HMatchkind
+                    | equivt_tuple _ _ Hequiv => HTuple _ _ Hequiv (lind Hequiv)
+                    | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
+                    | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
+                    | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
+                    end.
+                (**[]*)
+      End TypeEquivInduction.
 
       Section TypeEquivalence.
         Context {tags_t : Type}.
 
-        Import TypeNotations.
-
-        (** Equality of types. *)
-        Inductive equivt : t tags_t -> t tags_t -> Prop :=
-        | equivt_bool : ∫ Bool ≡ Bool
-        | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
-        | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
-        | equivt_error : ∫ error ≡ error
-        | equivt_matchkind : ∫ matchkind ≡ matchkind
-        | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ rec { fs1 } ≡ rec { fs2 }
-        | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ hdr { fs1 } ≡ hdr { fs2 }
-        | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
-            F.relfs equivt fs1 fs2 ->
-            ∫ stack fs1[n] ≡ stack fs2[n]
-        where "∫ t1 ≡ t2" := (equivt t1 t2).
+        (** Decidable equality. *)
+        Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
+          let fix lrec (ts1 ts2 : list (t tags_t)) : bool :=
+              match ts1, ts2 with
+              | [], [] => true
+              | t1::ts1, t2::ts2 => eqbt t1 t2 && lrec ts1 ts2
+              | [], _::_ | _::_, [] => false
+              end in
+          let fix frec (ts1 ts2 : F.fs tags_t (t tags_t)) : bool :=
+              match ts1, ts2 with
+              | [], [] => true
+              | (x1,t1)::ts1, (x2,t2)::ts2 => if P4String.equivb x1 x2 then
+                                             eqbt t1 t2 && frec ts1 ts2
+                                           else false
+              | [], _::_ | _::_, [] => false
+              end in
+          match τ1, τ2 with
+          | {{ Bool }}, {{ Bool }}
+          | {{ error }}, {{ error }}
+          | {{ matchkind }}, {{ matchkind }} => true
+          | {{ bit<w1> }}, {{ bit<w2> }}
+          | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
+          | {{ tuple ts1 }}, {{ tuple ts2 }} => lrec ts1 ts2
+          | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
+          | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
+          | {{ stack ts1[n1] }}, {{ stack ts2[n2] }} => (n1 =? n2)%positive && frec ts1 ts2
+          | _, _ => false
+          end.
         (**[]*)
 
-        (** A custom induction principle for type equivalence. *)
-        Section TypeEquivInduction.
-          (** An arbitrary predicate. *)
-          Variable P : t tags_t -> t tags_t -> Prop.
-
-          Hypothesis HBool : P {{ Bool }} {{ Bool }}.
-
-          Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
-
-          Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
-
-          Hypothesis HError : P {{ error }} {{ error }}.
-
-          Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
-
-          Hypothesis HRecord : forall fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ rec { fs1 } }} {{ rec { fs2 } }}.
-
-          Hypothesis HHeader : forall fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
-
-          Hypothesis HStack : forall n fs1 fs2,
-              F.relfs equivt fs1 fs2 ->
-              F.relfs P fs1 fs2 ->
-              P {{ stack fs1[n] }} {{ stack fs2[n] }}.
-
-          (** A custom induction principle for type equivalence.
-              Do [induction ?H using custom_equivt_ind]. *)
-          Definition custom_equivt_ind :
-            forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
-            fix cind t1 t2 H :=
-              let fix find
-                      {ts1 ts2 : F.fs tags_t (t tags_t)}
-                      (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
-                  match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
-                  | Forall2_nil _ => Forall2_nil (F.relf P)
-                  | Forall2_cons t1 t2
-                                 (conj HName Hequivt)
-                                 Htail => Forall2_cons
-                                           t1 t2
-                                           (conj
-                                              HName
-                                              (cind _ _ Hequivt))
-                                           (find Htail)
-                  end in
-                      match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
-                      | equivt_bool => HBool
-                      | equivt_bit w => HBit w
-                      | equivt_int w => HInt w
-                      | equivt_error => HError
-                      | equivt_matchkind => HMatchkind
-                      | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
-                      | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
-                      | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
-                      end.
-                  (**[]*)
-        End TypeEquivInduction.
-
-        Lemma equivt_reflexive : Reflexive equivt.
+        Lemma equivt_reflexive : Reflexive (@equivt tags_t).
         Proof.
           intros ty;
             induction ty using custom_t_ind; constructor;
@@ -399,20 +562,22 @@ Module P4light.
                    split; auto; try reflexivity).
         Qed.
 
-        Lemma equivt_symmetric : Symmetric equivt.
+        Lemma equivt_symmetric : Symmetric (@equivt tags_t).
         Proof.
-          unfold Symmetric; intros t1 t2 H;
-            induction H using custom_equivt_ind;
+          unfold Symmetric;
+            (* apply custom_equivt_ind; intros; *)
+            intros t1 t2 H; induction H using custom_equivt_ind;
             constructor; auto;
-              try (induction H; inversion H0; subst; repeat constructor; auto;
+              try (induction H; inv H0; repeat constructor; auto;
                    destruct x as [x1 t1]; destruct y as [x2 t2];
                    repeat match goal with
                           | H: F.relf _ _ _ |- _ => inversion H; subst; clear H
                           end; simpl in *; auto;
-                   [ symmetry | apply IHForall2 ]; auto).
+                   [ symmetry | apply IHForall2 ]; auto);
+          try (induction H; inv H0; repeat constructor; auto).
         Qed.
 
-        Lemma equivt_transitive : Transitive equivt.
+        Lemma equivt_transitive : Transitive (@equivt tags_t).
         Proof.
           intros x; induction x using custom_t_ind;
             intros [] [] Hxy Hyz; auto;
@@ -427,54 +592,152 @@ Module P4light.
                      [ unfold F.relf in *; simpl in *;
                        destruct H3; destruct H9; split; eauto;
                        transitivity x2; assumption
-                     | eapply IHfs1; eauto]).
+                     | eapply IHfs1; eauto]);
+                try (rename ts into ts1; rename types into ts2;
+                     rename types0 into ts3; constructor;
+                     generalize dependent ts3; generalize dependent ts2;
+                     induction ts1 as [| t1 ts1 IHts1];
+                       intros [| t2 ts2] H12 [| t3 ts3] H23;
+                       inv H; inv H12; inv H23; constructor; eauto).
         Qed.
 
-        Instance TypeEquivalence : Equivalence equivt.
+        Instance TypeEquivalence : Equivalence (@equivt tags_t).
         Proof.
           constructor; [ apply equivt_reflexive
                        | apply equivt_symmetric
                        | apply equivt_transitive].
         Defined.
 
-        Lemma equivt_dec : forall (t1 t2 : t tags_t),
-            equivt t1 t2 \/ ~ equivt t1 t2.
+        Lemma equivt_eqbt : forall t1 t2, equivt t1 t2 -> eqbt t1 t2 = true.
         Proof.
-          induction t1 using custom_t_ind; intros [];
-            try (left; apply equivt_reflexive);
-            try (right; intros HR; inversion HR; assumption);
-            try (destruct (equiv_dec w width) as [Hwidth | Hwidth];
-                 unfold equiv in *; unfold complement in *; subst;
-                 try (right; intros H'; inversion H'; contradiction);
-                 try (left; reflexivity));
-            try (destruct (equiv_dec size size0) as [Hsize | Hsize];
-                 unfold equiv in *; unfold complement in *; subst;
-                 try (right; intros H'; inversion H'; contradiction));
+          intros t1 t2 H; induction H using custom_equivt_ind;
+            simpl in *; try rewrite Pos.eqb_refl; auto;
+              rename H0 into HR;
+              try (induction H; inv HR; auto;
+                   destruct x as [x1 t1]; destruct y as [x2 t2];
+                     simpl in *; repeat invert_relf; simpl in *;
+                       pose proof P4String.equiv_reflect x1 x2 as Hx;
+                       inv Hx; try contradiction; rewrite H2; auto);
+              try (induction H; inv HR; auto;
+                   rewrite IHForall2; try rewrite H4; auto).
+          Qed.
+
+        Lemma eqbt_equivt : forall t1 t2, eqbt t1 t2 = true -> equivt t1 t2.
+        Proof.
+          induction t1 using custom_t_ind; intros [] Heqbt; simpl in *;
+            try apply andb_true_iff in Heqbt as [Hpos Heqbt];
+            try discriminate;
+            try match goal with
+                | H: (_ =? _)%positive = true |- _ => apply Peqb_true_eq in H; subst
+                end;
+            constructor;
             try (rename fields into fs1; rename fields0 into fs2;
                  generalize dependent fs2;
-                 induction fs1 as [| [x1 t1] fs1 IHfs1];
-                 intros [| [x2 t2] fs2];
-                 try (left; reflexivity);
-                 try (right; intros H';
-                      inversion H'; try invert_nil_cons_relate; assumption); subst;
-                 inversion H; clear H; subst; unfold F.predf_data in *;
-                 pose proof IHfs1 H3 fs2 as IH; clear IHfs1 H3;
-                 destruct (equiv_dec x1 x2) as [H12 | H12];
-                 unfold equiv in *; unfold complement in *;
-                 destruct (H2 t2) as [HT | HT]; clear H2;
-                 destruct IH as [IH | IH];
-                 try (right; intros H'; inversion H';
-                      clear H'; subst; invert_cons_cons_relate;
-                      subst; unfold F.relf in *;
-                      simpl in *; destruct H3; contradiction);
-                 [ left; constructor; inversion IH; subst;
-                   constructor; auto; unfold F.relf; split; auto
-                 | right; intros H'; inversion H'; subst;
-                   clear H'; invert_cons_cons_relate; subst; apply IH;
-                   constructor; auto ]).
+                   induction fs1 as [| [x1 t1] fs1 IHfs1];
+                   intros [| [x2 t2] fs2] IH; inv H; simpl in *;
+                     try discriminate; constructor;
+                       destruct (P4String.equivb x1 x2) eqn:Hx;
+                       destruct (eqbt t1 t2) eqn:Heqbt;
+                       try discriminate; simpl in *;
+                         [ split; simpl; auto;
+                           pose proof P4String.equiv_reflect x1 x2 as Hx';
+                           inv Hx'; try contradiction; auto;
+                           rewrite Hx in H; discriminate
+                         | apply IHfs1; auto ]).
+          try (rename ts into ts1; rename types into ts2;
+               generalize dependent ts2;
+               induction ts1 as [| t1 ts1 IHts1];
+                 intros [| t2 ts2] IH; inv H; try discriminate; constructor;
+                   apply andb_prop in IH as [Hhd Htl]; auto).
+        Qed.
+
+        Lemma equivt_eqbt_iff : forall t1 t2 : t tags_t, equivt t1 t2 <-> eqbt t1 t2 = true.
+        Proof.
+          intros t1 t2; split; [apply equivt_eqbt | apply eqbt_equivt].
+        Qed.
+
+        Lemma equivt_reflect : forall t1 t2, reflect (equivt t1 t2) (eqbt t1 t2).
+        Proof.
+          intros t1 t2.
+          destruct (eqbt t1 t2) eqn:Heqbt; constructor.
+          - apply eqbt_equivt; assumption.
+          - intros H. apply equivt_eqbt in H.
+            rewrite H in Heqbt. discriminate.
+        Qed.
+
+        Lemma equivt_dec : forall t1 t2 : t tags_t,
+            equivt t1 t2 \/ ~ equivt t1 t2.
+        Proof.
+          intros t1 t2. pose proof equivt_reflect t1 t2 as H.
+          inversion H; subst; auto.
         Qed.
       End TypeEquivalence.
     End TypeEquivalence.
+
+    (** Restrictions on type-nesting. *)
+    Module ProperType.
+      Import TypeNotations.
+      Import TypeEquivalence.
+
+      Section ProperTypeNesting.
+        Context {tags_t : Type}.
+
+        (** Evidence a type is a base type. *)
+        Inductive base_type : t tags_t -> Prop :=
+        | base_bool : base_type {{ Bool }}
+        | base_bit (w : positive) : base_type {{ bit<w> }}
+        | base_int (w : positive) : base_type {{ int<w> }}.
+
+        (** Allowed types within headers. *)
+        Inductive proper_inside_header : t tags_t -> Prop :=
+        | pih_bool (τ : t tags_t) :
+            base_type τ ->
+            proper_inside_header τ
+        | pih_record (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data base_type ts ->
+            proper_inside_header {{ rec { ts } }}.
+
+        (** Properly nested type. *)
+        Inductive proper_nesting : t tags_t -> Prop :=
+        | pn_base (τ : t tags_t) :
+            base_type τ -> proper_nesting τ
+        | pn_error : proper_nesting {{ error }}
+        | pn_matchkind : proper_nesting {{ matchkind }}
+        | pn_record (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+            proper_nesting {{ rec { ts } }}
+        | pn_tuple (ts : list (t tags_t)) :
+            Forall
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+            proper_nesting {{ tuple ts }}
+        | pn_header (ts : F.fs tags_t (t tags_t)) :
+            F.predfs_data proper_inside_header ts ->
+            proper_nesting {{ hdr { ts } }}
+        | pn_header_stack (ts : F.fs tags_t (t tags_t))
+                          (n : positive) :
+            BitArith.bound 32%positive (Npos n) ->
+            F.predfs_data proper_inside_header ts ->
+            proper_nesting {{ stack ts[n] }}.
+
+        Import F.FieldTactics.
+
+        Lemma proper_inside_header_nesting : forall τ : t tags_t,
+            proper_inside_header τ ->
+            proper_nesting τ.
+        Proof.
+          intros τ H. induction H.
+          - inv H; repeat econstructor.
+          - apply pn_record.
+            induction H; constructor; auto.
+            destruct x as [x τ]; invert_predf;
+              split; simpl in *; subst; repeat econstructor;
+                try match goal with
+                    | |- ~ ∫ _ ≡ matchkind => intros H'; inv H'
+                    end.
+        Qed.
+      End ProperTypeNesting.
+    End ProperType.
 
     Inductive uop : Set :=
     | Not    (* boolean negation *)
@@ -571,21 +834,40 @@ Module P4light.
       Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
     End HeaderOpNotations.
 
+    (** Header Stack Operations.. *)
+    Inductive hdr_stk_op : Set :=
+    | HSONext         (* get element at [nextIndex] *)
+    | HSOSize         (* get the size *)
+    | HSOPush (n : N) (* "push_front," shift stack right by [n] *)
+    | HSOPop  (n : N) (* "push_front," shift stack left by [n] *).
+
+    Module HeaderStackOpNotations.
+      Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
+      Notation "'Next'" := HSONext (in custom p4hdr_stk_op at level 0).
+      Notation "'Size'" := HSOSize (in custom p4hdr_stk_op at level 0).
+      Notation "'Push' n"
+        := (HSOPush n) (in custom p4hdr_stk_op at level 0).
+      Notation "'Pop' n"
+        := (HSOPop n) (in custom p4hdr_stk_op at level 0).
+    End HeaderStackOpNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
       (** Expressions annotated with types,
           unless the type is obvious. *)
       Inductive e : Type :=
-      | EBool (b : bool) (i : tags_t)                      (* booleans *)
-      | EBit (width : positive) (val : N) (i : tags_t)  (* unsigned integers *)
-      | EInt (width : positive) (val : Z) (i : tags_t)  (* signed integers *)
+      | EBool (b : bool) (i : tags_t)                     (* booleans *)
+      | EBit (width : positive) (val : N) (i : tags_t) (* unsigned integers *)
+      | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t tags_t) (x : name tags_t)
-             (i : tags_t)                               (* variables *)
+             (i : tags_t)                              (* variables *)
+      | ECast (type : t tags_t) (arg : e) (i : tags_t) (* explicit casts *)
       | EUop (op : uop) (type : t tags_t)
-             (arg : e) (i : tags_t)                     (* unary operations *)
+             (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t tags_t)
-             (lhs rhs : e) (i : tags_t)                 (* binary operations *)
+             (lhs rhs : e) (i : tags_t)                (* binary operations *)
+      | ETuple (es : list e) (i : tags_t)              (* tuples *)
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs tags_t (t tags_t * e))
@@ -603,7 +885,9 @@ Module P4light.
                      (next_index : N)                  (* header stack literals,
                                                           unique to p4light *)
       | EHeaderStackAccess (stack : e) (index : N)
-                           (i : tags_t)                (* header stack indexing *).
+                           (i : tags_t)                (* header stack indexing *)
+      | EHeaderStackOp (stack : e) (op : hdr_stk_op)
+                       (i : tags_t)                    (* header stack builtin *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -615,14 +899,24 @@ Module P4light.
       Definition arrowE : Type :=
         arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
       (**[]*)
+
+      (** Constructor arguments. *)
+      Inductive constructor_arg : Type :=
+      | CAExpr (expr : e) (* plain expression *)
+      | CAName (x : name tags_t) (* name of parser, control, etc *).
+      (**[]*)
+
+      Definition constructor_args : Type := F.fs tags_t constructor_arg.
     End Expressions.
 
     Arguments EBool {tags_t}.
     Arguments EBit {_}.
     Arguments EInt {_}.
     Arguments EVar {tags_t}.
+    Arguments ECast {_}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
+    Arguments ETuple {_}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
     Arguments EHeaderOp {_}.
@@ -631,24 +925,25 @@ Module P4light.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
+    Arguments EHeaderStackOp {_}.
+    Arguments CAExpr {_}.
+    Arguments CAName {_}.
 
     Module ExprNotations.
-      Export UopNotations.
-      Export BopNotations.
-      Export MatchkindNotations.
-      Export HeaderOpNotations.
-      Export TypeNotations.
-
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
       Notation "( x )" := x (in custom p4expr, x at level 99).
       Notation "x" := x (in custom p4expr at level 0, x constr at level 0).
-      Notation "'True' @ i" := (EBool true i) (in custom p4expr at level 0).
-      Notation "'False' @ i" := (EBool false i) (in custom p4expr at level 0).
+      Notation "'TRUE' @ i" := (EBool true i) (in custom p4expr at level 0).
+      Notation "'FALSE' @ i" := (EBool false i) (in custom p4expr at level 0).
       Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
       Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x : ty @ i" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
+      Notation "'Cast' e : τ @ i"
+        := (ECast τ e i)
+             (in custom p4expr at level 10, τ custom p4type,
+                 e custom p4expr, right associativity).
       Notation "'UOP' op x : ty @ i"
                := (EUop op ty x i)
                     (in custom p4expr at level 2,
@@ -660,6 +955,9 @@ Module P4light.
                         x custom p4expr, tx custom p4type,
                         y custom p4expr, ty custom p4type,
                         op custom p4bop, left associativity).
+      Notation "'tup' es @ i"
+               := (ETuple es i)
+                    (in custom p4expr at level 0).
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
@@ -667,7 +965,7 @@ Module P4light.
         := (EHeader fields b i)
             (in custom p4expr at level 6,
                 b custom p4expr, no associativity).
-      Notation "'H' op exp @ i"
+      Notation "'HDR_OP' op exp @ i"
                := (EHeaderOp op exp i)
                     (in custom p4expr at level 5, exp custom p4expr,
                         op custom p4hdr_op, no associativity).
@@ -686,11 +984,21 @@ Module P4light.
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
+      Notation "'STK_OP' op exp @ i"
+               := (EHeaderStackOp exp op i)
+                    (in custom p4expr at level 5, exp custom p4expr,
+                        op custom p4hdr_stk_op, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
     Section ExprInduction.
+      Import TypeNotations.
+      Import UopNotations.
       Import ExprNotations.
+      Import BopNotations.
+      Import MatchkindNotations.
+      Import HeaderOpNotations.
+      Import HeaderStackOpNotations.
 
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
@@ -706,11 +1014,17 @@ Module P4light.
       Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
           P <{ Var x : ty @ i }>.
 
+      Hypothesis HECast : forall τ exp i,
+          P exp -> P <{ Cast exp:τ @ i }>.
+
       Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ UOP op ex : ty @ i }>.
 
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
+
+      Hypothesis HETuple : forall es i,
+          Forall P es -> P <{ tup es @ i }>.
 
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
@@ -719,7 +1033,7 @@ Module P4light.
           F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} valid:=b @ i }>.
 
       Hypothesis HEHeaderOp : forall op exp i,
-          P exp -> P <{ H op exp @ i }>.
+          P exp -> P <{ HDR_OP op exp @ i }>.
 
       Hypothesis HEExprMember : forall (x : string tags_t)
                                   (ty : t tags_t) (ex : e tags_t) i,
@@ -735,6 +1049,9 @@ Module P4light.
 
       Hypothesis HAccess : forall e1 e2 i,
           P e1 -> P <{ Access e1[e2] @ i }>.
+
+      Hypothesis HEHeaderStackOp : forall op exp i,
+          P exp -> P <{ STK_OP op exp @ i }>.
 
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
@@ -758,19 +1075,22 @@ Module P4light.
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x:ty @ i }> => HEVar ty x i
+          | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
           | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i
                     (eind lhs) (eind rhs)
+          | <{ tup es @ i }>         => HETuple es i (list_ind es)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
-          | <{ H op exp @ i }> => HEHeaderOp op exp i (eind exp)
+          | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
           | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (eind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
           | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
+          | <{ STK_OP op exp @ i }> => HEHeaderStackOp op exp i (eind exp)
           end.
       (**[]*)
     End ExprInduction.
@@ -796,6 +1116,9 @@ Module P4light.
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
                                                            an alternative to blocks *)
+      | SExternMethodCall (e : name tags_t) (f : string tags_t)
+                          (args : E.arrowE tags_t)
+                          (i : tags_t)                  (* extern method calls *)
       | SFunCall (f : name tags_t)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
       | SActCall (f : name tags_t)
@@ -819,6 +1142,7 @@ Module P4light.
     Arguments SSeq {tags_t}.
     Arguments SFunCall {_}.
     Arguments SActCall {_}.
+    Arguments SExternMethodCall {_}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
@@ -826,8 +1150,6 @@ Module P4light.
     Arguments SInvoke {_}.
 
     Module StmtNotations.
-      Export E.ExprNotations.
-
       Notation "'-{' stmt '}-'" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"
@@ -856,10 +1178,13 @@ Module P4light.
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SFunCall f (Arrow args (Some (t,e))) i)
-                    (in custom p4stmt at level 30,
+                    (in custom p4stmt at level 0,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'calling' a 'with' args @ i"
-               := (SActCall a args i) (in custom p4stmt at level 3).
+               := (SActCall a args i) (in custom p4stmt at level 0).
+      Notation "'extern' e 'calls' f 'with' args 'gives' x @ i"
+               := (SExternMethodCall e f (Arrow args x) i)
+                    (in custom p4stmt at level 0, no associativity).
       Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,
@@ -893,9 +1218,11 @@ Module P4light.
       | DVarinit (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
       | DInstantiate (C : name tags_t) (x : string tags_t)
-                     (args : F.fs tags_t (E.t tags_t * E.e tags_t))
+                     (* (targs : list (E.t tags_t)) *)
+                     (cargs : E.constructor_args tags_t)
                      (i : tags_t)                  (* constructor [C]
-                                                      with [args] makes [x] *)
+                                                      with constructor [args]
+                                                      makes instance [x]. *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
     End Declarations.
@@ -906,8 +1233,6 @@ Module P4light.
     Arguments DSeq {tags_t}.
 
     Module DeclNotations.
-      Export S.StmtNotations.
-
       Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
       Notation "( x )" := x (in custom p4decl, x at level 99).
       Notation "x"
@@ -926,6 +1251,104 @@ Module P4light.
                         right associativity).
     End DeclNotations.
   End Decl.
+
+  (** * Parsers *)
+  Module Parser.
+    Module E := Expr.
+    Module S := Stmt.
+
+    Module ParserState.
+      Section Parsers.
+        Variable (tags_t : Type).
+
+        (** Parser expressions, which evaluate to state names *)
+        Inductive e : Type :=
+        | PAccept (i : tags_t)        (* accept the packet *)
+        | PReject (i : tags_t)        (* reject the packet. *)
+        | PState (st : string tags_t)
+                 (i : tags_t)         (* user-defined state name. *)
+        | PSelect (exp : E.e tags_t)
+                  (cases : list (option (E.e tags_t) * e))
+                  (i : tags_t)        (* select expressions,
+                                         where an optional represents
+                                         the possibility of a "dontcare". *).
+        (**[]*)
+
+        (** Parser States. *)
+        Inductive state : Type :=
+        | State (stmt : S.s tags_t) (transition : e).
+        (**[]*)
+      End Parsers.
+
+      Arguments PAccept {_}.
+      Arguments PReject {_}.
+      Arguments PState {_}.
+      Arguments PSelect {_}.
+      Arguments State {_}.
+
+      Module ParserNotations.
+        Notation "'p{' exp '}p'" := exp (exp custom p4prsrexpr at level 99).
+        Notation "( x )" := x (in custom p4prsrexpr, x at level 99).
+        Notation "x"
+          := x (in custom p4prsrexpr at level 0, x constr at level 0).
+        Notation "'accept' @ i" := (PAccept i) (in custom p4prsrexpr at level 0).
+        Notation "'reject' @ i" := (PReject i) (in custom p4prsrexpr at level 0).
+        Notation "'goto' st @ i"
+                 := (PState st i) (in custom p4prsrexpr at level 0).
+        Notation "'select' exp { cases } @ i"
+                 := (PSelect exp cases i)
+                      (in custom p4prsrexpr at level 10,
+                          exp custom p4expr).
+        Notation "'&{' st '}&'" := st (st custom p4prsrstate at level 99).
+        Notation "'state' { s } 'transition' pe"
+                 := (State s pe)
+                      (in custom p4prsrstate at level 0,
+                          s custom p4stmt, pe custom p4prsrexpr).
+      End ParserNotations.
+
+      (** A custom induction principle
+          for parser expressions. *)
+      Section ParserExpreInduction.
+        Import ParserNotations.
+        Import E.ExprNotations.
+
+        Context {tags_t : Type}.
+
+        (** An arbitrary predicate. *)
+        Variable P : e tags_t -> Prop.
+
+        Hypothesis HAccept : forall i, P p{ accept @ i }p.
+
+        Hypothesis HReject : forall i, P p{ reject @ i }p.
+
+        Hypothesis HState : forall st i, P p{ goto st @ i }p.
+
+        Hypothesis HSelect : forall exp cases i,
+            Forall (P ∘ snd) cases ->
+            P p{ select exp { cases } @ i }p.
+        (**[]*)
+
+        (** A custom induction principle,
+            do [induction ?H using pe_ind] *)
+        Definition pe_ind : forall pe : e tags_t, P pe :=
+          fix peind pe : P pe :=
+            let fix lind {A : Type} (es : list (A * e tags_t))
+                : Forall (P ∘ snd) es :=
+                match es with
+                | [] => Forall_nil _
+                | (_,pe) as oe :: es =>
+                  Forall_cons oe (peind pe) (lind es)
+                end in
+            match pe with
+            | p{ accept @ i }p => HAccept i
+            | p{ reject @ i }p => HReject i
+            | p{ goto st @ i }p => HState st i
+            | p{ select exp { cases } @ i }p => HSelect exp _ i (lind cases)
+            end.
+        (**[]*)
+      End ParserExpreInduction.
+    End ParserState.
+  End Parser.
 
   (** * Controls *)
   Module Control.
@@ -963,8 +1386,6 @@ Module P4light.
       Arguments CDSeq {_}.
 
       Module ControlDeclNotations.
-        Export D.DeclNotations.
-
         Notation "'c{' decl '}c'" := decl (decl custom p4ctrldecl at level 99).
         Notation "( x )" := x (in custom p4ctrldecl, x at level 99).
         Notation "x"
@@ -993,6 +1414,7 @@ Module P4light.
     Module S := Stmt.
     Module D := Decl.
     Module C := Control.ControlDecl.
+    Module P := Parser.ParserState.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
@@ -1000,15 +1422,22 @@ Module P4light.
       (** Top-level declarations. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | TPDecl (d : D.d tags_t) (i : tags_t)
+      | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
+      (* | TPTypeDecl (x : string tags_t) (ct : E.ct tags_t)
+                   (i : tags_t)(* type declaration *) *)
+      | TPExtern (e : string tags_t)
+                 (cparams : E.constructor_params tags_t)
+                 (methods : F.fs tags_t (E.arrowT tags_t))
+                 (i : tags_t) (* extern declarations *)
       | TPControl (c : string tags_t)
-                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                  (cparams : E.constructor_params tags_t) (* constructor params *)
                   (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string tags_t)
-                 (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
-                 (params : E.params tags_t) (* invocation params *)
-                 (i : tags_t) (* TODO! *)
+                 (cparams : E.constructor_params tags_t) (* constructor params *)
+                 (params : E.params tags_t)           (* invocation params *)
+                 (states : F.fs tags_t (P.state tags_t)) (* parser states *)
+                 (i : tags_t) (* TODO: start state? *)
       | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
                    (body : S.s tags_t) (i : tags_t)
                    (* function/method declaration *)
@@ -1017,14 +1446,14 @@ Module P4light.
     End TopDeclarations.
 
     Arguments TPDecl {_}.
+    (* Arguments TPTypeDecl {_}. *)
+    Arguments TPExtern {_}.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
     Arguments TPFunction {_}.
     Arguments TPSeq {_}.
 
     Module TopDeclNotations.
-      Export C.ControlDeclNotations.
-
       Notation "'%{' decl '}%'" := decl (decl custom p4topdecl at level 99).
       Notation "( x )" := x (in custom p4topdecl, x at level 99).
       Notation "x"
@@ -1037,6 +1466,10 @@ Module P4light.
       Notation "'DECL' d @ i"
         := (TPDecl d i)
              (in custom p4topdecl at level 0, d custom p4decl).
+      (* Notation "'TYPE' x t @ i"
+               := (TPTypeDecl x t i)
+                    (in custom p4topdecl at level 0,
+                        t custom p4constructortype). *)
       Notation "'void' f ( params ) { body } @ i"
                := (TPFunction f (Arrow params None) body i)
                     (in custom p4topdecl at level 0, body custom p4stmt).
@@ -1044,10 +1477,31 @@ Module P4light.
                := (TPFunction f (Arrow params (Some t)) body i)
                     (in custom p4topdecl at level 0,
                         t custom p4type, body custom p4stmt).
+      Notation "'extern' e ( cparams ) { methods } @ i"
+               := (TPExtern e cparams methods i)
+                    (in custom p4topdecl at level 0).
       Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,
                         blk custom p4stmt, body custom p4ctrldecl).
+      Notation "'parser' p ( cparams ) ( params ) { states } @ i"
+               := (TPParser p cparams params states i)
+                    (in custom p4topdecl at level 0).
     End TopDeclNotations.
   End TopDecl.
-End P4light.
+
+  Module P4cubNotations.
+    Export Expr.TypeNotations.
+    Export Expr.UopNotations.
+    Export Expr.BopNotations.
+    Export Expr.MatchkindNotations.
+    Export Expr.HeaderOpNotations.
+    Export Expr.HeaderStackOpNotations.
+    Export Expr.ExprNotations.
+    Export Stmt.StmtNotations.
+    Export Decl.DeclNotations.
+    Export Parser.ParserState.ParserNotations.
+    Export Control.ControlDecl.ControlDeclNotations.
+    Export TopDecl.TopDeclNotations.
+  End P4cubNotations.
+End P4cub.

@@ -3,15 +3,14 @@ Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 Require Import Coq.ZArith.BinIntDef.
 
-Require Import Monads.Monad.
-Require Import Monads.State.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 
-Require Import Environment.
-Require Import Utils.
-Require Import Syntax.
-Require Import Typed.
-
-Require Import Bitwise.
+Require Import Poulet4.Environment.Environment.
+Require Import Poulet4.Utils.
+Require Import Poulet4.Syntax.
+Require Import Poulet4.Typed.
+Require Import Poulet4.Bitwise.
 
 Open Scope monad.
 Open Scope string_scope.

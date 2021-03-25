@@ -2,12 +2,23 @@ Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Integers. *)
 Require Coq.Strings.String.
 Module Strings := Coq.Strings.String.
-Require P4String. (** Strings. *)
-Require Typed. (** Names. *)
+Require Poulet4.P4String. (** Strings. *)
+Require Poulet4.Typed. (** Names. *)
 Require Import Coq.Lists.List.
 Import ListNotations.
+Require Import Coq.micromega.Lia.
 
-(** * Useful functions *)
+(** * Useful Data Types *)
+
+Inductive either (A B : Type) : Type :=
+| Left (a : A)
+| Right (b : B).
+(**[]*)
+
+Arguments Left {_ _}.
+Arguments Right {_ _}.
+
+(** * Useful Functions And Lemmas *)
 
 (** Update position [n] of list [l],
     or return [l] if [n] is too large. *)
@@ -19,6 +30,62 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   | S _, []  => []
   end.
 (**[]*)
+
+Lemma nth_error_exists : forall {A:Type} (l : list A) n,
+    n < length l -> exists a, nth_error l n = Some a.
+Proof.
+  intros A l; induction l as [| h t IHt];
+    intros [] Hnl; simpl in *; try lia.
+  - exists h; reflexivity.
+  - apply IHt; lia.
+Qed.
+
+Lemma Forall_nth_error : forall {A : Type} (P : A -> Prop) l n a,
+    Forall P l -> nth_error l n = Some a -> P a.
+Proof.
+  intros A P l n a HPl Hnth.
+  eapply Forall_forall in HPl; eauto.
+  eapply nth_error_In; eauto.
+Qed.
+
+Lemma In_repeat : forall {A : Type} (a : A) n,
+    0 < n -> In a (repeat a n).
+Proof.
+  intros A a [|] H; try lia; simpl; intuition.
+Qed.
+
+Lemma Forall_repeat : forall {A : Type} (P : A -> Prop) n a,
+    0 < n -> Forall P (repeat a n) -> P a.
+Proof.
+  intros A P n a Hn H.
+  eapply Forall_forall in H; eauto.
+  apply In_repeat; auto.
+Qed.
+
+Lemma repeat_Forall : forall {A : Type} (P : A -> Prop) n a,
+    P a -> Forall P (repeat a n).
+Proof.
+  intros A P n a H.
+  induction n as [| n IHn]; simpl; constructor; auto.
+Qed.
+
+Lemma Forall_firstn : forall {A : Type} (P : A -> Prop) n l,
+    Forall P l -> Forall P (firstn n l).
+Proof.
+  intros A P n l H. rewrite <- firstn_skipn with (n := n) in H.
+  apply Forall_app in H. intuition.
+Qed.
+
+Lemma Forall_skipn : forall {A : Type} (P : A -> Prop) n l,
+    Forall P l -> Forall P (skipn n l).
+Proof.
+  intros A P n l H. rewrite <- firstn_skipn with (n := n) in H.
+  apply Forall_app in H. intuition.
+Qed.
+
+Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> length l1 = length l2.
+Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.
 
 (** * Option Equivalence *)
 
@@ -65,19 +132,19 @@ Instance StringEqDec : EqDec Strings.string eq := { equiv_dec := Strings.string_
 Section TypeSynonyms.
   Variable (tags_t : Type).
 
-  Definition string : Type := P4String.t tags_t.
+  Definition string : Type := Poulet4.P4String.t tags_t.
 
-  Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
+  Global Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
     P4String.P4StringEqDec tags_t.
   (**[]*)
 
-  Definition int : Type := P4Int.t tags_t.
+  Definition int : Type := Poulet4.P4Int.t tags_t.
 
-  Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
+  Global Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
     P4Int.IntEquivalence tags_t.
   (**[]*)
 
-  Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
+  Global Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
     P4Int.IntEqDec tags_t.
   (**[]*)
 
@@ -131,7 +198,7 @@ Section TypeSynonyms.
         * apply IHxs with ys; auto.
   Qed.
 
-  Instance NameEquivalence : Equivalence equivn.
+  Global Instance NameEquivalence : Equivalence equivn.
   Proof.
     constructor; [ apply equivn_reflexive
                  | apply equivn_symmetric
@@ -160,7 +227,7 @@ Section TypeSynonyms.
       left; auto.
   Defined.
 
-  Instance NameEqDec : EqDec name equivn :=
+  Global Instance NameEqDec : EqDec name equivn :=
     { equiv_dec := equivn_dec }.
   (**[]*)
 End TypeSynonyms.

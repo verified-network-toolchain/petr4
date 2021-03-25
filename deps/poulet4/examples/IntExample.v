@@ -2,7 +2,7 @@ Require Import Poulet4.Syntax.
 Require Import Poulet4.Eval.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Monads.State.
-Require Import Poulet4.Environment.
+Require Import Poulet4.Environment.Environment.
 Require Import Poulet4.Step.
 
 Require Import Coq.Strings.String.

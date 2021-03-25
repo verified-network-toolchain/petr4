@@ -1,9 +1,10 @@
-Require Import Syntax.
-Require Import Typed.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
 Require Import Coq.Lists.List.
+
+Require Import Poulet4.Syntax.
+Require Import Poulet4.Typed.
 
 Import Coq.Lists.List.ListNotations.
 
@@ -35,6 +36,10 @@ Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
   end.
 
 Definition N_to_string (n: N): string := to_N_aux (N.to_nat (N.log2 n)) n EmptyString.
+
+Definition add1 (n: N): N := n + 1.
+
+Definition Nzero: N := 0.
 
 Section Transformer.
 
@@ -140,24 +145,11 @@ Section Transformer.
       let (l1, e1) := l1e1 in
       (l1 ++ [(N_to_tempvar n1,
                MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, n1 + 1)
+       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, add1 n1)
     | ExpNamelessInstantiation typ' args =>
-      let (l1e1, n1) :=
-          ((fix transform_list (idx: N) (l: list (@Expression tags_t)):
-              (list (P4String * (@Expression tags_t)) *
-               (list (@Expression tags_t)) * N) :=
-              match l with
-              | nil => (nil, nil, idx)
-              | exp :: rest =>
-                let (l2e2, n2) := transform_exp idx exp in
-                let (l2, e2) := l2e2 in
-                let (l3e3, n3) := transform_list n2 rest in
-                let (l3, el3) := l3e3 in (l2 ++ l3, e2 :: el3, n3)
-              end) nameIdx args) in
-      let (l1, e1) := l1e1 in
-      (l1 ++ [(N_to_tempvar n1,
-               MkExpression tag (ExpNamelessInstantiation typ' e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, n1 + 1)
+      ([(N_to_tempvar nameIdx,
+               MkExpression tag (ExpNamelessInstantiation typ' args) typ dir)],
+       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx))) typ dir, add1 nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
     | ExpMask expr mask =>
       let (l1e1, n1) := transform_exp nameIdx expr in
@@ -299,16 +291,7 @@ Section Transformer.
       let (l1e1, n1) := transform_Expr_stmt nameIdx expr in
       let (l1, e1) := l1e1 in
       (l1 ++ [MkStatement tags (StatVariable typ' name (Some e1)) typ], n1)
-    | StatInstantiation typ' args name init =>
-      let (l1e1, n1) := transform_list_stmt nameIdx args in
-      let (l1, e1) := l1e1 in
-      let (optBlk, n2) := match init with
-                          | None => (None, n1)
-                          | Some blk =>
-                            let (blk', n3) := transform_blk n1 blk in
-                            (Some blk', n3)
-                          end in
-      (l1 ++ [MkStatement tags (StatInstantiation typ' e1 name optBlk) typ], n2)
+    | StatInstantiation typ' args name init => ([MkStatement tags stmt typ], nameIdx)
     end
   with transform_stmt (nameIdx: N) (stmt: @Statement tags_t):
          (list (@Statement tags_t) * N):=
@@ -467,16 +450,7 @@ Section Transformer.
     (list (@Declaration tags_t) * N) :=
     match decl with
     | DeclConstant _ _ _ _ => ([decl], nameIdx)
-    | DeclInstantiation tags typ args name init =>
-      let (l1e1, n1) := transform_exprs nameIdx args in
-      let (l1, e1) := l1e1 in
-      let (init', n2) :=
-          match init with
-          | None => (None, n1)
-          | Some blk =>
-            let (blk', n3) := transform_blk n1 blk in (Some blk', n3)
-          end in
-      (map expr_to_decl l1 ++ [DeclInstantiation tags typ e1 name init'], n2)
+    | DeclInstantiation tags typ args name init => ([decl], nameIdx)
     | DeclParser tags name type_params params cparams locals states =>
       let (local', n1) :=
           ((fix transform_decl_list (idx: N) (l: list (@Declaration tags_t)):
@@ -568,7 +542,7 @@ Section Transformer.
   Definition transform_prog (prog: @program tags_t): (@program tags_t) :=
     match prog with
     | Program l =>
-      let (l', _) := transform_list' transform_decl 0 l in Program l'
+      let (l', _) := transform_list' transform_decl Nzero l in Program l'
     end.
 
 End Transformer.

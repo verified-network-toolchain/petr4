@@ -14,8 +14,7 @@ build: [
   ["dune" "build" "@doc" "-p" name "-j" jobs] {with-doc}
 ]
 depends: [
-  "coq" {build}
-  "coq-equations" {build}
+  "poulet4"
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.1"}

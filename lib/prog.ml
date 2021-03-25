@@ -3,6 +3,13 @@ module T = Typed
 
 type ('a, 'b) sum = [%import:('a, 'b) Poulet4.Datatypes.sum]
   [@@deriving sexp,show,yojson]
+type ('a, 'b) pre_AList =
+  [%import:('a, 'b) Poulet4.AList.coq_AList]
+  [@@deriving sexp,show,yojson]
+type ('a, 'b) pre_AListString =
+  [%import:('a, 'b) Poulet4.P4String.coq_AList
+    [@with t := P4string.pre_t; Poulet4.AList.coq_AList := pre_AList]]
+  [@@deriving sexp,show,yojson]
 type 'a pre_MethodPrototype =
   [%import:'a Poulet4.Syntax.coq_MethodPrototype
     [@with Poulet4.P4String.t := P4string.pre_t;
@@ -82,13 +89,15 @@ type 'a pre_ValueBase =
   [%import:'a Poulet4.Syntax.coq_ValueBase
     [@with Bigint.t := Util.bigint;
            Poulet4.P4String.t := P4string.pre_t;
+           Poulet4.P4String.coq_AList := pre_AListString;
            coq_ValueSet := pre_ValueSet]]
   [@@deriving sexp,show,yojson]
 and 'a pre_ValueSet =
   [%import:'a Poulet4.Syntax.coq_ValueSet
     [@with Bigint.t := Util.bigint;
            coq_ValueBase := pre_ValueBase;
-           coq_Match := pre_Match]]
+           coq_Match := pre_Match;
+           Poulet4.P4String.coq_AList := pre_AListString]]
   [@@deriving sexp,show,yojson]
 type 'a pre_StatementSwitchLabel =
   [%import:'a Poulet4.Syntax.coq_StatementSwitchLabel
@@ -152,6 +161,7 @@ type 'a pre_Declaration =
            Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
            Poulet4.Datatypes.sum := sum;
            Poulet4.P4Int.t := P4int.pre_t;
+           Poulet4.P4String.coq_AList := pre_AListString;
            coq_ValueBase := pre_ValueBase;
            coq_Expression := pre_Expression;
            coq_Block := pre_Block;
@@ -172,7 +182,8 @@ type 'a pre_ValueTable =
   [@@deriving sexp,show,yojson]
 type ('tags_t, 'binding) coq_Env_env =
   [%import:('a, 'binding) Poulet4.Syntax.coq_Env_env
-    [@with Poulet4.P4String.t := P4string.pre_t]]
+    [@with Poulet4.P4String.t := P4string.pre_t;
+           Poulet4.P4String.coq_AList := pre_AListString]]
   [@@deriving sexp,show,yojson]
 type 'a coq_ValueLoc =
   [%import:'a Poulet4.Syntax.coq_ValueLoc
@@ -218,6 +229,7 @@ type 'a pre_ValueObject =
   [%import:'a Poulet4.Syntax.coq_ValueObject
     [@with Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
            Poulet4.P4String.t := P4string.pre_t;
+           Poulet4.P4String.coq_AList := pre_AListString;
            coq_Env_EvalEnv := pre_Env_EvalEnv;
            coq_Declaration := pre_Declaration;
            coq_ParserState := pre_ParserState;
@@ -230,6 +242,7 @@ type 'a pre_ValueConstructor =
   [%import:'a Poulet4.Syntax.coq_ValueConstructor
     [@with Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
            Poulet4.P4String.t := P4string.pre_t;
+           Poulet4.P4String.coq_AList := pre_AListString;
            coq_Env_EvalEnv := pre_Env_EvalEnv;
            coq_Declaration := pre_Declaration;
            coq_ParserState := pre_ParserState;

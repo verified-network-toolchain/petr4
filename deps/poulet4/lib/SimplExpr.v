@@ -37,6 +37,10 @@ Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
 
 Definition N_to_string (n: N): string := to_N_aux (N.to_nat (N.log2 n)) n EmptyString.
 
+Definition add1 (n: N): N := n + 1.
+
+Definition Nzero: N := 0.
+
 Section Transformer.
 
   Context {tags_t: Type}.
@@ -141,11 +145,11 @@ Section Transformer.
       let (l1, e1) := l1e1 in
       (l1 ++ [(N_to_tempvar n1,
                MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, n1 + 1)
+       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, add1 n1)
     | ExpNamelessInstantiation typ' args =>
       ([(N_to_tempvar nameIdx,
                MkExpression tag (ExpNamelessInstantiation typ' args) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx))) typ dir, nameIdx + 1)
+       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx))) typ dir, add1 nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
     | ExpMask expr mask =>
       let (l1e1, n1) := transform_exp nameIdx expr in
@@ -537,7 +541,7 @@ Section Transformer.
   Definition transform_prog (prog: @program tags_t): (@program tags_t) :=
     match prog with
     | Program l =>
-      let (l', _) := transform_list' transform_decl 0 l in Program l'
+      let (l', _) := transform_list' transform_decl Nzero l in Program l'
     end.
 
 End Transformer.

@@ -146,17 +146,13 @@ Section Environment.
     | _ :: scopes' => top_scope scopes'
     end.
 
-  Definition lookup_value' (key: P4String.t tags_t) (fields: list (P4String.t tags_t * @ValueBase tags_t)) : option_monad :=
-    let* '(_, v) := List.find (fun '(k, _) => equivb k key) fields in
-    Some v.
-
   Definition lookup_value (v: @ValueBase tags_t) (field: P4String.t tags_t) : @option_monad (@ValueBase tags_t) :=
     match v with
     | ValBaseRecord fields
     | ValBaseStruct fields
     | ValBaseUnion fields
     | ValBaseHeader fields _
-    | ValBaseSenum fields => lookup_value' field fields
+    | ValBaseSenum fields => AList.get fields field
     | ValBaseStack hdrs len next =>
       if eq_const field StringConstants.last then List.nth_error hdrs (len - 1) else
       if eq_const field StringConstants.next then List.nth_error hdrs next else
@@ -202,50 +198,44 @@ Section Environment.
   Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t) :=
     env_name_lookup (BareName name).
 
+  Definition env_dig (val: @Value tags_t) (lval: @ValuePreLvalue tags_t) : option_monad :=
+    match lval with
+    | ValLeftName _ => Some val
+    | ValLeftMember _ member =>
+      match val with
+      | ValBase v =>
+        let* v' := lookup_value v member in
+        Some (ValBase v')
+      | _ => None
+      end
+    | ValLeftBitAccess _ msb lsb =>
+      match val with
+      | ValBase v =>
+        let* v' := bit_slice v msb lsb in
+        Some (ValBase v')
+      | _ => None
+      end
+    | ValLeftArrayAccess _ idx =>
+      match val with
+      | ValBase v =>
+        let* v' := array_index v idx in
+        Some (ValBase v')
+      | _ => None
+      end
+    end
+  .
+
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in
-    match lv with
-    | ValLeftName name =>
-      env_name_lookup name
-
-      (* TODO: there's probably a way to refactor the following 3 cases *)
-    | ValLeftMember inner member =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to find member in value.") (lookup_value v member) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Member access on something that is not a base value.")
-      end
-
-    | ValLeftBitAccess inner msb lsb =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to take bit slice of a value.") (bit_slice v msb lsb) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Bit string access on something that is not a base value.")
-      end
-
-    | ValLeftArrayAccess inner idx =>
-      let* inner_val := env_lookup inner in
-      match inner_val with
-      | ValBase v =>
-        let* result := lift_opt (AssertError "Unable to access index of a value.") (array_index v idx) in
-        state_return (ValBase result)
-      | _ => state_fail (TypeError "Array access on something that is not a base value.")
-      end
-    end.
-
-  Fixpoint update_member' (fields: list (@P4String.t tags_t * @ValueBase tags_t)) (field: @P4String.t tags_t) (v: @ValueBase tags_t) : option_monad :=
-    match fields with
-    | nil => None
-    | (fld, v') :: fields' =>
-      if equivb fld field
-      then Some ((fld, v) :: fields') else
-      let* fields'' := update_member' fields' field v in
-      Some ((fld, v') :: fields'')
-    end.
+    let* val_inner := match lv with
+    | ValLeftName name => env_name_lookup name
+    | ValLeftMember inner _
+    | ValLeftBitAccess inner _ _
+    | ValLeftArrayAccess inner _ =>
+      env_lookup inner
+    end in
+    lift_opt (AssertError "Could not dig into value.") (env_dig val_inner lv)
+  .
 
   Definition update_slice (lhs: @ValueBase tags_t) (msb: nat) (lsb: nat) (rhs: @ValueBase tags_t) : env_monad (@ValueBase tags_t) :=
     match (lhs, rhs) with
@@ -276,23 +266,23 @@ Section Environment.
     (* TODO: there must be a cleaner way... *)
     | ValBaseRecord fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of record.")
-                               (update_member' fields member rhs) in
+                               (AList.set fields member rhs) in
       state_return (ValBaseRecord fields')
     | ValBaseStruct fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of struct.")
-                               (update_member' fields member rhs) in
+                               (AList.set fields member rhs) in
       state_return (ValBaseStruct fields')
     | ValBaseHeader fields is_valid =>
       let* fields' := lift_opt (AssertError "Unable to update member of header.")
-                               (update_member' fields member rhs) in
+                               (AList.set fields member rhs) in
       state_return (ValBaseHeader fields' is_valid)
     | ValBaseUnion fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of union")
-                               (update_member' fields member rhs) in
+                               (AList.set fields member rhs) in
       state_return (ValBaseRecord fields')
     | ValBaseSenum fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of enum.")
-                               (update_member' fields member rhs) in
+                               (AList.set fields member rhs) in
       state_return (ValBaseSenum fields')
     | ValBaseStack hdrs len next =>
       if eq_const member StringConstants.last then update_array lhs len rhs else

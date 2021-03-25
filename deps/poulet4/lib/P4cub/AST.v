@@ -4,6 +4,7 @@ Require Export Coq.Bool.Bool.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 
+Require Import Poulet4.P4cub.P4Arith.
 Require Export Poulet4.P4cub.Utiliser.
 
 (** Notation entries. *)
@@ -12,10 +13,12 @@ Declare Custom Entry p4type.
 Reserved Notation "∫ ty1 ≡ ty2"
          (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
 
+Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
 Declare Custom Entry p4hdr_op.
+Declare Custom Entry p4hdr_stk_op.
 Declare Custom Entry p4expr.
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4decl.
@@ -259,6 +262,7 @@ Module P4cub.
       | TInt (width : positive)          (* signed integers *)
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
+      | TTuple (types : list t)          (* tuple type *)
       | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
       | THeader (fields : F.fs tags_t t) (* the header type *)
       | THeaderStack (fields : F.fs tags_t t)
@@ -270,6 +274,23 @@ Module P4cub.
 
       (** Function types. *)
       Definition arrowT : Type := arrow tags_t t t t.
+
+      (** Constructor Types. *)
+      Inductive ct : Type :=
+      | CTType (type : t)                   (* expression types *)
+      | CTControl (cparams : F.fs tags_t ct)
+                  (parameters : params)     (* control types *)
+      | CTParser (cparams : F.fs tags_t ct)
+                 (parameters : params)      (* parser types *)
+      | CTExtern (cparams : F.fs tags_t ct)
+                 (methods : F.fs tags_t arrowT) (* extern types *)
+      (* | CTName (x : name tags_t)            (* constructor type name *)
+         | CTLambda (lambda : t -> ct)          (* parametric types *)
+         | CTApplication (polymorph : ct)
+                      (type_arg : t)        (* type specialization *)*).
+      (**[]*)
+
+      Definition constructor_params : Type := F.fs tags_t ct.
     End P4Types.
 
     Arguments TBool {_}.
@@ -277,9 +298,14 @@ Module P4cub.
     Arguments TInt {_}.
     Arguments TError {_}.
     Arguments TMatchKind {_}.
+    Arguments TTuple {_}.
     Arguments TRecord {_}.
     Arguments THeader {_}.
     Arguments THeaderStack {_}.
+    Arguments CTType {_}.
+    Arguments CTControl {_}.
+    Arguments CTParser {_}.
+    Arguments CTExtern {_}.
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -297,6 +323,8 @@ Module P4cub.
                                   no associativity).
       Notation "'matchkind'"
         := TMatchKind (in custom p4type at level 0, no associativity).
+      Notation "'tuple' ts"
+               := (TTuple ts) (in custom p4type at level 0, no associativity).
       Notation "'rec' { fields }"
         := (TRecord fields)
             (in custom p4type at level 6, no associativity).
@@ -305,6 +333,23 @@ Module P4cub.
             (in custom p4type at level 6, no associativity).
       Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
+
+      Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
+      Notation "( x )" := x (in custom p4constructortype, x at level 99).
+      Notation "x" := x (in custom p4constructortype at level 0, x constr at level 0).
+      Notation "'Type' τ"
+        := (CTType τ)
+             (in custom p4constructortype at level 0,
+                 τ custom p4type).
+      Notation "'ControlType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'ParserType' cps ps"
+               := (CTControl cps ps)
+                    (in custom p4constructortype at level 0).
+      Notation "'Extern' cps { mthds }"
+               := (CTExtern cps mthds)
+                    (in custom p4constructortype at level 0).
     End TypeNotations.
 
     (** Custom induction principle for [t]. *)
@@ -326,6 +371,9 @@ Module P4cub.
 
       Hypothesis HTMatchKind : P {{ matchkind }}.
 
+      Hypothesis HTTuple : forall ts,
+          Forall P ts -> P {{ tuple ts }}.
+
       Hypothesis HTRecord : forall fields,
           F.predfs_data P fields -> P {{ rec { fields } }}.
 
@@ -339,6 +387,12 @@ Module P4cub.
           Do [induction ?t using custom_t_ind]. *)
       Definition custom_t_ind : forall ty : t tags_t, P ty :=
         fix custom_t_ind (type : t tags_t) : P type :=
+          let fix list_ind (ts : list (t tags_t)) :
+                Forall P ts :=
+              match ts with
+              | [] => Forall_nil _
+              | h :: ts => Forall_cons _ (custom_t_ind h) (list_ind ts)
+              end in
           let fix fields_ind
                   (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
@@ -352,6 +406,7 @@ Module P4cub.
           | {{ int<w> }} => HTInt w
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
+          | {{ tuple ts }}  => HTTuple ts (list_ind ts)
           | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
@@ -370,6 +425,9 @@ Module P4cub.
       | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
       | equivt_error : ∫ error ≡ error
       | equivt_matchkind : ∫ matchkind ≡ matchkind
+      | equivt_tuple (ts1 ts2 : list (t tags_t)) :
+          Forall2 equivt ts1 ts2 ->
+          ∫ tuple ts1 ≡ tuple ts2
       | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
           F.relfs equivt fs1 fs2 ->
           ∫ rec { fs1 } ≡ rec { fs2 }
@@ -399,6 +457,11 @@ Module P4cub.
 
         Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
 
+        Hypothesis HTuple : forall ts1 ts2,
+            Forall2 equivt ts1 ts2 ->
+            Forall2 P ts1 ts2 ->
+            P {{ tuple ts1 }} {{ tuple ts2 }}.
+
         Hypothesis HRecord : forall fs1 fs2,
             F.relfs equivt fs1 fs2 ->
             F.relfs P fs1 fs2 ->
@@ -419,6 +482,16 @@ Module P4cub.
         Definition custom_equivt_ind :
           forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
           fix cind t1 t2 H :=
+            let fix lind {ts1 ts2 : list (t tags_t)}
+                    (HR : Forall2 equivt ts1 ts2) : Forall2 P ts1 ts2 :=
+                match HR with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons _ _
+                               HE HTail => Forall2_cons
+                                            _ _
+                                            (cind _ _ HE)
+                                            (lind HTail)
+                end in
             let fix find
                     {ts1 ts2 : F.fs tags_t (t tags_t)}
                     (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
@@ -439,6 +512,7 @@ Module P4cub.
                     | equivt_int w => HInt w
                     | equivt_error => HError
                     | equivt_matchkind => HMatchkind
+                    | equivt_tuple _ _ Hequiv => HTuple _ _ Hequiv (lind Hequiv)
                     | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
                     | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
                     | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
@@ -451,6 +525,12 @@ Module P4cub.
 
         (** Decidable equality. *)
         Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
+          let fix lrec (ts1 ts2 : list (t tags_t)) : bool :=
+              match ts1, ts2 with
+              | [], [] => true
+              | t1::ts1, t2::ts2 => eqbt t1 t2 && lrec ts1 ts2
+              | [], _::_ | _::_, [] => false
+              end in
           let fix frec (ts1 ts2 : F.fs tags_t (t tags_t)) : bool :=
               match ts1, ts2 with
               | [], [] => true
@@ -465,6 +545,7 @@ Module P4cub.
           | {{ matchkind }}, {{ matchkind }} => true
           | {{ bit<w1> }}, {{ bit<w2> }}
           | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
+          | {{ tuple ts1 }}, {{ tuple ts2 }} => lrec ts1 ts2
           | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
           | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
           | {{ stack ts1[n1] }}, {{ stack ts2[n2] }} => (n1 =? n2)%positive && frec ts1 ts2
@@ -487,12 +568,13 @@ Module P4cub.
             (* apply custom_equivt_ind; intros; *)
             intros t1 t2 H; induction H using custom_equivt_ind;
             constructor; auto;
-              try (induction H; inversion H0; subst; repeat constructor; auto;
+              try (induction H; inv H0; repeat constructor; auto;
                    destruct x as [x1 t1]; destruct y as [x2 t2];
                    repeat match goal with
                           | H: F.relf _ _ _ |- _ => inversion H; subst; clear H
                           end; simpl in *; auto;
-                   [ symmetry | apply IHForall2 ]; auto).
+                   [ symmetry | apply IHForall2 ]; auto);
+          try (induction H; inv H0; repeat constructor; auto).
         Qed.
 
         Lemma equivt_transitive : Transitive (@equivt tags_t).
@@ -510,7 +592,13 @@ Module P4cub.
                      [ unfold F.relf in *; simpl in *;
                        destruct H3; destruct H9; split; eauto;
                        transitivity x2; assumption
-                     | eapply IHfs1; eauto]).
+                     | eapply IHfs1; eauto]);
+                try (rename ts into ts1; rename types into ts2;
+                     rename types0 into ts3; constructor;
+                     generalize dependent ts3; generalize dependent ts2;
+                     induction ts1 as [| t1 ts1 IHts1];
+                       intros [| t2 ts2] H12 [| t3 ts3] H23;
+                       inv H; inv H12; inv H23; constructor; eauto).
         Qed.
 
         Instance TypeEquivalence : Equivalence (@equivt tags_t).
@@ -529,7 +617,9 @@ Module P4cub.
                    destruct x as [x1 t1]; destruct y as [x2 t2];
                      simpl in *; repeat invert_relf; simpl in *;
                        pose proof P4String.equiv_reflect x1 x2 as Hx;
-                       inv Hx; try contradiction; rewrite H2; auto).
+                       inv Hx; try contradiction; rewrite H2; auto);
+              try (induction H; inv HR; auto;
+                   rewrite IHForall2; try rewrite H4; auto).
           Qed.
 
         Lemma eqbt_equivt : forall t1 t2, eqbt t1 t2 = true -> equivt t1 t2.
@@ -554,7 +644,12 @@ Module P4cub.
                            inv Hx'; try contradiction; auto;
                            rewrite Hx in H; discriminate
                          | apply IHfs1; auto ]).
-          Qed.
+          try (rename ts into ts1; rename types into ts2;
+               generalize dependent ts2;
+               induction ts1 as [| t1 ts1 IHts1];
+                 intros [| t2 ts2] IH; inv H; try discriminate; constructor;
+                   apply andb_prop in IH as [Hhd Htl]; auto).
+        Qed.
 
         Lemma equivt_eqbt_iff : forall t1 t2 : t tags_t, equivt t1 t2 <-> eqbt t1 t2 = true.
         Proof.
@@ -582,6 +677,7 @@ Module P4cub.
     (** Restrictions on type-nesting. *)
     Module ProperType.
       Import TypeNotations.
+      Import TypeEquivalence.
 
       Section ProperTypeNesting.
         Context {tags_t : Type}.
@@ -608,15 +704,38 @@ Module P4cub.
         | pn_error : proper_nesting {{ error }}
         | pn_matchkind : proper_nesting {{ matchkind }}
         | pn_record (ts : F.fs tags_t (t tags_t)) :
-            F.predfs_data proper_nesting ts ->
+            F.predfs_data
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
             proper_nesting {{ rec { ts } }}
+        | pn_tuple (ts : list (t tags_t)) :
+            Forall
+              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+            proper_nesting {{ tuple ts }}
         | pn_header (ts : F.fs tags_t (t tags_t)) :
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ hdr { ts } }}
         | pn_header_stack (ts : F.fs tags_t (t tags_t))
                           (n : positive) :
+            BitArith.bound 32%positive (Npos n) ->
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ stack ts[n] }}.
+
+        Import F.FieldTactics.
+
+        Lemma proper_inside_header_nesting : forall τ : t tags_t,
+            proper_inside_header τ ->
+            proper_nesting τ.
+        Proof.
+          intros τ H. induction H.
+          - inv H; repeat econstructor.
+          - apply pn_record.
+            induction H; constructor; auto.
+            destruct x as [x τ]; invert_predf;
+              split; simpl in *; subst; repeat econstructor;
+                try match goal with
+                    | |- ~ ∫ _ ≡ matchkind => intros H'; inv H'
+                    end.
+        Qed.
       End ProperTypeNesting.
     End ProperType.
 
@@ -715,21 +834,40 @@ Module P4cub.
       Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
     End HeaderOpNotations.
 
+    (** Header Stack Operations.. *)
+    Inductive hdr_stk_op : Set :=
+    | HSONext         (* get element at [nextIndex] *)
+    | HSOSize         (* get the size *)
+    | HSOPush (n : N) (* "push_front," shift stack right by [n] *)
+    | HSOPop  (n : N) (* "push_front," shift stack left by [n] *).
+
+    Module HeaderStackOpNotations.
+      Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
+      Notation "'Next'" := HSONext (in custom p4hdr_stk_op at level 0).
+      Notation "'Size'" := HSOSize (in custom p4hdr_stk_op at level 0).
+      Notation "'Push' n"
+        := (HSOPush n) (in custom p4hdr_stk_op at level 0).
+      Notation "'Pop' n"
+        := (HSOPop n) (in custom p4hdr_stk_op at level 0).
+    End HeaderStackOpNotations.
+
     Section Expressions.
       Variable (tags_t : Type).
 
       (** Expressions annotated with types,
           unless the type is obvious. *)
       Inductive e : Type :=
-      | EBool (b : bool) (i : tags_t)                      (* booleans *)
-      | EBit (width : positive) (val : N) (i : tags_t)  (* unsigned integers *)
-      | EInt (width : positive) (val : Z) (i : tags_t)  (* signed integers *)
+      | EBool (b : bool) (i : tags_t)                     (* booleans *)
+      | EBit (width : positive) (val : N) (i : tags_t) (* unsigned integers *)
+      | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t tags_t) (x : name tags_t)
-             (i : tags_t)                               (* variables *)
+             (i : tags_t)                              (* variables *)
+      | ECast (type : t tags_t) (arg : e) (i : tags_t) (* explicit casts *)
       | EUop (op : uop) (type : t tags_t)
-             (arg : e) (i : tags_t)                     (* unary operations *)
+             (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t tags_t)
-             (lhs rhs : e) (i : tags_t)                 (* binary operations *)
+             (lhs rhs : e) (i : tags_t)                (* binary operations *)
+      | ETuple (es : list e) (i : tags_t)              (* tuples *)
       | ERecord (fields : F.fs tags_t (t tags_t * e))
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs tags_t (t tags_t * e))
@@ -747,7 +885,9 @@ Module P4cub.
                      (next_index : N)                  (* header stack literals,
                                                           unique to p4light *)
       | EHeaderStackAccess (stack : e) (index : N)
-                           (i : tags_t)                (* header stack indexing *).
+                           (i : tags_t)                (* header stack indexing *)
+      | EHeaderStackOp (stack : e) (op : hdr_stk_op)
+                       (i : tags_t)                    (* header stack builtin *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -759,14 +899,24 @@ Module P4cub.
       Definition arrowE : Type :=
         arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
       (**[]*)
+
+      (** Constructor arguments. *)
+      Inductive constructor_arg : Type :=
+      | CAExpr (expr : e) (* plain expression *)
+      | CAName (x : name tags_t) (* name of parser, control, etc *).
+      (**[]*)
+
+      Definition constructor_args : Type := F.fs tags_t constructor_arg.
     End Expressions.
 
     Arguments EBool {tags_t}.
     Arguments EBit {_}.
     Arguments EInt {_}.
     Arguments EVar {tags_t}.
+    Arguments ECast {_}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
+    Arguments ETuple {_}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
     Arguments EHeaderOp {_}.
@@ -775,6 +925,9 @@ Module P4cub.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
+    Arguments EHeaderStackOp {_}.
+    Arguments CAExpr {_}.
+    Arguments CAName {_}.
 
     Module ExprNotations.
       Notation "'<{' exp '}>'" := exp (exp custom p4expr at level 99).
@@ -787,6 +940,10 @@ Module P4cub.
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x : ty @ i" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
+      Notation "'Cast' e : τ @ i"
+        := (ECast τ e i)
+             (in custom p4expr at level 10, τ custom p4type,
+                 e custom p4expr, right associativity).
       Notation "'UOP' op x : ty @ i"
                := (EUop op ty x i)
                     (in custom p4expr at level 2,
@@ -798,6 +955,9 @@ Module P4cub.
                         x custom p4expr, tx custom p4type,
                         y custom p4expr, ty custom p4type,
                         op custom p4bop, left associativity).
+      Notation "'tup' es @ i"
+               := (ETuple es i)
+                    (in custom p4expr at level 0).
       Notation "'rec' { fields } @ i "
         := (ERecord fields i)
             (in custom p4expr at level 6, no associativity).
@@ -824,6 +984,10 @@ Module P4cub.
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
+      Notation "'STK_OP' op exp @ i"
+               := (EHeaderStackOp exp op i)
+                    (in custom p4expr at level 5, exp custom p4expr,
+                        op custom p4hdr_stk_op, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -834,6 +998,7 @@ Module P4cub.
       Import BopNotations.
       Import MatchkindNotations.
       Import HeaderOpNotations.
+      Import HeaderStackOpNotations.
 
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
@@ -849,11 +1014,17 @@ Module P4cub.
       Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
           P <{ Var x : ty @ i }>.
 
+      Hypothesis HECast : forall τ exp i,
+          P exp -> P <{ Cast exp:τ @ i }>.
+
       Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
           P ex -> P <{ UOP op ex : ty @ i }>.
 
       Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
+
+      Hypothesis HETuple : forall es i,
+          Forall P es -> P <{ tup es @ i }>.
 
       Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
@@ -879,6 +1050,9 @@ Module P4cub.
       Hypothesis HAccess : forall e1 e2 i,
           P e1 -> P <{ Access e1[e2] @ i }>.
 
+      Hypothesis HEHeaderStackOp : forall op exp i,
+          P exp -> P <{ STK_OP op exp @ i }>.
+
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
@@ -901,10 +1075,12 @@ Module P4cub.
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x:ty @ i }> => HEVar ty x i
+          | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
           | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
               HEBop op lt rt lhs rhs i
                     (eind lhs) (eind rhs)
+          | <{ tup es @ i }>         => HETuple es i (list_ind es)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
           | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
@@ -914,6 +1090,7 @@ Module P4cub.
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
           | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
+          | <{ STK_OP op exp @ i }> => HEHeaderStackOp op exp i (eind exp)
           end.
       (**[]*)
     End ExprInduction.
@@ -939,6 +1116,9 @@ Module P4cub.
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
                                                            an alternative to blocks *)
+      | SExternMethodCall (e : name tags_t) (f : string tags_t)
+                          (args : E.arrowE tags_t)
+                          (i : tags_t)                  (* extern method calls *)
       | SFunCall (f : name tags_t)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
       | SActCall (f : name tags_t)
@@ -962,6 +1142,7 @@ Module P4cub.
     Arguments SSeq {tags_t}.
     Arguments SFunCall {_}.
     Arguments SActCall {_}.
+    Arguments SExternMethodCall {_}.
     Arguments SReturnVoid {tags_t}.
     Arguments SReturnFruit {tags_t}.
     Arguments SExit {_}.
@@ -997,10 +1178,13 @@ Module P4cub.
              (in custom p4stmt at level 30, no associativity).
       Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SFunCall f (Arrow args (Some (t,e))) i)
-                    (in custom p4stmt at level 30,
+                    (in custom p4stmt at level 0,
                         e custom p4expr, t custom p4stmt, no associativity).
       Notation "'calling' a 'with' args @ i"
-               := (SActCall a args i) (in custom p4stmt at level 3).
+               := (SActCall a args i) (in custom p4stmt at level 0).
+      Notation "'extern' e 'calls' f 'with' args 'gives' x @ i"
+               := (SExternMethodCall e f (Arrow args x) i)
+                    (in custom p4stmt at level 0, no associativity).
       Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
                     (in custom p4stmt at level 30,
@@ -1034,9 +1218,11 @@ Module P4cub.
       | DVarinit (typ : E.t tags_t) (x : string tags_t)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
       | DInstantiate (C : name tags_t) (x : string tags_t)
-                     (args : F.fs tags_t (E.t tags_t * E.e tags_t))
+                     (* (targs : list (E.t tags_t)) *)
+                     (cargs : E.constructor_args tags_t)
                      (i : tags_t)                  (* constructor [C]
-                                                      with [args] makes [x] *)
+                                                      with constructor [args]
+                                                      makes instance [x]. *)
       | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
     (**[]*)
     End Declarations.
@@ -1236,13 +1422,19 @@ Module P4cub.
       (** Top-level declarations. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | TPDecl (d : D.d tags_t) (i : tags_t)
+      | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
+      (* | TPTypeDecl (x : string tags_t) (ct : E.ct tags_t)
+                   (i : tags_t)(* type declaration *) *)
+      | TPExtern (e : string tags_t)
+                 (cparams : E.constructor_params tags_t)
+                 (methods : F.fs tags_t (E.arrowT tags_t))
+                 (i : tags_t) (* extern declarations *)
       | TPControl (c : string tags_t)
-                  (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                  (cparams : E.constructor_params tags_t) (* constructor params *)
                   (params : E.params tags_t) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string tags_t)
-                 (cparams : F.fs tags_t (E.t tags_t)) (* constructor params *)
+                 (cparams : E.constructor_params tags_t) (* constructor params *)
                  (params : E.params tags_t)           (* invocation params *)
                  (states : F.fs tags_t (P.state tags_t)) (* parser states *)
                  (i : tags_t) (* TODO: start state? *)
@@ -1254,6 +1446,8 @@ Module P4cub.
     End TopDeclarations.
 
     Arguments TPDecl {_}.
+    (* Arguments TPTypeDecl {_}. *)
+    Arguments TPExtern {_}.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
     Arguments TPFunction {_}.
@@ -1272,6 +1466,10 @@ Module P4cub.
       Notation "'DECL' d @ i"
         := (TPDecl d i)
              (in custom p4topdecl at level 0, d custom p4decl).
+      (* Notation "'TYPE' x t @ i"
+               := (TPTypeDecl x t i)
+                    (in custom p4topdecl at level 0,
+                        t custom p4constructortype). *)
       Notation "'void' f ( params ) { body } @ i"
                := (TPFunction f (Arrow params None) body i)
                     (in custom p4topdecl at level 0, body custom p4stmt).
@@ -1279,6 +1477,9 @@ Module P4cub.
                := (TPFunction f (Arrow params (Some t)) body i)
                     (in custom p4topdecl at level 0,
                         t custom p4type, body custom p4stmt).
+      Notation "'extern' e ( cparams ) { methods } @ i"
+               := (TPExtern e cparams methods i)
+                    (in custom p4topdecl at level 0).
       Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,
@@ -1295,6 +1496,7 @@ Module P4cub.
     Export Expr.BopNotations.
     Export Expr.MatchkindNotations.
     Export Expr.HeaderOpNotations.
+    Export Expr.HeaderStackOpNotations.
     Export Expr.ExprNotations.
     Export Stmt.StmtNotations.
     Export Decl.DeclNotations.

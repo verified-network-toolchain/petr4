@@ -14,23 +14,26 @@ Proof.
   unfold EqDec.
   apply string_dec.
 Defined.
-
 Definition std_t : signature string :=
   [("src", nat); ("dst", nat)].
 
-Definition std_example : t string std_t :=
-  (10, (16, tt)).
+Definition std_example : t std_t :=
+  RCons 10 (RCons 16 REmp).
 
-Definition src_valid : alist_In _ "src" std_t :=
+Definition src_valid : alist_In "src" std_t :=
   I.
 
 Definition lookup_src: nat :=
-  HAList.get _ std_example (exist _ "src" I).
+  HAList.get std_example (exist _ "src" I).
 
 Definition lookup_dst: nat :=
-  HAList.get _ std_example (exist _ "dst" I).
+  HAList.get std_example (exist _ "dst" I).
 
-Time Eval cbv in fst std_example.       (* 0 *)
-Time Eval cbv in lookup_src.            (* 0 *)
-Time Eval cbv in fst (snd std_example). (* 0 *)
-Time Eval cbv in lookup_dst.            (* 1 *)
+Definition update_dst: t std_t :=
+  HAList.set std_example (exist _ "dst" I) 22.
+
+Lemma update_dst_eval :
+  update_dst = RCons 10 (RCons 22 REmp).
+Proof.
+  reflexivity.
+Qed.

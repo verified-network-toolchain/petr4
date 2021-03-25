@@ -9,80 +9,13 @@ Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.Ops.
+Require Import Poulet4.Maps.
+Require Export Poulet4.Target.
 
 Import ListNotations.
 
-Module IdentMap.
-
-Section IdentMap.
-
-Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
-Context {A: Type}.
-
-Definition t := ident -> option A.
-
-Definition empty : t := fun _ => None.
-Definition get : ident -> t -> option A := fun id idMap => idMap id.
-Definition set : ident -> A -> t -> t :=
-  fun id value idMap x => if P4String.equivb x id then Some value else idMap x.
-
-Definition sets: list ident -> list A -> t -> t :=
-  fun idList valueList idMap =>
-    fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
-              (combine idList valueList) idMap.
-
-Definition gets (kl : list ident) (m : t) : list (option A) :=
-  map (fun k => get k m) kl.
-
-End IdentMap.
-
-End IdentMap.
-
-Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
-  Nat.eqb (length al) (length bl) &&
-  forallb (uncurry eqb) (combine al bl).
-
-Definition path_equivb {tags_t: Type} :
-  (list (P4String.t tags_t)) -> (list (P4String.t tags_t)) -> bool :=
-  list_eqb (@P4String.equivb tags_t).
-
-Module PathMap.
-
-Section PathMap.
-
-Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
-Notation path := (list ident).
-Context {A: Type}.
-
-Definition t := path -> option A.
-
-Definition empty : t := fun _ => None.
-Definition get : path -> t -> option A := fun p pM => pM p.
-Definition set : path -> A -> t -> t :=
-  fun p v pM x => if path_equivb x p then Some v else pM x.
-
-Definition sets : list path -> list A -> t -> t :=
-  fun pList vList pMap =>
-    fold_left (fun idM ivPair => set (fst ivPair) (snd ivPair) idM)
-              (combine pList vList) pMap.
-
-Definition gets (kl : list path) (m : t) : list (option A) :=
-  map (fun k => get k m) kl.
-
-End PathMap.
-
-End PathMap.
-
-Arguments IdentMap.t {_} _.
-Arguments PathMap.t {_} _.
 
 Section Semantics.
-
-(* Inductive val :=
-  | VInt (v : Z)
-  (* TODO *). *)
 
 Context {tags_t: Type}.
 Notation Val := (@ValueBase tags_t).
@@ -92,34 +25,43 @@ Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 
-(* We want to share the notation of External between P4light and P4cub, so later we need to
-  have a parameter `ActionRef`, while `Match` is just shared. *)
-(* Because the entries can refer to constructor parameters, we need to refer the arguments as expressions. *)
-(* Maybe we can just use the definition in Syntax.v. *)
-Inductive table_entry :=
-  Entry (matches : list (@Match tags_t)) (action : ident) (args : list (option (@Expression tags_t))).
+Context `{@Target tags_t (@Expression tags_t)}.
+Local Hint Resolve extern_sem : typeclass_instances.
 
-Class External := {
-  ExternalState : Type;
-  GetEntries : ExternalState -> path -> list table_entry;
-  GetMatch : list (Val * ident (* match_kind *)) -> list table_entry -> option table_entry (* action *);
-  (* Allocation should be a function; calling may be fine as a relation. *)
-  AllocExtern : ExternalState -> ident (* class *) -> path -> list Val -> ExternalState;
-  CallExtern : ExternalState -> ident (* class *) -> ident (* method *) -> path -> list Val -> ExternalState -> list Val -> option Val -> Prop
-}.
+(* Utility functions *)
 
-Section UseExternal.
+Definition param_to_name (param : @P4Parameter tags_t) : ident :=
+  match param with
+  | MkParameter _ _ _ _ name => name
+  end.
 
-Context `{External}.
+Definition param_to_dir (param : @P4Parameter tags_t) : direction :=
+  match param with
+  | MkParameter _ dir _ _ _ => dir
+  end.
 
-Inductive memory_val :=
-  | MVal (v : Val)
-  (* Instances, including parsers, controls, and external objects. *)
-  | MInstance (class : ident) (p : path).
+Definition param_to_name_dir (param : @P4Parameter tags_t) : ident * direction :=
+  match param with
+  | MkParameter _ dir _ _ name => (name, dir)
+  end.
+
+Definition force {A} (default : A) (x : option A) : A :=
+  match x with
+  | Some x => x
+  | None => default
+  end.
+
+Definition map_fst {A B C} (f : A -> B) (p : A * C) : B * C :=
+  let (a, c) := p in (f a, c).
+
+Definition map_snd {A B C} (f : A -> B) (p : C * A) : C * B :=
+  let (c, a) := p in (c, f a).
+
+(* Semantics *)
 
 Definition mem := @PathMap.t tags_t Val.
 
-Definition state : Type := mem * ExternalState.
+Definition state : Type := mem * extern_state.
 
 Definition set_memory m (s : state) : state :=
   let (_, es) := s in (m, es).
@@ -133,16 +75,11 @@ Definition get_memory (s : state) : mem :=
 Definition name_cons (p: path) (id: ident) : path :=
   p ++ [id].
 
-(* Inductive env_enty... *)
-
 Inductive env_entry :=
   | Global (p : path)
   | Instance (p : path).
 
 Definition env := @IdentMap.t tags_t env_entry.
-
-(* Axiom env_set : env -> P4String -> path -> env.
-Axiom env_get : env -> P4String -> option path. *)
 
 Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
   match (IdentMap.get i e) with
@@ -157,7 +94,7 @@ Inductive fundef :=
       (global : bool)
       (decl_path : path)
       (e : env)
-      (params : list ident)
+      (params : list (ident * direction))
       (body : @Block tags_t)
   | FTable
       (name : ident)
@@ -165,19 +102,15 @@ Inductive fundef :=
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
       (default_action : option (@Expression tags_t))
-      (entries : option (list table_entry))
+      (entries : option (list (@table_entry tags_t (@Expression tags_t))))
   | FExternal
       (class : ident)
-      (name : ident).
+      (name : ident)
+      (* (params : list (ident * direction)) *).
 
 Axiom dummy_fundef : fundef.
 
-(* Definition genv := (@program tags_t) * (path -> option env). *)
-(* only give the Statement is not enough; need call convention. *)
 Definition genv := path -> option fundef.
-(* Definition get_decl (ge : genv) (p : path) : option (env * @Declaration tags_t) :=
-  match p with
-  | BareName  *)
 
 Variable ge : genv.
 
@@ -372,26 +305,76 @@ Inductive exec_exprs : env -> path -> state -> list (@Expression tags_t) -> list
                       exec_exprs e this st (expr :: es) (v :: vs).
 
 
-Axiom param_to_name : (@P4Parameter tags_t) -> ident.
+Definition is_in (dir : direction) : bool :=
+  match dir with
+  | In | InOut => true
+  | _ => false
+  end.
 
-Definition copy_in_copy_out (params : list path)
+Definition is_out (dir : direction) : bool :=
+  match dir with
+  | Out | InOut => true
+  | _ => false
+  end.
+
+Definition filter_in (params : list (path * direction)) : list path :=
+  let f param :=
+    if is_in (snd param) then [fst param] else [] in
+  flat_map f params.
+
+Definition filter_out (params : list (path * direction)) : list path :=
+  let f param :=
+    if is_out (snd param) then [fst param] else [] in
+  flat_map f params.
+
+(* NOTE: We need to modify for the call convention for overloaded functions. *)
+Definition bind_parameters (params : list (path * direction))
                             (args : list Val) (args' : list Val)
                             (s s' s'' : state) :=
-  s' = update_memory (PathMap.sets params args) s /\
-  map Some args' = PathMap.gets params (get_memory s).
+  s' = update_memory (PathMap.sets (filter_in params) args) s /\
+  map Some args' = PathMap.gets (filter_out params) (get_memory s'').
 
 Inductive signal : Type :=
    | SContinue : signal
    | SReturn : option Val -> signal
    | SExit
    (* parser's states include accept and reject *)
-   | SReject : string -> signal. 
+   | SReject : string -> signal.
 
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
-Axiom get_action : forall (actions : list (@Expression tags_t)) (name : ident), (@Expression tags_t).
-Axiom add_ctrl_args : forall (action : @Expression tags_t) (ctrl_args : list (option (@Expression tags_t))), (@Expression tags_t).
+Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : option (@Expression tags_t) :=
+  match actions with
+  | [] => None
+  | action :: actions' =>
+      match action with
+      | MkExpression _ (ExpFunctionCall (MkExpression _ f _ _) _ _) _ _ =>
+          match f with
+          | ExpName (BareName fname) | ExpName (QualifiedName _ fname) =>
+              if P4String.equivb name fname then
+                  Some (action)
+              else
+                  get_action actions' name
+          | _ => get_action actions' name
+          end
+      | _ => get_action actions' name
+      end
+  end.
+
+Axiom dummy_type : @P4Type tags_t.
+Axiom dummy_tags : tags_t.
+
+Definition add_ctrl_args (oaction : option (@Expression tags_t)) (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
+  match oaction with
+  | Some action =>
+      match action with
+      | MkExpression _ (ExpFunctionCall f type_args args) _ dir =>
+          Some (MkExpression dummy_tags (ExpFunctionCall f type_args (args ++ ctrl_args)) dummy_type dir)
+      | _ => None
+      end
+  | None => None
+  end.
 
 Definition TableKeyKey (key : @TableKey tags_t) : (@Expression tags_t) :=
   match key with
@@ -406,35 +389,43 @@ Definition TableKeyMatchKind (key : @TableKey tags_t) : ident :=
 Definition getEntries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
   match const_entries with
   | Some entries => entries
-  | None => GetEntries (get_external_state s) table
+  | None => extern_get_entries (get_external_state s) table
   end.
 
-Inductive exec_table_match : env -> path -> state -> ident -> option (list table_entry) -> option table_entry -> Prop :=
-  | exec_table_match_intro : forall this_path name e keys keyvals const_entries s matched_entry,
+Inductive exec_table_match : env -> path -> state -> ident -> option (list table_entry) -> option action_ref -> Prop :=
+  | exec_table_match_intro : forall this_path name e keys keyvals const_entries s matched_action,
       let entries := getEntries s (this_path ++ [name]) const_entries in
       let match_kinds := map TableKeyMatchKind keys in
       exec_exprs e this_path s (map TableKeyKey keys) keyvals ->
-      GetMatch (combine keyvals match_kinds) entries = matched_entry ->
-      exec_table_match e this_path s name const_entries matched_entry.
+      extern_match (combine keyvals match_kinds) entries = matched_action ->
+      exec_table_match e this_path s name const_entries matched_action.
 
 Inductive Lval : Type.
 
 Definition argument : Type := (option Val) * (option Lval).
-(* Inductive argument :=
-  | MkArgument (ov : option Val) (olv : option Lval). *)
 
-Definition get_arg_directions (func : @Expression tags_t) : list direction.
-Admitted.
+Definition get_arg_directions (func : @Expression tags_t) : list direction :=
+  match func with
+  | MkExpression _ _ (TypFunction (MkFunctionType _ params _ _)) _ =>
+      map param_to_dir params
+  | _ => nil (* impossible *)
+  end.
 
 Inductive exec_args : env -> path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
+(* TODO *)
 
-Inductive exec_copy_out : env -> path -> state -> list argument -> list Val -> state -> Prop :=.
+Inductive exec_copy_out : env -> path -> state -> list Lval -> list Val -> state -> Prop :=.
+(* TODO *)
+(* This depends on assigning to lvalues. *)
 
-(* We split the memory into constant and non-constant parts. *)
-Definition inst_mem := @PathMap.t tags_t memory_val.
+Inductive inst_mem_val :=
+  | IMVal (v : Val)
+  (* Instances, including parsers, controls, and external objects. *)
+  | IMInst (class : ident) (p : path).
 
-Axiom dummy_tag : tags_t.
-Definition apply_string : ident := {| P4String.tags := dummy_tag; P4String.str := "apply" |}.
+Definition inst_mem := @PathMap.t tags_t inst_mem_val.
+
+Definition apply_string : ident := {| P4String.tags := dummy_tags; P4String.str := "apply" |}.
 
 Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
   (* We should think about using option monad in this function. *)
@@ -447,7 +438,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
           | Some (Global p) => option_map (fun fd => (nil, fd)) (PathMap.get p ge)
           | Some (Instance p) =>
               match PathMap.get this_path inst_m with
-              | Some (MInstance class_name _) =>
+              | Some (IMInst class_name _) =>
                   option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge)
               | _ => None
               end
@@ -462,7 +453,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
-            | Some (MInstance class_name inst_path) =>
+            | Some (IMInst class_name inst_path) =>
                 option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
             | _ => None
             end
@@ -474,8 +465,11 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName (BareName name)) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
-            | Some (MInstance class_name inst_path) =>
-                Some (inst_path, FExternal class_name name)
+            | Some (IMInst class_name inst_path) =>
+                match PathMap.get [class_name; name] ge with
+                | Some fd => Some (inst_path, fd)
+                | None => None
+                end
             | _ => None
             end
         | _ => None
@@ -483,8 +477,21 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
   | _ => None
   end.
 
-Definition extract_argvals : list argument -> list Val.
-Admitted.
+Definition extract_invals (args : list argument) : list Val :=
+  let f arg :=
+    match arg with
+    | (Some v, _) => [v]
+    | (None, _) => []
+    end in
+  flat_map f args.
+
+Definition extract_outlvals (args : list argument) : list Lval :=
+  let f arg :=
+    match arg with
+    | (_, Some lv) => [lv]
+    | (_, None) => []
+    end in
+  flat_map f args.
 
 Inductive exec_lvalue_expr : env -> path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
   | exec_lvalue_expr_name : forall name e this st tag typ dir,
@@ -544,7 +551,7 @@ Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalu
   | _ => None (* omitted for now *)
   end.
 
-(*this_path -> decl_path*)
+(* this_path -> decl_path -> ... *)
 Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | eval_stmt_assignment : forall lhs lv rhs v this_path decl_path e inst_m st tag typ st' sig,
                            exec_lvalue_expr e this_path st lhs lv ->
@@ -552,46 +559,49 @@ Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement ta
                            assign_lvalue e this_path st lv v = Some (st', SContinue) ->
                            exec_stmt this_path decl_path e inst_m st
                            (MkStatement tag (StatAssignment lhs rhs) typ) st' sig
-  
+
 with exec_block : path -> path -> env -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
-with exec_func_caller : path -> env-> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
+with exec_call : path -> env-> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:
        1. lookup the function to call;
        2. eval arguments;
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_func_function : forall this_path e inst_m s tag func args typ dir argvals obj_path fd outvals s' s'' vret,
+  | exec_call_intro : forall this_path e inst_m s tags func args typ dir argvals obj_path fd outvals s' s'' vret,
       let dirs := get_arg_directions func in
       exec_args e this_path s args dirs argvals ->
       lookup_func this_path e inst_m func = Some (obj_path, fd) ->
-      exec_func_callee obj_path inst_m s fd (extract_argvals argvals) s' outvals vret ->
-      exec_copy_out e this_path s' argvals outvals s'' ->
-      exec_func_caller this_path e inst_m s (MkExpression tag (ExpFunctionCall func nil args) typ dir) s' vret
+      exec_func obj_path inst_m s fd (extract_invals argvals) s' outvals vret ->
+      exec_copy_out e this_path s' (extract_outlvals argvals) outvals s'' ->
+      exec_call this_path e inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s' vret
 
-with exec_func_callee : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
+(* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
+
+with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
   | exec_func_internal : forall obj_path global decl_path e inst_m params body s args args' s' s'' vret,
-      copy_in_copy_out (map (fun param => obj_path ++ decl_path ++ [param]) params) args args' s s' s'' ->
+      bind_parameters (map (map_fst (fun param => obj_path ++ decl_path ++ [param])) params) args args' s s' s'' ->
       exec_block obj_path decl_path e inst_m s' body s'' (SReturn vret) ->
-      exec_func_callee obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
+      exec_func obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
 
-  | exec_func_table_match : forall obj_path name e inst_m keys actions matches action_name ctrl_args default_action const_entries s s',
-      exec_table_match e obj_path s name const_entries (Some (Entry matches action_name ctrl_args)) ->
-      exec_func_caller obj_path e inst_m s (add_ctrl_args (get_action actions name) ctrl_args) s' None ->
-      exec_func_callee obj_path inst_m s (FTable name e keys actions default_action const_entries) nil s' nil None
+  | exec_func_table_match : forall obj_path name e inst_m keys actions action_name ctrl_args action default_action const_entries s s',
+      exec_table_match e obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
+      add_ctrl_args (get_action actions name) ctrl_args = Some action ->
+      exec_call obj_path e inst_m s action s' None ->
+      exec_func obj_path inst_m s (FTable name e keys actions default_action const_entries) nil s' nil None
 
   | exec_func_table_default : forall obj_path name e inst_m keys actions default_action const_entries s s',
       exec_table_match e obj_path s name const_entries None ->
-      exec_func_caller obj_path e inst_m s default_action s' None ->
-      exec_func_callee obj_path inst_m s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
+      exec_call obj_path e inst_m s default_action s' None ->
+      exec_func obj_path inst_m s (FTable name e keys actions (Some default_action) const_entries) nil s' nil None
 
   | exec_func_table_noaction : forall obj_path name e inst_m keys actions const_entries s,
       exec_table_match e obj_path s name const_entries None ->
-      exec_func_callee obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
+      exec_func obj_path inst_m s (FTable name e keys actions None const_entries) nil s nil None
 
-  | exec_func_external : forall obj_path inst_m class_name name m es es' args args' vret,
-      CallExtern es class_name name obj_path args es' args' vret ->
-      exec_func_callee obj_path inst_m (m, es) (FExternal class_name name) args (m, es') args' vret.
+  | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' args args' vret,
+      exec_extern es class_name name obj_path args es' args' vret ->
+      exec_func obj_path inst_m (m, es) (FExternal class_name name (* params *)) args (m, es') args' vret.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=
@@ -600,6 +610,7 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
       match decl with
       | DeclParser _ name' _ _ _ _ _
       | DeclControl _ name' _ _ _ _ _
+      | DeclExternObject _ name' _ _
       | DeclPackageType _ name' _ _ =>
           if P4String.equivb name name' then
             decl
@@ -607,7 +618,13 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
             get_decl rev_decls' name
       | _ => get_decl rev_decls' name
       end
-  | [] => DeclError dummy_tag nil (* Abuse DeclError to report not found. *)
+  | [] => DeclError dummy_tags nil (* Abuse DeclError to report not found. *)
+  end.
+
+Definition is_decl_extern_obj (decl : @Declaration tags_t) : bool :=
+  match decl with
+  | DeclExternObject _ _ _ _ => true
+  | _ => false
   end.
 
 Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident :=
@@ -627,6 +644,8 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   end.
 
 Axiom dummy_ident : ident.
+Axiom dummy_val : Val.
+Axiom dummy_inst_mem_val : inst_mem_val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
@@ -635,37 +654,52 @@ Definition get_type_name (typ : @P4Type tags_t) : ident :=
   | _ => dummy_ident
   end.
 
-Definition ienv := @IdentMap.t tags_t path.
-
-Definition force {A} (default : A) (x : option A) : A :=
-  match x with
-  | Some x => x
-  | None => default
+Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
+  match typ with
+  | TypSpecializedType _ params => params
+  | _ => nil
   end.
+
+Definition ienv := @IdentMap.t tags_t inst_mem_val.
 
 (* A trick to define mutually recursive functions. *)
 Section instantiate_class_body.
 
-Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem), path * inst_mem.
+Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
+      (s : extern_state), path * inst_mem * extern_state.
 
 Section instantiate_expr'.
 
-Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path) (m : inst_mem), path * inst_mem.
+Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t)
+      (p : path) (m : inst_mem) (s : extern_state), inst_mem_val * inst_mem * extern_state.
 
-Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t) (args : list (@Expression tags_t)) (p : path) (m : inst_mem) : path * inst_mem :=
+Definition extract_val (val : inst_mem_val) :=
+  match val with
+  | IMVal val => val
+  | IMInst _ _ => dummy_val
+  end.
+
+Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t)
+      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : inst_mem_val * inst_mem * extern_state :=
   let class_name := get_type_name typ in
   let decl := get_decl rev_decls class_name in
+  (* params := nil if decl is an external object, but params is only used to name the instances. *)
   let params := get_constructor_param_names decl in
-  let instantiate_arg (acc : list path * inst_mem * list ident) arg :=
-    let (acc', params) := acc in
-    let (args, m) := acc' in
-    let (arg, m) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m in
+  let instantiate_arg (acc : list inst_mem_val * inst_mem * extern_state * list ident) arg :=
+    let '(args, m, s, params) := acc in
+    let '(arg, m, s) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m s in
     (* O(n^2) time complexity here. *)
-    (args ++ [arg], m, tl params) in
-  let (args, m) := fst (fold_left instantiate_arg args (nil, m, params)) in
-  let e := IdentMap.sets params args e in
-  let (_, m) := instantiate_class_body_rev_decls e class_name p m in
-  (p, m).
+    (args ++ [arg], m, s, tl params) in
+  let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
+  if is_decl_extern_obj decl then
+    let m := PathMap.set p (IMInst class_name p) m in
+    let type_params := get_type_params typ in
+    let s := alloc_extern s class_name type_params p (map extract_val args) in
+    (IMInst class_name p, m, s)
+  else
+    let e := IdentMap.sets params args e in
+    let '(_, m, s) := instantiate_class_body_rev_decls e class_name p m s in
+    (IMInst class_name p, m, s).
 
 End instantiate_expr'.
 
@@ -673,58 +707,62 @@ End instantiate_expr'.
   To support value expressions, we need a Gallina function to evaluate expressions.
   And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
 
-Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path) (m : inst_mem) {struct expr} : path * inst_mem :=
+Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path)
+      (m : inst_mem) (s : extern_state) {struct expr} : inst_mem_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
   match expr with
   | MkExpression _ (ExpName (BareName name)) _ _ =>
-      let inst := force nil (IdentMap.get name e) in
-      (inst, PathMap.set p (MInstance name inst) m)
+      let inst := force dummy_inst_mem_val (IdentMap.get name e) in
+      (inst, PathMap.set p inst m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
-      instantiate' rev_decls e typ args p m
-  | _ => (nil, m)
+      instantiate' rev_decls e typ args p m s
+  (* TODO evaluate val parameters. *)
+  | _ => (dummy_inst_mem_val, m, s)
   end.
 
 Definition instantiate' :=
   instantiate'' instantiate_expr'.
 
-Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decl : @Declaration tags_t) (p : path) (m : inst_mem) : ienv * inst_mem :=
+Definition instantiate_decl' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decl : @Declaration tags_t)
+      (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
   | DeclInstantiation _ typ args name _ =>
-      let class_name := get_type_name typ in
-      let decl := get_decl rev_decls class_name in
-      let (_, m) := instantiate' rev_decls e typ args (p ++ [name]) m in
-      (IdentMap.set name (p ++ [name]) e, m)
-  | _ => (e, m)
+      let '(inst, m, s) := instantiate' rev_decls e typ args (p ++ [name]) m s in
+      (IdentMap.set name inst e, m, s)
+  | _ => (e, m, s)
   end.
 
-Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decls : list (@Declaration tags_t)) (p : path) (m : inst_mem) : inst_mem :=
-  let instantiate_decl'' (em : ienv * inst_mem) (decl : @Declaration tags_t) : ienv * inst_mem :=
-    let (e, m) := em in instantiate_decl' rev_decls e decl p m in
-  snd (fold_left instantiate_decl'' decls (e, m)).
+Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv) (decls : list (@Declaration tags_t))
+      (p : path) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
+  let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
+    let '(e, m, s) := ems in instantiate_decl' rev_decls e decl p m s in
+  let '(_, m, s) := fold_left instantiate_decl'' decls (e, m, s) in
+  (m, s).
 
 End instantiate_class_body.
 
-Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path) (m : inst_mem) {struct rev_decls} : path * inst_mem :=
+Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
+      (m : inst_mem) (s : extern_state) {struct rev_decls} : path * inst_mem * extern_state :=
   match rev_decls with
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
       match decl with
       | DeclParser _ class_name' _ _ _ _ _ =>
           if P4String.equivb class_name class_name' then
-            let m := PathMap.set p (MInstance class_name p) m in
-            (nil, m) (* TODO *)
+            let m := PathMap.set p (IMInst class_name p) m in
+            (nil, m, s) (* TODO *)
           else
-            instantiate_class_body rev_decls' e class_name p m
+            instantiate_class_body rev_decls' e class_name p m s
       | DeclControl _ class_name' _ _ _ locals _ =>
           if P4String.equivb class_name class_name' then
-            let m := instantiate_decls rev_decls' e locals p m in
-            let m := PathMap.set p (MInstance class_name p) m in
-            (p, m)
+            let (m, s) := instantiate_decls rev_decls' e locals p m s in
+            let m := PathMap.set p (IMInst class_name p) m in
+            (p, m, s)
           else
-            instantiate_class_body rev_decls' e class_name p m
-      | _ => instantiate_class_body rev_decls' e class_name p m
+            instantiate_class_body rev_decls' e class_name p m s
+      | _ => instantiate_class_body rev_decls' e class_name p m s
       end
-  | nil => (nil, m)
+  | nil => (nil, m, s)
   end.
 
 Definition instantiate_expr (rev_decls : list (@Declaration tags_t)) :=
@@ -739,24 +777,24 @@ Definition instantiate_decl (rev_decls : list (@Declaration tags_t)) :=
 Definition instantiate_decls (rev_decls : list (@Declaration tags_t)) :=
   instantiate_decls' (instantiate_class_body rev_decls) rev_decls.
 
-
-Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t)) (e : ienv) (m : inst_mem) : inst_mem :=
+Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (rev_decls : list (@Declaration tags_t))
+      (e : ienv) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
   match decls with
-  | [] => m
+  | [] => (m, s)
   | decl :: decls' =>
-      let (e, m) := instantiate_decl rev_decls e decl nil m in
-      instantiate_global_decls' decls' (decl :: rev_decls) e m
+      let '(e, m, s) := instantiate_decl rev_decls e decl nil m s in
+      instantiate_global_decls' decls' (decl :: rev_decls) e m s
   end.
 
-Definition instantiate_global_decls (decls : list (@Declaration tags_t)) : forall (m : inst_mem), inst_mem :=
+Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
+      forall (m : inst_mem) (s: extern_state), inst_mem * extern_state :=
   instantiate_global_decls' decls nil IdentMap.empty.
 
-Definition instantiate_prog (prog : @program tags_t) : inst_mem :=
+Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls PathMap.empty
+      instantiate_global_decls decls PathMap.empty extern_empty
   end.
-
 
 Definition add_name (p : path) (name : ident) (e : env) : env :=
   if path_equivb p nil then
@@ -777,24 +815,23 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       (add_name p name e, ge)
   (* TODO parser *)
   | DeclControl _ name type_params params constructor_params locals apply =>
-      let params := map param_to_name params in
+      let params := map param_to_name_dir params in
       let constructor_params := map param_to_name constructor_params in
-      let e' := add_names (p ++ [name]) (params ++ constructor_params) e in
+      let e' := add_names (p ++ [name]) ((map fst params) ++ constructor_params) e in
       let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
       (add_name p name e,
         PathMap.set (p ++ [name]) (FInternal false [name] e' params apply) ge)
   | DeclFunction _ _ name type_params params body =>
-      let params := map param_to_name params in
+      let params := map param_to_name_dir params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) params e) params body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst params) e) params body) ge)
   | DeclVariable _ _ name _ =>
       (add_name p name e, ge)
   | DeclAction _ name params ctrl_params body =>
-      let params := map param_to_name params in
-      let ctrl_params := map param_to_name ctrl_params in
+      let params := map param_to_name_dir params in
+      let ctrl_params := map (fun name => (name, In)) (map param_to_name ctrl_params) in
       (add_name p name e,
-        (* Maybe we need to replace directionless with in in ctrl_params. *)
-        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (params ++ ctrl_params) e) (params ++ ctrl_params) body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst (params ++ ctrl_params)) e) (params ++ ctrl_params) body) ge)
   | _ => (e, ge)
   end.
 
@@ -802,13 +839,6 @@ Definition load_prog (prog : @program tags_t) : genv :=
   match prog with
   | Program decls => snd (fold_left (load_decl nil) decls (IdentMap.empty, PathMap.empty))
   end.
-
-End UseExternal.
-
-Class Architecture := {
-  ExternalSem : External;
-  Evoker : (path -> list Val -> list Val -> Prop) -> Prop
-}.
 
 End Semantics.
 

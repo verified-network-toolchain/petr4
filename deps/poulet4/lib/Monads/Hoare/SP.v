@@ -25,22 +25,6 @@ Definition hoare_triple_partial
     .
 
 Notation "{{ P }} c {{ Q }}" := (@hoare_triple_partial _ _ _ P c Q) (at level 90) : hoare_scope.
-Ltac gregsimp :=
-    unfold Pred, hoare_triple_partial, top in * ; intros ;
-      repeat (match goal with
-                | [ H : _ /\ _ |- _] => destruct H
-                | [ H : (_ * _)%type |- _] => destruct H
-                | [ H1 : forall _, ?P1 _ -> _, H2 : ?P1 ?h |- _] =>
-                  generalize (H1 h H2) ; clear H1 ; intros
-                | [ H1 : forall _ _ _, ?P1 _ _ -> _, H2 : ?P1 ?x ?h |- _] =>
-                  generalize (H1 _ _ _ H2) ; clear H1 ; intros
-                | [ H : match ?e with | Some _ => _ | None => _ end |- _ ] =>
-                  destruct e
-                | [ |- _ /\ _ ] => split
-                | [ H : exists _, _ |- _] => destruct H
-                | [ H : Some ?x = Some ?y |- _ ] => inversion H ; clear H ; subst
-                | _ => assert False ; [ lia | contradiction ]
-              end) ; subst ; simpl in * ; try firstorder ; auto with arith.
 
 Lemma hoare_consequence {State Exception Result: Type} {c: @state_monad State Exception Result}:
   forall {P P': @Pred State} {Q Q': Result + Exception -> State -> @Pred State},

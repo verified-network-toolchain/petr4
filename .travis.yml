@@ -37,6 +37,7 @@ install:
 - opam install ./coq-record-update
 
 script:
+- opam update
 - make deps
 - opam install . --deps-only
 - make

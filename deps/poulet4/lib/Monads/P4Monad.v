@@ -45,8 +45,19 @@ Definition bits2list {n} (bs: bits n) : list bool.
     exact (b :: IHn p).
 Defined.
 
+Definition bits2N {n} (bs: bits n) : option BinNums.N :=
+  if Nat.eqb n 0
+  then None
+  else Some (Ascii.N_of_digits (bits2list bs)).
+
+Definition bits2Z {n} (bs: bits n) : option BinNums.Z :=
+  match bits2N bs with
+  | None => None
+  | Some n => Some (BinInt.Z.of_N n)
+  end.
+
 Definition StandardMeta :=
-  HAList.t string [("egress_spec", bits 9)].
+  HAList.t [("egress_spec", bits 9)].
 
 Record ParserState {Meta: Type} := mkParserState {
   fuel: nat;
@@ -92,7 +103,7 @@ Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
     end
   end.
 
-Definition init_meta : StandardMeta := (zero_bits, tt).
+Definition init_meta : StandardMeta := HAList.RCons zero_bits HAList.REmp.
 
 Definition init_state (pkt: list bool) : ParserState :=
   {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.

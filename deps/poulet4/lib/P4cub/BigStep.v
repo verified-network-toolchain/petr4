@@ -8,6 +8,7 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.Arith.Compare_dec.
 
 Module V := Val.
 
@@ -144,6 +145,64 @@ Module Step.
       end.
     (**[]*)
 
+    (** Header stack operations. *)
+    Definition eval_stk_op
+               (op : E.hdr_stk_op) (size : positive)
+               (nextIndex : N) (ts : F.fs tags_t (E.t tags_t))
+               (bvss : list (bool * F.fs tags_t (V.v tags_t)))
+      : option (V.v tags_t) :=
+      let w := 32%positive in
+      let sizenat := Pos.to_nat size in
+      match op with
+      | E.HSOSize => let s := (Npos size)%N in Some *{ w VW s }*
+      | E.HSONext => match nth_error bvss (N.to_nat nextIndex) with
+                    | None => None
+                    | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
+                    end
+      | E.HSOPush n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := firstn (sizenat - nnat) bvss in
+            let new_nextIndex := N.min (nextIndex + n) (N.pos size - 1)%N in
+            Some (V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex)
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some (V.VHeaderStack ts new_hdrs size ((N.pos size) - 1)%N)
+      | E.HSOPop  n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := skipn nnat bvss in
+            Some (V.VHeaderStack ts (remains ++ new_hdrs) size (nextIndex - n))
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some (V.VHeaderStack ts new_hdrs size 0%N)
+      end.
+    (**[]*)
+
+    Definition eval_cast
+               (target : E.t tags_t) (v : V.v tags_t) : option (V.v tags_t) :=
+      match target, v with
+      | {{ bit<xH> }}, *{ TRUE }*         => Some (V.VBit 1%positive 1%N)
+      | {{ bit<xH> }}, *{ FALSE }*        => Some (V.VBit 1%positive 0%N)
+      | {{ Bool }}, V.VBit 1%positive 1%N => Some *{ TRUE }*
+      | {{ Bool }}, V.VBit 1%positive 0%N => Some *{ FALSE }*
+      | {{ bit<w> }}, *{ _ VS Z0 }*       => Some *{ w VW N0 }*
+      | {{ bit<w> }}, V.VInt _ (Zneg p)
+      | {{ bit<w> }}, V.VInt _ (Zpos p)   => let n := BitArith.return_bound w (Npos p) in
+                                            Some *{ w VW n }*
+      (* TODO: casting bit -> int is incorrect. *)
+      | {{ int<w> }}, *{ _ VW n }* => let z := IntArith.return_bound w (Z.of_N n) in
+                                     Some *{ w VS z }*
+      | {{ bit<w> }}, *{ _ VW n }* => let n := BitArith.return_bound w n in
+                                     Some *{ w VW n }*
+      | {{ int<w> }}, *{ _ VS z }* => let z := IntArith.return_bound w z in
+                                     Some *{ w VS z }*
+      | _, _ => None
+      end.
+    (**[]*)
+
     (** Variable to Value mappings. *)
     Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
 
@@ -168,7 +227,9 @@ Module Step.
     with inst : Type :=
     | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
             (tbls : tenv) (aa : aenv)
-            (apply_blk : ST.s tags_t)  (* control apply block *)
+            (apply_blk : ST.s tags_t)  (* control instance *)
+    | PInst (* TODO: parser instance *)
+    | EInst (* TODO: extern object instance *)
     with ienv : Type :=
     | IEnv (ins : Env.t (name tags_t) inst).
     (**[]*)
@@ -288,28 +349,6 @@ Module Step.
     | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
     (**[]*)
 
-    (** Intial/Default value from a type. *)
-    Fixpoint vdefault (τ : E.t tags_t) : V.v tags_t :=
-      let fix fields_rec
-              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t (V.v tags_t) :=
-          match ts with
-          | [] => []
-          | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
-          end in
-      match τ with
-      | {{ error }}      => V.VError None
-      | {{ matchkind }}  => *{ MATCHKIND exact }*
-      | {{ Bool }}       => *{ FALSE }*
-      | {{ bit<w> }}     => *{ w VW N0 }*
-      | {{ int<w> }}     => *{ w VS Z0 }*
-      | {{ rec { ts } }} => V.VRecord (fields_rec ts)
-      | {{ hdr { ts } }} => V.VHeader (fields_rec ts) false
-      | {{ stack fs[n] }} => V.VHeaderStack
-                              fs (repeat (false, fields_rec fs)
-                                         (Pos.to_nat n)) n 0
-      end.
-    (**[]*)
-
     (** Control plane table entries,
         essentially mapping tables to an action call. *)
     Definition entries : Type :=
@@ -350,6 +389,10 @@ Module Step.
   | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
       ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
+  | ebs_cast (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) (v v' : V.v tags_t) :
+      eval_cast τ v = Some v' ->
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⟨ ϵ, Cast e:τ @ i ⟩ ⇓ v'
   | ebs_error (err : option (string tags_t)) (i : tags_t) :
       ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
   | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
@@ -420,6 +463,10 @@ Module Step.
       F.get x vfs = Some v ->
       ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
       ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
+  | ebs_tuple (es : list (E.e tags_t)) (i : tags_t)
+              (vs : list (V.v tags_t)) :
+      Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
+      ⟨ ϵ, tup es @ i ⟩ ⇓ TUPLE vs
   | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
                 (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
       F.relfs
@@ -458,6 +505,13 @@ Module Step.
       nth_error vss (N.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
+  | ebs_stk_op  (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
+                (v : V.v tags_t) (ts : F.fs tags_t (E.t tags_t))
+                (bvss : list (bool * F.fs tags_t (V.v tags_t)))
+                (size : positive) (nextIndex : N) :
+      eval_stk_op op size nextIndex ts bvss = Some v ->
+      ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
+      ⟨ ϵ, STK_OP op e @ i ⟩ ⇓ v
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   (**[]*)
 
@@ -477,6 +531,13 @@ Module Step.
     Hypothesis HVar : forall ϵ x τ i v,
         ϵ x = Some v ->
         P ϵ <{ Var x:τ @ i }> v.
+    (**[]*)
+
+    Hypothesis HCast : forall ϵ τ e i v v',
+        eval_cast τ v = Some v' ->
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        P ϵ e v ->
+        P ϵ <{ Cast e:τ @ i }> v'.
     (**[]*)
 
     Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
@@ -575,6 +636,12 @@ Module Step.
         P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
     (**[]*)
 
+    Hypothesis HTuple : forall ϵ es i vs,
+        Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
+        Forall2 (P ϵ) es vs ->
+        P ϵ <{ tup es @ i }> *{ TUPLE vs }*.
+    (**[]*)
+
     Hypothesis HRecLit : forall ϵ efs i vfs,
         F.relfs
           (fun te v =>
@@ -623,6 +690,13 @@ Module Step.
                P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
     (**[]*)
 
+    Hypothesis HStackOp : forall ϵ op e i v ts bvss size nextIndex,
+        eval_stk_op op size nextIndex ts bvss = Some v ->
+        ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
+        P ϵ e *{ STACK bvss:ts[size] NEXT:=nextIndex }* ->
+        P ϵ <{ STK_OP op e @ i }> v.
+    (**[]*)
+
     (** Custom induction principle for
         the expression big-step relation.
         [Do induction ?H using custom_expr_big_step_ind]. *)
@@ -630,6 +704,18 @@ Module Step.
       forall (ϵ : epsilon) (e : E.e tags_t)
         (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
       fix ebsind ϵ e v Hy :=
+        let fix lind
+                {es : list (E.e tags_t)}
+                {vs : list (V.v tags_t)}
+                (HR : Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs)
+            : Forall2 (P ϵ) es vs :=
+            match HR with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ Hh Ht => Forall2_cons
+                                         _ _
+                                         (ebsind _ _ _ Hh)
+                                         (lind Ht)
+            end in
         let fix fsind
                 {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
                 {vfs : F.fs tags_t (V.v tags_t)}
@@ -681,6 +767,9 @@ Module Step.
         | ebs_bit _ w n i => HBit ϵ w n i
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
+        | ebs_cast _ _ _ i _ _
+                   Hcast He => HCast _ _ _ i _ _ Hcast
+                                    He (ebsind _ _ _ He)
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
         | ebs_not _ _ i _ _ Hnot He => HNot _ _ i _ _ Hnot
@@ -725,6 +814,7 @@ Module Step.
         | ebs_hdr_op _ _ _ i _ _ _
                      Hv He => HHdrOp _ _ _ i _ _ _ Hv
                                     He (ebsind _ _ _ He)
+        | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
         | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
         | ebs_hdr_lit _ _ _ i _ _
                       HR He => HHdrLit _ _ _ i _ _
@@ -735,6 +825,9 @@ Module Step.
         | ebs_access _ _ i n index ni ts _ _ _
                      Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
                                        He (ebsind _ _ _ He)
+        | ebs_stk_op _ _ _ i _ _ _ _ _
+                     Hv He => HStackOp _ _ _ i _ _ _ _ _ Hv
+                                      He (ebsind _ _ _ He)
         end.
     (**[]*)
 
@@ -780,7 +873,7 @@ Module Step.
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
   | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
                 (i : tags_t) (v : V.v tags_t) :
-      vdefault τ = v ->
+      V.vdefault τ = v ->
       let x' := bare x in
       ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
   | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
@@ -923,7 +1016,7 @@ Module Step.
             (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
   | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
       let x' := bare x in
-      let v := vdefault τ in
+      let v := V.vdefault τ in
       ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
   | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
                 (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :
@@ -931,21 +1024,33 @@ Module Step.
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
   | dbs_instantiate (c : name tags_t) (x : string tags_t)
-                    (cargs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                    (vargs : F.fs tags_t (V.v tags_t)) (i : tags_t)
-                    (ctrlclosure : cenv) (fclosure : fenv) (iclosure ins' : ienv)
+                    (cargs : E.constructor_args tags_t)
+                    (vargs : F.fs tags_t (either (V.v tags_t) inst)) (i : tags_t)
+                    (ctrlclosure : cenv) (fclosure : fenv)
+                    (iclosure ins' ins'' : ienv)
                     (body : CD.d tags_t) (applyblk : ST.s tags_t)
                     (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
       clookup cs c = Some (CDecl ctrlclosure closure fclosure iclosure body applyblk) ->
-      F.relfs (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v) cargs vargs ->
-      F.fold (fun x v acc => let x' := bare x in !{ x' ↦ v;; acc }!) vargs closure = ϵ' ->
+      F.relfs
+        (fun carg v =>
+           match carg,v with
+           | E.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
+           | E.CAName c, Right cinst => ilookup ins c = Some cinst
+           | _, _ => False
+           end) cargs vargs ->
+      F.fold (fun x v '(ϵ,ins) =>
+                let x' := bare x in
+                match v with
+                | Left v => (!{ x' ↦ v;; ϵ }!, ins)
+                | Right cinst => (ϵ, iupdate ins x' cinst)
+                end) vargs (closure,iclosure) = (ϵ',ins') ->
       let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
       let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
-      ⦉ cp, cs, empty_tbls, empty_acts, fclosure, iclosure, ϵ', body ⦊
-        ⟱  ⦉ ϵ'', ins', aa, tbls ⦊ ->
+      ⦉ cp, cs, empty_tbls, empty_acts, fclosure, ins', ϵ', body ⦊
+        ⟱  ⦉ ϵ'', ins'', aa, tbls ⦊ ->
       let x' := bare x in
-      let ins'' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
-      ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins'' ⧽
+      let ins''' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
+      ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins''' ⧽
   | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                 (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
       ⧼ cp, cs, fns, ins,  ϵ,  d1 ⧽ ⟱  ⧼ ϵ',  ins'  ⧽ ->
@@ -997,7 +1102,7 @@ Module Step.
             {tags_t : Type} (cp : ctrl) (cs : cenv)
             (fns : fenv) (ins : ienv) (ϵ : epsilon)
     : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
-  | tpbs_control (c : string tags_t) (cparams : F.fs tags_t (E.t tags_t))
+  | tpbs_control (c : string tags_t) (cparams : E.constructor_params tags_t)
                  (params : E.params tags_t) (body : CD.d tags_t)
                  (apply_blk : ST.s tags_t) (i : tags_t) (cs' : @cenv tags_t) :
       let c' := bare c in

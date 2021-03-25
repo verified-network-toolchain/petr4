@@ -82,7 +82,7 @@ module Make_parse (Conf: Parse_config) = struct
     |> List.fold_left ~init:"" ~f:(^)
 
   let check_file (include_dirs : string list) (p4_file : string) 
-      (print_json : bool) (pretty_json : bool) (exportp4 : bool) 
+      (print_json : bool) (pretty_json : bool) (exportp4 : bool) (normalize : bool)
       (export_file : string) (typed_json : bool) (verbose : bool) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
@@ -110,7 +110,11 @@ module Make_parse (Conf: Parse_config) = struct
           (* let oc = open_out ofile in *)
           (* let oc = Stdlib.open_out "out.v" in *)
           let oc = Out_channel.create export_file in
-          Exportp4.print_program (Format.formatter_of_out_channel oc) typed_prog;
+          let prog' =
+            if normalize then
+              Poulet4.SimplExpr.transform_prog Info.dummy typed_prog
+            else typed_prog in
+          Exportp4.print_program (Format.formatter_of_out_channel oc) prog';
         Out_channel.close oc
       end
     | `Error (info, Lexer.Error s) ->

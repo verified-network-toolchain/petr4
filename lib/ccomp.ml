@@ -17,13 +17,13 @@ let next_state_var = C.CVar next_state_name
 
 let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
-  | ExpressionMember x -> snd x.name
+  | ExpressionMember x -> get_expr_name x.expr ^ "." ^ snd x.name 
   | FunctionCall x -> failwith "a"
   | NamelessInstantiation x -> failwith "b"
   | String s -> failwith (snd s)
   | Mask x -> failwith "dsjak"
   | Name n -> begin match n with 
-      | BareName str -> snd str
+      | BareName str -> snd str 
       | _ -> failwith "unimplemented" end 
   | True ->  "true"
   | False -> "false"
@@ -183,11 +183,9 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let app_block = List.map ~f:(translate_act (snd name) map) locals in 
     map, state_struct ::
          app_block @
-         [C.CFun (CVoid, snd name ^ "_fun", 
+         [C.CFun (CVoid, snd name, 
                   [CParam (CPtr (CTypeName state_type_name), "state")], 
-                  translate_block map apply)]
-  (* [C.CMethodCall ((snd name), [C.CString "TODO??"])])] *)
-  (* use commented out version if myC, for myd use the current version *)
+                  [C.CMethodCall (thirdList (List.map ~f:get_table_name locals), [C.CString "state"])] )]
   | Constant _ ->
     map, [C.CComment "todo: Constant"]
   | Instantiation _ ->
@@ -208,6 +206,12 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | TypeDef _ ->
     map, []
 
+and thirdList (l : string list) =
+  match l with 
+  | [] -> ""
+  | h::s::m::t -> m
+  | _ -> failwith "f"
+
 and translate_decls (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.cdecl list =
   let f (map, decls) decl =
     let map', decls' = translate_decl map decl in
@@ -224,9 +228,16 @@ and translate_act (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cd
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
     begin match key with 
       | [] -> failwith "nothing"
-      | [k] -> get_table(n, k, actions, entries, default_action, size, custom_properties)
+      | [k] -> get_table(snd name, k, actions, entries, default_action, size, custom_properties)
       | _ -> failwith "no" end 
   | _ -> C.CInclude "not needed"
+
+and get_table_name (locals : Prog.Declaration.t) : string = 
+  match snd locals with 
+  | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
+    snd name
+  | Action { name; data_params; ctrl_params; body; _ } -> snd name
+  | _ -> failwith "unimplemented!!" 
 
 and ext_action (lst : Prog.Expression.t option ) =
   begin match lst with 

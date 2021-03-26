@@ -172,15 +172,32 @@ Ltac break_match_hyp :=
       end
   end.
 
-Ltac name_bind H := 
+Lemma split_bind:
+  forall {St Exception Result Result': Type} f g o s s',
+    @State.state_bind St Exception Result Result' f g s = (inl o, s') ->
+    exists s'' m, f s = (inl m, s'') /\ g m s'' = (inl o, s')
+.
+Proof.
+  intros.
+  unfold State.state_bind in H.
+  break_let.
+  destruct s0; try discriminate.
+  exists s1, r.
+  easy.
+Qed.
+
+Ltac split_bind_tac H := 
   match type of H with
-  | context [ State.state_bind ?f ?n ?i ] =>
-    unfold State.state_bind in H;
-    let F := fresh "f" in remember (f i) as F;
-    let N := fresh "n" in remember n as N
-  | context [ State.state_bind ?f ?n ] =>
-    let F := fresh "f" in remember f as F;
-    let N := fresh "n" in remember n as N
+  | State.state_bind ?f ?n ?s = (inl ?v, ?s') =>
+    apply split_bind in H;
+    let Hs := fresh s in 
+    let Hm := fresh "v" in
+    let Hn := fresh H in
+    destruct H as [Hs [Hm [H Hn]]];
+    match type of Hm with
+    | unit => destruct Hm
+    | _ => idtac
+    end
   end.
 
 (** [break_match_goal] looks for a [match] construct in your goal, and
@@ -277,39 +294,26 @@ Lemma stack_push_lookup_invariant:
 .
 Proof.
   intros.
-  pose proof (stack_lookup'_push_invariant (P4String.str str) env env' H0).
-  unfold stack_push in H0.
-  simpl in H0; inversion H0; subst.
-  clear H0.
   unfold env_str_lookup in *.
   unfold env_name_lookup in *.
-  simpl in H1.
   simpl in *.
-  unfold State.state_bind in *.
-  repeat break_let.
-  destruct s; try congruence.
-  assert ((s0, e0) = (@inl _ exception l,
-                      {| env_fresh := env_fresh Info env;
-                         env_stack := MStr.empty loc :: env_stack Info env;
-                         env_heap := env_heap Info env |})).
-  {
-    unfold stack_lookup in *; simpl.
-    simpl in *.
-    destruct (stack_lookup' (P4String.str str) (env_stack Info env));
-      try discriminate.
-    inversion Heqp0; subst.
-    inversion Heqp; subst.
-    congruence.
-  }
-  inversion H0; subst.
-  clear H0.
+  split_bind_tac H.
+  unfold State.state_bind.
+  unfold stack_lookup in *.
+  erewrite <- stack_lookup'_push_invariant.
+  2: { exact H0. }
+  destruct (stack_lookup' _ _); try discriminate.
+  simpl.
+  inversion H.
   unfold heap_lookup in *.
-  simpl (env_heap _ _).
-  replace e with env in H
-    by eauto using stack_lookup_no_effect.
-  break_match;
-    inversion H;
-    reflexivity.
+  replace (env_heap Info env') with (env_heap Info env0).
+  break_match; try discriminate.
+  inversion H1.
+  reflexivity.
+  unfold stack_push in H0.
+  inversion_clear H0.
+  simpl.
+  congruence.
 Qed.
 
 Lemma ipheader_packet_effect:
@@ -338,36 +342,48 @@ Proof.
   simpl step in H1.
   rewrite H0 in H1.
   break_let.
-  name_bind H1.
-  break_let.
-  assert (env_str_lookup Info (MkP4String "packet") e =
-          (inl (ValObj (ValObjPacket (pkt parser_state))), e)).
+  split_bind_tac H1.
+  assert (env_str_lookup Info (MkP4String "packet") env0 =
+          (inl (ValObj (ValObjPacket (pkt parser_state))), env0)).
   {
-    rewrite Eval.eval_statement_equation_1 in Heqf.
-    rewrite Eval.eval_statement_pre_equation_5 in Heqf.
-    simpl in Heqf.
-    name_bind Heqf; break_let.
-    name_bind Heqn0; break_let.
-    destruct s eqn:?; try inversion H1.
-    destruct s0 eqn:?; try inversion Heqf.
-    destruct s1 eqn:?; try inversion Heqf.
+    rewrite Eval.eval_statement_equation_1 in H1.
+    rewrite Eval.eval_statement_pre_equation_5 in H1.
+    simpl in H1.
+    split_bind_tac H1.
+    split_bind_tac H6.
     injection Heqp0.
     intros Htransition Hstatements Hname Htags.
-    rewrite <- Hstatements in Heqf1.
-    simpl states_to_block in Heqf1.
-    rewrite Eval.eval_block_equation_2 in Heqf1.
-    revert Heqf1.
-    intro Heqf1.
-    revert Heqp3.
-    intro Heqp3.
-    rewrite Heqf1 in Heqp3.
-    simpl in Heqp3.
-    name_bind Heqp3.
-    simpl in Heqp3.
+    rewrite <- Hstatements in H6.
+    simpl states_to_block in H6.
+    rewrite Eval.eval_block_equation_2 in H6.
+    simpl in H6.
+    split_bind_tac H6.
+    rewrite Eval.eval_statement_equation_1 in H6.
+    rewrite Eval.eval_statement_pre_equation_1 in H6.
+    unfold toss_value in H6.
     break_let.
-    destruct s2; try inversion Heqp3.
-    cbv in Heqp3; inversion Heqp3.
-    rewrite Eval.eval_statement_equation_1 in Heqf2.
+    destruct s; try discriminate.
+    simpl in H6.
+    unfold State.state_return in H6.
+    inversion H6.
+    unfold Eval.eval_method_call in Heqp1.
+    simpl in Heqp1.
+    split_bind_tac Heqp1.
+    unfold Unpack.unpack_func in Heqp1.
+    simpl in Heqp1.
+    split_bind_tac Heqp1.
+    rewrite Eval.eval_expression_equation_1 in Heqp1.
+    rewrite Eval.eval_expression_pre_equation_14 in Heqp1.
+    simpl in Heqp1.
+    split_bind_tac Heqp1.
+    rewrite Eval.eval_expression_equation_1 in Heqp1.
+    rewrite Eval.eval_expression_pre_equation_4 in Heqp1.
+    simpl in Heqp1.
+    split_bind_tac Heqp1.
+    unfold env_str_lookup in H.
+    unfold env_name_lookup in H.
+    simpl in H.
+    split_bind_tac H.
     admit.
   }
 Admitted.

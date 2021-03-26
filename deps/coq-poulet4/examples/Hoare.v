@@ -50,8 +50,6 @@ Proof.
   eapply strengthen_pre_t.
   wp.
   mysimp.
-  Unshelve.
-  exact unit.
 Qed.
 
 (* Similarly, consider a program that checks a condition and fails if the condition is true.
@@ -113,8 +111,6 @@ Proof.
   exact it.
   mysimp.
   destruct n; mysimp.
-  Unshelve.
-  exact unit.
 Qed.
 
 
@@ -182,8 +178,6 @@ Proof.
     mysimp.
     lia.
     mysimp.
-  Unshelve.
-  exact unit.
 Qed.
 
   
@@ -267,3 +261,59 @@ Proof.
     (* viola! and we are left with some trivial math constraints. *)
     lia.
 Qed.
+
+Example incr n :
+  << fun s => s = n >>
+    put_state (Exception := unit) (fun x => x + 1)
+  << fun r s' => s' = n + 1 >>.
+Proof.
+  eapply strengthen_pre_p.
+  wp.
+  mysimp.
+Qed.
+
+Fixpoint iter_repeat {A} (n: nat) (val: A) : @state_monad (list A) unit unit :=
+  match n with 
+  | 0 => skip
+  | S n' => iter_repeat n' val ;; put_state (fun xs => xs ++ (val :: nil)) 
+  end.
+
+Lemma iter_repeat_n {A} (n: nat) (val: A) (xs: list A): 
+  << fun s => s = xs >>
+    iter_repeat n val
+  << fun _ s' => length s' = length xs + n >>.
+Proof.
+  induction n.
+  - unfold iter_repeat.
+    mysimp.
+  - unfold iter_repeat. fold (iter_repeat (A := A)).
+    refine (strengthen_pre_p (
+      IHn ;;; (strengthen_pre_p (put_wp_p (fun xs => xs ++ (val :: nil))) _)
+    ) _).
+    + intros. 
+      rewrite last_length.
+      rewrite H.
+      lia.
+    + auto.
+Qed.
+
+Lemma iter_repeat_post {A} (a: nat) (b: nat) (val: A): 
+  << fun s => length s = a >>
+    iter_repeat b val
+  << fun _ s' => length s' = a + b >>.
+Admitted.
+ 
+Example repeat_twice {A} xs a b (val: A):
+  << fun s => s = xs >>
+    iter_repeat a val ;; 
+    iter_repeat b val
+  << fun _ s' => length s' = length xs + a + b >>.
+Proof.
+  refine ( strengthen_pre_p (
+    iter_repeat_post _ _ _ ;;;
+    iter_repeat_post _ _ _
+  ) _ ).
+  mysimp.
+Qed.
+
+

@@ -6,6 +6,9 @@ Open Scope monad.
 Require Import Lists.List.
 Import ListNotations.
 
+Require Import Coq.micromega.Lia.
+Require Import Coq.Arith.Plus.
+
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
@@ -77,6 +80,12 @@ Equations TCP_valid (tcp: TCP) : bool :=
     TCP_valid _ := false
   }.
 
+Equations IPHeader_valid (ihp: IPHeader) : bool :=
+  {
+    IPHeader_valid (RCons (Some _) (RCons (Some _) (RCons (Some _) _))) := true;
+    IPHeader_valid _ := false
+  }.
+
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
   match HAList.get hdr (exist _ "transport" I) with 
   | inl tcp => 
@@ -116,25 +125,23 @@ Definition PacketConsumed (out : @ParserState Meta) : Prop :=
   | _ => False
   end.
 
-Lemma WFPacketLength : forall pkt : list bool, HeaderWF pkt ->
-  length pkt = 32 \/ length pkt = 40.
-Proof.
-  intros pkt [H16 [H17 [H18 H]]]. destruct H.
-  - right. apply H.
-  - left. apply H.
-Qed.
+Lemma IPHeader_p_spec st: 
+  << fun s => s = st /\ length (pkt s) >= 20 >>
+    IPHeader_p
+  << fun r s' => 
+    IPHeader_valid r = true /\ 
+    s' = st <| pkt := skipn 20 (pkt st) |> 
+  >>.
+Admitted.
 
-Definition final_state {R} (st: ParserState) (p: PktParser R) := 
-  let (_, st') := run_with_state st p in st'.
-
-Definition IPHeader_p_spec : Prop :=
-  forall st, (length (pkt st) >= 20 <-> exists bits st', run_with_state st IPHeader_p = (bits, st')
-         /\ length (pkt st') = length (pkt st) - 20).
-
-Definition TCP_p_spec : Prop :=
-  forall st, (length (pkt st) >= 28 <-> exists bits st', run_with_state st TCP_p = (bits, st')
-         /\ length (pkt st') = length (pkt st) - 28).     
-        
+Lemma TCP_p_spec st: 
+  << fun s => s = st /\ length (pkt s) >= 28 >>
+    IPHeader_p
+  << fun r s' => 
+    IPHeader_valid r = true /\ 
+    s' = st <| pkt := skipn 28 (pkt st) |> 
+  >>.
+Admitted.
 
 Lemma extract_post st:
   {{ fun s => s = st }}
@@ -201,6 +208,44 @@ Proof.
   exact true.
 Qed.
 
+Lemma extract_post_simpl_p st:
+  << fun s => s = st >>
+    next_bit
+  << fun _ s => length (pkt s) = pred (length (pkt st)) >>.
+Proof.
+  unfold next_bit.
+  unfold pure.
+  refine ( strengthen_pre_p ( 
+    s <-- get_wp_p ;
+    (case_list_wp_p (pkt s) _ _ )
+  ) _).
+  eapply strengthen_pre_p.
+  wp.
+  intros.
+  destruct H as [it eq].
+  exact it.
+
+  refine (strengthen_pre_p ( 
+    put_wp_p (fun st0 : ParserState => st0 <| pkt := snd (destruct_list' (pkt s) _) |>) ;;;
+    return_wp_p (Some (fst (destruct_list' (pkt s) _)))
+  ) _ ).
+  intros.
+  destruct H as [x [xs [eq it]]].
+  rewrite eq.
+  unfold destruct_list'.
+  exact it.
+
+  intros.
+  rewrite H.
+  destruct st.
+  destruct pkt; 
+  simpl in *;
+  trivial.
+  Unshelve.
+  exact true.
+Qed.
+
+
 Definition extract_n_post_fixed (n: nat) (ob: option (bits n)) (st: @ParserState Meta) (st': @ParserState Meta) : Prop := 
   if Nat.leb n (length (pkt st)) 
   then exists pref suff bits, 
@@ -215,93 +260,94 @@ Definition extract_n_post_fixed (n: nat) (ob: option (bits n)) (st: @ParserState
     st' = st <| pkt := nil |> /\
     ob = None.
 
+Lemma zero_decr : forall x y, 0 = x - y -> 0 = x - S y.
+Proof.
+Admitted.
+ 
 Lemma extract_n_simple n st:
-  {{ fun s => s = st /\ length (pkt st) >= n }}
+  << fun s => s = st /\ length (pkt st) >= n >>
     extract_n n
-  {{ Norm (fun _ s' => length (pkt s') = length (pkt st) - n) }}.
+  << fun _ s' => length (pkt s') = length (pkt st) - n >>.
 Proof.
   induction n.
-  - unfold extract_n, pure.
-    eapply strengthen_pre_t.
+  - unfold extract_n.
+    unfold pure.
+    eapply strengthen_pre_p. 
     wp.
     mysimp.
-  - unfold extract_n.
-    fold extract_n.
-    eapply strengthen_pre_t.
+  - unfold extract_n. fold extract_n.
+    unfold pure.
+    eapply strengthen_pre_p.
     wp.
     eapply IHn.
-    intros.
-    eapply strengthen_pre_t. wp. 
-    all: swap 3 1.
-    intros. unfold Norm. simpl.
-    exact H.
+    all: swap 2 1.
+    mysimp.
+
     intros.
     wp.
-    eapply strengthen_pre_t.
-    unfold pure. wp.
+    all: swap 2 1.
     intros.
-    unfold Norm. simpl.
+    wp.
+    eapply strengthen_pre_p.
+    wp.
+    intros.
     destruct H as [it _].
     exact it.
-
-    eapply strengthen_pre_t. wp.
-    eapply strengthen_pre_t. unfold pure. wp.
-    intros. destruct H as [it eq]. exact it.
-    unfold pure.
-    eapply strengthen_pre_t. wp.
+    eapply strengthen_pre_p.
+    wp.
+    eapply strengthen_pre_p. wp.
     intros.
+    destruct H as [it eq].
+    exact it.
+    eapply strengthen_pre_p. wp.
+    intros.
+    unfold destruct_opt.
     destruct H as [x' [eq it]].
-    rewrite eq.
     exact it.
     intros.
     destruct H as [x' [eq it]].
-    rewrite eq. exact it.
+    exact it.
+    intros.
 
+    unfold next_bit.
 
-    all: swap 4 1.
-    intros. simpl.
-Admitted.
-  
-Lemma extract_2_fixed st:
-  {{ fun s => s = st /\ Nat.leb 2 (length (pkt st)) = true }}
-    extract_n 2
-  {{ Norm (fun r s' => extract_n_post_fixed 2 r st s') }}.
-Proof.
-  unfold extract_n.
-  eapply strengthen_pre_t.
-  wp.
-  all: swap 3 1.
-  intros. unfold Norm. exact H.
+    unfold pure.
+    refine ( strengthen_pre_p ( 
+      s <-- get_wp_p ;
+      (case_list_wp_p (pkt s) _ _ )
+    ) _).
+    eapply strengthen_pre_p.
+    wp.
+    intros.
+    destruct H as [it eq].
+    exact it.
 
-  intros.
-  eapply strengthen_pre_t. 
-  wp.
-  all: swap 2 1.
-  intros. eapply strengthen_pre_t.
-  wp.
-  eapply strengthen_pre_t. 
-  unfold pure. wp.
-  intros.
-  destruct H as [it _].
-  exact it.
-  all: swap 4 1.
-  intros. unfold Norm. exact H.
+    refine (strengthen_pre_p ( 
+      put_wp_p (fun st0 : ParserState => st0 <| pkt := snd (destruct_list' (pkt s) _) |>) ;;;
+      return_wp_p (Some (fst (destruct_list' (pkt s) _)))
+    ) _ ).
+    intros.
+    destruct H as [x [xs [eq it]]].
+    rewrite eq.
+    unfold destruct_list'.
+    exact it.
 
-  all: swap 3 1.
-  eapply strengthen_pre_t.
-  wp.
-  eapply strengthen_pre_t.
-  unfold pure. wp.
-  intros. destruct H as [it eq]. exact it. 
-  
-  eapply strengthen_pre_t.
-  unfold pure. wp.
-  intros.
-  destruct H as [x' [eq it]].
-  simpl.
-  exact it.
-Admitted.
+    intros.
+    destruct h. 
+    simpl.
+    destruct st.
+    destruct pkt; 
+    simpl in *;
+    trivial.
+    eapply zero_decr.
+    trivial.
 
+    destruct r; simpl; lia.
+    Unshelve.
+    exact true.
+    exact zero_bits.
+    exact true.
+Qed.
 
 Definition unwrap_bits {n} (bts: bits n) (default: bool) : (bool * bits (pred n)).
 induction n.
@@ -390,135 +436,69 @@ Lemma extract_n_length n st:
     extract_n n 
   {{ Norm (fun r s' => extract_n_post_fixed n r st s') }}.
 Admitted.
- 
-Lemma extract_2 st: 
-  {{ fun s => s = st }}
-    extract_n 2
-  {{ Norm (fun r s' => extract_n_post 2 r st s') }}.
-Proof.
-  unfold extract_n, extract_n_post.
-  eapply strengthen_pre_t.
-  wp.
-  all: swap 2 1.
-  intros.
-  wp.
-  eapply weaken_post_t.
-  eapply (extract_post st).
-  intros.
 
-  all: swap 2 1.
-  intros.
-  wp.
-
-  eapply strengthen_pre_t.
-  unfold pure.
-  wp.
-  intros.
-  destruct H as [it eq].
-  exact it.
-  
-  eapply strengthen_pre_t.
-  wp.
-  eapply strengthen_pre_t.
-  unfold pure.
-  wp.
-  intros.
-  destruct H as [it eq].
-  exact it.
-
-  eapply strengthen_pre_t.
-  unfold pure.
-  wp.
-  intros.
-  destruct H as [x' [eq it]].
-  exact it.
-  intros.
-  destruct H as [x' [eq it]].
-  exact it.
-
-  all: swap 2 1.
-  intros.
-  unfold Norm.
-  exact H.
-  unfold Norm.
-  simpl in H.
-
-  destruct (pkt st).
-  destruct H as [vr str].
-  rewrite vr.
-  exists r.
-  destruct r.
+Lemma extract_n_pre_length n m: 
+  << fun s => length (pkt s) = m + n >>
+    extract_n n 
+  << fun r s' => length (pkt s') = m >>.
 Admitted.
 
+Lemma IPHeader_p_body n: 
+  << fun s => length (pkt s) = 20 + n >>
+    extract_n 8 ;;
+    extract_n 8 ;;
+    extract_n 4
+  << fun r s' => 
+    length (pkt s') = n
+  >>.
+Proof. 
+  refine ( strengthen_pre_p
+    (
+      _ <-- extract_n_pre_length 8 _ ;
+      _ <-- extract_n_pre_length 8 _ ;
+      extract_n_pre_length 4 _
+    ) _
+  ).
+  intros.  lia.
+Qed.
 
-Lemma IPHeader_p_spec' st : 
-  {{ fun s => s = st /\ length (pkt st) >= 28 }}
+Lemma IPHeader_p_length n: 
+  << fun s => length (pkt s) = 20 + n >>
     IPHeader_p
-  {{ Norm (fun _ s' => 
-    length (pkt s') = length (pkt st) - 28
-    )
-  }}.
+  << fun r s' => 
+    length (pkt s') = n
+  >>.
 Proof.
-  eapply strengthen_pre_t.
   unfold IPHeader_p.
-  wp.
-  all: swap 3 1.
-  unfold Norm.
-  intros.
-  apply H.
-  all: swap 2 1.
-  apply (extract_n_length 8 st).
-  intros.
+  refine ( strengthen_pre_p
+    (
+      src <-- extract_n_pre_length 8 _ ;
+      dst <-- extract_n_pre_length 8 _ ;
+      proto <-- extract_n_pre_length 4 _ ;
+      return_wp_p (RCons src (RCons dst (RCons proto REmp)))
+    ) _
+  ).
+  intros. lia.
+Qed.
 
-  wp.
-  all: swap 3 1.
-  unfold Norm.
-  intros.
-  apply H.
-
-  all: swap 2 1.
-  eapply strengthen_pre_t.
-  eapply (extract_n_length 8).
-  intros.
-  simpl.
-  split.
+Lemma ParseTCPCorrect pckt :
+  << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsTCP (pkt s) >>
+    MyProg pckt
+  << fun _ s => EgressSpecZero s >>.
 Admitted.
 
-Lemma IPHeader_p_Correct : IPHeader_p_spec.
-Proof.
-  unfold IPHeader_p_spec.
-  unfold IPHeader_p.
-  split.
+Lemma ParseUDPCorrect pckt :
+  << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsUDP (pkt s) >>
+    MyProg pckt
+  << fun _ s => EgressSpecOne s >>.
 Admitted.
 
-Lemma TCP_p_Correct : TCP_p_spec.
+Theorem ParseComplete pckt : 
+  << fun s => 
+    pkt s = pckt /\ 
+    HeaderWF (pkt s) /\ 
+    (IPHeaderIsUDP (pkt s) \/ IPHeaderIsTCP (pkt s))
+  >>
+    MyProg pckt
+  << fun _ s' => PacketConsumed s' >>.
 Admitted.
-
-Theorem ParseTCPCorrect : forall (pckt : list bool) (st: ParserState),
-    (pkt st = pckt) -> HeaderWF pckt -> IPHeaderIsTCP pckt ->
-    EgressSpecZero (final_state st (MyProg pckt)).
-Proof.
-  intros pckt st Hdum Hwf Htcp.
-  destruct Hwf as [H16 [H17 [H18 H19]]].
-  assert (P : length pckt >= 20). {
-    destruct H19.
-    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
-    - destruct H as [_ H]. rewrite H. repeat (right; try reflexivity).
-  }  
-  rewrite <- Hdum in P. apply IPHeader_p_Correct in P.
-  destruct P as [bits [st' [P1 P2]]].
-  unfold MyProg. unfold Headers_p.
-  (* rewrite P1.
-     Error: Found no subterm matching "run_with_state st IPHeader_p" in the current goal. *)
-Admitted.
-
-(*
-Theorem ParseUDPCorrect : forall pkt : list bool, HeaderWF pkt -> IPHeaderIsUDP pkt ->
-     EgressSpecOne (MyProg pkt).
-Admitted.
-
-Theorem ParseComplete : forall pkt : list bool, HeaderWF pkt ->
-   (IPHeaderIsUDP pkt \/ IPHeaderIsTCP pkt) ->
-   PacketConsumed (MyProg pkt).
-Admitted.
- *)

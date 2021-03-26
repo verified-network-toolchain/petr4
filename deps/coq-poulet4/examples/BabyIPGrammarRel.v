@@ -172,6 +172,17 @@ Ltac break_match_hyp :=
       end
   end.
 
+Ltac name_bind H := 
+  match type of H with
+  | context [ State.state_bind ?f ?n ?i ] =>
+    unfold State.state_bind in H;
+    let F := fresh "f" in remember (f i) as F;
+    let N := fresh "n" in remember n as N
+  | context [ State.state_bind ?f ?n ] =>
+    let F := fresh "f" in remember f as F;
+    let N := fresh "n" in remember n as N
+  end.
+
 (** [break_match_goal] looks for a [match] construct in your goal, and
     destructs the discriminee, while retaining the information about
     the discriminee's value leading to the branch being taken. *)
@@ -234,11 +245,66 @@ Proof.
         env_invariant_lift_opt_some.
 Qed.
 
+Lemma stack_push_lookup_invariant:
+    forall str env env' val,
+        env_str_lookup _ str env = (inl val, env) ->
+        stack_push _ env = (inl tt, env') ->
+        env_str_lookup Info str env' = (inl val, env')
+.
+Proof.
+  intros.
+  unfold stack_push in H0.
+  inversion H0.
+  unfold env_str_lookup in *.
+  unfold env_name_lookup in *.
+  simpl in *.
+  unfold State.state_bind in *.
+  break_let.
+  unfold stack_lookup in *.
+  destruct (stack_lookup' _ _) eqn:?.
+Admitted.
+
+Lemma parser_start_state_sound:
+  forall scope constructor_params params locals states env env' hdr hdr' p p' next_state parser_state,
+    env_str_lookup _ (MkP4String "packet") env = (inl (ValObj (ValObjPacket p)), env) ->
+    lookup_state _ states (MkP4String "start") = Some MyParser_start ->
+    step _ NoInfo (ValObjParser scope constructor_params params locals states)
+         (MkP4String "start") env
+      = (inl next_state, env') ->
+    env_str_lookup _ (MkP4String "header") env' = (inl hdr, env') ->
+    env_str_lookup _ (MkP4String "packet") env' = (inl (ValObj (ValObjPacket p')), env') ->
+    State.run_with_state (init_state p) IPHeader_p = (inl hdr', parser_state) ->
+    (* value_repr hdr' hdr /\ *)
+    p' = parser_state.(pkt)
+.
+Proof.
+  intros.
+  simpl step in H1.
+  rewrite H0 in H1.
+  simpl in H1.
+  rewrite Eval.eval_statement_equation_1 in H1.
+  rewrite Eval.eval_statement_pre_equation_5 in H1.
+  simpl in H1.
+  rewrite Eval.eval_block_equation_2 in H1.
+  simpl in H1.
+  rewrite Eval.eval_statement_equation_1 in H1.
+  name_bind H1.
+  name_bind Heqf.
+  name_bind Heqn0.
+  name_bind Heqf1.
+  rewrite Eval.eval_statement_pre_equation_1 in Heqf2.
+  unfold Eval.eval_method_call in Heqf2.
+  simpl in Heqf2.
+  name_bind Heqf2.
+  rewrite Eval.eval_expression_equation_1 in Heqf3.
+  unfold State.state_bind in H1.
+Admitted.
+
 Theorem parser_grammar_sound :
   forall p p' hdr hdr_rec parser_state,
     eval_parser p MyParser = Some (hdr, p') ->
     State.run_with_state (init_state p) Headers_p = (inl hdr_rec, parser_state) ->
-    (*value_repr hdr_rec hdr /\*)
+    value_repr hdr_rec hdr /\
     p' = parser_state.(pkt).
 Proof.
   unfold eval_parser, make_parser.
@@ -251,4 +317,5 @@ Proof.
   apply init_parser_state_ok in Hieq; subst.
   eapply init_parser_state_sound in Heqp0; eauto.
   destruct Heqp0 as [pk' [env' [Hlookup Hrepr]]].
+  unfold make_stepper in H.
 Admitted.

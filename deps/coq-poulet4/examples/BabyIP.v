@@ -616,22 +616,8 @@ Definition headers := DeclStruct NoInfo
                         (TypBit 8))]))])
           {| stags := NoInfo; str := "t_or_u" |})].
 
-Definition MyParser := DeclParser NoInfo
-    {| stags := NoInfo; str := "MyParser" |} nil
-    [(MkParameter false Directionless
-          (TypTypeName (BareName {| stags := NoInfo; str := "packet_in" |}))
-          None {| stags := NoInfo; str := "packet" |});
-     (MkParameter false Out
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
-          None {| stags := NoInfo; str := "hdr" |});
-     (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
-          None {| stags := NoInfo; str := "meta" |});
-     (MkParameter false InOut
-          (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
-          None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
-    [(MkParserState NoInfo {| stags := NoInfo; str := "start" |}
+Definition MyParser_start :=
+    (MkParserState NoInfo {| stags := NoInfo; str := "start" |}
           [(MkStatement NoInfo
                 (StatMethodCall
                      (MkExpression NoInfo
@@ -750,7 +736,24 @@ Definition MyParser := DeclParser NoInfo
                      {| stags := NoInfo; str := "parse_tcp" |});
                 (MkParserCase NoInfo
                      [(MkMatch NoInfo MatchDontCare (TypSet (TypBit 4)))]
-                     {| stags := NoInfo; str := "reject" |})]));
+                     {| stags := NoInfo; str := "reject" |})])).
+
+Definition MyParser := DeclParser NoInfo
+    {| stags := NoInfo; str := "MyParser" |} nil
+    [(MkParameter false Directionless
+          (TypTypeName (BareName {| stags := NoInfo; str := "packet_in" |}))
+          None {| stags := NoInfo; str := "packet" |});
+     (MkParameter false Out
+          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          None {| stags := NoInfo; str := "hdr" |});
+     (MkParameter false InOut
+          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          None {| stags := NoInfo; str := "meta" |});
+     (MkParameter false InOut
+          (TypTypeName
+           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+          None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
+    [MyParser_start;
      (MkParserState NoInfo {| stags := NoInfo; str := "parse_udp" |}
           [(MkStatement NoInfo
                 (StatMethodCall

@@ -245,6 +245,30 @@ Proof.
         env_invariant_lift_opt_some.
 Qed.
 
+Lemma stack_lookup'_push_invariant:
+  forall var env env',
+    stack_push _ env = (inl tt, env') ->
+    stack_lookup' var (env_stack Info env) = stack_lookup' var (env_stack Info env').
+Proof.
+  unfold stack_push.
+  intros.
+  simpl in H.
+  inversion H.
+  subst.
+  clear H.
+  reflexivity.
+Qed.
+
+Lemma stack_lookup_no_effect:
+  forall s env res e,
+    stack_lookup Info s env = (res, e) ->
+    env = e.
+Proof.
+  unfold stack_lookup.
+  intros.
+  break_match; inversion H; auto.
+Qed.
+
 Lemma stack_push_lookup_invariant:
     forall str env env' val,
         env_str_lookup _ str env = (inl val, env) ->
@@ -253,17 +277,49 @@ Lemma stack_push_lookup_invariant:
 .
 Proof.
   intros.
+  pose proof (stack_lookup'_push_invariant (P4String.str str) env env' H0).
   unfold stack_push in H0.
-  inversion H0.
+  simpl in H0; inversion H0; subst.
+  clear H0.
   unfold env_str_lookup in *.
   unfold env_name_lookup in *.
+  simpl in H1.
   simpl in *.
   unfold State.state_bind in *.
-  break_let.
-  unfold stack_lookup in *.
-  destruct (stack_lookup' _ _) eqn:?.
-Admitted.
+  repeat break_let.
+  destruct s; try congruence.
+  assert ((s0, e0) = (@inl _ exception l,
+                      {| env_fresh := env_fresh Info env;
+                         env_stack := MStr.empty loc :: env_stack Info env;
+                         env_heap := env_heap Info env |})).
+  {
+    unfold stack_lookup in *; simpl.
+    simpl in *.
+    destruct (stack_lookup' (P4String.str str) (env_stack Info env));
+      try discriminate.
+    inversion Heqp0; subst.
+    inversion Heqp; subst.
+    congruence.
+  }
+  inversion H0; subst.
+  clear H0.
+  unfold heap_lookup in *.
+  simpl (env_heap _ _).
+  replace e with env in H
+    by eauto using stack_lookup_no_effect.
+  break_match;
+    inversion H;
+    reflexivity.
+Qed.
 
+Lemma ipheader_packet_effect:
+  forall p hdr' parser_state,
+    State.run_with_state (init_state p) IPHeader_p = (inl hdr', parser_state) ->
+    parser_state.(pkt) = skipn 20 p.
+Proof.
+  (* John try proving this *)
+Admitted.
+  
 Lemma parser_start_state_sound:
   forall scope constructor_params params locals states env env' hdr hdr' p p' next_state parser_state,
     env_str_lookup _ (MkP4String "packet") env = (inl (ValObj (ValObjPacket p)), env) ->
@@ -281,23 +337,39 @@ Proof.
   intros.
   simpl step in H1.
   rewrite H0 in H1.
-  simpl in H1.
-  rewrite Eval.eval_statement_equation_1 in H1.
-  rewrite Eval.eval_statement_pre_equation_5 in H1.
-  simpl in H1.
-  rewrite Eval.eval_block_equation_2 in H1.
-  simpl in H1.
-  rewrite Eval.eval_statement_equation_1 in H1.
+  break_let.
   name_bind H1.
-  name_bind Heqf.
-  name_bind Heqn0.
-  name_bind Heqf1.
-  rewrite Eval.eval_statement_pre_equation_1 in Heqf2.
-  unfold Eval.eval_method_call in Heqf2.
-  simpl in Heqf2.
-  name_bind Heqf2.
-  rewrite Eval.eval_expression_equation_1 in Heqf3.
-  unfold State.state_bind in H1.
+  break_let.
+  assert (env_str_lookup Info (MkP4String "packet") e =
+          (inl (ValObj (ValObjPacket (pkt parser_state))), e)).
+  {
+    rewrite Eval.eval_statement_equation_1 in Heqf.
+    rewrite Eval.eval_statement_pre_equation_5 in Heqf.
+    simpl in Heqf.
+    name_bind Heqf; break_let.
+    name_bind Heqn0; break_let.
+    destruct s eqn:?; try inversion H1.
+    destruct s0 eqn:?; try inversion Heqf.
+    destruct s1 eqn:?; try inversion Heqf.
+    injection Heqp0.
+    intros Htransition Hstatements Hname Htags.
+    rewrite <- Hstatements in Heqf1.
+    simpl states_to_block in Heqf1.
+    rewrite Eval.eval_block_equation_2 in Heqf1.
+    revert Heqf1.
+    intro Heqf1.
+    revert Heqp3.
+    intro Heqp3.
+    rewrite Heqf1 in Heqp3.
+    simpl in Heqp3.
+    name_bind Heqp3.
+    simpl in Heqp3.
+    break_let.
+    destruct s2; try inversion Heqp3.
+    cbv in Heqp3; inversion Heqp3.
+    rewrite Eval.eval_statement_equation_1 in Heqf2.
+    admit.
+  }
 Admitted.
 
 Theorem parser_grammar_sound :

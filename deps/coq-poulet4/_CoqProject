@@ -34,6 +34,7 @@ lib/HAList.v
 lib/Target.v
 lib/Maps.v
 lib/V1Model.v
+lib/P4ArithAlt.v
 
 lib/P4defs.v
 

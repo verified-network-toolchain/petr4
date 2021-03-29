@@ -5,6 +5,7 @@ Require Import Monads.Hoare.WP.
 Open Scope monad.
 Require Import Lists.List.
 Import ListNotations.
+Require Import Program.
 
 Require Import Coq.micromega.Lia.
 Require Import Coq.Arith.Plus.
@@ -106,8 +107,11 @@ Lemma Header_destruct (h: Headers) :
   exists ip trans, h = RCons ip (RCons trans REmp).
 Proof.
   unfold Headers in *.
-Admitted.
-  (* autorewrite with HAList.get_k in *. *)
+  dependent destruction h.
+  dependent destruction h.
+  dependent destruction h.
+  eauto.
+Qed.
 
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
   match HAList.get hdr (exist _ "transport" I) with 
@@ -633,26 +637,32 @@ Lemma UDP_p_spec st:
 Qed. *)
 Admitted.
 
-
 Lemma ParseTCPCorrect pckt :
   << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsTCP (pkt s) >>
     MyProg pckt
   << fun _ s => EgressSpecZero s >>.
 Proof.
   unfold MyProg, Headers_p.
-  eapply strengthen_pre_p.
-  wp_trans.
-  eapply (IPHeader_p_spec (init_state pckt)).
-
-  all: swap 3 1.
-  unfold MyIngress.
-  intros.
-  pose proof (Header_destruct r0).
-  destruct H as [ip [trans eq]].
-  rewrite eq.
-  unfold HAList.get.
-  unfold HAList.mk_key.
-  
+  repeat match goal with
+         | |- forall _, _ => intros
+         | |- << _ >> IPHeader_p << _ >> => eapply (IPHeader_p_spec (init_state pckt))
+         | |- _ => wp
+         end.
+  - unfold hoare_partial_wp; intros.
+    intuition.
+    admit.
+  - admit.
+  - admit.
+  - destruct (Header_destruct r0) as [ip [trans pred]].
+    unfold EgressSpecZero.
+    rewrite pred.
+    unfold MyIngress.
+    set (k:= HAList.get (RCons ip (RCons trans REmp))
+                        (exist (fun k : string => @HAList.alist_In _ _ P4String.StrEqDec _ k [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I)).
+    replace k with trans by reflexivity.
+    destruct trans.
+    + admit.
+    + admit.
 Admitted. 
 
 Lemma ParseUDPCorrect pckt :

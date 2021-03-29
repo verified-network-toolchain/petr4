@@ -109,7 +109,7 @@ end = struct
     | TypeMember x ->
       (name_format_t x.typ) ++ ("." |> text) ++ (x.name |> snd |> text)
       |> box ~indent:2
-    | ErrorMember x -> x |> snd |> text
+    | ErrorMember x -> ( "error." ^ (x |> snd) |> text)
     | ExpressionMember x -> (format_t x.expr) ++ ("." |> text) ++
                             (x.name |> snd |> text) |> box ~indent:2
     | Ternary x ->

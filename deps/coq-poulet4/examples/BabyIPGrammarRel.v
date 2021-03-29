@@ -1,5 +1,5 @@
 Require Import Syntax.
-Require Import BabyIP.
+ Require Import BabyIP.
 Require Import SimpleIPv4.
 Require Import P4defs.
 Require Import Step.
@@ -69,7 +69,7 @@ Inductive val_repr: forall (t: Type), t -> @ValueBase P4defs.Info -> Prop :=
 
 (* I wrote this by using tactics and then hand-simplifying the
    resulting term. - Ryan *)
-Definition header_repr (fields: AList.AList string Type eq) (rec: HAList.t fields)
+Polymorphic Definition header_repr (fields: AList.AList string Type eq) (rec: HAList.t fields)
   : list (P4String.t P4defs.Info * @ValueBase P4defs.Info) -> Prop :=
   HAList.t_rect
     (fun fields (t1 : HAList.t fields) => forall rec0, rec0 = t1 -> list (t Info * ValueBase) -> Prop)
@@ -86,7 +86,7 @@ Definition header_repr (fields: AList.AList string Type eq) (rec: HAList.t field
     fields rec rec eq_refl.
 Arguments header_repr {_%list_scope} _ _%list_scope.
 
-Definition value_repr {fields} (rec: HAList.t fields) (val: @Value P4defs.Info): Prop :=
+Polymorphic Definition value_repr {fields} (rec: HAList.t fields) (val: @Value P4defs.Info): Prop :=
   match val with
   | ValBase (ValBaseHeader hdr true) => header_repr rec hdr
   | _ => False
@@ -334,7 +334,7 @@ Lemma parser_start_state_sound:
     env_str_lookup _ (MkP4String "header") env' = (inl hdr, env') ->
     env_str_lookup _ (MkP4String "packet") env' = (inl (ValObj (ValObjPacket p')), env') ->
     State.run_with_state (init_state p) IPHeader_p = (inl hdr', parser_state) ->
-    (* value_repr hdr' hdr /\ *)
+    value_repr hdr' hdr /\
     p' = parser_state.(pkt)
 .
 Proof.

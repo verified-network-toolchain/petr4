@@ -158,6 +158,7 @@ Ltac app_ex :=
   | [ H : (_ /\ _)%type |- _] => destruct H
   | [ H : (exists _, _)%type |- _] => destruct H
   end.
+
 Ltac wp_trans :=
   intros; match goal with
   | [ |- << _ >> mbind _ _ << _ >> ] => eapply bind_wp_p; try wp_trans
@@ -167,8 +168,40 @@ Ltac wp_trans :=
   | [ |- << _ >> state_return ?e << _ >> ] => eapply (return_wp_p e) || eapply strengthen_pre_p; try eapply (return_wp_p e)
   | [ |- << _ >> if _ then _ else _ << _ >> ] => eapply cond_wp_p; eapply strengthen_pre_p; try wp_trans
   | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] => eapply (case_nat_wp_p e); eapply strengthen_pre_p; try wp_trans
-  | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] => eapply (case_list_wp_p e); eapply strengthen_pre_p; try wp_trans
-  | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] => eapply (case_option_wp_p e); eapply strengthen_pre_p; try wp_trans
+  | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] =>
+    eapply (case_list_wp_p e);
+    try wp_trans
+  | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] =>
+    eapply (case_option_wp_p e);
+    try wp_trans
+  end.
+
+Ltac wp_trans' :=
+  match goal with
+  | [ |- << _ >> mbind _ _ << _ >> ] =>
+    eapply bind_wp_p
+  | [ |- << _ >> get_state << _ >> ] =>
+    eapply get_wp_p
+  | [ |- << _ >> put_state ?e << _ >> ] =>
+    eapply (put_wp_p e)
+  | [ |- << _ >> state_fail ?e << _ >> ] =>
+    eapply (fail_wp_p e)
+  | [ |- << _ >> state_return ?e << _ >> ] =>
+    eapply (return_wp_p e)
+  | [ |- << _ >> if _ then _ else _ << _ >> ] =>
+    eapply cond_wp_p
+  | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] =>
+      eapply (case_nat_wp_p e)
+  | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] =>
+    eapply (case_list_wp_p e)
+  | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] =>
+    eapply (case_option_wp_p e)
+  end.
+
+Ltac break_match :=
+  match goal with
+  | [ |- context[match ?e with _ => _ end] ] =>
+    destruct e eqn:?
   end.
 
 Lemma extract_2_twice' : 
@@ -184,17 +217,39 @@ Lemma extract_2_twice' :
   >>.
 Proof.
   unfold extract_n, next_bit, pure.
-  wp_trans; try app_ex. 
-  intros.
-  simpl.
-  destruct (pkt h).
-  - exfalso. simpl in H. lia.
-  - destruct l.
-    + exfalso. simpl in H. lia.
-    + simpl. trivial.
-  Unshelve.
-  all: (exact true || exact tt).
+  wp_trans; try app_ex.
+  mysimp.
+  repeat break_match; simpl in *; lia.
 Qed.
+
+Lemma bits2list_length :
+  forall n (x: bits n),
+    length (bits2list x) = n.
+Proof.
+Admitted.
+
+Lemma extract_n_nice : 
+  forall n pk,
+  << fun s0 => pkt s0 = pk /\ length pk >= n >> 
+    extract_n n
+  << fun r s' => 
+    length pk >= n /\
+    match r with 
+    | Some bits => pk = bits2list bits ++ pkt s'
+    | None => False 
+    end
+  >>.
+Proof.
+  induction n.
+  - simpl.
+    unfold pure.
+    wp_trans; try app_ex.
+    intuition congruence.
+  - unfold extract_n.
+    fold extract_n.
+    intros pk.
+    destruct pk.
+Admitted.
 
 Ltac mylen ls := 
   match ls with 
@@ -229,125 +284,13 @@ Lemma IPHeader_p_spec st:
     IPHeader_valid r = true /\ 
     s' = st <| pkt := skipn 20 (pkt st) |> 
   >>.
-(* Proof.
+Proof.
+  unfold IPHeader_p.
+  wp_trans.
   unfold IPHeader_p, extract_n, next_bit, pure.
   eapply strengthen_pre_p.
-  wp_trans.
-  all: swap -1 1.
-  
-  intros. simpl.
-  assert (pkt h = pkt st).
-  destruct H as [eq _].
-  rewrite eq; trivial.
-  all: swap -1 1.
-
-  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20: app_ex.
-  all: swap -1 1.
-
+  wp_trans; try app_ex.
   simpl.
-  myinduct (pkt h).
-  myinduct l.
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-  myinduct l.
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  2,3,4: app_ex.
-  simpl.
-  2,3,4: app_ex.
-  2,3,4: app_ex.
-  2: app_ex.
-  simpl.
-  myinduct l.
-  split.
-  apply IPHeader_valid_equation_1.
-  rewrite <- H0.
-  compute.
-  destruct H as [eq _].
-  rewrite eq.
-  trivial.
-
-  Unshelve.
-
-  all: (
-    exact true || 
-    exact zero_bits
-  ).
-Qed. *)
 Admitted.
 
 Lemma TCP_p_spec st: 
@@ -650,9 +593,9 @@ Proof.
   unfold EgressSpecZero.
   rewrite pred.
   unfold MyIngress.
-  set (k:= HAList.get (RCons ip (RCons trans REmp))
-                      (exist (fun k : string => @HAList.alist_In _ _ P4String.StrEqDec _ k [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I)).
-  replace k with trans by reflexivity.
+  change (HAList.get (RCons ip (RCons trans REmp))
+                      (exist (fun k : string => @HAList.alist_In _ _ P4String.StrEqDec _ k [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I))
+          with trans.
   destruct trans.
   unfold set_std_meta, pure.
   eapply strengthen_pre_p.
@@ -668,6 +611,15 @@ Proof.
             "egress_spec" I) one_bits) |>))
   (exist (fun k0 : string => @HAList.alist_In _ _ P4String.StrEqDec _ k0 [("egress_spec", bits 9)])
      "egress_spec" I)).
+  Set Printing Notation.
+  destruct h eqn:?.
+  Locate "<|".
+  Locate set.
+  cbn in k'.
+  simpl in k'.
+  simpl std_meta in k'.
+  simpl in k'.
+  
   admit.
 Admitted. 
 

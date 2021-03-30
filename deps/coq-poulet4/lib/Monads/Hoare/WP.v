@@ -315,22 +315,21 @@ Proof.
   destruct n; mysimp.
 Qed.
 
-Definition destruct_list' {A} (xs: list A) (default: A) : A * list A := 
-  match xs with
-  | nil => (default, nil)
-  | x :: xs' => (x, xs')
-  end.
-
-
 Lemma case_list_wp_t
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A }
   {c2: A -> list A -> @state_monad State Exception Result} xs : 
-  {{ fun s => P1 s /\ xs = nil }} c1 {{ Q }} ->
-  {{ fun s => exists x xs', xs = x :: xs' /\ P2 x xs' s }} 
-    (c2 (fst (destruct_list' xs dummy)) (snd (destruct_list' xs dummy))) 
-  {{ Q }} ->
+  match xs with
+  | nil =>
+    {{ fun s => P1 s }}
+      c1
+    {{ Q }}
+  | x::xs' =>
+    {{ fun s => P2 x xs' s }} 
+      (c2 x xs') 
+    {{ Q }}
+  end
+  ->
   {{ 
     match xs with 
     | nil => P1
@@ -351,12 +350,9 @@ Qed.
 Lemma case_list_wp_p
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A }
-  {c2: A -> list A -> @state_monad State Exception Result} xs : 
-  << fun s => P1 s /\ xs = nil >> c1 << Q >> ->
-  << fun s => exists x xs', xs = x :: xs' /\ P2 x xs' s >> 
-    (c2 (fst (destruct_list' xs dummy)) (snd (destruct_list' xs dummy))) 
-  << Q >> ->
+  {c2: A -> list A -> @state_monad State Exception Result} xs :
+  (xs = nil -> << fun s => P1 s >> c1 << Q >>) ->
+  (forall x xs', xs = x :: xs' -> << fun s => P2 x xs' s >> (c2 x xs') << Q >>) ->
   << 
     match xs with 
     | nil => P1
@@ -374,21 +370,15 @@ Proof.
   destruct xs; mysimp.
 Qed.
 
-Definition destruct_opt {A} (opt: option A) (dummy: A) :=
-  match opt with
-  | Some x => x
-  | None => dummy
-  end.
-
 Lemma case_option_wp_t
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A}
   {c2: A -> @state_monad State Exception Result} x : 
-  {{ fun s => P1 s /\ x = None }} c1 {{ Q }} ->
-  {{ fun s => exists x', x = Some x' /\ P2 x' s }} 
-    (c2 (destruct_opt x dummy)) 
-  {{ Q }} ->
+  match x with
+  | None => {{ fun s => P1 s }} c1 {{ Q }}
+  | Some x' =>
+    {{ fun s => P2 x' s }} c2 x' {{ Q }}
+  end ->
   {{ 
     match x with 
     | None => P1
@@ -409,12 +399,9 @@ Qed.
 Lemma case_option_wp_p
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A}
   {c2: A -> @state_monad State Exception Result} x : 
-  << fun s => P1 s /\ x = None >> c1 << Q >> ->
-  << fun s => exists x', x = Some x' /\ P2 x' s >> 
-    (c2 (destruct_opt x dummy)) 
-  << Q >> ->
+  (x = None -> << fun s => P1 s >> c1 << Q >>) ->
+  (forall x', x = Some x' -> << fun s => P2 x' s >> c2 x' << Q >>) ->
   << 
     match x with 
     | None => P1

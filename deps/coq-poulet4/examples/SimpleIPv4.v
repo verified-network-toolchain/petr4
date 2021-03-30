@@ -149,10 +149,10 @@ Definition PacketConsumed (out : @ParserState Meta) : Prop :=
   end.
 
 Ltac app_ex := 
-  intros; match goal with 
+  intros; repeat match goal with 
   | [ H : _ |- _ ] => exact H 
-  | [ H : (_ /\ _)%type |- _] => destruct H; app_ex
-  | [ H : (exists _, _)%type |- _] => destruct H; app_ex
+  | [ H : (_ /\ _)%type |- _] => destruct H
+  | [ H : (exists _, _)%type |- _] => destruct H
   end.
 Ltac wp_trans :=
   intros; match goal with
@@ -651,9 +651,14 @@ Proof.
   destruct H as [ip [trans eq]].
   rewrite eq.
   unfold HAList.get.
-  unfold HAList.mk_key.
-  
-Admitted. 
+  (* Ryan, can you simplify this part? *)
+Admitted.
+  (* this part probably should not be run *)
+  (* unfold HAList.mk_key.
+  unfold list_rect.
+  simpl.
+  autorewrite with get_key_type. *)
+
 
 Lemma ParseUDPCorrect pckt :
   << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsUDP (pkt s) >>

@@ -186,11 +186,11 @@ Proof.
   easy.
 Qed.
 
-Ltac split_bind_tac H := 
+Ltac split_bind_tac H :=
   match type of H with
   | State.state_bind ?f ?n ?s = (inl ?v, ?s') =>
     apply split_bind in H;
-    let Hs := fresh s in 
+    let Hs := fresh s in
     let Hm := fresh "v" in
     let Hn := fresh H in
     destruct H as [Hs [Hm [H Hn]]];
@@ -316,6 +316,384 @@ Proof.
   congruence.
 Qed.
 
+Definition not_in_top_scope env str :=
+  match env_stack Info env with
+  | top :: _ =>
+    MStr.find str top = None
+  | _ => False
+  end
+.
+
+Lemma stack_pop_lookup_invariant:
+  forall name env env' loc,
+    stack_lookup _ name env = (inl loc, env) ->
+    not_in_top_scope env name ->
+    stack_pop _ env = (inl tt, env') ->
+    stack_lookup _ name env' = (inl loc, env')
+.
+Proof.
+  intros.
+  unfold not_in_top_scope in H0.
+  destruct (env_stack _ env) eqn:?; try contradiction.
+  unfold stack_lookup in *.
+  rewrite Heqs in H.
+  simpl in H.
+  rewrite H0 in H.
+  unfold stack_pop in H1.
+  rewrite Heqs in H1.
+  inversion_clear H1.
+  simpl.
+  break_match; try discriminate.
+  unfold State.state_return in *.
+  congruence.
+Qed.
+
+Lemma heap_pop_lookup_invariant:
+  forall loc env env' val,
+    heap_lookup Info loc env = (inl val, env) ->
+    stack_pop Info env = (inl tt, env') ->
+    heap_lookup Info loc env' = (inl val, env')
+.
+Proof.
+  intros.
+  destruct env.
+  destruct env_stack; try discriminate.
+  unfold stack_pop in H0.
+  simpl in H0.
+  unfold State.state_return in H0.
+  inversion_clear H0.
+  unfold heap_lookup in *.
+  simpl in *.
+  break_match; try discriminate.
+  unfold State.state_return in *.
+  congruence.
+Qed.
+
+Lemma stack_pop_env_lookup_invariant:
+    forall name env env' val,
+        env_str_lookup _ name env = (inl val, env) ->
+        not_in_top_scope env (str name) ->
+        stack_pop _ env = (inl tt, env') ->
+        env_str_lookup Info name env' = (inl val, env')
+.
+Proof.
+  intros.
+  unfold env_str_lookup, env_name_lookup in *.
+  simpl in *.
+  split_bind_tac H.
+  unfold State.state_bind.
+  assert (env = env0).
+  eapply stack_lookup_no_effect.
+  exact H.
+  erewrite stack_pop_lookup_invariant.
+  - eapply heap_pop_lookup_invariant.
+    + rewrite H3 in H2.
+      exact H2.
+    + rewrite <- H3.
+      exact H1.
+  - rewrite H3 in H.
+    exact H.
+  - rewrite <- H3.
+    exact H0.
+  - rewrite <- H3.
+    exact H1.
+Qed.
+
+Inductive not_declared_in_block {tags: Type}: string -> @Block tags -> Prop :=
+| NotDeclaredInBlockEmpty: forall name tag, not_declared_in_block name (BlockEmpty tag)
+| NotDeclaredInBlockCons:
+    forall name block stmt,
+      not_declared_in_statement name stmt ->
+      not_declared_in_block name block ->
+      not_declared_in_block name (BlockCons stmt block)
+with not_declared_in_statement_pre {tags: Type}: string -> @StatementPreT tags -> Prop :=
+| NotDeclaredInStatMethodCall:
+    forall name func type_args args,
+      not_declared_in_statement_pre name (StatMethodCall func type_args args)
+| NotDeclaredInStatAssignment:
+    forall name lhs rhs,
+      not_declared_in_statement_pre name (StatAssignment lhs rhs)
+| NotDeclaredInStatDirectApplication:
+    forall name typ args,
+      not_declared_in_statement_pre name (StatDirectApplication typ args)
+| NotDeclaredInStatConditional:
+    forall name cond tru fls,
+      not_declared_in_statement name tru ->
+      not_declared_in_statement_maybe name fls ->
+      not_declared_in_statement_pre name (StatConditional cond tru fls)
+| NotDeclaredInStatBlock:
+    forall name block,
+      not_declared_in_block name block ->
+      not_declared_in_statement_pre name (StatBlock block)
+| NotDeclaredInStatExit:
+    forall name,
+      not_declared_in_statement_pre name StatExit
+| NotDeclaredInStatEmpty:
+    forall name,
+      not_declared_in_statement_pre name StatEmpty
+| NotDeclaredInStatReturn:
+    forall name expr,
+      not_declared_in_statement_pre name (StatReturn expr)
+| NotDeclaredInStatVariable:
+    forall name typ name' init,
+      name <> name'.(str) ->
+      not_declared_in_statement_pre name (StatVariable typ name' init)
+| NotDeclaredInStatInstantiation:
+    forall name typ args name' init,
+      name <> name'.(str) ->
+      not_declared_in_statement_pre name (StatInstantiation typ args name' init)
+with not_declared_in_statement {tags: Type}: string -> @Statement tags -> Prop :=
+| NotDeclaredInMkStatement:
+    forall name stmt typ tag,
+      not_declared_in_statement_pre name stmt ->
+      not_declared_in_statement name (MkStatement tag stmt typ)
+with not_declared_in_statement_maybe {tags: Type}: string -> option (@Statement tags) -> Prop :=
+| NotDeclaredInStatementMaybeNone:
+    forall name, 
+      not_declared_in_statement_maybe name None
+| NotDeclaredInStatementMaybeSome:
+    forall name stmt,
+      not_declared_in_statement name stmt ->
+      not_declared_in_statement_maybe name (Some stmt)
+.
+
+Definition not_in_top_scope_invariant {T: Type} (f: env_monad Info T) name :=
+  forall env env' val,
+    not_in_top_scope env name ->
+    f env = (inl val, env') ->
+    not_in_top_scope env' name
+.
+
+Lemma not_in_top_scope_invariant_bind {Result Result'}:
+  forall (f: env_monad Info Result) (g: Result -> env_monad Info Result') name,
+    not_in_top_scope_invariant f name ->
+    (forall env, not_in_top_scope_invariant (g env) name) ->
+    not_in_top_scope_invariant (State.state_bind f g) name
+.
+Proof.
+  intros.
+  unfold not_in_top_scope_invariant in *.
+  intros.
+  split_bind_tac H2.
+  eapply H0.
+  - eapply H.
+    + exact H1.
+    + exact H2.
+  - exact H3.
+Qed.
+
+Lemma not_in_top_scope_invariant_toss_value:
+  forall f name,
+    not_in_top_scope_invariant f name ->
+    not_in_top_scope_invariant (toss_value _ f) name
+.
+Proof.
+  unfold not_in_top_scope_invariant, toss_value.
+  intros.
+  break_let.
+  break_match; try discriminate.
+  eapply H.
+  - exact H0.
+  - simpl in H1.
+    inversion H1.
+    rewrite Heqp.
+    f_equal.
+    assumption.
+Qed.
+
+Lemma not_in_top_scope_invariant_eval_expression:
+  forall expr name,
+    not_in_top_scope_invariant (Eval.eval_expression Info NoInfo expr) name
+.
+Admitted.
+
+Lemma not_in_top_scope_invariant_state_fail:
+  forall err name res,
+    not_in_top_scope_invariant (@State.state_fail _ _ res err) name
+.
+Proof.
+  intros.
+  unfold not_in_top_scope_invariant.
+  intros.
+  unfold State.state_fail in H0.
+  inversion H0.
+Qed.
+
+Lemma not_in_top_scope_invariant_state_return:
+  forall R res name,
+    not_in_top_scope_invariant (@State.state_return _ _ R res) name
+.
+Proof.
+  intros.
+  unfold not_in_top_scope_invariant.
+  intros.
+  unfold State.state_return in H0.
+  inversion H0.
+  congruence.
+Qed.
+
+Lemma not_in_top_scope_invariant_heap_insert:
+  forall val name,
+    not_in_top_scope_invariant (heap_insert Info val) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_eval_lvalue:
+  forall expr name,
+    not_in_top_scope_invariant (Eval.eval_lvalue Info expr) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_env_lookup:
+  forall lval name,
+    not_in_top_scope_invariant (env_lookup Info lval) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_eval_builtin_func:
+  forall name' caller type_args args name,
+    not_in_top_scope_invariant (Eval.eval_builtin_func Info name' caller type_args args) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_eval_copy_out:
+  forall args_and_lvals name,
+    not_in_top_scope_invariant (Eval.eval_copy_out _ args_and_lvals) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_env_update:
+  forall lval val name,
+    not_in_top_scope_invariant (env_update Info lval val) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_env_insert:
+  forall name name' val,
+    name <> name' ->
+    not_in_top_scope_invariant (env_insert Info name' val) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_stack_push:
+  forall name,
+    not_in_top_scope_invariant (stack_push Info) name
+.
+Proof.
+Admitted.
+
+Lemma not_in_top_scope_invariant_eval_copy_in:
+  forall l args name,
+    not_in_top_scope_invariant (Eval.eval_copy_in Info NoInfo (Eval.eval_expression Info NoInfo) l args) name
+.
+Proof.
+  induction l, args; intros.
+  - rewrite Eval.eval_copy_in_equation_1.
+    apply not_in_top_scope_invariant_state_return.
+  - rewrite Eval.eval_copy_in_equation_2.
+    apply not_in_top_scope_invariant_state_fail.
+  - rewrite Eval.eval_copy_in_equation_3.
+    apply not_in_top_scope_invariant_state_fail.
+  - destruct o.
+    + rewrite Eval.eval_copy_in_equation_4.
+      simpl.
+      break_let.
+      apply not_in_top_scope_invariant_bind; try break_match;
+      eauto using not_in_top_scope_invariant_bind,
+                  not_in_top_scope_invariant_state_fail,
+                  not_in_top_scope_invariant_state_return,
+                  not_in_top_scope_invariant_heap_insert,
+                  not_in_top_scope_invariant_eval_expression,
+                  not_in_top_scope_invariant_eval_lvalue,
+                  not_in_top_scope_invariant_env_lookup.
+     + rewrite Eval.eval_copy_in_equation_5.
+       break_match.
+       simpl.
+       destruct opt.
+       eauto using not_in_top_scope_invariant_bind,
+                   not_in_top_scope_invariant_state_return.
+       apply not_in_top_scope_invariant_state_fail.
+Qed.
+
+Lemma block_not_in_top_scope:
+  forall block name,
+    not_declared_in_block name block ->
+    not_in_top_scope_invariant (Eval.eval_block Info NoInfo block) name
+.
+Proof.
+  induction block using @block_rec with
+    (PStatementSwitchCase := fun _ => True)
+    (PStatementSwitchCaseList := fun _ => True)
+    (PStatementPreT := fun stmt => forall name, not_declared_in_statement_pre name stmt -> not_in_top_scope_invariant (Eval.eval_statement_pre Info NoInfo stmt) name)
+    (PStatement := fun stmt => forall name, not_declared_in_statement name stmt -> not_in_top_scope_invariant (Eval.eval_statement Info NoInfo stmt) name)
+    (PStatementMaybe := fun stmt_maybe => forall name stmt, stmt_maybe = Some stmt -> not_declared_in_statement_maybe name stmt_maybe -> not_in_top_scope_invariant (Eval.eval_statement Info NoInfo stmt) name)
+    (PBlockMaybe := fun block_maybe => True); intros; try easy.
+  - rewrite Eval.eval_statement_pre_equation_1.
+    apply not_in_top_scope_invariant_toss_value.
+    unfold Eval.eval_method_call.
+    simpl.
+    apply not_in_top_scope_invariant_bind.
+    + unfold Unpack.unpack_func.
+      simpl.
+      apply not_in_top_scope_invariant_bind.
+      * apply not_in_top_scope_invariant_eval_expression.
+      * intros.
+        break_match; try break_match;
+        eauto using not_in_top_scope_invariant_state_fail,
+                    not_in_top_scope_invariant_state_return.
+    + intros.
+      break_let.
+      break_match;
+      eauto using not_in_top_scope_invariant_eval_copy_in,
+                  not_in_top_scope_invariant_state_fail,
+                  not_in_top_scope_invariant_eval_builtin_func,
+                  not_in_top_scope_invariant_bind,
+                  not_in_top_scope_invariant_state_return,
+                  not_in_top_scope_invariant_eval_copy_out.
+  - rewrite Eval.eval_statement_pre_equation_2.
+    eauto using not_in_top_scope_invariant_bind,
+                not_in_top_scope_invariant_eval_expression,
+                not_in_top_scope_invariant_eval_lvalue,
+                not_in_top_scope_invariant_env_update.
+  - rewrite Eval.eval_statement_pre_equation_5.
+    simpl.
+    eauto using not_in_top_scope_invariant_bind,
+                not_in_top_scope_invariant_stack_push.
+    admit.
+  - rewrite Eval.eval_statement_pre_equation_7.
+    eauto using not_in_top_scope_invariant_state_return.
+  - rewrite Eval.eval_statement_pre_equation_11.
+    simpl.
+    inversion H.
+    break_match;
+    eauto using not_in_top_scope_invariant_bind,
+                not_in_top_scope_invariant_eval_expression,
+                not_in_top_scope_invariant_state_return,
+                not_in_top_scope_invariant_env_insert.
+  - rewrite Eval.eval_statement_equation_1.
+    apply IHblock.
+    inversion H.
+    assumption.
+  - inversion H.
+    rewrite <- H2.
+    apply IHblock.
+    inversion H0.
+    assumption.
+  - rewrite Eval.eval_block_equation_1.
+    apply not_in_top_scope_invariant_state_return.
+  - rewrite Eval.eval_block_equation_2.
+    simpl.
+    inversion H.
+    eauto using not_in_top_scope_invariant_bind.
+Admitted.
+
 Lemma ipheader_packet_effect:
   forall p hdr' parser_state,
     State.run_with_state (init_state p) IPHeader_p = (inl hdr', parser_state) ->
@@ -323,7 +701,7 @@ Lemma ipheader_packet_effect:
 Proof.
   (* John try proving this *)
 Admitted.
-  
+
 Lemma parser_start_state_sound:
   forall scope constructor_params params locals states env env' hdr hdr' p p' next_state parser_state,
     env_str_lookup _ (MkP4String "packet") env = (inl (ValObj (ValObjPacket p)), env) ->
@@ -351,39 +729,19 @@ Proof.
     simpl in H1.
     split_bind_tac H1.
     split_bind_tac H6.
-    injection Heqp0.
-    intros Htransition Hstatements Hname Htags.
-    rewrite <- Hstatements in H6.
-    simpl states_to_block in H6.
-    rewrite Eval.eval_block_equation_2 in H6.
-    simpl in H6.
-    split_bind_tac H6.
-    rewrite Eval.eval_statement_equation_1 in H6.
-    rewrite Eval.eval_statement_pre_equation_1 in H6.
-    unfold toss_value in H6.
-    break_let.
-    destruct s; try discriminate.
-    simpl in H6.
-    unfold State.state_return in H6.
-    inversion H6.
-    unfold Eval.eval_method_call in Heqp1.
-    simpl in Heqp1.
-    split_bind_tac Heqp1.
-    unfold Unpack.unpack_func in Heqp1.
-    simpl in Heqp1.
-    split_bind_tac Heqp1.
-    rewrite Eval.eval_expression_equation_1 in Heqp1.
-    rewrite Eval.eval_expression_pre_equation_14 in Heqp1.
-    simpl in Heqp1.
-    split_bind_tac Heqp1.
-    rewrite Eval.eval_expression_equation_1 in Heqp1.
-    rewrite Eval.eval_expression_pre_equation_4 in Heqp1.
-    simpl in Heqp1.
-    split_bind_tac Heqp1.
-    unfold env_str_lookup in H.
-    unfold env_name_lookup in H.
-    simpl in H.
-    split_bind_tac H.
+    apply stack_pop_env_lookup_invariant with (env := env2); try assumption.
+    2: {
+      simpl.
+      injection Heqp0.
+      intros Htransition Hstatements Hname Htags.
+      assert (not_in_top_scope_invariant (Eval.eval_block Info NoInfo (states_to_block Info NoInfo statements)) "packet").
+      apply block_not_in_top_scope.
+      admit.
+      unfold not_in_top_scope_invariant in H8.
+      eapply H8.
+      2: { exact H6. }
+      admit.
+    }
     admit.
   }
 Admitted.

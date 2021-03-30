@@ -5,6 +5,7 @@ Require Import Monads.Hoare.WP.
 Open Scope monad.
 Require Import Lists.List.
 Import ListNotations.
+Require Import Program.
 
 Require Import Coq.micromega.Lia.
 Require Import Coq.Arith.Plus.
@@ -106,8 +107,11 @@ Lemma Header_destruct (h: Headers) :
   exists ip trans, h = RCons ip (RCons trans REmp).
 Proof.
   unfold Headers in *.
-Admitted.
-  (* autorewrite with HAList.get_k in *. *)
+  dependent destruction h.
+  dependent destruction h.
+  dependent destruction h.
+  eauto.
+Qed.
 
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
   match HAList.get hdr (exist _ "transport" I) with 
@@ -167,7 +171,7 @@ Ltac wp_trans :=
   | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] => eapply (case_option_wp_p e); eapply strengthen_pre_p; try wp_trans
   end.
 
-(* Lemma extract_2_twice' : 
+Lemma extract_2_twice' : 
   << fun s => length (pkt s) >= 2 >> 
     r1 <- extract_n 1 ;;
     r2 <- extract_n 1 ;; 
@@ -190,7 +194,7 @@ Proof.
     + simpl. trivial.
   Unshelve.
   all: (exact true || exact tt).
-Qed. *)
+Qed.
 
 Ltac mylen ls := 
   match ls with 
@@ -633,32 +637,39 @@ Lemma UDP_p_spec st:
 Qed. *)
 Admitted.
 
-
 Lemma ParseTCPCorrect pckt :
   << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsTCP (pkt s) >>
     MyProg pckt
   << fun _ s => EgressSpecZero s >>.
 Proof.
   unfold MyProg, Headers_p.
-  eapply strengthen_pre_p.
   wp_trans.
-  eapply (IPHeader_p_spec (init_state pckt)).
-
-  all: swap 3 1.
-  unfold MyIngress.
+  all: swap 5 1.
   intros.
-  pose proof (Header_destruct r0).
-  destruct H as [ip [trans eq]].
-  rewrite eq.
-  unfold HAList.get.
-  (* Ryan, can you simplify this part? *)
-Admitted.
-  (* this part probably should not be run *)
-  (* unfold HAList.mk_key.
-  unfold list_rect.
-  simpl.
-  autorewrite with get_key_type. *)
-
+  destruct (Header_destruct r0) as [ip [trans pred]].
+  unfold EgressSpecZero.
+  rewrite pred.
+  unfold MyIngress.
+  set (k:= HAList.get (RCons ip (RCons trans REmp))
+                      (exist (fun k : string => @HAList.alist_In _ _ P4String.StrEqDec _ k [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I)).
+  replace k with trans by reflexivity.
+  destruct trans.
+  unfold set_std_meta, pure.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  intros.
+  destruct (TCP_valid t).
+  set (k':= HAList.get
+  (std_meta
+     (h <| std_meta ::=
+      (fun mt : StandardMeta =>
+       HAList.set mt
+         (exist (fun k0 : string => @HAList.alist_In _ _ P4String.StrEqDec _ k0 [("egress_spec", bits 9)])
+            "egress_spec" I) one_bits) |>))
+  (exist (fun k0 : string => @HAList.alist_In _ _ P4String.StrEqDec _ k0 [("egress_spec", bits 9)])
+     "egress_spec" I)).
+  admit.
+Admitted. 
 
 Lemma ParseUDPCorrect pckt :
   << fun s => pkt s = pckt /\ HeaderWF (pkt s) /\ IPHeaderIsUDP (pkt s) >>

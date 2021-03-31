@@ -373,10 +373,10 @@ Lemma IPHeader_p_spec st:
 Proof.
   unfold IPHeader_p.
   wp_trans.
-  unfold IPHeader_p, extract_n, next_bit, pure.
+  (* unfold IPHeader_p, extract_n, next_bit, pure.
   eapply strengthen_pre_p.
   wp_trans; try app_ex.
-  simpl.
+  simpl. *)
 Admitted.
 
 Lemma TCP_p_spec st: 

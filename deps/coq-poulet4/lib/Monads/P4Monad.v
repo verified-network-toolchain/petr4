@@ -80,10 +80,10 @@ Definition pure {R} : R -> PktParser R := state_return.
 
 Definition reject {R} : PktParser R := state_fail tt.
 
-Definition next_bit : PktParser (option bool) := 
-  let* st := get_state in 
-  match pkt st return PktParser (option bool) with 
-  | x :: pkt' => 
+Definition next_bit : PktParser (option bool) :=
+  let* st := get_state in
+  match pkt st return PktParser (option bool) with
+  | x :: pkt' =>
     put_state (fun st => st <| pkt := pkt' |>) ;;
     pure (Some x)
   | _ => pure None
@@ -92,9 +92,9 @@ Definition next_bit : PktParser (option bool) :=
 Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
   match n as n' return PktParser (option (bits n')) with
   | 0 => pure (Some tt)
-  | S n' => 
-    let* bits := extract_n n' in 
-    let* bit := next_bit in 
+  | S n' =>
+    let* bit := next_bit in
+    let* bits := extract_n n' in
     match (bit, bits) with
     | (Some bit', Some bits') => pure (Some (bit', bits'))
     | _ => pure None
@@ -103,7 +103,7 @@ Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
 
 Definition init_meta : StandardMeta := HAList.RCons zero_bits HAList.REmp.
 
-Definition init_state (pkt: list bool) : ParserState := 
+Definition init_state (pkt: list bool) : ParserState :=
   {| fuel := 0; pkt := pkt; usr_meta := tt; std_meta := init_meta |}.
 
 Definition lift_option {A : Type} (x: option A) : PktParser A :=

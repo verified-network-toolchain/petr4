@@ -204,6 +204,7 @@ Ltac break_match :=
     destruct e eqn:?
   end.
 
+(*
 Lemma extract_2_twice' : 
   << fun s => length (pkt s) >= 2 >> 
     r1 <- extract_n 1 ;;
@@ -220,7 +221,7 @@ Proof.
   wp_trans; try app_ex.
   mysimp.
   repeat break_match; simpl in *; lia.
-Qed.
+Qed. *)
 
 Lemma bits2list_length :
   forall n (x: bits n),
@@ -228,27 +229,95 @@ Lemma bits2list_length :
 Proof.
 Admitted.
 
-Lemma extract_n_nice : 
-  forall n pk,
-  << fun s0 => pkt s0 = pk /\ length pk >= n >> 
-    extract_n n
-  << fun r s' => 
-    length pk >= n /\
-    match r with 
-    | Some bits => pk = bits2list bits ++ pkt s'
-    | None => False 
-    end
-  >>.
+Lemma next_bit_spec :
+  forall s b,
+  << fun s0 => s <| pkt := b :: pkt s |> = s0 >>
+    next_bit
+  << fun r s1 => s1 = s /\ r = Some b >>
+.
 Proof.
-  induction n.
-  - simpl.
-    unfold pure.
+  intros.
+  unfold next_bit, pure.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  simpl.
+  intros.
+  break_match.
+  - rewrite <- H in Heql.
+    simpl in Heql.
+    discriminate.
+  - rewrite <- H in Heql.
+    simpl in Heql.
+    inversion Heql.
+    split; try reflexivity.
+    rewrite <- H.
+    unfold set.
+    simpl.
+    destruct s.
+    reflexivity.
+Qed.
+
+Lemma extract_n_nice : 
+  forall n s bits,
+  << fun s0 => s <| pkt := bits2list bits ++ pkt s |> = s0 >> 
+    extract_n n
+  << fun r s1 => s1 = s /\ r = Some bits >>
+.
+Proof.
+  induction n; intros.
+  - unfold extract_n, pure.
     wp_trans; try app_ex.
-    intuition congruence.
+    simpl.
+    rewrite <- H.
+    destruct bits.
+    simpl.
+    split; try reflexivity.
+    unfold set.
+    destruct s.
+    reflexivity.
   - unfold extract_n.
     fold extract_n.
-    intros pk.
-    destruct pk.
+    unfold pure.
+    destruct bits eqn:?.
+    wp_trans; try app_ex; simpl.
+    eapply strengthen_pre_p.
+    apply next_bit_spec.
+    simpl.
+    intros.
+    rewrite <- H.
+    instantiate (1 := s <| pkt := bits2list p ++ pkt s |>).
+    instantiate (1 := b).
+    simpl.
+    admit.
+    simpl.
+    eapply strengthen_pre_p.
+    eapply weaken_post_p.
+    apply IHn.
+    simpl.
+    intros.
+    destruct v eqn:?.
+    destruct r eqn:?.
+    destruct H.
+    split.
+    exact H.
+    repeat f_equal.
+    admit.
+    revert H0.
+    instantiate (1 := p).
+    intros.
+    inversion H0.
+    reflexivity.
+    admit.
+    destruct r.
+    destruct H.
+    discriminate.
+    destruct H.
+    discriminate.
+    simpl.
+    intros.
+    destruct H.
+    rewrite H.
+    reflexivity.
 Admitted.
 
 Ltac mylen ls := 

@@ -41,10 +41,11 @@ lib/P4defs.v
 lib/P4cub/P4Arith.v
 lib/P4cub/AST.v
 lib/P4cub/BigStep.v
+lib/P4cub/BigStepTypeSoundness.v
 lib/P4cub/Check.v
 lib/P4cub/Envn.v
 lib/P4cub/P4lightGen.v
-lib/P4cub/BigStepTypeSoundness.v
+lib/P4cub/SmallStep.v
 lib/P4cub/Utiliser.v
 lib/P4cub/Value.v
 

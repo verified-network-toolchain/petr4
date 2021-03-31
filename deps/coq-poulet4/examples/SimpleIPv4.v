@@ -375,8 +375,8 @@ Proof.
   wp_trans.
   unfold IPHeader_p, extract_n, next_bit, pure.
   eapply strengthen_pre_p.
-  wp_trans; try app_ex.
-  simpl.
+  (* wp_trans; try app_ex.
+  simpl. *)
 Admitted.
 
 Lemma TCP_p_spec st: 
@@ -703,10 +703,10 @@ Proof.
   Locate set.
   cbn in k'.
   simpl in k'.
-  simpl std_meta in k'.
+  (*simpl std_meta in k'.
   simpl in k'.
   
-  admit.
+  admit. *)
 Admitted. 
 
 Lemma ParseUDPCorrect pckt :

@@ -229,6 +229,26 @@ Lemma bits2list_length :
 Proof.
 Admitted.
 
+Lemma update_override:
+  forall (s: @ParserState Meta) b b',
+    s <| pkt := b |> <| pkt := b' |> = s <| pkt := b' |>
+.
+Proof.
+  intros.
+  destruct s.
+  reflexivity.
+Qed.
+
+Lemma update_noop:
+  forall (s: @ParserState Meta),
+    s <| pkt := pkt s |> = s
+.
+Proof.
+  intros.
+  destruct s.
+  reflexivity.
+Qed.
+
 Lemma next_bit_spec :
   forall s b,
   << fun s0 => s <| pkt := b :: pkt s |> = s0 >>
@@ -249,17 +269,39 @@ Proof.
   - rewrite <- H in Heql.
     simpl in Heql.
     inversion Heql.
-    split; try reflexivity.
-    rewrite <- H.
-    unfold set.
-    simpl.
-    destruct s.
-    reflexivity.
+    split.
+    + rewrite <- H.
+      rewrite update_override.
+      apply update_noop.
+    + reflexivity.
 Qed.
 
-Lemma extract_n_nice : 
+Lemma frame_wp_p:
+  forall {State Exception Result}
+         (P: State -> Prop)
+         (prog: @state_monad State Exception Result)
+         (Q: Result -> State -> Prop)
+         (H: Prop),
+    (H -> << P >> prog << Q >>)
+    ->
+    << fun s => P s /\ H >>
+      prog
+    << fun r s => Q r s /\ H >>
+.
+Proof.
+  unfold hoare_partial_wp.
+  intros.
+  destruct H1.
+  specialize (H0 H2 st H1).
+  destruct (prog st).
+  destruct s.
+  - split; eauto.
+  - eauto.
+Qed.
+
+Lemma extract_n_nice :
   forall n s bits,
-  << fun s0 => s <| pkt := bits2list bits ++ pkt s |> = s0 >> 
+  << fun s0 => s0 = s <| pkt := bits2list bits ++ pkt s |> >>
     extract_n n
   << fun r s1 => s1 = s /\ r = Some bits >>
 .
@@ -268,7 +310,7 @@ Proof.
   - unfold extract_n, pure.
     wp_trans; try app_ex.
     simpl.
-    rewrite <- H.
+    rewrite H.
     destruct bits.
     simpl.
     split; try reflexivity.
@@ -278,47 +320,24 @@ Proof.
   - unfold extract_n.
     fold extract_n.
     unfold pure.
-    destruct bits eqn:?.
+    destruct bits.
     wp_trans; try app_ex; simpl.
-    eapply strengthen_pre_p.
-    apply next_bit_spec.
-    simpl.
-    intros.
-    rewrite <- H.
-    instantiate (1 := s <| pkt := bits2list p ++ pkt s |>).
-    instantiate (1 := b).
-    simpl.
-    admit.
-    simpl.
-    eapply strengthen_pre_p.
-    eapply weaken_post_p.
-    apply IHn.
-    simpl.
-    intros.
-    destruct v eqn:?.
-    destruct r eqn:?.
-    destruct H.
-    split.
-    exact H.
-    repeat f_equal.
-    admit.
-    revert H0.
-    instantiate (1 := p).
-    intros.
-    inversion H0.
-    reflexivity.
-    admit.
-    destruct r.
-    destruct H.
-    discriminate.
-    destruct H.
-    discriminate.
-    simpl.
-    intros.
-    destruct H.
-    rewrite H.
-    reflexivity.
-Admitted.
+    + eapply strengthen_pre_p.
+      * apply next_bit_spec.
+      * simpl; intros.
+        now rewrite H, update_override.
+    + simpl.
+      eapply weaken_post_p.
+      eapply frame_wp_p.
+      * intros.
+        eapply strengthen_pre_p.
+        apply IHn.
+        simpl; intros.
+        exact H0.
+      * simpl; intros.
+        destruct H, H.
+        now rewrite H0, H1.
+Qed.
 
 Ltac mylen ls := 
   match ls with 

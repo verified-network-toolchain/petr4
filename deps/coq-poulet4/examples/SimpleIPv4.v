@@ -312,11 +312,9 @@ Proof.
     simpl.
     rewrite H.
     destruct bits.
-    simpl.
-    split; try reflexivity.
-    unfold set.
-    destruct s.
-    reflexivity.
+    split.
+    + apply update_noop.
+    + reflexivity.
   - unfold extract_n.
     fold extract_n.
     unfold pure.

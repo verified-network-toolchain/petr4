@@ -21,41 +21,41 @@ Notation RCons := HAList.RCons.
 
 Definition IPHeader :=
   HAList.t
-    [("src", option (bits 8));
-     ("dst", option (bits 8));
-     ("proto", option (bits 4))].
+    [("src", bits 8);
+     ("dst", bits 8);
+     ("proto", bits 4)].
 
 Definition IPHeader_p : PktParser IPHeader :=
   let* src := extract_n 8 in 
   let* dst := extract_n 8 in 
   let* proto := extract_n 4 in 
-  pure (RCons src (RCons dst (RCons proto REmp))).
+  state_return (RCons src (RCons dst (RCons proto REmp))).
 
 Definition TCP :=
   HAList.t
-  [("sport", option (bits 8));
-   ("dport", option (bits 8));
-   ("flags", option (bits 4));
-   ("seq", option (bits 8))].
+  [("sport", bits 8);
+   ("dport", bits 8);
+   ("flags", bits 4);
+   ("seq", bits 8)].
 
 Definition TCP_p : PktParser TCP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
   let* seq := extract_n 8 in 
-    pure (RCons sport (RCons dport (RCons flags (RCons seq REmp)))).
+    state_return (RCons sport (RCons dport (RCons flags (RCons seq REmp)))).
 
 Definition UDP := 
   HAList.t
-  [("sport", option (bits 8)); 
-   ("dport", option (bits 8));
-   ("flags", option (bits 4))].
+  [("sport", bits 8); 
+   ("dport", bits 8);
+   ("flags", bits 4)].
 
 Definition UDP_p : PktParser UDP :=
   let* sport := extract_n 8 in 
   let* dport := extract_n 8 in 
   let* flags := extract_n 4 in 
-    pure (RCons sport (RCons dport (RCons flags REmp))).
+    state_return (RCons sport (RCons dport (RCons flags REmp))).
 
 Definition Headers := 
   HAList.t
@@ -64,44 +64,16 @@ Definition Headers :=
 
 Definition Headers_p : PktParser Headers := 
   let* iph := IPHeader_p in 
-  let proto_opt := HAList.get iph (exist _ "proto" I) in
-  let* proto := lift_option proto_opt in 
+  let proto := HAList.get iph (exist _ "proto" I) in
   match proto with 
   | (false, (false, (false, (false, tt)))) =>
     let* tcp := TCP_p in 
-      pure (RCons iph (RCons (inl tcp) REmp))
+      state_return (RCons iph (RCons (inl tcp) REmp))
   | (false, (false, (false, (true, tt)))) =>
     let* udp := UDP_p in 
-      pure (RCons iph (RCons (inr udp) REmp))
+      state_return (RCons iph (RCons (inr udp) REmp))
   | _ => reject
   end.
-
-(* Set Equations Transparent. *)
-
-Equations TCP_valid (tcp: TCP) : bool :=
-  {
-    TCP_valid (RCons (Some _) (RCons (Some _) (RCons (Some _) (RCons (Some _) _)))) := true;
-    TCP_valid _ := false
-  }.
-
-Equations UDP_valid (udp: UDP) : bool :=
-  {
-    UDP_valid (RCons (Some _) (RCons (Some _) (RCons (Some _) _))) := true;
-    UDP_valid _ := false
-  }.
-
-Equations IPHeader_valid (ihp: IPHeader) : bool :=
-  {
-    IPHeader_valid (RCons (Some _) (RCons (Some _) (RCons (Some _) _))) := true;
-    IPHeader_valid _ := false
-  }.
-
-Lemma IPHeader_valid_destruct (iph: IPHeader) :
-  IPHeader_valid iph = true -> 
-  exists src dst proto, 
-  iph = RCons (Some src) (RCons (Some dst) (RCons (Some proto) REmp)).
-Proof.
-Admitted.
 
 Lemma Header_destruct (h: Headers) : 
   exists ip trans, h = RCons ip (RCons trans REmp).
@@ -115,11 +87,10 @@ Qed.
 
 Definition MyIngress (hdr: Headers) : PktParser Headers := 
   match HAList.get hdr (exist _ "transport" I) with 
-  | inl tcp => 
-    if TCP_valid tcp 
-    then set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) one_bits) ;; pure hdr 
-    else set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) zero_bits) ;; pure hdr 
-  | _ => pure hdr
+  | inl _ => 
+    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) one_bits) ;; state_return hdr 
+  | _ => 
+    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) zero_bits) ;; state_return hdr 
   end.
 
 Definition MyProg (pkt: list bool) : PktParser Headers :=
@@ -135,10 +106,10 @@ Definition HeaderWF (pkt : list bool) : Prop :=
     (List.nth_error pkt 19 = Some true /\ length pkt = 32)).
 
 Definition IPHeaderIsTCP (pkt : list bool) : Prop :=
-  length pkt = 40.
+  length pkt = 40 /\ List.nth_error pkt 19 = Some true.
 
 Definition IPHeaderIsUDP (pkt : list bool) : Prop :=
-  length pkt = 32.
+  length pkt = 32 /\ List.nth_error pkt 19 = Some false.
 
 Definition EgressSpecOne (out : @ParserState Meta) : Prop :=
   HAList.get (std_meta out) (exist _ "egress_spec" I) = one_bits.
@@ -204,31 +175,6 @@ Ltac break_match :=
     destruct e eqn:?
   end.
 
-(*
-Lemma extract_2_twice' : 
-  << fun s => length (pkt s) >= 2 >> 
-    r1 <- extract_n 1 ;;
-    r2 <- extract_n 1 ;; 
-    state_return (r1, r2)
-  << fun r s' => 
-    match r with 
-    | (Some l, Some r) => True
-    | _ => False 
-    end
-  >>.
-Proof.
-  unfold extract_n, next_bit, pure.
-  wp_trans; try app_ex.
-  mysimp.
-  repeat break_match; simpl in *; lia.
-Qed. *)
-
-Lemma bits2list_length :
-  forall n (x: bits n),
-    length (bits2list x) = n.
-Proof.
-Admitted.
-
 Lemma update_override:
   forall (s: @ParserState Meta) b b',
     s <| pkt := b |> <| pkt := b' |> = s <| pkt := b' |>
@@ -253,17 +199,18 @@ Lemma next_bit_spec :
   forall s b,
   << fun s0 => s <| pkt := b :: pkt s |> = s0 >>
     next_bit
-  << fun r s1 => s1 = s /\ r = Some b >>
+  << fun r s1 => s1 = s /\ r = b >>
 .
 Proof.
   intros.
-  unfold next_bit, pure.
+  unfold next_bit, reject.
   eapply strengthen_pre_p.
   wp_trans; try app_ex.
   simpl.
   intros.
   break_match.
-  - rewrite <- H in Heql.
+  - exfalso. 
+    rewrite <- H in Heql.
     simpl in Heql.
     discriminate.
   - rewrite <- H in Heql.
@@ -303,11 +250,11 @@ Lemma extract_n_nice :
   forall n s bits,
   << fun s0 => s0 = s <| pkt := bits2list bits ++ pkt s |> >>
     extract_n n
-  << fun r s1 => s1 = s /\ r = Some bits >>
+  << fun r s1 => s1 = s /\ r = bits >>
 .
 Proof.
   induction n; intros.
-  - unfold extract_n, pure.
+  - unfold extract_n, reject.
     wp_trans; try app_ex.
     simpl.
     rewrite H.
@@ -317,7 +264,6 @@ Proof.
     + reflexivity.
   - unfold extract_n.
     fold extract_n.
-    unfold pure.
     destruct bits.
     wp_trans; try app_ex; simpl.
     + eapply strengthen_pre_p.
@@ -347,31 +293,15 @@ Ltac mylen ls :=
 
 Ltac myinduct l := destruct l; (simpl; try (exfalso; simpl in *; lia)).
 
-Definition hal_get := 
-  let foo_t := HAList.t [("field", option bool)] in 
-  let foo : foo_t := RCons (Some true) REmp in
-  HAList.get foo (exist _ "field" I)
-  .
-Lemma hg : hal_get = Some true.
-Proof. 
-  unfold hal_get.
-  unfold HAList.get.
-  now autorewrite with get_k.
-Qed.
-
-(* All three of these functional correctness proofs work in my editor but
- * coqc times out on my laptop, so I've commented out the proof. 
- *)
-
 Lemma extract_bit_wp {Q} : 
   << fun s => 
     match (pkt s) with 
-    | [] => Q None (s <| pkt := nil |> )
-    | b :: bs => Q (Some b) (s <| pkt := bs |> )
+    | [] => False
+    | b :: bs => Q b (s <| pkt := bs |> )
     end
   >> next_bit << Q >>.
 Proof.
-  unfold next_bit, pure.
+  unfold next_bit, reject.
   eapply strengthen_pre_p.
   wp_trans; try app_ex.
   simpl. intros.
@@ -381,118 +311,72 @@ Proof.
   - unfold set in H. simpl in *. trivial.
 Qed.
 
-
-Lemma extract_n_wp n {Q: Post ParserState (option (bits n))}: 
+Lemma extract_n_wp n {Q: Post ParserState (bits n)}: 
   << fun s => 
-    (n <= length (pkt s) -> (exists (bts: bits n) suff, 
-      pkt s = (bits2list bts) ++ suff /\
-      Q (Some bts) (s <| pkt := suff |>))) /\ 
-    (length (pkt s) < n -> Q None (s <| pkt := nil |>))
- >> extract_n n << Q >>
-  .
+    n <= length (pkt s) /\ 
+    exists (bts: bits n) suff,
+    pkt s = (bits2list bts) ++ suff /\
+    Q bts (s <| pkt := suff |>)
+  >> 
+    extract_n n 
+  << Q >>.
 Proof.
   induction n.
-  - unfold extract_n, pure.
+  - unfold extract_n, reject.
     wp_trans. simpl. intros.
     destruct H.
     destruct h.
     destruct pkt.
     * simpl in *.
-      destruct H.
-      trivial.
-      destruct H.
-      destruct H.
-      rewrite <- H in H1.
+      destruct H0.
+      destruct H0.
+      destruct H0.
+      rewrite <- H0 in H1.
       unfold set in H1. simpl in H1.
       destruct x.
       trivial.
     * simpl in *.
-      destruct H.
-      lia.
-      destruct H.
-      destruct H.
-      rewrite <- H in H1.
+      destruct H0.
+      destruct H0.
+      destruct H0.
+      rewrite <- H0 in H1.
       unfold set in H1. simpl in H1.
       destruct x.
       trivial.
-  - unfold extract_n. fold extract_n. unfold pure.
+  - unfold extract_n. fold extract_n. unfold reject.
     eapply strengthen_pre_p.
     wp_trans; try app_ex.
     eapply extract_bit_wp.
     eapply IHn.
     simpl. intros.
     destruct (pkt h).
-    + destruct H. 
-      split.
-      intros.
-      assert (n = 0). lia.
-      destruct n.
-      exists tt.
-      exists nil. 
-      clear H1 H2 H IHn.
-      split; simpl; trivial.
-      assert ((h <| pkt := [] |> <| pkt := [] |>) = (h <| pkt := [] |>)).
-      unfold set. simpl. trivial.
-      rewrite H.
-      apply H0.
-      simpl. lia.
-      exfalso.
-      inversion H2.
-      intros.
-      assert ((h <| pkt := [] |> <| pkt := [] |>) = (h <| pkt := [] |>)).
-      unfold set. simpl. trivial.
-      rewrite H2.
-      apply H0.
-      simpl. lia.
+    + destruct H. simpl in H. lia.
     + split.
       * intros.
         destruct H.
-        destruct H.
-        simpl.
+        simpl in H.
         lia.
-
+      * intros. destruct H.
+        destruct H0.
         destruct x.
         exists p.
-        destruct H.
+        destruct H0.
         exists x.
-        simpl in H.
-        destruct H.
-        assert (forall {A} (x: A) y xs ys, x :: xs = y :: ys -> x = y /\ xs = ys).
-        intros. inversion H3. split; trivial.
-        specialize (H3 bool b b0 l (bits2list p ++ x) H).
-        split.
-        ** destruct H3. trivial.
-        ** 
-          assert (h <| pkt := l |> <| pkt := x |> = h <| pkt := x |>).
-          unfold set. simpl. trivial.
-          rewrite H4.
-          destruct H3. 
-          rewrite H3.
-          trivial.
-      * intros. destruct H.
-        assert (h <| pkt := l |> <| pkt := [] |> = h <| pkt := [] |>).
-        unfold set. simpl. trivial.
-        rewrite H2.
-        apply H1.
-        simpl. lia.
+        simpl in H0.
+        destruct H0.
+        inversion H0.
+        split; trivial.
 Qed.
-
-Definition bitsfromlist (xs: list bool) : bits (length xs).
-induction xs.
-- exact tt.
-- exact (a, (IHxs)).
-Defined.
 
 
 Lemma IPHeader_p_spec st: 
   << fun s => s = st /\ length (pkt s) >= 20 >>
     IPHeader_p
   << fun r s' => 
-    IPHeader_valid r = true /\ 
     s' = st <| pkt := skipn 20 (pkt st) |> 
   >>.
 Proof.
-  unfold IPHeader_p, next_bit, pure.
+  unfold IPHeader_p, next_bit, reject.
   wp_trans.
   4: app_ex.
   3: eapply (extract_n_wp 4).
@@ -506,318 +390,39 @@ Proof.
   myinduct (pkt h).
   do 19 (myinduct l).
   intros.
-  split.
-  intros.
-  exists (bitsfromlist [b; b0; b1; b2; b3; b4; b5; b6]).
+  split; [lia|].
+  exists (list2bits [b; b0; b1; b2; b3; b4; b5; b6]).
   exists ([b7; b8; b9; b10; b11; b12; b13; b14; b15; b16; b17; b18] ++ l).
   simpl.
   split.
    - trivial.
-   - intros. split.
-    intros.
-    exists (bitsfromlist [b7; b8; b9; b10; b11; b12; b13; b14]).
+   - split; [lia|].
+    exists (list2bits [b7; b8; b9; b10; b11; b12; b13; b14]).
     exists ([b15; b16; b17; b18] ++ l).
-    simpl. split.
-    + trivial.
-    + split; intros.
-      exists(bitsfromlist [b15; b16; b17; b18]).
-      exists l.
-      simpl. split.
-      * trivial.
-      * split.
-        now autorewrite with IPHeader_valid.
-        unfold set.
-        now simpl.
-      * exfalso. lia.
-    + intros. exfalso. lia.
-  - intros. exfalso. lia.
+    simpl. split; [trivial|].
+    split; intros; [lia|].
+    exists(list2bits [b15; b16; b17; b18]).
+    exists l.
+    simpl. split; [trivial|].
+    erewrite update_override.
+    erewrite update_override.
+    trivial.
 Qed.
 
 Lemma TCP_p_spec st: 
   << fun s => s = st /\ length (pkt s) >= 28 >>
     TCP_p
   << fun r s' => 
-    TCP_valid r = true /\ 
     s' = st <| pkt := skipn 28 (pkt st) |> 
   >>.
-(* Proof.
-  unfold TCP_p, extract_n, next_bit, pure.
-  eapply strengthen_pre_p.
-  wp_trans.
-  all: swap -1 1.
-  
-  intros. simpl.
-  assert (pkt h = pkt st).
-  destruct H as [eq _].
-  rewrite eq; trivial.
-  all: swap -1 1.
-
-  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20: app_ex.
-  all: swap -1 1.
-
-  simpl.
-  myinduct (pkt h).
-  myinduct l.
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-  myinduct l.
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l. myinduct l.
-
-  
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl.
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  2,3,4: app_ex.
-  simpl.
-  2,3: app_ex.
-  simpl.
-  split.
-  - apply TCP_valid_equation_1.
-  - rewrite <- H0.
-    simpl.
-    destruct H as [eq _].
-    rewrite eq.
-    trivial.
-  Unshelve.
-
-  all: (
-    exact true || 
-    exact zero_bits
-  ).
-Qed. *)
 Admitted.
 
 Lemma UDP_p_spec st: 
   << fun s => s = st /\ length (pkt s) >= 20 >>
     UDP_p
   << fun r s' => 
-    UDP_valid r = true /\ 
     s' = st <| pkt := skipn 20 (pkt st) |> 
   >>.
-(* Proof.
-  unfold UDP_p, extract_n, next_bit, pure.
-  eapply strengthen_pre_p.
-  wp_trans.
-  all: swap -1 1.
-  
-  intros. simpl.
-  assert (pkt h = pkt st).
-  destruct H as [eq _].
-  rewrite eq; trivial.
-  all: swap -1 1.
-
-  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20: app_ex.
-  all: swap -1 1.
-
-  simpl.
-  myinduct (pkt h).
-  myinduct l.
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1.
-
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  myinduct l.
-  myinduct l.
-  all: swap -1 1.
-  1,2,3,4,5,6,7,8,9,10: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-
-  myinduct l.
-
-  all: swap -1 1.
-  1,2,3,4,5: app_ex.
-  all: swap -1 1. 
-  simpl. myinduct l.
-
-  all: swap -1 1.
-  1,2,3: app_ex.
-  all: swap -1 1. 
-  simpl.
-
-  2,3,4: app_ex.
-  simpl.
-  2,3,4: app_ex.
-  2,3,4: app_ex.
-  2: app_ex.
-  simpl.
-  myinduct l.
-  split.
-  - apply UDP_valid_equation_1.
-  - rewrite <- H0.
-    simpl.
-    destruct H as [eq _].
-    rewrite eq.
-    trivial.
-
-  Unshelve.
-
-  all: (
-    exact true || 
-    exact zero_bits
-  ).
-Qed. *)
 Admitted.
 
 Lemma ParseTCPCorrect pckt :
@@ -825,42 +430,6 @@ Lemma ParseTCPCorrect pckt :
     MyProg pckt
   << fun _ s => EgressSpecZero s >>.
 Proof.
-  unfold MyProg, Headers_p.
-  wp_trans.
-  all: swap 5 1.
-  intros.
-  destruct (Header_destruct r0) as [ip [trans pred]].
-  unfold EgressSpecZero.
-  rewrite pred.
-  unfold MyIngress.
-  change (HAList.get (RCons ip (RCons trans REmp))
-                      (exist (fun k : string => @HAList.alist_In _ _ P4String.StrEqDec _ k [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I))
-          with trans.
-  destruct trans.
-  unfold set_std_meta, pure.
-  eapply strengthen_pre_p.
-  wp_trans; try app_ex.
-  intros.
-  destruct (TCP_valid t).
-  set (k':= HAList.get
-  (std_meta
-     (h <| std_meta ::=
-      (fun mt : StandardMeta =>
-       HAList.set mt
-         (exist (fun k0 : string => @HAList.alist_In _ _ P4String.StrEqDec _ k0 [("egress_spec", bits 9)])
-            "egress_spec" I) one_bits) |>))
-  (exist (fun k0 : string => @HAList.alist_In _ _ P4String.StrEqDec _ k0 [("egress_spec", bits 9)])
-     "egress_spec" I)).
-  Set Printing Notation.
-  destruct h eqn:?.
-  Locate "<|".
-  Locate set.
-  cbn in k'.
-  simpl in k'.
-  (*simpl std_meta in k'.
-  simpl in k'.
-  
-  admit. *)
 Admitted. 
 
 Lemma ParseUDPCorrect pckt :

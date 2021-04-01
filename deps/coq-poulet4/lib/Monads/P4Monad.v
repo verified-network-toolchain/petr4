@@ -37,10 +37,16 @@ Fixpoint one_bits {w: nat} : bits (S w) :=
   end.
 
 Definition bits2list {n} (bs: bits n) : list bool.
-  induction n.
-  - exact nil.
-  - destruct bs.
-    exact (b :: IHn p).
+induction n.
+- exact nil.
+- destruct bs.
+  exact (b :: IHn p).
+Defined.
+
+Definition list2bits (xs: list bool) : bits (length xs).
+induction xs.
+- exact tt.
+- exact (a, (IHxs)).
 Defined.
 
 Definition bits2N {n} (bs: bits n) : option BinNums.N :=
@@ -76,29 +82,24 @@ Definition set_std_meta (f: StandardMeta -> StandardMeta) : PktParser unit :=
 
 (* Definition skip : PktParser  *)
 
-Definition pure {R} : R -> PktParser R := state_return.
-
 Definition reject {R} : PktParser R := state_fail tt.
 
-Definition next_bit : PktParser (option bool) :=
+Definition next_bit : PktParser bool :=
   let* st := get_state in
-  match pkt st return PktParser (option bool) with
+  match pkt st with
   | x :: pkt' =>
     put_state (fun st => st <| pkt := pkt' |>) ;;
-    pure (Some x)
-  | _ => pure None
+    state_return x
+  | _ => reject
   end.
 
-Fixpoint extract_n (n: nat) : PktParser (option (bits n)) :=
-  match n as n' return PktParser (option (bits n')) with
-  | 0 => pure (Some tt)
+Fixpoint extract_n (n: nat) : PktParser (bits n) :=
+  match n with
+  | 0 => state_return tt
   | S n' =>
     let* bit := next_bit in
     let* bits := extract_n n' in
-    match (bit, bits) with
-    | (Some bit', Some bits') => pure (Some (bit', bits'))
-    | _ => pure None
-    end
+    state_return (bit, bits)
   end.
 
 Definition init_meta : StandardMeta := HAList.RCons zero_bits HAList.REmp.

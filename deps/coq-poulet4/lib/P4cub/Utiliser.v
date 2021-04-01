@@ -20,6 +20,37 @@ Arguments Right {_ _}.
 
 (** * Useful Functions And Lemmas *)
 
+(** Temporary bind. *)
+Definition bind_option {A B : Type}
+           (ma : option A) (f : A -> option B) : option B :=
+  match ma with
+  | None => None
+  | Some a => f a
+  end.
+
+Definition map_option {A B : Type} (ma : option A) (f : A -> B) : option B :=
+  bind_option ma (fun x => Some (f x)).
+
+Definition curry3 {A B C D : Type}
+           (f : A * B * C -> D) : A -> B -> C -> D :=
+  fun a b c => f (a,b,c).
+(**[]*)
+
+Definition uncurry3 {A B C D : Type}
+           (f : A -> B -> C -> D) '((a,b,c) : A * B * C) : D :=
+  f a b c.
+(**[]*)
+
+Definition curry4 {A B C D E : Type}
+           (f : A * B * C * D -> E) : A -> B -> C -> D -> E :=
+  fun a b c d => f (a,b,c,d).
+(**[]*)
+
+Definition uncurry4 {A B C D E : Type}
+           (f : A -> B -> C -> D -> E) '((a,b,c,d) : A * B * C * D) : E :=
+  f a b c d.
+(**[]*)
+
 (** Update position [n] of list [l],
     or return [l] if [n] is too large. *)
 Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
@@ -239,6 +270,8 @@ Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
 Infix "▷" := pipeline (at level 45, left associativity).
 
 Infix "∘" := Basics.compose (at level 40, left associativity).
+
+Infix "#" := Basics.apply (at level 41, right associativity).
 
 (** * Useful Tactics *)
 

@@ -19,6 +19,10 @@ Declare Custom Entry p4matchkind.
 Declare Custom Entry p4hdr_op.
 Declare Custom Entry p4hdr_stk_op.
 Declare Custom Entry p4expr.
+
+Reserved Notation "∮ e1 ≡ e2"
+         (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
+
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4decl.
 Declare Custom Entry p4prsrexpr.
@@ -1093,6 +1097,92 @@ Module P4cub.
           end.
       (**[]*)
     End ExprInduction.
+
+    (** Decidable Expression Equivalence. *)
+    Module ExprEquivalence.
+      Import Field.FieldTactics.
+      Import TypeNotations.
+      Import UopNotations.
+      Import BopNotations.
+      Import HeaderOpNotations.
+      Import HeaderStackOpNotations.
+      Import MatchkindNotations.
+      Import ExprNotations.
+      Import TypeEquivalence.
+
+      (** Equality of expressions. *)
+      Inductive equive {tags_t : Type} : e tags_t -> e tags_t -> Prop :=
+      | equive_bool b i i' :
+          ∮ BOOL b @ i ≡ BOOL b @ i'
+      | equive_bit w n i i' :
+          ∮ w W n @ i ≡ w W n @ i'
+      | equive_int w z i i' :
+          ∮ w S z @ i ≡ w S z @ i'
+      | equive_var x1 x2 τ1 τ2 i1 i2 :
+          equiv x1 x2 ->
+          ∫ τ1 ≡ τ2 ->
+          ∮ Var x1:τ1 @ i1 ≡ Var x2:τ2 @ i2
+      | equive_cast τ1 τ2 e1 e2 i1 i2 :
+          ∫ τ1 ≡ τ2 ->
+          ∮ e1 ≡ e2 ->
+          ∮ Cast e1:τ1 @ i1 ≡ Cast e2:τ2 @ i2
+      | equive_uop op τ1 τ2 e1 e2 i1 i2 :
+          ∮ e1 ≡ e2 ->
+          ∮ UOP op e1:τ1 @ i1 ≡ UOP op e1:τ2 @ i2
+      | equive_bop op τl1 τr1 τl2 τr2 el1 er1 el2 er2 i1 i2 :
+          ∫ τl1 ≡ τl2 ->
+          ∫ τr1 ≡ τr2 ->
+          ∮ el1 ≡ el2 ->
+          ∮ er1 ≡ er2 ->
+          ∮ BOP el1:τl1 op er1:τr1 @ i1 ≡ BOP el2:τl2 op er2:τr2 @ i2
+      | equive_tuple es1 es2 i1 i2 :
+          Forall2 equive es1 es2 ->
+          ∮ tup es1 @ i1 ≡ tup es2 @ i2
+      | equive_record fs1 fs2 i1 i2 :
+          F.relfs
+            (fun et1 et2 =>
+               let τ1 := fst et1 in
+               let τ2 := fst et2 in
+               let e1 := snd et1 in
+               let e2 := snd et2 in
+               ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+          ∮ rec { fs1 } @ i1 ≡ rec { fs2 } @ i2
+      | equive_header fs1 fs2 e1 e2 i1 i2 :
+          F.relfs
+            (fun et1 et2 =>
+               let τ1 := fst et1 in
+               let τ2 := fst et2 in
+               let e1 := snd et1 in
+               let e2 := snd et2 in
+               ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+          ∮ e1 ≡ e2 ->
+          ∮ hdr { fs1 } valid:=e1 @ i1 ≡ hdr { fs2 } valid:=e2 @ i2
+      | equive_header_op op h1 h2 i1 i2 :
+          ∮ h1 ≡ h2 ->
+          ∮ HDR_OP op h1 @ i1 ≡ HDR_OP op h2 @ i2
+      | equive_member x1 x2 τ1 τ2 e1 e2 i1 i2 :
+          equiv x1 x2 ->
+          ∫ τ1 ≡ τ2 ->
+          ∮ e1 ≡ e2 ->
+          ∮ Mem e1:τ1 dot x1 @ i1 ≡ Mem e2:τ2 dot x2 @ i2
+      | equive_error err1 err2 i1 i2 :
+          equiv err1 err2 ->
+          ∮ Error err1 @ i1 ≡ Error err2 @ i2
+      | equive_matchkind mk1 mk2 i1 i2 :
+          equiv mk1 mk2 ->
+          ∮ Matchkind mk1 @ i1 ≡ Matchkind mk2 @ i2
+      | equive_header_stack ts1 ts2 hs1 hs2 n ni :
+          F.relfs equivt ts1 ts2 ->
+          Forall2 equive hs1 hs2 ->
+          ∮ Stack hs1:ts1[n] nextIndex:=ni ≡ Stack hs2:ts2[n] nextIndex:=ni
+      | equive_stack_access e1 e2 n i1 i2 :
+          ∮ e1 ≡ e2 ->
+          ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
+      | equive_stack_op op e1 e2 i1 i2 :
+          ∮ e1 ≡ e2 ->
+          ∮ STK_OP op e1 @ i1 ≡ STK_OP op e2 @ i2
+      where "∮ e1 ≡ e2" := (equive e1 e2).
+    End ExprEquivalence.
   End Expr.
 
   (** * Statement Grammar *)

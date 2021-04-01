@@ -857,10 +857,10 @@ Proof.
   Locate set.
   cbn in k'.
   simpl in k'.
-  simpl std_meta in k'.
+  (*simpl std_meta in k'.
   simpl in k'.
   
-  admit.
+  admit. *)
 Admitted. 
 
 Lemma ParseUDPCorrect pckt :

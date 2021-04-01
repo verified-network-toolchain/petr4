@@ -33,7 +33,10 @@ Definition hoare_total_wp
   let (v, st') := c st in
     Q v st'.
 
-Notation "{{ P }} c {{ Q }}" := (@hoare_total_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
+Notation "{{ P }} c {{ Q }}" := (@hoare_total_wp _ _ _ P c Q) 
+  ( at level 90,
+    format "'{{'  P  '}}'  '[  ' c ']'  '{{'  Q  '}}'"
+  ) : hoare_scope_wp.
 
 Definition hoare_partial_wp
   {State Exception Result: Type}
@@ -48,7 +51,10 @@ Definition hoare_partial_wp
   | inr _ => False
   end.
 
-Notation "<< P >> c << Q >>" := (@hoare_partial_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
+Notation "<< P >> c << Q >>" := (@hoare_partial_wp _ _ _ P c Q) 
+  ( at level 90,
+    format "'[hv  ' '<<'  P  '>>' ']'  '[hv  ' c ']'  '[hv  ' '<<'  Q  '>>' ']'"
+  ) : hoare_scope_wp.
 
 
 Ltac mysimp := 
@@ -368,6 +374,72 @@ Lemma case_list_wp_p
   >>.
 Proof.
   destruct xs; mysimp.
+Qed.
+
+Lemma case_sum_wp_t
+  {State Exception Result A B: Type} 
+  {P1 P2 Q}
+  {c1: A -> @state_monad State Exception Result} 
+  {c2: B -> @state_monad State Exception Result} x : 
+  match x with
+  | inl a =>
+    {{ fun s => P1 a s }}
+      c1 a
+    {{ Q }}
+  | inr b =>
+    {{ fun s => P2 b s }} 
+      c2 b
+    {{ Q }}
+  end
+  ->
+  {{ 
+    match x with 
+    | inl a => P1 a
+    | inr b => P2 b
+    end
+  }}
+    match x with 
+    | inl a => c1 a
+    | inr b => c2 b
+    end
+  {{
+    Q
+  }}.
+Proof.
+  destruct x; mysimp.
+Qed.
+
+Lemma case_sum_wp_p
+  {State Exception Result A B: Type} 
+  {P1 P2 Q}
+  {c1: A -> @state_monad State Exception Result} 
+  {c2: B -> @state_monad State Exception Result} x : 
+  match x with
+  | inl a =>
+    << fun s => P1 a s >>
+      c1 a
+    << Q >>
+  | inr b =>
+    << fun s => P2 b s >> 
+      c2 b
+    << Q >>
+  end
+  ->
+  << 
+    match x with 
+    | inl a => P1 a
+    | inr b => P2 b
+    end
+  >>
+    match x with 
+    | inl a => c1 a
+    | inr b => c2 b
+    end
+  <<
+    Q
+  >>.
+Proof.
+  destruct x; mysimp.
 Qed.
 
 Lemma case_option_wp_t

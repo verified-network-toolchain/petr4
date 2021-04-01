@@ -363,6 +363,127 @@ Qed.
  * coqc times out on my laptop, so I've commented out the proof. 
  *)
 
+Lemma extract_bit_wp {Q} : 
+  << fun s => 
+    match (pkt s) with 
+    | [] => Q None (s <| pkt := nil |> )
+    | b :: bs => Q (Some b) (s <| pkt := bs |> )
+    end
+  >> next_bit << Q >>.
+Proof.
+  unfold next_bit, pure.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  simpl. intros.
+  destruct h.
+  destruct pkt.
+  - unfold set in H. simpl in *. trivial.
+  - unfold set in H. simpl in *. trivial.
+Qed.
+
+
+Lemma extract_n_wp n {Q: Post ParserState (option (bits n))}: 
+  << fun s => 
+    (n <= length (pkt s) -> (exists (bts: bits n) suff, 
+      pkt s = (bits2list bts) ++ suff /\
+      Q (Some bts) (s <| pkt := suff |>))) /\ 
+    (length (pkt s) < n -> Q None (s <| pkt := nil |>))
+ >> extract_n n << Q >>
+  .
+Proof.
+  induction n.
+  - unfold extract_n, pure.
+    wp_trans. simpl. intros.
+    destruct H.
+    destruct h.
+    destruct pkt.
+    * simpl in *.
+      destruct H.
+      trivial.
+      destruct H.
+      destruct H.
+      rewrite <- H in H1.
+      unfold set in H1. simpl in H1.
+      destruct x.
+      trivial.
+    * simpl in *.
+      destruct H.
+      lia.
+      destruct H.
+      destruct H.
+      rewrite <- H in H1.
+      unfold set in H1. simpl in H1.
+      destruct x.
+      trivial.
+  - unfold extract_n. fold extract_n. unfold pure.
+    eapply strengthen_pre_p.
+    wp_trans; try app_ex.
+    eapply extract_bit_wp.
+    eapply IHn.
+    simpl. intros.
+    destruct (pkt h).
+    + destruct H. 
+      split.
+      intros.
+      assert (n = 0). lia.
+      destruct n.
+      exists tt.
+      exists nil. 
+      clear H1 H2 H IHn.
+      split; simpl; trivial.
+      assert ((h <| pkt := [] |> <| pkt := [] |>) = (h <| pkt := [] |>)).
+      unfold set. simpl. trivial.
+      rewrite H.
+      apply H0.
+      simpl. lia.
+      exfalso.
+      inversion H2.
+      intros.
+      assert ((h <| pkt := [] |> <| pkt := [] |>) = (h <| pkt := [] |>)).
+      unfold set. simpl. trivial.
+      rewrite H2.
+      apply H0.
+      simpl. lia.
+    + split.
+      * intros.
+        destruct H.
+        destruct H.
+        simpl.
+        lia.
+
+        destruct x.
+        exists p.
+        destruct H.
+        exists x.
+        simpl in H.
+        destruct H.
+        assert (forall {A} (x: A) y xs ys, x :: xs = y :: ys -> x = y /\ xs = ys).
+        intros. inversion H3. split; trivial.
+        specialize (H3 bool b b0 l (bits2list p ++ x) H).
+        split.
+        ** destruct H3. trivial.
+        ** 
+          assert (h <| pkt := l |> <| pkt := x |> = h <| pkt := x |>).
+          unfold set. simpl. trivial.
+          rewrite H4.
+          destruct H3. 
+          rewrite H3.
+          trivial.
+      * intros. destruct H.
+        assert (h <| pkt := l |> <| pkt := [] |> = h <| pkt := [] |>).
+        unfold set. simpl. trivial.
+        rewrite H2.
+        apply H1.
+        simpl. lia.
+Qed.
+
+Definition bitsfromlist (xs: list bool) : bits (length xs).
+induction xs.
+- exact tt.
+- exact (a, (IHxs)).
+Defined.
+
+
 Lemma IPHeader_p_spec st: 
   << fun s => s = st /\ length (pkt s) >= 20 >>
     IPHeader_p
@@ -371,13 +492,46 @@ Lemma IPHeader_p_spec st:
     s' = st <| pkt := skipn 20 (pkt st) |> 
   >>.
 Proof.
-  unfold IPHeader_p.
+  unfold IPHeader_p, next_bit, pure.
   wp_trans.
-  (* unfold IPHeader_p, extract_n, next_bit, pure.
+  4: app_ex.
+  3: eapply (extract_n_wp 4).
+  2: eapply (extract_n_wp 8).
   eapply strengthen_pre_p.
-  wp_trans; try app_ex.
-  simpl. *)
-Admitted.
+  eapply (extract_n_wp 8).
+  intros.
+  simpl.
+  destruct H.
+  rewrite <- H.
+  myinduct (pkt h).
+  do 19 (myinduct l).
+  intros.
+  split.
+  intros.
+  exists (bitsfromlist [b; b0; b1; b2; b3; b4; b5; b6]).
+  exists ([b7; b8; b9; b10; b11; b12; b13; b14; b15; b16; b17; b18] ++ l).
+  simpl.
+  split.
+   - trivial.
+   - intros. split.
+    intros.
+    exists (bitsfromlist [b7; b8; b9; b10; b11; b12; b13; b14]).
+    exists ([b15; b16; b17; b18] ++ l).
+    simpl. split.
+    + trivial.
+    + split; intros.
+      exists(bitsfromlist [b15; b16; b17; b18]).
+      exists l.
+      simpl. split.
+      * trivial.
+      * split.
+        now autorewrite with IPHeader_valid.
+        unfold set.
+        now simpl.
+      * exfalso. lia.
+    + intros. exfalso. lia.
+  - intros. exfalso. lia.
+Qed.
 
 Lemma TCP_p_spec st: 
   << fun s => s = st /\ length (pkt s) >= 28 >>

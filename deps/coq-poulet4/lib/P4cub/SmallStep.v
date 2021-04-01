@@ -7,6 +7,9 @@ Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
 
+Reserved Notation "'ℵ' env '**' e1 '-->' e2"
+         (at level 40, e1 custom p4expr, e2 custom p4expr).
+
 (** * Small-Step Values *)
 Module IsValue.
   Module P := P4cub.
@@ -114,3 +117,57 @@ Module IsValue.
         end.
   End IsValueInduction.
 End IsValue.
+
+Module Step.
+  Module P := P4cub.
+  Module E := P.Expr.
+  Module F := P.F.
+
+  Import P.P4cubNotations.
+  Import Env.EnvNotations.
+
+  Module V := IsValue.
+
+  Section StepDefs.
+    Context {tags_t : Type}.
+
+    (** Expression environment. *)
+    Definition eenv : Type := Env.t (name tags_t) (E.e tags_t).
+  End StepDefs.
+
+  Inductive expr_step {tags_t : Type} (ϵ : @eenv tags_t)
+    : E.e tags_t -> E.e tags_t -> Prop :=
+  | step_var (x : name tags_t) (τ : E.t tags_t)
+             (i : tags_t) (e : E.e tags_t) :
+      ϵ x = Some e ->
+      ℵ ϵ ** Var x:τ @ i -->  e
+  | step_cast (τ : E.t tags_t) (e e' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i
+  | step_uop (op : E.uop) (τ : E.t tags_t)
+             (e e' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** UOP op e:τ @ i -->  UOP op e':τ @ i
+  | step_bop_l (op : E.bop) (τl τr : E.t tags_t)
+               (el el' er : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** el -->  el' ->
+      ℵ ϵ ** BOP el:τl op er:τr @ i -->  BOP el':τl op er:τr @ i
+  | step_bop_r (op : E.bop) (τl τr : E.t tags_t)
+               (el er er' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** er -->  er' ->
+      ℵ ϵ ** BOP el:τl op er:τr @ i -->  BOP el:τl op er':τr @ i
+  | step_member (x : string tags_t) (τ : E.t tags_t)
+                (e e' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
+  | step_header_op (op : E.hdr_op) (e e' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** HDR_OP op e @ i -->  HDR_OP op e' @ i
+  | step_stack_op (op : E.hdr_stk_op) (e e' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** STK_OP op e @ i -->  STK_OP op e' @ i
+  | step_stack_access (e e' : E.e tags_t) (n : N) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** Access e[n] @ i -->  Access e'[n] @ i
+  where "'ℵ' ϵ '**' e1 '-->' e2" := (expr_step ϵ e1 e2).
+End Step.

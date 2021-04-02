@@ -145,28 +145,9 @@ Ltac wp_trans :=
   | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] =>
     eapply (case_option_wp_p e);
     try wp_trans
-  end.
-
-Ltac wp_trans' :=
-  match goal with
-  | [ |- << _ >> mbind _ _ << _ >> ] =>
-    eapply bind_wp_p
-  | [ |- << _ >> get_state << _ >> ] =>
-    eapply get_wp_p
-  | [ |- << _ >> put_state ?e << _ >> ] =>
-    eapply (put_wp_p e)
-  | [ |- << _ >> state_fail ?e << _ >> ] =>
-    eapply (fail_wp_p e)
-  | [ |- << _ >> state_return ?e << _ >> ] =>
-    eapply (return_wp_p e)
-  | [ |- << _ >> if _ then _ else _ << _ >> ] =>
-    eapply cond_wp_p
-  | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] =>
-      eapply (case_nat_wp_p e)
-  | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] =>
-    eapply (case_list_wp_p e)
-  | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] =>
-    eapply (case_option_wp_p e)
+  | [ |- << _ >> match ?e with | inl _ => _ | _ => _ end << _ >> ] =>
+    eapply (case_sum_wp_p e);
+    try wp_trans
   end.
 
 Ltac break_match :=
@@ -415,6 +396,8 @@ Lemma TCP_p_spec st:
   << fun r s' => 
     s' = st <| pkt := skipn 28 (pkt st) |> 
   >>.
+Proof.
+  unfold TCP_p.
 Admitted.
 
 Lemma UDP_p_spec st: 
@@ -430,6 +413,105 @@ Lemma ParseTCPCorrect pckt :
     MyProg pckt
   << fun _ s => EgressSpecZero s >>.
 Proof.
+  unfold MyProg.
+  unfold Headers_p.
+  unfold reject.
+  wp_trans.
+  all: swap 4 1.
+  unfold MyIngress.
+  intros.
+  wp_trans.
+  unfold HAList.get.
+  inversion r0.
+  inversion X.
+  assert (HAList.get_k r0
+  (projT2
+     (HAList.get_key_type
+        (HAList.mk_key
+           (exist
+              (fun k1 : string =>
+               HAList.alist_In k1
+                 [("ip", IPHeader); ("transport", (TCP + UDP)%type)])
+              "transport" I)))) = x0).
+              admit.
+
+  rewrite H.
+  destruct x0; unfold set_std_meta; wp_trans; try app_ex.
+  all: swap 2 1.
+  intros.
+  inversion r0.
+  inversion X.
+  inversion X0.
+  assert (x1 = HAList.get r0
+  (exist
+     (fun k2 : string =>
+      HAList.alist_In k2
+        [("src", bits 8); ("dst", bits 8); ("proto", bits 4)])
+     "proto" I)).
+     admit.
+  rewrite <- H.
+  destruct x1.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  destruct p.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  destruct p.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  destruct p.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  destruct p.
+  eapply strengthen_pre_p.
+  wp_trans; try app_ex.
+  eapply weaken_post_p.
+  eapply UDP_p_spec.
+  intros.
+  assert ((HAList.get (RCons r0 (RCons (inr v) REmp))
+  (exist
+     (fun k2 : string =>
+      HAList.alist_In k2
+        [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" I)) = inr v).
+  admit.
+  destruct ((HAList.get (RCons r0 (RCons (inr v) REmp))
+  (exist
+     (fun k2 : string =>
+      HAList.alist_In k2
+        [("ip", IPHeader); ("transport", (TCP + UDP)%type)]) "transport" _))).
+  exfalso. inversion H10.
+
+  unfold EgressSpecZero.
+  autorewrite with get_k.
+  assert ((HAList.get
+  (std_meta
+     (s <| std_meta ::=
+      (fun mt : StandardMeta =>
+       HAList.set mt
+         (exist
+            (fun k2 : string =>
+             HAList.alist_In k2
+               [("egress_spec", bits 9)])
+            "egress_spec" I) zero_bits)
+      |>))
+  (exist
+     (fun k2 : string =>
+      HAList.alist_In k2
+        [("egress_spec", bits 9)])
+     "egress_spec" I)) = @zero_bits 9).
+     admit.
+  exact H11.
+  intros.
+  apply H9.
+  
+
+  all: swap 6 1.
+  eapply IPHeader_p_spec.
+  all: swap 5 1.
+  destruct p.
+  wp_trans.
+  eapply TCP_p_spec.
+  intros.
 Admitted. 
 
 Lemma ParseUDPCorrect pckt :

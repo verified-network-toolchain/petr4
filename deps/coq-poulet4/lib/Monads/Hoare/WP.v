@@ -572,6 +572,7 @@ Ltac wp :=
   | [ |- {{ _ }} match ?e with | 0 => _ | S _ => _ end {{ _ }} ] => eapply (case_nat_wp_t e)
   | [ |- {{ _ }} match ?e with | nil => _ | _ :: _ => _ end {{ _ }} ] => eapply (case_list_wp_t e)
   | [ |- {{ _ }} match ?e with | Some _ => _ | None => _ end {{ _ }} ] => eapply (case_option_wp_t e)
+  | [ |- {{ _ }} match ?e with | inl _ => _ | inr _ => _ end {{ _ }} ] => eapply (case_sum_wp_t e)
   | [ |- << _ >> mbind _ _ << _ >> ] => eapply bind_wp_p
   | [ |- << _ >> get_state << _ >> ] => eapply get_wp_p
   | [ |- << _ >> put_state ?e << _ >> ] => eapply (put_wp_p e)
@@ -581,6 +582,7 @@ Ltac wp :=
   | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] => eapply (case_nat_wp_p e)
   | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] => eapply (case_list_wp_p e)
   | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] => eapply (case_option_wp_p e)
+  | [ |- << _ >> match ?e with | inl _ => _ | inr _ => _ end << _ >> ] => eapply (case_sum_wp_p e)
   end.
 
 

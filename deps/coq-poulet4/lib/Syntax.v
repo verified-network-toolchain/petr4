@@ -51,13 +51,19 @@ Section Syntax.
   | And
   | Or.
 
+  Inductive Locator :=
+  | LGlobal (p: list P4String)
+  | LInstance (p: list P4String).
+
+  Definition NoLocator := LGlobal nil.
+
   Inductive KeyValue :=
   | MkKeyValue (tags: tags_t) (key: P4String) (value: Expression)
   with ExpressionPreT :=
   | ExpBool (b: bool)
   | ExpInt (_: P4Int)
   | ExpString (_: P4String)
-  | ExpName (_: @Typed.name tags_t)
+  | ExpName (_: @Typed.name tags_t) (l: Locator)
   | ExpArrayAccess (array: Expression) (index: Expression)
   | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
@@ -71,7 +77,7 @@ Section Syntax.
   | ExpTernary (cond: Expression) (tru: Expression) (fls: Expression)
   | ExpFunctionCall (func: Expression) (type_args: list (@P4Type tags_t))
                     (args: list (option Expression))
-  | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression)
+  | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression) (l: Locator)
   | ExpDontCare
   | ExpMask (expr: Expression) (mask: Expression)
   | ExpRange (lo: Expression) (hi: Expression)
@@ -409,7 +415,7 @@ Section Syntax.
       methods: list ExternMethod }.
 
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t)
+  | ValLeftName (name: @Typed.name tags_t) (l: Locator)
   | ValLeftMember (expr: ValueLvalue) (name: P4String)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)

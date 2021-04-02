@@ -80,11 +80,10 @@ Inductive env_entry :=
 
 Definition env := @IdentMap.t tags_t env_entry.
 
-Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
-  match (IdentMap.get i e) with
-  | Some (Global p) => Some p
-  | Some (Instance p) => Some (this ++ p)
-  | None => None
+Definition ident_to_path (e : env) (l : Locator) (this : path) : option path :=
+  match l with
+  | LGlobal p => Some p
+  | LInstance p => Some (this ++ p)
   end.
 
 Inductive fundef :=
@@ -115,13 +114,13 @@ Definition genv := path -> option fundef.
 
 Variable ge : genv.
 
-Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t) : option path :=
+(* Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t) : option path :=
   match name with
   | QualifiedName p n =>
       Some (p ++ [n])
   | BareName id =>
       ident_to_path e id this_path
-  end.
+  end. *)
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
@@ -130,21 +129,16 @@ Definition eval_p4int (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit w (P4Int.value n)
   end.
 
-Definition name_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
-  let p :=
-    match n with
-    | BareName i => ident_to_path e i this
-    | QualifiedName ns i => Some (name_cons ns i)
-    end
-  in 
-    match p with
-    | Some p' =>
-      match PathMap.get p' (get_memory s) with
-      | Some v => Some v
-      | _ => None
-      end
+Definition name_to_val (e: env) (l : Locator) (this : path) (s : state) : option Val :=
+  let p := ident_to_path e l this in
+  match p with
+  | Some p' =>
+    match PathMap.get p' (get_memory s) with
+    | Some v => Some v
     | _ => None
-    end.
+    end
+  | _ => None
+  end.
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
@@ -190,10 +184,10 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                        exec_expr e this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
-  | exec_expr_name: forall name e v this st tag typ dir,
-                    name_to_val e name this st = Some v ->
+  | exec_expr_name: forall name p e v this st tag typ dir,
+                    name_to_val e p this st = Some v ->
                     exec_expr e this st
-                    (MkExpression tag (ExpName name) typ dir)
+                    (MkExpression tag (ExpName name p) typ dir)
                     v
   | exec_expr_array_access: forall array headers size next idx idxv idxz idxn header e this st tag typ dir,
                             exec_expr e this st array (ValBaseStack headers size next) ->
@@ -353,7 +347,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
       match action with
       | MkExpression _ (ExpFunctionCall (MkExpression _ f _ _) _ _) _ _ =>
           match f with
-          | ExpName (BareName fname) | ExpName (QualifiedName _ fname) =>
+          | ExpName (BareName fname) _ | ExpName (QualifiedName _ fname) _ =>
               if P4String.equivb name fname then
                   Some (action)
               else
@@ -433,7 +427,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
   (* We should think about using option monad in this function. *)
   match func with
   (* function/action *)
-  | MkExpression _ (ExpName name) _ _ =>
+  | MkExpression _ (ExpName name _) _ _ =>
       match name with
       | BareName id =>
           match IdentMap.get id e with
@@ -453,7 +447,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
       if P4String.equivb name apply_string then
         match expr with
         (* Instances should only be referred with bare names. *)
-        | MkExpression _ (ExpName (BareName name)) _ _ =>
+        | MkExpression _ (ExpName (BareName name) _) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
             | Some (IMInst class_name inst_path) =>
                 option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
@@ -465,7 +459,7 @@ Definition lookup_func (this_path : path) (e : env) (inst_m : inst_mem) (func : 
       else
         match expr with
         (* Instances should only be referred with bare names. *)
-        | MkExpression _ (ExpName (BareName name)) _ _ =>
+        | MkExpression _ (ExpName (BareName name) _) _ _ =>
             match PathMap.get (this_path ++ [name]) inst_m with
             | Some (IMInst class_name inst_path) =>
                 match PathMap.get [class_name; name] ge with
@@ -496,10 +490,10 @@ Definition extract_outlvals (args : list argument) : list Lval :=
   flat_map f args.
 
 Inductive exec_lvalue_expr : env -> path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
-  | exec_lvalue_expr_name : forall name e this st tag typ dir,
+  | exec_lvalue_expr_name : forall name l e this st tag typ dir,
                             exec_lvalue_expr e this st 
-                            (MkExpression tag (ExpName name) typ dir)
-                            (MkValueLvalue (ValLeftName name) typ)
+                            (MkExpression tag (ExpName name l) typ dir)
+                            (MkValueLvalue (ValLeftName name l) typ)
   | exec_lvalue_expr_member : forall expr lv name e this st tag typ dir,
                               exec_lvalue_expr e this st expr lv ->
                               exec_lvalue_expr e this st 
@@ -530,22 +524,17 @@ Inductive exec_lvalue_expr : env -> path -> state -> (@Expression tags_t) -> (@V
                                         (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                         lv.
 
-Definition update_val_by_name (e: env) (this : path) (s : state) (n : @Typed.name tags_t) (v : Val): option state :=
-  let p :=
-    match n with
-    | BareName i => ident_to_path e i this
-    | QualifiedName ns i => Some (name_cons ns i)
-    end
-  in 
-    match p with
-    | Some p' => Some (update_memory (PathMap.set p' v) s)
-    | _ => None
-    end.
+Definition update_val_by_name (e: env) (this : path) (s : state) (l : Locator) (v : Val): option state :=
+  let p := ident_to_path e l this in
+  match p with
+  | Some p' => Some (update_memory (PathMap.set p' v) s)
+  | _ => None
+  end.
 
 Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
   match lhs with
-  | MkValueLvalue (ValLeftName name) _ =>
-    let opt_st := update_val_by_name e this st name rhs in
+  | MkValueLvalue (ValLeftName name l) _ =>
+    let opt_st := update_val_by_name e this st l rhs in
       match opt_st with 
       | Some st' => Some (st', SContinue)
       | _ => None
@@ -735,10 +724,10 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
       (m : inst_mem) (s : extern_state) {struct expr} : inst_mem_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
   match expr with
-  | MkExpression _ (ExpName (BareName name)) _ _ =>
+  | MkExpression _ (ExpName (BareName name) l) _ _ =>
       let inst := force dummy_inst_mem_val (IdentMap.get name e) in
       (inst, PathMap.set p inst m, s)
-  | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
+  | MkExpression _ (ExpNamelessInstantiation typ args l) _ _ =>
       instantiate' rev_decls e typ args p m s
   (* TODO evaluate val parameters. *)
   | _ => (dummy_inst_mem_val, m, s)

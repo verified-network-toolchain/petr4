@@ -50,7 +50,7 @@ Section Eval.
   Fixpoint eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
     let '(MkExpression _ expr' type _) := expr in
     match expr' with
-    | ExpName name => mret (MkValueLvalue (ValLeftName name) type)
+    | ExpName name l => mret (MkValueLvalue (ValLeftName name l) type)
     | ExpExpressionMember lexpr name =>
       let* lval := eval_lvalue lexpr in
       mret (MkValueLvalue (ValLeftMember lval name) type)
@@ -397,9 +397,9 @@ Section Eval.
       match inner_v with
       | ValObj (ValObjPacket bits) =>
         match inner with
-        | MkExpression _ (ExpName inner_name) inner_typ _ =>
+        | MkExpression _ (ExpName inner_name l) inner_typ _ =>
           if P4String.eq_const name StringConstants.extract then
-            mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
+            mret (extract_value_func (MkValueLvalue (ValLeftName inner_name l) inner_typ))
           else if P4String.eq_const name StringConstants.lookahead then
             state_fail (SupportError "Packet lookahead is not implemented.")
           else if P4String.eq_const name StringConstants.advance then
@@ -418,7 +418,7 @@ Section Eval.
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
       eval_method_call (eval_expression) func type_args args;
-    eval_expression_pre (ExpName name) :=
+    eval_expression_pre (ExpName name _) :=
       get_name_loc _ name >>= heap_lookup _;
     eval_expression_pre (ExpCast typ expr) :=
       eval_cast (eval_expression) typ expr;

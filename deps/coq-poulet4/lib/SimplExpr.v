@@ -23,18 +23,18 @@ Definition to_digit (n: N): ascii :=
   | _ => "9"
   end.
 
-Fixpoint to_N_aux (time: nat) (n: N) (acc: string): string :=
+Fixpoint N_to_string_aux (time: nat) (n: N) (acc: string): string :=
   let (ndiv10, nmod10) := N.div_eucl n 10 in
   let acc' := String (to_digit nmod10) acc in
   match time with
   | O => acc'
   | S time' => match ndiv10 with
                | 0 => acc'
-               | n' => to_N_aux time' n' acc'
+               | n' => N_to_string_aux time' n' acc'
                end
   end.
 
-Definition N_to_string (n: N): string := to_N_aux (N.to_nat (N.log2 n)) n EmptyString.
+Definition N_to_string (n: N): string := N_to_string_aux (N.to_nat (N.log2 n)) n EmptyString.
 
 Definition add1 (n: N): N := n + 1.
 
@@ -59,7 +59,7 @@ Section Transformer.
     | ExpBool b => (nil, MkExpression tag (ExpBool b) typ dir, nameIdx)
     | ExpInt i => (nil, MkExpression tag (ExpInt i) typ dir, nameIdx)
     | ExpString str => (nil, MkExpression tag (ExpString str) typ dir, nameIdx)
-    | ExpName name => (nil, MkExpression tag (ExpName name) typ dir, nameIdx)
+    | ExpName name l => (nil, MkExpression tag (ExpName name l) typ dir, nameIdx)
     | ExpArrayAccess array index =>
       let (l1e1, n1) := transform_exp nameIdx array in
       let (l2e2, n2) := transform_exp n1 index in
@@ -144,11 +144,11 @@ Section Transformer.
       let (l1, e1) := l1e1 in
       (l1 ++ [(N_to_tempvar n1,
                MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar n1))) typ dir, add1 n1)
-    | ExpNamelessInstantiation typ' args =>
+       MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ dir, add1 n1)
+    | ExpNamelessInstantiation typ' args l =>
       ([(N_to_tempvar nameIdx,
-               MkExpression tag (ExpNamelessInstantiation typ' args) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx))) typ dir, add1 nameIdx)
+               MkExpression tag (ExpNamelessInstantiation typ' args l) typ dir)],
+       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx)) NoLocator) typ dir, add1 nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
     | ExpMask expr mask =>
       let (l1e1, n1) := transform_exp nameIdx expr in
@@ -189,7 +189,7 @@ Section Transformer.
     match ne with
     | (name, MkExpression tag expr typ' dir) =>
       match expr with
-      | ExpNamelessInstantiation typ'' e1 =>
+      | ExpNamelessInstantiation typ'' e1 _ =>
         MkStatement tags (StatInstantiation typ'' e1 name None) typ
       | _ => MkStatement tags
                          (StatVariable typ' name
@@ -322,7 +322,7 @@ Section Transformer.
     match ne with
     | (name, MkExpression tags expr typ dir) =>
       match expr with
-      | ExpNamelessInstantiation typ' args =>
+      | ExpNamelessInstantiation typ' args _ =>
         DeclInstantiation tags  typ' args name None
       | _ => DeclVariable default_tag typ name (Some (MkExpression tags expr typ dir))
       end

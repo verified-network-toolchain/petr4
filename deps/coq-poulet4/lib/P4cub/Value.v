@@ -350,7 +350,6 @@ Section Values.
       - clear ni H hs size.
         induction ts as [| [x t] ts IHts]; constructor; auto.
         split; simpl; try reflexivity.
-        apply TE.equivt_reflexive.
       - induction hs as [| [b vs] hs IHhs];
           inv H; constructor; auto; simpl; split; auto.
         unfold Basics.compose in H2; simpl in H2.
@@ -379,7 +378,6 @@ Section Values.
             simpl in *; auto.
         destruct H as [Hx Ht]; simpl in *;
           split; simpl; try symmetry; auto.
-        apply TE.equivt_symmetric; auto.
       - clear H ts1 ts2. rename H0 into H; rename H1 into H0.
         induction H; inv H0; constructor;
           destruct x as [b1 vs1];
@@ -424,7 +422,6 @@ Section Values.
           inv H12; inv H23; simpl in *; constructor; auto.
         + destruct H2 as [Hx12 Ht12]; destruct H3 as [Hx23 Ht23];
             split; simpl in *; try (etransitivity; eauto).
-          eapply TE.equivt_transitive; eauto.
         + eapply IHts1; eauto.
       - clear ts ts0 ts2 H5 H7 ni size.
         rename hs into vss1; rename vss0 into vss3.

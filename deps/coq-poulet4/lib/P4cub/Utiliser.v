@@ -8,6 +8,20 @@ Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Coq.micromega.Lia.
 
+(** * Useful Operators *)
+
+Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
+
+Infix "▷" := pipeline (at level 45, left associativity).
+
+Infix "∘" := Basics.compose (at level 40, left associativity).
+
+Infix "#" := Basics.apply (at level 41, right associativity).
+
+(** * Useful Tactics *)
+
+Ltac inv H := inversion H; clear H; subst.
+
 (** * Useful Data Types *)
 
 Inductive either (A B : Type) : Type :=
@@ -70,6 +84,47 @@ Proof.
   - exists h; reflexivity.
   - apply IHt; lia.
 Qed.
+
+Section Forall2_Equivalence.
+  Context {A : Type}.
+
+  Variable R : A -> A -> Prop.
+
+  Context `{Equivalence A R}.
+
+  Lemma Forall2_reflexive : Reflexive (Forall2 R).
+  Proof.
+    intros l; induction l; constructor; auto; reflexivity.
+  Qed.
+
+  Lemma Forall2_symmetric : Symmetric (Forall2 R).
+  Proof.
+    intros ? ? ?;
+           match goal with
+           | H: Forall2 R _ _ |- _ => induction H
+           end; constructor; auto;
+      symmetry; assumption.
+  Qed.
+
+  Lemma Forall2_transitive : Transitive (Forall2 R).
+  Proof.
+    intros l1; induction l1 as [| ? ? ?];
+      intros [| ? ?] [| ? ?] ? ?;
+             repeat match goal with
+                    | H: Forall2 R (_ :: _) _ |- _ => inv H
+                    | H: Forall2 R _ (_ :: _) |- _ => inv H
+                    end;
+      constructor; eauto; etransitivity; eauto.
+  Qed.
+
+  Global Instance Forall2Equiv : Equivalence (Forall2 R).
+  Proof.
+    constructor;
+      [ apply Forall2_reflexive
+      | apply Forall2_symmetric
+      | apply Forall2_transitive ]; assumption.
+  Defined.
+End Forall2_Equivalence.
 
 Lemma Forall_nth_error : forall {A : Type} (P : A -> Prop) l n a,
     Forall P l -> nth_error l n = Some a -> P a.
@@ -150,6 +205,43 @@ Proof.
     try (left; constructor; auto).
 Defined.
 
+Section ProdEquivalence.
+  Context {A B : Type}.
+
+  Variable RA : A -> A -> Prop.
+
+  Variable RB : B -> B -> Prop.
+
+  Context `{Equivalence A RA}.
+
+  Context `{Equivalence B RB}.
+
+  Let RAB ab1 ab2 := RA (fst ab1) # fst ab2 /\ RB (snd ab1) # snd ab2.
+
+  Lemma prod_reflexive : Reflexive RAB.
+  Proof.
+    intros [? ?]; cbv; intuition.
+  Qed.
+
+  Lemma prod_symmetric : Symmetric RAB.
+    intros [? ?] [? ?] [? ?]; cbv in *; intuition.
+  Qed.
+
+  Lemma prod_transitive : Transitive RAB.
+  Proof.
+    intros [? ?] [? ?] [? ?] [? ?] [? ?];
+      cbv in *; split; etransitivity; eauto.
+  Qed.
+
+  Global Instance ProdEquiv : Equivalence RAB.
+  Proof.
+    constructor;
+      [ apply prod_reflexive
+      | apply prod_symmetric
+      | apply prod_transitive ]; assumption.
+  Defined.
+End ProdEquivalence.
+
 (** * Equivalence for Petr4 Base Data Types *)
 
 Instance PositiveEqDec : EqDec positive eq := { equiv_dec := BinPos.Pos.eq_dec }.
@@ -194,11 +286,7 @@ Section TypeSynonyms.
 
   Lemma equivn_reflexive : Reflexive equivn.
   Proof.
-    intros [x | xs x]; simpl.
-    - reflexivity.
-    - split; try reflexivity.
-      induction xs as [| h xs IHxs];
-        constructor; auto. reflexivity.
+    intros [? | ? ?]; simpl; repeat split; reflexivity.
   Qed.
 
   Lemma equivn_symmetric : Symmetric equivn.
@@ -206,9 +294,6 @@ Section TypeSynonyms.
     intros [x | xs x] [y | ys y] H; simpl in *; auto.
     - symmetry. assumption.
     - destruct H as [Hxy H]. split; try (symmetry; assumption).
-      generalize dependent ys; induction xs as [| hx xs IHxs];
-        intros [| hy ys] H; inversion H; clear H; subst; auto;
-      constructor; auto. symmetry. assumption.
   Qed.
 
   Lemma equivn_transitive : Transitive equivn.
@@ -262,17 +347,3 @@ Section TypeSynonyms.
     { equiv_dec := equivn_dec }.
   (**[]*)
 End TypeSynonyms.
-
-(** * Useful Operators *)
-
-Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
-
-Infix "▷" := pipeline (at level 45, left associativity).
-
-Infix "∘" := Basics.compose (at level 40, left associativity).
-
-Infix "#" := Basics.apply (at level 41, right associativity).
-
-(** * Useful Tactics *)
-
-Ltac inv H := inversion H; clear H; subst.

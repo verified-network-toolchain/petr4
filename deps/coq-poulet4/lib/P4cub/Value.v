@@ -337,6 +337,8 @@ Section Values.
       (**[]*)
     End ValueEquivalenceInduction.
 
+    Import F.RelfEquiv.
+
     Lemma equivv_reflexive : Reflexive equivv.
     Proof.
       intros v; induction v using custom_value_ind;
@@ -347,9 +349,6 @@ Section Values.
              constructor; simpl; try reflexivity; auto
            | apply IHvs; auto]).
       - induction H; constructor; auto.
-      - clear ni H hs size.
-        induction ts as [| [x t] ts IHts]; constructor; auto.
-        split; simpl; try reflexivity.
       - induction hs as [| [b vs] hs IHhs];
           inv H; constructor; auto; simpl; split; auto.
         unfold Basics.compose in H2; simpl in H2.
@@ -372,12 +371,6 @@ Section Values.
         [ destruct H5; split; try symmetry; auto
         | apply IHForall2; auto ]; assumption).
       - induction H; inv H0; constructor; eauto.
-      - clear H1 H0 vss1 vss2 n ni.
-        induction H; constructor;
-          destruct x as [x1 t1]; destruct y as [x2 t2];
-            simpl in *; auto.
-        destruct H as [Hx Ht]; simpl in *;
-          split; simpl; try symmetry; auto.
       - clear H ts1 ts2. rename H0 into H; rename H1 into H0.
         induction H; inv H0; constructor;
           destruct x as [b1 vs1];

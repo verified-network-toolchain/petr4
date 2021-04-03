@@ -167,6 +167,20 @@ Module Field.
     (**[]*)
   End FieldLibrary.
 
+  Module RelfEquiv.
+    Instance RelfEquiv
+             {tags_t : Type} (U : Type) (R : U -> U -> Prop) `{Equivalence U R}
+      : Equivalence (@relf tags_t _ _ R) :=
+      ProdEquiv _ R.
+    (**[]*)
+
+    Instance RelfsEquiv
+             {tags_t : Type} (U : Type) (R : U -> U -> Prop) `{Equivalence U R}
+      : Equivalence (@relfs tags_t _ _ R) :=
+      Forall2Equiv (relf R).
+    (**[]*)
+  End RelfEquiv.
+
   Module FieldTactics.
     Ltac invert_predf :=
       match goal with
@@ -1034,7 +1048,8 @@ Module P4cub.
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
       Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) b i,
-          F.predfs_data (P ∘ snd) fields -> P <{ hdr {fields} valid:=b @ i }>.
+          P b -> F.predfs_data (P ∘ snd) fields ->
+          P <{ hdr {fields} valid:=b @ i }>.
 
       Hypothesis HEHeaderOp : forall op exp i,
           P exp -> P <{ HDR_OP op exp @ i }>.
@@ -1086,7 +1101,8 @@ Module P4cub.
                     (eind lhs) (eind rhs)
           | <{ tup es @ i }>         => HETuple es i (list_ind es)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
-          | <{ hdr { fields } valid:=b @ i }> => HEHeader fields b i (fields_ind fields)
+          | <{ hdr { fields } valid:=b @ i }>
+            => HEHeader fields b i (eind b) (fields_ind fields)
           | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
           | <{ Mem exp:ty dot x @ i }> =>
               HEExprMember x ty exp i (eind exp)
@@ -1405,10 +1421,89 @@ Module P4cub.
                               => cbv in HP
                             end; eauto; reflexivity
                   end.
-          - admit.
-          - admit.
-        Admitted.
+        Qed.
+
+        Lemma equive_symmetric : Symmetric (@equive tags_t).
+        Proof.
+          intros ? ? ?;
+                 match goal with
+                 | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
+                 end;
+            econstructor; eauto; try (symmetry; assumption);
+              try match goal with
+                  | H: Forall2 equive ?es1 ?es2,
+                       IH: Forall2 _ ?es1 ?es2
+                    |- Forall2 equive ?es2 ?es1
+                    => induction H; inv IH; constructor; intuition
+                  end;
+              try match goal with
+                  | H: F.relfs
+                         (fun et1 et2 : t tags_t * e tags_t =>
+                            let τ1 := fst et1 in
+                            let τ2 := fst et2 in
+                            let e1 := snd et1 in
+                            let e2 := snd et2 in
+                            (∫ τ1 ≡ τ2) /\ (∮ e1 ≡ e2))
+                         ?fs1 ?fs2,
+                       IH: F.relfs _ ?fs1 ?fs2 |- F.relfs _ ?fs2 ?fs1
+                    => induction H; inv IH;
+                        constructor; repeat invert_relf;
+                          repeat match goal with
+                                 | x: F.f _ (_ * _) |- _
+                                   => destruct x as [? [? ?]];
+                                       simpl in *
+                                 end; repeat split; intuition
+                  end.
+        Qed.
+
+        Lemma equive_transitive : Transitive (@equive tags_t).
+        Proof.
+          intros e1; induction e1 using custom_e_ind;
+            intros ? ? H12 H23; inv H12; inv H23;
+              econstructor; try (etransitivity; eassumption); eauto;
+                try match goal with
+                    | H: Forall _ ?l1,
+                      H12: Forall2 equive ?l1 ?l2,
+                      H23: Forall2 equive ?l2 ?l3
+                      |- Forall2 equive ?l1 ?l3
+                      => generalize dependent l3;
+                        generalize dependent l2; induction H;
+                        intros [| ? ?] ? [| ? ?] ?;
+                        repeat match goal with
+                               | H: Forall2 _ _ (_ :: _) |- _ => inv H
+                               | H: Forall2 _ (_ :: _) _ |- _ => inv H
+                               end; constructor; eauto
+                    end;
+                try match goal with
+                    | H: F.predfs_data _ ?f1,
+                      H12: F.relfs _ ?f1 ?f2,
+                      H23: F.relfs _ ?f2 ?f3 |- _
+                      => generalize dependent f3;
+                        generalize dependent f2; induction H;
+                        intros [| [? [? ?]] ?] ? [| [? [? ?]] ?] ?;
+                        try match goal with
+                            | H: F.predf_data _ ?x |- _ => destruct x as [? [? ?]]
+                            end;
+                        repeat match goal with
+                               | H: F.relfs _ _ (_ :: _) |- _ => inv H
+                               | H: F.relfs _ (_ :: _) _ |- _ => inv H
+                               end; constructor;
+                          repeat invert_relf; simpl in *; intuition;
+                          repeat split; simpl; intuition; eauto;
+                          try match goal with
+                              | IH: forall _, _ -> forall _, _ -> _ |- _ => eapply IH; eauto
+                              end; etransitivity; eauto
+                    end.
+          Qed.
       End ExprEquivalenceDefs.
+
+      Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
+      Proof.
+        constructor;
+          [ apply equive_reflexive
+          | apply equive_symmetric
+          | apply equive_transitive ].
+      Defined.
     End ExprEquivalence.
   End Expr.
 

@@ -77,7 +77,7 @@ Section Syntax.
   | ExpTernary (cond: Expression) (tru: Expression) (fls: Expression)
   | ExpFunctionCall (func: Expression) (type_args: list (@P4Type tags_t))
                     (args: list (option Expression))
-  | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression) (l: Locator)
+  | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression)
   | ExpDontCare
   | ExpMask (expr: Expression) (mask: Expression)
   | ExpRange (lo: Expression) (hi: Expression)
@@ -170,8 +170,10 @@ Section Syntax.
                (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
                   (name: P4String) (value: ValueBase)
+                  (l: Locator)
   | StatVariable  (typ: @P4Type tags_t)
                   (name: P4String) (init: option Expression)
+                  (l: Locator)
   | StatInstantiation  (typ: @P4Type tags_t)
                        (args: list Expression)
                        (name: P4String)
@@ -229,10 +231,10 @@ Section Syntax.
       (HStatSwitch: forall expr cases,
                     PStatementSwitchCaseList cases ->
                     PStatementPreT (StatSwitch expr cases))
-      (HStatConstant: forall typ name value,
-                      PStatementPreT (StatConstant typ name value))
-      (HStatVariable: forall typ name init,
-                      PStatementPreT (StatVariable typ name init))
+      (HStatConstant: forall typ name value l,
+                      PStatementPreT (StatConstant typ name value l))
+      (HStatVariable: forall typ name init l,
+                      PStatementPreT (StatVariable typ name init l))
       (HStatInstantiation: forall typ args name init,
                            PBlockMaybe init ->
                            PStatementPreT
@@ -291,10 +293,10 @@ Section Syntax.
                     (HStatementSwitchCaseListCons)
                     (statement_switch_case_rec)
                     cases)
-      | StatConstant typ name value =>
-        HStatConstant typ name value
-      | StatVariable typ name init =>
-        HStatVariable typ name init
+      | StatConstant typ name value l =>
+        HStatConstant typ name value l
+      | StatVariable typ name init l =>
+        HStatVariable typ name init l
       | StatInstantiation typ args name init =>
         HStatInstantiation typ args name init
           (option_rec (PBlock)
@@ -342,6 +344,7 @@ Section Syntax.
   Inductive Declaration :=
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
+                 (l: Locator)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   | DeclParser (tags: tags_t)  (name: P4String)
@@ -359,6 +362,7 @@ Section Syntax.
                        (params: list (@P4Parameter tags_t))
   | DeclVariable (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (init: option Expression)
+                 (l: Locator)
   | DeclValueSet (tags: tags_t)  (typ: @P4Type tags_t)
                  (size: Expression) (name: P4String)
   | DeclAction (tags: tags_t)  (name: P4String)

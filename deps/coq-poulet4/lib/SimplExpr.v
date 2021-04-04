@@ -521,6 +521,7 @@ Section Transformer.
     | DeclMatchKind _ _ => ([decl], nameIdx)
     | DeclEnum _ _ _ => ([decl], nameIdx)
     | DeclSerializableEnum tags typ name members =>
+      (* Qinshi: I don't think we need to transform here, because these expressions should be constant. *)
       let (l1e1, n1) := transform_list transform_membr nameIdx members in
       let (l1, e1) := l1e1 in (l1 ++ [DeclSerializableEnum tags typ name e1], n1)
     | DeclExternObject _ _ _ _ => ([decl], nameIdx)

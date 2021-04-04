@@ -16,11 +16,26 @@ Infix "▷" := pipeline (at level 45, left associativity).
 
 Infix "∘" := Basics.compose (at level 40, left associativity).
 
+(** Haskell's [$] operator, Coq is angry at the "$" token. *)
 Infix "#" := Basics.apply (at level 41, right associativity).
+
+(** * Useful Notations *)
+Notation "a '&&&&' b"
+  := (if a then if b then true else false else false)
+       (at level 60, right associativity).
+
+Notation "a '||||' b"
+  := (if a then true else if b then true else false)
+       (at level 70, right associativity).
 
 (** * Useful Tactics *)
 
 Ltac inv H := inversion H; clear H; subst.
+
+Ltac inv_eq :=
+        match goal with
+        | H: _ = _ |- _ => inv H
+        end.
 
 (** * Useful Data Types *)
 
@@ -43,7 +58,7 @@ Definition bind_option {A B : Type}
   end.
 
 Definition map_option {A B : Type} (ma : option A) (f : A -> B) : option B :=
-  bind_option ma (fun x => Some (f x)).
+  bind_option ma (Some ∘ f).
 
 Definition curry3 {A B C D : Type}
            (f : A * B * C -> D) : A -> B -> C -> D :=

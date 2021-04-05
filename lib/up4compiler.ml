@@ -3,6 +3,7 @@ exception MultipleMains
 exception DeclarationNotFound of string
 exception DuplicateDeclarationName
 exception MissingDeclaration
+exception CompilerError
 module P4 = Types
 
 (** Record for temp control *)
@@ -109,6 +110,16 @@ let get_declaration_params (p:P4.Declaration.t) : P4.Parameter.t list option =
   | P4.Declaration.Parser {annotations; name; type_params; params; constructor_params; locals; states} -> Some params
   | P4.Declaration.Control {annotations; name; type_params; params; constructor_params; locals; apply} -> Some params
   | _ -> None
+
+let get_declaration_fields (p:P4.Declaration.t) : P4.Declaration.field list option = 
+  match (snd p) with
+  | P4.Declaration.Header {annotations; name; fields} -> Some fields
+  | P4.Declaration.HeaderUnion {annotations; name; fields} -> Some fields
+  | P4.Declaration.Struct {annotations; name; fields} -> Some fields
+  | _ -> None
+
+let get_field_types (f:P4.Declaration.field) : P4.Type.t = match (snd f) with
+  | {annotations; typ; name} -> typ
 
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
@@ -314,6 +325,21 @@ let create_declaration_instantiation (parser_name : string) (local_name : string
       args = args;
       name = Info.dummy, parser_name;
       init = None })
+
+let create_declaration_struct (struct_name : string) (fields : P4.Declaration.field list): P4.Declaration.t = 
+  (Info.dummy, P4.Declaration.Struct {
+      annotations = [];
+      name = Info.dummy, struct_name;
+      fields = fields
+    })
+
+let create_declaration_field (field_name : string) (type_name : string) : P4.Declaration.field = 
+  let open P4.Declaration in 
+  Info.dummy, {
+    annotations = [];
+    typ = create_type_typename type_name;
+    name = Info.dummy, field_name;
+  }
 (** Create declarations types *)
 
 let params_from_parser (d:P4.Declaration.t) : P4.Parameter.t list option = match (snd d) with
@@ -324,6 +350,18 @@ let param_to_arg (p:P4.Parameter.t) : P4.Argument.t =
   Info.dummy, P4.Argument.Expression {
     value =  create_expression_name (get_parameter_name p)
   }
+
+(** Replacing functions *)
+let replace_param_type (p:P4.Parameter.t) (new_type:string) : P4.Parameter.t = 
+  let open P4.Parameter in 
+  match (snd p) with | {annotations; direction; typ; variable; opt_value} ->
+    Info.dummy, {
+      annotations = annotations;
+      direction = direction;
+      typ = create_type_typename new_type;
+      variable = variable;
+      opt_value = opt_value}
+(** Replacing functions *)
 
 (** Merging functions *)
 let merge_block (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t = 
@@ -388,6 +426,14 @@ let high_ports_state (parser_name:string) (args:P4.Argument.t list) : P4.Parser.
   let high_port_parser_call = create_statement_function_call parser_name "apply" args in 
   create_parser_state "high_ports_state" [high_port_parser_call] create_parser_transition_accept
 
+(** declaration_types is the types for the two parser params or the types for the two deparsers*)
+let new_struct_merge (declaration_types:string list * string list) (structs_names:string list): P4.Declaration.t list = 
+  if List.length (fst declaration_types) <> List.length (snd declaration_types) 
+  || List.length (fst declaration_types) <> List.length structs_names then raise CompilerError else
+    let structs_types = List.map2 (fun x y -> [x; y]) (fst declaration_types) (snd declaration_types) in 
+    let new_fields = (List.map2 (fun field_names struct_name -> [create_declaration_field (List.nth field_names 0) (struct_name ^ "1") ; create_declaration_field (List.nth field_names 1) (struct_name ^ "2")]) ) structs_types structs_names in 
+    List.map2 (fun fields struct_name -> create_declaration_struct struct_name fields) new_fields structs_names
+
 let new_parser (params:P4.Parameter.t list) (parser1:string) (parser2:string) (split_port:int) : P4.Declaration.t = 
   let locals = (create_declaration_instantiation "parser2" parser2 [])::(create_declaration_instantiation "parser1" parser1 [])::[] in 
   let args = List.map param_to_arg params in
@@ -424,13 +470,19 @@ let prog_merge_package (program : P4.program) : P4.program =
   let split_port = get_argument_int (List.nth main_args 2) in 
   let package1 = verify_length (find_declarations_by_names prog names1) 3 in 
   let package2 = verify_length (find_declarations_by_names prog names2) 3 in 
-  let parser_params = (List.hd package1) |> get_declaration_params |> get in
-  let control_params = (List.nth package1 1) |> get_declaration_params in 
+  let parser1_params = (List.hd package1) |> get_declaration_params |> get in
+  let parser2_params = (List.hd package2) |> get_declaration_params |> get in 
+  let control1_params = (List.nth package1 1) |> get_declaration_params |> get in
+  let control2_params = (List.nth package1 1) |> get_declaration_params |> get in  
   let unnamed_decs = (get_unnamed_declarations prog) in 
   let merged_unnamed_decs = [merge_unnamed_declarations (unnamed_decs |> fst) []; merge_unnamed_declarations (unnamed_decs |> snd) []] in 
-  let new_parser = new_parser parser_params (List.hd names1) (List.hd names2) split_port in
+  let parser_type_params = List.tl (List.map get_parameter_typename parser1_params), List.tl (List.map get_parameter_typename parser2_params) in 
+  let control_type_params = List.tl (List.map get_parameter_typename control1_params), List.tl (List.map get_parameter_typename control2_params) in 
+  let new_parser_structs = new_struct_merge parser_type_params ["parserHdr"; "parserMeta"; "parserInParam"; "parserOutParam"; "parserInOutParam"] in
+  let new_control_structs = new_struct_merge control_type_params ["controlHdr"; "controlMeta"; "controlInParam"; "controlOutParam"; "controlInOutParam"] in 
+  let new_parser = new_parser parser_type_params (List.hd names1) (List.hd names2) split_port in
   let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
-  let new_control = new_control (get control_params) (List.nth names1 1) (List.nth names2 1) split_port in 
+  let new_control = new_control control__type_params (List.nth names1 1) (List.nth names2 1) split_port in 
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
   let new_package = create_declaration_instantiation "main" "uP4Switch" (List.map create_argument_expression package_arguments) in 
   let final_prog = remove_unnamed_decl (remove_declaration prog (prog |> get_main |> declaration_name)) in 

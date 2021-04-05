@@ -1,0 +1,866 @@
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T>(out T variableSizeHeader,
+                  in bit<32> variableFieldSizeInBits);
+  T lookahead<T>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T>(in T hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+typedef bit<9> PortId_t;
+typedef bit<16> PktInstId_t;
+typedef bit<16> GroupId_t;
+const PortId_t PORT_CPU = 255;
+const PortId_t PORT_RECIRCULATE = 254;
+enum metadata_fields_t {
+  QUEUE_DEPTH_AT_DEQUEUE
+}
+extern im_t {
+  void set_out_port(in PortId_t out_port);
+  PortId_t get_in_port();
+  PortId_t get_out_port();
+  bit<32> get_value(metadata_fields_t field_type);
+  void drop();
+}
+
+action msa_no_action() { 
+}
+parser micro_parser<H, M, I, IO>
+  (packet_in packet,
+   im_t im,
+   out H hdrs,
+   inout M meta,
+   in I in_param,
+   inout IO inout_param);
+control micro_control<H, M, I, O, IO>
+  (im_t im,
+   inout H hdrs,
+   inout M meta,
+   in I in_param,
+   out O out_param,
+   inout IO inout_param);
+control micro_deparser<H> (packet_out packet, in H hdrs);
+package uP4Switch<H, M, I, O, IO>
+  (micro_parser<H, M, I, IO> p,
+   micro_control<H, M, I, O, IO> c,
+   micro_deparser<H> d);
+package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
+  (uP4Switch<H1, M1, I1, O1, IO1> left,
+   uP4Switch<H2, M2, I2, O2, IO2> right,
+   int split_port);
+struct empty1_t {
+  
+}
+struct hdr1_t {
+  empty1_t lah;
+}
+parser MyParser1(packet_in packet, im_t im, out hdr1_t hdrs,
+                 inout empty1_t meta, in empty1_t in_param,
+                 inout empty1_t inout_param) {
+  state start {
+    transition accept;
+  }
+}
+control MyControl1(im_t im, inout hdr1_t hdrs, inout empty1_t meta,
+                   in empty1_t in_param, out empty1_t out_param,
+                   inout empty1_t inout_param) {
+  apply { 
+  }
+}
+control MyDeparser1(packet_out packet, in hdr1_t hdrs) {
+  apply { 
+  }
+}
+uP4Switch(MyParser1(), MyControl1(), MyDeparser1()) main1;
+
+@
+%!----------
+[
+  "program",
+  [
+    [
+      "Error",
+      {
+        "members": [
+          "NoError", "PacketTooShort", "NoMatch", "StackOutOfBounds",
+          "HeaderTooShort", "ParserTimeout", "ParserInvalidArgument"
+        ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "packet_in",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "extract",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "Out" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "hdr",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "extract",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "Out" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "variableSizeHeader",
+                  "opt_value": null
+                },
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [
+                    "bit",
+                    [ "int", { "value": "32", "width_signed": null } ]
+                  ],
+                  "variable": "variableFieldSizeInBits",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "T" ] ],
+              "name": "lookahead",
+              "type_params": [ "T" ],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "advance",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [
+                    "bit",
+                    [ "int", { "value": "32", "width_signed": null } ]
+                  ],
+                  "variable": "sizeInBits",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [
+                "bit",
+                [ "int", { "value": "32", "width_signed": null } ]
+              ],
+              "name": "length",
+              "type_params": [],
+              "params": []
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "packet_out",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "emit",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "hdr",
+                  "opt_value": null
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "ExternFunction",
+      {
+        "annotations": [],
+        "return": [ "void" ],
+        "name": "verify",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "bool" ],
+            "variable": "check",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "error" ],
+            "variable": "toSignal",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "Action",
+      {
+        "annotations": [],
+        "name": "NoAction",
+        "params": [],
+        "body": { "annotations": [], "statements": [] }
+      }
+    ],
+    [ "MatchKind", { "members": [ "exact", "ternary", "lpm" ] } ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "PortId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "9", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "PktInstId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "16", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "GroupId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "16", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "Constant",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "PortId_t" ] ],
+        "name": "PORT_CPU",
+        "value": [ "int", { "value": "255", "width_signed": null } ]
+      }
+    ],
+    [
+      "Constant",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "PortId_t" ] ],
+        "name": "PORT_RECIRCULATE",
+        "value": [ "int", { "value": "254", "width_signed": null } ]
+      }
+    ],
+    [
+      "Enum",
+      {
+        "annotations": [],
+        "name": "metadata_fields_t",
+        "members": [ "QUEUE_DEPTH_AT_DEQUEUE" ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "im_t",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "set_out_port",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [ "name", [ "BareName", "PortId_t" ] ],
+                  "variable": "out_port",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "PortId_t" ] ],
+              "name": "get_in_port",
+              "type_params": [],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "PortId_t" ] ],
+              "name": "get_out_port",
+              "type_params": [],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [
+                "bit",
+                [ "int", { "value": "32", "width_signed": null } ]
+              ],
+              "name": "get_value",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": null,
+                  "typ": [ "name", [ "BareName", "metadata_fields_t" ] ],
+                  "variable": "field_type",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "drop",
+              "type_params": [],
+              "params": []
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "Action",
+      {
+        "annotations": [],
+        "name": "msa_no_action",
+        "params": [],
+        "body": { "annotations": [], "statements": [] }
+      }
+    ],
+    [
+      "ParserType",
+      {
+        "annotations": [],
+        "name": "micro_parser",
+        "type_params": [ "H", "M", "I", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_in" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "M" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "I" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "IO" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "ControlType",
+      {
+        "annotations": [],
+        "name": "micro_control",
+        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "M" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "I" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "O" ] ],
+            "variable": "out_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "IO" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "ControlType",
+      {
+        "annotations": [],
+        "name": "micro_deparser",
+        "type_params": [ "H" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_out" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "PackageType",
+      {
+        "annotations": [],
+        "name": "uP4Switch",
+        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_parser" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H" ] ],
+                  [ "name", [ "BareName", "M" ] ],
+                  [ "name", [ "BareName", "I" ] ],
+                  [ "name", [ "BareName", "IO" ] ]
+                ]
+              }
+            ],
+            "variable": "p",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_control" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H" ] ],
+                  [ "name", [ "BareName", "M" ] ],
+                  [ "name", [ "BareName", "I" ] ],
+                  [ "name", [ "BareName", "O" ] ],
+                  [ "name", [ "BareName", "IO" ] ]
+                ]
+              }
+            ],
+            "variable": "c",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_deparser" ] ],
+                "args": [ [ "name", [ "BareName", "H" ] ] ]
+              }
+            ],
+            "variable": "d",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "PackageType",
+      {
+        "annotations": [],
+        "name": "uP4Merge",
+        "type_params": [
+          "H1", "M1", "I1", "O1", "IO1", "H2", "M2", "I2", "O2", "IO2"
+        ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "uP4Switch" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H1" ] ],
+                  [ "name", [ "BareName", "M1" ] ],
+                  [ "name", [ "BareName", "I1" ] ],
+                  [ "name", [ "BareName", "O1" ] ],
+                  [ "name", [ "BareName", "IO1" ] ]
+                ]
+              }
+            ],
+            "variable": "left",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "uP4Switch" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H2" ] ],
+                  [ "name", [ "BareName", "M2" ] ],
+                  [ "name", [ "BareName", "I2" ] ],
+                  [ "name", [ "BareName", "O2" ] ],
+                  [ "name", [ "BareName", "IO2" ] ]
+                ]
+              }
+            ],
+            "variable": "right",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "integer" ],
+            "variable": "split_port",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [ "Struct", { "annotations": [], "name": "empty1_t", "fields": [] } ],
+    [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "hdr1_t",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "empty1_t" ] ],
+            "name": "lah"
+          }
+        ]
+      }
+    ],
+    [
+      "Parser",
+      {
+        "annotations": [],
+        "name": "MyParser1",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_in" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "hdr1_t" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "states": [
+          {
+            "annotations": [],
+            "name": "start",
+            "statements": [],
+            "transition": [ "Direct", { "next": "accept" } ]
+          }
+        ]
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "MyControl1",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "hdr1_t" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "out_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "empty1_t" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "apply": { "annotations": [], "statements": [] }
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "MyDeparser1",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_out" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "hdr1_t" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "apply": { "annotations": [], "statements": [] }
+      }
+    ],
+    [
+      "Instantiation",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "uP4Switch" ] ],
+        "args": [
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyParser1" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyControl1" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyDeparser1" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ]
+        ],
+        "name": "main1",
+        "init": null
+      }
+    ]
+  ]
+]

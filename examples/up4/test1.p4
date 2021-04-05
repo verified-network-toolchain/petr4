@@ -2,7 +2,8 @@
 #include "up4.p4"
 
 struct empty1_t { }
-struct hdr1_t { }
+struct hdr1_t {empty1_t lah; }
+struct hdr2 {}
 
 parser MyParser1(packet_in packet,
 		 im_t im,
@@ -26,7 +27,7 @@ control MyControl1(im_t im,
 }
 
 control MyDeparser1(packet_out packet,
-                    in hdr1_t hdrs) {
+                    in hdr2 hdrs) {
     apply {
     }
 }

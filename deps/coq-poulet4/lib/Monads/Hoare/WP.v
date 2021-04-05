@@ -611,3 +611,42 @@ Notation "x <-- c ; f" := (bind_wp_p c (fun x => f))
   (right associativity, at level 84, c at next level) : hoare_scope_wp.
 Notation "c ;;; f" := (bind_wp_p c (fun _:unit => f))
   (right associativity, at level 84) : hoare_scope_wp.
+
+(* Build a weakest-precondition spec from a direct-style spec *)
+Definition build_wp 
+  {State Exception Result: Type}
+  (c: @state_monad State Exception Result) 
+  (pre: Pred State)
+  (Q: Post State Result)
+  (T: State -> (Result * State))
+  := 
+  << fun s => pre s /\ let (r, s') := T s in Q r s' >>
+    c
+  << Q >>.
+
+Lemma build_wp_corr 
+  {State Exception Result: Type} 
+  {c: @state_monad State Exception Result}
+  {P}
+  {T: State -> (Result * State)}:
+  (forall s, 
+    << fun s' => s = s' /\ P s' >> 
+      c 
+    << fun r s' => let (r', s'') := T s in r' = r /\ s'' = s' >>) ->
+  forall Q, build_wp c P Q T. 
+Proof.
+  intros.
+  unfold build_wp, hoare_partial_wp in *.
+  intros.
+  destruct H0.
+  specialize (H st st).
+  assert (st = st /\ P st).
+  split; trivial.
+  specialize (H H2).
+  destruct (c st).
+  destruct s.
+  - destruct (T st).
+    destruct H.
+    rewrite <- H3. rewrite <- H. trivial.
+  - contradiction.
+Qed.

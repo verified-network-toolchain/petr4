@@ -204,6 +204,53 @@ Proof.
     + reflexivity.
 Qed.
 
+Lemma next_bit_sp s': 
+  << fun s => s = s' /\ length (pkt s) > 0 >>
+    next_bit
+  << fun r s => 
+    s' = s <| pkt := r :: (pkt s) |>
+  >>.
+Proof.
+    unfold next_bit.
+    eapply strengthen_pre_p.
+    unfold reject.
+    wp_trans; try app_ex.
+    simpl. intros.
+    destruct H.
+    destruct h.
+    destruct pkt.
+    all: simpl in *.
+    unfold bot.
+    lia.
+    rewrite <- H.
+    simpl.
+    trivial.
+Qed.
+
+Definition extract_bit_wp' {Q} := 
+  build_wp next_bit 
+    (fun s => length (pkt s) > 0) 
+    Q 
+    (fun s => match pkt s with | [] => (true, s) | b :: bs => (b, s <| pkt := bs |> ) end).
+
+Lemma extract_bit_wp_corr : 
+  forall Q, @extract_bit_wp' Q.
+Proof.
+
+  eapply build_wp_corr.
+  intros.
+  eapply hoare_consequence_p.
+  eapply (next_bit_sp s).
+  all: simpl; intros.
+  - destruct H. split; auto.
+  - destruct s.
+    unfold set. simpl in *.
+    inversion H.
+    split; trivial.
+    destruct h.
+    simpl. trivial.
+Qed.
+
 Lemma frame_wp_p:
   forall {State Exception Result}
          (P: State -> Prop)
@@ -327,17 +374,19 @@ Proof.
   - unfold extract_n. fold extract_n. unfold reject.
     eapply strengthen_pre_p.
     wp_trans; try app_ex.
-    eapply extract_bit_wp.
+    Check extract_bit_wp'.
+    all: swap 2 1.
     eapply IHn.
+    eapply extract_bit_wp_corr.
     simpl. intros.
     destruct (pkt h).
     + destruct H. simpl in H. lia.
     + split.
       * intros.
-        destruct H.
-        simpl in H.
+        simpl.
         lia.
       * intros. destruct H.
+        split; simpl in *; try lia.
         destruct H0.
         destruct x.
         exists p.
@@ -357,7 +406,7 @@ Lemma IPHeader_p_spec st:
     s' = st <| pkt := skipn 20 (pkt st) |> 
   >>.
 Proof.
-  unfold IPHeader_p, next_bit, reject.
+  unfold IPHeader_p, reject.
   wp_trans.
   4: app_ex.
   3: eapply (extract_n_wp 4).

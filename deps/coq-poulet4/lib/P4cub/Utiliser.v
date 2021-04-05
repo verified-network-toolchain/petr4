@@ -17,7 +17,7 @@ Infix "▷" := pipeline (at level 45, left associativity).
 Infix "∘" := Basics.compose (at level 40, left associativity).
 
 (** Haskell's [$] operator, Coq is angry at the "$" token. *)
-Infix "#" := Basics.apply (at level 41, right associativity).
+Infix "#" := Basics.apply (at level 75, right associativity).
 
 (** * Useful Notations *)
 Notation "a '&&&&' b"

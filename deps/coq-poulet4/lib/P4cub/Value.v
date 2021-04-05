@@ -661,6 +661,48 @@ Module LValueNotations.
                                    lval custom p4lvalue).
 End LValueNotations.
 
+Module ValueUtil.
+  Import ValueNotations.
+
+  Section Util.
+    Context {tags_t : Type}.
+
+    (* TODO: uhhh... *)
+    Fail Fixpoint expr_of_value (i : tags_t) (V : v tags_t) : E.e tags_t :=
+      let fix lrec (vs : list (v tags_t)) : list (E.e tags_t) :=
+          match vs with
+          | []      => []
+          | hv :: tv => expr_of_value i hv :: lrec tv
+          end in
+      let fix frec (vs : F.fs tags_t (v tags_t))
+          : F.fs tags_t (E.t tags_t * E.e tags_t) :=
+          match vs with
+          | [] => []
+          | (x, hv) :: vs => (x, (_, expr_of_value i hv)) :: frec vs (* TODO *)
+          end in
+      let fix stkrec (hs : list (bool * F.fs tags_t (v tags_t)))
+          : list (E.e tags_t) :=
+          match hs with
+          | [] => []
+          | (b, vs) :: hs
+            => E.EHeader (frec vs) <{ BOOL b @ i }> i :: stkrec hs
+          end in
+      match V with
+      | *{ VBOOL b }* => <{ BOOL b @ i }>
+      | *{ w VW n }* => <{ w W n @ i }>
+      | *{ w VS z }* => <{ w S z @ i }>
+      | *{ ERROR err }* => <{ Error err @ i }>
+      | *{ MATCHKIND mk }* => <{ Matchkind mk @ i }>
+      | *{ TUPLE vs }* => E.ETuple (lrec vs) i
+      | *{ REC { vs } }* => E.ERecord (frec vs) i
+      | *{ HDR { vs } VALID:=b }*
+        => E.EHeader (frec vs) <{ BOOL b @ i }> i
+      | *{ STACK vs:ts[n] NEXT:=ni }*
+        => E.EHeaderStack ts (stkrec vs) n ni
+      end.
+  End Util.
+End ValueUtil.
+
 Module ValueTyping.
   Import ValueNotations.
 

@@ -6,6 +6,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
+Require Import Coq.micromega.Lia.
 
 Reserved Notation "'ℵ' env '**' e1 '-->' e2"
          (at level 40, e1 custom p4expr, e2 custom p4expr).
@@ -122,6 +123,7 @@ Module Step.
   Module P := P4cub.
   Module E := P.Expr.
   Module F := P.F.
+  Module PT := E.ProperType.
 
   Import P.P4cubNotations.
   Import Env.EnvNotations.
@@ -224,11 +226,49 @@ Module Step.
     (** Boolean binary operations. *)
     Definition eval_bool_binop (op : E.bop) (b1 b2 : bool) : option bool :=
       match op with
-      | E.Eq    => Some (eqb b1 b2)
-      | E.NotEq => Some (negb (eqb b1 b2))
-      | E.And   => Some (b1 && b2)
-      | E.Or    => Some (b1 || b2)
+      | E.Eq    => Some # eqb b1 b2
+      | E.NotEq => Some # negb (eqb b1 b2)
+      | E.And   => Some # b1 && b2
+      | E.Or    => Some # b1 || b2
       | _       => None
+      end.
+    (**[]*)
+
+    (** Equality operations. *)
+    Definition eval_eq_binop (op : E.bop) (e1 e2 : E.e tags_t) : option bool :=
+      match op with
+      | E.Eq    => Some # E.ExprEquivalence.eqbe e1 e2
+      | E.NotEq => Some # negb # E.ExprEquivalence.eqbe e1 e2
+      | _       => None
+      end.
+    (**[]*)
+
+    (** Binary operations. *)
+    Definition eval_binop
+               (op : E.bop) (e1 e2 : E.e tags_t)
+               (i : tags_t) : option (E.e tags_t) :=
+      match e1, e2 with
+      | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }>
+        => option_map (fun b => <{ BOOL b @ i }>)
+                     # eval_bool_binop op b1 b2
+      | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
+        => if (w1 =? w2)%positive then
+            eval_bit_binop op w1 n1 n2 i
+          else
+            match op with
+            | E.PlusPlus
+              => let w := (w1 + w2)%positive in
+                let n := BitArith.bit_concat w1 w2 n1 n2 in
+                Some <{ w W n @ i }>
+            | _ => None
+            end
+      | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
+        => if (w1 =? w2)%positive then
+            eval_int_binop op w1 z1 z2 i
+          else
+            None
+      | _, _ => option_map (fun b => <{ BOOL b @ i }>)
+                          # eval_eq_binop op e1 e2
       end.
     (**[]*)
 
@@ -250,6 +290,123 @@ Module Step.
       | E.HOSetInValid => <{ hdr { fs } valid:=FALSE @ ib @ i }>
       end.
     (**[]*)
+
+    (** Default (value) Expression. *)
+    Fixpoint edefault (i : tags_t) (τ : E.t tags_t) : E.e tags_t :=
+      let fix lrec (ts : list (E.t tags_t)) : list (E.e tags_t) :=
+          match ts with
+          | []     => []
+          | τ :: ts => edefault i τ :: lrec ts
+          end in
+      let fix frec (fs : F.fs tags_t (E.t tags_t))
+          : F.fs tags_t (E.t tags_t * E.e tags_t) :=
+          match fs with
+          | [] => []
+          | (x, τ) :: fs => (x, (τ, edefault i τ)) :: frec fs
+          end in
+      match τ with
+      | {{ Bool }} => <{ BOOL false @ i }>
+      | {{ bit<w> }} => E.EBit w 0%N i
+      | {{ int<w> }} => E.EInt w 0%Z i
+      | {{ error }} => <{ Error None @ i }>
+      | {{ matchkind }} => <{ Matchkind exact @ i }>
+      | {{ tuple ts }} => E.ETuple (lrec ts) i
+      | {{ rec { fs } }} => E.ERecord (frec fs) i
+      | {{ hdr { fs } }} => E.EHeader (frec fs) <{ BOOL false @ i }> i
+      | {{ stack tfs[n] }}
+          => let tefs := frec tfs in
+            let hs :=
+                repeat
+                <{ hdr { tefs } valid:= BOOL false @ i @ i }>
+                (Pos.to_nat n) in
+            E.EHeaderStack tfs hs n 0%N
+      end.
+    (**[]*)
+
+    Import F.FieldTactics.
+
+    Lemma value_edefault : forall i τ, V.value (edefault i τ).
+    Proof.
+      Hint Constructors V.value : core.
+      intros; induction τ using E.custom_t_ind;
+      simpl in *; auto; constructor; auto;
+      try match goal with
+          | |- Forall _ (repeat _ _) => apply repeat_Forall; constructor
+          end;
+      try match goal with
+          | H: Forall _ ?ts |- _
+            => induction ts as [| ? ? ?]; simpl in *; auto;
+                try match goal with
+                    | H: Forall _ (_ :: _) |- _ => inv H; auto
+                    end
+          end;
+      try match goal with
+          | H: F.predfs_data _ ?fs |- _
+            => induction fs as [| [? ?] ? ?]; simpl in *;
+              repeat constructor; try invert_cons_predfs;
+              unfold F.predf_data, Basics.compose, F.predfs_data in *;
+              simpl in *; auto
+          end.
+    Qed.
+
+    Import Typecheck.
+    Import E.TypeEquivalence.
+
+    Ltac invert_Forall_cons :=
+      match goal with
+      | H: Forall _ (_ :: _) |- _ => inv H
+      end.
+    (**[]*)
+
+    Lemma default_types : forall errs Γ i τ,
+        PT.proper_nesting τ ->
+        let e := edefault i τ in
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
+    Proof.
+      Hint Resolve chk_bool : core.
+      Hint Constructors PT.proper_nesting : core.
+      Hint Rewrite repeat_length.
+      Hint Resolve PT.proper_inside_header_nesting : core.
+      simpl; intros; induction τ using E.custom_t_ind;
+      simpl; econstructor; eauto;
+      try match goal with
+          | |- BitArith.bound ?w 0
+            => unfold BitArith.bound;
+              pose proof BitArith.upper_bound_ge_1 w; lia
+          | |- IntArith.bound ?w 0
+            => unfold IntArith.bound, IntArith.minZ, IntArith.maxZ;
+              pose proof IntArith.upper_bound_ge_1 w; lia
+          end;
+      try match goal with
+          | |- Forall _ (repeat _ _) => apply repeat_Forall; try apply chk_hdr_lit
+          end;
+      try match goal with
+          | |- error_ok _ None => constructor
+          end;
+      try match goal with
+          | H: PT.proper_nesting _ |- _ => inv H; intuition
+              try match goal with
+                  | H: PT.base_type {{ tuple _ }} |- _ => inv H
+                  | H: PT.base_type {{ rec { _ } }} |- _ => inv H
+                  | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
+                  | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+                  end
+          end;
+      try match goal with
+          | IH: Forall _ ?ts |- Forall2 _ _ ?ts
+            => induction ts; inv IH; try invert_Forall_cons;
+              constructor; intuition
+          end;
+      try match goal with
+          | IH: F.predfs_data _ ?fs |- F.relfs _ _ ?fs
+            => induction fs as [| [? ?] ? ?]; constructor;
+              unfold F.predfs_data,F.predf_data,
+              F.relf,F.relfs,Basics.compose in *; simpl in *;
+              repeat invert_Forall_cons; repeat constructor;
+              try reflexivity; intuition
+          end; simpl in *; auto; try lia;
+        autorewrite with core; auto.
+    Qed.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
@@ -283,19 +440,11 @@ Module Step.
       V.value vl ->
       ℵ ϵ ** er -->  er' ->
       ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
-  | step_bop_bit (op : E.bop) (w : positive)
-                 (n1 n2 : N) (i i1 i2 : tags_t) (v : E.e tags_t) :
-      eval_bit_binop op w n1 n2 i = Some v ->
-      ℵ ϵ ** BOP w W n1 @ i1 :bit<w> op w W n2 @ i2 :bit<w> @ i -->  v
-  | step_bop_int (op : E.bop) (w : positive)
-                 (z1 z2 : Z) (i i1 i2 : tags_t) (v : E.e tags_t) :
-      eval_int_binop op w z1 z2 i = Some v ->
-      ℵ ϵ ** BOP w S z1 @ i1 :int<w> op w S z2 @ i2 :int<w> @ i -->  v
-  | step_bop_bool (op : E.bop) (b b1 b2 : bool)
-                  (i i1 i2 : tags_t) (v : E.e tags_t) :
-      eval_bool_binop op b1 b2 = Some b ->
-      ℵ ϵ ** BOP BOOL b1 @ i1 :Bool op BOOL b2 @ i2 :Bool @ i -->  v
-  (* TODO: Ay Caramba, need decidable expression equality. *)
+  | step_bop_eval (op : E.bop) (τl τr : E.t tags_t)
+                  (vv vl vr : E.e tags_t) (i : tags_t) :
+      eval_binop op vl vr i = Some vv ->
+      V.value vl -> V.value vr ->
+      ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
   | step_member (x : string tags_t) (τ : E.t tags_t)
                 (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->

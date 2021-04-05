@@ -1767,19 +1767,84 @@ Module P4cub.
                                match goal with
                                | H: _ = _ |- _ => subst
                                end
+          | H: Forall _ (_ :: _) |- _ => inv H
+          | H: ?P, IH: ?P -> ?Q |- _ => apply IH in H as ?
+          | H: (if ?trm then true else false) = true |- _
+            => destruct trm eqn:?; simpl in H; try discriminate
           end.
         (**[]*)
 
         Lemma eqbe_equive : forall e1 e2 : e tags_t,
             eqbe e1 e2 = true -> equive e1 e2.
         Proof.
-          Hint Constructors equive.
-          Hint Extern 5 => eq_true_terms.
+          Hint Constructors equive : core.
+          Hint Extern 5 => eq_true_terms : core.
           induction e1 using custom_e_ind;
           intros [] ?; simpl in *;
           try discriminate; auto;
-          repeat eq_true_terms; auto.
-        Admitted.
+          repeat eq_true_terms; auto; constructor; auto;
+          try match goal with
+              | H: F.eqb_fs eqbt _ _ = true |- _ =>
+                pose proof eqb_fs_equiv _ _ equivt_reflect _ _ H; unfold "===" in *
+              end;
+          try match goal with
+              | H: context
+                     [(fix lrec (l1 _ : list (e tags_t))
+                           {struct l1} : bool := _) ?es1 ?es2] |- _
+                => generalize dependent es2;
+                  induction es1 as [| ? ? ?]; intros [| ? ?] ?;
+                  simpl in *; try discriminate; auto
+              end;
+          try match goal with
+              | H: context
+                     [(fix efsrec _ _ (l1 _ : F.fs _ (_ * _))
+                           {struct l1} : bool := _) _ _ ?fs1 ?fs2] |- _
+                => generalize dependent fs2;
+                  induction fs1 as [| [? [? ?]] ? ?];
+                  intros [| [? [? ?]] ?] ?; simpl in *;
+                  try discriminate; auto; repeat constructor;
+                  simpl in *; repeat eq_true_terms;
+                  invert_cons_predfs; intuition;
+                  unfold F.relfs in *;
+                  match goal with
+                  | IH: forall _, _ -> Forall2 ?R ?fs1 _ |- Forall2 ?R ?fs1 _
+                    => apply IH; assumption
+                  end
+              end.
+        Qed.
+
+        Lemma equive_eqbe_iff : forall e1 e2 : e tags_t,
+            ∮ e1 ≡ e2 <-> eqbe e1 e2 = true.
+        Proof.
+          Hint Resolve equive_eqbe : core.
+          Hint Resolve eqbe_equive : core.
+          intros; split; auto.
+        Qed.
+
+        Ltac reflect_split :=
+          match goal with
+          | |- reflect ?P ?trm
+            => destruct trm eqn:?; constructor;
+              try match goal with
+                  | H: _ = false |- ~ _
+                    => intros ?
+                  end
+          end.
+
+        Lemma equive_reflect : forall e1 e2 : e tags_t,
+            reflect (∮ e1 ≡ e2) (eqbe e1 e2).
+        Proof.
+          Hint Resolve equive_eqbe_iff : core.
+          Hint Extern 5 =>
+          match goal with
+          | H: eqbe ?e1 ?e2 = false,
+            H': ∮ ?e1 ≡ ?e2 |- False
+            => apply equive_eqbe_iff in H';
+              rewrite H' in H; discriminate
+          end : core.
+          intros; reflect_split; auto;
+            autorewrite with core; auto.
+        Qed.
       End ExprEquivalenceDefs.
 
       Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).

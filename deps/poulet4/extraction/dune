@@ -1,0 +1,9 @@
+(coq.extraction
+ (prelude Extract)
+ (extracted_modules AList Datatypes List P4Int P4String Syntax Typed Utils SimplExpr)
+ (theories Poulet4))
+(library 
+  (name poulet4)
+  (public_name poulet4)
+  (libraries bignum)
+  (flags (:standard -w -33)))

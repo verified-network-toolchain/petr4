@@ -419,6 +419,51 @@ Module Step.
         autorewrite with core; auto.
     Qed.
 
+    Lemma eval_cast_types : forall errs Γ τ τ' v v',
+        eval_cast τ' v = Some v' ->
+        proper_cast τ' τ ->
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+    Proof.
+      Hint Resolve BitArith.return_bound_bound : core.
+      Hint Resolve IntArith.return_bound_bound : core.
+      intros;
+      match goal with
+      | HPC: proper_cast _ _,
+        HT : ⟦ _, _ ⟧ ⊢  _ ∈ _ |- _
+        => inv HPC; inv HT; simpl in *; try discriminate
+      end;
+      try match goal with
+          | H: match ?w with (_~1)%positive | _ => _ end = Some _
+            |- _ => destruct w; inv H; try constructor; auto
+          | H: (if ?b then _ else _) = Some _ |- _
+            => destruct b; inv H; try constructor; auto
+          | H: Some _ = Some _ |- _ => inv H; try constructor; auto
+          end;
+      try match goal with
+          | n: N |- _ => destruct n;
+            try match goal with
+                | H: _ = Some _ |- _ => inv H; constructor; auto
+                end
+          end;
+      try match goal with
+          | z: Z |- _ => destruct z;
+            try match goal with
+                | H: _ = Some _ |- _ => inv H; constructor; auto
+                end
+          end;
+      try match goal with
+          | p: positive |- _ => destruct p;
+           try match goal with
+               | H: _ = Some _ |- _ => inv H; constructor; auto
+               end
+          end;
+      try match goal with
+          | |- BitArith.bound _ _
+            => unfold BitArith.bound, BitArith.upper_bound; cbv; auto
+          end.
+    Qed.
+
     (** Header stack operations. *)
     Definition eval_stk_op
                (i : tags_t) (op : E.hdr_stk_op)

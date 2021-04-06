@@ -757,6 +757,7 @@ Proof.
   intros.
   destruct MyParser eqn:?; try (unfold MyParser in *; congruence).
   simpl in H.
+
   unfold State.state_bind in H.
   destruct (init_parser_state p empty_env) eqn:?.
   pose proof (Hieq := Heqp0).
@@ -764,4 +765,131 @@ Proof.
   eapply init_parser_state_sound in Heqp0; eauto.
   destruct Heqp0 as [pk' [env' [Hlookup Hrepr]]].
   unfold make_stepper in H.
+  unfold step_trans in H.
+  simpl in H.
+  inversion Heqd.
+  rewrite <- H8 in H.
+  unfold State.state_bind in H.
+  unfold lookup_state in H.
+  simpl in H.
+  autorewrite with eval_statement in H.
+  simpl in H.
+  unfold State.state_bind, stack_push, toss_value in H.
+  simpl in H.
+  unfold Eval.eval_method_call in H.
+  simpl in H.
+  unfold State.state_bind, Unpack.unpack_func in H.
+  autorewrite with eval_expression in H.
+  simpl in H.
+  unfold stack_lookup, heap_lookup, stack_lookup' in H.
+  simpl in H.
+  unfold State.state_bind, State.state_return in H.
+  unfold env_stack in H.
+  simpl in H.
+
+  destruct e.
+
+  fold stack_lookup' in H.
+  assert (exists pkt, stack_lookup' "packet" env_stack = Some pkt).
+  admit.
+  destruct H1.
+  rewrite H1 in H.
+  assert (MNat.find (elt:=Value) x env_heap = Some pk').
+  admit.
+  simpl in H.
+  rewrite H9 in H.
+  assert (exists conc_pkt, pk' = ValObj (ValObjPacket conc_pkt)).
+  admit.
+  destruct H10.
+  rewrite H10 in H.
+  unfold Eval.extract_value_func in H.
+  autorewrite with eval_copy_in eval_expression in H.
+  simpl in H.
+  unfold Eval.eval_builtin_func in H.
+  unfold Eval.eval_is_valid in H. simpl in H.
+  unfold Eval.eval_packet_func in H.
+  simpl in H.
+  unfold Transformers.lift_opt, Unpack.unpack_packet, env_name_lookup, State.state_bind in H.
+  simpl in H.
+  unfold State.state_bind in H.
+  simpl in H.
+  unfold stack_lookup in H.
+  simpl in H.
+  rewrite H1 in H.
+  simpl in H.
+  unfold heap_lookup in H.
+  simpl in H.
+  assert (MNat.find (elt:=Value) x
+    (MNat.add env_fresh
+      (Eval.default_value Info NoInfo
+        TypVoid) env_heap) = MNat.find (elt:=Value) x
+         env_heap).
+  admit.
+  rewrite H11 in H.
+  rewrite H9 in H.
+  simpl in H.
+  rewrite H10 in H.
+  simpl in H.
+  unfold State.state_bind in H.
+  do 8 (destruct x0; [exfalso; simpl in H; rewrite H1 in H; simpl in H; inversion H |]).
+  simpl in H.
+  do 8 (destruct x0; [exfalso; simpl in H; rewrite H1 in H; simpl in H; inversion H |]).
+  simpl in H.
+  do 4 (destruct x0; [exfalso; simpl in H; rewrite H1 in H; simpl in H; inversion H |]).
+  simpl in H.
+  rewrite H1 in H.
+  simpl in H.
+  autorewrite with eval_copy_out in H.
+  simpl in H.
+  unfold heap_lookup, State.state_bind, env_name_lookup, Transformers.lift_opt in H. simpl in H.
+  simpl in H.
+  assert (forall T k (v: @Value T) e, MNat.find (elt:=@Value T) k (MNat.add k v e) = Some v).
+  admit.
+  specialize (H12 Info env_fresh).
+  erewrite H12 in H. simpl in H.
+  unfold stack_lookup, heap_lookup, State.state_bind in H. simpl in H.
+  assert (exists x_hdr, stack_lookup' "hdr" env_stack = Some x_hdr).
+  admit.
+  destruct H13.
+  rewrite H13 in H.
+  simpl in H.
+  assert (forall T k k' (pf: k <> k') (v: @Value T) e, MNat.find (elt:=@Value T) k (MNat.add k' v e) = MNat.find (elt := @Value T) k e).
+  admit.
+
+  assert (x1 <> env_fresh).
+  admit.
+  erewrite (H14 Info x1 env_fresh H15) in H.
+  assert (x1 <> x).
+  admit.
+  erewrite (H14 Info x1 x H16) in H.
+  erewrite (H14 Info x1 env_fresh H15) in H.
+  assert (exists hdr_val, MNat.find (elt:=Value) x1 env_heap = Some hdr_val).
+  admit.
+  destruct H17.
+  rewrite H17 in H. simpl in H.
+  
+  do 8 (destruct x0; [exfalso; simpl in H; rewrite H1 in H; simpl in H; inversion H |]).
+  simpl in H.
+
+  
+  unfold MNat.find in H.
+  fold MNat.find in H.
+  rewrite H9 in H.
+  assert (stack_lookup Info "packet"
+  {|
+    env_fresh := S env_fresh;
+    env_stack :=
+      MStr.empty loc :: env_stack;
+    env_heap :=
+      MNat.add env_fresh
+        (Eval.default_value Info NoInfo
+           TypVoid) env_heap
+  |} = stack_lookup' "packet" env_stack).
+
+  rewrite H1 in H.
+  unfold Eval.eval_copy_in in H.
+  rewrite H11 in H.
+  unfold Eval.eval_statement in H.
+  cbv in H.
+  simpl in H.
 Admitted.

@@ -44,8 +44,28 @@ Section Eval.
   Notation ParserCase := (@ParserCase tags_t).
   Notation ParserTransition := (@ParserTransition tags_t).
 
-  Definition default_value (A: P4Type) : Value.
-  Admitted.
+  Definition default_value_error (str: string) : ValueBase := 
+    ValBaseError {| P4String.tags := tags_dummy; P4String.str := str |}.
+  
+  Fixpoint default_value_base (A: P4Type) : ValueBase :=
+    match A with 
+    | TypBool => ValBaseBool false
+    | TypString => ValBaseString {| P4String.tags := tags_dummy; P4String.str := "" |}
+    | TypBit w => ValBaseBit w 0
+    | TypVoid => ValBaseHeader [] true (* this seems wrong? but also it shows up in our pretty-printed code *)
+    | TypHeader fields => ValBaseHeader (map (fun '(MkFieldType f t) => (f, default_value_base t)) fields) false
+    | _ => default_value_error "unimplemented type for default_value_base"
+    end.
+  
+  
+  Definition default_value (A: P4Type) : Value :=
+    match A with 
+    | TypBool 
+    | TypString 
+    | TypBit _ 
+    | TypHeader _ => ValBase (default_value_base A)
+    | _ => ValBase (default_value_error "unimplemented type for default_value")
+    end.
 
   Fixpoint eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
     let '(MkExpression _ expr' type _) := expr in

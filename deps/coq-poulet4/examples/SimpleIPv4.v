@@ -374,7 +374,6 @@ Proof.
   - unfold extract_n. fold extract_n. unfold reject.
     eapply strengthen_pre_p.
     wp_trans; try app_ex.
-    Check extract_bit_wp'.
     all: swap 2 1.
     eapply IHn.
     eapply extract_bit_wp_corr.

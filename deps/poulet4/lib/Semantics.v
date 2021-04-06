@@ -91,10 +91,12 @@ Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
 Inductive fundef :=
   | FInternal
       (* true -> global; false -> instance *)
+      (* Do we need this global flag? *)
       (global : bool)
       (decl_path : path)
       (e : env)
       (params : list (ident * direction))
+      (locals : list (@Declaration tags_t))
       (body : @Block tags_t)
   | FTable
       (name : ident)
@@ -327,12 +329,13 @@ Definition filter_out (params : list (path * direction)) : list path :=
     if is_out (snd param) then [fst param] else [] in
   flat_map f params.
 
-(* NOTE: We need to modify for the call convention for overloaded functions. *)
-Definition bind_parameters (params : list (path * direction))
-                            (args : list Val) (args' : list Val)
-                            (s s' s'' : state) :=
-  s' = update_memory (PathMap.sets (filter_in params) args) s /\
-  map Some args' = PathMap.gets (filter_out params) (get_memory s'').
+(* NOTE: We may need to modify for the call convention for overloaded functions. *)
+Definition bind_parameters (params : list (path * direction)) (args : list Val) (s s' : state) :=
+  s' = update_memory (PathMap.sets (filter_in params) args) s.
+
+(* NOTE: We may need to modify for the call convention for overloaded functions. *)
+Definition extract_parameters (params : list (path * direction)) (args : list Val) (s : state) :=
+  map Some args = PathMap.gets (filter_out params) (get_memory s).
 
 Inductive signal : Type :=
    | SContinue : signal
@@ -551,6 +554,26 @@ Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalu
   | _ => None (* omitted for now *)
   end.
 
+Definition is_variable (decl : @Declaration tags_t) : bool :=
+  match decl with
+  | DeclVariable _ _ _ _ => true
+  | _ => false
+  end.
+
+(* TODO these two are stubs. *)
+Inductive exec_linit' : path -> env -> inst_mem -> state -> @Declaration tags_t -> env -> state -> signal -> Prop :=
+  | eval_init_skip : forall this_path e inst_m s decl,
+      is_variable decl = false ->
+      exec_linit' this_path e inst_m s decl e s SContinue.
+
+Inductive exec_linit : path -> env -> inst_mem -> state -> list (@Declaration tags_t) -> env -> state -> signal -> Prop :=
+  | eval_init_nil : forall this_path e inst_m s,
+      exec_linit this_path e inst_m s nil e s SContinue
+  | eval_init_cons : forall this_path e inst_m s decl decls e' s' e'' s'',
+      exec_linit' this_path e inst_m s decl e' s' SContinue ->
+      exec_linit this_path e' inst_m s' decls e'' s'' SContinue ->
+      exec_linit this_path e inst_m s (decl :: decls) e'' s'' SContinue.
+
 (* this_path -> decl_path -> ... *)
 Inductive exec_stmt : path -> path -> env -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | eval_stmt_assignment : forall lhs lv rhs v this_path decl_path e inst_m st tag typ st' sig,
@@ -579,10 +602,12 @@ with exec_call : path -> env-> inst_mem -> state -> (@Expression tags_t) -> stat
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
 with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_func_internal : forall obj_path global decl_path e inst_m params body s args args' s' s'' vret,
-      bind_parameters (map (map_fst (fun param => obj_path ++ decl_path ++ [param])) params) args args' s s' s'' ->
+  | exec_func_internal : forall obj_path global decl_path e inst_m params locals body s args args' s' e'' s'' s''' vret,
+      bind_parameters (map (map_fst (fun param => obj_path ++ decl_path ++ [param])) params) args s s' ->
+      extract_parameters (map (map_fst (fun param => obj_path ++ decl_path ++ [param])) params) args' s''' ->
+      exec_linit obj_path e inst_m s' locals e'' s'' SContinue ->
       exec_block obj_path decl_path e inst_m s' body s'' (SReturn vret) ->
-      exec_func obj_path inst_m s (FInternal global decl_path e params body) args s'' args' vret
+      exec_func obj_path inst_m s (FInternal global decl_path e params locals body) args s'' args' vret
 
   | exec_func_table_match : forall obj_path name e inst_m keys actions action_name ctrl_args action default_action const_entries s s',
       exec_table_match e obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
@@ -741,6 +766,8 @@ Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv
 
 End instantiate_class_body.
 
+(* TODO we need to evaluate constants in instantiation. *)
+
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
       (m : inst_mem) (s : extern_state) {struct rev_decls} : path * inst_mem * extern_state :=
   match rev_decls with
@@ -819,19 +846,20 @@ Fixpoint load_decl (p : path) (ege : env * genv) (decl : @Declaration tags_t) : 
       let constructor_params := map param_to_name constructor_params in
       let e' := add_names (p ++ [name]) ((map fst params) ++ constructor_params) e in
       let (e', ge) := fold_left (load_decl (p ++ [name])) locals (e', ge) in
+      (* We must install of the local definitions in locals, because there can be identifier shadowing. *)
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal false [name] e' params apply) ge)
+        PathMap.set (p ++ [name]) (FInternal false [name] e params locals apply) ge)
   | DeclFunction _ _ name type_params params body =>
       let params := map param_to_name_dir params in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst params) e) params body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst params) e) params nil body) ge)
   | DeclVariable _ _ name _ =>
       (add_name p name e, ge)
   | DeclAction _ name params ctrl_params body =>
       let params := map param_to_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map param_to_name ctrl_params) in
       (add_name p name e,
-        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst (params ++ ctrl_params)) e) (params ++ ctrl_params) body) ge)
+        PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) [name] (add_names (p ++ [name]) (map fst (params ++ ctrl_params)) e) (params ++ ctrl_params) nil body) ge)
   | _ => (e, ge)
   end.
 

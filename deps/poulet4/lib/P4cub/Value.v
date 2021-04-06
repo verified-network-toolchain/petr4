@@ -340,6 +340,8 @@ Section Values.
       (**[]*)
     End ValueEquivalenceInduction.
 
+    Import F.RelfEquiv.
+
     Lemma equivv_reflexive : Reflexive equivv.
     Proof.
       intros v; induction v using custom_value_ind;
@@ -350,10 +352,6 @@ Section Values.
              constructor; simpl; try reflexivity; auto
            | apply IHvs; auto]).
       - induction H; constructor; auto.
-      - clear ni H hs size.
-        induction ts as [| [x t] ts IHts]; constructor; auto.
-        split; simpl; try reflexivity.
-        apply TE.equivt_reflexive.
       - induction hs as [| [b vs] hs IHhs];
           inv H; constructor; auto; simpl; split; auto.
         unfold Basics.compose in H2; simpl in H2.
@@ -376,13 +374,6 @@ Section Values.
         [ destruct H5; split; try symmetry; auto
         | apply IHForall2; auto ]; assumption).
       - induction H; inv H0; constructor; eauto.
-      - clear H1 H0 vss1 vss2 n ni.
-        induction H; constructor;
-          destruct x as [x1 t1]; destruct y as [x2 t2];
-            simpl in *; auto.
-        destruct H as [Hx Ht]; simpl in *;
-          split; simpl; try symmetry; auto.
-        apply TE.equivt_symmetric; auto.
       - clear H ts1 ts2. rename H0 into H; rename H1 into H0.
         induction H; inv H0; constructor;
           destruct x as [b1 vs1];
@@ -427,7 +418,6 @@ Section Values.
           inv H12; inv H23; simpl in *; constructor; auto.
         + destruct H2 as [Hx12 Ht12]; destruct H3 as [Hx23 Ht23];
             split; simpl in *; try (etransitivity; eauto).
-          eapply TE.equivt_transitive; eauto.
         + eapply IHts1; eauto.
       - clear ts ts0 ts2 H5 H7 ni size.
         rename hs into vss1; rename vss0 into vss3.
@@ -673,6 +663,48 @@ Module LValueNotations.
            := (LVAccess lval n) (in custom p4lvalue at level 1,
                                    lval custom p4lvalue).
 End LValueNotations.
+
+Module ValueUtil.
+  Import ValueNotations.
+
+  Section Util.
+    Context {tags_t : Type}.
+
+    (* TODO: uhhh... *)
+    Fail Fixpoint expr_of_value (i : tags_t) (V : v tags_t) : E.e tags_t :=
+      let fix lrec (vs : list (v tags_t)) : list (E.e tags_t) :=
+          match vs with
+          | []      => []
+          | hv :: tv => expr_of_value i hv :: lrec tv
+          end in
+      let fix frec (vs : F.fs tags_t (v tags_t))
+          : F.fs tags_t (E.t tags_t * E.e tags_t) :=
+          match vs with
+          | [] => []
+          | (x, hv) :: vs => (x, (_, expr_of_value i hv)) :: frec vs (* TODO *)
+          end in
+      let fix stkrec (hs : list (bool * F.fs tags_t (v tags_t)))
+          : list (E.e tags_t) :=
+          match hs with
+          | [] => []
+          | (b, vs) :: hs
+            => E.EHeader (frec vs) <{ BOOL b @ i }> i :: stkrec hs
+          end in
+      match V with
+      | *{ VBOOL b }* => <{ BOOL b @ i }>
+      | *{ w VW n }* => <{ w W n @ i }>
+      | *{ w VS z }* => <{ w S z @ i }>
+      | *{ ERROR err }* => <{ Error err @ i }>
+      | *{ MATCHKIND mk }* => <{ Matchkind mk @ i }>
+      | *{ TUPLE vs }* => E.ETuple (lrec vs) i
+      | *{ REC { vs } }* => E.ERecord (frec vs) i
+      | *{ HDR { vs } VALID:=b }*
+        => E.EHeader (frec vs) <{ BOOL b @ i }> i
+      | *{ STACK vs:ts[n] NEXT:=ni }*
+        => E.EHeaderStack ts (stkrec vs) n ni
+      end.
+  End Util.
+End ValueUtil.
 
 Module ValueTyping.
   Import ValueNotations.

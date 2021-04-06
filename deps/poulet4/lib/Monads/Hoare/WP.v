@@ -34,7 +34,10 @@ Definition hoare_total_wp
   let (v, st') := c st in
     Q v st'.
 
-Notation "{{ P }} c {{ Q }}" := (@hoare_total_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
+Notation "{{ P }} c {{ Q }}" := (@hoare_total_wp _ _ _ P c Q) 
+  ( at level 90,
+    format "'{{'  P  '}}'  '[  ' c ']'  '{{'  Q  '}}'"
+  ) : hoare_scope_wp.
 
 Definition hoare_partial_wp
   {State Exception Result: Type}
@@ -49,7 +52,10 @@ Definition hoare_partial_wp
   | inr _ => False
   end.
 
-Notation "<< P >> c << Q >>" := (@hoare_partial_wp _ _ _ P c Q) (at level 90) : hoare_scope_wp.
+Notation "<< P >> c << Q >>" := (@hoare_partial_wp _ _ _ P c Q) 
+  ( at level 90,
+    format "'[hv  ' '<<'  P  '>>' ']'  '[hv  ' c ']'  '[hv  ' '<<'  Q  '>>' ']'"
+  ) : hoare_scope_wp.
 
 
 Ltac mysimp := 
@@ -316,22 +322,21 @@ Proof.
   destruct n; mysimp.
 Qed.
 
-Definition destruct_list' {A} (xs: list A) (default: A) : A * list A := 
-  match xs with
-  | nil => (default, nil)
-  | x :: xs' => (x, xs')
-  end.
-
-
 Lemma case_list_wp_t
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A }
   {c2: A -> list A -> @state_monad State Exception Result} xs : 
-  {{ fun s => P1 s /\ xs = nil }} c1 {{ Q }} ->
-  {{ fun s => exists x xs', xs = x :: xs' /\ P2 x xs' s }} 
-    (c2 (fst (destruct_list' xs dummy)) (snd (destruct_list' xs dummy))) 
-  {{ Q }} ->
+  match xs with
+  | nil =>
+    {{ fun s => P1 s }}
+      c1
+    {{ Q }}
+  | x::xs' =>
+    {{ fun s => P2 x xs' s }} 
+      (c2 x xs') 
+    {{ Q }}
+  end
+  ->
   {{ 
     match xs with 
     | nil => P1
@@ -352,12 +357,9 @@ Qed.
 Lemma case_list_wp_p
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A }
-  {c2: A -> list A -> @state_monad State Exception Result} xs : 
-  << fun s => P1 s /\ xs = nil >> c1 << Q >> ->
-  << fun s => exists x xs', xs = x :: xs' /\ P2 x xs' s >> 
-    (c2 (fst (destruct_list' xs dummy)) (snd (destruct_list' xs dummy))) 
-  << Q >> ->
+  {c2: A -> list A -> @state_monad State Exception Result} xs :
+  (xs = nil -> << fun s => P1 s >> c1 << Q >>) ->
+  (forall x xs', xs = x :: xs' -> << fun s => P2 x xs' s >> (c2 x xs') << Q >>) ->
   << 
     match xs with 
     | nil => P1
@@ -375,21 +377,81 @@ Proof.
   destruct xs; mysimp.
 Qed.
 
-Definition destruct_opt {A} (opt: option A) (dummy: A) :=
-  match opt with
-  | Some x => x
-  | None => dummy
-  end.
+Lemma case_sum_wp_t
+  {State Exception Result A B: Type} 
+  {P1 P2 Q}
+  {c1: A -> @state_monad State Exception Result} 
+  {c2: B -> @state_monad State Exception Result} x : 
+  match x with
+  | inl a =>
+    {{ fun s => P1 a s }}
+      c1 a
+    {{ Q }}
+  | inr b =>
+    {{ fun s => P2 b s }} 
+      c2 b
+    {{ Q }}
+  end
+  ->
+  {{ 
+    match x with 
+    | inl a => P1 a
+    | inr b => P2 b
+    end
+  }}
+    match x with 
+    | inl a => c1 a
+    | inr b => c2 b
+    end
+  {{
+    Q
+  }}.
+Proof.
+  destruct x; mysimp.
+Qed.
+
+Lemma case_sum_wp_p
+  {State Exception Result A B: Type} 
+  {P1 P2 Q}
+  {c1: A -> @state_monad State Exception Result} 
+  {c2: B -> @state_monad State Exception Result} x : 
+  match x with
+  | inl a =>
+    << fun s => P1 a s >>
+      c1 a
+    << Q >>
+  | inr b =>
+    << fun s => P2 b s >> 
+      c2 b
+    << Q >>
+  end
+  ->
+  << 
+    match x with 
+    | inl a => P1 a
+    | inr b => P2 b
+    end
+  >>
+    match x with 
+    | inl a => c1 a
+    | inr b => c2 b
+    end
+  <<
+    Q
+  >>.
+Proof.
+  destruct x; mysimp.
+Qed.
 
 Lemma case_option_wp_t
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A}
   {c2: A -> @state_monad State Exception Result} x : 
-  {{ fun s => P1 s /\ x = None }} c1 {{ Q }} ->
-  {{ fun s => exists x', x = Some x' /\ P2 x' s }} 
-    (c2 (destruct_opt x dummy)) 
-  {{ Q }} ->
+  match x with
+  | None => {{ fun s => P1 s }} c1 {{ Q }}
+  | Some x' =>
+    {{ fun s => P2 x' s }} c2 x' {{ Q }}
+  end ->
   {{ 
     match x with 
     | None => P1
@@ -410,12 +472,9 @@ Qed.
 Lemma case_option_wp_p
   {State Exception Result A: Type} 
   {P1 P2 Q c1} 
-  {dummy: A}
   {c2: A -> @state_monad State Exception Result} x : 
-  << fun s => P1 s /\ x = None >> c1 << Q >> ->
-  << fun s => exists x', x = Some x' /\ P2 x' s >> 
-    (c2 (destruct_opt x dummy)) 
-  << Q >> ->
+  (x = None -> << fun s => P1 s >> c1 << Q >>) ->
+  (forall x', x = Some x' -> << fun s => P2 x' s >> c2 x' << Q >>) ->
   << 
     match x with 
     | None => P1
@@ -514,6 +573,7 @@ Ltac wp :=
   | [ |- {{ _ }} match ?e with | 0 => _ | S _ => _ end {{ _ }} ] => eapply (case_nat_wp_t e)
   | [ |- {{ _ }} match ?e with | nil => _ | _ :: _ => _ end {{ _ }} ] => eapply (case_list_wp_t e)
   | [ |- {{ _ }} match ?e with | Some _ => _ | None => _ end {{ _ }} ] => eapply (case_option_wp_t e)
+  | [ |- {{ _ }} match ?e with | inl _ => _ | inr _ => _ end {{ _ }} ] => eapply (case_sum_wp_t e)
   | [ |- << _ >> mbind _ _ << _ >> ] => eapply bind_wp_p
   | [ |- << _ >> get_state << _ >> ] => eapply get_wp_p
   | [ |- << _ >> put_state ?e << _ >> ] => eapply (put_wp_p e)
@@ -523,6 +583,7 @@ Ltac wp :=
   | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] => eapply (case_nat_wp_p e)
   | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] => eapply (case_list_wp_p e)
   | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] => eapply (case_option_wp_p e)
+  | [ |- << _ >> match ?e with | inl _ => _ | inr _ => _ end << _ >> ] => eapply (case_sum_wp_p e)
   end.
 
 
@@ -551,3 +612,42 @@ Notation "x <-- c ; f" := (bind_wp_p c (fun x => f))
   (right associativity, at level 84, c at next level) : hoare_scope_wp.
 Notation "c ;;; f" := (bind_wp_p c (fun _:unit => f))
   (right associativity, at level 84) : hoare_scope_wp.
+
+(* Build a weakest-precondition spec from a direct-style spec *)
+Definition build_wp 
+  {State Exception Result: Type}
+  (c: @state_monad State Exception Result) 
+  (pre: Pred State)
+  (Q: Post State Result)
+  (T: State -> (Result * State))
+  := 
+  << fun s => pre s /\ let (r, s') := T s in Q r s' >>
+    c
+  << Q >>.
+
+Lemma build_wp_corr 
+  {State Exception Result: Type} 
+  {c: @state_monad State Exception Result}
+  {P}
+  {T: State -> (Result * State)}:
+  (forall s, 
+    << fun s' => s = s' /\ P s' >> 
+      c 
+    << fun r s' => let (r', s'') := T s in r' = r /\ s'' = s' >>) ->
+  forall Q, build_wp c P Q T. 
+Proof.
+  intros.
+  unfold build_wp, hoare_partial_wp in *.
+  intros.
+  destruct H0.
+  specialize (H st st).
+  assert (st = st /\ P st).
+  split; trivial.
+  specialize (H H2).
+  destruct (c st).
+  destruct s.
+  - destruct (T st).
+    destruct H.
+    rewrite <- H3. rewrite <- H. trivial.
+  - contradiction.
+Qed.

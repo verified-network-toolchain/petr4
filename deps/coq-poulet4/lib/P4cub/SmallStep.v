@@ -280,6 +280,17 @@ Module Step.
       | _ => None
       end.
 
+    (** Get header stack data from value. *)
+    Definition header_stack_data (v : E.e tags_t)
+      : option (positive * N *
+                F.fs tags_t (E.t tags_t) *
+                (list (E.e tags_t))) :=
+      match v with
+      | <{ Stack hs:ts[n] nextIndex:=ni}> => Some (n,ni,ts,hs)
+      | _ => None
+      end.
+    (**[]*)
+
     (** Header operations. *)
     Definition eval_hdr_op
                (op : E.hdr_op) (fs : F.fs tags_t (E.t tags_t * E.e tags_t))
@@ -407,6 +418,44 @@ Module Step.
           end; simpl in *; auto; try lia;
         autorewrite with core; auto.
     Qed.
+
+    (** Header stack operations. *)
+    Definition eval_stk_op
+               (i : tags_t) (op : E.hdr_stk_op)
+               (size : positive) (nextIndex : N)
+               (ts : F.fs tags_t (E.t tags_t))
+               (hs : list (E.e tags_t))
+      : option (E.e tags_t) :=
+      let w := 32%positive in
+      let sizenat := Pos.to_nat size in
+      let hdefault :=
+          E.EHeader
+            (F.map (fun τ => (τ, edefault i τ)) ts)
+          <{ BOOL false @ i }> i in
+      match op with
+      | E.HSOSize => let s := (Npos size)%N in Some <{ w W s @ i }>
+      | E.HSONext => nth_error hs # N.to_nat nextIndex
+      | E.HSOPush n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat hdefault nnat in
+            let remains := firstn (sizenat - nnat) hs in
+            let new_nextIndex := N.min (nextIndex + n) (N.pos size - 1)%N in
+            Some (E.EHeaderStack ts (new_hdrs ++ remains) size new_nextIndex)
+          else
+            let new_hdrs := repeat hdefault sizenat in
+            Some (E.EHeaderStack ts new_hdrs size ((N.pos size) - 1)%N)
+      | E.HSOPop n
+        => let nnat := N.to_nat n in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat hdefault nnat in
+            let remains := skipn nnat hs in
+            Some (E.EHeaderStack ts (remains ++ new_hdrs) size (nextIndex - n))
+          else
+            let new_hdrs := repeat hdefault sizenat in
+            Some (E.EHeaderStack ts new_hdrs size 0%N)
+      end.
+    (**[]*)
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
@@ -459,6 +508,10 @@ Module Step.
   | step_stack_op (op : E.hdr_stk_op) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** STK_OP op e @ i -->  STK_OP op e' @ i
+  | step_stack_op_eval (op : E.hdr_stk_op) (v v' : E.e tags_t) (i : tags_t) :
+      V.value v ->
+      bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->
+      ℵ ϵ ** STK_OP op v @ i -->  v'
   | step_stack_access (e e' : E.e tags_t) (n : N) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Access e[n] @ i -->  Access e'[n] @ i

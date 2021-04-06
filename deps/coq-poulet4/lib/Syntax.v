@@ -344,7 +344,6 @@ Section Syntax.
   Inductive Declaration :=
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
-                 (l: Locator)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   | DeclParser (tags: tags_t)  (name: P4String)
@@ -362,7 +361,6 @@ Section Syntax.
                        (params: list (@P4Parameter tags_t))
   | DeclVariable (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (init: option Expression)
-                 (l: Locator)
   | DeclValueSet (tags: tags_t)  (typ: @P4Type tags_t)
                  (size: Expression) (name: P4String)
   | DeclAction (tags: tags_t)  (name: P4String)

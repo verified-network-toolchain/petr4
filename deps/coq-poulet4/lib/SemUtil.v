@@ -24,4 +24,9 @@ Definition get_type_name (typ : @P4Type tags_t) : ident :=
   | _ => dummy_ident
   end.
 
+Definition get_param_name (param : @P4Parameter tags_t) : ident :=
+  match param with
+  | MkParameter _ _ _ _ name => name
+  end.
+
 End SemUtil.

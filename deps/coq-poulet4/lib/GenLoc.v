@@ -72,9 +72,6 @@ Section Transformer.
     | StatSwCaseFallThrough _ _ => nil
     end.
 
-  (* Definition summarize_stmts stmts :=
-    concat (map summarize_stmt stmts). *)
-
   Definition summarize_decl (decl: @Declaration tags_t): (list P4String) :=
     match decl with
     | DeclInstantiation tags typ args name init => [name]
@@ -120,10 +117,13 @@ Section Transformer.
         if b then fresh' n (cnt+1) fuel else mret n'
     end.
 
+  Definition use (n: P4String): monad unit :=
+    put_state (fun l => n :: l).
+
   Definition fresh (n: P4String): monad P4String :=
     let* used_list := get_state in
     let* n' := fresh' n 0 (1 + length used_list)%nat in
-    let* _ := put_state (fun l =>n' :: l) in
+    let* _ := use n' in
     mret n'.
 
   Definition env := @IdentMap.t tags_t (@Locator tags_t).
@@ -142,11 +142,67 @@ Section Transformer.
   Fixpoint transform_ept (e: env) (tags: tags_t) (expr: @ExpressionPreT tags_t) (typ: P4Type) (dir: direction):
       @Expression tags_t :=
     match expr with
-    | _ => MkExpression tags expr typ dir
+    | ExpBool b => MkExpression tags (ExpBool b) typ dir
+    | ExpInt i => MkExpression tags (ExpInt i) typ dir
+    | ExpString str => MkExpression tags (ExpString str) typ dir
+    | ExpName name _ =>
+      let l := name_to_loc e name in
+      MkExpression tags (ExpName name l) typ dir
+    | ExpArrayAccess array index =>
+      let array' := transform_expr e array in
+      let index' := transform_expr e index in
+      MkExpression tags (ExpArrayAccess array' index') typ dir
+    | ExpBitStringAccess bits lo hi =>
+      let bits' := transform_expr e bits in
+      MkExpression tags (ExpBitStringAccess bits' lo hi) typ dir
+    | ExpList value =>
+      let value' := map (transform_expr e) value in
+      MkExpression tags (ExpList value') typ dir
+    | ExpRecord entries =>
+      let entries' := map (transform_keyvalue e) entries in
+      MkExpression tags (ExpRecord entries') typ dir
+    | ExpUnaryOp op arg =>
+      let arg' := transform_expr e arg in
+      MkExpression tags (ExpUnaryOp op arg') typ dir
+    | ExpBinaryOp op (arg1, arg2) =>
+      let arg1' := transform_expr e arg1 in
+      let arg2' := transform_expr e arg2 in
+      MkExpression tags (ExpBinaryOp op (arg1', arg2')) typ dir
+    | ExpCast typ' expr =>
+      let expr' := transform_expr e expr in
+      MkExpression tags (ExpCast typ' expr') typ dir
+    | ExpTypeMember typ' name =>
+      MkExpression tags (ExpTypeMember typ' name) typ dir
+    | ExpErrorMember mem =>
+      MkExpression tags (ExpErrorMember mem) typ dir
+    | ExpExpressionMember expr name =>
+      let expr' := transform_expr e expr in
+      MkExpression tags (ExpExpressionMember expr' name) typ dir
+    | ExpTernary cond tru fls =>
+      let cond' := transform_expr e cond in
+      let tru' := transform_expr e tru in
+      let fls' := transform_expr e fls in
+      MkExpression tags (ExpTernary cond' tru' fls') typ dir
+    | ExpFunctionCall func type_args args =>
+      let func' := transform_expr e func in
+      let args' := map (option_map (transform_expr e)) args in
+      MkExpression tags (ExpFunctionCall func' type_args args') typ dir
+    | ExpNamelessInstantiation typ' args =>
+      let args := map (transform_expr e) args in
+      MkExpression tags (ExpNamelessInstantiation typ' args) typ dir
+    | ExpDontCare => MkExpression tags ExpDontCare typ dir
+    | ExpMask expr mask =>
+      let expr' := transform_expr e expr in
+      let mask' := transform_expr e mask in
+      MkExpression tags (ExpMask expr' mask') typ dir
+    | ExpRange lo hi =>
+      let lo' := transform_expr e lo in
+      let hi' := transform_expr e hi in
+      MkExpression tags (ExpRange lo' hi') typ dir
     end
   with transform_expr (e: env) (expr: @Expression tags_t): @Expression tags_t :=
     match expr with
-    | MkExpression tag expr typ dir => transform_ept e tag expr typ dir
+    | MkExpression tags expr typ dir => transform_ept e tags expr typ dir
     end
   with transform_keyvalue (e: env) (kv: @KeyValue tags_t): @KeyValue tags_t :=
     match kv with
@@ -159,12 +215,7 @@ Section Transformer.
 
   Definition transform_oexprs (e: env) (oexprs: list (option (@Expression tags_t))):
       list (option (@Expression tags_t)) :=
-    let f oexpr :=
-      match oexpr with
-      | Some expr => Some (transform_expr e expr)
-      | None => None
-      end in
-    map f oexprs.
+    map (option_map (transform_expr e)) oexprs.
 
   Section transform_stmt.
   Variable (LocCons: list P4String -> @Locator tags_t). (* LGlobal or LInstance *)
@@ -266,12 +317,13 @@ Section Transformer.
   Definition transform_decl_base (LocCons: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
-    | DeclConstant tags typ name value _ =>
-      let* name' := fresh name in
-      let l := LocCons [name'] in
+    | DeclConstant tags typ name value =>
+      let* _ := use name in
+      let l := LocCons [name] in
       let e' := IdentMap.set name l e in
-      mret (DeclConstant tags typ name value l, e')
+      mret (DeclConstant tags typ name value, e')
     | DeclInstantiation tags typ args name init =>
+      let* _ := use name in
       let l := LocCons [name] in
       let e' := IdentMap.set name l e in
       mret (decl, e')
@@ -293,12 +345,12 @@ Section Transformer.
       let e' := IdentMap.set name l e in
       mret (DeclFunction tags ret name type_params params body', e')
     | DeclExternFunction _ _ _ _ _ => mret (decl, e) (* TODO *)
-    | DeclVariable tags typ name init _ =>
-      let* name' :=  fresh name in
+    | DeclVariable tags typ name init =>
       let init' := option_map (transform_expr e) init in
-      let l := LocCons [name'] in
+      let* _ := use name in
+      let l := LocCons [name] in
       let e' := IdentMap.set name l e in
-      mret (DeclVariable tags typ name init' l, e')
+      mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
       mret (decl, e) (* TODO *)
     (* let (l1e1, n1) := transform_Expr nameIdx size in
@@ -306,6 +358,7 @@ Section Transformer.
     (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1) *)
     | DeclAction tags name data_params ctrl_params body =>
       let* body' := with_empty_state (transform_blk LocCons e [name] body) in
+      let* _ := use name in
       let l := LocCons [name] in
       let e' := IdentMap.set name l e in
       mret (DeclAction tags name data_params ctrl_params body', e')
@@ -366,16 +419,21 @@ Section Transformer.
     let (l2, s2) := l2s2 in
     (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n1) *)
     | DeclControl tags name type_params params cparams locals apply =>
-      (* let transform_control (e: env) (locals: list (@Declaration tags_t))
-          (apply: @Block tags_t): monad (list (@Declaration tags_t) * @Block tags_t) :=
-        let* (locals', e') := transform_decls' transform_decl LInstance e locals in
-        let* apply' := transform_blk LInstance e' nil apply in
-        mret (locals', apply') in *)
-      (* TODO We need to put params in env and used_list. *)
+      (* I think instances those named implicitly by control names should not have the same name as
+        other control-level declarations, because these instances must appear in the apply block. *)
       let used_list := summarize_control locals apply in
       let inner_scope_monad := (
-        let* (locals', e') := transform_decls_base LInstance e locals in
-        let* apply' := transform_blk LInstance e' nil apply in
+        let env_add e name :=
+          let l := LInstance [name] in
+          IdentMap.set name l e in
+        let param_names := map get_param_name params in
+        let e' := fold_left env_add param_names e in
+        let* _ := sequence (map use param_names) in
+        let cparam_names := map get_param_name cparams in
+        let e'' := fold_left env_add cparam_names e' in
+        let* _ := sequence (map use cparam_names) in
+        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let* apply' := transform_blk LInstance e''' nil apply in
         mret (locals', apply')
       ) in
       let* (locals', apply') := with_state used_list inner_scope_monad in

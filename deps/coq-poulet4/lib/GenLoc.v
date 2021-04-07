@@ -47,6 +47,7 @@ Section Transformer.
   Notation P4Int := (P4Int.t tags_t).
   Variable default_tag: tags_t.
 
+  (* It seems the summarize step is not needed. *)
   Fixpoint summarize_stmtpt (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
         (list P4String) :=
     match stmt with
@@ -314,6 +315,63 @@ Section Transformer.
   Definition add_names (global: bool) (names: list P4String) (e: env): env :=
     fold_left (add_name' global) names e. *)
 
+  Definition declare_params (LocCons: list P4String -> @Locator tags_t) (e: env) (ns: list P4String) (params: list (@P4Parameter tags_t)): monad env :=
+    let names := map get_param_name params in
+    let env_add e name :=
+      let l := LocCons (ns ++ [name]) in
+      IdentMap.set name l e in
+    let e' := fold_left env_add names e in
+    let* _ := sequence (map use names) in
+    mret e'.
+
+  Definition transform_tblkey (e: env) (tk: @TableKey tags_t): @TableKey tags_t :=
+    match tk with
+    | MkTableKey tags key match_kind =>
+      let key' := transform_expr e key in
+      MkTableKey tags key' match_kind
+    end.
+
+  Definition transform_tpar (e: env) (tpar: @TablePreActionRef tags_t): @TablePreActionRef tags_t :=
+    match tpar with
+    | MkTablePreActionRef name args =>
+      (* Do we need a locator here? *)
+      let args' := map (option_map (transform_expr e)) args in
+      MkTablePreActionRef name args'
+    end.
+
+  Definition transform_tar (e: env) (tar: @TableActionRef tags_t): @TableActionRef tags_t :=
+    match tar with
+    | MkTableActionRef tags action typ =>
+      let action' := transform_tpar e action in
+      MkTableActionRef tags action' typ
+    end.
+
+  Definition transform_match (e: env) (mt: @Match tags_t): @Match tags_t :=
+    match mt with
+    | MkMatch tags expr typ =>
+      match expr with
+      | MatchDontCare => mt
+      | MatchExpression expr =>
+        let expr' := transform_expr e expr in
+        MkMatch tags (MatchExpression expr') typ
+      end
+    end.
+
+  Definition transform_tblenty (e: env) (te: @TableEntry tags_t): @TableEntry tags_t :=
+    match te with
+    | MkTableEntry tags matches action =>
+      let matches' := map (transform_match e) matches in
+      let action' := transform_tar e action in
+      MkTableEntry tags matches' action'
+    end.
+
+  Definition transform_tblprop (e: env) (tp: @TableProperty tags_t): @TableProperty tags_t :=
+    match tp with
+    | MkTableProperty tags const name value =>
+      let value' := transform_expr e value in
+      MkTableProperty tags const name value'
+    end.
+
   Definition transform_decl_base (LocCons: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
@@ -340,7 +398,12 @@ Section Transformer.
     ([DeclControl tags name type_params params cparams local' blk], n2) *)
     | DeclFunction tags ret name type_params params body =>
       (* Functions can only be defined at the top level. *)
-      let* body' := with_empty_state (transform_blk LocCons e [name] body) in
+      let inner_monad := (
+        let* e' := declare_params LocCons e [name] params in
+        let* body' := transform_blk LocCons e' [name] body in
+        mret body'
+      ) in
+      let* body' := with_empty_state inner_monad in
       let l := LocCons [name] in
       let e' := IdentMap.set name l e in
       mret (DeclFunction tags ret name type_params params body', e')
@@ -357,36 +420,27 @@ Section Transformer.
     let (l1, e1) := l1e1 in
     (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1) *)
     | DeclAction tags name data_params ctrl_params body =>
-      let* body' := with_empty_state (transform_blk LocCons e [name] body) in
-      let* _ := use name in
+      let inner_monad := (
+        let* e' := declare_params LocCons e [name] data_params in
+        let* e'' := declare_params LocCons e [name] ctrl_params in
+        let* body' := transform_blk LocCons e'' [name] body in
+        mret body'
+      ) in
+      let* body' := with_empty_state inner_monad in
       let l := LocCons [name] in
       let e' := IdentMap.set name l e in
       mret (DeclAction tags name data_params ctrl_params body', e')
     | DeclTable tags name key actions entries default_action size
             custom_properties =>
-      mret (decl, e) (* TODO *)
-    (* let (l1e1, n1) := transform_list transform_tblkey nameIdx key in
-    let (l1, e1) := l1e1 in
-    let (l2e2, n2) := transform_list transform_tar n1 actions in
-    let (l2, e2) := l2e2 in
-    let (l3e3, n3) :=
-      (match entries with
-        | None => (nil, None, n2)
-        | Some ets =>
-          let (l4e4, n4) := transform_list transform_tblenty n2 ets in
-          let (l4, e4) := l4e4 in (l4, Some e4, n4) end) in
-    let (l3, e3) := l3e3 in
-    let (l5e5, n5) := (match default_action with
-                      | None => (nil, None, n3)
-                      | Some da =>
-                        let (l6e6, n6) := transform_tar n3 da in
-                        let (l6, e6) := l6e6 in (l6, Some e6, n6)
-                      end) in
-    let(l5, e5) := l5e5 in
-    let (l6e6, n6) :=
-      transform_list transform_tblprop n5 custom_properties in
-    let (l6, e6) := l6e6 in
-    (l1 ++ l2 ++ l3 ++ l5 ++ l6 ++ [DeclTable tags name e1 e2 e3 e5 size e6], n6) *)
+      let key' := map (transform_tblkey e) key in
+      let actions' := map (transform_tar e) actions in
+      let entries' := option_map (map (transform_tblenty e)) entries in
+      let default_action' := option_map (transform_tar e) default_action in
+      let custom_properties' := map (transform_tblprop e) custom_properties in
+      let l := LocCons [name] in
+      let e' := IdentMap.set name l e in
+      mret (DeclTable tags name key' actions' entries' default_action' size
+            custom_properties', e')
     | _ => mret (decl, e)
     end.
 
@@ -423,16 +477,10 @@ Section Transformer.
         other control-level declarations, because these instances must appear in the apply block. *)
       let used_list := summarize_control locals apply in
       let inner_scope_monad := (
-        let env_add e name :=
-          let l := LInstance [name] in
-          IdentMap.set name l e in
-        let param_names := map get_param_name params in
-        let e' := fold_left env_add param_names e in
-        let* _ := sequence (map use param_names) in
-        let cparam_names := map get_param_name cparams in
-        let e'' := fold_left env_add cparam_names e' in
-        let* _ := sequence (map use cparam_names) in
+        let* e' := declare_params LInstance e nil params in
+        let* e'' := declare_params LInstance e' nil cparams in
         let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        (* I think we should use "apply" path for the apply block. *)
         let* apply' := transform_blk LInstance e''' nil apply in
         mret (locals', apply')
       ) in

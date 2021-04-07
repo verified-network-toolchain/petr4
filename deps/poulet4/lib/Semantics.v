@@ -284,18 +284,18 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                           (MkExpression tag ExpDontCare typ dir)
                           ValBaseNull
   (* the following two expressions output ValueSet instead of ValueBase *)
-  (* | exec_expr_mask : forall expr exprv mask maskv e this st tag typ dir,
+  | exec_expr_mask : forall expr exprv mask maskv e this st tag typ dir,
                      exec_expr e this st expr exprv ->
                      exec_expr e this st mask maskv ->
                      exec_expr e this st
                      (MkExpression tag (ExpMask expr mask) typ dir)
-                     (ValSetMask exprv maskv)
+                     (ValBaseSet (ValSetMask exprv maskv))
   | exec_expr_range : forall lo lov hi hiv e this st tag typ dir,
                       exec_expr e this st lo lov ->
                       exec_expr e this st hi hiv ->
                       exec_expr e this st
                       (MkExpression tag (ExpRange lo hi) typ dir)
-                      (ValSetRange lov hiv) *)
+                      (ValBaseSet (ValSetRange lov hiv))
   .
 
 Inductive exec_exprs : env -> path -> state -> list (@Expression tags_t) -> list Val -> Prop :=

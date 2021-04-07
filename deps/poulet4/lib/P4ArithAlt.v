@@ -63,8 +63,20 @@ Module BitArith.
     (** Modular Addition *)
     Definition plus_mod (a b : Z) : Z := mod_bound (a + b).
 
+    (** Saturating Subtraction *)
+    Definition minus_sat (a b : Z) : Z := sat_bound (a - b).
+
     (** Modular Subtraction *)
     Definition minus_mod (a b : Z) : Z := mod_bound (a - b).
+
+    (** Modular Multiplication *)
+    Definition mult_mod (a b : Z) : Z := mod_bound (a * b).
+
+    (** Modular Division *)
+    Definition div_mod (a b : Z) : Z := mod_bound (a / b).
+
+    (** Modular Modulo *)
+    Definition modulo_mod (a b : Z) : Z := mod_bound (a mod b).
 
     Lemma mod_bound_double_add: forall a b,
         mod_bound (a + mod_bound b) = mod_bound (a + b).
@@ -123,11 +135,17 @@ Module BitArith.
 
     (* The following bitwise operation may be wrong *)
 
-    (** logical Right Shift *)
+    (** Right Shift *)
     Definition shift_right (a b : Z) : Z := mod_bound (shiftr a b).
 
     (** Left Shift *)
     Definition shift_left (a b : Z) : Z := mod_bound (shiftl a b).
+
+    (** Bitwise operations may not need mod_bound given that the 
+        arguments are bounded **)
+
+    (** Bitwise Not *)
+    Definition bit_not (a : Z) := mod_bound (maxN - a).
 
     (** Bitwise And *)
     Definition bit_and (a b : Z) := mod_bound (land a b).
@@ -137,12 +155,15 @@ Module BitArith.
 
     (** Bitwise Xor *)
     Definition bit_xor (a b : Z) := mod_bound (lxor a b).
+
   End Operations.
 
-  (** Bitwise concatination *)
-  Definition bit_concat (w1 w2 : positive) (n1 n2 : Z) : Z :=
-    mod_bound (w1 + w2) (shiftl n1 (pos w2) + n2).
+  (** Bitwise concatination of bit with bit/int *)
+  Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=
+    mod_bound (w1+w2) 
+    (shiftl z1 (pos w2) + (z2 mod (2 ^ pos w2))).
   (**[]*)
+
 End BitArith.
 
 Ltac unfold_bit_operation :=
@@ -233,16 +254,19 @@ Module IntArith.
     Definition neg (z : Z) : Z := mod_bound (opp z).
 
     (** Saturating Addition *)
-    Definition plus_sat (a b : Z) : Z := sat_bound (a + b)%Z.
+    Definition plus_sat (a b : Z) : Z := sat_bound (a + b).
 
     (** Saturating Subtraction *)
-    Definition minus_sat (a b : Z) : Z := sat_bound (a - b)%Z.
+    Definition minus_sat (a b : Z) : Z := sat_bound (a - b).
 
     (** Modular Addition *)
     Definition plus_mod (a b : Z) : Z := mod_bound (a + b).
 
     (** Modular Subtraction *)
     Definition minus_mod (a b : Z) : Z := mod_bound (a - b).
+
+    (** Modular Multiplication *)
+    Definition mult_mod (a b : Z) : Z := mod_bound (a * b).
 
     Lemma bound_eq: forall z, bound z -> mod_bound z = z.
     Proof.
@@ -333,6 +357,12 @@ Module IntArith.
     (** Arithmetic shift right *)
     Definition shift_right (a b : Z) : Z := mod_bound (shiftr a b).
 
+    (** Bitwise operations may not need mod_bound given that the 
+        arguments are bounded **)
+
+    (** Bitwise Not *)
+    Definition bit_not (a : Z) := mod_bound ( - (a + 1)).
+
     (** Bitwise And *)
     Definition bit_and (a b : Z) : Z := mod_bound (land a b).
 
@@ -341,19 +371,47 @@ Module IntArith.
 
     (** Bitwise Xor *)
     Definition bit_xor (a b : Z) : Z := mod_bound (lxor a b).
+
   End Operations.
 
-  (** Bitwise concatination *)
-  Definition bit_concat (w2 : positive) (z1 z2 : Z) : Z :=
-    shiftl z1 (pos w2) + z2.
+  (** Bitwise concatination of int with int/bit *)
+  Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=
+    mod_bound (w1+w2) 
+    (shiftl z1 (pos w2) + (z2 mod (2 ^ (pos w2)))). 
   (**[]*)
+
 End IntArith.
+
+
+
+
+(* 
+Compute (IntArith.concat 4 4 (-16) 31).
+Compute (IntArith.concat 4 4 15 31).
+Compute (IntArith.concat 4 4 (-8) 32).
+Compute (IntArith.concat 4 4 (-2) (-1)).
+Compute (BitArith.concat 4 4 (-16) 31).
+Compute (BitArith.concat 4 4 15 31).
+Compute (BitArith.concat 4 4 (-8) 32).
+Compute (BitArith.concat 4 4 (-2) (-1)).
+
+Compute (IntArith.bit_not 4 9).
+Compute (IntArith.bit_not 4 (-1)).
+Compute (IntArith.bit_not 4 (-8)).
+Compute (IntArith.bit_not 4 7).
+
+Compute (BitArith.mult_mod 4 3 5).
+Compute (IntArith.mult_mod 4 2 4).
+Compute (IntArith.shift_left 4 6 1).
+Compute (IntArith.shift_right 4 (-4) 10).
+Compute (IntArith.shift_right 4 4 3).
+Compute (IntArith.shift_left 4 (-4) 2).
 
 Compute (IntArith.neg 32 (- 2147483648)).
 
 Compute (IntArith.plus_mod 32 (-500) (-200)).
 
-Compute (IntArith.minus_mod 32 20 1000).
+Compute (IntArith.minus_mod 32 20 1000). *)
 
 
 Ltac unfold_int_operation :=
@@ -369,3 +427,4 @@ Ltac unfold_int_operation :=
   | |- context [ IntArith.bit_xor _ _ ] => unfold IntArith.bit_xor
   | |- context [ IntArith.bit_or _ _ ] => unfold IntArith.bit_or
   end.
+

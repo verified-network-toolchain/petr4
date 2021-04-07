@@ -5,8 +5,7 @@ Require Import Coq.Bool.Sumbool.
 Definition AList
     (K V: Type)
     (R: Relation_Definitions.relation K)
-    `{Equivalence K R}
-:=
+    `{Equivalence K R} :=
   list (K * V)
 .
 
@@ -16,7 +15,7 @@ Section AList.
   Context `{H: Equivalence K R}.
   Context {KEqDec: EqDec K R}.
 
-  Fixpoint get (l: AList K V R) (k: K) : option V :=
+  Definition get (l: AList K V R) (k: K) : option V :=
     let filter := fun '(k', _) =>
       if KEqDec k k' then true else false in
     match List.find filter l with
@@ -36,5 +35,14 @@ Section AList.
            end
     | nil =>
       None
-    end.
+    end. 
+  
+  Theorem k_eqdec: forall k1 k2 : K, {k1 = k2} + {k1 <> k2}. 
+  Admitted.
+
+  Definition key_unique (l: AList K V R) : bool :=
+    let (ks, vs) := List.split l in
+    let ks_nodup := List.nodup k_eqdec ks in
+    (Nat.eqb (length ks_nodup) (length ks_nodup)).
+
 End AList.

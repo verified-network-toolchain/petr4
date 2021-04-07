@@ -1,6 +1,7 @@
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Require Import Coq.Bool.Sumbool.
+Import ListNotations.
 
 Definition AList
     (K V: Type)
@@ -35,14 +36,18 @@ Section AList.
            end
     | nil =>
       None
-    end. 
-  
-  Theorem k_eqdec: forall k1 k2 : K, {k1 = k2} + {k1 <> k2}. 
-  Admitted.
+    end.
 
-  Definition key_unique (l: AList K V R) : bool :=
-    let (ks, vs) := List.split l in
-    let ks_nodup := List.nodup k_eqdec ks in
-    (Nat.eqb (length ks_nodup) (length ks_nodup)).
+  Definition sort (l : AList K V R) : AList K V R := l.
+
+  Fixpoint key_unique (l : AList K V R) : bool :=
+    match l with
+    | [] => true
+    | (k, _) :: tl =>
+      match get tl k with
+      | Some _ => false
+      | None => key_unique tl
+      end
+    end.
 
 End AList.

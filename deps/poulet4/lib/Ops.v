@@ -1,11 +1,13 @@
 Require Import Coq.Bool.Bool.
+Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
-Require Import P4ArithAlt.
-Require Import Syntax.
-Require Import Typed.
-Require Import P4String.
-Require Import AList.
 Require Import Coq.Lists.List.
+
+Require Import Poulet4.P4Arith.
+Require Import Poulet4.Syntax.
+Require Import Poulet4.Typed.
+Require Import Poulet4.P4String.
+Require Import Poulet4.AList.
 Import ListNotations.
 
 
@@ -149,47 +151,32 @@ Module Ops.
     | _ => None
     end. 
 
-  Fixpoint existsb_opt (f : @P4String.t tags_t * @ValueBase tags_t -> option bool) 
-                       (l : list (P4String.t tags_t * ValueBase)) : option bool :=
-  match l with
-  | nil => Some false
-  | a :: l' =>
-    match f a, existsb_opt f l' with
-    | None, _ => None
-    | _, None => None
-    | Some b1, Some b2 => Some (b1 || b2)
-    end
-  end.
-
-  Fixpoint forallb_opt (f : P4String.t tags_t * @ValueBase tags_t -> option bool) 
-                       (l : list (P4String.t tags_t * ValueBase)) : option bool :=
-  match l with
-  | nil => Some true
-  | a :: l' =>
-    match f a, forallb_opt f l' with
-    | None, _ => None
-    | _, None => None
-    | Some b1, Some b2 => Some (b1 && b2)
-    end
-  end.
-
-
   Fixpoint eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
+    let fix eval_binary_op_eq_struct' (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
+      match l1, l2 with
+      | nil, nil => Some true
+      | (k1, v1) :: l1', (k2, v2) :: l2' =>
+        if negb (P4String.equivb k1 k2) then None
+        else match eval_binary_op_eq v1 v2, eval_binary_op_eq_struct' l1' l2' with
+             | Some b1, Some b2 => Some (b1 && b2)
+             | _, _ => None
+        end
+      | _, _ => None
+      end in
     let eval_binary_op_eq_struct (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
-    if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
-    else if negb ((length l1) =? (length l2))%nat then Some false
-    else let kv_equiv (kv1 kv2 : P4String.t tags_t * ValueBase): option bool :=
-            let (k1, v1) := kv1 in
-            let (k2, v2) := kv2 in
-            match eval_binary_op_eq v1 v2 with
-            | Some b => Some ((P4String.equivb k1 k2) && b)
-            | None => None
-            end
-          in let kv_in (kv1 : P4String.t tags_t * ValueBase) : option bool :=
-            let (k1, v1) := kv1 in
-            existsb_opt (kv_equiv (k1, v1)) l2
-          in forallb_opt kv_in l1
-    in match v1, v2 with
+      if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
+      else eval_binary_op_eq_struct' (AList.sort l1) (AList.sort l2) in
+    let fix eval_binary_op_eq_tuple (l1 l2 : list ValueBase): option bool :=
+      match l1, l2 with
+      | nil, nil => Some true
+      | x1 :: l1', x2 :: l2' =>
+        match eval_binary_op_eq x1 x2, eval_binary_op_eq_tuple l1' l2' with
+        | Some b1, Some b2 => Some (b1 && b2)
+        | _, _ => None
+        end
+      | _, _ => None
+      end in
+    match v1, v2 with
     | ValBaseError s1, ValBaseError s2 =>
         Some (P4String.equivb s1 s2)
     | ValBaseEnumField t1 s1, ValBaseEnumField t2 s2 =>
@@ -210,16 +197,23 @@ Module Ops.
         if (m1 =? m2)%nat then Some ((w1 =? w2)%nat && (n1 =? n2))
         else None
     | ValBaseStruct l1, ValBaseStruct l2 =>
-        eval_binary_op_eq_struct l1 l2 
-    | ValBaseTuple vs1, ValBaseTuple vs2 => None
-    | ValBaseHeader l1 b1, ValBaseHeader l2 b2 => None
-    | ValBaseUnion l1, ValBaseUnion l2 => None
-    | ValBaseStack vs1 s1 n1, ValBaseStack vs2 s2 n2 => None
+        eval_binary_op_eq_struct l1 l2
+    | ValBaseRecord l1, ValBaseRecord l2 =>
+        eval_binary_op_eq_struct l1 l2
+    | ValBaseUnion l1, ValBaseUnion l2 =>
+        eval_binary_op_eq_struct l1 l2
+    | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
+        match eval_binary_op_eq_struct l1 l2 with (* implicit type check *)
+        | None => None
+        | Some b3 => Some ((b1 && b2 && b3) || ((negb b1) && (negb b1)))
+        end
+    | ValBaseStack vs1 s1 n1, ValBaseStack vs2 s2 n2 =>
+        if negb (s1 =? s2)%nat then None
+        else eval_binary_op_eq_tuple vs1 vs2
+    | ValBaseTuple vs1, ValBaseTuple vs2 =>
+        eval_binary_op_eq_tuple vs1 vs2
     | _, _ => None
     end.
-
-
-
 
   (* After implicit_cast in checker.ml, ValBaseInteger does not exist. 
      After check_binary_op in checker.ml, width is the same in v1 and v2. *)
@@ -230,11 +224,15 @@ Module Ops.
     | Shl, _, _ | Shr, _, _ => 
         eval_binary_op_shift op v1 v2
     | Eq, _, _ =>
-        eval_binary_op_eq v1 v2
-    | Eq, _, _ =>
         match eval_binary_op_eq v1 v2 with
+        | Some b => Some (ValBaseBool b)
         | None => None
-        | Some (ValBaseBool b) => Some (ValBaseBool (negb b))
+        end
+    | NotEq, _, _ =>
+        match eval_binary_op_eq v1 v2 with
+        | Some b => Some (ValBaseBool (negb b))
+        | None => None
+        end
     | _, ValBaseBit w1 n1, ValBaseBit w2 n2 => 
         if (w1 =? w2)%nat then eval_binary_op_bit op w1 n1 n2
         else None

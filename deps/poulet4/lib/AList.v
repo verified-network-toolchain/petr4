@@ -38,8 +38,6 @@ Section AList.
       None
     end.
 
-  Definition sort (l : AList K V R) : AList K V R := l.
-
   Fixpoint key_unique (l : AList K V R) : bool :=
     match l with
     | [] => true

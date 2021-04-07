@@ -8,6 +8,7 @@ Require Import Poulet4.Syntax.
 Require Import Poulet4.Typed.
 Require Import Poulet4.P4String.
 Require Import Poulet4.AList.
+Require Import Poulet4.CoqLib.
 Import ListNotations.
 
 
@@ -149,15 +150,32 @@ Module Ops.
         if n2 >=? 0 then arith_op n2
         else None
     | _ => None
-    end. 
+    end.
 
-  Fixpoint eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
+  Definition sort (l : P4String.AList tags_t (@ValueBase tags_t)) :=
+    mergeSort (fun f1 f2 => string_leb (str (fst f1)) (str (fst f2))) l.
+
+  Fixpoint sort_val (v: Val) : Val :=
+    match v with
+    | ValBaseStruct ll =>
+      ValBaseStruct
+        (sort ((fix normalize_list
+                   (l : P4String.AList tags_t (@ValueBase tags_t)):
+                 P4String.AList tags_t (@ValueBase tags_t) :=
+                 match l with
+                 | nil => nil
+                 | (k, v) :: l' => (k, sort_val v) :: normalize_list l'
+                 end) ll))
+    | _ => v
+    end.
+
+  Fixpoint eval_binary_op_eq' (v1 : Val) (v2 : Val) : option bool :=
     let fix eval_binary_op_eq_struct' (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
       match l1, l2 with
       | nil, nil => Some true
       | (k1, v1) :: l1', (k2, v2) :: l2' =>
         if negb (P4String.equivb k1 k2) then None
-        else match eval_binary_op_eq v1 v2, eval_binary_op_eq_struct' l1' l2' with
+        else match eval_binary_op_eq' v1 v2, eval_binary_op_eq_struct' l1' l2' with
              | Some b1, Some b2 => Some (b1 && b2)
              | _, _ => None
         end
@@ -165,12 +183,12 @@ Module Ops.
       end in
     let eval_binary_op_eq_struct (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
       if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
-      else eval_binary_op_eq_struct' (AList.sort l1) (AList.sort l2) in
+      else eval_binary_op_eq_struct' l1 l2 in
     let fix eval_binary_op_eq_tuple (l1 l2 : list ValueBase): option bool :=
       match l1, l2 with
       | nil, nil => Some true
       | x1 :: l1', x2 :: l2' =>
-        match eval_binary_op_eq x1 x2, eval_binary_op_eq_tuple l1' l2' with
+        match eval_binary_op_eq' x1 x2, eval_binary_op_eq_tuple l1' l2' with
         | Some b1, Some b2 => Some (b1 && b2)
         | _, _ => None
         end
@@ -183,7 +201,7 @@ Module Ops.
         if P4String.equivb t1 t2 then Some (P4String.equivb s1 s2)
         else None
     | ValBaseSenumField t1 s1 v1, ValBaseSenumField t2 s2 v2 =>
-        if P4String.equivb t1 t2 then eval_binary_op_eq v1 v2
+        if P4String.equivb t1 t2 then eval_binary_op_eq' v1 v2
         else None
     | ValBaseBool b1, ValBaseBool b2 => 
         Some (eqb b1 b2)
@@ -215,6 +233,9 @@ Module Ops.
     | _, _ => None
     end.
 
+  Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
+    eval_binary_op_eq' (sort_val v1) (sort_val v2).
+  
   (* After implicit_cast in checker.ml, ValBaseInteger does not exist. 
      After check_binary_op in checker.ml, width is the same in v1 and v2. *)
   Definition eval_binary_op (op: OpBin) (v1 : Val) (v2 : Val) : option Val :=

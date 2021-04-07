@@ -1,6 +1,7 @@
 Require Export Coq.Lists.List.
 Export ListNotations.
 Require Export Coq.Bool.Bool.
+Require Export Coq.Classes.Morphisms.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 Require Import Coq.NArith.BinNatDef.
@@ -764,6 +765,27 @@ Module P4cub.
           intros t1 t2. pose proof equivt_reflect t1 t2 as H.
           inversion H; subst; auto.
         Qed.
+
+        Lemma equivt_resp_refl : forall tags_t,
+            Reflexive (@equivt tags_t ==>  Basics.impl)%signature.
+        Proof.
+          unfold Reflexive, respectful, Basics.impl; intros.
+          match goal with
+          | H: ∫ _ ≡ _ |- _ => induction H
+          end; unfold F.relfs, F.relf in *; auto.
+          - induction H; auto.
+        Abort.
+
+        Lemma equivt_proper : forall tags_t f, Proper (@equivt tags_t ==>  Basics.impl) f.
+        Proof.
+          unfold Proper, respectful, Basics.impl; intros.
+          match goal with
+          | H: ∫ _ ≡ _ |- _ => induction H
+          end; unfold F.relfs, F.relf in *; auto;
+          try match goal with
+              | H: Forall2 _ _ _ |- _ => induction H; intuition
+              end.
+        Abort.
       End TypeEquivalence.
 
       Instance TypeEquivalence {tags_t : Type} : Equivalence (@equivt tags_t).
@@ -1846,6 +1868,12 @@ Module P4cub.
           intros; reflect_split; auto;
             autorewrite with core; auto.
         Qed.
+
+        Lemma equive_proper : forall tags_t f, Proper (@equive tags_t ==>  Basics.impl) f.
+        Proof.
+          unfold Basics.impl, Proper, respectful; intros.
+          induction H using custom_equive_ind; auto.
+        Abort.
       End ExprEquivalenceDefs.
 
       Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).

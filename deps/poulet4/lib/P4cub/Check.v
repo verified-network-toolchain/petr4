@@ -349,7 +349,7 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:τ != e2:τ @ i ∈ Bool
-  | chk_plusplus_bit (τ : E.t tags_t) (m n w : positive)
+  | chk_plusplus_bit (m n w : positive)
                      (e1 e2 : E.e tags_t) (i : tags_t) :
       (m + n)%positive = w ->
       (* numeric_width n τ -> *)
@@ -521,13 +521,13 @@ Module Typecheck.
         P errs Γ <{ BOP e1:τ != e2:τ @ i }> {{ Bool }}.
     (**[]*)
 
-    Hypothesis HPlusPlus : forall errs Γ τ m n w e1 e2 i,
+    Hypothesis HPlusPlus : forall errs Γ m n w e1 e2 i,
         (m + n)%positive = w ->
         (* numeric_width n τ -> *)
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
         P errs Γ e1 {{ bit<m> }} ->
         ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
-        P errs Γ e2 τ ->
+        P errs Γ e2 {{ bit<n> }} ->
         P errs Γ <{ BOP e1:bit<m> ++ e2:bit<n> @ i }> {{ bit<w> }}.
     (**[]*)
 
@@ -719,10 +719,10 @@ Module Typecheck.
                                   _ _ _ _ _ i
                                   He1 (chind _ _ _ _ He1)
                                   He2 (chind _ _ _ _ He2)
-            | chk_plusplus_bit _ _ _ _ _ _ _ _ i
+            | chk_plusplus_bit _ _ _ _ _ _ _ i
                                Hmnw
                                He1 He2 => HPlusPlus
-                                           _ _ _ _ _ _ _ _ i Hmnw
+                                           _ _ _ _ _ _ _ i Hmnw
                                            He1 (chind _ _ _ _ He1)
                                            He2 (chind _ _ _ _ He2)
             | chk_hdr_mem _ _ _ x _ _ i
@@ -764,6 +764,51 @@ Module Typecheck.
             end.
      (**[]*)
   End CheckExprInduction.
+
+  Lemma equivt_check_expr_proper : forall tags_t errs Γ (e : E.e tags_t),
+      Proper (equivt ==>  Basics.impl) # check_expr errs Γ e.
+  Proof.
+    unfold "#", Proper, respectful, Basics.impl; intros.
+    generalize dependent y.
+    induction H0 using custom_check_expr_ind; intros.
+    - inv H; constructor.
+    - inv H0; constructor; assumption.
+    - inv H0; constructor; assumption.
+    - admit. (* TODO: chk_var needs equivt *)
+    - admit. (* TODO: chk_cast needs equivt *)
+    - inv H; constructor; assumption.
+    - inv H; constructor; assumption.
+    - inv H; constructor; assumption.
+    - inv H0; inv H; inv H2; inv H3; econstructor; auto;
+        repeat econstructor.
+    - inv H2; inv H0; inv H; inv H2;
+      eapply chk_comp_bop; eauto; repeat econstructor.
+    - inv H0; apply chk_bool_bop; auto.
+    - inv H; apply chk_eq; auto.
+    - inv H; apply chk_neq; auto.
+    - inv H0; constructor; auto.
+    - constructor; auto. admit. (* TODO: chk_hdr_mem needs equivt *)
+    - constructor; auto. admit. (* TODO: chk_rec_mem needs equivt *)
+    - inv H1; constructor; generalize dependent ts2.
+      induction H; inv H0; intros ts2 Heq; inv Heq; constructor; eauto.
+    - inv H1; constructor; generalize dependent fs2.
+      induction H; inv H0; intros fs2 Heq; inv Heq; constructor.
+      + destruct x as [? [? ?]]; destruct y as [? ?];
+        destruct y0 as [? ?]; simpl in *. inv H; inv H5; inv H3.
+        destruct H2 as [? ?]. repeat split; simpl in *; eauto;
+        etransitivity; eauto.
+      + apply IHForall2; auto.
+    - inv H3; constructor; generalize dependent fs2; eauto.
+      + clear H0 H1 H2 IHcheck_expr efs b.
+        inv H; try (inv H0; contradiction).
+        intros. apply PT.pn_header.
+        generalize dependent fs2.
+        induction H1; intros fs2 Heq; inv Heq; constructor.
+        * cbv; destruct y; destruct x; inv H3; simpl in *. admit.
+          (** Need to know PT.proper_inside_header & etc are good...sigh *)
+        * admit.
+      + admit.
+    Abort.
 
   (** Statement typing. *)
   Inductive check_stmt

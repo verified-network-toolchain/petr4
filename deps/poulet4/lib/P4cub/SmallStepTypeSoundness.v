@@ -6,6 +6,7 @@ Module P := P4cub.AST.P4cub.
 Module E := P.Expr.
 
 Import P.P4cubNotations.
+Import E.TypeEquivalence.
 
 Ltac invert_value :=
   match goal with
@@ -128,11 +129,18 @@ Section Theorems.
       Hint Resolve BitArith.return_bound_bound : core.
       Hint Resolve BitArith.neg_bound : core.
       Hint Resolve IntArith.return_bound_bound : core.
+      Hint Resolve eval_bit_binop_numeric : core.
+      Hint Resolve eval_bit_binop_comp : core.
+      Hint Resolve eval_int_binop_numeric : core.
+      Hint Resolve eval_int_binop_comp : core.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
       match goal with
       | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
       end;
+      try match goal with
+          | H: ∫ ?t1 ≡ ?t2 |- _ => rewrite H in *; clear H
+          end;
       try match goal with
           | H : ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
           end;
@@ -145,6 +153,7 @@ Section Theorems.
           | |- BitArith.bound _ _ => unfold_bit_operation
           | |- IntArith.bound _ _ => unfold_int_operation
           end; eauto.
+      - Fail rewrite H10 in H13.
     Admitted.
   End Preservation.
 End Theorems.

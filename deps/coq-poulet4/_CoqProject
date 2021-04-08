@@ -35,7 +35,7 @@ lib/Target.v
 lib/Maps.v
 lib/V1Model.v
 lib/P4ArithAlt.v
-lib/SemUtil.v
+lib/SyntaxUtil.v
 lib/GenLoc.v
 
 lib/P4defs.v

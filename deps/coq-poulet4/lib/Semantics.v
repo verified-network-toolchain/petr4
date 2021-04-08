@@ -10,7 +10,7 @@ Require Import P4Int.
 Require Import Ops.
 Require Import Maps.
 Require Export Target.
-Require Export SemUtil.
+Require Export SyntaxUtil.
 Import ListNotations.
 
 Section Semantics.

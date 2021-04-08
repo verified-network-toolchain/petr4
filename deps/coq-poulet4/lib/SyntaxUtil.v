@@ -4,7 +4,7 @@ Require Import Syntax.
 Require Export Maps.
 Import ListNotations.
 
-Section SemUtil.
+Section SyntaxUtil.
 
 Context {tags_t: Type}.
 Notation Val := (@ValueBase tags_t).
@@ -51,4 +51,4 @@ Definition map_fst {A B C} (f : A -> B) (p : A * C) : B * C :=
 Definition map_snd {A B C} (f : A -> B) (p : C * A) : C * B :=
   let (c, a) := p in (c, f a).
 
-End SemUtil.
+End SyntaxUtil.

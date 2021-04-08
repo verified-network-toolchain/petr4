@@ -1,6 +1,6 @@
 Require Import Syntax.
 Require Import Typed.
-Require Import SemUtil.
+Require Import SyntaxUtil.
 Require Import Monads.Monad.
 Require Import Monads.State.
 Require Import Coq.Strings.String.
@@ -219,7 +219,7 @@ Section Transformer.
     map (option_map (transform_expr e)) oexprs.
 
   Section transform_stmt.
-  Variable (LocCons: list P4String -> @Locator tags_t). (* LGlobal or LInstance *)
+  Variable (LCurScope: list P4String -> @Locator tags_t). (* LGlobal or LInstance *)
 
     Fixpoint transform_stmtpt (e: env) (ns: list P4String) (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
         monad (@Statement tags_t * env) :=
@@ -257,13 +257,13 @@ Section Transformer.
         mret (MkStatement tags (StatSwitch expr' cases') typ, e)
       | StatConstant typ' name value _ =>
         let* name' := fresh name in
-        let l := LocCons (ns ++ [name']) in
+        let l := LCurScope (ns ++ [name']) in
         let e' := IdentMap.set name l e in
         mret (MkStatement tags (StatConstant typ' name value l) typ, e')
       | StatVariable typ' name init _ =>
         let* name' :=  fresh name in
         let init' := option_map (transform_expr e) init in
-        let l := LocCons (ns ++ [name']) in
+        let l := LCurScope (ns ++ [name']) in
         let e' := IdentMap.set name l e in
         mret (MkStatement tags (StatVariable typ' name init' l) typ, e')
       | StatInstantiation typ' args name init =>
@@ -315,10 +315,10 @@ Section Transformer.
   Definition add_names (global: bool) (names: list P4String) (e: env): env :=
     fold_left (add_name' global) names e. *)
 
-  Definition declare_params (LocCons: list P4String -> @Locator tags_t) (e: env) (ns: list P4String) (params: list (@P4Parameter tags_t)): monad env :=
+  Definition declare_params (LCurScope: list P4String -> @Locator tags_t) (e: env) (ns: list P4String) (params: list (@P4Parameter tags_t)): monad env :=
     let names := map get_param_name params in
     let env_add e name :=
-      let l := LocCons (ns ++ [name]) in
+      let l := LCurScope (ns ++ [name]) in
       IdentMap.set name l e in
     let e' := fold_left env_add names e in
     let* _ := sequence (map use names) in
@@ -372,17 +372,17 @@ Section Transformer.
       MkTableProperty tags const name value'
     end.
 
-  Definition transform_decl_base (LocCons: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
+  Definition transform_decl_base (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
     | DeclConstant tags typ name value =>
       let* _ := use name in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclConstant tags typ name value, e')
     | DeclInstantiation tags typ args name init =>
       let* _ := use name in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (decl, e')
     (* let (local', n1) :=
@@ -399,19 +399,19 @@ Section Transformer.
     | DeclFunction tags ret name type_params params body =>
       (* Functions can only be defined at the top level. *)
       let inner_monad := (
-        let* e' := declare_params LocCons e [name] params in
-        let* body' := transform_blk LocCons e' [name] body in
+        let* e' := declare_params LCurScope e [name] params in
+        let* body' := transform_blk LCurScope e' [name] body in
         mret body'
       ) in
       let* body' := with_empty_state inner_monad in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclFunction tags ret name type_params params body', e')
     | DeclExternFunction _ _ _ _ _ => mret (decl, e) (* TODO *)
     | DeclVariable tags typ name init =>
       let init' := option_map (transform_expr e) init in
       let* _ := use name in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
@@ -421,13 +421,13 @@ Section Transformer.
     (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1) *)
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
-        let* e' := declare_params LocCons e [name] data_params in
-        let* e'' := declare_params LocCons e [name] ctrl_params in
-        let* body' := transform_blk LocCons e'' [name] body in
+        let* e' := declare_params LCurScope e [name] data_params in
+        let* e'' := declare_params LCurScope e [name] ctrl_params in
+        let* body' := transform_blk LCurScope e'' [name] body in
         mret body'
       ) in
       let* body' := with_empty_state inner_monad in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclAction tags name data_params ctrl_params body', e')
     | DeclTable tags name key actions entries default_action size
@@ -437,25 +437,25 @@ Section Transformer.
       let entries' := option_map (map (transform_tblenty e)) entries in
       let default_action' := option_map (transform_tar e) default_action in
       let custom_properties' := map (transform_tblprop e) custom_properties in
-      let l := LocCons [name] in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclTable tags name key' actions' entries' default_action' size
             custom_properties', e')
     | _ => mret (decl, e)
     end.
 
-  Fixpoint transform_decls_base (LocCons: list P4String -> @Locator tags_t)
+  Fixpoint transform_decls_base (LCurScope: list P4String -> @Locator tags_t)
       (e: env) (decls: list (@Declaration tags_t)):
       monad (list (@Declaration tags_t) * env) :=
     match decls with
     | nil => mret (nil, e)
     | decl :: decls0 =>
-      let* (decl', e') := transform_decl_base LocCons e decl in
-      let* (decls0', e'') := transform_decls_base LocCons e' decls0 in
+      let* (decl', e') := transform_decl_base LCurScope e decl in
+      let* (decls0', e'') := transform_decls_base LCurScope e' decls0 in
       mret (decl' :: decls0', e'')
     end.
 
-  Definition transform_decl (LocCons: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
+  Definition transform_decl (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
     | DeclParser tags name type_params params cparams locals states =>
@@ -473,31 +473,31 @@ Section Transformer.
     let (l2, s2) := l2s2 in
     (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n1) *)
     | DeclControl tags name type_params params cparams locals apply =>
-      (* I think instances those named implicitly by control names should not have the same name as
-        other control-level declarations, because these instances must appear in the apply block. *)
-      let used_list := summarize_control locals apply in
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in
         let* e'' := declare_params LInstance e' nil cparams in
         let* (locals', e''') := transform_decls_base LInstance e'' locals in
-        (* I think we should use "apply" path for the apply block. *)
+        (* If there is a direct application in the apply block, then there will not be a definition with
+          the same name in local definitions because of shadowing. So there will not be any conflict. *)
+        let used_list := summarize_blk apply in
+        let* _ := put_state (fun l => used_list ++ l) in
         let* apply' := transform_blk LInstance e''' nil apply in
         mret (locals', apply')
       ) in
-      let* (locals', apply') := with_state used_list inner_scope_monad in
-      let l := LocCons [name] in
+      let* (locals', apply') := with_empty_state inner_scope_monad in
+      let l := LCurScope [name] in
       let e' := IdentMap.set name l e in
       mret (DeclControl tags name type_params params cparams locals' apply', e')
-    | _ => transform_decl_base LocCons e decl
+    | _ => transform_decl_base LCurScope e decl
     end.
 
-  Fixpoint transform_decls (LocCons: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)):
+  Fixpoint transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)):
       monad (list (@Declaration tags_t) * env) :=
     match decls with
     | nil => mret (nil, e)
     | decl :: decls' =>
-      let* (decl', e') := transform_decl LocCons e decl in
-      let* (decls'', e'') := transform_decls LocCons e decls' in
+      let* (decl', e') := transform_decl LCurScope e decl in
+      let* (decls'', e'') := transform_decls LCurScope e decls' in
       mret (decl' :: decls'', e'')
     end.
 

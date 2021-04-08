@@ -2210,7 +2210,7 @@ Module P4cub.
                    (i : tags_t)(* type declaration *) *)
       | TPExtern (e : string)
                  (cparams : E.constructor_params)
-                 (methods : F.fs tags_t E.arrowT)
+                 (methods : F.fs string E.arrowT)
                  (i : tags_t) (* extern declarations *)
       | TPControl (c : string)
                   (cparams : E.constructor_params) (* constructor params *)

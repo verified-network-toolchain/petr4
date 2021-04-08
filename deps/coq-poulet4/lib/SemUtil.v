@@ -29,4 +29,26 @@ Definition get_param_name (param : @P4Parameter tags_t) : ident :=
   | MkParameter _ _ _ _ name => name
   end.
 
+Definition get_param_dir (param : @P4Parameter tags_t) : direction :=
+  match param with
+  | MkParameter _ dir _ _ _ => dir
+  end.
+
+Definition get_param_name_dir (param : @P4Parameter tags_t) : ident * direction :=
+  match param with
+  | MkParameter _ dir _ _ name => (name, dir)
+  end.
+
+Definition force {A} (default : A) (x : option A) : A :=
+  match x with
+  | Some x => x
+  | None => default
+  end.
+
+Definition map_fst {A B C} (f : A -> B) (p : A * C) : B * C :=
+  let (a, c) := p in (f a, c).
+
+Definition map_snd {A B C} (f : A -> B) (p : C * A) : C * B :=
+  let (c, a) := p in (c, f a).
+
 End SemUtil.

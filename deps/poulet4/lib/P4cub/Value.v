@@ -1,3 +1,4 @@
+(* TODO: UNDER MAINTENANCE
 Require Import Coq.Bool.Bool.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
@@ -942,3 +943,4 @@ Module ValueTyping.
   Qed.
 End ValueTyping.
 End Val.
+*)

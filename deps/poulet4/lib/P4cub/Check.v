@@ -1,3 +1,4 @@
+(* TODO: UNDER MAINTENANCE
 Require Export Coq.PArith.BinPosDef.
 Require Export Coq.NArith.BinNat.
 Export Pos.
@@ -1263,3 +1264,4 @@ Module Typecheck.
     := (check_topdecl cs1 fs1 ci1 pi1 ei1 ers g1 d g2 ei2 pi2 ci2 fs2 cs2).
   (**[]*)
 End Typecheck.
+*)

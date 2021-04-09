@@ -144,7 +144,7 @@ Module BitArith.
     (** Left Shift *)
     Definition shift_left (a b : Z) : Z := mod_bound (shiftl a b).
 
-    (** Bitwise operations may not need mod_bound given that the 
+    (** Bitwise operations may not need mod_bound given that the
         arguments are bounded **)
 
     (** Bitwise Not *)
@@ -362,7 +362,7 @@ Module IntArith.
     (** Arithmetic shift right *)
     Definition shift_right (a b : Z) : Z := mod_bound (shiftr a b).
 
-    (** Bitwise operations may not need mod_bound given that the 
+    (** Bitwise operations may not need mod_bound given that the
         arguments are bounded **)
 
     (** Bitwise Not *)
@@ -382,11 +382,11 @@ Module IntArith.
   (** Bitwise concatination of int with int/bit *)
   Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=
     mod_bound (w1+w2) (shiftl z1 (pos w2) + (bit_bound w2 z2)).
-  (**[]*) 
+  (**[]*)
 
 End IntArith.
 
-(* 
+(*
 Compute (IntArith.concat 4 4 (-16) 31).
 Compute (IntArith.concat 4 4 15 31).
 Compute (IntArith.concat 4 4 (-8) 32).
@@ -428,4 +428,3 @@ Ltac unfold_int_operation :=
   | |- context [ IntArith.bit_xor _ _ ] => unfold IntArith.bit_xor
   | |- context [ IntArith.bit_or _ _ ] => unfold IntArith.bit_or
   end.
-

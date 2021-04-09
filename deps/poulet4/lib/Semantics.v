@@ -81,7 +81,7 @@ Inductive env_entry :=
 
 Definition env := @IdentMap.t tags_t env_entry.
 
-Definition ident_to_path (e : env) (i : ident) (this : path) : option path :=
+Definition ident_to_path (e : env) (this : path) (i : ident) : option path :=
   match (IdentMap.get i e) with
   | Some (Global p) => Some p
   | Some (Instance p) => Some (this ++ p)
@@ -113,15 +113,15 @@ Inductive fundef :=
 Axiom dummy_fundef : fundef.
 
 Definition genv := path -> option fundef.
+Definition genv_typ := path -> option (@P4Type tags_t).
 
 Variable ge : genv.
+Variable ge_typ : genv_typ.
 
 Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t) : option path :=
   match name with
-  | QualifiedName p n =>
-      Some (p ++ [n])
-  | BareName id =>
-      ident_to_path e id this_path
+  | BareName id => ident_to_path e this_path id
+  | QualifiedName ns id => Some (name_cons ns id)
   end.
 
 Definition eval_p4int (n: P4Int) : Val :=
@@ -131,21 +131,27 @@ Definition eval_p4int (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit w (P4Int.value n)
   end.
 
-Definition name_to_val (e: env) (n : @Typed.name tags_t) (this : path) (s : state) : option Val :=
-  let p :=
-    match n with
-    | BareName i => ident_to_path e i this
-    | QualifiedName ns i => Some (name_cons ns i)
-    end
-  in
-    match p with
-    | Some p' =>
-      match PathMap.get p' (get_memory s) with
-      | Some v => Some v
-      | _ => None
-      end
+Definition name_to_val (e: env) (this : path) (s : state) (name : @Typed.name tags_t) : option Val :=
+  let p := name_to_path e this name in
+  match p with
+  | Some p' =>
+    match PathMap.get p' (get_memory s) with
+    | Some v => Some v
     | _ => None
-    end.
+    end
+  | _ => None
+  end.
+
+Definition name_to_typ (e: env) (this : path) (name : @Typed.name tags_t) : option (@P4Type tags_t) :=
+  let p := name_to_path e this name in
+  match p with
+  | Some p' =>
+    match ge_typ p' with
+    | Some t => Some t
+    | _ => None
+    end
+  | _ => None
+  end.
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
@@ -192,7 +198,7 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
   | exec_expr_name: forall name e v this st tag typ dir,
-                    name_to_val e name this st = Some v ->
+                    name_to_val e this st name = Some v ->
                     exec_expr e this st
                     (MkExpression tag (ExpName name) typ dir)
                     v
@@ -257,7 +263,7 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
   | exec_expr_cast : forall newtyp expr oldv newv e this st tag typ dir,
                      exec_expr e this st expr oldv ->
                      (* eval_cast need env and state of new types *)
-                     Ops.eval_cast newtyp oldv = Some newv ->
+                     Ops.eval_cast name_to_typ newtyp oldv = Some newv ->
                      exec_expr e this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv
@@ -531,17 +537,12 @@ Inductive exec_lvalue_expr : env -> path -> state -> (@Expression tags_t) -> (@V
                                         (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                         lv.
 
-Definition update_val_by_name (e: env) (this : path) (s : state) (n : @Typed.name tags_t) (v : Val): option state :=
-  let p :=
-    match n with
-    | BareName i => ident_to_path e i this
-    | QualifiedName ns i => Some (name_cons ns i)
-    end
-  in 
-    match p with
-    | Some p' => Some (update_memory (PathMap.set p' v) s)
-    | _ => None
-    end.
+Definition update_val_by_name (e: env) (this : path) (s : state) (name : @Typed.name tags_t) (v : Val): option state :=
+  let p := name_to_path e this name in
+  match p with
+  | Some p' => Some (update_memory (PathMap.set p' v) s)
+  | _ => None
+  end.
 
 Definition assign_lvalue (e : env) (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
   match lhs with

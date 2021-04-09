@@ -17,6 +17,9 @@ Record t (tags_t: Type) :=
 Arguments tags [tags_t] _.
 Arguments str [tags_t] _.
 
+Definition empty_str [tags_t: Type] (tag : tags_t) :  (t tags_t) :=
+  {| tags := tag; str := "" |}.
+
 Definition strip [tags_t: Type] (s: t tags_t) :=
   {| tags := tt; str := s.(str) |}.
 

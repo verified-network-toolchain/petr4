@@ -9,6 +9,7 @@ Require Import Poulet4.Typed.
 Require Import Poulet4.P4String.
 Require Import Poulet4.AList.
 Require Import Poulet4.CoqLib.
+
 Import ListNotations.
 
 
@@ -17,6 +18,8 @@ Coercion Pos.of_nat: nat >-> positive.
 Module Ops.
   Section Operations.
   Context {tags_t: Type}.
+  Axiom dummy_tags : tags_t.
+  Definition empty_str := P4String.empty_str dummy_tags.
 
   Notation Val := (@ValueBase tags_t).
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
@@ -101,9 +104,6 @@ Module Ops.
     | Or        => None
     end. 
 
-(*1. bitwise operations of int; 2. shift by positive (not implicit cast); 3. eq/neq; 
-4. plusplus; 5. div mod on bit (implicit cast) *)
-
   Definition eval_binary_op_bool (op: OpBin) (b1 b2: bool) : option Val :=
   match op with
   | And         => Some (ValBaseBool (andb b1 b2))
@@ -155,17 +155,18 @@ Module Ops.
   Definition sort (l : P4String.AList tags_t (@ValueBase tags_t)) :=
     mergeSort (fun f1 f2 => string_leb (str (fst f1)) (str (fst f2))) l.
 
-  Fixpoint sort_val (v: Val) : Val :=
+  Fixpoint sort_by_key (v: Val) : Val :=
+    let fix sort_by_key' (ll : P4String.AList tags_t (@ValueBase tags_t)):
+                            P4String.AList tags_t (@ValueBase tags_t) :=
+      match ll with
+      | nil => nil
+      | (k, v) :: l' => (k, sort_by_key v) :: sort_by_key' l'
+      end in
     match v with
-    | ValBaseStruct ll =>
-      ValBaseStruct
-        (sort ((fix normalize_list
-                   (l : P4String.AList tags_t (@ValueBase tags_t)):
-                 P4String.AList tags_t (@ValueBase tags_t) :=
-                 match l with
-                 | nil => nil
-                 | (k, v) :: l' => (k, sort_val v) :: normalize_list l'
-                 end) ll))
+    | ValBaseStruct l => ValBaseStruct (sort (sort_by_key' l))
+    | ValBaseRecord l => ValBaseRecord (sort (sort_by_key' l))
+    | ValBaseUnion l => ValBaseUnion (sort (sort_by_key' l))
+    | ValBaseHeader l b => ValBaseHeader (sort (sort_by_key' l)) b
     | _ => v
     end.
 
@@ -234,10 +235,11 @@ Module Ops.
     end.
 
   Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
-    eval_binary_op_eq' (sort_val v1) (sort_val v2).
+    eval_binary_op_eq' (sort_by_key v1) (sort_by_key v2).
   
-  (* After implicit_cast in checker.ml, ValBaseInteger does not exist. 
-     After check_binary_op in checker.ml, width is the same in v1 and v2. *)
+  (* 1. After implicit_cast in checker.ml, ValBaseInteger no longer exists in 
+        binary operations with fixed-width bit and int.
+     2. Types are checked to return None when binary operations are not allowed. *)
   Definition eval_binary_op (op: OpBin) (v1 : Val) (v2 : Val) : option Val :=
     match op, v1, v2 with
     | PlusPlus, _, _ => 
@@ -266,11 +268,87 @@ Module Ops.
         eval_binary_op_bool op b1 b2
     | _, _, _ => None
     end.
+  
+  Definition bool_of_val (oldv : Val) : option Val :=
+    match oldv with
+    | ValBaseBit w n => 
+      if (w =? 1)%nat then Some (ValBaseBool (n =? 1))
+      else None
+    | _ => None
+    end.
+  
+  Definition bit_of_val (w : nat) (oldv : Val) : option Val :=
+  match oldv with
+  | ValBaseBool b => 
+    if (w =? 1)%nat then Some (ValBaseBit 1 (if b then 1 else 0))
+    else None
+  | ValBaseInt w' n => 
+      if (w =? w')%nat then Some (ValBaseBit w (BitArith.mod_bound w n))
+      else None
+  | ValBaseBit w' n => Some (ValBaseBit w (BitArith.mod_bound w n))
+  | ValBaseInteger n => Some (ValBaseBit w (BitArith.mod_bound w n))
+  | ValBaseSenumField _ _ v => 
+      match v with
+      | ValBaseBit w' n => if (w' =? w)%nat then Some v else None
+      | _ => None
+      end
+  | _ => None
+  end.
 
-  Definition eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
-    match newtyp, oldv with
-    | TypBit w, ValBaseInteger v => Some (ValBaseBit w (Z.land v (Z.pow 2 (Zpos w) - 1))%Z)
-    | _, _ => None
+  Definition int_of_val (w : nat) (oldv : Val) : option Val :=
+  match oldv with
+  | ValBaseBit w' n =>
+      if (w' =? w)%nat then Some (ValBaseInt w (IntArith.mod_bound w n))
+      else None
+  | ValBaseInt w' n => Some (ValBaseInt w (IntArith.mod_bound w n))
+  | ValBaseInteger n => Some (ValBaseInt w (IntArith.mod_bound w n))
+  | ValBaseSenumField _ _ v => 
+      match v with
+      | ValBaseInt w' n => if (w' =? w)%nat then Some v else None
+      | _ => None
+      end
+  | _ => None
+  end.
+
+  (* 1. An empty field name is inserted here since the P4 manual does not specify how 
+        casting to a senum assigns the field name, and multiple fields can share the same name.
+        Also, the unnamed value is legal in senum, so an empty name is acceptable. 
+        Lastly, the senum field name is literally unused in all semantics involving senum.
+     2. Currently, casting a senum to another senum explicitly is implemented here directly.
+        However, according to the manual 8.3, what should more likely happen is a implicit cast 
+        from senum to its underlying type and then a explicit cast from the underlying type to
+        the final senum type. However, since the implicit cast of senum is incorrect in the
+        typechecker, the direct cast between senums are also implemented. *) 
+  Definition enum_of_val  (name: P4String.t tags_t) (typ: option (@P4Type tags_t))
+                          (members: list (P4String.t tags_t)) (oldv : Val) : option Val :=
+  match typ, oldv with
+  | None, _ => None
+  | Some (TypBit w), ValBaseBit w' n
+  | Some (TypBit w), ValBaseSenumField _ _ (ValBaseBit w' n) => 
+      if (w =? w')%nat then Some (ValBaseSenumField name empty_str (ValBaseBit w n))
+      else None
+  | Some (TypInt w), ValBaseInt w' n
+  | Some (TypInt w), ValBaseSenumField _ _ (ValBaseInt w' n) =>
+      if (w =? w')%nat then Some (ValBaseSenumField name empty_str (ValBaseInt w n))
+      else None
+  | _, _ => None
+  end.
+      
+
+  Fixpoint eval_cast (name_to_typ : @Typed.name tags_t -> @P4Type tags_t) (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+    match newtyp with
+    | TypBool => bool_of_val oldv
+    | TypBit w => bit_of_val w oldv
+    | TypInt w => int_of_val w oldv
+    | TypNewType _ typ => eval_cast name_to_typ typ oldv
+    | TypTypeName name => None
+     (* eval_cast name_to_typ (name_to_typ name) oldv *)
+    | TypEnum n typ mems => enum_of_val n typ mems oldv
+    | TypStruct fields
+    | TypHeader fields => None
+
+    | TypTuple _
+    | _ => None
     end.
   (* Admitted. *)
 

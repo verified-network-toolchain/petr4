@@ -1,4 +1,3 @@
-(* TODO: UNDER MAINTENANCE
 Require Import Coq.micromega.Lia.
 Require Import Poulet4.P4cub.Value.
 Require Import Poulet4.P4cub.BigStep.
@@ -16,17 +15,17 @@ Import V.ValueTyping.
 Import F.FieldTactics.
 
 Section BigStepTheorems.
-  Context {tags_t : Type}.
+  (* Context {tags_t : Type}. *)
 
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type (errs : errors) (Γ : gamma) (ϵ : epsilon) : Prop :=
-    forall (x : name tags_t) (τ : E.t tags_t) (v : V.v tags_t),
+    forall (x : string) (τ : E.t) (v : V.v),
       Γ x = Some τ -> ϵ x = Some v -> ∇ errs ⊢ v ∈ τ.
   (**[]*)
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset (Γ : gamma) (ϵ : epsilon) : Prop :=
-    forall (x : name tags_t) (τ : E.t tags_t),
+    forall (x : string) (τ : E.t),
       Γ x = Some τ -> exists v, ϵ x = Some v.
   (**[]*)
 
@@ -34,6 +33,7 @@ Section BigStepTheorems.
     envs_type errs Γ ϵ /\ envs_subset Γ ϵ.
   (**[]*)
 
+  (*
   Lemma envs_subset_type : forall Γ ϵ errs,
       envs_subset Γ ϵ -> envs_type errs Γ ϵ.
   Proof.
@@ -47,11 +47,13 @@ Section BigStepTheorems.
   Proof.
     unfold envs_subset, envs_type.
     intros Γ ϵ errs H x t Ht.
-  Abort.
+  Abort. *)
+
+  Context {tags_t : Type}.
 
   Theorem expr_big_step_preservation :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
-      (τ : E.t tags_t) (ϵ : epsilon) (v : V.v tags_t),
+      (τ : E.t) (ϵ : epsilon) (v : V.v),
       envs_type errs Γ ϵ ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
@@ -77,35 +79,34 @@ Section BigStepTheorems.
     - inv H2; auto.
     - apply BitArith.neg_bound.
     - unfold_int_operation; apply IntArith.return_bound_bound.
-    - apply IHHev1 in H10; auto; clear IHHev1.
-      apply IHHev2 in H11; auto; clear IHHev2.
+    - apply IHHev1 in H9; auto; clear IHHev1.
+      apply IHHev2 in H10; auto; clear IHHev2.
       destruct op; unfold eval_bit_binop in *;
-        inv H; inv H9; constructor;
+        inv H; inv H7; inv H8; inv H9; inv H10; constructor;
           try apply BitArith.plus_mod_bound;
           try unfold_bit_operation;
           try apply BitArith.return_bound_bound.
-      inv H10; inv H11.
       unfold BitArith.bound, BitArith.upper_bound in *. lia.
     - destruct op; unfold eval_bool_binop in *;
-        inv H; inv H9; constructor.
+        inv H; inv H7; inv H8; inv H9; inv H10; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
     - unfold eval_bit_binop in *; inv H; constructor.
-    - inv H10.
-    - inv H10.
+    - inv H9.
+    - inv H9.
     - unfold BitArith.bit_concat; apply BitArith.return_bound_bound.
-    - apply IHHev1 in H10; auto; clear IHHev1.
-      apply IHHev2 in H11; auto; clear IHHev2.
-      destruct op; unfold eval_bit_binop in *;
-        inv H; inv H9; constructor;
+    - apply IHHev1 in H9; auto; clear IHHev1.
+      apply IHHev2 in H10; auto; clear IHHev2.
+      inv H8; unfold eval_bit_binop in *;
+        inv H; inv H9; inv H10; constructor;
           unfold_int_operation;
           try apply IntArith.return_bound_bound.
-    - destruct op; unfold eval_bool_binop in *;
-        inv H; inv H9; constructor.
+    - inv H8; unfold eval_bool_binop in *;
+        inv H; inv H9; inv H10; constructor.
     - inv H; constructor.
     - inv H; constructor.
-    - inv H9.
-    - inv H9.
+    - inv H8.
+    - inv H8.
     - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
       eapply F.get_relfs in H2; eauto.
     - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
@@ -116,7 +117,8 @@ Section BigStepTheorems.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
       destruct x as [x [τ e]]; destruct y as [y v];
-        destruct y0 as [z t]; repeat invert_relf; simpl in *.
+        destruct y0 as [z t]; repeat relf_destruct;
+          unfold equiv in *; simpl in *; subst.
       + split; simpl;
           try (transitivity x; auto; symmetry; assumption);
           destruct H2; auto.
@@ -126,7 +128,8 @@ Section BigStepTheorems.
       induction H; inv Hesvs;
         intros ts Hests; inv Hests; constructor.
       destruct x as [x [τ e]]; destruct y as [y v];
-        destruct y0 as [z t]; repeat invert_relf; simpl in *.
+        destruct y0 as [z t]; repeat relf_destruct;
+          unfold equiv in *; simpl in *; subst.
       + split; simpl;
           try (transitivity x; auto; symmetry; assumption);
           destruct H2; auto.
@@ -224,10 +227,10 @@ Section BigStepTheorems.
 
   Theorem expr_big_step_progress :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
-      (τ : E.t tags_t) (ϵ : epsilon),
+      (τ : E.t) (ϵ : epsilon),
       envs_sound Γ ϵ errs ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      exists v : V.v tags_t, ⟨ ϵ, e ⟩ ⇓ v.
+      exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
   Proof.
     intros errs Γ τ e ϵ [Htyp Hsub] Ht.
     unfold envs_subset, envs_type in *.
@@ -243,10 +246,10 @@ Section BigStepTheorems.
       + unfold BitArith.bound, BitArith.upper_bound in *;
           simpl in *. assert (Hn : n = 0%N \/ n = 1%N); try lia.
         destruct Hn as [Hn | Hn]; subst;
-          [ exists *{ FALSE }* | exists *{ TRUE }* ];
+          [ exists ~{ FALSE }~ | exists ~{ TRUE }~ ];
           econstructor; eauto; reflexivity.
       + destruct z;
-          [ exists *{ w VW N0 }*
+          [ exists ~{ w VW N0 }~
           | exists (V.VBit w (BitArith.return_bound w (Npos p)))
           | exists (V.VBit w (BitArith.return_bound w (Npos p))) ];
           econstructor; eauto; destruct w; reflexivity.
@@ -267,14 +270,14 @@ Section BigStepTheorems.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH1 Ht1 as HP1.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH2 Ht2 as HP2.
-      inv H0; inv H2; inv H; inv HP1; inv HP2.
-      + remember (@eval_bit_binop tags_t op w n n0) as ebb eqn:eqnop.
-        inversion H1; subst op; simpl in *;
+      inv H; inv H1; inv HP1; inv HP2.
+      + remember (eval_bit_binop op w n n0) as ebb eqn:eqnop.
+        inversion H0; subst op; simpl in *;
           match goal with
           | H: _ = Some ?v |- _ => exists v
           end; econstructor; simpl in *; eauto.
-      + remember (@eval_int_binop tags_t op w z z0) as ebb eqn:eqnop.
-        inversion H1; subst op; simpl in *;
+      + remember (eval_int_binop op w z z0) as ebb eqn:eqnop.
+        inversion H0; subst op; simpl in *;
           match goal with
           | H: _ = Some ?v |- _ => exists v
           end; econstructor; simpl in *; eauto.
@@ -282,14 +285,14 @@ Section BigStepTheorems.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH1 Ht1 as HP1.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH2 Ht2 as HP2.
-      inv H0; inv H2; inv H; inv HP1; inv HP2.
-      + remember (@eval_bit_binop tags_t op w n n0) as ebb eqn:eqnop.
-        inversion H1; subst op; simpl in *;
+      inv H; inv H1; inv HP1; inv HP2.
+      + remember (eval_bit_binop op w n n0) as ebb eqn:eqnop.
+        inversion H0; subst op; simpl in *;
           match goal with
           | H: _ = Some ?v |- _ => exists v
           end; econstructor; simpl in *; eauto.
-      + remember (@eval_int_binop tags_t op w z z0) as ebb eqn:eqnop.
-        inversion H1; subst op; simpl in *;
+      + remember (eval_int_binop op w z z0) as ebb eqn:eqnop.
+        inversion H0; subst op; simpl in *;
           match goal with
           | H: _ = Some ?v |- _ => exists v
           end; econstructor; simpl in *; eauto.
@@ -305,11 +308,11 @@ Section BigStepTheorems.
         end; econstructor; simpl in *; eauto.
     - pose proof IHHt1 Htyp Hsub as [v1 IH1]; clear IHHt1.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
-      exists (V.VBool (V.eqbv _ v1 v2)).
+      exists (V.VBool (V.eqbv v1 v2)).
       econstructor; eauto.
     - pose proof IHHt1 Htyp Hsub as [v1 IH1]; clear IHHt1.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
-      exists (V.VBool (negb (V.eqbv _ v1 v2))).
+      exists (V.VBool (negb (V.eqbv v1 v2))).
       econstructor; eauto.
     - pose proof IHHt1 Htyp Hsub as [v1 IH1]; clear IHHt1.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
@@ -327,7 +330,7 @@ Section BigStepTheorems.
       eapply F.relfs_get_r in H2 as [v [Hget HR]]; eauto.
       exists v. econstructor; eauto.
     - induction H; inv H0.
-      + exists *{ TUPLE [] }*. repeat constructor.
+      + exists ~{ TUPLE [] }~. repeat constructor.
       + pose proof IHForall2 H7 as [v IH]; clear IHForall2 H7.
         assert (Hes : ⟦ errs, Γ ⟧ ⊢ tup l @ i ∈ tuple l').
         { econstructor; eauto. }
@@ -335,41 +338,42 @@ Section BigStepTheorems.
         pose proof H5 Htyp Hsub as [v Hev]. inv IH.
         exists (V.VTuple (v :: vs)). repeat constructor; auto.
     - induction H; inv H0.
-      + exists *{ REC { [] } }*. repeat constructor.
+      + exists ~{ REC { [] } }~. repeat constructor.
       + destruct x as [x [τ e]]. destruct y as [x' τ'].
         rename l into es. rename l' into ts.
-        repeat invert_relf; simpl in *.
+        repeat relf_destruct; unfold equiv; simpl in *; subst.
         pose proof IHForall2 H7 as [v IH]; clear IHForall2 H7.
         assert (Hes : ⟦ errs, Γ ⟧ ⊢ rec {es} @ i ∈ rec {ts}).
         { econstructor; eauto. }
         pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Hes as HP; inv HP.
-        destruct H4 as [Hequivt He].
+        unfold equiv in *; subst.
+        destruct H3 as [Hequivt He]; subst.
         pose proof H2 Htyp Hsub as [v Hev]. inv IH.
-        exists (V.VRecord ((x,v)::vs)). repeat constructor; auto.
+        exists (V.VRecord ((x',v)::vs)). repeat constructor; auto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       rename H into HPT; rename H0 into H; rename H1 into H0.
       induction H; inv H0.
-      + exists *{ HDR { [] } VALID:=b0 }*. repeat constructor; auto.
+      + exists ~{ HDR { [] } VALID:=b0 }~. repeat constructor; auto.
       + destruct x as [x [τ e]]. destruct y as [x' τ'].
         rename l into es. rename l' into ts.
-        repeat invert_relf; simpl in *.
+        repeat relf_destruct; unfold equiv in *; simpl in *; subst.
         assert (HPT' : PT.proper_nesting {{ hdr { ts } }}).
-        { inv HPT. inv H. inv H5.
+        { inv HPT. inv H. invert_cons_predfs.
           apply PT.pn_header; assumption. }
         pose proof IHForall2 HPT' H7 as [v IHs]; clear IHForall2 H7.
         assert (Hes : ⟦ errs, Γ ⟧ ⊢ hdr {es} valid:=b @ i ∈ hdr {ts}).
         { econstructor; eauto. }
         pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IHs Hes as HP; inv HP.
-        destruct H4 as [Hequivt He].
+        destruct H3 as [Hequivt He]; unfold equiv in *; subst.
         pose proof H2 Htyp Hsub as [v Hev]. inv IHs.
-        exists (V.VHeader ((x,v)::vs) b0). repeat constructor; auto.
+        exists (V.VHeader ((x',v)::vs) b0). repeat constructor; auto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       destruct op.
-      + exists *{ VBOOL b }*. econstructor; simpl; eauto.
-      + exists *{ HDR {vs} VALID:=true}*. econstructor; simpl; eauto.
-      + exists *{ HDR {vs} VALID:=false}*. econstructor; simpl; eauto.
+      + exists ~{ VBOOL b }~. econstructor; simpl; eauto.
+      + exists ~{ HDR {vs} VALID:=true}~. econstructor; simpl; eauto.
+      + exists ~{ HDR {vs} VALID:=false}~. econstructor; simpl; eauto.
     - generalize dependent n;
         generalize dependent ni.
       induction H3; inv H4; intros ni n Hbound Hni Hlen Hproper;
@@ -403,7 +407,7 @@ Section BigStepTheorems.
       assert (Hidx : N.to_nat idx < length hs) by lia.
       pose proof nth_error_exists _ _ Hidx as [[b vs] Hnth].
       pose proof Forall_nth_error _ _ _ _ H7 Hnth as HP; simpl in *.
-      exists *{ HDR {vs} VALID:=b }*. econstructor; eauto.
+      exists ~{ HDR {vs} VALID:=b }~. econstructor; eauto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as HP; inv HP.
       remember (eval_stk_op op size0 ni ts hs) as result eqn:evalopeq.
@@ -420,10 +424,9 @@ Section BigStepTheorems.
       + assert (Hnth : exists v, nth_error hs (N.to_nat ni) = Some v).
         { apply nth_error_exists; lia. }
         destruct Hnth as [[b vs] Hnth];
-        exists *{ HDR {vs}VALID := b }*. econstructor; simpl; eauto.
+        exists ~{ HDR {vs}VALID := b }~. econstructor; simpl; eauto.
         rewrite Hnth; reflexivity.
       + exists (BigStep.V.VBit 32 (N.pos size0)).
         econstructor; simpl; eauto.
   Qed.
 End BigStepTheorems.
-*)

@@ -49,8 +49,6 @@ Module Typecheck.
   Module CD := P.Control.ControlDecl.
   Module TD := P.TopDecl.
   Module F := P.F.
-  Definition dir := P.Dir.d.
-
   Import P.P4cubNotations.
 
   (** Statement signals. *)
@@ -74,32 +72,34 @@ Module Typecheck.
   Import Env.EnvNotations.
 
   Section TypeCheckDefs.
-    Context {tags_t : Type}.
+    (* Context {tags_t : Type}. *)
 
     (** Available strings. *)
-    Definition strs : Type := Env.t (string tags_t) unit.
+    Definition strs : Type := Env.t string unit.
 
+    (* Names no longer in P4cub.
     (** Available names. *)
-    Definition names : Type := Env.t (name tags_t) unit.
+    Definition names : Type := Env.t (nametags_t) unit. *)
 
     (** Available error names. *)
     Definition errors : Type := strs.
 
     (** Typing context. *)
-    Definition gamma : Type := Env.t (name tags_t) (E.t tags_t).
+    Definition gamma : Type := Env.t string E.t.
 
+    (* Names ~ in p4cub.
     Definition bare (x : string tags_t) : name tags_t :=
-      Typed.BareName x.
+      Typed.BareName x. *)
     (**[]*)
 
     (** Evidence for a type being a numeric of a given width. *)
-    Inductive numeric_width (w : positive) : E.t tags_t -> Prop :=
+    Inductive numeric_width (w : positive) : E.t -> Prop :=
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
 
     (** Evidence for a type being numeric. *)
-    Inductive numeric : E.t tags_t -> Prop :=
-      Numeric (w : positive) (τ : E.t tags_t) :
+    Inductive numeric : E.t -> Prop :=
+      Numeric (w : positive) (τ : E.t) :
         numeric_width w τ -> numeric τ.
     (**[]*)
 
@@ -128,17 +128,16 @@ Module Typecheck.
     | bool_bop_or  : bool_bop E.Or.
 
     (** Evidence an error is ok. *)
-    Inductive error_ok (errs : errors) : option (string tags_t) -> Prop :=
+    Inductive error_ok (errs : errors) : option string -> Prop :=
     | NoErrorOk : error_ok errs None
-    | ErrorOk (x : string tags_t) :
+    | ErrorOk (x : string) :
         errs x = Some tt ->
         error_ok errs (Some x).
     (**[]*)
 
     (** Typing header operations. *)
     Definition type_hdr_op
-               (op : E.hdr_op) (ts : F.fs tags_t (E.t tags_t))
-      : E.t tags_t :=
+               (op : E.hdr_op) (ts : F.fs string E.t) : E.t :=
       match op with
       | E.HOIsValid => {{ Bool }}
       | E.HOSetValid
@@ -149,8 +148,7 @@ Module Typecheck.
     (** Typing header stack operations. *)
     Definition type_hdr_stk_op
                (op : E.hdr_stk_op) (size : positive)
-               (ts : F.fs tags_t (E.t tags_t))
-      : E.t tags_t :=
+               (ts : F.fs string E.t) : E.t :=
       let w := 32%positive in
       match op with
       | E.HSONext   => {{ hdr { ts } }}
@@ -162,36 +160,36 @@ Module Typecheck.
 
     (** Evidence a cast is proper.
         This is a bi-directional relation. *)
-    Inductive proper_cast : E.t tags_t -> E.t tags_t -> Prop :=
+    Inductive proper_cast : E.t -> E.t -> Prop :=
     | pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
     | pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
     | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
     | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}.
 
     (** Available functions. *)
-    Definition fenv : Type := Env.t (name tags_t) (E.arrowT tags_t).
+    Definition fenv : Type := Env.t string E.arrowT.
 
     (** Available actions. *)
-    Definition aenv : Type := Env.t (name tags_t) (E.params tags_t).
+    Definition aenv : Type := Env.t string E.params.
 
     (** Control Instance environment. *)
-    Definition cienv : Type := Env.t (name tags_t) (E.params tags_t).
+    Definition cienv : Type := Env.t string E.params.
 
     (** Parser Instance environment. *)
-    Definition pienv : Type := Env.t (name tags_t) (E.params tags_t).
+    Definition pienv : Type := Env.t string E.params.
 
     (** Available extern instances. *)
-    Definition eienv : Type := Env.t (name tags_t) (F.fs tags_t (E.arrowT tags_t)).
+    Definition eienv : Type := Env.t string (F.fs string E.arrowT).
 
     (** Available table names. *)
-    Definition tblenv : Type := names.
+    Definition tblenv : Type := strs.
 
     (** Statement context. *)
     Inductive ctx : Type :=
     | CAction (available_actions : aenv)
               (available_externs : eienv) (* action block *)
     | CVoid (* void function *)
-    | CFunction (return_type : E.t tags_t) (* fruitful function *)
+    | CFunction (return_type : E.t) (* fruitful function *)
     | CApplyBlock (tables : tblenv)
                   (available_actions : aenv)
                   (available_controls : cienv)
@@ -240,31 +238,28 @@ Module Typecheck.
     (**[]*)
 
     (** Available Constructors and their signatures. *)
-    Definition cenv : Type := Env.t (name tags_t) (E.ct tags_t).
+    Definition cenv : Type := Env.t string E.ct.
 
     (** Put parameters into environment. *)
-    Definition bind_all : E.params tags_t -> gamma -> gamma :=
-      F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ =>
-                let x' := bare x in
-                !{ x' ↦ τ ;; Γ }!).
+    Definition bind_all : E.params -> gamma -> gamma :=
+      F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
     (**[]*)
 
     (** Put (constructor) parameters into environments. *)
     Definition cbind_all :
-      E.constructor_params tags_t ->
+      E.constructor_params  ->
       gamma * cienv * pienv * eienv -> gamma * cienv * pienv * eienv :=
       F.fold (fun x c '(Γ, cins, pins, eins) =>
-                let x' := bare x in
                 match c with
-                | E.CTType τ => (!{ x' ↦ τ;; Γ }!, cins, pins, eins)
-                | E.CTControl _ pars => (Γ, !{ x' ↦ pars;; cins }!, pins, eins)
-                | E.CTParser _  pars => (Γ, cins, !{ x' ↦ pars;; pins }!, eins)
-                | E.CTExtern _  mhds => (Γ, cins, pins, !{ x' ↦ mhds;; eins }!)
+                | E.CTType τ => (!{ x ↦ τ;; Γ }!, cins, pins, eins)
+                | E.CTControl _ pars => (Γ, !{ x ↦ pars;; cins }!, pins, eins)
+                | E.CTParser _  pars => (Γ, cins, !{ x ↦ pars;; pins }!, eins)
+                | E.CTExtern _  mhds => (Γ, cins, pins, !{ x ↦ mhds;; eins }!)
                 end).
     (**[]*)
 
     (** Appropriate signal. *)
-    Inductive good_signal : E.arrowT tags_t -> signal -> Prop :=
+    Inductive good_signal : E.arrowT -> signal -> Prop :=
       | good_signal_cont params :
           good_signal (P.Arrow params None) SIG_Cont
       | good_signal_return params ret :
@@ -295,7 +290,8 @@ Module Typecheck.
 
   (** Expression typing as a relation. *)
   Inductive check_expr
-            {tags_t : Type} (errs : errors) (Γ : gamma) : E.e tags_t -> E.t tags_t -> Prop :=
+            {tags_t : Type} (errs : errors) (Γ : gamma)
+    : E.e tags_t -> E.t -> Prop :=
   (* Literals. *)
   | chk_bool (b : bool) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ BOOL b @ i ∈ Bool
@@ -305,11 +301,11 @@ Module Typecheck.
   | chk_int (w : positive) (n : Z) (i : tags_t) :
       IntArith.bound w n ->
       ⟦ errs , Γ ⟧ ⊢ w S n @ i ∈ int<w>
-  | chk_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
+  | chk_var (x : string) (τ : E.t) (i : tags_t) :
       Γ x = Some τ ->
       PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
-  | chk_cast (τ τ' : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
+  | chk_cast (τ τ' : E.t) (e : E.e tags_t) (i : tags_t) :
       proper_cast τ τ' ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
       ⟦ errs, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
@@ -324,28 +320,28 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ e ∈ int<w> ->
       ⟦ errs , Γ ⟧ ⊢ UOP - e:int<w> @ i ∈ int<w>
   (* Binary Operations. *)
-  | chk_numeric_bop (op : E.bop) (τ τ' : E.t tags_t)
+  | chk_numeric_bop (op : E.bop) (τ : E.t)
                     (e1 e2 : E.e tags_t) (i : tags_t) :
-      ∫ τ ≡ τ' -> numeric τ -> numeric_bop op ->
+      numeric τ -> numeric_bop op ->
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ' @ i ∈ τ
-  | chk_comp_bop (op : E.bop) (τ τ' : E.t tags_t)
+      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ @ i ∈ τ
+  | chk_comp_bop (op : E.bop) (τ : E.t)
                  (e1 e2 : E.e tags_t) (i : tags_t) :
-      ∫ τ ≡ τ' -> numeric τ -> comp_bop op ->
+      numeric τ -> comp_bop op ->
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ' @ i ∈ Bool
+      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ @ i ∈ Bool
   | chk_bool_bop (op : E.bop) (e1 e2 : E.e tags_t) (i : tags_t) :
       bool_bop op ->
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ Bool ->
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ Bool ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:Bool op e2:Bool @ i ∈ Bool
-  | chk_eq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
+  | chk_eq (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:τ == e2:τ @ i ∈ Bool
-  | chk_neq (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) :
+  | chk_neq (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:τ != e2:τ @ i ∈ Bool
@@ -357,54 +353,54 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:bit<m> ++ e2:bit<n> @ i ∈ bit<w>
   (* Member expressions. *)
-  | chk_hdr_mem (e : E.e tags_t) (x : string tags_t)
-                (fields : F.fs tags_t (E.t tags_t))
-                (τ : E.t tags_t) (i : tags_t) :
+  | chk_hdr_mem (e : E.e tags_t) (x : string)
+                (fields : F.fs string E.t)
+                (τ : E.t) (i : tags_t) :
       F.get x fields = Some τ ->
       ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
       ⟦ errs , Γ ⟧ ⊢ Mem e:hdr { fields } dot x @ i ∈ τ
-  | chk_rec_mem (e : E.e tags_t) (x : string tags_t)
-                (fields : F.fs tags_t (E.t tags_t))
-                (τ : E.t tags_t) (i : tags_t) :
+  | chk_rec_mem (e : E.e tags_t) (x : string)
+                (fields : F.fs string E.t)
+                (τ : E.t) (i : tags_t) :
       F.get x fields = Some τ ->
       ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
       ⟦ errs , Γ ⟧ ⊢ Mem e:rec { fields } dot x @ i ∈ τ
   (* Structs. *)
   | chk_tuple (es : list (E.e tags_t)) (i : tags_t)
-              (ts : list (E.t tags_t)) :
+              (ts : list E.t) :
       Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts ->
       ⟦ errs, Γ ⟧ ⊢ tup es @ i ∈ tuple ts
-  | chk_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                (tfs : F.fs tags_t (E.t tags_t)) (i : tags_t) :
+  | chk_rec_lit (efs : F.fs string (E.t * E.e tags_t))
+                (tfs : F.fs string E.t) (i : tags_t) :
       F.relfs
         (fun te τ =>
-           equivt (fst te) τ /\
+           (fst te) = τ /\
            let e := snd te in
            ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
       ⟦ errs , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
-  | chk_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                (tfs : F.fs tags_t (E.t tags_t))
+  | chk_hdr_lit (efs : F.fs string (E.t * E.e tags_t))
+                (tfs : F.fs string E.t)
                 (i : tags_t) (b : E.e tags_t) :
       PT.proper_nesting {{ hdr { tfs } }} ->
       F.relfs
         (fun te τ =>
-           equivt (fst te) τ /\
+           (fst te) = τ /\
            let e := snd te in
            ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
       ⟦ errs, Γ ⟧ ⊢ b ∈ Bool ->
       ⟦ errs , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
   (* Errors and matchkinds. *)
-  | chk_error (err : option (string tags_t)) (i : tags_t) :
+  | chk_error (err : option string) (i : tags_t) :
       error_ok errs err ->
       ⟦ errs , Γ ⟧ ⊢ Error err @ i ∈ error
   | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
   | chk_hdr_op (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
-                (τ : E.t tags_t) (ts : F.fs tags_t (E.t tags_t)) :
+                (τ : E.t) (ts : F.fs string E.t) :
       type_hdr_op op ts = τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
       ⟦ errs, Γ ⟧ ⊢ HDR_OP op e @ i ∈ τ
-  | chk_stack (ts : F.fs tags_t (E.t tags_t))
+  | chk_stack (ts : F.fs string E.t)
               (hs : list (E.e tags_t))
               (n : positive) (ni : N) :
       BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
@@ -413,13 +409,13 @@ Module Typecheck.
       Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
       ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
   | chk_access (e : E.e tags_t) (idx : N) (i : tags_t)
-               (ts : F.fs tags_t (E.t tags_t)) (n : positive) :
+               (ts : F.fs string E.t) (n : positive) :
       N.lt idx (Npos n) ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
       ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
   | chk_stk_op (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
-                (τ : E.t tags_t) (size : positive)
-                (ts : F.fs tags_t (E.t tags_t)) :
+                (τ : E.t) (size : positive)
+                (ts : F.fs string E.t) :
       type_hdr_stk_op op size ts = τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[size] ->
       ⟦ errs, Γ ⟧ ⊢ STK_OP op e @ i ∈ τ
@@ -432,7 +428,7 @@ Module Typecheck.
     Variable (tags_t : Type).
 
     (** An arbitrary predicate. *)
-    Variable P : @errors tags_t -> @gamma tags_t -> E.e tags_t -> E.t tags_t -> Prop.
+    Variable P : errors -> gamma -> E.e tags_t -> E.t -> Prop.
 
     Hypothesis HBool : forall errs Γ b i,
       P errs Γ <{ BOOL b @ i }> {{ Bool }}.
@@ -478,22 +474,22 @@ Module Typecheck.
         P errs Γ <{ UOP - e:int<w> @ i }> {{ int<w> }}.
     (**[]*)
 
-    Hypothesis HNumericBOP : forall errs Γ op τ τ' e1 e2 i,
-        equivt τ τ' -> numeric τ -> numeric_bop op ->
+    Hypothesis HNumericBOP : forall errs Γ op τ e1 e2 i,
+        numeric τ -> numeric_bop op ->
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
         P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
-        P errs Γ e2 τ' ->
-        P errs Γ <{ BOP e1:τ op e2:τ' @ i }> τ.
+        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+        P errs Γ e2 τ ->
+        P errs Γ <{ BOP e1:τ op e2:τ @ i }> τ.
     (**[]*)
 
-    Hypothesis HCompBOP : forall errs Γ op τ τ' e1 e2 i,
-        equivt τ τ' -> numeric τ -> comp_bop op ->
+    Hypothesis HCompBOP : forall errs Γ op τ e1 e2 i,
+        numeric τ -> comp_bop op ->
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
         P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ' ->
-        P errs Γ e2 τ' ->
-        P errs Γ <{ BOP e1:τ op e2:τ' @ i }> {{ Bool }}.
+        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
+        P errs Γ e2 τ ->
+        P errs Γ <{ BOP e1:τ op e2:τ @ i }> {{ Bool }}.
     (**[]*)
 
     Hypothesis HBoolBOP : forall errs Γ op e1 e2 i,
@@ -554,7 +550,7 @@ Module Typecheck.
     Hypothesis HRecLit : forall errs Γ efs tfs i,
         F.relfs
           (fun te τ =>
-             equivt (fst te) τ /\
+             (fst te) = τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         F.relfs
@@ -567,7 +563,7 @@ Module Typecheck.
         PT.proper_nesting {{ hdr { tfs } }} ->
         F.relfs
           (fun te τ =>
-             equivt (fst te) τ /\
+             (fst te) = τ /\
              let e := snd te in
              ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
         F.relfs
@@ -620,12 +616,12 @@ Module Typecheck.
     (** Custom induction principle for expression typing.
         Do [induction ?H using custom_check_expr_ind]. *)
     Definition custom_check_expr_ind :
-      forall (errs : errors) (Γ : gamma) (e : E.e tags_t) (τ : E.t tags_t)
+      forall (errs : errors) (Γ : gamma) (e : E.e tags_t) (τ : E.t)
         (HY : ⟦ errs, Γ ⟧ ⊢ e ∈ τ), P errs Γ e τ :=
           fix chind errs Γ e τ HY :=
             let fix lind
                     {es : list (E.e tags_t)}
-                    {ts : list (E.t tags_t)}
+                    {ts : list E.t}
                     (HR : Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts)
                 : Forall2 (P errs Γ) es ts :=
                 match HR with
@@ -637,7 +633,7 @@ Module Typecheck.
                                            (lind Htail)
                 end in
             let fix lind_stk
-                    {es : list (E.e tags_t)} {τ : E.t tags_t}
+                    {es : list (E.e tags_t)} {τ : E.t}
                     (HRs : Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es)
                 : Forall (fun e => P errs Γ e τ) es :=
                 match HRs with
@@ -648,11 +644,11 @@ Module Typecheck.
                                                         (lind_stk Htail)
                 end in
             let fix fields_ind
-                    {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
-                    {tfs : F.fs tags_t (E.t tags_t)}
+                    {efs : F.fs string (E.t * E.e tags_t)}
+                    {tfs : F.fs string E.t}
                     (HRs : F.relfs
                              (fun te τ =>
-                                equivt (fst te) τ /\
+                                (fst te) = τ /\
                                 let e := snd te in
                                 ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs)
                 : F.relfs
@@ -690,18 +686,18 @@ Module Typecheck.
             | chk_uminus _ _ _ _ i He => HUMinus
                                           _ _ _ _ i He
                                           (chind _ _ _ _ He)
-            | chk_numeric_bop _ _ _ _ _ _ _ i
-                              Hequiv Hnum Hnumbop
+            | chk_numeric_bop _ _ _ _ _ _ i
+                              Hnum Hnumbop
                               He1 He2 => HNumericBOP
-                                          _ _ _ _ _ _ _ i
-                                          Hequiv Hnum Hnumbop
+                                          _ _ _ _ _ _ i
+                                          Hnum Hnumbop
                                           He1 (chind _ _ _ _ He1)
                                           He2 (chind _ _ _ _ He2)
-            | chk_comp_bop _ _ _ _ _ _ _ i
-                           Hequiv Hnum Hcomp
+            | chk_comp_bop _ _ _ _ _ _ i
+                           Hnum Hcomp
                            He1 He2 => HCompBOP
-                                       _ _ _ _ _ _ _ i
-                                       Hequiv Hnum Hcomp
+                                       _ _ _ _ _ _ i
+                                       Hnum Hcomp
                                        He1 (chind _ _ _ _ He1)
                                        He2 (chind _ _ _ _ He2)
             | chk_bool_bop _ _ _ _ _ i Hboolbop
@@ -765,51 +761,6 @@ Module Typecheck.
      (**[]*)
   End CheckExprInduction.
 
-  Lemma equivt_check_expr_proper : forall tags_t errs Γ (e : E.e tags_t),
-      Proper (equivt ==>  Basics.impl) # check_expr errs Γ e.
-  Proof.
-    unfold "#", Proper, respectful, Basics.impl; intros.
-    generalize dependent y.
-    induction H0 using custom_check_expr_ind; intros.
-    - inv H; constructor.
-    - inv H0; constructor; assumption.
-    - inv H0; constructor; assumption.
-    - admit. (* TODO: chk_var needs equivt *)
-    - admit. (* TODO: chk_cast needs equivt *)
-    - inv H; constructor; assumption.
-    - inv H; constructor; assumption.
-    - inv H; constructor; assumption.
-    - inv H0; inv H; inv H2; inv H3; econstructor; auto;
-        repeat econstructor.
-    - inv H2; inv H0; inv H; inv H2;
-      eapply chk_comp_bop; eauto; repeat econstructor.
-    - inv H0; apply chk_bool_bop; auto.
-    - inv H; apply chk_eq; auto.
-    - inv H; apply chk_neq; auto.
-    - inv H0; constructor; auto.
-    - constructor; auto. admit. (* TODO: chk_hdr_mem needs equivt *)
-    - constructor; auto. admit. (* TODO: chk_rec_mem needs equivt *)
-    - inv H1; constructor; generalize dependent ts2.
-      induction H; inv H0; intros ts2 Heq; inv Heq; constructor; eauto.
-    - inv H1; constructor; generalize dependent fs2.
-      induction H; inv H0; intros fs2 Heq; inv Heq; constructor.
-      + destruct x as [? [? ?]]; destruct y as [? ?];
-        destruct y0 as [? ?]; simpl in *. inv H; inv H5; inv H3.
-        destruct H2 as [? ?]. repeat split; simpl in *; eauto;
-        etransitivity; eauto.
-      + apply IHForall2; auto.
-    - inv H3; constructor; generalize dependent fs2; eauto.
-      + clear H0 H1 H2 IHcheck_expr efs b.
-        inv H; try (inv H0; contradiction).
-        intros. apply PT.pn_header.
-        generalize dependent fs2.
-        induction H1; intros fs2 Heq; inv Heq; constructor.
-        * cbv; destruct y; destruct x; inv H3; simpl in *. admit.
-          (** Need to know PT.proper_inside_header & etc are good...sigh *)
-        * admit.
-      + admit.
-    Abort.
-
   (** Statement typing. *)
   Inductive check_stmt
             {tags_t : Type} (fns : fenv) (errs : errors) (Γ : gamma)
@@ -821,10 +772,9 @@ Module Typecheck.
       ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
       ⦃ fns, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
       ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
-  | chk_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) (con : ctx) :
-      let x' := bare x in
-      ⦃ fns, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x' ↦ τ ;; Γ, C ⦄
-  | chk_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :
+  | chk_vardecl (τ : E.t) (x : string) (i : tags_t) (con : ctx) :
+      ⦃ fns, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
+  | chk_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :
       ⟦ errs, Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs, Γ ⟧ ⊢ e2 ∈ τ ->
       ⦃ fns, errs, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
@@ -839,82 +789,81 @@ Module Typecheck.
   | chk_return_void (i : tags_t) (con : ctx) :
       return_void_ok con ->
       ⦃ fns, errs, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
-  | chk_return_fruit (τ' τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) :
-      ∫ τ ≡ τ' ->
+  | chk_return_fruit (τ : E.t) (e : E.e tags_t) (i : tags_t) :
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⦃ fns, errs, Γ ⦄ Function τ' ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
+      ⦃ fns, errs, Γ ⦄ Function τ ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
   | chk_exit (i : tags_t) (con : ctx) :
       exit_ctx_ok con ->
       ⦃ fns, errs, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
-  | chk_void_call (params : E.params tags_t)
+  | chk_void_call (params : E.params)
                   (args : E.args tags_t)
-                  (f : name tags_t) (i : tags_t) (con : ctx) :
+                  (f : string) (i : tags_t) (con : ctx) :
       fns f = Some (P.Arrow params None) ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⦃ fns, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
-  | chk_act_call (params : E.params tags_t)
+  | chk_act_call (params : E.params)
                  (args : E.args tags_t)
-                 (a : name tags_t) (i : tags_t)
+                 (a : string) (i : tags_t)
                  (aa : aenv) (con : ctx) :
       action_call_ok aa con ->
       aa a = Some params ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⦃ fns, errs, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
-  | chk_fun_call (τ : E.t tags_t) (e : E.e tags_t)
-                 (params : E.params tags_t)
+  | chk_fun_call (τ : E.t) (e : E.e tags_t)
+                 (params : E.params)
                  (args : E.args tags_t)
-                 (f : name tags_t) (i : tags_t) (con : ctx) :
+                 (f : string) (i : tags_t) (con : ctx) :
       fns f = Some (P.Arrow params (Some τ)) ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       ⦃ fns, errs, Γ ⦄
         con ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
-  | chk_apply (args : E.args tags_t) (x : name tags_t)
-              (i : tags_t) (params : E.params tags_t)
+  | chk_apply (args : E.args tags_t) (x : string)
+              (i : tags_t) (params : E.params)
               (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
       cis x = Some params ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
-  | chk_invoke (tbl : name tags_t) (i : tags_t) (tbls : tblenv)
+  | chk_invoke (tbl : string) (i : tags_t) (tbls : tblenv)
                (aa : aenv) (cis : cienv) (eis : eienv) :
       tbls tbl = Some tt ->
       ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
-  | chk_extern_call_void (e : name tags_t) (f : string tags_t)
+  | chk_extern_call_void (e : string) (f : string)
                          (args : E.args tags_t) (i : tags_t) (con : ctx)
-                         (eis : eienv) (params: E.params tags_t)
-                         (mhds : F.fs tags_t (E.arrowT tags_t)) :
+                         (eis : eienv) (params : E.params)
+                         (mhds : F.fs string E.arrowT) :
       eis e = Some mhds ->
       F.get f mhds = Some (P.Arrow params None) ->
       extern_call_ok eis con ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       ⦃ fns, errs, Γ ⦄
       con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
-  | chk_extern_call_fruit (extrn : name tags_t) (f : string tags_t)
+  | chk_extern_call_fruit (extrn : string) (f : string)
                           (args : E.args tags_t) (e : E.e tags_t)
                           (i : tags_t) (con : ctx) (eis : eienv)
-                          (params: E.params tags_t) (τ : E.t tags_t)
-                          (mhds : F.fs tags_t (E.arrowT tags_t)) :
+                          (params: E.params) (τ : E.t)
+                          (mhds : F.fs string E.arrowT) :
       eis extrn = Some mhds ->
       F.get f mhds = Some (P.Arrow params (Some τ)) ->
       extern_call_ok eis con ->
       F.relfs
         (P.rel_paramarg_same
-           (fun '(t,e) τ => ∫ τ ≡ t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
         args params ->
       let result := Some (τ,e) in
       ⦃ fns, errs, Γ ⦄
@@ -925,25 +874,23 @@ Module Typecheck.
 
   (** Declaration typing. *)
   Inductive check_decl
-          {tags_t : Type} (cs : cenv) (fns : @fenv tags_t)
+          {tags_t : Type} (cs : cenv) (fns : fenv)
           (cis : cienv) (pis : pienv) (eis : eienv)
           (errs : errors) (Γ : gamma)
-    : D.d tags_t -> gamma -> @eienv tags_t -> @pienv tags_t -> cienv -> Prop :=
-  | chk_vardeclare (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
+    : D.d tags_t -> gamma -> eienv -> pienv -> cienv -> Prop :=
+  | chk_vardeclare (τ : E.t) (x : string) (i : tags_t) :
       PT.proper_nesting τ ->
-      let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-        ⊢ Var x:τ @ i ⊣ ⦗ x' ↦ τ ;; Γ, eis, pis, cis ⦘
-  | chk_varinit (τ : E.t tags_t) (x : string tags_t)
+        ⊢ Var x:τ @ i ⊣ ⦗ x ↦ τ ;; Γ, eis, pis, cis ⦘
+  | chk_varinit (τ : E.t) (x : string)
                 (e : E.e tags_t) (i : tags_t) :
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-        ⊢ Let x:τ := e @ i ⊣ ⦗ x' ↦ τ ;; Γ, eis, pis, cis ⦘
-  | chk_instantiate_control (c : name tags_t) (x : string tags_t)
-                            (cparams : E.constructor_params tags_t)
+        ⊢ Let x:τ := e @ i ⊣ ⦗ x ↦ τ ;; Γ, eis, pis, cis ⦘
+  | chk_instantiate_control (c : string) (x : string)
+                            (cparams : E.constructor_params)
                             (cargs : E.constructor_args tags_t)
-                            (i : tags_t) (params : E.params tags_t) :
+                            (i : tags_t) (params : E.params) :
       cs c = Some {{{ ControlType cparams params }}} ->
       F.relfs
         (fun carg cparam =>
@@ -954,16 +901,14 @@ Module Typecheck.
              => cs ctrl = Some {{{ ControlType cps ps }}}
            | E.CAName extrn, {{{ Extern cps { mthds } }}}
              => cs extrn = Some {{{ Extern cps { mthds } }}}
-           (* TODO equivalence under tags_t *)
            | _, _ => False
            end) cargs cparams ->
-      let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-        ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, eis, pis, x' ↦ params ;; cis ⦘
-  | chk_instantiate_parser (p : name tags_t) (x : string tags_t)
-                           (cparams : E.constructor_params tags_t)
+        ⊢ Instance x of c(cargs) @ i ⊣ ⦗ Γ, eis, pis, x ↦ params ;; cis ⦘
+  | chk_instantiate_parser (p : string) (x : string)
+                           (cparams : E.constructor_params)
                            (cargs : E.constructor_args tags_t)
-                           (i : tags_t) (params : E.params tags_t) :
+                           (i : tags_t) (params : E.params) :
       cs p = Some {{{ ParserType cparams params }}} ->
       F.relfs
         (fun carg cparam =>
@@ -971,18 +916,17 @@ Module Typecheck.
            | E.CAExpr e, E.CTType τ
              => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
            | E.CAName prsr, {{{ ParserType cps ps }}}
-             => cs prsr = Some {{{ ParserType cps ps }}} (* equivalence under tags_t *)
+             => cs prsr = Some {{{ ParserType cps ps }}}
            | E.CAName extrn, {{{ Extern cps { mthds } }}}
              => cs extrn = Some {{{ Extern cps { mthds } }}}
            | _, _ => False
            end) cargs cparams ->
-      let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-        ⊢ Instance x of p(cargs) @ i ⊣ ⦗ Γ, eis, x' ↦ params ;; pis, cis ⦘
-  | chk_instantiate_extern (e : name tags_t) (x : string tags_t)
-                           (cparams : E.constructor_params tags_t)
+        ⊢ Instance x of p(cargs) @ i ⊣ ⦗ Γ, eis, x ↦ params ;; pis, cis ⦘
+  | chk_instantiate_extern (e : string) (x : string)
+                           (cparams : E.constructor_params)
                            (cargs : E.constructor_args tags_t) (i : tags_t)
-                           (mthds : F.fs tags_t (E.arrowT tags_t)) :
+                           (mthds : F.fs string E.arrowT) :
       cs e = Some {{{ Extern cparams { mthds } }}} ->
       F.relfs
         (fun carg cparam =>
@@ -993,9 +937,8 @@ Module Typecheck.
              => cs extrn = Some {{{ Extern cps { mthds } }}}
            | _, _ => False
            end) cargs cparams ->
-      let x' := bare x in
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-        ⊢ Instance x of e(cargs) @ i ⊣ ⦗ Γ, x' ↦ mthds ;; eis, pis, cis ⦘
+        ⊢ Instance x of e(cargs) @ i ⊣ ⦗ Γ, x ↦ mthds ;; eis, pis, cis ⦘
   | chk_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                 (cis' cis'' : cienv) (pis' pis'' : pienv)
                 (eis' eis'' : eienv) (Γ' Γ'' : gamma) :
@@ -1012,12 +955,12 @@ Module Typecheck.
     : PS.e tags_t -> Prop :=
   | chk_accept (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ accept @ i
   | chk_reject (i : tags_t) : ⟅ sts, errs, Γ ⟆ ⊢ reject @ i
-  | chk_goto_state (st : string tags_t) (i : tags_t) :
+  | chk_goto_state (st : string) (i : tags_t) :
       sts st = Some tt ->
       ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
   | chk_select (e : E.e tags_t)
                (cases : list (option (E.e tags_t) * PS.e tags_t))
-               (i : tags_t) (τ : E.t tags_t) :
+               (i : tags_t) (τ : E.t) :
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       Forall
         (fun oe =>
@@ -1035,10 +978,10 @@ Module Typecheck.
 
   (** A custom induction principle for parser-expression typing. *)
   Section CheckParserExprInduction.
-    Context {tags_t: Type}.
+    Variable tags_t: Type.
 
     (** An arbitrary predicate. *)
-    Variable P : @states tags_t -> @errors tags_t -> @gamma tags_t -> PS.e tags_t -> Prop.
+    Variable P : states -> errors -> gamma -> PS.e tags_t -> Prop.
 
     Hypothesis HAccept : forall sts errs Γ i, P sts errs Γ p{ accept @ i }p.
 
@@ -1071,7 +1014,7 @@ Module Typecheck.
         (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
       fix chind sts errs Γ e Hy :=
         let fix lind
-                {cases : list (option (E.e tags_t) * PS.e tags_t)} {τ : E.t tags_t}
+                {cases : list (option (E.e tags_t) * PS.e tags_t)} {τ : E.t}
                 (HR : Forall
                         (fun oe =>
                            let o := fst oe in
@@ -1115,33 +1058,28 @@ Module Typecheck.
   (** Control declaration typing. *)
   Inductive check_ctrldecl
             {tags_t : Type} (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
-            (cis : cienv) (eis : @eienv tags_t)
+            (cis : cienv) (eis : eienv)
             (errs : errors) (Γ : gamma)
     : CD.d tags_t -> gamma -> eienv -> cienv -> aenv -> tblenv -> Prop :=
-  | chk_action (a : string tags_t)
-               (signature : E.params tags_t)
+  | chk_action (a : string)
+               (signature : E.params)
                (body : ST.s tags_t) (i : tags_t)
                (Γ' Γ'' : gamma) (sg : signal) :
-      let a' := bare a in
       bind_all signature Γ = Γ' ->
       ⦃ fns, errs, Γ ⦄ Action acts eis ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
       ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
         ⊢ action a ( signature ) { body } @ i
-        ⊣ ⦅ Γ, eis, cis, a' ↦ signature ;; acts, tbls ⦆
-  | chk_table (t : string tags_t)
-              (kys : list
-                        (E.t tags_t * E.e tags_t * E.matchkind))
-              (actns : list (string tags_t))
+        ⊣ ⦅ Γ, eis, cis, a ↦ signature ;; acts, tbls ⦆
+  | chk_table (t : string)
+              (kys : list (E.t * E.e tags_t * E.matchkind))
+              (actns : list string)
               (i : tags_t) :
       (* Keys type. *)
       Forall (fun '(τ,e,_) => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) kys ->
       (* Actions available *)
-      Forall
-        (fun a => exists pms, let a' := bare a in acts a' = Some pms)
-        actns ->
-      let t' := bare t in
+      Forall (fun a => exists pms, acts a = Some pms) actns ->
       ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
-        ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, eis, cis, acts, t' ↦ tt;; tbls ⦆
+        ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ Γ, eis, cis, acts, t ↦ tt;; tbls ⦆
   | chk_decl (d : D.d tags_t) (i : tags_t)
              (Γ' : gamma) (cis' : cienv) (eis' : eienv) :
       let empty_parsers := Env.empty _ _ in
@@ -1167,16 +1105,16 @@ Module Typecheck.
   (** Top-level declaration typing. *)
   Inductive check_topdecl
             {tags_t : Type} (cs : cenv) (fns : fenv)
-            (cis : cienv) (pis : @pienv tags_t) (eis : @eienv tags_t)
+            (cis : cienv) (pis : pienv) (eis : eienv)
             (errs : errors) (Γ : gamma)
             : TD.d tags_t -> gamma -> eienv -> pienv -> cienv -> fenv -> cenv -> Prop :=
-  | chk_control (c : string tags_t) (cparams : E.constructor_params tags_t)
-                (params : E.params tags_t) (body : CD.d tags_t)
+  | chk_control (c : string) (cparams : E.constructor_params)
+                (params : E.params) (body : CD.d tags_t)
                 (apply_blk : ST.s tags_t) (i : tags_t)
                 (Γ' Γ'' Γ''' Γ'''' : gamma) (sg : signal)
                 (tbls : tblenv) (acts : aenv)
-                (eis' eis'' : @eienv tags_t)
-                (cis' cis'' : @cienv tags_t) :
+                (eis' eis'' : eienv)
+                (cis' cis'' : cienv) :
       cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis,eis') ->
       let empty_tbls := Env.empty _ _ in
       let empty_acts := Env.empty _ _ in
@@ -1187,18 +1125,17 @@ Module Typecheck.
       (* Apply block. *)
       ⦃ fns, errs, Γ''' ⦄
         ApplyBlock tbls acts cis'' eis'' ⊢ apply_blk ⊣ ⦃ Γ'''', sg ⦄ ->
-      let c' := bare c in
       let ctor := E.CTControl cparams params in
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
-        ⊣ $ Γ, eis, pis, cis, fns, c' ↦ ctor;; cs $
-  | chk_parser (p : string tags_t)
-               (cparams : E.constructor_params tags_t)
-               (params : E.params tags_t)
-               (states : F.fs tags_t (PS.state tags_t)) (i : tags_t)
-               (Γ' Γ'' : gamma) (eis' eis'' : @eienv tags_t)
-               (pis' pis'' : @pienv tags_t) :
-      let empty_sts := Env.empty (string tags_t) unit in
+        ⊣ $ Γ, eis, pis, cis, fns, c ↦ ctor;; cs $
+  | chk_parser (p : string)
+               (cparams : E.constructor_params)
+               (params : E.params)
+               (states : F.fs string (PS.state tags_t)) (i : tags_t)
+               (Γ' Γ'' : gamma) (eis' eis'' : eienv)
+               (pis' pis'' : pienv) :
+      let empty_sts := Env.empty string unit in
       let sts := fold_right
                    (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
                    empty_sts states in
@@ -1207,37 +1144,33 @@ Module Typecheck.
       Forall
         (fun '(_,pst) => check_state fns pis' eis' sts errs Γ'' pst)
         states ->
-      let p' := bare p in
       let prsr := E.CTParser cparams params in
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ parser p (cparams)(params) { states } @ i
-        ⊣ $ Γ, eis, pis, cis, fns, p' ↦ prsr;; cs $
-  | chk_extern (e : string tags_t)
-               (cparams : E.constructor_params tags_t)
-               (mthds : F.fs tags_t (E.arrowT tags_t)) (i : tags_t) :
-      let e' := bare e in
+        ⊣ $ Γ, eis, pis, cis, fns, p ↦ prsr;; cs $
+  | chk_extern (e : string)
+               (cparams : E.constructor_params)
+               (mthds : F.fs string E.arrowT) (i : tags_t) :
       let extrn := {{{ Extern cparams { mthds } }}} in
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ extern e (cparams) { mthds } @ i
-        ⊣ $ Γ, eis, pis, cis, fns, e' ↦ extrn;; cs $
-  | chk_fruit_function (f : string tags_t) (params : E.params tags_t)
-                       (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t)
+        ⊣ $ Γ, eis, pis, cis, fns, e ↦ extrn;; cs $
+  | chk_fruit_function (f : string) (params : E.params)
+                       (τ : E.t) (body : ST.s tags_t) (i : tags_t)
                        (Γ' Γ'' : gamma) (sg : signal) :
       bind_all params Γ = Γ' ->
       ⦃ fns, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-      let f' := bare f in
       let func := P.Arrow params (Some τ) in
       $ cs, fns, cis, pis, eis, errs, Γ $
-        ⊢ fn f (params) -> τ { body } @ i ⊣ $ Γ, eis, pis, cis, f' ↦ func;;  fns, cs $
-  | chk_void_function (f : string tags_t) (params : E.params tags_t)
+        ⊢ fn f (params) -> τ { body } @ i ⊣ $ Γ, eis, pis, cis, f ↦ func;;  fns, cs $
+  | chk_void_function (f : string) (params : E.params)
                       (body : ST.s tags_t) (i : tags_t)
                       (Γ' Γ'' : gamma) (sg : signal) :
       bind_all params Γ = Γ' ->
       ⦃ fns, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-      let f' := bare f in
       let func := P.Arrow params None in
       $ cs, fns, cis, pis, eis, errs, Γ $
-        ⊢ void f (params) { body } @ i ⊣ $ Γ, eis, pis, cis, f' ↦ func;;  fns, cs $
+        ⊢ void f (params) { body } @ i ⊣ $ Γ, eis, pis, cis, f ↦ func;;  fns, cs $
   (*| chk_typedecl (t : E.ct tags_t) (x : string tags_t) (i : tags_t) :
       let x' := bare x in
       $ cs, fns, cis, pis, eis, errs, Γ $ ⊢ TYPE x t @ i

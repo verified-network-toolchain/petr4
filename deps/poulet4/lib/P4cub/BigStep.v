@@ -49,14 +49,15 @@ Module Step.
   Import V.LValueNotations.
 
   (** Statement signals. *)
-  Inductive signal (tags_t : Type) : Type :=
-  | SIG_Cont                           (* continue *)
-  | SIG_Exit                           (* exit *)
-  | SIG_Rtrn (v : option (V.v tags_t)) (* return *).
+  Inductive signal : Type :=
+  | SIG_Cont                  (* continue *)
+  | SIG_Exit                  (* exit *)
+  | SIG_Rtrn (v : option V.v) (* return *).
 
+  (*
   Arguments SIG_Cont {_}.
   Arguments SIG_Exit {_}.
-  Arguments SIG_Rtrn {_}.
+  Arguments SIG_Rtrn {_}. *)
 
   Notation "x"
     := x (in custom p4evalsignal at level 0, x constr at level 0).
@@ -70,12 +71,12 @@ Module Step.
   Import Env.EnvNotations.
 
   Section StepDefs.
-    Context {tags_t : Type}.
+    (* Context {tags_t : Type}. *)
 
     (** Unsigned integer binary operations. *)
     Definition eval_bit_binop
                (op : E.bop) (w : positive)
-               (n1 n2 : N) : option (V.v tags_t) :=
+               (n1 n2 : N) : option V.v :=
       match op with
       | E.Plus     => Some (V.VBit w (BitArith.plus_mod w n1 n2))
       | E.PlusSat  => Some (V.VBit w (BitArith.plus_sat w n1 n2))
@@ -101,7 +102,7 @@ Module Step.
     (** Signed integer binary operations. *)
     Definition eval_int_binop
                (op : E.bop) (w : positive)
-               (z1 z2 : Z) : option (V.v tags_t) :=
+               (z1 z2 : Z) : option V.v :=
       match op with
       | E.Plus     => Some (V.VInt w (IntArith.plus_mod w z1 z2))
       | E.PlusSat  => Some (V.VInt w (IntArith.plus_sat w z1 z2))
@@ -136,28 +137,28 @@ Module Step.
 
     (** Header operations. *)
     Definition eval_hdr_op
-               (op : E.hdr_op) (vs : F.fs tags_t (V.v tags_t))
-               (b : bool) : V.v tags_t :=
+               (op : E.hdr_op) (vs : F.fs string V.v)
+               (b : bool) : V.v :=
       match op with
-      | E.HOIsValid => *{ VBOOL b }*
-      | E.HOSetValid => *{ HDR { vs } VALID:=true }*
-      | E.HOSetInValid => *{ HDR { vs } VALID:=false }*
+      | E.HOIsValid => ~{ VBOOL b }~
+      | E.HOSetValid => ~{ HDR { vs } VALID:=true }~
+      | E.HOSetInValid => ~{ HDR { vs } VALID:=false }~
       end.
     (**[]*)
 
     (** Header stack operations. *)
     Definition eval_stk_op
                (op : E.hdr_stk_op) (size : positive)
-               (nextIndex : N) (ts : F.fs tags_t (E.t tags_t))
-               (bvss : list (bool * F.fs tags_t (V.v tags_t)))
-      : option (V.v tags_t) :=
+               (nextIndex : N) (ts : F.fs string E.t)
+               (bvss : list (bool * F.fs string V.v))
+      : option V.v :=
       let w := 32%positive in
       let sizenat := Pos.to_nat size in
       match op with
-      | E.HSOSize => let s := (Npos size)%N in Some *{ w VW s }*
+      | E.HSOSize => let s := (Npos size)%N in Some ~{ w VW s }~
       | E.HSONext => match nth_error bvss (N.to_nat nextIndex) with
                     | None => None
-                    | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
+                    | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
                     end
       | E.HSOPush n
         => let nnat := N.to_nat n in
@@ -182,101 +183,49 @@ Module Step.
     (**[]*)
 
     Definition eval_cast
-               (target : E.t tags_t) (v : V.v tags_t) : option (V.v tags_t) :=
+               (target : E.t) (v : V.v) : option V.v :=
       match target, v with
-      | {{ bit<xH> }}, *{ TRUE }*         => Some (V.VBit 1%positive 1%N)
-      | {{ bit<xH> }}, *{ FALSE }*        => Some (V.VBit 1%positive 0%N)
-      | {{ Bool }}, V.VBit 1%positive 1%N => Some *{ TRUE }*
-      | {{ Bool }}, V.VBit 1%positive 0%N => Some *{ FALSE }*
-      | {{ bit<w> }}, *{ _ VS Z0 }*       => Some *{ w VW N0 }*
+      | {{ bit<xH> }}, ~{ TRUE }~         => Some (V.VBit 1%positive 1%N)
+      | {{ bit<xH> }}, ~{ FALSE }~        => Some (V.VBit 1%positive 0%N)
+      | {{ Bool }}, V.VBit 1%positive 1%N => Some ~{ TRUE }~
+      | {{ Bool }}, V.VBit 1%positive 0%N => Some ~{ FALSE }~
+      | {{ bit<w> }}, ~{ _ VS Z0 }~       => Some ~{ w VW N0 }~
       | {{ bit<w> }}, V.VInt _ (Zneg p)
       | {{ bit<w> }}, V.VInt _ (Zpos p)   => let n := BitArith.return_bound w (Npos p) in
-                                            Some *{ w VW n }*
+                                            Some ~{ w VW n }~
       (* TODO: casting bit -> int is incorrect. *)
-      | {{ int<w> }}, *{ _ VW n }* => let z := IntArith.return_bound w (Z.of_N n) in
-                                     Some *{ w VS z }*
-      | {{ bit<w> }}, *{ _ VW n }* => let n := BitArith.return_bound w n in
-                                     Some *{ w VW n }*
-      | {{ int<w> }}, *{ _ VS z }* => let z := IntArith.return_bound w z in
-                                     Some *{ w VS z }*
+      | {{ int<w> }}, ~{ _ VW n }~ => let z := IntArith.return_bound w (Z.of_N n) in
+                                     Some ~{ w VS z }~
+      | {{ bit<w> }}, ~{ _ VW n }~ => let n := BitArith.return_bound w n in
+                                     Some ~{ w VW n }~
+      | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.return_bound w z in
+                                     Some ~{ w VS z }~
       | _, _ => None
       end.
     (**[]*)
 
     (** Variable to Value mappings. *)
-    Definition epsilon : Type := Env.t (name tags_t) (V.v tags_t).
-
-    Definition bare (x : string tags_t) : name tags_t :=
-      Typed.BareName x.
-    (**[]*)
-
-    (** Table environment. *)
-    Definition tenv : Type := Env.t (name tags_t) (CD.table tags_t).
-
-    (** Function declarations and closures. *)
-    Inductive fdecl : Type :=
-    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
-    with fenv : Type :=
-    | FEnv (fs : Env.t (name tags_t) fdecl)
-    (** Action declarations and closures *)
-    with adecl : Type :=
-    | ADecl (closure : epsilon) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
-    with aenv : Type :=
-    | AEnv (aa : Env.t (name tags_t) adecl)
-    (** Instances and Environment. *)
-    with inst : Type :=
-    | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
-            (tbls : tenv) (aa : aenv)
-            (apply_blk : ST.s tags_t)  (* control instance *)
-    | PInst (* TODO: parser instance *)
-    | EInst (* TODO: extern object instance *)
-    with ienv : Type :=
-    | IEnv (ins : Env.t (name tags_t) inst).
-    (**[]*)
-
-    (** Function lookup. *)
-    Definition lookup '(FEnv fs : fenv) : name tags_t -> option fdecl := fs.
-
-    (** Bind a function declaration to an environment. *)
-    Definition update '(FEnv fs : fenv) (x : name tags_t) (d : fdecl) : fenv :=
-      FEnv !{ x ↦ d ;; fs }!.
-    (**[]*)
-
-    (** Instance lookup. *)
-    Definition ilookup '(IEnv fs : ienv) : name tags_t -> option inst := fs.
-
-    (** Bind an instance to an environment. *)
-    Definition iupdate '(IEnv fs : ienv) (x : name tags_t) (d : inst) : ienv :=
-      IEnv !{ x ↦ d ;; fs }!.
-    (**[]*)
-
-    (** Action lookup. *)
-    Definition alookup '(AEnv aa : aenv) : name tags_t -> option adecl := aa.
-
-    (** Bind a function declaration to an environment. *)
-    Definition aupdate '(AEnv aa : aenv) (x : name tags_t) (d : adecl) : aenv :=
-      AEnv !{ x ↦ d ;; aa }!.
-    (**[]*)
+    Definition epsilon : Type := Env.t string V.v.
 
     (** Lookup an lvalue. *)
-    Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv tags_t) : option (V.v tags_t) :=
+    Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
       match lv with
       | l{ VAR x }l => ϵ x
       | l{ lv DOT x }l =>
         (* TODO: use monadic bind. *)
         match lv_lookup ϵ lv with
         | None => None
-        | Some *{ REC { fs } }*
-        | Some *{ HDR { fs } VALID:=_ }* => F.get x fs
+        | Some ~{ REC { fs } }~
+        | Some ~{ HDR { fs } VALID:=_ }~ => F.get x fs
         | Some _ => None
         end
       | l{ lv[n] }l =>
         match lv_lookup ϵ lv with
         | None => None
-        | Some *{ STACK vss:_[_] NEXT:=_ }* =>
+        | Some ~{ STACK vss:_[_] NEXT:=_ }~ =>
           match nth_error vss (N.to_nat n) with
           | None => None
-          | Some (b,vs) => Some *{ HDR { vs } VALID:=b }*
+          | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
           end
         | Some _ => None
         end
@@ -284,22 +233,22 @@ Module Step.
     (**[]*)
 
     (** Updating an lvalue in an environment. *)
-    Fixpoint lv_update (lv : V.lv tags_t) (v : V.v tags_t) (ϵ : epsilon) : epsilon :=
+    Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
       match lv with
       | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
       | l{ lv DOT x }l =>
         match lv_lookup ϵ lv with
-        | Some *{ REC { vs } }* => lv_update lv (V.VRecord (F.update x v vs)) ϵ
-        | Some *{ HDR { vs } VALID:=b }* =>
+        | Some ~{ REC { vs } }~ => lv_update lv (V.VRecord (F.update x v vs)) ϵ
+        | Some ~{ HDR { vs } VALID:=b }~ =>
           lv_update lv (V.VHeader (F.update x v vs) b) ϵ
         | Some _ | None => ϵ
         end
       | l{ lv[n] }l =>
         match v, lv_lookup ϵ lv with
-        | *{ HDR { vs } VALID:=b }* ,
-          Some *{ STACK vss:ts[size] NEXT:=ni }* =>
+        | ~{ HDR { vs } VALID:=b }~ ,
+          Some ~{ STACK vss:ts[size] NEXT:=ni }~ =>
           let vss := nth_update (N.to_nat n) (b,vs) vss in
-          lv_update lv *{ STACK vss:ts[size] NEXT:=ni }* ϵ
+          lv_update lv ~{ STACK vss:ts[size] NEXT:=ni }~ ϵ
         | _, Some _ | _, None => ϵ
         end
       end.
@@ -310,15 +259,14 @@ Module Step.
         values of [In] args are substituted
         into the function parameters. *)
     Definition copy_in
-               (argsv : V.argsv tags_t)
+               (argsv : V.argsv)
                (ϵcall : epsilon) : epsilon -> epsilon :=
       F.fold (fun x arg ϵ =>
-                let x' := bare x in
                 match arg with
-                | P.PAIn v     => !{ x' ↦ v ;; ϵ }!
+                | P.PAIn v     => !{ x ↦ v ;; ϵ }!
                 | P.PAInOut lv => match lv_lookup ϵcall lv with
                                  | None   => ϵ
-                                 | Some v => !{ x' ↦ v ;; ϵ }!
+                                 | Some v => !{ x ↦ v ;; ϵ }!
                                 end
                 | P.PAOut _    => ϵ
                 end) argsv.
@@ -327,15 +275,14 @@ Module Step.
     (** Update call-site environment with
         out variables from function call evaluation. *)
     Definition copy_out
-               (argsv : V.argsv tags_t)
+               (argsv : V.argsv)
                (ϵf : epsilon) : epsilon -> epsilon :=
       F.fold (fun x arg ϵ =>
-                let x' := bare x in
                 match arg with
                 | P.PAIn _ => ϵ
                 | P.PAOut lv
                 | P.PAInOut lv =>
-                  match ϵf x' with
+                  match ϵf x with
                   | None   => ϵ
                   | Some v => lv_update lv v ϵ
                   end
@@ -344,41 +291,96 @@ Module Step.
 
     (** Evidence that control-flow
         is interrupted by an exit or return statement. *)
-    Inductive interrupt : signal tags_t -> Prop :=
+    Inductive interrupt : signal -> Prop :=
     | interrupt_exit : interrupt SIG_Exit
-    | interrupt_rtrn (vo : option (V.v tags_t)) : interrupt (SIG_Rtrn vo).
+    | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo).
+    (**[]*)
+
+    (* P4cub will use locators instead of qualified names.
+    Definition bare (x : string) : name tags_t :=
+      Typed.BareName x.
+    (**[]*) *)
+
+    Context {tags_t : Type}.
+
+    (** Table environment. *)
+    Definition tenv : Type := Env.t string (CD.table tags_t).
+
+    (** Function declarations and closures. *)
+    Inductive fdecl : Type :=
+    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
+    with fenv : Type :=
+    | FEnv (fs : Env.t string fdecl)
+    (** Action declarations and closures *)
+    with adecl : Type :=
+    | ADecl (closure : epsilon) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
+    with aenv : Type :=
+    | AEnv (aa : Env.t string adecl)
+    (** Instances and Environment. *)
+    with inst : Type :=
+    | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
+            (tbls : tenv) (aa : aenv)
+            (apply_blk : ST.s tags_t)  (* control instance *)
+    | PInst (* TODO: parser instance *)
+    | EInst (* TODO: extern object instance *)
+    with ienv : Type :=
+    | IEnv (ins : Env.t string inst).
+    (**[]*)
+
+    (** Function lookup. *)
+    Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fs.
+
+    (** Bind a function declaration to an environment. *)
+    Definition update '(FEnv fs : fenv) (x : string) (d : fdecl) : fenv :=
+      FEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Instance lookup. *)
+    Definition ilookup '(IEnv fs : ienv) : string -> option inst := fs.
+
+    (** Bind an instance to an environment. *)
+    Definition iupdate '(IEnv fs : ienv) (x : string) (d : inst) : ienv :=
+      IEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Action lookup. *)
+    Definition alookup '(AEnv aa : aenv) : string -> option adecl := aa.
+
+    (** Bind a function declaration to an environment. *)
+    Definition aupdate '(AEnv aa : aenv) (x : string) (d : adecl) : aenv :=
+      AEnv !{ x ↦ d ;; aa }!.
     (**[]*)
 
     (** Control plane table entries,
         essentially mapping tables to an action call. *)
     Definition entries : Type :=
-      list (V.v tags_t * E.matchkind) ->
-      list (string tags_t) ->
-      name tags_t * E.args tags_t.
+      list (V.v * E.matchkind) ->
+      list string ->
+      string * E.args tags_t.
     (**[]*)
 
     (** Control plane tables. *)
-    Definition ctrl : Type := Env.t (name tags_t) entries.
+    Definition ctrl : Type := Env.t string entries.
 
     (** Control declarations and closures. *)
     Inductive cdecl : Type :=
     | CDecl (cs : cenv) (closure : epsilon) (fs : fenv) (ins : ienv)
             (body : CD.d tags_t) (apply_block : ST.s tags_t)
     with cenv : Type :=
-    | CEnv (cs : Env.t (name tags_t) cdecl).
+    | CEnv (cs : Env.t string cdecl).
     (**[]*)
 
     (** Control lookup. *)
-    Definition clookup '(CEnv cs : cenv) : name tags_t -> option cdecl := cs.
+    Definition clookup '(CEnv cs : cenv) : string -> option cdecl := cs.
 
     (** Bind an instance to an environment. *)
-    Definition cupdate '(CEnv cs : cenv) (x : name tags_t) (d : cdecl) : cenv :=
+    Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
       CEnv !{ x ↦ d ;; cs }!.
     (**[]*)
   End StepDefs.
 
   (** Expression big-step semantics. *)
-  Inductive expr_big_step {tags_t : Type} (ϵ : epsilon) : E.e tags_t -> V.v tags_t -> Prop :=
+  Inductive expr_big_step {tags_t : Type} (ϵ : epsilon) : E.e tags_t -> V.v -> Prop :=
   (* Literals. *)
   | ebs_bool (b : bool) (i : tags_t) :
       ⟨ ϵ, BOOL b @ i ⟩ ⇓ VBOOL b
@@ -386,14 +388,14 @@ Module Step.
       ⟨ ϵ, w W n @ i ⟩ ⇓ w VW n
   | ebs_int (w : positive) (z : Z) (i : tags_t) :
       ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
-  | ebs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) (v : V.v tags_t) :
+  | ebs_var (x : string) (τ : E.t) (i : tags_t) (v : V.v) :
       ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
-  | ebs_cast (τ : E.t tags_t) (e : E.e tags_t) (i : tags_t) (v v' : V.v tags_t) :
+  | ebs_cast (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
       eval_cast τ v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟨ ϵ, Cast e:τ @ i ⟩ ⇓ v'
-  | ebs_error (err : option (string tags_t)) (i : tags_t) :
+  | ebs_error (err : option string) (i : tags_t) :
       ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
   | ebs_matchkind (mk : E.matchkind) (i : tags_t) :
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
@@ -413,7 +415,7 @@ Module Step.
       ⟨ ϵ, e ⟩ ⇓ w VS z ->
       ⟨ ϵ, UOP - e:int<w> @ i ⟩ ⇓ w VS z'
   (* Binary Operations. *)
-  | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+  | ebs_bop_bit (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v)
                 (i : tags_t) (w : positive) (n1 n2 : N) :
       eval_bit_binop op w n1 n2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
@@ -426,7 +428,7 @@ Module Step.
       ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
       ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
       ⟨ ϵ, BOP e1:bit<w1> ++ e2:bit<w2> @ i ⟩ ⇓ w VW n
-  | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v tags_t)
+  | ebs_bop_int (e1 e2 : E.e tags_t) (op : E.bop) (v : V.v)
                 (i : tags_t) (w : positive) (z1 z2 : Z) :
       eval_int_binop op w z1 z2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
@@ -438,58 +440,58 @@ Module Step.
       ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
       ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
       ⟨ ϵ, BOP e1:Bool op e2:Bool @ i⟩ ⇓ VBOOL b
-  | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-                (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
-      V.eqbv tags_t v1 v2 = b ->
+  | ebs_eq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t)
+                (i : tags_t) (v1 v2 : V.v) (b : bool) :
+      V.eqbv v1 v2 = b ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       ⟨ ϵ, BOP e1:τ1 == e2:τ2 @ i ⟩ ⇓ VBOOL b
-  | ebs_neq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t tags_t)
-            (i : tags_t) (v1 v2 : V.v tags_t) (b : bool) :
-      negb (V.eqbv tags_t v1 v2) = b ->
+  | ebs_neq (e1 e2 : E.e tags_t) (τ1 τ2 : E.t)
+            (i : tags_t) (v1 v2 : V.v) (b : bool) :
+      negb (V.eqbv v1 v2) = b ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       ⟨ ϵ, BOP e1:τ1 != e2:τ2 @ i ⟩ ⇓ VBOOL b
   (* Structs *)
-  | ebs_rec_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                (tfs : F.fs tags_t (E.t tags_t))
-                (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+  | ebs_rec_mem (e : E.e tags_t) (x : string) (i : tags_t)
+                (tfs : F.fs string E.t)
+                (vfs : F.fs string V.v) (v : V.v) :
       F.get x vfs = Some v ->
       ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
       ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
-  | ebs_hdr_mem (e : E.e tags_t) (x : string tags_t) (i : tags_t)
-                (tfs : F.fs tags_t (E.t tags_t)) (b : bool)
-                (vfs : F.fs tags_t (V.v tags_t)) (v : V.v tags_t) :
+  | ebs_hdr_mem (e : E.e tags_t) (x : string) (i : tags_t)
+                (tfs : F.fs string E.t) (b : bool)
+                (vfs : F.fs string V.v) (v : V.v) :
       F.get x vfs = Some v ->
       ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
       ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
   | ebs_tuple (es : list (E.e tags_t)) (i : tags_t)
-              (vs : list (V.v tags_t)) :
+              (vs : list (V.v)) :
       Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
       ⟨ ϵ, tup es @ i ⟩ ⇓ TUPLE vs
-  | ebs_rec_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
-                (i : tags_t) (vfs : F.fs tags_t (V.v tags_t)) :
+  | ebs_rec_lit (efs : F.fs string (E.t * E.e tags_t))
+                (i : tags_t) (vfs : F.fs string V.v) :
       F.relfs
         (fun te v =>
            let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
       ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
-  | ebs_hdr_lit (efs : F.fs tags_t (E.t tags_t * E.e tags_t))
+  | ebs_hdr_lit (efs : F.fs string (E.t * E.e tags_t))
                 (e : E.e tags_t) (i : tags_t) (b : bool)
-                (vfs : F.fs tags_t (V.v tags_t)) :
+                (vfs : F.fs string V.v) :
       F.relfs
         (fun te v =>
            let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
       ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
       ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
   | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
-                (v : V.v tags_t) (vs : F.fs tags_t (V.v tags_t)) (b : bool) :
+                (v : V.v) (vs : F.fs string (V.v)) (b : bool) :
       eval_hdr_op op vs b = v ->
       ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
       ⟨ ϵ, HDR_OP op e @ i ⟩ ⇓ v
-  | ebs_hdr_stack (ts : F.fs tags_t (E.t tags_t))
+  | ebs_hdr_stack (ts : F.fs string (E.t))
                   (hs : list (E.e tags_t))
                   (n : positive) (ni : N)
-                  (vss : list (bool * F.fs tags_t (V.v tags_t))) :
+                  (vss : list (bool * F.fs string (V.v))) :
       Forall2
         (fun e bvs =>
            let b := fst bvs in
@@ -499,15 +501,15 @@ Module Step.
       ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
   | ebs_access (e : E.e tags_t) (i : tags_t)
                (n : positive) (index ni : N)
-               (ts : F.fs tags_t (E.t tags_t))
-               (vss : list (bool * F.fs tags_t (V.v tags_t)))
-               (b : bool) (vs : F.fs tags_t (V.v tags_t)) :
+               (ts : F.fs string (E.t))
+               (vss : list (bool * F.fs string (V.v)))
+               (b : bool) (vs : F.fs string (V.v)) :
       nth_error vss (N.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
   | ebs_stk_op  (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
-                (v : V.v tags_t) (ts : F.fs tags_t (E.t tags_t))
-                (bvss : list (bool * F.fs tags_t (V.v tags_t)))
+                (v : V.v) (ts : F.fs string (E.t))
+                (bvss : list (bool * F.fs string (V.v)))
                 (size : positive) (nextIndex : N) :
       eval_stk_op op size nextIndex ts bvss = Some v ->
       ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
@@ -520,13 +522,13 @@ Module Step.
   Section ExprEvalInduction.
     Variable (tags_t: Type).
 
-    Variable P : @epsilon tags_t -> E.e tags_t -> V.v tags_t -> Prop.
+    Variable P : epsilon -> E.e tags_t -> V.v -> Prop.
 
-    Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> *{ VBOOL b }*.
+    Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> ~{ VBOOL b }~.
 
-    Hypothesis HBit : forall ϵ w n i, P ϵ <{ w W n @ i }> *{ w VW n }*.
+    Hypothesis HBit : forall ϵ w n i, P ϵ <{ w W n @ i }> ~{ w VW n }~.
 
-    Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> *{ w VS z }*.
+    Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> ~{ w VS z }~.
 
     Hypothesis HVar : forall ϵ x τ i v,
         ϵ x = Some v ->
@@ -540,39 +542,39 @@ Module Step.
         P ϵ <{ Cast e:τ @ i }> v'.
     (**[]*)
 
-    Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> *{ ERROR err }*.
+    Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> ~{ ERROR err }~.
 
     Hypothesis HMatchkind : forall ϵ mk i,
-        P ϵ <{ Matchkind mk @ i }> *{ MATCHKIND mk }*.
+        P ϵ <{ Matchkind mk @ i }> ~{ MATCHKIND mk }~.
     (**[]*)
 
     Hypothesis HNot : forall ϵ e i b b',
         negb b = b' ->
         ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-        P ϵ e *{ VBOOL b }* ->
-        P ϵ <{ UOP ! e:Bool @ i }> *{ VBOOL b'}*.
+        P ϵ e ~{ VBOOL b }~ ->
+        P ϵ <{ UOP ! e:Bool @ i }> ~{ VBOOL b'}~.
     (**[]*)
 
     Hypothesis HBitNot : forall ϵ e i w n n',
         BitArith.neg w n = n' ->
         ⟨ ϵ, e ⟩ ⇓ w VW n ->
-        P ϵ e *{ w VW n }* ->
-        P ϵ <{ UOP ~ e:bit<w> @ i }> *{ w VW n' }*.
+        P ϵ e ~{ w VW n }~ ->
+        P ϵ <{ UOP ~ e:bit<w> @ i }> ~{ w VW n' }~.
     (**[]*)
 
     Hypothesis HUMinus : forall ϵ e i w z z',
         IntArith.neg w z = z' ->
         ⟨ ϵ, e ⟩ ⇓ w VS z ->
-        P ϵ e *{ w VS z }* ->
-        P ϵ <{ UOP - e:int<w> @ i }> *{ w VS z' }*.
+        P ϵ e ~{ w VS z }~ ->
+        P ϵ <{ UOP - e:int<w> @ i }> ~{ w VS z' }~.
     (**[]*)
 
     Hypothesis HBOPBit : forall ϵ e1 e2 op v i w n1 n2,
         eval_bit_binop op w n1 n2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ w VW n1 ->
-        P ϵ e1 *{ w VW n1 }* ->
+        P ϵ e1 ~{ w VW n1 }~ ->
         ⟨ ϵ, e2 ⟩ ⇓ w VW n2 ->
-        P ϵ e2 *{ w VW n2 }* ->
+        P ϵ e2 ~{ w VW n2 }~ ->
         P ϵ <{ BOP e1:bit<w> op e2:bit<w> @ i }> v.
     (**[]*)
 
@@ -580,66 +582,66 @@ Module Step.
       (w1 + w2)%positive = w ->
       BitArith.bit_concat w1 w2 n1 n2 = n ->
       ⟨ ϵ, e1 ⟩ ⇓ w1 VW n1 ->
-      P ϵ e1 *{ w1 VW n1 }* ->
+      P ϵ e1 ~{ w1 VW n1 }~ ->
       ⟨ ϵ, e2 ⟩ ⇓ w2 VW n2 ->
-      P ϵ e2 *{ w2 VW n2 }* ->
-      P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> *{ w VW n }*.
+      P ϵ e2 ~{ w2 VW n2 }~ ->
+      P ϵ <{ BOP e1:bit<w1> ++ e2:bit<w2> @ i }> ~{ w VW n }~.
     (**[]*)
 
     Hypothesis HBOPInt : forall ϵ e1 e2 op v i w z1 z2,
       eval_int_binop op w z1 z2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ w VS z1 ->
-      P ϵ e1 *{ w VS z1 }* ->
+      P ϵ e1 ~{ w VS z1 }~ ->
       ⟨ ϵ, e2 ⟩ ⇓ w VS z2 ->
-      P ϵ e2 *{ w VS z2 }* ->
+      P ϵ e2 ~{ w VS z2 }~ ->
       P ϵ <{ BOP e1:int<w> op e2:int<w> @ i }> v.
     (**[]*)
 
     Hypothesis HBOPBool : forall ϵ e1 e2 op i b b1 b2,
       eval_bool_binop op b1 b2 = Some b ->
       ⟨ ϵ, e1 ⟩ ⇓ VBOOL b1 ->
-      P ϵ e1 *{ VBOOL b1 }* ->
+      P ϵ e1 ~{ VBOOL b1 }~ ->
       ⟨ ϵ, e2 ⟩ ⇓ VBOOL b2 ->
-      P ϵ e2 *{ VBOOL b2 }* ->
-      P ϵ <{ BOP e1:Bool op e2:Bool @ i }> *{VBOOL b}*.
+      P ϵ e2 ~{ VBOOL b2 }~ ->
+      P ϵ <{ BOP e1:Bool op e2:Bool @ i }> ~{VBOOL b}~.
     (**[]*)
 
     Hypothesis HEq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
-        V.eqbv tags_t v1 v2 = b ->
+        V.eqbv v1 v2 = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         P ϵ e1 v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
         P ϵ e2 v2 ->
-        P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> *{ VBOOL b }*.
+        P ϵ <{ BOP e1:τ1 == e2:τ2 @ i }> ~{ VBOOL b }~.
     (**[]*)
 
     Hypothesis HNeq : forall ϵ e1 e2 τ1 τ2 i v1 v2 b,
-        negb (V.eqbv tags_t v1 v2) = b ->
+        negb (V.eqbv v1 v2) = b ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         P ϵ e1 v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
         P ϵ e2 v2 ->
-        P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> *{ VBOOL b }*.
+        P ϵ <{ BOP e1:τ1 != e2:τ2 @ i }> ~{ VBOOL b }~.
     (**[]*)
 
     Hypothesis HRecMem : forall ϵ e x i ts vs v,
         F.get x vs = Some v ->
         ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
-        P ϵ e *{ REC { vs } }* ->
+        P ϵ e ~{ REC { vs } }~ ->
         P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
     (**[]*)
 
     Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
         F.get x vs = Some v ->
         ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-        P ϵ e *{ HDR { vs } VALID:=b }* ->
+        P ϵ e ~{ HDR { vs } VALID:=b }~ ->
         P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
     (**[]*)
 
     Hypothesis HTuple : forall ϵ es i vs,
         Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
         Forall2 (P ϵ) es vs ->
-        P ϵ <{ tup es @ i }> *{ TUPLE vs }*.
+        P ϵ <{ tup es @ i }> ~{ TUPLE vs }~.
     (**[]*)
 
     Hypothesis HRecLit : forall ϵ efs i vfs,
@@ -647,7 +649,7 @@ Module Step.
           (fun te v =>
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
-        P ϵ <{ rec { efs } @ i }> *{ REC { vfs } }*.
+        P ϵ <{ rec { efs } @ i }> ~{ REC { vfs } }~.
     (**[]*)
 
     Hypothesis HHdrLit : forall ϵ efs e i b vfs,
@@ -656,14 +658,14 @@ Module Step.
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
         ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
-        P ϵ e *{ VBOOL b }* ->
-        P ϵ <{ hdr { efs } valid:=e @ i }> *{ HDR { vfs } VALID:=b }*.
+        P ϵ e ~{ VBOOL b }~ ->
+        P ϵ <{ hdr { efs } valid:=e @ i }> ~{ HDR { vfs } VALID:=b }~.
     (**[]*)
 
     Hypothesis HHdrOp : forall ϵ op e i v vs b,
         eval_hdr_op op vs b = v ->
         ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-        P ϵ e *{ HDR { vs } VALID:=b }* ->
+        P ϵ e ~{ HDR { vs } VALID:=b }~ ->
         P ϵ <{ HDR_OP op e @ i }> v.
     (**[]*)
 
@@ -678,22 +680,22 @@ Module Step.
           (fun e bvs =>
              let b := fst bvs in
              let vs := snd bvs in
-             P ϵ e *{ HDR { vs } VALID:=b}*)
+             P ϵ e ~{ HDR { vs } VALID:=b}~ )
           hs vss ->
-        P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> *{ STACK vss:ts[n] NEXT:=ni }*.
+        P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> ~{ STACK vss:ts[n] NEXT:=ni }~.
     (**[]*)
 
     Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
                nth_error vss (N.to_nat index) = Some (b,vs) ->
                ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
-               P ϵ e *{ STACK vss:ts[n] NEXT:=ni }* ->
-               P ϵ <{ Access e[index] @ i }> *{ HDR { vs } VALID:=b }*.
+               P ϵ e ~{ STACK vss:ts[n] NEXT:=ni }~ ->
+               P ϵ <{ Access e[index] @ i }> ~{ HDR { vs } VALID:=b }~.
     (**[]*)
 
     Hypothesis HStackOp : forall ϵ op e i v ts bvss size nextIndex,
         eval_stk_op op size nextIndex ts bvss = Some v ->
         ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
-        P ϵ e *{ STACK bvss:ts[size] NEXT:=nextIndex }* ->
+        P ϵ e ~{ STACK bvss:ts[size] NEXT:=nextIndex }~ ->
         P ϵ <{ STK_OP op e @ i }> v.
     (**[]*)
 
@@ -702,11 +704,11 @@ Module Step.
         [Do induction ?H using custom_expr_big_step_ind]. *)
     Definition custom_expr_big_step_ind :
       forall (ϵ : epsilon) (e : E.e tags_t)
-        (v : V.v tags_t) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
+        (v : V.v) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
       fix ebsind ϵ e v Hy :=
         let fix lind
                 {es : list (E.e tags_t)}
-                {vs : list (V.v tags_t)}
+                {vs : list (V.v)}
                 (HR : Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs)
             : Forall2 (P ϵ) es vs :=
             match HR with
@@ -717,8 +719,8 @@ Module Step.
                                          (lind Ht)
             end in
         let fix fsind
-                {efs : F.fs tags_t (E.t tags_t * E.e tags_t)}
-                {vfs : F.fs tags_t (V.v tags_t)}
+                {efs : F.fs string (E.t * E.e tags_t)}
+                {vfs : F.fs string (V.v)}
                 (HRs : F.relfs
                          (fun te v =>
                             let e := snd te in
@@ -742,7 +744,7 @@ Module Step.
                 end in
         let fix ffind
                 {es : list (E.e tags_t)}
-                {vss : list (bool * F.fs tags_t (V.v tags_t))}
+                {vss : list (bool * F.fs string (V.v))}
                 (HRs : Forall2
                          (fun e bvs =>
                             let b := fst bvs in
@@ -753,7 +755,7 @@ Module Step.
                 (fun e bvs =>
                    let b := fst bvs in
                    let vs := snd bvs in
-                   P ϵ e *{ HDR { vs } VALID:=b}* )
+                   P ϵ e ~{ HDR { vs } VALID:=b}~ )
                 es vss :=
             match HRs with
             | Forall2_nil _ => Forall2_nil _
@@ -833,21 +835,21 @@ Module Step.
 
   End ExprEvalInduction.
 
-  Inductive lvalue_big_step {tags_t : Type} : E.e tags_t -> V.lv tags_t -> Prop :=
-  | lvbs_var (x : name tags_t) (τ : E.t tags_t) (i : tags_t) :
+  Inductive lvalue_big_step {tags_t : Type} : E.e tags_t -> V.lv -> Prop :=
+  | lvbs_var (x : string) (τ : E.t) (i : tags_t) :
       ⧠ Var x:τ @ i ⇓ VAR x
-  | lvbs_rec_member (e : E.e tags_t) (x : string tags_t)
-                (tfs : F.fs tags_t (E.t tags_t))
-                (i : tags_t) (lv : V.lv tags_t) :
+  | lvbs_rec_member (e : E.e tags_t) (x : string)
+                (tfs : F.fs string (E.t))
+                (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
       ⧠ Mem e:rec { tfs } dot x @ i ⇓ lv DOT x
-  | lvbs_hdr_member (e : E.e tags_t) (x : string tags_t)
-                    (tfs : F.fs tags_t (E.t tags_t))
-                    (i : tags_t) (lv : V.lv tags_t):
+  | lvbs_hdr_member (e : E.e tags_t) (x : string)
+                    (tfs : F.fs string E.t)
+                    (i : tags_t) (lv : V.lv):
       ⧠ e ⇓ lv ->
       ⧠ Mem e:hdr { tfs } dot x @ i ⇓ lv DOT x
   | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
-                      (lv : V.lv tags_t) (n : N) :
+                      (lv : V.lv) (n : N) :
       let w := 32%positive in
       ⧠ e ⇓ lv ->
       ⧠ Access e[n] @ i ⇓ lv[n]
@@ -858,26 +860,25 @@ Module Step.
   Inductive stmt_big_step
             {tags_t : Type} (cp : ctrl) (ts : tenv) (aa : aenv)
             (fs : fenv) (ins : ienv) (ϵ : epsilon) :
-    ST.s tags_t -> epsilon -> signal tags_t -> Prop :=
+    ST.s tags_t -> epsilon -> signal -> Prop :=
   | sbs_skip (i : tags_t) :
       ⟪ cp, ts, aa, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
   | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
-                 (ϵ' ϵ'' : epsilon) (sig : signal tags_t) :
+                 (ϵ' ϵ'' : epsilon) (sig : signal) :
       ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
   | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
-                         (ϵ' : epsilon) (sig : signal tags_t) :
+                         (ϵ' : epsilon) (sig : signal) :
       interrupt sig ->
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-  | sbs_vardecl (τ : E.t tags_t) (x : string tags_t)
-                (i : tags_t) (v : V.v tags_t) :
+  | sbs_vardecl (τ : E.t) (x : string)
+                (i : tags_t) (v : V.v) :
       V.vdefault τ = v ->
-      let x' := bare x in
-      ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x' ↦ v ;; ϵ, C ⟫
-  | sbs_assign (τ : E.t tags_t) (e1 e2 : E.e tags_t) (i : tags_t)
-               (lv : V.lv tags_t) (v : V.v tags_t) (ϵ' : epsilon) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+  | sbs_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t)
+               (lv : V.lv) (v : V.v) (ϵ' : epsilon) :
       lv_update lv v ϵ = ϵ' ->
       ⧠ e1 ⇓ lv ->
       ⟨ ϵ, e2 ⟩ ⇓ v ->
@@ -886,27 +887,27 @@ Module Step.
       ⟪ cp, ts, aa, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
   | sbs_retvoid (i : tags_t) :
       ⟪ cp, ts, aa, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
-  | sbs_retfruit (τ : E.t tags_t) (e : E.e tags_t)
-                 (i : tags_t) (v : V.v tags_t) :
+  | sbs_retfruit (τ : E.t) (e : E.e tags_t)
+                 (i : tags_t) (v : V.v) :
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟪ cp, ts, aa, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
   | sbs_cond_true (guard : E.e tags_t)
                   (tru fls : ST.s tags_t) (i : tags_t)
-                  (ϵ' : epsilon) (sig : signal tags_t) :
+                  (ϵ' : epsilon) (sig : signal) :
       ⟨ ϵ, guard ⟩ ⇓ TRUE ->
       ⟪ cp, ts, aa, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
         ⤋ ⟪ ϵ', sig ⟫
   | sbs_cond_false (guard : E.e tags_t)
                    (tru fls : ST.s tags_t) (i : tags_t)
-                   (ϵ' : epsilon) (sig : signal tags_t) :
+                   (ϵ' : epsilon) (sig : signal) :
       ⟨ ϵ, guard ⟩ ⇓ FALSE ->
       ⟪ cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
         ⤋ ⟪ ϵ', sig ⟫
   | sbs_action_call (args : E.args tags_t)
-                    (argsv : V.argsv tags_t)
-                    (a : name tags_t) (i : tags_t)
+                    (argsv : V.argsv)
+                    (a : string) (i : tags_t)
                     (body : ST.s tags_t) (aclosure : aenv)
                     (fclosure : fenv) (ains : ienv)
                     (closure ϵ' ϵ'' ϵ''' : epsilon) :
@@ -926,8 +927,8 @@ Module Step.
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
   | sbs_void_call (args : E.args tags_t)
-                  (argsv : V.argsv tags_t)
-                  (f : name tags_t) (i : tags_t)
+                  (argsv : V.argsv)
+                  (f : string) (i : tags_t)
                   (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
                   (closure ϵ' ϵ'' ϵ''' : epsilon) :
       (* Looking up function. *)
@@ -946,10 +947,10 @@ Module Step.
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
   | sbs_fruit_call (args : E.args tags_t)
-                   (argsv : V.argsv tags_t)
-                   (f : name tags_t) (τ : E.t tags_t)
+                   (argsv : V.argsv)
+                   (f : string) (τ : E.t)
                    (e : E.e tags_t) (i : tags_t)
-                   (v : V.v tags_t) (lv : V.lv tags_t)
+                   (v : V.v) (lv : V.lv)
                    (body : ST.s tags_t) (fclosure : fenv) (fins : ienv)
                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
       (* Looking up function. *)
@@ -972,8 +973,8 @@ Module Step.
       lv_update lv v ϵ''' = ϵ'''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
   | sbs_apply (args : E.args tags_t)
-              (argsv : V.argsv tags_t)
-              (x : name tags_t) (i : tags_t)
+              (argsv : V.argsv)
+              (x : string) (i : tags_t)
               (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
               (tblclosure : tenv) (aclosure : aenv)
               (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
@@ -992,14 +993,14 @@ Module Step.
       (* Copy-out. *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-  | sbs_invoke (x : name tags_t) (i : tags_t)
+  | sbs_invoke (x : string) (i : tags_t)
                (es : entries)
-               (ky : list (E.t tags_t * E.e tags_t * E.matchkind))
-               (acts : list (string tags_t))
-               (vky : list (V.v tags_t * E.matchkind))
-               (a : name tags_t) (args : E.args tags_t)
+               (ky : list (E.t * E.e tags_t * E.matchkind))
+               (acts : list (string))
+               (vky : list (V.v * E.matchkind))
+               (a : string) (args : E.args tags_t)
                (ϵ' : epsilon)
-               (sig : signal tags_t) :
+               (sig : signal) :
       cp x = Some es ->
       ts x = Some (CD.Table ky acts) ->
       Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
@@ -1014,18 +1015,16 @@ Module Step.
   Inductive decl_big_step
             {tags_t : Type} (cp : @ctrl tags_t) (cs : cenv) (fns : fenv)
             (ins : ienv) (ϵ : epsilon) : D.d tags_t -> epsilon -> ienv -> Prop :=
-  | dbs_vardecl (τ : E.t tags_t) (x : string tags_t) (i : tags_t) :
-      let x' := bare x in
+  | dbs_vardecl (τ : E.t) (x : string) (i : tags_t) :
       let v := V.vdefault τ in
-      ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
-  | dbs_varinit (τ : E.t tags_t) (x : string tags_t)
-                (e : E.e tags_t) (i : tags_t) (v : V.v tags_t) :
-      let x' := bare x in
+      ⧼ cp, cs, fns, ins, ϵ, Var x:τ @ i ⧽ ⟱  ⧼ x ↦ v ;; ϵ, ins ⧽
+  | dbs_varinit (τ : E.t) (x : string)
+                (e : E.e tags_t) (i : tags_t) (v : V.v) :
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x' ↦ v ;; ϵ, ins ⧽
-  | dbs_instantiate (c : name tags_t) (x : string tags_t)
+      ⧼ cp, cs, fns, ins, ϵ, Let x:τ := e @ i ⧽ ⟱  ⧼ x ↦ v ;; ϵ, ins ⧽
+  | dbs_instantiate (c : string) (x : string)
                     (cargs : E.constructor_args tags_t)
-                    (vargs : F.fs tags_t (either (V.v tags_t) inst)) (i : tags_t)
+                    (vargs : F.fs string (either (V.v) inst)) (i : tags_t)
                     (ctrlclosure : cenv) (fclosure : fenv)
                     (iclosure ins' ins'' : ienv)
                     (body : CD.d tags_t) (applyblk : ST.s tags_t)
@@ -1039,17 +1038,15 @@ Module Step.
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>
-                let x' := bare x in
                 match v with
-                | Left v => (!{ x' ↦ v;; ϵ }!, ins)
-                | Right cinst => (ϵ, iupdate ins x' cinst)
+                | Left v => (!{ x ↦ v;; ϵ }!, ins)
+                | Right cinst => (ϵ, iupdate ins x cinst)
                 end) vargs (closure,iclosure) = (ϵ',ins') ->
-      let empty_tbls := Env.empty (name tags_t) (CD.table tags_t) in
-      let empty_acts := AEnv (Env.empty (name tags_t) adecl) in
+      let empty_tbls := Env.empty (string) (CD.table tags_t) in
+      let empty_acts := AEnv (Env.empty (string) adecl) in
       ⦉ cp, cs, empty_tbls, empty_acts, fclosure, ins', ϵ', body ⦊
         ⟱  ⦉ ϵ'', ins'', aa, tbls ⦊ ->
-      let x' := bare x in
-      let ins''' := iupdate ins x' (CInst ϵ'' fclosure ins' tbls aa applyblk) in
+      let ins''' := iupdate ins x (CInst ϵ'' fclosure ins' tbls aa applyblk) in
       ⧼ cp, cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⧽ ⟱  ⧼ ϵ, ins''' ⧽
   | dbs_declseq (d1 d2 : D.d tags_t) (i : tags_t)
                 (ϵ' ϵ'' : epsilon) (ins' ins'' : ienv) :
@@ -1065,22 +1062,20 @@ Module Step.
        {tags_t : Type} (cp : @ctrl tags_t) (cs : cenv) (fns : fenv) (ins : ienv) (ϵ : epsilon)
        : tenv -> aenv -> CD.d tags_t -> epsilon -> ienv -> aenv -> tenv -> Prop :=
   | cdbs_action (tbls : tenv) (aa aa' : @aenv tags_t)
-                (a : string tags_t)
-                (params : E.params tags_t)
+                (a : string)
+                (params : E.params)
                 (body : ST.s tags_t) (i : tags_t) :
-      let a' := bare a in
-      let aa' := aupdate aa a' (ADecl ϵ fns ins aa body) in
+      let aa' := aupdate aa a (ADecl ϵ fns ins aa body) in
       ⦉ cp, cs, tbls, aa, fns, ins, ϵ, action a (params) {body} @ i ⦊
         ⟱  ⦉ ϵ, ins, aa', tbls ⦊
-  | cdbs_table (tbls : tenv) (aa : aenv) (t : string tags_t)
+  | cdbs_table (tbls : tenv) (aa : aenv) (t : string)
                (kys : list
-                        (E.t tags_t * E.e tags_t * E.matchkind))
-               (actns : list (string tags_t))
+                        (E.t * E.e tags_t * E.matchkind))
+               (actns : list (string))
                (i : tags_t) :
-      let t' := bare t in
       let tbl := CD.Table kys actns in
       ⦉ cp, cs, tbls, aa, fns, ins, ϵ, table t key:=kys actions:=actns @ i ⦊
-        ⟱  ⦉ ϵ, ins, aa, t' ↦ tbl;; tbls ⦊
+        ⟱  ⦉ ϵ, ins, aa, t ↦ tbl;; tbls ⦊
   | cdbs_decl (tbls : tenv) (aa : aenv)
               (d : D.d tags_t) (i : tags_t)
               (ϵ' : epsilon) (ins' : ienv) :
@@ -1102,24 +1097,21 @@ Module Step.
             {tags_t : Type} (cp : ctrl) (cs : cenv)
             (fns : fenv) (ins : ienv) (ϵ : epsilon)
     : TP.d tags_t -> epsilon -> ienv -> fenv -> cenv -> Prop :=
-  | tpbs_control (c : string tags_t) (cparams : E.constructor_params tags_t)
-                 (params : E.params tags_t) (body : CD.d tags_t)
+  | tpbs_control (c : string) (cparams : E.constructor_params)
+                 (params : E.params) (body : CD.d tags_t)
                  (apply_blk : ST.s tags_t) (i : tags_t) (cs' : @cenv tags_t) :
-      let c' := bare c in
-      let cs' := cupdate cs c' (CDecl cs ϵ fns ins body apply_blk) in
+      let cs' := cupdate cs c (CDecl cs ϵ fns ins body apply_blk) in
       ⦇ cp, cs, fns, ins, ϵ,
         control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
         ⟱  ⦇ ϵ, ins, fns, cs' ⦈
-  | tpbs_fruit_function (f : string tags_t) (params : E.params tags_t)
-                        (τ : E.t tags_t) (body : ST.s tags_t) (i : tags_t) :
-      let f' := bare f in
-      let fns' := update fns f' (FDecl ϵ fns ins body) in
+  | tpbs_fruit_function (f : string) (params : E.params)
+                        (τ : E.t) (body : ST.s tags_t) (i : tags_t) :
+      let fns' := update fns f (FDecl ϵ fns ins body) in
       ⦇ cp, cs, fns, ins, ϵ, fn f (params) -> τ { body } @ i ⦈
         ⟱  ⦇ ϵ, ins, fns', cs ⦈
-  | tpbs_void_function (f : string tags_t) (params : E.params tags_t)
+  | tpbs_void_function (f : string) (params : E.params)
                        (body : ST.s tags_t) (i : tags_t) :
-      let f' := bare f in
-      let fns' := update fns f' (FDecl ϵ fns ins body) in
+      let fns' := update fns f (FDecl ϵ fns ins body) in
       ⦇ cp, cs, fns, ins, ϵ, void f (params) { body } @ i ⦈
         ⟱  ⦇ ϵ, ins, fns', cs ⦈
   | tpbs_decl (d : D.d tags_t) (i : tags_t)

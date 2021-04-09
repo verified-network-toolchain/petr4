@@ -14,10 +14,10 @@ Require Export Poulet4.P4cub.Utiliser.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
-
+(*
 Reserved Notation "∫ ty1 ≡ ty2"
          (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
-
+*)
 Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
@@ -39,184 +39,221 @@ Declare Custom Entry p4topdecl.
 (** * Definitions and Lemmas regarding Fields *)
 Module Field.
   Section FieldTypes.
-
-    Variable (tags_t : Type).
+    Variables K V : Type. (* key & value type. *)
 
     (** Field type. *)
-    Definition f (T : Type) : Type := (string tags_t) * T.
+    Definition f : Type := K * V.
 
     (** Fields. *)
-    Definition fs (T : Type) : Type := list (f T).
+    Definition fs : Type := list f.
   End FieldTypes.
 
   Section FieldLibrary.
-    Context {tags_t : Type}.
 
     (** Predicate on a field's data. *)
-    Definition predf_data {T : Type} (P : T -> Prop) : f tags_t T -> Prop := P ∘ snd.
+    Definition predf_data {K T : Type} (P : T -> Prop) : f K T -> Prop := P ∘ snd.
     (**[]*)
 
     (** Predicate over every data in fields. *)
-    Definition predfs_data {T : Type} (P : T -> Prop) : fs tags_t T -> Prop :=
+    Definition predfs_data {K T : Type} (P : T -> Prop) : fs K T -> Prop :=
       Forall (predf_data P).
     (**[]*)
 
-    (** Relation betwixt two field instances. *)
-    Definition relf {U V : Type}
-               (R : U -> V -> Prop) : f tags_t U -> f tags_t V -> Prop :=
-      fun u v => P4String.equiv (fst u) (fst v) /\ R (snd u) (snd v).
-    (**[]*)
-
-    (** Relation between two instances of fields. *)
-    Definition relfs {U V : Type}
-               (R : U -> V -> Prop) : fs tags_t U -> fs tags_t V -> Prop :=
-      Forall2 (relf R).
-    (**[]*)
-
     (** Filter. *)
-    Definition filter {U : Type} (f : U -> bool) : fs tags_t U -> fs tags_t U :=
-      List.filter (f ∘ snd).
+    Definition filter {K U : Type} (pred : U -> bool) : fs K U -> fs K U :=
+      List.filter (pred ∘ snd).
     (**[]*)
 
     (** Map. *)
-    Definition map {U V : Type} (f : U -> V) : fs tags_t U -> fs tags_t V :=
+    Definition map {K U V : Type} (f : U -> V) : fs K U -> fs K V :=
       List.map (fun '(x,u) => (x, f u)).
     (**[]*)
 
     (** Fold. *)
-    Definition fold {U V : Type} (f : string tags_t -> U -> V -> V)
-               (fds : fs tags_t U) (init : V) : V :=
+    Definition fold {K U V : Type} (f : K -> U -> V -> V)
+               (fds : fs K U) (init : V) : V :=
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
 
-    (** Member access. *)
-    Fixpoint get {U : Type} (x : string tags_t)
-             (fds : fs tags_t U) : option U :=
-      match fds with
-      | []            => None
-      | (x',u') :: fds => if equiv_dec x x' then Some u'
-                        else get x fds
-      end.
+    Section GetUpdate.
+      Context {K U : Type}.
+      Context {keq : K -> K -> Prop}.
+      Context `{Equivalence K keq}.
+      Context `{EqDec K keq}.
 
-    Lemma relfs_get_l : forall {U V : Type} x (u : U) us vs R,
-        relfs R us vs ->
-        get x us = Some u -> exists v : V, get x vs = Some v /\ R u v.
-    Proof.
-      intros U V x u us vs R HRs.
-      generalize dependent x;
-        generalize dependent u.
-      induction HRs; intros u z Hu;
+      (** Member access. *)
+      Fixpoint get (k : K) (fds : fs K U) : option U :=
+        match fds with
+        | []            => None
+        | (k',u') :: fds => if equiv_dec k k' then Some u'
+                          else get k fds
+        end.
+      (**[]*)
+
+      (** Member update. *)
+      Fixpoint update (k : K) (u : U) (fds : fs K U) : fs K U :=
+        match fds with
+        | [] => []
+        | (k',u') :: fds => (k', if equiv_dec k k' then u else u') :: update k u fds
+        end.
+      (**[]*)
+    End GetUpdate.
+
+    Section FieldRelations.
+      Context {K U V : Type}.
+      Context {keq : K -> K -> Prop}.
+      Context `{Equivalence K keq}.
+      Variable R : U -> V -> Prop.
+
+      (** Relation betwixt two field instances. *)
+      Definition relf : f K U -> f K V -> Prop :=
+        fun u v => equiv (fst u) (fst v) /\ R (snd u) (snd v).
+      (**[]*)
+
+      (** Relation between two instances of fields. *)
+      Definition relfs : fs K U -> fs K V -> Prop := Forall2 relf.
+      (**[]*)
+
+      Context `{EqDec K keq}.
+
+      Lemma relfs_get_l : forall k u us vs,
+          relfs us vs ->
+          get k us = Some u -> exists v : V, get k vs = Some v /\ R u v.
+      Proof.
+        intros x u us vs HRs.
+        generalize dependent x; generalize dependent u.
+        induction HRs; intros u z Hu;
         simpl in *; try discriminate;
-      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
-      destruct (equiv_dec z xu) as [Hzu | Hzu];
-        destruct (equiv_dec z xv) as [Hzv | Hzv];
-        unfold equiv, complement in *; eauto.
-      - inv Hu. exists v'; auto.
-      - assert (P4String.equiv z xv) by (etransitivity; eauto).
-        contradiction.
-      - symmetry in H0.
-        assert (P4String.equiv z xu) by (etransitivity; eauto).
-        contradiction.
-    Qed.
+          destruct x as [xu u']; destruct y as [xv v']; inv H1; simpl in *.
+        destruct (equiv_dec z xu) as [Hzu | Hzu];
+          destruct (equiv_dec z xv) as [Hzv | Hzv];
+          unfold equiv, complement in *; eauto.
+        - inv Hu. exists v'; auto.
+        - assert (equiv z xv) by (etransitivity; eauto).
+          contradiction.
+        - symmetry in H2.
+          assert (equiv z xu) by (etransitivity; eauto).
+          contradiction.
+      Qed.
 
-    Lemma relfs_get_r : forall {U V : Type} x (v : V) us vs R,
-        relfs R us vs ->
-        get x vs = Some v -> exists u : U, get x us = Some u /\ R u v.
-    Proof.
-      intros U V x v us vs R HRs.
+      Lemma relfs_get_r : forall k (v : V) us vs,
+        relfs us vs ->
+        get k vs = Some v -> exists u : U, get k us = Some u /\ R u v.
+      Proof.
+      intros x v us vs HRs.
       generalize dependent x;
         generalize dependent v.
       induction HRs; intros v z Hu;
         simpl in *; try discriminate;
-      destruct x as [xu u']; destruct y as [xv v']; inv H; simpl in *.
+      destruct x as [xu u']; destruct y as [xv v']; inv H1; simpl in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
       - inv Hu. exists u'; auto.
-      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+      - assert (equiv z xv) by (etransitivity; eauto).
         contradiction.
-      - symmetry in H0.
-        assert (P4String.equiv z xu) by (etransitivity; eauto).
+      - symmetry in H2.
+        assert (equiv z xu) by (etransitivity; eauto).
         contradiction.
-    Qed.
+      Qed.
 
-    Lemma get_relfs : forall {U V : Type} x (u : U) (v : V) us vs R,
-        get x us = Some u -> get x vs = Some v ->
-        relfs R us vs -> R u v.
-    Proof.
-      intros U V x u v us vs R Hu Hv HRs.
+      Lemma get_relfs : forall k (u : U) (v : V) us vs,
+          get k us = Some u -> get k vs = Some v ->
+          relfs us vs -> R u v.
+      Proof.
+      intros x u v us vs Hu Hv HRs.
       generalize dependent x;
         generalize dependent v;
         generalize dependent u.
       induction HRs; intros u v z Hu Hv;
         simpl in *; try discriminate.
       destruct x as [xu u']; destruct y as [xv v']; simpl in *.
-      inv H; simpl in *.
+      inv H1; simpl in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
       - inv Hu; inv Hv; auto.
-      - assert (P4String.equiv z xv) by (etransitivity; eauto).
+      - assert (equiv z xv) by (etransitivity; eauto).
         contradiction.
-      - symmetry in H0.
-        assert (P4String.equiv z xu) by (etransitivity; eauto).
+      - symmetry in H2.
+        assert (equiv z xu) by (etransitivity; eauto).
         contradiction.
-    Qed.
-
-    (** Member update. *)
-    Fixpoint update {U : Type} (x : string tags_t) (u : U)
-             (fds : fs tags_t U) : fs tags_t U :=
-      match fds with
-      | [] => []
-      | (x',u') :: fds => (x', if equiv_dec x x' then u else u') :: update x u fds
-      end.
-    (**[]*)
+      Qed.
+    End FieldRelations.
 
     (** Decidable Equality *)
     Section DecEq.
-      Context {U : Type}.
+      Context {K U : Type}.
+      Context {keq : K -> K -> Prop}.
+      Context `{Equivalence K keq}.
+      Context `{EqDec K keq}.
       Variable feq : U -> U -> bool.
 
-      Definition eqb_f : f tags_t U -> f tags_t U -> bool :=
+      Definition eqb_f : f K U -> f K U -> bool :=
         fun '(x1, u1) '(x2, u2) => equiv_dec x1 x2 &&&& feq u1 u2.
       (**[]*)
 
-      Fixpoint eqb_fs (fs1 fs2 : fs tags_t U) : bool :=
+      Fixpoint eqb_fs (fs1 fs2 : fs K U) : bool :=
         match fs1, fs2 with
         | [], _::_ | _::_, [] => false
         | [], [] => true
         | f1::fs1, f2::fs2 => eqb_f f1 f2 && eqb_fs fs1 fs2
         end.
       (**[]*)
+
+      Section ReflxEqb.
+        Hypothesis Hfeq : forall u : U, feq u u = true.
+
+        Lemma eqb_f_reflx : forall fld : f K U, eqb_f fld fld = true.
+        Proof.
+          Hint Rewrite Hfeq.
+          intros [k u]; simpl; equiv_dec_refl_tactic;
+          autorewrite with core; auto.
+          assert (keq k k) by reflexivity; contradiction.
+        Qed.
+
+        Lemma eqb_fs_reflx : forall flds : fs K U, eqb_fs flds flds = true.
+        Proof.
+          Hint Rewrite eqb_f_reflx.
+          induction flds; simpl; autorewrite with core; auto.
+        Qed.
+      End ReflxEqb.
     End DecEq.
   End FieldLibrary.
 
   Module RelfEquiv.
     Instance RelfEquiv
-             {tags_t : Type} (U : Type) (R : U -> U -> Prop) `{Equivalence U R}
-      : Equivalence (@relf tags_t _ _ R) :=
-      ProdEquiv _ R.
+             (K U : Type)
+             (keq : K -> K -> Prop) `{Equivalence K keq}
+             (R : U -> U -> Prop) `{Equivalence U R}
+      : Equivalence (@relf _ _ _ keq _ R) :=
+      ProdEquiv keq R.
     (**[]*)
 
     Instance RelfsEquiv
-             {tags_t : Type} (U : Type) (R : U -> U -> Prop) `{Equivalence U R}
-      : Equivalence (@relfs tags_t _ _ R) :=
+             (K U : Type)
+             (keq : K -> K -> Prop) `{Equivalence K keq}
+             (R : U -> U -> Prop) `{Equivalence U R}
+      : Equivalence (@relfs _ _ _ keq _ R) :=
       Forall2Equiv (relf R).
     (**[]*)
 
     Section EqReflect.
-      Context {tags_t U : Type}.
+      Context {K U : Type}.
+      Context {keq : K -> K -> Prop}.
+      Context `{EQkeq : Equivalence K keq}.
+      Context `{EQDeckeq : EqDec K keq}.
       Variable R : U -> U -> Prop.
       Context `{EQR : Equivalence U R}.
       Variable feq : U -> U -> bool.
       Hypothesis HR : forall u1 u2, reflect (R u1 u2) (feq u1 u2).
 
-      Lemma equiv_eqb_f : forall (f1 f2 : f tags_t U),
+      Lemma equiv_eqb_f : forall (f1 f2 : f K U),
           equiv f1 f2 -> eqb_f feq f1 f2 = true.
       Proof.
         unfold equiv in *; intros [? ?] [? ?] [? ?]; simpl in *;
         match goal with
-        | Hx : P4String.equiv ?x1 ?x2,
+        | Hx : equiv ?x1 ?x2,
           HRu: R ?u1 ?u2 |- _
           => specialize HR with u1 u2; inv HR;
               destruct (equiv_dec x1 x2) as [? | ?];
@@ -224,7 +261,7 @@ Module Field.
         end.
       Qed.
 
-      Lemma equiv_eqb_fs : forall (fs1 fs2 : fs tags_t U),
+      Lemma equiv_eqb_fs : forall (fs1 fs2 : fs K U),
           equiv fs1 fs2 -> eqb_fs feq fs1 fs2 = true.
       Proof.
         unfold equiv; intros ? ? ?;
@@ -237,7 +274,7 @@ Module Field.
         end.
       Qed.
 
-      Lemma eqb_f_equiv : forall (f1 f2 : f tags_t U),
+      Lemma eqb_f_equiv : forall (f1 f2 : f K U),
           eqb_f feq f1 f2 = true -> equiv f1 f2.
       Proof.
         unfold equiv, relf; intros [? ?] [? ?] ?; simpl in *;
@@ -251,7 +288,7 @@ Module Field.
         end.
       Qed.
 
-      Lemma eqb_fs_equiv : forall (fs1 fs2 : fs tags_t U),
+      Lemma eqb_fs_equiv : forall (fs1 fs2 : fs K U),
           eqb_fs feq fs1 fs2 = true -> equiv fs1 fs2.
       Proof.
         unfold equiv; induction fs1 as [| ? ? ?]; intros [| ? ?] ?;
@@ -262,39 +299,98 @@ Module Field.
         end; try apply eqb_f_equiv; eauto.
       Qed.
     End EqReflect.
+
+    (** Syntactic Equality. *)
+    Section RelfEq.
+      Context {K V : Type}.
+
+      Lemma eq_relf : forall f1 f2 : f K V, relf eq f1 f2 -> f1 = f2.
+      Proof.
+        intros [? ?] [? ?] [? ?]; unfold equiv in *;
+        simpl in *; subst; reflexivity.
+      Qed.
+
+      Lemma eq_relfs : forall fs1 fs2 : fs K V, relfs eq fs1 fs2 -> fs1 = fs2.
+      Proof.
+        Hint Resolve eq_relf : core.
+        intros ? ? H; induction H; auto; subst; f_equal; auto.
+      Qed.
+    End RelfEq.
   End RelfEquiv.
 
   Module FieldTactics.
-    Ltac invert_predf :=
+    Ltac predf_destruct :=
       match goal with
-      | H:predf_data _ _ |- _ => inv H
+      | H: predf_data _ (_, _) |- _ => idtac
+      | H: predf_data _ ?f
+        |- _ => destruct f as [? ?];
+              unfold predf_data,"∘","#" in H; simpl in *
       end.
     (**[]*)
 
     Ltac invert_cons_predfs :=
       match goal with
-      | H:predfs_data _ (_::_) |- _ => inv H
+      | H:predfs_data _ (_::_) |- _ => inv H; try predf_destruct
+      end.
+    (**[]*)
+
+    Ltac ind_list_predfs :=
+      match goal with
+      | H: predfs_data _ ?fs
+        |- _ => induction fs; try invert_cons_predfs
+      end.
+    (**[]*)
+
+    Ltac ind_predfs_data :=
+      match goal with
+      | H: predfs_data _ _
+        |- _ => induction H; try predf_destruct
       end.
     (**[]*)
 
     Ltac invert_nil_cons_relate :=
       match goal with
-      | H:relfs _ [] (_::_) |- _ => inversion H
-      | H:relfs _ (_::_) [] |- _ => inversion H
+      | H:relfs _ [] (_::_) |- _ => inv H
+      | H:relfs _ (_::_) [] |- _ => inv H
       end.
     (**[]*)
 
-    Ltac invert_relf :=
+    Ltac relf_destruct :=
       match goal with
-      | H:relf _ _ _ |- _ => inv H
+      | H:relf _ (_,_) (_,_) |- _ => destruct H as [? ?]; simpl in *
+      | H:relf _ ?fu (_,_)
+        |- _ => destruct fu as [? ?];
+              destruct H as [? ?]; simpl in *
+      | H:relf _ (_,_) ?fv
+        |- _ => destruct fv as [? ?];
+              destruct H as [? ?]; simpl in *
+      | H:relf _ ?fu ?fv
+        |- _ => destruct fu as [? ?];
+              destruct fv as [? ?];
+              destruct H as [? ?]; simpl in *
       end.
     (**[]*)
 
     Ltac invert_cons_cons_relate :=
       match goal with
-      | H:relfs _ (_::_) (_::_) |- _ => inv H; unfold relf in *
+      | H:relfs _ (_::_) (_::_) |- _ => inv H; try relf_destruct
       end.
     (**[]*)
+
+    Ltac ind_list_relfs :=
+      match goal with
+      | H: relfs _ ?fs1 ?fs2
+        |- _ => generalize dependent fs2;
+              induction fs1; intros [| ? ?]; intros;
+              try invert_nil_cons_relate;
+              try invert_cons_cons_relate
+      end.
+
+    Ltac ind_relfs :=
+      match goal with
+      | H: relfs _ _ _
+        |- _ => induction H; try relf_destruct
+      end.
   End FieldTactics.
 End Field.
 
@@ -332,12 +428,13 @@ Module P4cub.
   (**[]*)
 
   (** Function signatures/instantiations. *)
-  Inductive arrow (tags_t A B R : Type) : Type :=
-    Arrow (pas : F.fs tags_t (paramarg A B)) (returns : option R).
+  Inductive arrow (K A B R : Type) : Type :=
+    Arrow (pas : F.fs K (paramarg A B)) (returns : option R).
   (**[]*)
 
   Arguments Arrow {_} {_} {_} {_}.
 
+  (* Not used by p4cub.
   (** Directions. *)
   Module Dir.
     Inductive d : Set :=
@@ -347,14 +444,13 @@ Module P4cub.
       | DZilch (* no direction *).
     (**[]*)
   End Dir.
+  *)
 
   (** * Expression Grammar *)
   Module Expr.
-    Import Dir.
+    (* Import Dir. *)
 
     Section P4Types.
-      Variable (tags_t : Type).
-
       (** Expression types. *)
       Inductive t : Type :=
       | TBool                            (* bool *)
@@ -363,36 +459,37 @@ Module P4cub.
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
       | TTuple (types : list t)          (* tuple type *)
-      | TRecord (fields : F.fs tags_t t) (* the record and struct type *)
-      | THeader (fields : F.fs tags_t t) (* the header type *)
-      | THeaderStack (fields : F.fs tags_t t)
+      | TRecord (fields : F.fs string t) (* the record and struct type *)
+      | THeader (fields : F.fs string t) (* the header type *)
+      | THeaderStack (fields : F.fs string t)
                      (size : positive)   (* header stack type *).
       (**[]*)
 
       (** Function parameters. *)
-      Definition params : Type := F.fs tags_t (paramarg t t).
+      Definition params : Type := F.fs string (paramarg t t).
 
       (** Function types. *)
-      Definition arrowT : Type := arrow tags_t t t t.
+      Definition arrowT : Type := arrow string t t t.
 
       (** Constructor Types. *)
       Inductive ct : Type :=
       | CTType (type : t)                   (* expression types *)
-      | CTControl (cparams : F.fs tags_t ct)
+      | CTControl (cparams : F.fs string ct)
                   (parameters : params)     (* control types *)
-      | CTParser (cparams : F.fs tags_t ct)
+      | CTParser (cparams : F.fs string ct)
                  (parameters : params)      (* parser types *)
-      | CTExtern (cparams : F.fs tags_t ct)
-                 (methods : F.fs tags_t arrowT) (* extern types *)
+      | CTExtern (cparams : F.fs string ct)
+                 (methods : F.fs string arrowT) (* extern types *)
       (* | CTName (x : name tags_t)            (* constructor type name *)
          | CTLambda (lambda : t -> ct)          (* parametric types *)
          | CTApplication (polymorph : ct)
                       (type_arg : t)        (* type specialization *)*).
       (**[]*)
 
-      Definition constructor_params : Type := F.fs tags_t ct.
+      Definition constructor_params : Type := F.fs string ct.
     End P4Types.
 
+    (* No more tags_t in t.
     Arguments TBool {_}.
     Arguments TBit {_}.
     Arguments TInt {_}.
@@ -405,7 +502,7 @@ Module P4cub.
     Arguments CTType {_}.
     Arguments CTControl {_}.
     Arguments CTParser {_}.
-    Arguments CTExtern {_}.
+    Arguments CTExtern {_}. *)
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -454,12 +551,10 @@ Module P4cub.
 
     (** Custom induction principle for [t]. *)
     Section TypeInduction.
-      Context {tags_t : Type}.
-
       Import TypeNotations.
 
       (** An arbitrary property. *)
-      Variable P : t tags_t -> Prop.
+      Variable P : t -> Prop.
 
       Hypothesis HTBool : P {{ Bool }}.
 
@@ -485,16 +580,16 @@ Module P4cub.
 
       (** A custom induction principle.
           Do [induction ?t using custom_t_ind]. *)
-      Definition custom_t_ind : forall ty : t tags_t, P ty :=
-        fix custom_t_ind (type : t tags_t) : P type :=
-          let fix list_ind (ts : list (t tags_t)) :
+      Definition custom_t_ind : forall ty : t, P ty :=
+        fix custom_t_ind (type : t) : P type :=
+          let fix list_ind (ts : list t) :
                 Forall P ts :=
               match ts with
               | [] => Forall_nil _
               | h :: ts => Forall_cons _ (custom_t_ind h) (list_ind ts)
               end in
           let fix fields_ind
-                  (flds : F.fs tags_t (t tags_t)) : F.predfs_data P flds :=
+                  (flds : F.fs string t) : F.predfs_data P flds :=
               match flds as fs_ty return F.predfs_data P fs_ty with
               | [] => Forall_nil (F.predf_data P)
               | (_, hft) as hf :: tf =>
@@ -518,6 +613,7 @@ Module P4cub.
       Import Field.FieldTactics.
       Import TypeNotations.
 
+      (* No tags_t in t -> standard equality is good.
       (** Equality of types. *)
       Inductive equivt {tags_t : Type} : t tags_t -> t tags_t -> Prop :=
       | equivt_bool : ∫ Bool ≡ Bool
@@ -619,24 +715,21 @@ Module P4cub.
                     end.
                 (**[]*)
       End TypeEquivInduction.
-
+       *)
       Section TypeEquivalence.
-        Context {tags_t : Type}.
-
         (** Decidable equality. *)
-        Fixpoint eqbt (τ1 τ2 : t tags_t) : bool :=
-          let fix lrec (ts1 ts2 : list (t tags_t)) : bool :=
+        Fixpoint eqbt (τ1 τ2 : t) : bool :=
+          let fix lrec (ts1 ts2 : list t) : bool :=
               match ts1, ts2 with
               | [], [] => true
               | t1::ts1, t2::ts2 => eqbt t1 t2 && lrec ts1 ts2
               | [], _::_ | _::_, [] => false
               end in
-          let fix frec (ts1 ts2 : F.fs tags_t (t tags_t)) : bool :=
+          let fix frec (ts1 ts2 : F.fs string t) : bool :=
               match ts1, ts2 with
               | [], [] => true
-              | (x1,t1)::ts1, (x2,t2)::ts2 => if P4String.equivb x1 x2 then
-                                             eqbt t1 t2 && frec ts1 ts2
-                                           else false
+              | (x1,t1)::ts1, (x2,t2)::ts2
+                => equiv_dec x1 x2 &&&& eqbt t1 t2 && frec ts1 ts2
               | [], _::_ | _::_, [] => false
               end in
           match τ1, τ2 with
@@ -648,11 +741,13 @@ Module P4cub.
           | {{ tuple ts1 }}, {{ tuple ts2 }} => lrec ts1 ts2
           | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
           | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
-          | {{ stack ts1[n1] }}, {{ stack ts2[n2] }} => (n1 =? n2)%positive && frec ts1 ts2
+          | {{ stack ts1[n1] }}, {{ stack ts2[n2] }}
+            => (n1 =? n2)%positive && frec ts1 ts2
           | _, _ => false
           end.
         (**[]*)
 
+(* Tagless t -> equivt gratuitous.
         Lemma equivt_reflexive : Reflexive (@equivt tags_t).
         Proof.
           intros ty;
@@ -700,100 +795,80 @@ Module P4cub.
                        intros [| t2 ts2] H12 [| t3 ts3] H23;
                        inv H; inv H12; inv H23; constructor; eauto).
         Qed.
-
-        Lemma equivt_eqbt : forall t1 t2, equivt t1 t2 -> eqbt t1 t2 = true.
+ *)
+        Lemma eqbt_refl : forall τ, eqbt τ τ = true.
         Proof.
-          intros t1 t2 H; induction H using custom_equivt_ind;
-            simpl in *; try rewrite Pos.eqb_refl; auto;
-              rename H0 into HR;
-              try (induction H; inv HR; auto;
-                   destruct x as [x1 t1]; destruct y as [x2 t2];
-                     simpl in *; repeat invert_relf; simpl in *;
-                       pose proof P4String.equiv_reflect x1 x2 as Hx;
-                       inv Hx; try contradiction; rewrite H2; auto);
-              try (induction H; inv HR; auto;
-                   rewrite IHForall2; try rewrite H4; auto).
-          Qed.
-
-        Lemma eqbt_equivt : forall t1 t2, eqbt t1 t2 = true -> equivt t1 t2.
-        Proof.
-          induction t1 using custom_t_ind; intros [] Heqbt; simpl in *;
-            try apply andb_true_iff in Heqbt as [Hpos Heqbt];
-            try discriminate;
-            try match goal with
-                | H: (_ =? _)%positive = true |- _ => apply Peqb_true_eq in H; subst
-                end;
-            constructor;
-            try (rename fields into fs1; rename fields0 into fs2;
-                 generalize dependent fs2;
-                   induction fs1 as [| [x1 t1] fs1 IHfs1];
-                   intros [| [x2 t2] fs2] IH; inv H; simpl in *;
-                     try discriminate; constructor;
-                       destruct (P4String.equivb x1 x2) eqn:Hx;
-                       destruct (eqbt t1 t2) eqn:Heqbt;
-                       try discriminate; simpl in *;
-                         [ split; simpl; auto;
-                           pose proof P4String.equiv_reflect x1 x2 as Hx';
-                           inv Hx'; try contradiction; auto;
-                           rewrite Hx in H; discriminate
-                         | apply IHfs1; auto ]).
-          try (rename ts into ts1; rename types into ts2;
-               generalize dependent ts2;
-               induction ts1 as [| t1 ts1 IHts1];
-                 intros [| t2 ts2] IH; inv H; try discriminate; constructor;
-                   apply andb_prop in IH as [Hhd Htl]; auto).
+          Hint Rewrite Pos.eqb_refl.
+          Hint Rewrite equiv_dec_refl.
+          induction τ using custom_t_ind; simpl;
+          autorewrite with core; auto;
+          try ind_list_Forall; try ind_list_predfs;
+          intuition; autorewrite with core;
+          repeat (rewrite_true; simpl); auto.
         Qed.
 
-        Lemma equivt_eqbt_iff : forall t1 t2 : t tags_t,
-            equivt t1 t2 <-> eqbt t1 t2 = true.
-        Proof.
-          intros t1 t2; split; [apply equivt_eqbt | apply eqbt_equivt].
-        Qed.
-
-        Lemma equivt_reflect : forall t1 t2, reflect (equivt t1 t2) (eqbt t1 t2).
-        Proof.
-          intros t1 t2.
-          destruct (eqbt t1 t2) eqn:Heqbt; constructor.
-          - apply eqbt_equivt; assumption.
-          - intros H. apply equivt_eqbt in H.
-            rewrite H in Heqbt. discriminate.
-        Qed.
-
-        Lemma equivt_dec : forall t1 t2 : t tags_t,
-            equivt t1 t2 \/ ~ equivt t1 t2.
-        Proof.
-          intros t1 t2. pose proof equivt_reflect t1 t2 as H.
-          inversion H; subst; auto.
-        Qed.
-
-        Lemma equivt_resp_refl : forall tags_t,
-            Reflexive (@equivt tags_t ==>  Basics.impl)%signature.
-        Proof.
-          unfold Reflexive, respectful, Basics.impl; intros.
+        Ltac eauto_too_dumb :=
           match goal with
-          | H: ∫ _ ≡ _ |- _ => induction H
-          end; unfold F.relfs, F.relf in *; auto.
-          - induction H; auto.
-        Abort.
+          | H: ?f ?x ?y = ?z,
+            IH: (forall y, ?f ?x y = ?z -> _)
+            |- _ => apply IH in H; clear IH
+          end.
 
-        Lemma equivt_proper : forall tags_t f, Proper (@equivt tags_t ==>  Basics.impl) f.
+        Lemma eqbt_eq : forall t1 t2, eqbt t1 t2 = true -> t1 = t2.
         Proof.
-          unfold Proper, respectful, Basics.impl; intros.
+          Hint Resolve Peqb_true_eq : core.
+          Hint Extern 5 =>
           match goal with
-          | H: ∫ _ ≡ _ |- _ => induction H
-          end; unfold F.relfs, F.relf in *; auto;
+          | H: (_ =? _)%positive = true
+            |- _ => apply Peqb_true_eq in H; subst; auto
+          end : core.
+          induction t1 using custom_t_ind; intros []; intros; simpl in *;
+          try discriminate; repeat destruct_andb; auto; f_equal;
           try match goal with
-              | H: Forall2 _ _ _ |- _ => induction H; intuition
+              | IH: Forall _ ?ts1,
+                H: _ ?ts1 ?ts2 = true
+                |- _ => generalize dependent ts2;
+                      induction ts1; intros []; intros;
+                      try discriminate; try inv_Forall_cons;
+                      repeat destruct_andb; intuition;
+                      repeat eauto_too_dumb; subst; auto
+              end;
+          try match goal with
+              | IH: F.predfs_data _ ?ts1,
+                H: _ ?ts1 ?ts2 = true
+                |- _ => generalize dependent ts2;
+                      induction ts1; intros [| [? ?] ?]; intros;
+                      try discriminate; try invert_cons_predfs;
+                      try destruct_lifted_andb;
+                      repeat destruct_andb; intuition;
+                      unfold equiv in *; subst;
+                      repeat eauto_too_dumb; subst; auto
               end.
-        Abort.
-      End TypeEquivalence.
+        Qed.
 
-      Instance TypeEquivalence {tags_t : Type} : Equivalence (@equivt tags_t).
-      Proof.
-        constructor; [ apply equivt_reflexive
-                     | apply equivt_symmetric
-                     | apply equivt_transitive].
-      Defined.
+        Lemma eqbt_eq_iff : forall t1 t2 : t,
+            eqbt t1 t2 = true <-> t1 = t2.
+        Proof.
+          Hint Resolve eqbt_refl : core.
+          Hint Resolve eqbt_eq : core.
+          intros t1 t2; split; intros; subst; auto.
+        Qed.
+
+        Lemma eqbt_reflect : forall t1 t2, reflect (t1 = t2) (eqbt t1 t2).
+        Proof.
+          Hint Resolve eqbt_eq_iff : core.
+          intros; reflect_split; auto.
+          apply eqbt_eq_iff in H;
+            rewrite H in Heqb; discriminate.
+        Qed.
+
+        Lemma eq_dec : forall t1 t2 : t,
+            t1 = t2 \/ t1 <> t2.
+        Proof.
+          intros t1 t2. pose proof eqbt_reflect t1 t2 as H.
+          inv H; auto.
+        Qed.
+      End TypeEquivalence.
     End TypeEquivalence.
 
     (** Restrictions on type-nesting. *)
@@ -802,41 +877,39 @@ Module P4cub.
       Import TypeEquivalence.
 
       Section ProperTypeNesting.
-        Context {tags_t : Type}.
-
         (** Evidence a type is a base type. *)
-        Inductive base_type : t tags_t -> Prop :=
+        Inductive base_type : t -> Prop :=
         | base_bool : base_type {{ Bool }}
         | base_bit (w : positive) : base_type {{ bit<w> }}
         | base_int (w : positive) : base_type {{ int<w> }}.
 
         (** Allowed types within headers. *)
-        Inductive proper_inside_header : t tags_t -> Prop :=
-        | pih_bool (τ : t tags_t) :
+        Inductive proper_inside_header : t -> Prop :=
+        | pih_bool (τ : t) :
             base_type τ ->
             proper_inside_header τ
-        | pih_record (ts : F.fs tags_t (t tags_t)) :
+        | pih_record (ts : F.fs string t) :
             F.predfs_data base_type ts ->
             proper_inside_header {{ rec { ts } }}.
 
         (** Properly nested type. *)
-        Inductive proper_nesting : t tags_t -> Prop :=
-        | pn_base (τ : t tags_t) :
+        Inductive proper_nesting : t -> Prop :=
+        | pn_base (τ : t) :
             base_type τ -> proper_nesting τ
         | pn_error : proper_nesting {{ error }}
         | pn_matchkind : proper_nesting {{ matchkind }}
-        | pn_record (ts : F.fs tags_t (t tags_t)) :
+        | pn_record (ts : F.fs string t) :
             F.predfs_data
-              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+              (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
             proper_nesting {{ rec { ts } }}
-        | pn_tuple (ts : list (t tags_t)) :
+        | pn_tuple (ts : list t) :
             Forall
-              (fun τ => proper_nesting τ /\ ~ ∫ τ ≡ {{ matchkind }}) ts ->
+              (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
             proper_nesting {{ tuple ts }}
-        | pn_header (ts : F.fs tags_t (t tags_t)) :
+        | pn_header (ts : F.fs string t) :
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ hdr { ts } }}
-        | pn_header_stack (ts : F.fs tags_t (t tags_t))
+        | pn_header_stack (ts : F.fs string t)
                           (n : positive) :
             BitArith.bound 32%positive (Npos n) ->
             F.predfs_data proper_inside_header ts ->
@@ -844,19 +917,16 @@ Module P4cub.
 
         Import F.FieldTactics.
 
-        Lemma proper_inside_header_nesting : forall τ : t tags_t,
+        Lemma proper_inside_header_nesting : forall τ,
             proper_inside_header τ ->
             proper_nesting τ.
         Proof.
           intros τ H. induction H.
           - inv H; repeat econstructor.
           - apply pn_record.
-            induction H; constructor; auto.
-            destruct x as [x τ]; invert_predf;
-              split; simpl in *; subst; repeat econstructor;
-                try match goal with
-                    | |- ~ ∫ _ ≡ matchkind => intros H'; inv H'
-                    end.
+            ind_predfs_data; constructor; auto; cbv.
+            inv H; split; try (repeat constructor; assumption);
+            try (intros H'; inv H'; contradiction).
         Qed.
       End ProperTypeNesting.
     End ProperType.
@@ -982,27 +1052,27 @@ Module P4cub.
       | EBool (b : bool) (i : tags_t)                     (* booleans *)
       | EBit (width : positive) (val : N) (i : tags_t) (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
-      | EVar (type : t tags_t) (x : name tags_t)
+      | EVar (type : t) (x : string)
              (i : tags_t)                              (* variables *)
-      | ECast (type : t tags_t) (arg : e) (i : tags_t) (* explicit casts *)
-      | EUop (op : uop) (type : t tags_t)
+      | ECast (type : t) (arg : e) (i : tags_t) (* explicit casts *)
+      | EUop (op : uop) (type : t)
              (arg : e) (i : tags_t)                    (* unary operations *)
-      | EBop (op : bop) (lhs_type rhs_type : t tags_t)
+      | EBop (op : bop) (lhs_type rhs_type : t)
              (lhs rhs : e) (i : tags_t)                (* binary operations *)
       | ETuple (es : list e) (i : tags_t)              (* tuples *)
-      | ERecord (fields : F.fs tags_t (t tags_t * e))
+      | ERecord (fields : F.fs string (t * e))
                 (i : tags_t)                           (* records and structs *)
-      | EHeader (fields : F.fs tags_t (t tags_t * e))
+      | EHeader (fields : F.fs string (t * e))
                 (valid : e) (i : tags_t)               (* header literals *)
       | EHeaderOp (op : hdr_op) (header : e)
                   (i : tags_t)                         (* header operations *)
-      | EExprMember (mem : string tags_t)
-                    (expr_type : t tags_t)
+      | EExprMember (mem : string)
+                    (expr_type : t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
-      | EError (err : option (string tags_t))
+      | EError (err : option string)
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
-      | EHeaderStack (fields : F.fs tags_t (t tags_t))
+      | EHeaderStack (fields : F.fs string t)
                      (headers : list e) (size : positive)
                      (next_index : N)                  (* header stack literals,
                                                           unique to p4light *)
@@ -1014,21 +1084,21 @@ Module P4cub.
 
       (** Function call arguments. *)
       Definition args : Type :=
-        F.fs tags_t (paramarg (t tags_t * e) (t tags_t * e)).
+        F.fs string (paramarg (t * e) (t * e)).
       (**[]*)
 
       (** Function call. *)
       Definition arrowE : Type :=
-        arrow tags_t (t tags_t * e) (t tags_t * e) (t tags_t * e).
+        arrow string (t * e) (t * e) (t * e).
       (**[]*)
 
       (** Constructor arguments. *)
       Inductive constructor_arg : Type :=
       | CAExpr (expr : e) (* plain expression *)
-      | CAName (x : name tags_t) (* name of parser, control, etc *).
+      | CAName (x : string) (* name of parser, control, etc *).
       (**[]*)
 
-      Definition constructor_args : Type := F.fs tags_t constructor_arg.
+      Definition constructor_args : Type := F.fs string constructor_arg.
     End Expressions.
 
     Arguments EBool {tags_t}.
@@ -1133,34 +1203,33 @@ Module P4cub.
 
       Hypothesis HEInt : forall w n i, P <{ w S n @ i }>.
 
-      Hypothesis HEVar : forall (ty : t tags_t) (x : name tags_t) i,
+      Hypothesis HEVar : forall (ty : t) (x : string) i,
           P <{ Var x : ty @ i }>.
 
       Hypothesis HECast : forall τ exp i,
           P exp -> P <{ Cast exp:τ @ i }>.
 
-      Hypothesis HEUop : forall (op : uop) (ty : t tags_t) (ex : e tags_t) i,
+      Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e tags_t) i,
           P ex -> P <{ UOP op ex : ty @ i }>.
 
-      Hypothesis HEBop : forall (op : bop) (lt rt : t tags_t) (lhs rhs : e tags_t) i,
+      Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e tags_t) i,
           P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
 
       Hypothesis HETuple : forall es i,
           Forall P es -> P <{ tup es @ i }>.
 
-      Hypothesis HERecord : forall (fields : F.fs tags_t (t tags_t * e tags_t)) i,
+      Hypothesis HERecord : forall fields i,
           F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
 
-      Hypothesis HEHeader : forall (fields : F.fs tags_t (t tags_t * e tags_t)) b i,
+      Hypothesis HEHeader : forall fields b i,
           P b -> F.predfs_data (P ∘ snd) fields ->
           P <{ hdr {fields} valid:=b @ i }>.
 
       Hypothesis HEHeaderOp : forall op exp i,
           P exp -> P <{ HDR_OP op exp @ i }>.
 
-      Hypothesis HEExprMember : forall (x : string tags_t)
-                                  (ty : t tags_t) (ex : e tags_t) i,
-          P ex -> P <{ Mem ex:ty dot x @ i }>.
+      Hypothesis HEExprMember : forall x ty expr i,
+          P expr -> P <{ Mem expr:ty dot x @ i }>.
 
       Hypothesis HEError : forall err i, P <{ Error err @ i }>.
 
@@ -1180,7 +1249,7 @@ Module P4cub.
           Do [induction ?e using custom_e_ind]. *)
       Definition custom_e_ind : forall exp : e tags_t, P exp :=
         fix eind (expr : e tags_t) : P expr :=
-          let fix fields_ind {A:Type} (flds : F.fs tags_t (A * e tags_t))
+          let fix fields_ind {A:Type} (flds : F.fs string (A * e tags_t))
               : F.predfs_data (P ∘ snd) flds :=
               match flds as fs_ex
                     return F.predfs_data (P ∘ snd) fs_ex with
@@ -1253,7 +1322,8 @@ Module P4cub.
       Proof.
         intros [] []; unfold equiv, complement in *; auto;
           try match goal with
-              | n1 : N, n2: N |- _ => destruct (N.eq_dec n1 n2) as [? | ?]; subst; auto
+              | n1 : N, n2: N
+                |- _ => destruct (N.eq_dec n1 n2) as [? | ?]; subst; auto
               end;
           try (right; intros ?; inv_eq; contradiction).
       Defined.
@@ -1266,24 +1336,18 @@ Module P4cub.
           ∮ w W n @ i ≡ w W n @ i'
       | equive_int w z i i' :
           ∮ w S z @ i ≡ w S z @ i'
-      | equive_var x1 x2 τ1 τ2 i1 i2 :
-          equiv x1 x2 ->
-          ∫ τ1 ≡ τ2 ->
-          ∮ Var x1:τ1 @ i1 ≡ Var x2:τ2 @ i2
-      | equive_cast τ1 τ2 e1 e2 i1 i2 :
-          ∫ τ1 ≡ τ2 ->
+      | equive_var x τ i1 i2 :
+          ∮ Var x:τ @ i1 ≡ Var x:τ @ i2
+      | equive_cast τ e1 e2 i1 i2 :
           ∮ e1 ≡ e2 ->
-          ∮ Cast e1:τ1 @ i1 ≡ Cast e2:τ2 @ i2
-      | equive_uop op τ1 τ2 e1 e2 i1 i2 :
-          ∫ τ1 ≡ τ2 ->
+          ∮ Cast e1:τ @ i1 ≡ Cast e2:τ @ i2
+      | equive_uop op τ e1 e2 i1 i2 :
           ∮ e1 ≡ e2 ->
-          ∮ UOP op e1:τ1 @ i1 ≡ UOP op e2:τ2 @ i2
-      | equive_bop op τl1 τr1 τl2 τr2 el1 er1 el2 er2 i1 i2 :
-          ∫ τl1 ≡ τl2 ->
-          ∫ τr1 ≡ τr2 ->
+          ∮ UOP op e1:τ @ i1 ≡ UOP op e2:τ @ i2
+      | equive_bop op τl τr el1 er1 el2 er2 i1 i2 :
           ∮ el1 ≡ el2 ->
           ∮ er1 ≡ er2 ->
-          ∮ BOP el1:τl1 op er1:τr1 @ i1 ≡ BOP el2:τl2 op er2:τr2 @ i2
+          ∮ BOP el1:τl op er1:τr @ i1 ≡ BOP el2:τl op er2:τr @ i2
       | equive_tuple es1 es2 i1 i2 :
           Forall2 equive es1 es2 ->
           ∮ tup es1 @ i1 ≡ tup es2 @ i2
@@ -1294,7 +1358,7 @@ Module P4cub.
                let τ2 := fst et2 in
                let e1 := snd et1 in
                let e2 := snd et2 in
-               ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+               τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
           ∮ rec { fs1 } @ i1 ≡ rec { fs2 } @ i2
       | equive_header fs1 fs2 e1 e2 i1 i2 :
           F.relfs
@@ -1303,27 +1367,22 @@ Module P4cub.
                let τ2 := fst et2 in
                let e1 := snd et1 in
                let e2 := snd et2 in
-               ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+               τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
           ∮ e1 ≡ e2 ->
           ∮ hdr { fs1 } valid:=e1 @ i1 ≡ hdr { fs2 } valid:=e2 @ i2
       | equive_header_op op h1 h2 i1 i2 :
           ∮ h1 ≡ h2 ->
           ∮ HDR_OP op h1 @ i1 ≡ HDR_OP op h2 @ i2
-      | equive_member x1 x2 τ1 τ2 e1 e2 i1 i2 :
-          equiv x1 x2 ->
-          ∫ τ1 ≡ τ2 ->
+      | equive_member x τ e1 e2 i1 i2 :
           ∮ e1 ≡ e2 ->
-          ∮ Mem e1:τ1 dot x1 @ i1 ≡ Mem e2:τ2 dot x2 @ i2
-      | equive_error err1 err2 i1 i2 :
-          equiv err1 err2 ->
-          ∮ Error err1 @ i1 ≡ Error err2 @ i2
-      | equive_matchkind mk1 mk2 i1 i2 :
-          equiv mk1 mk2 ->
-          ∮ Matchkind mk1 @ i1 ≡ Matchkind mk2 @ i2
-      | equive_header_stack ts1 ts2 hs1 hs2 n ni :
-          F.relfs equivt ts1 ts2 ->
+          ∮ Mem e1:τ dot x @ i1 ≡ Mem e2:τ dot x @ i2
+      | equive_error err i1 i2 :
+          ∮ Error err @ i1 ≡ Error err @ i2
+      | equive_matchkind mk i1 i2 :
+          ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
+      | equive_header_stack ts hs1 hs2 n ni :
           Forall2 equive hs1 hs2 ->
-          ∮ Stack hs1:ts1[n] nextIndex:=ni ≡ Stack hs2:ts2[n] nextIndex:=ni
+          ∮ Stack hs1:ts[n] nextIndex:=ni ≡ Stack hs2:ts[n] nextIndex:=ni
       | equive_stack_access e1 e2 n i1 i2 :
           ∮ e1 ≡ e2 ->
           ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
@@ -1344,31 +1403,25 @@ Module P4cub.
 
         Hypothesis HInt : forall w z i i', P <{ w S z @ i }> <{ w S z @ i' }>.
 
-        Hypothesis HVar : forall x1 x2 τ1 τ2 i1 i2,
-            equiv x1 x2 ->
-            ∫ τ1 ≡ τ2 ->
-            P <{ Var x1:τ1 @ i1 }> <{ Var x2:τ2 @ i2 }>.
+        Hypothesis HVar : forall x τ i1 i2,
+            P <{ Var x:τ @ i1 }> <{ Var x:τ @ i2 }>.
 
-        Hypothesis HCast : forall τ1 τ2 e1 e2 i1 i2,
-            ∫ τ1 ≡ τ2 ->
+        Hypothesis HCast : forall τ e1 e2 i1 i2,
             ∮ e1 ≡ e2 ->
             P e1 e2 ->
-            P <{ Cast e1:τ1 @ i1 }> <{ Cast e2:τ2 @ i2 }>.
+            P <{ Cast e1:τ @ i1 }> <{ Cast e2:τ @ i2 }>.
 
-        Hypothesis HUop : forall op τ1 τ2 e1 e2 i1 i2,
-            ∫ τ1 ≡ τ2 ->
+        Hypothesis HUop : forall op τ e1 e2 i1 i2,
             ∮ e1 ≡ e2 ->
             P e1 e2 ->
-            P <{ UOP op e1:τ1 @ i1 }> <{ UOP op e2:τ2 @ i2 }>.
+            P <{ UOP op e1:τ @ i1 }> <{ UOP op e2:τ @ i2 }>.
 
-        Hypothesis HBop : forall op τl1 τr1 τl2 τr2 el1 er1 el2 er2 i1 i2,
-            ∫ τl1 ≡ τl2 ->
-            ∫ τr1 ≡ τr2 ->
+        Hypothesis HBop : forall op τl τr el1 er1 el2 er2 i1 i2,
             ∮ el1 ≡ el2 ->
             P el1 el2 ->
             ∮ er1 ≡ er2 ->
             P er1 er2 ->
-            P <{ BOP el1:τl1 op er1:τr1 @ i1 }> <{ BOP el2:τl2 op er2:τr2 @ i2 }>.
+            P <{ BOP el1:τl op er1:τr @ i1 }> <{ BOP el2:τl op er2:τr @ i2 }>.
 
         Hypothesis HTup : forall es1 es2 i1 i2,
             Forall2 equive es1 es2 ->
@@ -1382,7 +1435,7 @@ Module P4cub.
                  let τ2 := fst et2 in
                  let e1 := snd et1 in
                  let e2 := snd et2 in
-                 ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+                 τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
             F.relfs
               (fun et1 et2 =>
                  let e1 := snd et1 in
@@ -1397,7 +1450,7 @@ Module P4cub.
                  let τ2 := fst et2 in
                  let e1 := snd et1 in
                  let e2 := snd et2 in
-                 ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+                 τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
             F.relfs
               (fun et1 et2 =>
                  let e1 := snd et1 in
@@ -1412,27 +1465,22 @@ Module P4cub.
             P h1 h2 ->
             P <{ HDR_OP op h1 @ i1 }> <{ HDR_OP op h2 @ i2 }>.
 
-        Hypothesis HMember : forall x1 x2 τ1 τ2 e1 e2 i1 i2,
-            equiv x1 x2 ->
-            ∫ τ1 ≡ τ2 ->
+        Hypothesis HMember : forall x τ e1 e2 i1 i2,
             ∮ e1 ≡ e2 ->
             P e1 e2 ->
-            P <{ Mem e1:τ1 dot x1 @ i1 }> <{ Mem e2:τ2 dot x2 @ i2 }>.
+            P <{ Mem e1:τ dot x @ i1 }> <{ Mem e2:τ dot x @ i2 }>.
 
-        Hypothesis HError : forall err1 err2 i1 i2,
-            equiv err1 err2 ->
-            P <{ Error err1 @ i1 }> <{ Error err2 @ i2 }>.
+        Hypothesis HError : forall err i1 i2,
+            P <{ Error err @ i1 }> <{ Error err @ i2 }>.
 
-        Hypothesis HMatchkind : forall mk1 mk2 i1 i2,
-            equiv mk1 mk2 ->
-            P <{ Matchkind mk1 @ i1 }> <{ Matchkind mk2 @ i2 }>.
+        Hypothesis HMatchkind : forall mk i1 i2,
+            P <{ Matchkind mk @ i1 }> <{ Matchkind mk @ i2 }>.
 
-        Hypothesis HHeaderStack : forall ts1 ts2 hs1 hs2 n ni,
-            F.relfs equivt ts1 ts2 ->
+        Hypothesis HHeaderStack : forall ts hs1 hs2 n ni,
             Forall2 equive hs1 hs2 ->
             Forall2 P hs1 hs2 ->
-            P <{ Stack hs1:ts1[n] nextIndex:=ni }>
-            <{ Stack hs2:ts2[n] nextIndex:=ni }>.
+            P <{ Stack hs1:ts[n] nextIndex:=ni }>
+            <{ Stack hs2:ts[n] nextIndex:=ni }>.
 
         Hypothesis HAccess : forall e1 e2 n i1 i2,
             ∮ e1 ≡ e2 ->
@@ -1456,14 +1504,14 @@ Module P4cub.
                                              _ _
                                              (eeind _ _ Hh) (lind Ht)
                 end in
-            let fix fsind {fs1 fs2 : F.fs tags_t (t tags_t * e tags_t)}
+            let fix fsind {fs1 fs2 : F.fs string (t * e tags_t)}
                     (Hfs : F.relfs
                              (fun et1 et2 =>
                                 let τ1 := fst et1 in
                                 let τ2 := fst et2 in
                                 let e1 := snd et1 in
                                 let e2 := snd et2 in
-                                ∫ τ1 ≡ τ2 /\ ∮ e1 ≡ e2) fs1 fs2)
+                                τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2)
                 : F.relfs
                     (fun et1 et2 =>
                        let e1 := snd et1 in
@@ -1480,20 +1528,20 @@ Module P4cub.
             | equive_bool b i i' => HBool b i i'
             | equive_bit w n i i' => HBit w n i i'
             | equive_int w z i i' => HInt w z i i'
-            | equive_var _ _ _ _ i1 i2 Hx Ht => HVar _ _ _ _ i1 i2 Hx Ht
-            | equive_cast _ _ _ _ i1 i2
-                          Ht He => HCast
-                                    _ _ _ _ i1 i2 Ht
-                                    He (eeind _ _ He)
-            | equive_uop op _ _ _ _ i1 i2
-                         Ht He => HUop
-                                   op _ _ _ _ i1 i2 Ht
-                                   He (eeind _ _ He)
-            | equive_bop op _ _ _ _ _ _ _ _ i1 i2
-                         Htl Htr Hel Her => HBop
-                                             op _ _ _ _ _ _ _ _ i1 i2 Htl Htr
-                                             Hel (eeind _ _ Hel)
-                                             Her (eeind _ _ Her)
+            | equive_var x τ i1 i2 => HVar x τ i1 i2
+            | equive_cast τ _ _ i1 i2
+                          He => HCast
+                                 τ _ _ i1 i2
+                                 He (eeind _ _ He)
+            | equive_uop op τ _ _ i1 i2
+                         He => HUop
+                                op τ _ _ i1 i2
+                                He (eeind _ _ He)
+            | equive_bop op tl tr _ _ _ _ i1 i2
+                         Hel Her => HBop
+                                     op tl tr _ _ _ _ i1 i2
+                                     Hel (eeind _ _ Hel)
+                                     Her (eeind _ _ Her)
             | equive_tuple _ _ i1 i2 Hes => HTup
                                              _ _ i1 i2
                                              Hes (lind Hes)
@@ -1509,16 +1557,16 @@ Module P4cub.
                                He => HHeaderOp
                                       op _ _ i1 i2
                                       He (eeind _ _ He)
-            | equive_member _ _ _ _ _ _ i1 i2
-                            Hx Ht He => HMember
-                                         _ _ _ _ _ _ i1 i2 Hx Ht
-                                         He (eeind _ _ He)
-            | equive_error _ _ i1 i2 Herr => HError _ _ i1 i2 Herr
-            | equive_matchkind _ _ i1 i2 Hmk => HMatchkind _ _ i1 i2 Hmk
-            | equive_header_stack _ _ _ _ n ni
-                                  Hts Hhs => HHeaderStack
-                                              _ _ _ _ n ni Hts
-                                              Hhs (lind Hhs)
+            | equive_member x τ _ _ i1 i2
+                            He => HMember
+                                   x τ _ _ i1 i2
+                                   He (eeind _ _ He)
+            | equive_error err i1 i2 => HError err i1 i2
+            | equive_matchkind mk i1 i2 => HMatchkind mk i1 i2
+            | equive_header_stack ts _ _ n ni
+                                  Hhs => HHeaderStack
+                                          ts _ _ n ni
+                                          Hhs (lind Hhs)
             | equive_stack_access _ _ n i1 i2
                                   He => HAccess _ _ n i1 i2
                                                He (eeind _ _ He)
@@ -1569,21 +1617,18 @@ Module P4cub.
                   end;
               try match goal with
                   | H: F.relfs
-                         (fun et1 et2 : t tags_t * e tags_t =>
+                         (fun et1 et2 : t * e tags_t =>
                             let τ1 := fst et1 in
                             let τ2 := fst et2 in
                             let e1 := snd et1 in
                             let e2 := snd et2 in
-                            (∫ τ1 ≡ τ2) /\ (∮ e1 ≡ e2))
+                            τ1 = τ2 /\ (∮ e1 ≡ e2))
                          ?fs1 ?fs2,
                        IH: F.relfs _ ?fs1 ?fs2 |- F.relfs _ ?fs2 ?fs1
                     => induction H; inv IH;
-                        constructor; repeat invert_relf;
-                          repeat match goal with
-                                 | x: F.f _ (_ * _) |- _
-                                   => destruct x as [? [? ?]];
-                                       simpl in *
-                                 end; repeat split; intuition
+                      constructor; repeat relf_destruct;
+                      unfold equiv in *; subst;
+                        repeat split; intuition
                   end.
         Qed.
 
@@ -1619,7 +1664,7 @@ Module P4cub.
                                | H: F.relfs _ _ (_ :: _) |- _ => inv H
                                | H: F.relfs _ (_ :: _) _ |- _ => inv H
                                end; constructor;
-                          repeat invert_relf; simpl in *; intuition;
+                          repeat relf_destruct; simpl in *; intuition;
                           repeat split; simpl; intuition; eauto;
                           try match goal with
                               | IH: forall _, _ -> forall _, _ -> _ |- _ => eapply IH; eauto
@@ -1636,20 +1681,24 @@ Module P4cub.
               | e1::es1, e2::es2 => eqbe e1 e2 && lrec es1 es2
               end in
           let fix efsrec {A : Type} (feq : A -> A -> bool)
-                  (fs1 fs2 : F.fs tags_t (A * e tags_t)) : bool :=
+                  (fs1 fs2 : F.fs string (A * e tags_t)) : bool :=
               match fs1, fs2 with
               | [], _::_ | _::_, [] => false
               | [], [] => true
               | (x1, (a1, e1))::fs1, (x2, (a2, e2))::fs2
-                => equiv_dec x1 x2 &&&& feq a1 a2 && eqbe e1 e2 && efsrec feq fs1 fs2
+                => equiv_dec x1 x2 &&&& feq a1 a2 &&
+                  eqbe e1 e2 && efsrec feq fs1 fs2
               end in
           match e1, e2 with
           | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => eqb b1 b2
-          | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }> => (w1 =? w2)%positive && (n1 =? n2)%N
-          | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }> => (w1 =? w2)%positive && (z1 =? z2)%Z
+          | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
+            => (w1 =? w2)%positive && (n1 =? n2)%N
+          | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
+            => (w1 =? w2)%positive && (z1 =? z2)%Z
           | <{ Var x1:τ1 @ _ }>, <{ Var x2:τ2 @ _ }>
             => equiv_dec x1 x2 &&&& eqbt τ1 τ2
-          | <{ Cast e1:τ1 @ _ }>, <{ Cast e2:τ2 @ _ }> => eqbt τ1 τ2 && eqbe e1 e2
+          | <{ Cast e1:τ1 @ _ }>, <{ Cast e2:τ2 @ _ }>
+            => eqbt τ1 τ2 && eqbe e1 e2
           | <{ UOP u1 e1:τ1 @ _ }>, <{ UOP u2 e2:τ2 @ _ }>
             => equiv_dec u1 u2 &&&& eqbt τ1 τ2 && eqbe e1 e2
           | <{ BOP el1:τl1 o1 er1:τr1 @ _ }>,
@@ -1657,7 +1706,8 @@ Module P4cub.
             => equiv_dec o1 o2 &&&& eqbt τl1 τl2 && eqbt τr1 τr2
               && eqbe el1 el2 && eqbe er1 er2
           | <{ tup es1 @ _ }>, <{ tup es2 @ _ }> => lrec es1 es2
-          | <{ rec { fs1 } @ _ }>, <{ rec { fs2 } @ _ }> => efsrec eqbt fs1 fs2
+          | <{ rec { fs1 } @ _ }>, <{ rec { fs2 } @ _ }>
+            => efsrec eqbt fs1 fs2
           | <{ hdr { fs1 } valid:=e1 @ _ }>,
             <{ hdr { fs2 } valid:=e2 @ _ }>
             => eqbe e1 e2 && efsrec eqbt fs1 fs2
@@ -1684,25 +1734,19 @@ Module P4cub.
         Import F.RelfEquiv.
 
         Lemma equive_eqbe : forall e1 e2 : e tags_t,
-            equive e1 e2 -> eqbe e1 e2 = true.
+            ∮ e1 ≡ e2 -> eqbe e1 e2 = true.
         Proof.
           Hint Rewrite eqb_reflx.
           Hint Rewrite Pos.eqb_refl.
           Hint Rewrite N.eqb_refl.
           Hint Rewrite Z.eqb_refl.
+          Hint Rewrite eqbt_refl.
+          Hint Rewrite equiv_dec_refl.
           intros ? ? ?;
           match goal with
           | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
           end; simpl in *; autorewrite with core; auto;
-          repeat match goal with
-                 | H: ∫ ?t1 ≡ ?t2 |- context [eqbt ?t1 ?t2]
-                   => pose proof equivt_eqbt _ _ H as ?; clear H
-                 end;
-          try match goal with
-              | H: F.relfs equivt ?ts1 ?ts2
-                |- context [ F.eqb_fs eqbt ?ts1 ?ts2 ]
-                => pose proof equiv_eqb_fs _ _ equivt_reflect _ _ H as ?
-              end;
+            
           repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
                  end; auto;
@@ -1719,32 +1763,21 @@ Module P4cub.
                   | H: F.relf _ ?f1 ?f2 |- _
                     => destruct f1 as [? [? ?]];
                       destruct f2 as [? [? ?]];
-                      repeat invert_relf; simpl in *;
-                      intuition
+                      repeat relf_destruct; simpl in *;
+                      unfold equiv in *;
+                      intuition; subst;
+                      autorewrite with core;
+                      try equiv_dec_refl_tactic
                   end
               end;
           repeat match goal with
-                 | H: ∫ ?t1 ≡ ?t2 |- context [eqbt ?t1 ?t2]
-                   => pose proof equivt_eqbt _ _ H as ?; clear H
-                 end;
-          repeat match goal with
-              | |- context [equiv_dec ?x ?x]
-                => destruct (equiv_dec x x) as [? | ?];
-                    try contradiction
-              | H: ?x1 === ?x2 |- context [equiv_dec ?x1 ?x2]
-                => destruct (equiv_dec x1 x2) as [? | ?];
-                    try contradiction
-              | H: P4String.equiv ?x1 ?x2 |- context [equiv_dec ?x1 ?x2]
-                => destruct (equiv_dec x1 x2) as [? | ?];
-                    try contradiction
-              end;
-          try match goal with
-              | H: ?x =/= ?x |- _
-                => unfold equiv, complement in H; contradiction
-              end;
-          repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
-                 end; auto.
+                 end; auto;
+            try match goal with
+                | |- context [ F.eqb_fs eqbt ?ts ?ts ]
+                  => rewrite (equiv_eqb_fs _ _ eqbt_reflect ts ts);
+                      unfold equiv in *; auto; try reflexivity
+                end.
         Qed.
 
         Ltac eq_true_terms :=
@@ -1775,7 +1808,7 @@ Module P4cub.
             => destruct (eqbe e1 e2) eqn:?;
               simpl in H; try discriminate
           | H: eqbt _ _ = true |- _
-            => apply eqbt_equivt in H
+            => apply eqbt_eq_iff in H
           | H: context [if eqbe ?e1 ?e2 then _ else _] |- _
             => destruct (eqbe e1 e2) eqn:?;
               simpl in H; try discriminate
@@ -1794,6 +1827,10 @@ Module P4cub.
           | H: ?P, IH: ?P -> ?Q |- _ => apply IH in H as ?
           | H: (if ?trm then true else false) = true |- _
             => destruct trm eqn:?; simpl in H; try discriminate
+          | H: relop _ _ _ |- _ => inv H
+          | H: F.eqb_fs eqbt _ _ = true
+            |- _ => pose proof eqb_fs_equiv _ _ eqbt_reflect _ _ H as ?; clear H
+          | H: F.relfs eq _ _ |- _ => apply eq_relfs in H; subst
           end.
         (**[]*)
 
@@ -1805,34 +1842,24 @@ Module P4cub.
           induction e1 using custom_e_ind;
           intros [] ?; simpl in *;
           try discriminate; auto;
-          repeat eq_true_terms; auto; constructor; auto;
+          repeat eq_true_terms;
+          unfold equiv in *;
+          subst; auto; constructor; auto;
           try match goal with
-              | H: F.eqb_fs eqbt _ _ = true |- _ =>
-                pose proof eqb_fs_equiv _ _ equivt_reflect _ _ H; unfold "===" in *
-              end;
-          try match goal with
-              | H: context
-                     [(fix lrec (l1 _ : list (e tags_t))
-                           {struct l1} : bool := _) ?es1 ?es2] |- _
+              | |- Forall2 _ ?es1 ?es2
                 => generalize dependent es2;
-                  induction es1 as [| ? ? ?]; intros [| ? ?] ?;
+                  induction es1; intros [];
                   simpl in *; try discriminate; auto
               end;
           try match goal with
-              | H: context
-                     [(fix efsrec _ _ (l1 _ : F.fs _ (_ * _))
-                           {struct l1} : bool := _) _ _ ?fs1 ?fs2] |- _
+              | |- F.relfs _ ?fs1 ?fs2
                 => generalize dependent fs2;
                   induction fs1 as [| [? [? ?]] ? ?];
-                  intros [| [? [? ?]] ?] ?; simpl in *;
-                  try discriminate; auto; repeat constructor;
-                  simpl in *; repeat eq_true_terms;
-                  invert_cons_predfs; intuition;
-                  unfold F.relfs in *;
-                  match goal with
-                  | IH: forall _, _ -> Forall2 ?R ?fs1 _ |- Forall2 ?R ?fs1 _
-                    => apply IH; assumption
-                  end
+                  intros [| [? [? ?]] ?]; intros;
+                  simpl in *; try discriminate; auto;
+                  try destruct_lifted_andb; repeat destruct_andb;
+                  try invert_cons_predfs; repeat constructor;
+                  intuition; unfold F.relfs in *; auto
               end.
         Qed.
 
@@ -1843,16 +1870,6 @@ Module P4cub.
           Hint Resolve eqbe_equive : core.
           intros; split; auto.
         Qed.
-
-        Ltac reflect_split :=
-          match goal with
-          | |- reflect ?P ?trm
-            => destruct trm eqn:?; constructor;
-              try match goal with
-                  | H: _ = false |- ~ _
-                    => intros ?
-                  end
-          end.
 
         Lemma equive_reflect : forall e1 e2 : e tags_t,
             reflect (∮ e1 ≡ e2) (eqbe e1 e2).
@@ -1868,12 +1885,6 @@ Module P4cub.
           intros; reflect_split; auto;
             autorewrite with core; auto.
         Qed.
-
-        Lemma equive_proper : forall tags_t f, Proper (@equive tags_t ==>  Basics.impl) f.
-        Proof.
-          unfold Basics.impl, Proper, respectful; intros.
-          induction H using custom_equive_ind; auto.
-        Abort.
       End ExprEquivalenceDefs.
 
       Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
@@ -1888,7 +1899,7 @@ Module P4cub.
 
   (** * Statement Grammar *)
   Module Stmt.
-    Import Dir.
+    (* Import Dir. *)
     Module E := Expr.
 
     Section Statements.
@@ -1897,28 +1908,28 @@ Module P4cub.
       Inductive s : Type :=
       | SSkip (i : tags_t)                              (* skip, useful for
                                                            small-step semantics *)
-      | SVardecl (type : E.t tags_t)
-                 (x : string tags_t) (i : tags_t)       (* Variable declaration. *)
-      | SAssign (type : E.t tags_t) (lhs rhs : E.e tags_t)
+      | SVardecl (type : E.t)
+                 (x : string) (i : tags_t)       (* Variable declaration. *)
+      | SAssign (type : E.t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                            (* assignment *)
-      | SConditional (guard_type : E.t tags_t)
+      | SConditional (guard_type : E.t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
                                                            an alternative to blocks *)
-      | SExternMethodCall (e : name tags_t) (f : string tags_t)
+      | SExternMethodCall (e : string) (f : string)
                           (args : E.arrowE tags_t)
                           (i : tags_t)                  (* extern method calls *)
-      | SFunCall (f : name tags_t)
+      | SFunCall (f : string)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
-      | SActCall (f : name tags_t)
+      | SActCall (f : string)
                  (args : E.args tags_t) (i : tags_t)    (* action call *)
       | SReturnVoid (i : tags_t)                        (* void return statement *)
-      | SReturnFruit (t : E.t tags_t)
+      | SReturnFruit (t : E.t)
                      (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
       | SExit (i : tags_t)                              (* exit statement *)
-      | SInvoke (x : name tags_t) (i : tags_t)          (* table invocation *)
-      | SApply (x : name tags_t)
+      | SInvoke (x : string) (i : tags_t)          (* table invocation *)
+      | SApply (x : string)
                (args : E.args tags_t) (i : tags_t)      (* control apply statements,
                                                            where [x] is the
                                                            name of an instance *).
@@ -2003,11 +2014,11 @@ Module P4cub.
           may occur within controls, parsers,
           and even the top-level. *)
       Inductive d : Type :=
-      | DVardecl (typ : E.t tags_t) (x : string tags_t)
+      | DVardecl (typ : E.t) (x : string)
                  (i : tags_t)                      (* unitialized variable *)
-      | DVarinit (typ : E.t tags_t) (x : string tags_t)
+      | DVarinit (typ : E.t) (x : string)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
-      | DInstantiate (C : name tags_t) (x : string tags_t)
+      | DInstantiate (C : string) (x : string)
                      (* (targs : list (E.t tags_t)) *)
                      (cargs : E.constructor_args tags_t)
                      (i : tags_t)                  (* constructor [C]
@@ -2055,7 +2066,7 @@ Module P4cub.
         Inductive e : Type :=
         | PAccept (i : tags_t)        (* accept the packet *)
         | PReject (i : tags_t)        (* reject the packet. *)
-        | PState (st : string tags_t)
+        | PState (st : string)
                  (i : tags_t)         (* user-defined state name. *)
         | PSelect (exp : E.e tags_t)
                   (cases : list (option (E.e tags_t) * e))
@@ -2152,17 +2163,17 @@ Module P4cub.
 
         (** Table. *)
         Inductive table : Type :=
-        | Table (key : list (E.t tags_t * E.e tags_t * E.matchkind))
-                (actions : list (string tags_t)).
+        | Table (key : list (E.t * E.e tags_t * E.matchkind))
+                (actions : list string).
         (**[]*)
 
         (** Declarations that may occur within Controls. *)
         (* TODO, this is a stub. *)
         Inductive d : Type :=
-        | CDAction (a : string tags_t)
-                   (signature : E.params tags_t)
+        | CDAction (a : string)
+                   (signature : E.params)
                    (body : S.s tags_t) (i : tags_t) (* action declaration *)
-        | CDTable (t : string tags_t) (bdy : table)
+        | CDTable (t : string) (bdy : table)
                   (i : tags_t)                      (* table declaration *)
         | CDDecl (d : D.d tags_t) (i : tags_t)
         | CDSeq (d1 d2 : d) (i : tags_t).
@@ -2215,20 +2226,20 @@ Module P4cub.
       | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
       (* | TPTypeDecl (x : string tags_t) (ct : E.ct tags_t)
                    (i : tags_t)(* type declaration *) *)
-      | TPExtern (e : string tags_t)
-                 (cparams : E.constructor_params tags_t)
-                 (methods : F.fs tags_t (E.arrowT tags_t))
+      | TPExtern (e : string)
+                 (cparams : E.constructor_params)
+                 (methods : F.fs string E.arrowT)
                  (i : tags_t) (* extern declarations *)
-      | TPControl (c : string tags_t)
-                  (cparams : E.constructor_params tags_t) (* constructor params *)
-                  (params : E.params tags_t) (* apply block params *)
+      | TPControl (c : string)
+                  (cparams : E.constructor_params) (* constructor params *)
+                  (params : E.params) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (p : string tags_t)
-                 (cparams : E.constructor_params tags_t) (* constructor params *)
-                 (params : E.params tags_t)           (* invocation params *)
-                 (states : F.fs tags_t (P.state tags_t)) (* parser states *)
+      | TPParser (p : string)
+                 (cparams : E.constructor_params) (* constructor params *)
+                 (params : E.params)           (* invocation params *)
+                 (states : F.fs string (P.state tags_t)) (* parser states *)
                  (i : tags_t) (* TODO: start state? *)
-      | TPFunction (f : string tags_t) (signature : E.arrowT tags_t)
+      | TPFunction (f : string) (signature : E.arrowT)
                    (body : S.s tags_t) (i : tags_t)
                    (* function/method declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).

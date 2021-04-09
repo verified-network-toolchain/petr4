@@ -36,6 +36,56 @@ Ltac inv_eq :=
         match goal with
         | H: _ = _ |- _ => inv H
         end.
+(**[]*)
+
+Ltac inv_Forall_cons :=
+  match goal with
+  | H: Forall _ (_ :: _) |- _ => inv H
+  end.
+(**[]*)
+
+Ltac ind_list_Forall :=
+  match goal with
+  | H: Forall _ ?l
+    |- _ => induction l; try inv_Forall_cons
+  end.
+(**[]*)
+
+Ltac rewrite_goal_l :=
+  match goal with
+  | H: ?a = ?b |- context [ ?a ] => repeat rewrite H; clear H
+  end.
+
+Ltac rewrite_goal_r :=
+  match goal with
+  | H: ?a = ?b |- context [ ?b ] => repeat rewrite <- H; clear H
+  end.
+
+Ltac rewrite_true :=
+  match goal with
+  | H: _ = true |- _ => rewrite_goal_l
+  | H: true = _ |- _ => rewrite_goal_r
+  end.
+
+Ltac destruct_andb :=
+  match goal with
+  | H: (_ && _)%bool = true |- _ => apply Bool.andb_true_iff in H as [? ?]
+  end.
+
+Ltac destruct_orb :=
+  match goal with
+  | H: (_ || _)%bool = true |- _ => apply Bool.orb_true_iff in H as [? ?]
+  end.
+
+Ltac reflect_split :=
+  match goal with
+  | |- Bool.reflect ?P ?trm
+    => destruct trm eqn:?; constructor;
+      try match goal with
+          | H: _ = false |- ~ _
+            => intros ?
+          end
+  end.
 
 (** * Useful Data Types *)
 
@@ -48,6 +98,52 @@ Arguments Left {_ _}.
 Arguments Right {_ _}.
 
 (** * Useful Functions And Lemmas *)
+
+Lemma ex_equiv_dec_refl :
+  forall (X : Type) (x : X) (R : X -> X -> Prop) `{EqDec X R},
+    exists l, equiv_dec x x = left l.
+Proof.
+  intros; destruct (equiv_dec x x) as [Hx | Hx];
+  unfold equiv, complement in *; eauto.
+  assert (R x x) by reflexivity; contradiction.
+Qed.
+
+Ltac equiv_dec_refl_tactic :=
+  match goal with
+  | |- context [equiv_dec ?x ?x]
+    => destruct (equiv_dec x x) as [? | ?];
+      unfold equiv, complement in *; try contradiction
+  end.
+
+Lemma equiv_dec_refl :
+  forall (X Y : Type) (x : X) (y1 y2 : Y) (R : X -> X -> Prop) `{EqDec X R},
+    (if equiv_dec x x then y1 else y2) = y1.
+Proof.
+  intros. destruct (equiv_dec x x) as [Hxx | Hxx]; auto.
+  assert (Hx : R x x) by reflexivity. contradiction.
+Qed.
+
+Lemma lifted_andb_refl_r :
+  forall {X : Type} (x : X) (R : X -> X -> Prop) `{EqDec X R} (b : bool),
+    equiv_dec x x &&&& b = b.
+Proof.
+  intros; destruct (equiv_dec x x) as [Hxx | Hxx]; destruct b; auto.
+  assert (Hx : R x x) by reflexivity. contradiction.
+Qed.
+
+Lemma lifted_andb_true :
+  forall {X : Type} (x1 x2 : X) (R : X -> X -> Prop) `{EqDec X R} (b : bool),
+    equiv_dec x1 x2 &&&& b = true -> equiv x1 x2 /\ b = true.
+Proof.
+  intros X x1 x2 R EQR EQDECR b H.
+  destruct (equiv_dec x1 x2) as [Hx | Hx]; destruct b;
+  simpl in *; try discriminate; intuition.
+Qed.
+
+Ltac destruct_lifted_andb :=
+  match goal with
+  | H: _ &&&& _ = true |- _ => apply lifted_andb_true in H as [? ?]
+  end.
 
 (** Temporary bind. *)
 Definition bind_option {A B : Type}
@@ -265,17 +361,22 @@ Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
 
 Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 
-Instance StringEqDec : EqDec Strings.string eq := { equiv_dec := Strings.string_dec }.
+(** Tag-less strings. *)
+Definition string := String.string.
+
+Instance StringEqDec : EqDec string eq := { equiv_dec := Strings.string_dec }.
 
 Section TypeSynonyms.
   Variable (tags_t : Type).
 
-  Definition string : Type := Poulet4.P4String.t tags_t.
+  (** Tagged strings. *)
+  Definition p4string : Type := Poulet4.P4String.t tags_t.
 
-  Global Instance P4StringEqDec : EqDec string (@P4String.equiv tags_t) :=
+  Global Instance P4StringEqDec : EqDec p4string (@P4String.equiv tags_t) :=
     P4String.P4StringEqDec tags_t.
   (**[]*)
 
+(* Not used in P4cub.
   Definition int : Type := Poulet4.P4Int.t tags_t.
 
   Global Instance P4IntEquivalence : Equivalence (@P4Int.equiv tags_t) :=
@@ -285,7 +386,9 @@ Section TypeSynonyms.
   Global Instance P4IntEqDec : EqDec int (P4Int.equiv) :=
     P4Int.IntEqDec tags_t.
   (**[]*)
+*)
 
+(* Qualified names will no longer be used in p4cub.
   Definition name : Type := @Typed.name tags_t.
 
   Definition equivn (n1 n2 : name) : Prop :=
@@ -361,4 +464,5 @@ Section TypeSynonyms.
   Global Instance NameEqDec : EqDec name equivn :=
     { equiv_dec := equivn_dec }.
   (**[]*)
+*)
 End TypeSynonyms.

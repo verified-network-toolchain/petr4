@@ -1,4 +1,3 @@
-(* TODO: UNDER MAINTENANCE
 Require Import Coq.Bool.Bool.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
@@ -24,7 +23,6 @@ Declare Custom Entry p4lvalue.
 
 Module Val.
 Section Values.
-  Variable (tags_t : Type).
 
   (** Values from expression evaluation. *)
   Inductive v : Type :=
@@ -32,34 +30,34 @@ Section Values.
   | VInt (w : positive) (n : Z)
   | VBit (w : positive) (n : N)
   | VTuple (vs : list v)
-  | VRecord (fs : Field.fs tags_t v)
-  | VHeader (fs : Field.fs tags_t v) (validity : bool)
-  | VError (err : option (string tags_t))
+  | VRecord (fs : F.fs string v)
+  | VHeader (fs : F.fs string v) (validity : bool)
+  | VError (err : option string)
   | VMatchKind (mk : P4cub.Expr.matchkind)
-  | VHeaderStack (ts : Field.fs tags_t (E.t tags_t))
-                 (headers : list (bool * Field.fs tags_t v))
+  | VHeaderStack (ts : F.fs string E.t)
+                 (headers : list (bool * F.fs string v))
                  (size : positive) (nextIndex : N).
   (**[]*)
 
   (** Lvalues. *)
   Inductive lv : Type :=
-  | LVVar (x : name tags_t)                 (* Local variables. *)
-  | LVMember (arg : lv) (x : string tags_t) (* Member access. *)
+  | LVVar (x : string)                 (* Local variables. *)
+  | LVMember (arg : lv) (x : string) (* Member access. *)
   | LVAccess (stk : lv) (index : N)       (* Header stack indexing. *).
   (**[]*)
 
   (** Evaluated arguments. *)
-  Definition argsv : Type := Field.fs tags_t (P4cub.paramarg v lv).
+  Definition argsv : Type := F.fs string (P4cub.paramarg v lv).
 
   (** Intial/Default value from a type. *)
-  Fixpoint vdefault (τ : E.t tags_t) : v :=
-      let fix lrec (ts : list (E.t tags_t)) : list v :=
+  Fixpoint vdefault (τ : E.t) : v :=
+      let fix lrec (ts : list E.t) : list v :=
           match ts with
           | [] => []
           | τ :: ts => vdefault τ :: lrec ts
           end in
       let fix fields_rec
-              (ts : F.fs tags_t (E.t tags_t)) : F.fs tags_t v :=
+              (ts : F.fs string E.t) : F.fs string v :=
           match ts with
           | [] => []
           | (x, τ) :: ts => (x, vdefault τ) :: fields_rec ts
@@ -113,14 +111,14 @@ Section Values.
             | hv :: vs => Forall_cons _ (custom_value_ind hv) (lind vs)
             end in
         let fix fields_ind
-                (flds : Field.fs tags_t v) : Field.predfs_data P flds :=
+                (flds : F.fs string v) : Field.predfs_data P flds :=
             match flds as fs return Field.predfs_data P fs with
             | [] => Forall_nil (Field.predf_data P)
             | (_, hfv) as hf :: tf =>
               Forall_cons hf (custom_value_ind hfv) (fields_ind tf)
             end in
         let fix ffind
-                (fflds : list (bool * Field.fs tags_t v))
+                (fflds : list (bool * Field.fs string v))
             : Forall (Field.predfs_data P ∘ snd) fflds :=
             match fflds as ffs
                   return Forall (Field.predfs_data P ∘ snd) ffs with
@@ -141,7 +139,6 @@ Section Values.
   End ValueInduction.
 
   Section ValueEquality.
-
     Import Field.FieldTactics.
 
     (** Computational Value equality *)
@@ -152,26 +149,24 @@ Section Values.
           | v1::vs1, v2::vs2 => eqbv v1 v2 && lrec vs1 vs2
           | [], _::_ | _::_, [] => false
           end in
-      let fix fields_rec (vs1 vs2 : Field.fs tags_t v) : bool :=
+      let fix fields_rec (vs1 vs2 : Field.fs string v) : bool :=
           match vs1, vs2 with
           | [],           []           => true
-          | (x1, v1)::vs1, (x2, v2)::vs2 => if P4String.equivb x1 x2 then
-                                           eqbv v1 v2 && fields_rec vs1 vs2
-                                         else false
+          | (x1, v1)::vs1, (x2, v2)::vs2
+            => equiv_dec x1 x2 &&&& eqbv v1 v2 && fields_rec vs1 vs2
           | [],            _::_
           | _::_,           []          => false
           end in
-      let fix frec {A : Type} (feqb : A -> A -> bool)
-              (as1 as2 : Field.fs tags_t A) : bool :=
+      (*let fix frec {A : Type} (feqb : A -> A -> bool)
+              (as1 as2 : Field.fs string A) : bool :=
           match as1, as2 with
           | [],           []           => true
-          | (x1, a1)::as1, (x2, a2)::as2 => if P4String.equivb x1 x2 then
-                                           feqb a1 a2 && frec feqb as1 as2
-                                         else false
+          | (x1, a1)::as1, (x2, a2)::as2
+            => equiv_dec x1 x2 &&&& feqb a1 a2 && frec feqb as1 as2
           | [],            _::_
           | _::_,           []          => false
-          end in
-      let fix ffrec (v1ss v2ss : list (bool * Field.fs tags_t v)) : bool :=
+          end in *)
+      let fix ffrec (v1ss v2ss : list (bool * Field.fs string v)) : bool :=
           match v1ss, v2ss with
           | [], _::_ | _::_, [] => false
           | [], [] => true
@@ -195,13 +190,14 @@ Section Values.
       | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_rec vs1 vs2
       | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
       | VHeaderStack ts1 vss1 n1 ni1,
-        VHeaderStack ts2 vss2 n2 ni2   => frec TE.eqbt ts1 ts2 &&
+        VHeaderStack ts2 vss2 n2 ni2   => F.eqb_fs TE.eqbt ts1 ts2 &&
                                          (n1 =? n2)%positive && (ni1 =? ni2)%N &&
                                          ffrec vss1 vss2
       | _,              _              => false
       end.
     (**[]*)
 
+    (* No tags_t -> eq is sufficient.
     (** Value equivalence relation. *)
     Inductive equivv : v -> v -> Prop :=
     | equivv_bool (b : bool) :
@@ -447,172 +443,170 @@ Section Values.
       constructor; [ apply equivv_reflexive
                    | apply equivv_symmetric
                    | apply equivv_transitive].
-    Defined.
+    Defined. *)
 
-    Lemma equivv_eqbv : forall v1 v2 : v, equivv v1 v2 -> eqbv v1 v2 = true.
+    Lemma eqbv_refl : forall vl : v, eqbv vl vl = true.
     Proof.
-      intros v1 v2 H.
-      induction H using custom_equivv_ind; simpl in *;
-        try rewrite eqb_reflx;
-        try rewrite Pos.eqb_refl;
-        try rewrite N.eqb_refl;
-        try rewrite Z.eqb_refl;
-        simpl; auto.
-      - unfold equiv in H. inversion H; subst.
-        + destruct (equiv_dec None None) as [H' | H'];
-            unfold equiv, complement in *; try contradiction; auto.
-        + destruct (equiv_dec (Some a1) (Some a2)) as [H' | H'];
-            unfold equiv, complement in *; try inversion H';
-              try contradiction; auto.
-      - destruct (equiv_dec mk mk) as [H' | H'];
-          unfold equiv, complement in *; try contradiction; auto.
-      - clear H. induction H0; auto.
-        rewrite IHForall2. rewrite H. reflexivity.
-      - clear H. induction H0; auto.
-        destruct x as [x1 v1]; destruct y as [x2 v2];
-          inversion H; simpl in *.
-        pose proof P4String.equiv_reflect x1 x2 as Hx.
-        inversion Hx; subst; try contradiction.
-        rewrite H2; auto.
-      - clear H. induction H0; auto.
-        destruct x as [x1 v1]; destruct y as [x2 v2];
-          inversion H; simpl in *.
-        pose proof P4String.equiv_reflect x1 x2 as Hx.
-        inversion Hx; subst; try contradiction.
-        rewrite H2; auto.
-      - apply andb_true_intro; split.
-        + clear vss1 vss2 H0 H1.
-          repeat rewrite andb_true_r.
-          induction H; auto.
-          destruct x as [x1 t1]; destruct y as [x2 t2].
-          invert_relf; simpl in *.
-          pose proof P4String.equiv_reflect x1 x2 as Hx;
-            inv Hx; try contradiction. rewrite TE.equivt_eqbt by auto; auto.
-        + rename H into Hts; rename H0 into H; rename H1 into H0;
-            clear Hts ts1 ts2.
-          induction H; inv H0; auto.
-          destruct x as [b1 vs1]; destruct y as [b2 vs2];
-            simpl in *; destruct H as [Hb H]; subst.
-          rewrite IHForall2 by auto; clear IHForall2.
-          rewrite andb_true_r. rewrite eqb_reflx.
-          clear l l' H1 H7 n ni b2.
-          induction H; inv H5; auto.
-          destruct x as [x1 v1]; destruct y as [x2 v2].
-          invert_relf; simpl in *.
-          pose proof P4String.equiv_reflect x1 x2 as Hx.
-          inv Hx; try contradiction. rewrite H2.
-          rewrite IHForall2 by auto; auto.
+      Hint Rewrite eqb_reflx.
+      Hint Rewrite Pos.eqb_refl.
+      Hint Rewrite equiv_dec_refl.
+      Hint Rewrite N.eqb_refl.
+      Hint Rewrite Z.eqb_refl.
+      Hint Rewrite TE.eqbt_refl.
+      Hint Rewrite (@F.eqb_fs_reflx string E.t).
+      Hint Rewrite andb_true_r.
+      induction vl using custom_value_ind; simpl in *;
+      autorewrite with core; simpl; auto;
+      try match goal with
+        | hs: list (bool * F.fs string v),
+          H: Forall _ ?hs
+          |- _ => induction hs as [| [? ?] ? ?];
+                try inv_Forall_cons;
+                autorewrite with core;
+                unfold "∘" in *; simpl in *; intuition;
+                repeat (rewrite_true; simpl);
+                autorewrite with core;
+                match goal with
+                | H: Forall _ ?hs |- _ => clear H hs
+                end
+        end;
+      try ind_list_Forall; try ind_list_predfs;
+      intuition; autorewrite with core; simpl;
+      repeat (rewrite_true; simpl); auto.
     Qed.
 
-    Lemma eqbv_equivv : forall v1 v2 : v, eqbv v1 v2 = true -> equivv v1 v2.
+    Import F.RelfEquiv.
+
+    Ltac eq_true_terms :=
+      match goal with
+      | H: eqb _ _ = true |- _
+        => apply eqb_prop in H; subst
+      | H: (_ =? _)%positive = true |- _
+        => apply Peqb_true_eq in H; subst
+      | H: (_ =? _)%N = true |- _
+        => apply N.eqb_eq in H; subst
+      | H: (_ =? _)%Z = true |- _
+        => apply Z.eqb_eq in H; subst
+      | H: context [equiv_dec ?x1 ?x2 &&&& _] |- _
+        => destruct (equiv_dec x1 x2) as [? | ?];
+          simpl in H; try discriminate
+      | H: context [if equiv_dec ?t1 ?t2 then _ else _] |- _
+        => destruct (equiv_dec t1 t2) as [? | ?];
+          simpl in H; try discriminate
+      (*| H: context [if eqbt ?t1 ?t2 then _ else _] |- _
+        => destruct (eqbt t1 t2) eqn:?;
+                   simpl in H; try discriminate
+      | H: context [eqbt ?t1 ?t2 && _] |- _
+        => destruct (eqbt t1 t2) eqn:?;
+                   simpl in H; try discriminate
+      | H: context [eqbe ?e1 ?e2 && _] |- _
+        => destruct (eqbe e1 e2) eqn:?;
+                   simpl in H; try discriminate
+      | H: eqbt _ _ = true |- _
+        => apply eqbt_eq_iff in H
+      | H: context [if eqbe ?e1 ?e2 then _ else _] |- _
+        => destruct (eqbe e1 e2) eqn:?;
+                   simpl in H; try discriminate
+      | H: eqbe ?e1 _ = true,
+           IH: forall e2, eqbe ?e1 e2 = true -> ∮ ?e1 ≡ e2 |- _
+        => apply IH in H
+      | H: _ === _ |- _ => unfold equiv in H;
+                         match goal with
+                         | H: _ = _ |- _ => subst
+                         end
+      | H: equiv _ _ |- _ => unfold equiv in H;
+                           match goal with
+                           | H: _ = _ |- _ => subst
+                           end
+      | H: Forall _ (_ :: _) |- _ => inv H
+      | H: ?P, IH: ?P -> ?Q |- _ => apply IH in H as ?
+      | H: (if ?trm then true else false) = true |- _
+        => destruct trm eqn:?; simpl in H; try discriminate *)
+      | H: relop _ _ _ |- _ => inv H
+      | H: F.eqb_fs TE.eqbt _ _ = true
+        |- _ => pose proof eqb_fs_equiv _ _ TE.eqbt_reflect _ _ H as ?; clear H
+      | H: F.relfs eq _ _ |- _ => apply eq_relfs in H; subst
+      end.
+    (**[]*)
+
+    Ltac eauto_too_dumb :=
+      match goal with
+      | H: ?f ?x ?y = ?z,
+           IH: (forall y, ?f ?x y = ?z -> _)
+        |- _ => apply IH in H; clear IH
+      end.
+
+    Lemma eqbv_eq : forall v1 v2 : v, eqbv v1 v2 = true -> v1 = v2.
     Proof.
-      induction v1 using custom_value_ind; intros [] Heqbv; simpl in *;
-        try discriminate.
-      - apply eqb_prop in Heqbv; subst; constructor.
-      - apply andb_prop in Heqbv as [Hw Hn];
-          apply Peqb_true_eq in Hw; apply N.eqb_eq in Hn;
-            subst; constructor.
-      - apply andb_prop in Heqbv as [Hw Hn];
-          apply Peqb_true_eq in Hw; apply Z.eqb_eq in Hn;
-            subst; constructor.
-      - constructor. generalize dependent vs0.
-        induction vs as [| v1 vs1 IHvs1];
-          intros [| v2 vs2] IH; try discriminate; constructor;
-            inv H; apply andb_prop in IH as [Hhd Htail]; auto.
-      - constructor. generalize dependent fs0.
-        induction fs as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
-          inversion IH; subst; inversion H; subst; clear IH H; simpl in *;
-            constructor; auto; simpl in *;
-              destruct (P4String.equivb x1 x2) eqn:Hx;
-              destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
-        + split; simpl; auto.
-          pose proof P4String.equiv_reflect x1 x2 as H';
-            inversion H'; subst; auto.
-          rewrite Hx in H. discriminate.
-        + apply IHvs1; auto.
-      - apply andb_true_iff in Heqbv as [Hb Hfs].
-        apply eqb_prop in Hb; subst. constructor.
-        generalize dependent fs0.
-        induction fs as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
-          inversion IH; subst; inversion H; subst; clear IH H; simpl in *;
-            constructor; auto; simpl in *;
-              destruct (P4String.equivb x1 x2) eqn:Hx;
-              destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
-        + split; simpl; auto.
-          pose proof P4String.equiv_reflect x1 x2 as H';
-            inversion H'; subst; auto.
-          rewrite Hx in H. discriminate.
-        + apply IHvs1; auto.
-      - destruct (equiv_dec err err0) as [H | H];
-          try discriminate; constructor; auto.
-      - destruct (equiv_dec mk mk0) as [H | H];
-          try discriminate; inversion H; constructor; auto.
-      - apply andb_true_iff in Heqbv as [Heqbv Hffs].
-        apply andb_true_iff in Heqbv as [Heqbv Hni].
-        apply andb_true_iff in Heqbv as [Hts Hsize].
-        apply Peqb_true_eq in Hsize; apply N.eqb_eq in Hni;
-          symmetry in Hni; subst; constructor; clear ni size0.
-        + clear hs headers H Hffs.
-          rename ts into ts1; rename ts0 into ts2.
-          generalize dependent ts2.
-          induction ts1 as [| [x1 t1] ts1 IHts1];
-            intros [| [x2 t2] ts2] H; simpl in *;
-              try discriminate; constructor;
-                destruct (P4String.equivb x1 x2) eqn:eqnx;
-                destruct (TE.eqbt t1 t2) eqn:eqnt;
-                try discriminate.
-          * split; simpl.
-            ** pose proof P4String.equiv_reflect x1 x2 as Hx;
-                 inv Hx; auto. rewrite eqnx in H0; discriminate.
-            ** apply TE.eqbt_equivt; auto.
-          * apply IHts1; auto.
-        + clear ts ts0 Hts.
-          rename hs into hs1; rename headers into hs2.
-          generalize dependent hs2.
-          induction hs1 as [| [b1 vs1] hs1 IHhs1];
-            intros [| [b2 vs2] hs2] Heqbv; simpl in *; inv H;
-              try discriminate; constructor;
-                apply andb_true_iff in Heqbv as [Hfs Hffs];
-                auto; simpl in *. unfold Basics.compose in H2.
-          simpl in H2. rename H2 into H.
-          apply andb_true_iff in Hfs as [Hb Hfs].
-          apply eqb_prop in Hb; subst; split; auto.
-          clear IHhs1 hs1 Hffs H3 b2. generalize dependent vs2.
-          induction vs1 as [| [x1 v1] vs1 IHvs1]; intros [| [x2 v2] vs2] IH;
-          inv IH; inv H; simpl in *;
-            constructor; auto; simpl in *;
-              destruct (P4String.equivb x1 x2) eqn:Hx;
-              destruct (eqbv v1 v2) eqn:Hv; simpl in *; try discriminate.
-          * split; simpl; auto.
-            pose proof P4String.equiv_reflect x1 x2 as H';
-              inversion H'; subst; auto.
-            rewrite Hx in H. discriminate.
-          * apply IHvs1; auto.
+      induction v1 using custom_value_ind; intros []; intros;
+      simpl in *; try discriminate;
+      repeat destruct_andb;
+      repeat (eq_true_terms); unfold equiv in *; auto; f_equal;
+      repeat (eq_true_terms); auto;
+      try match goal with
+          | hs1: list (bool * F.fs string v),
+            IH: Forall _ ?hs1,
+            H: _ ?hs1 ?hs2 = true
+            |- ?hs1 = ?hs2 => generalize dependent hs2;
+                            induction hs1 as [| [? ?] ? ?];
+                            intros [| [? ?] ?]; intros; simpl in *;
+                            try discriminate; auto;
+                            repeat destruct_andb; inv_Forall_cons;
+                            repeat eq_true_terms; unfold "∘" in *;
+                            simpl in *; intuition;
+                            eauto_too_dumb; subst; repeat f_equal;
+                            match goal with
+                            | H: Forall _ ?l |- _ => clear H l
+                            end
+          end;
+      try match goal with
+        | IH: Forall _ ?vs1,
+          H: _ ?vs1 ?vs2 = true
+          |- ?vs1 = ?vs2 => generalize dependent vs2;
+                          induction vs1; intros []; intros;
+                          try discriminate; try inv_Forall_cons;
+                          repeat destruct_andb; intuition;
+                          repeat eauto_too_dumb; subst; auto
+        end;
+      try match goal with
+        | IH: F.predfs_data _ ?fs1,
+          H: _ ?fs1 ?fs2 = true
+          |- ?fs1 = ?fs2 => generalize dependent fs2;
+                          induction fs1; intros [| [? ?] ?]; intros;
+                          try discriminate; try invert_cons_predfs;
+                          try destruct_lifted_andb;
+                          repeat destruct_andb; intuition;
+                          unfold equiv in *; subst;
+                          repeat eauto_too_dumb; subst; auto
+        end.
     Qed.
 
-    Lemma equivv_eqbv_iff : forall v1 v2 : v, equivv v1 v2 <-> eqbv v1 v2 = true.
+    Lemma eqbv_eq_iff : forall v1 v2 : v, eqbv v1 v2 = true <-> v1 = v2.
     Proof.
-      intros v1 v2; split; [apply equivv_eqbv | apply eqbv_equivv].
+      Hint Resolve eqbv_refl : core.
+      Hint Resolve eqbv_eq : core.
+      intros; split; intros; subst; auto.
     Qed.
 
-    Lemma equivv_reflect : forall v1 v2, reflect (equivv v1 v2) (eqbv v1 v2).
+    Lemma eqbv_reflect : forall v1 v2, reflect (v1 = v2) (eqbv v1 v2).
     Proof.
-      intros v1 v2.
-      destruct (eqbv v1 v2) eqn:Heqbv; constructor.
-      - apply eqbv_equivv; assumption.
-      - intros H. apply equivv_eqbv in H.
-        rewrite H in Heqbv. discriminate.
+      Hint Resolve eqbv_eq_iff : core.
+      intros; reflect_split; auto; subst.
+      rewrite eqbv_refl in Heqb; discriminate.
     Qed.
 
+(*
     Lemma equivv_dec : forall v1 v2 : v,
         equivv v1 v2 \/ ~ equivv v1 v2.
     Proof.
       intros v1 v2. pose proof equivv_reflect v1 v2 as H.
       inversion H; subst; auto.
     Qed.
+*)
   End ValueEquality.
 End Values.
 
+(* No tags_t
 Arguments VBool {_}.
 Arguments VInt {_}.
 Arguments VBit {_}.
@@ -626,9 +620,10 @@ Arguments LVVar {_}.
 Arguments LVMember {_}.
 Arguments LVAccess {_}.
 Arguments vdefault {_}.
+*)
 
 Module ValueNotations.
-  Notation "'*{' val '}*'" := val (val custom p4value at level 99).
+  Notation "'~{' val '}~'" := val (val custom p4value at level 99).
   Notation "( x )" := x (in custom p4value, x at level 99).
   Notation "x" := x (in custom p4value at level 0, x constr at level 0).
   Notation "'TRUE'" := (VBool true) (in custom p4value at level 0).
@@ -672,19 +667,19 @@ Module ValueUtil.
     Context {tags_t : Type}.
 
     (* TODO: uhhh... *)
-    Fail Fixpoint expr_of_value (i : tags_t) (V : v tags_t) : E.e tags_t :=
-      let fix lrec (vs : list (v tags_t)) : list (E.e tags_t) :=
+    Fail Fixpoint expr_of_value (i : tags_t) (V : v) : E.e tags_t :=
+      let fix lrec (vs : list v) : list (E.e tags_t) :=
           match vs with
           | []      => []
           | hv :: tv => expr_of_value i hv :: lrec tv
           end in
-      let fix frec (vs : F.fs tags_t (v tags_t))
-          : F.fs tags_t (E.t tags_t * E.e tags_t) :=
+      let fix frec (vs : F.fs string v)
+          : F.fs string (E.t * E.e tags_t) :=
           match vs with
           | [] => []
           | (x, hv) :: vs => (x, (_, expr_of_value i hv)) :: frec vs (* TODO *)
           end in
-      let fix stkrec (hs : list (bool * F.fs tags_t (v tags_t)))
+      let fix stkrec (hs : list (bool * F.fs string v))
           : list (E.e tags_t) :=
           match hs with
           | [] => []
@@ -692,16 +687,16 @@ Module ValueUtil.
             => E.EHeader (frec vs) <{ BOOL b @ i }> i :: stkrec hs
           end in
       match V with
-      | *{ VBOOL b }* => <{ BOOL b @ i }>
-      | *{ w VW n }* => <{ w W n @ i }>
-      | *{ w VS z }* => <{ w S z @ i }>
-      | *{ ERROR err }* => <{ Error err @ i }>
-      | *{ MATCHKIND mk }* => <{ Matchkind mk @ i }>
-      | *{ TUPLE vs }* => E.ETuple (lrec vs) i
-      | *{ REC { vs } }* => E.ERecord (frec vs) i
-      | *{ HDR { vs } VALID:=b }*
+      | ~{ VBOOL b }~ => <{ BOOL b @ i }>
+      | ~{ w VW n }~ => <{ w W n @ i }>
+      | ~{ w VS z }~ => <{ w S z @ i }>
+      | ~{ ERROR err }~ => <{ Error err @ i }>
+      | ~{ MATCHKIND mk }~ => <{ Matchkind mk @ i }>
+      | ~{ TUPLE vs }~ => E.ETuple (lrec vs) i
+      | ~{ REC { vs } }~ => E.ERecord (frec vs) i
+      | ~{ HDR { vs } VALID:=b }~
         => E.EHeader (frec vs) <{ BOOL b @ i }> i
-      | *{ STACK vs:ts[n] NEXT:=ni }*
+      | ~{ STACK vs:ts[n] NEXT:=ni }~
         => E.EHeaderStack ts (stkrec vs) n ni
       end.
   End Util.
@@ -710,12 +705,12 @@ End ValueUtil.
 Module ValueTyping.
   Import ValueNotations.
 
-  Definition errors {tags_t: Type} : Type := Env.t (string tags_t) unit.
+  Definition errors : Type := Env.t string unit.
 
   Reserved Notation "∇ errs ⊢ v ∈ τ"
            (at level 40, v custom p4value, τ custom p4type).
 
-  Inductive type_value {tags_t: Type} (errs : errors) : v tags_t -> E.t tags_t -> Prop :=
+  Inductive type_value (errs : errors) : v -> E.t -> Prop :=
   | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
   | typ_bit (w : positive) (n : N) :
       BitArith.bound w n ->
@@ -723,20 +718,20 @@ Module ValueTyping.
   | typ_int (w : positive) (z : Z) :
       IntArith.bound w z ->
       ∇ errs ⊢ w VS z ∈ int<w>
-  | typ_tuple (vs : list (v tags_t))
-              (ts : list (E.t tags_t)) :
+  | typ_tuple (vs : list v)
+              (ts : list E.t) :
       Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
       ∇ errs ⊢ TUPLE vs ∈ tuple ts
-  | typ_rec (vs : Field.fs tags_t (v tags_t))
-            (ts : Field.fs tags_t (E.t tags_t)) :
+  | typ_rec (vs : Field.fs string v)
+            (ts : Field.fs string E.t) :
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
       ∇ errs ⊢ REC { vs } ∈ rec { ts }
-  | typ_hdr (vs : Field.fs tags_t (v tags_t)) (b : bool)
-            (ts : Field.fs tags_t (E.t tags_t)) :
+  | typ_hdr (vs : Field.fs string v) (b : bool)
+            (ts : Field.fs string E.t) :
       PT.proper_nesting {{ hdr { ts } }} ->
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
       ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
-  | typ_error (err : option (string tags_t)) :
+  | typ_error (err : option string) :
       match err with
       | None => True
       | Some err => errs err = Some tt
@@ -744,8 +739,8 @@ Module ValueTyping.
       ∇ errs ⊢ ERROR err ∈ error
   | typ_matchkind (mk : E.matchkind) :
       ∇ errs ⊢ MATCHKIND mk ∈ matchkind
-  | typ_headerstack (ts : Field.fs tags_t (E.t tags_t))
-                    (hs : list (bool * Field.fs tags_t (v tags_t)))
+  | typ_headerstack (ts : Field.fs string E.t)
+                    (hs : list (bool * Field.fs string v))
                     (n : positive) (ni : N) :
       BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
       Pos.to_nat n = length hs ->
@@ -760,45 +755,43 @@ Module ValueTyping.
 
   (** Custom induction for value typing. *)
   Section ValueTypingInduction.
-    Context {tags_t : Type}.
-
     (** Arbitrary predicate. *)
-    Variable P : @errors tags_t -> v tags_t -> E.t tags_t -> Prop.
+    Variable P : errors -> v -> E.t -> Prop.
 
-    Hypothesis HBool : forall errs b, P errs *{ VBOOL b }* {{ Bool }}.
+    Hypothesis HBool : forall errs b, P errs ~{ VBOOL b }~ {{ Bool }}.
 
     Hypothesis HBit : forall errs w n,
         BitArith.bound w n ->
-        P errs *{ w VW n }* {{ bit<w> }}.
+        P errs ~{ w VW n }~ {{ bit<w> }}.
 
     Hypothesis HInt : forall errs w z,
         IntArith.bound w z ->
-        P errs *{ w VS z }* {{ int<w> }}.
+        P errs ~{ w VS z }~ {{ int<w> }}.
 
-    Hypothesis HMatchkind : forall errs mk, P errs *{ MATCHKIND mk }* {{ matchkind }}.
+    Hypothesis HMatchkind : forall errs mk, P errs ~{ MATCHKIND mk }~ {{ matchkind }}.
 
     Hypothesis HError : forall errs err,
         match err with
         | None => True
         | Some err => errs err = Some tt
         end ->
-        P errs *{ ERROR err }* {{ error }}.
+        P errs ~{ ERROR err }~ {{ error }}.
 
     Hypothesis HTuple : forall errs vs ts,
         Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts ->
         Forall2 (P errs) vs ts ->
-        P errs *{ TUPLE vs }* {{ tuple ts }}.
+        P errs ~{ TUPLE vs }~ {{ tuple ts }}.
 
     Hypothesis HRecord : forall errs vs ts,
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
-        P errs *{ REC { vs } }* {{ rec { ts } }}.
+        P errs ~{ REC { vs } }~ {{ rec { ts } }}.
 
     Hypothesis HHeader : forall errs vs b ts,
         PT.proper_nesting {{ hdr { ts } }} ->
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
-        P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}.
+        P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
 
     Hypothesis HStack : forall errs ts hs n ni,
         BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
@@ -813,17 +806,17 @@ Module ValueTyping.
           (fun bvs =>
              let b := fst bvs in
              let vs := snd bvs in
-             P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}) hs ->
-        P errs *{ STACK hs:ts[n] NEXT:=ni }* {{ stack ts[n] }}.
+             P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}) hs ->
+        P errs ~{ STACK hs:ts[n] NEXT:=ni }~ {{ stack ts[n] }}.
 
     (** Custom induction principle.
         Do [induction ?H using custom_type_value_ind]. *)
     Definition custom_type_value_ind :
-      forall (errs : errors) (vl : v tags_t) (τ : E.t tags_t)
+      forall (errs : errors) (vl : v) (τ : E.t)
         (Hy : ∇ errs ⊢ vl ∈ τ), P errs vl τ :=
           fix tvind errs vl τ Hy :=
-            let fix lind {vs : list (v tags_t)}
-                    {ts : list (E.t tags_t)}
+            let fix lind {vs : list v}
+                    {ts : list E.t}
                     (HR : Forall2 (fun v τ => ∇ errs ⊢ v ∈ τ) vs ts)
                 : Forall2 (P errs) vs ts :=
                 match HR with
@@ -833,8 +826,8 @@ Module ValueTyping.
                                              (tvind _ _ _ Hh)
                                              (lind Ht)
                 end in
-            let fix fsind {vs : Field.fs tags_t (v tags_t)}
-                    {ts : Field.fs tags_t (E.t tags_t)}
+            let fix fsind {vs : Field.fs string v}
+                    {ts : Field.fs string E.t}
                     (HR : Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts)
                 : Field.relfs (fun vl τ => P errs vl τ) vs ts :=
                 match HR with
@@ -845,8 +838,8 @@ Module ValueTyping.
                                          (conj Hname (tvind _ _ _ Hvt))
                                          (fsind Htail)
                 end in
-            let fix hsind {hs : list (bool * Field.fs tags_t (v tags_t))}
-                    {ts : Field.fs tags_t (E.t tags_t)}
+            let fix hsind {hs : list (bool * Field.fs string v)}
+                    {ts : Field.fs string E.t}
                     (HR :
                        Forall
                          (fun bvs =>
@@ -857,7 +850,7 @@ Module ValueTyping.
                     (fun bvs =>
                        let b := fst bvs in
                        let vs := snd bvs in
-                       P errs *{ HDR { vs } VALID:=b }* {{ hdr { ts } }}) hs :=
+                       P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}) hs :=
                 match HR with
                 | Forall_nil _ => Forall_nil _
                 | Forall_cons _ Hhead Htail => Forall_cons
@@ -883,64 +876,50 @@ Module ValueTyping.
   Import F.FieldTactics.
 
   Lemma vdefault_types :
-    forall {tags_t : Type} (errs : errors) (τ : E.t tags_t),
+    forall (errs : errors) (τ : E.t),
       PT.proper_nesting τ ->
       let val := vdefault τ in
       ∇ errs ⊢ val ∈ τ.
   Proof.
-    intros tags_t errs τ HPN; simpl.
+    intros errs τ HPN; simpl.
     induction τ using E.custom_t_ind; simpl; constructor; auto.
     - unfold BitArith.bound.
       pose proof BitArith.upper_bound_ge_1 w; lia.
     - unfold IntArith.bound, IntArith.minZ, IntArith.maxZ.
       pose proof IntArith.upper_bound_ge_1 w; lia.
-    - induction ts as [| t ts IHts]; inv H; inv HPN; constructor;
-        try match goal with
-            | H: PT.base_type (E.TTuple _) |- _ => inv H
-            end;
-        try match goal with
-            | H: Forall _ (_ :: _) |- _ => inv H
-            end; intuition.
-      apply IHts; auto. apply PT.pn_tuple; auto.
-    - induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
-        try match goal with
-            | H: PT.base_type {{ rec { _ } }} |- _ => inv H
-            end; invert_cons_predfs;
-          unfold F.predf_data, Basics.compose in *; simpl in *.
-      + split; try reflexivity; intuition.
-      + apply IHfs; intuition. apply PT.pn_record; auto.
-    - induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
-        try match goal with
-            | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
-            end; invert_cons_predfs;
-          unfold F.predf_data, Basics.compose in *; simpl in *.
-      + split; try reflexivity; simpl.
-        pose proof PT.proper_inside_header_nesting t;
-          intuition.
-      + apply IHfs; intuition; apply PT.pn_header; auto.
+    - inv HPN; try match goal with
+                   | H: PT.base_type (E.TTuple _) |- _ => inv H
+                   end.
+      induction ts as [| t ts IHts]; constructor;
+        repeat inv_Forall_cons; intuition.
+    - inv HPN; try match goal with
+                   | H: PT.base_type {{ rec { _ } }} |- _ => inv H
+                   end.
+      induction fields as [| [x t] fs IHfs];
+      repeat constructor; repeat invert_cons_predfs;
+      unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
+    - inv HPN; try match goal with
+                   | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
+                   end.
+      induction fields as [| [x t] fs IHfs];
+      repeat constructor; repeat invert_cons_predfs;
+      unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
+      apply PT.proper_inside_header_nesting in H3; auto.
     - inv HPN;
         try match goal with
             | H: PT.base_type {{ stack _[_] }} |- _ => inv H
             end; auto.
     - lia.
     - rewrite repeat_length; reflexivity.
-    - apply repeat_Forall; simpl;
-        constructor.
-      + apply PT.pn_header.
-        inv HPN;
-          try match goal with
-              | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-              end; auto.
-      + induction fields as [| [x t] fs IHfs]; inv H; inv HPN; constructor;
-          try match goal with
-              | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-              end; invert_cons_predfs;
-            unfold F.predf_data, Basics.compose in *; simpl in *.
-        * split; try reflexivity; simpl;
-            pose proof PT.proper_inside_header_nesting t;
-            intuition.
-        * apply IHfs; intuition. apply PT.pn_header_stack; auto.
+    - inv HPN; try match goal with
+                   | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+                   end.
+      apply repeat_Forall; simpl; constructor.
+      + apply PT.pn_header; auto.
+      + induction fields as [| [x t] fs IHfs];
+        repeat constructor; repeat invert_cons_predfs;
+        unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
+        apply PT.proper_inside_header_nesting in H4; auto.
   Qed.
 End ValueTyping.
 End Val.
-*)

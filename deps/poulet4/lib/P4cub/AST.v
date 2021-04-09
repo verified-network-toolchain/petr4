@@ -200,6 +200,24 @@ Module Field.
         | f1::fs1, f2::fs2 => eqb_f f1 f2 && eqb_fs fs1 fs2
         end.
       (**[]*)
+
+      Section ReflxEqb.
+        Hypothesis Hfeq : forall u : U, feq u u = true.
+
+        Lemma eqb_f_reflx : forall fld : f K U, eqb_f fld fld = true.
+        Proof.
+          Hint Rewrite Hfeq.
+          intros [k u]; simpl; equiv_dec_refl_tactic;
+          autorewrite with core; auto.
+          assert (keq k k) by reflexivity; contradiction.
+        Qed.
+
+        Lemma eqb_fs_reflx : forall flds : fs K U, eqb_fs flds flds = true.
+        Proof.
+          Hint Rewrite eqb_f_reflx.
+          induction flds; simpl; autorewrite with core; auto.
+        Qed.
+      End ReflxEqb.
     End DecEq.
   End FieldLibrary.
 

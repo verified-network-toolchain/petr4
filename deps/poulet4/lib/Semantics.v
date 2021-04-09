@@ -142,7 +142,7 @@ Definition name_to_val (e: env) (this : path) (s : state) (name : @Typed.name ta
   | _ => None
   end.
 
-Definition name_to_typ (e: env) (this : path) (name : @Typed.name tags_t) : option (@P4Type tags_t) :=
+(* Definition name_to_typ (e: env) (this : path) (name : @Typed.name tags_t) : option (@P4Type tags_t) :=
   let p := name_to_path e this name in
   match p with
   | Some p' =>
@@ -151,7 +151,7 @@ Definition name_to_typ (e: env) (this : path) (name : @Typed.name tags_t) : opti
     | _ => None
     end
   | _ => None
-  end.
+  end. *)
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
@@ -263,7 +263,7 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
   | exec_expr_cast : forall newtyp expr oldv newv e this st tag typ dir,
                      exec_expr e this st expr oldv ->
                      (* eval_cast need env and state of new types *)
-                     Ops.eval_cast name_to_typ newtyp oldv = Some newv ->
+                     Ops.eval_cast newtyp oldv = Some newv ->
                      exec_expr e this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv

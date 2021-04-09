@@ -22,6 +22,10 @@ Module Ops.
   Definition empty_str := P4String.empty_str dummy_tags.
 
   Notation Val := (@ValueBase tags_t).
+  Definition Fields (A : Type):= P4String.AList tags_t A.
+
+
+
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
     match op, v with
     | Not, ValBaseBool b => Some (ValBaseBool (negb b))
@@ -152,26 +156,25 @@ Module Ops.
     | _ => None
     end.
 
-  Definition sort (l : P4String.AList tags_t (@ValueBase tags_t)) :=
+  Definition sort [A] (l : Fields A) :=
     mergeSort (fun f1 f2 => string_leb (str (fst f1)) (str (fst f2))) l.
 
-  Fixpoint sort_by_key (v: Val) : Val :=
-    let fix sort_by_key' (ll : P4String.AList tags_t (@ValueBase tags_t)):
-                            P4String.AList tags_t (@ValueBase tags_t) :=
+  Fixpoint sort_by_key_val (v: Val) : Val :=
+    let fix sort_by_key_val' (ll : Fields Val) : Fields Val :=
       match ll with
       | nil => nil
-      | (k, v) :: l' => (k, sort_by_key v) :: sort_by_key' l'
+      | (k, v) :: l' => (k, sort_by_key_val v) :: sort_by_key_val' l'
       end in
     match v with
-    | ValBaseStruct l => ValBaseStruct (sort (sort_by_key' l))
-    | ValBaseRecord l => ValBaseRecord (sort (sort_by_key' l))
-    | ValBaseUnion l => ValBaseUnion (sort (sort_by_key' l))
-    | ValBaseHeader l b => ValBaseHeader (sort (sort_by_key' l)) b
+    | ValBaseStruct l => ValBaseStruct (sort (sort_by_key_val' l))
+    | ValBaseRecord l => ValBaseRecord (sort (sort_by_key_val' l))
+    | ValBaseUnion l => ValBaseUnion (sort (sort_by_key_val' l))
+    | ValBaseHeader l b => ValBaseHeader (sort (sort_by_key_val' l)) b
     | _ => v
     end.
 
   Fixpoint eval_binary_op_eq' (v1 : Val) (v2 : Val) : option bool :=
-    let fix eval_binary_op_eq_struct' (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
+    let fix eval_binary_op_eq_struct' (l1 l2 : Fields Val) : option bool :=
       match l1, l2 with
       | nil, nil => Some true
       | (k1, v1) :: l1', (k2, v2) :: l2' =>
@@ -182,10 +185,10 @@ Module Ops.
         end
       | _, _ => None
       end in
-    let eval_binary_op_eq_struct (l1 l2 : P4String.AList tags_t (@ValueBase tags_t)) : option bool :=
+    let eval_binary_op_eq_struct (l1 l2 : Fields Val) : option bool :=
       if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
       else eval_binary_op_eq_struct' l1 l2 in
-    let fix eval_binary_op_eq_tuple (l1 l2 : list ValueBase): option bool :=
+    let fix eval_binary_op_eq_tuple (l1 l2 : list Val): option bool :=
       match l1, l2 with
       | nil, nil => Some true
       | x1 :: l1', x2 :: l2' =>
@@ -235,7 +238,7 @@ Module Ops.
     end.
 
   Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
-    eval_binary_op_eq' (sort_by_key v1) (sort_by_key v2).
+    eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2).
   
   (* 1. After implicit_cast in checker.ml, ValBaseInteger no longer exists in 
         binary operations with fixed-width bit and int.
@@ -333,24 +336,83 @@ Module Ops.
       else None
   | _, _ => None
   end.
-      
 
-  Fixpoint eval_cast (name_to_typ : @Typed.name tags_t -> @P4Type tags_t) (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+  (* Fixpoint eval_cast' (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+    let fix fields_of_val_tuple (l1: Fields P4Type) 
+                                (l2: list Val) : option (Fields Val) :=
+      match l1, l2 with
+      | [], [] => Some []
+      | (k, t) :: l1', oldv :: l2' => 
+          match eval_cast' t oldv, fields_of_val_tuple l1' l2' with
+          | Some newv, Some l3 => Some ((k, newv) :: l3)
+          | _, _ => None
+          end
+      | _, _ => None 
+      end in
+    let fix fields_of_val_record (l1: Fields P4Type) 
+                                 (l2: Fields Val) : option (Fields Val) :=
+      match l1, l2 with
+      | [], [] => Some []
+      | (k1, t) :: l1', (k2, oldv) :: l2' =>
+          if negb (P4String.equivb k1 k2) then None
+          else match eval_cast' t oldv, fields_of_val_record l1' l2' with
+               | Some newv, Some l3 => Some ((k1, newv) :: l3)
+               | _, _ => None
+               end
+      | _, _ => None
+      end in
+    let fields_of_val (l1: Fields P4Type) (oldv: Val) : option (Fields Val) :=
+      match oldv with
+      | ValBaseTuple l2 => if negb (AList.key_unique l1) then None
+                           else fields_of_val_tuple l1 l2
+      | ValBaseRecord l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
+                            else fields_of_val_record l1 l2
+      | _ => None
+      end in
     match newtyp with
     | TypBool => bool_of_val oldv
     | TypBit w => bit_of_val w oldv
     | TypInt w => int_of_val w oldv
-    | TypNewType _ typ => eval_cast name_to_typ typ oldv
+    | TypNewType _ typ => eval_cast' typ oldv
+    (* Two problems with TypTypName:
+       1. Need to resolve the type from the name in the Semantics.v;
+       2. Need to define name_to_type such that no loop is possible. 
+       eval_cast name_to_typ (name_to_typ name) oldv *)
     | TypTypeName name => None
-     (* eval_cast name_to_typ (name_to_typ name) oldv *)
     | TypEnum n typ mems => enum_of_val n typ mems oldv
-    | TypStruct fields
-    | TypHeader fields => None
-
+    | TypStruct fields => 
+        match fields_of_val fields oldv with
+        | Some fields' => Some (ValBaseStruct fields')
+        | _ => None
+        end
+    | TypHeader fields => 
+        match fields_of_val fields oldv, oldv with
+        | Some fields', ValBaseHeader _ b => Some (ValBaseHeader fields' b)
+        | _, _ => None
+        end
     | TypTuple _
     | _ => None
     end.
   (* Admitted. *)
+
+  Fixpoint sort_by_key_typ (t: P4Type) : P4Type :=
+    let fix sort_by_key_typ' (ll : Fields P4Type) : Fields P4Type :=
+      match ll with
+      | nil => nil
+      | (k, t) :: l' => (k, sort_by_key_typ t) :: sort_by_key_typ' l'
+      end in
+    match t with
+    | TypStruct l => TypStruct (sort (sort_by_key_typ' l))
+    | TypRecord l => TypRecord (sort (sort_by_key_typ' l))
+    | TypHeaderUnion l => TypHeaderUnion (sort (sort_by_key_typ' l))
+    | TypHeader l => TypHeader (sort (sort_by_key_typ' l))
+    | _ => t
+    end. *)
+
+  Definition eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val.
+    (* eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv). *)
+  Admitted.
+
 
   End Operations.
 End Ops.

@@ -1,4 +1,3 @@
-(* TODO: UNDER MAINTENANCE
 Require Import P4cub.SmallStep.
 Import IsValue.
 Import Step.
@@ -24,13 +23,14 @@ Ltac invert_canonical := invert_value; invert_expr_check.
 Ltac crush_canonical := intros; invert_canonical; eauto.
 
 Section Lemmas.
-  Context {tags_t : Type}.
 
-  Variable errs : @errors tags_t.
+  Variable errs : errors.
 
-  Variable Γ : @gamma tags_t.
+  Variable Γ : gamma.
 
   Section CanonicalForms.
+    Context {tags_t : Type}.
+
     Variable v : E.e tags_t.
 
     Hypothesis Hv : value v.
@@ -77,44 +77,44 @@ End Lemmas.
 Ltac assert_canonical_forms :=
   match goal with
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ Bool |- _
-    => pose proof canonical_forms_bool _ _ _ Hv Ht as [? [? ?]]
+    => pose proof canonical_forms_bool _ _ _ Hv Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ bit<_> |- _
-    => pose proof canonical_forms_bit _ _ _ Hv _ Ht as [? [? ?]]
+    => pose proof canonical_forms_bit _ _ _ Hv _ Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ int<_> |- _
-    => pose proof canonical_forms_int _ _ _ Hv _ Ht as [? [? ?]]
+    => pose proof canonical_forms_int _ _ _ Hv _ Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ tuple _ |- _
-    => pose proof canonical_forms_tuple _ _ _ Hv _ Ht as [? [? ?]]
+    => pose proof canonical_forms_tuple _ _ _ Hv _ Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ rec { _ } |- _
-    => pose proof canonical_forms_record _ _ _ Hv _ Ht as [? [? ?]]
+    => pose proof canonical_forms_record _ _ _ Hv _ Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ hdr { _ } |- _
-    => pose proof canonical_forms_header _ _ _ Hv _ Ht as [? [? [? ?]]]
+    => pose proof canonical_forms_header _ _ _ Hv _ Ht as [? [? [? ?]]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ error |- _
-    => pose proof canonical_forms_error _ _ _ Hv Ht as [? [? ?]]
+    => pose proof canonical_forms_error _ _ _ Hv Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ matchkind |- _
-    => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? ?]]
+    => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
-    => pose proof canonical_forms_headerstack _ _ _ Hv _ _ Ht as [? [? ?]]
+    => pose proof canonical_forms_headerstack _ _ _ Hv _ _ Ht as [? [? ?]]; inv Hv; inv Ht
   end; subst.
 (**[]*)
 
 Section Theorems.
-  Context {tags_t : Type}.
+  Variable Γ : gamma.
 
-  Variable Γ : @gamma tags_t.
+  Context {tags_t : Type}.
 
   Variable ϵ : @eenv tags_t.
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset : Prop :=
-    forall (x : name tags_t) (τ : E.t tags_t),
+    forall (x : string) (τ : E.t),
       Γ x = Some τ -> exists v, ϵ x = Some v.
   (**[]*)
 
-  Variable errs : @errors tags_t.
+  Variable errs : errors.
 
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type : Prop :=
-    forall (x : name tags_t) (τ : E.t tags_t) (v : E.e tags_t),
+    forall (x : string) (τ : E.t) (v : E.e tags_t),
       Γ x = Some τ -> ϵ x = Some v -> ⟦ errs , Γ ⟧ ⊢ v ∈ τ.
   (**[]*)
 
@@ -139,13 +139,13 @@ Section Theorems.
       match goal with
       | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
       end;
-      try match goal with
+      (*try match goal with
           | H: ∫ ?t1 ≡ ?t2 |- _ => rewrite H in *; clear H
-          end;
+          end; *)
       try match goal with
           | H : ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
           end;
-      try assert_canonical_forms;
+      (*try assert_canonical_forms; *)
       try (simpl in *; econstructor; eauto; eassumption);
       try (simpl in *; match goal with
                        | H: Some _ = Some _ |- _ => inv H
@@ -154,8 +154,10 @@ Section Theorems.
           | |- BitArith.bound _ _ => unfold_bit_operation
           | |- IntArith.bound _ _ => unfold_int_operation
           end; eauto.
-      - Fail rewrite H10 in H13.
+      - assert_canonical_forms.
+        + inv H2. simpl in *. inv H. constructor.
+        + inv H2.
+      (*- inv H10. inv H2. assert_canonical_forms. *)
     Admitted.
   End Preservation.
 End Theorems.
-*)

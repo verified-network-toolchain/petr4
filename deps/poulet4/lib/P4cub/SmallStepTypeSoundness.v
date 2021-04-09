@@ -1,3 +1,11 @@
+Require Import Coq.PArith.BinPosDef.
+Require Import Coq.PArith.BinPos.
+Require Import Coq.NArith.BinNatDef.
+Require Import Coq.ZArith.BinIntDef.
+Require Import Coq.NArith.BinNat.
+Require Import Coq.ZArith.BinInt.
+Require Import Coq.micromega.Lia.
+
 Require Import P4cub.SmallStep.
 Import IsValue.
 Import Step.
@@ -7,6 +15,8 @@ Module E := P.Expr.
 
 Import P.P4cubNotations.
 Import E.TypeEquivalence.
+
+Import F.FieldTactics.
 
 Ltac invert_value :=
   match goal with
@@ -94,7 +104,7 @@ Ltac assert_canonical_forms :=
     => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
     => pose proof canonical_forms_headerstack _ _ _ Hv _ _ Ht as [? [? ?]]; inv Hv; inv Ht
-  end; subst.
+  end; subst; try discriminate.
 (**[]*)
 
 Section Theorems.
@@ -129,11 +139,13 @@ Section Theorems.
       Hint Resolve eval_cast_types : core.
       Hint Resolve BitArith.return_bound_bound : core.
       Hint Resolve BitArith.neg_bound : core.
+      Hint Resolve BitArith.plus_mod_bound : core.
       Hint Resolve IntArith.return_bound_bound : core.
       Hint Resolve eval_bit_binop_numeric : core.
       Hint Resolve eval_bit_binop_comp : core.
       Hint Resolve eval_int_binop_numeric : core.
       Hint Resolve eval_int_binop_comp : core.
+      Hint Rewrite Pos.eqb_refl.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
       match goal with
@@ -145,7 +157,7 @@ Section Theorems.
       try match goal with
           | H : ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
           end;
-      (*try assert_canonical_forms; *)
+      repeat assert_canonical_forms;
       try (simpl in *; econstructor; eauto; eassumption);
       try (simpl in *; match goal with
                        | H: Some _ = Some _ |- _ => inv H
@@ -154,10 +166,66 @@ Section Theorems.
           | |- BitArith.bound _ _ => unfold_bit_operation
           | |- IntArith.bound _ _ => unfold_int_operation
           end; eauto.
-      - assert_canonical_forms.
-        + inv H2. simpl in *. inv H. constructor.
-        + inv H2.
-      (*- inv H10. inv H2. assert_canonical_forms. *)
+      - inv H2. apply chk_bool_bop; auto; constructor.
+      - inv H2. constructor; auto; constructor; auto.
+      - inv H10. inv H2; repeat assert_canonical_forms.
+        + inv H3; inv H4; simpl in *; inv H11;
+          autorewrite with core in *; simpl in *; inv H;
+          constructor; try unfold_bit_operation;
+          unfold "#" in *; auto.
+        + inv H3; inv H4; simpl in *;
+            autorewrite with core in *; inv H11;
+              simpl in *; inv H; constructor;
+                try unfold_int_operation; auto.
+      - inv H10; inv H2; repeat assert_canonical_forms;
+          inv H3; inv H4; inv H11; simpl in *;
+            autorewrite with core in *; inv H; constructor.
+      - inv H3; inv H2; inv H10; simpl in *;
+          unfold "#" in *; simpl in *; inv H; constructor.
+      - unfold eval_binop in H; inv H0; inv H1; simpl in *;
+          unfold "#" in *; simpl in *;
+              try (inv H; constructor);
+              try match goal with
+                  | H: (if ?b then Some _ else None) = Some _
+                    |- _ => destruct b eqn:?; inv H
+                  end; constructor.
+      - unfold eval_binop in H; inv H0; inv H1; simpl in *;
+          unfold "#" in *; simpl in *;
+              try (inv H; constructor);
+              try match goal with
+                  | H: (if ?b then Some _ else None) = Some _
+                    |- _ => destruct b eqn:?; inv H
+                  end; constructor.
+      - inv H3; inv H4; inv H;
+          try match goal with
+              | H: (if ?b then None else Some _) = Some _
+                |- _ => destruct b eqn:?; inv H
+              end; constructor; auto; unfold BitArith.bit_concat; auto.
+      - unfold "#", "∘" in *; simpl in *; inv H4.
+        assert_canonical_forms. inv H1; simpl in *.
+        unfold "∘" in *. inv H0. admit.
+        (* TODO: just write lemma for eval_hdr_op. *)
+      - inv H3. unfold "#", "∘" in *; simpl in *. admit.
+        (* TODO: just write lemma for eval_stk_op. *)
+      - constructor. subst es; subst es'.
+        apply Forall2_app_inv_l in H5 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+        apply Forall2_app; auto. inv Hsuffix; constructor; eauto.
+      - constructor. subst fs; subst fs'.
+        apply Forall2_app_inv_l in H5 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+        apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
+        repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
+        intuition.
+      - inv H3. constructor; auto.
+        + subst fs; subst fs'.
+          apply Forall2_app_inv_l in H8 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+          apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
+          repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
+          intuition.
+        + constructor.
+      - constructor; auto; subst hs; subst hs'.
+        rewrite app_length in *; simpl in *. lia.
+        apply Forall_app in H11 as [? Hsuffix]; apply Forall_app; split;
+          inv Hsuffix; auto.
     Admitted.
   End Preservation.
 End Theorems.

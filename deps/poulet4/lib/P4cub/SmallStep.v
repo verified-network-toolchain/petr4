@@ -1,4 +1,3 @@
-(* TODO: UNDER MAINTENANCE
 Require Export P4cub.Check.
 Require Export P4cub.P4Arith.
 Require Import Coq.Bool.Bool.
@@ -30,20 +29,20 @@ Module IsValue.
   | value_tuple (es : list (E.e tags_t)) (i : tags_t) :
       Forall value es ->
       value <{ tup es @ i }>
-  | value_record (fs : F.fs tags_t (E.t tags_t * E.e tags_t))
+  | value_record (fs : F.fs string (E.t * E.e tags_t))
                  (i : tags_t) :
       F.predfs_data (value ∘ snd) fs ->
       value <{ rec { fs } @ i }>
-  | value_header (fs : F.fs tags_t (E.t tags_t * E.e tags_t))
+  | value_header (fs : F.fs string (E.t * E.e tags_t))
                  (b : E.e tags_t) (i : tags_t) :
       value b ->
       F.predfs_data (value ∘ snd) fs ->
       value <{ hdr { fs } valid:=b @ i }>
-  | value_error (err : option (string tags_t)) (i : tags_t) :
+  | value_error (err : option (string)) (i : tags_t) :
       value <{ Error err @ i }>
   | value_matchkind (mk : E.matchkind) (i : tags_t) :
       value <{ Matchkind mk @ i }>
-  | value_headerstack (fs : F.fs tags_t (E.t tags_t))
+  | value_headerstack (fs : F.fs string (E.t))
                       (hs : list (E.e tags_t)) (n : positive)
                       (ni : N) :
       Forall value hs ->
@@ -95,7 +94,7 @@ Module IsValue.
             | Forall_nil _ => Forall_nil _
             | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (lind Ht)
             end in
-        let fix find {A : Type} {fs : F.fs tags_t (A * E.e tags_t)}
+        let fix find {A : Type} {fs : F.fs string (A * E.e tags_t)}
                 (Hfs : F.predfs_data (value ∘ snd) fs) :
               F.predfs_data (P ∘ snd) fs :=
             match Hfs with
@@ -145,10 +144,10 @@ Module Step.
     Context {tags_t : Type}.
 
     (** Expression environment. *)
-    Definition eenv : Type := Env.t (name tags_t) (E.e tags_t).
+    Definition eenv : Type := Env.t (string) (E.e tags_t).
 
     Definition eval_cast
-               (target : E.t tags_t) (v : E.e tags_t) : option (E.e tags_t) :=
+               (target : E.t) (v : E.e tags_t) : option (E.e tags_t) :=
       match target, v with
       | {{ bit<xH> }}, <{ TRUE @ i }>         => Some (E.EBit 1%positive 1%N i)
       | {{ bit<xH> }}, <{ FALSE @ i }>        => Some (E.EBit 1%positive 0%N i)
@@ -408,7 +407,7 @@ Module Step.
 
     (** Get header data from value. *)
     Definition header_data (v : E.e tags_t)
-      : option (F.fs tags_t (E.t tags_t * E.e tags_t) * bool * tags_t * tags_t) :=
+      : option (F.fs string (E.t * E.e tags_t) * bool * tags_t * tags_t) :=
       match v with
       | <{ hdr { fs } valid:= BOOL b @ ib @ i}> => Some (fs,b,ib,i)
       | _ => None
@@ -417,7 +416,7 @@ Module Step.
     (** Get header stack data from value. *)
     Definition header_stack_data (v : E.e tags_t)
       : option (positive * N *
-                F.fs tags_t (E.t tags_t) *
+                F.fs string (E.t) *
                 (list (E.e tags_t))) :=
       match v with
       | <{ Stack hs:ts[n] nextIndex:=ni}> => Some (n,ni,ts,hs)
@@ -427,7 +426,7 @@ Module Step.
 
     (** Header operations. *)
     Definition eval_hdr_op
-               (op : E.hdr_op) (fs : F.fs tags_t (E.t tags_t * E.e tags_t))
+               (op : E.hdr_op) (fs : F.fs string (E.t * E.e tags_t))
                (b : bool) (i ib : tags_t) : E.e tags_t :=
       match op with
       | E.HOIsValid => <{ BOOL b @ i}>
@@ -436,15 +435,28 @@ Module Step.
       end.
     (**[]*)
 
+    Lemma eval_hdr_op_types : forall errs Γ op ts fs b i ib,
+        PT.proper_nesting {{ hdr { ts } }} ->
+        F.relfs (fun te τ => fst te = τ /\
+                          let e := snd te in
+                          ⟦ errs, Γ ⟧ ⊢ e ∈ τ) fs ts ->
+        let τ := type_hdr_op op ts in
+        let v := eval_hdr_op op fs b i ib in
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      intros; subst τ; subst v; destruct op;
+      simpl in *; constructor; auto; constructor.
+    Qed.
+
     (** Default (value) Expression. *)
-    Fixpoint edefault (i : tags_t) (τ : E.t tags_t) : E.e tags_t :=
-      let fix lrec (ts : list (E.t tags_t)) : list (E.e tags_t) :=
+    Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
+      let fix lrec (ts : list (E.t)) : list (E.e tags_t) :=
           match ts with
           | []     => []
           | τ :: ts => edefault i τ :: lrec ts
           end in
-      let fix frec (fs : F.fs tags_t (E.t tags_t))
-          : F.fs tags_t (E.t tags_t * E.e tags_t) :=
+      let fix frec (fs : F.fs string (E.t))
+          : F.fs string (E.t * E.e tags_t) :=
           match fs with
           | [] => []
           | (x, τ) :: fs => (x, (τ, edefault i τ)) :: frec fs
@@ -492,7 +504,7 @@ Module Step.
           end.
     Qed.
 
-    Lemma default_types : forall errs Γ i τ,
+    Lemma edefault_types : forall errs Γ i τ,
         PT.proper_nesting τ ->
         let e := edefault i τ in
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
@@ -546,7 +558,7 @@ Module Step.
     Definition eval_stk_op
                (i : tags_t) (op : E.hdr_stk_op)
                (size : positive) (nextIndex : N)
-               (ts : F.fs tags_t (E.t tags_t))
+               (ts : F.fs string (E.t))
                (hs : list (E.e tags_t))
       : option (E.e tags_t) :=
       let w := 32%positive in
@@ -579,45 +591,98 @@ Module Step.
             Some (E.EHeaderStack ts new_hdrs size 0%N)
       end.
     (**[]*)
+
+    Lemma voldemort : forall errs Γ (i : tags_t) (ts : F.fs string E.t),
+        F.predfs_data PT.proper_nesting ts ->
+        F.relfs
+          (fun (te : E.t * E.e tags_t) (τ : E.t) =>
+             fst te = τ /\ (let e := snd te in ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          (F.map (fun τ : E.t => (τ, edefault i τ)) ts) ts.
+    Proof.
+      Hint Resolve edefault_types : core.
+      intros; ind_list_predfs; simpl; repeat constructor;
+        simpl in *; unfold F.predfs_data in *; intuition.
+    Qed.
+
+    Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
+        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        Pos.to_nat n = length hs ->
+        PT.proper_nesting {{ stack ts[n] }} ->
+        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+        eval_stk_op i op n ni ts hs = Some v ->
+        let τ := type_hdr_stk_op op n ts in
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      Hint Resolve repeat_Forall : core.
+      Hint Resolve Forall_impl : core.
+      Hint Resolve Forall_firstn : core.
+      Hint Resolve Forall_skipn : core.
+      Hint Resolve voldemort : core.
+      Hint Resolve PT.proper_inside_header_nesting : core.
+      Hint Rewrite repeat_length.
+      Hint Rewrite app_length.
+      Hint Rewrite Forall_app.
+      Hint Rewrite firstn_length_le.
+      Hint Rewrite skipn_length.
+      Hint Rewrite map_length.
+      Hint Rewrite (@F.predfs_data_map string).
+      intros; subst τ; destruct op; simpl in *;
+      unfold "#" in *;
+      repeat (match goal with
+             | H: (if ?b then _ else _) = Some _
+               |- _ => destruct b as [? | ?]
+             | H: Some _ = Some _ |- _ => inv H
+             | |- _ /\ _ => split
+             | |- Forall _ (repeat _ _) => apply repeat_Forall
+             | |- ⟦ _, _ ⟧ ⊢ _ ∈ _ => constructor
+             | |- PT.proper_nesting {{ hdr { ?ts } }}
+               => apply PT.pn_header
+             | H: PT.proper_nesting {{ stack ?ts[_] }} |- _ => inv H
+             | H: PT.base_type {{ stack _ [_] }} |- _ => inv H
+             | |- _ => destruct n; lia
+             | |- _ => apply voldemort
+             end; autorewrite with core in *; eauto).
+      eapply Forall_nth_error in H4; eauto; simpl in *; auto.
+    Qed.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
     : E.e tags_t -> E.e tags_t -> Prop :=
-  | step_var (x : name tags_t) (τ : E.t tags_t)
+  | step_var (x : string) (τ : E.t)
              (i : tags_t) (e : E.e tags_t) :
       ϵ x = Some e ->
       ℵ ϵ ** Var x:τ @ i -->  e
-  | step_cast (τ : E.t tags_t) (e e' : E.e tags_t) (i : tags_t) :
+  | step_cast (τ : E.t) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i
-  | step_cast_eval (τ : E.t tags_t) (v v' : E.e tags_t) (i : tags_t) :
+  | step_cast_eval (τ : E.t) (v v' : E.e tags_t) (i : tags_t) :
       eval_cast τ v = Some v' ->
       V.value v ->
       ℵ ϵ ** Cast v:τ @ i -->  v'
-  | step_uop (op : E.uop) (τ : E.t tags_t)
+  | step_uop (op : E.uop) (τ : E.t)
              (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** UOP op e:τ @ i -->  UOP op e':τ @ i
-  | step_uop_eval (op : E.uop) (τ : E.t tags_t)
+  | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
       eval_uop op v = Some v' ->
       V.value v ->
       ℵ ϵ ** UOP op v:τ @ i -->  v'
-  | step_bop_l (op : E.bop) (τl τr : E.t tags_t)
+  | step_bop_l (op : E.bop) (τl τr : E.t)
                (el el' er : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** el -->  el' ->
       ℵ ϵ ** BOP el:τl op er:τr @ i -->  BOP el':τl op er:τr @ i
-  | step_bop_r (op : E.bop) (τl τr : E.t tags_t)
+  | step_bop_r (op : E.bop) (τl τr : E.t)
                (vl er er' : E.e tags_t) (i : tags_t) :
       V.value vl ->
       ℵ ϵ ** er -->  er' ->
       ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
-  | step_bop_eval (op : E.bop) (τl τr : E.t tags_t)
+  | step_bop_eval (op : E.bop) (τl τr : E.t)
                   (vv vl vr : E.e tags_t) (i : tags_t) :
       eval_binop op vl vr i = Some vv ->
       V.value vl -> V.value vr ->
       ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
-  | step_member (x : string tags_t) (τ : E.t tags_t)
+  | step_member (x : string) (τ : E.t)
                 (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
@@ -645,16 +710,16 @@ Module Step.
       let es := prefix ++ e :: suffix in
       let es' := prefix ++ e' :: suffix in
       ℵ ϵ ** tup es @ i -->  tup es' @ i
-  | step_record (prefix suffix : F.fs tags_t (E.t tags_t * E.e tags_t))
-                (x : string tags_t) (τ : E.t tags_t)
+  | step_record (prefix suffix : F.fs string (E.t * E.e tags_t))
+                (x : string) (τ : E.t)
                 (e e' : E.e tags_t) (i : tags_t) :
       F.predfs_data (V.value ∘ snd) prefix ->
       ℵ ϵ ** e -->  e' ->
       let fs := prefix ++ (x,(τ,e)) :: suffix in
       let fs' := prefix ++ (x,(τ,e')) :: suffix in
       ℵ ϵ ** rec { fs } @ i -->  rec { fs' } @ i
-  | step_header (prefix suffix : F.fs tags_t (E.t tags_t * E.e tags_t))
-                (x : string tags_t) (τ : E.t tags_t)
+  | step_header (prefix suffix : F.fs string (E.t * E.e tags_t))
+                (x : string) (τ : E.t)
                 (b e e' : E.e tags_t) (i : tags_t) :
       V.value b ->
       F.predfs_data (V.value ∘ snd) prefix ->
@@ -662,11 +727,11 @@ Module Step.
       let fs := prefix ++ (x,(τ,e)) :: suffix in
       let fs' := prefix ++ (x,(τ,e')) :: suffix in
       ℵ ϵ ** hdr { fs } valid:=b @ i -->  hdr { fs' } valid:=b @ i
-  | step_header_valid (fs : F.fs tags_t (E.t tags_t * E.e tags_t))
+  | step_header_valid (fs : F.fs string (E.t * E.e tags_t))
                       (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** hdr { fs } valid:=e @ i -->  hdr { fs } valid:=e' @ i
-  | step_header_stack (ts : F.fs tags_t (E.t tags_t))
+  | step_header_stack (ts : F.fs string (E.t))
                       (prefix suffix : list (E.e tags_t))
                       (e e' : E.e tags_t) (size : positive)
                       (ni : N) (i : tags_t) :
@@ -677,4 +742,3 @@ Module Step.
       ℵ ϵ ** Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
   where "'ℵ' ϵ '**' e1 '-->' e2" := (expr_step ϵ e1 e2).
 End Step.
-*)

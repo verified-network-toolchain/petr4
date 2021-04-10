@@ -59,6 +59,15 @@ Module Field.
       Forall (predf_data P).
     (**[]*)
 
+    Lemma predfs_data_map : forall {K V : Type} (P : V -> Prop) (flds : fs K V),
+        predfs_data P flds <-> Forall P (map snd flds).
+    Proof.
+      induction flds as [| [k v] flds IHflds];
+        simpl; split; intros H; inv H; constructor;
+          unfold predfs_data, predf_data, "∘" in *;
+          simpl in *; intuition.
+    Qed.
+
     (** Filter. *)
     Definition filter {K U : Type} (pred : U -> bool) : fs K U -> fs K U :=
       List.filter (pred ∘ snd).

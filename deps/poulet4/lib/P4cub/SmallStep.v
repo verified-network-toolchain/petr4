@@ -435,6 +435,19 @@ Module Step.
       end.
     (**[]*)
 
+    Lemma eval_hdr_op_types : forall errs Γ op ts fs b i ib,
+        PT.proper_nesting {{ hdr { ts } }} ->
+        F.relfs (fun te τ => fst te = τ /\
+                          let e := snd te in
+                          ⟦ errs, Γ ⟧ ⊢ e ∈ τ) fs ts ->
+        let τ := type_hdr_op op ts in
+        let v := eval_hdr_op op fs b i ib in
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      intros; subst τ; subst v; destruct op;
+      simpl in *; constructor; auto; constructor.
+    Qed.
+
     (** Default (value) Expression. *)
     Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
       let fix lrec (ts : list (E.t)) : list (E.e tags_t) :=
@@ -491,7 +504,7 @@ Module Step.
           end.
     Qed.
 
-    Lemma default_types : forall errs Γ i τ,
+    Lemma edefault_types : forall errs Γ i τ,
         PT.proper_nesting τ ->
         let e := edefault i τ in
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
@@ -578,6 +591,59 @@ Module Step.
             Some (E.EHeaderStack ts new_hdrs size 0%N)
       end.
     (**[]*)
+
+    Lemma voldemort : forall errs Γ (i : tags_t) (ts : F.fs string E.t),
+        F.predfs_data PT.proper_nesting ts ->
+        F.relfs
+          (fun (te : E.t * E.e tags_t) (τ : E.t) =>
+             fst te = τ /\ (let e := snd te in ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+          (F.map (fun τ : E.t => (τ, edefault i τ)) ts) ts.
+    Proof.
+      Hint Resolve edefault_types : core.
+      intros; ind_list_predfs; simpl; repeat constructor;
+        simpl in *; unfold F.predfs_data in *; intuition.
+    Qed.
+
+    Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
+        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        Pos.to_nat n = length hs ->
+        PT.proper_nesting {{ stack ts[n] }} ->
+        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+        eval_stk_op i op n ni ts hs = Some v ->
+        let τ := type_hdr_stk_op op n ts in
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      Hint Resolve repeat_Forall : core.
+      Hint Resolve Forall_impl : core.
+      Hint Resolve Forall_firstn : core.
+      Hint Resolve Forall_skipn : core.
+      Hint Resolve voldemort : core.
+      Hint Resolve PT.proper_inside_header_nesting : core.
+      Hint Rewrite repeat_length.
+      Hint Rewrite app_length.
+      Hint Rewrite Forall_app.
+      Hint Rewrite firstn_length_le.
+      Hint Rewrite skipn_length.
+      Hint Rewrite map_length.
+      Hint Rewrite (@F.predfs_data_map string).
+      intros; subst τ; destruct op; simpl in *;
+      unfold "#" in *;
+      repeat (match goal with
+             | H: (if ?b then _ else _) = Some _
+               |- _ => destruct b as [? | ?]
+             | H: Some _ = Some _ |- _ => inv H
+             | |- _ /\ _ => split
+             | |- Forall _ (repeat _ _) => apply repeat_Forall
+             | |- ⟦ _, _ ⟧ ⊢ _ ∈ _ => constructor
+             | |- PT.proper_nesting {{ hdr { ?ts } }}
+               => apply PT.pn_header
+             | H: PT.proper_nesting {{ stack ?ts[_] }} |- _ => inv H
+             | H: PT.base_type {{ stack _ [_] }} |- _ => inv H
+             | |- _ => destruct n; lia
+             | |- _ => apply voldemort
+             end; autorewrite with core in *; eauto).
+      eapply Forall_nth_error in H4; eauto; simpl in *; auto.
+    Qed.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)

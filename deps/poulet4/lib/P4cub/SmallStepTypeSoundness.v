@@ -145,6 +145,8 @@ Section Theorems.
       Hint Resolve eval_bit_binop_comp : core.
       Hint Resolve eval_int_binop_numeric : core.
       Hint Resolve eval_int_binop_comp : core.
+      Hint Resolve eval_hdr_op_types : core.
+      Hint Resolve eval_stk_op_types : core.
       Hint Rewrite Pos.eqb_refl.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
@@ -203,21 +205,23 @@ Section Theorems.
               end; constructor; auto; unfold BitArith.bit_concat; auto.
       - unfold "#", "∘" in *; simpl in *; inv H4.
         assert_canonical_forms. inv H1; simpl in *.
-        unfold "∘" in *. inv H0. admit.
-        (* TODO: just write lemma for eval_hdr_op. *)
-      - inv H3. unfold "#", "∘" in *; simpl in *. admit.
+        unfold "∘" in *. inv H0. auto.
+      - inv H3. unfold "#", "∘" in *; simpl in *; eauto.
         (* TODO: just write lemma for eval_stk_op. *)
       - constructor. subst es; subst es'.
-        apply Forall2_app_inv_l in H5 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+        apply Forall2_app_inv_l in H5 as
+            [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
         apply Forall2_app; auto. inv Hsuffix; constructor; eauto.
       - constructor. subst fs; subst fs'.
-        apply Forall2_app_inv_l in H5 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+        apply Forall2_app_inv_l in H5 as
+            [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
         apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
         repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
         intuition.
       - inv H3. constructor; auto.
         + subst fs; subst fs'.
-          apply Forall2_app_inv_l in H8 as [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
+          apply Forall2_app_inv_l in H8 as
+              [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
           apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
           repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
           intuition.
@@ -226,6 +230,6 @@ Section Theorems.
         rewrite app_length in *; simpl in *. lia.
         apply Forall_app in H11 as [? Hsuffix]; apply Forall_app; split;
           inv Hsuffix; auto.
-    Admitted.
+    Qed.
   End Preservation.
 End Theorems.

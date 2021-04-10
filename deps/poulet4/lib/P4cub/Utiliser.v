@@ -284,6 +284,14 @@ Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
     Forall2 R l1 l2 -> length l1 = length l2.
 Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.
 
+Lemma Forall2_duh : forall {A B : Type} (P : A -> B -> Prop),
+    (forall a b, P a b) ->
+    forall la lb, length la = length lb -> Forall2 P la lb.
+Proof.
+  induction la; destruct lb; intros;
+  simpl in *; try discriminate; constructor; auto.
+Qed.
+
 (** * Option Equivalence *)
 
 Inductive relop {A : Type} (R : A -> A -> Prop) : option A -> option A -> Prop :=

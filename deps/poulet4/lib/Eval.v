@@ -53,7 +53,7 @@ Section Eval.
     | TypString => ValBaseString {| P4String.tags := tags_dummy; P4String.str := "" |}
     | TypBit w => ValBaseBit w 0
     | TypVoid => ValBaseHeader [] true (* this seems wrong? but also it shows up in our pretty-printed code *)
-    | TypHeader fields => ValBaseHeader (map (fun '(MkFieldType f t) => (f, default_value_base t)) fields) false
+    | TypHeader fields => ValBaseHeader (map (fun (field: P4String * P4Type) => let (f, t) := field in (f, default_value_base t)) fields) false
     | _ => default_value_error "unimplemented type for default_value_base"
     end.
   
@@ -344,7 +344,7 @@ Section Eval.
       | TypSet inner =>
         match val with
         | ValBase (ValBaseBit w bits) =>
-          mret (ValBase (ValBaseSet (ValSetSingleton w bits)))
+          mret (ValBase (ValBaseSet (ValSetSingleton (ValBaseBit w bits))))
         (* TODO: Convert other types of values to sets. *)
         | _ => state_fail (SupportError "Cannot cast this value to a set.")
         end
@@ -493,7 +493,7 @@ Section Eval.
       | MatchExpression e =>
         let* set := unpack_set _ (eval_expression e) in
         match set with
-        | ValSetSingleton width bits =>
+        | ValSetSingleton (ValBaseBit width bits) =>
           match v with
           | ValBase (ValBaseBit width' bits') =>
             if Nat.eqb width width' && Z.eqb bits bits' then

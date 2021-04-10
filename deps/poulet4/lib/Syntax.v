@@ -126,7 +126,7 @@ Section Syntax.
   | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: ValueBase)
   | ValBaseSenum (_: P4String.AList tags_t ValueBase)
   with ValueSet :=
-  | ValSetSingleton (width: nat) (value: Z)
+  | ValSetSingleton (value: ValueBase)
   | ValSetUniversal
   | ValSetMask (value: ValueBase) (mask: ValueBase)
   | ValSetRange (lo: ValueBase) (hi: ValueBase)

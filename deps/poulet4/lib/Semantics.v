@@ -142,7 +142,7 @@ Definition name_to_val (e: env) (this : path) (s : state) (name : @Typed.name ta
   | _ => None
   end.
 
-(* Definition name_to_typ (e: env) (this : path) (name : @Typed.name tags_t) : option (@P4Type tags_t) :=
+Definition name_to_type (e: env) (this : path) (name : @Typed.name tags_t) : option (@P4Type tags_t) :=
   let p := name_to_path e this name in
   match p with
   | Some p' =>
@@ -151,7 +151,7 @@ Definition name_to_val (e: env) (this : path) (s : state) (name : @Typed.name ta
     | _ => None
     end
   | _ => None
-  end. *)
+  end.
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
@@ -260,14 +260,28 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                           exec_expr e this st
                           (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
                           v
+  (* TypTypName not valid yet due to two problems of recursion:
+    1. Need to resolve the type from the name in the Semantics.v;
+    2. Need to define name_to_type such that no loop is possible. *)
   | exec_expr_cast : forall newtyp expr oldv newv e this st tag typ dir,
                      exec_expr e this st expr oldv ->
-                     (* eval_cast need env and state of new types *)
                      Ops.eval_cast newtyp oldv = Some newv ->
                      exec_expr e this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv
-  (* | exec_expr_type_member omitted for now *)
+  | exec_expr_type_member_enum : forall tname member ename members e this st tag typ dir,
+                                 name_to_type e this tname = Some (TypEnum ename None members) ->
+                                 List.In member members ->
+                                 exec_expr e this st
+                                 (MkExpression tag (ExpTypeMember tname member) typ dir)
+                                 (ValBaseEnumField ename member)
+  | exec_expr_type_member_senum : forall tname member ename etyp members fields v e this st tag typ dir,
+                                  name_to_type e this tname = Some (TypEnum ename (Some etyp) members) ->
+                                  name_to_val e this st tname = Some (ValBaseSenum fields) ->
+                                  AList.get fields member = Some v ->
+                                  exec_expr e this st
+                                  (MkExpression tag (ExpTypeMember tname member) typ dir)
+                                  (ValBaseSenumField ename member v)
   | exec_expr_error_member : forall err e this st tag typ dir,
                              exec_expr e this st
                              (MkExpression tag (ExpErrorMember err) typ dir)
@@ -289,7 +303,6 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                           exec_expr e this st
                           (MkExpression tag ExpDontCare typ dir)
                           ValBaseNull
-  (* the following two expressions output ValueSet instead of ValueBase *)
   | exec_expr_mask : forall expr exprv mask maskv e this st tag typ dir,
                      exec_expr e this st expr exprv ->
                      exec_expr e this st mask maskv ->
@@ -301,8 +314,7 @@ Inductive exec_expr : env -> path -> (* temp_env -> *) state ->
                       exec_expr e this st hi hiv ->
                       exec_expr e this st
                       (MkExpression tag (ExpRange lo hi) typ dir)
-                      (ValBaseSet (ValSetRange lov hiv))
-  .
+                      (ValBaseSet (ValSetRange lov hiv)).
 
 Inductive exec_exprs : env -> path -> state -> list (@Expression tags_t) -> list Val -> Prop :=
   | exec_exprs_nil : forall e this st,

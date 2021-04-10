@@ -337,7 +337,23 @@ Module Ops.
   | _, _ => None
   end.
 
-  (* Fixpoint eval_cast' (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+  Fixpoint eval_cast' (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+    let fix values_of_val_tuple (l1: list P4Type) 
+                                (l2: list Val) : option (list Val) :=
+      match l1, l2 with
+      | [], [] => Some []
+      | t :: l1', oldv :: l2' => 
+          match eval_cast' t oldv, values_of_val_tuple l1' l2' with
+          | Some newv, Some l3 => Some (newv :: l3)
+          | _, _ => None
+          end
+      | _, _ => None 
+      end in
+    let values_of_val (l1: list P4Type) (oldv: Val) : option (list Val) :=
+      match oldv with
+      | ValBaseTuple l2 => values_of_val_tuple l1 l2
+      | _ => None
+      end in
     let fix fields_of_val_tuple (l1: Fields P4Type) 
                                 (l2: list Val) : option (Fields Val) :=
       match l1, l2 with
@@ -390,7 +406,19 @@ Module Ops.
         | Some fields', ValBaseHeader _ b => Some (ValBaseHeader fields' b)
         | _, _ => None
         end
-    | TypTuple _
+    | TypTuple types => 
+        match values_of_val types oldv with
+        | Some values => Some (ValBaseTuple values)
+        | _ => None
+        end
+    | TypSet eletyp =>
+        match oldv with
+        | ValBaseSet v => Some (ValBaseSet v)
+        | _ => match eval_cast' eletyp oldv with
+               | Some newv => Some (ValBaseSet (ValSetSingleton newv))
+               | _ => None
+               end
+        end
     | _ => None
     end.
   (* Admitted. *)
@@ -406,13 +434,12 @@ Module Ops.
     | TypRecord l => TypRecord (sort (sort_by_key_typ' l))
     | TypHeaderUnion l => TypHeaderUnion (sort (sort_by_key_typ' l))
     | TypHeader l => TypHeader (sort (sort_by_key_typ' l))
+    | TypSet eletyp => sort_by_key_typ eletyp
     | _ => t
-    end. *)
+    end.
 
-  Definition eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val.
-    (* eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv). *)
-  Admitted.
-
+  Definition eval_cast (newtyp : P4Type) (oldv : Val) : option Val :=
+    eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv).
 
   End Operations.
 End Ops.

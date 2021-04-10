@@ -11,6 +11,7 @@ Require Import Poulet4.Utils.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Bitwise.
+Require Import Poulet4.AList.
 
 Open Scope monad.
 Open Scope string_scope.
@@ -20,7 +21,6 @@ Section Packet.
   Notation P4String := (P4String.t tags_t).
   Notation ValueBase := (@ValueBase tags_t).
   Notation P4Type := (@P4Type tags_t).
-  Notation FieldType := (@FieldType tags_t).
 
   Definition packet_monad := @state_monad (list bool) exception.
 
@@ -43,6 +43,10 @@ Section Packet.
     Z.of_nat (to_nat (rev (Vector.to_list bits))).
 
   Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
+    let eval_packet_extract_fixed_field (into_field: P4String * P4Type) : packet_monad (P4String * ValueBase) :=
+      let (into_name, into_type) := into_field in
+      let* v := eval_packet_extract_fixed into_type in
+        mret (into_name, v) in
     match into with
     | TypBool =>
       let* vec := read_first_bits 1 in
@@ -63,15 +67,13 @@ Section Packet.
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseHeader field_vals true)
     | _ => state_fail (TypeError "Unsupported type passed to extract.")
-    end
-
-  with eval_packet_extract_fixed_field (into_field: FieldType) : packet_monad (P4String * ValueBase) :=
-    let '(MkFieldType into_name into_type) := into_field in
-    let* v := eval_packet_extract_fixed into_type in
-    mret (into_name, v).
+    end.
 
 
   Fixpoint parseable_type (type : P4Type) : bool :=
+    let parseable_ftype (ftype: P4String * P4Type) : bool :=
+      let (_, x) := ftype in 
+        parseable_type x in
     match type with
     | TypRecord field_types
     | TypHeader field_types => fold_left andb (map parseable_ftype field_types) true
@@ -79,9 +81,7 @@ Section Packet.
     | TypBit _
     | TypInt _ => true
     | _ => false
-    end
-  with parseable_ftype (ftype: FieldType) : bool :=
-    let '(MkFieldType _ x) := ftype in parseable_type x.
+    end.
 
 
 

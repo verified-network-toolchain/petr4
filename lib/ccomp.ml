@@ -72,7 +72,7 @@ let translate_expr (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName (_, x)) ->
     varmap_find map x
-  | _ -> C.CIntLit 12355
+  | _ -> failwith "incomplete"
 
 let type_width hdr_type =
   let empty_env = Prog.Env.CheckerEnv.empty_t () in
@@ -116,7 +116,7 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
   | Assignment { lhs; rhs } -> 
     let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
     C.CAssign (left, (get_expr_c rhs)) 
-  | _ -> C.CVarInit (CInt, "todo", CIntLit 123)
+  | _ -> failwith "incomplete"
 
 let translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =
   stmts
@@ -133,7 +133,7 @@ let get_type (typ: Typed.Type.t) : C.ctyp  =
     C.CTypeName (snd n) 
   | Typed.Type.Bit {width = 8} ->
     C.CBit8
-  | _ -> C.CInt 
+  | _ -> failwith "incomplete"
 
 let add_param (state_name: string) (map: varmap) (param: Typed.Parameter.t) : varmap =
   let var = snd param.variable in
@@ -186,7 +186,6 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let params = translate_params flat_params in
     (* TO DO - MAKE A FUNCTION THAT DOES THIS CONCAT  *)
     (* TO DO - MORE CONSISTENT NAMES *)
-    (* TO DO - REPLACE C.INCLUDES WITH FAILS *)
     let state_type_name = snd name ^ "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
@@ -233,7 +232,7 @@ and translate_local (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.
             translate_block map body)
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } ->
     translate_table(snd name, key, actions, entries, default_action, size, custom_properties)
-  | _ -> C.CInclude "not needed"
+  | _ -> failwith "incomplete"
 
 and find_table_name (locals : Prog.Declaration.t list) : string =
   let f decl = 
@@ -366,7 +365,7 @@ and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt =
   | Assignment { lhs; rhs } -> 
     let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
     C.CAssign (left, (get_expr_c rhs)) 
-  | _ ->  C.CMethodCall ("hold", [CVar "param"]) 
+  | _ ->  failwith "incomplete"
 
 and translate_param (param : Typed.Parameter.t) : C.cfield =
   let ctyp = translate_type param.typ in
@@ -391,7 +390,7 @@ and translate_type (typ: Typed.Type.t) : C.ctyp =
     C.CTypeName (snd n)
   | Typed.Type.Bit {width = 8} ->
     C.CBit8
-  | _ -> C.CInt
+  | _ -> failwith "incomplete"
 
 let translate_prog ((Program prog): Prog.program) : C.cprog =
   prog

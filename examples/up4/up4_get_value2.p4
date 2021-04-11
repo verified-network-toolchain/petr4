@@ -1,19 +1,19 @@
 #include "core.p4"
 #include "up4.p4"
 
-header head {
+header head2 {
     bit<8> v;
 }
 
-struct metadata { }
-struct in_param_t { }
-struct out_param_t { }
+struct metadata2 { }
+struct in_param_t2 { }
+struct out_param_t2 { }
 
 parser MyParser2(packet_in packet,
                 im_t im,
-                out head[13] hdrs,
-                inout metadata meta,
-                in in_param_t in_param,
+                out head2[13] hdrs,
+                inout metadata2 meta,
+                in in_param_t2 in_param,
                 inout error parser_error) {
 
     state start {
@@ -44,10 +44,10 @@ parser MyParser2(packet_in packet,
 }
 
 control MyControl2(im_t im,
-                  inout head[13] hdrs,
-                  inout metadata meta,
-                  in in_param_t in_param,
-                  out out_param_t out_param,
+                  inout head2[13] hdrs,
+                  inout metadata2 meta,
+                  in in_param_t2 in_param,
+                  out out_param_t2 out_param,
                   inout error parser_error) {
     apply {
         if (parser_error == error.NoError) {
@@ -68,7 +68,7 @@ control MyControl2(im_t im,
     }
 }
 
-control MyDeparser2(packet_out packet, in head[13] hdr) {
+control MyDeparser2(packet_out packet, in head2[13] hdr) {
     apply {
         packet.emit(hdr[0]);
         packet.emit(hdr);

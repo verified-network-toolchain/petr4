@@ -65,6 +65,17 @@ let get_typename_name (t : P4.Type.t) : string = match (snd t) with
   | TypeName typename -> P4.name_only typename
   | _ -> raise (IncorrectType "Expected TypeName")
 
+let get_expression_print (e:P4.Expression.t):string = match (snd e) with 
+  | Int i -> string_of_int (get_P4int_value i)
+  | _ -> raise (IncorrectType "expression print not implemented yet")
+
+(**Essentially pretty print for type *)
+let get_type_print (t:P4.Type.t) : string = match (snd t) with
+  | TypeName typename -> P4.name_only typename
+  | HeaderStack {header;size} -> (get_typename_name header) ^ "[" ^ (get_expression_print size) ^ "]"
+  | Error -> "error"
+  | _ -> raise (IncorrectType "type not included yet")
+
 let get_argument_name (a : P4.Argument.t) : string = match (snd a) with 
   | P4.Argument.Expression {value} -> (match (snd value) with 
       | P4.Expression.NamelessInstantiation {typ; args} -> get_typename_name typ
@@ -78,11 +89,16 @@ let get_argument_int (a : P4.Argument.t) : int = match (snd a) with
       | _ -> raise (IncorrectType "Int expected"))
   | _ -> raise (IncorrectType "Argument Expression expected")
 
+let get_parameter_type (p:P4.Parameter.t) : P4.Type.t = match (snd p) with 
+  | {annotations; direction; typ; variable; opt_value} -> typ
+
 let get_parameter_typename (p:P4.Parameter.t) : string = match (snd p) with 
   | {annotations; direction; typ; variable; opt_value} -> get_typename_name typ
 
 let get_parameter_name (p : P4.Parameter.t) : string = match (snd p) with
   | {annotations; direction; typ; variable; opt_value} -> snd variable
+
+
 
 let get_instantiation (prog:P4.Declaration.t) : P4.Declaration.t option = 
   match (snd prog) with 
@@ -342,6 +358,16 @@ let create_declaration_field (field_name : string) (type_name : string) : P4.Dec
   }
 (** Create declarations types *)
 
+let create_param (dir : P4.Direction.t option) (typ : string) (var : string) : P4.Parameter.t = 
+  let open P4.Parameter in 
+  Info.dummy, {
+    annotations = [];
+    direction = dir;
+    typ = create_type_typename typ;
+    variable = Info.dummy, var;
+    opt_value = None
+  }
+
 let params_from_parser (d:P4.Declaration.t) : P4.Parameter.t list option = match (snd d) with
   | P4.Declaration.Parser {annotations; name; type_params; params; constructor_params; locals; states} -> Some params
   | _ -> None
@@ -392,15 +418,16 @@ let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t l
   else if List.length d2 == 0 then List.fold_left merge_unnamed_declaration (List.hd d1) d1
   else List.fold_left merge_unnamed_declaration (List.hd d1) (List.tl d1 @ d2)
 
-let merge_deparser (d1 : P4.Declaration.t) (d2: P4.Declaration.t) : P4.Declaration.t = 
+let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaration.t) (d2: P4.Declaration.t): P4.Declaration.t = 
   let dp1 = control_info d1 in 
   let dp2 = control_info d2 in 
-  ((fst d1), Control { annotations = dp1.annotations;
+  let params = [create_param None "packet_out" "packet"; create_param None header_type header_name ] in 
+  ((fst d1), Control { annotations = [];
                        name = Info.dummy, "NewDeparser";
-                       type_params = dp1.type_params;
-                       params = dp1.params; (*might need to check for difference *)
-                       constructor_params = dp1.constructor_params;
-                       locals = dp1.locals @ dp2.locals;
+                       type_params = [];
+                       params = params; (*might need to check for difference *)
+                       constructor_params = [];
+                       locals = [];
                        apply = merge_block dp1.apply dp2.apply})
 
 (**Creating new up4 parser *)
@@ -431,26 +458,41 @@ let new_struct_merge (declaration_types:string list * string list) (structs_name
   if List.length (fst declaration_types) <> List.length (snd declaration_types) 
   || List.length (fst declaration_types) <> List.length structs_names then raise CompilerError else
     let structs_types = List.map2 (fun x y -> [x; y]) (fst declaration_types) (snd declaration_types) in 
-    let new_fields = (List.map2 (fun field_names struct_name -> [create_declaration_field (List.nth field_names 0) (struct_name ^ "1") ; create_declaration_field (List.nth field_names 1) (struct_name ^ "2")]) ) structs_types structs_names in 
+    let new_fields = (List.map2 (fun field_names struct_name -> [create_declaration_field (struct_name ^ "1") ((List.nth field_names 0)); create_declaration_field (struct_name ^ "2") ((List.nth field_names 1))]) ) structs_types structs_names in 
     List.map2 (fun fields struct_name -> create_declaration_struct struct_name fields) new_fields structs_names
 
-let new_parser (params:P4.Parameter.t list) (parser1:string) (parser2:string) (split_port:int) : P4.Declaration.t = 
+let new_parser (param_typenames:string list) (param_names:string list) (parser1:string) (parser2:string) (split_port:int) : P4.Declaration.t = 
   let locals = (create_declaration_instantiation "parser2" parser2 [])::(create_declaration_instantiation "parser1" parser1 [])::[] in 
-  let args = List.map param_to_arg params in
-  let states = (low_ports_state parser1 args)::(high_ports_state parser2 args)::(new_start_state split_port)::[] in
+  let packet_param = create_param None "packet_in" "packet" in 
+  let im_t_param = create_param None "im_t" "im" in 
+  let dirs = [Some (Info.dummy, P4.Direction.Out);Some (Info.dummy, P4.Direction.InOut);Some (Info.dummy, P4.Direction.In);Some (Info.dummy, P4.Direction.InOut)] in
+  let param_temp = List.map2 (fun func name -> func name) (List.map2 (fun dir typ_name -> create_param dir typ_name) dirs param_typenames) param_names in 
+  let params = [packet_param; im_t_param] @ param_temp in 
+  let args1_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "1") param_typenames) in 
+  let args1 = [param_to_arg packet_param; param_to_arg im_t_param] @ (List.map create_argument_expression args1_temp) in 
+  let args2_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "2") param_typenames) in 
+  let args2 = [param_to_arg packet_param; param_to_arg im_t_param] @ (List.map create_argument_expression args2_temp) in 
+  let states = (low_ports_state parser1 args1)::(high_ports_state parser2 args2)::(new_start_state split_port)::[] in
   create_declaration_parser "NewParser" params locals states
 
 (** Creating new up4 control *)
-let merged_if_statement (args:P4.Argument.t list) (split_port:int) : P4.Statement.t = 
+let merged_if_statement (args1:P4.Argument.t list) (args2:P4.Argument.t list) (split_port:int) : P4.Statement.t = 
   let conditional = create_expression_binary_op (Info.dummy, P4.Op.Le) imt_in_port_expr (create_expression_int split_port) in
-  let call_control1 = create_statement_function_call "control1" "apply" args in 
-  let call_control2 = create_statement_function_call "control2" "apply" args in 
+  let call_control1 = create_statement_function_call "control1" "apply" args1 in 
+  let call_control2 = create_statement_function_call "control2" "apply" args2 in 
   create_statement_if (snd conditional) (snd call_control1) (snd call_control2)
 
-let new_control (params:P4.Parameter.t list) (control1:string) (control2:string) (split_port:int) : P4.Declaration.t = 
+let new_control (param_typenames:string list) (param_names:string list) (control1:string) (control2:string) (split_port:int) : P4.Declaration.t = 
   let locals = (create_declaration_instantiation "control2" control2  [])::(create_declaration_instantiation "control1" control1 [])::[] in 
-  let args = List.map param_to_arg params in 
-  let apply = create_block [merged_if_statement args split_port]  in 
+  let im_t_param = create_param None "im_t" "im" in 
+  let dirs = [Some (Info.dummy, P4.Direction.InOut);Some (Info.dummy, P4.Direction.InOut);Some (Info.dummy, P4.Direction.In);Some (Info.dummy, P4.Direction.Out);Some (Info.dummy, P4.Direction.InOut)] in
+  let param_temp = List.map2 (fun func name -> func name) (List.map2 (fun dir typ_name -> create_param dir typ_name) dirs param_typenames) param_names in 
+  let params = [im_t_param] @ param_temp in
+  let args1_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "1") param_typenames) in 
+  let args1 = [param_to_arg im_t_param] @ (List.map create_argument_expression args1_temp) in 
+  let args2_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "2") param_typenames) in 
+  let args2 = [param_to_arg im_t_param] @ (List.map create_argument_expression args2_temp) in 
+  let apply = create_block [merged_if_statement args1 args2 split_port]  in 
   create_declaration_control "NewControl" params locals apply 
 
 
@@ -470,21 +512,24 @@ let prog_merge_package (program : P4.program) : P4.program =
   let split_port = get_argument_int (List.nth main_args 2) in 
   let package1 = verify_length (find_declarations_by_names prog names1) 3 in 
   let package2 = verify_length (find_declarations_by_names prog names2) 3 in 
-  let parser1_params = (List.hd package1) |> get_declaration_params |> get in
-  let parser2_params = (List.hd package2) |> get_declaration_params |> get in 
+  (* let parser1_params = (List.hd package1) |> get_declaration_params |> get in
+     let parser2_params = (List.hd package2) |> get_declaration_params |> get in  *)
   let control1_params = (List.nth package1 1) |> get_declaration_params |> get in
-  let control2_params = (List.nth package1 1) |> get_declaration_params |> get in  
+  let control2_params = (List.nth package2 1) |> get_declaration_params |> get in  
   let unnamed_decs = (get_unnamed_declarations prog) in 
   let merged_unnamed_decs = [merge_unnamed_declarations (unnamed_decs |> fst) []; merge_unnamed_declarations (unnamed_decs |> snd) []] in 
-  let parser_type_params = List.tl (List.map get_parameter_typename parser1_params), List.tl (List.map get_parameter_typename parser2_params) in 
-  let control_type_params = List.tl (List.map get_parameter_typename control1_params), List.tl (List.map get_parameter_typename control2_params) in 
-  let new_parser_structs = new_struct_merge parser_type_params ["parserHdr"; "parserMeta"; "parserInParam"; "parserOutParam"; "parserInOutParam"] in
-  let new_control_structs = new_struct_merge control_type_params ["controlHdr"; "controlMeta"; "controlInParam"; "controlOutParam"; "controlInOutParam"] in 
-  let new_parser = new_parser parser_type_params (List.hd names1) (List.hd names2) split_port in
-  let new_deparser = merge_deparser (List.nth package1 2) (List.nth package2 2) in
-  let new_control = new_control control__type_params (List.nth names1 1) (List.nth names2 1) split_port in 
+  let control_param_type = List.tl (List.map get_parameter_type control1_params), List.tl (List.map get_parameter_type control2_params) in 
+  let control_param_names = List.map get_type_print (fst control_param_type), List.map get_type_print (snd control_param_type) in 
+  (* let new_parser_structs = new_struct_merge parser_type_params ["parserHdr"; "parserMeta"; "parserInParam"; "parserInOutParam"] in *)
+  let new_parser_typename = ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedInOutParam"] in 
+  let new_control_typename = ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedOutParam"; "mergedInOutParam"] in 
+  print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (fst control_param_names)); print_string "\n";
+  print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (snd control_param_names)); print_string "\n\n"; 
+  let new_control_structs = new_struct_merge control_param_names ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedOutParam"; "mergedInOutParam"] in 
+  let new_parser = new_parser (new_parser_typename) (["hdrs"; "meta"; "in_param"; "inout_param"]) (List.hd names1) (List.hd names2) split_port in
+  let new_deparser = merge_deparser "mergedHdr" "hdr" (List.nth package1 2) (List.nth package2 2) in
+  let new_control = new_control (new_control_typename) (["hdrs";"meta";"in_param";"out_param";"inout_param"]) (List.nth names1 1) (List.nth names2 1) split_port in 
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
   let new_package = create_declaration_instantiation "main" "uP4Switch" (List.map create_argument_expression package_arguments) in 
   let final_prog = remove_unnamed_decl (remove_declaration prog (prog |> get_main |> declaration_name)) in 
-  P4.Program (merged_unnamed_decs @ final_prog @ [new_parser; new_control; new_deparser; new_package])
-
+  P4.Program (merged_unnamed_decs @ final_prog @ new_control_structs @ [new_parser; new_control; new_deparser; new_package]) 

@@ -1,5 +1,4 @@
 
-
 error {
   NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
   ParserTimeout, ParserInvalidArgument
@@ -221,8 +220,8 @@ struct mergedInParam {
   in_param_t2 mergedInParam2;
 }
 struct mergedOutParam {
-  out_param_t1 mergedOutParam1;
-  out_param_t2 mergedOutParam2;
+  
+  out_param_t2 mergedOP2;
 }
 struct mergedInOutParam {
   error mergedInOutParam1;
@@ -258,26 +257,28 @@ control NewControl(im_t im, inout mergedHdr hdrs, inout mergedMeta meta,
                    inout mergedInOutParam inout_param) {
   MyControl2() control2;
   MyControl1() control1;
+  out_param_t1 mergedOP1;
+  out_param_t2 mergedOP2;
   apply
     {
     if (im.get_in_port()<=8)
       
       control1.apply(im, hdrs.mergedHdr1, meta.mergedMeta1,
-                       in_param.mergedInParam1, out_param.mergedOutParam1,
+                       in_param.mergedInParam1, mergedOP1,
                        inout_param.mergedInOutParam1);
       else
         control2.apply(im, hdrs.mergedHdr2, meta.mergedMeta2,
-                         in_param.mergedInParam2, out_param.mergedOutParam2,
+                         in_param.mergedInParam2, mergedOP2,
                          inout_param.mergedInOutParam2);
   }
 }
-control NewDeparser(packet_out packet, mergedHdr hdr) {
+control NewDeparser(packet_out packet, in mergedHdr hdr) {
   apply
     {
-    packet.emit(hdr[0]);
-    packet.emit(hdr);
-    packet.emit(hdr[0]);
-    packet.emit(hdr);
+    packet.emit(hdr.mergedHdr1[0]);
+    packet.emit(hdr.mergedHdr1);
+    packet.emit(hdr.mergedHdr2[0]);
+    packet.emit(hdr.mergedHdr2);
   }
 }
 uP4Switch(NewParser(), NewControl(), NewDeparser()) main;

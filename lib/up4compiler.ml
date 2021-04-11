@@ -421,7 +421,7 @@ let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t l
 let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaration.t) (d2: P4.Declaration.t): P4.Declaration.t = 
   let dp1 = control_info d1 in 
   let dp2 = control_info d2 in 
-  let params = [create_param None "packet_out" "packet"; create_param None header_type header_name ] in 
+  let params = [create_param None "packet_out" "packet"; create_param (Some (Info.dummy, P4.Direction.In)) header_type header_name ] in 
   ((fst d1), Control { annotations = [];
                        name = Info.dummy, "NewDeparser";
                        type_params = [];
@@ -523,8 +523,8 @@ let prog_merge_package (program : P4.program) : P4.program =
   (* let new_parser_structs = new_struct_merge parser_type_params ["parserHdr"; "parserMeta"; "parserInParam"; "parserInOutParam"] in *)
   let new_parser_typename = ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedInOutParam"] in 
   let new_control_typename = ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedOutParam"; "mergedInOutParam"] in 
-  print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (fst control_param_names)); print_string "\n";
-  print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (snd control_param_names)); print_string "\n\n"; 
+  (*print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (fst control_param_names)); print_string "\n";
+    print_string "\n\n"; ignore (List.map (fun s -> print_string (s ^ " ")) (snd control_param_names)); print_string "\n\n"; *)
   let new_control_structs = new_struct_merge control_param_names ["mergedHdr"; "mergedMeta"; "mergedInParam"; "mergedOutParam"; "mergedInOutParam"] in 
   let new_parser = new_parser (new_parser_typename) (["hdrs"; "meta"; "in_param"; "inout_param"]) (List.hd names1) (List.hd names2) split_port in
   let new_deparser = merge_deparser "mergedHdr" "hdr" (List.nth package1 2) (List.nth package2 2) in

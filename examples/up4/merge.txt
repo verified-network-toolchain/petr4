@@ -2,24 +2,24 @@ error {
   NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
   ParserTimeout, ParserInvalidArgument
 }
+match_kind {
+  exact, ternary, lpm
+}
 extern packet_in {
   void extract<T>(out T hdr);
-  void extract<T>(out T variableSizeHeader,
-                  in bit<32> variableFieldSizeInBits);
-  T lookahead<T>();
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
   void advance(in bit<32> sizeInBits);
   bit<32> length();
 }
 
 extern packet_out {
-  void emit<T>(in T hdr);
+  void emit<T2>(in T2 hdr);
 }
 
 extern void verify(in bool check, in error toSignal);
 action NoAction() { 
-}
-match_kind {
-  exact, ternary, lpm
 }
 typedef bit<9> PortId_t;
 typedef bit<16> PktInstId_t;
@@ -46,36 +46,36 @@ parser micro_parser<H, M, I, IO>
    inout M meta,
    in I in_param,
    inout IO inout_param);
-control micro_control<H, M, I, O, IO>
+control micro_control<H3, M4, I5, O, IO6>
   (im_t im,
-   inout H hdrs,
-   inout M meta,
-   in I in_param,
+   inout H3 hdrs,
+   inout M4 meta,
+   in I5 in_param,
    out O out_param,
-   inout IO inout_param);
-control micro_deparser<H> (packet_out packet, in H hdrs);
-package uP4Switch<H, M, I, O, IO>
-  (micro_parser<H, M, I, IO> p,
-   micro_control<H, M, I, O, IO> c,
-   micro_deparser<H> d);
+   inout IO6 inout_param);
+control micro_deparser<H7> (packet_out packet, in H7 hdrs);
+package uP4Switch<H8, M9, I10, O11, IO12>
+  (micro_parser<H8, M9, I10, IO12> p,
+   micro_control<H8, M9, I10, O11, IO12> c,
+   micro_deparser<H8> d);
 package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
   (uP4Switch<H1, M1, I1, O1, IO1> left,
    uP4Switch<H2, M2, I2, O2, IO2> right,
    int split_port);
-header head {
+header head1 {
   bit<8> v;
 }
-struct metadata {
+struct metadata1 {
   
 }
-struct in_param_t {
+struct in_param_t1 {
   
 }
-struct out_param_t {
+struct out_param_t1 {
   
 }
-parser MyParser1(packet_in packet, im_t im, out head[13] hdrs,
-                 inout metadata meta, in in_param_t in_param,
+parser MyParser1(packet_in packet, im_t im, out head1[13] hdrs,
+                 inout metadata1 meta, in in_param_t1 in_param,
                  inout error parser_error) {
   state start
     {
@@ -103,8 +103,8 @@ parser MyParser1(packet_in packet, im_t im, out head[13] hdrs,
     transition accept;
   }
 }
-control MyControl1(im_t im, inout head[13] hdrs, inout metadata meta,
-                   in in_param_t in_param, out out_param_t out_param,
+control MyControl1(im_t im, inout head1[13] hdrs, inout metadata1 meta,
+                   in in_param_t1 in_param, out out_param_t1 out_param,
                    inout error parser_error) {
   apply
     {
@@ -127,27 +127,27 @@ control MyControl1(im_t im, inout head[13] hdrs, inout metadata meta,
     }
   }
 }
-control MyDeparser1(packet_out packet, in head[13] hdr) {
+control MyDeparser1(packet_out packet, in head1[13] hdr) {
   apply {
     packet.emit(hdr[0]);
     packet.emit(hdr);
   }
 }
 uP4Switch(MyParser1(), MyControl1(), MyDeparser1()) main1;
-header head {
+header head2 {
   bit<8> v;
 }
-struct metadata {
+struct metadata2 {
   
 }
-struct in_param_t {
+struct in_param_t2 {
   
 }
-struct out_param_t {
+struct out_param_t2 {
   
 }
-parser MyParser2(packet_in packet, im_t im, out head[13] hdrs,
-                 inout metadata meta, in in_param_t in_param,
+parser MyParser2(packet_in packet, im_t im, out head2[13] hdrs,
+                 inout metadata2 meta, in in_param_t2 in_param,
                  inout error parser_error) {
   state start
     {
@@ -175,8 +175,8 @@ parser MyParser2(packet_in packet, im_t im, out head[13] hdrs,
     transition accept;
   }
 }
-control MyControl2(im_t im, inout head[13] hdrs, inout metadata meta,
-                   in in_param_t in_param, out out_param_t out_param,
+control MyControl2(im_t im, inout head2[13] hdrs, inout metadata2 meta,
+                   in in_param_t2 in_param, out out_param_t2 out_param,
                    inout error parser_error) {
   apply
     {
@@ -199,14 +199,86 @@ control MyControl2(im_t im, inout head[13] hdrs, inout metadata meta,
     }
   }
 }
-control MyDeparser2(packet_out packet, in head[13] hdr) {
+control MyDeparser2(packet_out packet, in head2[13] hdr) {
   apply {
     packet.emit(hdr[0]);
     packet.emit(hdr);
   }
 }
 uP4Switch(MyParser2(), MyControl2(), MyDeparser2()) main2;
-uP4Merge(main1, main2, 8) main;
+struct mergedHdr {
+  head1[13] mergedHdr1;
+  head2[13] mergedHdr2;
+}
+struct mergedMeta {
+  metadata1 mergedMeta1;
+  metadata2 mergedMeta2;
+}
+struct mergedInParam {
+  in_param_t1 mergedInParam1;
+  in_param_t2 mergedInParam2;
+}
+struct mergedOutParam {
+  out_param_t1 mergedOutParam1;
+  out_param_t2 mergedOutParam2;
+}
+struct mergedInOutParam {
+  error mergedInOutParam1;
+  error mergedInOutParam2;
+}
+parser NewParser(packet_in packet, im_t im, out mergedHdr hdrs,
+                 inout mergedMeta meta, in mergedInParam in_param,
+                 inout mergedInOutParam inout_param) {
+  MyParser2() parser2;
+  MyParser1() parser1;
+  state low_ports_state
+    {
+    MyParser1.apply(packet, im, hdrs.mergedHdr1, meta.mergedMeta1,
+                      in_param.mergedInParam1, inout_param.mergedInOutParam1);
+    transition accept;
+  }
+  state high_ports_state
+    {
+    MyParser2.apply(packet, im, hdrs.mergedHdr2, meta.mergedMeta2,
+                      in_param.mergedInParam2, inout_param.mergedInOutParam2);
+    transition accept;
+  }
+  state start
+    {
+    transition select(im.get_in_port()) {
+      0 .. 8: low_ports_state;
+      9 .. 65353: high_ports_state;
+    }
+  }
+}
+control NewControl(im_t im, inout mergedHdr hdrs, inout mergedMeta meta,
+                   in mergedInParam in_param, out mergedOutParam out_param,
+                   inout mergedInOutParam inout_param) {
+  MyControl2() control2;
+  MyControl1() control1;
+  apply
+    {
+    if (im.get_in_port()<=8)
+      
+      control1.apply(im, hdrs.mergedHdr1, meta.mergedMeta1,
+                       in_param.mergedInParam1, out_param.mergedOutParam1,
+                       inout_param.mergedInOutParam1);
+      else
+        control2.apply(im, hdrs.mergedHdr2, meta.mergedMeta2,
+                         in_param.mergedInParam2, out_param.mergedOutParam2,
+                         inout_param.mergedInOutParam2);
+  }
+}
+control NewDeparser(packet_out packet, in mergedHdr hdr) {
+  apply
+    {
+    packet.emit(hdr.mergedHdr1[0]);
+    packet.emit(hdr.mergedHdr1);
+    packet.emit(hdr.mergedHdr2[0]);
+    packet.emit(hdr.mergedHdr2);
+  }
+}
+uP4Switch(NewParser(), NewControl(), NewDeparser()) main;
 
 @
 %!----------
@@ -222,6 +294,7 @@ uP4Merge(main1, main2, 8) main;
         ]
       }
     ],
+    [ "MatchKind", { "members": [ "exact", "ternary", "lpm" ] } ],
     [
       "ExternObject",
       {
@@ -253,12 +326,12 @@ uP4Merge(main1, main2, 8) main;
               "annotations": [],
               "return": [ "void" ],
               "name": "extract",
-              "type_params": [ "T" ],
+              "type_params": [ "T0" ],
               "params": [
                 {
                   "annotations": [],
                   "direction": [ "Out" ],
-                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "typ": [ "name", [ "BareName", "T0" ] ],
                   "variable": "variableSizeHeader",
                   "opt_value": null
                 },
@@ -279,9 +352,9 @@ uP4Merge(main1, main2, 8) main;
             "Method",
             {
               "annotations": [],
-              "return": [ "name", [ "BareName", "T" ] ],
+              "return": [ "name", [ "BareName", "T1" ] ],
               "name": "lookahead",
-              "type_params": [ "T" ],
+              "type_params": [ "T1" ],
               "params": []
             }
           ],
@@ -335,12 +408,12 @@ uP4Merge(main1, main2, 8) main;
               "annotations": [],
               "return": [ "void" ],
               "name": "emit",
-              "type_params": [ "T" ],
+              "type_params": [ "T2" ],
               "params": [
                 {
                   "annotations": [],
                   "direction": [ "In" ],
-                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "typ": [ "name", [ "BareName", "T2" ] ],
                   "variable": "hdr",
                   "opt_value": null
                 }
@@ -384,7 +457,6 @@ uP4Merge(main1, main2, 8) main;
         "body": { "annotations": [], "statements": [] }
       }
     ],
-    [ "MatchKind", { "members": [ "exact", "ternary", "lpm" ] } ],
     [
       "TypeDef",
       {
@@ -589,7 +661,7 @@ uP4Merge(main1, main2, 8) main;
       {
         "annotations": [],
         "name": "micro_control",
-        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "type_params": [ "H3", "M4", "I5", "O", "IO6" ],
         "params": [
           {
             "annotations": [],
@@ -601,21 +673,21 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "H" ] ],
+            "typ": [ "name", [ "BareName", "H3" ] ],
             "variable": "hdrs",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "M" ] ],
+            "typ": [ "name", [ "BareName", "M4" ] ],
             "variable": "meta",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "I" ] ],
+            "typ": [ "name", [ "BareName", "I5" ] ],
             "variable": "in_param",
             "opt_value": null
           },
@@ -629,7 +701,7 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "IO" ] ],
+            "typ": [ "name", [ "BareName", "IO6" ] ],
             "variable": "inout_param",
             "opt_value": null
           }
@@ -641,7 +713,7 @@ uP4Merge(main1, main2, 8) main;
       {
         "annotations": [],
         "name": "micro_deparser",
-        "type_params": [ "H" ],
+        "type_params": [ "H7" ],
         "params": [
           {
             "annotations": [],
@@ -653,7 +725,7 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "H" ] ],
+            "typ": [ "name", [ "BareName", "H7" ] ],
             "variable": "hdrs",
             "opt_value": null
           }
@@ -665,7 +737,7 @@ uP4Merge(main1, main2, 8) main;
       {
         "annotations": [],
         "name": "uP4Switch",
-        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "type_params": [ "H8", "M9", "I10", "O11", "IO12" ],
         "params": [
           {
             "annotations": [],
@@ -675,10 +747,10 @@ uP4Merge(main1, main2, 8) main;
               {
                 "base": [ "name", [ "BareName", "micro_parser" ] ],
                 "args": [
-                  [ "name", [ "BareName", "H" ] ],
-                  [ "name", [ "BareName", "M" ] ],
-                  [ "name", [ "BareName", "I" ] ],
-                  [ "name", [ "BareName", "IO" ] ]
+                  [ "name", [ "BareName", "H8" ] ],
+                  [ "name", [ "BareName", "M9" ] ],
+                  [ "name", [ "BareName", "I10" ] ],
+                  [ "name", [ "BareName", "IO12" ] ]
                 ]
               }
             ],
@@ -693,11 +765,11 @@ uP4Merge(main1, main2, 8) main;
               {
                 "base": [ "name", [ "BareName", "micro_control" ] ],
                 "args": [
-                  [ "name", [ "BareName", "H" ] ],
-                  [ "name", [ "BareName", "M" ] ],
-                  [ "name", [ "BareName", "I" ] ],
-                  [ "name", [ "BareName", "O" ] ],
-                  [ "name", [ "BareName", "IO" ] ]
+                  [ "name", [ "BareName", "H8" ] ],
+                  [ "name", [ "BareName", "M9" ] ],
+                  [ "name", [ "BareName", "I10" ] ],
+                  [ "name", [ "BareName", "O11" ] ],
+                  [ "name", [ "BareName", "IO12" ] ]
                 ]
               }
             ],
@@ -711,7 +783,7 @@ uP4Merge(main1, main2, 8) main;
               "specialized",
               {
                 "base": [ "name", [ "BareName", "micro_deparser" ] ],
-                "args": [ [ "name", [ "BareName", "H" ] ] ]
+                "args": [ [ "name", [ "BareName", "H8" ] ] ]
               }
             ],
             "variable": "d",
@@ -781,7 +853,7 @@ uP4Merge(main1, main2, 8) main;
       "Header",
       {
         "annotations": [],
-        "name": "head",
+        "name": "head1",
         "fields": [
           {
             "annotations": [],
@@ -794,9 +866,9 @@ uP4Merge(main1, main2, 8) main;
         ]
       }
     ],
-    [ "Struct", { "annotations": [], "name": "metadata", "fields": [] } ],
-    [ "Struct", { "annotations": [], "name": "in_param_t", "fields": [] } ],
-    [ "Struct", { "annotations": [], "name": "out_param_t", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "metadata1", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "in_param_t1", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "out_param_t1", "fields": [] } ],
     [
       "Parser",
       {
@@ -824,7 +896,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head1" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -834,14 +906,14 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "metadata" ] ],
+            "typ": [ "name", [ "BareName", "metadata1" ] ],
             "variable": "meta",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "in_param_t" ] ],
+            "typ": [ "name", [ "BareName", "in_param_t1" ] ],
             "variable": "in_param",
             "opt_value": null
           },
@@ -1143,7 +1215,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head1" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -1153,21 +1225,21 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "metadata" ] ],
+            "typ": [ "name", [ "BareName", "metadata1" ] ],
             "variable": "meta",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "in_param_t" ] ],
+            "typ": [ "name", [ "BareName", "in_param_t1" ] ],
             "variable": "in_param",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "Out" ],
-            "typ": [ "name", [ "BareName", "out_param_t" ] ],
+            "typ": [ "name", [ "BareName", "out_param_t1" ] ],
             "variable": "out_param",
             "opt_value": null
           },
@@ -1617,7 +1689,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head1" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -1734,7 +1806,7 @@ uP4Merge(main1, main2, 8) main;
       "Header",
       {
         "annotations": [],
-        "name": "head",
+        "name": "head2",
         "fields": [
           {
             "annotations": [],
@@ -1747,9 +1819,9 @@ uP4Merge(main1, main2, 8) main;
         ]
       }
     ],
-    [ "Struct", { "annotations": [], "name": "metadata", "fields": [] } ],
-    [ "Struct", { "annotations": [], "name": "in_param_t", "fields": [] } ],
-    [ "Struct", { "annotations": [], "name": "out_param_t", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "metadata2", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "in_param_t2", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "out_param_t2", "fields": [] } ],
     [
       "Parser",
       {
@@ -1777,7 +1849,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head2" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -1787,14 +1859,14 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "metadata" ] ],
+            "typ": [ "name", [ "BareName", "metadata2" ] ],
             "variable": "meta",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "in_param_t" ] ],
+            "typ": [ "name", [ "BareName", "in_param_t2" ] ],
             "variable": "in_param",
             "opt_value": null
           },
@@ -2096,7 +2168,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head2" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -2106,21 +2178,21 @@ uP4Merge(main1, main2, 8) main;
           {
             "annotations": [],
             "direction": [ "InOut" ],
-            "typ": [ "name", [ "BareName", "metadata" ] ],
+            "typ": [ "name", [ "BareName", "metadata2" ] ],
             "variable": "meta",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "In" ],
-            "typ": [ "name", [ "BareName", "in_param_t" ] ],
+            "typ": [ "name", [ "BareName", "in_param_t2" ] ],
             "variable": "in_param",
             "opt_value": null
           },
           {
             "annotations": [],
             "direction": [ "Out" ],
-            "typ": [ "name", [ "BareName", "out_param_t" ] ],
+            "typ": [ "name", [ "BareName", "out_param_t2" ] ],
             "variable": "out_param",
             "opt_value": null
           },
@@ -2570,7 +2642,7 @@ uP4Merge(main1, main2, 8) main;
             "typ": [
               "header_stack",
               {
-                "header": [ "name", [ "BareName", "head" ] ],
+                "header": [ "name", [ "BareName", "head2" ] ],
                 "size": [ "int", { "value": "13", "width_signed": null } ]
               }
             ],
@@ -2684,16 +2756,875 @@ uP4Merge(main1, main2, 8) main;
       }
     ],
     [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "mergedHdr",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [
+              "header_stack",
+              {
+                "header": [ "name", [ "BareName", "head1" ] ],
+                "size": [ "int", { "value": "13", "width_signed": null } ]
+              }
+            ],
+            "name": "mergedHdr1"
+          },
+          {
+            "annotations": [],
+            "type": [
+              "header_stack",
+              {
+                "header": [ "name", [ "BareName", "head2" ] ],
+                "size": [ "int", { "value": "13", "width_signed": null } ]
+              }
+            ],
+            "name": "mergedHdr2"
+          }
+        ]
+      }
+    ],
+    [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "mergedMeta",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "metadata1" ] ],
+            "name": "mergedMeta1"
+          },
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "metadata2" ] ],
+            "name": "mergedMeta2"
+          }
+        ]
+      }
+    ],
+    [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "mergedInParam",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "in_param_t1" ] ],
+            "name": "mergedInParam1"
+          },
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "in_param_t2" ] ],
+            "name": "mergedInParam2"
+          }
+        ]
+      }
+    ],
+    [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "mergedOutParam",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "out_param_t1" ] ],
+            "name": "mergedOutParam1"
+          },
+          {
+            "annotations": [],
+            "type": [ "name", [ "BareName", "out_param_t2" ] ],
+            "name": "mergedOutParam2"
+          }
+        ]
+      }
+    ],
+    [
+      "Struct",
+      {
+        "annotations": [],
+        "name": "mergedInOutParam",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [ "error" ],
+            "name": "mergedInOutParam1"
+          },
+          {
+            "annotations": [],
+            "type": [ "error" ],
+            "name": "mergedInOutParam2"
+          }
+        ]
+      }
+    ],
+    [
+      "Parser",
+      {
+        "annotations": [],
+        "name": "NewParser",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_in" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "mergedHdr" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "mergedMeta" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "mergedInParam" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "mergedInOutParam" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [
+          [
+            "Instantiation",
+            {
+              "annotations": [],
+              "type": [ "name", [ "BareName", "MyParser2" ] ],
+              "args": [],
+              "name": "parser2",
+              "init": null
+            }
+          ],
+          [
+            "Instantiation",
+            {
+              "annotations": [],
+              "type": [ "name", [ "BareName", "MyParser1" ] ],
+              "args": [],
+              "name": "parser1",
+              "init": null
+            }
+          ]
+        ],
+        "states": [
+          {
+            "annotations": [],
+            "name": "low_ports_state",
+            "statements": [
+              [
+                "direct_application",
+                {
+                  "type": [ "name", [ "BareName", "MyParser1" ] ],
+                  "args": [
+                    [
+                      "Expression",
+                      { "value": [ "name", [ "BareName", "packet" ] ] }
+                    ],
+                    [
+                      "Expression",
+                      { "value": [ "name", [ "BareName", "im" ] ] }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "hdrs" ] ],
+                            "name": "mergedHdr1"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "meta" ] ],
+                            "name": "mergedMeta1"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "in_param" ] ],
+                            "name": "mergedInParam1"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "inout_param" ] ],
+                            "name": "mergedInOutParam1"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "transition": [ "Direct", { "next": "accept" } ]
+          },
+          {
+            "annotations": [],
+            "name": "high_ports_state",
+            "statements": [
+              [
+                "direct_application",
+                {
+                  "type": [ "name", [ "BareName", "MyParser2" ] ],
+                  "args": [
+                    [
+                      "Expression",
+                      { "value": [ "name", [ "BareName", "packet" ] ] }
+                    ],
+                    [
+                      "Expression",
+                      { "value": [ "name", [ "BareName", "im" ] ] }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "hdrs" ] ],
+                            "name": "mergedHdr2"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "meta" ] ],
+                            "name": "mergedMeta2"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "in_param" ] ],
+                            "name": "mergedInParam2"
+                          }
+                        ]
+                      }
+                    ],
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "expression_member",
+                          {
+                            "expr": [ "name", [ "BareName", "inout_param" ] ],
+                            "name": "mergedInOutParam2"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "transition": [ "Direct", { "next": "accept" } ]
+          },
+          {
+            "annotations": [],
+            "name": "start",
+            "statements": [],
+            "transition": [
+              "Select",
+              {
+                "exprs": [
+                  [
+                    "call",
+                    {
+                      "func": [
+                        "expression_member",
+                        {
+                          "expr": [ "name", [ "BareName", "im" ] ],
+                          "name": "get_in_port"
+                        }
+                      ],
+                      "type_args": [],
+                      "args": []
+                    }
+                  ]
+                ],
+                "cases": [
+                  {
+                    "matches": [
+                      [
+                        "Expression",
+                        {
+                          "expr": [
+                            "range",
+                            {
+                              "lo": [
+                                "int",
+                                { "value": "0", "width_signed": null }
+                              ],
+                              "hi": [
+                                "int",
+                                { "value": "8", "width_signed": null }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    ],
+                    "next": "low_ports_state"
+                  },
+                  {
+                    "matches": [
+                      [
+                        "Expression",
+                        {
+                          "expr": [
+                            "range",
+                            {
+                              "lo": [
+                                "int",
+                                { "value": "9", "width_signed": null }
+                              ],
+                              "hi": [
+                                "int",
+                                { "value": "65353", "width_signed": null }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    ],
+                    "next": "high_ports_state"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "NewControl",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "mergedHdr" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "mergedMeta" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "mergedInParam" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "mergedOutParam" ] ],
+            "variable": "out_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "mergedInOutParam" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [
+          [
+            "Instantiation",
+            {
+              "annotations": [],
+              "type": [ "name", [ "BareName", "MyControl2" ] ],
+              "args": [],
+              "name": "control2",
+              "init": null
+            }
+          ],
+          [
+            "Instantiation",
+            {
+              "annotations": [],
+              "type": [ "name", [ "BareName", "MyControl1" ] ],
+              "args": [],
+              "name": "control1",
+              "init": null
+            }
+          ]
+        ],
+        "apply": {
+          "annotations": [],
+          "statements": [
+            [
+              "conditional",
+              {
+                "cond": [
+                  "binary_op",
+                  {
+                    "op": [ "Le" ],
+                    "args": [
+                      [
+                        "call",
+                        {
+                          "func": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "im" ] ],
+                              "name": "get_in_port"
+                            }
+                          ],
+                          "type_args": [],
+                          "args": []
+                        }
+                      ],
+                      [ "int", { "value": "8", "width_signed": null } ]
+                    ]
+                  }
+                ],
+                "tru": [
+                  "method_call",
+                  {
+                    "func": [
+                      "expression_member",
+                      {
+                        "expr": [ "name", [ "BareName", "control1" ] ],
+                        "name": "apply"
+                      }
+                    ],
+                    "type_args": [],
+                    "args": [
+                      [
+                        "Expression",
+                        { "value": [ "name", [ "BareName", "im" ] ] }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "hdrs" ] ],
+                              "name": "mergedHdr1"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "meta" ] ],
+                              "name": "mergedMeta1"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "in_param" ] ],
+                              "name": "mergedInParam1"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "out_param" ] ],
+                              "name": "mergedOutParam1"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [
+                                "name",
+                                [ "BareName", "inout_param" ]
+                              ],
+                              "name": "mergedInOutParam1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                ],
+                "fls": [
+                  "method_call",
+                  {
+                    "func": [
+                      "expression_member",
+                      {
+                        "expr": [ "name", [ "BareName", "control2" ] ],
+                        "name": "apply"
+                      }
+                    ],
+                    "type_args": [],
+                    "args": [
+                      [
+                        "Expression",
+                        { "value": [ "name", [ "BareName", "im" ] ] }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "hdrs" ] ],
+                              "name": "mergedHdr2"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "meta" ] ],
+                              "name": "mergedMeta2"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "in_param" ] ],
+                              "name": "mergedInParam2"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "out_param" ] ],
+                              "name": "mergedOutParam2"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        "Expression",
+                        {
+                          "value": [
+                            "expression_member",
+                            {
+                              "expr": [
+                                "name",
+                                [ "BareName", "inout_param" ]
+                              ],
+                              "name": "mergedInOutParam2"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "NewDeparser",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_out" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "mergedHdr" ] ],
+            "variable": "hdr",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "apply": {
+          "annotations": [],
+          "statements": [
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    {
+                      "value": [
+                        "array_access",
+                        {
+                          "array": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "hdr" ] ],
+                              "name": "mergedHdr1"
+                            }
+                          ],
+                          "index": [
+                            "int",
+                            { "value": "0", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ],
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    {
+                      "value": [
+                        "expression_member",
+                        {
+                          "expr": [ "name", [ "BareName", "hdr" ] ],
+                          "name": "mergedHdr1"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ],
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    {
+                      "value": [
+                        "array_access",
+                        {
+                          "array": [
+                            "expression_member",
+                            {
+                              "expr": [ "name", [ "BareName", "hdr" ] ],
+                              "name": "mergedHdr2"
+                            }
+                          ],
+                          "index": [
+                            "int",
+                            { "value": "0", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ],
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    {
+                      "value": [
+                        "expression_member",
+                        {
+                          "expr": [ "name", [ "BareName", "hdr" ] ],
+                          "name": "mergedHdr2"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    [
       "Instantiation",
       {
         "annotations": [],
-        "type": [ "name", [ "BareName", "uP4Merge" ] ],
+        "type": [ "name", [ "BareName", "uP4Switch" ] ],
         "args": [
-          [ "Expression", { "value": [ "name", [ "BareName", "main1" ] ] } ],
-          [ "Expression", { "value": [ "name", [ "BareName", "main2" ] ] } ],
           [
             "Expression",
-            { "value": [ "int", { "value": "8", "width_signed": null } ] }
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "NewParser" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "NewControl" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "NewDeparser" ] ],
+                  "args": []
+                }
+              ]
+            }
           ]
         ],
         "name": "main",

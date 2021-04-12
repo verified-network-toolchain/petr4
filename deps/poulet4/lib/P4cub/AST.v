@@ -59,9 +59,9 @@ Module Field.
         predfs_data P flds <-> Forall P (map snd flds).
     Proof.
       induction flds as [| [k v] flds IHflds];
-        simpl; split; intros H; inv H; constructor;
+        unravel; split; intros H; inv H; constructor;
           unfold predfs_data, predf_data, "∘" in *;
-          simpl in *; intuition.
+          unravel in *; intuition.
     Qed.
 
     (** Filter. *)
@@ -128,8 +128,8 @@ Module Field.
         intros x u us vs HRs.
         generalize dependent x; generalize dependent u.
         induction HRs; intros u z Hu;
-        simpl in *; try discriminate;
-          destruct x as [xu u']; destruct y as [xv v']; inv H1; simpl in *.
+        unravel in *; try discriminate;
+          destruct x as [xu u']; destruct y as [xv v']; inv H1; unravel in *.
         destruct (equiv_dec z xu) as [Hzu | Hzu];
           destruct (equiv_dec z xv) as [Hzv | Hzv];
           unfold equiv, complement in *; eauto.
@@ -149,8 +149,8 @@ Module Field.
       generalize dependent x;
         generalize dependent v.
       induction HRs; intros v z Hu;
-        simpl in *; try discriminate;
-      destruct x as [xu u']; destruct y as [xv v']; inv H1; simpl in *.
+        unravel in *; try discriminate;
+      destruct x as [xu u']; destruct y as [xv v']; inv H1; unravel in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
@@ -171,9 +171,9 @@ Module Field.
         generalize dependent v;
         generalize dependent u.
       induction HRs; intros u v z Hu Hv;
-        simpl in *; try discriminate.
-      destruct x as [xu u']; destruct y as [xv v']; simpl in *.
-      inv H1; simpl in *.
+        unravel in *; try discriminate.
+      destruct x as [xu u']; destruct y as [xv v']; unravel in *.
+      inv H1; unravel in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
@@ -212,7 +212,7 @@ Module Field.
         Lemma eqb_f_reflx : forall fld : f K U, eqb_f fld fld = true.
         Proof.
           Hint Rewrite Hfeq.
-          intros [k u]; simpl; equiv_dec_refl_tactic;
+          intros [k u]; unravel; equiv_dec_refl_tactic;
           autorewrite with core; auto.
           assert (keq k k) by reflexivity; contradiction.
         Qed.
@@ -220,7 +220,7 @@ Module Field.
         Lemma eqb_fs_reflx : forall flds : fs K U, eqb_fs flds flds = true.
         Proof.
           Hint Rewrite eqb_f_reflx.
-          induction flds; simpl; autorewrite with core; auto.
+          induction flds; unravel; autorewrite with core; auto.
         Qed.
       End ReflxEqb.
     End DecEq.
@@ -256,9 +256,9 @@ Module Field.
       Lemma equiv_eqb_f : forall (f1 f2 : f K U),
           equiv f1 f2 -> eqb_f feq f1 f2 = true.
       Proof.
-        unfold equiv in *; intros [? ?] [? ?] [? ?]; simpl in *;
+        unfold equiv in *; intros [? ?] [? ?] [? ?]; unravel in *;
         match goal with
-        | Hx : equiv ?x1 ?x2,
+        | Hx : keq ?x1 ?x2,
           HRu: R ?u1 ?u2 |- _
           => specialize HR with u1 u2; inv HR;
               destruct (equiv_dec x1 x2) as [? | ?];
@@ -272,7 +272,7 @@ Module Field.
         unfold equiv; intros ? ? ?;
         match goal with
         | H: relfs _ _ _ |- _ => induction H
-        end; simpl; auto;
+        end; unravel; auto;
         match goal with
         | |- _ && _ = true => apply andb_true_intro; split;
                             try apply equiv_eqb_f; auto
@@ -282,7 +282,7 @@ Module Field.
       Lemma eqb_f_equiv : forall (f1 f2 : f K U),
           eqb_f feq f1 f2 = true -> equiv f1 f2.
       Proof.
-        unfold equiv, relf; intros [? ?] [? ?] ?; simpl in *;
+        unfold equiv, relf; intros [? ?] [? ?] ?; unravel in *;
         match goal with
         | H: ?x &&&& feq ?u1 ?u2 = true |- _
           => specialize HR with u1 u2;
@@ -297,7 +297,7 @@ Module Field.
           eqb_fs feq fs1 fs2 = true -> equiv fs1 fs2.
       Proof.
         unfold equiv; induction fs1 as [| ? ? ?]; intros [| ? ?] ?;
-        simpl in *; try discriminate; constructor;
+        unravel in *; try discriminate; constructor;
         unfold relfs in *;
         match goal with
         | H: _ && _ = true |- _ => apply andb_true_iff in H as [? ?]
@@ -312,7 +312,7 @@ Module Field.
       Lemma eq_relf : forall f1 f2 : f K V, relf eq f1 f2 -> f1 = f2.
       Proof.
         intros [? ?] [? ?] [? ?]; unfold equiv in *;
-        simpl in *; subst; reflexivity.
+        unravel in *; subst; reflexivity.
       Qed.
 
       Lemma eq_relfs : forall fs1 fs2 : fs K V, relfs eq fs1 fs2 -> fs1 = fs2.
@@ -326,10 +326,9 @@ Module Field.
   Module FieldTactics.
     Ltac predf_destruct :=
       match goal with
-      | H: predf_data _ (_, _) |- _ => idtac
+      | H: predf_data _ (_, _) |- _ => unfold predf_data in H; unravel in *
       | H: predf_data _ ?f
-        |- _ => destruct f as [? ?];
-              unfold predf_data,"∘","#" in H; simpl in *
+        |- _ => destruct f as [? ?]; unfold predf_data in H; unravel in *
       end.
     (**[]*)
 
@@ -362,17 +361,17 @@ Module Field.
 
     Ltac relf_destruct :=
       match goal with
-      | H:relf _ (_,_) (_,_) |- _ => destruct H as [? ?]; simpl in *
+      | H:relf _ (_,_) (_,_) |- _ => destruct H as [? ?]; unravel in *
       | H:relf _ ?fu (_,_)
         |- _ => destruct fu as [? ?];
-              destruct H as [? ?]; simpl in *
+              destruct H as [? ?]; unravel in *
       | H:relf _ (_,_) ?fv
         |- _ => destruct fv as [? ?];
-              destruct H as [? ?]; simpl in *
+              destruct H as [? ?]; unravel in *
       | H:relf _ ?fu ?fv
         |- _ => destruct fu as [? ?];
               destruct fv as [? ?];
-              destruct H as [? ?]; simpl in *
+              destruct H as [? ?]; unravel in *
       end.
     (**[]*)
 
@@ -622,11 +621,12 @@ Module P4cub.
         Proof.
           Hint Rewrite Pos.eqb_refl.
           Hint Rewrite equiv_dec_refl.
-          induction τ using custom_t_ind; simpl;
+          Hint Extern 0 => equiv_dec_refl_tactic : core.
+          induction τ using custom_t_ind; unravel;
           autorewrite with core; auto;
           try ind_list_Forall; try ind_list_predfs;
           intuition; autorewrite with core;
-          repeat (rewrite_true; simpl); auto.
+          repeat (rewrite_true; unravel); auto.
         Qed.
 
         Ltac eauto_too_dumb :=
@@ -644,7 +644,7 @@ Module P4cub.
           | H: (_ =? _)%positive = true
             |- _ => apply Peqb_true_eq in H; subst; auto
           end : core.
-          induction t1 using custom_t_ind; intros []; intros; simpl in *;
+          induction t1 using custom_t_ind; intros []; intros; unravel in *;
           try discriminate; repeat destruct_andb; auto; f_equal;
           try match goal with
               | IH: Forall _ ?ts1,
@@ -1416,7 +1416,7 @@ Module P4cub.
                   | H: F.predfs_data _ ?fs |- F.relfs _ ?fs ?fs
                     => induction fs as [| [? [? ?]] ? ?];
                         inv H; constructor; intuition;
-                          repeat split; simpl in *;
+                          repeat split; unravel in *;
                             match goal with
                             | HP : F.predf_data _ _ |- _
                               => cbv in HP
@@ -1486,8 +1486,8 @@ Module P4cub.
                                | H: F.relfs _ _ (_ :: _) |- _ => inv H
                                | H: F.relfs _ (_ :: _) _ |- _ => inv H
                                end; constructor;
-                          repeat relf_destruct; simpl in *; intuition;
-                          repeat split; simpl; intuition; eauto;
+                          repeat relf_destruct; unravel in *; intuition;
+                          repeat split; unravel; intuition; eauto;
                           try match goal with
                               | IH: forall _, _ -> forall _, _ -> _ |- _ => eapply IH; eauto
                               end; etransitivity; eauto
@@ -1564,17 +1564,19 @@ Module P4cub.
           Hint Rewrite Z.eqb_refl.
           Hint Rewrite eqbt_refl.
           Hint Rewrite equiv_dec_refl.
+          Hint Extern 5 => equiv_dec_refl_tactic : core.
+          Hint Rewrite (@relop_eq string).
           intros ? ? ?;
           match goal with
           | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
-          end; simpl in *; autorewrite with core; auto;
+          end; unravel in *; autorewrite with core; auto;
           repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
                  end; auto;
           try match goal with
               | H: Forall2 equive ?es1 ?es2,
                 IH: Forall2 _ ?es1 ?es2 |- _
-                => induction H; inv IH; simpl in *; auto; intuition
+                => induction H; inv IH; unravel in *; auto; intuition
               end;
           try match goal with
               | H: F.relfs _ ?fs1 ?fs2,
@@ -1584,7 +1586,7 @@ Module P4cub.
                   | H: F.relf _ ?f1 ?f2 |- _
                     => destruct f1 as [? [? ?]];
                       destruct f2 as [? [? ?]];
-                      repeat relf_destruct; simpl in *;
+                      repeat relf_destruct; unravel in *;
                       unfold equiv in *;
                       intuition; subst;
                       autorewrite with core;
@@ -1598,7 +1600,9 @@ Module P4cub.
                 | |- context [ F.eqb_fs eqbt ?ts ?ts ]
                   => rewrite (equiv_eqb_fs _ _ eqbt_reflect ts ts);
                       unfold equiv in *; auto; try reflexivity
-                end.
+                end;
+          try (equiv_dec_refl_tactic; auto;
+               autorewrite with core in *; contradiction).
         Qed.
 
         Ltac eq_true_terms :=
@@ -1615,24 +1619,24 @@ Module P4cub.
             => apply andb_true_iff in H as [? ?]
           | H: context [equiv_dec ?x1 ?x2 &&&& _] |- _
             => destruct (equiv_dec x1 x2) as [? | ?];
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: context [if equiv_dec ?t1 ?t2 then _ else _] |- _
             => destruct (equiv_dec t1 t2) as [? | ?];
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: context [if eqbt ?t1 ?t2 then _ else _] |- _
             => destruct (eqbt t1 t2) eqn:?;
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: context [eqbt ?t1 ?t2 && _] |- _
             => destruct (eqbt t1 t2) eqn:?;
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: context [eqbe ?e1 ?e2 && _] |- _
             => destruct (eqbe e1 e2) eqn:?;
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: eqbt _ _ = true |- _
             => apply eqbt_eq_iff in H
           | H: context [if eqbe ?e1 ?e2 then _ else _] |- _
             => destruct (eqbe e1 e2) eqn:?;
-              simpl in H; try discriminate
+              unravel in H; try discriminate
           | H: eqbe ?e1 _ = true,
             IH: forall e2, eqbe ?e1 e2 = true -> ∮ ?e1 ≡ e2 |- _
             => apply IH in H
@@ -1647,7 +1651,7 @@ Module P4cub.
           | H: Forall _ (_ :: _) |- _ => inv H
           | H: ?P, IH: ?P -> ?Q |- _ => apply IH in H as ?
           | H: (if ?trm then true else false) = true |- _
-            => destruct trm eqn:?; simpl in H; try discriminate
+            => destruct trm eqn:?; unravel in H; try discriminate
           | H: relop _ _ _ |- _ => inv H
           | H: F.eqb_fs eqbt _ _ = true
             |- _ => pose proof eqb_fs_equiv _ _ eqbt_reflect _ _ H as ?; clear H
@@ -1661,7 +1665,7 @@ Module P4cub.
           Hint Constructors equive : core.
           Hint Extern 5 => eq_true_terms : core.
           induction e1 using custom_e_ind;
-          intros [] ?; simpl in *;
+          intros [] ?; unravel in *;
           try discriminate; auto;
           repeat eq_true_terms;
           unfold equiv in *;
@@ -1670,14 +1674,14 @@ Module P4cub.
               | |- Forall2 _ ?es1 ?es2
                 => generalize dependent es2;
                   induction es1; intros [];
-                  simpl in *; try discriminate; auto
+                  unravel in *; try discriminate; auto
               end;
           try match goal with
               | |- F.relfs _ ?fs1 ?fs2
                 => generalize dependent fs2;
                   induction fs1 as [| [? [? ?]] ? ?];
                   intros [| [? [? ?]] ?]; intros;
-                  simpl in *; try discriminate; auto;
+                  unravel in *; try discriminate; auto;
                   try destruct_lifted_andb; repeat destruct_andb;
                   try invert_cons_predfs; repeat constructor;
                   intuition; unfold F.relfs in *; auto

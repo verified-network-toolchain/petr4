@@ -198,6 +198,7 @@ Section Values.
       Hint Rewrite TE.eqbt_refl.
       Hint Rewrite (@F.eqb_fs_reflx string E.t).
       Hint Rewrite andb_true_r.
+      Hint Extern 0 => equiv_dec_refl_tactic : core.
       induction vl using custom_value_ind; simpl in *;
       autorewrite with core; simpl; auto;
       try match goal with

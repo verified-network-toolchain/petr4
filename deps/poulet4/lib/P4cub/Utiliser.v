@@ -30,6 +30,14 @@ Notation "a '||||' b"
 
 (** * Useful Tactics *)
 
+Tactic Notation "unravel" := simpl; unfold "∘", "#", "▷", equiv, complement; simpl.
+
+Tactic Notation "unravel" "in" hyp(H) :=
+  simpl in H; unfold "∘", "#", "▷", equiv, complement in H; simpl in H.
+
+Tactic Notation "unravel" "in" "*" :=
+  simpl in *; unfold "∘", "#", "▷", equiv, complement in *; simpl in *.
+
 Ltac inv H := inversion H; clear H; subst.
 
 Ltac inv_eq :=
@@ -104,15 +112,14 @@ Lemma ex_equiv_dec_refl :
     exists l, equiv_dec x x = left l.
 Proof.
   intros; destruct (equiv_dec x x) as [Hx | Hx];
-  unfold equiv, complement in *; eauto.
-  assert (R x x) by reflexivity; contradiction.
+  unravel in *; eauto. assert (R x x) by reflexivity; contradiction.
 Qed.
 
 Ltac equiv_dec_refl_tactic :=
   match goal with
   | |- context [equiv_dec ?x ?x]
     => destruct (equiv_dec x x) as [? | ?];
-      unfold equiv, complement in *; try contradiction
+      unravel in *; try contradiction
   end.
 
 Lemma equiv_dec_refl :
@@ -137,7 +144,7 @@ Lemma lifted_andb_true :
 Proof.
   intros X x1 x2 R EQR EQDECR b H.
   destruct (equiv_dec x1 x2) as [Hx | Hx]; destruct b;
-  simpl in *; try discriminate; intuition.
+  unravel in *; try discriminate; intuition.
 Qed.
 
 Ltac destruct_lifted_andb :=
@@ -191,7 +198,7 @@ Lemma nth_error_exists : forall {A:Type} (l : list A) n,
     n < length l -> exists a, nth_error l n = Some a.
 Proof.
   intros A l; induction l as [| h t IHt];
-    intros [] Hnl; simpl in *; try lia.
+    intros [] Hnl; unravel in *; try lia.
   - exists h; reflexivity.
   - apply IHt; lia.
 Qed.
@@ -248,7 +255,7 @@ Qed.
 Lemma In_repeat : forall {A : Type} (a : A) n,
     0 < n -> In a (repeat a n).
 Proof.
-  intros A a [|] H; try lia; simpl; intuition.
+  intros A a [|] H; try lia; unravel; intuition.
 Qed.
 
 Lemma Forall_repeat : forall {A : Type} (P : A -> Prop) n a,
@@ -263,7 +270,7 @@ Lemma repeat_Forall : forall {A : Type} (P : A -> Prop) n a,
     P a -> Forall P (repeat a n).
 Proof.
   intros A P n a H.
-  induction n as [| n IHn]; simpl; constructor; auto.
+  induction n as [| n IHn]; unravel; constructor; auto.
 Qed.
 
 Lemma Forall_firstn : forall {A : Type} (P : A -> Prop) n l,
@@ -282,34 +289,52 @@ Qed.
 
 Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
     Forall2 R l1 l2 -> length l1 = length l2.
-Proof. intros A B R l1 l2 H; induction H; simpl; auto. Qed.
+Proof. intros A B R l1 l2 H; induction H; unravel; auto. Qed.
 
 Lemma Forall2_duh : forall {A B : Type} (P : A -> B -> Prop),
     (forall a b, P a b) ->
     forall la lb, length la = length lb -> Forall2 P la lb.
 Proof.
   induction la; destruct lb; intros;
-  simpl in *; try discriminate; constructor; auto.
+  unravel in *; try discriminate; constructor; auto.
 Qed.
 
 (** * Option Equivalence *)
+Section Relop.
+  Context {A : Type}.
+  Variable R : A -> A -> Prop.
 
-Inductive relop {A : Type} (R : A -> A -> Prop) : option A -> option A -> Prop :=
-| relop_none : relop R None None
-| relop_some (a1 a2 : A) : R a1 a2 -> relop R (Some a1) (Some a2).
+  Inductive relop : option A -> option A -> Prop :=
+  | relop_none : relop None None
+  | relop_some (a1 a2 : A) : R a1 a2 -> relop (Some a1) (Some a2).
+
+  Context `{HAR : Equivalence A R}.
+
+  Lemma RelopReflexive : Reflexive relop.
+  Proof.
+    intros [? |]; constructor; reflexivity.
+  Qed.
+
+  Lemma RelopSymmetric : Symmetric relop.
+  Proof.
+    intros [? |] [? |] H; inv H; constructor; symmetry; assumption.
+  Qed.
+
+  Lemma RelopTransitive : Transitive relop.
+  Proof.
+    intros [? |] [? |] [? |] H12 H23; inv H12; inv H23;
+    constructor; etransitivity; eassumption.
+  Qed.
+End Relop.
 
 Instance OptionEquivalence
          (A : Type) (R : A -> A -> Prop)
          `{Equivalence A R} : Equivalence (relop R).
 Proof.
-  inversion H; constructor;
-    unfold Reflexive, Symmetric, Transitive in *.
-  - intros [a |]; constructor; auto.
-  - intros [a1 |] [a2 |] H'; inversion H';
-      subst; constructor; auto.
-  - intros [a1 |] [a2 |] [a3 |] H12 H23;
-      inversion H12; inversion H23;
-        subst; constructor; eauto.
+  Local Hint Resolve RelopReflexive : core.
+  Local Hint Resolve RelopSymmetric : core.
+  Local Hint Resolve RelopTransitive : core.
+  constructor; auto.
 Defined.
 
 Instance OptionEqDec
@@ -323,6 +348,11 @@ Proof.
     try (right; intros H'; inversion H'; contradiction);
     try (left; constructor; auto).
 Defined.
+
+Lemma relop_eq : forall {A : Type} (o1 o2 : option A), relop eq o1 o2 <-> o1 = o2.
+Proof.
+  intros; split; intros H; inv H; reflexivity.
+Qed.
 
 Section ProdEquivalence.
   Context {A B : Type}.

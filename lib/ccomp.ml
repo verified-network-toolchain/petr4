@@ -16,6 +16,7 @@ let varmap_find (map: varmap) (var: string) : C.cexpr =
   | None -> C.CVar var
 
 let next_state_name = "__next_state"
+
 let next_state_var = C.CVar next_state_name
 
 let rec get_expr_name (e: Prog.Expression.t) : C.cname =
@@ -187,7 +188,6 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let flat_params = params@constructor_params in  
     let map_update = update_map map flat_params in 
     let params = translate_params flat_params in
-    (* TO DO - MORE CONSISTENT NAMES *)
     let state_type_name = concat name "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
@@ -240,14 +240,6 @@ and find_table_name (locals : Prog.Declaration.t list) : string =
     | Prog.Declaration.Table {name;_} -> Some (snd name) 
     | _ -> None
   in List.find_map_exn locals ~f
-(* match locals with 
-   | [] -> ""
-   | h::t -> begin 
-    match snd h with 
-    | Table { name; key; actions; entries; default_action; size; custom_properties; _ } -> 
-      snd name
-    | _ -> find_table_name t
-   end  *)
 
 and ext_action (lst : Prog.Expression.t option ) =
   begin match lst with 
@@ -272,7 +264,6 @@ and get_action_ref (actions : Prog.Table.action_ref list) =
   | [] -> []
   | h::t -> let n = snd h 
     in  [(n.action).name] @ get_action_ref t
-(* List.map ~f:ext_action *)
 
 and get_name (n: P4.name) = 
   match n with 

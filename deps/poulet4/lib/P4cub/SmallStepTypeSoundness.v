@@ -154,56 +154,57 @@ Section Theorems.
       | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
       end;
       try match goal with
-          | H : ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
+          | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
           end;
       repeat assert_canonical_forms;
-      try (simpl in *; econstructor; eauto; eassumption);
-      try (simpl in *; match goal with
+      try (unravel in *; econstructor; eauto; eassumption);
+      try (unravel in *; match goal with
                        | H: Some _ = Some _ |- _ => inv H
                        end; econstructor; eauto);
       try match goal with
           | |- BitArith.bound _ _ => unfold_bit_operation
           | |- IntArith.bound _ _ => unfold_int_operation
+          | H: uop_type _ _ |- _ => inv H
           end; eauto.
+      - inv H0; inv H8; simpl in *; inv H; constructor.
+      - inv H0; inv H8; simpl in *; inv H; constructor; auto.
+      - inv H0; inv H8; simpl in *; inv H; constructor;
+        unfold_int_operation; auto.
       - inv H2. apply chk_bool_bop; auto; constructor.
       - inv H2. constructor; auto; constructor; auto.
       - inv H10. inv H2; repeat assert_canonical_forms.
-        + inv H3; inv H4; simpl in *; inv H11;
-          autorewrite with core in *; simpl in *; inv H;
-          constructor; try unfold_bit_operation;
-          unfold "#" in *; auto.
-        + inv H3; inv H4; simpl in *;
+        + inv H3; inv H4; unravel in *; inv H11;
+          autorewrite with core in *; unravel in *; inv H;
+          constructor; try unfold_bit_operation; unravel in *; auto.
+        + inv H3; inv H4; unravel in *;
             autorewrite with core in *; inv H11;
-              simpl in *; inv H; constructor;
+              unravel in *; inv H; constructor;
                 try unfold_int_operation; auto.
       - inv H10; inv H2; repeat assert_canonical_forms;
-          inv H3; inv H4; inv H11; simpl in *;
+          inv H3; inv H4; inv H11; unravel in *;
             autorewrite with core in *; inv H; constructor.
-      - inv H3; inv H2; inv H10; simpl in *;
-          unfold "#" in *; simpl in *; inv H; constructor.
-      - unfold eval_binop in H; inv H0; inv H1; simpl in *;
-          unfold "#" in *; simpl in *;
-              try (inv H; constructor);
-              try match goal with
-                  | H: (if ?b then Some _ else None) = Some _
-                    |- _ => destruct b eqn:?; inv H
-                  end; constructor.
-      - unfold eval_binop in H; inv H0; inv H1; simpl in *;
-          unfold "#" in *; simpl in *;
-              try (inv H; constructor);
-              try match goal with
-                  | H: (if ?b then Some _ else None) = Some _
-                    |- _ => destruct b eqn:?; inv H
-                  end; constructor.
+      - inv H3; inv H2; inv H10; unravel in *; inv H; constructor.
+      - unfold eval_binop in H; inv H0; inv H1; unravel in *;
+          try (inv H; constructor);
+          try match goal with
+              | H: (if ?b then Some _ else None) = Some _
+                |- _ => destruct b eqn:?; inv H
+              end; constructor.
+      - unfold eval_binop in H; inv H0; inv H1; unravel in *;
+          try (inv H; constructor);
+          try match goal with
+              | H: (if ?b then Some _ else None) = Some _
+                |- _ => destruct b eqn:?; inv H
+              end; constructor.
       - inv H3; inv H4; inv H;
           try match goal with
               | H: (if ?b then None else Some _) = Some _
                 |- _ => destruct b eqn:?; inv H
               end; constructor; auto; unfold BitArith.bit_concat; auto.
-      - unfold "#", "∘" in *; simpl in *; inv H4.
-        assert_canonical_forms. inv H1; simpl in *.
-        unfold "∘" in *. inv H0. auto.
-      - inv H3. unfold "#", "∘" in *; simpl in *; eauto.
+      - unravel in *; inv H4.
+        assert_canonical_forms. inv H1; unravel in *.
+        inv H0. auto.
+      - inv H3. unravel in *; eauto.
       - constructor. subst es; subst es'.
         apply Forall2_app_inv_l in H5 as
             [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
@@ -212,20 +213,48 @@ Section Theorems.
         apply Forall2_app_inv_l in H5 as
             [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
         apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
-        repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
+        repeat constructor; eauto; unfold equiv in *; unravel in *; subst;
         intuition.
       - inv H3. constructor; auto.
         + subst fs; subst fs'.
           apply Forall2_app_inv_l in H8 as
               [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
           apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
-          repeat constructor; eauto; unfold equiv in *; simpl in *; subst;
+          repeat constructor; eauto; unravel in *; subst;
           intuition.
         + constructor.
       - constructor; auto; subst hs; subst hs'.
-        rewrite app_length in *; simpl in *. lia.
+        rewrite app_length in *; unravel in *. lia.
         apply Forall_app in H11 as [? Hsuffix]; apply Forall_app; split;
           inv Hsuffix; auto.
     Qed.
   End Preservation.
+
+  Section Progress.
+    Hypothesis Henvs_sound : envs_sound.
+
+    Theorem expr_small_step_progress : forall e τ,
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ ** e -->  e'.
+    Proof.
+      Hint Constructors expr_step : core.
+      Hint Resolve eval_cast_exists : core.
+      Hint Resolve eval_uop_exists : core.
+      destruct Henvs_sound as [Henvs_type Henvs_subset];
+      clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
+      match goal with H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => induction H end;
+      try match goal with
+          | |- value ?e \/ _ =>
+            assert (value e); [ repeat constructor; eassumption
+                          | left; assumption ]
+          end;
+      repeat match goal with
+             | H: value _ \/ (exists _, ℵ ϵ ** _ -->  _)
+               |- _ => destruct H as [? | ?]
+             | H: exists _, ℵ ϵ ** _ -->  _ |- _ => destruct H as [? ?]
+             end; eauto.
+      - right; apply Henvs_subset in H as [? ?]; eauto.
+      - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto.
+      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? Huop]; eauto.
+    Admitted.
+  End Progress.
 End Theorems.

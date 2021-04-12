@@ -93,6 +93,12 @@ Module Typecheck.
         numeric_width w τ -> numeric τ.
     (**[]*)
 
+    (** Evidence a unary operation is valid for a type. *)
+    Inductive uop_type : E.uop -> E.t -> Prop :=
+    | UTBool : uop_type E.Not {{ Bool }}
+    | UTBit w : uop_type E.BitNot {{ bit<w> }}
+    | UTInt w : uop_type E.UMinus {{ int<w> }}.
+
     (** Evidence that a binary operation is purely numeric. *)
     Inductive numeric_bop : E.bop -> Prop :=
     | numeric_bop_plus : numeric_bop E.Plus
@@ -300,15 +306,10 @@ Module Typecheck.
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
       ⟦ errs, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
   (* Unary operations. *)
-  | chk_not (e : E.e tags_t) (i : tags_t) :
-      ⟦ errs , Γ ⟧ ⊢ e ∈ Bool ->
-      ⟦ errs , Γ ⟧ ⊢ UOP ! e:Bool @ i ∈ Bool
-  | chk_bitnot (w : positive) (e : E.e tags_t) (i : tags_t) :
-      ⟦ errs , Γ ⟧ ⊢ e ∈ bit<w> ->
-      ⟦ errs , Γ ⟧ ⊢ UOP ~ e:bit<w> @ i ∈ bit<w>
-  | chk_uminus (w : positive) (e : E.e tags_t) (i : tags_t) :
-      ⟦ errs , Γ ⟧ ⊢ e ∈ int<w> ->
-      ⟦ errs , Γ ⟧ ⊢ UOP - e:int<w> @ i ∈ int<w>
+  | chk_uop (op : E.uop) (τ : E.t) (e : E.e tags_t) (i : tags_t) :
+      uop_type op τ ->
+      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+      ⟦ errs, Γ ⟧ ⊢ UOP op e:τ @ i ∈ τ
   (* Binary Operations. *)
   | chk_numeric_bop (op : E.bop) (τ : E.t)
                     (e1 e2 : E.e tags_t) (i : tags_t) :
@@ -444,24 +445,11 @@ Module Typecheck.
         P errs Γ <{ Cast e:τ @ i }> τ.
     (**[]*)
 
-
-    Hypothesis HNot : forall errs Γ e i,
-        ⟦ errs , Γ ⟧ ⊢ e ∈ Bool ->
-        P errs Γ e {{ Bool }} ->
-        P errs Γ <{ UOP ! e:Bool @ i }> {{ Bool }}.
-    (**[]*)
-
-    Hypothesis HBitNot : forall errs Γ w e i,
-        ⟦ errs , Γ ⟧ ⊢ e ∈ bit<w> ->
-        P errs Γ e {{ bit<w> }} ->
-        P errs Γ <{ UOP ~ e:bit<w> @ i }> {{ bit<w> }}.
-    (**[]*)
-
-    Hypothesis HUMinus : forall errs Γ w e i,
-        ⟦ errs , Γ ⟧ ⊢ e ∈ int<w> ->
-        P errs Γ e {{ int<w> }} ->
-        P errs Γ <{ UOP - e:int<w> @ i }> {{ int<w> }}.
-    (**[]*)
+    Hypothesis HUop : forall errs Γ op τ e i,
+        uop_type op τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        P errs Γ e τ ->
+        P errs Γ <{ UOP op e:τ @ i }> τ.
 
     Hypothesis HNumericBOP : forall errs Γ op τ e1 e2 i,
         numeric τ -> numeric_bop op ->
@@ -665,15 +653,8 @@ Module Typecheck.
             | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
             | chk_cast _ _ _ _ _ i HPC He => HCast _ _ _ _ _ i HPC
                                                   He (chind _ _ _ _ He)
-            | chk_not _ _ _ i He   => HNot
-                                       _ _ _ i He
-                                       (chind _ _ _ _ He)
-            | chk_bitnot _ _ _ _ i He => HBitNot
-                                          _ _ _ _ i He
-                                          (chind _ _ _ _ He)
-            | chk_uminus _ _ _ _ i He => HUMinus
-                                          _ _ _ _ i He
-                                          (chind _ _ _ _ He)
+            | chk_uop _ _ _ _ _ i Huop He => HUop _ _ _ _ _ i Huop
+                                                 He (chind _ _ _ _ He)
             | chk_numeric_bop _ _ _ _ _ _ i
                               Hnum Hnumbop
                               He1 He2 => HNumericBOP

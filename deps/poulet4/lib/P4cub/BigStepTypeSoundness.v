@@ -239,13 +239,7 @@ Section BigStepTheorems.
           econstructor; eauto; destruct w1; reflexivity.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
-      inv Hpres. exists (V.VBool (negb b)); econstructor; eauto.
-    - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
-      pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
-      inv Hpres. exists (V.VBit w (BitArith.neg w n)); econstructor; eauto.
-    - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
-      pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
-      inv Hpres. exists (V.VInt w (IntArith.neg w z)); econstructor; eauto.
+      inv H; inv Hpres; eexists; econstructor; eauto.
     - pose proof IHHt1 Htyp Hsub as [v1 IH1]; clear IHHt1.
       pose proof IHHt2 Htyp Hsub as [v2 IH2]; clear IHHt2.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH1 Ht1 as HP1.

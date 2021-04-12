@@ -217,6 +217,22 @@ Module Step.
           end.
     Qed.
 
+    Lemma eval_cast_exists : forall errs Γ e τ τ',
+        V.value e ->
+        proper_cast τ τ' ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
+        exists v, eval_cast τ e = Some v.
+    Proof.
+      intros ? ? ? ? ? Hv Hpc Het; inv Hpc; inv Hv; inv Het;
+      unravel; unfold BitArith.bound, IntArith.bound,
+               BitArith.upper_bound, IntArith.maxZ,
+               IntArith.minZ, IntArith.upper_bound, Pos.pow in *;
+      simpl in *; eauto.
+      - destruct n; eauto. destruct p; try lia; eauto.
+      - destruct w; destruct z; eauto.
+      - destruct w1; eauto.
+    Qed.
+
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
       match op, e with
@@ -229,6 +245,14 @@ Module Step.
       | _, _ => None
       end.
     (**[]*)
+
+    Lemma eval_uop_exists : forall op errs Γ e τ,
+        uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        exists v, eval_uop op e = Some v.
+    Proof.
+      intros op errs Γ e τ Hu Hv Het;
+      destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
+    Qed.
 
     (** Unsigned integer binary operations. *)
     Definition eval_bit_binop

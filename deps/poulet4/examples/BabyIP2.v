@@ -561,6 +561,8 @@ Definition tcp_seq_suffix := DeclHeader NoInfo
 Definition metadata := DeclStruct NoInfo
     {| stags := NoInfo; str := "metadata" |} nil.
 
+Definition MkFieldType {A B : Type} := @pair A B.
+
 Definition headers := DeclStruct NoInfo
     {| stags := NoInfo; str := "headers" |}
     [(MkDeclarationField NoInfo
@@ -1462,5 +1464,3 @@ Definition prog := Program
      ComputeChecksum; Deparser; V1Switch; silly_combined_hdr; tcp_seq_suffix;
      metadata; headers; MyParser; MyChecksum; MyIngress; MyEgress;
      MyDeparser; main].
-
-

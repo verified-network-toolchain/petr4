@@ -567,6 +567,8 @@ Definition baby_udp := DeclHeader NoInfo
      (MkDeclarationField NoInfo (TypBit 4)
           {| stags := NoInfo; str := "flags" |})].
 
+Definition MkFieldType {A B : Type} (a : A) (b : B) := pair a b.
+
 Definition btcp_or_budp := DeclHeaderUnion NoInfo
     {| stags := NoInfo; str := "btcp_or_budp" |}
     [(MkDeclarationField NoInfo

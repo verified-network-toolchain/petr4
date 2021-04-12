@@ -153,9 +153,6 @@ Section Theorems.
       match goal with
       | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
       end;
-      (*try match goal with
-          | H: ∫ ?t1 ≡ ?t2 |- _ => rewrite H in *; clear H
-          end; *)
       try match goal with
           | H : ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
           end;
@@ -207,7 +204,6 @@ Section Theorems.
         assert_canonical_forms. inv H1; simpl in *.
         unfold "∘" in *. inv H0. auto.
       - inv H3. unfold "#", "∘" in *; simpl in *; eauto.
-        (* TODO: just write lemma for eval_stk_op. *)
       - constructor. subst es; subst es'.
         apply Forall2_app_inv_l in H5 as
             [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.

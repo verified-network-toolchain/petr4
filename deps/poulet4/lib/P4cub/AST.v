@@ -14,10 +14,6 @@ Require Export Poulet4.P4cub.Utiliser.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
-(*
-Reserved Notation "∫ ty1 ≡ ty2"
-         (at level 200, ty1 custom p4type, ty2 custom p4type, no associativity).
-*)
 Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
@@ -443,18 +439,6 @@ Module P4cub.
 
   Arguments Arrow {_} {_} {_} {_}.
 
-  (* Not used by p4cub.
-  (** Directions. *)
-  Module Dir.
-    Inductive d : Set :=
-      | DIn    (* in *)
-      | DOut   (* out *)
-      | DInOut (* inout *)
-      | DZilch (* no direction *).
-    (**[]*)
-  End Dir.
-  *)
-
   (** * Expression Grammar *)
   Module Expr.
     (* Import Dir. *)
@@ -488,30 +472,11 @@ Module P4cub.
       | CTParser (cparams : F.fs string ct)
                  (parameters : params)      (* parser types *)
       | CTExtern (cparams : F.fs string ct)
-                 (methods : F.fs string arrowT) (* extern types *)
-      (* | CTName (x : name tags_t)            (* constructor type name *)
-         | CTLambda (lambda : t -> ct)          (* parametric types *)
-         | CTApplication (polymorph : ct)
-                      (type_arg : t)        (* type specialization *)*).
+                 (methods : F.fs string arrowT) (* extern types *).
       (**[]*)
 
       Definition constructor_params : Type := F.fs string ct.
     End P4Types.
-
-    (* No more tags_t in t.
-    Arguments TBool {_}.
-    Arguments TBit {_}.
-    Arguments TInt {_}.
-    Arguments TError {_}.
-    Arguments TMatchKind {_}.
-    Arguments TTuple {_}.
-    Arguments TRecord {_}.
-    Arguments THeader {_}.
-    Arguments THeaderStack {_}.
-    Arguments CTType {_}.
-    Arguments CTControl {_}.
-    Arguments CTParser {_}.
-    Arguments CTExtern {_}. *)
 
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
@@ -622,109 +587,6 @@ Module P4cub.
       Import Field.FieldTactics.
       Import TypeNotations.
 
-      (* No tags_t in t -> standard equality is good.
-      (** Equality of types. *)
-      Inductive equivt {tags_t : Type} : t tags_t -> t tags_t -> Prop :=
-      | equivt_bool : ∫ Bool ≡ Bool
-      | equivt_bit (w : positive) : ∫ bit<w> ≡ bit<w>
-      | equivt_int (w : positive) : ∫ int<w> ≡ int<w>
-      | equivt_error : ∫ error ≡ error
-      | equivt_matchkind : ∫ matchkind ≡ matchkind
-      | equivt_tuple (ts1 ts2 : list (t tags_t)) :
-          Forall2 equivt ts1 ts2 ->
-          ∫ tuple ts1 ≡ tuple ts2
-      | equivt_record (fs1 fs2 : F.fs tags_t (t tags_t)) :
-          F.relfs equivt fs1 fs2 ->
-          ∫ rec { fs1 } ≡ rec { fs2 }
-      | equivt_header (fs1 fs2 : F.fs tags_t (t tags_t)) :
-          F.relfs equivt fs1 fs2 ->
-          ∫ hdr { fs1 } ≡ hdr { fs2 }
-      | equivt_stack (n : positive) (fs1 fs2 : F.fs tags_t (t tags_t)) :
-          F.relfs equivt fs1 fs2 ->
-          ∫ stack fs1[n] ≡ stack fs2[n]
-      where "∫ t1 ≡ t2" := (equivt t1 t2) : type_scope.
-      (**[]*)
-
-      (** A custom induction principle for type equivalence. *)
-      Section TypeEquivInduction.
-        Variable (tags_t : Type).
-
-        (** An arbitrary predicate. *)
-        Variable P : t tags_t -> t tags_t -> Prop.
-
-        Hypothesis HBool : P {{ Bool }} {{ Bool }}.
-
-        Hypothesis HBit : forall w, P {{ bit<w> }} {{ bit<w> }}.
-
-        Hypothesis HInt : forall w, P {{ int<w> }} {{ int<w> }}.
-
-        Hypothesis HError : P {{ error }} {{ error }}.
-
-        Hypothesis HMatchkind : P {{ matchkind }} {{ matchkind }}.
-
-        Hypothesis HTuple : forall ts1 ts2,
-            Forall2 equivt ts1 ts2 ->
-            Forall2 P ts1 ts2 ->
-            P {{ tuple ts1 }} {{ tuple ts2 }}.
-
-        Hypothesis HRecord : forall fs1 fs2,
-            F.relfs equivt fs1 fs2 ->
-            F.relfs P fs1 fs2 ->
-            P {{ rec { fs1 } }} {{ rec { fs2 } }}.
-
-        Hypothesis HHeader : forall fs1 fs2,
-            F.relfs equivt fs1 fs2 ->
-            F.relfs P fs1 fs2 ->
-            P {{ hdr { fs1 } }} {{ hdr { fs2 } }}.
-
-        Hypothesis HStack : forall n fs1 fs2,
-            F.relfs equivt fs1 fs2 ->
-            F.relfs P fs1 fs2 ->
-            P {{ stack fs1[n] }} {{ stack fs2[n] }}.
-
-        (** A custom induction principle for type equivalence.
-            Do [induction ?H using custom_equivt_ind]. *)
-        Definition custom_equivt_ind :
-          forall (τ1 τ2 : t tags_t) (H : ∫ τ1 ≡ τ2), P τ1 τ2 :=
-          fix cind t1 t2 H :=
-            let fix lind {ts1 ts2 : list (t tags_t)}
-                    (HR : Forall2 equivt ts1 ts2) : Forall2 P ts1 ts2 :=
-                match HR with
-                | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _
-                               HE HTail => Forall2_cons
-                                            _ _
-                                            (cind _ _ HE)
-                                            (lind HTail)
-                end in
-            let fix find
-                    {ts1 ts2 : F.fs tags_t (t tags_t)}
-                    (HR : F.relfs equivt ts1 ts2) : F.relfs P ts1 ts2 :=
-                match HR in Forall2 _ t1s t2s return Forall2 (F.relf P) t1s t2s with
-                | Forall2_nil _ => Forall2_nil (F.relf P)
-                | Forall2_cons t1 t2
-                               (conj HName Hequivt)
-                               Htail => Forall2_cons
-                                         t1 t2
-                                         (conj
-                                            HName
-                                            (cind _ _ Hequivt))
-                                         (find Htail)
-                end in
-                    match H in ∫ τ1 ≡ τ2 return P τ1 τ2 with
-                    | equivt_bool => HBool
-                    | equivt_bit w => HBit w
-                    | equivt_int w => HInt w
-                    | equivt_error => HError
-                    | equivt_matchkind => HMatchkind
-                    | equivt_tuple _ _ Hequiv => HTuple _ _ Hequiv (lind Hequiv)
-                    | equivt_record _ _ Hequiv => HRecord _ _ Hequiv (find Hequiv)
-                    | equivt_header _ _ Hequiv => HHeader _ _ Hequiv (find Hequiv)
-                    | equivt_stack n _ _ HEquiv => HStack n _ _ HEquiv (find HEquiv)
-                    end.
-                (**[]*)
-      End TypeEquivInduction.
-       *)
       Section TypeEquivalence.
         (** Decidable equality. *)
         Fixpoint eqbt (τ1 τ2 : t) : bool :=
@@ -756,55 +618,6 @@ Module P4cub.
           end.
         (**[]*)
 
-(* Tagless t -> equivt gratuitous.
-        Lemma equivt_reflexive : Reflexive (@equivt tags_t).
-        Proof.
-          intros ty;
-            induction ty using custom_t_ind; constructor;
-              try (induction H; constructor; auto;
-                   destruct x as [x ty]; unfold F.relf; simpl in *;
-                   split; auto; try reflexivity).
-        Qed.
-
-        Lemma equivt_symmetric : Symmetric (@equivt tags_t).
-        Proof.
-          unfold Symmetric;
-            (* apply custom_equivt_ind; intros; *)
-            intros t1 t2 H; induction H using custom_equivt_ind;
-            constructor; auto;
-              try (induction H; inv H0; repeat constructor; auto;
-                   destruct x as [x1 t1]; destruct y as [x2 t2];
-                   repeat match goal with
-                          | H: F.relf _ _ _ |- _ => inversion H; subst; clear H
-                          end; simpl in *; auto;
-                   [ symmetry | apply IHForall2 ]; auto);
-          try (induction H; inv H0; repeat constructor; auto).
-        Qed.
-
-        Lemma equivt_transitive : Transitive (@equivt tags_t).
-        Proof.
-          intros x; induction x using custom_t_ind;
-            intros [] [] Hxy Hyz; auto;
-              inversion Hxy; inversion Hyz; subst; auto; clear Hxy Hyz;
-                try (rename fields into fs1; rename fields0 into fs2;
-                     rename fields1 into fs3; constructor;
-                     generalize dependent fs3; generalize dependent fs2;
-                     induction fs1 as [| [x1 t1] fs1 IHfs1];
-                     intros [| [x2 t2] fs2] H12; intros [| [x3 t3] fs3] H23;
-                     inversion H12; inversion H23; inversion H;
-                     clear H12 H23 H; subst; constructor;
-                     [ unfold F.relf in *; simpl in *;
-                       destruct H3; destruct H9; split; eauto;
-                       transitivity x2; assumption
-                     | eapply IHfs1; eauto]);
-                try (rename ts into ts1; rename types into ts2;
-                     rename types0 into ts3; constructor;
-                     generalize dependent ts3; generalize dependent ts2;
-                     induction ts1 as [| t1 ts1 IHts1];
-                       intros [| t2 ts2] H12 [| t3 ts3] H23;
-                       inv H; inv H12; inv H23; constructor; eauto).
-        Qed.
- *)
         Lemma eqbt_refl : forall τ, eqbt τ τ = true.
         Proof.
           Hint Rewrite Pos.eqb_refl.
@@ -1755,7 +1568,6 @@ Module P4cub.
           match goal with
           | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
           end; simpl in *; autorewrite with core; auto;
-            
           repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
                  end; auto;
@@ -2028,7 +1840,6 @@ Module P4cub.
       | DVarinit (typ : E.t) (x : string)
                  (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
       | DInstantiate (C : string) (x : string)
-                     (* (targs : list (E.t tags_t)) *)
                      (cargs : E.constructor_args tags_t)
                      (i : tags_t)                  (* constructor [C]
                                                       with constructor [args]
@@ -2233,8 +2044,6 @@ Module P4cub.
       (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
-      (* | TPTypeDecl (x : string tags_t) (ct : E.ct tags_t)
-                   (i : tags_t)(* type declaration *) *)
       | TPExtern (e : string)
                  (cparams : E.constructor_params)
                  (methods : F.fs string E.arrowT)
@@ -2256,7 +2065,6 @@ Module P4cub.
     End TopDeclarations.
 
     Arguments TPDecl {_}.
-    (* Arguments TPTypeDecl {_}. *)
     Arguments TPExtern {_}.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
@@ -2276,10 +2084,6 @@ Module P4cub.
       Notation "'DECL' d @ i"
         := (TPDecl d i)
              (in custom p4topdecl at level 0, d custom p4decl).
-      (* Notation "'TYPE' x t @ i"
-               := (TPTypeDecl x t i)
-                    (in custom p4topdecl at level 0,
-                        t custom p4constructortype). *)
       Notation "'void' f ( params ) { body } @ i"
                := (TPFunction f (Arrow params None) body i)
                     (in custom p4topdecl at level 0, body custom p4stmt).

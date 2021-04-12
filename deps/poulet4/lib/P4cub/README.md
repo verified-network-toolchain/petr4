@@ -12,9 +12,7 @@
 
 ### TODOs:
 
-- Currently removing `tags_t` from `p4cub` types and values. Such "info" annotations shall henceforth exists only explicitly in `p4cub` syntax.
-
-- Removing all uses of `P4String.t` and qualified names from `Typed.v`, locators will be used instead.
+- Explore better ways to enfore constructions of types with proper nesting.
 
 - Usurp `P4cub/P4Arith.v` with p4light's arithmetic operations.
 

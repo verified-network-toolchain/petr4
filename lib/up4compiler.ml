@@ -89,6 +89,21 @@ let get_argument_int (a : P4.Argument.t) : int = match (snd a) with
       | _ -> raise (IncorrectType "Int expected"))
   | _ -> raise (IncorrectType "Argument Expression expected")
 
+let get_argument_expr (a:P4.Argument.t) : P4.Expression.t = match (snd a) with 
+  | P4.Argument.Expression {value} -> value
+  | P4.Argument.KeyValue {key; value} -> value
+  | _ -> raise (IncorrectType "ARgument Expression not found")
+
+let get_statement_args (s:P4.Statement.t) : P4.Argument.t list = 
+  let open P4.Statement in 
+  match (snd s) with
+  | MethodCall {func; type_args; args} -> args
+  | DirectApplication {typ; args} -> args
+  | _ -> raise (IncorrectType "Statement does not have args")
+
+let get_block_statements (b:P4.Block.t) : P4.Statement.t list = match (snd b) with
+  | {annotations; statements} -> statements
+
 let get_parameter_type (p:P4.Parameter.t) : P4.Type.t = match (snd p) with 
   | {annotations; direction; typ; variable; opt_value} -> typ
 
@@ -97,8 +112,6 @@ let get_parameter_typename (p:P4.Parameter.t) : string = match (snd p) with
 
 let get_parameter_name (p : P4.Parameter.t) : string = match (snd p) with
   | {annotations; direction; typ; variable; opt_value} -> snd variable
-
-
 
 let get_instantiation (prog:P4.Declaration.t) : P4.Declaration.t option = 
   match (snd prog) with 
@@ -356,6 +369,14 @@ let create_declaration_field (field_name : string) (type_name : string) : P4.Dec
     typ = create_type_typename type_name;
     name = Info.dummy, field_name;
   }
+
+let create_declaration_variable (type_name:string) (var_name: string) : P4.Declaration.t = 
+  (Info.dummy, P4.Declaration.Variable { 
+      annotations = [];
+      typ = create_type_typename type_name;
+      name = Info.dummy, var_name;  
+      init = None;
+    })
 (** Create declarations types *)
 
 let create_param (dir : P4.Direction.t option) (typ : string) (var : string) : P4.Parameter.t = 
@@ -387,7 +408,119 @@ let replace_param_type (p:P4.Parameter.t) (new_type:string) : P4.Parameter.t =
       typ = create_type_typename new_type;
       variable = variable;
       opt_value = opt_value}
+
+(* Replace old_str with new_str if input_str == old_str *)
+let replace_string (to_replace:string) (new_str:string) (input_str:string) : string = 
+  if compare to_replace input_str == 0 then new_str else input_str
+
+let rec replace_str_name (str_map: string -> string) (n:P4.name) : P4.name =  
+  match n with 
+  | P4.BareName n1 -> BareName ((fst n1), str_map (snd n1))
+  | _ -> n 
+
+and replace_str_args (str_map: string -> string) (a:P4.Argument.t) : P4.Argument.t = 
+  let dummy = fst a in 
+  let open P4.Argument in 
+  match (snd a) with 
+  | Expression {value} -> 
+    dummy, Expression {value = replace_str_expression str_map value}
+  | KeyValue{key; value} -> 
+    dummy, KeyValue { key =  (fst key), str_map (snd key); value = replace_str_expression str_map value }
+  | _ -> a
+
+and replace_str_type (str_map: string -> string) (t:P4.Type.t) : P4.Type.t = 
+  let dummy = fst t in 
+  let open P4.Type in 
+  match (snd t) with 
+  | TypeName n -> dummy, TypeName (replace_str_name str_map n)
+  | HeaderStack {header; size} -> 
+    dummy, HeaderStack {
+      header = replace_str_type str_map header; 
+      size = replace_str_expression str_map size;}
+  | _ -> t
+
+and replace_str_expression (str_map: string -> string) (e:P4.Expression.t) : P4.Expression.t = 
+  let dummy = fst e in 
+  let open P4.Expression in 
+  match (snd e) with
+  | ArrayAccess {array; index} -> 
+    dummy, ArrayAccess {
+      array = replace_str_expression str_map array; 
+      index = replace_str_expression str_map index}
+  | ExpressionMember {expr; name} ->
+    dummy, ExpressionMember {
+      expr = replace_str_expression str_map expr;
+      name = (fst name), str_map (snd name)
+    }
+  | _ -> e
+
+let rec replace_str_statement (str_map: string -> string) (s:P4.Statement.t) : P4.Statement.t = 
+  let dummy = fst s in 
+  let open P4.Statement in 
+  match (snd s) with
+  | MethodCall {func; type_args; args} -> 
+    dummy, P4.Statement.MethodCall
+      { func = replace_str_expression str_map func;
+        type_args = List.map (replace_str_type str_map) type_args;
+        args = List.map (replace_str_args str_map) args;
+      }
+
+  | Conditional {cond; tru; fls;} ->
+    dummy, P4.Statement.Conditional 
+      {cond = replace_str_expression str_map cond;
+       tru = replace_str_statement str_map tru;
+       fls = (match fls with 
+           | Some f -> Some (replace_str_statement str_map f)
+           | None -> None);}
+  | _ -> s
+
+let rec replace_expr_expression (expr_map: P4.Expression.t -> P4.Expression.t) (e:P4.Expression.t) : P4.Expression.t = 
+  let dummy = fst e in 
+  let open P4.Expression in 
+  let temp_expr = 
+    match (snd e) with
+    | ArrayAccess {array; index} -> 
+      dummy, ArrayAccess {
+        array = replace_expr_expression expr_map array; 
+        index = replace_expr_expression expr_map index}
+    | ExpressionMember {expr; name} ->
+      dummy, ExpressionMember {
+        expr = replace_expr_expression expr_map expr;
+        name = name
+      }
+    | _ -> e in expr_map temp_expr
+
+let replace_expr_argument (expr_map: P4.Expression.t -> P4.Expression.t) (a:P4.Argument.t) : P4.Argument.t = 
+  let dummy = fst a in 
+  let open P4.Argument in 
+  match (snd a) with
+  | Expression {value} -> dummy, Expression {value=replace_expr_expression expr_map value}
+  | KeyValue {key; value} -> dummy, KeyValue {key=key; value=replace_expr_expression expr_map value}
+  | _ -> a
+
+let rec replace_expr_statement (expr_map: P4.Expression.t -> P4.Expression.t) (a:P4.Statement.t) : P4.Statement.t = 
+  let dummy = fst a in 
+  let open P4.Statement in 
+  match (snd a) with
+  | MethodCall {func; type_args; args} -> 
+    dummy, MethodCall {func; type_args; args = List.map (replace_expr_argument expr_map) args}
+  | Assignment {lhs;rhs} -> 
+    dummy, Assignment {lhs = replace_expr_expression expr_map lhs; rhs = replace_expr_expression expr_map rhs;}
+  | DirectApplication {typ; args} ->
+    dummy, DirectApplication {typ=typ; args = List.map (replace_expr_argument expr_map) args}
+  | Conditional {cond; tru; fls} -> 
+    dummy, Conditional {cond = replace_expr_expression expr_map cond; tru=tru; fls=fls}
+  | BlockStatement {block} -> 
+    dummy, BlockStatement {block = replace_expr_block expr_map block}
+  | _ -> a
+and replace_expr_block (expr_map: P4.Expression.t -> P4.Expression.t) (b:P4.Block.t) : P4.Block.t = 
+  let dummy = fst b in 
+  let open P4.Block in 
+  match (snd b) with
+  | {annotations;statements} ->
+    dummy, {annotations=annotations; statements = List.map (replace_expr_statement expr_map) statements }
 (** Replacing functions *)
+
 
 (** Merging functions *)
 let merge_block (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t = 
@@ -419,8 +552,23 @@ let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t l
   else List.fold_left merge_unnamed_declaration (List.hd d1) (List.tl d1 @ d2)
 
 let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaration.t) (d2: P4.Declaration.t): P4.Declaration.t = 
-  let dp1 = control_info d1 in 
-  let dp2 = control_info d2 in 
+  let dp1_block= (control_info d1).apply in 
+  let dp2_block = (control_info d2).apply in 
+  let emit_matcher = fun (var_name:string) -> (fun (e:P4.Expression.t) -> 
+      match (snd e) with 
+      | P4.Expression.ArrayAccess {array=a; index} -> (
+          match (snd a) with 
+          | P4.Expression.Name n -> 
+            (fst e), P4.Expression.ArrayAccess {
+              array = create_expression_expression_member (create_expression_name header_name) var_name;
+              index = index}
+          | _ -> e)
+      | P4.Expression.Name n -> create_expression_expression_member (create_expression_name header_name) var_name;
+      | _ -> e) in 
+  let is_emit1 = emit_matcher (header_type ^ "1") in 
+  let is_emit2 = emit_matcher (header_type ^ "2") in 
+  let dp1 = replace_expr_block is_emit1 dp1_block in
+  let dp2 = replace_expr_block is_emit2 dp2_block in 
   let params = [create_param None "packet_out" "packet"; create_param (Some (Info.dummy, P4.Direction.In)) header_type header_name ] in 
   ((fst d1), Control { annotations = [];
                        name = Info.dummy, "NewDeparser";
@@ -428,7 +576,7 @@ let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaratio
                        params = params; (*might need to check for difference *)
                        constructor_params = [];
                        locals = [];
-                       apply = merge_block dp1.apply dp2.apply})
+                       apply = merge_block dp1 dp2})
 
 (**Creating new up4 parser *)
 let imt_in_port_expr : (P4.Expression.t) = create_expression_function_call "im" "get_in_port" []
@@ -483,14 +631,15 @@ let merged_if_statement (args1:P4.Argument.t list) (args2:P4.Argument.t list) (s
   create_statement_if (snd conditional) (snd call_control1) (snd call_control2)
 
 let new_control (param_typenames:string list) (param_names:string list) (control1:string) (control2:string) (split_port:int) : P4.Declaration.t = 
-  let locals = (create_declaration_instantiation "control2" control2  [])::(create_declaration_instantiation "control1" control1 [])::[] in 
+  let locals = (create_declaration_instantiation "control1" control1 [])::(create_declaration_instantiation "control2" control2  [])::(create_declaration_variable (List.nth param_typenames 3) "out_p" )::[] in 
   let im_t_param = create_param None "im_t" "im" in 
   let dirs = [Some (Info.dummy, P4.Direction.InOut);Some (Info.dummy, P4.Direction.InOut);Some (Info.dummy, P4.Direction.In);Some (Info.dummy, P4.Direction.Out);Some (Info.dummy, P4.Direction.InOut)] in
+  let param_temp0 = List.map (fun x -> if compare x (List.nth param_names 3) == 0 then "out_p" else x) param_names in 
   let param_temp = List.map2 (fun func name -> func name) (List.map2 (fun dir typ_name -> create_param dir typ_name) dirs param_typenames) param_names in 
   let params = [im_t_param] @ param_temp in
-  let args1_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "1") param_typenames) in 
+  let args1_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_temp0 (List.map (fun x -> x ^ "1") param_typenames) in 
   let args1 = [param_to_arg im_t_param] @ (List.map create_argument_expression args1_temp) in 
-  let args2_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_names (List.map (fun x -> x ^ "2") param_typenames) in 
+  let args2_temp = List.map2 (fun struct_name name -> create_expression_expression_member (create_expression_name struct_name) name) param_temp0 (List.map (fun x -> x ^ "2") param_typenames) in 
   let args2 = [param_to_arg im_t_param] @ (List.map create_argument_expression args2_temp) in 
   let apply = create_block [merged_if_statement args1 args2 split_port]  in 
   create_declaration_control "NewControl" params locals apply 

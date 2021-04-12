@@ -7,6 +7,9 @@ module P4 = Types
 module StrMap = Map.Make(String)
 type varmap = C.cexpr StrMap.t
 
+let concat (word: P4.P4String.t) (addition: string)  = 
+  snd word ^ addition
+
 let varmap_find (map: varmap) (var: string) : C.cexpr =
   match StrMap.find map var with
   | Some expr -> expr
@@ -168,7 +171,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let map_update = update_map map params in 
     let params = translate_params params in
-    let state_type_name = snd name ^ "_state" in
+    let state_type_name = concat name "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
     let struct_decl = C.CStruct (state_type_name, params) in
@@ -184,9 +187,8 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let flat_params = params@constructor_params in  
     let map_update = update_map map flat_params in 
     let params = translate_params flat_params in
-    (* TO DO - MAKE A FUNCTION THAT DOES THIS CONCAT  *)
     (* TO DO - MORE CONSISTENT NAMES *)
-    let state_type_name = snd name ^ "_state" in
+    let state_type_name = concat name "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
     let struct_decl = C.CStruct (state_type_name, params) in
@@ -221,8 +223,6 @@ and translate_decls (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.
     map', decls @ decls'
   in
   List.fold ~init:(map, []) ~f decls
-
-(* TODO - make a general snd function for all of the instances of the string *)
 
 and translate_local (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
   match snd locals with 

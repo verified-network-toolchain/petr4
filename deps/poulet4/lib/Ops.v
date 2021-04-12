@@ -156,7 +156,7 @@ Module Ops.
     | _ => None
     end.
 
-  Definition sort [A] (l : Fields A) :=
+  (* Definition sort [A] (l : Fields A) :=
     mergeSort (fun f1 f2 => string_leb (str (fst f1)) (str (fst f2))) l.
 
   Fixpoint sort_by_key_val (v: Val) : Val :=
@@ -171,15 +171,15 @@ Module Ops.
     | ValBaseUnion l => ValBaseUnion (sort (sort_by_key_val' l))
     | ValBaseHeader l b => ValBaseHeader (sort (sort_by_key_val' l)) b
     | _ => v
-    end.
+    end. *)
 
-  Fixpoint eval_binary_op_eq' (v1 : Val) (v2 : Val) : option bool :=
+  Fixpoint eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     let fix eval_binary_op_eq_struct' (l1 l2 : Fields Val) : option bool :=
       match l1, l2 with
       | nil, nil => Some true
       | (k1, v1) :: l1', (k2, v2) :: l2' =>
         if negb (P4String.equivb k1 k2) then None
-        else match eval_binary_op_eq' v1 v2, eval_binary_op_eq_struct' l1' l2' with
+        else match eval_binary_op_eq v1 v2, eval_binary_op_eq_struct' l1' l2' with
              | Some b1, Some b2 => Some (b1 && b2)
              | _, _ => None
         end
@@ -192,7 +192,7 @@ Module Ops.
       match l1, l2 with
       | nil, nil => Some true
       | x1 :: l1', x2 :: l2' =>
-        match eval_binary_op_eq' x1 x2, eval_binary_op_eq_tuple l1' l2' with
+        match eval_binary_op_eq x1 x2, eval_binary_op_eq_tuple l1' l2' with
         | Some b1, Some b2 => Some (b1 && b2)
         | _, _ => None
         end
@@ -205,7 +205,7 @@ Module Ops.
         if P4String.equivb t1 t2 then Some (P4String.equivb s1 s2)
         else None
     | ValBaseSenumField t1 s1 v1, ValBaseSenumField t2 s2 v2 =>
-        if P4String.equivb t1 t2 then eval_binary_op_eq' v1 v2
+        if P4String.equivb t1 t2 then eval_binary_op_eq v1 v2
         else None
     | ValBaseBool b1, ValBaseBool b2 => 
         Some (eqb b1 b2)
@@ -220,8 +220,8 @@ Module Ops.
         else None
     | ValBaseStruct l1, ValBaseStruct l2 =>
         eval_binary_op_eq_struct l1 l2
-    | ValBaseRecord l1, ValBaseRecord l2 =>
-        eval_binary_op_eq_struct l1 l2
+    | ValBaseRecord l1, ValBaseRecord l2 => None
+        (* eval_binary_op_eq_struct l1 l2 *)
     | ValBaseUnion l1, ValBaseUnion l2 =>
         eval_binary_op_eq_struct l1 l2
     | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
@@ -237,8 +237,8 @@ Module Ops.
     | _, _ => None
     end.
 
-  Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
-    eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2).
+  (* Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
+    eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2). *)
   
   (* 1. After implicit_cast in checker.ml, ValBaseInteger no longer exists in 
         binary operations with fixed-width bit and int.
@@ -337,17 +337,17 @@ Module Ops.
   | _, _ => None
   end.
 
-  Fixpoint eval_cast' (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
+  Fixpoint eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
     let fix values_of_val_tuple (l1: list P4Type) 
                                 (l2: list Val) : option (list Val) :=
       match l1, l2 with
       | [], [] => Some []
       | t :: l1', oldv :: l2' => 
-          match eval_cast' t oldv, values_of_val_tuple l1' l2' with
+          match eval_cast t oldv, values_of_val_tuple l1' l2' with
           | Some newv, Some l3 => Some (newv :: l3)
           | _, _ => None
           end
-      | _, _ => None 
+      | _, _ => None
       end in
     let values_of_val (l1: list P4Type) (oldv: Val) : option (list Val) :=
       match oldv with
@@ -359,7 +359,7 @@ Module Ops.
       match l1, l2 with
       | [], [] => Some []
       | (k, t) :: l1', oldv :: l2' => 
-          match eval_cast' t oldv, fields_of_val_tuple l1' l2' with
+          match eval_cast t oldv, fields_of_val_tuple l1' l2' with
           | Some newv, Some l3 => Some ((k, newv) :: l3)
           | _, _ => None
           end
@@ -367,21 +367,24 @@ Module Ops.
       end in
     let fix fields_of_val_record (l1: Fields P4Type) 
                                  (l2: Fields Val) : option (Fields Val) :=
-      match l1, l2 with
-      | [], [] => Some []
-      | (k1, t) :: l1', (k2, oldv) :: l2' =>
-          if negb (P4String.equivb k1 k2) then None
-          else match eval_cast' t oldv, fields_of_val_record l1' l2' with
-               | Some newv, Some l3 => Some ((k1, newv) :: l3)
-               | _, _ => None
-               end
-      | _, _ => None
+      match l1 with
+      | [] => Some []
+      | (k, t) :: l1' =>
+          match AList.get l2 k with
+          | None => None
+          | Some oldv =>
+              match eval_cast t oldv, fields_of_val_record l1' l2 with
+              | Some newv, Some l3 => Some ((k, newv) :: l3)
+              | _, _ => None
+              end
+          end
       end in
     let fields_of_val (l1: Fields P4Type) (oldv: Val) : option (Fields Val) :=
       match oldv with
       | ValBaseTuple l2 => if negb (AList.key_unique l1) then None
                            else fields_of_val_tuple l1 l2
       | ValBaseRecord l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
+                            else if negb ((List.length l1) =? (List.length l2))%nat then None
                             else fields_of_val_record l1 l2
       | _ => None
       end in
@@ -389,7 +392,7 @@ Module Ops.
     | TypBool => bool_of_val oldv
     | TypBit w => bit_of_val w oldv
     | TypInt w => int_of_val w oldv
-    | TypNewType _ typ => eval_cast' typ oldv
+    | TypNewType _ typ => eval_cast typ oldv
     (* Two problems with TypTypName:
        1. Need to resolve the type from the name in the Semantics.v;
        2. Need to define name_to_type such that no loop is possible. 
@@ -414,7 +417,7 @@ Module Ops.
     | TypSet eletyp =>
         match oldv with
         | ValBaseSet v => Some (ValBaseSet v)
-        | _ => match eval_cast' eletyp oldv with
+        | _ => match eval_cast eletyp oldv with
                | Some newv => Some (ValBaseSet (ValSetSingleton newv))
                | _ => None
                end
@@ -423,7 +426,7 @@ Module Ops.
     end.
   (* Admitted. *)
 
-  Fixpoint sort_by_key_typ (t: P4Type) : P4Type :=
+  (* Fixpoint sort_by_key_typ (t: P4Type) : P4Type :=
     let fix sort_by_key_typ' (ll : Fields P4Type) : Fields P4Type :=
       match ll with
       | nil => nil
@@ -439,7 +442,7 @@ Module Ops.
     end.
 
   Definition eval_cast (newtyp : P4Type) (oldv : Val) : option Val :=
-    eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv).
+    eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv). *)
 
   End Operations.
 End Ops.

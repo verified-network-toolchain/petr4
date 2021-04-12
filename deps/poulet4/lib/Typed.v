@@ -69,8 +69,6 @@ Section Typed.
   | TypSpecializedType (base: P4Type) (args: list P4Type)
   | TypConstructor (type_params: list P4String) (wildcard_params: list P4String)
                    (parameters: list P4Parameter) (ret: P4Type)
-  with FieldType :=
-  | MkFieldType (name: P4String) (typ: P4Type)
   with ControlType :=
   | MkControlType (type_params: list P4String) (parameters: list P4Parameter)
   with FunctionType :=

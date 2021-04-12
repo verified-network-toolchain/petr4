@@ -62,20 +62,20 @@ package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
   (uP4Switch<H1, M1, I1, O1, IO1> left,
    uP4Switch<H2, M2, I2, O2, IO2> right,
    int split_port);
-header head1 {
+header head {
   bit<8> v;
 }
-struct metadata1 {
+struct metadata {
   
 }
-struct in_param_t1 {
+struct in_param_t {
   
 }
-struct out_param_t1 {
+struct out_param_t {
   
 }
-parser MyParser1(packet_in packet, im_t im, out head1[13] hdrs,
-                 inout metadata1 meta, in in_param_t1 in_param,
+parser MyParser1(packet_in packet, im_t im, out head[13] hdrs,
+                 inout metadata meta, in in_param_t in_param,
                  inout error parser_error) {
   state start
     {
@@ -103,11 +103,12 @@ parser MyParser1(packet_in packet, im_t im, out head1[13] hdrs,
     transition accept;
   }
 }
-control MyControl1(im_t im, inout head1[13] hdrs, inout metadata1 meta,
-                   in in_param_t1 in_param, out out_param_t1 out_param,
+control MyControl1(im_t im, inout head[13] hdrs, inout metadata meta,
+                   in in_param_t in_param, out out_param_t out_param,
                    inout error parser_error) {
   apply
     {
+    im.drop();
     if (parser_error==error.NoError)
       {
       hdrs[0] = {72};
@@ -122,12 +123,11 @@ control MyControl1(im_t im, inout head1[13] hdrs, inout metadata1 meta,
       hdrs[9] = {114};
       hdrs[10] = {108};
       hdrs[11] = {100};
-      hdrs[12] =
-      {(bit<8>) im.get_value(metadata_fields_t.QUEUE_DEPTH_AT_DEQUEUE)};
+      hdrs[12] = {33};
     }
   }
 }
-control MyDeparser1(packet_out packet, in head1[13] hdr) {
+control MyDeparser1(packet_out packet, in head[13] hdr) {
   apply {
     packet.emit(hdr[0]);
     packet.emit(hdr);
@@ -207,19 +207,19 @@ control MyDeparser2(packet_out packet, in head2[13] hdr) {
 }
 uP4Switch(MyParser2(), MyControl2(), MyDeparser2()) main2;
 struct mergedHdr {
-  head1[13] mergedHdr1;
+  head[13] mergedHdr1;
   head2[13] mergedHdr2;
 }
 struct mergedMeta {
-  metadata1 mergedMeta1;
+  metadata mergedMeta1;
   metadata2 mergedMeta2;
 }
 struct mergedInParam {
-  in_param_t1 mergedInParam1;
+  in_param_t mergedInParam1;
   in_param_t2 mergedInParam2;
 }
 struct mergedOutParam {
-  out_param_t1 mergedOutParam1;
+  out_param_t mergedOutParam1;
   out_param_t2 mergedOutParam2;
 }
 struct mergedInOutParam {

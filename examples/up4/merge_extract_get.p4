@@ -62,21 +62,21 @@ package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
   (uP4Switch<H1, M1, I1, O1, IO1> left,
    uP4Switch<H2, M2, I2, O2, IO2> right,
    int split_port);
-header head {
+header head3 {
   bit<8> v;
 }
-struct metadata {
+struct metadata3 {
   
 }
-struct in_param_t {
+struct in_param_t3 {
   
 }
-struct out_param_t {
+struct out_param_t3 {
   
 }
-parser MyParser1(packet_in packet, im_t im, out head[13] hdrs,
-                 inout metadata meta, in in_param_t in_param,
-                 inout error parser_error) {
+parser MyParser(packet_in packet, im_t im, out head3[13] hdrs,
+                inout metadata3 meta, in in_param_t3 in_param,
+                inout error parser_error) {
   state start
     {
     packet.extract(hdrs[0]);
@@ -103,12 +103,11 @@ parser MyParser1(packet_in packet, im_t im, out head[13] hdrs,
     transition accept;
   }
 }
-control MyControl1(im_t im, inout head[13] hdrs, inout metadata meta,
-                   in in_param_t in_param, out out_param_t out_param,
-                   inout error parser_error) {
+control MyControl(im_t im, inout head3[13] hdrs, inout metadata3 meta,
+                  in in_param_t3 in_param, out out_param_t3 out_param,
+                  inout error parser_error) {
   apply
     {
-    im.drop();
     if (parser_error==error.NoError)
       {
       hdrs[0] = {72};
@@ -127,27 +126,27 @@ control MyControl1(im_t im, inout head[13] hdrs, inout metadata meta,
     }
   }
 }
-control MyDeparser1(packet_out packet, in head[13] hdr) {
+control MyDeparser(packet_out packet, in head3[13] hdr) {
   apply {
     packet.emit(hdr[0]);
     packet.emit(hdr);
   }
 }
-uP4Switch(MyParser1(), MyControl1(), MyDeparser1()) main1;
-header head {
+uP4Switch(MyParser(), MyControl(), MyDeparser()) main1;
+header head2 {
   bit<8> v;
 }
-struct metadata {
+struct metadata2 {
   
 }
-struct in_param_t {
+struct in_param_t2 {
   
 }
-struct out_param_t {
+struct out_param_t2 {
   
 }
-parser MyParser2(packet_in packet, im_t im, out head[13] hdrs,
-                 inout metadata meta, in in_param_t in_param,
+parser MyParser2(packet_in packet, im_t im, out head2[13] hdrs,
+                 inout metadata2 meta, in in_param_t2 in_param,
                  inout error parser_error) {
   state start
     {
@@ -175,8 +174,8 @@ parser MyParser2(packet_in packet, im_t im, out head[13] hdrs,
     transition accept;
   }
 }
-control MyControl2(im_t im, inout head[13] hdrs, inout metadata meta,
-                   in in_param_t in_param, out out_param_t out_param,
+control MyControl2(im_t im, inout head2[13] hdrs, inout metadata2 meta,
+                   in in_param_t2 in_param, out out_param_t2 out_param,
                    inout error parser_error) {
   apply
     {
@@ -199,57 +198,84 @@ control MyControl2(im_t im, inout head[13] hdrs, inout metadata meta,
     }
   }
 }
-control MyDeparser2(packet_out packet, in head[13] hdr) {
+control MyDeparser2(packet_out packet, in head2[13] hdr) {
   apply {
     packet.emit(hdr[0]);
     packet.emit(hdr);
   }
 }
 uP4Switch(MyParser2(), MyControl2(), MyDeparser2()) main2;
-parser NewParser(packet_in packet, im_t im, out head[13] hdrs,
-                 inout metadata meta, in in_param_t in_param,
-                 inout error parser_error) {
+struct mergedHdr {
+  head3[13] mergedHdr1;
+  head2[13] mergedHdr2;
+}
+struct mergedMeta {
+  metadata3 mergedMeta1;
+  metadata2 mergedMeta2;
+}
+struct mergedInParam {
+  in_param_t3 mergedInParam1;
+  in_param_t2 mergedInParam2;
+}
+struct mergedOutParam {
+  out_param_t3 mergedOutParam1;
+  out_param_t2 mergedOutParam2;
+}
+struct mergedInOutParam {
+  error mergedInOutParam1;
+  error mergedInOutParam2;
+}
+parser NewParser(packet_in packet, im_t im, out mergedHdr hdrs,
+                 inout mergedMeta meta, in mergedInParam in_param,
+                 inout mergedInOutParam inout_param) {
   MyParser2() parser2;
-  MyParser1() parser1;
+  MyParser() parser1;
   state low_ports_state
     {
-    MyParser1.apply(packet, im, hdrs, meta, in_param, parser_error);
+    MyParser.apply(packet, im, hdrs.mergedHdr1, meta.mergedMeta1,
+                     in_param.mergedInParam1, inout_param.mergedInOutParam1);
     transition accept;
   }
   state high_ports_state
     {
-    MyParser2.apply(packet, im, hdrs, meta, in_param, parser_error);
+    MyParser2.apply(packet, im, hdrs.mergedHdr2, meta.mergedMeta2,
+                      in_param.mergedInParam2, inout_param.mergedInOutParam2);
     transition accept;
   }
   state start
     {
     transition select(im.get_in_port()) {
-      0 .. 8: low_ports_state;
-      9 .. 65353: high_ports_state;
+      0 .. 10: low_ports_state;
+      11 .. 65353: high_ports_state;
     }
   }
 }
-control NewControl(im_t im, inout head[13] hdrs, inout metadata meta,
-                   in in_param_t in_param, out out_param_t out_param,
-                   inout error parser_error) {
+control NewControl(im_t im, inout mergedHdr hdrs, inout mergedMeta meta,
+                   in mergedInParam in_param, out mergedOutParam out_param,
+                   inout mergedInOutParam inout_param) {
+  MyControl() control1;
   MyControl2() control2;
-  MyControl1() control1;
+  mergedOutParam out_p;
   apply
     {
-    if (im.get_in_port()<=8)
+    if (im.get_in_port()<=10)
       
-      control1.apply(im, hdrs, meta, in_param, out_param, parser_error);
+      control1.apply(im, hdrs.mergedHdr1, meta.mergedMeta1,
+                       in_param.mergedInParam1, out_p.mergedOutParam1,
+                       inout_param.mergedInOutParam1);
       else
-        control2.apply(im, hdrs, meta, in_param, out_param, parser_error);
+        control2.apply(im, hdrs.mergedHdr2, meta.mergedMeta2,
+                         in_param.mergedInParam2, out_p.mergedOutParam2,
+                         inout_param.mergedInOutParam2);
   }
 }
-control NewDeparser(packet_out packet, in head[13] hdr) {
+control NewDeparser(packet_out packet, in mergedHdr hdr) {
   apply
     {
-    packet.emit(hdr[0]);
-    packet.emit(hdr);
-    packet.emit(hdr[0]);
-    packet.emit(hdr);
+    packet.emit(hdr.mergedHdr1[0]);
+    packet.emit(hdr.mergedHdr1);
+    packet.emit(hdr.mergedHdr2[0]);
+    packet.emit(hdr.mergedHdr2);
   }
 }
 uP4Switch(NewParser(), NewControl(), NewDeparser()) main;

@@ -157,15 +157,6 @@ Section Values.
           | [],            _::_
           | _::_,           []          => false
           end in
-      (*let fix frec {A : Type} (feqb : A -> A -> bool)
-              (as1 as2 : Field.fs string A) : bool :=
-          match as1, as2 with
-          | [],           []           => true
-          | (x1, a1)::as1, (x2, a2)::as2
-            => equiv_dec x1 x2 &&&& feqb a1 a2 && frec feqb as1 as2
-          | [],            _::_
-          | _::_,           []          => false
-          end in *)
       let fix ffrec (v1ss v2ss : list (bool * Field.fs string v)) : bool :=
           match v1ss, v2ss with
           | [], _::_ | _::_, [] => false
@@ -197,254 +188,6 @@ Section Values.
       end.
     (**[]*)
 
-    (* No tags_t -> eq is sufficient.
-    (** Value equivalence relation. *)
-    Inductive equivv : v -> v -> Prop :=
-    | equivv_bool (b : bool) :
-        equivv (VBool b) (VBool b)
-    | equivv_int (w : positive) (n : Z) :
-        equivv (VInt w n) (VInt w n)
-    | equivv_bit (w : positive) (n : N) :
-        equivv (VBit w n) (VBit w n)
-    | equivv_tuple (vs1 vs2 : list v) :
-        Forall2 equivv vs1 vs2 ->
-        equivv (VTuple vs1) (VTuple vs2)
-    | equivv_record (fs1 fs2 : Field.fs tags_t v) :
-        Field.relfs equivv fs1 fs2 ->
-        equivv (VRecord fs1) (VRecord fs2)
-    | equivv_header (fs1 fs2 : Field.fs tags_t v) (b : bool) :
-        Field.relfs equivv fs1 fs2 ->
-        equivv (VHeader fs1 b) (VHeader fs2 b)
-    | equivv_error (err1 err2 : option (string tags_t)) :
-        equiv err1 err2 ->
-        equivv (VError err1) (VError err2)
-    | equivv_matchkind (mk : P4cub.Expr.matchkind) :
-        equivv (VMatchKind mk) (VMatchKind mk)
-    | equivv_stack (n : positive) (ni : N)
-                   (ts1 ts2 : Field.fs tags_t (P4cub.Expr.t tags_t))
-                   (vss1 vss2 : list (bool * Field.fs tags_t v)) :
-        Field.relfs TE.equivt ts1 ts2 ->
-        Forall2 (fun bv1 bv2 =>
-                   fst bv1 = fst bv2 /\
-                   Field.relfs equivv (snd bv1) (snd bv2))
-                vss1 vss2 ->
-        equivv (VHeaderStack ts1 vss1 n ni) (VHeaderStack ts2 vss2 n ni).
-    (**[]*)
-
-    (** A custom induction principle for value equivalence. *)
-    Section ValueEquivalenceInduction.
-      (** An arbitrary predicate. *)
-      Variable P : v -> v -> Prop.
-
-      Hypothesis HBool : forall b, P (VBool b) (VBool b).
-
-      Hypothesis HBit : forall w n, P (VBit w n) (VBit w n).
-
-      Hypothesis HInt : forall w z, P (VInt w z) (VInt w z).
-
-      Hypothesis HError : forall err1 err2,
-          equiv err1 err2 -> P (VError err1) (VError err2).
-
-      Hypothesis HMatchkind : forall mk, P (VMatchKind mk) (VMatchKind mk).
-
-      Hypothesis HTuple : forall vs1 vs2,
-          Forall2 equivv vs1 vs2 ->
-          Forall2 P vs1 vs2 ->
-          P (VTuple vs1) (VTuple vs2).
-
-      Hypothesis HRecord : forall fs1 fs2,
-          Field.relfs equivv fs1 fs2 ->
-          Field.relfs P fs1 fs2 ->
-          P (VRecord fs1) (VRecord fs2).
-
-      Hypothesis HHeader : forall fs1 fs2 b,
-          Field.relfs equivv fs1 fs2 ->
-          Field.relfs P fs1 fs2 ->
-          P (VHeader fs1 b) (VHeader fs2 b).
-
-      Hypothesis HStack : forall n ni ts1 ts2 vss1 vss2,
-          Field.relfs TE.equivt ts1 ts2 ->
-          Forall2 (fun bv1 bv2 =>
-                     fst bv1 = fst bv2 /\
-                     Field.relfs equivv (snd bv1) (snd bv2))
-                  vss1 vss2 ->
-          Forall2 (fun vss1 vss2 => Field.relfs P (snd vss1) (snd vss2)) vss1 vss2 ->
-          P (VHeaderStack ts1 vss1 n ni) (VHeaderStack ts2 vss2 n ni).
-
-      (** Custom [eqiuvv] induction principle.
-          Do [induction ?H using custom_equivv_ind] *)
-      Definition custom_equivv_ind : forall (v1 v2 : v) (H : equivv v1 v2), P v1 v2 :=
-        fix vind v1 v2 H :=
-          let fix lind
-                  {vs1 vs2 : list v}
-                  (HR : Forall2 equivv vs1 vs2) : Forall2 P vs1 vs2 :=
-              match HR with
-              | Forall2_nil _ => Forall2_nil _
-              | Forall2_cons _ _
-                             HE HTail => Forall2_cons
-                                          _ _
-                                          (vind _ _ HE)
-                                          (lind HTail)
-              end in
-          let fix find
-                  {vs1 vs2 : Field.fs tags_t v}
-                  (HR : Field.relfs equivv vs1 vs2) : Field.relfs P vs1 vs2 :=
-              match HR in Forall2 _ v1s v2s return Forall2 (Field.relf P) v1s v2s with
-              | Forall2_nil _ => Forall2_nil (Field.relf P)
-              | Forall2_cons v1 v2
-                             (conj HName Hequivv)
-                             Htail => Forall2_cons
-                                       v1 v2
-                                       (conj
-                                          HName
-                                          (vind _ _ Hequivv))
-                                       (find Htail)
-                end in
-          let fix ffind
-                  {vss1 vss2 : list (bool * Field.fs tags_t v)}
-                  (HR : Forall2
-                          (fun bv1 bv2 =>
-                             fst bv1 = fst bv2 /\
-                             Field.relfs equivv (snd bv1) (snd bv2))
-                          vss1 vss2)
-              : Forall2
-                  (fun vss1 vss2 =>
-                     Field.relfs P (snd vss1) (snd vss2)) vss1 vss2 :=
-              match HR
-                    in Forall2 _ v1ss v2ss
-                    return Forall2
-                             (fun vss1 vss2 => Field.relfs P (snd vss1) (snd vss2))
-                             v1ss v2ss with
-              | Forall2_nil _ => Forall2_nil _
-              | Forall2_cons head _ (conj _ Hhead)
-                             Htail => Forall2_cons
-                                       head _
-                                       (find Hhead)
-                                       (ffind Htail)
-                end in
-          match H in (equivv v1' v2') return P v1' v2' with
-          | equivv_bool b => HBool b
-          | equivv_bit w n => HBit w n
-          | equivv_int w z => HInt w z
-          | equivv_error err1 err2 H12 => HError err1 err2 H12
-          | equivv_matchkind mk => HMatchkind mk
-          | equivv_tuple _ _ H12 => HTuple _ _ H12 (lind H12)
-          | equivv_record _ _ H12 => HRecord _ _ H12 (find H12)
-          | equivv_header _ _ b H12 => HHeader _ _ b H12 (find H12)
-          | equivv_stack n ni _ _ _ _ Ht Hvs => HStack n ni _ _ _ _ Ht
-                                                      Hvs (ffind Hvs)
-          end.
-      (**[]*)
-    End ValueEquivalenceInduction.
-
-    Import F.RelfEquiv.
-
-    Lemma equivv_reflexive : Reflexive equivv.
-    Proof.
-      intros v; induction v using custom_value_ind;
-        constructor; try reflexivity;
-      try (induction fs as [| [x v] vs];
-           inversion H; subst; constructor;
-           [ unfold Field.predf_data in H2;
-             constructor; simpl; try reflexivity; auto
-           | apply IHvs; auto]).
-      - induction H; constructor; auto.
-      - induction hs as [| [b vs] hs IHhs];
-          inv H; constructor; auto; simpl; split; auto.
-        unfold Basics.compose in H2; simpl in H2.
-        rename H2 into H. clear b hs IHhs H3 ni size.
-        induction vs as [| [x v] vs IHvs];
-          constructor; invert_cons_predfs; simpl in *;
-        [ split; simpl; auto; reflexivity
-        | apply IHvs; auto ].
-    Qed.
-
-    Lemma equivv_symmetric : Symmetric equivv.
-    Proof.
-      unfold Symmetric.
-      intros v1 v2 Hv;
-        induction Hv using custom_equivv_ind;
-        constructor; try (symmetry; assumption);
-      try (induction H; inv H0; constructor;
-          destruct x as [x1 v1]; destruct y as [x2 v2];
-            unfold Field.relf in *; simpl in *;
-        [ destruct H5; split; try symmetry; auto
-        | apply IHForall2; auto ]; assumption).
-      - induction H; inv H0; constructor; eauto.
-      - clear H ts1 ts2. rename H0 into H; rename H1 into H0.
-        induction H; inv H0; constructor;
-          destruct x as [b1 vs1];
-          destruct y as [b2 vs2]; auto; simpl in *.
-        destruct H as [Hb H]; subst; split; auto.
-        clear b2 l l' H1 IHForall2 H7 n ni.
-        induction H; inv H5; constructor;
-          destruct x as [x1 v1]; destruct y as [x2 v2].
-            unfold Field.relf in *; simpl in *.
-            + destruct H4; split; try symmetry; auto.
-            + apply IHForall2; auto.
-    Qed.
-
-    Lemma equivv_transitive : Transitive equivv.
-    Proof.
-      intros v1; induction v1 using custom_value_ind; intros v2 v3 H12 H23;
-        inversion H12; subst; inversion H23; subst;
-          clear H12 H23; constructor;
-            try (transitivity err2; auto); try (transitivity mk2; auto);
-      try (generalize dependent fs0; generalize dependent fs2;
-           rename fs into fs1;
-           induction fs1 as [| [x1 v1] vs1 IHvs1];
-           intros [| [x2 v2] vs2] H12 [| [x3 v3] vs3] H23;
-           inversion H12; subst; inversion H23; subst;
-           clear H12 H23; constructor; inversion H; subst; clear H;
-           [ unfold Field.relf in *; simpl in *;
-             unfold Field.predf_data;
-             destruct H3; destruct H4;
-             pose proof (H2 v2 v3) as H23; try split; auto;
-             transitivity x2; auto
-           | apply IHvs1 with vs2; auto]).
-      - rename vs into vs1; rename vs0 into vs3.
-        generalize dependent vs3; generalize dependent vs2.
-        induction vs1 as [| v1 vs1 IHvs1];
-          intros [| v2 vs2] H12 [| v3 vs3] H23;
-          inv H; inv H12; inv H23; constructor; eauto.
-      - clear vss0 vss2 hs H H6 H8 size ni.
-        rename ts into ts1; rename ts0 into ts3.
-        generalize dependent ts3; generalize dependent ts2.
-        induction ts1 as [| [x1 t1] ts1 IHts1];
-          intros [| [x2 t2] ts2] H12 [| [x3 t3] ts3] H23;
-          inv H12; inv H23; simpl in *; constructor; auto.
-        + destruct H2 as [Hx12 Ht12]; destruct H3 as [Hx23 Ht23];
-            split; simpl in *; try (etransitivity; eauto).
-        + eapply IHts1; eauto.
-      - clear ts ts0 ts2 H5 H7 ni size.
-        rename hs into vss1; rename vss0 into vss3.
-        generalize dependent vss3;
-          generalize dependent vss2.
-        induction vss1 as [| [b1 vs1] vss1 IHvss1];
-          intros [| [b2 vs2] vss2] H12ss [| [b3 vs3] vss3] H23ss;
-          inv H; inv H12ss; inv H23ss;
-            constructor; eauto; simpl in *.
-        destruct H4; destruct H5; subst; split; auto.
-        unfold Basics.compose in H2; simpl in H2.
-        clear b3 IHvss1 vss1 vss2 vss3 H3 H6 H8.
-        generalize dependent vs3; generalize dependent vs2.
-        induction vs1 as [| [x1 v1] vs1 IHvs1];
-          intros [| [x2 v2] vs2] H12s [| [x3 v3] vs3] H23s;
-          inv H2; inv H12s; inv H23s; constructor.
-        + unfold Field.relf in *; simpl in *.
-          destruct H4; destruct H5; split;
-            try (etransitivity; eassumption).
-          eapply H1; eauto.
-        + eapply IHvs1; eauto.
-    Qed.
-
-    Instance ValueEquivalence : Equivalence equivv.
-    Proof.
-      constructor; [ apply equivv_reflexive
-                   | apply equivv_symmetric
-                   | apply equivv_transitive].
-    Defined. *)
-
     Lemma eqbv_refl : forall vl : v, eqbv vl vl = true.
     Proof.
       Hint Rewrite eqb_reflx.
@@ -455,6 +198,7 @@ Section Values.
       Hint Rewrite TE.eqbt_refl.
       Hint Rewrite (@F.eqb_fs_reflx string E.t).
       Hint Rewrite andb_true_r.
+      Hint Extern 0 => equiv_dec_refl_tactic : core.
       induction vl using custom_value_ind; simpl in *;
       autorewrite with core; simpl; auto;
       try match goal with
@@ -493,35 +237,6 @@ Section Values.
       | H: context [if equiv_dec ?t1 ?t2 then _ else _] |- _
         => destruct (equiv_dec t1 t2) as [? | ?];
           simpl in H; try discriminate
-      (*| H: context [if eqbt ?t1 ?t2 then _ else _] |- _
-        => destruct (eqbt t1 t2) eqn:?;
-                   simpl in H; try discriminate
-      | H: context [eqbt ?t1 ?t2 && _] |- _
-        => destruct (eqbt t1 t2) eqn:?;
-                   simpl in H; try discriminate
-      | H: context [eqbe ?e1 ?e2 && _] |- _
-        => destruct (eqbe e1 e2) eqn:?;
-                   simpl in H; try discriminate
-      | H: eqbt _ _ = true |- _
-        => apply eqbt_eq_iff in H
-      | H: context [if eqbe ?e1 ?e2 then _ else _] |- _
-        => destruct (eqbe e1 e2) eqn:?;
-                   simpl in H; try discriminate
-      | H: eqbe ?e1 _ = true,
-           IH: forall e2, eqbe ?e1 e2 = true -> ∮ ?e1 ≡ e2 |- _
-        => apply IH in H
-      | H: _ === _ |- _ => unfold equiv in H;
-                         match goal with
-                         | H: _ = _ |- _ => subst
-                         end
-      | H: equiv _ _ |- _ => unfold equiv in H;
-                           match goal with
-                           | H: _ = _ |- _ => subst
-                           end
-      | H: Forall _ (_ :: _) |- _ => inv H
-      | H: ?P, IH: ?P -> ?Q |- _ => apply IH in H as ?
-      | H: (if ?trm then true else false) = true |- _
-        => destruct trm eqn:?; simpl in H; try discriminate *)
       | H: relop _ _ _ |- _ => inv H
       | H: F.eqb_fs TE.eqbt _ _ = true
         |- _ => pose proof eqb_fs_equiv _ _ TE.eqbt_reflect _ _ H as ?; clear H
@@ -594,33 +309,8 @@ Section Values.
       intros; reflect_split; auto; subst.
       rewrite eqbv_refl in Heqb; discriminate.
     Qed.
-
-(*
-    Lemma equivv_dec : forall v1 v2 : v,
-        equivv v1 v2 \/ ~ equivv v1 v2.
-    Proof.
-      intros v1 v2. pose proof equivv_reflect v1 v2 as H.
-      inversion H; subst; auto.
-    Qed.
-*)
   End ValueEquality.
 End Values.
-
-(* No tags_t
-Arguments VBool {_}.
-Arguments VInt {_}.
-Arguments VBit {_}.
-Arguments VTuple {_}.
-Arguments VRecord {_}.
-Arguments VHeader {_}.
-Arguments VError {_}.
-Arguments VMatchKind {_}.
-Arguments VHeaderStack {_}.
-Arguments LVVar {_}.
-Arguments LVMember {_}.
-Arguments LVAccess {_}.
-Arguments vdefault {_}.
-*)
 
 Module ValueNotations.
   Notation "'~{' val '}~'" := val (val custom p4value at level 99).

@@ -54,11 +54,6 @@ Module Step.
   | SIG_Exit                  (* exit *)
   | SIG_Rtrn (v : option V.v) (* return *).
 
-  (*
-  Arguments SIG_Cont {_}.
-  Arguments SIG_Exit {_}.
-  Arguments SIG_Rtrn {_}. *)
-
   Notation "x"
     := x (in custom p4evalsignal at level 0, x constr at level 0).
   Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
@@ -71,8 +66,6 @@ Module Step.
   Import Env.EnvNotations.
 
   Section StepDefs.
-    (* Context {tags_t : Type}. *)
-
     (** Unsigned integer binary operations. *)
     Definition eval_bit_binop
                (op : E.bop) (w : positive)
@@ -193,7 +186,6 @@ Module Step.
       | {{ bit<w> }}, V.VInt _ (Zneg p)
       | {{ bit<w> }}, V.VInt _ (Zpos p)   => let n := BitArith.return_bound w (Npos p) in
                                             Some ~{ w VW n }~
-      (* TODO: casting bit -> int is incorrect. *)
       | {{ int<w> }}, ~{ _ VW n }~ => let z := IntArith.return_bound w (Z.of_N n) in
                                      Some ~{ w VS z }~
       | {{ bit<w> }}, ~{ _ VW n }~ => let n := BitArith.return_bound w n in
@@ -295,11 +287,6 @@ Module Step.
     | interrupt_exit : interrupt SIG_Exit
     | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo).
     (**[]*)
-
-    (* P4cub will use locators instead of qualified names.
-    Definition bare (x : string) : name tags_t :=
-      Typed.BareName x.
-    (**[]*) *)
 
     Context {tags_t : Type}.
 

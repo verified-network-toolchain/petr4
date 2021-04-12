@@ -15,8 +15,6 @@ Import V.ValueTyping.
 Import F.FieldTactics.
 
 Section BigStepTheorems.
-  (* Context {tags_t : Type}. *)
-
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type (errs : errors) (Γ : gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : E.t) (v : V.v),
@@ -32,22 +30,6 @@ Section BigStepTheorems.
   Definition envs_sound Γ ϵ errs : Prop :=
     envs_type errs Γ ϵ /\ envs_subset Γ ϵ.
   (**[]*)
-
-  (*
-  Lemma envs_subset_type : forall Γ ϵ errs,
-      envs_subset Γ ϵ -> envs_type errs Γ ϵ.
-  Proof.
-    unfold envs_subset, envs_type.
-    intros Γ ϵ errs H x t v Ht Hv.
-    apply H in Ht as [v' Hv'].
-  Abort.
-
-  Lemma envs_type_subset : forall Γ ϵ errs,
-      envs_type errs Γ ϵ -> envs_subset Γ ϵ.
-  Proof.
-    unfold envs_subset, envs_type.
-    intros Γ ϵ errs H x t Ht.
-  Abort. *)
 
   Context {tags_t : Type}.
 
@@ -240,8 +222,6 @@ Section BigStepTheorems.
       exists v; constructor; auto.
     - pose proof IHHt Htyp Hsub as [v IH]; clear IHHt.
       pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp IH Ht as Hpres.
-      (* remember (eval_cast τ v) as ecr eqn:Hcast;
-         generalize dependent ecr. *)
       inv H; inv Hpres.
       + unfold BitArith.bound, BitArith.upper_bound in *;
           simpl in *. assert (Hn : n = 0%N \/ n = 1%N); try lia.

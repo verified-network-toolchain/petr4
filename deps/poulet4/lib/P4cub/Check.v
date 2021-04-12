@@ -72,25 +72,15 @@ Module Typecheck.
   Import Env.EnvNotations.
 
   Section TypeCheckDefs.
-    (* Context {tags_t : Type}. *)
 
     (** Available strings. *)
     Definition strs : Type := Env.t string unit.
-
-    (* Names no longer in P4cub.
-    (** Available names. *)
-    Definition names : Type := Env.t (nametags_t) unit. *)
 
     (** Available error names. *)
     Definition errors : Type := strs.
 
     (** Typing context. *)
     Definition gamma : Type := Env.t string E.t.
-
-    (* Names ~ in p4cub.
-    Definition bare (x : string tags_t) : name tags_t :=
-      Typed.BareName x. *)
-    (**[]*)
 
     (** Evidence for a type being a numeric of a given width. *)
     Inductive numeric_width (w : positive) : E.t -> Prop :=
@@ -348,7 +338,6 @@ Module Typecheck.
   | chk_plusplus_bit (m n w : positive)
                      (e1 e2 : E.e tags_t) (i : tags_t) :
       (m + n)%positive = w ->
-      (* numeric_width n τ -> *)
       ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:bit<m> ++ e2:bit<n> @ i ∈ bit<w>
@@ -519,7 +508,6 @@ Module Typecheck.
 
     Hypothesis HPlusPlus : forall errs Γ m n w e1 e2 i,
         (m + n)%positive = w ->
-        (* numeric_width n τ -> *)
         ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
         P errs Γ e1 {{ bit<m> }} ->
         ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
@@ -1171,10 +1159,6 @@ Module Typecheck.
       let func := P.Arrow params None in
       $ cs, fns, cis, pis, eis, errs, Γ $
         ⊢ void f (params) { body } @ i ⊣ $ Γ, eis, pis, cis, f ↦ func;;  fns, cs $
-  (*| chk_typedecl (t : E.ct tags_t) (x : string tags_t) (i : tags_t) :
-      let x' := bare x in
-      $ cs, fns, cis, pis, eis, errs, Γ $ ⊢ TYPE x t @ i
-      ⊣ $ Γ, eis, pis, cis, fns, cs $ *)
   | chk_topdecl (d : D.d tags_t) (i : tags_t)
                 (Γ' : gamma) (eis' : eienv)
                 (pis' : pienv) (cis' : cienv) :

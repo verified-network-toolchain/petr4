@@ -59,6 +59,13 @@ Ltac ind_list_Forall :=
   end.
 (**[]*)
 
+Ltac inv_Forall2_cons :=
+  match goal with
+  | H: Forall2 _ _ (_ :: _) |- _ => inv H
+  | H: Forall2 _ (_ :: _) _ |- _ => inv H
+  end.
+(**[]*)
+
 Ltac rewrite_goal_l :=
   match goal with
   | H: ?a = ?b |- context [ ?a ] => repeat rewrite H; clear H
@@ -106,6 +113,21 @@ Arguments Left {_ _}.
 Arguments Right {_ _}.
 
 (** * Useful Functions And Lemmas *)
+
+Lemma map_compose : forall {A B C : Type} (f : A -> B) (g : B -> C) l,
+    map (g ∘ f) l = map g (map f l).
+Proof.
+  intros; induction l; unravel in *; auto.
+  rewrite IHl; reflexivity.
+Qed.
+
+Lemma split_map : forall {A B : Type} (l : list (A * B)),
+    split l = (map fst l, map snd l).
+Proof.
+  induction l as [| [a b] l IHl]; unravel; auto.
+  destruct (split l) as [la lb] eqn:eqsplit.
+  inv IHl; reflexivity.
+Qed.
 
 Lemma ex_equiv_dec_refl :
   forall (X : Type) (x : X) (R : X -> X -> Prop) `{EqDec X R},
@@ -297,6 +319,27 @@ Lemma Forall2_duh : forall {A B : Type} (P : A -> B -> Prop),
 Proof.
   induction la; destruct lb; intros;
   unravel in *; try discriminate; constructor; auto.
+Qed.
+
+Lemma Forall2_map_l : forall {A B C : Type} (f : A -> B) (R : B -> C -> Prop) la lc,
+    Forall2 R (map f la) lc <-> Forall2 (R ∘ f) la lc.
+Proof.
+  induction la as [| a la IHal]; intros [| c lc];
+  unravel in *; split; intros; intuition; inv_Forall2_cons;
+  constructor; try apply IHal; auto.
+Qed.
+
+Lemma Forall2_Forall : forall {A : Type} (R : A -> A -> Prop) l,
+    Forall2 R l l <-> Forall (fun a => R a a) l.
+Proof.
+  induction l; split; intros;
+  try inv_Forall_cons;  try inv_Forall2_cons; intuition.
+Qed.
+
+Lemma Forall_duh : forall {A : Type} (P : A -> Prop),
+    (forall a, P a) -> forall l, Forall P l.
+Proof.
+  induction l; constructor; auto.
 Qed.
 
 (** * Option Equivalence *)

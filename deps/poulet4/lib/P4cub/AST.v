@@ -74,6 +74,20 @@ Module Field.
       List.map (fun '(x,u) => (x, f u)).
     (**[]*)
 
+    Lemma map_fst : forall {K U V : Type} (g : U -> V) (flds : fs K U),
+        List.map fst (map g flds) = List.map fst flds.
+    Proof.
+      intros; induction flds as [| [? ?] ? ?]; unravel; auto.
+      rewrite IHflds; reflexivity.
+    Qed.
+
+    Lemma map_snd : forall {K U V : Type} (g : U -> V) (flds : fs K U),
+        List.map snd (map g flds) = List.map (g ∘ snd) flds.
+    Proof.
+      intros; induction flds as [| [? ?] ? ?]; unravel in *; auto.
+      rewrite IHflds; reflexivity.
+    Qed.
+
     (** Fold. *)
     Definition fold {K U V : Type} (f : K -> U -> V -> V)
                (fds : fs K U) (init : V) : V :=
@@ -107,7 +121,7 @@ Module Field.
     Section FieldRelations.
       Context {K U V : Type}.
       Context {keq : K -> K -> Prop}.
-      Context `{Equivalence K keq}.
+      Context `{HK : Equivalence K keq}.
       Variable R : U -> V -> Prop.
 
       (** Relation betwixt two field instances. *)
@@ -119,6 +133,69 @@ Module Field.
       Definition relfs : fs K U -> fs K V -> Prop := Forall2 relf.
       (**[]*)
 
+      Ltac inv_prod_eq :=
+        match goal with
+        | H: (_,_) = (_,_) |- _ => inv H
+        end.
+      (**[]*)
+
+      Ltac let_pair_simpl :=
+        match goal with
+        | H: context [let (_,_) := ?x in _]
+          |- context [let (_,_) := ?x in _] => destruct x as [? ?] eqn:?
+        | H: context [let (_,_) := ?x in _] |- _ => destruct x as [? ?] eqn:?
+        | |- context [let (_,_) := ?x in _] => destruct x as [? ?] eqn:?
+        | H: (_,_) = (_,_) |- _ => inv H
+        end.
+      (**[]*)
+
+      Lemma relfs_split : forall us vs,
+          relfs us vs ->
+          let (xus, uus) := split us in
+          let (xvs, vvs) := split vs in
+          Forall2 keq xus xvs /\ Forall2 R uus vvs.
+      Proof.
+        intros us vs H; induction H;
+        unfold relf in *; unravel in *; intuition.
+        destruct x as [xu u]; destruct y as [xv v]; simpl in *.
+        repeat let_pair_simpl. intuition.
+      Qed.
+
+      Lemma combine_relfs : forall xus xvs uus vvs,
+          Forall2 keq xus xvs -> Forall2 R uus vvs ->
+          let us := combine xus uus in
+          let vs := combine xvs vvs in
+          relfs us vs.
+      Proof.
+        intros xus xvs uus vvs Hu Hv;
+        generalize dependent vvs; generalize dependent uus.
+        induction Hu; intros uus vvs Hv; inv Hv;
+        unfold relfs, relf in *; unravel in *; intuition.
+      Qed.
+
+      Lemma relfs_split_iff : forall us vs,
+          let (xus, uus) := split us in
+          let (xvs, vvs) := split vs in
+          relfs us vs <-> Forall2 keq xus xvs /\ Forall2 R uus vvs.
+      Proof.
+        intros; repeat let_pair_simpl; split.
+        - intros H. pose proof relfs_split us vs.
+          repeat let_pair_simpl; auto.
+        - intros [Hx Huv]. pose proof combine_relfs _ _ _ _ Hx Huv.
+          unravel in *. pose proof split_combine us.
+          pose proof split_combine vs. repeat let_pair_simpl; auto.
+      Qed.
+
+      Lemma relfs_split_map_iff : forall us vs,
+          relfs us vs <->
+          Forall2 keq (List.map fst us) (List.map fst vs) /\
+          Forall2 R (List.map snd us) (List.map snd vs).
+      Proof.
+        intros. pose proof relfs_split_iff us vs. repeat let_pair_simpl.
+        rewrite split_map in Heqp. rewrite split_map in Heqp0.
+        repeat let_pair_simpl. assumption.
+      Qed.
+
       Context `{EqDec K keq}.
 
       Lemma relfs_get_l : forall k u us vs,
@@ -128,17 +205,17 @@ Module Field.
         intros x u us vs HRs.
         generalize dependent x; generalize dependent u.
         induction HRs; intros u z Hu;
-        unravel in *; try discriminate;
-          destruct x as [xu u']; destruct y as [xv v']; inv H1; unravel in *.
+        unravel in *; try discriminate.
+        destruct x as [xu u']; destruct y as [xv v']; inv H0; unravel in *.
         destruct (equiv_dec z xu) as [Hzu | Hzu];
           destruct (equiv_dec z xv) as [Hzv | Hzv];
           unfold equiv, complement in *; eauto.
         - inv Hu. exists v'; auto.
         - assert (equiv z xv) by (etransitivity; eauto).
           contradiction.
-        - symmetry in H2.
-          assert (equiv z xu) by (etransitivity; eauto).
-          contradiction.
+        - symmetry in Hzv.
+          assert (keq xu z) by (etransitivity; eauto).
+          symmetry in H0; contradiction.
       Qed.
 
       Lemma relfs_get_r : forall k (v : V) us vs,
@@ -150,14 +227,14 @@ Module Field.
         generalize dependent v.
       induction HRs; intros v z Hu;
         unravel in *; try discriminate;
-      destruct x as [xu u']; destruct y as [xv v']; inv H1; unravel in *.
+      destruct x as [xu u']; destruct y as [xv v']; inv H0; unravel in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
       - inv Hu. exists u'; auto.
       - assert (equiv z xv) by (etransitivity; eauto).
         contradiction.
-      - symmetry in H2.
+      - symmetry in H1.
         assert (equiv z xu) by (etransitivity; eauto).
         contradiction.
       Qed.
@@ -173,14 +250,14 @@ Module Field.
       induction HRs; intros u v z Hu Hv;
         unravel in *; try discriminate.
       destruct x as [xu u']; destruct y as [xv v']; unravel in *.
-      inv H1; unravel in *.
+      inv H0; unravel in *.
       destruct (equiv_dec z xu) as [Hzu | Hzu];
         destruct (equiv_dec z xv) as [Hzv | Hzv];
         unfold equiv, complement in *; eauto.
       - inv Hu; inv Hv; auto.
       - assert (equiv z xv) by (etransitivity; eauto).
         contradiction.
-      - symmetry in H2.
+      - symmetry in H1.
         assert (equiv z xu) by (etransitivity; eauto).
         contradiction.
       Qed.

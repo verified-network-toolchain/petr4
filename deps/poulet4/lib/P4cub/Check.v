@@ -99,29 +99,30 @@ Module Typecheck.
     | UTBit w : uop_type E.BitNot {{ bit<w> }}
     | UTInt w : uop_type E.UMinus {{ int<w> }}.
 
-    (** Evidence that a binary operation is purely numeric. *)
-    Inductive numeric_bop : E.bop -> Prop :=
-    | numeric_bop_plus : numeric_bop E.Plus
-    | numeric_bop_plussat : numeric_bop E.PlusSat
-    | numeric_bop_minus : numeric_bop E.Minus
-    | numeric_bop_minussat : numeric_bop E.MinusSat
-    | numeric_bop_shl : numeric_bop E.Shl
-    | numeric_bop_shr : numeric_bop E.Shr
-    | numeric_bop_bitand : numeric_bop E.BitAnd
-    | numeric_bop_bitxor : numeric_bop E.BitXor
-    | numeric_bop_bitor : numeric_bop E.BitOr.
-
-    (** Evidence a binary operator gives a bool from numbers. *)
-    Inductive comp_bop : E.bop -> Prop :=
-    | comp_bop_le : comp_bop E.Le
-    | comp_bop_ge : comp_bop E.Ge
-    | comp_bop_lt : comp_bop E.Lt
-    | comp_bop_gt : comp_bop E.Gt.
-
-    (** Evidence a binary operator is purely boolean. *)
-    Inductive bool_bop : E.bop -> Prop :=
-    | bool_bop_and : bool_bop E.And
-    | bool_bop_or  : bool_bop E.Or.
+    (** Evidence a binary operation is valid
+        for operands of a type and produces some type. *)
+    Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
+    | BTPlus τ : numeric τ -> bop_type E.Plus τ τ τ
+    | BTPlusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
+    | BTMinus τ : numeric τ -> bop_type E.Plus τ τ τ
+    | BTMinusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
+    | BTShl τ : numeric τ -> bop_type E.Shl τ τ τ
+    | BTShr τ : numeric τ -> bop_type E.Shr τ τ τ
+    | BTBitAnd τ : numeric τ -> bop_type E.BitAnd τ τ τ
+    | BTBitXor τ : numeric τ -> bop_type E.BitXor τ τ τ
+    | BTBitOr τ : numeric τ -> bop_type E.BitOr τ τ τ
+    | BTLe τ : numeric τ -> bop_type E.Le τ τ {{ Bool }}
+    | BTLt τ : numeric τ -> bop_type E.Lt τ τ {{ Bool }}
+    | BTGe τ : numeric τ -> bop_type E.Ge τ τ {{ Bool }}
+    | BTGt τ : numeric τ -> bop_type E.Gt τ τ {{ Bool }}
+    | BTAnd : bop_type E.And {{ Bool }} {{ Bool }} {{ Bool }}
+    | BTOr : bop_type E.Or {{ Bool }} {{ Bool }} {{ Bool }}
+    | BTEq τ : bop_type E.Eq τ τ {{ Bool }}
+    | BTNotEq τ : bop_type E.NotEq τ τ {{ Bool }}
+    | BTPlusPlus w1 w2 w :
+        (w1 + w2)%positive = w ->
+        bop_type E.PlusPlus {{ bit<w1> }} {{ bit<w2> }} {{ bit<w> }}.
+    (**[]*)
 
     (** Evidence an error is ok. *)
     Inductive error_ok (errs : errors) : option string -> Prop :=
@@ -302,7 +303,7 @@ Module Typecheck.
       PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
   | chk_cast (τ τ' : E.t) (e : E.e tags_t) (i : tags_t) :
-      proper_cast τ τ' ->
+      proper_cast τ' τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
       ⟦ errs, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
   (* Unary operations. *)
@@ -311,37 +312,11 @@ Module Typecheck.
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       ⟦ errs, Γ ⟧ ⊢ UOP op e:τ @ i ∈ τ
   (* Binary Operations. *)
-  | chk_numeric_bop (op : E.bop) (τ : E.t)
-                    (e1 e2 : E.e tags_t) (i : tags_t) :
-      numeric τ -> numeric_bop op ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ @ i ∈ τ
-  | chk_comp_bop (op : E.bop) (τ : E.t)
-                 (e1 e2 : E.e tags_t) (i : tags_t) :
-      numeric τ -> comp_bop op ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ op e2:τ @ i ∈ Bool
-  | chk_bool_bop (op : E.bop) (e1 e2 : E.e tags_t) (i : tags_t) :
-      bool_bop op ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ Bool ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ Bool ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:Bool op e2:Bool @ i ∈ Bool
-  | chk_eq (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ == e2:τ @ i ∈ Bool
-  | chk_neq (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ != e2:τ @ i ∈ Bool
-  | chk_plusplus_bit (m n w : positive)
-                     (e1 e2 : E.e tags_t) (i : tags_t) :
-      (m + n)%positive = w ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
-      ⟦ errs , Γ ⟧ ⊢ BOP e1:bit<m> ++ e2:bit<n> @ i ∈ bit<w>
+  | chk_bop (op : E.bop) (τ1 τ2 τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
+      bop_type op τ1 τ2 τ ->
+      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ1 ->
+      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ2 ->
+      ⟦ errs , Γ ⟧ ⊢ BOP e1:τ1 op e2:τ2 @ i ∈ τ
   (* Member expressions. *)
   | chk_hdr_mem (e : E.e tags_t) (x : string)
                 (fields : F.fs string E.t)
@@ -439,7 +414,7 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HCast : forall errs Γ τ τ' e i,
-        proper_cast τ τ' ->
+        proper_cast τ' τ ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
         P errs Γ e τ' ->
         P errs Γ <{ Cast e:τ @ i }> τ.
@@ -451,57 +426,13 @@ Module Typecheck.
         P errs Γ e τ ->
         P errs Γ <{ UOP op e:τ @ i }> τ.
 
-    Hypothesis HNumericBOP : forall errs Γ op τ e1 e2 i,
-        numeric τ -> numeric_bop op ->
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-        P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        P errs Γ e2 τ ->
-        P errs Γ <{ BOP e1:τ op e2:τ @ i }> τ.
-    (**[]*)
-
-    Hypothesis HCompBOP : forall errs Γ op τ e1 e2 i,
-        numeric τ -> comp_bop op ->
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-        P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        P errs Γ e2 τ ->
-        P errs Γ <{ BOP e1:τ op e2:τ @ i }> {{ Bool }}.
-    (**[]*)
-
-    Hypothesis HBoolBOP : forall errs Γ op e1 e2 i,
-        bool_bop op ->
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ Bool ->
-        P errs Γ e1 {{ Bool }} ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ Bool ->
-        P errs Γ e2 {{ Bool }} ->
-        P errs Γ <{ BOP e1:Bool op e2:Bool @ i }> {{ Bool }}.
-    (**[]*)
-
-    Hypothesis HEq : forall errs Γ τ e1 e2 i,
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-        P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        P errs Γ e2 τ ->
-        P errs Γ <{ BOP e1:τ == e2:τ @ i }> {{ Bool }}.
-    (**[]*)
-
-    Hypothesis HNeq : forall errs Γ τ e1 e2 i,
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ ->
-        P errs Γ e1 τ ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ ->
-        P errs Γ e2 τ ->
-        P errs Γ <{ BOP e1:τ != e2:τ @ i }> {{ Bool }}.
-    (**[]*)
-
-    Hypothesis HPlusPlus : forall errs Γ m n w e1 e2 i,
-        (m + n)%positive = w ->
-        ⟦ errs , Γ ⟧ ⊢ e1 ∈ bit<m> ->
-        P errs Γ e1 {{ bit<m> }} ->
-        ⟦ errs , Γ ⟧ ⊢ e2 ∈ bit<n> ->
-        P errs Γ e2 {{ bit<n> }} ->
-        P errs Γ <{ BOP e1:bit<m> ++ e2:bit<n> @ i }> {{ bit<w> }}.
-    (**[]*)
+    Hypothesis HBop : forall errs Γ op τ1 τ2 τ e1 e2 i,
+        bop_type op τ1 τ2 τ ->
+        ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ1 ->
+        P errs Γ e1 τ1 ->
+        ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ2 ->
+        P errs Γ e2 τ2 ->
+        P errs Γ <{ BOP e1:τ1 op e2:τ2 @ i }> τ.
 
     Hypothesis HHdrMem : forall errs Γ e x fields τ i,
         F.get x fields = Some τ ->
@@ -655,41 +586,10 @@ Module Typecheck.
                                                   He (chind _ _ _ _ He)
             | chk_uop _ _ _ _ _ i Huop He => HUop _ _ _ _ _ i Huop
                                                  He (chind _ _ _ _ He)
-            | chk_numeric_bop _ _ _ _ _ _ i
-                              Hnum Hnumbop
-                              He1 He2 => HNumericBOP
-                                          _ _ _ _ _ _ i
-                                          Hnum Hnumbop
+            | chk_bop _ _ _ _ _ _ _ _ i
+                      Hbop He1 He2 => HBop _ _ _ _ _ _ _ _ i Hbop
                                           He1 (chind _ _ _ _ He1)
                                           He2 (chind _ _ _ _ He2)
-            | chk_comp_bop _ _ _ _ _ _ i
-                           Hnum Hcomp
-                           He1 He2 => HCompBOP
-                                       _ _ _ _ _ _ i
-                                       Hnum Hcomp
-                                       He1 (chind _ _ _ _ He1)
-                                       He2 (chind _ _ _ _ He2)
-            | chk_bool_bop _ _ _ _ _ i Hboolbop
-                           He1 He2 => HBoolBOP
-                                       _ _ _ _ _ i Hboolbop
-                                       He1 (chind _ _ _ _ He1)
-                                       He2 (chind _ _ _ _ He2)
-            | chk_eq _ _ _ _ _ i
-                     He1 He2 => HEq
-                                 _ _ _ _ _ i
-                                 He1 (chind _ _ _ _ He1)
-                                 He2 (chind _ _ _ _ He2)
-            | chk_neq _ _ _ _ _ i
-                      He1 He2 => HNeq
-                                  _ _ _ _ _ i
-                                  He1 (chind _ _ _ _ He1)
-                                  He2 (chind _ _ _ _ He2)
-            | chk_plusplus_bit _ _ _ _ _ _ _ i
-                               Hmnw
-                               He1 He2 => HPlusPlus
-                                           _ _ _ _ _ _ _ i Hmnw
-                                           He1 (chind _ _ _ _ He1)
-                                           He2 (chind _ _ _ _ He2)
             | chk_hdr_mem _ _ _ x _ _ i
                           HIn He => HHdrMem
                                      _ _ _ x _ _ i HIn

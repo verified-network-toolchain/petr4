@@ -174,7 +174,7 @@ Module Step.
 
     Lemma eval_cast_types : forall errs Γ τ τ' v v',
         eval_cast τ' v = Some v' ->
-        proper_cast τ' τ ->
+        proper_cast τ τ' ->
         ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
         ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
     Proof.
@@ -194,24 +194,6 @@ Module Step.
           | H: Some _ = Some _ |- _ => inv H; try constructor; auto
           end;
       try match goal with
-          | n: N |- _ => destruct n;
-            try match goal with
-                | H: _ = Some _ |- _ => inv H; constructor; auto
-                end
-          end;
-      try match goal with
-          | z: Z |- _ => destruct z;
-            try match goal with
-                | H: _ = Some _ |- _ => inv H; constructor; auto
-                end
-          end;
-      try match goal with
-          | p: positive |- _ => destruct p;
-           try match goal with
-               | H: _ = Some _ |- _ => inv H; constructor; auto
-               end
-          end;
-      try match goal with
           | |- BitArith.bound _ _
             => unfold BitArith.bound, BitArith.upper_bound; cbv; auto
           end.
@@ -220,17 +202,16 @@ Module Step.
     Lemma eval_cast_exists : forall errs Γ e τ τ',
         V.value e ->
         proper_cast τ τ' ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
-        exists v, eval_cast τ e = Some v.
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        exists v, eval_cast τ' e = Some v.
     Proof.
       intros ? ? ? ? ? Hv Hpc Het; inv Hpc; inv Hv; inv Het;
       unravel; unfold BitArith.bound, IntArith.bound,
                BitArith.upper_bound, IntArith.maxZ,
                IntArith.minZ, IntArith.upper_bound, Pos.pow in *;
       simpl in *; eauto.
-      - destruct n; eauto. destruct p; try lia; eauto.
-      - destruct w; destruct z; eauto.
-      - destruct w1; eauto.
+      - destruct b; eauto.
+      - destruct w2; eauto.
     Qed.
 
     (** Unary Operations. *)
@@ -246,6 +227,17 @@ Module Step.
       end.
     (**[]*)
 
+    Lemma eval_uop_types : forall errs Γ op e v τ,
+        uop_type op τ -> V.value e -> eval_uop op e = Some v ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      Hint Resolve BitArith.neg_bound : core.
+      Hint Resolve IntArith.return_bound_bound : core.
+      intros errs Γ op e v τ Huop Hev Heval Het;
+      inv Huop; inv Hev; inv Het; unravel in *; inv Heval;
+      constructor; try unfold_int_operation; auto.
+    Qed.
+
     Lemma eval_uop_exists : forall op errs Γ e τ,
         uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
@@ -254,180 +246,99 @@ Module Step.
       destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
     Qed.
 
-    (** Unsigned integer binary operations. *)
-    Definition eval_bit_binop
-               (op : E.bop) (w : positive)
-               (n1 n2 : N) (i : tags_t) : option (E.e tags_t) :=
-      match op with
-      | E.Plus     => Some (E.EBit w (BitArith.plus_mod w n1 n2) i)
-      | E.PlusSat  => Some (E.EBit w (BitArith.plus_sat w n1 n2) i)
-      | E.Minus    => Some (E.EBit w (BitArith.minus_mod w n1 n2) i)
-      | E.MinusSat => Some (E.EBit w (BitArith.return_bound w # N.sub n1 n2) i)
-      | E.Shl      => Some (E.EBit w (BitArith.shift_left w n1 n2) i)
-      | E.Shr      => Some (E.EBit w (BitArith.shift_right w n1 n2) i)
-      | E.Le       => Some (E.EBool (N.leb n1 n2) i)
-      | E.Ge       => Some (E.EBool (N.leb n2 n1) i)
-      | E.Lt       => Some (E.EBool (N.ltb n1 n2) i)
-      | E.Gt       => Some (E.EBool (N.ltb n2 n1) i)
-      | E.Eq       => Some (E.EBool (N.eqb n1 n2) i)
-      | E.NotEq    => Some (E.EBool (negb (N.eqb n1 n2)) i)
-      | E.BitAnd   => Some (E.EBit w (BitArith.bit_and w n1 n2) i)
-      | E.BitXor   => Some (E.EBit w (BitArith.bit_xor w n1 n2) i)
-      | E.BitOr    => Some (E.EBit w (BitArith.bit_or  w n1 n2) i)
-      | E.PlusPlus
-      | E.And
-      | E.Or       => None
-      end.
-    (**[]*)
-
-    Lemma eval_bit_binop_numeric : forall errs Γ op w n1 n2 i v,
-        numeric_bop op ->
-        eval_bit_binop op w n1 n2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ bit<w>.
-    Proof.
-      Hint Resolve BitArith.return_bound_bound : core.
-      Hint Resolve BitArith.neg_bound : core.
-      Hint Resolve BitArith.plus_mod_bound : core.
-      Hint Extern 5 => unfold_bit_operation : core.
-      Hint Extern 5 =>
-      match goal with
-      | |- context [_ # _ ] => unfold "#"
-      end : core.
-      intros;
-      match goal with
-      | H: numeric_bop _ |- _ => inv H; simpl in *
-      end;
-      try match goal with
-          | H: Some _ = Some _ |- _ => inv H; constructor
-          end; auto.
-    Qed.
-
-    Lemma eval_bit_binop_comp : forall errs Γ op w n1 n2 i v,
-        comp_bop op ->
-        eval_bit_binop op w n1 n2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ Bool.
-    Proof.
-      Hint Resolve BitArith.return_bound_bound : core.
-      Hint Extern 5 => unfold_bit_operation : core.
-      Hint Extern 5 =>
-      match goal with
-      | |- context [_ # _ ] => unfold "#"
-      end : core.
-      intros;
-      match goal with
-      | H: comp_bop _ |- _ => inv H; simpl in *
-      end;
-      try match goal with
-          | H: Some _ = Some _ |- _ => inv H; constructor
-          end; auto.
-    Qed.
-
-    (** Signed integer binary operations. *)
-    Definition eval_int_binop
-               (op : E.bop) (w : positive)
-               (z1 z2 : Z) (i : tags_t) : option (E.e tags_t) :=
-      match op with
-      | E.Plus     => Some # E.EInt w (IntArith.plus_mod w z1 z2) i
-      | E.PlusSat  => Some # E.EInt w (IntArith.plus_sat w z1 z2) i
-      | E.Minus    => Some # E.EInt w (IntArith.minus_mod w z1 z2) i
-      | E.MinusSat => Some # E.EInt w (IntArith.minus_sat w z1 z2) i
-      | E.Shl      => Some # E.EInt w (IntArith.shift_left w z1 z2) i
-      | E.Shr      => Some # E.EInt w (IntArith.shift_right w z1 z2) i
-      | E.Le       => Some # E.EBool (Z.leb z1 z2) i
-      | E.Ge       => Some # E.EBool (Z.leb z2 z1) i
-      | E.Lt       => Some # E.EBool (Z.ltb z1 z2) i
-      | E.Gt       => Some # E.EBool (Z.ltb z2 z1) i
-      | E.Eq       => Some # E.EBool (Z.eqb z1 z2) i
-      | E.NotEq    => Some # E.EBool (negb (Z.eqb z1 z2)) i
-      | E.BitAnd   => Some # E.EInt w (IntArith.bit_and w z1 z2) i
-      | E.BitXor   => Some # E.EInt w (IntArith.bit_xor w z1 z2) i
-      | E.BitOr    => Some # E.EInt w (IntArith.bit_or  w z1 z2) i
-      | E.PlusPlus
-      | E.And
-      | E.Or       => None
-      end.
-    (**[]*)
-
-    Lemma eval_int_binop_numeric : forall errs Γ op w n1 n2 i v,
-        numeric_bop op ->
-        eval_int_binop op w n1 n2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ int<w>.
-    Proof.
-      Hint Resolve IntArith.return_bound_bound : core.
-      Hint Extern 4 => unfold_int_operation : core.
-      intros;
-      match goal with
-      | H: numeric_bop _ |- _ => inv H; simpl in *
-      end; unfold "#" in *;
-      try match goal with
-          | H: Some _ = Some _ |- _ => inv H; constructor
-          end; auto.
-    Qed.
-
-    Lemma eval_int_binop_comp : forall errs Γ op w n1 n2 i v,
-        comp_bop op ->
-        eval_int_binop op w n1 n2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ Bool.
-    Proof.
-      Hint Resolve IntArith.return_bound_bound : core.
-      Hint Extern 5 => unfold_int_operation : core.
-      intros;
-      match goal with
-      | H: comp_bop _ |- _ => inv H; simpl in *
-      end; unfold "#" in *;
-      try match goal with
-          | H: Some _ = Some _ |- _ => inv H; constructor
-          end; auto.
-    Qed.
-
-    (** Boolean binary operations. *)
-    Definition eval_bool_binop (op : E.bop) (b1 b2 : bool) : option bool :=
-      match op with
-      | E.Eq    => Some # eqb b1 b2
-      | E.NotEq => Some # negb (eqb b1 b2)
-      | E.And   => Some # b1 && b2
-      | E.Or    => Some # b1 || b2
-      | _       => None
-      end.
-    (**[]*)
-
-    (** Equality operations. *)
-    Definition eval_eq_binop (op : E.bop) (e1 e2 : E.e tags_t) : option bool :=
-      match op with
-      | E.Eq    => Some # E.ExprEquivalence.eqbe e1 e2
-      | E.NotEq => Some # negb # E.ExprEquivalence.eqbe e1 e2
-      | _       => None
-      end.
-    (**[]*)
-
     (** Binary operations. *)
-    Definition eval_binop
-               (op : E.bop) (e1 e2 : E.e tags_t)
-               (i : tags_t) : option (E.e tags_t) :=
-      match e1, e2 with
-      | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }>
-        => option_map (fun b => <{ BOOL b @ i }>)
-                     # eval_bool_binop op b1 b2
-      | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-        => if (w1 =? w2)%positive then
-            eval_bit_binop op w1 n1 n2 i
-          else
-            match op with
-            | E.PlusPlus
-              => let w := (w1 + w2)%positive in
-                let n := BitArith.bit_concat w1 w2 n1 n2 in
-                Some <{ w W n @ i }>
-            | _ => None
-            end
-      | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
-        => if (w1 =? w2)%positive then
-            eval_int_binop op w1 z1 z2 i
-          else
-            None
-      | _, _ => option_map (fun b => <{ BOOL b @ i }>)
-                          # eval_eq_binop op e1 e2
+    Definition eval_bop
+               (op : E.bop) (v1 v2 : E.e tags_t) (i : tags_t) : option (E.e tags_t) :=
+      match op, v1, v2 with
+      | E.Plus, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.plus_mod w n1 n2) i
+      | E.Plus, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.plus_mod w z1 z2) i
+      | E.PlusSat, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.plus_sat w n1 n2) i
+      | E.PlusSat,  <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.plus_sat w z1 z2) i
+      | E.Minus, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.minus_mod w n1 n2) i
+      | E.Minus, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.minus_mod w z1 z2) i
+      | E.MinusSat, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.return_bound w # N.sub n1 n2) i
+      | E.MinusSat, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.minus_sat w z1 z2) i
+      | E.Shl, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.shift_left w n1 n2) i
+      | E.Shl, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.shift_left w z1 z2) i
+      | E.Shr, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.shift_right w n1 n2) i
+      | E.Shr, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.shift_right w z1 z2) i
+      | E.BitAnd, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.bit_and w n1 n2) i
+      | E.BitAnd, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.bit_and w z1 z2) i
+      | E.BitXor, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.bit_xor w n1 n2) i
+      | E.BitXor, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.bit_xor w z1 z2) i
+      | E.BitOr, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.bit_or w n1 n2) i
+      | E.BitOr, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+        => Some # E.EInt w (IntArith.bit_or w z1 z2) i
+      | E.Le, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <=? n2)%N i
+      | E.Le, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z1 <=? z2)%Z i
+      | E.Lt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <? n2)%N i
+      | E.Lt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z1 <? z2)%Z i
+      | E.Ge, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <=? n1)%N i
+      | E.Ge, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z2 <=? z1)%Z i
+      | E.Gt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <? n1)%N i
+      | E.Gt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z2 <? z1)%Z i
+      | E.And, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some # E.EBool (b1 && b2) i
+      | E.Or, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some # E.EBool (b1 || b2) i
+      | E.Eq, _, _ => Some # E.EBool (E.ExprEquivalence.eqbe v1 v2) i
+      | E.NotEq, _, _ => Some # E.EBool (negb # E.ExprEquivalence.eqbe v1 v2) i
+      | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
+        => Some # E.EBit (w1 + w2)%positive (BitArith.bit_concat w1 w2 n1 n2) i
+      | _, _, _ => None
       end.
     (**[]*)
+
+    Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
+        bop_type op τ1 τ2 τ ->
+        V.value v1 -> V.value v2 ->
+        eval_bop op v1 v2 i = Some v ->
+        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+    Proof.
+      Hint Resolve BitArith.return_bound_bound : core.
+      Hint Resolve BitArith.plus_mod_bound : core.
+      Hint Resolve IntArith.return_bound_bound : core.
+      intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
+      inv Hbop; unravel in *;
+      repeat match goal with
+             | H: Some _ = Some _ |- _ => inv H; constructor; auto
+             | H: numeric _ |- _ => inv H
+             | H: numeric_width _ _ |- _ => inv H
+             | |- BitArith.bound _ _ => unfold_bit_operation; auto
+             | |- IntArith.bound _ _ => unfold_int_operation; auto
+             | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
+             end.
+    Qed.
+
+    Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
+        bop_type op τ1 τ2 τ ->
+        V.value v1 -> V.value v2 ->
+        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 ->
+        exists v, eval_bop op v1 v2 i = Some v.
+    Proof.
+      intros errs Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
+      inv Hbop; unravel in *;
+      repeat match goal with
+             | H: numeric _ |- _ => inv H
+             | H: numeric_width _ _ |- _ => inv H
+             | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
+             end; eauto.
+    Qed.
 
     (** Get header data from value. *)
     Definition header_data (v : E.e tags_t)
@@ -703,7 +614,7 @@ Module Step.
       ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
   | step_bop_eval (op : E.bop) (τl τr : E.t)
                   (vv vl vr : E.e tags_t) (i : tags_t) :
-      eval_binop op vl vr i = Some vv ->
+      eval_bop op vl vr i = Some vv ->
       V.value vl -> V.value vr ->
       ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
   | step_member (x : string) (τ : E.t)

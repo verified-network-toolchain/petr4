@@ -104,6 +104,7 @@ Ltac unfold_bit_operation :=
   | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
   | |- context [ BitArith.bit_xor _ _ ] => unfold BitArith.bit_xor
   | |- context [ BitArith.bit_or _ _ ] => unfold BitArith.bit_or
+  | |- context [ BitArith.bit_concat _ _ _ _ ] => unfold BitArith.bit_concat
   end.
 
 (** * Signed Integers *)

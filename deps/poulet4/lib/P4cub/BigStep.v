@@ -271,6 +271,16 @@ Module Step.
         intros errs op ts vs b Hpc H; destruct op; unravel in *; auto.
       Qed.
 
+      Ltac inv_proper_stack :=
+        match goal with
+        | H: PT.proper_nesting {{ stack _ [_] }}
+          |- _ => inv H;
+                try match goal with
+                    | H: PT.base_type {{ stack _ [_] }} |- _ => inv H
+                    end
+        end.
+      (**[]*)
+
       Lemma eval_stk_op_types : forall errs op n ni ts hs v,
           eval_stk_op op n ni ts hs = Some v ->
           BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
@@ -291,9 +301,20 @@ Module Step.
         Hint Rewrite firstn_length.
         Hint Rewrite skipn_length.
         Hint Rewrite Forall_app.
+        Hint Rewrite (@F.map_snd string).
+        Hint Rewrite (@map_compose (F.f string E.t)).
+        Hint Rewrite (@Forall2_map_l E.t).
+        Hint Rewrite (@Forall2_Forall E.t).
+        Hint Rewrite (@F.predfs_data_map string).
+        Hint Rewrite (@F.relfs_split_map_iff).
+        Hint Rewrite (@F.map_fst string).
+        Hint Resolve PT.proper_inside_header_nesting : core.
+        Hint Resolve Forall_impl : core.
         Hint Resolve repeat_Forall : core.
         Hint Resolve vdefault_types : core.
         Hint Resolve PT.pn_header : core.
+        Hint Resolve Forall_firstn : core.
+        Hint Resolve Forall_skipn : core.
         intros errs op n ni ts hs v Heval Hn Hni Hnhs Hpn H;
         destruct op; unravel in *;
         repeat match goal with
@@ -309,18 +330,19 @@ Module Step.
                   end; auto.
           + apply (Forall_nth_error _ hs (N.to_nat ni) (b, vs)) in H;
             inv H; auto.
-        - split.
-          + apply repeat_Forall; simpl.
-            inv Hpn; try match goal with
-                         | H: PT.base_type {{ stack _ [_] }} |- _ => inv H
-                         end. constructor; auto.
-            rewrite F.relfs_split_map_iff.
-            rewrite F.map_fst; intuition.
-            rewrite F.map_snd. rewrite map_compose.
-            rewrite Forall2_map_l; unravel.
-            rewrite Forall2_Forall. apply Forall_duh; intros.
-            (* TODO *)
-      Admitted.
+        - split; auto. apply repeat_Forall; simpl.
+          inv_proper_stack; constructor; auto;
+          autorewrite with core in *; intuition; eauto.
+        - apply repeat_Forall; simpl.
+          inv_proper_stack; constructor; auto;
+          autorewrite with core in *; intuition; eauto.
+        - split; auto. apply repeat_Forall; simpl.
+          inv_proper_stack; constructor; auto;
+          autorewrite with core in *; intuition; eauto.
+        - apply repeat_Forall; simpl.
+          inv_proper_stack; constructor; auto;
+          autorewrite with core in *; intuition; eauto.
+      Qed.
     End Lemmas.
 
     (** Variable to Value mappings. *)

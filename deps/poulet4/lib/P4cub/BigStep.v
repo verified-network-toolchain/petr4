@@ -301,13 +301,13 @@ Module Step.
         Hint Rewrite firstn_length.
         Hint Rewrite skipn_length.
         Hint Rewrite Forall_app.
-        Hint Rewrite (@F.map_snd string).
-        Hint Rewrite (@map_compose (F.f string E.t)).
+        Hint Rewrite @F.map_snd.
+        Hint Rewrite @map_compose.
         Hint Rewrite (@Forall2_map_l E.t).
         Hint Rewrite (@Forall2_Forall E.t).
-        Hint Rewrite (@F.predfs_data_map string).
-        Hint Rewrite (@F.relfs_split_map_iff).
-        Hint Rewrite (@F.map_fst string).
+        Hint Rewrite @F.predfs_data_map.
+        Hint Rewrite @F.relfs_split_map_iff.
+        Hint Rewrite @F.map_fst.
         Hint Resolve PT.proper_inside_header_nesting : core.
         Hint Resolve Forall_impl : core.
         Hint Resolve repeat_Forall : core.
@@ -321,27 +321,33 @@ Module Step.
                | H: Some _ = Some _ |- _ => inv H
                | H: (if ?b then _ else _) = _ |- _ => destruct b as [? | ?]
                end; try constructor; try (destruct n; lia);
-        autorewrite with core; try lia; auto.
+        autorewrite with core; try lia; auto;
+        try (split; auto); inv_proper_stack;
+        try (apply repeat_Forall; simpl; constructor; auto;
+             autorewrite with core in *; intuition; eauto).
         - destruct (nth_error hs (N.to_nat ni)) as [[b vs] |] eqn:equack;
-          inv Heval; constructor.
-          + apply PT.pn_header; inv Hpn;
-              try match goal with
-                  | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-                  end; auto.
-          + apply (Forall_nth_error _ hs (N.to_nat ni) (b, vs)) in H;
-            inv H; auto.
-        - split; auto. apply repeat_Forall; simpl.
-          inv_proper_stack; constructor; auto;
-          autorewrite with core in *; intuition; eauto.
-        - apply repeat_Forall; simpl.
-          inv_proper_stack; constructor; auto;
-          autorewrite with core in *; intuition; eauto.
-        - split; auto. apply repeat_Forall; simpl.
-          inv_proper_stack; constructor; auto;
-          autorewrite with core in *; intuition; eauto.
-        - apply repeat_Forall; simpl.
-          inv_proper_stack; constructor; auto;
-          autorewrite with core in *; intuition; eauto.
+          inv Heval; constructor; auto.
+          apply (Forall_nth_error _ hs (N.to_nat ni) (b, vs)) in H; inv H; auto.
+      Qed.
+
+      Lemma eval_stk_op_exists : forall errs op n ni ts hs,
+          BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+          Pos.to_nat n = length hs ->
+          PT.proper_nesting {{ stack ts[n] }} ->
+          Forall
+            (fun bvs =>
+               let b := fst bvs in
+               let vs := snd bvs in
+               ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
+          exists v, eval_stk_op op n ni ts hs = Some v.
+      Proof.
+        intros errs op n ni ts hs Hn Hni Hnhs Hpn H;
+        destruct op; unravel; eauto.
+        - assert (Hnith : N.to_nat ni < length hs) by lia.
+          pose proof nth_error_exists _ _ Hnith as [[b vs] Hexists].
+          rewrite Hexists. eauto.
+        - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
+        - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
       Qed.
     End Lemmas.
 

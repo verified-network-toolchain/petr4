@@ -41,171 +41,50 @@ Section BigStepTheorems.
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       ∇ errs ⊢ v ∈ τ.
   Proof.
-    intros errs Γ e τ ϵ v Het Hev.
+    Hint Resolve eval_uop_types : core.
+    Hint Resolve eval_bop_type : core.
+    Hint Resolve eval_cast_types : core.
+    Hint Resolve eval_hdr_op_types : core.
+    Hint Resolve eval_stk_op_types : core.
+    Hint Constructors PT.proper_nesting : core.
+    Hint Constructors check_expr : core.
+    unfold envs_type; intros errs Γ e τ ϵ v Het Hev.
     generalize dependent τ.
-    unfold envs_type in Het.
-    induction Hev using custom_expr_big_step_ind;
-      intros t Ht; inv Ht; try constructor; eauto. (*
-    - pose proof IHHev Het _ H5 as IH; clear IHHev H5.
-      inv H4; inv IH; simpl in *.
-      + destruct n; try discriminate; inv H; try constructor.
-        destruct p; try discriminate; inv H1; constructor.
-      + destruct w; destruct z; inv H; constructor;
-          try apply BitArith.return_bound_bound;
-          unfold BitArith.bound; unfold BitArith.upper_bound.
-        * pose proof BitArith.exp_ge_one 2 (N.pos w~1); lia.
-        * pose proof BitArith.exp_ge_one 2 (N.pos w~0); lia.
-        * simpl; lia.
-      + destruct w1; inv H; constructor; apply BitArith.return_bound_bound.
-      + inv H; constructor; apply IntArith.return_bound_bound.
-    - inv H2; auto.
-    - apply BitArith.neg_bound.
-    - unfold_int_operation; apply IntArith.return_bound_bound.
-    - apply IHHev1 in H9; auto; clear IHHev1.
-      apply IHHev2 in H10; auto; clear IHHev2.
-      destruct op; unfold eval_bit_binop in *;
-        inv H; inv H7; inv H8; inv H9; inv H10; constructor;
-          try apply BitArith.plus_mod_bound;
-          try unfold_bit_operation;
-          try apply BitArith.return_bound_bound.
-      unfold BitArith.bound, BitArith.upper_bound in *. lia.
-    - destruct op; unfold eval_bool_binop in *;
-        inv H; inv H7; inv H8; inv H9; inv H10; constructor.
-    - unfold eval_bit_binop in *; inv H; constructor.
-    - unfold eval_bit_binop in *; inv H; constructor.
-    - unfold eval_bit_binop in *; inv H; constructor.
-    - inv H9.
-    - inv H9.
-    - unfold BitArith.bit_concat; apply BitArith.return_bound_bound.
-    - apply IHHev1 in H9; auto; clear IHHev1.
-      apply IHHev2 in H10; auto; clear IHHev2.
-      inv H8; unfold eval_bit_binop in *;
-        inv H; inv H9; inv H10; constructor;
-          unfold_int_operation;
-          try apply IntArith.return_bound_bound.
-    - inv H8; unfold eval_bool_binop in *;
-        inv H; inv H9; inv H10; constructor.
-    - inv H; constructor.
-    - inv H; constructor.
-    - inv H8.
-    - inv H8.
-    - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
-      eapply F.get_relfs in H2; eauto.
-    - pose proof IHHev Het _ H6 as IH; clear IHHev; inv IH.
-      eapply F.get_relfs in H4; eauto.
-    - generalize dependent ts; rename H0 into Hesvs.
-      induction H; inv Hesvs; intros ts Hests; inv Hests; constructor; eauto.
-    - generalize dependent tfs; rename H0 into Hesvs.
-      induction H; inv Hesvs;
-        intros ts Hests; inv Hests; constructor.
-      destruct x as [x [τ e]]; destruct y as [y v];
-        destruct y0 as [z t]; repeat relf_destruct;
-          unfold equiv in *; simpl in *; subst.
-      + split; simpl;
-          try (transitivity x; auto; symmetry; assumption);
-          destruct H2; auto.
-      + apply IHForall2; auto.
-    - clear e H4 H7 IHHev Hev.
-      generalize dependent tfs; rename H0 into Hesvs.
-      induction H; inv Hesvs;
-        intros ts Hests; inv Hests; constructor.
-      destruct x as [x [τ e]]; destruct y as [y v];
-        destruct y0 as [z t]; repeat relf_destruct;
-          unfold equiv in *; simpl in *; subst.
-      + split; simpl;
-          try (transitivity x; auto; symmetry; assumption);
-          destruct H2; auto.
-      + apply IHForall2; auto.
-    - destruct op; simpl in *; constructor;
-        pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH; auto.
-    - rewrite H8. eapply Forall2_length; eauto.
-    - clear n ni H5 H6 H8 H9.
-      rename H0 into Hhsvss; rename H10 into Hhs.
-      induction H; inv Hhsvss; inv Hhs; constructor;
-        destruct y as [b vs]; eauto.
-    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
-      inv H11. inv H0. apply PT.pn_header. assumption.
-    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv IH.
-      eapply Forall_nth_error in H12; eauto; simpl in *.
-      inv H12; auto.
-    - pose proof IHHev Het _ H5 as IH; clear IHHev; inv H.
-      destruct op; simpl in *; inv IH.
-      + destruct (nth_error bvss (N.to_nat nextIndex))
-          as [[b vs] |] eqn:eqnth; try discriminate; inv H1.
-        apply nth_error_In in eqnth.
-        eapply Forall_forall in H11; eauto; simpl in *; auto.
-      + inv H1; constructor; auto.
-      + destruct
-          (Compare_dec.lt_dec (N.to_nat n) (BinPos.Pos.to_nat size1))
-          as [Hlt | Hlt]; inv H1; constructor; auto.
-        * destruct size1; try lia.
-        * rewrite app_length.
-          rewrite repeat_length.
-          rewrite firstn_length_le by lia.
-          rewrite Minus.le_plus_minus_r; lia.
-        * apply Forall_app; split.
-          -- inv H10;
-               try match goal with
-                   | H:PT.base_type {{ stack _[_] }} |- _ => inv H
-                   end.
-             clear bvss Hev H9 H11 size1 H1 H5 Hlt H7 H8 nextIndex e i.
-             apply repeat_Forall; simpl; constructor.
-             ++ apply PT.pn_header; assumption.
-             ++ induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
-                  unfold F.predf_data, Basics.compose in *; simpl in *;
-                    intuition. split; simpl; try reflexivity.
-                apply vdefault_types.
-                apply PT.proper_inside_header_nesting; auto.
-          -- apply Forall_firstn; auto.
-        * destruct size1; lia.
-        * rewrite repeat_length; reflexivity.
-        * inv H10;
-            try match goal with
-                | H:PT.base_type {{ stack _[_] }} |- _ => inv H
-                end.
-          clear bvss Hev H9 H11 H1 H5 Hlt H7 H8 nextIndex e i.
-          apply repeat_Forall; simpl; constructor.
-          -- apply PT.pn_header; assumption.
-          -- induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
-               unfold F.predf_data, Basics.compose in *; simpl in *;
-                 intuition. split; simpl; try reflexivity.
-             apply vdefault_types.
-             apply PT.proper_inside_header_nesting; auto.
-      + destruct
-          (Compare_dec.lt_dec (N.to_nat n) (BinPos.Pos.to_nat size1))
-          as [Hlt | Hlt]; inv H1; constructor; auto; try lia.
-        * rewrite app_length.
-          rewrite repeat_length.
-          rewrite skipn_length.
-          rewrite PeanoNat.Nat.sub_add by lia; lia.
-        * apply Forall_app; split.
-          -- apply Forall_skipn; auto.
-          -- inv H10;
-               try match goal with
-                   | H:PT.base_type {{ stack _[_] }} |- _ => inv H
-                   end.
-             clear bvss Hev H9 H11 size1 H1 H5 Hlt H7 H8 nextIndex e i.
-             apply repeat_Forall; simpl; constructor.
-             ++ apply PT.pn_header; assumption.
-             ++ induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
-                  unfold F.predf_data, Basics.compose in *; simpl in *;
-                    intuition. split; simpl; try reflexivity.
-                apply vdefault_types.
-                apply PT.proper_inside_header_nesting; auto.
-        * rewrite repeat_length; reflexivity.
-        * inv H10;
-            try match goal with
-                | H:PT.base_type {{ stack _[_] }} |- _ => inv H
-                end.
-          clear bvss Hev H9 H11 H1 H5 Hlt H7 H8 nextIndex e i.
-          apply repeat_Forall; simpl; constructor.
-          -- apply PT.pn_header; assumption.
-          -- induction ts0 as [| [x t] ts IHts]; inv H2; constructor;
-               unfold F.predf_data, Basics.compose in *; simpl in *;
-                 intuition. split; simpl; try reflexivity.
-             apply vdefault_types.
-             apply PT.proper_inside_header_nesting; auto. *)
-  Admitted.
+    induction Hev using custom_expr_big_step_ind; intros t Ht; inv Ht;
+    try constructor; eauto;
+    repeat match goal with
+           | H: error_ok _ _ |- _ => inv H; eauto
+           | IHHev: (?P -> forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> ∇ errs ⊢ _ ∈ _),
+             HP : ?P, He: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+             |- _ => pose proof IHHev HP _ He as IH; clear IHHev; inv IH
+           | Hget: F.get _ ?fs = Some ?t, Hfs: F.relfs _ _ ?fs
+             |- context [ ?t ] => eapply F.get_relfs in Hfs
+           end; eauto.
+    - generalize dependent ts;
+      induction H; intros []; intros; repeat inv_Forall2_cons; intuition.
+    - generalize dependent tfs;
+      ind_relfs; intros [| [? ?] ?]; intros;
+      repeat invert_nil_cons_relate; repeat invert_cons_cons_relate;
+      constructor; unfold F.relf in *; unravel; intuition.
+      apply H2; auto.
+    - generalize dependent tfs;
+      ind_relfs; intros [| [? ?] ?]; intros;
+      repeat invert_nil_cons_relate; repeat invert_cons_cons_relate;
+      constructor; unfold F.relf in *; unravel; intuition.
+      inv H4; try match goal with
+                  | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
+                  end.
+      invert_cons_predfs ; apply H2; auto.
+    - apply Forall2_length in H; lia.
+    - clear n ni H5 H6 H8 H9; generalize dependent ts;
+      induction H; intros []; intros;
+        try inv_Forall2_cons; try inv_Forall_cons; intuition.
+    - inv H11; try match goal with
+                   | H: PT.base_type {{ stack _[_] }} |- _ => inv H
+                   end; auto.
+    - eapply Forall_nth_error in H12; simpl in *; eauto.
+      simpl in *; inv H12; auto.
+  Qed.
 
   Theorem expr_big_step_progress :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)

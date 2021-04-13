@@ -579,6 +579,22 @@ Module Step.
              end; autorewrite with core in *; eauto).
       eapply Forall_nth_error in H4; eauto; simpl in *; auto.
     Qed.
+
+    Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
+        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        Pos.to_nat n = length hs ->
+        PT.proper_nesting {{ stack ts[n] }} ->
+        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+        exists v, eval_stk_op i op n ni ts hs = Some v.
+    Proof.
+      intros errs Γ i op n ni ts hs Hn Hni Hnhs Hpt H;
+      destruct op; unravel; eauto.
+      - assert (Hnihs : N.to_nat ni < length hs) by lia.
+        pose proof nth_error_exists _ _ Hnihs as [v Hnth].
+        rewrite Hnth. eauto.
+      - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
+      - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
+    Qed.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)

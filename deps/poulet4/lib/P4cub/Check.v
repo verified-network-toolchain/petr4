@@ -163,6 +163,11 @@ Module Typecheck.
     | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
     | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}.
 
+    (** Evidence member operations are valid on a type. *)
+    Inductive member_type : F.fs string E.t -> E.t -> Prop :=
+    | mt_rec ts : member_type ts {{ rec { ts } }}
+    | mt_hdr ts : member_type ts {{ hdr { ts } }}.
+
     (** Available functions. *)
     Definition fenv : Type := Env.t string E.arrowT.
 
@@ -318,18 +323,13 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ2 ->
       ⟦ errs , Γ ⟧ ⊢ BOP e1:τ1 op e2:τ2 @ i ∈ τ
   (* Member expressions. *)
-  | chk_hdr_mem (e : E.e tags_t) (x : string)
-                (fields : F.fs string E.t)
-                (τ : E.t) (i : tags_t) :
-      F.get x fields = Some τ ->
-      ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
-      ⟦ errs , Γ ⟧ ⊢ Mem e:hdr { fields } dot x @ i ∈ τ
-  | chk_rec_mem (e : E.e tags_t) (x : string)
-                (fields : F.fs string E.t)
-                (τ : E.t) (i : tags_t) :
-      F.get x fields = Some τ ->
-      ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
-      ⟦ errs , Γ ⟧ ⊢ Mem e:rec { fields } dot x @ i ∈ τ
+  | chk_mem (e : E.e tags_t) (x : string)
+            (fs : F.fs string E.t)
+            (τ τ' : E.t) (i : tags_t) :
+      F.get x fs = Some τ' ->
+      member_type fs τ ->
+      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+      ⟦ errs, Γ ⟧ ⊢ Mem e:τ dot x @ i ∈ τ'
   (* Structs. *)
   | chk_tuple (es : list (E.e tags_t)) (i : tags_t)
               (ts : list E.t) :
@@ -434,18 +434,12 @@ Module Typecheck.
         P errs Γ e2 τ2 ->
         P errs Γ <{ BOP e1:τ1 op e2:τ2 @ i }> τ.
 
-    Hypothesis HHdrMem : forall errs Γ e x fields τ i,
-        F.get x fields = Some τ ->
-        ⟦ errs , Γ ⟧ ⊢ e ∈ hdr { fields } ->
-        P errs Γ e {{ hdr { fields } }} ->
-        P errs Γ <{ Mem e:hdr { fields } dot x @ i }> τ.
-    (**[]*)
-
-    Hypothesis HRecMem : forall errs Γ e x fields τ i,
-        F.get x fields = Some τ ->
-        ⟦ errs , Γ ⟧ ⊢ e ∈ rec { fields } ->
-        P errs Γ e {{ rec { fields } }} ->
-        P errs Γ <{ Mem e:rec { fields } dot x @ i }> τ.
+    Hypothesis HMem : forall errs Γ e x fs τ τ' i,
+        F.get x fs = Some τ' ->
+        member_type fs τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        P errs Γ e τ ->
+        P errs Γ <{ Mem e:τ dot x @ i }> τ'.
     (**[]*)
 
     Hypothesis HTuple : forall errs Γ es i ts,
@@ -590,13 +584,8 @@ Module Typecheck.
                       Hbop He1 He2 => HBop _ _ _ _ _ _ _ _ i Hbop
                                           He1 (chind _ _ _ _ He1)
                                           He2 (chind _ _ _ _ He2)
-            | chk_hdr_mem _ _ _ x _ _ i
-                          HIn He => HHdrMem
-                                     _ _ _ x _ _ i HIn
-                                     He (chind _ _ _ _ He)
-            | chk_rec_mem _ _ _ x _ _ i
-                          HIn He => HRecMem
-                                     _ _ _ x _ _ i HIn
+            | chk_mem _ _ _ _ _ _ _ _ i
+                      Hget He => HMem _ _ _ _ _ _ _ _ i Hget
                                      He (chind _ _ _ _ He)
             | chk_error _ _ _ i HOK => HError errs Γ _ i HOK
             | chk_matchkind _ _ mk i  => HMatchKind errs Γ mk i

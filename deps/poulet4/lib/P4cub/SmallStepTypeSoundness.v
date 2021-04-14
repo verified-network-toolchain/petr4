@@ -146,6 +146,7 @@ Section Theorems.
       Hint Resolve eval_uop_types : core.
       Hint Resolve eval_bop_types : core.
       Hint Resolve eval_cast_types : core.
+      Hint Resolve eval_member_types : core.
       Hint Rewrite Forall_app : core.
       Hint Rewrite app_length : core.
       Hint Resolve Forall2_app : core.
@@ -197,6 +198,10 @@ Section Theorems.
       Hint Constructors expr_step : core.
       Hint Resolve eval_cast_exists : core.
       Hint Resolve eval_uop_exists : core.
+      Hint Resolve eval_bop_exists : core.
+      Hint Resolve eval_stk_op_exists : core.
+      Hint Resolve eval_member_exists : core.
+      Hint Resolve expr_small_step_preservation : core.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
       match goal with H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => induction H end;
@@ -209,10 +214,13 @@ Section Theorems.
              | H: value _ \/ (exists _, ℵ ϵ ** _ -->  _)
                |- _ => destruct H as [? | ?]
              | H: exists _, ℵ ϵ ** _ -->  _ |- _ => destruct H as [? ?]
+             | |- _ => assert_canonical_forms
              end; eauto.
       - right; apply Henvs_subset in H as [? ?]; eauto.
       - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto.
-      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? Huop]; eauto.
+      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? ?]; eauto.
+      - pose proof eval_bop_exists _ _ _ _ _ _ i _ _ H H3 H2 H0 H1 as [? ?]; eauto.
+      - pose proof eval_member_exists _ _ _ _ _ _ _ H2 H0 H H1 as [? ?]; eauto.
     Admitted.
   End Progress.
 End Theorems.

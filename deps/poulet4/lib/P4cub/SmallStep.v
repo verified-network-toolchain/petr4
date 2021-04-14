@@ -595,6 +595,49 @@ Module Step.
       - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
       - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
     Qed.
+
+    Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
+      match v with
+      | <{ rec { vs } @ _ }>
+      | <{ hdr { vs } valid:=_ @ _ }> => map_option (F.get x vs) snd
+      | _                             => None
+      end.
+    (**[]*)
+
+    Lemma eval_member_types : forall errs Γ x v v' ts τ τ',
+        eval_member x v = Some v' ->
+        V.value v ->
+        member_type ts τ ->
+        F.get x ts = Some τ' ->
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+    Proof.
+      intros errs Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht.
+      inv Hmem; inv Hv; inv Ht.
+      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto.
+        intuition; unravel in *; subst.
+        rewrite H0 in Heval; unravel in *; inv Heval; auto.
+      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto.
+        intuition; unravel in *; subst.
+        rewrite H1 in Heval; unravel in *; inv Heval; auto.
+    Qed.
+
+    Lemma eval_member_exists : forall errs Γ x v ts τ τ',
+        V.value v ->
+        member_type ts τ ->
+        F.get x ts = Some τ' ->
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        exists v', eval_member x v = Some v'.
+    Proof.
+      intros errs Γ x v ts τ τ' Hv Hmem Hget Ht;
+      inv Hmem; inv Hv; inv Ht; unravel.
+      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto.
+        intuition; simpl in *; subst.
+        rewrite H0; unravel; eauto.
+      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto.
+        intuition; simpl in *; subst.
+        rewrite H1; unravel; eauto.
+    Qed.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
@@ -637,6 +680,11 @@ Module Step.
                 (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
+  | step_member_eval (x : string) (τ : E.t)
+                     (v v' : E.e tags_t) (i : tags_t) :
+      eval_member x v = Some v' ->
+      V.value v ->
+      ℵ ϵ ** Mem v:τ dot x @ i -->  v'
   | step_header_op (op : E.hdr_op) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** HDR_OP op e @ i -->  HDR_OP op e' @ i

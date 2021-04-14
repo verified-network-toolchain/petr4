@@ -185,6 +185,14 @@ Module Step.
       end.
     (**[]*)
 
+    Definition eval_member (x : string) (v : V.v) : option V.v :=
+      match v with
+      | ~{ REC { vs } }~
+      | ~{ HDR { vs } VALID:=_ }~ => F.get x vs
+      | _ => None
+      end.
+    (**[]*)
+
     Section Lemmas.
       Import Typecheck.
       Import V.ValueTyping.
@@ -348,6 +356,36 @@ Module Step.
           rewrite Hexists. eauto.
         - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
         - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
+      Qed.
+
+      Lemma eval_member_types : forall errs x v v' ts τ τ',
+          eval_member x v = Some v' ->
+          member_type ts τ ->
+          F.get x ts = Some τ' ->
+          ∇ errs ⊢ v ∈ τ ->
+          ∇ errs ⊢ v' ∈ τ'.
+      Proof.
+        Hint Constructors type_value : core.
+        intros errs x v v' ts τ τ' Heval Hmem Hget Ht;
+        inv Hmem; inv Ht; unravel in *.
+        - eapply F.relfs_get_r in H1 as [? ?]; eauto.
+          intuition. rewrite Heval in H0; inv H0; eauto.
+        - eapply F.relfs_get_r in H2 as [? ?]; eauto.
+          intuition. rewrite Heval in H1; inv H1; eauto.
+      Qed.
+
+      Lemma eval_member_exists : forall errs x v ts τ τ',
+          member_type ts τ ->
+          F.get x ts = Some τ' ->
+          ∇ errs ⊢ v ∈ τ ->
+          exists v', eval_member x v = Some v'.
+      Proof.
+        intros errs x v ts τ τ' Hmem Hget Ht;
+        inv Hmem; inv Ht; unravel.
+        - eapply F.relfs_get_r in H1 as [? ?]; eauto;
+          intuition; eauto.
+        - eapply F.relfs_get_r in H2 as [? ?]; eauto;
+          intuition; eauto.
       Qed.
     End Lemmas.
 
@@ -554,18 +592,11 @@ Module Step.
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       ⟨ ϵ, BOP e1:τ1 op e2:τ2 @ i ⟩ ⇓ v
   (* Structs *)
-  | ebs_rec_mem (e : E.e tags_t) (x : string) (i : tags_t)
-                (tfs : F.fs string E.t)
-                (vfs : F.fs string V.v) (v : V.v) :
-      F.get x vfs = Some v ->
-      ⟨ ϵ, e ⟩ ⇓ REC { vfs } ->
-      ⟨ ϵ, Mem e:rec { tfs } dot x @ i ⟩ ⇓ v
-  | ebs_hdr_mem (e : E.e tags_t) (x : string) (i : tags_t)
-                (tfs : F.fs string E.t) (b : bool)
-                (vfs : F.fs string V.v) (v : V.v) :
-      F.get x vfs = Some v ->
-      ⟨ ϵ, e ⟩ ⇓ HDR { vfs } VALID:=b ->
-      ⟨ ϵ, Mem e:hdr { tfs } dot x @ i ⟩ ⇓ v
+  | ebs_mem (e : E.e tags_t) (x : string) (τ : E.t)
+            (i : tags_t) (v v' : V.v) :
+      eval_member x v = Some v' ->
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⟨ ϵ, Mem e:τ dot x @ i ⟩ ⇓ v'
   | ebs_tuple (es : list (E.e tags_t)) (i : tags_t)
               (vs : list (V.v)) :
       Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
@@ -664,18 +695,11 @@ Module Step.
         P ϵ <{ BOP e1:τ1 op e2:τ2 @ i }> v.
     (**[]*)
 
-    Hypothesis HRecMem : forall ϵ e x i ts vs v,
-        F.get x vs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ REC { vs } ->
-        P ϵ e ~{ REC { vs } }~ ->
-        P ϵ <{ Mem e:rec { ts } dot x @ i }> v.
-    (**[]*)
-
-    Hypothesis HHdrMem : forall ϵ e x i ts b vs v,
-        F.get x vs = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-        P ϵ e ~{ HDR { vs } VALID:=b }~ ->
-        P ϵ <{ Mem e:hdr { ts } dot x @ i }> v.
+    Hypothesis HMem : forall ϵ e x τ i v v',
+        eval_member x v = Some v' ->
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        P ϵ e v ->
+        P ϵ <{ Mem e:τ dot x @ i }> v'.
     (**[]*)
 
     Hypothesis HTuple : forall ϵ es i vs,
@@ -821,12 +845,9 @@ Module Step.
                   Hbop He1 He2 => HBop _ _ _ _ _ _ i _ _ _ Hbop
                                       He1 (ebsind _ _ _ He1)
                                       He2 (ebsind _ _ _ He2)
-        | ebs_hdr_mem _ _ _ i _ _ _ _
-                      Hget He => HHdrMem _ _ _ i _ _ _ _ Hget
-                                        He (ebsind _ _ _ He)
-        | ebs_rec_mem _ _ _ i _ _ _
-                      Hget He => HRecMem _ _ _ i _ _ _ Hget
-                                        He (ebsind _ _ _ He)
+        | ebs_mem _ _ _ _ i _ _
+                  Heval He => HMem _ _ _ _ i _ _ Heval
+                                  He (ebsind _ _ _ He)
         | ebs_hdr_op _ _ _ i _ _ _
                      Hv He => HHdrOp _ _ _ i _ _ _ Hv
                                     He (ebsind _ _ _ He)

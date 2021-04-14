@@ -46,6 +46,7 @@ Section BigStepTheorems.
     Hint Resolve eval_cast_types : core.
     Hint Resolve eval_hdr_op_types : core.
     Hint Resolve eval_stk_op_types : core.
+    Hint Resolve eval_member_types : core.
     Hint Constructors PT.proper_nesting : core.
     Hint Constructors check_expr : core.
     unfold envs_type; intros errs Γ e τ ϵ v Het Hev.
@@ -57,8 +58,6 @@ Section BigStepTheorems.
            | IHHev: (?P -> forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> ∇ errs ⊢ _ ∈ _),
              HP : ?P, He: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
              |- _ => pose proof IHHev HP _ He as IH; clear IHHev; inv IH
-           | Hget: F.get _ ?fs = Some ?t, Hfs: F.relfs _ _ ?fs
-             |- context [ ?t ] => eapply F.get_relfs in Hfs
            end; eauto.
     - generalize dependent ts;
       induction H; intros []; intros; repeat inv_Forall2_cons; intuition.
@@ -97,6 +96,7 @@ Section BigStepTheorems.
     Hint Resolve eval_bop_exists : core.
     Hint Resolve eval_cast_exists : core.
     Hint Resolve eval_stk_op_exists : core.
+    Hint Resolve eval_member_exists : core.
     Hint Resolve expr_big_step_preservation : core.
     Hint Constructors expr_big_step : core.
     intros errs Γ τ e ϵ [Htyp Hsub] Ht.
@@ -115,8 +115,7 @@ Section BigStepTheorems.
     - pose proof eval_cast_exists _ _ _ _ H H1 as [? ?]; eauto.
     - pose proof eval_uop_exist _ _ _ _ H H1 as [? ?]; eauto.
     - pose proof eval_bop_exists _ _ _ _ _ _ _ H H3 H2 as [? ?]; eauto.
-    - inv H1. pose proof F.relfs_get_r _ _ _ _ _ H5 H as [? [? ?]]; eauto.
-    - inv H1. pose proof F.relfs_get_r _ _ _ _ _ H4 H as [? [? ?]]; eauto.
+    - pose proof eval_member_exists _ _ _ _ _ _ H0 H H2 as [? ?]; eauto.
     - assert (Hvs: exists vs, Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs).
       { induction H; repeat inv_Forall2_cons; eauto.
         intuition. destruct H2; destruct H0; eauto. }

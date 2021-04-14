@@ -388,6 +388,9 @@ Inductive candidate:
         (inl BabyIPv2.start, st2, buf2 ++ buf1)
 .
 
+Opaque skipn.
+Opaque firstn.
+
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
@@ -399,11 +402,7 @@ Proof.
     simpl length.
     simpl size.
     do 2 destruct (equiv_dec _ _); try congruence.
-    + unfold transitions.
-      unfold v1_parser.
-      simpl eq_name.
-      simpl extract.
-      unfold BabyIPv1.transition.
+    + simpl.
       rewrite override_id.
       destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
       * apply BisimulationUDPVersusIP.
@@ -451,11 +450,7 @@ Proof.
     simpl length.
     simpl size.
     do 2 destruct (equiv_dec _ _).
-    + unfold transitions.
-      unfold v1_parser, v2_parser.
-      simpl eq_name.
-      simpl extract.
-      unfold BabyIPv1.transition, BabyIPv2.transition.
+    + simpl.
       rewrite override_id.
       destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
       * constructor.
@@ -474,11 +469,7 @@ Proof.
       rewrite app_length in H.
       unfold equiv, complement in *.
       lia.
-    + unfold transitions.
-      unfold v2_parser.
-      simpl override.
-      simpl extract.
-      unfold BabyIPv2.transition.
+    + simpl.
       rewrite override_id.
       destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
       * rewrite <- H in e0.
@@ -556,12 +547,7 @@ Proof.
     repeat rewrite app_length.
     simpl length.
     destruct (equiv_dec _ _); destruct (equiv_dec _ _).
-    + unfold transitions.
-      unfold v1_parser, v2_parser.
-      simpl eq_name.
-      simpl extract.
-      unfold BabyIPv1.transition.
-      unfold BabyIPv2.transition.
+    + simpl.
       constructor.
     + exfalso.
       rewrite H in e.
@@ -586,89 +572,48 @@ Proof.
     simpl size.
     repeat rewrite app_length.
     simpl length.
-    unfold transitions.
-    unfold v1_parser, v2_parser.
-    simpl eq_name.
-    simpl extract.
-    unfold BabyIPv1.transition, BabyIPv2.transition.
-    repeat rewrite override_id.
-    destruct (equiv_dec _ _).
-    * destruct (equiv_dec _ _).
-      destruct (equiv_dec _ _); try constructor.
-      destruct (equiv_dec _ _).
-      -- rewrite <- H in e1.
-         rewrite <- app_assoc in e1.
-         rewrite skipn_app in e1.
-         rewrite firstn_app in e1.
-         rewrite H0 in e1.
-         simpl length in e1.
-         replace (4 - 4) with 0 in e1 by reflexivity.
-         simpl firstn in e1 at 2.
-         rewrite app_nil_r in e1.
-         cbv in e1.
-         discriminate.
-      -- rewrite <- H in c.
-         rewrite <- app_assoc in c.
-         rewrite skipn_app in c.
-         rewrite firstn_app in c.
-         rewrite skipn_length in c.
-         rewrite H1 in c.
-         replace (4 - (20 - 16)) with 0 in c by reflexivity.
-         simpl firstn in c at 2.
-         rewrite app_nil_r in c.
-         rewrite H0 in c.
-         cbv in c.
-         exfalso.
-         eauto.
-      -- apply (f_equal (@length _)) in H.
-         rewrite app_length in H.
-         unfold equiv, complement in *.
-         lia.
-    * destruct (equiv_dec _ _); [destruct (equiv_dec _ _);[|destruct (equiv_dec _ _)]|].
-      -- apply (f_equal (@length _)) in H.
-         rewrite app_length in H.
-         unfold equiv, complement in *.
-         lia.
-      -- apply (f_equal (@length _)) in H.
-         rewrite app_length in H.
-         unfold equiv, complement in *.
-         lia.
-      -- rewrite <- H in c0.
-         rewrite <- app_assoc in c0.
-         rewrite skipn_app in c0.
-         rewrite H1 in c0.
-         replace (16 - 20) with 0 in c0 by reflexivity.
-         simpl skipn in c0 at 2.
-         rewrite firstn_app in c0.
-         rewrite skipn_length in c0.
-         rewrite H1 in c0.
-         replace (4 - (20 - 16)) with 0 in c0 by reflexivity.
-         simpl firstn in c0 at 2.
-         rewrite app_nil_r in c0.
-         rewrite H0 in c0.
-         cbv in c0.
-         exfalso.
-         eauto.
-      -- constructor; try assumption.
-         ** rewrite app_assoc.
-            rewrite H.
-            reflexivity.
-         ** rewrite app_length.
-            simpl length.
-            unfold equiv, complement in *.
-            lia.
-  - unfold step.
-    simpl size.
-    rewrite app_length.
-    simpl length.
-    unfold transitions.
-    unfold v2_parser.
-    simpl eq_name.
-    simpl extract.
-    destruct (equiv_dec _ _).
-    + unfold BabyIPv2.transition.
+    do 2 destruct (equiv_dec _ _).
+    + simpl.
       rewrite override_id.
-      destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
+      destruct (equiv_dec _ _); try constructor.
+      rewrite <- H in c.
+      rewrite <- app_assoc in c.
+      rewrite skipn_app in c.
+      rewrite firstn_app in c.
+      rewrite skipn_length in c.
+      rewrite H1 in c.
+      replace (4 - (20 - 16)) with 0 in c by reflexivity.
+      simpl firstn in c at 2.
+      rewrite app_nil_r in c.
+      rewrite H0 in c.
+      replace 4 with (length (repeat false 3 ++ true :: nil)) in c by reflexivity.
+      rewrite firstn_all in c.
+      simpl in c.
+      exfalso.
+      apply c.
+      reflexivity.
+    + simpl.
+      apply (f_equal (@length _)) in H.
+      rewrite app_length in H.
+      unfold equiv, complement in *.
+      lia.
+    + simpl.
+      apply (f_equal (@length _)) in H.
+      rewrite app_length in H.
+      unfold equiv, complement in *.
+      lia.
+    + constructor; try assumption.
+      * rewrite app_assoc.
+        rewrite H.
+        reflexivity.
+      * unfold equiv, complement in *.
+        rewrite app_length.
+        simpl length.
+        lia.
+  - simpl.
+    rewrite override_id.
+    destruct (equiv_dec _ _).
+    + destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
       * rewrite <- app_assoc in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.

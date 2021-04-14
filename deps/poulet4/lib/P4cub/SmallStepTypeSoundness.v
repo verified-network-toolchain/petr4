@@ -192,9 +192,21 @@ Section Theorems.
   Section Progress.
     Hypothesis Henvs_sound : envs_sound.
 
+    Ltac progress_simpl :=
+      match goal with
+      | H: value _ \/ (exists _, ℵ ϵ ** _ -->  _)
+        |- _ => destruct H as [? | ?]
+      | H: exists _, ℵ ϵ ** _ -->  _ |- _ => destruct H as [? ?]
+      | |- _ => assert_canonical_forms
+      | IH: (?P -> ?Q -> value _ \/ exists _, ℵ ϵ ** _ -->  _),
+            HP: ?P, HQ: ?Q |- _ => pose proof IH HP HQ as [? | ?]; clear IH
+      end.
+    (**[]*)
+
     Theorem expr_small_step_progress : forall e τ,
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ ** e -->  e'.
     Proof.
+      Hint Constructors value : core.
       Hint Constructors expr_step : core.
       Hint Resolve eval_cast_exists : core.
       Hint Resolve eval_uop_exists : core.
@@ -204,23 +216,69 @@ Section Theorems.
       Hint Resolve expr_small_step_preservation : core.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
-      match goal with H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => induction H end;
+      match goal with
+      | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _
+        |- _ => induction H using custom_check_expr_ind
+      end;
       try match goal with
           | |- value ?e \/ _ =>
             assert (value e); [ repeat constructor; eassumption
                           | left; assumption ]
           end;
-      repeat match goal with
-             | H: value _ \/ (exists _, ℵ ϵ ** _ -->  _)
-               |- _ => destruct H as [? | ?]
-             | H: exists _, ℵ ϵ ** _ -->  _ |- _ => destruct H as [? ?]
-             | |- _ => assert_canonical_forms
-             end; eauto.
+      repeat progress_simpl; eauto.
       - right; apply Henvs_subset in H as [? ?]; eauto.
       - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto.
       - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? ?]; eauto.
       - pose proof eval_bop_exists _ _ _ _ _ _ i _ _ H H3 H2 H0 H1 as [? ?]; eauto.
       - pose proof eval_member_exists _ _ _ _ _ _ _ H2 H0 H H1 as [? ?]; eauto.
+      - induction H; repeat inv_Forall2_cons;
+        repeat progress_simpl; eauto; intuition.
+        + inv H3; eauto.
+        + destruct H3 as [? ?]. inv H2.
+          subst es; subst es'.
+          repeat rewrite app_comm_cons in *. eauto.
+        + rewrite <- (app_nil_l (x :: l)). eauto.
+        + rewrite <- (app_nil_l (x :: l)). eauto.
+      - induction H; repeat invert_cons_cons_relate;
+        repeat progress_simpl; intuition.
+        + left. repeat constructor.
+        + inv H4. left. repeat constructor; unravel; eauto.
+        + destruct H4 as [? ?]. inv H2.
+          subst fs; subst fs'.
+          repeat rewrite app_comm_cons in *. right.
+          exists (E.ERecord (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
+          repeat constructor; unravel; eauto.
+        + destruct p as [t e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t, e)) :: l)).
+          right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
+          repeat constructor; unravel; eauto.
+        + destruct p as [t e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t, e)) :: l)).
+          right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
+          repeat constructor; unravel; eauto.
+      - inv H5. clear H. rename H0 into H; rename H1 into H0.
+        induction H; repeat invert_cons_cons_relate;
+        repeat progress_simpl; intuition.
+        + left. repeat constructor.
+        + inv H4. left. repeat constructor; unravel; eauto.
+        + destruct H4 as [? ?]. inv H2.
+          * subst fs; subst fs'.
+            repeat rewrite app_comm_cons in *. right.
+            exists (E.EHeader
+                 (((s0, p) :: prefix) ++ (x2, (τ, e')) :: suffix)
+               <{ BOOL x @ x0 }> i).
+            repeat constructor; unravel; eauto.
+          * inv H9.
+        + destruct p as [t e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
+          exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
+          repeat constructor; unravel; eauto.
+        + destruct p as [t e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
+          exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
+          repeat constructor; unravel; eauto.
+      - inv H5. assert_canonical_forms. inv H0.
+        right. exists (eval_hdr_op op x x2 x3 x1). eauto.
     Admitted.
   End Progress.
 End Theorems.

@@ -166,6 +166,7 @@ Section Theorems.
       - inv H3.
         assert (⟦ errs, Γ ⟧ ⊢ Stack x:ts[size0] nextIndex:=x0 ∈ stack ts[size0]) by auto.
         inv H; unravel in *; eauto.
+      - inv H3; unravel in *. eapply Forall_nth_error in H12; eauto.
       - subst es; subst es'.
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; eauto.
@@ -279,6 +280,21 @@ Section Theorems.
           repeat constructor; unravel; eauto.
       - inv H5. assert_canonical_forms. inv H0.
         right. exists (eval_hdr_op op x x2 x3 x1). eauto.
-    Admitted.
+      - clear H H0 H1 H2.
+        (* generalize dependent ni; generalize dependent n. *)
+        induction H3; intros; repeat inv_Forall_cons; eauto;
+        intuition; try assert_canonical_forms.
+        + inv H7. assert_canonical_forms. inv H0; inv H2; eauto.
+        + inv H7. assert_canonical_forms. inv H0.
+          destruct H2 as [v Hv]. inv Hv. subst hs; subst hs'.
+          repeat rewrite app_comm_cons in *; eauto 6.
+        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto.
+        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto.
+      - inv H4. assert (Hidx : N.to_nat idx < length x) by lia.
+        pose proof nth_error_exists _ _ Hidx as [v ?]. eauto.
+      - inv H4.
+        pose proof eval_stk_op_exists
+             _ _ i op _ _ _ _ H6 H7 H8 H9 H10 as [? ?]; eauto.
+    Qed.
   End Progress.
 End Theorems.

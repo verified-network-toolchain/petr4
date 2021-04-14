@@ -205,6 +205,14 @@ Definition uncurry4 {A B C D E : Type}
   f a b c d.
 (**[]*)
 
+Definition fourple_1 {A B C D : Type}  '((a,_,_,_) : A * B * C * D) : A := a.
+
+Definition fourple_2 {A B C D : Type}  '((_,b,_,_) : A * B * C * D) : B := b.
+
+Definition fourple_3 {A B C D : Type}  '((_,_,c,_) : A * B * C * D) : C := c.
+
+Definition fourple_4 {A B C D : Type}  '((_,_,_,d) : A * B * C * D) : D := d.
+
 (** Update position [n] of list [l],
     or return [l] if [n] is too large. *)
 Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=

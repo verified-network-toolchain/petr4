@@ -359,6 +359,8 @@ Module Step.
       end.
     (**[]*)
 
+    Search (_ * _ * _ ?A -> ?A).
+
     (** Header operations. *)
     Definition eval_hdr_op
                (op : E.hdr_op) (fs : F.fs string (E.t * E.e tags_t))
@@ -702,6 +704,12 @@ Module Step.
   | step_stack_access (e e' : E.e tags_t) (n : N) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Access e[n] @ i -->  Access e'[n] @ i
+  | step_stack_access_eval (v v' : E.e tags_t) (n : N) (i : tags_t) :
+      bind_option
+        (map_option (header_stack_data v) fourple_4)
+        (fun hs => nth_error hs (N.to_nat n)) = Some v' ->
+      V.value v ->
+      ℵ ϵ ** Access v[n] @ i -->  v'
   | step_tuple (prefix suffix : list (E.e tags_t))
                (e e' : E.e tags_t) (i : tags_t) :
       Forall V.value prefix ->
@@ -733,7 +741,7 @@ Module Step.
   | step_header_stack (ts : F.fs string (E.t))
                       (prefix suffix : list (E.e tags_t))
                       (e e' : E.e tags_t) (size : positive)
-                      (ni : N) (i : tags_t) :
+                      (ni : N) :
       Forall V.value prefix ->
       ℵ ϵ ** e -->  e' ->
       let hs := prefix ++ e :: suffix in

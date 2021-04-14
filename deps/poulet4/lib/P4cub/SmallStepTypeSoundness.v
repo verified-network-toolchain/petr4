@@ -140,14 +140,17 @@ Section Theorems.
       Hint Resolve BitArith.return_bound_bound : core.
       Hint Resolve BitArith.neg_bound : core.
       Hint Resolve BitArith.plus_mod_bound : core.
-      Hint Resolve IntArith.return_bound_bound : core. (*
-      Hint Resolve eval_bit_binop_numeric : core.
-      Hint Resolve eval_bit_binop_comp : core.
-      Hint Resolve eval_int_binop_numeric : core.
-      Hint Resolve eval_int_binop_comp : core.
+      Hint Resolve IntArith.return_bound_bound : core.
       Hint Resolve eval_hdr_op_types : core.
       Hint Resolve eval_stk_op_types : core.
-      Hint Rewrite Pos.eqb_refl.
+      Hint Resolve eval_uop_types : core.
+      Hint Resolve eval_bop_types : core.
+      Hint Resolve eval_cast_types : core.
+      Hint Rewrite Forall_app : core.
+      Hint Rewrite app_length : core.
+      Hint Resolve Forall2_app : core.
+      Hint Constructors check_expr : core.
+      Hint Constructors PT.proper_nesting : core.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
       match goal with
@@ -155,79 +158,34 @@ Section Theorems.
       end;
       try match goal with
           | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
-          end;
-      repeat assert_canonical_forms;
-      try (unravel in *; econstructor; eauto; eassumption);
-      try (unravel in *; match goal with
-                       | H: Some _ = Some _ |- _ => inv H
-                       end; econstructor; eauto);
-      try match goal with
-          | |- BitArith.bound _ _ => unfold_bit_operation
-          | |- IntArith.bound _ _ => unfold_int_operation
-          | H: uop_type _ _ |- _ => inv H
-          end; eauto.
-      - inv H0; inv H8; simpl in *; inv H; constructor.
-      - inv H0; inv H8; simpl in *; inv H; constructor; auto.
-      - inv H0; inv H8; simpl in *; inv H; constructor;
-        unfold_int_operation; auto.
-      - inv H2. apply chk_bool_bop; auto; constructor.
-      - inv H2. constructor; auto; constructor; auto.
-      - inv H10. inv H2; repeat assert_canonical_forms.
-        + inv H3; inv H4; unravel in *; inv H11;
-          autorewrite with core in *; unravel in *; inv H;
-          constructor; try unfold_bit_operation; unravel in *; auto.
-        + inv H3; inv H4; unravel in *;
-            autorewrite with core in *; inv H11;
-              unravel in *; inv H; constructor;
-                try unfold_int_operation; auto.
-      - inv H10; inv H2; repeat assert_canonical_forms;
-          inv H3; inv H4; inv H11; unravel in *;
-            autorewrite with core in *; inv H; constructor.
-      - inv H3; inv H2; inv H10; unravel in *; inv H; constructor.
-      - unfold eval_binop in H; inv H0; inv H1; unravel in *;
-          try (inv H; constructor);
-          try match goal with
-              | H: (if ?b then Some _ else None) = Some _
-                |- _ => destruct b eqn:?; inv H
-              end; constructor.
-      - unfold eval_binop in H; inv H0; inv H1; unravel in *;
-          try (inv H; constructor);
-          try match goal with
-              | H: (if ?b then Some _ else None) = Some _
-                |- _ => destruct b eqn:?; inv H
-              end; constructor.
-      - inv H3; inv H4; inv H;
-          try match goal with
-              | H: (if ?b then None else Some _) = Some _
-                |- _ => destruct b eqn:?; inv H
-              end; constructor; auto; unfold BitArith.bit_concat; auto.
-      - unravel in *; inv H4.
-        assert_canonical_forms. inv H1; unravel in *.
-        inv H0. auto.
-      - inv H3. unravel in *; eauto.
-      - constructor. subst es; subst es'.
-        apply Forall2_app_inv_l in H5 as
-            [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
-        apply Forall2_app; auto. inv Hsuffix; constructor; eauto.
-      - constructor. subst fs; subst fs'.
-        apply Forall2_app_inv_l in H5 as
-            [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
-        apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
-        repeat constructor; eauto; unfold equiv in *; unravel in *; subst;
-        intuition.
-      - inv H3. constructor; auto.
-        + subst fs; subst fs'.
-          apply Forall2_app_inv_l in H8 as
-              [ts_prefix [ts_suffix [Hprefix [Hsuffix Hts]]]]; subst.
-          apply Forall2_app; auto. inv Hsuffix; repeat relf_destruct.
-          repeat constructor; eauto; unravel in *; subst;
-          intuition.
-        + constructor.
-      - constructor; auto; subst hs; subst hs'.
-        rewrite app_length in *; unravel in *. lia.
-        apply Forall_app in H11 as [? Hsuffix]; apply Forall_app; split;
-          inv Hsuffix; auto. *)
-    Admitted.
+          end; unravel in *;
+      repeat assert_canonical_forms; eauto.
+      - inv H4. assert_canonical_forms. inv H1.
+        unravel in *. inv H0. eauto.
+      - inv H3.
+        assert (⟦ errs, Γ ⟧ ⊢ Stack x:ts[size0] nextIndex:=x0 ∈ stack ts[size0]) by auto.
+        inv H; unravel in *; eauto.
+      - subst es; subst es'.
+        apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
+        inv_Forall2_cons; eauto.
+      - subst fs; subst fs'.
+        apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
+        inv_Forall2_cons; relf_destruct; intuition; subst.
+        constructor. apply Forall2_app; auto.
+        repeat constructor; auto.
+      - inv H3. subst fs; subst fs'.
+        apply Forall2_app_inv_l in H8 as [? [? [? [? ?]]]];
+        inv_Forall2_cons; relf_destruct; intuition; subst.
+        inv H6; try match goal with
+                    | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
+                    end.
+        constructor; eauto.
+        apply Forall2_app; auto.
+        repeat constructor; auto.
+      - subst hs; subst hs'; constructor;
+        autorewrite with core in *; intuition;
+        try inv_Forall_cons; eauto.
+    Qed.
   End Preservation.
 
   Section Progress.

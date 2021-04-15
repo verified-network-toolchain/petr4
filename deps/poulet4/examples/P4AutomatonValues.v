@@ -6,37 +6,27 @@ Require Import Poulet4.Syntax.
 
 Require Import Poulet4.P4defs.
 
-Require Import Poulet4.AList. 
+Require Import Poulet4.AList.
 
 Require Import Poulet4.Bitwise.
 
 
 Section P4Automaton.
 
-  Record state := {
-    t : Type;
-    eq_state : EqDec t eq;
+  Record p4automaton := MkP4Automaton {
+    store: Type;
+    states: Type;
+    size: states -> nat;
+    update: states -> list bool -> store -> store;
+    transitions: states -> store -> states + bool;
   }.
 
-  Record storeable (ss: state) := mkStoreable {
-    value: Type;
-    store: Type; 
-    (* marshall : t ss -> list bool -> store -> option value ;  *)
-    update : t ss -> list bool -> store -> store ;
-  }.
-
-  Record p4automaton (states: state) (it: storeable states) := MkP4Automaton {
-    size: t states -> nat;
-    transitions: t states -> store _ it -> (t states) + bool
-  }.
-
-  Definition configuration {ss st} (a: p4automaton ss st) : Type :=
-    (t ss + bool) * store _ st * list bool
+  Definition configuration (a: p4automaton) : Type :=
+    (states a + bool) * store a * list bool
   .
 
   Definition step
-    {ss st}
-    {a: p4automaton ss st}
+    {a: p4automaton}
     (c: configuration a)
     (b: bool)
     : configuration a
@@ -45,10 +35,10 @@ Section P4Automaton.
     match state with
     | inl state =>
       let buf' := buf ++ b :: nil in
-      if List.length buf' == size _ _ a state
+      if List.length buf' == size a state
       then
-        let st' := update _ _ state buf' st in  
-        let state' := transitions _ _ a state st' in
+        let st' := update a state buf' st in
+        let state' := transitions a state st' in
         (state', st', nil)
       else (inl state, st, buf')
     | inr halt =>
@@ -57,8 +47,7 @@ Section P4Automaton.
   .
 
 Definition follow
-  {ss st}
-  {a: p4automaton ss st}
+  {a: p4automaton}
   (c: configuration a)
   (input: list bool)
   : configuration a
@@ -67,8 +56,7 @@ Definition follow
 .
 
 Lemma follow_cons
-  {ss st}
-  {a: p4automaton ss st}
+  {a: p4automaton}
   (c: configuration a)
   (b: bool)
   (input: list bool)
@@ -80,8 +68,7 @@ Proof.
 Qed.
 
 Definition accepted
-  {ss st}
-  {a: p4automaton ss st}
+  {a: p4automaton}
   (c: configuration a)
   (input: list bool)
   : Prop
@@ -90,9 +77,8 @@ Definition accepted
 .
 
 Definition lang_equiv
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -102,9 +88,8 @@ Definition lang_equiv
 .
 
 Definition bisimulation
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (R: configuration a1 -> configuration a2 -> Prop)
 :=
   forall c1 c2,
@@ -114,9 +99,8 @@ Definition bisimulation
 .
 
 Definition bisimilar
-  {ss1 st1 ss2 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -124,9 +108,8 @@ Definition bisimilar
 .
 
 Lemma bisimilar_implies_equiv
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -153,11 +136,10 @@ Proof.
 Qed.
 
 Lemma lang_equiv_is_bisimulation
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
 :
-  @bisimulation _ _ a1 a2 lang_equiv
+  @bisimulation a1 a2 lang_equiv
 .
 Proof.
   unfold bisimulation; intros.
@@ -172,9 +154,8 @@ Proof.
 Qed.
 
 Lemma equiv_implies_bisimilar
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -188,9 +169,8 @@ Proof.
 Qed.
 
 Theorem bisimilar_iff_lang_equiv
-  {ss1 ss2 st1 st2}
-  {a1: p4automaton ss1 st1}
-  {a2: p4automaton ss2 st2}
+  {a1: p4automaton}
+  {a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -204,18 +184,18 @@ Qed.
 
 End P4Automaton.
 
-Definition toBits (w: nat) (bs: list bool) : @ValueBase Info := 
-  let v := to_nat bs in 
+Definition toBits (w: nat) (bs: list bool) : @ValueBase Info :=
+  let v := to_nat bs in
   ValBaseBit w (Z.of_nat v).
 
-Definition mkField (s: string) : P4String.t Info := 
+Definition mkField (s: string) : P4String.t Info :=
   {| P4String.tags := NoInfo ; str := s |}.
 
-Definition mkEntry (s: string) (v: @ValueBase Info): P4String.t Info * ValueBase := 
+Definition mkEntry (s: string) (v: @ValueBase Info): P4String.t Info * ValueBase :=
   (mkField s, v).
 
 Definition slice {A} to from (l: list A) := firstn (from - to) (skipn to l).
-  
+
 
 Module BabyIPv1.
   Inductive states :=
@@ -226,9 +206,11 @@ Module BabyIPv1.
 
   Scheme Equality for states.
 
-  Definition states' := {| t := states; eq_state := states_eq_dec; |}.
+  Instance states_eq_dec_inst : EqDec states eq := {
+    equiv_dec := states_eq_dec;
+  }.
 
-  Definition size' (s: t states') : nat :=
+  Definition size' (s: states) : nat :=
     match s with
     | start => 20
     | parse_udp => 28
@@ -237,47 +219,44 @@ Module BabyIPv1.
   .
   Definition values := @ValueBase Info.
 
-  Definition marshall_baby1 (s: t states') (bs: list bool) : values := 
-    match s with 
+  Definition marshall (s: states) (bs: list bool) : values :=
+    match s with
     | start =>
-      let fields := 
-        mkEntry "src" (toBits 8 (slice 0 7 bs)) :: 
-        mkEntry "dst" (toBits 8 (slice 7 15 bs)) :: 
+      let fields :=
+        mkEntry "src" (toBits 8 (slice 0 7 bs)) ::
+        mkEntry "dst" (toBits 8 (slice 7 15 bs)) ::
         mkEntry "proto" (toBits 4 (slice 16 19 bs)) :: nil
       in ValBaseHeader fields true
-    | parse_udp => 
-      let fields := 
-        mkEntry "sports" (toBits 8 (slice 0 7 bs)) :: 
-        mkEntry "dport" (toBits 8 (slice 7 15 bs)) :: 
-        mkEntry "flags" (toBits 4 (slice 16 19 bs)) :: 
+    | parse_udp =>
+      let fields :=
+        mkEntry "sports" (toBits 8 (slice 0 7 bs)) ::
+        mkEntry "dport" (toBits 8 (slice 7 15 bs)) ::
+        mkEntry "flags" (toBits 4 (slice 16 19 bs)) ::
         mkEntry "seq" (toBits 8 (slice 20 27 bs)) :: nil
       in ValBaseHeader fields true
-    | parse_tcp => 
-      let fields := 
+    | parse_tcp =>
+      let fields :=
         mkEntry "sport" (toBits 8 (slice 0 7 bs)) ::
-        mkEntry "dport" (toBits 8 (slice 7 15 bs)) :: 
-        mkEntry "flags" (toBits 8 (slice 16 19 bs)) :: nil 
+        mkEntry "dport" (toBits 8 (slice 7 15 bs)) ::
+        mkEntry "flags" (toBits 8 (slice 16 19 bs)) :: nil
       in ValBaseHeader fields true
     end.
 
+  Definition store' := AList states values _.
 
+  Definition update' (s: states) (bits: list bool) (st: store') :=
+    match AList.set st s (marshall s bits) with
+    | Some st' => st'
+    | _ => st
+    end
+  .
 
-  Definition baby_storeable : storeable states' :=  {|
-    value := values ;
-    store := AList (t states') (values * list bool) _ ;
-    update := fun (s: t states') bs st => 
-      match AList.set (KEqDec := states_eq_dec) st s ((marshall_baby1 s bs), bs) with 
-      | Some st' => st'
-      | _ => st
-      end ;
-  |}.
-  
-  Definition transition (s: t states') (st: store _ baby_storeable) : (t states') + bool :=
+  Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match  AList.get (KEqDec := states_eq_dec) st start with
-      | Some (ValBaseHeader fields true, _) => 
-        match AList.get fields (mkField "proto") with 
+      match AList.get st start with
+      | Some (ValBaseHeader fields true) =>
+        match AList.get fields (mkField "proto") with
         | Some (ValBaseInt 4 1) => inl parse_udp
         | Some (ValBaseInt 4 0) => inl parse_tcp
         | _ => inr false
@@ -289,11 +268,12 @@ Module BabyIPv1.
     end
   .
 
-  Definition v1_parser : p4automaton states' baby_storeable := {| 
-    size := size' ; 
-    transitions := transition ;
+  Definition v1_parser : p4automaton := {|
+    size := size';
+    update := update';
+    transitions := transitions';
   |}.
-  
+
 End BabyIPv1.
 
 Module BabyIPv2.
@@ -304,9 +284,11 @@ Module BabyIPv2.
 
   Scheme Equality for states.
 
-  Definition states' := {| t := states; eq_state := states_eq_dec; |}.
+  Instance states_eq_dec_inst : EqDec states eq := {
+    equiv_dec := states_eq_dec;
+  }.
 
-  Definition size' (s: t states') : nat :=
+  Definition size' (s: states) : nat :=
     match s with
     | start => 40
     | parse_tcp => 8
@@ -315,39 +297,38 @@ Module BabyIPv2.
 
   Definition values := @ValueBase Info.
 
-  Definition marshall_baby2 (s: t states') (bs: list bool) : values := 
-    match s with 
+  Definition marshall (s: states) (bs: list bool) : values :=
+    match s with
     | start =>
-      let fields := 
-        mkEntry "src" (toBits 8 (slice 0 7 bs)) :: 
-        mkEntry "dst" (toBits 8 (slice 7 15 bs)) :: 
-        mkEntry "proto" (toBits 4 (slice 16 19 bs)) :: 
-        mkEntry "sport" (toBits 8 (slice 20 27 bs)) :: 
-        mkEntry "dport" (toBits 8 (slice 28 35 bs)) :: 
+      let fields :=
+        mkEntry "src" (toBits 8 (slice 0 7 bs)) ::
+        mkEntry "dst" (toBits 8 (slice 7 15 bs)) ::
+        mkEntry "proto" (toBits 4 (slice 16 19 bs)) ::
+        mkEntry "sport" (toBits 8 (slice 20 27 bs)) ::
+        mkEntry "dport" (toBits 8 (slice 28 35 bs)) ::
         mkEntry "flags" (toBits 8 (slice 36 39 bs)) :: nil
       in ValBaseHeader fields true
-    | parse_tcp => 
-      let fields := 
-        mkEntry "seq" (toBits 8 bs) :: nil 
+    | parse_tcp =>
+      let fields :=
+        mkEntry "seq" (toBits 8 bs) :: nil
       in ValBaseHeader fields true
     end.
 
-  Definition baby_storeable : storeable states' :=  {|
-    value := values ;
-    store := AList (t states') (values * list bool) _ ;
-    update := fun (s : t states') bs st => 
-      match AList.set (KEqDec := states_eq_dec) st s ((marshall_baby2 s bs), bs) with 
-      | Some st' => st'
-      | _ => st
-      end ;
-  |}.
-  
-  Definition transition (s: t states') (st: store _ baby_storeable) : (t states') + bool :=
+  Definition store' := AList states values _.
+
+  Definition update' (s: states) (bits: list bool) (st: store') :=
+    match AList.set st s (marshall s bits) with
+    | Some st' => st'
+    | _ => st
+    end
+  .
+
+  Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match AList.get (KEqDec := states_eq_dec) st start with
-      | Some (ValBaseHeader fields true, _) => 
-        match AList.get fields (mkField "proto") with 
+      match AList.get st start with
+      | Some (ValBaseHeader fields true) =>
+        match AList.get fields (mkField "proto") with
         | Some (ValBaseInt 4 1) => inr true
         | Some (ValBaseInt 4 0) => inl parse_tcp
         | _ => inr false
@@ -358,13 +339,15 @@ Module BabyIPv2.
     end
   .
 
-  Definition v2_parser : p4automaton states' baby_storeable := {| 
-    size := size' ; 
-    transitions := transition ;
+  Definition v2_parser : p4automaton := {|
+    size := size';
+    update := update';
+    transitions := transitions';
   |}.
-  
+
 End BabyIPv2.
 
+Compute (configuration BabyIPv1.v1_parser).
 
 Inductive candidate:
   configuration BabyIPv1.v1_parser ->
@@ -377,14 +360,16 @@ Inductive candidate:
       candidate
         (inl BabyIPv1.start, st1, buf)
         (inl BabyIPv2.start, st2, buf)
+
 | BisimulationEnd:
     forall st1 st2 buf1 buf2 b,
       candidate
         (inr b, st1, buf1)
         (inr b, st2, buf2)
+
 | BisimulationTCPVersusIP:
     forall st1 v pref buf1 st2 buf2,
-      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      AList.get st1 BabyIPv1.start = Some v ->
       pref ++ buf1 = buf2 ->
       v = ValBaseBit 4 0 ->
       List.length pref = 20 ->
@@ -395,7 +380,7 @@ Inductive candidate:
 
 | BisimulationTCPVersusTCP:
     forall st1 buf1 st2 v pref buf2,
-      AList.get (KEqDec := BabyIPv2.states_eq_dec) st2 BabyIPv2.start = Some (v, pref) ->
+      AList.get st2 BabyIPv2.start = Some v ->
       buf1 = skipn 20 pref ++ buf2 ->
       List.length pref = 40 ->
       candidate
@@ -404,7 +389,7 @@ Inductive candidate:
 
 | BisimulationUDPVersusIP:
     forall st1 pref v buf1 st2 buf2,
-      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      AList.get st1 BabyIPv1.start = Some v ->
       pref ++ buf1 = buf2 ->
       v = ValBaseBit 4 1 ->
       List.length pref = 20 ->
@@ -414,7 +399,7 @@ Inductive candidate:
         (inl BabyIPv2.start, st2, buf2)
 | BisimulationFalseVersusStart:
     forall st1 v pref buf1 st2 buf2,
-      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      AList.get st1 BabyIPv1.start = Some v ->
       pref = buf2 ->
       List.length pref = 20 ->
       skipn 16 buf2 <> false :: false :: false :: true :: nil ->
@@ -440,7 +425,7 @@ Admitted.
     simpl size.
     do 2 destruct (equiv_dec _ _); try congruence.
     + simpl.
-      
+
 
       * apply BisimulationUDPVersusIP.
         -- rewrite override_id.

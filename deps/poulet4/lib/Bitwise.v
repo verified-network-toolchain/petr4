@@ -42,8 +42,23 @@ Section Bitwise.
   Definition to_nat (bits: Bits) : nat :=
     fst (fold_left add_bit_carry bits (0,0)).
 
+  Lemma add_carry_zero : forall w k, 
+    fst (fold_left add_bit_carry (zero w) (0, k)) = 0.
+  Proof.
+    intros w.
+    induction w; intros k; induction k; auto.
+    - apply IHw.
+    - apply IHw.
+  Qed.
+    
+
+
   Lemma to_nat_zero: forall w, to_nat (zero w) = 0.
-  Admitted.
+  Proof.
+    intros.
+    unfold to_nat.
+    apply add_carry_zero.
+  Qed.
 
   Lemma to_of_nat_corr : forall w n,
     n < pow_two n -> to_nat (of_nat n w) = n.

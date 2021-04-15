@@ -21,8 +21,8 @@ Section P4Automaton.
   Record storeable (ss: state) := mkStoreable {
     value: Type;
     store: Type; 
-    marshall : t ss -> list bool -> option value ; 
-    update : t ss -> value -> store -> store ;
+    (* marshall : t ss -> list bool -> store -> option value ;  *)
+    update : t ss -> list bool -> store -> store ;
   }.
 
   Record p4automaton (states: state) (it: storeable states) := MkP4Automaton {
@@ -47,14 +47,9 @@ Section P4Automaton.
       let buf' := buf ++ b :: nil in
       if List.length buf' == size _ _ a state
       then
-        let val := marshall _ _ state buf' in
-        match val with 
-        | Some v => 
-          let st' := update _ _ state v st in  
-          let state' := transitions _ _ a state st' in
-          (state', st', nil)
-        | None => (inr false, st, buf')
-        end
+        let st' := update _ _ state buf' st in  
+        let state' := transitions _ _ a state st' in
+        (state', st', nil)
       else (inl state, st, buf')
     | inr halt =>
       (inr halt, st, buf ++ b :: nil)
@@ -95,9 +90,9 @@ Definition accepted
 .
 
 Definition lang_equiv
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -107,9 +102,9 @@ Definition lang_equiv
 .
 
 Definition bisimulation
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (R: configuration a1 -> configuration a2 -> Prop)
 :=
   forall c1 c2,
@@ -119,9 +114,9 @@ Definition bisimulation
 .
 
 Definition bisimilar
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 st1 ss2 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -129,9 +124,9 @@ Definition bisimilar
 .
 
 Lemma bisimilar_implies_equiv
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -158,9 +153,9 @@ Proof.
 Qed.
 
 Lemma lang_equiv_is_bisimulation
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
 :
   @bisimulation _ _ a1 a2 lang_equiv
 .
@@ -177,9 +172,9 @@ Proof.
 Qed.
 
 Lemma equiv_implies_bisimilar
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -193,9 +188,9 @@ Proof.
 Qed.
 
 Theorem bisimilar_iff_lang_equiv
-  {ss st}
-  {a1: p4automaton ss st}
-  {a2: p4automaton ss st}
+  {ss1 ss2 st1 st2}
+  {a1: p4automaton ss1 st1}
+  {a2: p4automaton ss2 st2}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -242,35 +237,36 @@ Module BabyIPv1.
   .
   Definition values := @ValueBase Info.
 
-  Definition marshall_baby1 (s: t states') (bs: list bool) : option values := 
+  Definition marshall_baby1 (s: t states') (bs: list bool) : values := 
     match s with 
     | start =>
       let fields := 
         mkEntry "src" (toBits 8 (slice 0 7 bs)) :: 
         mkEntry "dst" (toBits 8 (slice 7 15 bs)) :: 
         mkEntry "proto" (toBits 4 (slice 16 19 bs)) :: nil
-      in Some (ValBaseHeader fields true)
+      in ValBaseHeader fields true
     | parse_udp => 
       let fields := 
         mkEntry "sports" (toBits 8 (slice 0 7 bs)) :: 
         mkEntry "dport" (toBits 8 (slice 7 15 bs)) :: 
         mkEntry "flags" (toBits 4 (slice 16 19 bs)) :: 
         mkEntry "seq" (toBits 8 (slice 20 27 bs)) :: nil
-      in Some (ValBaseHeader fields true)
+      in ValBaseHeader fields true
     | parse_tcp => 
       let fields := 
         mkEntry "sport" (toBits 8 (slice 0 7 bs)) ::
         mkEntry "dport" (toBits 8 (slice 7 15 bs)) :: 
         mkEntry "flags" (toBits 8 (slice 16 19 bs)) :: nil 
-      in Some (ValBaseHeader fields true)
+      in ValBaseHeader fields true
     end.
+
+
 
   Definition baby_storeable : storeable states' :=  {|
     value := values ;
-    store := AList (t states') values _ ;
-    marshall := marshall_baby1 ;
-    update := fun s v st => 
-      match AList.set (KEqDec := states_eq_dec) st s v with 
+    store := AList (t states') (values * list bool) _ ;
+    update := fun (s: t states') bs st => 
+      match AList.set (KEqDec := states_eq_dec) st s ((marshall_baby1 s bs), bs) with 
       | Some st' => st'
       | _ => st
       end ;
@@ -279,8 +275,8 @@ Module BabyIPv1.
   Definition transition (s: t states') (st: store _ baby_storeable) : (t states') + bool :=
     match s with
     | start =>
-      match AList.get (KEqDec := states_eq_dec) st start with
-      | Some (ValBaseHeader fields true) => 
+      match  AList.get (KEqDec := states_eq_dec) st start with
+      | Some (ValBaseHeader fields true, _) => 
         match AList.get fields (mkField "proto") with 
         | Some (ValBaseInt 4 1) => inl parse_udp
         | Some (ValBaseInt 4 0) => inl parse_tcp
@@ -319,7 +315,7 @@ Module BabyIPv2.
 
   Definition values := @ValueBase Info.
 
-  Definition marshall_baby2 (s: t states') (bs: list bool) : option values := 
+  Definition marshall_baby2 (s: t states') (bs: list bool) : values := 
     match s with 
     | start =>
       let fields := 
@@ -329,19 +325,18 @@ Module BabyIPv2.
         mkEntry "sport" (toBits 8 (slice 20 27 bs)) :: 
         mkEntry "dport" (toBits 8 (slice 28 35 bs)) :: 
         mkEntry "flags" (toBits 8 (slice 36 39 bs)) :: nil
-      in Some (ValBaseHeader fields true)
+      in ValBaseHeader fields true
     | parse_tcp => 
       let fields := 
         mkEntry "seq" (toBits 8 bs) :: nil 
-      in Some (ValBaseHeader fields true)
+      in ValBaseHeader fields true
     end.
 
   Definition baby_storeable : storeable states' :=  {|
     value := values ;
-    store := AList (t states') values _ ;
-    marshall := marshall_baby2 ;
-    update := fun s v st => 
-      match AList.set (KEqDec := states_eq_dec) st s v with 
+    store := AList (t states') (values * list bool) _ ;
+    update := fun (s : t states') bs st => 
+      match AList.set (KEqDec := states_eq_dec) st s ((marshall_baby2 s bs), bs) with 
       | Some st' => st'
       | _ => st
       end ;
@@ -351,7 +346,7 @@ Module BabyIPv2.
     match s with
     | start =>
       match AList.get (KEqDec := states_eq_dec) st start with
-      | Some (ValBaseHeader fields true) => 
+      | Some (ValBaseHeader fields true, _) => 
         match AList.get fields (mkField "proto") with 
         | Some (ValBaseInt 4 1) => inr true
         | Some (ValBaseInt 4 0) => inl parse_tcp
@@ -370,7 +365,7 @@ Module BabyIPv2.
   
 End BabyIPv2.
 
-(* 
+
 Inductive candidate:
   configuration BabyIPv1.v1_parser ->
   configuration BabyIPv2.v2_parser ->
@@ -388,34 +383,40 @@ Inductive candidate:
         (inr b, st1, buf1)
         (inr b, st2, buf2)
 | BisimulationTCPVersusIP:
-    forall st1 st2 buf1 buf2,
-      st1 BabyIPv1.ip ++ buf1 = buf2 ->
-      skipn 16 (st1 BabyIPv1.ip) = repeat false 4 ->
-      length (st1 BabyIPv1.ip) = 20 ->
-      length buf2 < 40 ->
+    forall st1 v pref buf1 st2 buf2,
+      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      pref ++ buf1 = buf2 ->
+      v = ValBaseBit 4 0 ->
+      List.length pref = 20 ->
+      List.length buf2 < 40 ->
       candidate
         (inl BabyIPv1.parse_tcp, st1, buf1)
         (inl BabyIPv2.start, st2, buf2)
+
 | BisimulationTCPVersusTCP:
-    forall st1 st2 buf1 buf2,
-      buf1 = skipn 20 (st2 BabyIPv2.comb) ++ buf2 ->
-      length (st2 BabyIPv2.comb) = 40 ->
+    forall st1 buf1 st2 v pref buf2,
+      AList.get (KEqDec := BabyIPv2.states_eq_dec) st2 BabyIPv2.start = Some (v, pref) ->
+      buf1 = skipn 20 pref ++ buf2 ->
+      List.length pref = 40 ->
       candidate
         (inl BabyIPv1.parse_tcp, st1, buf1)
         (inl BabyIPv2.parse_tcp, st2, buf2)
+
 | BisimulationUDPVersusIP:
-    forall st1 st2 buf1 buf2,
-      st1 BabyIPv1.ip ++ buf1 = buf2 ->
-      skipn 16 (st1 BabyIPv1.ip) = repeat false 3 ++ true :: nil ->
-      length (st1 BabyIPv1.ip) = 20 ->
-      length buf2 < 40 ->
+    forall st1 pref v buf1 st2 buf2,
+      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      pref ++ buf1 = buf2 ->
+      v = ValBaseBit 4 1 ->
+      List.length pref = 20 ->
+      List.length buf2 < 40 ->
       candidate
         (inl BabyIPv1.parse_udp, st1, buf1)
         (inl BabyIPv2.start, st2, buf2)
 | BisimulationFalseVersusStart:
-    forall st1 st2 buf1 buf2,
-      st1 (BabyIPv1.ip) = buf2 ->
-      length (st1 (BabyIPv1.ip)) = 20 ->
+    forall st1 v pref buf1 st2 buf2,
+      AList.get (KEqDec := BabyIPv1.states_eq_dec) st1 BabyIPv1.start = Some (v, pref) ->
+      pref = buf2 ->
+      List.length pref = 20 ->
       skipn 16 buf2 <> false :: false :: false :: true :: nil ->
       skipn 16 buf2 <> false :: false :: false :: false :: nil ->
       candidate
@@ -429,17 +430,18 @@ Opaque firstn.
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
-Proof.
+Admitted.
+(* Proof.
   unfold bisimulation; intros.
   induction H; (split; [simpl; try easy; split; intros; try inversion H; congruence|]); intros.
   - unfold step.
     repeat rewrite app_length.
-    simpl length.
+    simpl List.length.
     simpl size.
     do 2 destruct (equiv_dec _ _); try congruence.
     + simpl.
-      rewrite override_id.
-      destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
+      
+
       * apply BisimulationUDPVersusIP.
         -- rewrite override_id.
            now rewrite app_nil_r.
@@ -679,14 +681,13 @@ Proof.
       * constructor.
     + rewrite <- app_assoc.
       now constructor.
-Qed.
+Qed. *)
 
-Theorem babyip_equiv
-  (st1: store BabyIPv1.names)
-  (st2: store BabyIPv2.names)
+(* Theorem babyip_equiv
+  st1 st2
 :
-  @lang_equiv v1_parser
-              v2_parser
+  @lang_equiv BabyIPv1.v1_parser
+              BabyIPv2.v2_parser
               (inl BabyIPv1.start, st1, nil)
               (inl BabyIPv2.start, st2, nil)
 .
@@ -698,4 +699,4 @@ Proof.
   - constructor.
     simpl length.
     lia.
-Qed. *)
+Qed.  *)

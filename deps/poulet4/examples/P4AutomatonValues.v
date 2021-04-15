@@ -585,7 +585,6 @@ Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
 Proof.
-  Opaque slice.
   unfold bisimulation; intros.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
@@ -623,9 +622,7 @@ Proof.
            unfold Equivalence.equiv, complement.
            intro.
            apply H0.
-           Transparent slice.
            unfold slice.
-           Opaque slice.
            rewrite c0.
            cbv.
            reflexivity.
@@ -633,9 +630,7 @@ Proof.
            unfold Equivalence.equiv, complement.
            intro.
            apply H0.
-           Transparent slice.
            unfold slice.
-           Opaque slice.
            rewrite c1.
            cbv.
            reflexivity.
@@ -664,12 +659,10 @@ Proof.
       * exfalso.
         rewrite <- H1 in e0.
         rewrite <- app_assoc in e0.
-        Transparent slice.
         unfold slice in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.
         fold (slice 16 20 pref) in e0.
-        Opaque slice.
         rewrite skipn_length in e0.
         rewrite H2 in e0.
         simpl "-" in e0.
@@ -692,12 +685,10 @@ Proof.
         -- assumption.
       * rewrite <- H1 in c1.
         rewrite <- app_assoc in c1.
-        Transparent slice.
         unfold slice in c1.
         rewrite skipn_app in c1.
         rewrite firstn_app in c1.
         fold (slice 16 20 pref) in c1.
-        Opaque slice.
         rewrite skipn_length in c1.
         rewrite H2 in c1.
         simpl "-" in c1.
@@ -736,12 +727,10 @@ Proof.
       * constructor.
       * rewrite <- H1 in e1.
         rewrite <- app_assoc in e1.
-        Transparent slice.
         unfold slice in e1.
         rewrite skipn_app in e1.
         rewrite firstn_app in e1.
         fold (slice 16 20 pref) in e1.
-        Opaque slice.
         rewrite skipn_length in e1.
         rewrite H2 in e1.
         simpl "-" in e1.
@@ -752,12 +741,10 @@ Proof.
         discriminate.
       * rewrite <- H1 in c.
         rewrite <- app_assoc in c.
-        Transparent slice.
         unfold slice in c.
         rewrite skipn_app in c.
         rewrite firstn_app in c.
         fold (slice 16 20 pref) in c.
-        Opaque slice.
         rewrite skipn_length in c.
         rewrite H2 in c.
         simpl "-" in c.
@@ -786,12 +773,10 @@ Proof.
     destruct (equiv_dec _ 40).
     + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
       * rewrite <- app_assoc in e0.
-        Transparent slice.
         unfold slice in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.
         fold (slice 16 20 buf2) in e0.
-        Opaque slice.
         rewrite <- H in e0 at 2.
         rewrite skipn_length in e0.
         rewrite H0 in e0.
@@ -807,7 +792,6 @@ Proof.
         rewrite <- H.
         rewrite H0.
         simpl "-".
-        Transparent slice.
         unfold slice in e0.
         simpl "-" in e0.
         simpl to_bits in e0.
@@ -816,12 +800,10 @@ Proof.
         rewrite <- H.
         elia.
       * rewrite <- app_assoc in e0.
-        Transparent slice.
         unfold slice in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.
         fold (slice 16 20 buf2) in e0.
-        Opaque slice.
         rewrite <- H in e0 at 2.
         rewrite skipn_length in e0.
         rewrite H0 in e0.
@@ -837,7 +819,6 @@ Proof.
         rewrite <- H.
         rewrite H0.
         simpl "-".
-        Transparent slice.
         unfold slice in e0.
         simpl "-" in e0.
         simpl to_bits in e0.

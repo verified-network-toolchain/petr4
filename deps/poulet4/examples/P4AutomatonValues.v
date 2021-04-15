@@ -1,15 +1,17 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.micromega.Lia.
+Require Import Coq.Strings.String.
 
 Require Import Poulet4.Syntax.
-
 Require Import Poulet4.P4defs.
-
 Require Import Poulet4.AList.
-
 Require Import Poulet4.Bitwise.
 
+Require Poulet4.HAList.
+
+Open Scope string_scope.
+Open Scope list_scope.
 
 Section P4Automaton.
 
@@ -196,6 +198,9 @@ Definition mkEntry (s: string) (v: @ValueBase Info): P4String.t Info * ValueBase
 
 Definition slice {A} to from (l: list A) := firstn (from - to) (skipn to l).
 
+Instance StrEqDec : EqDec string eq := {
+  equiv_dec := string_dec;
+}.
 
 Module BabyIPv1.
   Inductive states :=
@@ -242,25 +247,69 @@ Module BabyIPv1.
       in ValBaseHeader fields true
     end.
 
-  Definition store' := AList states values _.
+  Definition ip_hdr := HAList.t (
+    ("src", values) ::
+    ("dst", values) ::
+    ("proto", values) ::
+    nil
+  ).
 
-  Definition update' (s: states) (bits: list bool) (st: store') :=
-    match AList.set st s (marshall s bits) with
-    | Some st' => st'
-    | _ => st
+  Definition udp_hdr := HAList.t (
+    ("sport", values) ::
+    ("dport", values) ::
+    ("flags", values) ::
+    ("seq", values) ::
+    nil
+  ).
+
+  Definition tcp_hdr := HAList.t (
+    ("sport", values) ::
+    ("dport", values) ::
+    ("flags", values) ::
+    nil
+  ).
+
+  Definition store' := HAList.t (
+    ("ip", ip_hdr) ::
+    ("udp", udp_hdr) ::
+    ("tcp", tcp_hdr) ::
+    nil
+  ).
+
+  Definition update' (s: states) (bs: list bool) (st: store') :=
+    match s with
+    | start =>
+      let fields :=
+        HAList.RCons (toBits 8 (slice 0 7 bs)) (
+        HAList.RCons (toBits 8 (slice 7 15 bs)) (
+        HAList.RCons (toBits 4 (slice 16 19 bs)) (
+        HAList.REmp))) in
+      HAList.set st (exist _ "ip" I) fields
+    | parse_udp =>
+      let fields :=
+        HAList.RCons (toBits 8 (slice 0 7 bs)) (
+        HAList.RCons (toBits 8 (slice 7 15 bs)) (
+        HAList.RCons (toBits 4 (slice 16 19 bs)) (
+        HAList.RCons (toBits 8 (slice 20 27 bs)) (
+        HAList.REmp)))) in
+      HAList.set st (exist _ "udp" I) fields
+    | parse_tcp =>
+      let fields :=
+        HAList.RCons (toBits 8 (slice 0 7 bs)) (
+        HAList.RCons (toBits 8 (slice 7 15 bs)) (
+        HAList.RCons (toBits 8 (slice 16 19 bs)) (
+        HAList.REmp))) in
+      HAList.set st (exist _ "tcp" I) fields
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match AList.get st start with
-      | Some (ValBaseHeader fields true) =>
-        match AList.get fields (mkField "proto") with
-        | Some (ValBaseInt 4 1) => inl parse_udp
-        | Some (ValBaseInt 4 0) => inl parse_tcp
-        | _ => inr false
-        end
+      let ip := HAList.get st (exist _ "ip" I) in
+      match HAList.get ip (exist _ "proto" I) with
+      | ValBaseInt 4 1 => inl parse_udp
+      | ValBaseInt 4 0 => inl parse_tcp
       | _ => inr false
       end
     | parse_udp => inr true
@@ -297,42 +346,59 @@ Module BabyIPv2.
 
   Definition values := @ValueBase Info.
 
-  Definition marshall (s: states) (bs: list bool) : values :=
+  Definition combined_hdr := HAList.t (
+    ("src", values) ::
+    ("dst", values) ::
+    ("proto", values) ::
+    ("sport", values) ::
+    ("dport", values) ::
+    ("flags", values) ::
+    nil
+  ).
+
+  Definition optional_hdr := HAList.t (
+    ("seq", values) ::
+    nil
+  ).
+
+  Definition tcp_hdr := HAList.t (
+    ("sport", values) ::
+    ("dport", values) ::
+    ("flags", values) ::
+    nil
+  ).
+
+  Definition store' := HAList.t (
+    ("comb", combined_hdr) ::
+    ("opt_suffix", optional_hdr) ::
+    nil
+  ).
+
+  Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
       let fields :=
-        mkEntry "src" (toBits 8 (slice 0 7 bs)) ::
-        mkEntry "dst" (toBits 8 (slice 7 15 bs)) ::
-        mkEntry "proto" (toBits 4 (slice 16 19 bs)) ::
-        mkEntry "sport" (toBits 8 (slice 20 27 bs)) ::
-        mkEntry "dport" (toBits 8 (slice 28 35 bs)) ::
-        mkEntry "flags" (toBits 8 (slice 36 39 bs)) :: nil
-      in ValBaseHeader fields true
+        HAList.RCons (toBits 8 (slice 0 7 bs)) (
+        HAList.RCons (toBits 8 (slice 7 15 bs)) (
+        HAList.RCons (toBits 4 (slice 16 19 bs)) (
+        HAList.RCons (toBits 8 (slice 20 27 bs)) (
+        HAList.RCons (toBits 8 (slice 28 35 bs)) (
+        HAList.RCons (toBits 8 (slice 36 39 bs)) (
+        HAList.REmp)))))) in
+      HAList.set st (exist _ "comb" I) fields
     | parse_tcp =>
-      let fields :=
-        mkEntry "seq" (toBits 8 bs) :: nil
-      in ValBaseHeader fields true
-    end.
-
-  Definition store' := AList states values _.
-
-  Definition update' (s: states) (bits: list bool) (st: store') :=
-    match AList.set st s (marshall s bits) with
-    | Some st' => st'
-    | _ => st
+      let fields := HAList.RCons (toBits 8 bs) HAList.REmp in
+      HAList.set st (exist _ "opt_suffix" I) fields
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match AList.get st start with
-      | Some (ValBaseHeader fields true) =>
-        match AList.get fields (mkField "proto") with
-        | Some (ValBaseInt 4 1) => inr true
-        | Some (ValBaseInt 4 0) => inl parse_tcp
-        | _ => inr false
-        end
+      let combined := HAList.get st (exist _ "comb" I) in
+      match HAList.get combined (exist _ "proto" I) with
+      | ValBaseInt 4 1 => inr true
+      | ValBaseInt 4 0 => inl parse_tcp
       | _ => inr false
       end
     | parse_tcp => inr true
@@ -346,8 +412,6 @@ Module BabyIPv2.
   |}.
 
 End BabyIPv2.
-
-Compute (configuration BabyIPv1.v1_parser).
 
 Inductive candidate:
   configuration BabyIPv1.v1_parser ->
@@ -368,10 +432,10 @@ Inductive candidate:
         (inr b, st2, buf2)
 
 | BisimulationTCPVersusIP:
-    forall st1 v pref buf1 st2 buf2,
-      AList.get st1 BabyIPv1.start = Some v ->
+    forall (st1: BabyIPv1.store') ip pref buf1 st2 buf2,
+      HAList.get st1 (exist _ "ip" I) = ip ->
+      HAList.get ip (exist _ "proto" I) = ValBaseBit 4 0 ->
       pref ++ buf1 = buf2 ->
-      v = ValBaseBit 4 0 ->
       List.length pref = 20 ->
       List.length buf2 < 40 ->
       candidate
@@ -379,8 +443,7 @@ Inductive candidate:
         (inl BabyIPv2.start, st2, buf2)
 
 | BisimulationTCPVersusTCP:
-    forall st1 buf1 st2 v pref buf2,
-      AList.get st2 BabyIPv2.start = Some v ->
+    forall st1 buf1 st2 pref buf2,
       buf1 = skipn 20 pref ++ buf2 ->
       List.length pref = 40 ->
       candidate
@@ -388,18 +451,18 @@ Inductive candidate:
         (inl BabyIPv2.parse_tcp, st2, buf2)
 
 | BisimulationUDPVersusIP:
-    forall st1 pref v buf1 st2 buf2,
-      AList.get st1 BabyIPv1.start = Some v ->
+    forall (st1: BabyIPv1.store') pref ip buf1 st2 buf2,
+      HAList.get st1 (exist _ "ip" I) = ip ->
+      HAList.get ip (exist _ "proto" I) = ValBaseBit 4 1 ->
       pref ++ buf1 = buf2 ->
-      v = ValBaseBit 4 1 ->
       List.length pref = 20 ->
       List.length buf2 < 40 ->
       candidate
         (inl BabyIPv1.parse_udp, st1, buf1)
         (inl BabyIPv2.start, st2, buf2)
+
 | BisimulationFalseVersusStart:
-    forall st1 v pref buf1 st2 buf2,
-      AList.get st1 BabyIPv1.start = Some v ->
+    forall st1 pref buf1 st2 buf2,
       pref = buf2 ->
       List.length pref = 20 ->
       skipn 16 buf2 <> false :: false :: false :: true :: nil ->
@@ -411,22 +474,33 @@ Inductive candidate:
 
 Opaque skipn.
 Opaque firstn.
+Opaque HAList.get.
+Opaque HAList.set.
+
+Lemma foo:
+  forall sig (s: HAList.t sig) k v,
+    HAList.get (HAList.set s k v) k = v
+.
+Admitted.
 
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
-Admitted.
-(* Proof.
+Proof.
   unfold bisimulation; intros.
-  induction H; (split; [simpl; try easy; split; intros; try inversion H; congruence|]); intros.
+  induction H; (split; [try easy|]); intros.
+  2: { split; intros; inversion H; easy. }
   - unfold step.
     repeat rewrite app_length.
     simpl List.length.
     simpl size.
     do 2 destruct (equiv_dec _ _); try congruence.
-    + simpl.
-
-
+    + unfold BabyIPv1.v1_parser.
+      unfold transitions.
+      unfold update.
+      unfold BabyIPv1.update'.
+      unfold BabyIPv1.transitions'.
+      rewrite foo.
       * apply BisimulationUDPVersusIP.
         -- rewrite override_id.
            now rewrite app_nil_r.

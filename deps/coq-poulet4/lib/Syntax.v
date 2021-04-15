@@ -63,7 +63,7 @@ Section Syntax.
   | ExpBool (b: bool)
   | ExpInt (_: P4Int)
   | ExpString (_: P4String)
-  | ExpName (_: @Typed.name tags_t) (l: Locator)
+  | ExpName (_: @Typed.name tags_t) (loc: Locator)
   | ExpArrayAccess (array: Expression) (index: Expression)
   | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
@@ -170,10 +170,10 @@ Section Syntax.
                (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
                   (name: P4String) (value: ValueBase)
-                  (l: Locator)
+                  (loc: Locator)
   | StatVariable  (typ: @P4Type tags_t)
                   (name: P4String) (init: option Expression)
-                  (l: Locator)
+                  (loc: Locator)
   | StatInstantiation  (typ: @P4Type tags_t)
                        (args: list Expression)
                        (name: P4String)
@@ -417,7 +417,7 @@ Section Syntax.
       methods: list ExternMethod }.
 
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t) (l: Locator)
+  | ValLeftName (name: @Typed.name tags_t) (loc: Locator)
   | ValLeftMember (expr: ValueLvalue) (name: P4String)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)

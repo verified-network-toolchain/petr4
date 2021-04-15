@@ -59,7 +59,7 @@ Section Transformer.
     | ExpBool b => (nil, MkExpression tag (ExpBool b) typ dir, nameIdx)
     | ExpInt i => (nil, MkExpression tag (ExpInt i) typ dir, nameIdx)
     | ExpString str => (nil, MkExpression tag (ExpString str) typ dir, nameIdx)
-    | ExpName name l => (nil, MkExpression tag (ExpName name l) typ dir, nameIdx)
+    | ExpName name loc => (nil, MkExpression tag (ExpName name loc) typ dir, nameIdx)
     | ExpArrayAccess array index =>
       let (l1e1, n1) := transform_exp nameIdx array in
       let (l2e2, n2) := transform_exp n1 index in
@@ -145,9 +145,9 @@ Section Transformer.
       (l1 ++ [(N_to_tempvar n1,
                MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
        MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ dir, add1 n1)
-    | ExpNamelessInstantiation typ' args l =>
+    | ExpNamelessInstantiation typ' args =>
       ([(N_to_tempvar nameIdx,
-               MkExpression tag (ExpNamelessInstantiation typ' args l) typ dir)],
+               MkExpression tag (ExpNamelessInstantiation typ' args) typ dir)],
        MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx)) NoLocator) typ dir, add1 nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
     | ExpMask expr mask =>
@@ -189,11 +189,11 @@ Section Transformer.
     match ne with
     | (name, MkExpression tag expr typ' dir) =>
       match expr with
-      | ExpNamelessInstantiation typ'' e1 _ =>
+      | ExpNamelessInstantiation typ'' e1 =>
         MkStatement tags (StatInstantiation typ'' e1 name None) typ
       | _ => MkStatement tags
                          (StatVariable typ' name
-                                       (Some (MkExpression tag expr typ' dir))) typ
+                                       (Some (MkExpression tag expr typ' dir)) NoLocator) typ
       end
     end.
 
@@ -287,12 +287,12 @@ Section Transformer.
                 let (rest', n4) := transform_lssc n3 rest in (c1 :: rest', n4)
               end) n1 cases) in
       (l1 ++ [MkStatement tags (StatSwitch e1 caseList) typ], n2)
-    | StatConstant _ _ _ => ([MkStatement tags stmt typ], nameIdx)
-    | StatVariable _ _ None => ([MkStatement tags stmt typ], nameIdx)
-    | StatVariable typ' name (Some expr) =>
+    | StatConstant _ _ _ _ => ([MkStatement tags stmt typ], nameIdx)
+    | StatVariable _ _ None _ => ([MkStatement tags stmt typ], nameIdx)
+    | StatVariable typ' name (Some expr) loc =>
       let (l1e1, n1) := transform_Expr_stmt nameIdx expr in
       let (l1, e1) := l1e1 in
-      (l1 ++ [MkStatement tags (StatVariable typ' name (Some e1)) typ], n1)
+      (l1 ++ [MkStatement tags (StatVariable typ' name (Some e1) loc) typ], n1)
     | StatInstantiation typ' args name init => ([MkStatement tags stmt typ], nameIdx)
     end
   with transform_stmt (nameIdx: N) (stmt: @Statement tags_t):
@@ -322,7 +322,7 @@ Section Transformer.
     match ne with
     | (name, MkExpression tags expr typ dir) =>
       match expr with
-      | ExpNamelessInstantiation typ' args _ =>
+      | ExpNamelessInstantiation typ' args =>
         DeclInstantiation tags  typ' args name None
       | _ => DeclVariable default_tag typ name (Some (MkExpression tags expr typ dir))
       end

@@ -54,8 +54,8 @@ lib/P4cub/Value.v
 
 -R examples Petr4.Examples
 
-examples/IntExample.v
-examples/TwoState.v
-examples/BabyIP.v
+# examples/IntExample.v
+# examples/TwoState.v
+# examples/BabyIP.v
 examples/SimpleIPv4.v
 examples/HAListExample.v

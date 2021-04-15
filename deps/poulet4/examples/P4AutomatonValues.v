@@ -8,7 +8,8 @@ Require Import Poulet4.P4defs.
 Require Import Poulet4.AList.
 Require Import Poulet4.Bitwise.
 
-Require Poulet4.HAList.
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
 
 Open Scope string_scope.
 Open Scope list_scope.
@@ -218,35 +219,13 @@ Module BabyIPv1.
   Definition size' (s: states) : nat :=
     match s with
     | start => 20
-    | parse_udp => 28
-    | parse_tcp => 20
+    | parse_udp => 20
+    | parse_tcp => 28
     end
   .
   Definition values := @ValueBase Info.
 
-  Definition marshall (s: states) (bs: list bool) : values :=
-    match s with
-    | start =>
-      let fields :=
-        mkEntry "src" (toBits 8 (slice 0 7 bs)) ::
-        mkEntry "dst" (toBits 8 (slice 7 15 bs)) ::
-        mkEntry "proto" (toBits 4 (slice 16 19 bs)) :: nil
-      in ValBaseHeader fields true
-    | parse_udp =>
-      let fields :=
-        mkEntry "sports" (toBits 8 (slice 0 7 bs)) ::
-        mkEntry "dport" (toBits 8 (slice 7 15 bs)) ::
-        mkEntry "flags" (toBits 4 (slice 16 19 bs)) ::
-        mkEntry "seq" (toBits 8 (slice 20 27 bs)) :: nil
-      in ValBaseHeader fields true
-    | parse_tcp =>
-      let fields :=
-        mkEntry "sport" (toBits 8 (slice 0 7 bs)) ::
-        mkEntry "dport" (toBits 8 (slice 7 15 bs)) ::
-        mkEntry "flags" (toBits 8 (slice 16 19 bs)) :: nil
-      in ValBaseHeader fields true
-    end.
-
+  (*
   Definition ip_hdr := HAList.t (
     ("src", values) ::
     ("dst", values) ::
@@ -258,7 +237,6 @@ Module BabyIPv1.
     ("sport", values) ::
     ("dport", values) ::
     ("flags", values) ::
-    ("seq", values) ::
     nil
   ).
 
@@ -266,6 +244,7 @@ Module BabyIPv1.
     ("sport", values) ::
     ("dport", values) ::
     ("flags", values) ::
+    ("seq", values) ::
     nil
   ).
 
@@ -275,43 +254,72 @@ Module BabyIPv1.
     ("tcp", tcp_hdr) ::
     nil
   ).
+  *)
+
+  Record ip_hdr := MkIPHdr {
+    ip_src: nat;
+    ip_dst: nat;
+    ip_proto: nat;
+  }.
+
+  Instance etaIPHdr : Settable _ := settable! MkIPHdr <ip_src; ip_dst; ip_proto>.
+
+  Record udp_hdr := MkUDPHdr {
+    udp_sport: nat;
+    udp_dport: nat;
+    udp_flags: nat;
+  }.
+
+  Instance etaUDPHdr : Settable _ := settable! MkUDPHdr <udp_sport; udp_dport; udp_flags>.
+
+  Record tcp_hdr := MkTCPHdr {
+    tcp_sport: nat;
+    tcp_dport: nat;
+    tcp_flags: nat;
+    tcp_seq: nat;
+  }.
+
+  Instance etaTCPHdr : Settable _ := settable! MkTCPHdr <tcp_sport; tcp_dport; tcp_flags; tcp_seq>.
+
+  Record store' := MkStore {
+    store_ip_hdr: ip_hdr;
+    store_udp_hdr: udp_hdr;
+    store_tcp_hdr: tcp_hdr;
+  }.
+
+  Instance etaStore : Settable _ := settable! MkStore <store_ip_hdr; store_udp_hdr; store_tcp_hdr>.
 
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      let fields :=
-        HAList.RCons (toBits 8 (slice 0 7 bs)) (
-        HAList.RCons (toBits 8 (slice 7 15 bs)) (
-        HAList.RCons (toBits 4 (slice 16 19 bs)) (
-        HAList.REmp))) in
-      HAList.set st (exist _ "ip" I) fields
+      st <| store_ip_hdr := {|
+        ip_src := to_nat (slice 0 8 bs);
+        ip_dst := to_nat (slice 8 16 bs);
+        ip_proto := to_nat (slice 16 20 bs);
+      |} |>
     | parse_udp =>
-      let fields :=
-        HAList.RCons (toBits 8 (slice 0 7 bs)) (
-        HAList.RCons (toBits 8 (slice 7 15 bs)) (
-        HAList.RCons (toBits 4 (slice 16 19 bs)) (
-        HAList.RCons (toBits 8 (slice 20 27 bs)) (
-        HAList.REmp)))) in
-      HAList.set st (exist _ "udp" I) fields
+      st <| store_udp_hdr := {|
+        udp_sport := to_nat (slice 0 8 bs);
+        udp_dport := to_nat (slice 8 16 bs);
+        udp_flags := to_nat (slice 16 20 bs);
+      |} |>
     | parse_tcp =>
-      let fields :=
-        HAList.RCons (toBits 8 (slice 0 7 bs)) (
-        HAList.RCons (toBits 8 (slice 7 15 bs)) (
-        HAList.RCons (toBits 8 (slice 16 19 bs)) (
-        HAList.REmp))) in
-      HAList.set st (exist _ "tcp" I) fields
+      st <| store_tcp_hdr := {|
+        tcp_sport := to_nat (slice 0 8 bs);
+        tcp_dport := to_nat (slice 8 16 bs);
+        tcp_flags := to_nat (slice 16 20 bs);
+        tcp_seq := to_nat (slice 20 28 bs);
+      |} |>
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      let ip := HAList.get st (exist _ "ip" I) in
-      match HAList.get ip (exist _ "proto" I) with
-      | ValBaseInt 4 1 => inl parse_udp
-      | ValBaseInt 4 0 => inl parse_tcp
-      | _ => inr false
-      end
+      let proto := st.(store_ip_hdr).(ip_proto) in
+      if proto == 1 then inl parse_udp
+      else if proto == 0 then inl parse_tcp
+      else inr false
     | parse_udp => inr true
     | parse_tcp => inr true
     end
@@ -346,6 +354,7 @@ Module BabyIPv2.
 
   Definition values := @ValueBase Info.
 
+  (*
   Definition combined_hdr := HAList.t (
     ("src", values) ::
     ("dst", values) ::
@@ -373,34 +382,57 @@ Module BabyIPv2.
     ("opt_suffix", optional_hdr) ::
     nil
   ).
+  *)
+
+  Record combined_hdr := MkCombinedHdr {
+    combined_src: nat;
+    combined_dst: nat;
+    combined_proto: nat;
+    combined_sport: nat;
+    combined_dport: nat;
+    combined_flags: nat;
+  }.
+
+  Instance etaCombinedHdr : Settable _ := settable! MkCombinedHdr <combined_src; combined_dst; combined_proto; combined_sport; combined_dport; combined_flags>.
+
+  Record optional_hdr := MkOptionalHdr {
+    optional_seq: nat;
+  }.
+
+  Instance etaOptionalHdr : Settable _ := settable! MkOptionalHdr <optional_seq>.
+
+  Record store' := MkStore {
+    store_combined_hdr: combined_hdr;
+    store_optional_hdr: optional_hdr;
+  }.
+
+  Instance etaStore : Settable _ := settable! MkStore <store_combined_hdr; store_optional_hdr>.
 
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      let fields :=
-        HAList.RCons (toBits 8 (slice 0 7 bs)) (
-        HAList.RCons (toBits 8 (slice 7 15 bs)) (
-        HAList.RCons (toBits 4 (slice 16 19 bs)) (
-        HAList.RCons (toBits 8 (slice 20 27 bs)) (
-        HAList.RCons (toBits 8 (slice 28 35 bs)) (
-        HAList.RCons (toBits 8 (slice 36 39 bs)) (
-        HAList.REmp)))))) in
-      HAList.set st (exist _ "comb" I) fields
+      st <| store_combined_hdr := {|
+        combined_src := to_nat (slice 0 8 bs);
+        combined_dst := to_nat (slice 8 16 bs);
+        combined_proto := to_nat (slice 16 20 bs);
+        combined_sport := to_nat (slice 20 28 bs);
+        combined_dport := to_nat (slice 28 36 bs);
+        combined_flags := to_nat (slice 36 40 bs);
+      |} |>
     | parse_tcp =>
-      let fields := HAList.RCons (toBits 8 bs) HAList.REmp in
-      HAList.set st (exist _ "opt_suffix" I) fields
+      st <| store_optional_hdr := {|
+        optional_seq := to_nat bs;
+      |} |>
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      let combined := HAList.get st (exist _ "comb" I) in
-      match HAList.get combined (exist _ "proto" I) with
-      | ValBaseInt 4 1 => inr true
-      | ValBaseInt 4 0 => inl parse_tcp
-      | _ => inr false
-      end
+      let proto := st.(store_combined_hdr).(combined_proto) in
+      if proto == 1 then inr true
+      else if proto == 0 then inl parse_tcp
+      else inr false
     | parse_tcp => inr true
     end
   .
@@ -432,9 +464,9 @@ Inductive candidate:
         (inr b, st2, buf2)
 
 | BisimulationTCPVersusIP:
-    forall (st1: BabyIPv1.store') ip pref buf1 st2 buf2,
-      HAList.get st1 (exist _ "ip" I) = ip ->
-      HAList.get ip (exist _ "proto" I) = ValBaseBit 4 0 ->
+    forall st1 pref buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 0 ->
+      slice 16 20 pref = false :: false :: false :: false :: nil ->
       pref ++ buf1 = buf2 ->
       List.length pref = 20 ->
       List.length buf2 < 40 ->
@@ -451,9 +483,9 @@ Inductive candidate:
         (inl BabyIPv2.parse_tcp, st2, buf2)
 
 | BisimulationUDPVersusIP:
-    forall (st1: BabyIPv1.store') pref ip buf1 st2 buf2,
-      HAList.get st1 (exist _ "ip" I) = ip ->
-      HAList.get ip (exist _ "proto" I) = ValBaseBit 4 1 ->
+    forall st1 pref buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 1 ->
+      slice 16 20 pref = true :: false :: false :: false :: nil ->
       pref ++ buf1 = buf2 ->
       List.length pref = 20 ->
       List.length buf2 < 40 ->
@@ -465,284 +497,360 @@ Inductive candidate:
     forall st1 pref buf1 st2 buf2,
       pref = buf2 ->
       List.length pref = 20 ->
-      skipn 16 buf2 <> false :: false :: false :: true :: nil ->
+      skipn 16 buf2 <> true :: false :: false :: false :: nil ->
       skipn 16 buf2 <> false :: false :: false :: false :: nil ->
       candidate
         (inr false, st1, buf1)
         (inl BabyIPv2.start, st2, buf2 ++ buf1)
 .
 
-Opaque skipn.
-Opaque firstn.
-Opaque HAList.get.
-Opaque HAList.set.
 
-Lemma foo:
-  forall sig (s: HAList.t sig) k v,
-    HAList.get (HAList.set s k v) k = v
+Ltac elia :=
+  unfold Equivalence.equiv in *;
+  unfold complement in *;
+  lia
+.
+
+Fixpoint to_bits (s n: nat) :=
+  match s with
+  | 0 => nil
+  | S s' =>
+    if n mod 2 == 0 then
+      false :: to_bits s' (n / 2)
+    else
+      true :: to_bits s' (n / 2)
+  end
+.
+
+Lemma to_nat_div:
+  forall b l,
+    to_nat (b :: l) / 2 = to_nat l
 .
 Admitted.
+
+Lemma to_nat_mod:
+  forall b l,
+    to_nat (b :: l) mod 2 = 0 <-> false = b
+.
+Admitted.
+
+Lemma to_bits_roundtrip n:
+  forall l,
+    Datatypes.length l = n ->
+    to_bits n (to_nat l) = l
+.
+Proof.
+  induction n; intros.
+  - simpl in *.
+    symmetry.
+    now apply length_zero_iff_nil.
+  - unfold to_bits.
+    fold to_bits.
+    destruct l; [simpl in H;discriminate|].
+    rewrite to_nat_div.
+    rewrite IHn.
+    destruct (equiv_dec _ _).
+    + f_equal.
+      eapply to_nat_mod.
+      exact e.
+    + f_equal.
+      symmetry.
+      apply Bool.not_false_is_true.
+      contradict c.
+      intro.
+      apply H0.
+      unfold Equivalence.equiv.
+      apply to_nat_mod.
+      congruence.
+    + simpl in H.
+      congruence.
+Qed.
+
+Lemma length_slice {X: Type}:
+  forall i j (l: list X),
+    j <= Datatypes.length l ->
+    Datatypes.length (slice i j l) = j - i
+.
+Proof.
+  intros.
+  unfold slice.
+  rewrite firstn_length.
+  rewrite min_l.
+  reflexivity.
+  rewrite skipn_length.
+  lia.
+Qed.
 
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
 Proof.
+  Opaque slice.
   unfold bisimulation; intros.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
-  - unfold step.
-    repeat rewrite app_length.
-    simpl List.length.
-    simpl size.
-    do 2 destruct (equiv_dec _ _); try congruence.
-    + unfold BabyIPv1.v1_parser.
-      unfold transitions.
-      unfold update.
-      unfold BabyIPv1.update'.
-      unfold BabyIPv1.transitions'.
-      rewrite foo.
-      * apply BisimulationUDPVersusIP.
-        -- rewrite override_id.
-           now rewrite app_nil_r.
-        -- now rewrite override_id.
-        -- rewrite override_id.
-           rewrite app_length.
-           simpl length.
-           assumption.
-        -- rewrite app_length.
-           simpl length.
-           lia.
-      * apply BisimulationTCPVersusIP.
-        -- rewrite override_id.
-           now rewrite app_nil_r.
-        -- now rewrite override_id.
-        -- rewrite override_id.
-           rewrite app_length.
-           simpl length.
-           assumption.
-        -- rewrite app_length.
-           simpl length.
-           lia.
-      * replace (buf ++ b :: nil) with ((buf ++ b :: nil) ++ nil) at 2
-          by apply app_nil_r.
-        apply BisimulationFalseVersusStart; try assumption.
-        -- now rewrite override_id.
-        -- rewrite override_id.
-           rewrite app_length.
-           simpl length.
-           assumption.
-    + exfalso.
-      unfold equiv in *.
-      lia.
-    + constructor.
-      unfold equiv, complement in *.
-      rewrite app_length.
-      simpl.
-      lia.
   - simpl.
-    constructor.
-  - unfold step.
-    repeat rewrite app_length.
-    simpl length.
-    simpl size.
-    do 2 destruct (equiv_dec _ _).
-    + simpl.
-      rewrite override_id.
-      destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
+    destruct (equiv_dec _ 20); destruct (equiv_dec _ 40).
+    + congruence.
+    + destruct (equiv_dec (to_nat _) _); [| destruct (equiv_dec (to_nat _) _)].
+      * apply BisimulationUDPVersusIP with (pref := buf ++ b :: nil).
+        all: try (assumption || elia).
+        -- apply (f_equal (to_bits 4)) in e0.
+           rewrite to_bits_roundtrip in e0.
+           ** simpl in e0.
+              assumption.
+           ** apply length_slice.
+              rewrite app_length in *.
+              simpl Datatypes.length in *.
+              elia.
+        -- now rewrite app_nil_r.
+      * apply BisimulationTCPVersusIP with (pref := buf ++ b :: nil).
+        all: try (assumption || elia).
+        -- apply (f_equal (to_bits 4)) in e0.
+           rewrite to_bits_roundtrip in e0.
+           ** simpl in e0.
+              assumption.
+           ** apply length_slice.
+              rewrite app_length in *.
+              simpl Datatypes.length in *.
+              elia.
+        -- now rewrite app_nil_r.
+      * replace (buf ++ b :: nil) with ((buf ++ b :: nil) ++ nil) at 1
+          by apply app_nil_r.
+        apply BisimulationFalseVersusStart with (pref := buf ++ b :: nil).
+        all: try (assumption || elia || reflexivity).
+        -- contradict c0.
+           unfold Equivalence.equiv, complement.
+           intro.
+           apply H0.
+           Transparent slice.
+           unfold slice.
+           Opaque slice.
+           rewrite c0.
+           cbv.
+           reflexivity.
+        -- contradict c1.
+           unfold Equivalence.equiv, complement.
+           intro.
+           apply H0.
+           Transparent slice.
+           unfold slice.
+           Opaque slice.
+           rewrite c1.
+           cbv.
+           reflexivity.
+    + rewrite app_length in e.
+      simpl in e.
+      elia.
+    + constructor.
+      rewrite app_length in *.
+      simpl in *.
+      elia.
+  - simpl.
+    apply BisimulationEnd.
+  - simpl.
+    destruct (equiv_dec _ 28); destruct (equiv_dec _ 40).
+    + destruct (equiv_dec (to_nat _) _).
       * constructor.
-      * unfold equiv, complement in *.
-        exfalso.
-        apply (f_equal (@length bool)) in H.
-        rewrite app_length in H.
-        lia.
-      * unfold equiv, complement in *.
-        exfalso.
-        apply (f_equal (@length bool)) in H.
-        rewrite app_length in H.
-        lia.
-    + exfalso.
-      apply (f_equal (@length _)) in H.
-      rewrite app_length in H.
-      unfold equiv, complement in *.
-      lia.
-    + simpl.
-      rewrite override_id.
-      destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
-      * rewrite <- H in e0.
+      * apply (f_equal (@Datatypes.length bool)) in H1.
+        rewrite app_length in *.
+        simpl in *.
+        elia.
+    + apply (f_equal (@Datatypes.length bool)) in H1.
+      rewrite app_length in *.
+      simpl in *.
+      elia.
+    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
+      * exfalso.
+        rewrite <- H1 in e0.
+        rewrite <- app_assoc in e0.
+        Transparent slice.
+        unfold slice in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.
+        fold (slice 16 20 pref) in e0.
+        Opaque slice.
         rewrite skipn_length in e0.
-        rewrite H in e0.
-        assert (length buf2 = 39).
-        unfold equiv in e.
-        lia.
-        rewrite H3 in e0.
-        replace (4 - (39 - 16)) with 0 in e0 by reflexivity.
-        simpl firstn in e0 at 2.
-        rewrite app_nil_r in e0.
-        rewrite <- H in e0.
-        rewrite skipn_app in e0.
-        rewrite firstn_app in e0.
-        rewrite skipn_length in e0.
-        rewrite H1 in e0.
-        replace (4 - (20 - 16)) with 0 in e0 by reflexivity.
-        simpl firstn in e0 at 2.
+        rewrite H2 in e0.
+        simpl "-" in e0.
+        rewrite firstn_O in e0.
         rewrite app_nil_r in e0.
         rewrite H0 in e0.
         cbv in e0.
         discriminate.
-      * constructor.
-        -- rewrite app_nil_r.
-           rewrite override_id.
-           rewrite <- H.
+      * apply BisimulationTCPVersusTCP with (pref := buf2 ++ b :: nil).
+        -- rewrite <- H1.
            rewrite <- app_assoc.
            rewrite skipn_app.
-           rewrite <- H1.
+           rewrite <- H2.
            rewrite skipn_all.
            rewrite app_nil_l.
-           rewrite PeanoNat.Nat.sub_diag.
-           simpl skipn.
+           rewrite Nat.sub_diag.
+           rewrite skipn_O.
+           rewrite app_nil_r.
            reflexivity.
-        -- rewrite override_id.
-           rewrite app_length.
-           simpl length.
-           assumption.
-      * rewrite <- H in c1.
+        -- assumption.
+      * rewrite <- H1 in c1.
+        rewrite <- app_assoc in c1.
+        Transparent slice.
+        unfold slice in c1.
         rewrite skipn_app in c1.
         rewrite firstn_app in c1.
+        fold (slice 16 20 pref) in c1.
+        Opaque slice.
         rewrite skipn_length in c1.
-        rewrite H in c1.
-        assert (length buf2 = 39).
-        unfold equiv in e.
-        lia.
-        rewrite H3 in c1.
-        replace (4 - (39 - 16)) with 0 in c1 by reflexivity.
-        simpl firstn in c1 at 2.
-        rewrite app_nil_r in c1.
-        rewrite <- H in c1.
-        rewrite skipn_app in c1.
-        rewrite firstn_app in c1.
-        rewrite skipn_length in c1.
-        rewrite H1 in c1.
-        replace (4 - (20 - 16)) with 0 in c1 by reflexivity.
-        simpl firstn in c1 at 2.
+        rewrite H2 in c1.
+        simpl "-" in c1.
+        rewrite firstn_O in c1.
         rewrite app_nil_r in c1.
         rewrite H0 in c1.
         cbv in c1.
         exfalso.
         eauto.
-    + apply BisimulationTCPVersusIP; try assumption.
+    + apply BisimulationTCPVersusIP with (pref := pref).
+      all: try assumption.
       * rewrite app_assoc.
-        now rewrite H.
-      * unfold equiv, complement in *.
-        rewrite app_length.
-        simpl.
-        lia.
-  - unfold step.
-    simpl size.
-    repeat rewrite app_length.
-    simpl length.
-    destruct (equiv_dec _ _); destruct (equiv_dec _ _).
-    + simpl.
-      constructor.
-    + exfalso.
-      rewrite H in e.
-      rewrite app_length in e.
-      rewrite skipn_length in e.
-      rewrite H0 in e.
-      unfold equiv, complement in *.
-      lia.
-    + exfalso.
-      rewrite H in c.
-      rewrite app_length in c.
-      rewrite skipn_length in c.
-      rewrite H0 in c.
-      unfold equiv, complement in *.
-      lia.
-    + constructor.
-      * rewrite H.
-        rewrite app_assoc.
+        rewrite H1.
         reflexivity.
-      * assumption.
-  - unfold step.
-    simpl size.
-    repeat rewrite app_length.
-    simpl length.
-    do 2 destruct (equiv_dec _ _).
-    + simpl.
-      rewrite override_id.
-      destruct (equiv_dec _ _); try constructor.
-      rewrite <- H in c.
-      rewrite <- app_assoc in c.
-      rewrite skipn_app in c.
-      rewrite firstn_app in c.
-      rewrite skipn_length in c.
-      rewrite H1 in c.
-      replace (4 - (20 - 16)) with 0 in c by reflexivity.
-      simpl firstn in c at 2.
-      rewrite app_nil_r in c.
-      rewrite H0 in c.
-      replace 4 with (length (repeat false 3 ++ true :: nil)) in c by reflexivity.
-      rewrite firstn_all in c.
-      simpl in c.
-      exfalso.
-      apply c.
-      reflexivity.
-    + simpl.
-      apply (f_equal (@length _)) in H.
-      rewrite app_length in H.
-      unfold equiv, complement in *.
-      lia.
-    + simpl.
-      apply (f_equal (@length _)) in H.
-      rewrite app_length in H.
-      unfold equiv, complement in *.
-      lia.
-    + constructor; try assumption.
-      * rewrite app_assoc.
-        rewrite H.
-        reflexivity.
-      * unfold equiv, complement in *.
-        rewrite app_length.
-        simpl length.
-        lia.
+      * rewrite app_length in *.
+        simpl in *.
+        elia.
   - simpl.
-    rewrite override_id.
-    destruct (equiv_dec _ _).
-    + destruct (equiv_dec _ _); [|destruct (equiv_dec _ _)].
+    destruct (equiv_dec _ 28); destruct (equiv_dec _ 8).
+    + constructor.
+    + apply (f_equal (@Datatypes.length bool)) in H.
+      rewrite app_length in *.
+      rewrite skipn_length in H.
+      elia.
+    + apply (f_equal (@Datatypes.length bool)) in H.
+      rewrite app_length in *.
+      rewrite skipn_length in H.
+      elia.
+    + apply BisimulationTCPVersusTCP with (pref := pref).
+      * rewrite app_assoc.
+        congruence.
+      * assumption.
+  - simpl.
+    destruct (equiv_dec _ 20); destruct (equiv_dec _ 40).
+    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
+      * constructor.
+      * rewrite <- H1 in e1.
+        rewrite <- app_assoc in e1.
+        Transparent slice.
+        unfold slice in e1.
+        rewrite skipn_app in e1.
+        rewrite firstn_app in e1.
+        fold (slice 16 20 pref) in e1.
+        Opaque slice.
+        rewrite skipn_length in e1.
+        rewrite H2 in e1.
+        simpl "-" in e1.
+        rewrite firstn_O in e1.
+        rewrite app_nil_r in e1.
+        rewrite H0 in e1.
+        cbv in e1.
+        discriminate.
+      * rewrite <- H1 in c.
+        rewrite <- app_assoc in c.
+        Transparent slice.
+        unfold slice in c.
+        rewrite skipn_app in c.
+        rewrite firstn_app in c.
+        fold (slice 16 20 pref) in c.
+        Opaque slice.
+        rewrite skipn_length in c.
+        rewrite H2 in c.
+        simpl "-" in c.
+        rewrite firstn_O in c.
+        rewrite app_nil_r in c.
+        rewrite H0 in c.
+        Print to_nat.
+        cbv in c.
+        exfalso.
+        eauto.
+    + apply (f_equal (@Datatypes.length bool)) in H1.
+      rewrite app_length in *.
+      elia.
+    + apply (f_equal (@Datatypes.length bool)) in H1.
+      rewrite app_length in *.
+      elia.
+    + apply BisimulationUDPVersusIP with (pref := pref).
+      all: try assumption.
+      * rewrite <- H1.
+        rewrite <- app_assoc.
+        reflexivity.
+      * rewrite app_length in *.
+        simpl Datatypes.length in *.
+        elia.
+  - simpl.
+    destruct (equiv_dec _ 40).
+    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
       * rewrite <- app_assoc in e0.
+        Transparent slice.
+        unfold slice in e0.
         rewrite skipn_app in e0.
         rewrite firstn_app in e0.
+        fold (slice 16 20 buf2) in e0.
+        Opaque slice.
+        rewrite <- H in e0 at 2.
         rewrite skipn_length in e0.
-        rewrite <- H in e0.
         rewrite H0 in e0.
-        replace (4 - (20 - 16)) with 0 in e0 by reflexivity.
-        simpl firstn in e0 at 2.
-        rewrite  H in e0.
+        simpl "-" in e0.
+        rewrite firstn_O in e0.
         rewrite app_nil_r in e0.
-        rewrite firstn_skipn_comm in e0.
-        replace (16 + 4) with 20 in e0 by reflexivity.
-        rewrite <- H0 in e0.
-        rewrite H in e0.
-        rewrite firstn_all in e0.
-        contradiction.
-      * rewrite firstn_skipn_comm in e0.
-        replace (16 + 4) with 20 in e0 by reflexivity.
-        rewrite <- app_assoc in e0.
+        contradict H1.
+        apply (f_equal (to_bits 4)) in e0.
+        rewrite to_bits_roundtrip in e0.
+        Search firstn.
+        rewrite <- firstn_all at 1.
+        rewrite skipn_length.
+        rewrite <- H.
+        rewrite H0.
+        simpl "-".
+        Transparent slice.
+        unfold slice in e0.
+        simpl "-" in e0.
+        simpl to_bits in e0.
+        congruence.
+        apply length_slice.
+        rewrite <- H.
+        elia.
+      * rewrite <- app_assoc in e0.
+        Transparent slice.
+        unfold slice in e0.
+        rewrite skipn_app in e0.
         rewrite firstn_app in e0.
-        rewrite <- H0 in e0.
-        rewrite H in e0.
-        replace (length buf2 - length buf2) with 0 in e0 by lia.
-        simpl firstn in e0 at 2.
+        fold (slice 16 20 buf2) in e0.
+        Opaque slice.
+        rewrite <- H in e0 at 2.
+        rewrite skipn_length in e0.
+        rewrite H0 in e0.
+        simpl "-" in e0.
+        rewrite firstn_O in e0.
         rewrite app_nil_r in e0.
-        rewrite firstn_all in e0.
-        contradiction.
+        contradict H2.
+        apply (f_equal (to_bits 4)) in e0.
+        rewrite to_bits_roundtrip in e0.
+        Search firstn.
+        rewrite <- firstn_all at 1.
+        rewrite skipn_length.
+        rewrite <- H.
+        rewrite H0.
+        simpl "-".
+        Transparent slice.
+        unfold slice in e0.
+        simpl "-" in e0.
+        simpl to_bits in e0.
+        congruence.
+        apply length_slice.
+        rewrite <- H.
+        elia.
       * constructor.
     + rewrite <- app_assoc.
-      now constructor.
-Qed. *)
+      apply BisimulationFalseVersusStart with (pref := buf2); congruence.
+Qed.
 
-(* Theorem babyip_equiv
+Theorem babyip_equiv
   st1 st2
 :
   @lang_equiv BabyIPv1.v1_parser
@@ -756,6 +864,6 @@ Proof.
   split.
   - apply candidate_is_bisimulation.
   - constructor.
-    simpl length.
+    simpl Datatypes.length.
     lia.
-Qed.  *)
+Qed.

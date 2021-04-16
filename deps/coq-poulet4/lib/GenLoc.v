@@ -1,6 +1,7 @@
 Require Import Syntax.
 Require Import Typed.
 Require Import SyntaxUtil.
+Require Import SimplExpr.
 Require Import Monads.Monad.
 Require Import Monads.State.
 Require Import Coq.Strings.String.
@@ -13,32 +14,7 @@ Import Coq.Lists.List.ListNotations.
 Open Scope monad.
 Open Scope N_scope.
 
-Definition to_digit (n: N): ascii :=
-  match n with
-  | 0 => "0"
-  | 1 => "1"
-  | 2 => "2"
-  | 3 => "3"
-  | 4 => "4"
-  | 5 => "5"
-  | 6 => "6"
-  | 7 => "7"
-  | 8 => "8"
-  | _ => "9"
-  end.
-
-Fixpoint N_to_string_aux (time: nat) (n: N) (acc: string): string :=
-  let (ndiv10, nmod10) := N.div_eucl n 10 in
-  let acc' := String (to_digit nmod10) acc in
-  match time with
-  | O => acc'
-  | S time' => match ndiv10 with
-               | 0 => acc'
-               | n' => N_to_string_aux time' n' acc'
-               end
-  end.
-
-Definition N_to_string (n: N): string := N_to_string_aux (N.to_nat (N.log2 n)) n EmptyString.
+Definition N_to_string : forall (n: N), string := SimplExpr.N_to_string.
 
 Section Transformer.
 

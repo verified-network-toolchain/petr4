@@ -69,9 +69,10 @@ let check_command =
      +> flag "-normalize" no_arg ~doc:" Simplify expressions in P4"
      +> flag "-export-file" (optional_with_default "out.v" string) ~doc:"Path to export P4 syntax in Coq"
      +> flag "-typed-json" no_arg ~doc:" Pretty-print typed AST JSON"
+     +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir json pretty exportp4 normalize export_file typed_json p4file () ->
-       ignore (check_file include_dir p4file json pretty exportp4 normalize export_file typed_json verbose))
+    (fun verbose include_dir json pretty exportp4 normalize export_file typed_json gen_loc p4file () ->
+       ignore (check_file include_dir p4file json pretty exportp4 normalize export_file typed_json gen_loc verbose))
 
 let eval_command =
   let open Command.Spec in

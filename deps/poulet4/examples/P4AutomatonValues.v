@@ -504,13 +504,6 @@ Inductive candidate:
         (inl BabyIPv2.start, st2, buf2 ++ buf1)
 .
 
-
-Ltac elia :=
-  unfold Equivalence.equiv in *;
-  unfold complement in *;
-  lia
-.
-
 Fixpoint to_bits (s n: nat) :=
   match s with
   | 0 => nil
@@ -611,8 +604,6 @@ Ltac wrangle_length :=
     apply (f_equal (@Datatypes.length bool)) in H
   | H: _ = _ ++ _ |- _ =>
     apply (f_equal (@Datatypes.length bool)) in H
-  end;
-  repeat match goal with
   | H: context [ Datatypes.length (_ ++ _) ] |- _ =>
     rewrite app_length in H
   | |- context [ Datatypes.length (_ ++ _) ] =>
@@ -640,7 +631,7 @@ Proof.
   - cleanup_step.
     + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * apply BisimulationUDPVersusIP with (pref := buf ++ b :: nil); simpl.
-        all: try (assumption || elia).
+        all: try (assumption || lia).
         -- apply (f_equal (to_bits 4)) in e0.
            rewrite to_bits_roundtrip in e0.
            ** simpl in e0.
@@ -648,17 +639,16 @@ Proof.
            ** wrangle_length.
         -- now rewrite app_nil_r.
       * apply BisimulationTCPVersusIP with (pref := buf ++ b :: nil); simpl.
-        all: try (assumption || elia).
+        all: try (assumption || lia).
         -- apply (f_equal (to_bits 4)) in e0.
            rewrite to_bits_roundtrip in e0.
            ** simpl in e0.
               assumption.
            ** wrangle_length.
         -- now rewrite app_nil_r.
-      * replace (buf ++ b :: nil) with ((buf ++ b :: nil) ++ nil) at 1
-          by apply app_nil_r.
+      * rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
         apply BisimulationFalseVersusStart with (pref := buf ++ b :: nil).
-        all: try (assumption || elia || reflexivity).
+        all: try (assumption || lia || reflexivity).
         -- contradict c0.
            intro.
            apply H0.

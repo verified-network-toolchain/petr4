@@ -581,6 +581,55 @@ Proof.
   lia.
 Qed.
 
+Ltac cleanup_step :=
+  match goal with
+  | |- ?R (step (?s1, ?st1, ?buf1) ?b) (step (?s2, ?st2, ?buf2) ?b) =>
+    (* Unfold the step function, exposing the four cases for full/empty buffers. *)
+    unfold step;
+    simpl size;
+
+    (* Split up into four cases, depending on which buffers are full. *)
+    try destruct (equiv_dec (Datatypes.length (buf1 ++ b :: nil)) _);
+    try destruct (equiv_dec (Datatypes.length (buf2 ++ b :: nil)) _);
+
+    (* Clean up the premises, getting rid of the types of equivalence that lia does not like. *)
+    unfold Equivalence.equiv, complement in *;
+    match goal with
+    | [ H: ?l = ?r -> False |- _ ] =>
+      fold (not (l = r)) in H
+    | _ => idtac
+    end;
+
+    (* Try to discharge contradictory or easy goals. *)
+    lia || constructor || simpl
+  end
+.
+
+Ltac wrangle_length :=
+  repeat match goal with
+  | H: _ ++ _ = _ |- _ =>
+    apply (f_equal (@Datatypes.length bool)) in H
+  | H: _ = _ ++ _ |- _ =>
+    apply (f_equal (@Datatypes.length bool)) in H
+  end;
+  repeat match goal with
+  | H: context [ Datatypes.length (_ ++ _) ] |- _ =>
+    rewrite app_length in H
+  | |- context [ Datatypes.length (_ ++ _) ] =>
+    rewrite app_length
+  | H: context [ Datatypes.length (skipn _ _) ] |- _ =>
+    rewrite skipn_length in H
+  | |- context [ Datatypes.length (skipn _ _) ] =>
+    rewrite skipn_length
+  | H: context [ Datatypes.length (slice _ _ _) ] |- _ =>
+    apply length_slice in H
+  | |- context [ Datatypes.length (slice _ _ _) ] =>
+    apply length_slice
+  end;
+  simpl Datatypes.length in *;
+  lia
+.
+
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
@@ -588,38 +637,29 @@ Proof.
   unfold bisimulation; intros.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
-  - simpl.
-    destruct (equiv_dec _ 20); destruct (equiv_dec _ 40).
-    + congruence.
-    + destruct (equiv_dec (to_nat _) _); [| destruct (equiv_dec (to_nat _) _)].
-      * apply BisimulationUDPVersusIP with (pref := buf ++ b :: nil).
+  - cleanup_step.
+    + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
+      * apply BisimulationUDPVersusIP with (pref := buf ++ b :: nil); simpl.
         all: try (assumption || elia).
         -- apply (f_equal (to_bits 4)) in e0.
            rewrite to_bits_roundtrip in e0.
            ** simpl in e0.
               assumption.
-           ** apply length_slice.
-              rewrite app_length in *.
-              simpl Datatypes.length in *.
-              elia.
+           ** wrangle_length.
         -- now rewrite app_nil_r.
-      * apply BisimulationTCPVersusIP with (pref := buf ++ b :: nil).
+      * apply BisimulationTCPVersusIP with (pref := buf ++ b :: nil); simpl.
         all: try (assumption || elia).
         -- apply (f_equal (to_bits 4)) in e0.
            rewrite to_bits_roundtrip in e0.
            ** simpl in e0.
               assumption.
-           ** apply length_slice.
-              rewrite app_length in *.
-              simpl Datatypes.length in *.
-              elia.
+           ** wrangle_length.
         -- now rewrite app_nil_r.
       * replace (buf ++ b :: nil) with ((buf ++ b :: nil) ++ nil) at 1
           by apply app_nil_r.
         apply BisimulationFalseVersusStart with (pref := buf ++ b :: nil).
         all: try (assumption || elia || reflexivity).
         -- contradict c0.
-           unfold Equivalence.equiv, complement.
            intro.
            apply H0.
            unfold slice.
@@ -627,35 +667,22 @@ Proof.
            cbv.
            reflexivity.
         -- contradict c1.
-           unfold Equivalence.equiv, complement.
            intro.
            apply H0.
            unfold slice.
            rewrite c1.
            cbv.
            reflexivity.
-    + rewrite app_length in e.
-      simpl in e.
-      elia.
-    + constructor.
-      rewrite app_length in *.
-      simpl in *.
-      elia.
+    + wrangle_length.
+    + wrangle_length.
   - simpl.
     apply BisimulationEnd.
-  - simpl.
-    destruct (equiv_dec _ 28); destruct (equiv_dec _ 40).
-    + destruct (equiv_dec (to_nat _) _).
+  - cleanup_step.
+    + destruct (equiv_dec _ 1).
       * constructor.
-      * apply (f_equal (@Datatypes.length bool)) in H1.
-        rewrite app_length in *.
-        simpl in *.
-        elia.
-    + apply (f_equal (@Datatypes.length bool)) in H1.
-      rewrite app_length in *.
-      simpl in *.
-      elia.
-    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
+      * wrangle_length.
+    + wrangle_length.
+    + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * exfalso.
         rewrite <- H1 in e0.
         rewrite <- app_assoc in e0.
@@ -701,29 +728,15 @@ Proof.
     + apply BisimulationTCPVersusIP with (pref := pref).
       all: try assumption.
       * rewrite app_assoc.
-        rewrite H1.
-        reflexivity.
-      * rewrite app_length in *.
-        simpl in *.
-        elia.
-  - simpl.
-    destruct (equiv_dec _ 28); destruct (equiv_dec _ 8).
-    + constructor.
-    + apply (f_equal (@Datatypes.length bool)) in H.
-      rewrite app_length in *.
-      rewrite skipn_length in H.
-      elia.
-    + apply (f_equal (@Datatypes.length bool)) in H.
-      rewrite app_length in *.
-      rewrite skipn_length in H.
-      elia.
-    + apply BisimulationTCPVersusTCP with (pref := pref).
-      * rewrite app_assoc.
         congruence.
-      * assumption.
-  - simpl.
-    destruct (equiv_dec _ 20); destruct (equiv_dec _ 40).
-    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
+      * wrangle_length.
+  - cleanup_step; try wrangle_length.
+    apply BisimulationTCPVersusTCP with (pref := pref).
+    + rewrite app_assoc.
+      congruence.
+    + assumption.
+  - cleanup_step.
+    + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * constructor.
       * rewrite <- H1 in e1.
         rewrite <- app_assoc in e1.
@@ -751,26 +764,16 @@ Proof.
         rewrite firstn_O in c.
         rewrite app_nil_r in c.
         rewrite H0 in c.
-        Print to_nat.
         cbv in c.
         exfalso.
         eauto.
-    + apply (f_equal (@Datatypes.length bool)) in H1.
-      rewrite app_length in *.
-      elia.
-    + apply (f_equal (@Datatypes.length bool)) in H1.
-      rewrite app_length in *.
-      elia.
+    + wrangle_length.
+    + wrangle_length.
     + apply BisimulationUDPVersusIP with (pref := pref).
-      all: try assumption.
-      * rewrite <- H1.
-        rewrite <- app_assoc.
-        reflexivity.
-      * rewrite app_length in *.
-        simpl Datatypes.length in *.
-        elia.
-  - simpl.
-    destruct (equiv_dec _ 40).
+      all: try (assumption || wrangle_length).
+      rewrite app_assoc.
+      congruence.
+  - cleanup_step.
     + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
       * rewrite <- app_assoc in e0.
         unfold slice in e0.
@@ -786,7 +789,6 @@ Proof.
         contradict H1.
         apply (f_equal (to_bits 4)) in e0.
         rewrite to_bits_roundtrip in e0.
-        Search firstn.
         rewrite <- firstn_all at 1.
         rewrite skipn_length.
         rewrite <- H.
@@ -798,7 +800,7 @@ Proof.
         congruence.
         apply length_slice.
         rewrite <- H.
-        elia.
+        lia.
       * rewrite <- app_assoc in e0.
         unfold slice in e0.
         rewrite skipn_app in e0.
@@ -813,7 +815,6 @@ Proof.
         contradict H2.
         apply (f_equal (to_bits 4)) in e0.
         rewrite to_bits_roundtrip in e0.
-        Search firstn.
         rewrite <- firstn_all at 1.
         rewrite skipn_length.
         rewrite <- H.
@@ -825,7 +826,7 @@ Proof.
         congruence.
         apply length_slice.
         rewrite <- H.
-        elia.
+        lia.
       * constructor.
     + rewrite <- app_assoc.
       apply BisimulationFalseVersusStart with (pref := buf2); congruence.

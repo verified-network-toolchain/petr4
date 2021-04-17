@@ -389,7 +389,7 @@ let fields_for_cast (fields: Typed.coq_FieldType list) (value: coq_ValueBase) =
   match value with
   | ValBaseTuple vals ->
      let fields_vals = List.zip_exn fields vals in
-     List.map ~f:(fun ((MkFieldType (f, _)), v) -> f, v) fields_vals
+     List.map ~f:(fun ((f, _), v) -> f, v) fields_vals
   | ValBaseRecord fields -> fields
   | _ -> failwith "cannot cast"
 
@@ -414,7 +414,7 @@ let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> Typed.coq_P4Type)
      | ValBaseSenumField (_, _, ValBaseBit (w, v))
      | ValBaseSenumField (_, _, ValBaseInt (w, v))
      | ValBaseInt (w, v)
-     | ValBaseBit (w, v) -> ValBaseSet (ValSetSingleton (w, v))
+     | ValBaseBit (w, v) -> ValBaseSet (ValSetSingleton value)
      |_ -> failwith "cannot cast"
      end
   | _ -> failwith "cast unimplemented"

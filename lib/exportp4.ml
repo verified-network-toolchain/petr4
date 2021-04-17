@@ -184,7 +184,7 @@ let rec print_type p (typ : coq_P4Type) =
           print_type ret_type
 and print_field_type p (field: coq_FieldType) =
   match field with
-  | MkFieldType (s, typ) ->
+  | (s, typ) ->
       fprintf p "(@[<hov 4>MkFieldType@ %a@ %a)@]"
           p4string s
           print_type typ
@@ -518,10 +518,9 @@ let rec print_value_base p (value : coq_ValueBase)=
           (print_list (print_pair p4string print_value_base)) fields
 and print_value_set p (val_set: coq_ValueSet) =
   match val_set with
-  | ValSetSingleton (width, value) ->
-      fprintf p "(@[<hov 4>ValSetSingleton@ %a@ %a)@]" 
-          print_nat width
-          print_bigint value
+  | ValSetSingleton value ->
+      fprintf p "(@[<hov 4>ValSetSingleton@ %a)@]"
+          print_value_base value
   | ValSetUniversal ->
       fprintf p "@[<hov 4>ValSetUniversal@]"
   | ValSetMask (value, mask) ->

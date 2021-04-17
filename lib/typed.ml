@@ -2,6 +2,14 @@ open Sexplib.Conv
 type direction = [%import:Poulet4.Typed.direction]
   [@@deriving sexp,show,yojson]
 
+type ('a, 'b) pre_AList =
+  [%import:('a, 'b) Poulet4.AList.coq_AList]
+  [@@deriving sexp,show,yojson]
+type ('a, 'b) pre_AListString =
+  [%import:('a, 'b) Poulet4.P4String.coq_AList
+    [@with t := P4string.pre_t; Poulet4.AList.coq_AList := pre_AList]]
+  [@@deriving sexp,show,yojson]
+
 type coq_FunctionKind = [%import:Poulet4.Typed.coq_FunctionKind]
   [@@deriving sexp,show,yojson]
 type coq_StmType = [%import:Poulet4.Typed.coq_StmType]
@@ -19,12 +27,7 @@ type 'a pre_P4Type =
            coq_ControlType := pre_ControlType;
            coq_P4Parameter := pre_P4Parameter;
            coq_FunctionType := pre_FunctionType;
-           coq_FieldType := pre_FieldType]]
-  [@@deriving sexp,show,yojson]
-and 'a pre_FieldType =
-  [%import:'a Poulet4.Typed.coq_FieldType
-    [@with Poulet4.P4String.t := P4string.pre_t;
-           coq_P4Type := pre_P4Type]]
+           Poulet4.P4String.coq_AList := pre_AListString]]
   [@@deriving sexp,show,yojson]
 and 'a pre_FunctionType =
   [%import:'a Poulet4.Typed.coq_FunctionType
@@ -45,7 +48,7 @@ and pre_P4Parameter =
   [@@deriving sexp,show,yojson]
 type coq_P4Type = Info.t pre_P4Type
 [@@deriving sexp,show,yojson]
-type coq_FieldType = Info.t pre_FieldType
+type coq_FieldType = P4string.t * coq_P4Type
 [@@deriving sexp,show,yojson]
 type coq_FunctionType = Info.t pre_FunctionType
 [@@deriving sexp,show,yojson]

@@ -1,0 +1,8 @@
+(coq.theory
+ (name Poulet4.Examples)
+ (package poulet4)
+ (synopsis "Verification examples for Petr4")
+ (theories Poulet4)
+ (modules ())
+)
+(include_subdirs qualified)

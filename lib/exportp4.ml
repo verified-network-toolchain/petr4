@@ -183,11 +183,7 @@ let rec print_type p (typ : coq_P4Type) =
           (print_list print_param) params
           print_type ret_type
 and print_field_type p (field: coq_FieldType) =
-  match field with
-  | MkFieldType (s, typ) ->
-      fprintf p "(@[<hov 4>MkFieldType@ %a@ %a)@]"
-          p4string s
-          print_type typ
+  print_pair p4string print_type p field
 and print_control_type p (ctrl: coq_ControlType) =
   match ctrl with
   | MkControlType (typ_params, params) ->
@@ -530,10 +526,9 @@ let rec print_value_base p (value : coq_ValueBase)=
           (print_list (print_pair p4string print_value_base)) fields
 and print_value_set p (val_set: coq_ValueSet) =
   match val_set with
-  | ValSetSingleton (width, value) ->
-      fprintf p "(@[<hov 4>ValSetSingleton@ %a@ %a)@]" 
-          print_nat width
-          print_bigint value
+  | ValSetSingleton value ->
+      fprintf p "(@[<hov 4>ValSetSingleton@ %a)@]"
+          print_value_base value
   | ValSetUniversal ->
       fprintf p "@[<hov 4>ValSetUniversal@]"
   | ValSetMask (value, mask) ->
@@ -1170,7 +1165,7 @@ let print_value p (value: coq_Value) =
           print_value_constructor value
 
 let print_header p =
-  fprintf p "Require Import Petr4.P4defs.@ ";
+  fprintf p "Require Import Poulet4.P4defs.@ ";
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ "
 

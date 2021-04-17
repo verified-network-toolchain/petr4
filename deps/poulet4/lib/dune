@@ -1,0 +1,7 @@
+(coq.theory
+ (name Poulet4)
+ (package poulet4)
+ (synopsis "Coq definitions for Petr4")
+ (modules (:standard \ P4cub.P4lightGen))
+)
+(include_subdirs qualified)

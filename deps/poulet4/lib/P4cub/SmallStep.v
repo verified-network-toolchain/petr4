@@ -1,5 +1,4 @@
 Require Export P4cub.Check.
-(*Require Export P4cub.P4Arith.*)
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
@@ -246,7 +245,7 @@ Module Step.
       destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
     Qed.
 
-    (** Binary operations. *) (*
+    (** Binary operations. *)
     Definition eval_bop
                (op : E.bop) (v1 v2 : E.e tags_t) (i : tags_t) : option (E.e tags_t) :=
       match op, v1, v2 with
@@ -263,7 +262,7 @@ Module Step.
       | E.Minus, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some # E.EInt w (IntArith.minus_mod w z1 z2) i
       | E.MinusSat, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-        => Some # E.EBit w (BitArith.return_bound w # N.sub n1 n2) i
+        => Some # E.EBit w (BitArith.minus_sat w n1 n2) i
       | E.MinusSat, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some # E.EInt w (IntArith.minus_sat w z1 z2) i
       | E.Shl, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
@@ -286,47 +285,47 @@ Module Step.
         => Some # E.EBit w (BitArith.bit_or w n1 n2) i
       | E.BitOr, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some # E.EInt w (IntArith.bit_or w z1 z2) i
-      | E.Le, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <=? n2)%N i
+      | E.Le, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <=? n2)%Z i
       | E.Le, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z1 <=? z2)%Z i
-      | E.Lt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <? n2)%N i
+      | E.Lt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n1 <? n2)%Z i
       | E.Lt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z1 <? z2)%Z i
-      | E.Ge, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <=? n1)%N i
+      | E.Ge, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <=? n1)%Z i
       | E.Ge, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z2 <=? z1)%Z i
-      | E.Gt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <? n1)%N i
+      | E.Gt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some # E.EBool (n2 <? n1)%Z i
       | E.Gt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some # E.EBool (z2 <? z1)%Z i
       | E.And, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some # E.EBool (b1 && b2) i
       | E.Or, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some # E.EBool (b1 || b2) i
       | E.Eq, _, _ => Some # E.EBool (E.ExprEquivalence.eqbe v1 v2) i
       | E.NotEq, _, _ => Some # E.EBool (negb # E.ExprEquivalence.eqbe v1 v2) i
       | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-        => Some # E.EBit (w1 + w2)%positive (BitArith.bit_concat w1 w2 n1 n2) i
+      | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
+        => Some # E.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
+      | E.PlusPlus, <{ w1 S n1 @ _ }>, <{ w2 S n2 @ _ }>
+      | E.PlusPlus, <{ w1 S n1 @ _ }>, <{ w2 W n2 @ _ }>
+        => Some # E.EInt (w1 + w2)%positive (IntArith.concat w1 w2 n1 n2) i
       | _, _, _ => None
-      end. *)
+      end.
     (**[]*)
 
-    (*
     Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
         bop_type op τ1 τ2 τ ->
         V.value v1 -> V.value v2 ->
         eval_bop op v1 v2 i = Some v ->
         ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
     Proof.
-      Hint Resolve BitArith.return_bound_bound : core.
-      Hint Resolve BitArith.plus_mod_bound : core.
-      Hint Resolve IntArith.return_bound_bound : core.
+      Hint Constructors check_expr : core.
+      Hint Extern 0 => bit_bounded : core.
+      Hint Extern 0 => int_bounded : core.
       intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
       inv Hbop; unravel in *;
       repeat match goal with
-             | H: Some _ = Some _ |- _ => inv H; constructor; auto
+             | H: Some _ = Some _ |- _ => inv H; auto
              | H: numeric _ |- _ => inv H
              | H: numeric_width _ _ |- _ => inv H
-             | |- BitArith.bound _ _ => unfold_bit_operation; auto
-             | |- IntArith.bound _ _ => unfold_int_operation; auto
              | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
-             end.
-    Qed. *)
+             end; auto.
+    Qed.
 
-    (*
     Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
         bop_type op τ1 τ2 τ ->
         V.value v1 -> V.value v2 ->
@@ -340,7 +339,7 @@ Module Step.
              | H: numeric_width _ _ |- _ => inv H
              | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
              end; eauto.
-    Qed. *)
+    Qed.
 
     (** Get header data from value. *)
     Definition header_data (v : E.e tags_t)
@@ -678,7 +677,7 @@ Module Step.
       ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
   | step_bop_eval (op : E.bop) (τl τr : E.t)
                   (vv vl vr : E.e tags_t) (i : tags_t) :
-      (*eval_bop op vl vr i = Some vv ->*)
+      eval_bop op vl vr i = Some vv ->
       V.value vl -> V.value vr ->
       ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
   | step_member (x : string) (τ : E.t)

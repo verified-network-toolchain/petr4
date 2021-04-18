@@ -77,7 +77,7 @@ Module Step.
       end.
     (**[]*)
 
-    (** Binary operations. *) (*
+    (** Binary operations. *)
     Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
       match op, v1, v2 with
       | E.Plus, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.plus_mod w n1 n2
@@ -86,8 +86,7 @@ Module Step.
       | E.PlusSat,  ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.plus_sat w z1 z2
       | E.Minus, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.minus_mod w n1 n2
       | E.Minus, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_mod w z1 z2
-      | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~
-        => Some # V.VBit w # BitArith.return_bound w # N.sub n1 n2
+      | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.minus_sat w n1 n2
       | E.MinusSat, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_sat w z1 z2
       | E.Shl, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.shift_left w n1 n2
       | E.Shl, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.shift_left w z1 z2
@@ -99,22 +98,26 @@ Module Step.
       | E.BitXor, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.bit_xor w z1 z2
       | E.BitOr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.bit_or w n1 n2
       | E.BitOr, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.bit_or w z1 z2
-      | E.Le, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <=? n2)%N
+      | E.Le, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <=? n2)%Z
       | E.Le, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z1 <=? z2)%Z
-      | E.Lt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <? n2)%N
+      | E.Lt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <? n2)%Z
       | E.Lt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z1 <? z2)%Z
-      | E.Ge, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <=? n1)%N
+      | E.Ge, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <=? n1)%Z
       | E.Ge, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <=? z1)%Z
-      | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <? n1)%N
+      | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <? n1)%Z
       | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <? z1)%Z
       | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool # b1 && b2
       | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool # b1 || b2
       | E.Eq, _, _ => Some # V.VBool # V.eqbv v1 v2
       | E.NotEq, _, _ => Some # V.VBool # negb # V.eqbv v1 v2
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
-        => Some # V.VBit (w1 + w2)%positive # BitArith.bit_concat w1 w2 n1 n2
+      | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
+        => Some # V.VBit (w1 + w2)%positive # BitArith.concat w1 w2 n1 n2
+      | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
+      | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
+        => Some # V.VInt (w1 + w2)%positive # IntArith.concat w1 w2 n1 n2
       | _, _, _ => None
-      end. *)
+      end.
     (**[]*)
 
     (** Header operations. *)
@@ -216,15 +219,13 @@ Module Step.
         intros errs op τ v Huop Ht; inv Huop; inv Ht; unravel; eauto.
       Qed.
 
-      (*
       Lemma eval_bop_type : forall errs op τ1 τ2 τ v1 v2 v,
           bop_type op τ1 τ2 τ -> eval_bop op v1 v2 = Some v ->
           ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 -> ∇ errs ⊢ v ∈ τ.
       Proof.
         Hint Constructors type_value : core.
-        Hint Resolve BitArith.plus_mod_bound : core.
-        Hint Resolve BitArith.return_bound_bound : core.
-        Hint Resolve IntArith.return_bound_bound : core.
+        Hint Extern 0 => bit_bounded : core.
+        Hint Extern 0 => int_bounded : core.
         intros errs op τ1 τ2 τ v1 v2 v Hbop Heval Ht1 Ht2; inv Hbop;
         repeat match goal with
                | H: Some _ = Some _ |- _ => inv H; constructor; auto
@@ -234,9 +235,8 @@ Module Step.
                | |- BitArith.bound _ _ => unfold_bit_operation; auto
                | |- IntArith.bound _ _ => unfold_int_operation; auto
                end; auto.
-      Qed. *)
+      Qed.
 
-      (*
       Lemma eval_bop_exists : forall errs op τ1 τ2 τ v1 v2,
           bop_type op τ1 τ2 τ ->
           ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 ->
@@ -248,7 +248,7 @@ Module Step.
                | H: numeric_width _ _ |- _ => inv H
                | |- _ => inv Ht1; inv Ht2; unravel
                end; eauto.
-      Qed. *)
+      Qed.
 
       (*
       Lemma eval_cast_types : forall errs v v' τ τ',
@@ -594,7 +594,7 @@ Module Step.
   (* Binary Operations. *)
   | ebs_bop (op : E.bop) (τ1 τ2 : E.t) (e1 e2 : E.e tags_t)
             (i : tags_t) (v v1 v2 : V.v) :
-      (*eval_bop op v1 v2 = Some v ->*)
+      eval_bop op v1 v2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       ⟨ ϵ, BOP e1:τ1 op e2:τ2 @ i ⟩ ⇓ v
@@ -694,7 +694,7 @@ Module Step.
         P ϵ <{ UOP op e:τ @ i }> v'.
 
     Hypothesis HBop : forall ϵ op τ1 τ2 e1 e2 i v v1 v2,
-        (*eval_bop op v1 v2 = Some v ->*)
+        eval_bop op v1 v2 = Some v ->
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         P ϵ e1 v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
@@ -849,9 +849,9 @@ Module Step.
                   Hv He => HUop _ _ _ _ i _ _ Hv
                                He (ebsind _ _ _ He)
         | ebs_bop _ _ _ _ _ _ i _ _ _
-                  He1 He2 => HBop _ _ _ _ _ _ i _ _ _
-                                      He1 (ebsind _ _ _ He1)
-                                      He2 (ebsind _ _ _ He2)
+                  Hv He1 He2 => HBop _ _ _ _ _ _ i _ _ _ Hv
+                                    He1 (ebsind _ _ _ He1)
+                                    He2 (ebsind _ _ _ He2)
         | ebs_mem _ _ _ _ i _ _
                   Heval He => HMem _ _ _ _ i _ _ Heval
                                   He (ebsind _ _ _ He)

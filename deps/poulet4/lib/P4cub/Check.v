@@ -122,9 +122,14 @@ Module Typecheck.
     | BTOr : bop_type E.Or {{ Bool }} {{ Bool }} {{ Bool }}
     | BTEq τ : bop_type E.Eq τ τ {{ Bool }}
     | BTNotEq τ : bop_type E.NotEq τ τ {{ Bool }}
-    | BTPlusPlus w1 w2 w :
+    | BTPlusPlusBit w1 w2 w τ2 :
         (w1 + w2)%positive = w ->
-        bop_type E.PlusPlus {{ bit<w1> }} {{ bit<w2> }} {{ bit<w> }}.
+        numeric_width w2 τ2 ->
+        bop_type E.PlusPlus {{ bit<w1> }} τ2 {{ bit<w> }}
+    | BTPlusPlusInt w1 w2 w τ2 :
+        (w1 + w2)%positive = w ->
+        numeric_width w2 τ2 ->
+        bop_type E.PlusPlus {{ int<w1> }} τ2 {{ int<w> }}.
     (**[]*)
 
     (** Evidence an error is ok. *)

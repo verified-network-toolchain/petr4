@@ -109,8 +109,8 @@ Module Typecheck.
     | BTPlusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
     | BTMinus τ : numeric τ -> bop_type E.Plus τ τ τ
     | BTMinusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
-    | BTShl τ : numeric τ -> bop_type E.Shl τ τ τ
-    | BTShr τ : numeric τ -> bop_type E.Shr τ τ τ
+    | BTShl τ1 w2 : numeric τ1 -> bop_type E.Shl τ1 {{ bit<w2> }} τ1
+    | BTShr τ1 w2 : numeric τ1 -> bop_type E.Shr τ1 {{ bit<w2> }} τ1
     | BTBitAnd τ : numeric τ -> bop_type E.BitAnd τ τ τ
     | BTBitXor τ : numeric τ -> bop_type E.BitXor τ τ τ
     | BTBitOr τ : numeric τ -> bop_type E.BitOr τ τ τ

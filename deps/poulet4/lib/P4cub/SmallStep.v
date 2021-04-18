@@ -267,11 +267,11 @@ Module Step.
         => Some # E.EInt w (IntArith.minus_sat w z1 z2) i
       | E.Shl, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some # E.EBit w (BitArith.shift_left w n1 n2) i
-      | E.Shl, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | E.Shl, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
         => Some # E.EInt w (IntArith.shift_left w z1 z2) i
       | E.Shr, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some # E.EBit w (BitArith.shift_right w n1 n2) i
-      | E.Shr, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | E.Shr, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
         => Some # E.EInt w (IntArith.shift_right w z1 z2) i
       | E.BitAnd, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some # E.EBit w (BitArith.bit_and w n1 n2) i

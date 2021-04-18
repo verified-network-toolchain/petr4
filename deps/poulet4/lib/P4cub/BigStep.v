@@ -1,5 +1,5 @@
 Require Export Poulet4.P4cub.Check.
-(*Require Export Poulet4.P4cub.P4Arith.*)
+Require Export Poulet4.P4Arith.
 
 Require Import Poulet4.P4cub.Value.
 
@@ -65,14 +65,16 @@ Module Step.
   Import Env.EnvNotations.
 
   Section StepDefs.
-    (** Unary Operations. *) (*
+    (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
-      | E.Not, ~{ VBOOL b }~ => Some # V.VBool (negb b)
-      | E.BitNot, ~{ w VW n }~ => Some # V.VBit w # BitArith.neg w n
-      | E.UMinus, ~{ w VS z }~ => Some # V.VInt w # IntArith.neg w z
+      | E.Not,    ~{ VBOOL b }~ => Some # V.VBool  # negb b
+      | E.BitNot, ~{ w VW n }~  => Some # V.VBit w # BitArith.bit_not w n
+      | E.BitNot, ~{ w VS n }~  => Some # V.VInt w # IntArith.bit_not w n
+      | E.UMinus, ~{ w VW z }~  => Some # V.VBit w # BitArith.neg w z
+      | E.UMinus, ~{ w VS z }~  => Some # V.VInt w # IntArith.neg w z
       | _, _ => None
-      end. *)
+      end.
     (**[]*)
 
     (** Binary operations. *) (*
@@ -195,25 +197,24 @@ Module Step.
     Section Lemmas.
       Import Typecheck.
       Import V.ValueTyping.
-      (*
+      Import P4ArithTactics.
+
       Lemma eval_uop_types : forall errs op τ v v',
           uop_type op τ -> eval_uop op v = Some v' ->
           ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ.
       Proof.
-        Hint Resolve BitArith.neg_bound : core.
-        Hint Resolve IntArith.return_bound_bound : core.
         Hint Constructors type_value : core.
+        Hint Extern 0 => bit_bounded : core.
+        Hint Extern 0 => int_bounded : core.
         intros errs op τ v v' Huop Heval Ht;
-        inv Huop; inv Ht; unravel in *; inv Heval;
-        try unfold_int_operation; auto.
-      Qed. *)
+        inv Huop; inv Ht; unravel in *; inv Heval; auto.
+      Qed.
 
-      (*
       Lemma eval_uop_exist : forall errs op τ v,
           uop_type op τ -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
       Proof.
         intros errs op τ v Huop Ht; inv Huop; inv Ht; unravel; eauto.
-      Qed. *)
+      Qed.
 
       (*
       Lemma eval_bop_type : forall errs op τ1 τ2 τ v1 v2 v,
@@ -587,7 +588,7 @@ Module Step.
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
   | ebs_uop (op : E.uop) (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
-      (*eval_uop op v = Some v' -> *)
+      eval_uop op v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟨ ϵ, UOP op e:τ @ i ⟩ ⇓ v'
   (* Binary Operations. *)
@@ -687,7 +688,7 @@ Module Step.
     (**[]*)
 
     Hypothesis HUop : forall ϵ op τ e i v v',
-        (*eval_uop op v = Some v' ->*)
+        eval_uop op v = Some v' ->
         ⟨ ϵ, e ⟩ ⇓ v ->
         P ϵ e v ->
         P ϵ <{ UOP op e:τ @ i }> v'.
@@ -845,8 +846,8 @@ Module Step.
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
         | ebs_uop _ _ _ _ i _ _
-                  He => HUop _ _ _ _ i _ _
-                                 He (ebsind _ _ _ He)
+                  Hv He => HUop _ _ _ _ i _ _ Hv
+                               He (ebsind _ _ _ He)
         | ebs_bop _ _ _ _ _ _ i _ _ _
                   He1 He2 => HBop _ _ _ _ _ _ i _ _ _
                                       He1 (ebsind _ _ _ He1)

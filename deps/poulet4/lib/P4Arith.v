@@ -24,6 +24,12 @@ Module BitArith.
     (** Precondition for operations. *)
     Definition bound (n : Z) : Prop := -1 < n < upper_bound.
 
+    Lemma bound0 : bound 0.
+    Proof.
+      unfold bound, upper_bound.
+      pose proof exp_ge_one 2 (pos width). lia.
+    Qed.
+
     (* Saturating bound *)
     Definition sat_bound (n : Z) : Z :=
       if (n >? maxZ)
@@ -168,19 +174,6 @@ Module BitArith.
 
 End BitArith.
 
-Ltac unfold_bit_operation :=
-  match goal with
-  (* | |- context [ BitArith.neg _ ] => unfold BitArith.neg *)
-  | |- context [ BitArith.plus_sat _ _ ] => unfold BitArith.plus_sat
-  (* | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod *)
-  | |- context [ BitArith.minus_mod _ _ ] => unfold BitArith.minus_mod
-  | |- context [ BitArith.shift_right _ _ ] => unfold BitArith.shift_right
-  | |- context [ BitArith.shift_left _ _ ] => unfold BitArith.shift_left
-  | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
-  | |- context [ BitArith.bit_xor _ _ ] => unfold BitArith.bit_xor
-  | |- context [ BitArith.bit_or _ _ ] => unfold BitArith.bit_or
-  end.
-
 (** * Signed Integers *)
 Module IntArith.
   Import Z.
@@ -216,6 +209,12 @@ Module IntArith.
 
     (** Precondition for operations *)
     Definition bound (z : Z) : Prop := (minZ <= z <= maxZ)%Z.
+
+    Lemma bound0 : bound 0.
+    Proof.
+      unfold bound, minZ, maxZ, upper_bound.
+      pose proof exp_ge_one 2 (pos width - 1). lia.
+    Qed.
 
     (* Saturating bound *)
     Definition sat_bound (z : Z) :=
@@ -414,17 +413,45 @@ Compute (IntArith.plus_mod 32 (-500) (-200)).
 
 Compute (IntArith.minus_mod 32 20 1000). *)
 
+Module P4ArithTactics.
+  Ltac unfold_bit_operation :=
+    match goal with
+    | |- context [ BitArith.bit_not _ _ ] => unfold BitArith.bit_not
+    | |- context [ BitArith.neg _ _ ] => unfold BitArith.neg
+    | |- context [ BitArith.plus_sat _ _ ] => unfold BitArith.plus_sat
+    | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod
+    | |- context [ BitArith.minus_mod _ _ ] => unfold BitArith.minus_mod
+    | |- context [ BitArith.shift_right _ _ ] => unfold BitArith.shift_right
+    | |- context [ BitArith.shift_left _ _ ] => unfold BitArith.shift_left
+    | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
+    | |- context [ BitArith.bit_xor _ _ ] => unfold BitArith.bit_xor
+    | |- context [ BitArith.bit_or _ _ ] => unfold BitArith.bit_or
+    | |- context [ BitArith.concat _ _ _ _ ] => unfold BitArith.concat
+    end.
 
-Ltac unfold_int_operation :=
-  match goal with
-  | |- context [ IntArith.neg _ ] => unfold IntArith.neg
-  | |- context [ IntArith.plus_sat _ _ ] => unfold IntArith.plus_sat
-  | |- context [ IntArith.minus_sat _ _ ] => unfold IntArith.minus_sat
-  | |- context [ IntArith.plus_mod _ _ ] => unfold IntArith.plus_mod
-  | |- context [ IntArith.minus_mod _ _ ] => unfold IntArith.minus_mod
-  | |- context [ IntArith.shift_right _ _ ] => unfold IntArith.shift_right
-  | |- context [ IntArith.shift_left _ _ ] => unfold IntArith.shift_left
-  | |- context [ IntArith.bit_and _ _ ] => unfold IntArith.bit_and
-  | |- context [ IntArith.bit_xor _ _ ] => unfold IntArith.bit_xor
-  | |- context [ IntArith.bit_or _ _ ] => unfold IntArith.bit_or
-  end.
+  Ltac bit_bounded :=
+    try unfold_bit_operation;
+    try apply BitArith.sat_bound_bound;
+    try apply BitArith.mod_bound_bound; try lia.
+
+  Ltac unfold_int_operation :=
+    match goal with
+    | |- context [ IntArith.bit_not _ _ ] => unfold IntArith.bit_not
+    | |- context [ IntArith.neg _ _ ] => unfold IntArith.neg
+    | |- context [ IntArith.plus_sat _ _ ] => unfold IntArith.plus_sat
+    | |- context [ IntArith.minus_sat _ _ ] => unfold IntArith.minus_sat
+    | |- context [ IntArith.plus_mod _ _ ] => unfold IntArith.plus_mod
+    | |- context [ IntArith.minus_mod _ _ ] => unfold IntArith.minus_mod
+    | |- context [ IntArith.shift_right _ _ ] => unfold IntArith.shift_right
+    | |- context [ IntArith.shift_left _ _ ] => unfold IntArith.shift_left
+    | |- context [ IntArith.bit_and _ _ ] => unfold IntArith.bit_and
+    | |- context [ IntArith.bit_xor _ _ ] => unfold IntArith.bit_xor
+    | |- context [ IntArith.bit_or _ _ ] => unfold IntArith.bit_or
+    | |- context [ IntArith.concat _ _ _ _ ] => unfold IntArith.concat
+    end.
+
+  Ltac int_bounded :=
+    try unfold_bit_operation;
+    try apply IntArith.sat_bound_bound;
+    try apply IntArith.mod_bound_bound; try lia.
+End P4ArithTactics.

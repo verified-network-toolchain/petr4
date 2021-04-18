@@ -132,12 +132,7 @@ Module Step.
     Import Typecheck.
     Import E.TypeEquivalence.
     Import F.FieldTactics.
-
-    Ltac invert_Forall_cons :=
-      match goal with
-      | H: Forall _ (_ :: _) |- _ => inv H
-      end.
-    (**[]*)
+    Import P4ArithTactics.
 
     Context {tags_t : Type}.
 
@@ -215,39 +210,41 @@ Module Step.
       - destruct w2; eauto.
     Qed. *)
 
-    (** Unary Operations. *) (*
+    (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
       match op, e with
       | E.Not, <{ BOOL b @ i }>
         => let b' := negb b in Some <{ BOOL b' @ i }>
       | E.BitNot, <{ w W n @ i }>
-        => let n' := BitArith.neg w n in Some <{ w W n' @ i }>
+        => let n' := BitArith.bit_not w n in Some <{ w W n' @ i }>
+      | E.BitNot, <{ w S n @ i }>
+        => let n' := IntArith.bit_not w n in Some <{ w S n' @ i }>
+      | E.UMinus, <{ w W z @ i }>
+        => let z' := BitArith.neg w z in Some <{ w W z' @ i }>
       | E.UMinus, <{ w S z @ i }>
         => let z' := IntArith.neg w z in Some <{ w S z' @ i }>
       | _, _ => None
-      end. *)
+      end.
     (**[]*)
 
-    (*
     Lemma eval_uop_types : forall errs Γ op e v τ,
         uop_type op τ -> V.value e -> eval_uop op e = Some v ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
     Proof.
-      Hint Resolve BitArith.neg_bound : core.
-      Hint Resolve IntArith.return_bound_bound : core.
+      Hint Constructors check_expr : core.
+      Hint Extern 0 => bit_bounded : core.
+      Hint Extern 0 => int_bounded : core.
       intros errs Γ op e v τ Huop Hev Heval Het;
-      inv Huop; inv Hev; inv Het; unravel in *; inv Heval;
-      constructor; try unfold_int_operation; auto.
-    Qed. *)
+      inv Huop; inv Hev; inv Het; unravel in *; inv Heval; auto.
+    Qed.
 
-    (*
     Lemma eval_uop_exists : forall op errs Γ e τ,
         uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
     Proof.
       intros op errs Γ e τ Hu Hv Het;
       destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
-    Qed. *)
+    Qed.
 
     (** Binary operations. *) (*
     Definition eval_bop
@@ -667,7 +664,7 @@ Module Step.
       ℵ ϵ ** UOP op e:τ @ i -->  UOP op e':τ @ i
   | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
-      (*eval_uop op v = Some v' ->*)
+      eval_uop op v = Some v' ->
       V.value v ->
       ℵ ϵ ** UOP op v:τ @ i -->  v'
   | step_bop_l (op : E.bop) (τl τr : E.t)

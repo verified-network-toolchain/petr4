@@ -1,8 +1,10 @@
 Require Export Coq.PArith.BinPosDef.
+Require Import Coq.ZArith.BinInt.
+Require Import Coq.ZArith.BinIntDef.
 Export Pos.
 
 Require Export Poulet4.P4cub.AST.
-(*Require Export Poulet4.P4cub.P4Arith.*)
+Require Export Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Envn.
 
 (** Notation entries. *)
@@ -95,8 +97,10 @@ Module Typecheck.
     (** Evidence a unary operation is valid for a type. *)
     Inductive uop_type : E.uop -> E.t -> Prop :=
     | UTBool : uop_type E.Not {{ Bool }}
-    | UTBit w : uop_type E.BitNot {{ bit<w> }}
-    | UTInt w : uop_type E.UMinus {{ int<w> }}.
+    | UTBitBitNot w : uop_type E.BitNot {{ bit<w> }}
+    | UTIntBitNot w : uop_type E.BitNot {{ int<w> }}
+    | UTBitUMinus w : uop_type E.UMinus {{ bit<w> }}
+    | UTIntUMinus w : uop_type E.UMinus {{ int<w> }}.
 
     (** Evidence a binary operation is valid
         for operands of a type and produces some type. *)
@@ -142,6 +146,7 @@ Module Typecheck.
     (**[]*)
 
     (** Typing header stack operations. *)
+    (* TODO: need to check push & pop amounts *)
     Definition type_hdr_stk_op
                (op : E.hdr_stk_op) (size : positive)
                (ts : F.fs string E.t) : E.t :=
@@ -297,10 +302,10 @@ Module Typecheck.
   | chk_bool (b : bool) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ BOOL b @ i ∈ Bool
   | chk_bit (w : positive) (n : Z) (i : tags_t) :
-      (*BitArith.bound w n -> *)
+      BitArith.bound w n ->
       ⟦ errs , Γ ⟧ ⊢ w W n @ i ∈ bit<w>
   | chk_int (w : positive) (n : Z) (i : tags_t) :
-      (*IntArith.bound w n ->*)
+      IntArith.bound w n ->
       ⟦ errs , Γ ⟧ ⊢ w S n @ i ∈ int<w>
   | chk_var (x : string) (τ : E.t) (i : tags_t) :
       Γ x = Some τ ->
@@ -367,15 +372,15 @@ Module Typecheck.
   | chk_stack (ts : F.fs string E.t)
               (hs : list (E.e tags_t))
               (n : positive) (ni : Z) :
-      (*BitArith.bound 32%positive (Npos n) ->*)
-      (*Z.lt ni (Zpos n) ->*)
+      BitArith.bound 32%positive (Zpos n) ->
+      (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
       PT.proper_nesting {{ stack ts[n] }} ->
       Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
       ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
   | chk_access (e : E.e tags_t) (idx : Z) (i : tags_t)
                (ts : F.fs string E.t) (n : positive) :
-      (*N.lt idx (Npos n) ->*)
+      (0 <= idx < (Zpos n))%Z ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
       ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
   | chk_stk_op (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
@@ -400,12 +405,12 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HBit : forall errs Γ w n i,
-        (*BitArith.bound w n ->*)
+        BitArith.bound w n ->
         P errs Γ <{ w W n @ i }> {{ bit<w> }}.
     (**[]*)
 
     Hypothesis HInt : forall errs Γ w z i,
-        (*IntArith.bound w z ->*)
+        IntArith.bound w z ->
         P errs Γ <{ w S z @ i }> {{ int<w> }}.
     (**[]*)
 
@@ -494,7 +499,8 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HStack : forall errs Γ ts hs n ni,
-        (*BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->*)
+        BitArith.bound 32%positive (Zpos n) ->
+        (0 <= ni < (Zpos n))%Z ->
         Pos.to_nat n = length hs ->
         PT.proper_nesting {{ stack ts[n] }} ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
@@ -503,7 +509,7 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HAccess : forall errs Γ e idx i ts n,
-        (*N.lt idx (Npos n) ->*)
+        (0 <= idx < (Zpos n))%Z ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
         P errs Γ e {{ stack ts[n] }} ->
         P errs Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
@@ -575,8 +581,8 @@ Module Typecheck.
                 end in
             match HY in ⟦ _, _ ⟧ ⊢ e' ∈ τ' return P errs Γ e' τ' with
             | chk_bool _ _ b i     => HBool errs Γ b i
-            | chk_bit _ _ _ _ i => HBit _ _ _ _ i
-            | chk_int _ _ _ _ i => HInt _ _ _ _ i
+            | chk_bit _ _ _ _ H i => HBit _ _ _ _ H i
+            | chk_int _ _ _ _ H i => HInt _ _ _ _ H i
             | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
             | chk_cast _ _ _ _ _ i HPC He => HCast _ _ _ _ _ i HPC
                                                   He (chind _ _ _ _ He)
@@ -608,11 +614,11 @@ Module Typecheck.
                                         HRs (fields_ind HRs)
                                         Hb (chind _ _ _ _ Hb)
             | chk_stack _ _ _ _ _ ni
-                        Hlen
-                        HP HRs => HStack _ _ _ _ _ ni Hlen HP
+                        Hn Hni Hlen
+                        HP HRs => HStack _ _ _ _ _ ni Hn Hni Hlen HP
                                         HRs (lind_stk HRs)
             | chk_access _ _ _ _ i _ _
-                         He => HAccess _ _ _ _ i _ _
+                         Hidx He => HAccess _ _ _ _ i _ _ Hidx
                                            He (chind _ _ _ _ He)
             | chk_stk_op _ _ _ _ i _ _ _
                          Ht He => HStackOp _ _ _ _ i _ _ _ Ht

@@ -3,9 +3,9 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
+Require Import Poulet4.P4Arith.
 Require Import Poulet4.P4cub.AST.
 Require Import Poulet4.P4cub.Envn.
-Require Import Poulet4.P4cub.P4Arith.
 
 Import Poulet4.P4cub.AST.P4cub.P4cubNotations.
 
@@ -13,7 +13,6 @@ Module E := Poulet4.P4cub.AST.P4cub.Expr.
 Module F := Poulet4.P4cub.AST.P4cub.F.
 
 Module TE := E.TypeEquivalence.
-Module PT := E.ProperType.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -388,6 +387,7 @@ Module ValueUtil.
 End ValueUtil.
 
 Module ValueTyping.
+  Import E.ProperType.
   Import ValueNotations.
 
   Definition errors : Type := Env.t string unit.
@@ -398,10 +398,10 @@ Module ValueTyping.
   Inductive type_value (errs : errors) : v -> E.t -> Prop :=
   | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
   | typ_bit (w : positive) (n : Z) :
-      (*BitArith.bound w n ->*)
+      BitArith.bound w n ->
       ∇ errs ⊢ w VW n ∈ bit<w>
   | typ_int (w : positive) (z : Z) :
-      (*IntArith.bound w z ->*)
+      IntArith.bound w z ->
       ∇ errs ⊢ w VS z ∈ int<w>
   | typ_tuple (vs : list v)
               (ts : list E.t) :
@@ -413,7 +413,7 @@ Module ValueTyping.
       ∇ errs ⊢ REC { vs } ∈ rec { ts }
   | typ_hdr (vs : Field.fs string v) (b : bool)
             (ts : Field.fs string E.t) :
-      PT.proper_nesting {{ hdr { ts } }} ->
+      proper_nesting {{ hdr { ts } }} ->
       Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
       ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
   | typ_error (err : option string) :
@@ -427,9 +427,10 @@ Module ValueTyping.
   | typ_headerstack (ts : Field.fs string E.t)
                     (hs : list (bool * Field.fs string v))
                     (n : positive) (ni : Z) :
-      (*BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->*)
+      BitArith.bound 32%positive (Zpos n) ->
+      (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
-      PT.proper_nesting {{ stack ts[n] }} ->
+      proper_nesting {{ stack ts[n] }} ->
       Forall
         (fun bvs =>
            let b := fst bvs in
@@ -446,11 +447,11 @@ Module ValueTyping.
     Hypothesis HBool : forall errs b, P errs ~{ VBOOL b }~ {{ Bool }}.
 
     Hypothesis HBit : forall errs w n,
-        (*BitArith.bound w n ->*)
+        BitArith.bound w n ->
         P errs ~{ w VW n }~ {{ bit<w> }}.
 
     Hypothesis HInt : forall errs w z,
-        (*IntArith.bound w z ->*)
+        IntArith.bound w z ->
         P errs ~{ w VS z }~ {{ int<w> }}.
 
     Hypothesis HMatchkind : forall errs mk, P errs ~{ MATCHKIND mk }~ {{ matchkind }}.
@@ -473,15 +474,16 @@ Module ValueTyping.
         P errs ~{ REC { vs } }~ {{ rec { ts } }}.
 
     Hypothesis HHeader : forall errs vs b ts,
-        PT.proper_nesting {{ hdr { ts } }} ->
+        proper_nesting {{ hdr { ts } }} ->
         Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
         Field.relfs (fun vl τ => P errs vl τ) vs ts ->
         P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
 
     Hypothesis HStack : forall errs ts hs n ni,
-        (*BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->*)
+        BitArith.bound 32%positive (Zpos n) ->
+        (0 <= ni < (Zpos n))%Z ->
         Pos.to_nat n = length hs ->
-        PT.proper_nesting {{ stack ts[n] }} ->
+        proper_nesting {{ stack ts[n] }} ->
         Forall
           (fun bvs =>
              let b := fst bvs in
@@ -544,15 +546,15 @@ Module ValueTyping.
                 end in
             match Hy with
             | typ_bool _ b => HBool _ b
-            | typ_bit _ _ _ => HBit _ _ _
-            | typ_int _ _ _ => HInt _ _ _
+            | typ_bit _ _ _ H => HBit _ _ _ H
+            | typ_int _ _ _ H => HInt _ _ _ H
             | typ_matchkind _ mk => HMatchkind _ mk
             | typ_error _ _ Herr => HError _ _ Herr
             | typ_tuple _ _ _ Hvs => HTuple _ _ _ Hvs (lind Hvs)
             | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
             | typ_hdr _ _ b _ HP Hfs => HHeader _ _ b _ HP Hfs (fsind Hfs)
-            | typ_headerstack _ _ _ _ _ Hlen HP
-                              Hhs => HStack _ _ _ _ _
+            | typ_headerstack _ _ _ _ _ Hn Hni Hlen HP
+                              Hhs => HStack _ _ _ _ _ Hn Hni
                                            Hlen HP
                                            Hhs (hsind Hhs)
             end.
@@ -562,51 +564,26 @@ Module ValueTyping.
 
   Lemma vdefault_types :
     forall (errs : errors) (τ : E.t),
-      PT.proper_nesting τ ->
+      proper_nesting τ ->
       let val := vdefault τ in
       ∇ errs ⊢ val ∈ τ.
   Proof.
+    Local Hint Resolve BitArith.bound0 : core.
+    Local Hint Resolve IntArith.bound0 : core.
+    Local Hint Resolve proper_inside_header_nesting : core.
+    Local Hint Constructors type_value : core.
+    Local Hint Constructors proper_nesting : core.
+    Hint Rewrite repeat_length.
     intros errs τ HPN; simpl.
-    induction τ using E.custom_t_ind; simpl; constructor; auto.
-    (*
-    - unfold BitArith.bound.
-      pose proof BitArith.upper_bound_ge_1 w; lia.
-    - unfold IntArith.bound, IntArith.minZ, IntArith.maxZ.
-      pose proof IntArith.upper_bound_ge_1 w; lia.
-    - inv HPN; try match goal with
-                   | H: PT.base_type (E.TTuple _) |- _ => inv H
-                   end.
-      induction ts as [| t ts IHts]; constructor;
-        repeat inv_Forall_cons; intuition.
-    - inv HPN; try match goal with
-                   | H: PT.base_type {{ rec { _ } }} |- _ => inv H
-                   end.
-      induction fields as [| [x t] fs IHfs];
-      repeat constructor; repeat invert_cons_predfs;
-      unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
-    - inv HPN; try match goal with
-                   | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
-                   end.
-      induction fields as [| [x t] fs IHfs];
-      repeat constructor; repeat invert_cons_predfs;
-      unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
-      apply PT.proper_inside_header_nesting in H3; auto.
-    - inv HPN;
-        try match goal with
-            | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-            end; auto.
-    - lia.
-    - rewrite repeat_length; reflexivity.
-    - inv HPN; try match goal with
-                   | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-                   end.
-      apply repeat_Forall; simpl; constructor.
-      + apply PT.pn_header; auto.
-      + induction fields as [| [x t] fs IHfs];
-        repeat constructor; repeat invert_cons_predfs;
-        unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
-        apply PT.proper_inside_header_nesting in H4; auto.
-  Qed. *)
-    Admitted.
+    induction τ using E.custom_t_ind; simpl; constructor;
+    try invert_proper_nesting;
+    autorewrite with core; auto; try lia;
+    try (ind_list_Forall; repeat inv_Forall_cons;
+         constructor; intuition; assumption);
+    try (apply repeat_Forall; unravel; constructor);
+    try (ind_list_predfs; repeat invert_cons_predfs;
+         constructor; try split; unravel;
+         intuition; assumption); auto.
+  Qed.
 End ValueTyping.
 End Val.

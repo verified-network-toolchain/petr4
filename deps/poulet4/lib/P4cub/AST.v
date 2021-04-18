@@ -7,7 +7,7 @@ Require Import Coq.PArith.BinPos.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
 
-Require Import Poulet4.P4cub.P4Arith.
+Require Import Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Utiliser.
 
 (** Notation entries. *)
@@ -808,7 +808,7 @@ Module P4cub.
             proper_nesting {{ hdr { ts } }}
         | pn_header_stack (ts : F.fs string t)
                           (n : positive) :
-            BitArith.bound 32%positive (Npos n) ->
+            BitArith.bound 32%positive (Zpos n) ->
             F.predfs_data proper_inside_header ts ->
             proper_nesting {{ stack ts[n] }}.
 
@@ -826,6 +826,22 @@ Module P4cub.
             try (intros H'; inv H'; contradiction).
         Qed.
       End ProperTypeNesting.
+
+      Ltac invert_base_ludicrous :=
+        match goal with
+        | H: base_type {{ tuple _ }} |- _ => inv H
+        | H: base_type {{ rec { _ } }} |- _ => inv H
+        | H: base_type {{ hdr { _ } }} |- _ => inv H
+        | H: base_type {{ stack _[_] }} |- _ => inv H
+        end.
+      (**[]*)
+
+      Ltac invert_proper_nesting :=
+        match goal with
+        | H: proper_nesting _
+          |- _ => inv H; try invert_base_ludicrous
+        end.
+      (**[]*)
     End ProperType.
 
     Inductive uop : Set :=

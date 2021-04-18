@@ -943,8 +943,8 @@ Module P4cub.
     Inductive hdr_stk_op : Set :=
     | HSONext         (* get element at [nextIndex] *)
     | HSOSize         (* get the size *)
-    | HSOPush (n : Z) (* "push_front," shift stack right by [n] *)
-    | HSOPop  (n : Z) (* "push_front," shift stack left by [n] *).
+    | HSOPush (n : positive) (* "push_front," shift stack right by [n] *)
+    | HSOPop  (n : positive) (* "push_front," shift stack left by [n] *).
 
     Module HeaderStackOpNotations.
       Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
@@ -1235,8 +1235,8 @@ Module P4cub.
       Proof.
         intros [] []; unfold equiv, complement in *; auto;
         try match goal with
-            | n1 : Z, n2: Z
-              |- _ => destruct (Z.eq_dec n1 n2) as [? | ?]; subst; auto
+            | n1 : positive, n2: positive
+              |- _ => destruct (Pos.eq_dec n1 n2) as [? | ?]; subst; auto
             end;
         try (right; intros ?; inv_eq; contradiction).
       Defined.

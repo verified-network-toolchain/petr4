@@ -130,6 +130,7 @@ Module Step.
   Section StepDefs.
     Import Typecheck.
     Import E.TypeEquivalence.
+    Import E.ProperType.
     Import F.FieldTactics.
     Import P4ArithTactics.
 
@@ -419,6 +420,7 @@ Module Step.
     Lemma value_edefault : forall i τ, V.value (edefault i τ).
     Proof.
       Hint Constructors V.value : core.
+      (*
       intros; induction τ using E.custom_t_ind;
       simpl in *; auto; constructor; auto;
       try match goal with
@@ -438,7 +440,8 @@ Module Step.
               unfold F.predf_data, Basics.compose, F.predfs_data in *;
               simpl in *; auto
           end.
-    Qed.
+    Qed. *)
+    Admitted.
 
     Lemma edefault_types : forall errs Γ i τ,
         PT.proper_nesting τ ->
@@ -446,9 +449,9 @@ Module Step.
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
     Proof.
       Hint Resolve chk_bool : core.
-      Hint Constructors PT.proper_nesting : core.
+      Hint Constructors proper_nesting : core.
       Hint Rewrite repeat_length.
-      Hint Resolve PT.proper_inside_header_nesting : core. (*
+      Hint Resolve proper_inside_header_nesting : core. (*
       simpl; intros; induction τ using E.custom_t_ind;
       simpl; econstructor; eauto;
       try match goal with
@@ -491,7 +494,7 @@ Module Step.
     Qed. *)
     Admitted.
 
-    (** Header stack operations. *) (*
+    (** Header stack operations. *)
     Definition eval_stk_op
                (i : tags_t) (op : E.hdr_stk_op)
                (size : positive) (nextIndex : Z)
@@ -505,45 +508,34 @@ Module Step.
             (F.map (fun τ => (τ, edefault i τ)) ts)
           <{ BOOL false @ i }> i in
       match op with
-      | E.HSOSize => let s := (Npos size)%N in Some <{ w W s @ i }>
-      | E.HSONext => nth_error hs # N.to_nat nextIndex
+      | E.HSOSize => let s := (Zpos size)%Z in Some <{ w W s @ i }>
+      | E.HSONext => nth_error hs # Z.to_nat nextIndex
       | E.HSOPush n
-        => let nnat := N.to_nat n in
+        => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat hdefault nnat in
             let remains := firstn (sizenat - nnat) hs in
-            let new_nextIndex := N.min (nextIndex + n) (N.pos size - 1)%N in
-            Some (E.EHeaderStack ts (new_hdrs ++ remains) size new_nextIndex)
+            Some # E.EHeaderStack ts (new_hdrs ++ remains) size #
+                 Z.min (nextIndex + Zpos n)%Z (Z.pos size - 1)%Z
           else
             let new_hdrs := repeat hdefault sizenat in
-            Some (E.EHeaderStack ts new_hdrs size ((N.pos size) - 1)%N)
+            Some # E.EHeaderStack ts new_hdrs size (Z.pos size - 1)%Z
       | E.HSOPop n
-        => let nnat := N.to_nat n in
+        => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat hdefault nnat in
             let remains := skipn nnat hs in
-            Some (E.EHeaderStack ts (remains ++ new_hdrs) size (nextIndex - n))
+            Some # E.EHeaderStack ts (remains ++ new_hdrs) size #
+                 Z.max 0 (nextIndex - Zpos n)%Z
           else
             let new_hdrs := repeat hdefault sizenat in
-            Some (E.EHeaderStack ts new_hdrs size 0%N)
-      end. *)
+            Some # E.EHeaderStack ts new_hdrs size 0%N
+      end.
     (**[]*)
 
-    Lemma voldemort : forall errs Γ (i : tags_t) (ts : F.fs string E.t),
-        F.predfs_data PT.proper_nesting ts ->
-        F.relfs
-          (fun (te : E.t * E.e tags_t) (τ : E.t) =>
-             fst te = τ /\ (let e := snd te in ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
-          (F.map (fun τ : E.t => (τ, edefault i τ)) ts) ts.
-    Proof.
-      Hint Resolve edefault_types : core.
-      intros; ind_list_predfs; simpl; repeat constructor;
-        simpl in *; unfold F.predfs_data in *; intuition.
-    Qed.
-
-    (*
     Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
-        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        BitArith.bound 32%positive (Zpos n) ->
+        (0 <= ni < Zpos n)%Z ->
         Pos.to_nat n = length hs ->
         PT.proper_nesting {{ stack ts[n] }} ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
@@ -551,12 +543,12 @@ Module Step.
         let τ := type_hdr_stk_op op n ts in
         ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
     Proof.
-      Hint Resolve repeat_Forall : core.
+      Hint Constructors check_expr : core.
       Hint Resolve Forall_impl : core.
       Hint Resolve Forall_firstn : core.
       Hint Resolve Forall_skipn : core.
-      Hint Resolve voldemort : core.
-      Hint Resolve PT.proper_inside_header_nesting : core.
+      Hint Resolve proper_inside_header_nesting : core.
+      Hint Resolve edefault_types : core.
       Hint Rewrite repeat_length.
       Hint Rewrite app_length.
       Hint Rewrite Forall_app.
@@ -564,41 +556,44 @@ Module Step.
       Hint Rewrite skipn_length.
       Hint Rewrite map_length.
       Hint Rewrite (@F.predfs_data_map string).
-      intros; subst τ; destruct op; simpl in *;
-      unfold "#" in *;
-      repeat (match goal with
+      Hint Rewrite @F.map_fst.
+      Hint Rewrite @map_compose.
+      Hint Rewrite (@Forall2_map_l E.t).
+      Hint Rewrite (@Forall2_Forall E.t).
+      Hint Rewrite (@F.predfs_data_map).
+      Hint Rewrite @F.relfs_split_map_iff.
+      Hint Rewrite @F.map_snd.
+      intros; subst τ; destruct op;
+      unravel in *; invert_proper_nesting;
+      repeat match goal with
              | H: (if ?b then _ else _) = Some _
-               |- _ => destruct b as [? | ?]
+               |- _ => destruct b as [? | ?] eqn:?
              | H: Some _ = Some _ |- _ => inv H
-             | |- _ /\ _ => split
-             | |- Forall _ (repeat _ _) => apply repeat_Forall
-             | |- ⟦ _, _ ⟧ ⊢ _ ∈ _ => constructor
-             | |- PT.proper_nesting {{ hdr { ?ts } }}
-               => apply PT.pn_header
-             | H: PT.proper_nesting {{ stack ?ts[_] }} |- _ => inv H
-             | H: PT.base_type {{ stack _ [_] }} |- _ => inv H
-             | |- _ => destruct n; lia
-             | |- _ => apply voldemort
-             end; autorewrite with core in *; eauto).
-      eapply Forall_nth_error in H4; eauto; simpl in *; auto.
-    Qed. *)
+             end; eauto 2;
+      try constructor; auto 2; try (destruct n; lia);
+      autorewrite with core; try lia;
+      try split; auto 2;
+      try (apply repeat_Forall; constructor; auto 2;
+           autorewrite with core in *; split; [intuition | unravel; eauto 5]).
+      - eapply Forall_nth_error in H4; eauto 1; simpl in *; auto 1.
+    Qed.
 
-    (*
     Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
-        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        BitArith.bound 32%positive (Zpos n) ->
+        (0 <= ni < Zpos n)%Z ->
         Pos.to_nat n = length hs ->
         PT.proper_nesting {{ stack ts[n] }} ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
         exists v, eval_stk_op i op n ni ts hs = Some v.
     Proof.
       intros errs Γ i op n ni ts hs Hn Hni Hnhs Hpt H;
-      destruct op; unravel; eauto.
-      - assert (Hnihs : N.to_nat ni < length hs) by lia.
+      destruct op; unravel; eauto 2.
+      - assert (Hnihs : (Z.to_nat ni < length hs)%nat) by lia.
         pose proof nth_error_exists _ _ Hnihs as [v Hnth].
-        rewrite Hnth. eauto.
-      - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
-      - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
-    Qed. *)
+        rewrite Hnth. eauto 2.
+      - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
+      - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
+    Qed.
 
     Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
       match v with
@@ -686,7 +681,7 @@ Module Step.
       ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
   | step_member_eval (x : string) (τ : E.t)
                      (v v' : E.e tags_t) (i : tags_t) :
-      (*eval_member x v = Some v' ->*)
+      eval_member x v = Some v' ->
       V.value v ->
       ℵ ϵ ** Mem v:τ dot x @ i -->  v'
   | step_header_op (op : E.hdr_op) (e e' : E.e tags_t) (i : tags_t) :
@@ -701,7 +696,7 @@ Module Step.
       ℵ ϵ ** STK_OP op e @ i -->  STK_OP op e' @ i
   | step_stack_op_eval (op : E.hdr_stk_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
-      (*bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->*)
+      bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->
       ℵ ϵ ** STK_OP op v @ i -->  v'
   | step_stack_access (e e' : E.e tags_t) (n : Z) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->

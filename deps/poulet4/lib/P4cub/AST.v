@@ -4,9 +4,7 @@ Require Export Coq.Bool.Bool.
 Require Export Coq.Classes.Morphisms.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
-Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 
 Require Import Poulet4.P4cub.P4Arith.
@@ -929,8 +927,8 @@ Module P4cub.
     Inductive hdr_stk_op : Set :=
     | HSONext         (* get element at [nextIndex] *)
     | HSOSize         (* get the size *)
-    | HSOPush (n : N) (* "push_front," shift stack right by [n] *)
-    | HSOPop  (n : N) (* "push_front," shift stack left by [n] *).
+    | HSOPush (n : Z) (* "push_front," shift stack right by [n] *)
+    | HSOPop  (n : Z) (* "push_front," shift stack left by [n] *).
 
     Module HeaderStackOpNotations.
       Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
@@ -949,7 +947,7 @@ Module P4cub.
           unless the type is obvious. *)
       Inductive e : Type :=
       | EBool (b : bool) (i : tags_t)                     (* booleans *)
-      | EBit (width : positive) (val : N) (i : tags_t) (* unsigned integers *)
+      | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t) (x : string)
              (i : tags_t)                              (* variables *)
@@ -973,9 +971,9 @@ Module P4cub.
       | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
       | EHeaderStack (fields : F.fs string t)
                      (headers : list e) (size : positive)
-                     (next_index : N)                  (* header stack literals,
+                     (next_index : Z)                  (* header stack literals,
                                                           unique to p4light *)
-      | EHeaderStackAccess (stack : e) (index : N)
+      | EHeaderStackAccess (stack : e) (index : Z)
                            (i : tags_t)                (* header stack indexing *)
       | EHeaderStackOp (stack : e) (op : hdr_stk_op)
                        (i : tags_t)                    (* header stack builtin *).
@@ -1220,11 +1218,11 @@ Module P4cub.
       Instance HeaderStackOpEqDec : EqDec hdr_stk_op eq.
       Proof.
         intros [] []; unfold equiv, complement in *; auto;
-          try match goal with
-              | n1 : N, n2: N
-                |- _ => destruct (N.eq_dec n1 n2) as [? | ?]; subst; auto
-              end;
-          try (right; intros ?; inv_eq; contradiction).
+        try match goal with
+            | n1 : Z, n2: Z
+              |- _ => destruct (Z.eq_dec n1 n2) as [? | ?]; subst; auto
+            end;
+        try (right; intros ?; inv_eq; contradiction).
       Defined.
 
       (** Equality of expressions. *)
@@ -1591,7 +1589,7 @@ Module P4cub.
           match e1, e2 with
           | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => eqb b1 b2
           | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-            => (w1 =? w2)%positive && (n1 =? n2)%N
+            => (w1 =? w2)%positive && (n1 =? n2)%Z
           | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
             => (w1 =? w2)%positive && (z1 =? z2)%Z
           | <{ Var x1:τ1 @ _ }>, <{ Var x2:τ2 @ _ }>
@@ -1620,10 +1618,10 @@ Module P4cub.
             => if equiv_dec mk1 mk2 then true else false
           | <{ Stack hs1:ts1[n1] nextIndex:=ni1 }>,
             <{ Stack hs2:ts2[n2] nextIndex:=ni2 }>
-            => (n1 =? n2)%positive && (ni1 =? ni2)%N &&
+            => (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
               F.eqb_fs eqbt ts1 ts2 && lrec hs1 hs2
           | <{ Access hs1[n1] @ _ }>,
-            <{ Access hs2[n2] @ _ }> => (n1 =? n2)%N && eqbe hs1 hs2
+            <{ Access hs2[n2] @ _ }> => (n1 =? n2)%Z && eqbe hs1 hs2
           | <{ STK_OP o1 hs1 @ _ }>,
             <{ STK_OP o2 hs2 @ _ }> => equiv_dec o1 o2 &&&& eqbe hs1 hs2
           | _, _ => false
@@ -1637,7 +1635,6 @@ Module P4cub.
         Proof.
           Hint Rewrite eqb_reflx.
           Hint Rewrite Pos.eqb_refl.
-          Hint Rewrite N.eqb_refl.
           Hint Rewrite Z.eqb_refl.
           Hint Rewrite eqbt_refl.
           Hint Rewrite equiv_dec_refl.
@@ -1688,8 +1685,6 @@ Module P4cub.
             => apply eqb_prop in H; subst
           | H: (_ =? _)%positive = true |- _
             => apply Peqb_true_eq in H; subst
-          | H: (_ =? _)%N = true |- _
-            => apply N.eqb_eq in H; subst
           | H: (_ =? _)%Z = true |- _
             => apply Z.eqb_eq in H; subst
           | H: _ && _ = true |- _
@@ -1801,7 +1796,6 @@ Module P4cub.
 
   (** * Statement Grammar *)
   Module Stmt.
-    (* Import Dir. *)
     Module E := Expr.
 
     Section Statements.

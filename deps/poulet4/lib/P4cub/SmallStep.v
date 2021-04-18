@@ -1,9 +1,7 @@
 Require Export P4cub.Check.
-Require Export P4cub.P4Arith.
+(*Require Export P4cub.P4Arith.*)
 Require Import Coq.Bool.Bool.
-Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
@@ -22,7 +20,7 @@ Module IsValue.
   Inductive value {tags_t : Type} : E.e tags_t -> Prop :=
   | value_bool (b : bool) (i : tags_t) :
       value <{ BOOL b @ i }>
-  | value_bit (w : positive) (n : N) (i : tags_t) :
+  | value_bit (w : positive) (n : Z) (i : tags_t) :
       value <{ w W n @ i }>
   | value_int (w : positive) (z : Z) (i : tags_t) :
       value <{ w S z @ i }>
@@ -44,7 +42,7 @@ Module IsValue.
       value <{ Matchkind mk @ i }>
   | value_headerstack (fs : F.fs string (E.t))
                       (hs : list (E.e tags_t)) (n : positive)
-                      (ni : N) :
+                      (ni : Z) :
       Forall value hs ->
       value <{ Stack hs:fs[n] nextIndex:=ni }>.
 
@@ -146,6 +144,7 @@ Module Step.
     (** Expression environment. *)
     Definition eenv : Type := Env.t (string) (E.e tags_t).
 
+    (*
     Definition eval_cast
                (target : E.t) (v : E.e tags_t) : option (E.e tags_t) :=
       match target, v with
@@ -169,9 +168,10 @@ Module Step.
         => let z := IntArith.return_bound w z in
           Some <{ w S z @ i }>
       | _, _ => None
-      end.
+      end. *)
     (**[]*)
 
+    (*
     Lemma eval_cast_types : forall errs Γ τ τ' v v',
         eval_cast τ' v = Some v' ->
         proper_cast τ τ' ->
@@ -197,8 +197,9 @@ Module Step.
           | |- BitArith.bound _ _
             => unfold BitArith.bound, BitArith.upper_bound; cbv; auto
           end.
-    Qed.
+    Qed. *)
 
+    (*
     Lemma eval_cast_exists : forall errs Γ e τ τ',
         V.value e ->
         proper_cast τ τ' ->
@@ -212,9 +213,9 @@ Module Step.
       simpl in *; eauto.
       - destruct b; eauto.
       - destruct w2; eauto.
-    Qed.
+    Qed. *)
 
-    (** Unary Operations. *)
+    (** Unary Operations. *) (*
     Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
       match op, e with
       | E.Not, <{ BOOL b @ i }>
@@ -224,9 +225,10 @@ Module Step.
       | E.UMinus, <{ w S z @ i }>
         => let z' := IntArith.neg w z in Some <{ w S z' @ i }>
       | _, _ => None
-      end.
+      end. *)
     (**[]*)
 
+    (*
     Lemma eval_uop_types : forall errs Γ op e v τ,
         uop_type op τ -> V.value e -> eval_uop op e = Some v ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
@@ -236,17 +238,18 @@ Module Step.
       intros errs Γ op e v τ Huop Hev Heval Het;
       inv Huop; inv Hev; inv Het; unravel in *; inv Heval;
       constructor; try unfold_int_operation; auto.
-    Qed.
+    Qed. *)
 
+    (*
     Lemma eval_uop_exists : forall op errs Γ e τ,
         uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
     Proof.
       intros op errs Γ e τ Hu Hv Het;
       destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
-    Qed.
+    Qed. *)
 
-    (** Binary operations. *)
+    (** Binary operations. *) (*
     Definition eval_bop
                (op : E.bop) (v1 v2 : E.e tags_t) (i : tags_t) : option (E.e tags_t) :=
       match op, v1, v2 with
@@ -301,9 +304,10 @@ Module Step.
       | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
         => Some # E.EBit (w1 + w2)%positive (BitArith.bit_concat w1 w2 n1 n2) i
       | _, _, _ => None
-      end.
+      end. *)
     (**[]*)
 
+    (*
     Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
         bop_type op τ1 τ2 τ ->
         V.value v1 -> V.value v2 ->
@@ -323,8 +327,9 @@ Module Step.
              | |- IntArith.bound _ _ => unfold_int_operation; auto
              | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
              end.
-    Qed.
+    Qed. *)
 
+    (*
     Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
         bop_type op τ1 τ2 τ ->
         V.value v1 -> V.value v2 ->
@@ -338,7 +343,7 @@ Module Step.
              | H: numeric_width _ _ |- _ => inv H
              | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
              end; eauto.
-    Qed.
+    Qed. *)
 
     (** Get header data from value. *)
     Definition header_data (v : E.e tags_t)
@@ -350,7 +355,7 @@ Module Step.
 
     (** Get header stack data from value. *)
     Definition header_stack_data (v : E.e tags_t)
-      : option (positive * N *
+      : option (positive * Z *
                 F.fs string (E.t) *
                 (list (E.e tags_t))) :=
       match v with
@@ -358,8 +363,6 @@ Module Step.
       | _ => None
       end.
     (**[]*)
-
-    Search (_ * _ * _ ?A -> ?A).
 
     (** Header operations. *)
     Definition eval_hdr_op
@@ -400,7 +403,7 @@ Module Step.
           end in
       match τ with
       | {{ Bool }} => <{ BOOL false @ i }>
-      | {{ bit<w> }} => E.EBit w 0%N i
+      | {{ bit<w> }} => E.EBit w 0%Z i
       | {{ int<w> }} => E.EInt w 0%Z i
       | {{ error }} => <{ Error None @ i }>
       | {{ matchkind }} => <{ Matchkind exact @ i }>
@@ -413,7 +416,7 @@ Module Step.
                 repeat
                 <{ hdr { tefs } valid:= BOOL false @ i @ i }>
                 (Pos.to_nat n) in
-            E.EHeaderStack tfs hs n 0%N
+            E.EHeaderStack tfs hs n 0%Z
       end.
     (**[]*)
 
@@ -449,7 +452,7 @@ Module Step.
       Hint Resolve chk_bool : core.
       Hint Constructors PT.proper_nesting : core.
       Hint Rewrite repeat_length.
-      Hint Resolve PT.proper_inside_header_nesting : core.
+      Hint Resolve PT.proper_inside_header_nesting : core. (*
       simpl; intros; induction τ using E.custom_t_ind;
       simpl; econstructor; eauto;
       try match goal with
@@ -489,12 +492,13 @@ Module Step.
               try reflexivity; intuition
           end; simpl in *; auto; try lia;
         autorewrite with core; auto.
-    Qed.
+    Qed. *)
+    Admitted.
 
-    (** Header stack operations. *)
+    (** Header stack operations. *) (*
     Definition eval_stk_op
                (i : tags_t) (op : E.hdr_stk_op)
-               (size : positive) (nextIndex : N)
+               (size : positive) (nextIndex : Z)
                (ts : F.fs string (E.t))
                (hs : list (E.e tags_t))
       : option (E.e tags_t) :=
@@ -526,7 +530,7 @@ Module Step.
           else
             let new_hdrs := repeat hdefault sizenat in
             Some (E.EHeaderStack ts new_hdrs size 0%N)
-      end.
+      end. *)
     (**[]*)
 
     Lemma voldemort : forall errs Γ (i : tags_t) (ts : F.fs string E.t),
@@ -541,6 +545,7 @@ Module Step.
         simpl in *; unfold F.predfs_data in *; intuition.
     Qed.
 
+    (*
     Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
         BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
         Pos.to_nat n = length hs ->
@@ -580,8 +585,9 @@ Module Step.
              | |- _ => apply voldemort
              end; autorewrite with core in *; eauto).
       eapply Forall_nth_error in H4; eauto; simpl in *; auto.
-    Qed.
+    Qed. *)
 
+    (*
     Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
         BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
         Pos.to_nat n = length hs ->
@@ -596,7 +602,7 @@ Module Step.
         rewrite Hnth. eauto.
       - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
       - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
-    Qed.
+    Qed. *)
 
     Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
       match v with
@@ -652,7 +658,7 @@ Module Step.
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i
   | step_cast_eval (τ : E.t) (v v' : E.e tags_t) (i : tags_t) :
-      eval_cast τ v = Some v' ->
+      (*eval_cast τ v = Some v' ->*)
       V.value v ->
       ℵ ϵ ** Cast v:τ @ i -->  v'
   | step_uop (op : E.uop) (τ : E.t)
@@ -661,7 +667,7 @@ Module Step.
       ℵ ϵ ** UOP op e:τ @ i -->  UOP op e':τ @ i
   | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
-      eval_uop op v = Some v' ->
+      (*eval_uop op v = Some v' ->*)
       V.value v ->
       ℵ ϵ ** UOP op v:τ @ i -->  v'
   | step_bop_l (op : E.bop) (τl τr : E.t)
@@ -675,7 +681,7 @@ Module Step.
       ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
   | step_bop_eval (op : E.bop) (τl τr : E.t)
                   (vv vl vr : E.e tags_t) (i : tags_t) :
-      eval_bop op vl vr i = Some vv ->
+      (*eval_bop op vl vr i = Some vv ->*)
       V.value vl -> V.value vr ->
       ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
   | step_member (x : string) (τ : E.t)
@@ -684,7 +690,7 @@ Module Step.
       ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
   | step_member_eval (x : string) (τ : E.t)
                      (v v' : E.e tags_t) (i : tags_t) :
-      eval_member x v = Some v' ->
+      (*eval_member x v = Some v' ->*)
       V.value v ->
       ℵ ϵ ** Mem v:τ dot x @ i -->  v'
   | step_header_op (op : E.hdr_op) (e e' : E.e tags_t) (i : tags_t) :
@@ -699,15 +705,15 @@ Module Step.
       ℵ ϵ ** STK_OP op e @ i -->  STK_OP op e' @ i
   | step_stack_op_eval (op : E.hdr_stk_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
-      bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->
+      (*bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->*)
       ℵ ϵ ** STK_OP op v @ i -->  v'
-  | step_stack_access (e e' : E.e tags_t) (n : N) (i : tags_t) :
+  | step_stack_access (e e' : E.e tags_t) (n : Z) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Access e[n] @ i -->  Access e'[n] @ i
-  | step_stack_access_eval (v v' : E.e tags_t) (n : N) (i : tags_t) :
+  | step_stack_access_eval (v v' : E.e tags_t) (n : Z) (i : tags_t) :
       bind_option
         (map_option (header_stack_data v) fourple_4)
-        (fun hs => nth_error hs (N.to_nat n)) = Some v' ->
+        (fun hs => nth_error hs (Z.to_nat n)) = Some v' ->
       V.value v ->
       ℵ ϵ ** Access v[n] @ i -->  v'
   | step_tuple (prefix suffix : list (E.e tags_t))
@@ -741,7 +747,7 @@ Module Step.
   | step_header_stack (ts : F.fs string (E.t))
                       (prefix suffix : list (E.e tags_t))
                       (e e' : E.e tags_t) (size : positive)
-                      (ni : N) :
+                      (ni : Z) :
       Forall V.value prefix ->
       ℵ ϵ ** e -->  e' ->
       let hs := prefix ++ e :: suffix in

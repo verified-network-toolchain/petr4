@@ -1,7 +1,5 @@
 Require Import Coq.Bool.Bool.
-Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
@@ -28,7 +26,7 @@ Section Values.
   Inductive v : Type :=
   | VBool (b : bool)
   | VInt (w : positive) (n : Z)
-  | VBit (w : positive) (n : N)
+  | VBit (w : positive) (n : Z)
   | VTuple (vs : list v)
   | VRecord (fs : F.fs string v)
   | VHeader (fs : F.fs string v) (validity : bool)
@@ -36,14 +34,14 @@ Section Values.
   | VMatchKind (mk : P4cub.Expr.matchkind)
   | VHeaderStack (ts : F.fs string E.t)
                  (headers : list (bool * F.fs string v))
-                 (size : positive) (nextIndex : N).
+                 (size : positive) (nextIndex : Z).
   (**[]*)
 
   (** Lvalues. *)
   Inductive lv : Type :=
   | LVVar (x : string)                 (* Local variables. *)
   | LVMember (arg : lv) (x : string) (* Member access. *)
-  | LVAccess (stk : lv) (index : N)       (* Header stack indexing. *).
+  | LVAccess (stk : lv) (index : Z)       (* Header stack indexing. *).
   (**[]*)
 
   (** Evaluated arguments. *)
@@ -66,7 +64,7 @@ Section Values.
       | {{ error }}      => VError None
       | {{ matchkind }}  => VMatchKind E.MKExact
       | {{ Bool }}       => VBool false
-      | {{ bit<w> }}     => VBit w 0%N
+      | {{ bit<w> }}     => VBit w 0%Z
       | {{ int<w> }}     => VInt w 0%Z
       | {{ tuple ts }}   => VTuple (lrec ts)
       | {{ rec { ts } }} => VRecord (fields_rec ts)
@@ -170,7 +168,7 @@ Section Values.
       | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
                                          (z1 =? z2)%Z
       | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%positive &&
-                                         (n1 =? n2)%N
+                                         (n1 =? n2)%Z
       | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
                                          then true
                                          else false
@@ -182,7 +180,7 @@ Section Values.
       | VRecord vs1,    VRecord vs2    => fields_rec vs1 vs2
       | VHeaderStack ts1 vss1 n1 ni1,
         VHeaderStack ts2 vss2 n2 ni2   => F.eqb_fs TE.eqbt ts1 ts2 &&
-                                         (n1 =? n2)%positive && (ni1 =? ni2)%N &&
+                                         (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
                                          ffrec vss1 vss2
       | _,              _              => false
       end.
@@ -193,7 +191,6 @@ Section Values.
       Hint Rewrite eqb_reflx.
       Hint Rewrite Pos.eqb_refl.
       Hint Rewrite equiv_dec_refl.
-      Hint Rewrite N.eqb_refl.
       Hint Rewrite Z.eqb_refl.
       Hint Rewrite TE.eqbt_refl.
       Hint Rewrite (@F.eqb_fs_reflx string E.t).
@@ -227,8 +224,6 @@ Section Values.
         => apply eqb_prop in H; subst
       | H: (_ =? _)%positive = true |- _
         => apply Peqb_true_eq in H; subst
-      | H: (_ =? _)%N = true |- _
-        => apply N.eqb_eq in H; subst
       | H: (_ =? _)%Z = true |- _
         => apply Z.eqb_eq in H; subst
       | H: context [equiv_dec ?x1 ?x2 &&&& _] |- _
@@ -402,11 +397,11 @@ Module ValueTyping.
 
   Inductive type_value (errs : errors) : v -> E.t -> Prop :=
   | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
-  | typ_bit (w : positive) (n : N) :
-      BitArith.bound w n ->
+  | typ_bit (w : positive) (n : Z) :
+      (*BitArith.bound w n ->*)
       ∇ errs ⊢ w VW n ∈ bit<w>
   | typ_int (w : positive) (z : Z) :
-      IntArith.bound w z ->
+      (*IntArith.bound w z ->*)
       ∇ errs ⊢ w VS z ∈ int<w>
   | typ_tuple (vs : list v)
               (ts : list E.t) :
@@ -431,8 +426,8 @@ Module ValueTyping.
       ∇ errs ⊢ MATCHKIND mk ∈ matchkind
   | typ_headerstack (ts : Field.fs string E.t)
                     (hs : list (bool * Field.fs string v))
-                    (n : positive) (ni : N) :
-      BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+                    (n : positive) (ni : Z) :
+      (*BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->*)
       Pos.to_nat n = length hs ->
       PT.proper_nesting {{ stack ts[n] }} ->
       Forall
@@ -451,11 +446,11 @@ Module ValueTyping.
     Hypothesis HBool : forall errs b, P errs ~{ VBOOL b }~ {{ Bool }}.
 
     Hypothesis HBit : forall errs w n,
-        BitArith.bound w n ->
+        (*BitArith.bound w n ->*)
         P errs ~{ w VW n }~ {{ bit<w> }}.
 
     Hypothesis HInt : forall errs w z,
-        IntArith.bound w z ->
+        (*IntArith.bound w z ->*)
         P errs ~{ w VS z }~ {{ int<w> }}.
 
     Hypothesis HMatchkind : forall errs mk, P errs ~{ MATCHKIND mk }~ {{ matchkind }}.
@@ -484,7 +479,7 @@ Module ValueTyping.
         P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
 
     Hypothesis HStack : forall errs ts hs n ni,
-        BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
+        (*BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->*)
         Pos.to_nat n = length hs ->
         PT.proper_nesting {{ stack ts[n] }} ->
         Forall
@@ -549,16 +544,16 @@ Module ValueTyping.
                 end in
             match Hy with
             | typ_bool _ b => HBool _ b
-            | typ_bit _ _ _ Hwn => HBit _ _ _ Hwn
-            | typ_int _ _ _ Hwz => HInt _ _ _ Hwz
+            | typ_bit _ _ _ => HBit _ _ _
+            | typ_int _ _ _ => HInt _ _ _
             | typ_matchkind _ mk => HMatchkind _ mk
             | typ_error _ _ Herr => HError _ _ Herr
             | typ_tuple _ _ _ Hvs => HTuple _ _ _ Hvs (lind Hvs)
             | typ_rec _ _ _ Hfs => HRecord _ _ _ Hfs (fsind Hfs)
             | typ_hdr _ _ b _ HP Hfs => HHeader _ _ b _ HP Hfs (fsind Hfs)
-            | typ_headerstack _ _ _ _ _ Hbound Hni Hlen HP
+            | typ_headerstack _ _ _ _ _ Hlen HP
                               Hhs => HStack _ _ _ _ _
-                                           Hbound Hni Hlen HP
+                                           Hlen HP
                                            Hhs (hsind Hhs)
             end.
   End ValueTypingInduction.
@@ -573,6 +568,7 @@ Module ValueTyping.
   Proof.
     intros errs τ HPN; simpl.
     induction τ using E.custom_t_ind; simpl; constructor; auto.
+    (*
     - unfold BitArith.bound.
       pose proof BitArith.upper_bound_ge_1 w; lia.
     - unfold IntArith.bound, IntArith.minZ, IntArith.maxZ.
@@ -610,6 +606,7 @@ Module ValueTyping.
         repeat constructor; repeat invert_cons_predfs;
         unfold F.predf_data,"∘", equiv in *; simpl in *; intuition.
         apply PT.proper_inside_header_nesting in H4; auto.
-  Qed.
+  Qed. *)
+    Admitted.
 End ValueTyping.
 End Val.

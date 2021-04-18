@@ -2,8 +2,6 @@ Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Integers. *)
 Require Coq.Strings.String.
 Module Strings := Coq.Strings.String.
-Require Poulet4.P4String. (** Strings. *)
-Require Poulet4.Typed. (** Names. *)
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Coq.micromega.Lia.

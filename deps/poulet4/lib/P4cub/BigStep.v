@@ -1,12 +1,10 @@
 Require Export Poulet4.P4cub.Check.
-Require Export Poulet4.P4cub.P4Arith.
+(*Require Export Poulet4.P4cub.P4Arith.*)
 
 Require Import Poulet4.P4cub.Value.
 
 Require Import Coq.Bool.Bool.
-Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.NArith.BinNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
@@ -67,17 +65,17 @@ Module Step.
   Import Env.EnvNotations.
 
   Section StepDefs.
-    (** Unary Operations. *)
+    (** Unary Operations. *) (*
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
       | E.Not, ~{ VBOOL b }~ => Some # V.VBool (negb b)
       | E.BitNot, ~{ w VW n }~ => Some # V.VBit w # BitArith.neg w n
       | E.UMinus, ~{ w VS z }~ => Some # V.VInt w # IntArith.neg w z
       | _, _ => None
-      end.
+      end. *)
     (**[]*)
 
-    (** Binary operations. *)
+    (** Binary operations. *) (*
     Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
       match op, v1, v2 with
       | E.Plus, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.plus_mod w n1 n2
@@ -114,7 +112,7 @@ Module Step.
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
         => Some # V.VBit (w1 + w2)%positive # BitArith.bit_concat w1 w2 n1 n2
       | _, _, _ => None
-      end.
+      end. *)
     (**[]*)
 
     (** Header operations. *)
@@ -128,10 +126,10 @@ Module Step.
       end.
     (**[]*)
 
-    (** Header stack operations. *)
+    (** Header stack operations. *) (*
     Definition eval_stk_op
                (op : E.hdr_stk_op) (size : positive)
-               (nextIndex : N) (ts : F.fs string E.t)
+               (nextIndex : Z) (ts : F.fs string E.t)
                (bvss : list (bool * F.fs string V.v))
       : option V.v :=
       let w := 32%positive in
@@ -161,9 +159,10 @@ Module Step.
           else
             let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
             Some (V.VHeaderStack ts new_hdrs size 0%N)
-      end.
+      end. *)
     (**[]*)
 
+    (*
     Definition eval_cast
                (target : E.t) (v : V.v) : option V.v :=
       match target, v with
@@ -182,7 +181,7 @@ Module Step.
       | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.return_bound w z in
                                      Some ~{ w VS z }~
       | _, _ => None
-      end.
+      end. *)
     (**[]*)
 
     Definition eval_member (x : string) (v : V.v) : option V.v :=
@@ -196,7 +195,7 @@ Module Step.
     Section Lemmas.
       Import Typecheck.
       Import V.ValueTyping.
-
+      (*
       Lemma eval_uop_types : forall errs op τ v v',
           uop_type op τ -> eval_uop op v = Some v' ->
           ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ.
@@ -207,14 +206,16 @@ Module Step.
         intros errs op τ v v' Huop Heval Ht;
         inv Huop; inv Ht; unravel in *; inv Heval;
         try unfold_int_operation; auto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_uop_exist : forall errs op τ v,
           uop_type op τ -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
       Proof.
         intros errs op τ v Huop Ht; inv Huop; inv Ht; unravel; eauto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_bop_type : forall errs op τ1 τ2 τ v1 v2 v,
           bop_type op τ1 τ2 τ -> eval_bop op v1 v2 = Some v ->
           ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 -> ∇ errs ⊢ v ∈ τ.
@@ -232,8 +233,9 @@ Module Step.
                | |- BitArith.bound _ _ => unfold_bit_operation; auto
                | |- IntArith.bound _ _ => unfold_int_operation; auto
                end; auto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_bop_exists : forall errs op τ1 τ2 τ v1 v2,
           bop_type op τ1 τ2 τ ->
           ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 ->
@@ -245,8 +247,9 @@ Module Step.
                | H: numeric_width _ _ |- _ => inv H
                | |- _ => inv Ht1; inv Ht2; unravel
                end; eauto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_cast_types : forall errs v v' τ τ',
           proper_cast τ τ' -> eval_cast τ' v = Some v' ->
           ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
@@ -258,15 +261,16 @@ Module Step.
                           end; auto.
         - destruct b; inv Heval; constructor; reflexivity.
         - destruct w2; inv Heval; auto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_cast_exists : forall errs τ τ' v,
           proper_cast τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_cast τ' v = Some v'.
       Proof.
         intros errs τ τ' v Hpc Ht; inv Hpc; inv Ht; unravel; eauto.
         - destruct b; eauto.
         - destruct w2; eauto.
-      Qed.
+      Qed. *)
 
       Lemma eval_hdr_op_types : forall errs op ts vs b,
           PT.proper_nesting {{ hdr { ts } }} ->
@@ -289,6 +293,7 @@ Module Step.
         end.
       (**[]*)
 
+      (*
       Lemma eval_stk_op_types : forall errs op n ni ts hs v,
           eval_stk_op op n ni ts hs = Some v ->
           BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
@@ -336,8 +341,9 @@ Module Step.
         - destruct (nth_error hs (N.to_nat ni)) as [[b vs] |] eqn:equack;
           inv Heval; constructor; auto.
           apply (Forall_nth_error _ hs (N.to_nat ni) (b, vs)) in H; inv H; auto.
-      Qed.
+      Qed. *)
 
+      (*
       Lemma eval_stk_op_exists : forall errs op n ni ts hs,
           BitArith.bound 32%positive (Npos n) -> N.lt ni (Npos n) ->
           Pos.to_nat n = length hs ->
@@ -356,7 +362,7 @@ Module Step.
           rewrite Hexists. eauto.
         - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
         - destruct (lt_dec (N.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto.
-      Qed.
+      Qed. *)
 
       Lemma eval_member_types : forall errs x v v' ts τ τ',
           eval_member x v = Some v' ->
@@ -408,7 +414,7 @@ Module Step.
         match lv_lookup ϵ lv with
         | None => None
         | Some ~{ STACK vss:_[_] NEXT:=_ }~ =>
-          match nth_error vss (N.to_nat n) with
+          match nth_error vss (Z.to_nat n) with
           | None => None
           | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
           end
@@ -432,7 +438,7 @@ Module Step.
         match v, lv_lookup ϵ lv with
         | ~{ HDR { vs } VALID:=b }~ ,
           Some ~{ STACK vss:ts[size] NEXT:=ni }~ =>
-          let vss := nth_update (N.to_nat n) (b,vs) vss in
+          let vss := nth_update (Z.to_nat n) (b,vs) vss in
           lv_update lv ~{ STACK vss:ts[size] NEXT:=ni }~ ϵ
         | _, Some _ | _, None => ϵ
         end
@@ -564,7 +570,7 @@ Module Step.
   (* Literals. *)
   | ebs_bool (b : bool) (i : tags_t) :
       ⟨ ϵ, BOOL b @ i ⟩ ⇓ VBOOL b
-  | ebs_bit (w : positive) (n : N) (i : tags_t) :
+  | ebs_bit (w : positive) (n : Z) (i : tags_t) :
       ⟨ ϵ, w W n @ i ⟩ ⇓ w VW n
   | ebs_int (w : positive) (z : Z) (i : tags_t) :
       ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
@@ -572,7 +578,7 @@ Module Step.
       ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
   | ebs_cast (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
-      eval_cast τ v = Some v' ->
+      (*eval_cast τ v = Some v' -> *)
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟨ ϵ, Cast e:τ @ i ⟩ ⇓ v'
   | ebs_error (err : option string) (i : tags_t) :
@@ -581,13 +587,13 @@ Module Step.
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
   | ebs_uop (op : E.uop) (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
-      eval_uop op v = Some v' ->
+      (*eval_uop op v = Some v' -> *)
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟨ ϵ, UOP op e:τ @ i ⟩ ⇓ v'
   (* Binary Operations. *)
   | ebs_bop (op : E.bop) (τ1 τ2 : E.t) (e1 e2 : E.e tags_t)
             (i : tags_t) (v v1 v2 : V.v) :
-      eval_bop op v1 v2 = Some v ->
+      (*eval_bop op v1 v2 = Some v ->*)
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       ⟨ ϵ, BOP e1:τ1 op e2:τ2 @ i ⟩ ⇓ v
@@ -622,7 +628,7 @@ Module Step.
       ⟨ ϵ, HDR_OP op e @ i ⟩ ⇓ v
   | ebs_hdr_stack (ts : F.fs string (E.t))
                   (hs : list (E.e tags_t))
-                  (n : positive) (ni : N)
+                  (n : positive) (ni : Z)
                   (vss : list (bool * F.fs string (V.v))) :
       Forall2
         (fun e bvs =>
@@ -632,18 +638,18 @@ Module Step.
         hs vss ->
       ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
   | ebs_access (e : E.e tags_t) (i : tags_t)
-               (n : positive) (index ni : N)
+               (n : positive) (index ni : Z)
                (ts : F.fs string (E.t))
                (vss : list (bool * F.fs string (V.v)))
                (b : bool) (vs : F.fs string (V.v)) :
-      nth_error vss (N.to_nat index) = Some (b,vs) ->
+      nth_error vss (Z.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
   | ebs_stk_op  (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
                 (v : V.v) (ts : F.fs string (E.t))
                 (bvss : list (bool * F.fs string (V.v)))
-                (size : positive) (nextIndex : N) :
-      eval_stk_op op size nextIndex ts bvss = Some v ->
+                (size : positive) (nextIndex : Z) :
+      (*eval_stk_op op size nextIndex ts bvss = Some v ->*)
       ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
       ⟨ ϵ, STK_OP op e @ i ⟩ ⇓ v
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
@@ -668,7 +674,7 @@ Module Step.
     (**[]*)
 
     Hypothesis HCast : forall ϵ τ e i v v',
-        eval_cast τ v = Some v' ->
+        (*eval_cast τ v = Some v' ->*)
         ⟨ ϵ, e ⟩ ⇓ v ->
         P ϵ e v ->
         P ϵ <{ Cast e:τ @ i }> v'.
@@ -681,13 +687,13 @@ Module Step.
     (**[]*)
 
     Hypothesis HUop : forall ϵ op τ e i v v',
-        eval_uop op v = Some v' ->
+        (*eval_uop op v = Some v' ->*)
         ⟨ ϵ, e ⟩ ⇓ v ->
         P ϵ e v ->
         P ϵ <{ UOP op e:τ @ i }> v'.
 
     Hypothesis HBop : forall ϵ op τ1 τ2 e1 e2 i v v1 v2,
-        eval_bop op v1 v2 = Some v ->
+        (*eval_bop op v1 v2 = Some v ->*)
         ⟨ ϵ, e1 ⟩ ⇓ v1 ->
         P ϵ e1 v1 ->
         ⟨ ϵ, e2 ⟩ ⇓ v2 ->
@@ -750,14 +756,14 @@ Module Step.
     (**[]*)
 
     Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
-               nth_error vss (N.to_nat index) = Some (b,vs) ->
-               ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
-               P ϵ e ~{ STACK vss:ts[n] NEXT:=ni }~ ->
-               P ϵ <{ Access e[index] @ i }> ~{ HDR { vs } VALID:=b }~.
+        nth_error vss (Z.to_nat index) = Some (b,vs) ->
+        ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
+        P ϵ e ~{ STACK vss:ts[n] NEXT:=ni }~ ->
+        P ϵ <{ Access e[index] @ i }> ~{ HDR { vs } VALID:=b }~.
     (**[]*)
 
     Hypothesis HStackOp : forall ϵ op e i v ts bvss size nextIndex,
-        eval_stk_op op size nextIndex ts bvss = Some v ->
+        (*eval_stk_op op size nextIndex ts bvss = Some v ->*)
         ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
         P ϵ e ~{ STACK bvss:ts[size] NEXT:=nextIndex }~ ->
         P ϵ <{ STK_OP op e @ i }> v.
@@ -834,15 +840,15 @@ Module Step.
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
         | ebs_cast _ _ _ i _ _
-                   Hcast He => HCast _ _ _ i _ _ Hcast
+                   He => HCast _ _ _ i _ _
                                     He (ebsind _ _ _ He)
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
         | ebs_uop _ _ _ _ i _ _
-                  Huop He => HUop _ _ _ _ i _ _ Huop
+                  He => HUop _ _ _ _ i _ _
                                  He (ebsind _ _ _ He)
         | ebs_bop _ _ _ _ _ _ i _ _ _
-                  Hbop He1 He2 => HBop _ _ _ _ _ _ i _ _ _ Hbop
+                  He1 He2 => HBop _ _ _ _ _ _ i _ _ _
                                       He1 (ebsind _ _ _ He1)
                                       He2 (ebsind _ _ _ He2)
         | ebs_mem _ _ _ _ i _ _
@@ -863,7 +869,7 @@ Module Step.
                      Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
                                        He (ebsind _ _ _ He)
         | ebs_stk_op _ _ _ i _ _ _ _ _
-                     Hv He => HStackOp _ _ _ i _ _ _ _ _ Hv
+                     He => HStackOp _ _ _ i _ _ _ _ _
                                       He (ebsind _ _ _ He)
         end.
     (**[]*)
@@ -884,7 +890,7 @@ Module Step.
       ⧠ e ⇓ lv ->
       ⧠ Mem e:hdr { tfs } dot x @ i ⇓ lv DOT x
   | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
-                      (lv : V.lv) (n : N) :
+                      (lv : V.lv) (n : Z) :
       let w := 32%positive in
       ⧠ e ⇓ lv ->
       ⧠ Access e[n] @ i ⇓ lv[n]

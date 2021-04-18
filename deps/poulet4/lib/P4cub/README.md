@@ -14,6 +14,8 @@
 
 - Explore better ways to enfore constructions of types with proper nesting.
 
+- Use `Z` instead of `N` (Currently doing this). `positive` will NOT be replaced with `nat`?
+
 - Usurp `P4cub/P4Arith.v` with p4light's arithmetic operations.
 
 - Disallow non-constant global variable declarations in `AST.v`.

@@ -40,7 +40,7 @@ Section BigStepTheorems.
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       ∇ errs ⊢ v ∈ τ.
-  Proof.
+  Proof. (*
     Hint Resolve eval_uop_types : core.
     Hint Resolve eval_bop_type : core.
     Hint Resolve eval_cast_types : core.
@@ -83,7 +83,8 @@ Section BigStepTheorems.
                    end; auto.
     - eapply Forall_nth_error in H12; simpl in *; eauto.
       simpl in *; inv H12; auto.
-  Qed.
+  Qed. *)
+  Admitted.
 
   Theorem expr_big_step_progress :
     forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
@@ -91,7 +92,7 @@ Section BigStepTheorems.
       envs_sound Γ ϵ errs ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
-  Proof.
+  Proof. (*
     Hint Resolve eval_uop_exist : core.
     Hint Resolve eval_bop_exists : core.
     Hint Resolve eval_cast_exists : core.
@@ -160,5 +161,6 @@ Section BigStepTheorems.
     - inv H1.
       pose proof eval_stk_op_exists
            _ op _ _ _ _ H4 H5 H6 H8 H9 as [? ?]; eauto.
-  Qed.
+  Qed. *)
+  Admitted.
 End BigStepTheorems.

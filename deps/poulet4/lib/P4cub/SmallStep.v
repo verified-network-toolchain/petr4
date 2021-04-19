@@ -139,7 +139,6 @@ Module Step.
     (** Expression environment. *)
     Definition eenv : Type := Env.t (string) (E.e tags_t).
 
-    (*
     Definition eval_cast
                (target : E.t) (v : E.e tags_t) : option (E.e tags_t) :=
       match target, v with
@@ -147,68 +146,25 @@ Module Step.
       | {{ bit<xH> }}, <{ FALSE @ i }>        => Some (E.EBit 1%positive 0%N i)
       | {{ Bool }}, E.EBit 1%positive 1%N i => Some <{ TRUE @ i }>
       | {{ Bool }}, E.EBit 1%positive 0%N i => Some <{ FALSE @ i }>
-      | {{ bit<w> }}, <{ _ S Z0 @ i }>       => Some <{ w W N0 @ i }>
-      | {{ bit<w> }}, E.EInt _ (Zneg p) i
-      | {{ bit<w> }}, E.EInt _ (Zpos p) i
-        => let n := BitArith.return_bound w (Npos p) in
+      | {{ bit<w> }}, E.EInt _ z i
+        => let n := BitArith.mod_bound w z in
           Some <{ w W n @ i }>
-      (* TODO: casting bit -> int is incorrect. *)
       | {{ int<w> }}, <{ _ W n @ i }>
-        => let z := IntArith.return_bound w (Z.of_N n) in
+        => let z := IntArith.mod_bound w n in
           Some <{ w S z @ i }>
       | {{ bit<w> }}, <{ _ W n @ i }>
-        => let n := BitArith.return_bound w n in
+        => let n := BitArith.mod_bound w n in
           Some <{ w W n @ i }>
       | {{ int<w> }}, <{ _ S z @ i}>
-        => let z := IntArith.return_bound w z in
+        => let z := IntArith.mod_bound w z in
           Some <{ w S z @ i }>
+      | {{ rec { fs } }}, <{ tup vs @ i }>
+        => Some # E.ERecord (combine (F.keys fs) # combine (F.values fs) vs) i
+      | {{ hdr { fs } }}, <{ tup vs @ i }>
+        => Some # E.EHeader (combine (F.keys fs) # combine (F.values fs) vs) <{ TRUE @ i }> i
       | _, _ => None
-      end. *)
+      end.
     (**[]*)
-
-    (*
-    Lemma eval_cast_types : forall errs Γ τ τ' v v',
-        eval_cast τ' v = Some v' ->
-        proper_cast τ τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
-    Proof.
-      Hint Resolve BitArith.return_bound_bound : core.
-      Hint Resolve IntArith.return_bound_bound : core.
-      intros;
-      match goal with
-      | HPC: proper_cast _ _,
-        HT : ⟦ _, _ ⟧ ⊢  _ ∈ _ |- _
-        => inv HPC; inv HT; simpl in *; try discriminate
-      end;
-      try match goal with
-          | H: match ?w with (_~1)%positive | _ => _ end = Some _
-            |- _ => destruct w; inv H; try constructor; auto
-          | H: (if ?b then _ else _) = Some _ |- _
-            => destruct b; inv H; try constructor; auto
-          | H: Some _ = Some _ |- _ => inv H; try constructor; auto
-          end;
-      try match goal with
-          | |- BitArith.bound _ _
-            => unfold BitArith.bound, BitArith.upper_bound; cbv; auto
-          end.
-    Qed. *)
-
-    (*
-    Lemma eval_cast_exists : forall errs Γ e τ τ',
-        V.value e ->
-        proper_cast τ τ' ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-        exists v, eval_cast τ' e = Some v.
-    Proof.
-      intros ? ? ? ? ? Hv Hpc Het; inv Hpc; inv Hv; inv Het;
-      unravel; unfold BitArith.bound, IntArith.bound,
-               BitArith.upper_bound, IntArith.maxZ,
-               IntArith.minZ, IntArith.upper_bound, Pos.pow in *;
-      simpl in *; eauto.
-      - destruct b; eauto.
-      - destruct w2; eauto.
-    Qed. *)
 
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
@@ -226,25 +182,6 @@ Module Step.
       | _, _ => None
       end.
     (**[]*)
-
-    Lemma eval_uop_types : forall errs Γ op e v τ,
-        uop_type op τ -> V.value e -> eval_uop op e = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
-    Proof.
-      Hint Constructors check_expr : core.
-      Hint Extern 0 => bit_bounded : core.
-      Hint Extern 0 => int_bounded : core.
-      intros errs Γ op e v τ Huop Hev Heval Het;
-      inv Huop; inv Hev; inv Het; unravel in *; inv Heval; auto.
-    Qed.
-
-    Lemma eval_uop_exists : forall op errs Γ e τ,
-        uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-        exists v, eval_uop op e = Some v.
-    Proof.
-      intros op errs Γ e τ Hu Hv Het;
-      destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
-    Qed.
 
     (** Binary operations. *)
     Definition eval_bop
@@ -308,40 +245,6 @@ Module Step.
       end.
     (**[]*)
 
-    Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
-        bop_type op τ1 τ2 τ ->
-        V.value v1 -> V.value v2 ->
-        eval_bop op v1 v2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
-    Proof.
-      Hint Constructors check_expr : core.
-      Hint Extern 0 => bit_bounded : core.
-      Hint Extern 0 => int_bounded : core.
-      intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
-      inv Hbop; unravel in *;
-      repeat match goal with
-             | H: Some _ = Some _ |- _ => inv H; auto
-             | H: numeric _ |- _ => inv H
-             | H: numeric_width _ _ |- _ => inv H
-             | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
-             end; auto.
-    Qed.
-
-    Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
-        bop_type op τ1 τ2 τ ->
-        V.value v1 -> V.value v2 ->
-        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 ->
-        exists v, eval_bop op v1 v2 i = Some v.
-    Proof.
-      intros errs Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
-      inv Hbop; unravel in *;
-      repeat match goal with
-             | H: numeric _ |- _ => inv H
-             | H: numeric_width _ _ |- _ => inv H
-             | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
-             end; eauto.
-    Qed.
-
     (** Get header data from value. *)
     Definition header_data (v : E.e tags_t)
       : option (F.fs string (E.t * E.e tags_t) * bool * tags_t * tags_t) :=
@@ -371,19 +274,6 @@ Module Step.
       | E.HOSetInValid => <{ hdr { fs } valid:=FALSE @ ib @ i }>
       end.
     (**[]*)
-
-    Lemma eval_hdr_op_types : forall errs Γ op ts fs b i ib,
-        PT.proper_nesting {{ hdr { ts } }} ->
-        F.relfs (fun te τ => fst te = τ /\
-                          let e := snd te in
-                          ⟦ errs, Γ ⟧ ⊢ e ∈ τ) fs ts ->
-        let τ := type_hdr_op op ts in
-        let v := eval_hdr_op op fs b i ib in
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
-    Proof.
-      intros; subst τ; subst v; destruct op;
-      simpl in *; constructor; auto; constructor.
-    Qed.
 
     (** Default (value) Expression. *)
     Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
@@ -419,79 +309,7 @@ Module Step.
 
     Lemma value_edefault : forall i τ, V.value (edefault i τ).
     Proof.
-      Hint Constructors V.value : core.
-      (*
-      intros; induction τ using E.custom_t_ind;
-      simpl in *; auto; constructor; auto;
-      try match goal with
-          | |- Forall _ (repeat _ _) => apply repeat_Forall; constructor
-          end;
-      try match goal with
-          | H: Forall _ ?ts |- _
-            => induction ts as [| ? ? ?]; simpl in *; auto;
-                try match goal with
-                    | H: Forall _ (_ :: _) |- _ => inv H; auto
-                    end
-          end;
-      try match goal with
-          | H: F.predfs_data _ ?fs |- _
-            => induction fs as [| [? ?] ? ?]; simpl in *;
-              repeat constructor; try invert_cons_predfs;
-              unfold F.predf_data, Basics.compose, F.predfs_data in *;
-              simpl in *; auto
-          end.
-    Qed. *)
-    Admitted.
-
-    Lemma edefault_types : forall errs Γ i τ,
-        PT.proper_nesting τ ->
-        let e := edefault i τ in
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
-    Proof.
-      Hint Resolve chk_bool : core.
-      Hint Constructors proper_nesting : core.
-      Hint Rewrite repeat_length.
-      Hint Resolve proper_inside_header_nesting : core. (*
-      simpl; intros; induction τ using E.custom_t_ind;
-      simpl; econstructor; eauto;
-      try match goal with
-          | |- BitArith.bound ?w 0
-            => unfold BitArith.bound;
-              pose proof BitArith.upper_bound_ge_1 w; lia
-          | |- IntArith.bound ?w 0
-            => unfold IntArith.bound, IntArith.minZ, IntArith.maxZ;
-              pose proof IntArith.upper_bound_ge_1 w; lia
-          end;
-      try match goal with
-          | |- Forall _ (repeat _ _) => apply repeat_Forall; try apply chk_hdr_lit
-          end;
-      try match goal with
-          | |- error_ok _ None => constructor
-          end;
-      try match goal with
-          | H: PT.proper_nesting _ |- _ => inv H; intuition
-              try match goal with
-                  | H: PT.base_type {{ tuple _ }} |- _ => inv H
-                  | H: PT.base_type {{ rec { _ } }} |- _ => inv H
-                  | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
-                  | H: PT.base_type {{ stack _[_] }} |- _ => inv H
-                  end
-          end;
-      try match goal with
-          | IH: Forall _ ?ts |- Forall2 _ _ ?ts
-            => induction ts; inv IH; try invert_Forall_cons;
-              constructor; intuition
-          end;
-      try match goal with
-          | IH: F.predfs_data _ ?fs |- F.relfs _ _ ?fs
-            => induction fs as [| [? ?] ? ?]; constructor;
-              unfold F.predfs_data,F.predf_data,
-              F.relf,F.relfs,Basics.compose in *; simpl in *;
-              repeat invert_Forall_cons; repeat constructor;
-              try reflexivity; intuition
-          end; simpl in *; auto; try lia;
-        autorewrite with core; auto.
-    Qed. *)
+      Local Hint Constructors V.value : core.
     Admitted.
 
     (** Header stack operations. *)
@@ -533,23 +351,133 @@ Module Step.
       end.
     (**[]*)
 
-    Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
-        BitArith.bound 32%positive (Zpos n) ->
-        (0 <= ni < Zpos n)%Z ->
-        Pos.to_nat n = length hs ->
-        PT.proper_nesting {{ stack ts[n] }} ->
-        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-        eval_stk_op i op n ni ts hs = Some v ->
-        let τ := type_hdr_stk_op op n ts in
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
-    Proof.
-      Hint Constructors check_expr : core.
-      Hint Resolve Forall_impl : core.
-      Hint Resolve Forall_firstn : core.
-      Hint Resolve Forall_skipn : core.
-      Hint Resolve proper_inside_header_nesting : core.
-      Hint Resolve edefault_types : core.
+    Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
+      match v with
+      | <{ rec { vs } @ _ }>
+      | <{ hdr { vs } valid:=_ @ _ }> => map_option (F.get x vs) snd
+      | _                             => None
+      end.
+    (**[]*)
+
+    Section HelpersType.
+      Local Hint Constructors check_expr : core.
+      Local Hint Extern 0 => bit_bounded : core.
+      Local Hint Extern 0 => int_bounded : core.
+
+      Lemma eval_cast_types : forall errs Γ τ τ' v v',
+          eval_cast τ' v = Some v' ->
+          proper_cast τ τ' ->
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+          ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+      Proof.
+        intros;
+        match goal with
+        | HPC: proper_cast _ _,
+          HT : ⟦ _, _ ⟧ ⊢  _ ∈ _ |- _
+          => inv HPC; inv HT; unravel in *; try discriminate
+        end;
+        try match goal with
+            | H: match ?w with (_~1)%positive | _ => _ end = Some _
+              |- _ => destruct w; inv H; try constructor; auto
+            | H: (if ?b then _ else _) = Some _ |- _
+              => destruct b; inv H; try constructor; auto
+            | H: Some _ = Some _ |- _ => inv H; try constructor; auto 2
+            end; try (cbv; auto 2; assumption).
+        - destruct n; inv H; auto 2.
+          destruct p; inv H1; auto 2.
+        - generalize dependent fs.
+          induction es as [| e es IHes]; intros [| [x τ] fs] H;
+          inv H; unravel in *; constructor; try split;
+          unravel; try apply IHes; auto 2.
+        - apply pn_header. rewrite F.predfs_data_map. assumption.
+        - clear H3. generalize dependent fs.
+          induction es as [| e es IHes]; intros [| [x τ] fs] H;
+          inv H; unravel in *; constructor; try split;
+          unravel; try apply IHes; auto 2.
+      Qed.
+
+      Lemma eval_uop_types : forall errs Γ op e v τ,
+          uop_type op τ -> V.value e -> eval_uop op e = Some v ->
+          ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+      Proof.
+        intros errs Γ op e v τ Huop Hev Heval Het;
+        inv Huop; inv Hev; inv Het; unravel in *; inv Heval; auto 2.
+      Qed.
+
+      Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
+          bop_type op τ1 τ2 τ ->
+          V.value v1 -> V.value v2 ->
+          eval_bop op v1 v2 i = Some v ->
+          ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+      Proof.
+        intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
+        inv Hbop; unravel in *;
+        repeat match goal with
+               | H: Some _ = Some _ |- _ => inv H; auto
+               | H: numeric _ |- _ => inv H
+               | H: numeric_width _ _ |- _ => inv H
+               | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
+               end; auto 2.
+      Qed.
+
+      Lemma eval_member_types : forall errs Γ x v v' ts τ τ',
+          eval_member x v = Some v' ->
+          V.value v ->
+          member_type ts τ ->
+          F.get x ts = Some τ' ->
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+          ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+      Proof.
+        intros errs Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht;
+        inv Hmem; inv Hv; inv Ht.
+        - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
+          intuition; unravel in *; subst.
+          rewrite H0 in Heval; unravel in *; inv Heval; auto 2.
+        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2.
+          intuition; unravel in *; subst.
+          rewrite H1 in Heval; unravel in *; inv Heval; auto 2.
+      Qed.
+
+      Local Hint Constructors proper_nesting : core.
       Hint Rewrite repeat_length.
+      Local Hint Resolve proper_inside_header_nesting : core.
+
+      Lemma eval_hdr_op_types : forall errs Γ op ts fs b i ib,
+          PT.proper_nesting {{ hdr { ts } }} ->
+          F.relfs (fun te τ => fst te = τ /\
+                            let e := snd te in
+                            ⟦ errs, Γ ⟧ ⊢ e ∈ τ) fs ts ->
+          let τ := type_hdr_op op ts in
+          let v := eval_hdr_op op fs b i ib in
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+      Proof.
+        intros; subst τ; subst v; destruct op;
+        simpl in *; constructor; auto 2; constructor.
+      Qed.
+
+      Local Hint Resolve BitArith.bound0 : core.
+      Local Hint Resolve IntArith.bound0 : core.
+      Local Hint Constructors error_ok : core.
+
+      Lemma edefault_types : forall errs Γ i τ,
+          PT.proper_nesting τ ->
+          let e := edefault i τ in
+          ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
+      Proof.
+        intros; subst e; induction τ using E.custom_t_ind; unravel;
+        invert_proper_nesting; auto 2;
+        constructor; autorewrite with core; auto 2;
+        try (apply repeat_Forall; constructor; auto 2);
+        try (ind_list_Forall; repeat inv_Forall_cons; constructor; intuition);
+        try (ind_list_predfs; repeat invert_cons_predfs; constructor;
+             try split; unravel; intuition).
+      Qed.
+
+      Local Hint Resolve Forall_impl : core.
+      Local Hint Resolve Forall_firstn : core.
+      Local Hint Resolve Forall_skipn : core.
+      Local Hint Resolve proper_inside_header_nesting : core.
+      Local Hint Resolve edefault_types : core.
       Hint Rewrite app_length.
       Hint Rewrite Forall_app.
       Hint Rewrite firstn_length_le.
@@ -563,80 +491,106 @@ Module Step.
       Hint Rewrite (@F.predfs_data_map).
       Hint Rewrite @F.relfs_split_map_iff.
       Hint Rewrite @F.map_snd.
-      intros; subst τ; destruct op;
-      unravel in *; invert_proper_nesting;
-      repeat match goal with
-             | H: (if ?b then _ else _) = Some _
-               |- _ => destruct b as [? | ?] eqn:?
-             | H: Some _ = Some _ |- _ => inv H
-             end; eauto 2;
-      try constructor; auto 2; try (destruct n; lia);
-      autorewrite with core; try lia;
-      try split; auto 2;
-      try (apply repeat_Forall; constructor; auto 2;
-           autorewrite with core in *; split; [intuition | unravel; eauto 5]).
-      - eapply Forall_nth_error in H4; eauto 1; simpl in *; auto 1.
-    Qed.
 
-    Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
-        BitArith.bound 32%positive (Zpos n) ->
-        (0 <= ni < Zpos n)%Z ->
-        Pos.to_nat n = length hs ->
-        PT.proper_nesting {{ stack ts[n] }} ->
-        Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-        exists v, eval_stk_op i op n ni ts hs = Some v.
-    Proof.
-      intros errs Γ i op n ni ts hs Hn Hni Hnhs Hpt H;
-      destruct op; unravel; eauto 2.
-      - assert (Hnihs : (Z.to_nat ni < length hs)%nat) by lia.
-        pose proof nth_error_exists _ _ Hnihs as [v Hnth].
-        rewrite Hnth. eauto 2.
-      - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
-      - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
-    Qed.
+      Lemma eval_stk_op_types : forall errs Γ i op n ni ts hs v,
+          BitArith.bound 32%positive (Zpos n) ->
+          (0 <= ni < Zpos n)%Z ->
+          Pos.to_nat n = length hs ->
+          PT.proper_nesting {{ stack ts[n] }} ->
+          Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+          eval_stk_op i op n ni ts hs = Some v ->
+          let τ := type_hdr_stk_op op n ts in
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+      Proof.
+        intros; subst τ; destruct op;
+        unravel in *; invert_proper_nesting;
+        repeat match goal with
+               | H: (if ?b then _ else _) = Some _
+                 |- _ => destruct b as [? | ?] eqn:?
+               | H: Some _ = Some _ |- _ => inv H
+               end; eauto 2;
+        try constructor; auto 2; try (destruct n; lia);
+        autorewrite with core; try lia;
+        try split; auto 2;
+        try (apply repeat_Forall; constructor; auto 2;
+             autorewrite with core in *; split; [intuition | unravel; eauto 5]).
+        - eapply Forall_nth_error in H4; eauto 1; simpl in *; auto 1.
+      Qed.
+    End HelpersType.
 
-    Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
-      match v with
-      | <{ rec { vs } @ _ }>
-      | <{ hdr { vs } valid:=_ @ _ }> => map_option (F.get x vs) snd
-      | _                             => None
-      end.
-    (**[]*)
+    Section HelpersExist.
+      Lemma eval_cast_exists : forall errs Γ e τ τ',
+        V.value e ->
+        proper_cast τ τ' ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        exists v, eval_cast τ' e = Some v.
+      Proof.
+        intros ? ? ? ? ? Hv Hpc Het; inv Hpc; inv Hv; inv Het;
+          unravel; simpl in *; eauto 2.
+        - destruct b; eauto 2.
+        - destruct n; eauto 2; destruct p; eauto 2;
+          try (cbv in H0; destruct H0; try destruct p; discriminate).
+        - destruct w; eauto 2.
+        - destruct w2; eauto 2.
+      Qed.
 
-    Lemma eval_member_types : forall errs Γ x v v' ts τ τ',
-        eval_member x v = Some v' ->
-        V.value v ->
-        member_type ts τ ->
-        F.get x ts = Some τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
-    Proof.
-      intros errs Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht.
-      inv Hmem; inv Hv; inv Ht.
-      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto.
-        intuition; unravel in *; subst.
-        rewrite H0 in Heval; unravel in *; inv Heval; auto.
-      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto.
-        intuition; unravel in *; subst.
-        rewrite H1 in Heval; unravel in *; inv Heval; auto.
-    Qed.
+      Lemma eval_uop_exists : forall op errs Γ e τ,
+          uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+          exists v, eval_uop op e = Some v.
+      Proof.
+        intros op errs Γ e τ Hu Hv Het;
+        destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
+      Qed.
 
-    Lemma eval_member_exists : forall errs Γ x v ts τ τ',
-        V.value v ->
-        member_type ts τ ->
-        F.get x ts = Some τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        exists v', eval_member x v = Some v'.
-    Proof.
-      intros errs Γ x v ts τ τ' Hv Hmem Hget Ht;
-      inv Hmem; inv Hv; inv Ht; unravel.
-      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto.
-        intuition; simpl in *; subst.
-        rewrite H0; unravel; eauto.
-      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto.
-        intuition; simpl in *; subst.
-        rewrite H1; unravel; eauto.
-    Qed.
+      Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
+          bop_type op τ1 τ2 τ ->
+          V.value v1 -> V.value v2 ->
+          ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 ->
+          exists v, eval_bop op v1 v2 i = Some v.
+      Proof.
+        intros errs Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
+        inv Hbop; unravel in *;
+        repeat match goal with
+               | H: numeric _ |- _ => inv H
+               | H: numeric_width _ _ |- _ => inv H
+               | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
+               end; eauto 2.
+      Qed.
+
+      Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
+          BitArith.bound 32%positive (Zpos n) ->
+          (0 <= ni < Zpos n)%Z ->
+          Pos.to_nat n = length hs ->
+          PT.proper_nesting {{ stack ts[n] }} ->
+          Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+          exists v, eval_stk_op i op n ni ts hs = Some v.
+      Proof.
+        intros errs Γ i op n ni ts hs Hn Hni Hnhs Hpt H;
+        destruct op; unravel; eauto 2.
+        - assert (Hnihs : (Z.to_nat ni < length hs)%nat) by lia.
+          pose proof nth_error_exists _ _ Hnihs as [v Hnth].
+          rewrite Hnth; eauto 2.
+        - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
+        - destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2.
+      Qed.
+
+      Lemma eval_member_exists : forall errs Γ x v ts τ τ',
+          V.value v ->
+          member_type ts τ ->
+          F.get x ts = Some τ' ->
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+          exists v', eval_member x v = Some v'.
+      Proof.
+        intros errs Γ x v ts τ τ' Hv Hmem Hget Ht;
+        inv Hmem; inv Hv; inv Ht; unravel.
+        - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2.
+          intuition; simpl in *; subst.
+          rewrite H0; unravel; eauto 2.
+        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2.
+          intuition; simpl in *; subst.
+          rewrite H1; unravel; eauto 2.
+      Qed.
+    End HelpersExist.
   End StepDefs.
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
@@ -649,7 +603,7 @@ Module Step.
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i
   | step_cast_eval (τ : E.t) (v v' : E.e tags_t) (i : tags_t) :
-      (*eval_cast τ v = Some v' ->*)
+      eval_cast τ v = Some v' ->
       V.value v ->
       ℵ ϵ ** Cast v:τ @ i -->  v'
   | step_uop (op : E.uop) (τ : E.t)

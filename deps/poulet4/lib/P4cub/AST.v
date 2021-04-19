@@ -43,6 +43,24 @@ Module Field.
   End FieldTypes.
 
   Section FieldLibrary.
+    Definition key {K V : Type} : f K V -> K := fst.
+
+    Definition value {K V : Type} : f K V -> V := snd.
+
+    Definition keys {K V : Type} : fs K V -> list K := List.map key.
+
+    Definition values {K V : Type} : fs K V -> list V := List.map value.
+
+    Lemma key_value : forall {K V : Type} (fld : f K V),
+        (key fld, value fld) = fld.
+    Proof. intros K V []; reflexivity. Qed.
+
+    Lemma keys_values : forall {K V : Type} (flds : fs K V),
+        combine (keys flds) (values flds) = flds.
+    Proof.
+      induction flds as [| [? ?] ? ?]; unravel;
+      try f_equal; assumption.
+    Qed.
 
     (** Predicate on a field's data. *)
     Definition predf_data {K T : Type} (P : T -> Prop) : f K T -> Prop := P ∘ snd.

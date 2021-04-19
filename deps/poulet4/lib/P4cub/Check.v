@@ -151,7 +151,6 @@ Module Typecheck.
     (**[]*)
 
     (** Typing header stack operations. *)
-    (* TODO: need to check push & pop amounts *)
     Definition type_hdr_stk_op
                (op : E.hdr_stk_op) (size : positive)
                (ts : F.fs string E.t) : E.t :=
@@ -164,18 +163,28 @@ Module Typecheck.
       end.
     (**[]*)
 
-    (** Evidence a cast is proper.
-        This is a bi-directional relation. *)
+    (** Evidence a cast is proper. *)
     Inductive proper_cast : E.t -> E.t -> Prop :=
     | pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
+    | pc_bit_bool : proper_cast {{ bit<xH> }} {{ Bool }}
     | pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
+    | pc_int_bit (w : positive) : proper_cast {{ int<w> }} {{ bit<w> }}
     | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
-    | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}.
+    | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}
+    | pc_tuple_rec (ts : list E.t) (fs : F.fs string E.t) :
+        ts = F.values fs ->
+        proper_cast {{ tuple ts }} {{ rec { fs } }}
+    | pc_tuple_hdr (ts : list E.t) (fs : F.fs string E.t) :
+        ts = F.values fs ->
+        Forall PT.proper_inside_header ts ->
+        proper_cast {{ tuple ts }} {{ hdr { fs } }}.
+    (**[]*)
 
     (** Evidence member operations are valid on a type. *)
     Inductive member_type : F.fs string E.t -> E.t -> Prop :=
     | mt_rec ts : member_type ts {{ rec { ts } }}
     | mt_hdr ts : member_type ts {{ hdr { ts } }}.
+    (**[]*)
 
     (** Available functions. *)
     Definition fenv : Type := Env.t string E.arrowT.

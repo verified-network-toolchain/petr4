@@ -1,5 +1,13 @@
 # `P4cub`: A Simplified, Stateless `p4` IR
 
+### Updates:
+
+- All uses of `N` have been usurped by `Z`.
+
+- `p4cub` now uses `lib/P4Arith.v` for unary/binary operations on fixed-width integers.
+
+- `p4cub` supports casts from tuples to records and headers.
+
 ### Goals:
 
 - A fully specified static and dynamic semantics, both big-step and small-step.
@@ -13,10 +21,6 @@
 ### TODOs:
 
 - Explore better ways to enfore constructions of types with proper nesting.
-
-- Use `Z` instead of `N` (Currently doing this). `positive` will NOT be replaced with `nat`?
-
-- Usurp `P4cub/P4Arith.v` with p4light's arithmetic operations.
 
 - Disallow non-constant global variable declarations in `AST.v`.
 

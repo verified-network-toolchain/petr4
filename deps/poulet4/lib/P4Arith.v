@@ -421,6 +421,7 @@ Module P4ArithTactics.
     | |- context [ BitArith.plus_sat _ _ ] => unfold BitArith.plus_sat
     | |- context [ BitArith.plus_mod _ _ ] => unfold BitArith.plus_mod
     | |- context [ BitArith.minus_mod _ _ ] => unfold BitArith.minus_mod
+    | |- context [ BitArith.mult_mod _ _ ] => unfold BitArith.mult_mod
     | |- context [ BitArith.shift_right _ _ ] => unfold BitArith.shift_right
     | |- context [ BitArith.shift_left _ _ ] => unfold BitArith.shift_left
     | |- context [ BitArith.bit_and _ _ ] => unfold BitArith.bit_and
@@ -442,6 +443,7 @@ Module P4ArithTactics.
     | |- context [ IntArith.minus_sat _ _ ] => unfold IntArith.minus_sat
     | |- context [ IntArith.plus_mod _ _ ] => unfold IntArith.plus_mod
     | |- context [ IntArith.minus_mod _ _ ] => unfold IntArith.minus_mod
+    | |- context [ IntArith.mult_mod _ _ ] => unfold IntArith.mult_mod
     | |- context [ IntArith.shift_right _ _ ] => unfold IntArith.shift_right
     | |- context [ IntArith.shift_left _ _ ] => unfold IntArith.shift_left
     | |- context [ IntArith.bit_and _ _ ] => unfold IntArith.bit_and

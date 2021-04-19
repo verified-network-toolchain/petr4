@@ -884,6 +884,7 @@ Module P4cub.
     | PlusSat  (* saturating addition *)
     | Minus    (* integer subtraction *)
     | MinusSat (* saturating subtraction *)
+    | Times    (* multiplication *)
     | Shl      (* bitwise left-shift *)
     | Shr      (* bitwise right-shift *)
     | Le       (* integer less-than *)
@@ -906,6 +907,7 @@ Module P4cub.
       Notation "-" := Minus (in custom p4bop at level 0).
       Notation "'|+|'" := PlusSat (in custom p4bop at level 0).
       Notation "'|-|'" := MinusSat (in custom p4bop at level 0).
+      Notation "×" := Times (in custom p4bop at level 0).
       Notation "'<<'" := Shl (in custom p4bop at level 0).
       Notation "'>>'" := Shr (in custom p4bop at level 0).
       Notation "'<='" := Le (in custom p4bop at level 0).

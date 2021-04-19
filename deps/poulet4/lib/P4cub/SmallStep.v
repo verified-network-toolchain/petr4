@@ -203,6 +203,10 @@ Module Step.
         => Some # E.EBit w (BitArith.minus_sat w n1 n2) i
       | E.MinusSat, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some # E.EInt w (IntArith.minus_sat w z1 z2) i
+      | E.Times, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+        => Some # E.EBit w (BitArith.mult_mod w n1 n2) i
+      | E.Times, <{ w S n1 @ _ }>, <{ _ S n2 @ _ }>
+        => Some # E.EInt w (IntArith.mult_mod w n1 n2) i
       | E.Shl, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some # E.EBit w (BitArith.shift_left w n1 n2) i
       | E.Shl, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>

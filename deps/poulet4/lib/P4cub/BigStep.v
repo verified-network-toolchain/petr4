@@ -88,6 +88,8 @@ Module Step.
       | E.Minus, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_mod w z1 z2
       | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.minus_sat w n1 n2
       | E.MinusSat, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_sat w z1 z2
+      | E.Times, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.mult_mod w n1 n2
+      | E.Times, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.mult_mod w z1 z2
       | E.Shl, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.shift_left w n1 n2
       | E.Shl, ~{ w VS z1 }~, ~{ _ VW z2 }~ => Some # V.VInt w # IntArith.shift_left w z1 z2
       | E.Shr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.shift_right w n1 n2

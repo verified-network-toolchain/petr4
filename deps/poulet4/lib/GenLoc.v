@@ -229,9 +229,9 @@ Section Transformer.
         mret (MkStatement tags (StatBlock block') typ, e)
       | StatExit => mret (MkStatement tags stmt typ, e)
       | StatEmpty => mret (MkStatement tags stmt typ, e)
-      | StatReturn None => mret (MkStatement tags stmt typ, e)
-      | StatReturn (Some expr) =>
-        mret (MkStatement tags (StatReturn (Some (transform_expr e expr))) typ, e)
+      | StatReturn oexpr =>
+        let oexpr' := option_map (transform_expr e) oexpr in
+        mret (MkStatement tags (StatReturn oexpr) typ, e)
       | StatSwitch expr cases =>
         let expr' := transform_expr e expr in
         let* cases' := sequence (map (transform_ssc e ns) cases) in
@@ -286,17 +286,8 @@ Section Transformer.
   Definition with_empty_state {T} (m: monad T): monad T :=
     with_state nil m.
 
-  (* Definition 
-  Definition add_name (global: bool) (name : P4String) (e: env): env :=
-    IdentMap.set name (if global then LGlobal [name] else LInstance [name]) e.
-
-  Definition add_name' (global: bool) (e: env) (name : P4String): env :=
-    add_name global name e.
-
-  Definition add_names (global: bool) (names: list P4String) (e: env): env :=
-    fold_left (add_name' global) names e. *)
-
-  Definition declare_params (LCurScope: list P4String -> @Locator tags_t) (e: env) (ns: list P4String) (params: list (@P4Parameter tags_t)): monad env :=
+  Definition declare_params (LCurScope: list P4String -> @Locator tags_t) (e: env) (ns: list P4String)
+                            (params: list (@P4Parameter tags_t)): monad env :=
     let names := map get_param_name params in
     let env_add e name :=
       let loc := LCurScope (ns ++ [name]) in
@@ -358,6 +349,7 @@ Section Transformer.
       MkTableProperty tags const name value'
     end.
 
+  (* Transform declarations except parsers and controls. *)
   Definition transform_decl_base (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
@@ -371,19 +363,7 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (decl, e')
-    (* let (local', n1) :=
-      ((fix transform_decl_list (idx: N) (l: list (@Declaration tags_t)):
-          (list (@Declaration tags_t) * N) :=
-          match l with
-          | nil => (nil, idx)
-          | x :: rest =>
-            let (l2, n2) := transform_decl idx x in
-            let (l3, n3) := transform_decl_list n2 rest in (l2 ++ l3, n3)
-          end) nameIdx locals) in
-    let (blk, n2) := transform_blk n1 appl in
-    ([DeclControl tags name type_params params cparams local' blk], n2) *)
     | DeclFunction tags ret name type_params params body =>
-      (* Functions can only be defined at the top level. *)
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] params in
         let* body' := transform_blk LCurScope e' [name] body in
@@ -393,7 +373,11 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (DeclFunction tags ret name type_params params body', e')
-    | DeclExternFunction _ _ _ _ _ => mret (decl, e) (* TODO *)
+    | DeclExternFunction tags ret name type_params params =>
+      let* _ := use name in
+      let loc := LCurScope [name] in
+      let e' := IdentMap.set name loc e in
+      mret (decl, e')
     | DeclVariable tags typ name init =>
       let init' := option_map (transform_expr e) init in
       let* _ := use name in
@@ -401,10 +385,11 @@ Section Transformer.
       let e' := IdentMap.set name loc e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
-      mret (decl, e) (* TODO *)
-    (* let (l1e1, n1) := transform_Expr nameIdx size in
-    let (l1, e1) := l1e1 in
-    (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1) *)
+      let size' := transform_expr e size in
+      let* _ := use name in
+      let loc := LCurScope [name] in
+      let e' := IdentMap.set name loc e in
+      mret (DeclValueSet tags typ size' name, e')
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] data_params in
@@ -427,6 +412,8 @@ Section Transformer.
       let e' := IdentMap.set name loc e in
       mret (DeclTable tags name key' actions' entries' default_action' size
             custom_properties', e')
+    (* Maybe we should handle DeclError, DeclMatchKind, DeclEnum, DeclSerializableEnum, DeclExternObject,
+        or some of them. *)
     | _ => mret (decl, e)
     end.
 

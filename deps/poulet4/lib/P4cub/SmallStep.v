@@ -554,7 +554,7 @@ Module Step.
         (lo <= hi < w)%positive ->
         numeric_width w τ ->
         ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        exists v', eval_slice hi lo v = v'.
+        exists v', eval_slice hi lo v = Some v'.
       Proof.
         intros errs Γ v τ hi lo w Hv Hw Hnum Ht;
         inv Hnum; inv Hv; inv Ht; unravel; eauto 2.

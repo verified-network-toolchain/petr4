@@ -231,10 +231,10 @@ Section Syntax.
       (HStatSwitch: forall expr cases,
                     PStatementSwitchCaseList cases ->
                     PStatementPreT (StatSwitch expr cases))
-      (HStatConstant: forall typ name value l,
-                      PStatementPreT (StatConstant typ name value l))
-      (HStatVariable: forall typ name init l,
-                      PStatementPreT (StatVariable typ name init l))
+      (HStatConstant: forall typ name value loc,
+                      PStatementPreT (StatConstant typ name value loc))
+      (HStatVariable: forall typ name init loc,
+                      PStatementPreT (StatVariable typ name init loc))
       (HStatInstantiation: forall typ args name init,
                            PBlockMaybe init ->
                            PStatementPreT
@@ -293,10 +293,10 @@ Section Syntax.
                     (HStatementSwitchCaseListCons)
                     (statement_switch_case_rec)
                     cases)
-      | StatConstant typ name value l =>
-        HStatConstant typ name value l
-      | StatVariable typ name init l =>
-        HStatVariable typ name init l
+      | StatConstant typ name value loc =>
+        HStatConstant typ name value loc
+      | StatVariable typ name init loc =>
+        HStatVariable typ name init loc
       | StatInstantiation typ args name init =>
         HStatInstantiation typ args name init
           (option_rec (PBlock)

@@ -326,6 +326,13 @@ Module Typecheck.
       Γ x = Some τ ->
       PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
+  | chk_slice (e : E.e tags_t) (τ : E.t)
+              (hi lo w : positive) (i : tags_t) :
+      (lo <= hi < w)%positive ->
+      numeric_width w τ ->
+      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+      let w' := (hi - lo + 1)%positive in
+      ⟦ errs, Γ ⟧ ⊢ Slice e:τ [hi:lo] @ i ∈ bit<w'>
   | chk_cast (τ τ' : E.t) (e : E.e tags_t) (i : tags_t) :
       proper_cast τ' τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
@@ -433,6 +440,15 @@ Module Typecheck.
         Γ x = Some τ ->
         PT.proper_nesting τ ->
         P errs Γ <{ Var x:τ @ i }> τ.
+    (**[]*)
+
+    Hypothesis HSlice : forall errs Γ e τ hi lo w i,
+        (lo <= hi < w)%positive ->
+        numeric_width w τ ->
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        P errs Γ e τ ->
+        let w' := (hi - lo + 1)%positive in
+        P errs Γ <{ Slice e:τ [hi:lo] @ i }> {{ bit<w'> }}.
     (**[]*)
 
     Hypothesis HCast : forall errs Γ τ τ' e i,
@@ -599,6 +615,9 @@ Module Typecheck.
             | chk_bit _ _ _ _ H i => HBit _ _ _ _ H i
             | chk_int _ _ _ _ H i => HInt _ _ _ _ H i
             | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
+            | chk_slice _ _ _ _ _ _ _ i
+                        Hlohiw Ht He => HSlice _ _ _ _ _ _ _ i Hlohiw Ht
+                                              He (chind _ _ _ _ He)
             | chk_cast _ _ _ _ _ i HPC He => HCast _ _ _ _ _ i HPC
                                                   He (chind _ _ _ _ He)
             | chk_uop _ _ _ _ _ i Huop He => HUop _ _ _ _ _ i Huop

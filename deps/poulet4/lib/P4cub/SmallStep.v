@@ -139,6 +139,19 @@ Module Step.
     (** Expression environment. *)
     Definition eenv : Type := Env.t (string) (E.e tags_t).
 
+    (** Bit-slicing. *)
+    Definition eval_slice (hi lo : positive) (v : E.e tags_t) : option (E.e tags_t) :=
+      match v with
+      | <{ _ W z @ i }>
+      | <{ _ S z @ i }>
+        => let w' := (hi - lo + 1)%positive in
+        Some # E.EBit w'
+             (BitArith.mod_bound w' #
+              BitArith.bitstring_slice z hi lo) i
+      | _ => None
+      end.
+    (**[]*)
+
     Definition eval_cast
                (target : E.t) (v : E.e tags_t) : option (E.e tags_t) :=
       match target, v with
@@ -313,7 +326,7 @@ Module Step.
 
     Lemma value_edefault : forall i τ, V.value (edefault i τ).
     Proof.
-      Local Hint Constructors V.value : core.
+      (* Local Hint Constructors V.value : core. *)
     Admitted.
 
     (** Header stack operations. *)
@@ -367,6 +380,19 @@ Module Step.
       Local Hint Constructors check_expr : core.
       Local Hint Extern 0 => bit_bounded : core.
       Local Hint Extern 0 => int_bounded : core.
+
+      Lemma eval_slice_types : forall errs Γ v v' τ hi lo w,
+          eval_slice hi lo v = Some v' ->
+          V.value v ->
+          (lo <= hi < w)%positive ->
+          numeric_width w τ ->
+          ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+          let w' := (hi - lo + 1)%positive in
+          ⟦ errs, Γ ⟧ ⊢ v' ∈ bit<w'>.
+      Proof.
+        intros errs Γ v v' τ hi lo w Heval Hv Hw Hnum Ht w'; subst w';
+        inv Hnum; inv Hv; inv Ht; unravel in *; inv Heval; auto 2.
+      Qed.
 
       Lemma eval_cast_types : forall errs Γ τ τ' v v',
           eval_cast τ' v = Some v' ->
@@ -523,6 +549,17 @@ Module Step.
     End HelpersType.
 
     Section HelpersExist.
+      Lemma eval_slice_exists : forall errs Γ v τ hi lo w,
+        V.value v ->
+        (lo <= hi < w)%positive ->
+        numeric_width w τ ->
+        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        exists v', eval_slice hi lo v = v'.
+      Proof.
+        intros errs Γ v τ hi lo w Hv Hw Hnum Ht;
+        inv Hnum; inv Hv; inv Ht; unravel; eauto 2.
+      Qed.
+
       Lemma eval_cast_exists : forall errs Γ e τ τ',
         V.value e ->
         proper_cast τ τ' ->
@@ -603,6 +640,14 @@ Module Step.
              (i : tags_t) (e : E.e tags_t) :
       ϵ x = Some e ->
       ℵ ϵ ** Var x:τ @ i -->  e
+  | step_slice (e e' : E.e tags_t) (τ : E.t)
+               (hi lo : positive) (i : tags_t) :
+      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ ** Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
+  | step_slice_eval (v v' : E.e tags_t) (τ : E.t)
+                    (hi lo : positive) (i : tags_t) :
+      eval_slice hi lo v = Some v' ->
+      ℵ ϵ ** Slice v:τ [hi:lo] @ i -->  v'
   | step_cast (τ : E.t) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->
       ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i

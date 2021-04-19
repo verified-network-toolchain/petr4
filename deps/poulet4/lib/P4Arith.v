@@ -164,8 +164,16 @@ Module BitArith.
 
     (** Bitwise Xor *)
     Definition bit_xor (a b : Z) := mod_bound (lxor a b).
-
   End Operations.
+
+  (** NOTE: this code was taken from [Semantics.v].
+      Ref:When accessing the bits of negative numbers, all functions below will
+      use the two's complement representation.
+      For instance, -1 will correspond to an infinite stream of true bits.
+      https://coq.inria.fr/library/Coq.ZArith.BinIntDef.html *)
+  Definition bitstring_slice (i : Z) (lo hi : positive) : Z :=
+    let mask := (Z.pow 2 (Zpos (hi - lo + 1)) - 1)%Z in
+    Z.land (Z.shiftr i (Zpos lo)) mask.
 
   (** Bitwise concatination of bit with bit/int *)
   Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=

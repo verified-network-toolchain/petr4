@@ -65,6 +65,19 @@ Module Step.
   Import Env.EnvNotations.
 
   Section StepDefs.
+    (** Bit-slicing. *)
+    Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
+      match v with
+      | ~{ _ VW z }~
+      | ~{ _ VS z }~
+        => let w' := (hi - lo + 1)%positive in
+        Some # V.VBit w' #
+             BitArith.mod_bound w' #
+             BitArith.bitstring_slice z hi lo
+      | _ => None
+      end.
+    (**[]*)
+
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
@@ -229,6 +242,18 @@ Module Step.
         Local Hint Extern 0 => bit_bounded : core.
         Local Hint Extern 0 => int_bounded : core.
 
+        Lemma eval_slice_types : forall errs v v' τ hi lo w,
+            eval_slice hi lo v = Some v' ->
+            (lo <= hi < w)%positive ->
+            numeric_width w τ ->
+            ∇ errs ⊢ v ∈ τ ->
+            let w' := (hi - lo + 1)%positive in
+            ∇ errs ⊢ v' ∈ bit<w'>.
+        Proof.
+          intros errs v v' τ hi lo w Heval Hw Hnum Hv w'; subst w'.
+          inv Hnum; inv Hv; unravel in *; inv Heval; auto 2.
+        Qed.
+
         Lemma eval_uop_types : forall errs op τ v v',
             uop_type op τ -> eval_uop op v = Some v' ->
             ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ.
@@ -336,6 +361,16 @@ Module Step.
       End HelpersType.
 
       Section HelpersExist.
+        Lemma eval_slice_exists : forall errs v τ hi lo w,
+          (lo <= hi < w)%positive ->
+          numeric_width w τ ->
+          ∇ errs ⊢ v ∈ τ ->
+          exists v', eval_slice hi lo v = v'.
+        Proof.
+          intros errs v τ hi lo w Hw Hnum Hv;
+          inv Hnum; inv Hv; unravel; eauto 2.
+        Qed.
+
         Lemma eval_uop_exist : forall errs op τ v,
           uop_type op τ -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
         Proof.
@@ -584,6 +619,11 @@ Module Step.
   | ebs_var (x : string) (τ : E.t) (i : tags_t) (v : V.v) :
       ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
+  | ebs_slice (e : E.e tags_t) (τ : E.t) (hi lo : positive)
+              (i : tags_t) (v' v : V.v) :
+      eval_slice hi lo v = Some v' ->
+      ⟨ ϵ, e ⟩ ⇓ v ->
+      ⟨ ϵ, Slice e:τ [hi:lo] @ i ⟩ ⇓ v'
   | ebs_cast (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
       eval_cast τ v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
@@ -678,6 +718,13 @@ Module Step.
     Hypothesis HVar : forall ϵ x τ i v,
         ϵ x = Some v ->
         P ϵ <{ Var x:τ @ i }> v.
+    (**[]*)
+
+    Hypothesis HSlice : forall ϵ e τ hi lo i v v',
+        eval_slice hi lo v = Some v' ->
+        ⟨ ϵ, e ⟩ ⇓ v ->
+        P ϵ e v ->
+        P ϵ <{ Slice e:τ [hi:lo] @ i }> v'.
     (**[]*)
 
     Hypothesis HCast : forall ϵ τ e i v v',
@@ -846,6 +893,9 @@ Module Step.
         | ebs_bit _ w n i => HBit ϵ w n i
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
+        | ebs_slice _ _ _ _ _ i _ _
+                    Hv He => HSlice _ _ _ _ _ i _ _ Hv
+                                   He (ebsind _ _ _ He)
         | ebs_cast _ _ _ i _ _
                    Hv He => HCast _ _ _ i _ _ Hv
                                  He (ebsind _ _ _ He)

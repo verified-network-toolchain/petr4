@@ -987,6 +987,8 @@ Module P4cub.
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t) (x : string)
              (i : tags_t)                              (* variables *)
+      | ESlice (n : e) (τ : t)
+               (hi lo : positive) (i : tags_t) (* bit-slicing *)
       | ECast (type : t) (arg : e) (i : tags_t) (* explicit casts *)
       | EUop (op : uop) (type : t)
              (arg : e) (i : tags_t)                    (* unary operations *)
@@ -1038,6 +1040,7 @@ Module P4cub.
     Arguments EBit {_}.
     Arguments EInt {_}.
     Arguments EVar {tags_t}.
+    Arguments ESlice {_}.
     Arguments ECast {_}.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
@@ -1065,6 +1068,10 @@ Module P4cub.
       Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
       Notation "'Var' x : ty @ i" := (EVar ty x i)
                             (in custom p4expr at level 0, no associativity).
+      Notation "'Slice' n : τ [ hi : lo ] @ i"
+               := (ESlice n τ hi lo i)
+                    (in custom p4expr at level 10, τ custom p4type,
+                        n custom p4expr, right associativity).
       Notation "'Cast' e : τ @ i"
         := (ECast τ e i)
              (in custom p4expr at level 10, τ custom p4type,
@@ -1139,6 +1146,9 @@ Module P4cub.
       Hypothesis HEVar : forall (ty : t) (x : string) i,
           P <{ Var x : ty @ i }>.
 
+      Hypothesis HESlice : forall n τ hi lo i,
+          P n -> P <{ Slice n:τ [ hi : lo ] @ i }>.
+
       Hypothesis HECast : forall τ exp i,
           P exp -> P <{ Cast exp:τ @ i }>.
 
@@ -1200,6 +1210,7 @@ Module P4cub.
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
           | <{ Var x:ty @ i }> => HEVar ty x i
+          | <{ Slice n:τ [h:l] @ i }> => HESlice n τ h l i (eind n)
           | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
           | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
           | <{ BOP lhs:lt op rhs:rt @ i }> =>
@@ -1271,6 +1282,9 @@ Module P4cub.
           ∮ w S z @ i ≡ w S z @ i'
       | equive_var x τ i1 i2 :
           ∮ Var x:τ @ i1 ≡ Var x:τ @ i2
+      | equive_slice e1 e2 τ h l i1 i2 :
+          ∮ e1 ≡ e2 ->
+          ∮ Slice e1:τ [h:l] @ i1 ≡ Slice e2:τ [h:l] @ i2
       | equive_cast τ e1 e2 i1 i2 :
           ∮ e1 ≡ e2 ->
           ∮ Cast e1:τ @ i1 ≡ Cast e2:τ @ i2
@@ -1338,6 +1352,11 @@ Module P4cub.
 
         Hypothesis HVar : forall x τ i1 i2,
             P <{ Var x:τ @ i1 }> <{ Var x:τ @ i2 }>.
+
+        Hypothesis HSlice : forall e1 e2 τ h l i1 i2,
+            ∮ e1 ≡ e2 ->
+            P e1 e2 ->
+            P <{ Slice e1:τ [h:l] @ i1 }> <{ Slice e2:τ [h:l] @ i2 }>.
 
         Hypothesis HCast : forall τ e1 e2 i1 i2,
             ∮ e1 ≡ e2 ->
@@ -1462,6 +1481,10 @@ Module P4cub.
             | equive_bit w n i i' => HBit w n i i'
             | equive_int w z i i' => HInt w z i i'
             | equive_var x τ i1 i2 => HVar x τ i1 i2
+            | equive_slice _ _ _ h l i1 i2
+                           He => HSlice
+                                  _ _ _ h l i1 i2
+                                  He (eeind _ _ He)
             | equive_cast τ _ _ i1 i2
                           He => HCast
                                  τ _ _ i1 i2
@@ -1517,22 +1540,11 @@ Module P4cub.
         Lemma equive_reflexive : Reflexive (@equive tags_t).
         Proof.
           unfold Reflexive; intros e;
-            induction e using custom_e_ind;
-            econstructor; eauto; try reflexivity;
-              try match goal with
-                  | H: Forall _ ?es |- Forall2 _ ?es ?es
-                    => induction es; inv H; eauto; assumption
-                  end;
-              try match goal with
-                  | H: F.predfs_data _ ?fs |- F.relfs _ ?fs ?fs
-                    => induction fs as [| [? [? ?]] ? ?];
-                        inv H; constructor; intuition;
-                          repeat split; unravel in *;
-                            match goal with
-                            | HP : F.predf_data _ _ |- _
-                              => cbv in HP
-                            end; eauto; reflexivity
-                  end.
+          induction e using custom_e_ind;
+          econstructor; eauto; try reflexivity;
+          try (ind_list_Forall; eauto; assumption);
+          try (ind_list_predfs; constructor;
+               repeat split; unravel in *; intuition).
         Qed.
 
         Lemma equive_symmetric : Symmetric (@equive tags_t).
@@ -1630,6 +1642,9 @@ Module P4cub.
             => (w1 =? w2)%positive && (z1 =? z2)%Z
           | <{ Var x1:τ1 @ _ }>, <{ Var x2:τ2 @ _ }>
             => equiv_dec x1 x2 &&&& eqbt τ1 τ2
+          | <{ Slice e1:t1 [h1:l1] @ _ }>, <{ Slice e2:t2 [h2:l2] @ _ }>
+            => (h1 =? h2)%positive && (l1 =? l2)%positive &&
+              eqbt t1 t2 && eqbe e1 e2
           | <{ Cast e1:τ1 @ _ }>, <{ Cast e2:τ2 @ _ }>
             => eqbt τ1 τ2 && eqbe e1 e2
           | <{ UOP u1 e1:τ1 @ _ }>, <{ UOP u2 e2:τ2 @ _ }>
@@ -1666,16 +1681,17 @@ Module P4cub.
 
         Import F.RelfEquiv.
 
+        Hint Rewrite eqb_reflx.
+        Hint Rewrite Pos.eqb_refl.
+        Hint Rewrite Z.eqb_refl.
+        Hint Rewrite eqbt_refl.
+        Hint Rewrite equiv_dec_refl.
+        Local Hint Extern 5 => equiv_dec_refl_tactic : core.
+        Hint Rewrite (@relop_eq string).
+
         Lemma equive_eqbe : forall e1 e2 : e tags_t,
             ∮ e1 ≡ e2 -> eqbe e1 e2 = true.
         Proof.
-          Hint Rewrite eqb_reflx.
-          Hint Rewrite Pos.eqb_refl.
-          Hint Rewrite Z.eqb_refl.
-          Hint Rewrite eqbt_refl.
-          Hint Rewrite equiv_dec_refl.
-          Hint Extern 5 => equiv_dec_refl_tactic : core.
-          Hint Rewrite (@relop_eq string).
           intros ? ? ?;
           match goal with
           | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
@@ -1767,11 +1783,12 @@ Module P4cub.
           end.
         (**[]*)
 
+        Local Hint Constructors equive : core.
+        Local Hint Extern 5 => eq_true_terms : core.
+
         Lemma eqbe_equive : forall e1 e2 : e tags_t,
             eqbe e1 e2 = true -> equive e1 e2.
         Proof.
-          Hint Constructors equive : core.
-          Hint Extern 5 => eq_true_terms : core.
           induction e1 using custom_e_ind;
           intros [] ?; unravel in *;
           try discriminate; auto;
@@ -1796,37 +1813,36 @@ Module P4cub.
               end.
         Qed.
 
+        Local Hint Resolve equive_eqbe : core.
+        Local Hint Resolve eqbe_equive : core.
+
         Lemma equive_eqbe_iff : forall e1 e2 : e tags_t,
             ∮ e1 ≡ e2 <-> eqbe e1 e2 = true.
-        Proof.
-          Hint Resolve equive_eqbe : core.
-          Hint Resolve eqbe_equive : core.
-          intros; split; auto.
-        Qed.
+        Proof. intros; split; auto 2. Qed.
+
+        Hint Resolve equive_eqbe_iff : core.
+        Hint Extern 5 =>
+        match goal with
+        | H: eqbe ?e1 ?e2 = false,
+          H': ∮ ?e1 ≡ ?e2 |- False
+          => apply equive_eqbe_iff in H';
+            rewrite H' in H; discriminate
+        end : core.
 
         Lemma equive_reflect : forall e1 e2 : e tags_t,
             reflect (∮ e1 ≡ e2) (eqbe e1 e2).
         Proof.
-          Hint Resolve equive_eqbe_iff : core.
-          Hint Extern 5 =>
-          match goal with
-          | H: eqbe ?e1 ?e2 = false,
-            H': ∮ ?e1 ≡ ?e2 |- False
-            => apply equive_eqbe_iff in H';
-              rewrite H' in H; discriminate
-          end : core.
-          intros; reflect_split; auto;
-            autorewrite with core; auto.
+          intros; reflect_split; auto 2;
+            autorewrite with core; auto 2.
         Qed.
       End ExprEquivalenceDefs.
 
+      Local Hint Resolve equive_reflexive : core.
+      Local Hint Resolve equive_symmetric : core.
+      Local Hint Resolve equive_transitive : core.
+
       Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
-      Proof.
-        constructor;
-          [ apply equive_reflexive
-          | apply equive_symmetric
-          | apply equive_transitive ].
-      Defined.
+      Proof. constructor; auto 1. Defined.
     End ExprEquivalence.
   End Expr.
 

@@ -8,6 +8,8 @@
 
 - `p4cub` supports casts from tuples to records and headers.
 
+- `p4cub` supports bit-slicing.
+
 ### Goals:
 
 - A fully specified static and dynamic semantics, both big-step and small-step.

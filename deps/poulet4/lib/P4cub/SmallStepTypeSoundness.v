@@ -13,7 +13,7 @@ Module E := P.Expr.
 
 Import P.P4cubNotations.
 Import E.TypeEquivalence.
-
+Import E.ProperType.
 Import F.FieldTactics.
 
 Ltac invert_value :=
@@ -82,6 +82,18 @@ Section Lemmas.
   End CanonicalForms.
 End Lemmas.
 
+Ltac inv_eq_val_expr :=
+  match goal with
+  | H: <{ BOOL _ @ _ }> = <{ BOOL _ @ _ }> |- _ => inv H
+  | H: <{ _ W _ @ _ }> = <{ _ W _ @ _ }> |- _ => inv H
+  | H: <{ _ S _ @ _ }> = <{ _ S _ @ _ }> |- _ => inv H
+  | H: <{ tup _ @ _ }> = <{ tup _ @ _ }> |- _ => inv H
+  | H: <{ rec { _ } @ _ }> = <{ rec { _ } @ _ }> |- _ => inv H
+  | H: <{ hdr { _ } valid:=_ @ _ }> = <{ hdr { _ } valid:=_ @ _ }> |- _ => inv H
+  | H: <{ Stack _:_[_] nextIndex:=_ }> = <{ Stack _:_[_] nextIndex:=_ }> |- _ => inv H
+  end.
+(**[]*)
+
 Ltac assert_canonical_forms :=
   match goal with
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ Bool |- _
@@ -102,7 +114,7 @@ Ltac assert_canonical_forms :=
     => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? ?]]; inv Hv; inv Ht
   | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
     => pose proof canonical_forms_headerstack _ _ _ Hv _ _ Ht as [? [? ?]]; inv Hv; inv Ht
-  end; subst; try discriminate.
+  end; subst; try discriminate; try inv_eq_val_expr.
 (**[]*)
 
 Section Theorems.
@@ -131,62 +143,52 @@ Section Theorems.
   Section Preservation.
     Hypothesis Henvs_type : envs_type.
 
+    Local Hint Resolve eval_cast_types : core.
+    Local Hint Resolve eval_slice_types : core.
+    Local Hint Resolve eval_hdr_op_types : core.
+    Local Hint Resolve eval_stk_op_types : core.
+    Local Hint Resolve eval_uop_types : core.
+    Local Hint Resolve eval_bop_types : core.
+    Local Hint Resolve eval_cast_types : core.
+    Local Hint Resolve eval_member_types : core.
+    Hint Rewrite Forall_app : core.
+    Hint Rewrite app_length : core.
+    Local Hint Resolve Forall2_app : core.
+    Local Hint Constructors check_expr : core.
+    Local Hint Constructors PT.proper_nesting : core.
+
     Theorem expr_small_step_preservation : forall e e' τ,
         ℵ ϵ ** e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
-    Proof. (*
-      Hint Resolve eval_cast_types : core.
-      Hint Resolve BitArith.return_bound_bound : core.
-      Hint Resolve BitArith.neg_bound : core.
-      Hint Resolve BitArith.plus_mod_bound : core.
-      Hint Resolve IntArith.return_bound_bound : core.
-      Hint Resolve eval_hdr_op_types : core.
-      Hint Resolve eval_stk_op_types : core.
-      Hint Resolve eval_uop_types : core.
-      Hint Resolve eval_bop_types : core.
-      Hint Resolve eval_cast_types : core.
-      Hint Resolve eval_member_types : core.
-      Hint Rewrite Forall_app : core.
-      Hint Rewrite app_length : core.
-      Hint Resolve Forall2_app : core.
-      Hint Constructors check_expr : core.
-      Hint Constructors PT.proper_nesting : core.
+    Proof.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
       match goal with
       | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
-      end;
+      end; try invert_expr_check; unravel in *; try subst w';
+      repeat assert_canonical_forms; unravel in *;
       try match goal with
-          | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _ |- _ => inv H
-          end; unravel in *;
-      repeat assert_canonical_forms; eauto.
-      - inv H4. assert_canonical_forms. inv H1.
-        unravel in *. inv H0. eauto.
-      - inv H3.
-        assert (⟦ errs, Γ ⟧ ⊢ Stack x:ts[size0] nextIndex:=x0 ∈ stack ts[size0]) by auto.
-        inv H; unravel in *; eauto.
-      - inv H3; unravel in *. eapply Forall_nth_error in H12; eauto.
-      - subst es; subst es'.
+          | H: Some _ = Some _ |- _ => inv H
+          end;
+      try invert_proper_nesting; eauto 4.
+      - eapply Forall_nth_error in H12; eauto 1.
+      - subst es; subst es';
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; eauto.
-      - subst fs; subst fs'.
+      - subst fs; subst fs';
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; relf_destruct; intuition; subst.
-        constructor. apply Forall2_app; auto.
-        repeat constructor; auto.
-      - inv H3. subst fs; subst fs'.
+        constructor. apply Forall2_app; auto 1.
+        repeat constructor; auto 2.
+      - subst fs; subst fs';
         apply Forall2_app_inv_l in H8 as [? [? [? [? ?]]]];
         inv_Forall2_cons; relf_destruct; intuition; subst.
-        inv H6; try match goal with
-                    | H: PT.base_type {{ hdr { _ } }} |- _ => inv H
-                    end.
-        constructor; eauto.
-        apply Forall2_app; auto.
-        repeat constructor; auto.
+        constructor; eauto 2.
+        apply Forall2_app; auto 1.
+        repeat constructor; unravel; auto 2.
       - subst hs; subst hs'; constructor;
         autorewrite with core in *; intuition;
-        try inv_Forall_cons; eauto.
-    Qed. *)
-    Admitted.
+        try inv_Forall_cons; eauto 3.
+    Qed.
   End Preservation.
 
   Section Progress.
@@ -203,17 +205,12 @@ Section Theorems.
       end.
     (**[]*)
 
+    Local Hint Constructors value : core.
+    Local Hint Constructors expr_step : core.
+
     Theorem expr_small_step_progress : forall e τ,
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ ** e -->  e'.
     Proof.
-      Hint Constructors value : core.
-      Hint Constructors expr_step : core. (*
-      Hint Resolve eval_cast_exists : core.
-      Hint Resolve eval_uop_exists : core.
-      Hint Resolve eval_bop_exists : core.
-      Hint Resolve eval_stk_op_exists : core.
-      Hint Resolve eval_member_exists : core.
-      Hint Resolve expr_small_step_preservation : core.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
       match goal with
@@ -225,76 +222,75 @@ Section Theorems.
             assert (value e); [ repeat constructor; eassumption
                           | left; assumption ]
           end;
-      repeat progress_simpl; eauto.
-      - right; apply Henvs_subset in H as [? ?]; eauto.
-      - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto.
-      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? ?]; eauto.
-      - pose proof eval_bop_exists _ _ _ _ _ _ i _ _ H H3 H2 H0 H1 as [? ?]; eauto.
-      - pose proof eval_member_exists _ _ _ _ _ _ _ H2 H0 H H1 as [? ?]; eauto.
+      repeat progress_simpl; eauto 4.
+      - right; apply Henvs_subset in H as [? ?]; eauto 3.
+      - right; pose proof eval_slice_exists
+                    _ _ _ _ _ _ _ H2 H H0 H1 as [? ?]; eauto 3.
+      - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto 4.
+      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? ?]; eauto 4.
+      - pose proof eval_bop_exists _ _ _ _ _ _ i _ _ H H3 H2 H0 H1 as [? ?]; eauto 4.
+      - pose proof eval_member_exists _ _ _ _ _ _ _ H2 H0 H H1 as [? ?]; eauto 4.
       - induction H; repeat inv_Forall2_cons;
-        repeat progress_simpl; eauto; intuition.
-        + inv H3; eauto.
+        repeat progress_simpl; intuition.
+        + inv H3; eauto 4.
         + destruct H3 as [? ?]. inv H2.
           subst es; subst es'.
-          repeat rewrite app_comm_cons in *. eauto.
-        + rewrite <- (app_nil_l (x :: l)). eauto.
-        + rewrite <- (app_nil_l (x :: l)). eauto.
+          repeat rewrite app_comm_cons in *; eauto 5.
+        + rewrite <- (app_nil_l (x :: l)); eauto 4.
+        + rewrite <- (app_nil_l (x :: l)); eauto 4.
       - induction H; repeat invert_cons_cons_relate;
         repeat progress_simpl; intuition.
         + left. repeat constructor.
-        + inv H4. left. repeat constructor; unravel; eauto.
+        + inv H4. left. repeat constructor; unravel; eauto 1.
         + destruct H4 as [? ?]. inv H2.
           subst fs; subst fs'.
           repeat rewrite app_comm_cons in *. right.
           exists (E.ERecord (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
-          repeat constructor; unravel; eauto.
+          repeat constructor; unravel; eauto 1.
         + destruct p as [t e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t, e)) :: l)).
           right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
-          repeat constructor; unravel; eauto.
+          repeat constructor; unravel; eauto 1.
         + destruct p as [t e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t, e)) :: l)).
           right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
-          repeat constructor; unravel; eauto.
-      - inv H5. clear H. rename H0 into H; rename H1 into H0.
+          repeat constructor; unravel; eauto 1.
+      - clear H. rename H0 into H; rename H1 into H0.
         induction H; repeat invert_cons_cons_relate;
         repeat progress_simpl; intuition.
         + left. repeat constructor.
-        + inv H4. left. repeat constructor; unravel; eauto.
+        + inv H4. left. repeat constructor; unravel; eauto 1.
         + destruct H4 as [? ?]. inv H2.
           * subst fs; subst fs'.
             repeat rewrite app_comm_cons in *. right.
             exists (E.EHeader
                  (((s0, p) :: prefix) ++ (x2, (τ, e')) :: suffix)
                <{ BOOL x @ x0 }> i).
-            repeat constructor; unravel; eauto.
+            repeat constructor; unravel; eauto 1.
           * inv H9.
         + destruct p as [t e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
           exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
-          repeat constructor; unravel; eauto.
+          repeat constructor; unravel; eauto 1.
         + destruct p as [t e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
           exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
-          repeat constructor; unravel; eauto.
-      - inv H5. assert_canonical_forms. inv H0.
-        right. exists (eval_hdr_op op x x2 x3 x1). eauto.
+          repeat constructor; unravel; eauto 1.
+      - invert_proper_nesting.
+        right. exists (eval_hdr_op op x x2 x3 x1). eauto 3.
       - clear H H0 H1 H2.
-        (* generalize dependent ni; generalize dependent n. *)
-        induction H3; intros; repeat inv_Forall_cons; eauto;
-        intuition; try assert_canonical_forms.
-        + inv H7. assert_canonical_forms. inv H0; inv H2; eauto.
-        + inv H7. assert_canonical_forms. inv H0.
-          destruct H2 as [v Hv]. inv Hv. subst hs; subst hs'.
+        induction H3; intros; repeat inv_Forall_cons; eauto 2;
+        intuition; repeat assert_canonical_forms.
+        + inv H2; eauto 5.
+        + destruct H2 as [v Hv]. inv Hv. subst hs; subst hs'.
           repeat rewrite app_comm_cons in *; eauto 6.
-        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto.
-        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto.
-      - inv H4. assert (Hidx : N.to_nat idx < length x) by lia.
-        pose proof nth_error_exists _ _ Hidx as [v ?]. eauto.
-      - inv H4.
-        pose proof eval_stk_op_exists
-             _ _ i op _ _ _ _ H6 H7 H8 H9 H10 as [? ?]; eauto.
-    Qed. *)
-    Admitted.
+        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto 4.
+        + destruct H0 as [v Hv]. rewrite <- (app_nil_l (x :: l)); eauto 4.
+      - invert_proper_nesting.
+        assert (Hidx : (BinIntDef.Z.to_nat idx < length x)%nat) by lia.
+        pose proof nth_error_exists _ _ Hidx as [v ?]; eauto 5.
+      - pose proof eval_stk_op_exists
+             _ _ i op _ _ _ _ H6 H7 H8 H9 H10 as [? ?]; eauto 5.
+    Qed.
   End Progress.
 End Theorems.

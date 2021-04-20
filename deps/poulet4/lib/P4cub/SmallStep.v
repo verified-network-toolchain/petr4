@@ -324,11 +324,6 @@ Module Step.
       end.
     (**[]*)
 
-    Lemma value_edefault : forall i τ, V.value (edefault i τ).
-    Proof.
-      (* Local Hint Constructors V.value : core. *)
-    Admitted.
-
     (** Header stack operations. *)
     Definition eval_stk_op
                (i : tags_t) (op : E.hdr_stk_op)
@@ -375,6 +370,18 @@ Module Step.
       | _                             => None
       end.
     (**[]*)
+
+    Section Edefault.
+      Local Hint Constructors V.value : core.
+
+      Lemma value_edefault : forall i τ, V.value (edefault i τ).
+      Proof.
+        induction τ using E.custom_t_ind; unravel; auto 1;
+        try (constructor; apply repeat_Forall); constructor; auto 1;
+        try (ind_list_predfs; unfold F.predfs_data in * );
+        try ind_list_Forall; unravel in *; auto 4.
+      Qed.
+    End Edefault.
 
     Section HelpersType.
       Local Hint Constructors check_expr : core.
@@ -647,6 +654,7 @@ Module Step.
   | step_slice_eval (v v' : E.e tags_t) (τ : E.t)
                     (hi lo : positive) (i : tags_t) :
       eval_slice hi lo v = Some v' ->
+      V.value v ->
       ℵ ϵ ** Slice v:τ [hi:lo] @ i -->  v'
   | step_cast (τ : E.t) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ ** e -->  e' ->

@@ -495,7 +495,7 @@ End BabyIPv2.
 | BisimulationTCPVersusIP:
     forall st1 buf1 st2 buf2,
       st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 0 ->
-      slice 16 20 buf2 = false :: false :: false :: false :: nil ->
+      to_nat (slice 16 20 buf2) = 0 ->
       List.length buf2 = 20 ->
       List.length buf1 < 20 ->
       candidate
@@ -512,7 +512,7 @@ End BabyIPv2.
 | BisimulationUDPVersusIP:
     forall st1 buf1 st2 buf2,
       st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 1 ->
-      slice 16 20 buf2 = true :: false :: false :: false :: nil ->
+      to_nat (slice 16 20 buf2) = 1 ->
       List.length buf2 = 20 ->
       List.length buf1 < 20 ->
       candidate
@@ -522,8 +522,8 @@ End BabyIPv2.
 | BisimulationFalseVersusStart:
     forall st1 buf1 st2 buf2,
       List.length buf2 = 20 ->
-      skipn 16 buf2 <> true :: false :: false :: false :: nil ->
-      skipn 16 buf2 <> false :: false :: false :: false :: nil ->
+      to_nat (slice 16 20 buf2) <> 1 ->
+      to_nat (slice 16 20 buf2) <> 0 ->
       candidate
         (inr false, st1, buf1)
         (inl BabyIPv2.start, st2, buf2 ++ buf1)
@@ -584,6 +584,16 @@ Proof.
       congruence.
 Qed.
 
+Lemma to_nat_versus_to_bits l n:
+  to_nat l = n ->
+  l = to_bits (Datatypes.length l) n
+.
+Proof.
+  intros.
+  apply (f_equal (to_bits (Datatypes.length l))) in H.
+  now rewrite to_bits_roundtrip in H by reflexivity.
+Qed.
+
 Require Import Coq.Init.Nat.
 
 Lemma to_nat_roundtrip n s:
@@ -591,6 +601,17 @@ Lemma to_nat_roundtrip n s:
   to_nat (to_bits s n) = n
 .
 Admitted.
+
+Lemma to_bits_versus_to_nat n s l:
+  l = to_bits s n ->
+  n < pow 2 s ->
+  to_nat l = n
+.
+Proof.
+  intros.
+  rewrite H.
+  rewrite to_nat_roundtrip; easy.
+Qed.
 
 Lemma length_slice {X: Type}:
   forall i j (l: list X),
@@ -624,23 +645,42 @@ Proof.
     lia.
 Qed.
 
-Ltac wrangle_length :=
-  repeat match goal with
-  | H: _ ++ _ = _ |- _ =>
-    apply (f_equal (@Datatypes.length bool)) in H
-  | H: _ = _ ++ _ |- _ =>
-    apply (f_equal (@Datatypes.length bool)) in H
+Ltac simpl_length :=
+  repeat (lia || match goal with
+  | H: context [ Datatypes.length (_ :: nil) ] |- _ =>
+    simpl Datatypes.length in H
+  | |- context [ Datatypes.length (_ :: nil) ] =>
+    simpl Datatypes.length
   | H: context [ Datatypes.length (_ ++ _) ] |- _ =>
     rewrite app_length in H
   | |- context [ Datatypes.length (_ ++ _) ] =>
     rewrite app_length
   | H: context [ Datatypes.length (skipn _ _) ] |- _ =>
-    rewrite skipn_length in H
+    rewrite skipn_length in H;
+    simpl "-" in H
   | |- context [ Datatypes.length (skipn _ _) ] =>
-    rewrite skipn_length
+    rewrite skipn_length;
+    simpl "-"
+  | H: context [ Datatypes.length (firstn _ _) ] |- _ =>
+    rewrite firstn_length' in H;
+    simpl "^" in H
+  | |- context [ Datatypes.length (firstn _ _) ] =>
+    rewrite firstn_length';
+    simpl "^"
+  end)
+.
+
+(* Possible fallback tactic we don't use right now; derives facts about
+   lengths from facts about lists. Note that this gets rids of the list
+   facts, so you cannot use those later on... *)
+Ltac wrangle_length :=
+  repeat match goal with
+  | H: _ ++ _ = _ |- _ =>
+    apply (f_equal (@Datatypes.length bool)) in H
+  | H: _ = _ ++ _ |- _ =>
+    apply symmetry in H
   end;
-  simpl Datatypes.length in *;
-  try lia
+  simpl_length
 .
 
 Ltac cleanup_step :=
@@ -663,7 +703,7 @@ Ltac cleanup_step :=
 
     (* Try to discharge contradictory or easy goals. *)
     try constructor;
-    try wrangle_length;
+    try simpl_length;
     simpl
   end
 .
@@ -744,72 +784,69 @@ Ltac contrapositive H :=
 .
 
 Ltac smtize :=
+  (* Simplify mostly header projections first. *)
   simpl;
-  try wrangle_length;
-  unfold "===", complement, slice in *;
+  (* Simplify (in)equalities to props. *)
+  unfold "===", complement in *;
+  (* Desugar calls to slice. *)
+  unfold slice in *;
+  simpl "-" in *;
+  (* First heavy pass: try to turn premises and goals about natural numbers
+     into premises and goals about lists of booleans. *)
   repeat (
-    simpl "-" in *;
+    simpl_length;
     match goal with
-    | H: context [ Datatypes.length (firstn _ _) ] |- _ =>
-      rewrite firstn_length' in H by wrangle_length
-    | |- context [ Datatypes.length (firstn _ _) ] =>
-      rewrite firstn_length' by wrangle_length
-    | H: context [ Datatypes.length (skipn _ _) ] |- _ =>
-      rewrite skipn_length in H by wrangle_length
-    | |- context [ Datatypes.length (skipn _ _) ] =>
-      rewrite skipn_length by wrangle_length
-    | H: context [ nth _ (skipn _ _) _ ] |- _ =>
-      rewrite nth_skipn in H;
-      simpl "+" in H
-    | |- context [ nth ?n (skipn ?i ?l) ?d ] =>
-      rewrite nth_skipn;
-      simpl "+"
-    | H: to_nat ?l = _ |- _ =>
-      apply (f_equal (to_bits (Datatypes.length l))) in H;
-      rewrite to_bits_roundtrip in H by reflexivity
-    | |- to_nat ?l = ?v =>
-      symmetry;
-      rewrite <- to_nat_roundtrip with (n := v) (s := Datatypes.length l) at 1;
-      [symmetry; f_equal|]
-    | H: firstn (S _) _ = _ :: _ |- _ =>
-      repeat (
-        apply firstn_cons in H;
-        destruct H as [? [? H]]
-      )
-    | |- firstn (S _) _ = _ :: _  =>
-      repeat (
-        apply firstn_cons;
-        repeat split;
-        (assumption || lia || wrangle_length)
-      )
-    | H: skipn _ _ = _ :: _ |- _ =>
-      repeat (
-        apply skipn_cons in H;
-        destruct H as [? [? H]]
-      )
-    | |- skipn _ _ = _ :: _ =>
-      repeat (
-        apply skipn_cons;
-        repeat split;
-        (assumption || lia || wrangle_length)
-      )
-    | |- skipn _ _ = nil =>
-      apply skipn_all2; wrangle_length
+    | H: to_nat _ = _ |- _ =>
+      apply to_nat_versus_to_bits in H
+    | |- to_nat ?l = _ =>
+      apply to_bits_versus_to_nat with (s := Datatypes.length l)
     | H: context [ to_bits _ _ ] |- _ =>
       simpl to_bits in H
     | |- context [ to_bits _ _ ] =>
       simpl to_bits
     end
   );
-  try (congruence || (simpl; lia));
+  try congruence;
+  (* Second heavy pass: deconstruct goals and premises about parts of the
+     lists of booleans created above into goals and premises about specific
+     bits within those lists. *)
+  repeat (
+    match goal with
+    | H: firstn (S _) _ = _ :: _ |- _ =>
+      apply firstn_cons in H;
+      destruct H as [? [? H]]
+    | |- firstn (S _) _ = _ :: _  =>
+      apply firstn_cons;
+      repeat split; simpl_length
+    | H: skipn _ _ = _ :: _ |- _ =>
+      apply skipn_cons in H;
+      destruct H as [? [? H]]
+    | |- skipn _ _ = _ :: _ =>
+      apply skipn_cons;
+      repeat split; simpl_length
+    | |- skipn _ _ = nil =>
+      apply skipn_all2
+    | H: context [ nth _ (skipn _ _) _ ] |- _ =>
+      rewrite nth_skipn in H;
+      simpl "+" in H
+    | |- context [ nth _ (skipn _ _) _ ] =>
+      rewrite nth_skipn;
+      simpl "+"
+    end
+  );
+  try congruence;
+  (* Final heavy pass: try to discover contradictions about specific bits
+     inside the premises, i.e., a pair of assertions saying one bit is true
+     while another is false. Also try to guess the position of bits inside
+     composite lists in order to expose more candidate matches. *)
   repeat match goal with
-  | H: nth ?p ?l ?v1 = ?v1, H1: nth ?p ?l ?v2 = ?v2 |- _ =>
-    rewrite nth_indep with (d' := v2) in H by wrangle_length;
+  | H: nth ?p ?l false = false, H1: nth ?p ?l true = true |- _ =>
+    rewrite nth_indep with (d' := true) in H by simpl_length;
     congruence
   | H: context [ nth _ (_ ++ _) _ ] |- _ =>
-    rewrite app_nth1 in H by wrangle_length
+    rewrite app_nth1 in H by simpl_length
   | |- context [nth _ (_ ++ _) _] =>
-    rewrite app_nth1 by wrangle_length
+    rewrite app_nth1 by simpl_length
   end;
   try congruence
 .
@@ -819,6 +856,7 @@ Lemma candidate_is_bisimulation:
 .
 Proof.
   Opaque skipn.
+  Opaque firstn.
   unfold bisimulation; intros.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
@@ -829,24 +867,16 @@ Proof.
     + rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1.
       apply BisimulationTCPVersusIP; smtize.
     + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationFalseVersusStart.
-      * wrangle_length.
-      * contrapositive c0.
-        smtize.
-      * contrapositive c1.
-        smtize.
+      apply BisimulationFalseVersusStart; smtize.
   - cleanup_step.
   - cleanup_step.
     + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * smtize.
       * rewrite <- app_nil_r with (l := buf1 ++ b :: nil) at 1.
-        apply BisimulationTCPVersusTCP.
-        wrangle_length.
-      * contradiction c1.
-        smtize.
+        apply BisimulationTCPVersusTCP; smtize.
+      * contradiction c1; smtize.
     + rewrite <- app_assoc.
-      apply BisimulationTCPVersusIP; try assumption.
-      wrangle_length.
+      apply BisimulationTCPVersusIP; smtize.
   - cleanup_step.
     rewrite <- app_assoc.
     now apply BisimulationTCPVersusTCP.
@@ -854,21 +884,18 @@ Proof.
     + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * constructor.
       * smtize.
-      * contradiction c.
-        smtize.
+      * contradiction c; smtize.
     + rewrite <- app_assoc.
-      apply BisimulationUDPVersusIP; try assumption.
-      wrangle_length.
+      apply BisimulationUDPVersusIP; smtize.
   - cleanup_step.
     + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
-      * contradiction H0.
-        smtize.
-      * contradiction H1.
-        smtize.
+      * contradiction H0; smtize.
+      * contradiction H1; smtize.
       * constructor.
     + rewrite <- app_assoc.
       apply BisimulationFalseVersusStart; assumption.
   Transparent skipn.
+  Transparent firstn.
 Qed.
 
 Theorem babyip_equiv

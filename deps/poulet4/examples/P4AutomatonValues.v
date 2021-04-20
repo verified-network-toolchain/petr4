@@ -849,7 +849,9 @@ Ltac smtize :=
       is_num_literal s;
       is_num_literal n;
       simpl to_bits in H
-    | |- context [ to_bits _ _ ] =>
+    | |- context [ to_bits ?s ?n ] =>
+      is_num_literal s;
+      is_num_literal n;
       simpl to_bits
     end
   );

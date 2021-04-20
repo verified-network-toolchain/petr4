@@ -117,7 +117,43 @@ Ltac assert_canonical_forms :=
   end; subst; try discriminate; try inv_eq_val_expr.
 (**[]*)
 
-Section Theorems.
+Section LValueTheorems.
+  Variable errs : errors.
+  Variable Γ : gamma.
+
+  Context {tags_t : Type}.
+
+  Section LValuePreservation.
+    Local Hint Constructors check_expr : core.
+
+    Theorem lvalue_preservation : forall (e e' : E.e tags_t) τ,
+      ℶ e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+    Proof.
+      intros e e' τ He; generalize dependent τ;
+      induction He; intros t Ht; inv Ht; eauto 3.
+    Qed.
+  End LValuePreservation.
+
+  Section LValueProgress.
+    Hint Constructors lvalue : core.
+    Hint Constructors lvalue_step : core.
+
+    Theorem lvalue_progress : forall (e : E.e tags_t) τ,
+        lvalue_ok e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        lvalue e \/ exists e', ℶ e -->  e'.
+    Proof.
+      intros e τ Hlv; generalize dependent τ;
+      induction Hlv; intros t Ht; inv Ht;
+      try match goal with
+          | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
+            H: ⟦ errs, Γ ⟧ ⊢ ?e ∈ _
+            |- _ => apply IH in H as [? | [? ?]]
+          end; eauto 4.
+    Qed.
+  End LValueProgress.
+End LValueTheorems.
+
+Section ExprTheorems.
   Variable Γ : gamma.
 
   Context {tags_t : Type}.
@@ -293,4 +329,4 @@ Section Theorems.
              _ _ i op _ _ _ _ H6 H7 H8 H9 H10 as [? ?]; eauto 5.
     Qed.
   End Progress.
-End Theorems.
+End ExprTheorems.

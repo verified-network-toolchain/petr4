@@ -936,17 +936,11 @@ Module Step.
   Inductive lvalue_big_step {tags_t : Type} : E.e tags_t -> V.lv -> Prop :=
   | lvbs_var (x : string) (τ : E.t) (i : tags_t) :
       ⧠ Var x:τ @ i ⇓ VAR x
-  | lvbs_rec_member (e : E.e tags_t) (x : string)
-                (tfs : F.fs string (E.t))
-                (i : tags_t) (lv : V.lv) :
+  | lvbs_member (e : E.e tags_t) (x : string)
+                (τ : E.t) (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
-      ⧠ Mem e:rec { tfs } dot x @ i ⇓ lv DOT x
-  | lvbs_hdr_member (e : E.e tags_t) (x : string)
-                    (tfs : F.fs string E.t)
-                    (i : tags_t) (lv : V.lv):
-      ⧠ e ⇓ lv ->
-      ⧠ Mem e:hdr { tfs } dot x @ i ⇓ lv DOT x
-  | lvbs_stack_access (e : E.e tags_t) (i : tags_t)
+      ⧠ Mem e:τ dot x @ i ⇓ lv DOT x
+  | lvbs_access (e : E.e tags_t) (i : tags_t)
                       (lv : V.lv) (n : Z) :
       let w := 32%positive in
       ⧠ e ⇓ lv ->

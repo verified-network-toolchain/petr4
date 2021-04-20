@@ -8,7 +8,10 @@ Require Import Coq.micromega.Lia.
 Reserved Notation "'ℵ' env , e1 '-->' e2"
          (at level 40, e1 custom p4expr, e2 custom p4expr).
 
-Reserved Notation "'ℶ' ctrl , tables , actions , functions , instances , ϵ1 , s1 '-->' s2 , ϵ2 , signal" (at level 40, s1 custom p4stmt, s2 custom p4stmt, ϵ2 custom p4env).
+Reserved Notation "'ℶ' e1 '-->'  e2"
+         (at level 40, e1 custom p4expr, e2 custom p4expr).
+
+Reserved Notation "'SS' ctrl , tables , actions , functions , instances , ϵ1 , s1 '-->' s2 , ϵ2 , signal" (at level 40, s1 custom p4stmt, s2 custom p4stmt, ϵ2 custom p4env).
 
 (** * Small-Step Values *)
 Module IsValue.
@@ -116,6 +119,17 @@ Module IsValue.
                                               Hhs (lind Hhs)
         end.
   End IsValueInduction.
+
+  Inductive lvalue {tags_t : Type} : E.e tags_t -> Prop :=
+  | lvalue_var x τ i :
+      lvalue <{ Var x:τ @ i }>
+  | lvalue_member lv τ x i :
+      lvalue lv ->
+      lvalue <{ Mem lv:τ dot x @ i }>
+  | lvalue_access lv idx i :
+      lvalue lv ->
+      lvalue <{ Access lv[idx] @ i }>.
+  (**[]*)
 End IsValue.
 
 Module Step.
@@ -759,4 +773,13 @@ Module Step.
       let hs' := prefix ++ e' :: suffix in
       ℵ ϵ, Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
   where "'ℵ' ϵ , e1 '-->' e2" := (expr_step ϵ e1 e2).
+
+  Inductive lvalue_step {tags_t : Type} : E.e tags_t -> E.e tags_t -> Prop :=
+  | lstep_member (e e' : E.e tags_t) (τ : E.t) (x : string) (i : tags_t) :
+      ℶ e -->  e' ->
+      ℶ Mem e:τ dot x @ i -->   Mem e':τ dot x @ i
+  | lstep_access (e e' : E.e tags_t) (idx : Z) (i : tags_t) :
+      ℶ e -->  e' ->
+      ℶ Access e[idx] @ i -->   Access e'[idx] @ i
+  where "'ℶ' e1 '-->' e2" := (lvalue_step e1 e2).
 End Step.

@@ -181,12 +181,11 @@ Section BigStepTheorems.
     Proof.
       intros errs Γ e τ Hlv; generalize dependent τ;
       induction Hlv; intros t Ht; inv Ht;
-      repeat match goal with
-             | H: member_type _ _ |- _ => inv H
-             | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
-               H: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
-               |- _ => apply IH in H as [? ?]
-             end; eauto 3.
+      try match goal with
+          | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
+            H: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+            |- _ => apply IH in H as [? ?]
+          end; eauto 3.
     Qed.
   End LVProgress.
 End BigStepTheorems.

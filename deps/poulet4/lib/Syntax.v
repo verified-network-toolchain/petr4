@@ -51,13 +51,19 @@ Section Syntax.
   | And
   | Or.
 
+  Inductive Locator :=
+  | LGlobal (p: list P4String)
+  | LInstance (p: list P4String).
+
+  Definition NoLocator := LGlobal nil.
+
   Inductive KeyValue :=
   | MkKeyValue (tags: tags_t) (key: P4String) (value: Expression)
   with ExpressionPreT :=
   | ExpBool (b: bool)
   | ExpInt (_: P4Int)
   | ExpString (_: P4String)
-  | ExpName (_: @Typed.name tags_t)
+  | ExpName (_: @Typed.name tags_t) (loc: Locator)
   | ExpArrayAccess (array: Expression) (index: Expression)
   | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
@@ -164,8 +170,10 @@ Section Syntax.
                (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
                   (name: P4String) (value: ValueBase)
+                  (loc: Locator)
   | StatVariable  (typ: @P4Type tags_t)
                   (name: P4String) (init: option Expression)
+                  (loc: Locator)
   | StatInstantiation  (typ: @P4Type tags_t)
                        (args: list Expression)
                        (name: P4String)
@@ -223,10 +231,10 @@ Section Syntax.
       (HStatSwitch: forall expr cases,
                     PStatementSwitchCaseList cases ->
                     PStatementPreT (StatSwitch expr cases))
-      (HStatConstant: forall typ name value,
-                      PStatementPreT (StatConstant typ name value))
-      (HStatVariable: forall typ name init,
-                      PStatementPreT (StatVariable typ name init))
+      (HStatConstant: forall typ name value loc,
+                      PStatementPreT (StatConstant typ name value loc))
+      (HStatVariable: forall typ name init loc,
+                      PStatementPreT (StatVariable typ name init loc))
       (HStatInstantiation: forall typ args name init,
                            PBlockMaybe init ->
                            PStatementPreT
@@ -285,10 +293,10 @@ Section Syntax.
                     (HStatementSwitchCaseListCons)
                     (statement_switch_case_rec)
                     cases)
-      | StatConstant typ name value =>
-        HStatConstant typ name value
-      | StatVariable typ name init =>
-        HStatVariable typ name init
+      | StatConstant typ name value loc =>
+        HStatConstant typ name value loc
+      | StatVariable typ name init loc =>
+        HStatVariable typ name init loc
       | StatInstantiation typ args name init =>
         HStatInstantiation typ args name init
           (option_rec (PBlock)
@@ -409,7 +417,7 @@ Section Syntax.
       methods: list ExternMethod }.
 
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t)
+  | ValLeftName (name: @Typed.name tags_t) (loc: Locator)
   | ValLeftMember (expr: ValueLvalue) (name: P4String)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: nat) (lsb: nat)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: nat)

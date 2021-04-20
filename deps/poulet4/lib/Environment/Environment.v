@@ -200,7 +200,7 @@ Section Environment.
 
   Definition env_dig (val: @Value tags_t) (lval: @ValuePreLvalue tags_t) : option_monad :=
     match lval with
-    | ValLeftName _ => Some val
+    | ValLeftName _ _ => Some val
     | ValLeftMember _ member =>
       match val with
       | ValBase v =>
@@ -228,7 +228,7 @@ Section Environment.
   Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t) :=
     let 'MkValueLvalue lv _ := lvalue in
     let* val_inner := match lv with
-    | ValLeftName name => env_name_lookup name
+    | ValLeftName name _ => env_name_lookup name
     | ValLeftMember inner _
     | ValLeftBitAccess inner _ _
     | ValLeftArrayAccess inner _ =>
@@ -294,7 +294,7 @@ Section Environment.
   Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t) : env_monad unit :=
     let 'MkValueLvalue lv _ := lvalue in
     match lv with
-    | ValLeftName nm =>
+    | ValLeftName nm _ =>
       let* loc := get_name_loc nm in
       heap_update loc value
 

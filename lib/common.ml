@@ -83,7 +83,7 @@ module Make_parse (Conf: Parse_config) = struct
 
   let check_file (include_dirs : string list) (p4_file : string) 
       (print_json : bool) (pretty_json : bool) (exportp4 : bool) (normalize : bool)
-      (export_file : string) (typed_json : bool) (verbose : bool) : unit =
+      (export_file : string) (typed_json : bool) (gen_loc : bool) (verbose : bool) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog, renamer = Elaborate.elab prog in
@@ -114,7 +114,13 @@ module Make_parse (Conf: Parse_config) = struct
             if normalize then
               Poulet4.SimplExpr.transform_prog Info.dummy typed_prog
             else typed_prog in
-          Exportp4.print_program (Format.formatter_of_out_channel oc) prog';
+          let prog'' =
+            if gen_loc then
+              match Poulet4.GenLoc.transform_prog Info.dummy prog' with
+              | Coq_inl prog'' -> prog''
+              | Coq_inr ex -> failwith "error occurred in GenLoc"
+            else prog' in
+          Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
         Out_channel.close oc
       end
     | `Error (info, Lexer.Error s) ->

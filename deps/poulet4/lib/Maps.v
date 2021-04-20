@@ -17,15 +17,15 @@ Module FuncAsMap.
     Definition get: key -> t -> option value := fun k fmap => fmap k.
     Definition set: key -> value -> t -> t :=
       fun k v fmap x => if key_eqb x k then Some v else fmap x.
-    
+
     Definition sets: list key -> list value -> t -> t :=
       fun kList vList fmap =>
         fold_left (fun fM kvPair => set (fst kvPair) (snd kvPair) fM)
                   (combine kList vList) fmap.
-    
+
     Definition gets (kl: list key) (m: t): list (option value) :=
       map (fun k => get k m) kl.
-    
+
   End FuncAsMap.
 
 End FuncAsMap.

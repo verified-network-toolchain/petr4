@@ -70,7 +70,7 @@ Section Eval.
   Fixpoint eval_lvalue (expr: Expression) : env_monad ValueLvalue :=
     let '(MkExpression _ expr' type _) := expr in
     match expr' with
-    | ExpName name => mret (MkValueLvalue (ValLeftName name) type)
+    | ExpName name locr => mret (MkValueLvalue (ValLeftName name locr) type)
     | ExpExpressionMember lexpr name =>
       let* lval := eval_lvalue lexpr in
       mret (MkValueLvalue (ValLeftMember lval name) type)
@@ -417,9 +417,9 @@ Section Eval.
       match inner_v with
       | ValObj (ValObjPacket bits) =>
         match inner with
-        | MkExpression _ (ExpName inner_name) inner_typ _ =>
+        | MkExpression _ (ExpName inner_name locr) inner_typ _ =>
           if P4String.eq_const name StringConstants.extract then
-            mret (extract_value_func (MkValueLvalue (ValLeftName inner_name) inner_typ))
+            mret (extract_value_func (MkValueLvalue (ValLeftName inner_name locr) inner_typ))
           else if P4String.eq_const name StringConstants.lookahead then
             state_fail (SupportError "Packet lookahead is not implemented.")
           else if P4String.eq_const name StringConstants.advance then
@@ -438,7 +438,7 @@ Section Eval.
       end;
     eval_expression_pre (ExpFunctionCall func type_args args) :=
       eval_method_call (eval_expression) func type_args args;
-    eval_expression_pre (ExpName name) :=
+    eval_expression_pre (ExpName name _) :=
       get_name_loc _ name >>= heap_lookup _;
     eval_expression_pre (ExpCast typ expr) :=
       eval_cast (eval_expression) typ expr;
@@ -461,9 +461,9 @@ Section Eval.
       stack_push _ ;;
       eval_block block ;;
       stack_pop _;
-    eval_statement_pre (StatConstant type name init) :=
+    eval_statement_pre (StatConstant type name init _) :=
       env_insert _ name.(P4String.str) (ValBase init);
-    eval_statement_pre (StatVariable type name init) :=
+    eval_statement_pre (StatVariable type name init _) :=
       let* value :=
          match init with
          | None => mret (default_value type)

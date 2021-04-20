@@ -186,7 +186,7 @@ and min_size_in_bytes env info hdr_type =
 and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_ValueBase option =
   let MkExpression (tags, expr, typ, dir) = expr in
   match expr with
-  | ExpName name ->
+  | ExpName (name, _) ->
     begin match Checker_env.find_const_opt name env with
       | Some (ValBase b) -> Some b
       | _ -> None
@@ -803,7 +803,7 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
       type_int i
     | Name name ->
       let typ, dir = Checker_env.find_type_of name env in
-      ExpName name, typ, dir
+      ExpName (name, Prog.noLocator), typ, dir
     | ArrayAccess { array; index } ->
       type_array_access env ctx array index
     | BitStringAccess { bits; lo; hi } ->
@@ -2105,7 +2105,7 @@ and match_named_args_to_params env call_site_info (params: coq_P4Parameter list)
 and is_lvalue env (expr_typed: Prog.coq_Expression) =
   let MkExpression (_, expr, expr_typ, expr_dir) = expr_typed in
   match expr with
-  | ExpName name ->
+  | ExpName (name, _) ->
     let typ = reduce_type env expr_typ in
     let const = Checker_env.find_const_opt name env in
     begin match expr_dir, typ with
@@ -2337,7 +2337,7 @@ and resolve_function_overload_by ~f env ctx func : Prog.coq_Expression =
         |> List.map ~f:fst
         |> List.find ~f:ok
       with
-      | Some typ -> MkExpression (fst func, ExpName name, typ, Directionless)
+      | Some typ -> MkExpression (fst func, ExpName (name, Prog.noLocator), typ, Directionless)
       | _ -> type_expression env ctx func
     end
   | ExpressionMember { expr; name } ->
@@ -2713,9 +2713,9 @@ and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
   let info, (stmt: Prog.coq_StatementPreT) =
     match decl with
     | DeclConstant (info, typ, name, value) ->
-      info, StatConstant (typ, name, value)
+      info, StatConstant (typ, name, value, Prog.noLocator)
     | DeclVariable (info, typ, name, init) ->
-      info, StatVariable (typ, name, init)
+      info, StatVariable (typ, name, init, Prog.noLocator)
     | DeclInstantiation (info, typ, args, name, init) ->
       info, StatInstantiation (typ, args, name, init)
     | _ ->
@@ -3196,7 +3196,7 @@ and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool
   | ExpString s1,
     ExpString s2
     -> P4string.eq s1 s2
-  | ExpName n1, ExpName n2
+  | ExpName (n1, _), ExpName (n2, _)
     -> P4name.name_eq n1 n2
   | ExpArrayAccess (a1, i1),
     ExpArrayAccess (a2, i2)
@@ -3247,7 +3247,7 @@ and type_default_action
   let expr_ctx: Typed.coq_ExprContext = ExprCxTableAction in
   let action_expr_typed = type_expression env expr_ctx action_expr in
   match preexpr_of_expr action_expr_typed with
-  | ExpFunctionCall (MkExpression (_, (ExpName action_name), _, _), [], args) ->
+  | ExpFunctionCall (MkExpression (_, (ExpName (action_name, _)), _, _), [], args) ->
     begin match List.Assoc.find ~equal:P4name.name_eq action_map action_name with
       | None -> failwith "couldn't find default action in action_map"
       | Some (MkTableActionRef (_, MkTablePreActionRef (_, prop_args), _)) ->
@@ -3275,7 +3275,7 @@ and type_default_action
                             type_of_expr action_expr_typed)
         else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
     end
-  | ExpName action_name ->
+  | ExpName (action_name, _) ->
      let acts = List.map ~f:(fun (n, a) -> P4name.name_only n, a) action_map in
      let act = P4name.name_only action_name in
     if not @@ List.Assoc.mem ~equal:(=) acts act

@@ -842,6 +842,9 @@ Ltac smtize :=
       rewrite to_bits_vs_pos_to_nat_true in H
     | H: context [ to_bits (S ?n) (Pos.to_nat ?p~0) ] |- _ =>
       rewrite to_bits_vs_pos_to_nat_false in H
+    | H: context [ to_bits (S ?n) (Pos.to_nat ?p) ] |- _ =>
+      rewrite to_bits_vs_pos_to_nat_plain in H;
+      simpl repeat in H
     | H: context [ to_bits ?s ?n ] |- _ =>
       is_num_literal s;
       is_num_literal n;
@@ -923,19 +926,7 @@ Proof.
         apply BisimulationTCPVersusTCP; smtize.
       * smtize.
       * smtize.
-        destruct p0; smtize.
-        destruct p0; smtize.
-        rewrite to_bits_vs_pos_to_nat_plain in H17.
-        smtize.
-        unfold Pos.to_nat in H15.
-        unfold Pos.iter_op in H15.
-        simpl to_bits in H15.
-        smtize.
-        rewrite to_bits_vs_pos_to_nat_plain in H5.
-        smtize.
       * smtize.
-        rewrite to_bits_vs_pos_to_nat_plain in Heqz.
-        smtize.
       * smtize.
     + rewrite <- app_assoc.
       apply BisimulationTCPVersusIP with (ip_hdr := ip_hdr); smtize.
@@ -946,8 +937,6 @@ Proof.
     + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
       * smtize.
       * smtize.
-        rewrite to_bits_vs_pos_to_nat_plain in H5.
-        smtize.
       * smtize.
       * constructor.
       * smtize.
@@ -958,10 +947,7 @@ Proof.
       * contradiction H1; smtize.
       * constructor.
       * constructor.
-      * contradiction H0; smtize;
-        rewrite to_bits_vs_pos_to_nat_plain in Heqz;
-        simpl in Heqz;
-        smtize.
+      * contradiction H0; smtize.
       * constructor.
     + rewrite <- app_assoc.
       apply BisimulationFalseVersusStart; assumption.

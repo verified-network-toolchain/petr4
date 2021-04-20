@@ -638,10 +638,6 @@ Ltac wrangle_length :=
     rewrite skipn_length in H
   | |- context [ Datatypes.length (skipn _ _) ] =>
     rewrite skipn_length
-  | H: context [ Datatypes.length (slice _ _ _) ] |- _ =>
-    apply length_slice in H
-  | |- context [ Datatypes.length (slice _ _ _) ] =>
-    apply length_slice
   end;
   simpl Datatypes.length in *;
   try lia
@@ -750,8 +746,8 @@ Ltac contrapositive H :=
 Ltac smtize :=
   simpl;
   try wrangle_length;
+  unfold "===", complement, slice in *;
   repeat (
-    unfold "===", complement, slice in *;
     simpl "-" in *;
     match goal with
     | H: context [ Datatypes.length (firstn _ _) ] |- _ =>
@@ -839,8 +835,7 @@ Proof.
         smtize.
       * contrapositive c1.
         smtize.
-  - simpl.
-    apply BisimulationEnd.
+  - cleanup_step.
   - cleanup_step.
     + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
       * smtize.
@@ -872,7 +867,7 @@ Proof.
         smtize.
       * constructor.
     + rewrite <- app_assoc.
-      apply BisimulationFalseVersusStart; congruence.
+      apply BisimulationFalseVersusStart; assumption.
   Transparent skipn.
 Qed.
 

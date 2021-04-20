@@ -39,11 +39,8 @@ Definition update_memory (f : mem -> mem) (s : state) : state :=
 Definition get_memory (s : state) : mem :=
   let (m, _) := s in m.
 
-Definition name_cons (p: path) (id: ident) : path :=
-  p ++ [id].
-
-Definition ident_to_path (l : Locator) (this : path) : option path :=
-  match l with
+Definition loc_to_path (this : path) (loc : Locator) : option path :=
+  match loc with
   | LGlobal p => Some p
   | LInstance p => Some (this ++ p)
   end.
@@ -69,17 +66,13 @@ Inductive fundef :=
 
 Axiom dummy_fundef : fundef.
 
-Definition genv := path -> option fundef.
-Definition genv_typ := ident -> option (@P4Type tags_t).
+Definition genv := @PathMap.t tags_t fundef.
+Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
+Definition genv_senum := @IdentMap.t tags_t Val.
 
 Variable ge : genv.
 Variable ge_typ : genv_typ.
-
-(* Definition name_to_path (e : env) (this_path : path) (name : @Typed.name tags_t) : option path :=
-  match name with
-  | BareName id => ident_to_path e this_path id
-  | QualifiedName ns id => Some (name_cons ns id)
-  end. *)
+Variable ge_senum : genv_senum.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
@@ -88,8 +81,8 @@ Definition eval_p4int (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit w (P4Int.value n)
   end.
 
-Definition name_to_val (l : Locator) (this : path) (s : state) : option Val :=
-  let p := ident_to_path l this in
+Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
+  let p := loc_to_path this loc in
   match p with
   | Some p' =>
     match PathMap.get p' (get_memory s) with
@@ -101,8 +94,8 @@ Definition name_to_val (l : Locator) (this : path) (s : state) : option Val :=
 
 Definition name_to_type (this : path) (typ : @Typed.name tags_t) : option (@P4Type tags_t) :=
   match typ with
-  | BareName id => ge_typ id
-  | QualifiedName _ id => ge_typ id
+  | BareName id => IdentMap.get id ge_typ
+  | QualifiedName _ id => IdentMap.get id ge_typ
   end.
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
@@ -150,7 +143,7 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
   | exec_expr_name: forall name loc v this st tag typ dir,
-                    name_to_val loc this st = Some v ->
+                    loc_to_val this loc st = Some v ->
                     exec_expr this st
                     (MkExpression tag (ExpName name loc) typ dir)
                     v
@@ -228,13 +221,13 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                                  (MkExpression tag (ExpTypeMember tname member) typ dir)
                                  (ValBaseEnumField ename member)
   (* We need rethink about how to handle senum lookup. *)
-  (* | exec_expr_type_member_senum : forall tname member ename etyp members fields v this st tag typ dir,
+  | exec_expr_type_member_senum : forall tname member ename etyp members fields v this st tag typ dir,
                                   name_to_type this tname = Some (TypEnum ename (Some etyp) members) ->
-                                  name_to_val this st tname = Some (ValBaseSenum fields) ->
+                                  IdentMap.get ename ge_senum = Some (ValBaseSenum fields) ->
                                   AList.get fields member = Some v ->
                                   exec_expr this st
                                   (MkExpression tag (ExpTypeMember tname member) typ dir)
-                                  (ValBaseSenumField ename member v) *)
+                                  (ValBaseSenumField ename member v)
   | exec_expr_error_member : forall err this st tag typ dir,
                              exec_expr this st
                              (MkExpression tag (ExpErrorMember err) typ dir)
@@ -473,10 +466,10 @@ Definition extract_outlvals (args : list argument) : list Lval :=
   flat_map f args.
 
 Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
-  | exec_lvalue_expr_name : forall name l this st tag typ dir,
+  | exec_lvalue_expr_name : forall name loc this st tag typ dir,
                             exec_lvalue_expr this st 
-                            (MkExpression tag (ExpName name l) typ dir)
-                            (MkValueLvalue (ValLeftName name l) typ)
+                            (MkExpression tag (ExpName name loc) typ dir)
+                            (MkValueLvalue (ValLeftName name loc) typ)
   | exec_lvalue_expr_member : forall expr lv name this st tag typ dir,
                               exec_lvalue_expr this st expr lv ->
                               exec_lvalue_expr this st 
@@ -507,8 +500,8 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLva
                                         (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                         lv.
 
-Definition update_val_by_name (this : path) (s : state) (loc : Locator) (v : Val): option state :=
-  let p := ident_to_path loc this in
+Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): option state :=
+  let p := loc_to_path this loc in
   match p with
   | Some p' => Some (update_memory (PathMap.set p' v) s)
   | _ => None
@@ -516,8 +509,8 @@ Definition update_val_by_name (this : path) (s : state) (loc : Locator) (v : Val
 
 Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
   match lhs with
-  | MkValueLvalue (ValLeftName name l) _ =>
-    let opt_st := update_val_by_name this st l rhs in
+  | MkValueLvalue (ValLeftName name loc) _ =>
+    let opt_st := update_val_by_loc this st loc rhs in
       match opt_st with 
       | Some st' => Some (st', SContinue)
       | _ => None
@@ -792,6 +785,8 @@ Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :
   | Program decls =>
       instantiate_global_decls decls PathMap.empty extern_empty
   end.
+
+(* TODO generate other components of ge. *)
 
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with

@@ -125,8 +125,10 @@ Section Transformer.
       let (l1, e1) := l1e1 in
       let (l2, e2) := l2e2 in
       let (l3, e3) := l3e3 in
+      (* Qinshi: This is incorrect. l2/l3 is only evaluated when the boolean is true/false. *)
       (l1 ++ l2 ++ l3, MkExpression tag (ExpTernary e1 e2 e3) typ dir, n3)
     | ExpFunctionCall func type_args args =>
+      (* There are evaluation order issues here, also in bin_op, List, Record, etc. *)
       let (l1e1, n1) :=
           ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
               (list (P4String * (@Expression tags_t)) *
@@ -147,9 +149,7 @@ Section Transformer.
                MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
        MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ dir, add1 n1)
     | ExpNamelessInstantiation typ' args =>
-      ([(N_to_tempvar nameIdx,
-               MkExpression tag (ExpNamelessInstantiation typ' args) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar nameIdx)) NoLocator) typ dir, add1 nameIdx)
+      (nil, MkExpression tag (ExpNamelessInstantiation typ' args) typ dir, nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
     | ExpMask expr mask =>
       let (l1e1, n1) := transform_exp nameIdx expr in
@@ -190,8 +190,6 @@ Section Transformer.
     match ne with
     | (name, MkExpression tag expr typ' dir) =>
       match expr with
-      | ExpNamelessInstantiation typ'' e1 =>
-        MkStatement tags (StatInstantiation typ'' e1 name None) typ
       | _ => MkStatement tags
                          (StatVariable typ' name
                                        (Some (MkExpression tag expr typ' dir)) NoLocator) typ
@@ -323,8 +321,6 @@ Section Transformer.
     match ne with
     | (name, MkExpression tags expr typ dir) =>
       match expr with
-      | ExpNamelessInstantiation typ' args =>
-        DeclInstantiation tags  typ' args name None
       | _ => DeclVariable default_tag typ name (Some (MkExpression tags expr typ dir))
       end
     end.
@@ -493,6 +489,7 @@ Section Transformer.
       ([DeclAction tags name data_params ctrl_params blk], n1)
     | DeclTable tags name key actions entries default_action size
                 custom_properties =>
+      (* Qinshi: Side effect in keys cannot be pulled out into declarations. Keys are evaluated when applying the table. *)
       let (l1e1, n1) := transform_list transform_tblkey nameIdx key in
       let (l1, e1) := l1e1 in
       let (l2e2, n2) := transform_list transform_tar n1 actions in

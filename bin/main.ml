@@ -178,7 +178,15 @@ let switch_command =
      +> flag "-i" (listed string) ~doc: "Specify the names by which the ports will be identified"
      +> anon ("p4file" %: string))
     (fun verbose include_dir target pts p4_file () ->
-	 start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
+       let _ = Runtime.listen () in
+       start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
+
+let runtime_command = 
+  let open Command.Spec in
+  Command.basic_spec 
+    ~summary: "Set up a dummy runtime server for testing"
+    (empty)
+    (fun () -> Runtime.listen () |> Lwt_main.run)
 
 let command =
   Command.group
@@ -187,6 +195,8 @@ let command =
       "typecheck", check_command;
       "run", eval_command;
       "stf", stf_command;
-      "switch", switch_command; ]
+      "switch", switch_command;
+      "runtime", runtime_command; 
+    ]
 
 let () = Command.run ~version: "0.1.2" command

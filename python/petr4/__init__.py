@@ -48,6 +48,7 @@ class App(object):
 
         try:
             response = response_future.result()
+            print(f"GOT VERSION { response.body }")
             self.__poll_event()
             self.connected()
         except httpclient.HTTPError as e:

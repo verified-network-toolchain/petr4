@@ -205,7 +205,7 @@ Instance StrEqDec : EqDec string eq := {
 
 (* first we parse a simple language: 11000 *)
 Module SimpleParser.
-  Inductive states := 
+  Inductive states :=
   | one
   | zero.
 
@@ -215,27 +215,27 @@ Module SimpleParser.
     equiv_dec := states_eq_dec;
   }.
 
-  Definition size' (s: states) := 
-    match s with 
+  Definition size' (s: states) :=
+    match s with
     | one => 2
     | zero => 3
     end.
-  
 
-  Definition simple_auto : p4automaton := {| 
+
+  Definition simple_auto : p4automaton := {|
     size := size';
     update := fun s bs (v: unit) => v ;
-    transitions := fun s v => 
-      match s with 
+    transitions := fun s v =>
+      match s with
       | one => inl zero
       | zero => inr true
       end
   |}.
 
-  Definition simple_config : configuration simple_auto := 
+  Definition simple_config : configuration simple_auto :=
     (inl one, tt, nil).
 End SimpleParser.
-  
+
 
 Module BabyIPv1.
   Inductive states :=
@@ -300,22 +300,22 @@ Module BabyIPv1.
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      let fields := 
-        mkEntry "src" (to_val 8 (slice 0 8 bs)) :: 
-        mkEntry "dst" (to_val 8 (slice 8 16 bs)) :: 
+      let fields :=
+        mkEntry "src" (to_val 8 (slice 0 8 bs)) ::
+        mkEntry "dst" (to_val 8 (slice 8 16 bs)) ::
         mkEntry "proto" (to_val 4 (slice 16 20 bs)) :: nil in
       st <| store_ip_hdr := ValBaseHeader fields true |>
     | parse_udp =>
-      let fields := 
-        mkEntry "sport" (to_val 8 (slice 0 8 bs)) :: 
-        mkEntry "dport" (to_val 8 (slice 8 16 bs)) :: 
+      let fields :=
+        mkEntry "sport" (to_val 8 (slice 0 8 bs)) ::
+        mkEntry "dport" (to_val 8 (slice 8 16 bs)) ::
         mkEntry "flags" (to_val 4 (slice 16 20 bs)) :: nil in
       st <| store_u_or_t_hdr := inl (ValBaseHeader fields true) |>
     | parse_tcp =>
-      let fields := 
-        mkEntry "sport" (to_val 8 (slice 0 8 bs)) :: 
-        mkEntry "dport" (to_val 8 (slice 8 16 bs)) :: 
-        mkEntry "flags" (to_val 4 (slice 16 20 bs)) :: 
+      let fields :=
+        mkEntry "sport" (to_val 8 (slice 0 8 bs)) ::
+        mkEntry "dport" (to_val 8 (slice 8 16 bs)) ::
+        mkEntry "flags" (to_val 4 (slice 16 20 bs)) ::
         mkEntry "seq" (to_val 8 (slice 20 28 bs)) :: nil in
       st <| store_u_or_t_hdr := inr (ValBaseHeader fields true) |>
     end
@@ -324,9 +324,9 @@ Module BabyIPv1.
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match st.(store_ip_hdr) with 
+      match st.(store_ip_hdr) with
       | ValBaseHeader fields true =>
-        match AList.get fields (mkField "proto") with 
+        match AList.get fields (mkField "proto") with
         | Some (ValBaseBit 4 1) => inl parse_udp
         | Some (ValBaseBit 4 0) => inl parse_tcp
         | _ => inr false
@@ -351,24 +351,24 @@ Module BabyIPv1.
   Instance etaSwitchState : Settable _ := settable! mkSwitchState <egress_spec >.
 
   Definition v1_control (s: store') (state: SwitchState) : SwitchState :=
-    match s.(store_u_or_t_hdr) with 
+    match s.(store_u_or_t_hdr) with
     | inl (ValBaseHeader _ true) => state <| egress_spec := ValBaseBit 8 0 |>
     | _ => state <| egress_spec := ValBaseBit 8 1 |>
     end.
 
-  Definition init_config: configuration v1_parser := 
-    let blank_store := {| store_ip_hdr := ValBaseHeader nil false; store_u_or_t_hdr := inl (ValBaseHeader nil false) |} in 
+  Definition init_config: configuration v1_parser :=
+    let blank_store := {| store_ip_hdr := ValBaseHeader nil false; store_u_or_t_hdr := inl (ValBaseHeader nil false) |} in
     (inl start, blank_store, nil).
 
   Definition v1_program (pkt: list bool) (state: SwitchState) : SwitchState :=
-    let '(_, final_store, _) := follow init_config pkt in 
+    let '(_, final_store, _) := follow init_config pkt in
     v1_control final_store state.
 
-  Definition repr_tcp (bs: list bool) : Prop := 
+  Definition repr_tcp (bs: list bool) : Prop :=
     List.length bs = 48 /\ (to_nat (slice 16 20 bs) = 1).
 
-  Lemma baby_ip_corr : 
-    forall pkt st st', 
+  Lemma baby_ip_corr :
+    forall pkt st st',
       repr_tcp pkt ->
       st' = v1_program pkt st ->
         accepted init_config pkt /\
@@ -434,18 +434,17 @@ Module BabyIPv2.
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      let fields := 
-        mkEntry "src" (to_val 8 (slice 0 8 bs)) :: 
-        mkEntry "dst" (to_val 8 (slice 8 16 bs)) :: 
-        mkEntry "proto" (to_val 4 (slice 16 20 bs)) :: 
-        mkEntry "sport" (to_val 8 (slice 20 28 bs)) :: 
-        mkEntry "dport" (to_val 8 (slice 28 36 bs)) :: 
-        mkEntry "flags" (to_val 4 (slice 36 40 bs)) :: nil in 
-    
+      let fields :=
+        mkEntry "src" (to_val 8 (slice 0 8 bs)) ::
+        mkEntry "dst" (to_val 8 (slice 8 16 bs)) ::
+        mkEntry "proto" (to_val 4 (slice 16 20 bs)) ::
+        mkEntry "sport" (to_val 8 (slice 20 28 bs)) ::
+        mkEntry "dport" (to_val 8 (slice 28 36 bs)) ::
+        mkEntry "flags" (to_val 4 (slice 36 40 bs)) :: nil in
         st <| store_combined_hdr := ValBaseHeader fields true |>
     | parse_tcp =>
-      let fields := 
-        mkEntry "seq" (to_val 8 (slice 0 8 bs)) :: nil in 
+      let fields :=
+        mkEntry "seq" (to_val 8 (slice 0 8 bs)) :: nil in
         st <| store_optional_hdr := ValBaseHeader fields true |>
     end
   .
@@ -453,9 +452,9 @@ Module BabyIPv2.
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      match st.(store_combined_hdr) with 
-      | ValBaseHeader fields true => 
-        match AList.get fields (mkField "proto") with 
+      match st.(store_combined_hdr) with
+      | ValBaseHeader fields true =>
+        match AList.get fields (mkField "proto") with
         | Some (ValBaseBit 4 1) => inr true
         | Some (ValBaseBit 4 0) => inl parse_tcp
         | _ => inr false
@@ -474,7 +473,7 @@ Module BabyIPv2.
 
 End BabyIPv2.
 
-(* Inductive candidate:
+Inductive candidate:
   configuration BabyIPv1.v1_parser ->
   configuration BabyIPv2.v2_parser ->
   Prop
@@ -493,8 +492,9 @@ End BabyIPv2.
         (inr b, st2, buf2)
 
 | BisimulationTCPVersusIP:
-    forall st1 buf1 st2 buf2,
-      st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 0 ->
+    forall st1 ip_hdr buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0) ->
       to_nat (slice 16 20 buf2) = 0 ->
       List.length buf2 = 20 ->
       List.length buf1 < 20 ->
@@ -510,8 +510,9 @@ End BabyIPv2.
         (inl BabyIPv2.parse_tcp, st2, buf2)
 
 | BisimulationUDPVersusIP:
-    forall st1 buf1 st2 buf2,
-      st1.(BabyIPv1.store_ip_hdr).(BabyIPv1.ip_proto) = 1 ->
+    forall st1 ip_hdr buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1) ->
       to_nat (slice 16 20 buf2) = 1 ->
       List.length buf2 = 20 ->
       List.length buf1 < 20 ->
@@ -783,7 +784,34 @@ Ltac contrapositive H :=
   intro; apply H
 .
 
+Lemma to_bits_vs_pos_to_nat_true n p:
+  to_bits (S n) (Pos.to_nat p~1) = true :: to_bits n (Pos.to_nat p)
+.
+Proof.
+Admitted.
+
+Lemma to_bits_vs_pos_to_nat_false n p:
+  to_bits (S n) (Pos.to_nat p~0) = false :: to_bits n (Pos.to_nat p)
+.
+Proof.
+Admitted.
+
+Lemma to_bits_vs_pos_to_nat_plain p n:
+  to_bits (S n) (Pos.to_nat p) = true :: repeat false n
+.
+Proof.
+Admitted.
+
+Ltac is_num_literal t :=
+  match t with
+  | 0 => idtac
+  | S ?t' =>
+    is_num_literal t'
+  end
+.
+
 Ltac smtize :=
+  try assumption;
   (* Simplify mostly header projections first. *)
   simpl;
   (* Simplify (in)equalities to props. *)
@@ -796,11 +824,27 @@ Ltac smtize :=
   repeat (
     simpl_length;
     match goal with
+    | |- ValBaseHeader _ _ = ValBaseHeader _ _ =>
+      f_equal
+    | |- get _ (mkField _) = _ =>
+      unfold get; simpl; f_equal
+    | |- to_val ?s _ = ValBaseBit ?s _ =>
+      unfold to_val; f_equal
+    | H: Z.of_nat _ = _ |- _ =>
+      apply (f_equal Z.abs_nat) in H;
+      simpl in H;
+      rewrite Zabs2Nat.id in H
     | H: to_nat _ = _ |- _ =>
       apply to_nat_versus_to_bits in H
     | |- to_nat ?l = _ =>
       apply to_bits_versus_to_nat with (s := Datatypes.length l)
-    | H: context [ to_bits _ _ ] |- _ =>
+    | H: context [ to_bits (S ?n) (Pos.to_nat ?p~1) ] |- _ =>
+      rewrite to_bits_vs_pos_to_nat_true in H
+    | H: context [ to_bits (S ?n) (Pos.to_nat ?p~0) ] |- _ =>
+      rewrite to_bits_vs_pos_to_nat_false in H
+    | H: context [ to_bits ?s ?n ] |- _ =>
+      is_num_literal s;
+      is_num_literal n;
       simpl to_bits in H
     | |- context [ to_bits _ _ ] =>
       simpl to_bits
@@ -861,36 +905,63 @@ Proof.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
   - cleanup_step.
-    destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
-    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationUDPVersusIP; smtize.
+    destruct (Z.of_nat _) eqn:?; [|destruct p|].
     + rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationTCPVersusIP; smtize.
+      eapply BisimulationTCPVersusIP; smtize.
+    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
+      apply BisimulationFalseVersusStart; smtize.
+    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
+      apply BisimulationFalseVersusStart; smtize.
+    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
+      eapply BisimulationUDPVersusIP; smtize.
     + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
       apply BisimulationFalseVersusStart; smtize.
   - cleanup_step.
   - cleanup_step.
-    + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
-      * smtize.
+    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
       * rewrite <- app_nil_r with (l := buf1 ++ b :: nil) at 1.
         apply BisimulationTCPVersusTCP; smtize.
-      * contradiction c1; smtize.
+      * smtize.
+      * smtize.
+        destruct p0; smtize.
+        destruct p0; smtize.
+        rewrite to_bits_vs_pos_to_nat_plain in H17.
+        smtize.
+        unfold Pos.to_nat in H15.
+        unfold Pos.iter_op in H15.
+        simpl to_bits in H15.
+        smtize.
+        rewrite to_bits_vs_pos_to_nat_plain in H5.
+        smtize.
+      * smtize.
+        rewrite to_bits_vs_pos_to_nat_plain in Heqz.
+        smtize.
+      * smtize.
     + rewrite <- app_assoc.
-      apply BisimulationTCPVersusIP; smtize.
+      apply BisimulationTCPVersusIP with (ip_hdr := ip_hdr); smtize.
   - cleanup_step.
     rewrite <- app_assoc.
     now apply BisimulationTCPVersusTCP.
   - cleanup_step.
-    + destruct (equiv_dec _ 1); [|destruct (equiv_dec _ 0)].
+    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
+      * smtize.
+      * smtize.
+        rewrite to_bits_vs_pos_to_nat_plain in H5.
+        smtize.
+      * smtize.
       * constructor.
       * smtize.
-      * contradiction c; smtize.
     + rewrite <- app_assoc.
-      apply BisimulationUDPVersusIP; smtize.
+      apply BisimulationUDPVersusIP with (ip_hdr := ip_hdr); smtize.
   - cleanup_step.
-    + destruct (equiv_dec (to_nat _) _); [|destruct (equiv_dec (to_nat _) _)].
-      * contradiction H0; smtize.
+    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
       * contradiction H1; smtize.
+      * constructor.
+      * constructor.
+      * contradiction H0; smtize;
+        rewrite to_bits_vs_pos_to_nat_plain in Heqz;
+        simpl in Heqz;
+        smtize.
       * constructor.
     + rewrite <- app_assoc.
       apply BisimulationFalseVersusStart; assumption.
@@ -914,4 +985,4 @@ Proof.
   - constructor.
     simpl Datatypes.length.
     lia.
-Qed. *)
+Qed.

@@ -35,7 +35,7 @@ control MyC(inout header_t hdrs, out bool forward) {
         actions = { do_forward; do_drop; }
         default_action = do_drop;
         const entries = {
-            0x0: do_drop();
+            0x0: do_forward();
         }
     }
     apply {

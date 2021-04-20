@@ -268,41 +268,65 @@ and get_action_ref (actions : Prog.Table.action_ref list) =
 and get_name (n: P4.name) = 
   match n with 
   | BareName b -> b
-  | _ -> failwith "f"
+  | _ -> failwith "faa"
+
+and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
+  List.map ~f:(get_cond_logic entries) keylist 
 
 and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
   let k = translate_key key in 
   begin match entries with 
     | None -> failwith "n"
     | Some e -> begin match e with 
-        | [] -> failwith "f"
+        | [] -> failwith "af"
         | h::t -> let m = (snd h).matches in
           let equal = begin match m with 
             | [] -> failwith "F"
             | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
-            | _ -> failwith "f"
+            | _ -> failwith "ddf"
           end in 
-          C.CPointer ((C.CString "state"), k ^ "!=" ^ (get_expr_name equal)) 
+          C.CPointer ((C.CString "state"), k ^ "==" ^ (get_expr_name equal)) 
       end 
   end 
 
+and get_entry_methods (entries : Prog.Table.entry list option) =
+  begin match entries with 
+    | None -> failwith "n"
+    | Some e -> 
+      let rec get_entry_methods_internal (lst : Prog.Table.entry list) = match lst with 
+        | [] -> []
+        | h::t -> [((snd h).action)] @ get_entry_methods_internal t  in
+      let l = get_entry_methods_internal e in 
+      get_action_ref l 
+  end 
+
 and translate_table(name, k, actions, entries, default_action, size, custom_properties) = 
-  let k_new = List.hd k in 
-  let k_n = begin match k_new with 
-    | None -> failwith "f" 
-    | Some f -> f end in 
-  let l = get_action_ref actions in 
-  let first = match l with 
+  let l2 = get_action_ref actions in 
+  let l = get_entry_methods entries in 
+  let first = get_first l in 
+  (* last assumes that the last element in the list of actions is the defualt action - TODO = change to default action *)
+  let last = get_first (List.rev l2) in 
+  let cond_logic = get_cond_logic_lst entries k in
+  let first_if = match cond_logic with 
     | h::t -> h
-    | _ -> failwith "mistake" in 
-  let second = match l with 
-    | h::s::t -> s
-    | _ -> failwith "mistake!" in
-  C.CFun 
-    (CVoid, name, [CParam (CTypeName "MyC_state", "*state")], 
-     C.[CIf ((get_cond_logic entries k_n),
-             (CMethodCall ((snd (get_name first)), [C.CString "state"])),
-             (CMethodCall (snd (get_name  second), [C.CString "state"])))])
+    | _ -> failwith "f" in  
+  let state_type_name = "MyC" ^ "_state" in 
+  let state_type = C.(CPtr (CTypeName state_type_name)) in
+  let state_param = C.CParam (state_type, "state") in
+  (* let translated_keys = List.map ~f:translate_key k in  *)
+  C.CFun (C.CVoid, name, [state_param], 
+          C.[CIf 
+               (first_if,
+                method_call_table first,
+                method_call_table last)])
+
+and method_call_table (name : P4.name) = 
+  C.CMethodCall (snd (get_name name), [C.CString "state"])
+
+and get_first (list) = 
+  match list with 
+  | h::t -> h
+  | _ -> failwith "empty"
 
 and translate_parser_locals (locals: Prog.Declaration.t list) : C.cstmt list =
   []

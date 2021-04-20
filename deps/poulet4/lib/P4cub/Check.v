@@ -72,8 +72,7 @@ Module Typecheck.
 
   Import Env.EnvNotations.
 
-  Section TypeCheckDefs.
-
+  Module TypeCheckDefs.
     (** Available strings. *)
     Definition strs : Type := Env.t string unit.
 
@@ -279,17 +278,18 @@ Module Typecheck.
                 end).
     (**[]*)
 
-    (** Appropriate signal. *)
-    Inductive good_signal : E.arrowT -> signal -> Prop :=
-      | good_signal_cont params :
-          good_signal (P.Arrow params None) SIG_Cont
-      | good_signal_return params ret :
-          good_signal (P.Arrow params (Some ret)) SIG_Return.
-    (**[]*)
-
     (** Valid parser states. *)
     Definition states : Type := strs.
   End TypeCheckDefs.
+  Export TypeCheckDefs.
+
+  (** Appropriate signal. *)
+  Inductive good_signal : E.arrowT -> signal -> Prop :=
+  | good_signal_cont params :
+      good_signal (P.Arrow params None) SIG_Cont
+  | good_signal_return params ret :
+      good_signal (P.Arrow params (Some ret)) SIG_Return.
+  (**[]*)
 
   Notation "x" := x (in custom p4context at level 0, x constr at level 0).
   Notation "'Action' aa eis"
@@ -661,6 +661,17 @@ Module Typecheck.
      (**[]*)
   End CheckExprInduction.
 
+  (** (Syntactic) Evidence an expression may be an lvalue. *)
+  Inductive lvalue_ok {tags_t : Type} : E.e tags_t -> Prop :=
+  | lvalue_var x τ i : lvalue_ok <{ Var x:τ @ i }>
+  | lvalue_member e τ x i :
+      lvalue_ok e ->
+      lvalue_ok <{ Mem e:τ dot x @ i }>
+  | lvalue_access e idx i :
+      lvalue_ok e ->
+      lvalue_ok <{ Access e[idx] @ i }>.
+  (**[]*)
+
   (** Statement typing. *)
   Inductive check_stmt
             {tags_t : Type} (fns : fenv) (errs : errors) (Γ : gamma)
@@ -675,6 +686,7 @@ Module Typecheck.
   | chk_vardecl (τ : E.t) (x : string) (i : tags_t) (con : ctx) :
       ⦃ fns, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
   | chk_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :
+      lvalue_ok e1 ->
       ⟦ errs, Γ ⟧ ⊢ e1 ∈ τ ->
       ⟦ errs, Γ ⟧ ⊢ e2 ∈ τ ->
       ⦃ fns, errs, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
@@ -711,8 +723,9 @@ Module Typecheck.
       action_call_ok aa con ->
       aa a = Some params ->
       F.relfs
-        (P.rel_paramarg_same
-           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        (P.rel_paramarg
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       ⦃ fns, errs, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_fun_call (τ : E.t) (e : E.e tags_t)
@@ -721,8 +734,9 @@ Module Typecheck.
                  (f : string) (i : tags_t) (con : ctx) :
       fns f = Some (P.Arrow params (Some τ)) ->
       F.relfs
-        (P.rel_paramarg_same
-           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        (P.rel_paramarg
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       ⦃ fns, errs, Γ ⦄
@@ -732,8 +746,9 @@ Module Typecheck.
               (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
       cis x = Some params ->
       F.relfs
-        (P.rel_paramarg_same
-           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        (P.rel_paramarg
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_invoke (tbl : string) (i : tags_t) (tbls : tblenv)
@@ -748,8 +763,9 @@ Module Typecheck.
       F.get f mhds = Some (P.Arrow params None) ->
       extern_call_ok eis con ->
       F.relfs
-        (P.rel_paramarg_same
-           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        (P.rel_paramarg
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       ⦃ fns, errs, Γ ⦄
       con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
@@ -762,8 +778,9 @@ Module Typecheck.
       F.get f mhds = Some (P.Arrow params (Some τ)) ->
       extern_call_ok eis con ->
       F.relfs
-        (P.rel_paramarg_same
-           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
+        (P.rel_paramarg
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
+           (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       let result := Some (τ,e) in
       ⦃ fns, errs, Γ ⦄

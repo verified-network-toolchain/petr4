@@ -6,6 +6,7 @@ Require Import Coq.micromega.Lia.
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.P4cub.AST.
 Require Import Poulet4.P4cub.Envn.
+Require Poulet4.P4cub.Check.
 
 Import Poulet4.P4cub.AST.P4cub.P4cubNotations.
 
@@ -389,11 +390,14 @@ End ValueUtil.
 Module ValueTyping.
   Import E.ProperType.
   Import ValueNotations.
-
-  Definition errors : Type := Env.t string unit.
+  Import LValueNotations.
+  Import Check.Typecheck.TypeCheckDefs.
 
   Reserved Notation "∇ errs ⊢ v ∈ τ"
            (at level 40, v custom p4value, τ custom p4type).
+
+  Reserved Notation "'LL' Γ ⊢ lval ∈ τ"
+           (at level 40, lval custom p4lvalue, τ custom p4type).
 
   Inductive type_value (errs : errors) : v -> E.t -> Prop :=
   | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
@@ -560,7 +564,30 @@ Module ValueTyping.
             end.
   End ValueTypingInduction.
 
+  Inductive type_lvalue (Γ : gamma) : lv -> E.t -> Prop :=
+  | typ_var (x : string) (τ : E.t) :
+      Γ x = Some τ ->
+      LL Γ ⊢ VAR x ∈ τ
+  | typ_member (lval : lv) (x : string) (τ τ' : E.t) (ts : F.fs string E.t) :
+      F.get x ts = Some τ' ->
+      member_type ts τ ->
+      LL Γ ⊢ lval ∈ τ ->
+      LL Γ ⊢ lval DOT x ∈ τ'
+  | typ_access (lval : lv) (idx : Z)
+               (n : positive) (ts : F.fs string E.t) :
+      (0 <= idx < Zpos n)%Z ->
+      LL Γ ⊢ lval ∈ stack ts[n] ->
+      LL Γ ⊢ lval[idx] ∈ hdr { ts }
+  where "'LL' Γ ⊢ lval ∈ τ" := (type_lvalue Γ lval τ).
+
   Import F.FieldTactics.
+
+  Local Hint Resolve BitArith.bound0 : core.
+  Local Hint Resolve IntArith.bound0 : core.
+  Local Hint Resolve proper_inside_header_nesting : core.
+  Local Hint Constructors type_value : core.
+  Local Hint Constructors proper_nesting : core.
+  Hint Rewrite repeat_length.
 
   Lemma vdefault_types :
     forall (errs : errors) (τ : E.t),
@@ -568,12 +595,6 @@ Module ValueTyping.
       let val := vdefault τ in
       ∇ errs ⊢ val ∈ τ.
   Proof.
-    Local Hint Resolve BitArith.bound0 : core.
-    Local Hint Resolve IntArith.bound0 : core.
-    Local Hint Resolve proper_inside_header_nesting : core.
-    Local Hint Constructors type_value : core.
-    Local Hint Constructors proper_nesting : core.
-    Hint Rewrite repeat_length.
     intros errs τ HPN; simpl.
     induction τ using E.custom_t_ind; simpl; constructor;
     try invert_proper_nesting;

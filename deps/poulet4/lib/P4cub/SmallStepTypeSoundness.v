@@ -158,12 +158,12 @@ Section Theorems.
     Local Hint Constructors PT.proper_nesting : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
-        ℵ ϵ ** e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+        ℵ ϵ, e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
       match goal with
-      | H: ℵ ϵ ** _ -->  _ |- _ => induction H; intros
+      | H: ℵ ϵ, _ -->  _ |- _ => induction H; intros
       end; try invert_expr_check; unravel in *; try subst w';
       repeat assert_canonical_forms; unravel in *;
       try match goal with
@@ -196,11 +196,11 @@ Section Theorems.
 
     Ltac progress_simpl :=
       match goal with
-      | H: value _ \/ (exists _, ℵ ϵ ** _ -->  _)
+      | H: value _ \/ (exists _, ℵ ϵ, _ -->  _)
         |- _ => destruct H as [? | ?]
-      | H: exists _, ℵ ϵ ** _ -->  _ |- _ => destruct H as [? ?]
+      | H: exists _, ℵ ϵ, _ -->  _ |- _ => destruct H as [? ?]
       | |- _ => assert_canonical_forms
-      | IH: (?P -> ?Q -> value _ \/ exists _, ℵ ϵ ** _ -->  _),
+      | IH: (?P -> ?Q -> value _ \/ exists _, ℵ ϵ, _ -->  _),
             HP: ?P, HQ: ?Q |- _ => pose proof IH HP HQ as [? | ?]; clear IH
       end.
     (**[]*)
@@ -209,7 +209,7 @@ Section Theorems.
     Local Hint Constructors expr_step : core.
 
     Theorem expr_small_step_progress : forall e τ,
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ ** e -->  e'.
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
     Proof.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.

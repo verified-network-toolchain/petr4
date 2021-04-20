@@ -5,8 +5,10 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
 
-Reserved Notation "'ℵ' env '**' e1 '-->' e2"
+Reserved Notation "'ℵ' env , e1 '-->' e2"
          (at level 40, e1 custom p4expr, e2 custom p4expr).
+
+Reserved Notation "'ℶ' ctrl , tables , actions , functions , instances , ϵ1 , s1 '-->' s2 , ϵ2 , signal" (at level 40, s1 custom p4stmt, s2 custom p4stmt, ϵ2 custom p4env).
 
 (** * Small-Step Values *)
 Module IsValue.
@@ -119,6 +121,7 @@ End IsValue.
 Module Step.
   Module P := P4cub.
   Module E := P.Expr.
+  Module S := P.Stmt.
   Module F := P.F.
   Module PT := E.ProperType.
 
@@ -646,114 +649,114 @@ Module Step.
   | step_var (x : string) (τ : E.t)
              (i : tags_t) (e : E.e tags_t) :
       ϵ x = Some e ->
-      ℵ ϵ ** Var x:τ @ i -->  e
+      ℵ ϵ, Var x:τ @ i -->  e
   | step_slice (e e' : E.e tags_t) (τ : E.t)
                (hi lo : positive) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
   | step_slice_eval (v v' : E.e tags_t) (τ : E.t)
                     (hi lo : positive) (i : tags_t) :
       eval_slice hi lo v = Some v' ->
       V.value v ->
-      ℵ ϵ ** Slice v:τ [hi:lo] @ i -->  v'
+      ℵ ϵ, Slice v:τ [hi:lo] @ i -->  v'
   | step_cast (τ : E.t) (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** Cast e:τ @ i -->  Cast e':τ @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, Cast e:τ @ i -->  Cast e':τ @ i
   | step_cast_eval (τ : E.t) (v v' : E.e tags_t) (i : tags_t) :
       eval_cast τ v = Some v' ->
       V.value v ->
-      ℵ ϵ ** Cast v:τ @ i -->  v'
+      ℵ ϵ, Cast v:τ @ i -->  v'
   | step_uop (op : E.uop) (τ : E.t)
              (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** UOP op e:τ @ i -->  UOP op e':τ @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, UOP op e:τ @ i -->  UOP op e':τ @ i
   | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
       eval_uop op v = Some v' ->
       V.value v ->
-      ℵ ϵ ** UOP op v:τ @ i -->  v'
+      ℵ ϵ, UOP op v:τ @ i -->  v'
   | step_bop_l (op : E.bop) (τl τr : E.t)
                (el el' er : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** el -->  el' ->
-      ℵ ϵ ** BOP el:τl op er:τr @ i -->  BOP el':τl op er:τr @ i
+      ℵ ϵ, el -->  el' ->
+      ℵ ϵ, BOP el:τl op er:τr @ i -->  BOP el':τl op er:τr @ i
   | step_bop_r (op : E.bop) (τl τr : E.t)
                (vl er er' : E.e tags_t) (i : tags_t) :
       V.value vl ->
-      ℵ ϵ ** er -->  er' ->
-      ℵ ϵ ** BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
+      ℵ ϵ, er -->  er' ->
+      ℵ ϵ, BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
   | step_bop_eval (op : E.bop) (τl τr : E.t)
                   (vv vl vr : E.e tags_t) (i : tags_t) :
       eval_bop op vl vr i = Some vv ->
       V.value vl -> V.value vr ->
-      ℵ ϵ ** BOP vl:τl op vr:τr @ i -->  vv
+      ℵ ϵ, BOP vl:τl op vr:τr @ i -->  vv
   | step_member (x : string) (τ : E.t)
                 (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
   | step_member_eval (x : string) (τ : E.t)
                      (v v' : E.e tags_t) (i : tags_t) :
       eval_member x v = Some v' ->
       V.value v ->
-      ℵ ϵ ** Mem v:τ dot x @ i -->  v'
+      ℵ ϵ, Mem v:τ dot x @ i -->  v'
   | step_header_op (op : E.hdr_op) (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** HDR_OP op e @ i -->  HDR_OP op e' @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, HDR_OP op e @ i -->  HDR_OP op e' @ i
   | step_header_op_eval (op : E.hdr_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
       map_option (header_data v) (uncurry4 # eval_hdr_op op) = Some v' ->
-      ℵ ϵ ** HDR_OP op v @ i -->  v'
+      ℵ ϵ, HDR_OP op v @ i -->  v'
   | step_stack_op (op : E.hdr_stk_op) (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** STK_OP op e @ i -->  STK_OP op e' @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, STK_OP op e @ i -->  STK_OP op e' @ i
   | step_stack_op_eval (op : E.hdr_stk_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
       bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->
-      ℵ ϵ ** STK_OP op v @ i -->  v'
+      ℵ ϵ, STK_OP op v @ i -->  v'
   | step_stack_access (e e' : E.e tags_t) (n : Z) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** Access e[n] @ i -->  Access e'[n] @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, Access e[n] @ i -->  Access e'[n] @ i
   | step_stack_access_eval (v v' : E.e tags_t) (n : Z) (i : tags_t) :
       bind_option
         (map_option (header_stack_data v) fourple_4)
         (fun hs => nth_error hs (Z.to_nat n)) = Some v' ->
       V.value v ->
-      ℵ ϵ ** Access v[n] @ i -->  v'
+      ℵ ϵ, Access v[n] @ i -->  v'
   | step_tuple (prefix suffix : list (E.e tags_t))
                (e e' : E.e tags_t) (i : tags_t) :
       Forall V.value prefix ->
-      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ, e -->  e' ->
       let es := prefix ++ e :: suffix in
       let es' := prefix ++ e' :: suffix in
-      ℵ ϵ ** tup es @ i -->  tup es' @ i
+      ℵ ϵ, tup es @ i -->  tup es' @ i
   | step_record (prefix suffix : F.fs string (E.t * E.e tags_t))
                 (x : string) (τ : E.t)
                 (e e' : E.e tags_t) (i : tags_t) :
       F.predfs_data (V.value ∘ snd) prefix ->
-      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ, e -->  e' ->
       let fs := prefix ++ (x,(τ,e)) :: suffix in
       let fs' := prefix ++ (x,(τ,e')) :: suffix in
-      ℵ ϵ ** rec { fs } @ i -->  rec { fs' } @ i
+      ℵ ϵ, rec { fs } @ i -->  rec { fs' } @ i
   | step_header (prefix suffix : F.fs string (E.t * E.e tags_t))
                 (x : string) (τ : E.t)
                 (b e e' : E.e tags_t) (i : tags_t) :
       V.value b ->
       F.predfs_data (V.value ∘ snd) prefix ->
-      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ, e -->  e' ->
       let fs := prefix ++ (x,(τ,e)) :: suffix in
       let fs' := prefix ++ (x,(τ,e')) :: suffix in
-      ℵ ϵ ** hdr { fs } valid:=b @ i -->  hdr { fs' } valid:=b @ i
+      ℵ ϵ, hdr { fs } valid:=b @ i -->  hdr { fs' } valid:=b @ i
   | step_header_valid (fs : F.fs string (E.t * E.e tags_t))
                       (e e' : E.e tags_t) (i : tags_t) :
-      ℵ ϵ ** e -->  e' ->
-      ℵ ϵ ** hdr { fs } valid:=e @ i -->  hdr { fs } valid:=e' @ i
+      ℵ ϵ, e -->  e' ->
+      ℵ ϵ, hdr { fs } valid:=e @ i -->  hdr { fs } valid:=e' @ i
   | step_header_stack (ts : F.fs string (E.t))
                       (prefix suffix : list (E.e tags_t))
                       (e e' : E.e tags_t) (size : positive)
                       (ni : Z) :
       Forall V.value prefix ->
-      ℵ ϵ ** e -->  e' ->
+      ℵ ϵ, e -->  e' ->
       let hs := prefix ++ e :: suffix in
       let hs' := prefix ++ e' :: suffix in
-      ℵ ϵ ** Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
-  where "'ℵ' ϵ '**' e1 '-->' e2" := (expr_step ϵ e1 e2).
+      ℵ ϵ, Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
+  where "'ℵ' ϵ , e1 '-->' e2" := (expr_step ϵ e1 e2).
 End Step.

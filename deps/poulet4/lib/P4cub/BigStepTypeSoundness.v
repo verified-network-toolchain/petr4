@@ -11,6 +11,7 @@ Import P.P4cubNotations.
 Import Step.
 Import Typecheck.
 Import V.ValueNotations.
+Import V.LValueNotations.
 Import V.ValueTyping.
 Import F.FieldTactics.
 Import E.ProperType.
@@ -34,7 +35,7 @@ Section BigStepTheorems.
 
   Context {tags_t : Type}.
 
-  Section Preservation.
+  Section ExprPreservation.
     Local Hint Resolve eval_slice_types : core.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_type : core.
@@ -84,9 +85,9 @@ Section BigStepTheorems.
       - eapply Forall_nth_error in H12; simpl in *; eauto 1.
         simpl in *; inv H12; auto.
     Qed.
-  End Preservation.
+  End ExprPreservation.
 
-  Section Progress.
+  Section ExprProgress.
     Local Hint Constructors expr_big_step : core.
 
     Theorem expr_big_step_progress :
@@ -95,14 +96,7 @@ Section BigStepTheorems.
         envs_sound Γ ϵ errs ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
-    Proof. (*
-    Hint Resolve eval_uop_exist : core.
-    Hint Resolve eval_bop_exists : core.
-    Hint Resolve eval_cast_exists : core.
-    Hint Resolve eval_stk_op_exists : core.
-    Hint Resolve eval_member_exists : core.
-    Hint Resolve expr_big_step_preservation : core.
-     *)
+    Proof.
       intros errs Γ τ e ϵ [Htyp Hsub] Ht;
       unfold envs_subset, envs_type in *;
       induction Ht using custom_check_expr_ind;
@@ -166,5 +160,33 @@ Section BigStepTheorems.
         pose proof eval_stk_op_exists
              _ op _ _ _ _ H4 H5 H6 H8 H9 as [? ?]; eauto 3.
     Qed.
-  End Progress.
+  End ExprProgress.
+
+  Section LVPreservation.
+    Local Hint Constructors type_lvalue : core.
+
+    Theorem lvalue_preservation : forall errs Γ (e : E.e tags_t) lv τ,
+        ⧠ e ⇓ lv -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> LL Γ ⊢ lv ∈ τ.
+    Proof.
+      intros errs Γ e lv τ Hlv; generalize dependent τ;
+      induction Hlv; intros t Ht; inv Ht; eauto 3.
+    Qed.
+  End LVPreservation.
+
+  Section LVProgress.
+    Local Hint Constructors lvalue_big_step : core.
+
+    Theorem lvalue_progress : forall errs Γ (e : E.e tags_t) τ,
+        lvalue_ok e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
+    Proof.
+      intros errs Γ e τ Hlv; generalize dependent τ;
+      induction Hlv; intros t Ht; inv Ht;
+      repeat match goal with
+             | H: member_type _ _ |- _ => inv H
+             | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
+               H: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+               |- _ => apply IH in H as [? ?]
+             end; eauto 3.
+    Qed.
+  End LVProgress.
 End BigStepTheorems.

@@ -187,7 +187,7 @@ Qed.
 
 End P4Automaton.
 
-Definition toBits (w: nat) (bs: list bool) : @ValueBase Info :=
+Definition to_val (w: nat) (bs: list bool) : @ValueBase Info :=
   let v := to_nat bs in
   ValBaseBit w (Z.of_nat v).
 
@@ -202,6 +202,40 @@ Definition slice {A} to from (l: list A) := firstn (from - to) (skipn to l).
 Instance StrEqDec : EqDec string eq := {
   equiv_dec := string_dec;
 }.
+
+(* first we parse a simple language: 11000 *)
+Module SimpleParser.
+  Inductive states := 
+  | one
+  | zero.
+
+  Scheme Equality for states.
+
+  Instance states_eq_dec_inst : EqDec states eq := {
+    equiv_dec := states_eq_dec;
+  }.
+
+  Definition size' (s: states) := 
+    match s with 
+    | one => 2
+    | zero => 3
+    end.
+  
+
+  Definition simple_auto : p4automaton := {| 
+    size := size';
+    update := fun s bs (v: unit) => v ;
+    transitions := fun s v => 
+      match s with 
+      | one => inl zero
+      | zero => inr true
+      end
+  |}.
+
+  Definition simple_config : configuration simple_auto := 
+    (inl one, tt, nil).
+End SimpleParser.
+  
 
 Module BabyIPv1.
   Inductive states :=
@@ -256,70 +290,49 @@ Module BabyIPv1.
   ).
   *)
 
-  Record ip_hdr := MkIPHdr {
-    ip_src: nat;
-    ip_dst: nat;
-    ip_proto: nat;
-  }.
-
-  Instance etaIPHdr : Settable _ := settable! MkIPHdr <ip_src; ip_dst; ip_proto>.
-
-  Record udp_hdr := MkUDPHdr {
-    udp_sport: nat;
-    udp_dport: nat;
-    udp_flags: nat;
-  }.
-
-  Instance etaUDPHdr : Settable _ := settable! MkUDPHdr <udp_sport; udp_dport; udp_flags>.
-
-  Record tcp_hdr := MkTCPHdr {
-    tcp_sport: nat;
-    tcp_dport: nat;
-    tcp_flags: nat;
-    tcp_seq: nat;
-  }.
-
-  Instance etaTCPHdr : Settable _ := settable! MkTCPHdr <tcp_sport; tcp_dport; tcp_flags; tcp_seq>.
-
   Record store' := MkStore {
-    store_ip_hdr: ip_hdr;
-    store_udp_hdr: udp_hdr;
-    store_tcp_hdr: tcp_hdr;
+    store_ip_hdr: values;
+    store_u_or_t_hdr: values + values;
   }.
 
-  Instance etaStore : Settable _ := settable! MkStore <store_ip_hdr; store_udp_hdr; store_tcp_hdr>.
+  Instance etaStore : Settable _ := settable! MkStore <store_ip_hdr; store_u_or_t_hdr >.
 
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      st <| store_ip_hdr := {|
-        ip_src := to_nat (slice 0 8 bs);
-        ip_dst := to_nat (slice 8 16 bs);
-        ip_proto := to_nat (slice 16 20 bs);
-      |} |>
+      let fields := 
+        mkEntry "src" (to_val 8 (slice 0 8 bs)) :: 
+        mkEntry "dst" (to_val 8 (slice 8 16 bs)) :: 
+        mkEntry "proto" (to_val 4 (slice 16 20 bs)) :: nil in
+      st <| store_ip_hdr := ValBaseHeader fields true |>
     | parse_udp =>
-      st <| store_udp_hdr := {|
-        udp_sport := to_nat (slice 0 8 bs);
-        udp_dport := to_nat (slice 8 16 bs);
-        udp_flags := to_nat (slice 16 20 bs);
-      |} |>
+      let fields := 
+        mkEntry "sport" (to_val 8 (slice 0 8 bs)) :: 
+        mkEntry "dport" (to_val 8 (slice 8 16 bs)) :: 
+        mkEntry "flags" (to_val 4 (slice 16 20 bs)) :: nil in
+      st <| store_u_or_t_hdr := inl (ValBaseHeader fields true) |>
     | parse_tcp =>
-      st <| store_tcp_hdr := {|
-        tcp_sport := to_nat (slice 0 8 bs);
-        tcp_dport := to_nat (slice 8 16 bs);
-        tcp_flags := to_nat (slice 16 20 bs);
-        tcp_seq := to_nat (slice 20 28 bs);
-      |} |>
+      let fields := 
+        mkEntry "sport" (to_val 8 (slice 0 8 bs)) :: 
+        mkEntry "dport" (to_val 8 (slice 8 16 bs)) :: 
+        mkEntry "flags" (to_val 4 (slice 16 20 bs)) :: 
+        mkEntry "seq" (to_val 8 (slice 20 28 bs)) :: nil in
+      st <| store_u_or_t_hdr := inr (ValBaseHeader fields true) |>
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      let proto := st.(store_ip_hdr).(ip_proto) in
-      if proto == 1 then inl parse_udp
-      else if proto == 0 then inl parse_tcp
-      else inr false
+      match st.(store_ip_hdr) with 
+      | ValBaseHeader fields true =>
+        match AList.get fields (mkField "proto") with 
+        | Some (ValBaseBit 4 1) => inl parse_udp
+        | Some (ValBaseBit 4 0) => inl parse_tcp
+        | _ => inr false
+        end
+      | _ => inr false
+      end
     | parse_udp => inr true
     | parse_tcp => inr true
     end
@@ -330,6 +343,62 @@ Module BabyIPv1.
     update := update';
     transitions := transitions';
   |}.
+
+  Record SwitchState := mkSwitchState {
+    egress_spec : @ValueBase Info;
+  }.
+
+  Instance etaSwitchState : Settable _ := settable! mkSwitchState <egress_spec >.
+
+  Definition v1_control (s: store') (state: SwitchState) : SwitchState :=
+    match s.(store_u_or_t_hdr) with 
+    | inl (ValBaseHeader _ true) => state <| egress_spec := ValBaseBit 8 0 |>
+    | _ => state <| egress_spec := ValBaseBit 8 1 |>
+    end.
+
+  Definition init_config: configuration v1_parser := 
+    let blank_store := {| store_ip_hdr := ValBaseHeader nil false; store_u_or_t_hdr := inl (ValBaseHeader nil false) |} in 
+    (inl start, blank_store, nil).
+
+  Definition v1_program (pkt: list bool) (state: SwitchState) : SwitchState :=
+    let '(_, final_store, _) := follow init_config pkt in 
+    v1_control final_store state.
+
+  Definition repr_tcp (bs: list bool) : Prop := 
+    List.length bs = 48 /\ (to_nat (slice 16 20 bs) = 1).
+
+  Lemma baby_ip_corr : 
+    forall pkt st st', 
+      repr_tcp pkt ->
+      st' = v1_program pkt st ->
+        accepted init_config pkt /\
+        st'.(egress_spec) = ValBaseBit 8 0.
+  Proof.
+    intros.
+
+    unfold repr_tcp in H.
+    destruct H.
+    rewrite H0.
+    unfold v1_program.
+    unfold egress_spec, accepted.
+    do 10 (destruct pkt; [exfalso; inversion H| simpl]).
+    do 10 (destruct pkt; [exfalso; inversion H| simpl]).
+    unfold slice in *.
+    simpl in H1 |- *.
+    rewrite H1.
+    simpl.
+    do 10 (destruct pkt; [exfalso; inversion H| simpl]).
+    do 10 (destruct pkt; [exfalso; inversion H| simpl]).
+    unfold slice.
+    simpl.
+    do 8 (destruct pkt; [exfalso; inversion H| simpl]).
+    destruct pkt.
+
+    - simpl; split; trivial.
+    - exfalso. inversion H.
+
+  Qed.
+
 
 End BabyIPv1.
 
@@ -354,56 +423,10 @@ Module BabyIPv2.
 
   Definition values := @ValueBase Info.
 
-  (*
-  Definition combined_hdr := HAList.t (
-    ("src", values) ::
-    ("dst", values) ::
-    ("proto", values) ::
-    ("sport", values) ::
-    ("dport", values) ::
-    ("flags", values) ::
-    nil
-  ).
-
-  Definition optional_hdr := HAList.t (
-    ("seq", values) ::
-    nil
-  ).
-
-  Definition tcp_hdr := HAList.t (
-    ("sport", values) ::
-    ("dport", values) ::
-    ("flags", values) ::
-    nil
-  ).
-
-  Definition store' := HAList.t (
-    ("comb", combined_hdr) ::
-    ("opt_suffix", optional_hdr) ::
-    nil
-  ).
-  *)
-
-  Record combined_hdr := MkCombinedHdr {
-    combined_src: nat;
-    combined_dst: nat;
-    combined_proto: nat;
-    combined_sport: nat;
-    combined_dport: nat;
-    combined_flags: nat;
-  }.
-
-  Instance etaCombinedHdr : Settable _ := settable! MkCombinedHdr <combined_src; combined_dst; combined_proto; combined_sport; combined_dport; combined_flags>.
-
-  Record optional_hdr := MkOptionalHdr {
-    optional_seq: nat;
-  }.
-
-  Instance etaOptionalHdr : Settable _ := settable! MkOptionalHdr <optional_seq>.
 
   Record store' := MkStore {
-    store_combined_hdr: combined_hdr;
-    store_optional_hdr: optional_hdr;
+    store_combined_hdr: values;
+    store_optional_hdr: values;
   }.
 
   Instance etaStore : Settable _ := settable! MkStore <store_combined_hdr; store_optional_hdr>.
@@ -411,28 +434,34 @@ Module BabyIPv2.
   Definition update' (s: states) (bs: list bool) (st: store') :=
     match s with
     | start =>
-      st <| store_combined_hdr := {|
-        combined_src := to_nat (slice 0 8 bs);
-        combined_dst := to_nat (slice 8 16 bs);
-        combined_proto := to_nat (slice 16 20 bs);
-        combined_sport := to_nat (slice 20 28 bs);
-        combined_dport := to_nat (slice 28 36 bs);
-        combined_flags := to_nat (slice 36 40 bs);
-      |} |>
+      let fields := 
+        mkEntry "src" (to_val 8 (slice 0 8 bs)) :: 
+        mkEntry "dst" (to_val 8 (slice 8 16 bs)) :: 
+        mkEntry "proto" (to_val 4 (slice 16 20 bs)) :: 
+        mkEntry "sport" (to_val 8 (slice 20 28 bs)) :: 
+        mkEntry "dport" (to_val 8 (slice 28 36 bs)) :: 
+        mkEntry "flags" (to_val 4 (slice 36 40 bs)) :: nil in 
+    
+        st <| store_combined_hdr := ValBaseHeader fields true |>
     | parse_tcp =>
-      st <| store_optional_hdr := {|
-        optional_seq := to_nat bs;
-      |} |>
+      let fields := 
+        mkEntry "seq" (to_val 8 (slice 0 8 bs)) :: nil in 
+        st <| store_optional_hdr := ValBaseHeader fields true |>
     end
   .
 
   Definition transitions' (s: states) (st: store') : states + bool :=
     match s with
     | start =>
-      let proto := st.(store_combined_hdr).(combined_proto) in
-      if proto == 1 then inr true
-      else if proto == 0 then inl parse_tcp
-      else inr false
+      match st.(store_combined_hdr) with 
+      | ValBaseHeader fields true => 
+        match AList.get fields (mkField "proto") with 
+        | Some (ValBaseBit 4 1) => inr true
+        | Some (ValBaseBit 4 0) => inl parse_tcp
+        | _ => inr false
+        end
+      | _ => inr false
+      end
     | parse_tcp => inr true
     end
   .
@@ -445,7 +474,7 @@ Module BabyIPv2.
 
 End BabyIPv2.
 
-Inductive candidate:
+(* Inductive candidate:
   configuration BabyIPv1.v1_parser ->
   configuration BabyIPv2.v2_parser ->
   Prop
@@ -863,4 +892,4 @@ Proof.
   - constructor.
     simpl Datatypes.length.
     lia.
-Qed.
+Qed. *)

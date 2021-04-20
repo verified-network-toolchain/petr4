@@ -17,7 +17,7 @@ Definition tag := tt.
 Notation P4String := (P4String.t tag_t).
 
 Definition MkP4String (s: string) : P4String := {| P4String.tags := tag; P4String.str := s |}.
-
+Definition ExpNameNoLocator name : @ExpressionPreT tag_t := ExpName name NoLocator.
 
 Definition constTyp : P4Type := @TypInteger tag_t.
 Definition name : P4String := MkP4String "hello_world".
@@ -46,12 +46,12 @@ parser IntExample (packet_in pkt, out int<2> output) {
 Definition scope : @Env_EvalEnv tag_t := MkEnv_EvalEnv nil nil (MkP4String "dummy").
 
 Definition pkt_param : @P4Parameter tag_t := MkParameter true Directionless (TypExtern (MkP4String "packet_in")) None (MkP4String "pkt").
-Definition pkt_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "pkt"))) (TypExtern (MkP4String "packet_in")) Directionless.
+Definition pkt_expr : @Expression tag_t := MkExpression tt (ExpNameNoLocator (BareName (MkP4String "pkt"))) (TypExtern (MkP4String "packet_in")) Directionless.
 Definition out_type : @P4Type tag_t := TypInt 2.
 Definition out_param : @P4Parameter tag_t := MkParameter true Out out_type None (MkP4String "output").
 Definition locals : list (@Declaration tag_t) := nil.
-Definition output_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "output"))) out_type Directionless.
-Definition pkt_extract_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "pkt"))) (TypFunction (MkFunctionType nil ((MkParameter false Directionless out_type None (MkP4String "t"))::nil) FunBuiltin out_type)) Directionless.
+Definition output_expr : @Expression tag_t := MkExpression tt (ExpNameNoLocator (BareName (MkP4String "output"))) out_type Directionless.
+Definition pkt_extract_expr : @Expression tag_t := MkExpression tt (ExpNameNoLocator (BareName (MkP4String "pkt"))) (TypFunction (MkFunctionType nil ((MkParameter false Directionless out_type None (MkP4String "t"))::nil) FunBuiltin out_type)) Directionless.
 Definition build_extract_stmt (into_type: @P4Type tag_t) (into_expr: @Expression tag_t) := MkStatement tt (StatMethodCall (MkExpression tt (ExpExpressionMember pkt_extract_expr (MkP4String StringConstants.extract)) TypVoid Directionless) (into_type :: nil) (Some into_expr :: nil)) StmVoid.
 Definition extract_stmt : @Statement tag_t := build_extract_stmt out_type output_expr.
 

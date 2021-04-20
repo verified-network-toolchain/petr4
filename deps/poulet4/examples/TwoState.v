@@ -43,8 +43,8 @@ An interesting property is that Tupled and Curried behave the same on all packet
 
 Definition x_param : @P4Parameter tag_t := MkParameter true Out out_type None (MkP4String "x").
 Definition y_param : @P4Parameter tag_t := MkParameter true Out out_type None (MkP4String "y").
-Definition x_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "x"))) out_type Directionless.
-Definition y_expr : @Expression tag_t := MkExpression tt (ExpName (BareName (MkP4String "y"))) out_type Directionless.
+Definition x_expr : @Expression tag_t := MkExpression tt (ExpNameNoLocator (BareName (MkP4String "x"))) out_type Directionless.
+Definition y_expr : @Expression tag_t := MkExpression tt (ExpNameNoLocator (BareName (MkP4String "y"))) out_type Directionless.
 Definition extract_x := build_extract_stmt out_type x_expr.
 Definition extract_y := build_extract_stmt out_type y_expr.
 

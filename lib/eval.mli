@@ -17,7 +17,7 @@ module type Interpreter = sig
       from evaluating the P4 expression [expr] under the environment [env] and
       the state [st], and [st'] is [st] updated according to the side-effects of
       the same evaluation. *)
-  val eval_expression : env -> state -> Expression.t -> state * value
+  val eval_expression : ctrl -> env -> state -> Expression.t -> state * value
 
   (** [eval_statement ctrl env st stmt] is [env', st'], where [env'] is [env]
       updated with the bindings produced by evaluating [stmt] under the

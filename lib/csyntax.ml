@@ -34,7 +34,6 @@ and cstmt =
   | CRet of cexpr
   | CSeq of cstmt * cstmt
   | CIf of cexpr * cstmt * cstmt
-  (* | CIfElifElse of cexpr * cstmt * cexpr list * cstmt list * cstmt  *)
   | CAssign of cexpr * cexpr
   | CVarInit of ctyp * cname * cexpr
   | CMethodCall of cname * cexpr list  

@@ -259,6 +259,11 @@ and ext_action (lst : Prog.Expression.t option ) =
       end 
   end 
 
+and get_default_action (action : Prog.Table.action_ref option) = 
+  match action with
+  | None -> failwith "unimplemented"
+  | Some h -> ((snd h).action).name
+
 and get_action_ref (actions : Prog.Table.action_ref list) = 
   match actions with
   | [] -> []
@@ -301,11 +306,9 @@ and get_entry_methods (entries : Prog.Table.entry list option) =
   end 
 
 and translate_table(name, k, actions, entries, default_action, size, custom_properties) = 
-  let l2 = get_action_ref actions in 
   let l = get_entry_methods entries in 
   let first = get_first l in 
-  (* last assumes that the last element in the list of actions is the defualt action - TODO = change to default action *)
-  let last = get_first (List.rev l2) in 
+  let last = get_default_action default_action in 
   let cond_logic = get_cond_logic_lst entries k in
   let first_if = match cond_logic with 
     | h::t -> h

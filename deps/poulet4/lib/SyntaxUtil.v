@@ -7,6 +7,7 @@ Import ListNotations.
 Section SyntaxUtil.
 
 Context {tags_t: Type}.
+Variable default_tag: tags_t.
 Notation Val := (@ValueBase tags_t).
 
 Notation ident := (P4String.t tags_t).
@@ -37,6 +38,23 @@ Definition get_param_dir (param : @P4Parameter tags_t) : direction :=
 Definition get_param_name_dir (param : @P4Parameter tags_t) : ident * direction :=
   match param with
   | MkParameter _ dir _ _ name => (name, dir)
+  end.
+
+Definition get_parser_state_statements (parser_state : @ParserState tags_t) : list (@Statement tags_t) :=
+  match parser_state with
+  | MkParserState _ _ statements _ => statements
+  end.
+
+Fixpoint list_statement_to_block (stmts : list (@Statement tags_t)) : @Block tags_t :=
+  match stmts with
+  | nil => BlockEmpty default_tag
+  | stmt :: stmts' => BlockCons stmt (list_statement_to_block stmts')
+  end.
+
+Fixpoint block_to_list_statement (blk : @Block tags_t) : list (@Statement tags_t) :=
+  match blk with
+  | BlockEmpty _ => nil
+  | BlockCons stmt blk' => stmt :: block_to_list_statement blk'
   end.
 
 Definition force {A} (default : A) (x : option A) : A :=

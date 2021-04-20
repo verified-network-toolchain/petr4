@@ -54,23 +54,6 @@ Section Transformer.
     | StatSwCaseFallThrough _ _ => nil
     end.
 
-  (* Definition summarize_decl (decl: @Declaration tags_t): (list P4String) :=
-    match decl with
-    | DeclInstantiation tags typ args name init => [name]
-    | DeclAction tags name data_params ctrl_params body =>
-        summarize_blk body
-    | _ => nil
-    end.
-
-  (* TODO *)
-  Definition summarize_parser (locals: list (@Declaration tags_t)) (states: list (@ParserState tags_t)):
-      (list P4String) :=
-    nil.
-
-  Definition summarize_control (locals: list (@Declaration tags_t)) (apply: @Block tags_t):
-      (list P4String) :=
-    concat (map summarize_decl locals) ++ summarize_blk apply. *)
-
   Definition state := list P4String.
   Definition exception := unit.
   Definition monad := @state_monad state exception.
@@ -102,6 +85,7 @@ Section Transformer.
   Definition use (n: P4String): monad unit :=
     put_state (fun l => n :: l).
 
+  (* In case of preformance issue, we can extract this function into native OCaml. *)
   Definition fresh (n: P4String): monad P4String :=
     let* used_list := get_state in
     let* n' := fresh' n 0 (1 + length used_list)%nat in
@@ -334,6 +318,31 @@ Section Transformer.
       end
     end.
 
+  Definition transform_psrcase (e: env) (pc: @ParserCase tags_t): @ParserCase tags_t :=
+    match pc with
+    | MkParserCase tags matches next =>
+      let matches' := map (transform_match e) matches in
+      MkParserCase tags matches next
+    end.
+
+  Definition transform_psrtrans (e: env) (pt: @ParserTransition tags_t): @ParserTransition tags_t :=
+    match pt with
+    | ParserDirect _ _ => pt
+    | ParserSelect tags exprs cases =>
+      let exprs' := transform_exprs e exprs in
+      let cases' := map (transform_psrcase e) cases in
+      ParserSelect tags exprs' cases'
+    end.
+
+  Definition transform_psrst (e: env) (ps: @ParserState tags_t): monad (@ParserState tags_t) :=
+    match ps with
+    | MkParserState tags name statements transition =>
+      let* blk' := transform_blk LInstance e [] (list_statement_to_block default_tag statements) in
+      let statements' := block_to_list_statement blk' in
+      let transition' := transform_psrtrans e transition in
+      mret (MkParserState tags name statements' transition')
+    end.
+
   Definition transform_tblenty (e: env) (te: @TableEntry tags_t): @TableEntry tags_t :=
     match te with
     | MkTableEntry tags matches action =>
@@ -432,19 +441,20 @@ Section Transformer.
       monad (@Declaration tags_t * env) :=
     match decl with
     | DeclParser tags name type_params params cparams locals states =>
-      mret (decl, e) (* TODO *)
-    (* let (local', n1) :=
-      ((fix transform_decl_list (idx: N) (l: list (@Declaration tags_t)):
-          (list (@Declaration tags_t) * N) :=
-          match l with
-          | nil => (nil, idx)
-          | x :: rest =>
-            let (l2, n2) := transform_decl idx x in
-            let (l3, n3) := transform_decl_list n2 rest in (l2 ++ l3, n3)
-          end) nameIdx locals) in
-    let (l2s2, n2) := transform_list transform_psrst n1 states in
-    let (l2, s2) := l2s2 in
-    (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n1) *)
+      let inner_scope_monad := (
+        let* e' := declare_params LInstance e nil params in
+        let* e'' := declare_params LInstance e' nil cparams in
+        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let used_list := concat
+              (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
+        let* _ := put_state (fun l => used_list ++ l) in
+        let* states' := sequence (map (transform_psrst e) states) in
+        mret (locals', states')
+      ) in
+      let* (locals', states') := with_empty_state inner_scope_monad in
+      let loc := LCurScope [name] in
+      let e' := IdentMap.set name loc e in
+      mret (DeclParser tags name type_params params cparams locals' states', e')
     | DeclControl tags name type_params params cparams locals apply =>
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in

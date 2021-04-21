@@ -1,0 +1,5 @@
+(library
+  (public_name petr4.unix)
+  (name petr4_unix)
+  (libraries core_kernel petr4 cohttp-lwt-unix)
+  (preprocess (pps ppx_jane -allow-unannotated-ignores)))

@@ -910,17 +910,10 @@ Proof.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
   - cleanup_step.
-    destruct (Z.of_nat _) eqn:?; [|destruct p|].
-    + rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      eapply BisimulationTCPVersusIP; smtize.
-    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationFalseVersusStart; smtize.
-    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationFalseVersusStart; smtize.
-    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      eapply BisimulationUDPVersusIP; smtize.
-    + rewrite <- app_nil_r with (l := buf ++ b :: nil) at 1.
-      apply BisimulationFalseVersusStart; smtize.
+    destruct (Z.of_nat _) eqn:?; [|destruct p|];
+    rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1;
+    econstructor; 
+    smtize.
   - cleanup_step.
   - cleanup_step.
     + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].

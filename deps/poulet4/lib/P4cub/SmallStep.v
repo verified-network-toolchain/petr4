@@ -5,16 +5,8 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
 
-Reserved Notation "'ℵ' env , e1 '-->' e2"
-         (at level 40, e1 custom p4expr, e2 custom p4expr).
-
-Reserved Notation "'ℶ' e1 '-->'  e2"
-         (at level 40, e1 custom p4expr, e2 custom p4expr).
-
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
-
-Reserved Notation "'SS' ctrl , tables , actions , functions , instances , ϵ1 , s1 '-->' s2 , ϵ2 , signal" (at level 40, s1 custom p4stmt, s2 custom p4stmt, ϵ2 custom p4env).
 
 (** * Small-Step Values *)
 Module IsValue.
@@ -251,7 +243,7 @@ End IsValue.
 Module Step.
   Module P := P4cub.
   Module E := P.Expr.
-  Module S := P.Stmt.
+  Module ST := P.Stmt.
   Module F := P.F.
   Module PT := E.ProperType.
 
@@ -773,6 +765,90 @@ Module Step.
       Qed.
     End HelpersExist.
 
+    (** Lookup an lvalue. *)
+    Fixpoint lv_lookup (ϵ : eenv) (lv : E.e tags_t) : option (E.e tags_t) :=
+      match lv with
+      | <{ Var x:_ @ _ }> => ϵ x
+      | <{ Mem lv:_ dot x @ _ }> =>
+        (* TODO: use monadic bind. *)
+        match lv_lookup ϵ lv with
+        | Some <{ rec { fs } @ _ }>
+        | Some <{ hdr { fs } valid:=_  @ _ }> => map_option (F.get x fs) snd
+        | _ => None
+        end
+      | <{ Access lv[n] @ _ }> =>
+        match lv_lookup ϵ lv with
+        | Some <{ Stack vss:_[_] nextIndex:=_ }> => nth_error vss (Z.to_nat n)
+        | _ => None
+        end
+      | _ => None
+      end.
+    (**[]*)
+
+    (** Updating an lvalue in an environment. *)
+    Fixpoint lv_update (lv v : E.e tags_t) (ϵ : eenv) : eenv :=
+      match lv with
+      | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
+      | <{ Mem lv:_ dot x @ _ }> =>
+        match lv_lookup ϵ lv with
+        | Some <{ rec { vs } @ i }>
+          => match F.get x vs with
+            | None => ϵ
+            | Some (τ,_) => lv_update lv (E.ERecord (F.update x (τ,v) vs) i) ϵ
+            end
+        | Some <{ hdr { vs } valid:=b @ i }>
+          => match F.get x vs with
+            | None => ϵ
+            | Some (τ,_) => lv_update lv (E.EHeader (F.update x (τ,v) vs) b i) ϵ
+            end
+        | _ => ϵ
+        end
+      | <{ Access lv[n] @ _ }> =>
+        match lv_lookup ϵ lv with
+        | Some <{ Stack vss:ts[size] nextIndex:=ni }> =>
+          let vss := nth_update (Z.to_nat n) v vss in
+          lv_update lv <{ Stack vss:ts[size] nextIndex:=ni }> ϵ
+        | _ => ϵ
+        end
+      | _ => ϵ
+      end.
+    (**[]*)
+
+    (** Create a new environment
+        from a closure environment where
+        values of [In] args are substituted
+        into the function parameters. *)
+    Definition copy_in
+               (argsv : E.args tags_t)
+               (ϵcall : eenv) : eenv -> eenv :=
+      F.fold (fun x arg ϵ =>
+                match arg with
+                | P.PAIn (_,v)     => !{ x ↦ v ;; ϵ }!
+                | P.PAInOut (_,lv) => match lv_lookup ϵcall lv with
+                                     | None   => ϵ
+                                     | Some v => !{ x ↦ v ;; ϵ }!
+                                     end
+                | P.PAOut _    => ϵ
+                end) argsv.
+    (**[]*)
+
+    (** Update call-site environment with
+        out variables from function call evaluation. *)
+    Definition copy_out
+               (argsv : E.args tags_t)
+               (ϵf : eenv) : eenv -> eenv :=
+      F.fold (fun x arg ϵ =>
+                match arg with
+                | P.PAIn _ => ϵ
+                | P.PAOut (_,lv)
+                | P.PAInOut (_,lv) =>
+                  match ϵf x with
+                  | None   => ϵ
+                  | Some v => lv_update lv v ϵ
+                  end
+                end) argsv.
+    (**[]*)
+
     (** Statement signals. *)
     Inductive signal : Type :=
     | SIG_Cont                  (* continue *)
@@ -785,6 +861,81 @@ Module Step.
     | interrupt_exit : interrupt SIG_Exit
     | interrupt_rtrn (vo : option (E.e tags_t)) : interrupt (SIG_Rtrn vo).
     (**[]*)
+
+    (** Table environment. *)
+    Definition tenv : Type := Env.t string (CD.table tags_t).
+
+    (** Function declarations and closures. *)
+    Inductive fdecl : Type :=
+    | FDecl (closure : eenv) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
+    with fenv : Type :=
+    | FEnv (fs : Env.t string fdecl)
+    (** Action declarations and closures *)
+    with adecl : Type :=
+    | ADecl (closure : eenv) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
+    with aenv : Type :=
+    | AEnv (aa : Env.t string adecl)
+    (** Instances and Environment. *)
+    with inst : Type :=
+    | CInst (closure : eenv) (fs : fenv) (ins : ienv)
+            (tbls : tenv) (aa : aenv)
+            (apply_blk : ST.s tags_t)  (* control instance *)
+    | PInst (* TODO: parser instance *)
+    | EInst (* TODO: extern object instance *)
+    with ienv : Type :=
+    | IEnv (ins : Env.t string inst).
+    (**[]*)
+
+    (** Function lookup. *)
+    Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fs.
+
+    (** Bind a function declaration to an environment. *)
+    Definition update '(FEnv fs : fenv) (x : string) (d : fdecl) : fenv :=
+      FEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Instance lookup. *)
+    Definition ilookup '(IEnv fs : ienv) : string -> option inst := fs.
+
+    (** Bind an instance to an environment. *)
+    Definition iupdate '(IEnv fs : ienv) (x : string) (d : inst) : ienv :=
+      IEnv !{ x ↦ d ;; fs }!.
+    (**[]*)
+
+    (** Action lookup. *)
+    Definition alookup '(AEnv aa : aenv) : string -> option adecl := aa.
+
+    (** Bind a function declaration to an environment. *)
+    Definition aupdate '(AEnv aa : aenv) (x : string) (d : adecl) : aenv :=
+      AEnv !{ x ↦ d ;; aa }!.
+    (**[]*)
+
+    (** Control plane table entries,
+        essentially mapping tables to an action call. *)
+    Definition entries : Type :=
+      list (E.e tags_t * E.matchkind) ->
+      list string ->
+      string * E.args tags_t.
+    (**[]*)
+
+    (** Control plane configuration. *)
+    Definition ctrl : Type := Env.t string entries.
+
+    (** Control declarations and closures. *)
+    Inductive cdecl : Type :=
+    | CDecl (cs : cenv) (closure : eenv) (fs : fenv) (ins : ienv)
+            (body : CD.d tags_t) (apply_block : ST.s tags_t)
+    with cenv : Type :=
+    | CEnv (cs : Env.t string cdecl).
+    (**[]*)
+
+    (** Control lookup. *)
+    Definition clookup '(CEnv cs : cenv) : string -> option cdecl := cs.
+
+    (** Bind an instance to an environment. *)
+    Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
+      CEnv !{ x ↦ d ;; cs }!.
+    (**[]*)
   End StepDefs.
 
   Notation "x" := x (in custom p4evalsignal at level 0, x constr at level 0).
@@ -796,6 +947,9 @@ Module Step.
   Notation "'Fruit' v"
     := (SIG_Rtrn (Some v))
          (in custom p4evalsignal at level 0, v custom p4expr).
+
+  Reserved Notation "'ℵ' env , e1 '-->' e2"
+           (at level 40, e1 custom p4expr, e2 custom p4expr).
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
     : E.e tags_t -> E.e tags_t -> Prop :=
@@ -913,6 +1067,9 @@ Module Step.
       ℵ ϵ, Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
   where "'ℵ' ϵ , e1 '-->' e2" := (expr_step ϵ e1 e2).
 
+  Reserved Notation "'ℶ' e1 '-->'  e2"
+           (at level 40, e1 custom p4expr, e2 custom p4expr).
+
   Inductive lvalue_step {tags_t : Type} : E.e tags_t -> E.e tags_t -> Prop :=
   | lstep_member (e e' : E.e tags_t) (τ : E.t) (x : string) (i : tags_t) :
       ℶ e -->  e' ->
@@ -921,4 +1078,30 @@ Module Step.
       ℶ e -->  e' ->
       ℶ Access e[idx] @ i -->   Access e'[idx] @ i
   where "'ℶ' e1 '-->' e2" := (lvalue_step e1 e2).
+
+  Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
+           (at level 40, s1 custom p4stmt, s2 custom p4stmt,
+            ϵ2 custom p4env, sgl custom p4evalsignal).
+
+  Inductive stmt_step {tags_t : Type}
+            (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
+            (fns : @fenv tags_t) (ins : @ienv tags_t) (ϵ : @eenv tags_t) :
+    ST.s tags_t -> ST.s tags_t -> @eenv tags_t -> @signal tags_t -> Prop :=
+  | step_vardecl (τ : E.t) (x : string) (i : tags_t) :
+      let v := edefault i τ in
+      ℸ cfg, tbls, aa, fns, ins, ϵ, var x : τ @ i -->   skip @ i, x ↦ v;; ϵ , C
+  | step_assign_right (τ : E.t) (e1 e2 e2' : E.e tags_t) (i : tags_t) :
+      ℵ ϵ, e2 -->  e2' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn e1 := e2:τ @ i -->  asgn e1 := e2':τ @ i, ϵ, C
+  | step_assign_left (τ : E.t) (e1 e1' v2 : E.e tags_t) (i : tags_t) :
+      V.value v2 ->
+      ℵ ϵ, e1 -->  e1' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn e1 := v2:τ @ i -->  asgn e1' := v2:τ @ i, ϵ, C
+  | step_assign_update (τ : E.t) (v1 v2 : E.e tags_t) (i : tags_t) :
+      V.lvalue v1 ->
+      V.value v2 ->
+      let ϵ' := lv_update v1 v2 ϵ in
+      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn v1 := v2:τ @ i -->  skip @ i, ϵ', C
+  where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
+          := (stmt_step cfg tbls aa fns ins ϵ1 s1 s2 ϵ2 sgl).
 End Step.

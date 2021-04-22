@@ -87,10 +87,22 @@ Module Typecheck.
     | numeric_width_bit : numeric_width w {{ bit<w> }}
     | numeric_width_int : numeric_width w {{ int<w> }}.
 
+    Ltac inv_numeric_width :=
+      match goal with
+      | H: numeric_width _ _ |- _ => inv H
+      end.
+    (**[]*)
+
     (** Evidence for a type being numeric. *)
     Inductive numeric : E.t -> Prop :=
       Numeric (w : positive) (τ : E.t) :
         numeric_width w τ -> numeric τ.
+    (**[]*)
+
+    Ltac inv_numeric :=
+      match goal with
+      | H: numeric _ |- _ => inv H; try inv_numeric_width
+      end.
     (**[]*)
 
     (** Evidence a unary operation is valid for a type. *)

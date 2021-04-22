@@ -11,6 +11,9 @@ Reserved Notation "'ℵ' env , e1 '-->' e2"
 Reserved Notation "'ℶ' e1 '-->'  e2"
          (at level 40, e1 custom p4expr, e2 custom p4expr).
 
+(** Notation entries. *)
+Declare Custom Entry p4evalsignal.
+
 Reserved Notation "'SS' ctrl , tables , actions , functions , instances , ϵ1 , s1 '-->' s2 , ϵ2 , signal" (at level 40, s1 custom p4stmt, s2 custom p4stmt, ϵ2 custom p4env).
 
 (** * Small-Step Values *)
@@ -130,6 +133,119 @@ Module IsValue.
       lvalue lv ->
       lvalue <{ Access lv[idx] @ i }>.
   (**[]*)
+
+  Module CanonicalForms.
+    Ltac invert_value :=
+      match goal with
+      | H: value _ |- _ => inv H
+      end.
+    (**[]*)
+
+    Import Typecheck.
+
+    Ltac invert_expr_check :=
+      match goal with
+      | H: ⟦ _, _ ⟧ ⊢ _ ∈ _ |- _ => inv H
+      end.
+    (**[]*)
+
+    Ltac invert_canonical := invert_value; invert_expr_check.
+
+    Ltac crush_canonical := intros; invert_canonical; eauto 4.
+
+    Section CanonicalForms.
+      Variable errs : errors.
+
+      Variable Γ : gamma.
+
+      Context {tags_t : Type}.
+
+      Variable v : E.e tags_t.
+
+      Hypothesis Hv : value v.
+
+      Lemma canonical_forms_bool :
+        ⟦ errs, Γ ⟧ ⊢ v ∈ Bool -> exists b i, v = <{ BOOL b @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_bit : forall w,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ bit<w> -> exists n i, v = <{ w W n @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_int : forall w,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ int<w> -> exists z i, v = <{ w S z @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_tuple : forall ts,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ tuple ts -> exists es i, v = <{ tup es @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_record : forall ts,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ rec { ts } -> exists fs i, v = <{ rec { fs } @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_header : forall ts,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ hdr { ts } -> exists fs b i, v = <{ hdr { fs } valid:=b @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_error :
+        ⟦ errs, Γ ⟧ ⊢ v ∈ error -> exists err i, v = <{ Error err @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_matchkind :
+        ⟦ errs, Γ ⟧ ⊢ v ∈ matchkind -> exists mk i, v = <{ Matchkind mk @ i }>.
+      Proof. crush_canonical. Qed.
+
+      Lemma canonical_forms_headerstack : forall ts n,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ stack ts[n] ->
+          exists hs ni, v = <{ Stack hs:ts[n] nextIndex:= ni }>.
+      Proof. crush_canonical. Qed.
+    End CanonicalForms.
+
+    Ltac inv_eq_val_expr :=
+      match goal with
+      | H: <{ BOOL _ @ _ }> = <{ BOOL _ @ _ }> |- _ => inv H
+      | H: <{ _ W _ @ _ }> = <{ _ W _ @ _ }> |- _ => inv H
+      | H: <{ _ S _ @ _ }> = <{ _ S _ @ _ }> |- _ => inv H
+      | H: <{ tup _ @ _ }> = <{ tup _ @ _ }> |- _ => inv H
+      | H: <{ rec { _ } @ _ }> = <{ rec { _ } @ _ }> |- _ => inv H
+      | H: <{ hdr { _ } valid:=_ @ _ }> = <{ hdr { _ } valid:=_ @ _ }> |- _ => inv H
+      | H: <{ Stack _:_[_] nextIndex:=_ }> = <{ Stack _:_[_] nextIndex:=_ }> |- _ => inv H
+      end.
+    (**[]*)
+
+    Ltac assert_canonical_forms :=
+      match goal with
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ Bool |- _
+        => pose proof canonical_forms_bool _ _ _ Hv Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ bit<_> |- _
+        => pose proof canonical_forms_bit _ _ _ Hv _ Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ int<_> |- _
+        => pose proof canonical_forms_int _ _ _ Hv _ Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ tuple _ |- _
+        => pose proof canonical_forms_tuple _ _ _ Hv _ Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ rec { _ } |- _
+        => pose proof canonical_forms_record _ _ _ Hv _ Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ hdr { _ } |- _
+        => pose proof canonical_forms_header _ _ _ Hv _ Ht as [? [? [? Hcanon]]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ error |- _
+        => pose proof canonical_forms_error _ _ _ Hv Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ matchkind |- _
+        => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
+        => pose proof canonical_forms_headerstack _ _ _ Hv _ _ Ht as [? [? Hcanon]];
+          inv Hcanon; inv Hv; inv Ht
+      end.
+    (**[]*)
+  End CanonicalForms.
 End IsValue.
 
 Module Step.
@@ -405,6 +521,8 @@ Module Step.
       Local Hint Extern 0 => bit_bounded : core.
       Local Hint Extern 0 => int_bounded : core.
 
+      Import V.CanonicalForms.
+
       Lemma eval_slice_types : forall errs Γ v v' τ hi lo w,
           eval_slice hi lo v = Some v' ->
           V.value v ->
@@ -415,39 +533,43 @@ Module Step.
           ⟦ errs, Γ ⟧ ⊢ v' ∈ bit<w'>.
       Proof.
         intros errs Γ v v' τ hi lo w Heval Hv Hw Hnum Ht w'; subst w';
-        inv Hnum; inv Hv; inv Ht; unravel in *; inv Heval; auto 2.
+        inv Hnum; assert_canonical_forms; unravel in *; inv Heval; auto 2.
       Qed.
+
+      Local Hint Resolve BitArith.bound0 : core.
+      Local Hint Resolve BitArith.bound1 : core.
+      Local Hint Resolve IntArith.bound0 : core.
 
       Lemma eval_cast_types : forall errs Γ τ τ' v v',
           eval_cast τ' v = Some v' ->
+          V.value v ->
           proper_cast τ τ' ->
           ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
           ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
       Proof.
-        intros;
-        match goal with
-        | HPC: proper_cast _ _,
-          HT : ⟦ _, _ ⟧ ⊢  _ ∈ _ |- _
-          => inv HPC; inv HT; unravel in *; try discriminate
-        end;
+        intros errs Γ τ τ' v v' Heval Hv Hpc Ht;
+        inv Hpc; assert_canonical_forms; unravel in *;
         try match goal with
-            | H: match ?w with (_~1)%positive | _ => _ end = Some _
-              |- _ => destruct w; inv H; try constructor; auto
-            | H: (if ?b then _ else _) = Some _ |- _
-              => destruct b; inv H; try constructor; auto
-            | H: Some _ = Some _ |- _ => inv H; try constructor; auto 2
-            end; try (cbv; auto 2; assumption).
-        - destruct n; inv H; auto 2.
-          destruct p; inv H1; auto 2.
-        - generalize dependent fs.
-          induction es as [| e es IHes]; intros [| [x τ] fs] H;
-          inv H; unravel in *; constructor; try split;
-          unravel; try apply IHes; auto 2.
-        - apply pn_header. rewrite F.predfs_data_map. assumption.
-        - clear H3. generalize dependent fs.
-          induction es as [| e es IHes]; intros [| [x τ] fs] H;
-          inv H; unravel in *; constructor; try split;
-          unravel; try apply IHes; auto 2.
+            | H: context [ if ?b then _ else _ ]
+              |- _ => destruct b eqn:?
+            end; try (inv Heval; auto 2; assumption).
+        - destruct x; try (inv Heval; auto 2; assumption).
+          destruct p; inv Heval; auto 2.
+        - destruct w; inv Heval; auto 2.
+        - destruct w2; inv Heval; auto 2.
+        - inv Heval. constructor.
+          generalize dependent fs.
+          ind_list_Forall; intros [| [? ?] ?] ?;
+          unravel in *; try inv_Forall2_cons;
+          constructor; try split;
+          unravel; try apply IHx; auto 2.
+        - inv Heval; constructor; auto 1.
+          + apply pn_header. rewrite F.predfs_data_map. assumption.
+          + clear x0 H0. generalize dependent fs.
+            ind_list_Forall; intros [| [? ?] ?] ? ;
+            unravel in *; try inv_Forall2_cons;
+            constructor; try split;
+            unravel; try apply IHx; auto 2.
       Qed.
 
       Lemma eval_uop_types : forall errs Γ op e v τ,
@@ -455,7 +577,8 @@ Module Step.
           ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
       Proof.
         intros errs Γ op e v τ Huop Hev Heval Het;
-        inv Huop; inv Hev; inv Het; unravel in *; inv Heval; auto 2.
+        inv Huop; assert_canonical_forms;
+        unravel in *; inv Heval; auto 2.
       Qed.
 
       Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
@@ -465,13 +588,10 @@ Module Step.
           ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
       Proof.
         intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
-        inv Hbop; unravel in *;
-        repeat match goal with
-               | H: Some _ = Some _ |- _ => inv H; auto
-               | H: numeric _ |- _ => inv H
-               | H: numeric_width _ _ |- _ => inv H
-               | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
-               end; auto 2.
+        inv Hbop; unravel in *; try inv_numeric;
+        repeat assert_canonical_forms;
+        try (inv_numeric_width; assert_canonical_forms);
+        try (inv Heval; auto 2; assumption).
       Qed.
 
       Lemma eval_member_types : forall errs Γ x v v' ts τ τ',
@@ -483,13 +603,13 @@ Module Step.
           ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
       Proof.
         intros errs Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht;
-        inv Hmem; inv Hv; inv Ht.
+        inv Hmem; assert_canonical_forms.
         - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
-          intuition; unravel in *; subst.
-          rewrite H0 in Heval; unravel in *; inv Heval; auto 2.
-        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2.
-          intuition; unravel in *; subst.
-          rewrite H1 in Heval; unravel in *; inv Heval; auto 2.
+          unravel in *; rewrite H in Heval;
+          unravel in *; inv Heval; intuition.
+        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2;
+          unravel in *; rewrite H in Heval;
+          unravel in *; inv Heval; intuition.
       Qed.
 
       Local Hint Constructors proper_nesting : core.
@@ -573,6 +693,8 @@ Module Step.
     End HelpersType.
 
     Section HelpersExist.
+      Import V.CanonicalForms.
+
       Lemma eval_slice_exists : forall errs Γ v τ hi lo w,
         V.value v ->
         (lo <= hi < w)%positive ->
@@ -581,7 +703,7 @@ Module Step.
         exists v', eval_slice hi lo v = Some v'.
       Proof.
         intros errs Γ v τ hi lo w Hv Hw Hnum Ht;
-        inv Hnum; inv Hv; inv Ht; unravel; eauto 2.
+        inv Hnum; assert_canonical_forms; unravel; eauto 2.
       Qed.
 
       Lemma eval_cast_exists : forall errs Γ e τ τ',
@@ -590,10 +712,10 @@ Module Step.
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_cast τ' e = Some v.
       Proof.
-        intros ? ? ? ? ? Hv Hpc Het; inv Hpc; inv Hv; inv Het;
+        intros ? ? ? ? ? Hv Hpc Het; inv Hpc; assert_canonical_forms;
           unravel; simpl in *; eauto 2.
-        - destruct b; eauto 2.
-        - destruct n; eauto 2; destruct p; eauto 2;
+        - destruct x; eauto 2.
+        - destruct x; eauto 2; destruct p; eauto 2;
           try (cbv in H0; destruct H0; try destruct p; discriminate).
         - destruct w; eauto 2.
         - destruct w2; eauto 2.
@@ -603,8 +725,8 @@ Module Step.
           uop_type op τ -> V.value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
           exists v, eval_uop op e = Some v.
       Proof.
-        intros op errs Γ e τ Hu Hv Het;
-        destruct op; inv Hu; inv Hv; inv Het; unravel; eauto.
+        intros op errs Γ e τ Hu Hv Het; inv Hu;
+        assert_canonical_forms; unravel; eauto 2.
       Qed.
 
       Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
@@ -614,12 +736,8 @@ Module Step.
           exists v, eval_bop op v1 v2 i = Some v.
       Proof.
         intros errs Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
-        inv Hbop; unravel in *;
-        repeat match goal with
-               | H: numeric _ |- _ => inv H
-               | H: numeric_width _ _ |- _ => inv H
-               | |- _ => inv Hv1; inv Ht1; inv Hv2; inv Ht2
-               end; eauto 2.
+        inv Hbop; try inv_numeric; try inv_numeric_width;
+        repeat assert_canonical_forms; unravel; eauto 2.
       Qed.
 
       Lemma eval_stk_op_exists : forall errs Γ i op n ni ts hs,
@@ -647,16 +765,37 @@ Module Step.
           exists v', eval_member x v = Some v'.
       Proof.
         intros errs Γ x v ts τ τ' Hv Hmem Hget Ht;
-        inv Hmem; inv Hv; inv Ht; unravel.
-        - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2.
-          intuition; simpl in *; subst.
-          rewrite H0; unravel; eauto 2.
-        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2.
-          intuition; simpl in *; subst.
-          rewrite H1; unravel; eauto 2.
+        inv Hmem; assert_canonical_forms; unravel.
+        - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
+          unravel in *; rewrite H; unravel; eauto 2.
+        - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2;
+          unravel in *; rewrite H; unravel; eauto 2.
       Qed.
     End HelpersExist.
+
+    (** Statement signals. *)
+    Inductive signal : Type :=
+    | SIG_Cont                  (* continue *)
+    | SIG_Exit                  (* exit *)
+    | SIG_Rtrn (v : option (E.e tags_t)) (* return *).
+
+    (** Evidence that control-flow
+        is interrupted by an exit or return statement. *)
+    Inductive interrupt : signal -> Prop :=
+    | interrupt_exit : interrupt SIG_Exit
+    | interrupt_rtrn (vo : option (E.e tags_t)) : interrupt (SIG_Rtrn vo).
+    (**[]*)
   End StepDefs.
+
+  Notation "x" := x (in custom p4evalsignal at level 0, x constr at level 0).
+  Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
+  Notation "'X'" := SIG_Exit (in custom p4evalsignal at level 0).
+  Notation "'R' 'of' v ?"
+    := (SIG_Rtrn v) (in custom p4evalsignal at level 0).
+  Notation "'Void'" := (SIG_Rtrn None) (in custom p4evalsignal at level 0).
+  Notation "'Fruit' v"
+    := (SIG_Rtrn (Some v))
+         (in custom p4evalsignal at level 0, v custom p4expr).
 
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
     : E.e tags_t -> E.e tags_t -> Prop :=

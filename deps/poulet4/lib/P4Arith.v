@@ -30,6 +30,12 @@ Module BitArith.
       pose proof exp_ge_one 2 (pos width). lia.
     Qed.
 
+    Lemma bound1 : bound 1.
+    Proof.
+      unfold bound, upper_bound.
+      pose proof pow_gt_1 2 (pos width). lia.
+    Qed.
+
     (* Saturating bound *)
     Definition sat_bound (n : Z) : Z :=
       if (n >? maxZ)

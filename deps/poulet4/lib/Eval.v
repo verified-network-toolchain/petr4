@@ -457,6 +457,19 @@ Section Eval.
       let* lval := eval_lvalue lhs in
       let* val := eval_expression rhs in
       env_update _ lval val;
+    eval_statement_pre (StatConditional cond tru fls) :=
+      let* cv := eval_expression cond in 
+      match cv with 
+      | (ValBase (ValBaseBool b)) => 
+        if b then 
+          eval_statement tru 
+        else
+          match fls with 
+          | Some fls' => eval_statement fls'
+          | _ => skip
+          end
+      | _ => state_fail (SupportError "Unimplemented statement type")
+      end;
     eval_statement_pre (StatBlock block) :=
       stack_push _ ;;
       eval_block block ;;

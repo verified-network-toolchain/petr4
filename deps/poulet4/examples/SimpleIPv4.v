@@ -205,33 +205,6 @@ Definition PacketConsumed (out : @ParserState Meta) : Prop :=
   | _ => False
   end.
 
-Ltac app_ex := 
-  intros; repeat match goal with 
-  | [ H : _ |- _ ] => exact H 
-  | [ H : (_ /\ _)%type |- _] => destruct H
-  | [ H : (exists _, _)%type |- _] => destruct H
-  end.
-
-Ltac wp_trans :=
-  intros; match goal with
-  | [ |- << _ >> mbind _ _ << _ >> ] => eapply bind_wp_p; try wp_trans
-  | [ |- << _ >> get_state << _ >> ] => eapply get_wp_p || eapply strengthen_pre_p; try eapply get_wp_p
-  | [ |- << _ >> put_state ?e << _ >> ] => eapply (put_wp_p e) || eapply strengthen_pre_p; try eapply (put_wp_p e)
-  | [ |- << _ >> state_fail ?e << _ >> ] => eapply (fail_wp_p e) || eapply strengthen_pre_p; try eapply (fail_wp_p e)
-  | [ |- << _ >> state_return ?e << _ >> ] => eapply (return_wp_p e) || eapply strengthen_pre_p; try eapply (return_wp_p e)
-  | [ |- << _ >> if _ then _ else _ << _ >> ] => eapply cond_wp_p; eapply strengthen_pre_p; try wp_trans
-  | [ |- << _ >> match ?e with | 0 => _ | S _ => _ end << _ >> ] => eapply (case_nat_wp_p e); eapply strengthen_pre_p; try wp_trans
-  | [ |- << _ >> match ?e with | nil => _ | _ :: _ => _ end << _ >> ] =>
-    eapply (case_list_wp_p e);
-    try wp_trans
-  | [ |- << _ >> match ?e with | Some _ => _ | None => _ end << _ >> ] =>
-    eapply (case_option_wp_p e);
-    try wp_trans
-  | [ |- << _ >> match ?e with | inl _ => _ | _ => _ end << _ >> ] =>
-    eapply (case_sum_wp_p e);
-    try wp_trans
-  end.
-
 Ltac break_match :=
   match goal with
   | [ |- context[match ?e with _ => _ end] ] =>
@@ -271,6 +244,9 @@ Proof.
   wp_trans; try app_ex.
   simpl.
   intros.
+  1, 2: eapply strengthen_pre_p; wp_trans. 
+  all: app_ex.
+  simpl.
   break_match.
   - exfalso. 
     rewrite <- H in Heql.
@@ -296,9 +272,10 @@ Proof.
     unfold next_bit.
     eapply strengthen_pre_p.
     unfold reject.
-    wp_trans; try app_ex.
-    simpl. intros.
-    destruct H.
+    wp_trans; app_ex.
+    1, 2: eapply strengthen_pre_p; wp_trans.
+    all: app_ex.
+    simpl.
     destruct h.
     destruct pkt.
     all: simpl in *.
@@ -365,8 +342,10 @@ Lemma extract_n_nice :
 Proof.
   induction n; intros.
   - unfold extract_n, reject.
-    wp_trans; try app_ex.
+    eapply strengthen_pre_p.
+    wp_trans.
     simpl.
+    intros.
     rewrite H.
     destruct bits.
     split.
@@ -389,8 +368,10 @@ Proof.
         simpl; intros.
         exact H0.
       * simpl; intros.
-        destruct H, H.
-        now rewrite H0, H1.
+        exact H.
+    + eapply strengthen_pre_p.
+      wp_trans.
+      mysimp.
 Qed.
 
 Ltac mylen ls := 
@@ -414,6 +395,7 @@ Proof.
   unfold next_bit, reject.
   eapply strengthen_pre_p.
   wp_trans; try app_ex.
+  1, 2: eapply strengthen_pre_p; wp_trans; app_ex.
   simpl. intros.
   destruct h.
   destruct pkt.
@@ -433,6 +415,7 @@ Lemma extract_n_wp n {Q: Post ParserState (bits n)}:
 Proof.
   induction n.
   - unfold extract_n, reject.
+    eapply strengthen_pre_p.
     wp_trans. simpl. intros.
     destruct H.
     destruct h.
@@ -456,9 +439,9 @@ Proof.
   - unfold extract_n. fold extract_n. unfold reject.
     eapply strengthen_pre_p.
     wp_trans; try app_ex.
-    all: swap 2 1.
-    eapply IHn.
     eapply extract_bit_wp_corr.
+    eapply IHn.
+    eapply strengthen_pre_p; wp_trans; app_ex.
     simpl. intros.
     destruct (pkt h).
     + destruct H. simpl in H. lia.
@@ -490,7 +473,7 @@ Lemma IPHeader_p_spec st:
 Proof.
   unfold IPHeader_p, reject.
   wp_trans.
-  4: app_ex.
+  4: intros; eapply strengthen_pre_p; wp_trans; app_ex.
   3: eapply (extract_n_wp 4).
   2: eapply (extract_n_wp 8).
   eapply strengthen_pre_p.
@@ -630,67 +613,10 @@ Proof.
   unfold MyProg.
 
   wp_trans.
+  eapply strengthen_pre_p; wp_trans.
+
   all: swap 2 1.
   eapply Headers_p_wp.
-  simpl. intros.
-  destruct H as [pkteq [HWF IPT]].
-  unfold HeaderWF in HWF.
-  unfold IPHeaderIsTCP in IPT.
-  destruct IPT.
-  split.
-  split; [rewrite <- pkteq; lia |].
-  do 20 (destruct pckt; [exfalso; rewrite pkteq in H; simpl in H; inversion H |]).
-  unfold slice_list.
-  simpl.
-  destruct HWF as [H1 [H2 [H3 H4]]].
-  rewrite pkteq in H1.
-  unfold List.nth_error in H1.
-  inversion H1.
-  rewrite pkteq in H2.
-  simpl in H2. 
-  inversion H2.
-  rewrite pkteq in H3.
-  simpl in H3. 
-  inversion H3.
-  rewrite pkteq in H0.
-  simpl in H0.
-  inversion H0.
-  rewrite pkteq in H4.
-  simpl in H4.
-  rewrite pkteq in H.
-  simpl in H.
-  trivial.
-
-  all: swap 2 1.
-  intros.
-  unfold MyIngress.
-  wp_trans.
-  unfold HAList.get.
-  inversion r0.
-  inversion X.
-  assert (HAList.get_k r0
-  (projT2
-     (HAList.get_key_type
-        (HAList.mk_key
-           (exist
-              (fun k1 : string =>
-               HAList.alist_In k1
-                 [("ip", IPHeader); ("transport", (TCP + UDP)%type)])
-              "transport" I)))) = x0).
-              admit.
-
-  rewrite H.
-
-  destruct x0; unfold set_std_meta; wp_trans; try app_ex.
-  rewrite pkteq in *.
-
-  do 40 (destruct pckt; [exfalso; simpl in H; inversion H |]).
-  unfold pkt2Headers.
-  unfold HAList.get, pkt2IPHeader, slice_list.
-  unfold Nat.sub.
-  unfold firstn, skipn.
-  unfold take_bits_opt.
-  unfold mkIPHeader.
 Admitted.
 
 Lemma ParseUDPCorrect pckt :

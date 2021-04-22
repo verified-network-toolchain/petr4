@@ -35,20 +35,12 @@ Example fail_incr n:
     end
   }}.
 Proof.
-  wp.
-  all: swap 2 1. 
+  eapply strengthen_pre_t.
+  wp_trans.
   intros.
   eapply strengthen_pre_t.
   wp.
-  intros.
-  simpl.
-  apply H.
-  all: swap 2 1.
-  intros.
-  apply H.
-  
-  eapply strengthen_pre_t.
-  wp.
+  all: app_ex.
   mysimp.
 Qed.
 
@@ -61,7 +53,7 @@ Example cond_fail b:
   {{ fun r s => r = inr tt }}.
 Proof.
   eapply strengthen_pre_t.
-  repeat wp.
+  wp_trans.
   mysimp.
 Qed.
 
@@ -86,30 +78,9 @@ Example eo_pres n:
 Proof.
   unfold either_or.
   eapply strengthen_pre_t.
-  wp.
-  eapply strengthen_pre_t.
-  wp.
-  intros.
-  destruct H as [it _].
-  exact it.
-
-  eapply strengthen_pre_t.
-  wp.
-  all: swap 2 1.
-  intros.
-  eapply strengthen_pre_t.
-  wp.
-  intros.
-  exact H.
-  wp.
-  intros.
-  simpl.
-  exact H.
-  intros.
-  simpl.
-  destruct H as [n' [_ it]].
-  exact it.
-  mysimp.
+  wp_trans.
+  1, 2: intros; eapply strengthen_pre_t; wp_trans.
+  all: app_ex.
   destruct n; mysimp.
 Qed.
 
@@ -133,15 +104,10 @@ Example branch_splits :
 Proof.
   eapply strengthen_pre_t.
   unfold get_branch.
-  wp.
-  all: swap 2 1.
-
-  intros.
+  wp_trans.
+  intros. eapply strengthen_pre_t. 
   apply (eo_pres r). (* reuse a prior proof *)
-  wp.
-  intros.
-  exact H.
-  mysimp.
+  all: app_ex.
 Qed.
 
 (* While our hoare calculi do not have primitives for loops, we can still easily
@@ -172,12 +138,9 @@ Proof.
     wp.
     eapply weaken_post_t.
     apply IHm.
-    all: swap 2 1.
-    intros.
-    exact H.
+    all: app_ex.
     mysimp.
     lia.
-    mysimp.
 Qed.
 
   
@@ -192,13 +155,9 @@ Example get_incr_t n:
     @put_state nat unit (fun x => x + 1) ;; @get_state nat unit
   {{ Norm (fun r s => r = n + 1) }}.
 Proof.
-  wp.
-  all: swap 2 1.
-  intros. 
-  wp.
-  all: swap 2 1.
-  intros.
-  apply H.
+  eapply strengthen_pre_t.
+  wp_trans.
+  all: app_ex.
   mysimp.
 Qed.
 
@@ -230,9 +189,8 @@ Example cond_fail_p b:
     if b then state_fail tt else state_return true
   << fun r s => r = true >>.
 Proof.
-  refine (strengthen_pre_p ( 
-    cond_wp_p (fail_wp_p tt) (return_wp_p true)
-  ) _).
+  eapply strengthen_pre_p.
+  wp_trans.
   mysimp.
 Qed.
 
@@ -297,21 +255,3 @@ Proof.
     + auto.
 Qed.
 
-Lemma iter_repeat_post {A} (a: nat) (b: nat) (val: A): 
-  << fun s => length s = a >>
-    iter_repeat b val
-  << fun _ s' => length s' = a + b >>.
-Admitted.
- 
-Example repeat_twice {A} xs a b (val: A):
-  << fun s => s = xs >>
-    iter_repeat a val ;; 
-    iter_repeat b val
-  << fun _ s' => length s' = length xs + a + b >>.
-Proof.
-  refine ( strengthen_pre_p (
-    iter_repeat_post _ _ _ ;;;
-    iter_repeat_post _ _ _
-  ) _ ).
-  mysimp.
-Qed.

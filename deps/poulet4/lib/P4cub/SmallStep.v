@@ -1085,8 +1085,8 @@ Module Step.
 
   Inductive stmt_step {tags_t : Type}
             (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
-            (fns : @fenv tags_t) (ins : @ienv tags_t) (ϵ : @eenv tags_t) :
-    ST.s tags_t -> ST.s tags_t -> @eenv tags_t -> @signal tags_t -> Prop :=
+            (fns : @fenv tags_t) (ins : @ienv tags_t) (ϵ : eenv) :
+    ST.s tags_t -> ST.s tags_t -> eenv -> @signal tags_t -> Prop :=
   | step_vardecl (τ : E.t) (x : string) (i : tags_t) :
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ, var x : τ @ i -->   skip @ i, x ↦ v;; ϵ , C
@@ -1102,6 +1102,37 @@ Module Step.
       V.value v2 ->
       let ϵ' := lv_update v1 v2 ϵ in
       ℸ cfg, tbls, aa, fns, ins, ϵ, asgn v1 := v2:τ @ i -->  skip @ i, ϵ', C
+  | step_seq_cont (s1 s1' s2 : ST.s tags_t) (i : tags_t) (ϵ' : eenv) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s1 -->  s1', ϵ', C ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s1; s2 @ i -->  s1'; s2 @ i, ϵ', C
+  | step_seq_interrupt (s1 s1' s2 : ST.s tags_t)
+                       (i : tags_t) (ϵ' : eenv) (sig : signal) :
+      interrupt sig ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s1 -->  s1', ϵ', sig ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s1; s2 @ i -->   skip @ i, ϵ', sig
+  | step_seq_collapse (s2 : ST.s tags_t) (i' i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, (skip @ i') ; s2 @ i -->  s2, ϵ, C
+  | step_cond (e e' : E.e tags_t) (s1 s2 : ST.s tags_t) (i : tags_t) :
+      ℵ ϵ, e -->  e' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      if e:Bool then s1 else s2 @ i -->
+      if e:Bool then s1 else s2 @ i, ϵ, C
+  | step_cond_true (s1 s2 : ST.s tags_t) (i' i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      if TRUE @ i' :Bool then s1 else s2 @ i -->  s1, ϵ, C
+  | step_cond_false (s1 s2 : ST.s tags_t) (i' i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      if FALSE @ i' :Bool then s1 else s2 @ i -->  s2, ϵ, C
+  | step_exit (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, exit @ i -->  skip @ i, ϵ, X
+  | step_return_void (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, returns @ i -->  skip @ i, ϵ, Void
+  | step_return_fruit (e e' : E.e tags_t) (τ : E.t) (i : tags_t) :
+      ℵ ϵ, e -->  e' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, return e:τ @ i -->  return e':τ @ i, ϵ, C
+  | step_return_collapse (v : E.e tags_t) (τ : E.t) (i : tags_t) :
+      V.value v ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, return v:τ @ i -->  skip @ i, ϵ, Fruit v
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
           := (stmt_step cfg tbls aa fns ins ϵ1 s1 s2 ϵ2 sgl).
 End Step.

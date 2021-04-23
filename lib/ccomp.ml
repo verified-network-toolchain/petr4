@@ -1,4 +1,5 @@
 module Petr4Info = Info
+(* open Core  *)
 open Core_kernel
 module Info = Petr4Info
 module C = Csyntax
@@ -101,7 +102,7 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     let width = type_width hdr_typ in
     let args = get_expr_opt_lst args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall ("extract", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CString "extract", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
                 type_args = [hdr_typ];
                 args} ->
@@ -109,14 +110,14 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     let width = type_width hdr_typ in
     let args = get_expr_opt_lst args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall ("emit", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CString "emit", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = tbl; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->
-    C.CMethodCall (get_expr_name tbl, [C.CString "state"])
+    C.CMethodCall (C.CString (get_expr_name tbl), [C.CString "state"])
   | MethodCall { func; type_args; args } -> 
     let args = get_expr_opt_lst args in
-    C.CMethodCall (get_expr_name func, args)
+    C.CMethodCall (C.CString (get_expr_name func), args)
   | Assignment { lhs; rhs } -> 
     let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
     C.CAssign (left, (get_expr_c rhs)) 
@@ -172,7 +173,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let map_update = update_map map params in 
     let params = translate_params params in
-    let state_type_name = concat name "_state" in
+    let state_type_name = make_state_name (snd name) in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
     let struct_decl = C.CStruct (state_type_name, params) in
@@ -188,7 +189,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     let flat_params = params@constructor_params in  
     let map_update = update_map map flat_params in 
     let params = translate_params flat_params in
-    let state_type_name = concat name "_state" in
+    let state_type_name = make_state_name "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
     let struct_decl = C.CStruct (state_type_name, params) in
@@ -224,14 +225,14 @@ and translate_decls (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.
   in
   List.fold ~init:(map, []) ~f decls
 
-and translate_local (n: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
+and translate_local (control_name: string) (map: varmap) (locals : Prog.Declaration.t) : C.cdecl = 
   match snd locals with 
   | Action { name; data_params; ctrl_params; body; _ } -> 
     C.CFun (CVoid, snd name, 
             [CParam (CTypeName "MyC_state", "*state")], 
             translate_block map body)
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } ->
-    translate_table(snd name, key, actions, entries, default_action, size, custom_properties)
+    translate_table(control_name, snd name, key, actions, entries, default_action, size, custom_properties)
   | _ -> failwith "incomplete"
 
 and find_table_name (locals : Prog.Declaration.t list) : string =
@@ -305,26 +306,40 @@ and get_entry_methods (entries : Prog.Table.entry list option) =
       get_action_ref l 
   end 
 
-and translate_table(name, k, actions, entries, default_action, size, custom_properties) = 
+and make_state_name =
+  Printf.sprintf "%s_state" 
+
+and translate_inner (control_name, name, k, actions, entries, default_action, size, custom_properties) = 
   let l = get_entry_methods entries in 
   let first = get_first l in 
-  let last = get_default_action default_action in 
   let cond_logic = get_cond_logic_lst entries k in
   let first_if = match cond_logic with 
     | h::t -> h
-    | _ -> failwith "f" in  
-  let state_type_name = "MyC" ^ "_state" in 
-  let state_type = C.(CPtr (CTypeName state_type_name)) in
+    | _ -> failwith "f" in 
+  if List.length l = 1 then 
+    let last = get_default_action default_action in 
+    C.CIf 
+      (first_if,
+       method_call_table first,
+       method_call_table last)
+  else 
+    match entries with 
+    | None -> failwith "f"
+    | Some s -> begin match s with 
+        | [] -> failwith "F"
+        | h::t -> 
+          C.CIf 
+            (first_if,
+             method_call_table first,
+             translate_inner(control_name, name, k, actions, Some t, default_action, size, custom_properties)) end 
+
+and translate_table(control_name, name, k, actions, entries, default_action, size, custom_properties) = 
+  let state_type = C.(CPtr (CTypeName (make_state_name control_name))) in
   let state_param = C.CParam (state_type, "state") in
-  (* let translated_keys = List.map ~f:translate_key k in  *)
-  C.CFun (C.CVoid, name, [state_param], 
-          C.[CIf 
-               (first_if,
-                method_call_table first,
-                method_call_table last)])
+  C.CFun(C.CVoid, name, [state_param], [translate_inner (control_name, name, k, actions, entries, default_action, size, custom_properties)]) 
 
 and method_call_table (name : P4.name) = 
-  C.CMethodCall (snd (get_name name), [C.CString "state"])
+  C.CMethodCall (C.CString( snd (get_name name)), [C.CString "state"])
 
 and get_first (list) = 
   match list with 
@@ -376,10 +391,10 @@ and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt =
     let width = type_width hdr_typ in
     let args = get_expr_opt_lst args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall ("emit", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CString "emit", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall { func; type_args; args } -> 
     let args = get_expr_opt_lst args in
-    C.CMethodCall (get_expr_name func, args)
+    C.CMethodCall (C.CString (get_expr_name func), args)
   | Assignment { lhs; rhs } -> 
     let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
     C.CAssign (left, (get_expr_c rhs)) 

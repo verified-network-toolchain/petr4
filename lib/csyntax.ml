@@ -36,7 +36,7 @@ and cstmt =
   | CIf of cexpr * cstmt * cstmt
   | CAssign of cexpr * cexpr
   | CVarInit of ctyp * cname * cexpr
-  | CMethodCall of cname * cexpr list  
+  | CMethodCall of cexpr * cexpr list  
   | CSwitch of cexpr * ccase list
   | CBlock of cstmt list
   | CWhile of cexpr * cstmt
@@ -52,6 +52,7 @@ and cexpr =
   | CBoolExp of bool
   | CString of cname 
   | CGeq of cexpr * cexpr
-  | CPointer of cexpr * cname
+  | CPointer of cexpr * cname (* can replace cpointer with deref and cmember  *)
+  | CEq of cexpr * cexpr  (* TODO - Ceq can be used for state->hdrs.simple.dst == 0 --> make boolean expressions with equality  *)
 
 type cprog = cdecl list

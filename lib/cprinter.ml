@@ -78,7 +78,7 @@ and format_cstmt (stmt: cstmt) =
           ++ text " = "
           ++ format_cexpr rval)
   | CMethodCall (name, params) ->
-    box (format_cname name
+    box (format_cexpr name
          ++ format_cparams_method params) 
   | CSwitch (cond, cases) ->
     box ~indent:2 (text "switch (" ++ format_cexpr cond ++ text ") {\n") 
@@ -127,6 +127,12 @@ and format_cexpr (expr: cexpr) =
          ++ text ")") 
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
+  | CEq (e1, e2) -> 
+    box (text "("
+         ++ format_cexpr e1
+         ++ text " == "
+         ++ format_cexpr e2
+         ++ text ")") 
 
 and format_ccases (cases: ccase list) =
   concat_map ~sep:(text "\n") ~f:format_ccase cases

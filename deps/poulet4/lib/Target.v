@@ -4,9 +4,10 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Typed.
-Require Import Syntax.
-Require Import P4Int.
+Require Import Poulet4.Typed.
+Require Import Poulet4.Syntax.
+Require Import Poulet4.P4Int.
+Require Import Poulet4.Maps.
 
 Section Target.
 
@@ -38,6 +39,48 @@ Class ExternSem := {
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
+
+Class SeparableExternSem := {
+  extern_object : Type;
+  (* extern_state := @IdentMap.t tags_t extern_object; *)
+  (* extern_empty : extern_state := IdentMap.empty; *)
+  (* Allocation should be a function; calling may be fine as a relation. *)
+  ses_alloc_extern : ident (* class *) -> list (@P4Type tags_t) -> list Val -> extern_object;
+  ses_exec_extern : ident (* class *) -> ident (* method *) -> extern_object -> list Val -> extern_object -> list Val -> option Val -> Prop;
+  (* ses_extern_get_entries : extern_state -> path -> list table_entry; *)
+  ses_extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
+}.
+
+Section ExternSemOfSeparableExternSem.
+Context (ses : SeparableExternSem).
+
+Definition extern_state' : Type := @PathMap.t tags_t extern_object * @PathMap.t tags_t (list table_entry).
+
+Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state' -> list Val -> option Val -> Prop :=
+  | exec_extern_intro : forall s class method p args s' args' vret obj obj',
+      PathMap.get p (fst s) = Some obj ->
+      ses_exec_extern class method obj args obj' args' vret ->
+      (PathMap.set p obj' (fst s), snd s) = s' ->
+      exec_extern' s class method p args s' args' vret.
+
+Definition extern_get_entries' (s : extern_state') p :=
+  match PathMap.get p (snd s) with
+  | Some entries => entries
+  | None => nil
+  end.
+
+Definition ExternSemOfSeparableExternSem := {|
+  extern_state := extern_state';
+  extern_empty := (PathMap.empty, PathMap.empty);
+  alloc_extern := (fun s class type_params p args =>
+                    (PathMap.set p (ses_alloc_extern class type_params args) (fst s), snd s));
+  exec_extern := exec_extern';
+  extern_get_entries := extern_get_entries';
+  extern_match := ses_extern_match
+|}.
+End ExternSemOfSeparableExternSem.
+
+Coercion ExternSemOfSeparableExternSem : SeparableExternSem >-> ExternSem.
 
 Class Target := {
   extern_sem : ExternSem;

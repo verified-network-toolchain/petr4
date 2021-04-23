@@ -38,13 +38,13 @@ Definition extern_empty : extern_state := PathMap.empty.
 Axiom dummy_tag : tags_t.
 Definition register_string : ident := {| P4String.tags := dummy_tag; P4String.str := "register" |}.
 
-Definition alloc_extern (s : extern_state) (class : ident) (params : list (@P4Type tags_t)) (p : path) (args : list Val) :=
+Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (@P4Type tags_t)) (p : path) (args : list Val) :=
   if P4String.equivb class register_string then
     match args with
     (* | [ValBaseInteger size] *)
     | [ValBaseBit _ size]
     (* | [ValBaseInt _ size] *) =>
-        match params with
+        match type_params with
         | [TypBit w] =>
             PathMap.set p (new_register size w) s
         | _ => s (* fail *)

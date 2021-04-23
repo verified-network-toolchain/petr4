@@ -1133,6 +1133,28 @@ Module Step.
   | step_return_collapse (v : E.e tags_t) (τ : E.t) (i : tags_t) :
       V.value v ->
       ℸ cfg, tbls, aa, fns, ins, ϵ, return v:τ @ i -->  skip @ i, ϵ, Fruit v
+  | step_funcall_in_arg (prefix suffix : E.args tags_t) (f x : string)
+                        (τ : E.t) (e e' : E.e tags_t)
+                        (o : option (E.t * E.e tags_t)) (i : tags_t) :
+      F.predfs_data
+        (P.pred_paramarg
+           (V.value ∘ snd) (V.lvalue ∘ snd)) prefix ->
+      ℵ ϵ, e -->  e' ->
+      let args  := prefix ++ (x, P.PAIn (τ,e))  :: suffix in
+      let args' := prefix ++ (x, P.PAIn (τ,e')) :: suffix in
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      funcall f with args into o @ i -->  funcall f with args' into o @ i, ϵ, C
+  (** TODO: Issue with function call execution:
+      After all arguments are fully-evaluated & copied-in,
+      [stmt_step] must keep track of:
+      - The evaluated arguments when it needs to perform copy-out.
+      - If the call assigns the return result to an expression.
+      - The environments at the call-site, b/c when executing
+        the call the closure environment will be used.
+      I will research more on the subject of
+      small-step semantics for procedure calls:
+      [Structural operational semantics through context-dependent behaviour]
+      [https://www.sciencedirect.com/science/article/pii/S1567832611000452] *)
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
           := (stmt_step cfg tbls aa fns ins ϵ1 s1 s2 ϵ2 sgl).
 End Step.

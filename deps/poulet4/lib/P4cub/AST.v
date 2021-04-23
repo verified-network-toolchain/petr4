@@ -505,6 +505,17 @@ Module P4cub.
   Arguments PAOut {_} {_}.
   Arguments PAInOut {_} {_}.
 
+  (** A predicate on a [paramarg]. *)
+  Definition pred_paramarg {A B : Type}
+             (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=
+    match pa with
+    | PAIn a => PA a
+    | PAOut b | PAInOut b => PB b
+    end.
+  (**[]*)
+
+  Definition pred_paramarg_same {A : Type} (P : A -> Prop) : paramarg A A -> Prop := pred_paramarg P P.
+
   (** Relating [paramarg]s. *)
   Definition rel_paramarg {A1 A2 B1 B2 : Type}
              (RA : A1 -> A2 -> Prop) (RB : B1 -> B2 -> Prop)
@@ -518,10 +529,9 @@ Module P4cub.
     end.
   (**[]*)
 
-  Definition rel_paramarg_same
-             {A B : Type} (R : A -> B -> Prop)
-             (paa : paramarg A A) (pab : paramarg B B) : Prop :=
-    rel_paramarg R R paa pab.
+  Definition rel_paramarg_same {A B : Type} (R : A -> B -> Prop) :
+    paramarg A A -> paramarg B B -> Prop :=
+    rel_paramarg R R.
   (**[]*)
 
   (** Function signatures/instantiations. *)
@@ -1924,11 +1934,14 @@ Module P4cub.
                         no associativity).
       Notation "'call' f 'with' args @ i"
         := (SFunCall f (Arrow args None) i)
-             (in custom p4stmt at level 30, no associativity).
+             (in custom p4stmt at level 0, no associativity).
       Notation "'let' e : t ':=' 'call' f 'with' args @ i"
                := (SFunCall f (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 0,
                         e custom p4expr, t custom p4stmt, no associativity).
+      Notation "'funcall' f 'with' args 'into' o @ i"
+               := (SFunCall f (Arrow args o) i)
+                    (in custom p4stmt at level 0, no associativity).
       Notation "'calling' a 'with' args @ i"
                := (SActCall a args i) (in custom p4stmt at level 0).
       Notation "'extern' e 'calls' f 'with' args 'gives' x @ i"

@@ -71,13 +71,13 @@ module type RunnerConfig = sig
   type st
 
   val eval_program : Prog.Value.ctrl -> Prog.Env.EvalEnv.t -> st -> Prog.Value.buf ->
-    Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) option
+    Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) list
 end
 
 module MakeRunner (C : RunnerConfig) = struct  
 
   let evaler (prog : Prog.program) (pkt_in : string) (port : int)
-      (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) option =
+      (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) list =
     let pkt_in = Cstruct.of_hex pkt_in in
     let port = Bigint.of_int port in
     C.eval_program (add, []) env st pkt_in port prog
@@ -104,10 +104,11 @@ module MakeRunner (C : RunnerConfig) = struct
         let (st', result) = evaler prog (packet |> String.lowercase) (int_of_string port) env st (add,set_def) in
         let results' =
         begin match result with
-        | Some (pkt, port) ->
+        | [(pkt, port)] ->
                 let fixed = pkt |> Cstruct.to_string |> Petr4_parse.hex_of_string |> strip_spaces |> String.lowercase in
                 (Bigint.to_string port, fixed) :: results
-        | None -> results
+        | [] -> results
+        | _ -> failwith "multicast unimplemented in stf"
         end in
         run_test prog tl (add,set_def) results' expected env st'
       | Expect (port, Some packet) -> run_test prog tl (add,set_def) results ((port, strip_spaces packet |> String.lowercase) :: expected) env st

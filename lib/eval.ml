@@ -26,12 +26,12 @@ module type Interpreter = sig
   val eval_declaration : ctrl -> env -> state -> Declaration.t -> (env * state)
 
   val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
-    state * (buf * Bigint.t) option
+    state * (buf * Bigint.t) list
 
   val init_switch : env -> program -> env * state
 
   val switch_packet : ctrl -> env -> state ->  buf -> Bigint.t ->
-    state * (buf * Bigint.t) option
+    state * (buf * Bigint.t) list
 
 end
 
@@ -1408,29 +1408,29 @@ module MakeInterpreter (T : Target) = struct
     let (b,_,c) = eval_expr ctrl env st SContinue expr in (b,c)
 
   and eval (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (in_port : Bigint.t) : state * env * pkt option * Bigint.t =
-    let st' = T.initialize_metadata in_port st in
-    let (st, env, pkt) = T.eval_pipeline ctrl env st' pkt eval_app in
-    st, env, pkt, T.get_outport st env
+      (in_port : Bigint.t) : state * env * (pkt * Bigint.t) list =
+    let st = T.initialize_metadata in_port st in
+    let (st, env, pkts) = T.eval_pipeline ctrl env st pkt eval_app in
+    st, env, pkts
 
   and eval_main (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (in_port : Bigint.t) : state * pkt option * Bigint.t =
-    let (st, _, pkt, out_port) = eval ctrl env st pkt in_port in
-    st, pkt, out_port
+      (in_port : Bigint.t) : state * (pkt * Bigint.t) list =
+    let (st, _, pkts) = eval ctrl env st pkt in_port in
+    st, pkts
 
   and eval_program (ctrl : ctrl) (env: env) (st : state) (pkt : buf)
-      (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) option =
-    let (>>|) = Option.(>>|) in
+      (in_port : Bigint.t) (prog : program) : state * (buf * Bigint.t) list =
     let st = State.reset_state st in
     match prog with Program l ->
     let (env,st) =
-      List.fold_left l
+      List.fold l
         ~init:(env, st)
         ~f:(fun (e,s) -> eval_declaration ctrl e s)
     in
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
-    let st', pkt', port = eval_main ctrl env st pkt in_port in
-    st', pkt' >>| fun pkt' -> (Cstruct.append pkt'.emitted pkt'.main, port)
+    let st, pkts = eval_main ctrl env st pkt in_port in
+    st, List.map pkts
+          ~f:(fun (pkt, pt) -> (Cstruct.append pkt.emitted pkt.main, pt))
 
   let init_switch (env : env) (prog : program) : env * state =
     match prog with Program l ->
@@ -1438,11 +1438,10 @@ module MakeInterpreter (T : Target) = struct
       ~f:(fun (e,s) -> eval_declaration (([], []),[]) e s)
 
   let switch_packet (ctrl : ctrl) (env : env) (st : state) (pkt : buf)
-      (pt : Bigint.t) : state * (buf * Bigint.t) option  =
-    let (>>|) = Option.(>>|) in
+      (pt : Bigint.t) : state * (buf * Bigint.t) list =
     let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
-    let (st, pkt, pt) = eval_main ctrl env st pkt pt in
-    st, pkt >>| fun pkt -> (Cstruct.append pkt.emitted pkt.main, pt)
+    let (st, pkts) = eval_main ctrl env st pkt pt in
+    st, List.map pkts ~f:(fun (pkt, pt) -> (Cstruct.append pkt.emitted pkt.main, pt))
 
 end
 

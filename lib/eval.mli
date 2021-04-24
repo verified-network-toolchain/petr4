@@ -41,12 +41,12 @@ module type Interpreter = sig
       control-plane configuration [ctrl], environment [env], and state [st],
       producing the side-effects in [st']. *)
   val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
-    state * (buf * Bigint.t) option
+    state * (buf * Bigint.t) list
 
   val init_switch : env -> program -> env * state
 
   val switch_packet : ctrl -> env -> state -> buf -> Bigint.t ->
-    state * (buf * Bigint.t) option
+    state * (buf * Bigint.t) list
 
 end
 

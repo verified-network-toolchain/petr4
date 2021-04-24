@@ -133,11 +133,17 @@ module PreUp4Filter : Target = struct
     let env = EvalEnv.insert_typ param_name param_type env in
     param_value, param_name, param_loc, st, env
 
+  (* Get out_port field from the Im_t extern object. *)
+  let get_outport (st : state) (env : env) : Bigint.t =
+    match State.find_extern im_t_location st with
+    | Im_t {out_port = out; _} -> out
+
+
   (* Push [pkt] through pipeline of this architecture, 
      updating the environment and state and return the 
      new state, environment and the packet if it was accepted! *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (app : state apply) : state * env * pkt option =
+      (app : state apply) : state * env * (pkt * Bigint.t) list =
     (* Get main *)
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     (* Get arguments passed into main *)
@@ -197,7 +203,7 @@ module PreUp4Filter : Target = struct
     let (st,signal, _) =
       app ctrl env st SContinue parser [pkt_expr; im_expr; hdrs_expr; meta_expr; in_expr; inout_expr] in
     match signal with 
-    | SReject _ -> st, env, None
+    | SReject _ -> st, env, []
     | SContinue | SExit | SReturn _ -> 
       (* Go through micro control *)
       let (st, signal) = eval_up4_ctrl ctrl control 
@@ -205,13 +211,13 @@ module PreUp4Filter : Target = struct
            in_expr; out_expr; inout_expr] 
           app (env, st) in
       match signal with
-      | SReject _ -> st, env, None
+      | SReject _ -> st, env, []
       | SContinue | SExit | SReturn _ -> 
         let im_t = State.find_extern im_t_location st in 
         let outport = match im_t with 
           | Im_t {out_port; _} -> out_port in 
         if outport = drop_spec 
-          then st, env, None
+          then st, env, []
         else
           let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
           let st = State.insert_heap vpkt_loc vpkt' st in
@@ -223,14 +229,9 @@ module PreUp4Filter : Target = struct
               [pkt_expr; hdrs_expr] 
               app (env, st) in 
           match signal with
-          | SReject _ -> st, env, None
-          | SContinue | SExit | SReturn _ -> st, env, Some (State.get_packet st)
-
-  (* Get out_port field from the Im_t extern object. *)
-  let get_outport (st : state) (env : env) : Bigint.t =
-    match State.find_extern im_t_location st with
-    | Im_t {out_port = out; _} -> out
-
+          | SReject _ -> st, env, []
+          | SContinue | SExit | SReturn _ ->
+            st, env, [State.get_packet st, get_outport st env]
 end 
 
 module Up4Filter : Target = P4core.Corize(PreUp4Filter)

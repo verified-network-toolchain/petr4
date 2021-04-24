@@ -137,14 +137,16 @@ module Make_parse (Conf: Parse_config) = struct
         | "v1" ->
           let st = V1Interpreter.empty_state in
           begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt,port) -> `Ok(pkt, port)
-            | None -> `NoPacket
+            | [(pkt,port)] -> `Ok(pkt, port)
+            | [] -> `NoPacket
+            | _ -> failwith "multicast unsupported"
           end
         | "ebpf" ->
           let st = EbpfInterpreter.empty_state in
           begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt, port) -> `Ok(pkt,port)
-            | None -> `NoPacket
+            | [(pkt, port)] -> `Ok(pkt,port)
+            | [] -> `NoPacket
+            | _ -> failwith "multicast unsupported"
           end
         | _ -> Format.sprintf "Architecture %s unsupported" target |> failwith
       end

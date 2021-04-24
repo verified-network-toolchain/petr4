@@ -118,7 +118,7 @@ module PreEbpfFilter : Target = struct
     (st,s)
 
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
-      (app : state apply) : state * env * pkt option =
+      (app : state apply) : state * env * (pkt * Bigint.t) list =
     let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
     let vs = assert_package main |> snd in
     let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal |> fun x -> State.find_heap x st in
@@ -164,16 +164,13 @@ module PreEbpfFilter : Target = struct
           env
           {lvalue = LName {name = accept_name}; typ = Bool}
           (VBool(false)) in
-      st, env, None
+      st, env, []
     | SContinue | SExit | SReturn _ ->
       let (st,_) = 
         eval_ebpf_ctrl ctrl filter [hdr_expr; accept_expr] app (env, st) in
       st, env, 
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
-      then Some pkt else None
-
-  let get_outport (st : state) (env : env) : Bigint.t =
-    State.find_heap "__INGRESS_PORT__" st |> bigint_of_val
+      then [pkt, State.find_heap "__INGRESS_PORT__" st |> bigint_of_val] else []
 
 end
 

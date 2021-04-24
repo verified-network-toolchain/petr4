@@ -679,7 +679,7 @@ module PreV1Switch : Target = struct
       State.find_heap std_meta_loc st
       |> assert_struct
       |> fun x ->  List.Assoc.find_exn x "egress_spec" ~equal:String.equal in
-    if Bigint.(bigint_of_val egress_spec_val = drop_spec) then st, env, None else
+    if Bigint.(bigint_of_val egress_spec_val = drop_spec) then st, env, [] else
     let egress_port_lv = std_meta_field_lv std_meta_t port_typ "egress_port" in
     let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
 
@@ -698,8 +698,13 @@ module PreV1Switch : Target = struct
       |> assert_struct
       |> fun x -> List.Assoc.find_exn x "egress_spec" ~equal:String.equal
       |> bigint_of_val in
-    if Bigint.(egress_spec = drop_spec) then st, env, None else
-    st, env, Some (State.get_packet st)
+    if Bigint.(egress_spec = drop_spec) then st, env, [] else
+    let egress_port =
+      State.find_heap std_meta_loc st
+      |> assert_struct
+      |> fun x -> List.Assoc.find_exn x "egress_port" ~equal:String.equal
+      |> bigint_of_val in
+    st, env, [State.get_packet st, egress_port]
 
   let get_outport (st : state) (env : env) : Bigint.t =
     let std_meta_loc =

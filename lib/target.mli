@@ -5,12 +5,11 @@ open Env
 
 type env = EvalEnv.t
 
-type 'st pre_extern =
-  env -> 'st -> Type.t list -> (value * Type.t) list ->
-  env * 'st * signal * value
+type 'st pre_extern = env -> 'st -> Type.t list -> (value * Type.t) list ->
+                      env * 'st * signal * value
 
-type 'st apply =
-  ctrl -> env -> 'st -> signal -> value -> Expression.t option list -> 'st * signal * value
+type 'st apply = ctrl -> env -> 'st -> signal -> value ->
+                 Expression.t option list -> 'st * signal * value
 
 module State : sig
   type 'a t
@@ -56,9 +55,8 @@ module type Target = sig
 
   val check_pipeline : env -> unit 
 
-  val eval_pipeline : ctrl -> env -> state -> pkt -> state apply -> state * env * pkt option
-
-  val get_outport : state -> env -> Bigint.t
+  val eval_pipeline : ctrl -> env -> state -> pkt ->
+                      state apply -> state * env * (pkt * Bigint.t) list
 
 end
 
@@ -70,4 +68,5 @@ val width_of_val : value -> Bigint.t
 
 val value_of_lvalue : 'a reader -> env -> 'a State.t -> lvalue -> signal * value
 
-val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue -> value -> 'a State.t * signal
+val assign_lvalue : 'a reader -> 'a writer -> 'a State.t -> env -> lvalue ->
+                    value -> 'a State.t * signal

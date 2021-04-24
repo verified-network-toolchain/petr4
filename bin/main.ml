@@ -130,12 +130,12 @@ let start_v1switch env prog sockets =
     fun (i, pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i) |> Lwt.return >>=
     fun (st, pkt) ->
     begin match pkt with
-      | Some (pkt, pt) ->
+      | [] -> [Lwt.return ()]
+      | l -> List.map l ~f:(fun (pkt, pt) -> 
         let pt = pt |> Bigint.to_int_exn |> List.Assoc.find sockets ~equal:Int.equal in
         begin match pt with
 	  | Some pt -> Lwt_rawlink.send_packet pt pkt
-          | None -> Lwt.return () end
-      | None -> Lwt.return () end >>=
+          | None -> Lwt.return () end) end |> Lwt.join  >>=
     fun _ ->
       let socks = List.Assoc.remove socks i ~equal:Int.equal in
       let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in

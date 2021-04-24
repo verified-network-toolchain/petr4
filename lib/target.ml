@@ -413,8 +413,6 @@ module type Target = sig
   val check_pipeline : env -> unit
 
   val eval_pipeline : ctrl -> env -> state -> pkt ->
-  state apply -> state * env * pkt option
-
-  val get_outport : state -> env -> Bigint.t
+                      state apply -> state * env * (pkt * Bigint.t) list
 
 end

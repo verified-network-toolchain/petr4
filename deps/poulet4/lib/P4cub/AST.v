@@ -24,7 +24,6 @@ Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
 Declare Custom Entry p4stmt.
-Declare Custom Entry p4decl.
 Declare Custom Entry p4prsrexpr.
 Declare Custom Entry p4prsrstate.
 Declare Custom Entry p4ctrldecl.
@@ -1963,56 +1962,6 @@ Module P4cub.
     End StmtNotations.
   End Stmt.
 
-  (** * Declaration Grammar *)
-  Module Decl.
-    Module E := Expr.
-    Module S := Stmt.
-
-    Section Declarations.
-      Variable (tags_t : Type).
-
-      (** Here is the subset of declarations that
-          may occur within controls, parsers,
-          and even the top-level. *)
-      Inductive d : Type :=
-      | DVardecl (typ : E.t) (x : string)
-                 (i : tags_t)                      (* unitialized variable *)
-      | DVarinit (typ : E.t) (x : string)
-                 (rhs : E.e tags_t) (i : tags_t)   (* initialized variable *)
-      | DInstantiate (C : string) (x : string)
-                     (cargs : E.constructor_args tags_t)
-                     (i : tags_t)                  (* constructor [C]
-                                                      with constructor [args]
-                                                      makes instance [x]. *)
-      | DSeq (d1 d2 : d) (i : tags_t)              (* sequence of declarations *).
-    (**[]*)
-    End Declarations.
-
-    Arguments DVardecl {tags_t}.
-    Arguments DVarinit {tags_t}.
-    Arguments DInstantiate {tags_t}.
-    Arguments DSeq {tags_t}.
-
-    Module DeclNotations.
-      Notation "';{' decl '};'" := decl (decl custom p4decl at level 99).
-      Notation "( x )" := x (in custom p4decl, x at level 99).
-      Notation "x"
-        := x (in custom p4decl at level 0, x constr at level 0).
-      Notation "'Var' x : t @ i"
-        := (DVardecl t x i) (in custom p4decl at level 0, t custom p4type).
-      Notation "'Let' x : t ':=' e @ i"
-        := (DVarinit t x e i)
-             (in custom p4decl at level 0, t custom p4type, e custom p4expr).
-      Notation "'Instance' x 'of' c ( args ) @ i"
-               := (DInstantiate c x args i) (in custom p4decl at level 0).
-      Notation "d1 ';;' d2 @ i"
-               := (DSeq d1 d2 i)
-                    (in custom p4decl at level 10,
-                        d1 custom p4decl, d2 custom p4decl,
-                        right associativity).
-    End DeclNotations.
-  End Decl.
-
   (** * Parsers *)
   Module Parser.
     Module E := Expr.
@@ -2115,7 +2064,6 @@ Module P4cub.
   Module Control.
     Module E := Expr.
     Module S := Stmt.
-    Module D := Decl.
 
     Module ControlDecl.
       Section ControlDecls.
@@ -2135,7 +2083,6 @@ Module P4cub.
                    (body : S.s tags_t) (i : tags_t) (* action declaration *)
         | CDTable (t : string) (bdy : table)
                   (i : tags_t)                      (* table declaration *)
-        | CDDecl (d : D.d tags_t) (i : tags_t)
         | CDSeq (d1 d2 : d) (i : tags_t).
         (**[]*)
       End ControlDecls.
@@ -2143,7 +2090,6 @@ Module P4cub.
       Arguments Table {_}.
       Arguments CDAction {_}.
       Arguments CDTable {_}.
-      Arguments CDDecl {_}.
       Arguments CDSeq {_}.
 
       Module ControlDeclNotations.
@@ -2156,9 +2102,6 @@ Module P4cub.
                (in custom p4ctrldecl at level 10,
                    d1 custom p4ctrldecl, d2 custom p4ctrldecl,
                    right associativity).
-        Notation "'Decl' d @ i"
-          := (CDDecl d i)
-               (in custom p4ctrldecl at level 0, d custom p4decl).
         Notation "'action' a ( params ) { body } @ i"
           := (CDAction a params body i)
                (in custom p4ctrldecl at level 0, body custom p4stmt).
@@ -2173,7 +2116,6 @@ Module P4cub.
   Module TopDecl.
     Module E := Expr.
     Module S := Stmt.
-    Module D := Decl.
     Module C := Control.ControlDecl.
     Module P := Parser.ParserState.
 
@@ -2183,7 +2125,11 @@ Module P4cub.
       (** Top-level declarations. *)
       (* TODO, this is a stub. *)
       Inductive d : Type :=
-      | TPDecl (d : D.d tags_t) (i : tags_t) (* normal declarations *)
+      | TPInstantiate (C : string) (x : string)
+                     (cargs : E.constructor_args tags_t)
+                     (i : tags_t) (* constructor [C]
+                                     with constructor [args]
+                                     makes instance [x]. *)
       | TPExtern (e : string)
                  (cparams : E.constructor_params)
                  (methods : F.fs string E.arrowT)
@@ -2204,7 +2150,7 @@ Module P4cub.
       (**[]*)
     End TopDeclarations.
 
-    Arguments TPDecl {_}.
+    Arguments TPInstantiate {_}.
     Arguments TPExtern {_}.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
@@ -2221,9 +2167,8 @@ Module P4cub.
                     (in custom p4topdecl at level 10,
                         d1 custom p4topdecl, d2 custom p4topdecl,
                         right associativity).
-      Notation "'DECL' d @ i"
-        := (TPDecl d i)
-             (in custom p4topdecl at level 0, d custom p4decl).
+      Notation "'Instance' x 'of' c ( args ) @ i"
+               := (TPInstantiate c x args i) (in custom p4topdecl at level 0).
       Notation "'void' f ( params ) { body } @ i"
                := (TPFunction f (Arrow params None) body i)
                     (in custom p4topdecl at level 0, body custom p4stmt).
@@ -2253,7 +2198,6 @@ Module P4cub.
     Export Expr.HeaderStackOpNotations.
     Export Expr.ExprNotations.
     Export Stmt.StmtNotations.
-    Export Decl.DeclNotations.
     Export Parser.ParserState.ParserNotations.
     Export Control.ControlDecl.ControlDeclNotations.
     Export TopDecl.TopDeclNotations.

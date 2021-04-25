@@ -491,7 +491,7 @@ Module Step.
     Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
       match v with
       | <{ rec { vs } @ _ }>
-      | <{ hdr { vs } valid:=_ @ _ }> => map_option (F.get x vs) snd
+      | <{ hdr { vs } valid:=_ @ _ }> => vs ▷ F.get x >>| snd
       | _                             => None
       end.
     (**[]*)
@@ -773,7 +773,7 @@ Module Step.
         (* TODO: use monadic bind. *)
         match lv_lookup ϵ lv with
         | Some <{ rec { fs } @ _ }>
-        | Some <{ hdr { fs } valid:=_  @ _ }> => map_option (F.get x fs) snd
+        | Some <{ hdr { fs } valid:=_  @ _ }> => fs ▷ F.get x >>| snd
         | _ => None
         end
       | <{ Access lv[n] @ _ }> =>
@@ -1010,22 +1010,21 @@ Module Step.
       ℵ ϵ, HDR_OP op e @ i -->  HDR_OP op e' @ i
   | step_header_op_eval (op : E.hdr_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
-      map_option (header_data v) (uncurry4 # eval_hdr_op op) = Some v' ->
+      header_data v >>| uncurry4 # eval_hdr_op op = Some v' ->
       ℵ ϵ, HDR_OP op v @ i -->  v'
   | step_stack_op (op : E.hdr_stk_op) (e e' : E.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
       ℵ ϵ, STK_OP op e @ i -->  STK_OP op e' @ i
   | step_stack_op_eval (op : E.hdr_stk_op) (v v' : E.e tags_t) (i : tags_t) :
       V.value v ->
-      bind_option (header_stack_data v) (uncurry4 # eval_stk_op i op) = Some v' ->
+      header_stack_data v >>= uncurry4 # eval_stk_op i op = Some v' ->
       ℵ ϵ, STK_OP op v @ i -->  v'
   | step_stack_access (e e' : E.e tags_t) (n : Z) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
       ℵ ϵ, Access e[n] @ i -->  Access e'[n] @ i
   | step_stack_access_eval (v v' : E.e tags_t) (n : Z) (i : tags_t) :
-      bind_option
-        (map_option (header_stack_data v) fourple_4)
-        (fun hs => nth_error hs (Z.to_nat n)) = Some v' ->
+      header_stack_data v >>| fourple_4 >>=
+                 (fun hs => nth_error hs (Z.to_nat n)) = Some v' ->
       V.value v ->
       ℵ ϵ, Access v[n] @ i -->  v'
   | step_tuple (prefix suffix : list (E.e tags_t))

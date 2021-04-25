@@ -7,6 +7,9 @@ Require Export Coq.Lists.List.
 Export ListNotations.
 Require Import Coq.micromega.Lia.
 
+Require Export Poulet4.Monads.Monad.
+Require Export Poulet4.Monads.Option.
+
 (** * Useful Operators *)
 
 Definition pipeline {A B : Type} (x : A) (f : A -> B) : B := f x.
@@ -16,7 +19,7 @@ Infix "▷" := pipeline (at level 45, left associativity).
 Infix "∘" := Basics.compose (at level 40, left associativity).
 
 (** Haskell's [$] operator, Coq is angry at the "$" token. *)
-Infix "#" := Basics.apply (at level 75, right associativity).
+Infix "#" := Basics.apply (at level 41, right associativity).
 
 (** * Useful Notations *)
 Notation "a '&&&&' b"
@@ -29,13 +32,23 @@ Notation "a '||||' b"
 
 (** * Useful Tactics *)
 
-Tactic Notation "unravel" := simpl; unfold "∘", "#", "▷", equiv, complement; simpl.
+Tactic Notation "unravel" :=
+  simpl;
+  unfold "∘", "#", "▷",
+  mret, mbind, option_ret, option_bind,
+  equiv, complement; simpl.
 
 Tactic Notation "unravel" "in" hyp(H) :=
-  simpl in H; unfold "∘", "#", "▷", equiv, complement in H; simpl in H.
+  simpl in H;
+  unfold "∘", "#", "▷",
+  mret, mbind, option_ret, option_bind,
+  equiv, complement in H; simpl in H.
 
 Tactic Notation "unravel" "in" "*" :=
-  simpl in *; unfold "∘", "#", "▷", equiv, complement in *; simpl in *.
+  simpl in *;
+  unfold "∘", "#", "▷",
+  mret, mbind, option_ret, option_bind,
+  equiv, complement in *; simpl in *.
 
 Ltac inv H := inversion H; clear H; subst.
 
@@ -172,17 +185,6 @@ Ltac destruct_lifted_andb :=
   match goal with
   | H: _ &&&& _ = true |- _ => apply lifted_andb_true in H as [? ?]
   end.
-
-(** Temporary bind. *)
-Definition bind_option {A B : Type}
-           (ma : option A) (f : A -> option B) : option B :=
-  match ma with
-  | None => None
-  | Some a => f a
-  end.
-
-Definition map_option {A B : Type} (ma : option A) (f : A -> B) : option B :=
-  bind_option ma (Some ∘ f).
 
 Definition curry3 {A B C D : Type}
            (f : A * B * C -> D) : A -> B -> C -> D :=

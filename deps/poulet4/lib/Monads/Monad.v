@@ -50,3 +50,5 @@ Fixpoint sequence {A} {m: Type -> Type} {M : Monad m} (acts: list (m A)) : m (li
 
 Definition lift_monad {A B} {m: Type -> Type} {M : Monad m} (f: A -> B) (ma : m A) : m B :=
   ma >>= fun a => mret (f a).
+
+Notation "c '>>|' f" := (lift_monad f c) (at level 50, left associativity) : monad_scope.

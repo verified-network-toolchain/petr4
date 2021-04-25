@@ -116,8 +116,8 @@ Module Step.
       | E.Ge, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <=? z1)%Z
       | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <? n1)%Z
       | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <? z1)%Z
-      | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool # b1 && b2
-      | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool # b1 || b2
+      | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool (b1 && b2)
+      | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool (b1 || b2)
       | E.Eq, _, _ => Some # V.VBool # V.eqbv v1 v2
       | E.NotEq, _, _ => Some # V.VBool # negb # V.eqbv v1 v2
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~

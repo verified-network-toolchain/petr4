@@ -724,10 +724,11 @@ Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ie
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
       match decl with
-      | DeclParser _ class_name' _ _ _ _ _ =>
+      | DeclParser _ class_name' _ _ _ locals _ =>
           if P4String.equivb class_name class_name' then
+            let (m, s) := instantiate_decls rev_decls' e locals p m s in
             let m := PathMap.set p (IMInst class_name p) m in
-            (nil, m, s) (* TODO *)
+            (p, m, s)
           else
             instantiate_class_body rev_decls' e class_name p m s
       | DeclControl _ class_name' _ _ _ locals _ =>
@@ -790,12 +791,54 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
       end
   end.
 
+Fixpoint block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=
+  match stmts with
+  | [] => BlockNil
+  | stmt :: stmts =>
+      BlockCons stmt (block_of_list_statement stmts)
+  end.
+
+Fixpoint block_app (block1 block2 : @Block tags_t) :=
+  match block1 with
+  | BlockEmpty _ => block2
+  | BlockCons stmt block =>
+      BlockCons stmt (block_app block block2)
+  end.
+
+Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
+  BlockCons stmt BlockNil.
+
+Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
+  match trans with
+  | ParserDirect tags next =>
+      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [next])) dummy_type Directionless in
+      let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
+      BlockSingleton stmt
+  | ParserSelect _ _ _ => BlockNil (* TODO *)
+  end.
+
+Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t) : genv :=
+  match state with
+  | MkParserState _ name body trans =>
+      let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
+      PathMap.set (p ++ [name]) (FInternal false nil BlockNil body) ge
+  end.
+
+Definition begin_string : ident := {| P4String.tags := dummy_tags; P4String.str := "begin" |}.
+
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with
-  (* TODO parser *)
-  | DeclControl _ name type_params params constructor_params locals apply =>
+  | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
-      let constructor_params := map get_param_name constructor_params in
+      let ge := fold_left (load_decl (p ++ [name])) locals ge in
+      let init := process_locals locals in
+      let ge := fold_left (load_parser_state (p ++ [name])) states ge in
+      let method := MkExpression dummy_tags (ExpName (BareName begin_string) (LInstance [begin_string]))
+                    TypVoid (* dummy type *) Directionless in
+      let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
+      PathMap.set (p ++ [name]) (FInternal false params init (BlockSingleton stmt)) ge
+  | DeclControl _ name type_params params _ locals apply =>
+      let params := map get_param_name_dir params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       PathMap.set (p ++ [name]) (FInternal false params init apply) ge

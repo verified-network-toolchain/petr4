@@ -77,84 +77,6 @@ Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   | QualifiedName _ id => IdentMap.get id ge_typ
   end.
 
-Definition conv_decl_field (fild: DeclarationField):
-    (P4String.t tags_t * @P4Type tags_t) :=
-  match fild with | MkDeclarationField tags typ name => (name, typ) end.
-
-Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
-  fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
-
-Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
-  match decl with
-  | DeclHeader _ name _
-  | DeclHeaderUnion _ name _
-  | DeclStruct _ name _
-  | DeclControlType _ name _ _
-  | DeclParserType _ name _ _
-  | DeclPackageType _ name _ _
-  | DeclTypeDef _ name _
-  | DeclNewType _ name _ => Some name
-  | _ => None
-  end.
-
-(* TODO: Do we need to consider duplicated type names? *)
-Fixpoint add_to_genv_typ (ge_typ: genv_typ)
-         (decl: @Declaration tags_t): option genv_typ :=
-  match decl with
-  | DeclHeader tags name fields =>
-    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_typ)
-  | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
-  | DeclStruct tags name fields =>
-    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_typ)
-  | DeclControlType tags name type_params params =>
-    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_typ)
-  | DeclParserType tags name type_params params =>
-    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_typ)
-  (* TODO: DeclPackageType and TypPackage are inconsistency *)
-  | DeclPackageType tags name type_params params =>
-    Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
-  (* TODO: Do we need to consider the difference between DeclTypeDef
-     and DeclNewType?*)
-  | DeclTypeDef tags name (inl typ)
-  | DeclNewType tags name (inl typ) =>
-    match typ with
-    | TypTypeName name2 => match name_to_type ge_typ name2 with
-                           | Some typ2 => Some (IdentMap.set name typ2 ge_typ)
-                           | None => None
-                           end
-    | _ => Some (IdentMap.set name typ ge_typ)
-    end
-  | DeclTypeDef tags name (inr decl2)
-  | DeclNewType tags name (inr decl2) =>
-    match add_to_genv_typ ge_typ decl2 with
-    | Some ge_typ2 => match get_decl_typ_name decl2 with
-                      | Some name2 =>
-                        match IdentMap.get name2 ge_typ2 with
-                        | Some typ2 => Some (IdentMap.set name typ2 ge_typ2)
-                        | None => None
-                        end
-                      | None => None
-                      end
-    | None => None
-    end
-  | _ => None
-  end.
-
-Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)
-         (l: list (@Declaration tags_t)): option genv_typ :=
-  match l with
-  | nil => oge_typ
-  | decl :: rest =>
-    match oge_typ with
-    | Some ge_typ => add_decls_to_ge_typ (add_to_genv_typ ge_typ decl) rest
-    | None => None
-    end
-  end.
-
-Definition gen_ge_typ (l: list (@Declaration tags_t)): option genv_typ :=
-  add_decls_to_ge_typ (Some IdentMap.empty) l.
-
 Variable ge : genv.
 Variable ge_typ : genv_typ.
 Variable ge_senum : genv_senum.
@@ -891,5 +813,83 @@ Definition load_prog (prog : @program tags_t) : genv :=
   match prog with
   | Program decls => fold_left (load_decl nil) decls PathMap.empty
   end.
+
+Definition conv_decl_field (fild: DeclarationField):
+    (P4String.t tags_t * @P4Type tags_t) :=
+  match fild with | MkDeclarationField tags typ name => (name, typ) end.
+
+Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
+  fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
+
+Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
+  match decl with
+  | DeclHeader _ name _
+  | DeclHeaderUnion _ name _
+  | DeclStruct _ name _
+  | DeclControlType _ name _ _
+  | DeclParserType _ name _ _
+  | DeclPackageType _ name _ _
+  | DeclTypeDef _ name _
+  | DeclNewType _ name _ => Some name
+  | _ => None
+  end.
+
+(* TODO: Do we need to consider duplicated type names? *)
+Fixpoint add_to_genv_typ (ge_type: genv_typ)
+         (decl: @Declaration tags_t): option genv_typ :=
+  match decl with
+  | DeclHeader tags name fields =>
+    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_type)
+  | DeclHeaderUnion tags name fields =>
+    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_type)
+  | DeclStruct tags name fields =>
+    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_type)
+  | DeclControlType tags name type_params params =>
+    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_type)
+  | DeclParserType tags name type_params params =>
+    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_type)
+  (* TODO: DeclPackageType and TypPackage are inconsistency *)
+  | DeclPackageType tags name type_params params =>
+    Some (IdentMap.set name (TypPackage type_params nil params) ge_type)
+  (* TODO: Do we need to consider the difference between DeclTypeDef
+     and DeclNewType?*)
+  | DeclTypeDef tags name (inl typ)
+  | DeclNewType tags name (inl typ) =>
+    match typ with
+    | TypTypeName name2 => match name_to_type ge_type name2 with
+                           | Some typ2 => Some (IdentMap.set name typ2 ge_type)
+                           | None => None
+                           end
+    | _ => Some (IdentMap.set name typ ge_type)
+    end
+  | DeclTypeDef tags name (inr decl2)
+  | DeclNewType tags name (inr decl2) =>
+    match add_to_genv_typ ge_type decl2 with
+    | Some ge_typ2 => match get_decl_typ_name decl2 with
+                      | Some name2 =>
+                        match IdentMap.get name2 ge_typ2 with
+                        | Some typ2 => Some (IdentMap.set name typ2 ge_typ2)
+                        | None => None
+                        end
+                      | None => None
+                      end
+    | None => None
+    end
+  | _ => None
+  end.
+
+Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)
+         (l: list (@Declaration tags_t)): option genv_typ :=
+  match l with
+  | nil => oge_typ
+  | decl :: rest =>
+    match oge_typ with
+    | Some ge_type => add_decls_to_ge_typ (add_to_genv_typ ge_type decl) rest
+    | None => None
+    end
+  end.
+
+Definition gen_ge_typ (l: list (@Declaration tags_t)): option genv_typ :=
+  add_decls_to_ge_typ (Some IdentMap.empty) l.
 
 End Semantics.

@@ -2,8 +2,9 @@ Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Integers. *)
 Require Coq.Strings.String.
 Module Strings := Coq.Strings.String.
-Require Import Coq.Lists.List.
-Import ListNotations.
+Require Export Coq.Bool.Bool.
+Require Export Coq.Lists.List.
+Export ListNotations.
 Require Import Coq.micromega.Lia.
 
 (** * Useful Operators *)

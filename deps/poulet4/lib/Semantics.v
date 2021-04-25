@@ -51,7 +51,7 @@ Inductive fundef :=
       (* Do we need this global flag? *)
       (global : bool)
       (params : list (ident * direction))
-      (locals : list (@Declaration tags_t))
+      (init : @Block tags_t)
       (body : @Block tags_t)
   | FTable
       (name : ident)
@@ -603,26 +603,6 @@ Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) 
   | _ => None (* omitted for now *)
   end.
 
-Definition is_variable (decl : @Declaration tags_t) : bool :=
-  match decl with
-  | DeclVariable _ _ _ _ => true
-  | _ => false
-  end.
-
-(* TODO these two are stubs. *)
-Inductive exec_linit' : path -> inst_mem -> state -> @Declaration tags_t -> state -> signal -> Prop :=
-  | eval_init_skip : forall this_path inst_m s decl,
-      is_variable decl = false ->
-      exec_linit' this_path inst_m s decl s SContinue.
-
-Inductive exec_linit : path -> inst_mem -> state -> list (@Declaration tags_t) -> state -> signal -> Prop :=
-  | eval_init_nil : forall this_path inst_m s,
-      exec_linit this_path inst_m s nil s SContinue
-  | eval_init_cons : forall this_path inst_m s decl decls s' s'',
-      exec_linit' this_path inst_m s decl s' SContinue ->
-      exec_linit this_path inst_m s' decls s'' SContinue ->
-      exec_linit this_path inst_m s (decl :: decls) s'' SContinue.
-
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tag typ st' sig,
                            exec_lvalue_expr this_path st lhs lv ->
@@ -650,12 +630,12 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> o
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
 with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_func_internal : forall obj_path global inst_m params locals body s args args' s'  s'' s''' vret,
+  | exec_func_internal : forall obj_path inst_m s global params init body args s''' args' vret s' s'',
       bind_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args s s' ->
+      exec_block obj_path inst_m s' init  s'' SContinue ->
+      exec_block obj_path inst_m s'' body s''' (SReturn vret) ->
       extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
-      exec_linit obj_path inst_m s' locals  s'' SContinue ->
-      exec_block obj_path inst_m s' body s'' (SReturn vret) ->
-      exec_func obj_path inst_m s (FInternal global params locals body) args s'' args' vret
+      exec_func obj_path inst_m s (FInternal global params init body) args s''' args' vret
 
   | exec_func_table_match : forall obj_path name inst_m keys actions action_name ctrl_args action default_action const_entries s s',
       exec_table_match obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
@@ -873,6 +853,21 @@ Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :
 
 (* TODO generate other components of ge. *)
 
+Definition BlockNil := BlockEmpty dummy_tags.
+
+Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
+  match locals with
+  | [] => BlockNil
+  | decl :: locals' =>
+      let block' := process_locals locals' in
+      match decl with
+      | DeclVariable tags typ name init =>
+          let stmt := MkStatement tags (StatVariable typ name init (LInstance [name])) StmUnit in
+          BlockCons stmt block'
+      | _ => block'
+      end
+  end.
+
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with
   (* TODO parser *)
@@ -880,15 +875,15 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
       let params := map get_param_name_dir params in
       let constructor_params := map get_param_name constructor_params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
-      (* We must install of the local definitions in locals, because there can be identifier shadowing. *)
-      PathMap.set (p ++ [name]) (FInternal false params locals apply) ge
+      let init := process_locals locals in
+      PathMap.set (p ++ [name]) (FInternal false params init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let params := map get_param_name_dir params in
-      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) params nil body) ge
+      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) params BlockNil body) ge
   | DeclAction _ name params ctrl_params body =>
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
-      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) (params ++ ctrl_params) nil body) ge
+      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) (params ++ ctrl_params) BlockNil body) ge
   | _ => ge
   end.
 

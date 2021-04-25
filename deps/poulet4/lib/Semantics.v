@@ -70,9 +70,100 @@ Definition genv := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
 Definition genv_senum := @IdentMap.t tags_t Val.
 
+Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
+  option (@P4Type tags_t) :=
+  match typ with
+  | BareName id => IdentMap.get id ge_typ
+  | QualifiedName _ id => IdentMap.get id ge_typ
+  end.
+
+Definition conv_decl_field (fild: DeclarationField):
+    (P4String.t tags_t * @P4Type tags_t) :=
+  match fild with | MkDeclarationField tags typ name => (name, typ) end.
+
+Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
+  fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
+
+Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
+  match decl with
+  | DeclHeader _ name _
+  | DeclHeaderUnion _ name _
+  | DeclStruct _ name _
+  | DeclControlType _ name _ _
+  | DeclParserType _ name _ _
+  | DeclPackageType _ name _ _
+  | DeclTypeDef _ name _
+  | DeclNewType _ name _ => Some name
+  | _ => None
+  end.
+
+(* TODO: Do we need to consider duplicated type names? *)
+Fixpoint add_to_genv_typ (ge_typ: genv_typ)
+         (decl: @Declaration tags_t): option genv_typ :=
+  match decl with
+  | DeclHeader tags name fields =>
+    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_typ)
+  | DeclHeaderUnion tags name fields =>
+    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
+  | DeclStruct tags name fields =>
+    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_typ)
+  | DeclControlType tags name type_params params =>
+    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_typ)
+  | DeclParserType tags name type_params params =>
+    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_typ)
+  (* TODO: DeclPackageType and TypPackage are inconsistency *)
+  | DeclPackageType tags name type_params params =>
+    Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
+  (* TODO: Do we need to consider the difference between DeclTypeDef
+     and DeclNewType?*)
+  | DeclTypeDef tags name (inl typ)
+  | DeclNewType tags name (inl typ) =>
+    match typ with
+    | TypTypeName name2 => match name_to_type ge_typ name2 with
+                           | Some typ2 => Some (IdentMap.set name typ2 ge_typ)
+                           | None => None
+                           end
+    | _ => Some (IdentMap.set name typ ge_typ)
+    end
+  | DeclTypeDef tags name (inr decl2)
+  | DeclNewType tags name (inr decl2) =>
+    match add_to_genv_typ ge_typ decl2 with
+    | Some ge_typ2 => match get_decl_typ_name decl2 with
+                      | Some name2 =>
+                        match IdentMap.get name2 ge_typ2 with
+                        | Some typ2 => Some (IdentMap.set name typ2 ge_typ2)
+                        | None => None
+                        end
+                      | None => None
+                      end
+    | None => None
+    end
+  | _ => None
+  end.
+
+Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)
+         (l: list (@Declaration tags_t)): option genv_typ :=
+  match l with
+  | nil => oge_typ
+  | decl :: rest =>
+    match oge_typ with
+    | Some ge_typ => add_decls_to_ge_typ (add_to_genv_typ ge_typ decl) rest
+    | None => None
+    end
+  end.
+
+Definition gen_ge_typ (l: list (@Declaration tags_t)): option genv_typ :=
+  add_decls_to_ge_typ (Some IdentMap.empty) l.
+
 Variable ge : genv.
 Variable ge_typ : genv_typ.
 Variable ge_senum : genv_senum.
+
+Definition get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+  match typ with
+  | TypTypeName name => name_to_type ge_typ name
+  | _ => Some typ
+  end.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
@@ -90,12 +181,6 @@ Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
     | _ => None
     end
   | _ => None
-  end.
-
-Definition name_to_type (this : path) (typ : @Typed.name tags_t) : option (@P4Type tags_t) :=
-  match typ with
-  | BareName id => IdentMap.get id ge_typ
-  | QualifiedName _ id => IdentMap.get id ge_typ
   end.
 
 Definition array_access_idx_to_z (v : Val) : (option Z) :=
@@ -118,16 +203,16 @@ Definition z_to_nat (i : Z) : option nat :=
 
 
 (* Ref:When accessing the bits of negative numbers, all functions below will
-   use the two's complement representation. 
-   For instance, -1 will correspond to an infinite stream of true bits. 
+   use the two's complement representation.
+   For instance, -1 will correspond to an infinite stream of true bits.
    https://coq.inria.fr/library/Coq.ZArith.BinIntDef.html *)
 Definition bitstring_slice (i : Z) (lo : N) (hi : N) : Z :=
   let mask := (Z.pow 2 (Z.of_N (hi - lo + 1)) - 1)%Z in
   Z.land (Z.shiftr i (Z.of_N lo)) mask.
 
 (* Note that expressions don't need decl_path. *)
-Inductive exec_expr : path -> (* temp_env -> *) state -> 
-                      (@Expression tags_t) -> Val -> 
+Inductive exec_expr : path -> (* temp_env -> *) state ->
+                      (@Expression tags_t) -> Val ->
                       (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_expr_bool : forall b this st tag typ dir,
                      exec_expr this st
@@ -205,24 +290,24 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                           exec_expr this st
                           (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
                           v
-  | exec_expr_cast : forall newtyp expr oldv newv this st tag typ dir,
-  (* TypTypName not valid yet due to two problems of recursion:
-    1. Need to resolve the type from the name in the Semantics.v;
-    2. Need to define name_to_type such that no loop is possible. *)
+  | exec_expr_cast : forall newtyp expr oldv newv this st tag typ dir real_typ,
+  (* We assume that ge_typ contains the real type corresponding to a
+  type name so that we can use get the real type from it. *)
                      exec_expr this st expr oldv ->
-                     Ops.eval_cast newtyp oldv = Some newv ->
+                     get_real_type newtyp = Some real_typ ->
+                     Ops.eval_cast real_typ oldv = Some newv ->
                      exec_expr this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv
   | exec_expr_type_member_enum : forall tname member ename members this st tag typ dir,
-                                 name_to_type this tname = Some (TypEnum ename None members) ->
+                                 name_to_type ge_typ tname = Some (TypEnum ename None members) ->
                                  List.In member members ->
                                  exec_expr this st
                                  (MkExpression tag (ExpTypeMember tname member) typ dir)
                                  (ValBaseEnumField ename member)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_type_member_senum : forall tname member ename etyp members fields v this st tag typ dir,
-                                  name_to_type this tname = Some (TypEnum ename (Some etyp) members) ->
+                                  name_to_type ge_typ tname = Some (TypEnum ename (Some etyp) members) ->
                                   IdentMap.get ename ge_senum = Some (ValBaseSenum fields) ->
                                   AList.get fields member = Some v ->
                                   exec_expr this st
@@ -467,18 +552,18 @@ Definition extract_outlvals (args : list argument) : list Lval :=
 
 Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
   | exec_lvalue_expr_name : forall name loc this st tag typ dir,
-                            exec_lvalue_expr this st 
+                            exec_lvalue_expr this st
                             (MkExpression tag (ExpName name loc) typ dir)
                             (MkValueLvalue (ValLeftName name loc) typ)
   | exec_lvalue_expr_member : forall expr lv name this st tag typ dir,
                               exec_lvalue_expr this st expr lv ->
-                              exec_lvalue_expr this st 
+                              exec_lvalue_expr this st
                               (MkExpression tag (ExpExpressionMember expr name) typ dir)
                               (MkValueLvalue (ValLeftMember lv name) typ)
   (* ATTN: lo and hi interchanged here *)
   | exec_lvalue_bitstring_access : forall bits lv lo hi this st tag typ dir,
                                    exec_lvalue_expr this st bits lv ->
-                                   exec_lvalue_expr this st 
+                                   exec_lvalue_expr this st
                                    (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
                                    (MkValueLvalue (ValLeftBitAccess lv (N.to_nat hi) (N.to_nat lo)) typ)
   (* Since array size is unknown here, only the lower-bound undefined behavior is defined.
@@ -488,7 +573,7 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLva
                                exec_expr this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
                                z_to_nat idxz = Some idxn ->
-                               exec_lvalue_expr this st 
+                               exec_lvalue_expr this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ)
   | exec_lvalue_array_access_undef_lo : forall array alv idx idxv idxz lv this st tag typ dir,
@@ -496,7 +581,7 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLva
                                         exec_expr this st idx idxv ->
                                         array_access_idx_to_z idxv = Some idxz ->
                                         (idxz < 0)%Z ->
-                                        exec_lvalue_expr this st 
+                                        exec_lvalue_expr this st
                                         (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                         lv.
 
@@ -511,7 +596,7 @@ Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) 
   match lhs with
   | MkValueLvalue (ValLeftName name loc) _ =>
     let opt_st := update_val_by_loc this st loc rhs in
-      match opt_st with 
+      match opt_st with
       | Some st' => Some (st', SContinue)
       | _ => None
       end
@@ -813,8 +898,3 @@ Definition load_prog (prog : @program tags_t) : genv :=
   end.
 
 End Semantics.
-
-
-
-
-

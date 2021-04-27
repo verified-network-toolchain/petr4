@@ -1081,7 +1081,12 @@ Module Step.
   Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
            (at level 40, s1 custom p4stmt, s2 custom p4stmt,
             ϵ2 custom p4env, sgl custom p4evalsignal).
-
+  (* TODO:
+     Small-step semantics of vanilla statements don't seem to work.
+     A continuation-based semantics seems better.
+     The semantics-engineering in the following paper about
+     Cminor elucidates this matter in a most compelling fashion:
+     [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
   Inductive stmt_step {tags_t : Type}
             (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
             (fns : @fenv tags_t) (ins : @ienv tags_t) (ϵ : eenv) :
@@ -1111,6 +1116,16 @@ Module Step.
       ℸ cfg, tbls, aa, fns, ins, ϵ, s1; s2 @ i -->   skip @ i, ϵ', sig
   | step_seq_collapse (s2 : ST.s tags_t) (i' i : tags_t) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, (skip @ i') ; s2 @ i -->  s2, ϵ, C
+  | step_block_cont (s s' : ST.s tags_t) (ϵ' : eenv) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s -->  s', ϵ', C ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ s }b -->  b{ s' }b, ∅, C
+      (* TODO, what environment to return??? *)
+  | step_block_interrupt (s s' : ST.s tags_t) (ϵ' : eenv) (sig : signal) :
+      interrupt sig ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, s -->  s', ϵ', sig ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ s }b -->  s', ϵ ≪ ϵ', sig
+  | step_block_collapse (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ skip @ i }b -->   skip @ i, ϵ, C
   | step_cond (e e' : E.e tags_t) (s1 s2 : ST.s tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
@@ -1143,17 +1158,17 @@ Module Step.
       let args' := prefix ++ (x, P.PAIn (τ,e')) :: suffix in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       funcall f with args into o @ i -->  funcall f with args' into o @ i, ϵ, C
-  (** TODO: Issue with function call execution:
-      After all arguments are fully-evaluated & copied-in,
-      [stmt_step] must keep track of:
-      - The evaluated arguments when it needs to perform copy-out.
-      - If the call assigns the return result to an expression.
-      - The environments at the call-site, b/c when executing
-        the call the closure environment will be used.
-      I will research more on the subject of
-      small-step semantics for procedure calls:
-      [Structural operational semantics through context-dependent behaviour]
-      [https://www.sciencedirect.com/science/article/pii/S1567832611000452] *)
+  (* TODO: Issue with function call execution:
+     After all arguments are fully-evaluated & copied-in,
+     [stmt_step] must keep track of:
+     - The evaluated arguments when it needs to perform copy-out.
+     - If the call assigns the return result to an expression.
+     - The environments at the call-site, b/c when executing
+       the call the closure environment will be used.
+     I will research more on the subject of
+     small-step semantics for procedure calls:
+     [Structural operational semantics through context-dependent behaviour]
+     [https://www.sciencedirect.com/science/article/pii/S1567832611000452] *)
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
           := (stmt_step cfg tbls aa fns ins ϵ1 s1 s2 ϵ2 sgl).
 End Step.

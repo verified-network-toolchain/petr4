@@ -23,6 +23,7 @@ Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrex
 Reserved Notation
          "⦅ ts1 , as1 , cs , fs , ci , ei , errs , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
          (at level 60, d custom p4ctrldecl,
+          ts1 custom p4env, as1 custom p4env,
           ts2 custom p4env, as2 custom p4env).
 
 Reserved Notation
@@ -1004,10 +1005,8 @@ Module Typecheck.
                 (cis' : cienv) (eis' : eienv)
                 (tbls : tblenv) (acts : aenv) :
       cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis,eis') ->
-      let empty_tbls := Env.empty _ _ in
-      let empty_acts := Env.empty _ _ in
       (* Control declarations. *)
-      ⦅ empty_tbls, empty_acts, cs, fns, cis', eis', errs, Γ' ⦆
+      ⦅ ∅, ∅, cs, fns, cis', eis', errs, Γ' ⦆
         ⊢ body ⊣ ⦅ acts, tbls ⦆ ->
       bind_all params Γ' = Γ'' ->
       (* Apply block. *)
@@ -1023,10 +1022,8 @@ Module Typecheck.
                (states : F.fs string (PS.state tags_t)) (i : tags_t)
                (pis' : pienv) (eis' : eienv)
                (Γ' Γ'' : gamma) :
-      let empty_sts := Env.empty string unit in
       let sts := fold_right
-                   (fun '(st,_) acc => !{ st ↦ tt;; acc }!)
-                   empty_sts states in
+                   (fun '(st,_) acc => !{ st ↦ tt;; acc }!) !{ ∅ }! states in
       cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis,pis',eis') ->
       bind_all params Γ' = Γ'' ->
       Forall

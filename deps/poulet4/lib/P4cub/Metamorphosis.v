@@ -18,8 +18,7 @@ Import P4cub.P4cubNotations.
    - How should parametric
      polymorphism be translated?
    - Should there be fresh string generation,
-     & if so, how to implement it?
-*)
+     & if so, how to implement it? *)
 
 Module P := P4cub.
 Module F := P.F.
@@ -241,8 +240,7 @@ Section Metamorphosis.
            is not in [Syntax.v] nor [Typed.v]?
          - method calls? Type subsitution?
       3. How to get parameter names to generate arguments?
-      4. When and how will instantiations be lifted?
-   *)
+      4. When and how will instantiations be lifted? *)
   Fixpoint stmt_morph (s : Statement) : option (ST.s tags_t) :=
     let fix blk_morph (blk : Block) : option (ST.s tags_t) :=
         match blk with

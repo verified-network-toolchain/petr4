@@ -25,7 +25,7 @@ Reserved Notation "⟪ cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 
           ϵ2 custom p4env, sig custom p4evalsignal).
 
 Reserved Notation "⦉ ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ aa2 , ts2 ⦊"
-         (at level 40, d custom p4ctrldecl, ts2 custom p4env).
+         (at level 40, d custom p4ctrldecl, ts2 custom p4env, ts1 custom p4env).
 
 Reserved Notation "⦇ cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ins2 , fns2 , cs2 ⦈"
          (at level 40, d custom p4topdecl).
@@ -1158,10 +1158,8 @@ Module Step.
                 | Left v => (!{ x ↦ v;; ϵ }!, ins)
                 | Right cinst => (ϵ, iupdate ins x cinst)
                 end) vargs (closure,iclosure) = (ϵ',ins') ->
-      let empty_tbls := Env.empty (string) (CD.table tags_t) in
-      let empty_acts := AEnv (Env.empty (string) adecl) in
-      ⦉ empty_tbls, empty_acts, fclosure, ins', ϵ', body ⦊
-        ⟱  ⦉ aa, tbls ⦊ ->
+      let ae := AEnv !{ ∅ }! in
+      ⦉ ∅, ae, fclosure, ins', ϵ', body ⦊ ⟱  ⦉ aa, tbls ⦊ ->
       let ins'' := iupdate ins x (CInst ϵ'' fclosure ins' tbls aa applyblk) in
       ⦇ cs, fns, ins, ϵ, Instance x of c(cargs) @ i ⦈ ⟱  ⦇ ins'', fns, cs ⦈
   | tpbs_control (c : string) (cparams : E.constructor_params)

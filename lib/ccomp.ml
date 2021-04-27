@@ -36,14 +36,17 @@ let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   | Cast {typ ; expr} -> get_expr_name expr
   | _ -> failwith "unimplementeddj"
 
-let get_expr_c (e: Prog.Expression.t) : C.cexpr =
+let rec get_expr_c (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name n -> begin match n with 
       | BareName str -> CString (snd str) 
       | _ -> failwith "unimplemented" end 
   | True ->  CBoolExp true  
-  | False -> CBoolExp false   
-  | _ -> failwith "unimpl"
+  | False -> CBoolExp false  
+  | Int i -> CIntLit (Bigint.to_int_exn (snd i).value)
+  | Cast c -> get_expr_c c.expr
+  | _ -> failwith (Prog.Expression.show e )
+
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
@@ -52,6 +55,15 @@ let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
       | BareName str -> snd str
       | _ -> failwith "unimplemented" end
   | ExpressionMember x -> get_expr_mem x.expr 
+  | _ -> failwith "unimplemented!"
+
+let rec get_expr_mem_lst (e: Prog.Expression.t) : C.cname list =
+  match (snd e).expr with
+  | Name name -> 
+    begin match name with 
+      | BareName str -> [snd str]
+      | _ -> failwith "unimplemented" end
+  | ExpressionMember x -> get_expr_mem_lst x.expr @ [snd x.name] 
   | _ -> failwith "unimplemented!"
 
 let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
@@ -151,7 +163,10 @@ let update_map (map : varmap ) (params : Typed.Parameter.t list) =
   | h::t -> add_param "state" map h
 
 let translate_key (key : Prog.Table.key) = 
-  get_expr_name (snd key).key
+  get_expr_mem_lst (snd key).key
+
+(* let translate_key_expr (key : Prog.Table.key) = 
+   get_expr_name (snd key).key *)
 
 let translate_local_decls (map: varmap) (d: Prog.Declaration.t list) : varmap * C.cdecl list * C.cstmt list =
   map, [], []
@@ -280,7 +295,7 @@ and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.
   List.map ~f:(get_cond_logic entries) keylist 
 
 and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
-  let k = translate_key key in 
+  (* let k = translate_key key in  *)
   begin match entries with 
     | None -> failwith "n"
     | Some e -> begin match e with 
@@ -291,9 +306,19 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
             | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
             | _ -> failwith "ddf"
           end in 
-          C.CPointer ((C.CString "state"), k ^ "==" ^ (get_expr_name equal)) 
+          C.CEq ((translate_pointer (C.CString "state") key), get_expr_c equal) 
       end 
   end 
+
+and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
+  let key_lst = translate_key pointee in 
+  let base (x: C.cname) = C.CPointer (pointer, x) in 
+  let f (index: int) (acc: C.cname -> C.cexpr) (el: C.cname) (x : C.cname) = 
+    if index = List.length key_lst - 1 then 
+      acc el 
+    else 
+      C.CMember (acc el, x) in
+  List.foldi ~init:base ~f:f key_lst "" 
 
 and get_entry_methods (entries : Prog.Table.entry list option) =
   begin match entries with 

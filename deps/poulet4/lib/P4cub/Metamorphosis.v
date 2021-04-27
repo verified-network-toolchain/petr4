@@ -32,7 +32,7 @@ Section Metamorphosis.
       - How, when, & where will [TInteger] be casted?
       - Should &, if so, how will
         header unions, strings, enums, varbits, & sets be compiled?
-      - Why is there both a header and a struct type? *)
+      - Why is there both a record and a struct type? *)
   Fixpoint type_morph (t : P4Type) : option E.t :=
     let fix lrec (ts : list P4Type) : option (list E.t) :=
         match ts with

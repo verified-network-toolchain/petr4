@@ -960,6 +960,13 @@ Module Step.
       interrupt sig ->
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
+  | sbs_block_cont (s : ST.s tags_t) (ϵ' : epsilon) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', C ⟫
+  | sbs_block_interrupt (s : ST.s tags_t) (ϵ' : epsilon) (sig : signal) :
+      interrupt sig ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig ⟫
   | sbs_vardecl (τ : E.t) (x : string)
                 (i : tags_t) (v : V.v) :
       V.vdefault τ = v ->

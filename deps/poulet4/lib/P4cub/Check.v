@@ -688,6 +688,9 @@ Module Typecheck.
       ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ⊣ ⦃ Γ', C ⦄ ->
       ⦃ fns, errs, Γ' ⦄ con ⊢ s2 ⊣ ⦃ Γ'', sig ⦄ ->
       ⦃ fns, errs, Γ  ⦄ con ⊢ s1 ; s2 @ i ⊣ ⦃ Γ'', sig ⦄
+  | chk_block (s : ST.s tags_t) (Γ' : gamma) (sig : signal) (con : ctx) :
+      ⦃ fns, errs, Γ ⦄ con ⊢ s ⊣ ⦃ Γ', sig ⦄ ->
+      ⦃ fns, errs, Γ ⦄ con ⊢ b{ s }b ⊣ ⦃ Γ, C ⦄
   | chk_vardecl (τ : E.t) (x : string) (i : tags_t) (con : ctx) :
       ⦃ fns, errs, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
   | chk_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) (con : ctx) :

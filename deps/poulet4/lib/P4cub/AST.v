@@ -1407,8 +1407,8 @@ Module P4cub.
       | SConditional (guard_type : E.t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
-      | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences,
-                                                           an alternative to blocks *)
+      | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
+      | SBlock (blk : s)                                (* blocks *)
       | SExternMethodCall (e : string) (f : string)
                           (args : E.arrowE tags_t)
                           (i : tags_t)                  (* extern method calls *)
@@ -1433,6 +1433,7 @@ Module P4cub.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
+    Arguments SBlock {_}.
     Arguments SFunCall {_}.
     Arguments SActCall {_}.
     Arguments SExternMethodCall {_}.
@@ -1449,9 +1450,13 @@ Module P4cub.
         := x (in custom p4stmt at level 0, x constr at level 0).
       Notation "'skip' @ i" := (SSkip i) (in custom p4stmt at level 0).
       Notation "s1 ; s2 @ i"
-        := (SSeq s1 s2 i) (in custom p4stmt at level 99,
-                            s1 custom p4stmt, s2 custom p4stmt,
-                            right associativity).
+        := (SSeq s1 s2 i)
+             (in custom p4stmt at level 99, s1 custom p4stmt,
+                 s2 custom p4stmt, right associativity).
+      Notation "'b{' s '}b'"
+               := (SBlock s)
+                    (in custom p4stmt at level 99,
+                        s custom p4stmt, no associativity).
       Notation "'var' x : t @ i"
                := (SVardecl t x i)
                     (in custom p4stmt at level 0, t custom p4type).

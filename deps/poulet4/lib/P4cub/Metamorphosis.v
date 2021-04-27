@@ -274,7 +274,7 @@ Section Metamorphosis.
       => t <- type_morph t ;;
         e1 <- expr_morph e1 ;;
         e2 <<| expr_morph e2 ;; -{ asgn e1 := e2:t @ i }-
-    | MkStatement i (StatBlock blk) _ => blk_morph blk
+    | MkStatement i (StatBlock blk) _ => s <<| blk_morph blk ;; -{ b{ s }b }-
     | MkStatement i (StatConditional ((MkExpression _ _ t _) as e) s1 None) _
       => t <- type_morph t ;;
         e <- expr_morph e ;;

@@ -12,9 +12,19 @@ Import P4cub.P4cubNotations.
 
 (** * P4light -> P4cub *)
 
+(* General Unresolved Challenges:
+   - What to do about [Locator]?
+     Should p4cub use it?
+   - How should parametric
+     polymorphism be translated?
+   - Should there be fresh string generation,
+     & if so, how to implement it?
+*)
+
 Module P := P4cub.
 Module F := P.F.
 Module E := P.Expr.
+Module ST := P.Stmt.
 
 Section Metamorphosis.
   Context {tags_t : Type}.
@@ -197,10 +207,8 @@ Section Metamorphosis.
         e <<| expr_morph e ;;
         E.EUop (uop_morph op) t e i
     | MkExpression
-        i
-        (ExpBinaryOp
-           op
-           ((MkExpression _ _ t1 _) as e1, (MkExpression _ _ t2 _) as e2))
+        i (ExpBinaryOp
+             op ((MkExpression _ _ t1 _) as e1, (MkExpression _ _ t2 _) as e2))
         _ _ => op <- bop_morph op ;;
               t1 <- type_morph t1 ;;
               t2 <- type_morph t2 ;;
@@ -211,6 +219,80 @@ Section Metamorphosis.
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
       => Some # E.EError (Some # P4String.str err) i
+    | _ => None
+    end.
+  (**[]*)
+
+  Definition type_expr_morph (e : Expression) : option (E.t * E.e tags_t) :=
+    match e with
+    | MkExpression i _ t _ => t <- type_morph t ;;
+                             e <<| expr_morph e ;; (t, e)
+    end.
+  (**[]*)
+
+  (** Statement Metamorphosis.
+      Questions:
+      1. How should p4cub deal with constants?
+         Should p4cub have constatnts?
+      2. How to translate:
+         - blocks? Should p4cub have blocks?
+         - direct applications?
+           The name of the control being applied
+           is not in [Syntax.v] nor [Typed.v]?
+         - method calls? Type subsitution?
+      3. How to get parameter names to generate arguments?
+      4. When and how will instantiations be lifted?
+   *)
+  Fixpoint stmt_morph (s : Statement) : option (ST.s tags_t) :=
+    let fix blk_morph (blk : Block) : option (ST.s tags_t) :=
+        match blk with
+        | BlockEmpty i => Some -{ skip @ i }-
+        | BlockCons ((MkStatement i _ _) as s) blk
+          => s1 <- stmt_morph s ;;
+            s2 <<| blk_morph blk ;; -{ s1; s2 @ i }-
+        end in
+    (* let fix switch_case_morph (swcase : StatementSwitchCase) : option (ST.s tags_t) :=
+        match swcase with
+        end in *)
+    match s with
+    | MkStatement i StatEmpty _ => Some -{ skip @ i }-
+    | MkStatement i StatExit  _ => Some -{ exit @ i }-
+    | MkStatement i (StatReturn None) _ => Some -{ returns @ i }-
+    | MkStatement
+        i (StatReturn (Some ((MkExpression _ _ t _) as e))) _
+      => t <- type_morph t ;;
+        e <<| expr_morph e ;; -{ return e:t @ i }-
+    | MkStatement i (StatVariable t x None _) _
+      => t <<| type_morph t ;;
+        let x := P4String.str x in -{ var x:t @ i }-
+    | MkStatement i (StatVariable t x (Some e) _) _
+      => t <- type_morph t ;;
+        e <<| expr_morph e ;;
+        let x := P4String.str x in
+        -{ var x:t @ i; asgn Var x:t @ i := e:t @ i @ i }-
+    | MkStatement i (StatAssignment e1 ((MkExpression _ _ t _) as e2)) _
+      => t <- type_morph t ;;
+        e1 <- expr_morph e1 ;;
+        e2 <<| expr_morph e2 ;; -{ asgn e1 := e2:t @ i }-
+    | MkStatement i (StatBlock blk) _ => blk_morph blk
+    | MkStatement i (StatConditional ((MkExpression _ _ t _) as e) s1 None) _
+      => t <- type_morph t ;;
+        e <- expr_morph e ;;
+        s1 <<| stmt_morph s1 ;;
+        -{ if e:t then s1 else skip @ i @ i }-
+    | MkStatement i (StatConditional ((MkExpression _ _ t _) as e) s1 (Some s2)) _
+      => t <- type_morph t ;;
+        e <- expr_morph e ;;
+        s1 <- stmt_morph s1 ;;
+        s2 <<| stmt_morph s2 ;;
+        -{ if e:t then s1 else s2 @ i }-
+    | MkStatement
+        i (StatMethodCall
+             (MkExpression
+                _ (ExpName (BareName x) _) _ _) _ args) _
+      => let x := P4String.str x in None (* TODO *)
+    | MkStatement i (StatSwitch e cases) _
+      => e <- expr_morph e ;; None (* TODO *)
     | _ => None
     end.
   (**[]*)

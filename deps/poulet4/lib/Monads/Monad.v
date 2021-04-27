@@ -17,7 +17,7 @@ Notation "c >>= f" := (@mbind _ _ _ _ c f) (at level 50, left associativity) : m
 Notation "f =<< c" := (@mbind _ _ _ _ c f) (at level 51, right associativity) : monad_scope.
 
 Notation "x <- c1 ;; c2" := (@mbind _ _ _ _ c1 (fun x => c2))
-  ( at level 100, c1 at next level, 
+  ( at level 100, c1 at next level,
     format "x  '<-'  c1 ';;' '//' c2",
     right associativity
   ) : monad_scope.
@@ -52,3 +52,9 @@ Definition lift_monad {A B} {m: Type -> Type} {M : Monad m} (f: A -> B) (ma : m 
   ma >>= fun a => mret (f a).
 
 Notation "c '>>|' f" := (lift_monad f c) (at level 50, left associativity) : monad_scope.
+
+Notation "x '<<|' c1 ;; c2" := (lift_monad (fun x => c2) c1)
+  ( at level 100, c1 at next level,
+    format "x  '<<|'  c1 ';;' '//' c2",
+    right associativity
+  ) : monad_scope.

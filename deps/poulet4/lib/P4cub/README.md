@@ -1,6 +1,26 @@
 # `P4cub`: A Simplified, Stateless `p4` IR
 
+### Contents:
+
+"W/ batteries" implies the inclusion of useful definitions, lemmas, and/or tactics.
+
+- `AST.v`: the `p4cub` abstract syntax tree w/ batteries.
+
+- `BigStep.v`: `p4cub` big-step semantics w/ batteries.
+
+- `Check.v`: `p4cub` static semantics.
+
+- `Field.v`: `p4cub`'s syntactic "fields" w/ batteries.
+
+- `Metamorphosis.v`: Translation from `p4light` to `p4cub`.
+
+- `SmallStep.v`: `p4cub` small-step values/lvalues, & semantics w/ batteries.
+
+- `Utilizer.v`: Useful notations, definitions, lemmas, & tactics.
+
 ### Updates:
+
+- Work on translation from `p4light` to `p4cub` has begun.
 
 - All uses of `N` have been usurped by `Z`.
 

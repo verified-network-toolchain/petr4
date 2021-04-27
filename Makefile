@@ -21,9 +21,6 @@ all: build
 pack:
 	bin/pack.py examples web/pack.ml
 
-build: pack
-	dune build @install
-
 doc:
 	dune build @doc
 
@@ -42,5 +39,5 @@ test:
 clean:
 	dune clean
 
-web: web/pack.ml
+web: 
 	make -C web

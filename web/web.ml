@@ -17,28 +17,32 @@
 open Petr4.Common
 open Js_of_ocaml
 open Base
-open Pack
 
 
 exception ParsingError of string
 
 
 
-module Pythonfs = struct
-  let exists path = 
-    let ld= AssocListMap.find path pack in
-    match ld with
-    |None->false
-    |Some x-> true
+let js_load (path: Js.js_string Js.t) : Js.js_string Js.t =
+  Js.Unsafe.fun_call (Js.Unsafe.js_expr "load_file")
+    [|Js.Unsafe.inject path|]
+
+let js_exists (path: Js.js_string Js.t) :Js.js_string Js.t =
+  Js.Unsafe.fun_call(Js.Unsafe.js_expr "exists_file")
+    [|Js.Unsafe.inject path|]
+
+module JavascriptFS = struct
+  let exists (path : string) : bool 
+    = let output=Js.to_string @@ js_exists (Js.string path) in 
+    match output with
+    |"false"->false
+    |_->true
 
   let load (path: string) : string =
-    let ld= AssocListMap.find path pack in
-    match ld with
-    |None->""
-    |Some x-> x
+    Js.to_string @@ js_load (Js.string path)
 end
 
-module Pp = P4pp.Eval.Make(Pythonfs)
+module Pp = P4pp.Eval.Make(JavascriptFS)
 
 module Conf: Parse_config = struct
   let red s = s
@@ -62,7 +66,7 @@ let _ =
   Js.export "Petr4"
     (object%js
       method load path =
-        Pythonfs.load(Js.to_string path) |> Js.string
+        JavascriptFS.load(Js.to_string path) |> Js.string
       method eval packet control_string p4_content =
         try
           eval false (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string

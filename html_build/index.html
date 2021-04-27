@@ -27,13 +27,6 @@
     serif;
     font-size: 12pt;
   </style>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-
-  <script type="text/javascript">
-    $(function () {
-      $("#includedContent").load("all_examples.html");
-    });
-  </script>
 </head>
 
 <body style="padding-top:100px;">
@@ -77,15 +70,12 @@
   <div role="main" class="container">
     <div class="row">
       <form>
-
-
-
-
-        <div id="includedContent"></div>
-
-
-
-
+        <select id="demo_options" onchange="select_demo()" style="width: 400px;">
+          <option value="table-entries-lpm-bmv2.p4">table-entries-lpm-bmv2.p4</option>
+          <option value="switch_ebpf.p4">switch_ebpf.p4</option>
+          <option value="union-valid-bmv2.p4">union-valid-bmv2.p4</option>
+          <option value="register.p4">register.p4</option>
+        </select>
       </form>
     </div>
     <div class="row">
@@ -122,6 +112,8 @@
   <script src="web.bc.js"></script>
   <script>
 
+
+
     //ace.config.set("workerPath", "build/src-min");
     var p4_editor = ace.edit("code-area");
     var control_editor = ace.edit("control-json-area");
@@ -149,7 +141,26 @@
       out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
     }
 
-    function exists_file(filename) {
+    /* loads a fille and returns its content. this function is used inside web.ml*/
+    load_file = function (filename) {
+      console.log("p4/" + filename);
+      var code_file = new XMLHttpRequest();
+      code_file.open("GET", "p4/" + filename, false);
+      code_file.send();
+      var text = code_file.responseText;
+      console.log("request done");
+      return text;
+    }
+    /* returns true if a file exists, fallse otherwise. this function is used inside web.ml*/
+    exists_file = function (filename) {
+      var code_file = new XMLHttpRequest();
+      try {
+        code_file.open("GET", "p4/" + filename, false);
+      }
+      catch (error) {
+        return "false";
+      }
+      return "true";
     }
 
     function select_demo() {
@@ -158,6 +169,7 @@
       p4_editor.setValue(code, -1);
 
     }
+
     window.onload = function () {
       select_demo();
     }

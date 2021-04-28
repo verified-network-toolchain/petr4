@@ -108,7 +108,7 @@ and format_cexpr (expr: cexpr) =
   | CAddrOf exp ->
     text "&" ++ text "(" ++ format_cexpr exp ++ text ")"
   | CMember (exp, field) ->
-    text "(" ++ format_cexpr exp ++ text ")." ++ format_cname field
+    format_cexpr exp ++ text "." ++ format_cname field
   | CCall (func, args) ->
     format_cname func
     ++ text "("
@@ -120,11 +120,9 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname -> text cname 
   | CGeq (e1, e2) ->
-    box (text "("
-         ++ format_cexpr e1
+    box (format_cexpr e1
          ++ text " >= "
-         ++ format_cexpr e2
-         ++ text ")") 
+         ++ format_cexpr e2) 
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
   | CEq (e1, e2) -> 

@@ -8,9 +8,6 @@ module P4 = Types
 module StrMap = Map.Make(String)
 type varmap = C.cexpr StrMap.t
 
-let concat (word: P4.P4String.t) (addition: string)  = 
-  snd word ^ addition
-
 let varmap_find (map: varmap) (var: string) : C.cexpr =
   match StrMap.find map var with
   | Some expr -> expr
@@ -46,7 +43,6 @@ let rec get_expr_c (e: Prog.Expression.t) : C.cexpr =
   | Int i -> CIntLit (Bigint.to_int_exn (snd i).value)
   | Cast c -> get_expr_c c.expr
   | _ -> failwith (Prog.Expression.show e )
-
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
@@ -84,12 +80,6 @@ let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
         end
     in
     fst::get_expr_opt_lst t  
-
-let translate_expr (map: varmap) (e: Prog.Expression.t) : C.cexpr =
-  match (snd e).expr with
-  | Name (BareName (_, x)) ->
-    varmap_find map x
-  | _ -> failwith "incomplete"
 
 let type_width hdr_type =
   let empty_env = Prog.Env.CheckerEnv.empty_t () in
@@ -164,9 +154,6 @@ let update_map (map : varmap ) (params : Typed.Parameter.t list) =
 
 let translate_key (key : Prog.Table.key) = 
   get_expr_mem_lst (snd key).key
-
-(* let translate_key_expr (key : Prog.Table.key) = 
-   get_expr_name (snd key).key *)
 
 let translate_local_decls (map: varmap) (d: Prog.Declaration.t list) : varmap * C.cdecl list * C.cstmt list =
   map, [], []
@@ -295,20 +282,18 @@ and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.
   List.map ~f:(get_cond_logic entries) keylist 
 
 and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
-  (* let k = translate_key key in  *)
-  begin match entries with 
-    | None -> failwith "n"
-    | Some e -> begin match e with 
-        | [] -> failwith "af"
-        | h::t -> let m = (snd h).matches in
-          let equal = begin match m with 
-            | [] -> failwith "F"
-            | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
-            | _ -> failwith "ddf"
-          end in 
-          C.CEq ((translate_pointer (C.CString "state") key), get_expr_c equal) 
-      end 
-  end 
+  match entries with 
+  | None -> failwith "n"
+  | Some e -> begin match e with 
+      | [] -> failwith "af"
+      | h::t -> let m = (snd h).matches in
+        let equal = begin match m with 
+          | [] -> failwith "F"
+          | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
+          | _ -> failwith "ddf"
+        end in 
+        C.CEq ((translate_pointer (C.CString "state") key), get_expr_c equal) 
+    end 
 
 and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
   let key_lst = translate_key pointee in 
@@ -321,15 +306,14 @@ and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) =
   List.foldi ~init:base ~f:f key_lst "" 
 
 and get_entry_methods (entries : Prog.Table.entry list option) =
-  begin match entries with 
-    | None -> failwith "n"
-    | Some e -> 
-      let rec get_entry_methods_internal (lst : Prog.Table.entry list) = match lst with 
-        | [] -> []
-        | h::t -> [((snd h).action)] @ get_entry_methods_internal t  in
-      let l = get_entry_methods_internal e in 
-      get_action_ref l 
-  end 
+  match entries with 
+  | None -> failwith "n"
+  | Some e -> 
+    let rec get_entry_methods_internal (lst : Prog.Table.entry list) = match lst with 
+      | [] -> []
+      | h::t -> [((snd h).action)] @ get_entry_methods_internal t  in
+    let l = get_entry_methods_internal e in 
+    get_action_ref l 
 
 and make_state_name =
   Printf.sprintf "%s_state" 

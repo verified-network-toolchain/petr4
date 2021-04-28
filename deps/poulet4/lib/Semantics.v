@@ -49,7 +49,7 @@ Inductive fundef :=
   | FInternal
       (* true -> global; false -> instance *)
       (* Do we need this global flag? *)
-      (global : bool)
+      (* (global : bool) *)
       (params : list (ident * direction))
       (init : @Block tags_t)
       (body : @Block tags_t)
@@ -416,6 +416,7 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
           | _ => None
           end
       end
+  (* See if a function is built-in by FunctionKind? *)
   (* TODO add other built-in functions *)
   (* apply and builtin, but builtin unsupported yet. *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
@@ -525,14 +526,37 @@ Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) 
   | _ => None (* omitted for now *)
   end.
 
+Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
+  let name := get_type_name typ in
+  MkExpression dummy_tags (ExpName (BareName name) (LInstance [name])) dummy_type (* TODO place the actual function type *)
+  Directionless.
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
-  | eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tag typ st' sig,
+  | eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
                            exec_lvalue_expr this_path st lhs lv ->
                            exec_expr this_path st rhs v ->
                            assign_lvalue this_path st lv v = Some (st', SContinue) ->
                            exec_stmt this_path inst_m st
-                           (MkStatement tag (StatAssignment lhs rhs) typ) st' sig
-
+                           (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
+  | eval_stmt_assign_func_call : forall lhs lv rhs v this_path inst_m s tags typ s' s'',
+                                 exec_lvalue_expr this_path s lhs lv ->
+                                 exec_call this_path inst_m s rhs s' (Some v) ->
+                                 assign_lvalue this_path s' lv v = Some (s'', SContinue) ->
+                                 exec_stmt this_path inst_m s
+                                 (MkStatement tags (StatAssignment lhs rhs) typ) s' SContinue
+  | eval_stmt_method_call : forall this_path inst_m s tags func args typ s' vret,
+                                   exec_call this_path inst_m s
+                                      (MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless)
+                                      s' vret ->
+                                   exec_stmt this_path inst_m s
+                                   (MkStatement tags (StatMethodCall func nil args) typ) s' SContinue
+  | eval_stmt_direct_application : forall this_path inst_m s tags typ' args typ s',
+                                   exec_call this_path inst_m s
+                                      (MkExpression dummy_tags
+                                          (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) dummy_type Directionless)
+                                      s' None ->
+                                   exec_stmt this_path inst_m s
+                                   (MkStatement tags (StatDirectApplication typ' args) typ) s' SContinue
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
 with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:
@@ -552,12 +576,12 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> o
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
 with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
-  | exec_func_internal : forall obj_path inst_m s global params init body args s''' args' vret s' s'',
+  | exec_func_internal : forall obj_path inst_m s params init body args s''' args' vret s' s'',
       bind_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args s s' ->
       exec_block obj_path inst_m s' init  s'' SContinue ->
       exec_block obj_path inst_m s'' body s''' (SReturn vret) ->
       extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
-      exec_func obj_path inst_m s (FInternal global params init body) args s''' args' vret
+      exec_func obj_path inst_m s (FInternal params init body) args s''' args' vret
 
   | exec_func_table_match : forall obj_path name inst_m keys actions action_name ctrl_args action default_action const_entries s s',
       exec_table_match obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
@@ -811,10 +835,13 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
       end
   end.
 
+Definition empty_func_type : @P4Type tags_t :=
+  TypFunction (MkFunctionType nil nil FunParser TypVoid).
+
 Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
   match trans with
   | ParserDirect tags next =>
-      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [next])) dummy_type Directionless in
+      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [next])) empty_func_type Directionless in
       let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
       BlockSingleton stmt
   | ParserSelect _ _ _ => BlockNil (* TODO *)
@@ -827,7 +854,7 @@ Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
-      PathMap.set (p ++ [name]) (FInternal false nil BlockNil body) ge
+      PathMap.set (p ++ [name]) (FInternal nil BlockNil body) ge
   end.
 
 Definition begin_string : ident := {| P4String.tags := dummy_tags; P4String.str := "begin" |}.
@@ -839,7 +866,7 @@ Definition reject_state :=
   let verify := (MkExpression dummy_tags (ExpName (BareName verify_string) (LGlobal [verify_string])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) dummy_type Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
-  FInternal false nil BlockNil (BlockSingleton stmt).
+  FInternal nil BlockNil (BlockSingleton stmt).
 
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with
@@ -848,24 +875,24 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [name])) states ge in
-      let ge := PathMap.set (p ++ [accept_string]) (FInternal false nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ [reject_string]) (FInternal false nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ [accept_string]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ [reject_string]) (FInternal nil BlockNil BlockNil) ge in
       let method := MkExpression dummy_tags (ExpName (BareName begin_string) (LInstance [begin_string]))
-                    TypVoid (* dummy type *) Directionless in
+                    empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [name]) (FInternal false params init (BlockSingleton stmt)) ge
+      PathMap.set (p ++ [name]) (FInternal params init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [name]) (FInternal false params init apply) ge
+      PathMap.set (p ++ [name]) (FInternal params init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let params := map get_param_name_dir params in
-      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) params BlockNil body) ge
+      PathMap.set (p ++ [name]) (FInternal params BlockNil body) ge
   | DeclAction _ name params ctrl_params body =>
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
-      PathMap.set (p ++ [name]) (FInternal (path_equivb p nil) (params ++ ctrl_params) BlockNil body) ge
+      PathMap.set (p ++ [name]) (FInternal (params ++ ctrl_params) BlockNil body) ge
   | _ => ge
   end.
 

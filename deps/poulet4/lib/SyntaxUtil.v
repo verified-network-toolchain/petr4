@@ -57,6 +57,13 @@ Fixpoint block_to_list_statement (blk : @Block tags_t) : list (@Statement tags_t
   | BlockCons stmt blk' => stmt :: block_to_list_statement blk'
   end.
 
+Fixpoint block_app (block1 block2 : @Block tags_t) :=
+  match block1 with
+  | BlockEmpty _ => block2
+  | BlockCons stmt block =>
+      BlockCons stmt (block_app block block2)
+  end.
+
 Definition force {A} (default : A) (x : option A) : A :=
   match x with
   | Some x => x

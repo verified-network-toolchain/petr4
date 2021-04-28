@@ -716,6 +716,23 @@ Definition instantiate_decls' (rev_decls : list (@Declaration tags_t)) (e : ienv
 
 End instantiate_class_body.
 
+Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
+  match stmt with
+  | MkStatement _ (StatDirectApplication typ _) _  =>
+      [DeclInstantiation dummy_tags typ nil (get_type_name typ) None]
+  | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
+  | _ => []
+  end
+with get_direct_applications_blk (block : @Block tags_t) : list (@Declaration tags_t) :=
+  match block with
+  | BlockEmpty _ => []
+  | BlockCons stmt block =>
+      get_direct_applications_stmt stmt ++ get_direct_applications_blk block
+  end.
+
+Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declaration tags_t) :=
+  concat (map get_direct_applications_stmt (get_parser_state_statements ps)).
+
 (* TODO we need to evaluate constants in instantiation. *)
 
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
@@ -724,15 +741,17 @@ Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ie
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
       match decl with
-      | DeclParser _ class_name' _ _ _ locals _ =>
+      | DeclParser _ class_name' _ _ _ locals states =>
           if P4String.equivb class_name class_name' then
+            let locals := concat (map get_direct_applications_ps states) in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
             let m := PathMap.set p (IMInst class_name p) m in
             (p, m, s)
           else
             instantiate_class_body rev_decls' e class_name p m s
-      | DeclControl _ class_name' _ _ _ locals _ =>
+      | DeclControl _ class_name' _ _ _ locals apply =>
           if P4String.equivb class_name class_name' then
+            let locals := locals ++ get_direct_applications_blk apply in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
             let m := PathMap.set p (IMInst class_name p) m in
             (p, m, s)
@@ -774,9 +793,10 @@ Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :
       instantiate_global_decls decls PathMap.empty extern_empty
   end.
 
-(* TODO generate other components of ge. *)
-
 Definition BlockNil := BlockEmpty dummy_tags.
+
+Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
+  BlockCons stmt BlockNil.
 
 Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
   match locals with
@@ -791,23 +811,6 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
       end
   end.
 
-Fixpoint block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=
-  match stmts with
-  | [] => BlockNil
-  | stmt :: stmts =>
-      BlockCons stmt (block_of_list_statement stmts)
-  end.
-
-Fixpoint block_app (block1 block2 : @Block tags_t) :=
-  match block1 with
-  | BlockEmpty _ => block2
-  | BlockCons stmt block =>
-      BlockCons stmt (block_app block block2)
-  end.
-
-Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
-  BlockCons stmt BlockNil.
-
 Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
   match trans with
   | ParserDirect tags next =>
@@ -817,6 +820,9 @@ Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) 
   | ParserSelect _ _ _ => BlockNil (* TODO *)
   end.
 
+Definition block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=
+  list_statement_to_block dummy_tags stmts.
+
 Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t) : genv :=
   match state with
   | MkParserState _ name body trans =>
@@ -825,6 +831,15 @@ Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t
   end.
 
 Definition begin_string : ident := {| P4String.tags := dummy_tags; P4String.str := "begin" |}.
+Definition accept_string : ident := {| P4String.tags := dummy_tags; P4String.str := "accept" |}.
+Definition reject_string : ident := {| P4String.tags := dummy_tags; P4String.str := "reject" |}.
+Definition verify_string : ident := {| P4String.tags := dummy_tags; P4String.str := "verify" |}.
+
+Definition reject_state :=
+  let verify := (MkExpression dummy_tags (ExpName (BareName verify_string) (LGlobal [verify_string])) dummy_type Directionless) in
+  let false_expr := (MkExpression dummy_tags (ExpBool false) dummy_type Directionless) in
+  let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
+  FInternal false nil BlockNil (BlockSingleton stmt).
 
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with
@@ -833,6 +848,8 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [name])) states ge in
+      let ge := PathMap.set (p ++ [accept_string]) (FInternal false nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ [reject_string]) (FInternal false nil BlockNil BlockNil) ge in
       let method := MkExpression dummy_tags (ExpName (BareName begin_string) (LInstance [begin_string]))
                     TypVoid (* dummy type *) Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in

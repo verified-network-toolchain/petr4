@@ -1110,7 +1110,7 @@ Module Step.
 
   (** Statement evaluation.
       This continuation-based approach
-      is inspired that of a small-step
+      is inspired by that of a small-step
       semantics for Cminor.
       [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
   Inductive kstmt_step {tags_t : Type}

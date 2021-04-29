@@ -6,7 +6,7 @@ Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
 
 (** Notation entries. *)
-Declare Custom Entry p4evalsignal.
+Declare Custom Entry p4kstmt.
 
 (** * Small-Step Values *)
 Module IsValue.
@@ -849,19 +849,6 @@ Module Step.
                 end) argsv.
     (**[]*)
 
-    (** Statement signals. *)
-    Inductive signal : Type :=
-    | SIG_Cont                  (* continue *)
-    | SIG_Exit                  (* exit *)
-    | SIG_Rtrn (v : option (E.e tags_t)) (* return *).
-
-    (** Evidence that control-flow
-        is interrupted by an exit or return statement. *)
-    Inductive interrupt : signal -> Prop :=
-    | interrupt_exit : interrupt SIG_Exit
-    | interrupt_rtrn (vo : option (E.e tags_t)) : interrupt (SIG_Rtrn vo).
-    (**[]*)
-
     (** Table environment. *)
     Definition tenv : Type := Env.t string (CD.table tags_t).
 
@@ -936,21 +923,58 @@ Module Step.
     Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
       CEnv !{ x ↦ d ;; cs }!.
     (**[]*)
+
+    (** Continuation statements. *)
+    Inductive kstmt : Type :=
+    | KStop                              (* end of continuation *)
+    | KSeq (s : ST.s tags_t) (k : kstmt) (* sequencing/composition *)
+    | KBlock (ϵ : eenv) (k : kstmt)      (* block: enclosing environment & continuation *)
+    | KCall (args : E.arrowE tags_t)
+            (ϵ : eenv) (k : kstmt)       (* function/procedure
+                                            call-site with arguments,
+                                            enclosing environment, & continuation *)
+    | KExit (k : kstmt)                  (* exit statement control-flow *)
+    | KReturn (o : option (E.e tags_t))
+              (k : kstmt)                (* return statement control-flow *).
+    (**[]*)
   End StepDefs.
 
-  Notation "x" := x (in custom p4evalsignal at level 0, x constr at level 0).
-  Notation "'C'" := SIG_Cont (in custom p4evalsignal at level 0).
-  Notation "'X'" := SIG_Exit (in custom p4evalsignal at level 0).
-  Notation "'R' 'of' v ?"
-    := (SIG_Rtrn v) (in custom p4evalsignal at level 0).
-  Notation "'Void'" := (SIG_Rtrn None) (in custom p4evalsignal at level 0).
-  Notation "'Fruit' v"
-    := (SIG_Rtrn (Some v))
-         (in custom p4evalsignal at level 0, v custom p4expr).
+  Notation "'k{' s '}k'" := s (s custom p4kstmt at level 99).
+  Notation "( x )" := x (in custom p4kstmt, x at level 99).
+  Notation "x" := x (in custom p4kstmt at level 0, x constr at level 0).
+  Notation "'κ' s '⋅' k"
+    := (KSeq s k)
+         (in custom p4kstmt at level 99, s custom p4stmt,
+             k custom p4kstmt, right associativity).
+  Notation "'∫' env '⊗' k"
+    := (KBlock env k)
+         (in custom p4kstmt at level 99, env custom p4env,
+             k custom p4kstmt, right associativity).
+  Notation "'Λ' ( args , env ) k"
+    := (KCall args env k)
+         (in custom p4kstmt at level 99, env custom p4env,
+             k custom p4kstmt, right associativity).
+  Notation "'EXIT' k"
+           := (KExit k)
+                (in custom p4kstmt at level 99,
+                    k custom p4kstmt, right associativity).
+  Notation "'RETURN' o k"
+           := (KReturn o k)
+                (in custom p4kstmt at level 99,
+                    k custom p4kstmt, right associativity).
+  Notation "'VOID' k"
+           := (KReturn None k)
+                (in custom p4kstmt at level 99,
+                    k custom p4kstmt, right associativity).
+  Notation "'FRUIT' e k"
+           := (KReturn (Some e) k)
+                (in custom p4kstmt at level 99,
+                    k custom p4kstmt, right associativity).
 
   Reserved Notation "'ℵ' env , e1 '-->' e2"
            (at level 40, e1 custom p4expr, e2 custom p4expr).
 
+  (** Expression evaluation. *)
   Inductive expr_step {tags_t : Type} (ϵ : eenv)
     : E.e tags_t -> E.e tags_t -> Prop :=
   | step_var (x : string) (τ : E.t)
@@ -1065,6 +1089,7 @@ Module Step.
       let hs' := prefix ++ e' :: suffix in
       ℵ ϵ, Stack hs:ts[size] nextIndex:=ni -->  Stack hs':ts[size] nextIndex:=ni
   where "'ℵ' ϵ , e1 '-->' e2" := (expr_step ϵ e1 e2).
+  (**[]*)
 
   Reserved Notation "'ℶ' e1 '-->'  e2"
            (at level 40, e1 custom p4expr, e2 custom p4expr).
@@ -1077,79 +1102,83 @@ Module Step.
       ℶ e -->  e' ->
       ℶ Access e[idx] @ i -->   Access e'[idx] @ i
   where "'ℶ' e1 '-->' e2" := (lvalue_step e1 e2).
+  (**[]*)
 
-  Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
-           (at level 40, s1 custom p4stmt, s2 custom p4stmt,
-            ϵ2 custom p4env, sgl custom p4evalsignal).
-  (* TODO:
-     Small-step semantics of vanilla statements don't seem to work.
-     A continuation-based semantics seems better.
-     The semantics-engineering in the following paper about
-     Cminor elucidates this matter in a most compelling fashion:
-     [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
-  Inductive stmt_step {tags_t : Type}
+  Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
+           (at level 40, k1 custom p4kstmt, k2 custom p4kstmt,
+            ϵ1 custom p4env, ϵ2 custom p4env).
+
+  (** Statement evaluation.
+      This continuation-based approach
+      is inspired that of a small-step
+      semantics for Cminor.
+      [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
+  Inductive kstmt_step {tags_t : Type}
             (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
-            (fns : @fenv tags_t) (ins : @ienv tags_t) (ϵ : eenv) :
-    ST.s tags_t -> ST.s tags_t -> eenv -> @signal tags_t -> Prop :=
-  | step_vardecl (τ : E.t) (x : string) (i : tags_t) :
+            (fns : fenv) (ins : @ienv tags_t) (ϵ : eenv) :
+    kstmt -> kstmt -> eenv -> Prop :=
+  | step_seq (s1 s2 : ST.s tags_t) (i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ s1; s2 @ i ⋅ k -->  κ s1 ⋅ κ s2 ⋅ k, ϵ
+  | step_skip (i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ skip @ i ⋅ k -->  k, ϵ
+  | step_block (s : ST.s tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ b{ s }b ⋅ k -->  κ s ⋅ ∫ ϵ ⊗ k, ϵ
+  | step_kblock (ϵk : eenv) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, ϵk ≪ ϵ
+  | step_vardecl (τ : E.t) (x : string) (i : tags_t) (k : kstmt) :
       let v := edefault i τ in
-      ℸ cfg, tbls, aa, fns, ins, ϵ, var x : τ @ i -->   skip @ i, x ↦ v;; ϵ , C
-  | step_assign_right (τ : E.t) (e1 e2 e2' : E.e tags_t) (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ
+  | step_asgn_r (e1 e2 e2' : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e2 -->  e2' ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn e1 := e2:τ @ i -->  asgn e1 := e2':τ @ i, ϵ, C
-  | step_assign_left (τ : E.t) (e1 e1' v2 : E.e tags_t) (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ asgn e1 := e2:τ @ i ⋅ k -->  κ asgn e1 := e2':τ @ i ⋅ k, ϵ
+  | step_asgn_l (e1 e1' v2 : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       V.value v2 ->
-      ℵ ϵ, e1 -->  e1' ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn e1 := v2:τ @ i -->  asgn e1' := v2:τ @ i, ϵ, C
-  | step_assign_update (τ : E.t) (v1 v2 : E.e tags_t) (i : tags_t) :
+      ℶ e1 -->  e1' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ asgn e1 := v2:τ @ i ⋅ k -->  κ asgn e1' := v2:τ @ i ⋅ k, ϵ
+  | step_asgn (v1 v2 : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       V.lvalue v1 ->
       V.value v2 ->
       let ϵ' := lv_update v1 v2 ϵ in
-      ℸ cfg, tbls, aa, fns, ins, ϵ, asgn v1 := v2:τ @ i -->  skip @ i, ϵ', C
-  | step_seq_cont (s1 s1' s2 : ST.s tags_t) (i : tags_t) (ϵ' : eenv) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s1 -->  s1', ϵ', C ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s1; s2 @ i -->  s1'; s2 @ i, ϵ', C
-  | step_seq_interrupt (s1 s1' s2 : ST.s tags_t)
-                       (i : tags_t) (ϵ' : eenv) (sig : signal) :
-      interrupt sig ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s1 -->  s1', ϵ', sig ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s1; s2 @ i -->   skip @ i, ϵ', sig
-  | step_seq_collapse (s2 : ST.s tags_t) (i' i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, (skip @ i') ; s2 @ i -->  s2, ϵ, C
-  | step_block_cont (s s' : ST.s tags_t) (ϵ' : eenv) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s -->  s', ϵ', C ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ s }b -->  b{ s' }b, ∅, C
-      (* TODO, what environment to return??? *)
-  | step_block_interrupt (s s' : ST.s tags_t) (ϵ' : eenv) (sig : signal) :
-      interrupt sig ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, s -->  s', ϵ', sig ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ s }b -->  s', ϵ ≪ ϵ', sig
-  | step_block_collapse (i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, b{ skip @ i }b -->   skip @ i, ϵ, C
-  | step_cond (e e' : E.e tags_t) (s1 s2 : ST.s tags_t) (i : tags_t) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ asgn v1 := v2:τ @ i ⋅ k -->  k, ϵ'
+  | step_exit (i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ exit @ i ⋅ k -->   EXIT k, ϵ
+  | step_kexit_kseq (s : ST.s tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT κ s ⋅ k -->  EXIT k, ϵ
+  | step_kexit_kblock (ϵk : eenv) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, ϵk ≪ ϵ
+  | step_return_void (i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ returns @ i ⋅ k -->  VOID k, ϵ
+  | step_return_fruit (e e' : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e -->  e' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      if e:Bool then s1 else s2 @ i -->
-      if e:Bool then s1 else s2 @ i, ϵ, C
-  | step_cond_true (s1 s2 : ST.s tags_t) (i' i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ,
-      if TRUE @ i' :Bool then s1 else s2 @ i -->  s1, ϵ, C
-  | step_cond_false (s1 s2 : ST.s tags_t) (i' i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ,
-      if FALSE @ i' :Bool then s1 else s2 @ i -->  s2, ϵ, C
-  | step_exit (i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, exit @ i -->  skip @ i, ϵ, X
-  | step_return_void (i : tags_t) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, returns @ i -->  skip @ i, ϵ, Void
-  | step_return_fruit (e e' : E.e tags_t) (τ : E.t) (i : tags_t) :
-      ℵ ϵ, e -->  e' ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, return e:τ @ i -->  return e':τ @ i, ϵ, C
-  | step_return_collapse (v : E.e tags_t) (τ : E.t) (i : tags_t) :
+      κ return e:τ @ i ⋅ k -->  κ return e':τ @ i ⋅ k, ϵ
+  | step_return_value (v : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       V.value v ->
-      ℸ cfg, tbls, aa, fns, ins, ϵ, return v:τ @ i -->  skip @ i, ϵ, Fruit v
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ return v:τ @ i ⋅ k -->  FRUIT v k, ϵ
+  | step_kreturn_kseq (o : option (E.e tags_t)) (s : ST.s tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, RETURN o κ s ⋅ k -->  RETURN o k, ϵ
+  | step_kreturn_kblock (o : option (E.e tags_t)) (ϵk : eenv) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, ϵk ≪ ϵ
+  | step_cond (e e' : E.e tags_t) (s1 s2 : ST.s tags_t) (i : tags_t) (k : kstmt) :
+      ℵ ϵ, e -->  e' ->
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ if e:Bool then s1 else s2 @ i ⋅ k -->
+      κ if e:Bool then s1 else s2 @ i ⋅ k, ϵ
+  | step_cond_true (s1 s2 : ST.s tags_t) (i' i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ if TRUE @ i' :Bool then s1 else s2 @ i ⋅ k -->  κ s1 ⋅ k, ϵ
+  | step_cond_false (s1 s2 : ST.s tags_t) (i' i : tags_t) (k : kstmt) :
+      ℸ cfg, tbls, aa, fns, ins, ϵ,
+      κ if FALSE @ i' :Bool then s1 else s2 @ i ⋅ k -->  κ s2 ⋅ k, ϵ
   | step_funcall_in_arg (prefix suffix : E.args tags_t) (f x : string)
                         (τ : E.t) (e e' : E.e tags_t)
-                        (o : option (E.t * E.e tags_t)) (i : tags_t) :
+                        (o : option (E.t * E.e tags_t))
+                        (i : tags_t) (k : kstmt) :
       F.predfs_data
         (P.pred_paramarg
            (V.value ∘ snd) (V.lvalue ∘ snd)) prefix ->
@@ -1157,18 +1186,46 @@ Module Step.
       let args  := prefix ++ (x, P.PAIn (τ,e))  :: suffix in
       let args' := prefix ++ (x, P.PAIn (τ,e')) :: suffix in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      funcall f with args into o @ i -->  funcall f with args' into o @ i, ϵ, C
-  (* TODO: Issue with function call execution:
-     After all arguments are fully-evaluated & copied-in,
-     [stmt_step] must keep track of:
-     - The evaluated arguments when it needs to perform copy-out.
-     - If the call assigns the return result to an expression.
-     - The environments at the call-site, b/c when executing
-       the call the closure environment will be used.
-     I will research more on the subject of
-     small-step semantics for procedure calls:
-     [Structural operational semantics through context-dependent behaviour]
-     [https://www.sciencedirect.com/science/article/pii/S1567832611000452] *)
-  where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , s1 '-->' s2 , ϵ2 , sgl"
-          := (stmt_step cfg tbls aa fns ins ϵ1 s1 s2 ϵ2 sgl).
+      κ funcall f with args  into o @ i ⋅ k -->
+      κ funcall f with args' into o @ i ⋅ k, ϵ
+   | step_funcall_lvalue (args : E.args tags_t) (f : string) (τ : E.t)
+                         (e e' : E.e tags_t) (i : tags_t) (k : kstmt) :
+       F.predfs_data
+         (P.pred_paramarg
+            (V.value ∘ snd) (V.lvalue ∘ snd)) args ->
+       ℶ e -->  e' ->
+       ℸ cfg, tbls, aa, fns, ins, ϵ,
+       κ let e:τ  := call f with args @ i ⋅ k -->
+       κ let e':τ := call f with args @ i ⋅ k, ϵ
+   | step_funcall (args : E.args tags_t) (f : string)
+                  (o : option (E.t * E.e tags_t))
+                  (i : tags_t) (k : kstmt)
+                  (body : ST.s tags_t) (fϵ : eenv)
+                  (fclosure : fenv) (fins : ienv) :
+       lookup fns f = Some (FDecl fϵ fclosure fins body) ->
+       predop (V.lvalue ∘ snd) o ->
+       F.predfs_data
+         (P.pred_paramarg
+            (V.value ∘ snd) (V.lvalue ∘ snd)) args ->
+       let fϵ' := copy_in args ϵ fϵ in
+       let arrow := P.Arrow args o in
+       ℸ cfg, tbls, aa, fns, ins, ϵ,
+       κ funcall f with args into o @ i ⋅ k -->
+       κ body ⋅ Λ (arrow, ϵ) k, fϵ'
+   | step_kexit_kcall (ϵk : eenv) (args : E.args tags_t) (k : kstmt) :
+       let ϵ' := copy_out args ϵ ϵk in
+       let arrow := P.Arrow args None in
+       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT Λ (arrow, ϵk) k -->  k, ϵ'
+   | step_void_kcall (ϵk : eenv) (args : E.args tags_t) (k : kstmt) :
+       let ϵ' := copy_out args ϵ ϵk in
+       let arrow := P.Arrow args None in
+       ℸ cfg, tbls, aa, fns, ins, ϵ, VOID Λ (arrow, ϵk) k -->  k, ϵ'
+   | step_fruit_kcall (v lv : E.e tags_t) (τ : E.t) (ϵk : eenv)
+                      (args : E.args tags_t) (k : kstmt) :
+       let ϵ' := ϵk ▷ copy_out args ϵ ▷ lv_update lv v in
+       let arrow := P.Arrow args (Some (τ, lv)) in
+       ℸ cfg, tbls, aa, fns, ins, ϵ, FRUIT v Λ (arrow, ϵk) k -->  k, ϵ'
+  where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
+          := (kstmt_step cfg tbls aa fns ins ϵ1 k1 k2 ϵ2).
+  (**[]*)
 End Step.

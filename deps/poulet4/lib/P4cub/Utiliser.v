@@ -351,6 +351,11 @@ Proof.
   induction l; constructor; auto.
 Qed.
 
+(** Option Predicate *)
+Inductive predop {A : Type} (P : A -> Prop) : option A -> Prop :=
+| predop_none : predop P None
+| predop_some (a : A) : P a -> predop P (Some a).
+
 (** * Option Equivalence *)
 Section Relop.
   Context {A : Type}.

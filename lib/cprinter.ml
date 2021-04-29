@@ -126,11 +126,9 @@ and format_cexpr (expr: cexpr) =
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
   | CEq (e1, e2) -> 
-    box (text "("
-         ++ format_cexpr e1
+    box (format_cexpr e1
          ++ text " == "
-         ++ format_cexpr e2
-         ++ text ")") 
+         ++ format_cexpr e2) 
 
 and format_ccases (cases: ccase list) =
   concat_map ~sep:(text "\n") ~f:format_ccase cases

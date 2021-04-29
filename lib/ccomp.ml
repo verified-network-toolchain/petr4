@@ -281,12 +281,14 @@ and get_name (n: P4.name) =
 and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
   List.map ~f:(get_cond_logic entries) keylist 
 
+(* todo: keylist instead of key  *)
 and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
   match entries with 
   | None -> failwith "n"
   | Some e -> begin match e with 
       | [] -> failwith "af"
       | h::t -> let m = (snd h).matches in
+        (* instead of handling only len 1 for m, get it to handle all lengths *)
         let equal = begin match m with 
           | [] -> failwith "F"
           | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
@@ -318,37 +320,33 @@ and get_entry_methods (entries : Prog.Table.entry list option) =
 and make_state_name =
   Printf.sprintf "%s_state" 
 
-and translate_inner (control_name, name, k, actions, entries, default_action, size, custom_properties) = 
-  let l = get_entry_methods entries in 
-  let first = get_first l in 
-  let cond_logic = get_cond_logic_lst entries k in
-  let first_if = match cond_logic with 
-    | h::t -> h
-    | _ -> failwith "f" in 
-  if List.length l = 1 then 
-    let last = get_default_action default_action in 
-    C.CIf 
-      (first_if,
-       method_call_table first,
-       method_call_table last)
-  else 
-    match entries with 
-    | None -> failwith "f"
-    | Some s -> begin match s with 
-        | [] -> failwith "F"
-        | h::t -> 
-          C.CIf 
-            (first_if,
-             method_call_table first,
-             translate_inner(control_name, name, k, actions, Some t, default_action, size, custom_properties)) end 
+and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
+  (* todo - deal with multiple keys  *)
+  (* todo - ternary matches in entries - spec value and bit mask (e.g. or with a mask), prefix matches  *)
+  match k with 
+  | [] -> failwith "empty key list" 
+  | key::key_end -> 
+    begin match entries with 
+      | None -> failwith "f"
+      | Some s -> begin match s with 
+          | [] -> method_call_table (get_default_action default_action)
+          | h::t -> C.CIf 
+                      (get_cond_logic entries key, method_call_table_entry h, translate_inner(k, Some t, default_action)) 
+        end 
+    end 
+
 
 and translate_table(control_name, name, k, actions, entries, default_action, size, custom_properties) = 
   let state_type = C.(CPtr (CTypeName (make_state_name control_name))) in
   let state_param = C.CParam (state_type, "state") in
-  C.CFun(C.CVoid, name, [state_param], [translate_inner (control_name, name, k, actions, entries, default_action, size, custom_properties)]) 
+  C.CFun(C.CVoid, name, [state_param], [translate_inner (k, entries, default_action)]) 
 
 and method_call_table (name : P4.name) = 
   C.CMethodCall (C.CString( snd (get_name name)), [C.CString "state"])
+
+and method_call_table_entry (entry : Prog.Table.entry) = 
+  let n = snd (snd entry).action in 
+  C.CMethodCall (C.CString(snd (get_name (n.action).name)), [C.CString "state"])
 
 and get_first (list) = 
   match list with 

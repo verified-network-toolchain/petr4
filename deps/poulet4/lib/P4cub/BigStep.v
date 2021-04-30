@@ -66,8 +66,8 @@ Module Step.
       | ~{ _ VW z }~
       | ~{ _ VS z }~
         => let w' := (hi - lo + 1)%positive in
-        Some # V.VBit w' #
-             BitArith.mod_bound w' #
+        Some $ V.VBit w' $
+             BitArith.mod_bound w' $
              BitArith.bitstring_slice z hi lo
       | _ => None
       end.
@@ -76,11 +76,11 @@ Module Step.
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
-      | E.Not,    ~{ VBOOL b }~ => Some # V.VBool  # negb b
-      | E.BitNot, ~{ w VW n }~  => Some # V.VBit w # BitArith.bit_not w n
-      | E.BitNot, ~{ w VS n }~  => Some # V.VInt w # IntArith.bit_not w n
-      | E.UMinus, ~{ w VW z }~  => Some # V.VBit w # BitArith.neg w z
-      | E.UMinus, ~{ w VS z }~  => Some # V.VInt w # IntArith.neg w z
+      | E.Not,    ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
+      | E.BitNot, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
+      | E.BitNot, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
+      | E.UMinus, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
+      | E.UMinus, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
       | _, _ => None
       end.
     (**[]*)
@@ -88,44 +88,62 @@ Module Step.
     (** Binary operations. *)
     Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
       match op, v1, v2 with
-      | E.Plus, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.plus_mod w n1 n2
-      | E.Plus, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.plus_mod w z1 z2
-      | E.PlusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.plus_sat w n1 n2
-      | E.PlusSat,  ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.plus_sat w z1 z2
-      | E.Minus, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.minus_mod w n1 n2
-      | E.Minus, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_mod w z1 z2
-      | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.minus_sat w n1 n2
-      | E.MinusSat, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.minus_sat w z1 z2
-      | E.Times, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.mult_mod w n1 n2
-      | E.Times, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.mult_mod w z1 z2
-      | E.Shl, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.shift_left w n1 n2
-      | E.Shl, ~{ w VS z1 }~, ~{ _ VW z2 }~ => Some # V.VInt w # IntArith.shift_left w z1 z2
-      | E.Shr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.shift_right w n1 n2
-      | E.Shr, ~{ w VS z1 }~, ~{ _ VW z2 }~ => Some # V.VInt w # IntArith.shift_right w z1 z2
-      | E.BitAnd, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.bit_and w n1 n2
-      | E.BitAnd, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.bit_and w z1 z2
-      | E.BitXor, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.bit_xor w n1 n2
-      | E.BitXor, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.bit_xor w z1 z2
-      | E.BitOr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBit w # BitArith.bit_or w n1 n2
-      | E.BitOr, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VInt w # IntArith.bit_or w z1 z2
-      | E.Le, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <=? n2)%Z
-      | E.Le, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z1 <=? z2)%Z
-      | E.Lt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n1 <? n2)%Z
-      | E.Lt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z1 <? z2)%Z
-      | E.Ge, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <=? n1)%Z
-      | E.Ge, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <=? z1)%Z
-      | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some # V.VBool (n2 <? n1)%Z
-      | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some # V.VBool (z2 <? z1)%Z
-      | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool (b1 && b2)
-      | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some # V.VBool (b1 || b2)
-      | E.Eq, _, _ => Some # V.VBool # V.eqbv v1 v2
-      | E.NotEq, _, _ => Some # V.VBool # negb # V.eqbv v1 v2
+      | E.Plus, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.plus_mod w n1 n2
+      | E.Plus, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.plus_mod w z1 z2
+      | E.PlusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.plus_sat w n1 n2
+      | E.PlusSat,  ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.plus_sat w z1 z2
+      | E.Minus, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.minus_mod w n1 n2
+      | E.Minus, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.minus_mod w z1 z2
+      | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.minus_sat w n1 n2
+      | E.MinusSat, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.minus_sat w z1 z2
+      | E.Times, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.mult_mod w n1 n2
+      | E.Times, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.mult_mod w z1 z2
+      | E.Shl, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.shift_left w n1 n2
+      | E.Shl, ~{ w VS z1 }~, ~{ _ VW z2 }~
+        => Some $ V.VInt w $ IntArith.shift_left w z1 z2
+      | E.Shr, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.shift_right w n1 n2
+      | E.Shr, ~{ w VS z1 }~, ~{ _ VW z2 }~
+        => Some $ V.VInt w $ IntArith.shift_right w z1 z2
+      | E.BitAnd, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.bit_and w n1 n2
+      | E.BitAnd, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.bit_and w z1 z2
+      | E.BitXor, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.bit_xor w n1 n2
+      | E.BitXor, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.bit_xor w z1 z2
+      | E.BitOr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBit w $ BitArith.bit_or w n1 n2
+      | E.BitOr, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VInt w $ IntArith.bit_or w z1 z2
+      | E.Le, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <=? n2)%Z
+      | E.Le, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <=? z2)%Z
+      | E.Lt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <? n2)%Z
+      | E.Lt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <? z2)%Z
+      | E.Ge, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <=? n1)%Z
+      | E.Ge, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <=? z1)%Z
+      | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <? n1)%Z
+      | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <? z1)%Z
+      | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 && b2)
+      | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 || b2)
+      | E.Eq, _, _ => Some $ V.VBool $ V.eqbv v1 v2
+      | E.NotEq, _, _ => Some $ V.VBool $ negb $ V.eqbv v1 v2
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
-        => Some # V.VBit (w1 + w2)%positive # BitArith.concat w1 w2 n1 n2
+        => Some $ V.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
       | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
       | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
-        => Some # V.VInt (w1 + w2)%positive # IntArith.concat w1 w2 n1 n2
+        => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
       | _, _, _ => None
       end.
     (**[]*)
@@ -170,12 +188,12 @@ Module Step.
           if lt_dec nnat sizenat then
             let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
             let remains := skipn nnat bvss in
-            Some #
-                 V.VHeaderStack ts (remains ++ new_hdrs) size #
+            Some $
+                 V.VHeaderStack ts (remains ++ new_hdrs) size $
                  Z.max 0%Z (nextIndex - Zpos n)%Z
           else
             let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
-            Some # V.VHeaderStack ts new_hdrs size 0%Z
+            Some $ V.VHeaderStack ts new_hdrs size 0%Z
       end.
     (**[]*)
 
@@ -195,9 +213,9 @@ Module Step.
       | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.mod_bound w z in
                                      Some ~{ w VS z }~
       | {{ rec { fs } }}, ~{ TUPLE vs }~
-        => Some # V.VRecord # combine (F.keys fs) vs
+        => Some $ V.VRecord $ combine (F.keys fs) vs
       | {{ hdr { fs } }}, ~{ TUPLE vs }~
-        => Some # V.VHeader (combine (F.keys fs) vs) true
+        => Some $ V.VHeader (combine (F.keys fs) vs) true
       | _, _ => None
       end.
     (**[]*)

@@ -48,7 +48,9 @@ Module P4cub.
     end.
   (**[]*)
 
-  Definition pred_paramarg_same {A : Type} (P : A -> Prop) : paramarg A A -> Prop := pred_paramarg P P.
+  Definition pred_paramarg_same {A : Type} (P : A -> Prop)
+    : paramarg A A -> Prop := pred_paramarg P P.
+  (**[]*)
 
   (** Relating [paramarg]s. *)
   Definition rel_paramarg {A1 A2 B1 B2 : Type}
@@ -77,8 +79,6 @@ Module P4cub.
 
   (** * Expression Grammar *)
   Module Expr.
-    (* Import Dir. *)
-
     Section P4Types.
       (** Expression types. *)
       Inductive t : Type :=

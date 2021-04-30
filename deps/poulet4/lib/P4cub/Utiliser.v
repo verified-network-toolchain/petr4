@@ -18,8 +18,7 @@ Infix "▷" := pipeline (at level 45, left associativity).
 
 Infix "∘" := Basics.compose (at level 40, left associativity).
 
-(** Haskell's [$] operator, Coq is angry at the "$" token. *)
-Infix "#" := Basics.apply (at level 41, right associativity).
+Infix "$" := Basics.apply (at level 41, right associativity).
 
 (** * Useful Notations *)
 Notation "a '&&&&' b"
@@ -34,19 +33,19 @@ Notation "a '||||' b"
 
 Tactic Notation "unravel" :=
   simpl;
-  unfold "∘", "#", "▷",
+  unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
   equiv, complement; simpl.
 
 Tactic Notation "unravel" "in" hyp(H) :=
   simpl in H;
-  unfold "∘", "#", "▷",
+  unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
   equiv, complement in H; simpl in H.
 
 Tactic Notation "unravel" "in" "*" :=
   simpl in *;
-  unfold "∘", "#", "▷",
+  unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
   equiv, complement in *; simpl in *.
 
@@ -442,7 +441,7 @@ Section ProdEquivalence.
 
   Context `{Equivalence B RB}.
 
-  Let RAB ab1 ab2 := RA (fst ab1) # fst ab2 /\ RB (snd ab1) # snd ab2.
+  Let RAB ab1 ab2 := RA (fst ab1) $ fst ab2 /\ RB (snd ab1) $ snd ab2.
 
   Lemma prod_reflexive : Reflexive RAB.
   Proof.

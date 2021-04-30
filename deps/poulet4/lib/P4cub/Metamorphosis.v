@@ -61,8 +61,8 @@ Section Metamorphosis.
     | TypBool => Some {{ Bool }}
     | TypInteger => None (* TODO *)
     | TypString => None (* TODO *)
-    | TypInt w => Some # E.TInt # Pos.of_nat w
-    | TypBit w => Some # E.TBit # Pos.of_nat w
+    | TypInt w => Some $ E.TInt $ Pos.of_nat w
+    | TypBit w => Some $ E.TBit $ Pos.of_nat w
     | TypVarBit _ => None (* TODO *)
     | TypArray t n =>
       let n := Pos.of_nat n in
@@ -193,8 +193,8 @@ Section Metamorphosis.
         | _ => None (* TODO *)
         end
     | MkExpression i (ExpBitStringAccess e lo hi) t _
-      => let lo := Pos.pred # N.succ_pos lo in
-        let hi := Pos.pred # N.succ_pos hi in
+      => let lo := Pos.pred $ N.succ_pos lo in
+        let hi := Pos.pred $ N.succ_pos hi in
         t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Slice e:t [hi:lo] @ i }>
     | MkExpression i (ExpList es) _ _
@@ -217,7 +217,7 @@ Section Metamorphosis.
       => t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
-      => Some # E.EError (Some # P4String.str err) i
+      => Some $ E.EError (Some $ P4String.str err) i
     | _ => None
     end.
   (**[]*)

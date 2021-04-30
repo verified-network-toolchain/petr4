@@ -58,6 +58,13 @@ Ltac inv_eq :=
         end.
 (**[]*)
 
+Ltac solve_eqn :=
+  match goal with
+  | Ha: ?x = ?a, Hb: ?x = ?b
+    |- _ => rewrite Ha in Hb; inv Hb
+  end.
+(**[]*)
+
 Ltac inv_Forall_cons :=
   match goal with
   | H: Forall _ (_ :: _) |- _ => inv H
@@ -125,6 +132,19 @@ Arguments Left {_ _}.
 Arguments Right {_ _}.
 
 (** * Useful Functions And Lemmas *)
+
+Lemma Forall_until_eq : forall {A : Type} (P : A -> Prop) prf1 prf2 a1 a2 suf1 suf2,
+    Forall P prf1 -> Forall P prf2 -> ~ P a1 -> ~ P a2 ->
+    prf1 ++ a1 :: suf1 = prf2 ++ a2 :: suf2 ->
+    prf1 = prf2 /\ a1 = a2 /\ suf1 = suf2.
+Proof.
+  intros A P prf1;
+  induction prf1 as [| hp1 tp1 IHtp1 ];
+  intros [| hp2 tp2 ] a1 a2 suf1 suf2 Hp1 Hp2 Ha1 Ha2 Heq;
+  repeat inv_Forall_cons; simpl in *; inv Heq;
+  try contradiction; try auto 3.
+  apply IHtp1 in H5; intuition; subst; reflexivity.
+Qed.
 
 Lemma map_compose : forall {A B C : Type} (f : A -> B) (g : B -> C) l,
     map (g ∘ f) l = map g (map f l).

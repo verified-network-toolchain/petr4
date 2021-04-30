@@ -80,4 +80,13 @@ Section Determinism.
         repeat f_equal; auto 2.
     Qed.
   End ExprDeterminism.
+
+  Section LValueDeterminism.
+    Lemma lvalue_deterministic : forall (e e1 e2 : E.e tags_t),
+      ℶ e -->  e1 -> ℶ e -->  e2 -> e1 = e2.
+    Proof.
+      intros e e1 e2 H1; generalize dependent e2;
+      induction H1; intros e2 H2; inv H2; f_equal; auto 2.
+    Qed.
+  End LValueDeterminism.
 End Determinism.

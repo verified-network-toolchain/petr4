@@ -118,7 +118,8 @@ and format_cexpr (expr: cexpr) =
     begin match bool with 
       | true -> text "true"
       | false -> text "false" end 
-  | CString cname -> text cname 
+  | CString cname ->
+     verbatim ("\"" ^ cname ^ "\"")
   | CGeq (e1, e2) ->
     box (format_cexpr e1
          ++ text " >= "

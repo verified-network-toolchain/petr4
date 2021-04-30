@@ -17,32 +17,23 @@ let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
 
-let rec get_expr_name (e: Prog.Expression.t) : C.cname =
+let rec translate_lvalue (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
-  | ExpressionMember x -> get_expr_name x.expr ^ "." ^ snd x.name 
-  | FunctionCall x -> failwith "a"
-  | NamelessInstantiation x -> failwith "b"
-  | String s -> failwith (snd s)
-  | Mask x -> failwith "dsjak"
-  | Name n -> begin match n with 
-      | BareName str -> snd str 
-      | _ -> failwith "unimplemented" end 
-  | True ->  "true"
-  | False -> "false"
-  | Int i -> Bigint.to_string (snd i).value
-  | Cast {typ ; expr} -> get_expr_name expr
-  | _ -> failwith "unimplementeddj"
+  | Name (BareName str) -> CVar (snd str) 
+  | _ -> failwith "translate_lvalue unimplemented"
 
-let rec get_expr_c (e: Prog.Expression.t) : C.cexpr =
+let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
-  | Name n -> begin match n with 
-      | BareName str -> CString (snd str) 
-      | _ -> failwith "unimplemented" end 
-  | True ->  CBoolExp true  
-  | False -> CBoolExp false  
+  | Name (BareName str) -> CVar (snd str) 
+  | Name _ -> failwith "unimplemented"
+  | ExpressionMember {expr; name} ->
+     CMember (translate_expr expr, snd name)
+  | True -> CBoolExp true
+  | False -> CBoolExp false
   | Int i -> CIntLit (Bigint.to_int_exn (snd i).value)
-  | Cast c -> get_expr_c c.expr
-  | _ -> failwith (Prog.Expression.show e )
+  | Cast {expr; _} -> translate_expr expr
+  | String s -> CString (snd s)
+  | _ -> failwith "translate_expr unimplemented"
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
@@ -62,24 +53,14 @@ let rec get_expr_mem_lst (e: Prog.Expression.t) : C.cname list =
   | ExpressionMember x -> get_expr_mem_lst x.expr @ [snd x.name] 
   | _ -> failwith "unimplemented!"
 
-let rec get_expr_opt_lst (e: Prog.Expression.t option list) : C.cexpr list =
-  match e with
-  | [] -> []
-  | h::t ->
-    let fst =
-      match h with 
-      | None -> C.CVar "don't care compilation unimplemented"
-      | Some s -> begin match (snd s).expr with
-          | Name name -> 
-            begin match name with 
-              | BareName str -> CVar (snd str)
-              | _ -> failwith "unimplemented--" end
-          | ExpressionMember {expr; name} ->
-            CAddrOf (CMember (CPointer (CVar "state", get_expr_mem expr), snd name))
-          | _ -> failwith "unimplemented!"
-        end
-    in
-    fst::get_expr_opt_lst t  
+let translate_arg (map: varmap) (arg: Prog.Expression.t option) : C.cexpr =
+  match arg with
+  | Some expr -> translate_lvalue map expr
+  | None -> failwith "don't care args unimplemented"
+
+let translate_args (map: varmap) (args: Prog.Expression.t option list) : C.cexpr list =
+  args
+  |> List.map ~f:(translate_arg map)
 
 let type_width hdr_type =
   let empty_env = Prog.Env.CheckerEnv.empty_t () in
@@ -95,39 +76,38 @@ let assert_packet_out (typ: Typed.Type.t) : unit =
   (* TODO actually check the type is appropriate? *)
   ()
 
-let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
+let translate_stmt map (stmt: Prog.Statement.t) : C.cstmt =
   match (snd stmt).stmt with 
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
                 type_args = [hdr_typ];
                 args} ->
     assert_packet_in (snd pkt).typ;
     let width = type_width hdr_typ in
-    let args = get_expr_opt_lst args in
+    let args = translate_args map args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall (C.CString "extract", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CVar "extract", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
                 type_args = [hdr_typ];
                 args} ->
     assert_packet_out (snd pkt).typ;
     let width = type_width hdr_typ in
-    let args = get_expr_opt_lst args in
+    let args = translate_args map args in
     let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall (C.CString "emit", pkt_arg :: args @ [C.CIntLit width])
-  | MethodCall {func = _, {expr = ExpressionMember {expr = tbl; name = (_, "apply")}; _};
+    C.CMethodCall (C.CVar "emit", pkt_arg :: args @ [C.CIntLit width])
+  | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->
-    C.CMethodCall (C.CString (get_expr_name tbl), [C.CString "state"])
+    CMethodCall (translate_expr obj, [CVar "state"])
   | MethodCall { func; type_args; args } -> 
-    let args = get_expr_opt_lst args in
-    C.CMethodCall (C.CString (get_expr_name func), args)
+    let args = translate_args map args in
+    C.CMethodCall (translate_expr func, args)
   | Assignment { lhs; rhs } -> 
-    let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
-    C.CAssign (left, (get_expr_c rhs)) 
-  | _ -> failwith "incomplete"
+    C.CAssign (translate_lvalue map lhs, translate_expr rhs)
+  | _ -> failwith "translate_stmt unimplemented"
 
 let translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =
   stmts
-  |> List.map ~f:translate_stmt
+  |> List.map ~f:(translate_stmt map)
 
 let translate_block map (block: Prog.Block.t) : C.cstmt list =
   (snd block).statements
@@ -294,7 +274,7 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
           | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
           | _ -> failwith "ddf"
         end in 
-        C.CEq ((translate_pointer (C.CString "state") key), get_expr_c equal) 
+        C.CEq (translate_pointer (C.CVar "state") key, translate_expr equal) 
     end 
 
 and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
@@ -342,11 +322,11 @@ and translate_table(control_name, name, k, actions, entries, default_action, siz
   C.CFun(C.CVoid, name, [state_param], [translate_inner (k, entries, default_action)]) 
 
 and method_call_table (name : P4.name) = 
-  C.CMethodCall (C.CString( snd (get_name name)), [C.CString "state"])
+  C.CMethodCall (C.CVar (snd (get_name name)), [C.CVar "state"])
 
 and method_call_table_entry (entry : Prog.Table.entry) = 
   let n = snd (snd entry).action in 
-  C.CMethodCall (C.CString(snd (get_name (n.action).name)), [C.CString "state"])
+  C.CMethodCall (C.CVar (snd (get_name (n.action).name)), [C.CVar "state"])
 
 and get_first (list) = 
   match list with 
@@ -388,24 +368,6 @@ and translate_trans (states: int StrMap.t) (t: Prog.Parser.transition) : C.cstmt
     C.[CAssign (next_state_var, CIntLit nextid)]
   | Select _ ->
     failwith "translation of select() unimplemented"
-
-and translate_fun (map: varmap) (s: Prog.Statement.t) : C.cstmt = 
-  match (snd s).stmt with 
-  | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
-                type_args = [hdr_typ];
-                args} ->
-    assert_packet_out (snd pkt).typ;
-    let width = type_width hdr_typ in
-    let args = get_expr_opt_lst args in
-    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
-    C.CMethodCall (C.CString "emit", pkt_arg :: args @ [C.CIntLit width])
-  | MethodCall { func; type_args; args } -> 
-    let args = get_expr_opt_lst args in
-    C.CMethodCall (C.CString (get_expr_name func), args)
-  | Assignment { lhs; rhs } -> 
-    let left = C.CPointer ((C.CString "state"), (get_expr_name lhs)) in 
-    C.CAssign (left, (get_expr_c rhs)) 
-  | _ ->  failwith "incomplete"
 
 and translate_param (param : Typed.Parameter.t) : C.cfield =
   let ctyp = translate_type param.typ in

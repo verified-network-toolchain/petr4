@@ -34,6 +34,7 @@ let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   | _ -> failwith "unimplementeddj"
 
 let rec get_expr_c (e: Prog.Expression.t) : C.cexpr =
+  (* todo: expand get_expr_c  *)
   match (snd e).expr with
   | Name n -> begin match n with 
       | BareName str -> CString (snd str) 
@@ -312,16 +313,13 @@ and make_state_name =
   Printf.sprintf "%s_state" 
 
 and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
-  (* todo - deal with multiple keys  *)
-  (* todo - ternary matches in entries - spec value and bit mask (e.g. or with a mask), prefix matches  *)
   match entries with 
   | None -> failwith "f"
-  | Some s -> begin match s with 
-      | [] -> method_call_table (get_default_action default_action)
-      | h::t -> C.CIf 
-                  (get_cond_logic h k, method_call_table_entry h, translate_inner(k, Some t, default_action)) 
-    end 
-
+  | Some s -> 
+    let s_rev = List.rev s in 
+    let f (acc: C.cstmt) (h : Prog.Table.entry) = 
+      C.CIf (get_cond_logic h k, method_call_table_entry h, acc) in 
+    List.fold s_rev ~init:(method_call_table (get_default_action default_action)) ~f 
 
 and translate_table(control_name, name, k, actions, entries, default_action, size, custom_properties) = 
   let state_type = C.(CPtr (CTypeName (make_state_name control_name))) in

@@ -278,24 +278,15 @@ and get_name (n: P4.name) =
   | BareName b -> b
   | _ -> failwith "faa"
 
-and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
-  List.map ~f:(get_cond_logic entries) keylist 
-
-(* todo: keylist instead of key  *)
-and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
-  match entries with 
-  | None -> failwith "n"
-  | Some e -> begin match e with 
-      | [] -> failwith "af"
-      | h::t -> let m = (snd h).matches in
-        (* instead of handling only len 1 for m, get it to handle all lengths *)
-        let equal = begin match m with 
-          | [] -> failwith "F"
-          | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
-          | _ -> failwith "ddf"
-        end in 
-        C.CEq ((translate_pointer (C.CString "state") key), get_expr_c equal) 
-    end 
+and get_cond_logic (entry : Prog.Table.entry) (keys : Prog.Table.key list) =
+  let m = (snd entry).matches in
+  let init = C.CBoolExp true in 
+  let f (acc:C.cexpr) (k:Prog.Table.key) (m_el:Prog.Match.t) = 
+    begin match (snd m_el).expr with 
+      | DontCare -> acc  
+      | Expression {expr} -> C.CEq ((translate_pointer (C.CString "state") k), get_expr_c expr) 
+    end in 
+  List.fold2_exn keys m ~init ~f 
 
 and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
   let key_lst = translate_key pointee in 
@@ -323,16 +314,12 @@ and make_state_name =
 and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
   (* todo - deal with multiple keys  *)
   (* todo - ternary matches in entries - spec value and bit mask (e.g. or with a mask), prefix matches  *)
-  match k with 
-  | [] -> failwith "empty key list" 
-  | key::key_end -> 
-    begin match entries with 
-      | None -> failwith "f"
-      | Some s -> begin match s with 
-          | [] -> method_call_table (get_default_action default_action)
-          | h::t -> C.CIf 
-                      (get_cond_logic entries key, method_call_table_entry h, translate_inner(k, Some t, default_action)) 
-        end 
+  match entries with 
+  | None -> failwith "f"
+  | Some s -> begin match s with 
+      | [] -> method_call_table (get_default_action default_action)
+      | h::t -> C.CIf 
+                  (get_cond_logic h k, method_call_table_entry h, translate_inner(k, Some t, default_action)) 
     end 
 
 

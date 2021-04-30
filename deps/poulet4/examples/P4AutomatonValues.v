@@ -975,7 +975,7 @@ Lemma candidate_is_bisimulation:
   - cleanup_step.
     destruct (Z.of_nat _) eqn:?; [|destruct p|];
     rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1;
-    econstructor; 
+    econstructor;
     smtize.
   - cleanup_step.
   - cleanup_step.
@@ -1032,3 +1032,206 @@ Proof.
     + lia.
     + trivial.
 Qed.
+
+Require Import Poulet4.P4cub.AST.
+Require Import Poulet4.P4cub.Value.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.State.
+
+Open Scope monad_scope.
+
+Section parser_to_p4automaton.
+
+  Variable tags_t : Type.
+
+  Inductive simple_expression :=
+  | SimpleExpressionHeader
+  | SimpleExpressionMember (e: simple_expression) (m: string)
+  .
+
+  Inductive simple_lvalue :=
+  | SimpleLvalueHeader
+  | SimpleLvalueMember (e: simple_lvalue) (m: string)
+  .
+
+  Inductive state_operation :=
+  | StateOperationNil
+  | StateOperationExtract
+      (typ: P4cub.Expr.t)
+      (into: simple_lvalue)
+  .
+
+  Inductive simple_match :=
+  | SimpleMatchEquals (l r: simple_expression)
+  | SimpleMatchAnd (l r: simple_match)
+  | SimpleMatchDontCare
+  .
+
+  Section compile.
+    Variables (pkt_name hdr_name: string).
+
+    Fixpoint compile_expression
+      (expr: P4cub.Expr.e tags_t)
+      : option simple_expression
+    :=
+      match expr with
+      | P4cub.Expr.EVar _ name _ =>
+        if name == hdr_name then
+          Some SimpleExpressionHeader
+        else
+          None
+      | P4cub.Expr.EExprMember name _ expr _ =>
+        let* child := compile_expression expr in
+        Some (SimpleExpressionMember child name)
+      | _ =>
+        None
+      end
+    .
+
+    Fixpoint compile_lvalue
+      (expr: P4cub.Expr.e tags_t)
+      : option simple_lvalue
+    :=
+      match expr with
+      | P4cub.Expr.EVar _ name _ =>
+        if name == hdr_name then
+          Some SimpleLvalueHeader
+        else
+          None
+      | P4cub.Expr.EExprMember name _ expr _ =>
+        let* child := compile_lvalue expr in
+        Some (SimpleLvalueMember child name)
+      | _ =>
+        None
+      end
+    .
+
+    Fixpoint compile_statements
+      (stmt: P4cub.Stmt.s tags_t)
+      : option (list state_operation)
+    :=
+      match stmt with
+      | P4cub.Stmt.SSkip _ =>
+        Some nil
+      | P4cub.Stmt.SSeq s1 s2 _ =>
+        let* f1 := compile_statements s1 in
+        let* f2 := compile_statements s2 in
+        Some (f1 ++ f2)
+      | P4cub.Stmt.SExternMethodCall extern func args _ =>
+        if extern == pkt_name then
+          if func == "extract" then
+            match args with
+            | P4cub.Arrow ((_, P4cub.PAOut (t, e)) :: nil) _ =>
+              let* into := compile_lvalue e in
+              Some (StateOperationExtract t into :: nil)
+            | _=> None
+            end
+          else
+            None
+        else
+          None
+      | _ => None
+      end
+    .
+
+    Fixpoint compile_updates
+      (states: Field.fs string (P4cub.Parser.ParserState.state tags_t))
+      : option (list (string * list state_operation))
+    :=
+      match states with
+      | nil =>
+        Some nil
+      | state :: states' =>
+        let '(name, P4cub.Parser.ParserState.State stmt _) := state in
+        let* tail := compile_updates states' in
+        let* head := compile_statements stmt in
+        Some ((name, head) :: tail)
+      end
+    .
+
+    Fixpoint compile_transition
+      (trans: P4cub.Parser.ParserState.e tags_t)
+      : option (list (simple_match * (string + bool)))
+    :=
+      match trans with
+      | P4cub.Parser.ParserState.PAccept _ =>
+        Some ((SimpleMatchDontCare, inr true) :: nil)
+      | P4cub.Parser.ParserState.PReject _ =>
+        Some ((SimpleMatchDontCare, inr false) :: nil)
+      | P4cub.Parser.ParserState.PState st _ =>
+        Some ((SimpleMatchDontCare, inl st) :: nil)
+      | P4cub.Parser.ParserState.PSelect select_exp cases _ =>
+        let* select_exp' := compile_expression select_exp in
+        let fix f cases :=
+          match cases with
+          | nil => Some nil
+          | (case_exp, case_trans) :: cases' =>
+            let* child_clauses := compile_transition case_trans in
+            let* augmented_clauses :=
+              match case_exp with
+              | None =>
+                Some child_clauses
+              | Some case_exp =>
+                let* case_exp' := compile_expression case_exp in
+                Some (map (
+                  fun '(clause, target) =>
+                  (SimpleMatchAnd
+                    (SimpleMatchEquals select_exp' case_exp')
+                    clause,
+                   target)
+                ) child_clauses)
+              end in
+            let* tail := f cases' in
+            Some (augmented_clauses ++ tail)
+          end in
+         f cases
+      end
+    .
+
+    Fixpoint compile_transitions
+      (states: Field.fs string (P4cub.Parser.ParserState.state tags_t))
+      : option (list (string * list (simple_match * (string + bool))))
+    :=
+      match states with
+      | nil =>
+        Some nil
+      | state :: states' =>
+        let '(name, P4cub.Parser.ParserState.State _ trans) := state in
+        let* tail := compile_transitions states' in
+        let* head := compile_transition trans in
+        Some ((name, head) :: tail)
+      end
+    .
+
+  End compile.
+
+  Record embedded_p4automaton := MkEmbeddedP4Automaton {
+    emb_updates: list (string * list state_operation);
+    emb_transitions: list (string * list (simple_match * (string + bool)));
+  }.
+
+  Definition parser_to_p4automaton
+    (parser: P4cub.TopDecl.d tags_t)
+    : option embedded_p4automaton
+  :=
+    match parser with
+    | P4cub.TopDecl.TPParser _ _ params states _ =>
+      match params with
+      | (pkt_name, P4cub.PAIn pkt_type) ::
+        (hdr_name, P4cub.PAOut hdr_type) :: _ =>
+        let* updates := compile_updates pkt_name hdr_name states in
+        let* transitions := compile_transitions hdr_name states in
+        Some {|
+          emb_updates := updates;
+          emb_transitions := transitions;
+        |}
+      | _ =>
+        None
+      end
+    | _ =>
+      None
+    end
+  .
+
+End parser_to_p4automaton.

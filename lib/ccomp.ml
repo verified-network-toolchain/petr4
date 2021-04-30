@@ -17,7 +17,7 @@ let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
 
-let rec translate_lvalue (map: varmap) (e: Prog.Expression.t) : C.cexpr =
+let translate_lvalue (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName str) -> CVar (snd str) 
   | _ -> failwith "translate_lvalue unimplemented"

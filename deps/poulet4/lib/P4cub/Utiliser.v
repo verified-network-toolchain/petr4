@@ -375,28 +375,33 @@ Inductive predop {A : Type} (P : A -> Prop) : option A -> Prop :=
 | predop_none : predop P None
 | predop_some (a : A) : P a -> predop P (Some a).
 
+(** * Option Relations *)
+Section Relop.
+  Context {A B : Type}.
+  Variable R : A -> B -> Prop.
+
+  Inductive relop : option A -> option B -> Prop :=
+  | relop_none : relop None None
+  | relop_some a b : R a b -> relop (Some a) (Some b).
+End Relop.
+
 (** * Option Equivalence *)
 Section Relop.
   Context {A : Type}.
   Variable R : A -> A -> Prop.
-
-  Inductive relop : option A -> option A -> Prop :=
-  | relop_none : relop None None
-  | relop_some (a1 a2 : A) : R a1 a2 -> relop (Some a1) (Some a2).
-
   Context `{HAR : Equivalence A R}.
 
-  Lemma RelopReflexive : Reflexive relop.
+  Lemma RelopReflexive : Reflexive (relop R).
   Proof.
     intros [? |]; constructor; reflexivity.
   Qed.
 
-  Lemma RelopSymmetric : Symmetric relop.
+  Lemma RelopSymmetric : Symmetric (relop R).
   Proof.
     intros [? |] [? |] H; inv H; constructor; symmetry; assumption.
   Qed.
 
-  Lemma RelopTransitive : Transitive relop.
+  Lemma RelopTransitive : Transitive (relop R).
   Proof.
     intros [? |] [? |] [? |] H12 H23; inv H12; inv H23;
     constructor; etransitivity; eassumption.

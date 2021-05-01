@@ -1519,11 +1519,11 @@ Module P4cub.
         (** Parser expressions, which evaluate to state names *)
         Inductive e : Type :=
         | PGoto (st : state) (i : tags_t) (* goto state [st] *)
-        | PSelect (exp : E.e tags_t)
-                  (cases : list (option (E.e tags_t) * e))
+        | PSelect (exp : E.e tags_t) (default : e)
+                  (cases : F.fs (E.e tags_t) e)
                   (i : tags_t)        (* select expressions,
-                                         where an optional represents
-                                         the possibility of a "dontcare". *).
+                                         where "default" is
+                                         the wild card case *).
         (**[]*)
 
         (** Parser State Blocks. *)
@@ -1553,8 +1553,8 @@ Module P4cub.
                  := (PGoto st i)
                       (in custom p4prsrexpr at level 0,
                           st custom p4prsrstate).
-        Notation "'select' exp { cases } @ i"
-                 := (PSelect exp cases i)
+        Notation "'select' exp { cases } 'default' ':=' def @ i"
+                 := (PSelect exp def cases i)
                       (in custom p4prsrexpr at level 10,
                           exp custom p4expr).
         Notation "'&{' st '}&'" := st (st custom p4prsrstateblock at level 99).
@@ -1580,25 +1580,26 @@ Module P4cub.
 
         Hypothesis HState : forall st i, P p{ goto st @ i }p.
 
-        Hypothesis HSelect : forall exp cases i,
-            Forall (P ∘ snd) cases ->
-            P p{ select exp { cases } @ i }p.
+        Hypothesis HSelect : forall exp st cases i,
+            F.predfs_data P cases ->
+            P p{ select exp { cases } default:=st @ i }p.
         (**[]*)
 
         (** A custom induction principle,
             do [induction ?H using pe_ind] *)
         Definition pe_ind : forall pe : e tags_t, P pe :=
           fix peind pe : P pe :=
-            let fix lind {A : Type} (es : list (A * e tags_t))
-                : Forall (P ∘ snd) es :=
+            let fix fsind {A : Type} (es : F.fs A (e tags_t))
+                : F.predfs_data P es :=
                 match es with
                 | [] => Forall_nil _
-                | (_,pe) as oe :: es =>
-                  Forall_cons oe (peind pe) (lind es)
+                | (_,pe) as epe :: es =>
+                  Forall_cons epe (peind pe) (fsind es)
                 end in
             match pe with
             | p{ goto st @ i }p => HState st i
-            | p{ select exp { cases } @ i }p => HSelect exp _ i (lind cases)
+            | p{ select exp { cases } default:=st @ i }p
+              => HSelect exp st _ i (fsind cases)
             end.
         (**[]*)
       End ParserExpreInduction.

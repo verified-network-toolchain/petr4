@@ -14,11 +14,14 @@ Module V := Val.
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
 
-Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
+Reserved Notation "⟨ envn , e ⟩ ⇓ v"
          (at level 40, e custom p4expr, v custom p4value).
 
 Reserved Notation "⧠ e ⇓ lv"
          (at level 40, e custom p4expr, lv custom p4lvalue).
+
+Reserved Notation "⦑ envn , e ⦒ ⇓ st"
+         (at level 40, e custom p4prsrexpr, st custom p4prsrstate).
 
 Reserved Notation "⟪ cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
          (at level 40, s custom p4stmt,
@@ -34,6 +37,7 @@ Module Step.
   Module P := P4cub.
   Module E := P.Expr.
   Module ST := P.Stmt.
+  Module PS := P.Parser.ParserState.
   Module CD := P.Control.ControlDecl.
   Module TP := P.TopDecl.
   Module F := P.F.
@@ -959,6 +963,30 @@ Module Step.
       ⧠ e ⇓ lv ->
       ⧠ Access e[n] @ i ⇓ lv[n]
   where "⧠ e ⇓ lv" := (lvalue_big_step e lv).
+  (**[]*)
+
+  (** Parser-expression evaluation. *)
+  Inductive parser_expr_big_step
+            {tags_t} (ϵ : epsilon) : PS.e tags_t -> PS.state -> Prop :=
+  | pebs_goto (st : PS.state) (i : tags_t) :
+      ⦑ ϵ, goto st @ i ⦒ ⇓ st
+  (* TODO *)
+  | pebs_select (e : E.e tags_t) (def : PS.e tags_t)
+                (cases : F.fs (E.e tags_t) (PS.e tags_t))
+                (i : tags_t) (v : V.v) (st : PS.state)
+                (vcases : F.fs V.v PS.state) :
+      ⦑ ϵ, def ⦒ ⇓ st ->
+      Forall2
+        (fun epe vps =>
+           let e := fst epe in
+           let v := fst vps in
+           let pe := snd epe in
+           let ps := snd vps in
+           ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+        cases vcases ->
+      ⦑ ϵ, select e { cases } default:=def @ i ⦒ ⇓ st
+  where "⦑ envn , e ⦒ ⇓ st"
+          := (parser_expr_big_step envn e st).
   (**[]*)
 
   (** Statement big-step semantics. *)

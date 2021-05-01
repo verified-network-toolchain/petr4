@@ -821,16 +821,17 @@ Module Typecheck.
   | chk_goto (st : PS.state) (i : tags_t) :
       valid_state sts st ->
       ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
-  | chk_select (e : E.e tags_t)
-               (cases : list (option (E.e tags_t) * PS.e tags_t))
+  | chk_select (e : E.e tags_t) (def : PS.e tags_t)
+               (cases : F.fs (E.e tags_t) (PS.e tags_t))
                (i : tags_t) (τ : E.t) :
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+      ⟅ sts, errs, Γ ⟆ ⊢ def ->
       Forall
-        (fun oe =>
-           let o := fst oe in
-           let e := snd oe in
-           ⟅ sts, errs, Γ ⟆ ⊢ e /\ predop (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) o) cases ->
-      ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } @ i
+        (fun ep =>
+           let e := fst ep in
+           let p := snd ep in
+           ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases ->
+      ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } default:=def @ i
   where "⟅ sts , ers , gm ⟆ ⊢ e"
           := (check_prsrexpr sts ers gm e).
   (**[]*)
@@ -846,16 +847,17 @@ Module Typecheck.
         valid_state sts st ->
         P sts errs Γ p{ goto st @ i }p.
 
-    Hypothesis HSelect : forall sts errs Γ e cases i τ,
+    Hypothesis HSelect : forall sts errs Γ e def cases i τ,
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        ⟅ sts, errs, Γ ⟆ ⊢ def ->
+        P sts errs Γ def ->
         Forall
-          (fun oe =>
-             let o := fst oe in
-             let e := snd oe in
-             ⟅ sts, errs, Γ ⟆ ⊢ e /\ predop (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) o) cases ->
-        Forall
-          (fun oe => P sts errs Γ (snd oe)) cases ->
-        P sts errs Γ p{ select e { cases } @ i }p.
+          (fun ep =>
+             let e := fst ep in
+             let p := snd ep in
+             ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases ->
+        F.predfs_data (P sts errs Γ) cases ->
+        P sts errs Γ p{ select e { cases } default:=def @ i }p.
 
     (** Custom induction principle.
         Do [induction ?H using custom_check_prsrexpr_ind] *)
@@ -864,14 +866,13 @@ Module Typecheck.
         (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
       fix chind sts errs Γ e Hy :=
         let fix lind
-                {cases : list (option (E.e tags_t) * PS.e tags_t)} {τ : E.t}
+                {cases : F.fs (E.e tags_t) (PS.e tags_t)} {τ : E.t}
                 (HR : Forall
-                        (fun oe =>
-                           let o := fst oe in
-                           let e := snd oe in
-                           ⟅ sts, errs, Γ ⟆ ⊢ e /\
-                           predop (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) o) cases)
-            : Forall (fun oe => P sts errs Γ (snd oe)) cases :=
+                        (fun ep =>
+                           let e := fst ep in
+                           let p := snd ep in
+                           ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases)
+            : F.predfs_data (P sts errs Γ) cases :=
             match HR with
             | Forall_nil _ => Forall_nil _
             | Forall_cons _ (conj He _) Htail => Forall_cons
@@ -881,15 +882,16 @@ Module Typecheck.
             end in
         match Hy with
         | chk_goto _ _ _ _ Hst i => HGoto _ _ _ _ Hst i
-        | chk_select _ _ _ _ _ i _
-                     He Hcases => HSelect _ _ _ _ _ i _ He
-                                         Hcases (lind Hcases)
+        | chk_select _ _ _ _ _ _ i _
+                     He Hd Hcases => HSelect _ _ _ _ _ _ i _ He
+                                            Hd (chind _ _ _ _ Hd)
+                                            Hcases (lind Hcases)
         end.
     (**[]*)
   End CheckParserExprInduction.
 
   (** Parser State typing. *)
-  Inductive check_state
+  Inductive check_parser_state
             {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
             (sts : user_states) (errs : errors) (Γ : gamma)
     : PS.state_block tags_t -> Prop :=
@@ -899,7 +901,7 @@ Module Typecheck.
       ⟅ sts, errs, Γ' ⟆ ⊢ e ->
       ⟅⟅ fns, pis, eis, sts, errs, Γ ⟆⟆ ⊢ state { s } transition e
   where "'⟅⟅' fns , pis , eis , sts , errs , Γ '⟆⟆' ⊢ s"
-          := (check_state fns pis eis sts errs Γ s).
+          := (check_parser_state fns pis eis sts errs Γ s).
   (**[]*)
 
   (** Control declaration typing. *)

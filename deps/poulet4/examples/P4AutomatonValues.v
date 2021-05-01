@@ -1169,18 +1169,14 @@ Section parser_to_p4automaton.
         Some ((SimpleMatchDontCare, inr false) :: nil)
       | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
-      | P4cub.Parser.ParserState.PSelect select_exp cases _ =>
+      | p{ select select_exp { cases } default:=_ @ _ }p => (* AST.v change *)
         let* select_exp' := compile_expression select_exp in
         let fix f cases :=
           match cases with
           | nil => Some nil
           | (case_exp, case_trans) :: cases' =>
             let* child_clauses := compile_transition case_trans in
-            let* augmented_clauses :=
-              match case_exp with
-              | None =>
-                Some child_clauses
-              | Some case_exp =>
+            let* augmented_clauses := (* AST.v change *)
                 let* case_exp' := compile_expression case_exp in
                 Some (map (
                   fun '(clause, target) =>
@@ -1188,8 +1184,7 @@ Section parser_to_p4automaton.
                     (SimpleMatchEquals select_exp' case_exp')
                     clause,
                    target)
-                ) child_clauses)
-              end in
+                ) child_clauses) in
             let* tail := f cases' in
             Some (augmented_clauses ++ tail)
           end in

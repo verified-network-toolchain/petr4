@@ -20,8 +20,9 @@ Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
 Declare Custom Entry p4stmt.
-Declare Custom Entry p4prsrexpr.
 Declare Custom Entry p4prsrstate.
+Declare Custom Entry p4prsrexpr.
+Declare Custom Entry p4prsrstateblock.
 Declare Custom Entry p4ctrldecl.
 Declare Custom Entry p4topdecl.
 
@@ -1508,15 +1509,16 @@ Module P4cub.
     Module S := Stmt.
 
     Module ParserState.
+      Inductive state : Set :=
+      | STStart | STAccept | STReject | STName (st : string).
+      (**[]*)
+
       Section Parsers.
         Variable (tags_t : Type).
 
         (** Parser expressions, which evaluate to state names *)
         Inductive e : Type :=
-        | PAccept (i : tags_t)        (* accept the packet *)
-        | PReject (i : tags_t)        (* reject the packet. *)
-        | PState (st : string)
-                 (i : tags_t)         (* user-defined state name. *)
+        | PGoto (st : state) (i : tags_t) (* goto state [st] *)
         | PSelect (exp : E.e tags_t)
                   (cases : list (option (E.e tags_t) * e))
                   (i : tags_t)        (* select expressions,
@@ -1524,35 +1526,44 @@ Module P4cub.
                                          the possibility of a "dontcare". *).
         (**[]*)
 
-        (** Parser States. *)
-        Inductive state : Type :=
+        (** Parser State Blocks. *)
+        Inductive state_block : Type :=
         | State (stmt : S.s tags_t) (transition : e).
         (**[]*)
       End Parsers.
 
-      Arguments PAccept {_}.
-      Arguments PReject {_}.
-      Arguments PState {_}.
+      Arguments PGoto {_}.
       Arguments PSelect {_}.
       Arguments State {_}.
 
       Module ParserNotations.
+        Notation "'|{' st '}|'" := st (st custom p4prsrstate at level 99).
+        Notation "( x )" := x (in custom p4prsrstate, x at level 99).
+        Notation "x"
+          := x (in custom p4prsrstate at level 0, x constr at level 0).
+        Notation "'start'" := STStart (in custom p4prsrstate at level 0).
+        Notation "'accept'" := STAccept (in custom p4prsrstate at level 0).
+        Notation "'reject'" := STReject (in custom p4prsrstate at level 0).
+        Notation "'δ' x" := (STName x) (in custom p4prsrstate at level 0).
         Notation "'p{' exp '}p'" := exp (exp custom p4prsrexpr at level 99).
         Notation "( x )" := x (in custom p4prsrexpr, x at level 99).
         Notation "x"
           := x (in custom p4prsrexpr at level 0, x constr at level 0).
-        Notation "'accept' @ i" := (PAccept i) (in custom p4prsrexpr at level 0).
-        Notation "'reject' @ i" := (PReject i) (in custom p4prsrexpr at level 0).
         Notation "'goto' st @ i"
-                 := (PState st i) (in custom p4prsrexpr at level 0).
+                 := (PGoto st i)
+                      (in custom p4prsrexpr at level 0,
+                          st custom p4prsrstate).
         Notation "'select' exp { cases } @ i"
                  := (PSelect exp cases i)
                       (in custom p4prsrexpr at level 10,
                           exp custom p4expr).
-        Notation "'&{' st '}&'" := st (st custom p4prsrstate at level 99).
+        Notation "'&{' st '}&'" := st (st custom p4prsrstateblock at level 99).
+        Notation "( x )" := x (in custom p4prsrstateblock, x at level 99).
+        Notation "x"
+          := x (in custom p4prsrstateblock at level 0, x constr at level 0).
         Notation "'state' { s } 'transition' pe"
                  := (State s pe)
-                      (in custom p4prsrstate at level 0,
+                      (in custom p4prsrstateblock at level 0,
                           s custom p4stmt, pe custom p4prsrexpr).
       End ParserNotations.
 
@@ -1566,10 +1577,6 @@ Module P4cub.
 
         (** An arbitrary predicate. *)
         Variable P : e tags_t -> Prop.
-
-        Hypothesis HAccept : forall i, P p{ accept @ i }p.
-
-        Hypothesis HReject : forall i, P p{ reject @ i }p.
 
         Hypothesis HState : forall st i, P p{ goto st @ i }p.
 
@@ -1590,8 +1597,6 @@ Module P4cub.
                   Forall_cons oe (peind pe) (lind es)
                 end in
             match pe with
-            | p{ accept @ i }p => HAccept i
-            | p{ reject @ i }p => HReject i
             | p{ goto st @ i }p => HState st i
             | p{ select exp { cases } @ i }p => HSelect exp _ i (lind cases)
             end.
@@ -1681,8 +1686,9 @@ Module P4cub.
       | TPParser (p : string)
                  (cparams : E.constructor_params) (* constructor params *)
                  (params : E.params)           (* invocation params *)
-                 (states : F.fs string (P.state tags_t)) (* parser states *)
-                 (i : tags_t) (* TODO: start state? *)
+                 (start : P.state_block tags_t) (* start state *)
+                 (states : F.fs string (P.state_block tags_t)) (* parser states *)
+                 (i : tags_t) (* parser declaration *)
       | TPFunction (f : string) (signature : E.arrowT)
                    (body : S.s tags_t) (i : tags_t)
                    (* function/method declaration *)
@@ -1723,9 +1729,9 @@ Module P4cub.
                := (TPControl c cparams params body blk i)
                     (in custom p4topdecl at level 0,
                         blk custom p4stmt, body custom p4ctrldecl).
-      Notation "'parser' p ( cparams ) ( params ) { states } @ i"
-               := (TPParser p cparams params states i)
-                    (in custom p4topdecl at level 0).
+      Notation "'parser' p ( cparams ) ( params ) 'start' ':=' st { states } @ i"
+               := (TPParser p cparams params st states i)
+                    (in custom p4topdecl at level 0, st custom p4prsrstateblock).
     End TopDeclNotations.
   End TopDecl.
 

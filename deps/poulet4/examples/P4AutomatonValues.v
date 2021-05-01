@@ -1136,7 +1136,7 @@ Section parser_to_p4automaton.
     .
 
     Fixpoint compile_updates
-      (states: Field.fs string (P4cub.Parser.ParserState.state tags_t))
+      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
       : option (list (string * list state_operation))
     :=
       match states with
@@ -1150,16 +1150,24 @@ Section parser_to_p4automaton.
       end
     .
 
+    (* Rudy's note: I changed AST.v.
+       I made some changes to get things
+       to compile but it may be incorrect. *)
+
+    Section NotationSection.
+    Import P4cub.P4cubNotations.
+
     Fixpoint compile_transition
       (trans: P4cub.Parser.ParserState.e tags_t)
       : option (list (simple_match * (string + bool)))
     :=
       match trans with
-      | P4cub.Parser.ParserState.PAccept _ =>
+      | p{ goto start @ _ }p => None (* AST.v change *)
+      | p{ goto accept @ _ }p =>
         Some ((SimpleMatchDontCare, inr true) :: nil)
-      | P4cub.Parser.ParserState.PReject _ =>
+      | p{ goto reject @ _ }p =>
         Some ((SimpleMatchDontCare, inr false) :: nil)
-      | P4cub.Parser.ParserState.PState st _ =>
+      | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
       | P4cub.Parser.ParserState.PSelect select_exp cases _ =>
         let* select_exp' := compile_expression select_exp in
@@ -1188,9 +1196,10 @@ Section parser_to_p4automaton.
          f cases
       end
     .
+    End NotationSection.
 
     Fixpoint compile_transitions
-      (states: Field.fs string (P4cub.Parser.ParserState.state tags_t))
+      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
       : option (list (string * list (simple_match * (string + bool))))
     :=
       match states with
@@ -1216,7 +1225,7 @@ Section parser_to_p4automaton.
     : option embedded_p4automaton
   :=
     match parser with
-    | P4cub.TopDecl.TPParser _ _ params states _ =>
+    | P4cub.TopDecl.TPParser _ _ params _ states _ => (* AST.v change *)
       match params with
       | (pkt_name, P4cub.PAIn pkt_type) ::
         (hdr_name, P4cub.PAOut hdr_type) :: _ =>

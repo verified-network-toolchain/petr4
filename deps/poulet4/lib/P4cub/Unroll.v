@@ -22,7 +22,7 @@ Section Unroll.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
   Notation tpdecl := (P4cub.TopDecl.d tags_t).
-  Notation ParserState := (P4cub.Parser.ParserState.state tags_t).
+  Notation ParserState := (P4cub.Parser.ParserState.state_block tags_t).
 
   Definition CFG : Type :=
     prod (list (prod string ParserState)) (list (prod string (list string))).
@@ -142,12 +142,15 @@ Section Unroll.
     let idxs := List.map fst loops in
     let (cfg, _) := List.fold_left unroll_loop idxs (cfg, loops) in
     of_cfg cfg.
-  
+
+  (* Rudy: I changed AST.v, this code compiles
+     but may not be correct now that the start state
+     are separate from the list of states. *)
   Fixpoint unroll_program (unrolls : nat) (d : tpdecl) : tpdecl :=
     match d with
-    | %{ parser p (cparams) (params) { sts } @ i }% =>
+    | %{ parser p (cparams) (params) start:=start_state { sts } @ i }% =>
       let sts := unroll_parser unrolls sts in
-      %{ parser p (cparams) (params) { sts  } @ i }%
+      %{ parser p (cparams) (params) start:=start_state { sts  } @ i }%
     | %{ d1 ;%; d2 @ i }% =>
       let d1 := unroll_program unrolls d1 in
       let d2 := unroll_program unrolls d2 in

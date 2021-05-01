@@ -20,8 +20,6 @@ Declare Custom Entry p4value.
 Declare Custom Entry p4lvalue.
 
 Module Val.
-Section Values.
-
   (** Values from expression evaluation. *)
   Inductive v : Type :=
   | VBool (b : bool)
@@ -136,9 +134,10 @@ Section Values.
         end.
   End ValueInduction.
 
-  Section ValueEquality.
+  Module ValueEquality.
     Import Field.FieldTactics.
 
+    Section VE.
     (** Computational Value equality *)
     Fixpoint eqbv (v1 v2 : v) : bool :=
       let fix lrec (vs1 vs2 : list v) : bool :=
@@ -304,8 +303,12 @@ Section Values.
       intros; reflect_split; auto; subst.
       rewrite eqbv_refl in Heqb; discriminate.
     Qed.
+    End VE.
+
+    Instance ValueEqDec : EqDec v eq :=
+      { equiv_dec := fun v1 v2 => reflect_dec _ _ (eqbv_reflect v1 v2) }.
+    (**[]*)
   End ValueEquality.
-End Values.
 
 Module ValueNotations.
   Notation "'~{' val '}~'" := val (val custom p4value at level 99).

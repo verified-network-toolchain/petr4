@@ -10,6 +10,7 @@ Require Import Coq.Arith.Compare_dec.
 Require Import Coq.micromega.Lia.
 
 Module V := Val.
+Import V.ValueEquality.
 
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
@@ -140,8 +141,8 @@ Module Step.
       | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <? z1)%Z
       | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 && b2)
       | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 || b2)
-      | E.Eq, _, _ => Some $ V.VBool $ V.eqbv v1 v2
-      | E.NotEq, _, _ => Some $ V.VBool $ negb $ V.eqbv v1 v2
+      | E.Eq, _, _ => Some $ V.VBool $ eqbv v1 v2
+      | E.NotEq, _, _ => Some $ V.VBool $ negb $ eqbv v1 v2
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
       | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
         => Some $ V.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
@@ -971,11 +972,12 @@ Module Step.
   | pebs_goto (st : PS.state) (i : tags_t) :
       ⦑ ϵ, goto st @ i ⦒ ⇓ st
   (* TODO *)
-  | pebs_select (e : E.e tags_t) (def : PS.e tags_t)
-                (cases : F.fs (E.e tags_t) (PS.e tags_t))
-                (i : tags_t) (v : V.v) (st : PS.state)
-                (vcases : F.fs V.v PS.state) :
-      ⦑ ϵ, def ⦒ ⇓ st ->
+  | pebs_select_case (e : E.e tags_t) (def : PS.e tags_t)
+                     (cases : F.fs (E.e tags_t) (PS.e tags_t))
+                     (i : tags_t) (v : V.v) (st : PS.state)
+                     (vcases : F.fs V.v PS.state) :
+      F.get v vcases = Some st ->
+      ⟨ ϵ, e ⟩ ⇓ v ->
       Forall2
         (fun epe vps =>
            let e := fst epe in
@@ -984,6 +986,21 @@ Module Step.
            let ps := snd vps in
            ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
         cases vcases ->
+      ⦑ ϵ, select e { cases } default:=def @ i ⦒ ⇓ st
+  | pebs_select_default (e : E.e tags_t) (def : PS.e tags_t)
+                        (cases : F.fs (E.e tags_t) (PS.e tags_t))
+                        (i : tags_t) (v : V.v) (st : PS.state)
+                        (vcases : F.fs V.v PS.state) :
+      F.get v vcases = None ->
+      Forall2
+        (fun epe vps =>
+           let e := fst epe in
+           let v := fst vps in
+           let pe := snd epe in
+           let ps := snd vps in
+           ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+        cases vcases ->
+      ⦑ ϵ, def ⦒ ⇓ st ->
       ⦑ ϵ, select e { cases } default:=def @ i ⦒ ⇓ st
   where "⦑ envn , e ⦒ ⇓ st"
           := (parser_expr_big_step envn e st).

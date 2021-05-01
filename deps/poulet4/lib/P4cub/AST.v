@@ -329,6 +329,10 @@ Module P4cub.
           inv H; auto.
         Qed.
       End TypeEquivalence.
+
+      Instance TypeEqDec : EqDec t eq :=
+        { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
+      (**[]*)
     End TypeEquivalence.
 
     (** Restrictions on type-nesting. *)
@@ -1388,6 +1392,10 @@ Module P4cub.
 
       Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
       Proof. constructor; auto 1. Defined.
+
+      Instance ExprEqDec {tags_t : Type} : EqDec (e tags_t) equive :=
+        { equiv_dec := fun e1 e2 => reflect_dec _ _ (equive_reflect e1 e2) }.
+      (**[]*)
     End ExprEquivalence.
   End Expr.
 

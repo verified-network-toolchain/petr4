@@ -201,12 +201,12 @@ Module P4cub.
               end in
           let fix fields_ind
                   (flds : F.fs string t) : F.predfs_data P flds :=
-              match flds as fs_ty return F.predfs_data P fs_ty with
+              match flds with
               | [] => Forall_nil (F.predf_data P)
-              | (_, hft) as hf :: tf =>
-                Forall_cons hf (custom_t_ind hft) (fields_ind tf)
+              | (_, hft) as hf :: tf
+                => Forall_cons hf (custom_t_ind hft) (fields_ind tf)
               end in
-          match type as ty return P ty with
+          match type with
           | {{ Bool }} => HTBool
           | {{ bit<w> }} => HTBit w
           | {{ int<w> }} => HTInt w
@@ -418,6 +418,8 @@ Module P4cub.
     (**[]*)
 
     Module UopNotations.
+      Notation "'~!{' u '}!~'" := u (u custom p4uop at level 99).
+      Notation "( x )" := x (in custom p4uop, x at level 99).
       Notation "x" := x (in custom p4uop at level 0, x constr at level 0).
       Notation "!" := Not (in custom p4uop at level 0).
       Notation "~" := BitNot (in custom p4uop at level 0).
@@ -451,6 +453,8 @@ Module P4cub.
     (**[]*)
 
     Module BopNotations.
+      Notation "'+{' x '}+'" := x (x custom p4bop at level 99).
+      Notation "( x )" := x (in custom p4bop, x at level 99).
       Notation "x" := x (in custom p4bop at level 0, x constr at level 0).
       Notation "+" := Plus (in custom p4bop at level 0).
       Notation "-" := Minus (in custom p4bop at level 0).
@@ -488,6 +492,8 @@ Module P4cub.
     Defined.
 
     Module MatchkindNotations.
+      Notation "'M{' x '}M'" := x (x custom p4matchkind at level 99).
+      Notation "( x )" := x (in custom p4matchkind, x at level 99).
       Notation "x" := x (in custom p4matchkind at level 0, x constr at level 0).
       Notation "'exact'" := MKExact (in custom p4matchkind at level 0).
       Notation "'ternary'" := MKTernary (in custom p4matchkind at level 0).
@@ -502,6 +508,8 @@ Module P4cub.
     (**[]*)
 
     Module HeaderOpNotations.
+      Notation "'H{' x '}H'" := x (x custom p4hdr_op at level 99).
+      Notation "( x )" := x (in custom p4hdr_op, x at level 99).
       Notation "x" := x (in custom p4hdr_op at level 0, x constr at level 0).
       Notation "'isValid'" := HOIsValid (in custom p4hdr_op at level 0).
       Notation "'setValid'" := HOSetValid (in custom p4hdr_op at level 0).
@@ -516,6 +524,8 @@ Module P4cub.
     | HSOPop  (n : positive) (* "push_front," shift stack left by [n] *).
 
     Module HeaderStackOpNotations.
+      Notation "'ST{' x '}ST'" := x (x custom p4hdr_stk_op at level 99).
+      Notation "( x )" := x (in custom p4hdr_stk_op, x at level 99).
       Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
       Notation "'Next'" := HSONext (in custom p4hdr_stk_op at level 0).
       Notation "'Size'" := HSOSize (in custom p4hdr_stk_op at level 0).
@@ -743,18 +753,17 @@ Module P4cub.
         fix eind (expr : e tags_t) : P expr :=
           let fix fields_ind {A:Type} (flds : F.fs string (A * e tags_t))
               : F.predfs_data (P ∘ snd) flds :=
-              match flds as fs_ex
-                    return F.predfs_data (P ∘ snd) fs_ex with
+              match flds with
               | [] => Forall_nil (F.predf_data (P ∘ snd))
-              | (_, (_, hfe)) as hf :: tf =>
-                Forall_cons hf (eind hfe) (fields_ind tf)
+              | (_, (_, hfe)) as hf :: tf
+                => Forall_cons hf (eind hfe) (fields_ind tf)
               end in
           let fix list_ind (es : list (e tags_t)) : Forall P es :=
-              match es as ees return Forall P ees with
+              match es with
               | [] => Forall_nil P
               | exp :: ees => Forall_cons exp (eind exp) (list_ind ees)
               end in
-          match expr as e' return P e' with
+          match expr with
           | <{ BOOL b @ i }> => HEBool b i
           | <{ w W n @ i }>  => HEBit w n i
           | <{ w S n @ i }>  => HEInt w n i
@@ -762,16 +771,15 @@ Module P4cub.
           | <{ Slice n:τ [h:l] @ i }> => HESlice n τ h l i (eind n)
           | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
           | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
-          | <{ BOP lhs:lt op rhs:rt @ i }> =>
-              HEBop op lt rt lhs rhs i
+          | <{ BOP lhs:lt op rhs:rt @ i }>
+            => HEBop op lt rt lhs rhs i
                     (eind lhs) (eind rhs)
           | <{ tup es @ i }>         => HETuple es i (list_ind es)
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }>
             => HEHeader fields b i (eind b) (fields_ind fields)
           | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
-          | <{ Mem exp:ty dot x @ i }> =>
-              HEExprMember x ty exp i (eind exp)
+          | <{ Mem exp:ty dot x @ i }> => HEExprMember x ty exp i (eind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
           | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
@@ -1001,9 +1009,8 @@ Module P4cub.
                     (Hes : Forall2 equive es1 es2) : Forall2 P es1 es2 :=
                 match Hes with
                 | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _ Hh Ht => Forall2_cons
-                                             _ _
-                                             (eeind _ _ Hh) (lind Ht)
+                | Forall2_cons _ _ Hh Ht
+                  => Forall2_cons _ _ (eeind _ _ Hh) (lind Ht)
                 end in
             let fix fsind {fs1 fs2 : F.fs string (t * e tags_t)}
                     (Hfs : F.relfs
@@ -1020,65 +1027,44 @@ Module P4cub.
                        P e1 e2) fs1 fs2 :=
                 match Hfs with
                 | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _ (conj Hx (conj _ He))
-                               Ht => Forall2_cons
-                                      _ _
-                                      (conj Hx (eeind _ _ He)) (fsind Ht)
+                | Forall2_cons _ _ (conj Hx (conj _ He)) Ht
+                  => Forall2_cons _ _
+                                 (conj Hx (eeind _ _ He)) (fsind Ht)
                 end in
             match H with
             | equive_bool b i i' => HBool b i i'
             | equive_bit w n i i' => HBit w n i i'
             | equive_int w z i i' => HInt w z i i'
             | equive_var x τ i1 i2 => HVar x τ i1 i2
-            | equive_slice _ _ _ h l i1 i2
-                           He => HSlice
-                                  _ _ _ h l i1 i2
-                                  He (eeind _ _ He)
-            | equive_cast τ _ _ i1 i2
-                          He => HCast
-                                 τ _ _ i1 i2
-                                 He (eeind _ _ He)
-            | equive_uop op τ _ _ i1 i2
-                         He => HUop
-                                op τ _ _ i1 i2
-                                He (eeind _ _ He)
-            | equive_bop op tl tr _ _ _ _ i1 i2
-                         Hel Her => HBop
-                                     op tl tr _ _ _ _ i1 i2
-                                     Hel (eeind _ _ Hel)
-                                     Her (eeind _ _ Her)
-            | equive_tuple _ _ i1 i2 Hes => HTup
-                                             _ _ i1 i2
-                                             Hes (lind Hes)
-            | equive_record _ _ i1 i2 Hfs => HRecord
-                                              _ _ i1 i2
-                                              Hfs (fsind Hfs)
-            | equive_header _ _ _ _ i1 i2
-                            Hfs He => HHeader
-                                       _ _ _ _ i1 i2
-                                       Hfs (fsind Hfs)
-                                       He (eeind _ _ He)
-            | equive_header_op op _ _ i1 i2
-                               He => HHeaderOp
-                                      op _ _ i1 i2
-                                      He (eeind _ _ He)
-            | equive_member x τ _ _ i1 i2
-                            He => HMember
-                                   x τ _ _ i1 i2
-                                   He (eeind _ _ He)
+            | equive_slice _ _ _ h l i1 i2 He
+              => HSlice _ _ _ h l i1 i2 He (eeind _ _ He)
+            | equive_cast τ _ _ i1 i2 He
+              => HCast τ _ _ i1 i2 He (eeind _ _ He)
+            | equive_uop op τ _ _ i1 i2 He
+              => HUop op τ _ _ i1 i2 He (eeind _ _ He)
+            | equive_bop op tl tr _ _ _ _ i1 i2 Hel Her
+              => HBop
+                  op tl tr _ _ _ _ i1 i2
+                  Hel (eeind _ _ Hel)
+                  Her (eeind _ _ Her)
+            | equive_tuple _ _ i1 i2 Hes
+              => HTup _ _ i1 i2 Hes (lind Hes)
+            | equive_record _ _ i1 i2 Hfs
+              => HRecord _ _ i1 i2 Hfs (fsind Hfs)
+            | equive_header _ _ _ _ i1 i2 Hfs He
+              => HHeader _ _ _ _ i1 i2 Hfs (fsind Hfs) He (eeind _ _ He)
+            | equive_header_op op _ _ i1 i2 He
+              => HHeaderOp op _ _ i1 i2 He (eeind _ _ He)
+            | equive_member x τ _ _ i1 i2 He
+              => HMember x τ _ _ i1 i2 He (eeind _ _ He)
             | equive_error err i1 i2 => HError err i1 i2
             | equive_matchkind mk i1 i2 => HMatchkind mk i1 i2
-            | equive_header_stack ts _ _ n ni
-                                  Hhs => HHeaderStack
-                                          ts _ _ n ni
-                                          Hhs (lind Hhs)
-            | equive_stack_access _ _ n i1 i2
-                                  He => HAccess _ _ n i1 i2
-                                               He (eeind _ _ He)
-            | equive_stack_op op _ _ i1 i2
-                              He => HStackOp
-                                     op _ _ i1 i2
-                                     He (eeind _ _ He)
+            | equive_header_stack ts _ _ n ni Hhs
+              => HHeaderStack ts _ _ n ni Hhs (lind Hhs)
+            | equive_stack_access _ _ n i1 i2 He
+              => HAccess _ _ n i1 i2 He (eeind _ _ He)
+            | equive_stack_op op _ _ i1 i2 He
+              => HStackOp op _ _ i1 i2 He (eeind _ _ He)
             end.
         (**[]*)
       End ExprEquivalenceInduction.
@@ -1545,7 +1531,7 @@ Module P4cub.
       Arguments State {_}.
 
       Module ParserNotations.
-        Notation "'|{' st '}|'" := st (st custom p4prsrstate at level 99).
+        Notation "'={' st '}='" := st (st custom p4prsrstate at level 99).
         Notation "( x )" := x (in custom p4prsrstate, x at level 99).
         Notation "x"
           := x (in custom p4prsrstate at level 0, x constr at level 0).

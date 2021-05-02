@@ -81,11 +81,11 @@ Module Step.
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
-      | E.Not,    ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
-      | E.BitNot, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
-      | E.BitNot, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
-      | E.UMinus, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
-      | E.UMinus, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
+      | ~!{ ! }!~, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
+      | ~!{ ~ }!~, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
+      | ~!{ ~ }!~, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
+      | ~!{ - }!~, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
+      | ~!{ - }!~, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
       | _, _ => None
       end.
     (**[]*)
@@ -93,61 +93,63 @@ Module Step.
     (** Binary operations. *)
     Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
       match op, v1, v2 with
-      | E.Plus, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ + }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.plus_mod w n1 n2
-      | E.Plus, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ + }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.plus_mod w z1 z2
-      | E.PlusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ |+| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.plus_sat w n1 n2
-      | E.PlusSat,  ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ |+| }+,  ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.plus_sat w z1 z2
-      | E.Minus, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ - }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.minus_mod w n1 n2
-      | E.Minus, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ - }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.minus_mod w z1 z2
-      | E.MinusSat, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ |-| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.minus_sat w n1 n2
-      | E.MinusSat, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ |-| }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.minus_sat w z1 z2
-      | E.Times, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ × }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.mult_mod w n1 n2
-      | E.Times, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ × }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.mult_mod w z1 z2
-      | E.Shl, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ << }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.shift_left w n1 n2
-      | E.Shl, ~{ w VS z1 }~, ~{ _ VW z2 }~
+      | +{ << }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
         => Some $ V.VInt w $ IntArith.shift_left w z1 z2
-      | E.Shr, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ >> }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.shift_right w n1 n2
-      | E.Shr, ~{ w VS z1 }~, ~{ _ VW z2 }~
+      | +{ >> }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
         => Some $ V.VInt w $ IntArith.shift_right w z1 z2
-      | E.BitAnd, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ & }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.bit_and w n1 n2
-      | E.BitAnd, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ & }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.bit_and w z1 z2
-      | E.BitXor, ~{ w VW n1 }~, ~{ _ VW n2 }~
+      | +{ ^ }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
         => Some $ V.VBit w $ BitArith.bit_xor w n1 n2
-      | E.BitXor, ~{ w VS z1 }~, ~{ _ VS z2 }~
+      | +{ ^ }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
         => Some $ V.VInt w $ IntArith.bit_xor w z1 z2
-      | E.BitOr, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBit w $ BitArith.bit_or w n1 n2
-      | E.BitOr, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VInt w $ IntArith.bit_or w z1 z2
-      | E.Le, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <=? n2)%Z
-      | E.Le, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <=? z2)%Z
-      | E.Lt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <? n2)%Z
-      | E.Lt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <? z2)%Z
-      | E.Ge, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <=? n1)%Z
-      | E.Ge, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <=? z1)%Z
-      | E.Gt, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <? n1)%Z
-      | E.Gt, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <? z1)%Z
-      | E.And, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 && b2)
-      | E.Or, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 || b2)
-      | E.Eq, _, _ => Some $ V.VBool $ eqbv v1 v2
-      | E.NotEq, _, _ => Some $ V.VBool $ negb $ eqbv v1 v2
-      | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
-      | E.PlusPlus, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
+      | +{ | }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+        => Some $ V.VBit w $ BitArith.bit_or w n1 n2
+      | +{ | }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+        => Some $ V.VInt w $ IntArith.bit_or w z1 z2
+      | +{ <= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <=? n2)%Z
+      | +{ <= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <=? z2)%Z
+      | +{ < }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <? n2)%Z
+      | +{ < }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <? z2)%Z
+      | +{ >= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <=? n1)%Z
+      | +{ >= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <=? z1)%Z
+      | +{ > }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <? n1)%Z
+      | +{ > }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <? z1)%Z
+      | +{ && }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 && b2)
+      | +{ || }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 || b2)
+      | +{ == }+, _, _ => Some $ V.VBool $ eqbv v1 v2
+      | +{ != }+, _, _ => Some $ V.VBool $ negb $ eqbv v1 v2
+      | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
+      | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
         => Some $ V.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
-      | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
-      | E.PlusPlus, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
+      | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
+      | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
         => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
       | _, _, _ => None
       end.
@@ -158,9 +160,9 @@ Module Step.
                (op : E.hdr_op) (vs : F.fs string V.v)
                (b : bool) : V.v :=
       match op with
-      | E.HOIsValid => ~{ VBOOL b }~
-      | E.HOSetValid => ~{ HDR { vs } VALID:=true }~
-      | E.HOSetInValid => ~{ HDR { vs } VALID:=false }~
+      | H{ isValid }H => ~{ VBOOL b }~
+      | H{ setValid }H => ~{ HDR { vs } VALID:=true }~
+      | H{ setInValid }H => ~{ HDR { vs } VALID:=false }~
       end.
     (**[]*)
 
@@ -173,22 +175,22 @@ Module Step.
       let w := 32%positive in
       let sizenat := Pos.to_nat size in
       match op with
-      | E.HSOSize => let s := (Zpos size)%N in Some ~{ w VW s }~
-      | E.HSONext => match nth_error bvss (Z.to_nat nextIndex) with
-                    | None => None
-                    | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
-                    end
-      | E.HSOPush n
+      | ST{ Size }ST => let s := (Zpos size)%N in Some ~{ w VW s }~
+      | ST{ Next }ST => bvs <<| nth_error bvss $ Z.to_nat nextIndex ;;
+                       match bvs with
+                       | (b,vs) => ~{ HDR { vs } VALID:=b }~
+                       end
+      | ST{ Push n }ST
         => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
             let remains := firstn (sizenat - nnat) bvss in
             let new_nextIndex := Z.min (nextIndex + Z.pos n) (Z.pos size - 1)%Z in
-            Some (V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex)
+            Some $ V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
           else
             let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
-            Some (V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z)
-      | E.HSOPop n
+            Some $ V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
+      | ST{ Pop n }ST
         => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
@@ -855,10 +857,8 @@ Module Step.
             : Forall2 (P ϵ) es vs :=
             match HR with
             | Forall2_nil _ => Forall2_nil _
-            | Forall2_cons _ _ Hh Ht => Forall2_cons
-                                         _ _
-                                         (ebsind _ _ _ Hh)
-                                         (lind Ht)
+            | Forall2_cons _ _ Hh Ht
+              => Forall2_cons _ _ (ebsind _ _ _ Hh) (lind Ht)
             end in
         let fix fsind
                 {efs : F.fs string (E.t * E.e tags_t)}
@@ -870,19 +870,12 @@ Module Step.
                 : F.relfs
                     (fun te v => let e := snd te in P ϵ e v)
                     efs vfs :=
-                match HRs
-                      in (Forall2 _ es vs)
-                      return
-                      (Forall2
-                         (F.relf (fun te v => let e := snd te in P ϵ e v))
-                         es vs) with
+                match HRs with
                 | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _
-                               (conj Hname Hhead)
-                               Htail => Forall2_cons
-                                         _ _
-                                         (conj Hname (ebsind _ _ _ Hhead))
-                                         (fsind Htail)
+                | Forall2_cons _ _ (conj Hname Hhead) Htail
+                  => Forall2_cons _ _
+                                 (conj Hname (ebsind _ _ _ Hhead))
+                                 (fsind Htail)
                 end in
         let fix ffind
                 {es : list (E.e tags_t)}
@@ -901,51 +894,47 @@ Module Step.
                 es vss :=
             match HRs with
             | Forall2_nil _ => Forall2_nil _
-            | Forall2_cons _ _ Hhead Htail => Forall2_cons
-                                               _ _
-                                               (ebsind _ _ _ Hhead)
-                                               (ffind Htail)
+            | Forall2_cons _ _ Hhead Htail
+              => Forall2_cons _ _ (ebsind _ _ _ Hhead) (ffind Htail)
             end in
-        match Hy in (⟨ _, e' ⟩ ⇓ v') return P ϵ e' v' with
+        match Hy with
         | ebs_bool _ b i => HBool ϵ b i
         | ebs_bit _ w n i => HBit ϵ w n i
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
-        | ebs_slice _ _ _ _ _ i _ _
-                    Hv He => HSlice _ _ _ _ _ i _ _ Hv
-                                   He (ebsind _ _ _ He)
-        | ebs_cast _ _ _ i _ _
-                   Hv He => HCast _ _ _ i _ _ Hv
-                                 He (ebsind _ _ _ He)
+        | ebs_slice _ _ _ _ _ i _ _ Hv He
+          => HSlice _ _ _ _ _ i _ _ Hv
+                   He (ebsind _ _ _ He)
+        | ebs_cast _ _ _ i _ _ Hv He
+          => HCast _ _ _ i _ _ Hv
+                  He (ebsind _ _ _ He)
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
-        | ebs_uop _ _ _ _ i _ _
-                  Hv He => HUop _ _ _ _ i _ _ Hv
-                               He (ebsind _ _ _ He)
-        | ebs_bop _ _ _ _ _ _ i _ _ _
-                  Hv He1 He2 => HBop _ _ _ _ _ _ i _ _ _ Hv
-                                    He1 (ebsind _ _ _ He1)
-                                    He2 (ebsind _ _ _ He2)
-        | ebs_mem _ _ _ _ i _ _
-                  Heval He => HMem _ _ _ _ i _ _ Heval
-                                  He (ebsind _ _ _ He)
-        | ebs_hdr_op _ _ _ i _ _ _
-                     Hv He => HHdrOp _ _ _ i _ _ _ Hv
-                                    He (ebsind _ _ _ He)
+        | ebs_uop _ _ _ _ i _ _ Hv He
+          => HUop _ _ _ _ i _ _ Hv
+                 He (ebsind _ _ _ He)
+        | ebs_bop _ _ _ _ _ _ i _ _ _ Hv He1 He2
+          => HBop _ _ _ _ _ _ i _ _ _ Hv
+                 He1 (ebsind _ _ _ He1)
+                 He2 (ebsind _ _ _ He2)
+        | ebs_mem _ _ _ _ i _ _ Heval He
+          => HMem _ _ _ _ i _ _ Heval
+                 He (ebsind _ _ _ He)
+        | ebs_hdr_op _ _ _ i _ _ _ Hv He
+          => HHdrOp _ _ _ i _ _ _ Hv
+                   He (ebsind _ _ _ He)
         | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
         | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
-        | ebs_hdr_lit _ _ _ i _ _
-                      HR He => HHdrLit _ _ _ i _ _
-                                      HR (fsind HR)
-                                      He (ebsind _ _ _ He)
-        | ebs_hdr_stack _ _ _ n ni _ HR => HHdrStack _ _ _ n ni _
-                                                  HR (ffind HR)
-        | ebs_access _ _ i n index ni ts _ _ _
-                     Hnth He => HAccess _ _ i n index ni ts _ _ _ Hnth
-                                       He (ebsind _ _ _ He)
-        | ebs_stk_op _ _ _ i _ _ _ _ _
-                     Hv He => HStackOp _ _ _ i _ _ _ _ _ Hv
-                                      He (ebsind _ _ _ He)
+        | ebs_hdr_lit _ _ _ i _ _ HR He
+          => HHdrLit _ _ _ i _ _ HR (fsind HR)
+                    He (ebsind _ _ _ He)
+        | ebs_hdr_stack _ _ _ n ni _ HR
+          => HHdrStack _ _ _ n ni _ HR (ffind HR)
+        | ebs_access _ _ i n index ni ts _ _ _ Hnth He
+          => HAccess _ _ i n index ni ts _ _ _ Hnth
+                    He (ebsind _ _ _ He)
+        | ebs_stk_op _ _ _ i _ _ _ _ _ Hv He
+          => HStackOp _ _ _ i _ _ _ _ _ Hv He (ebsind _ _ _ He)
         end.
     (**[]*)
 
@@ -971,12 +960,10 @@ Module Step.
             {tags_t} (ϵ : epsilon) : PS.e tags_t -> PS.state -> Prop :=
   | pebs_goto (st : PS.state) (i : tags_t) :
       ⦑ ϵ, goto st @ i ⦒ ⇓ st
-  (* TODO *)
-  | pebs_select_case (e : E.e tags_t) (def : PS.e tags_t)
-                     (cases : F.fs (E.e tags_t) (PS.e tags_t))
-                     (i : tags_t) (v : V.v) (st : PS.state)
-                     (vcases : F.fs V.v PS.state) :
-      F.get v vcases = Some st ->
+  | pebs_select (e : E.e tags_t) (def : PS.e tags_t)
+                (cases : F.fs (E.e tags_t) (PS.e tags_t))
+                (i : tags_t) (v : V.v) (st_def : PS.state)
+                (vcases : F.fs V.v PS.state) :
       ⟨ ϵ, e ⟩ ⇓ v ->
       Forall2
         (fun epe vps =>
@@ -986,12 +973,26 @@ Module Step.
            let ps := snd vps in
            ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
         cases vcases ->
+      ⦑ ϵ, def ⦒ ⇓ st_def ->
+      let st := match F.get v vcases with
+                | None => st_def
+                | Some st => st
+                end in
       ⦑ ϵ, select e { cases } default:=def @ i ⦒ ⇓ st
-  | pebs_select_default (e : E.e tags_t) (def : PS.e tags_t)
-                        (cases : F.fs (E.e tags_t) (PS.e tags_t))
-                        (i : tags_t) (v : V.v) (st : PS.state)
-                        (vcases : F.fs V.v PS.state) :
-      F.get v vcases = None ->
+  where "⦑ envn , e ⦒ ⇓ st"
+          := (parser_expr_big_step envn e st).
+  (**[]*)
+
+  Section ParserExprInduction.
+    Variable tags_t : Type.
+    Variable P : epsilon -> PS.e tags_t -> PS.state -> Prop.
+
+    Hypothesis HGoto : forall ϵ st i,
+      P ϵ p{ goto st @ i }p st.
+
+    Hypothesis HSelect : forall ϵ e def cases i v
+                           st_def vcases,
+      ⟨ ϵ, e ⟩ ⇓ v ->
       Forall2
         (fun epe vps =>
            let e := fst epe in
@@ -1000,11 +1001,53 @@ Module Step.
            let ps := snd vps in
            ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
         cases vcases ->
-      ⦑ ϵ, def ⦒ ⇓ st ->
-      ⦑ ϵ, select e { cases } default:=def @ i ⦒ ⇓ st
-  where "⦑ envn , e ⦒ ⇓ st"
-          := (parser_expr_big_step envn e st).
-  (**[]*)
+      Forall2 (fun epe vps =>
+                 let pe := snd epe in
+                 let ps := snd vps in
+                 P ϵ pe ps) cases vcases ->
+      ⦑ ϵ, def ⦒ ⇓ st_def ->
+      P ϵ def st_def ->
+      let st := match F.get v vcases with
+                | None => st_def
+                | Some st => st
+                end in
+      P ϵ p{ select e { cases } default:=def @ i }p st.
+
+    Definition custom_parser_expr_big_step :
+      forall (ϵ : epsilon) (e : PS.e tags_t) (st : PS.state),
+        ⦑ ϵ, e ⦒ ⇓ st -> P ϵ e st :=
+      fix pebsind ϵ e st H :=
+        let fix cases_ind
+                {cases : F.fs (E.e tags_t) (PS.e tags_t)}
+                {vcases : F.fs V.v PS.state}
+                (Hcases :
+                   Forall2
+                     (fun epe vps =>
+                        let e := fst epe in
+                        let v := fst vps in
+                        let pe := snd epe in
+                        let ps := snd vps in
+                        ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+                     cases vcases)
+            : Forall2
+                (fun epe vps =>
+                   let pe := snd epe in
+                   let ps := snd vps in
+                   P ϵ pe ps) cases vcases :=
+            match Hcases with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ (conj Hcase _) Htail
+              => Forall2_cons _ _ (pebsind _ _ _ Hcase) (cases_ind Htail)
+            end in
+        match H with
+        | pebs_goto _ st i => HGoto _ st i
+        | pebs_select _ _ _ _ i _ _ _ He Hcases Hdef
+          => HSelect _ _ _ _ i _ _ _ He
+                    Hcases (cases_ind Hcases)
+                    Hdef (pebsind _ _ _ Hdef)
+        end.
+    (**[]*)
+  End ParserExprInduction.
 
   (** Statement big-step semantics. *)
   Inductive stmt_big_step

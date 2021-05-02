@@ -104,41 +104,41 @@ Module Typecheck.
 
     (** Evidence a unary operation is valid for a type. *)
     Inductive uop_type : E.uop -> E.t -> Prop :=
-    | UTBool : uop_type E.Not {{ Bool }}
-    | UTBitBitNot w : uop_type E.BitNot {{ bit<w> }}
-    | UTIntBitNot w : uop_type E.BitNot {{ int<w> }}
-    | UTBitUMinus w : uop_type E.UMinus {{ bit<w> }}
-    | UTIntUMinus w : uop_type E.UMinus {{ int<w> }}.
+    | UTBool : uop_type ~!{ ! }!~ {{ Bool }}
+    | UTBitBitNot w : uop_type ~!{ ~ }!~ {{ bit<w> }}
+    | UTIntBitNot w : uop_type ~!{ ~ }!~ {{ int<w> }}
+    | UTBitUMinus w : uop_type ~!{ - }!~ {{ bit<w> }}
+    | UTIntUMinus w : uop_type ~!{ - }!~ {{ int<w> }}.
 
     (** Evidence a binary operation is valid
         for operands of a type and produces some type. *)
     Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
-    | BTPlus τ : numeric τ -> bop_type E.Plus τ τ τ
-    | BTPlusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
-    | BTMinus τ : numeric τ -> bop_type E.Plus τ τ τ
-    | BTMinusSat τ : numeric τ -> bop_type E.PlusSat τ τ τ
-    | BTTimes τ : numeric τ -> bop_type E.Times τ τ τ
-    | BTShl τ1 w2 : numeric τ1 -> bop_type E.Shl τ1 {{ bit<w2> }} τ1
-    | BTShr τ1 w2 : numeric τ1 -> bop_type E.Shr τ1 {{ bit<w2> }} τ1
-    | BTBitAnd τ : numeric τ -> bop_type E.BitAnd τ τ τ
-    | BTBitXor τ : numeric τ -> bop_type E.BitXor τ τ τ
-    | BTBitOr τ : numeric τ -> bop_type E.BitOr τ τ τ
-    | BTLe τ : numeric τ -> bop_type E.Le τ τ {{ Bool }}
-    | BTLt τ : numeric τ -> bop_type E.Lt τ τ {{ Bool }}
-    | BTGe τ : numeric τ -> bop_type E.Ge τ τ {{ Bool }}
-    | BTGt τ : numeric τ -> bop_type E.Gt τ τ {{ Bool }}
-    | BTAnd : bop_type E.And {{ Bool }} {{ Bool }} {{ Bool }}
-    | BTOr : bop_type E.Or {{ Bool }} {{ Bool }} {{ Bool }}
-    | BTEq τ : bop_type E.Eq τ τ {{ Bool }}
-    | BTNotEq τ : bop_type E.NotEq τ τ {{ Bool }}
+    | BTPlus τ : numeric τ -> bop_type +{ + }+ τ τ τ
+    | BTPlusSat τ : numeric τ -> bop_type +{ |+| }+ τ τ τ
+    | BTMinus τ : numeric τ -> bop_type +{ - }+ τ τ τ
+    | BTMinusSat τ : numeric τ -> bop_type +{ |-| }+ τ τ τ
+    | BTTimes τ : numeric τ -> bop_type +{ × }+ τ τ τ
+    | BTShl τ1 w2 : numeric τ1 -> bop_type +{ << }+ τ1 {{ bit<w2> }} τ1
+    | BTShr τ1 w2 : numeric τ1 -> bop_type +{ >> }+ τ1 {{ bit<w2> }} τ1
+    | BTBitAnd τ : numeric τ -> bop_type +{ & }+ τ τ τ
+    | BTBitXor τ : numeric τ -> bop_type +{ ^ }+ τ τ τ
+    | BTBitOr τ : numeric τ -> bop_type +{ | }+ τ τ τ
+    | BTLe τ : numeric τ -> bop_type +{ <= }+ τ τ {{ Bool }}
+    | BTLt τ : numeric τ -> bop_type +{ < }+ τ τ {{ Bool }}
+    | BTGe τ : numeric τ -> bop_type +{ >= }+ τ τ {{ Bool }}
+    | BTGt τ : numeric τ -> bop_type +{ > }+ τ τ {{ Bool }}
+    | BTAnd : bop_type +{ && }+ {{ Bool }} {{ Bool }} {{ Bool }}
+    | BTOr : bop_type +{ || }+ {{ Bool }} {{ Bool }} {{ Bool }}
+    | BTEq τ : bop_type +{ == }+ τ τ {{ Bool }}
+    | BTNotEq τ : bop_type +{ != }+ τ τ {{ Bool }}
     | BTPlusPlusBit w1 w2 w τ2 :
         (w1 + w2)%positive = w ->
         numeric_width w2 τ2 ->
-        bop_type E.PlusPlus {{ bit<w1> }} τ2 {{ bit<w> }}
+        bop_type +{ ++ }+ {{ bit<w1> }} τ2 {{ bit<w> }}
     | BTPlusPlusInt w1 w2 w τ2 :
         (w1 + w2)%positive = w ->
         numeric_width w2 τ2 ->
-        bop_type E.PlusPlus {{ int<w1> }} τ2 {{ int<w> }}.
+        bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w> }}.
     (**[]*)
 
     (** Evidence an error is ok. *)
@@ -153,9 +153,9 @@ Module Typecheck.
     Definition type_hdr_op
                (op : E.hdr_op) (ts : F.fs string E.t) : E.t :=
       match op with
-      | E.HOIsValid => {{ Bool }}
-      | E.HOSetValid
-      | E.HOSetInValid => {{ hdr { ts } }}
+      | H{ isValid }H => {{ Bool }}
+      | H{ setValid }H
+      | H{ setInValid }H => {{ hdr { ts } }}
       end.
     (**[]*)
 
@@ -165,10 +165,10 @@ Module Typecheck.
                (ts : F.fs string E.t) : E.t :=
       let w := 32%positive in
       match op with
-      | E.HSONext   => {{ hdr { ts } }}
-      | E.HSOSize   => {{ bit<w> }}
-      | E.HSOPush _
-      | E.HSOPop  _ => {{ stack ts[size] }}
+      | ST{ Next }ST => {{ hdr { ts } }}
+      | ST{ Size }ST => {{ bit<w> }}
+      | ST{ Push _ }ST
+      | ST{ Pop  _ }ST => {{ stack ts[size] }}
       end.
     (**[]*)
 
@@ -293,14 +293,14 @@ Module Typecheck.
     (** Valid parser states. *)
     Inductive valid_state (us : user_states) : PS.state -> Prop :=
     | start_valid :
-        valid_state us |{ start }|
+        valid_state us ={ start }=
     | accept_valid :
-        valid_state us |{ accept }|
+        valid_state us ={ accept }=
     | reject_valid :
-        valid_state us |{ reject }|
+        valid_state us ={ reject }=
     | name_valid (st : string) :
         us st = Some tt ->
-        valid_state us |{ δ st }|.
+        valid_state us ={ δ st }=.
     (**[]*)
   End TypeCheckDefs.
   Export TypeCheckDefs.

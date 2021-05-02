@@ -299,7 +299,9 @@ Module Step.
       | {{ rec { fs } }}, <{ tup vs @ i }>
         => Some $ E.ERecord (combine (F.keys fs) $ combine (F.values fs) vs) i
       | {{ hdr { fs } }}, <{ tup vs @ i }>
-        => Some $ E.EHeader (combine (F.keys fs) $ combine (F.values fs) vs) <{ TRUE @ i }> i
+        => Some
+            $ E.EHeader
+            (combine (F.keys fs) $ combine (F.values fs) vs) <{ TRUE @ i }> i
       | _, _ => None
       end.
     (**[]*)
@@ -307,15 +309,15 @@ Module Step.
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
       match op, e with
-      | E.Not, <{ BOOL b @ i }>
+      | ~!{ ! }!~, <{ BOOL b @ i }>
         => let b' := negb b in Some <{ BOOL b' @ i }>
-      | E.BitNot, <{ w W n @ i }>
+      | ~!{ ~ }!~, <{ w W n @ i }>
         => let n' := BitArith.bit_not w n in Some <{ w W n' @ i }>
-      | E.BitNot, <{ w S n @ i }>
+      | ~!{ ~ }!~, <{ w S n @ i }>
         => let n' := IntArith.bit_not w n in Some <{ w S n' @ i }>
-      | E.UMinus, <{ w W z @ i }>
+      | ~!{ - }!~, <{ w W z @ i }>
         => let z' := BitArith.neg w z in Some <{ w W z' @ i }>
-      | E.UMinus, <{ w S z @ i }>
+      | ~!{ - }!~, <{ w S z @ i }>
         => let z' := IntArith.neg w z in Some <{ w S z' @ i }>
       | _, _ => None
       end.
@@ -325,63 +327,63 @@ Module Step.
     Definition eval_bop
                (op : E.bop) (v1 v2 : E.e tags_t) (i : tags_t) : option (E.e tags_t) :=
       match op, v1, v2 with
-      | E.Plus, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ + }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.plus_mod w n1 n2) i
-      | E.Plus, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ + }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.plus_mod w z1 z2) i
-      | E.PlusSat, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ |+| }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.plus_sat w n1 n2) i
-      | E.PlusSat,  <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ |+| }+,  <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.plus_sat w z1 z2) i
-      | E.Minus, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ - }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.minus_mod w n1 n2) i
-      | E.Minus, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ - }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.minus_mod w z1 z2) i
-      | E.MinusSat, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ |-| }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.minus_sat w n1 n2) i
-      | E.MinusSat, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ |-| }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.minus_sat w z1 z2) i
-      | E.Times, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ × }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.mult_mod w n1 n2) i
-      | E.Times, <{ w S n1 @ _ }>, <{ _ S n2 @ _ }>
+      | +{ × }+, <{ w S n1 @ _ }>, <{ _ S n2 @ _ }>
         => Some $ E.EInt w (IntArith.mult_mod w n1 n2) i
-      | E.Shl, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ << }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.shift_left w n1 n2) i
-      | E.Shl, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
+      | +{ << }+, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
         => Some $ E.EInt w (IntArith.shift_left w z1 z2) i
-      | E.Shr, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ >> }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.shift_right w n1 n2) i
-      | E.Shr, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
+      | +{ >> }+, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
         => Some $ E.EInt w (IntArith.shift_right w z1 z2) i
-      | E.BitAnd, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ & }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.bit_and w n1 n2) i
-      | E.BitAnd, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ & }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.bit_and w z1 z2) i
-      | E.BitXor, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ ^ }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.bit_xor w n1 n2) i
-      | E.BitXor, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ ^ }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.bit_xor w z1 z2) i
-      | E.BitOr, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
+      | +{ | }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
         => Some $ E.EBit w (BitArith.bit_or w n1 n2) i
-      | E.BitOr, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
+      | +{ | }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
         => Some $ E.EInt w (IntArith.bit_or w z1 z2) i
-      | E.Le, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <=? n2)%Z i
-      | E.Le, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <=? z2)%Z i
-      | E.Lt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <? n2)%Z i
-      | E.Lt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <? z2)%Z i
-      | E.Ge, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <=? n1)%Z i
-      | E.Ge, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <=? z1)%Z i
-      | E.Gt, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <? n1)%Z i
-      | E.Gt, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <? z1)%Z i
-      | E.And, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 && b2) i
-      | E.Or, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 || b2) i
-      | E.Eq, _, _ => Some $ E.EBool (E.ExprEquivalence.eqbe v1 v2) i
-      | E.NotEq, _, _ => Some $ E.EBool (negb $ E.ExprEquivalence.eqbe v1 v2) i
-      | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-      | E.PlusPlus, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
+      | +{ <= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <=? n2)%Z i
+      | +{ <= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <=? z2)%Z i
+      | +{ < }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <? n2)%Z i
+      | +{ < }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <? z2)%Z i
+      | +{ >= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <=? n1)%Z i
+      | +{ >= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <=? z1)%Z i
+      | +{ > }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <? n1)%Z i
+      | +{ > }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <? z1)%Z i
+      | +{ && }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 && b2) i
+      | +{ || }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 || b2) i
+      | +{ == }+, _, _ => Some $ E.EBool (E.ExprEquivalence.eqbe v1 v2) i
+      | +{ != }+, _, _ => Some $ E.EBool (negb $ E.ExprEquivalence.eqbe v1 v2) i
+      | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
+      | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
         => Some $ E.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
-      | E.PlusPlus, <{ w1 S n1 @ _ }>, <{ w2 S n2 @ _ }>
-      | E.PlusPlus, <{ w1 S n1 @ _ }>, <{ w2 W n2 @ _ }>
+      | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 S n2 @ _ }>
+      | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 W n2 @ _ }>
         => Some $ E.EInt (w1 + w2)%positive (IntArith.concat w1 w2 n1 n2) i
       | _, _, _ => None
       end.
@@ -411,9 +413,9 @@ Module Step.
                (op : E.hdr_op) (fs : F.fs string (E.t * E.e tags_t))
                (b : bool) (i ib : tags_t) : E.e tags_t :=
       match op with
-      | E.HOIsValid => <{ BOOL b @ i}>
-      | E.HOSetValid => <{ hdr { fs } valid:=TRUE @ ib @ i}>
-      | E.HOSetInValid => <{ hdr { fs } valid:=FALSE @ ib @ i }>
+      | H{ isValid }H => <{ BOOL b @ i}>
+      | H{ setValid }H => <{ hdr { fs } valid:=TRUE @ ib @ i}>
+      | H{ setInValid }H => <{ hdr { fs } valid:=FALSE @ ib @ i }>
       end.
     (**[]*)
 
@@ -463,9 +465,9 @@ Module Step.
             (F.map (fun τ => (τ, edefault i τ)) ts)
           <{ BOOL false @ i }> i in
       match op with
-      | E.HSOSize => let s := (Zpos size)%Z in Some <{ w W s @ i }>
-      | E.HSONext => nth_error hs $ Z.to_nat nextIndex
-      | E.HSOPush n
+      | ST{ Size }ST => let s := (Zpos size)%Z in Some <{ w W s @ i }>
+      | ST{ Next }ST => nth_error hs $ Z.to_nat nextIndex
+      | ST{ Push n }ST
         => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat hdefault nnat in
@@ -475,7 +477,7 @@ Module Step.
           else
             let new_hdrs := repeat hdefault sizenat in
             Some $ E.EHeaderStack ts new_hdrs size (Z.pos size - 1)%Z
-      | E.HSOPop n
+      | ST{ Pop n }ST
         => let nnat := Pos.to_nat n in
           if lt_dec nnat sizenat then
             let new_hdrs := repeat hdefault nnat in

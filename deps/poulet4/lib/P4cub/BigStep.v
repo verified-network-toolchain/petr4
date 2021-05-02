@@ -81,11 +81,45 @@ Module Step.
     (** Unary Operations. *)
     Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match op, v with
-      | ~!{ ! }!~, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
-      | ~!{ ~ }!~, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
-      | ~!{ ~ }!~, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
-      | ~!{ - }!~, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
-      | ~!{ - }!~, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
+      | _{ ! }_, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
+      | _{ ~ }_, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
+      | _{ ~ }_, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
+      | _{ - }_, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
+      | _{ - }_, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
+      | _{ isValid }_, ~{ HDR { _ } VALID:=b }~ => Some ~{ VBOOL b }~
+      | _{ setValid }_, ~{ HDR { vs } VALID:=_ }~
+        => Some ~{ HDR { vs } VALID:=true }~
+      | _{ setInValid }_, ~{ HDR { vs } VALID:=_ }~
+        => Some ~{ HDR { vs } VALID:=false }~
+      | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ V.VBit 32%positive $ Zpos n
+      | _{ Next }_, ~{ STACK hs:_[_] NEXT:=ni }~
+        => bvs <<| nth_error hs $ Z.to_nat ni ;;
+          match bvs with
+          | (b,vs) => ~{ HDR { vs } VALID:=b }~
+          end
+      | _{ Push n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
+        => let nnat := Pos.to_nat n in
+          let sizenat := Pos.to_nat size in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := firstn (sizenat - nnat) hs in
+            let new_nextIndex := Z.min (ni + Z.pos n) (Z.pos size - 1)%Z in
+            Some $ V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some $ V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
+      | _{ Pop n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
+        => let nnat := Pos.to_nat n in
+          let sizenat := Pos.to_nat size in
+          if lt_dec nnat sizenat then
+            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+            let remains := skipn nnat hs in
+            Some $
+                 V.VHeaderStack ts (remains ++ new_hdrs) size $
+                 Z.max 0%Z (ni - Zpos n)%Z
+          else
+            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+            Some $ V.VHeaderStack ts new_hdrs size 0%Z
       | _, _ => None
       end.
     (**[]*)
@@ -152,55 +186,6 @@ Module Step.
       | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
         => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
       | _, _, _ => None
-      end.
-    (**[]*)
-
-    (** Header operations. *)
-    Definition eval_hdr_op
-               (op : E.hdr_op) (vs : F.fs string V.v)
-               (b : bool) : V.v :=
-      match op with
-      | H{ isValid }H => ~{ VBOOL b }~
-      | H{ setValid }H => ~{ HDR { vs } VALID:=true }~
-      | H{ setInValid }H => ~{ HDR { vs } VALID:=false }~
-      end.
-    (**[]*)
-
-    (** Header stack operations. *)
-    Definition eval_stk_op
-               (op : E.hdr_stk_op) (size : positive)
-               (nextIndex : Z) (ts : F.fs string E.t)
-               (bvss : list (bool * F.fs string V.v))
-      : option V.v :=
-      let w := 32%positive in
-      let sizenat := Pos.to_nat size in
-      match op with
-      | ST{ Size }ST => let s := (Zpos size)%N in Some ~{ w VW s }~
-      | ST{ Next }ST => bvs <<| nth_error bvss $ Z.to_nat nextIndex ;;
-                       match bvs with
-                       | (b,vs) => ~{ HDR { vs } VALID:=b }~
-                       end
-      | ST{ Push n }ST
-        => let nnat := Pos.to_nat n in
-          if lt_dec nnat sizenat then
-            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
-            let remains := firstn (sizenat - nnat) bvss in
-            let new_nextIndex := Z.min (nextIndex + Z.pos n) (Z.pos size - 1)%Z in
-            Some $ V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
-          else
-            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
-            Some $ V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
-      | ST{ Pop n }ST
-        => let nnat := Pos.to_nat n in
-          if lt_dec nnat sizenat then
-            let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
-            let remains := skipn nnat bvss in
-            Some $
-                 V.VHeaderStack ts (remains ++ new_hdrs) size $
-                 Z.max 0%Z (nextIndex - Zpos n)%Z
-          else
-            let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
-            Some $ V.VHeaderStack ts new_hdrs size 0%Z
       end.
     (**[]*)
 
@@ -274,14 +259,6 @@ Module Step.
           inv Hnum; inv Hv; unravel in *; inv Heval; auto 2.
         Qed.
 
-        Lemma eval_uop_types : forall errs op τ v v',
-            uop_type op τ -> eval_uop op v = Some v' ->
-            ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ.
-        Proof.
-          intros errs op τ v v' Huop Heval Ht;
-          inv Huop; inv Ht; unravel in *; inv Heval; auto.
-        Qed.
-
         Lemma eval_bop_type : forall errs op τ1 τ2 τ v1 v2 v,
             bop_type op τ1 τ2 τ -> eval_bop op v1 v2 = Some v ->
             ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 -> ∇ errs ⊢ v ∈ τ.
@@ -323,16 +300,6 @@ Module Step.
               try split; unravel; try apply IHvs; auto 2.
         Qed.
 
-        Lemma eval_hdr_op_types : forall errs op ts vs b,
-            PT.proper_nesting {{ hdr { ts } }} ->
-            Field.relfs (fun vl τ => ∇ errs ⊢ vl ∈ τ) vs ts ->
-            let v := eval_hdr_op op vs b in
-            let τ := type_hdr_op op ts in
-            ∇ errs ⊢ v ∈ τ.
-        Proof.
-          intros errs op ts vs b Hpc H; destruct op; unravel in *; auto 2.
-        Qed.
-
         Local Hint Constructors proper_nesting : core.
         Hint Rewrite repeat_length.
         Hint Rewrite app_length.
@@ -351,22 +318,13 @@ Module Step.
         Local Hint Resolve Forall_firstn : core.
         Local Hint Resolve Forall_skipn : core.
 
-        Lemma eval_stk_op_types : forall errs op n ni ts hs v,
-            eval_stk_op op n ni ts hs = Some v ->
-            BitArith.bound 32%positive (Zpos n) ->
-            (0 <= ni < Zpos n)%Z ->
-            Pos.to_nat n = length hs ->
-            PT.proper_nesting {{ stack ts[n] }} ->
-            Forall
-              (fun bvs =>
-                 let b := fst bvs in
-                 let vs := snd bvs in
-                 ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
-            let τ := type_hdr_stk_op op n ts in
-            ∇ errs ⊢ v ∈ τ.
+        Lemma eval_uop_types : forall errs op τ τ' v v',
+            uop_type op τ τ' -> eval_uop op v = Some v' ->
+            ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
         Proof.
-          intros errs op n ni ts hs v Heval Hn Hni Hnhs Hpn H;
-          destruct op; unravel in *; invert_proper_nesting;
+          intros errs op τ τ' v v' Huop Heval Ht;
+          inv Huop; inv Ht; unravel in *; inv Heval; auto 2;
+          invert_proper_nesting;
           repeat match goal with
                  | H: Some _ = Some _ |- _ => inv H
                  | H: (if ?b then _ else _) = _ |- _ => destruct b as [? | ?]
@@ -375,8 +333,8 @@ Module Step.
           try (apply repeat_Forall; simpl; constructor; auto 2;
                autorewrite with core in *; split; [intuition | eauto 5]).
           - destruct (nth_error hs (Z.to_nat ni))
-              as [[b vs] |] eqn:equack; inv Heval; constructor; auto 2;
-              apply (Forall_nth_error _ hs (Z.to_nat ni) (b, vs)) in H; inv H; auto 1.
+              as [[b vs] |] eqn:equack; inv H0; constructor; auto 2;
+            apply (Forall_nth_error _ hs (Z.to_nat ni) (b, vs)) in H6; inv H6; auto 1.
         Qed.
       End HelpersType.
 
@@ -391,23 +349,14 @@ Module Step.
           inv Hnum; inv Hv; unravel; eauto 2.
         Qed.
 
-        Lemma eval_uop_exist : forall errs op τ v,
-          uop_type op τ -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
-        Proof.
-          intros errs op τ v Huop Ht; inv Huop; inv Ht; unravel; eauto.
-        Qed.
-
         Lemma eval_bop_exists : forall errs op τ1 τ2 τ v1 v2,
             bop_type op τ1 τ2 τ ->
             ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 ->
             exists v, eval_bop op v1 v2 = Some v.
         Proof.
           intros errs op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
-            repeat match goal with
-                   | H: numeric _ |- _ => inv H
-                   | H: numeric_width _ _ |- _ => inv H
-                   | |- _ => inv Ht1; inv Ht2; unravel
-                   end; eauto.
+          repeat inv_numeric; inv Ht1; inv Ht2; unravel; eauto 2;
+          try inv_numeric_width.
         Qed.
 
         Lemma eval_cast_exists : forall errs τ τ' v,
@@ -421,21 +370,12 @@ Module Step.
           - destruct w2; eauto 2.
         Qed.
 
-        Lemma eval_stk_op_exists : forall errs op n ni ts hs,
-            BitArith.bound 32%positive (Zpos n) ->
-            (0 <= ni < Zpos n)%Z ->
-            Pos.to_nat n = length hs ->
-            PT.proper_nesting {{ stack ts[n] }} ->
-            Forall
-              (fun bvs =>
-                 let b := fst bvs in
-                 let vs := snd bvs in
-                 ∇ errs ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
-            exists v, eval_stk_op op n ni ts hs = Some v.
+        Lemma eval_uop_exist : forall errs op τ τ' v,
+            uop_type op τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
         Proof.
-          intros errs op n ni ts hs Hn Hni Hnhs Hpn H;
-          destruct op; unravel; eauto 2;
-          try (destruct (lt_dec (Pos.to_nat n0) (Pos.to_nat n)) as [? | ?]; eauto 2).
+          intros errs op τ τ' v Huop Ht; inv Huop; inv Ht;
+          unravel; repeat inv_numeric; eauto 2;
+          try (destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2).
           - assert (Hnith : (Z.to_nat ni < length hs)%nat) by lia;
             pose proof nth_error_exists _ _ Hnith as [[b vs] Hexists];
             rewrite Hexists; eauto 2.
@@ -688,14 +628,9 @@ Module Step.
            let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
       ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
       ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
-  | ebs_hdr_op  (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
-                (v : V.v) (vs : F.fs string (V.v)) (b : bool) :
-      eval_hdr_op op vs b = v ->
-      ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-      ⟨ ϵ, HDR_OP op e @ i ⟩ ⇓ v
   | ebs_hdr_stack (ts : F.fs string (E.t))
                   (hs : list (E.e tags_t))
-                  (n : positive) (ni : Z)
+                  (n : positive) (ni : Z) (i : tags_t)
                   (vss : list (bool * F.fs string (V.v))) :
       Forall2
         (fun e bvs =>
@@ -703,7 +638,7 @@ Module Step.
            let vs := snd bvs in
            ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
         hs vss ->
-      ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
+      ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni @ i ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
   | ebs_access (e : E.e tags_t) (i : tags_t)
                (n : positive) (index ni : Z)
                (ts : F.fs string (E.t))
@@ -712,13 +647,6 @@ Module Step.
       nth_error vss (Z.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
-  | ebs_stk_op  (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
-                (v : V.v) (ts : F.fs string (E.t))
-                (bvss : list (bool * F.fs string (V.v)))
-                (size : positive) (nextIndex : Z) :
-      eval_stk_op op size nextIndex ts bvss = Some v ->
-      ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
-      ⟨ ϵ, STK_OP op e @ i ⟩ ⇓ v
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   (**[]*)
 
@@ -806,14 +734,7 @@ Module Step.
         P ϵ <{ hdr { efs } valid:=e @ i }> ~{ HDR { vfs } VALID:=b }~.
     (**[]*)
 
-    Hypothesis HHdrOp : forall ϵ op e i v vs b,
-        eval_hdr_op op vs b = v ->
-        ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b ->
-        P ϵ e ~{ HDR { vs } VALID:=b }~ ->
-        P ϵ <{ HDR_OP op e @ i }> v.
-    (**[]*)
-
-    Hypothesis HHdrStack : forall ϵ ts hs n ni vss,
+    Hypothesis HHdrStack : forall ϵ ts hs n ni i vss,
         Forall2
           (fun e bvs =>
              let b := fst bvs in
@@ -826,7 +747,7 @@ Module Step.
              let vs := snd bvs in
              P ϵ e ~{ HDR { vs } VALID:=b}~ )
           hs vss ->
-        P ϵ <{ Stack hs:ts[n] nextIndex:=ni }> ~{ STACK vss:ts[n] NEXT:=ni }~.
+        P ϵ <{ Stack hs:ts[n] nextIndex:=ni @ i }> ~{ STACK vss:ts[n] NEXT:=ni }~.
     (**[]*)
 
     Hypothesis HAccess : forall ϵ e i n index ni ts vss b vs,
@@ -834,13 +755,6 @@ Module Step.
         ⟨ ϵ, e ⟩ ⇓ STACK vss:ts[n] NEXT:=ni ->
         P ϵ e ~{ STACK vss:ts[n] NEXT:=ni }~ ->
         P ϵ <{ Access e[index] @ i }> ~{ HDR { vs } VALID:=b }~.
-    (**[]*)
-
-    Hypothesis HStackOp : forall ϵ op e i v ts bvss size nextIndex,
-        eval_stk_op op size nextIndex ts bvss = Some v ->
-        ⟨ ϵ, e ⟩ ⇓ STACK bvss:ts[size] NEXT:=nextIndex ->
-        P ϵ e ~{ STACK bvss:ts[size] NEXT:=nextIndex }~ ->
-        P ϵ <{ STK_OP op e @ i }> v.
     (**[]*)
 
     (** Custom induction principle for
@@ -872,10 +786,8 @@ Module Step.
                     efs vfs :=
                 match HRs with
                 | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _ (conj Hname Hhead) Htail
-                  => Forall2_cons _ _
-                                 (conj Hname (ebsind _ _ _ Hhead))
-                                 (fsind Htail)
+                | Forall2_cons _ _ (conj Hx Hhd) Htl
+                  => Forall2_cons _ _ (conj Hx (ebsind _ _ _ Hhd)) (fsind Htl)
                 end in
         let fix ffind
                 {es : list (E.e tags_t)}
@@ -903,38 +815,25 @@ Module Step.
         | ebs_int _ w z i => HInt ϵ w z i
         | ebs_var _ _ τ i _ Hx => HVar _ _ τ i _ Hx
         | ebs_slice _ _ _ _ _ i _ _ Hv He
-          => HSlice _ _ _ _ _ i _ _ Hv
-                   He (ebsind _ _ _ He)
+          => HSlice _ _ _ _ _ i _ _ Hv He (ebsind _ _ _ He)
         | ebs_cast _ _ _ i _ _ Hv He
-          => HCast _ _ _ i _ _ Hv
-                  He (ebsind _ _ _ He)
+          => HCast _ _ _ i _ _ Hv He (ebsind _ _ _ He)
         | ebs_error _ err i => HError _ err i
         | ebs_matchkind _ mk i => HMatchkind _ mk i
         | ebs_uop _ _ _ _ i _ _ Hv He
-          => HUop _ _ _ _ i _ _ Hv
-                 He (ebsind _ _ _ He)
+          => HUop _ _ _ _ i _ _ Hv He (ebsind _ _ _ He)
         | ebs_bop _ _ _ _ _ _ i _ _ _ Hv He1 He2
-          => HBop _ _ _ _ _ _ i _ _ _ Hv
-                 He1 (ebsind _ _ _ He1)
-                 He2 (ebsind _ _ _ He2)
+          => HBop _ _ _ _ _ _ i _ _ _ Hv He1 (ebsind _ _ _ He1) He2 (ebsind _ _ _ He2)
         | ebs_mem _ _ _ _ i _ _ Heval He
-          => HMem _ _ _ _ i _ _ Heval
-                 He (ebsind _ _ _ He)
-        | ebs_hdr_op _ _ _ i _ _ _ Hv He
-          => HHdrOp _ _ _ i _ _ _ Hv
-                   He (ebsind _ _ _ He)
+          => HMem _ _ _ _ i _ _ Heval He (ebsind _ _ _ He)
         | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
         | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
         | ebs_hdr_lit _ _ _ i _ _ HR He
-          => HHdrLit _ _ _ i _ _ HR (fsind HR)
-                    He (ebsind _ _ _ He)
-        | ebs_hdr_stack _ _ _ n ni _ HR
-          => HHdrStack _ _ _ n ni _ HR (ffind HR)
+          => HHdrLit _ _ _ i _ _ HR (fsind HR) He (ebsind _ _ _ He)
+        | ebs_hdr_stack _ _ _ n ni i _ HR
+          => HHdrStack _ _ _ n ni i _ HR (ffind HR)
         | ebs_access _ _ i n index ni ts _ _ _ Hnth He
-          => HAccess _ _ i n index ni ts _ _ _ Hnth
-                    He (ebsind _ _ _ He)
-        | ebs_stk_op _ _ _ i _ _ _ _ _ Hv He
-          => HStackOp _ _ _ i _ _ _ _ _ Hv He (ebsind _ _ _ He)
+          => HAccess _ _ i n index ni ts _ _ _ Hnth He (ebsind _ _ _ He)
         end.
     (**[]*)
 

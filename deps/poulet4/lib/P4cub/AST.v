@@ -12,8 +12,6 @@ Declare Custom Entry p4constructortype.
 Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
-Declare Custom Entry p4hdr_op.
-Declare Custom Entry p4hdr_stk_op.
 Declare Custom Entry p4expr.
 
 Reserved Notation "∮ e1 ≡ e2"
@@ -412,18 +410,32 @@ Module P4cub.
     End ProperType.
 
     Inductive uop : Set :=
-    | Not    (* boolean negation *)
-    | BitNot (* bitwise negation *)
-    | UMinus (* integer negation *).
+    | Not        (* boolean negation *)
+    | BitNot     (* bitwise negation *)
+    | UMinus     (* integer negation *)
+    | IsValid    (* check header validity *)
+    | SetValid   (* set a header valid *)
+    | SetInValid (* set a header invalid *)
+    | NextIndex  (* get element at [nextIndex] from a header stack *)
+    | Size       (* get a header stack's size *)
+    | Push (n : positive) (* "push_front," shift stack right by [n] *)
+    | Pop  (n : positive) (* "push_front," shift stack left by [n] *).
     (**[]*)
 
     Module UopNotations.
-      Notation "'~!{' u '}!~'" := u (u custom p4uop at level 99).
+      Notation "'_{' u '}_'" := u (u custom p4uop at level 99).
       Notation "( x )" := x (in custom p4uop, x at level 99).
       Notation "x" := x (in custom p4uop at level 0, x constr at level 0).
       Notation "!" := Not (in custom p4uop at level 0).
       Notation "~" := BitNot (in custom p4uop at level 0).
       Notation "-" := UMinus (in custom p4uop at level 0).
+      Notation "'isValid'" := IsValid (in custom p4uop at level 0).
+      Notation "'setValid'" := SetValid (in custom p4uop at level 0).
+      Notation "'setInValid'" := SetInValid (in custom p4uop at level 0).
+      Notation "'Next'" := NextIndex (in custom p4uop at level 0).
+      Notation "'Size'" := Size (in custom p4uop at level 0).
+      Notation "'Push' n" := (Push n) (in custom p4uop at level 0).
+      Notation "'Pop' n" := (Pop n) (in custom p4uop at level 0).
     End UopNotations.
 
     (** Binary operations.
@@ -500,41 +512,6 @@ Module P4cub.
       Notation "'lpm'" := MKLpm (in custom p4matchkind at level 0).
     End MatchkindNotations.
 
-    (** Header operations. *)
-    Inductive hdr_op : Set :=
-    | HOIsValid
-    | HOSetValid
-    | HOSetInValid.
-    (**[]*)
-
-    Module HeaderOpNotations.
-      Notation "'H{' x '}H'" := x (x custom p4hdr_op at level 99).
-      Notation "( x )" := x (in custom p4hdr_op, x at level 99).
-      Notation "x" := x (in custom p4hdr_op at level 0, x constr at level 0).
-      Notation "'isValid'" := HOIsValid (in custom p4hdr_op at level 0).
-      Notation "'setValid'" := HOSetValid (in custom p4hdr_op at level 0).
-      Notation "'setInValid'" := HOSetInValid (in custom p4hdr_op at level 0).
-    End HeaderOpNotations.
-
-    (** Header Stack Operations.. *)
-    Inductive hdr_stk_op : Set :=
-    | HSONext         (* get element at [nextIndex] *)
-    | HSOSize         (* get the size *)
-    | HSOPush (n : positive) (* "push_front," shift stack right by [n] *)
-    | HSOPop  (n : positive) (* "push_front," shift stack left by [n] *).
-
-    Module HeaderStackOpNotations.
-      Notation "'ST{' x '}ST'" := x (x custom p4hdr_stk_op at level 99).
-      Notation "( x )" := x (in custom p4hdr_stk_op, x at level 99).
-      Notation "x" := x (in custom p4hdr_stk_op at level 0, x constr at level 0).
-      Notation "'Next'" := HSONext (in custom p4hdr_stk_op at level 0).
-      Notation "'Size'" := HSOSize (in custom p4hdr_stk_op at level 0).
-      Notation "'Push' n"
-        := (HSOPush n) (in custom p4hdr_stk_op at level 0).
-      Notation "'Pop' n"
-        := (HSOPop n) (in custom p4hdr_stk_op at level 0).
-    End HeaderStackOpNotations.
-
     Section Expressions.
       Variable (tags_t : Type).
 
@@ -558,8 +535,6 @@ Module P4cub.
                 (i : tags_t)                           (* records and structs *)
       | EHeader (fields : F.fs string (t * e))
                 (valid : e) (i : tags_t)               (* header literals *)
-      | EHeaderOp (op : hdr_op) (header : e)
-                  (i : tags_t)                         (* header operations *)
       | EExprMember (mem : string)
                     (expr_type : t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
@@ -568,12 +543,10 @@ Module P4cub.
       | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
       | EHeaderStack (fields : F.fs string t)
                      (headers : list e) (size : positive)
-                     (next_index : Z)                  (* header stack literals,
+                     (next_index : Z) (i : tags_t)     (* header stack literals,
                                                           unique to p4light *)
       | EHeaderStackAccess (stack : e) (index : Z)
-                           (i : tags_t)                (* header stack indexing *)
-      | EHeaderStackOp (stack : e) (op : hdr_stk_op)
-                       (i : tags_t)                    (* header stack builtin *).
+                           (i : tags_t)                (* header stack indexing *).
       (**[]*)
 
       (** Function call arguments. *)
@@ -606,13 +579,11 @@ Module P4cub.
     Arguments ETuple {_}.
     Arguments ERecord {tags_t}.
     Arguments EHeader {_}.
-    Arguments EHeaderOp {_}.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
-    Arguments EHeaderStackOp {_}.
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -656,10 +627,6 @@ Module P4cub.
         := (EHeader fields b i)
             (in custom p4expr at level 6,
                 b custom p4expr, no associativity).
-      Notation "'HDR_OP' op exp @ i"
-               := (EHeaderOp op exp i)
-                    (in custom p4expr at level 5, exp custom p4expr,
-                        op custom p4hdr_op, no associativity).
       Notation "'Mem' x : ty 'dot' y @ i"
               := (EExprMember y ty x i)
                     (in custom p4expr at level 10, x custom p4expr,
@@ -669,16 +636,12 @@ Module P4cub.
       Notation "'Matchkind' mk @ i" := (EMatchKind mk i)
                               (in custom p4expr at level 0,
                                   mk custom p4matchkind, no associativity).
-      Notation "'Stack' hdrs : ts [ n ] 'nextIndex' ':=' ni"
-               := (EHeaderStack ts hdrs n ni)
+      Notation "'Stack' hdrs : ts [ n ] 'nextIndex' ':=' ni @ i"
+               := (EHeaderStack ts hdrs n ni i)
                     (in custom p4expr at level 0).
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
-      Notation "'STK_OP' op exp @ i"
-               := (EHeaderStackOp exp op i)
-                    (in custom p4expr at level 5, exp custom p4expr,
-                        op custom p4hdr_stk_op, no associativity).
     End ExprNotations.
 
     (** A custom induction principle for [e]. *)
@@ -688,8 +651,6 @@ Module P4cub.
       Import ExprNotations.
       Import BopNotations.
       Import MatchkindNotations.
-      Import HeaderOpNotations.
-      Import HeaderStackOpNotations.
 
       (** An arbitrary predicate. *)
       Context {tags_t : Type}.
@@ -727,9 +688,6 @@ Module P4cub.
           P b -> F.predfs_data (P ∘ snd) fields ->
           P <{ hdr {fields} valid:=b @ i }>.
 
-      Hypothesis HEHeaderOp : forall op exp i,
-          P exp -> P <{ HDR_OP op exp @ i }>.
-
       Hypothesis HEExprMember : forall x ty expr i,
           P expr -> P <{ Mem expr:ty dot x @ i }>.
 
@@ -737,15 +695,12 @@ Module P4cub.
 
       Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
 
-      Hypothesis HEStack : forall ts hs size ni,
+      Hypothesis HEStack : forall ts hs size ni i,
           Forall P hs ->
-          P <{ Stack hs:ts [size] nextIndex:=ni }>.
+          P <{ Stack hs:ts [size] nextIndex:=ni @ i }>.
 
       Hypothesis HAccess : forall e1 e2 i,
           P e1 -> P <{ Access e1[e2] @ i }>.
-
-      Hypothesis HEHeaderStackOp : forall op exp i,
-          P exp -> P <{ STK_OP op exp @ i }>.
 
       (** A custom induction principle.
           Do [induction ?e using custom_e_ind]. *)
@@ -778,13 +733,12 @@ Module P4cub.
           | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }>
             => HEHeader fields b i (eind b) (fields_ind fields)
-          | <{ HDR_OP op exp @ i }> => HEHeaderOp op exp i (eind exp)
           | <{ Mem exp:ty dot x @ i }> => HEExprMember x ty exp i (eind exp)
           | <{ Error err @ i }> => HEError err i
           | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
-          | <{ Stack hs:ts [n] nextIndex:=ni }> => HEStack ts hs n ni (list_ind hs)
+          | <{ Stack hs:ts [n] nextIndex:=ni @ i }>
+            => HEStack ts hs n ni i (list_ind hs)
           | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
-          | <{ STK_OP op exp @ i }> => HEHeaderStackOp op exp i (eind exp)
           end.
       (**[]*)
     End ExprInduction.
@@ -795,38 +749,25 @@ Module P4cub.
       Import TypeNotations.
       Import UopNotations.
       Import BopNotations.
-      Import HeaderOpNotations.
-      Import HeaderStackOpNotations.
       Import MatchkindNotations.
       Import ExprNotations.
       Import TypeEquivalence.
 
       Instance UopEqDec : EqDec uop eq.
       Proof.
-        intros [] []; unfold equiv, complement in *;
-          auto; right; intros ?; discriminate.
+        intros [] []; unravel in *;
+        try match goal with
+            | n1 : positive, n2: positive
+              |- _ => destruct (Pos.eq_dec n1 n2) as [? | ?]; subst; auto
+            end; auto 2;
+          try (right; intros ?; try discriminate;
+               inv_eq; try contradiction).
       Defined.
 
       Instance BopEqDec : EqDec bop eq.
       Proof.
         intros [] []; unfold equiv, complement in *;
-          auto; right; intros ?; discriminate.
-      Defined.
-
-      Instance HeaderOpEqDec : EqDec hdr_op eq.
-      Proof.
-        intros [] []; unfold equiv, complement in *;
-          auto; right; intros ?; discriminate.
-      Defined.
-
-      Instance HeaderStackOpEqDec : EqDec hdr_stk_op eq.
-      Proof.
-        intros [] []; unfold equiv, complement in *; auto;
-        try match goal with
-            | n1 : positive, n2: positive
-              |- _ => destruct (Pos.eq_dec n1 n2) as [? | ?]; subst; auto
-            end;
-        try (right; intros ?; inv_eq; contradiction).
+        auto 2; right; intros ?; discriminate.
       Defined.
 
       (** Equality of expressions. *)
@@ -874,9 +815,6 @@ Module P4cub.
                τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
           ∮ e1 ≡ e2 ->
           ∮ hdr { fs1 } valid:=e1 @ i1 ≡ hdr { fs2 } valid:=e2 @ i2
-      | equive_header_op op h1 h2 i1 i2 :
-          ∮ h1 ≡ h2 ->
-          ∮ HDR_OP op h1 @ i1 ≡ HDR_OP op h2 @ i2
       | equive_member x τ e1 e2 i1 i2 :
           ∮ e1 ≡ e2 ->
           ∮ Mem e1:τ dot x @ i1 ≡ Mem e2:τ dot x @ i2
@@ -884,15 +822,12 @@ Module P4cub.
           ∮ Error err @ i1 ≡ Error err @ i2
       | equive_matchkind mk i1 i2 :
           ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
-      | equive_header_stack ts hs1 hs2 n ni :
+      | equive_header_stack ts hs1 hs2 n ni i1 i2 :
           Forall2 equive hs1 hs2 ->
-          ∮ Stack hs1:ts[n] nextIndex:=ni ≡ Stack hs2:ts[n] nextIndex:=ni
+          ∮ Stack hs1:ts[n] nextIndex:=ni @ i1 ≡ Stack hs2:ts[n] nextIndex:=ni @ i2
       | equive_stack_access e1 e2 n i1 i2 :
           ∮ e1 ≡ e2 ->
           ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
-      | equive_stack_op op e1 e2 i1 i2 :
-          ∮ e1 ≡ e2 ->
-          ∮ STK_OP op e1 @ i1 ≡ STK_OP op e2 @ i2
       where "∮ e1 ≡ e2" := (equive e1 e2).
 
       (** Induction principle. *)
@@ -969,11 +904,6 @@ Module P4cub.
             P e1 e2 ->
             P <{ hdr { fs1 } valid:=e1 @ i1 }> <{ hdr { fs2 } valid:=e2 @ i2 }>.
 
-        Hypothesis HHeaderOp : forall op h1 h2 i1 i2,
-            ∮ h1 ≡ h2 ->
-            P h1 h2 ->
-            P <{ HDR_OP op h1 @ i1 }> <{ HDR_OP op h2 @ i2 }>.
-
         Hypothesis HMember : forall x τ e1 e2 i1 i2,
             ∮ e1 ≡ e2 ->
             P e1 e2 ->
@@ -985,21 +915,16 @@ Module P4cub.
         Hypothesis HMatchkind : forall mk i1 i2,
             P <{ Matchkind mk @ i1 }> <{ Matchkind mk @ i2 }>.
 
-        Hypothesis HHeaderStack : forall ts hs1 hs2 n ni,
+        Hypothesis HHeaderStack : forall ts hs1 hs2 n ni i1 i2,
             Forall2 equive hs1 hs2 ->
             Forall2 P hs1 hs2 ->
-            P <{ Stack hs1:ts[n] nextIndex:=ni }>
-            <{ Stack hs2:ts[n] nextIndex:=ni }>.
+            P <{ Stack hs1:ts[n] nextIndex:=ni @ i1 }>
+            <{ Stack hs2:ts[n] nextIndex:=ni @ i2 }>.
 
         Hypothesis HAccess : forall e1 e2 n i1 i2,
             ∮ e1 ≡ e2 ->
             P e1 e2 ->
             P <{ Access e1[n] @ i1 }> <{ Access e2[n] @ i2 }>.
-
-        Hypothesis HStackOp : forall op e1 e2 i1 i2,
-            ∮ e1 ≡ e2 ->
-            P e1 e2 ->
-            P <{ STK_OP op e1 @ i1 }> <{ STK_OP op e2 @ i2 }>.
 
         (** Custom induction principle. *)
         Definition custom_equive_ind :
@@ -1053,18 +978,14 @@ Module P4cub.
               => HRecord _ _ i1 i2 Hfs (fsind Hfs)
             | equive_header _ _ _ _ i1 i2 Hfs He
               => HHeader _ _ _ _ i1 i2 Hfs (fsind Hfs) He (eeind _ _ He)
-            | equive_header_op op _ _ i1 i2 He
-              => HHeaderOp op _ _ i1 i2 He (eeind _ _ He)
             | equive_member x τ _ _ i1 i2 He
               => HMember x τ _ _ i1 i2 He (eeind _ _ He)
             | equive_error err i1 i2 => HError err i1 i2
             | equive_matchkind mk i1 i2 => HMatchkind mk i1 i2
-            | equive_header_stack ts _ _ n ni Hhs
-              => HHeaderStack ts _ _ n ni Hhs (lind Hhs)
+            | equive_header_stack ts _ _ n ni i1 i2 Hhs
+              => HHeaderStack ts _ _ n ni i1 i2 Hhs (lind Hhs)
             | equive_stack_access _ _ n i1 i2 He
               => HAccess _ _ n i1 i2 He (eeind _ _ He)
-            | equive_stack_op op _ _ i1 i2 He
-              => HStackOp op _ _ i1 i2 He (eeind _ _ He)
             end.
         (**[]*)
       End ExprEquivalenceInduction.
@@ -1076,8 +997,8 @@ Module P4cub.
         Proof.
           unfold Reflexive; intros e;
           induction e using custom_e_ind;
-          econstructor; eauto; try reflexivity;
-          try (ind_list_Forall; eauto; assumption);
+          econstructor; eauto 2; try reflexivity;
+          try (ind_list_Forall; eauto 3; assumption);
           try (ind_list_predfs; constructor;
                repeat split; unravel in *; intuition).
         Qed.
@@ -1088,7 +1009,7 @@ Module P4cub.
                  match goal with
                  | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
                  end;
-            econstructor; eauto; try (symmetry; assumption);
+            econstructor; eauto 1; try (symmetry; assumption);
               try match goal with
                   | H: Forall2 equive ?es1 ?es2,
                        IH: Forall2 _ ?es1 ?es2
@@ -1116,7 +1037,7 @@ Module P4cub.
         Proof.
           intros e1; induction e1 using custom_e_ind;
             intros ? ? H12 H23; inv H12; inv H23;
-              econstructor; try (etransitivity; eassumption); eauto;
+              econstructor; try (etransitivity; eassumption); eauto 2;
                 try match goal with
                     | H: Forall _ ?l1,
                       H12: Forall2 equive ?l1 ?l2,
@@ -1145,10 +1066,10 @@ Module P4cub.
                                | H: F.relfs _ (_ :: _) _ |- _ => inv H
                                end; constructor;
                           repeat relf_destruct; unravel in *; intuition;
-                          repeat split; unravel; intuition; eauto;
+                          repeat split; unravel; intuition; eauto 2;
                           try match goal with
-                              | IH: forall _, _ -> forall _, _ -> _ |- _ => eapply IH; eauto
-                              end; etransitivity; eauto
+                              | IH: forall _, _ -> forall _, _ -> _ |- _ => eapply IH; eauto 1
+                              end; etransitivity; eauto 1
                     end.
           Qed.
 
@@ -1194,22 +1115,18 @@ Module P4cub.
           | <{ hdr { fs1 } valid:=e1 @ _ }>,
             <{ hdr { fs2 } valid:=e2 @ _ }>
             => eqbe e1 e2 && efsrec eqbt fs1 fs2
-          | <{ HDR_OP o1 h1 @ _ }>,
-            <{ HDR_OP o2 h2 @ _ }> => equiv_dec o1 o2 &&&& eqbe h1 h2
           | <{ Mem e1:τ1 dot x1 @ _ }>, <{ Mem e2:τ2 dot x2 @ _ }>
             => equiv_dec x1 x2 &&&& eqbt τ1 τ2 && eqbe e1 e2
           | <{ Error err1 @ _ }>, <{ Error err2 @ _ }>
             => if equiv_dec err1 err2 then true else false
           | <{ Matchkind mk1 @ _ }>, <{ Matchkind mk2 @ _ }>
             => if equiv_dec mk1 mk2 then true else false
-          | <{ Stack hs1:ts1[n1] nextIndex:=ni1 }>,
-            <{ Stack hs2:ts2[n2] nextIndex:=ni2 }>
+          | <{ Stack hs1:ts1[n1] nextIndex:=ni1 @ _ }>,
+            <{ Stack hs2:ts2[n2] nextIndex:=ni2 @ _ }>
             => (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
               F.eqb_fs eqbt ts1 ts2 && lrec hs1 hs2
           | <{ Access hs1[n1] @ _ }>,
             <{ Access hs2[n2] @ _ }> => (n1 =? n2)%Z && eqbe hs1 hs2
-          | <{ STK_OP o1 hs1 @ _ }>,
-            <{ STK_OP o2 hs2 @ _ }> => equiv_dec o1 o2 &&&& eqbe hs1 hs2
           | _, _ => false
           end.
         (**[]*)
@@ -1230,19 +1147,19 @@ Module P4cub.
           intros ? ? ?;
           match goal with
           | H: ∮ _ ≡ _ |- _ => induction H using custom_equive_ind
-          end; unravel in *; autorewrite with core; auto;
+          end; unravel in *; autorewrite with core; auto 1;
           repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
-                 end; auto;
+                 end; auto 1;
           try match goal with
               | H: Forall2 equive ?es1 ?es2,
                 IH: Forall2 _ ?es1 ?es2 |- _
-                => induction H; inv IH; unravel in *; auto; intuition
+                => induction H; inv IH; unravel in *; auto 1; intuition
               end;
           try match goal with
               | H: F.relfs _ ?fs1 ?fs2,
                 IH: F.relfs _ ?fs1 ?fs2 |- _
-                => induction H; inv IH; auto;
+                => induction H; inv IH; auto 1;
                   match goal with
                   | H: F.relf _ ?f1 ?f2 |- _
                     => destruct f1 as [? [? ?]];
@@ -1256,13 +1173,13 @@ Module P4cub.
               end;
           repeat match goal with
                  | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
-                 end; auto;
+                 end; auto 1;
             try match goal with
                 | |- context [ F.eqb_fs eqbt ?ts ?ts ]
                   => rewrite (equiv_eqb_fs _ _ eqbt_reflect ts ts);
-                      unfold equiv in *; auto; try reflexivity
+                      unfold equiv in *; auto 1; try reflexivity
                 end;
-          try (equiv_dec_refl_tactic; auto;
+          try (equiv_dec_refl_tactic; auto 1;
                autorewrite with core in *; contradiction).
         Qed.
 
@@ -1326,25 +1243,25 @@ Module P4cub.
         Proof.
           induction e1 using custom_e_ind;
           intros [] ?; unravel in *;
-          try discriminate; auto;
+          try discriminate; auto 1;
           repeat eq_true_terms;
           unfold equiv in *;
-          subst; auto; constructor; auto;
+          subst; auto; constructor; auto 1;
           try match goal with
               | |- Forall2 _ ?es1 ?es2
                 => generalize dependent es2;
                   induction es1; intros [];
-                  unravel in *; try discriminate; auto
+                  unravel in *; try discriminate; auto 5
               end;
           try match goal with
               | |- F.relfs _ ?fs1 ?fs2
                 => generalize dependent fs2;
                   induction fs1 as [| [? [? ?]] ? ?];
                   intros [| [? [? ?]] ?]; intros;
-                  unravel in *; try discriminate; auto;
+                  unravel in *; try discriminate; auto 1;
                   try destruct_lifted_andb; repeat destruct_andb;
                   try invert_cons_predfs; repeat constructor;
-                  intuition; unfold F.relfs in *; auto
+                  intuition; unfold F.relfs in *; auto 2
               end.
         Qed.
 
@@ -1735,8 +1652,6 @@ Module P4cub.
     Export Expr.UopNotations.
     Export Expr.BopNotations.
     Export Expr.MatchkindNotations.
-    Export Expr.HeaderOpNotations.
-    Export Expr.HeaderStackOpNotations.
     Export Expr.ExprNotations.
     Export Stmt.StmtNotations.
     Export Parser.ParserState.ParserNotations.

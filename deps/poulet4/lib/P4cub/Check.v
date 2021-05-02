@@ -103,12 +103,29 @@ Module Typecheck.
     (**[]*)
 
     (** Evidence a unary operation is valid for a type. *)
-    Inductive uop_type : E.uop -> E.t -> Prop :=
-    | UTBool : uop_type ~!{ ! }!~ {{ Bool }}
-    | UTBitBitNot w : uop_type ~!{ ~ }!~ {{ bit<w> }}
-    | UTIntBitNot w : uop_type ~!{ ~ }!~ {{ int<w> }}
-    | UTBitUMinus w : uop_type ~!{ - }!~ {{ bit<w> }}
-    | UTIntUMinus w : uop_type ~!{ - }!~ {{ int<w> }}.
+    Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
+    | UTBool :
+        uop_type _{ ! }_ {{ Bool }} {{ Bool }}
+    | UTBitNot τ :
+        numeric τ -> uop_type _{ ~ }_ τ τ
+    | UTUMinus τ :
+        numeric τ -> uop_type _{ - }_ τ τ
+    | UTIsValid ts :
+        uop_type _{ isValid }_ {{ hdr { ts } }} {{ Bool }}
+    | UTSetValid ts :
+        uop_type _{ setValid }_ {{ hdr { ts } }} {{ hdr { ts } }}
+    | UTSetInValid ts :
+        uop_type _{ setInValid }_ {{ hdr { ts } }} {{ hdr { ts } }}
+    | UTNext ts n :
+        uop_type _{ Next }_ {{ stack ts[n] }} {{ hdr { ts } }}
+    | UTSize ts n :
+        let w := 32%positive in
+        uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}
+    | UTPush ts n p :
+        uop_type _{ Push p }_ {{ stack ts[n] }} {{ stack ts[n] }}
+    | UTPop ts n p :
+        uop_type _{ Pop  p }_ {{ stack ts[n] }} {{ stack ts[n] }}.
+    (**[]*)
 
     (** Evidence a binary operation is valid
         for operands of a type and produces some type. *)
@@ -147,29 +164,6 @@ Module Typecheck.
     | ErrorOk (x : string) :
         errs x = Some tt ->
         error_ok errs (Some x).
-    (**[]*)
-
-    (** Typing header operations. *)
-    Definition type_hdr_op
-               (op : E.hdr_op) (ts : F.fs string E.t) : E.t :=
-      match op with
-      | H{ isValid }H => {{ Bool }}
-      | H{ setValid }H
-      | H{ setInValid }H => {{ hdr { ts } }}
-      end.
-    (**[]*)
-
-    (** Typing header stack operations. *)
-    Definition type_hdr_stk_op
-               (op : E.hdr_stk_op) (size : positive)
-               (ts : F.fs string E.t) : E.t :=
-      let w := 32%positive in
-      match op with
-      | ST{ Next }ST => {{ hdr { ts } }}
-      | ST{ Size }ST => {{ bit<w> }}
-      | ST{ Push _ }ST
-      | ST{ Pop  _ }ST => {{ stack ts[size] }}
-      end.
     (**[]*)
 
     (** Evidence a cast is proper. *)
@@ -360,10 +354,10 @@ Module Typecheck.
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
       ⟦ errs, Γ ⟧ ⊢ Cast e:τ @ i ∈ τ
   (* Unary operations. *)
-  | chk_uop (op : E.uop) (τ : E.t) (e : E.e tags_t) (i : tags_t) :
-      uop_type op τ ->
+  | chk_uop (op : E.uop) (τ τ' : E.t) (e : E.e tags_t) (i : tags_t) :
+      uop_type op τ τ' ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⟦ errs, Γ ⟧ ⊢ UOP op e:τ @ i ∈ τ
+      ⟦ errs, Γ ⟧ ⊢ UOP op e:τ @ i ∈ τ'
   (* Binary Operations. *)
   | chk_bop (op : E.bop) (τ1 τ2 τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t) :
       bop_type op τ1 τ2 τ ->
@@ -408,31 +402,21 @@ Module Typecheck.
       ⟦ errs , Γ ⟧ ⊢ Error err @ i ∈ error
   | chk_matchkind (mkd : E.matchkind) (i : tags_t) :
       ⟦ errs , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
-  | chk_hdr_op (op : E.hdr_op) (e : E.e tags_t) (i : tags_t)
-                (τ : E.t) (ts : F.fs string E.t) :
-      type_hdr_op op ts = τ ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
-      ⟦ errs, Γ ⟧ ⊢ HDR_OP op e @ i ∈ τ
+  (* Header stacks. *)
   | chk_stack (ts : F.fs string E.t)
               (hs : list (E.e tags_t))
-              (n : positive) (ni : Z) :
+              (n : positive) (ni : Z) (i : tags_t) :
       BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
       PT.proper_nesting {{ stack ts[n] }} ->
       Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-      ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni ∈ stack ts[n]
+      ⟦ errs, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni @ i ∈ stack ts[n]
   | chk_access (e : E.e tags_t) (idx : Z) (i : tags_t)
                (ts : F.fs string E.t) (n : positive) :
       (0 <= idx < (Zpos n))%Z ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
       ⟦ errs, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
-  | chk_stk_op (op : E.hdr_stk_op) (e : E.e tags_t) (i : tags_t)
-                (τ : E.t) (size : positive)
-                (ts : F.fs string E.t) :
-      type_hdr_stk_op op size ts = τ ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[size] ->
-      ⟦ errs, Γ ⟧ ⊢ STK_OP op e @ i ∈ τ
   where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
           := (check_expr ers gm e ty) : type_scope.
   (**[]*)
@@ -480,11 +464,11 @@ Module Typecheck.
         P errs Γ <{ Cast e:τ @ i }> τ.
     (**[]*)
 
-    Hypothesis HUop : forall errs Γ op τ e i,
-        uop_type op τ ->
+    Hypothesis HUop : forall errs Γ op τ τ' e i,
+        uop_type op τ τ' ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         P errs Γ e τ ->
-        P errs Γ <{ UOP op e:τ @ i }> τ.
+        P errs Γ <{ UOP op e:τ @ i }> τ'.
 
     Hypothesis HBop : forall errs Γ op τ1 τ2 τ e1 e2 i,
         bop_type op τ1 τ2 τ ->
@@ -544,21 +528,14 @@ Module Typecheck.
         P errs Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
     (**[]*)
 
-    Hypothesis HValid : forall errs Γ op e i τ ts,
-        type_hdr_op op ts = τ ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts } ->
-        P errs Γ e {{ hdr { ts } }} ->
-        P errs Γ <{ HDR_OP op e @ i }> τ.
-    (**[]*)
-
-    Hypothesis HStack : forall errs Γ ts hs n ni,
+    Hypothesis HStack : forall errs Γ ts hs n ni i,
         BitArith.bound 32%positive (Zpos n) ->
         (0 <= ni < (Zpos n))%Z ->
         Pos.to_nat n = length hs ->
         PT.proper_nesting {{ stack ts[n] }} ->
         Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
         Forall (fun e => P errs Γ e {{ hdr { ts } }}) hs ->
-        P errs Γ <{ Stack hs:ts[n] nextIndex:=ni }> {{ stack ts[n] }}.
+        P errs Γ <{ Stack hs:ts[n] nextIndex:=ni @ i }> {{ stack ts[n] }}.
     (**[]*)
 
     Hypothesis HAccess : forall errs Γ e idx i ts n,
@@ -566,13 +543,6 @@ Module Typecheck.
         ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
         P errs Γ e {{ stack ts[n] }} ->
         P errs Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
-    (**[]*)
-
-    Hypothesis HStackOp : forall errs Γ op e i τ size ts,
-        type_hdr_stk_op op size ts = τ ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[size] ->
-        P errs Γ e {{ stack ts[size] }} ->
-        P errs Γ <{ STK_OP op e @ i }> τ.
     (**[]*)
 
     (** Custom induction principle for expression typing.
@@ -588,11 +558,8 @@ Module Typecheck.
                 : Forall2 (P errs Γ) es ts :=
                 match HR with
                 | Forall2_nil _ => Forall2_nil _
-                | Forall2_cons _ _
-                              Hh Htail => Forall2_cons
-                                           _ _
-                                           (chind _ _ _ _ Hh)
-                                           (lind Htail)
+                | Forall2_cons _ _ Hh Htail
+                  => Forall2_cons _ _ (chind _ _ _ _ Hh) (lind Htail)
                 end in
             let fix lind_stk
                     {es : list (E.e tags_t)} {τ : E.t}
@@ -600,10 +567,8 @@ Module Typecheck.
                 : Forall (fun e => P errs Γ e τ) es :=
                 match HRs with
                 | Forall_nil _ => Forall_nil _
-                | Forall_cons _
-                              Hhead Htail => Forall_cons _
-                                                        (chind _ _ _ _ Hhead)
-                                                        (lind_stk Htail)
+                | Forall_cons _ Hhead Htail
+                  => Forall_cons _ (chind _ _ _ _ Hhead) (lind_stk Htail)
                 end in
             let fix fields_ind
                     {efs : F.fs string (E.t * E.e tags_t)}
@@ -616,69 +581,43 @@ Module Typecheck.
                 : F.relfs
                     (fun te τ => let e := snd te in P errs Γ e τ)
                     efs tfs :=
-                match HRs
-                      in (Forall2 _ es ts)
-                      return
-                      (Forall2
-                         (F.relf (fun te τ => let e := snd te in P errs Γ e τ))
-                         es ts) with
-                | Forall2_nil _ => Forall2_nil
-                                    (F.relf
-                                       (fun te τ => let e := snd te in P errs Γ e τ))
-                | Forall2_cons te τ
-                               (conj HName (conj _ Hhead))
-                               Htail => Forall2_cons
-                                         te τ
-                                         (conj HName (chind errs Γ _ _ Hhead))
-                                         (fields_ind Htail)
+                match HRs with
+                | Forall2_nil _ => Forall2_nil _
+                | Forall2_cons te τ (conj HName (conj _ Hhead)) Htail
+                  => Forall2_cons te τ
+                                 (conj HName (chind errs Γ _ _ Hhead))
+                                 (fields_ind Htail)
                 end in
-            match HY in ⟦ _, _ ⟧ ⊢ e' ∈ τ' return P errs Γ e' τ' with
+            match HY with
             | chk_bool _ _ b i     => HBool errs Γ b i
             | chk_bit _ _ _ _ H i => HBit _ _ _ _ H i
             | chk_int _ _ _ _ H i => HInt _ _ _ _ H i
             | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
-            | chk_slice _ _ _ _ _ _ _ i
-                        Hlohiw Ht He => HSlice _ _ _ _ _ _ _ i Hlohiw Ht
-                                              He (chind _ _ _ _ He)
-            | chk_cast _ _ _ _ _ i HPC He => HCast _ _ _ _ _ i HPC
-                                                  He (chind _ _ _ _ He)
-            | chk_uop _ _ _ _ _ i Huop He => HUop _ _ _ _ _ i Huop
-                                                 He (chind _ _ _ _ He)
-            | chk_bop _ _ _ _ _ _ _ _ i
-                      Hbop He1 He2 => HBop _ _ _ _ _ _ _ _ i Hbop
-                                          He1 (chind _ _ _ _ He1)
-                                          He2 (chind _ _ _ _ He2)
-            | chk_mem _ _ _ _ _ _ _ _ i
-                      Hget He => HMem _ _ _ _ _ _ _ _ i Hget
-                                     He (chind _ _ _ _ He)
+            | chk_slice _ _ _ _ _ _ _ i Hlohiw Ht He
+              => HSlice _ _ _ _ _ _ _ i Hlohiw Ht He (chind _ _ _ _ He)
+            | chk_cast _ _ _ _ _ i HPC He
+              => HCast _ _ _ _ _ i HPC He (chind _ _ _ _ He)
+            | chk_uop _ _ _ _ _ _ i Huop He
+              => HUop _ _ _ _ _ _ i Huop He (chind _ _ _ _ He)
+            | chk_bop _ _ _ _ _ _ _ _ i Hbop He1 He2
+              => HBop _ _ _ _ _ _ _ _ i Hbop
+                     He1 (chind _ _ _ _ He1)
+                     He2 (chind _ _ _ _ He2)
+            | chk_mem _ _ _ _ _ _ _ _ i Hget He
+              => HMem _ _ _ _ _ _ _ _ i Hget He (chind _ _ _ _ He)
             | chk_error _ _ _ i HOK => HError errs Γ _ i HOK
             | chk_matchkind _ _ mk i  => HMatchKind errs Γ mk i
-            | chk_hdr_op _ _ _ _ i _ _
-                         Hhop He => HValid
-                                     _ _ _ _ i _ _ Hhop
-                                     He (chind _ _ _ _ He)
-            | chk_tuple _ _ _ i _
-                        HR => HTuple _ _ _ i _
-                                    HR (lind HR)
-            | chk_rec_lit _ _ _ _ i
-                          HRs => HRecLit
-                                  _ _ _ _ i
-                                  HRs (fields_ind HRs)
-            | chk_hdr_lit _ _ _ _ i _
-                          HP HRs Hb => HHdrLit
-                                        _ _ _ _ i _ HP
-                                        HRs (fields_ind HRs)
-                                        Hb (chind _ _ _ _ Hb)
-            | chk_stack _ _ _ _ _ ni
-                        Hn Hni Hlen
-                        HP HRs => HStack _ _ _ _ _ ni Hn Hni Hlen HP
-                                        HRs (lind_stk HRs)
-            | chk_access _ _ _ _ i _ _
-                         Hidx He => HAccess _ _ _ _ i _ _ Hidx
-                                           He (chind _ _ _ _ He)
-            | chk_stk_op _ _ _ _ i _ _ _
-                         Ht He => HStackOp _ _ _ _ i _ _ _ Ht
-                                          He (chind _ _ _ _ He)
+            | chk_tuple _ _ _ i _ HR => HTuple _ _ _ i _ HR (lind HR)
+            | chk_rec_lit _ _ _ _ i HRs
+              => HRecLit _ _ _ _ i HRs (fields_ind HRs)
+            | chk_hdr_lit _ _ _ _ i _ HP HRs Hb
+              => HHdrLit _ _ _ _ i _ HP
+                        HRs (fields_ind HRs)
+                        Hb (chind _ _ _ _ Hb)
+            | chk_stack _ _ _ _ _ _ i Hn Hni Hlen HP HRs
+              => HStack _ _ _ _ _ _ i Hn Hni Hlen HP HRs (lind_stk HRs)
+            | chk_access _ _ _ _ i _ _ Hidx He
+              => HAccess _ _ _ _ i _ _ Hidx He (chind _ _ _ _ He)
             end.
      (**[]*)
   End CheckExprInduction.
@@ -875,17 +814,14 @@ Module Typecheck.
             : F.predfs_data (P sts errs Γ) cases :=
             match HR with
             | Forall_nil _ => Forall_nil _
-            | Forall_cons _ (conj He _) Htail => Forall_cons
-                                                  _
-                                                  (chind _ _ _ _ He)
-                                                  (lind Htail)
+            | Forall_cons _ (conj He _) Htail
+              => Forall_cons _ (chind _ _ _ _ He) (lind Htail)
             end in
         match Hy with
         | chk_goto _ _ _ _ Hst i => HGoto _ _ _ _ Hst i
         | chk_select _ _ _ _ _ _ i _
-                     He Hd Hcases => HSelect _ _ _ _ _ _ i _ He
-                                            Hd (chind _ _ _ _ Hd)
-                                            Hcases (lind Hcases)
+                     He Hd Hcases
+          => HSelect _ _ _ _ _ _ i _ He Hd (chind _ _ _ _ Hd) Hcases (lind Hcases)
         end.
     (**[]*)
   End CheckParserExprInduction.

@@ -81,8 +81,6 @@ Section ExprTheorems.
 
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_slice_types : core.
-    Local Hint Resolve eval_hdr_op_types : core.
-    Local Hint Resolve eval_stk_op_types : core.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_types : core.
     Local Hint Resolve eval_cast_types : core.
@@ -106,7 +104,7 @@ Section ExprTheorems.
           | H: Some _ = Some _ |- _ => inv H
           end;
       try invert_proper_nesting; eauto 4.
-      - eapply Forall_nth_error in H11; eauto 1.
+      - eapply Forall_nth_error in H12; eauto 1.
       - subst es; subst es';
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; eauto.
@@ -163,7 +161,7 @@ Section ExprTheorems.
       - right; pose proof eval_slice_exists
                     _ _ _ _ _ _ _ H2 H H0 H1 as [? ?]; eauto 3.
       - pose proof eval_cast_exists _ _ _ _ _ H1 H H0 as [? ?]; eauto 4.
-      - pose proof eval_uop_exists _ _ _ _ _ H H1 H0 as [? ?]; eauto 4.
+      - pose proof eval_uop_exists _ _ _ _ _ _ H H1 H0 as [? ?]; eauto 4.
       - pose proof eval_bop_exists _ _ _ _ _ _ i _ _ H H3 H2 H0 H1 as [? ?]; eauto 4.
       - pose proof eval_member_exists _ _ _ _ _ _ _ H2 H0 H H1 as [? ?]; eauto 4.
       - induction H; repeat inv_Forall2_cons;
@@ -212,8 +210,6 @@ Section ExprTheorems.
           rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
           exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
-      - invert_proper_nesting.
-        right. exists (eval_hdr_op op x x2 x3 x1). eauto 3.
       - clear H H0 H1 H2.
         induction H3; intros; repeat inv_Forall_cons; eauto 2;
         intuition; repeat assert_canonical_forms.
@@ -225,8 +221,6 @@ Section ExprTheorems.
       - invert_proper_nesting.
         assert (Hidx : (BinIntDef.Z.to_nat idx < length x)%nat) by lia.
         pose proof nth_error_exists _ _ Hidx as [v ?]; eauto 5.
-      - pose proof eval_stk_op_exists
-             _ _ i op _ _ _ _ H5 H6 H7 H8 H9 as [? ?]; eauto 5.
     Qed.
   End Progress.
 End ExprTheorems.

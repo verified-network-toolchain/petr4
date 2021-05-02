@@ -40,8 +40,6 @@ Section BigStepTheorems.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_type : core.
     Local Hint Resolve eval_cast_types : core.
-    Local Hint Resolve eval_hdr_op_types : core.
-    Local Hint Resolve eval_stk_op_types : core.
     Local Hint Resolve eval_member_types : core.
     Local Hint Constructors PT.proper_nesting : core.
     Local Hint Constructors type_value : core.
@@ -78,7 +76,7 @@ Section BigStepTheorems.
         constructor; unfold F.relf in *; unravel; intuition;
         invert_proper_nesting; invert_cons_predfs; apply H2; auto 2.
       - apply Forall2_length in H; lia.
-      - clear n ni H5 H6 H8 H9; generalize dependent ts;
+      - clear n ni H6 H8 H9 H10; generalize dependent ts;
         induction H; intros []; intros;
         try inv_Forall2_cons; try inv_Forall_cons; intuition.
       - invert_proper_nesting; auto 2.
@@ -112,7 +110,7 @@ Section BigStepTheorems.
       - apply Hsub in H as [? ?]; eauto 3.
       - pose proof eval_slice_exists _ _ _ _ _ _ H H0 H2 as [? ?]; eauto 3.
       - pose proof eval_cast_exists _ _ _ _ H H1 as [? ?]; eauto 3.
-      - pose proof eval_uop_exist _ _ _ _ H H1 as [? ?]; eauto 3.
+      - pose proof eval_uop_exist _ _ _ _ _ H H1 as [? ?]; eauto 3.
       - pose proof eval_bop_exists _ _ _ _ _ _ _ H H3 H2 as [? ?]; eauto 3.
       - pose proof eval_member_exists _ _ _ _ _ _ H0 H H2 as [? ?]; eauto 3.
       - assert (Hvs: exists vs, Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs).
@@ -140,7 +138,6 @@ Section BigStepTheorems.
           - intuition. destruct H4 as [v Hv]; destruct H7 as [vfs Hvfs].
             exists ((s0, v) :: vfs). repeat constructor; eauto 3. }
         inv H3. destruct Hvs; eauto.
-      - inv H1. exists (eval_hdr_op op vs b); eauto 3.
       - assert
           (Hbvss : exists bvss,
               Forall2
@@ -156,9 +153,6 @@ Section BigStepTheorems.
         destruct Hbvss; eauto 3.
       - inv H1. assert (Hnihs : BinInt.Z.to_nat idx < length hs) by lia.
         pose proof nth_error_exists _ _ Hnihs as [[? ?] ?]; eauto 3.
-      - inv H1.
-        pose proof eval_stk_op_exists
-             _ op _ _ _ _ H4 H5 H6 H8 H9 as [? ?]; eauto 3.
     Qed.
   End ExprProgress.
 

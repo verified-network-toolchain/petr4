@@ -17,21 +17,23 @@ let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
 
-let translate_lvalue (map: varmap) (e: Prog.Expression.t) : C.cexpr =
+let rec translate_lvalue (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
-  | Name (BareName str) -> CVar (snd str) 
+  | Name (BareName str) -> snd str |> varmap_find map
+  | ExpressionMember {expr; name} ->
+     CMember (translate_lvalue map expr, snd name)
   | _ -> failwith "translate_lvalue unimplemented"
 
-let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
+let rec translate_expr (map: varmap) (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
-  | Name (BareName str) -> CVar (snd str) 
+  | Name (BareName str) -> snd str |> varmap_find map
   | Name _ -> failwith "unimplemented"
   | ExpressionMember {expr; name} ->
-     CMember (translate_expr expr, snd name)
+     CMember (translate_expr map expr, snd name)
   | True -> CBoolExp true
   | False -> CBoolExp false
   | Int i -> CIntLit (Bigint.to_int_exn (snd i).value)
-  | Cast {expr; _} -> translate_expr expr
+  | Cast {expr; _} -> translate_expr map expr
   | String s -> CString (snd s)
   | _ -> failwith "translate_expr unimplemented"
 
@@ -97,12 +99,12 @@ let translate_stmt map (stmt: Prog.Statement.t) : C.cstmt =
   | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->
-    CMethodCall (translate_expr obj, [CVar "state"])
+    CMethodCall (translate_expr map obj, [CVar "state"])
   | MethodCall { func; type_args; args } -> 
     let args = translate_args map args in
-    C.CMethodCall (translate_expr func, args)
+    C.CMethodCall (translate_expr map func, args)
   | Assignment { lhs; rhs } -> 
-    C.CAssign (translate_lvalue map lhs, translate_expr rhs)
+    C.CAssign (translate_lvalue map lhs, translate_expr map rhs)
   | _ -> failwith "translate_stmt unimplemented"
 
 let translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =
@@ -138,7 +140,7 @@ let translate_key (key : Prog.Table.key) =
 let translate_local_decls (map: varmap) (d: Prog.Declaration.t list) : varmap * C.cdecl list * C.cstmt list =
   map, [], []
 
-let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl list =
+let rec translate_decl (scope_params: C.cparam list) (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl list =
   match snd d with
   | Struct {name; fields; _} ->
     let cfields = translate_fields fields in
@@ -154,7 +156,7 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     map, [C.CComment "todo: Enum/SerializableEnum"]
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let map_update = update_map map params in 
-    let params = translate_params params in
+    let params = params_to_struct_fields params in
     let state_type_name = make_state_name (snd name) in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
@@ -165,12 +167,15 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     map_update, struct_decl :: locals_decls @ [func_decl]
   | Function { return; name; type_params; params; body } ->
     map, [C.CComment "todo: Function"]
-  | Action { name; data_params; ctrl_params; body; _ } -> 
-    map, [C.CComment "todo: Action"]
+  | Action { name; data_params; ctrl_params; body; _ } ->
+     let params = scope_params @ translate_params (data_params @ ctrl_params) in
+     map, [C.CFun (CVoid, snd name, 
+                   params, 
+                   translate_block map body)]
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let flat_params = params@constructor_params in  
     let map_update = update_map map flat_params in 
-    let params = translate_params flat_params in
+    let params = params_to_struct_fields flat_params in
     let state_type_name = make_state_name "_state" in
     let state_type = C.(CPtr (CTypeName state_type_name)) in
     let state_param = C.CParam (state_type, "state") in
@@ -186,8 +191,8 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
     map, [C.CComment "todo: Instantiation"]
   | Variable _ ->
     map, [C.CComment "todo: Variable"]
-  | Table _ -> 
-    map, [C.CComment "todo: Table"]
+  | Table { name; key; actions; entries; default_action; size; custom_properties; _ } ->
+    translate_table scope_params map (snd name, key, actions, entries, default_action, size, custom_properties)
   | ValueSet _
   | ControlType _
   | ParserType _
@@ -200,9 +205,9 @@ let rec translate_decl (map: varmap) (d: Prog.Declaration.t) : varmap * C.cdecl 
   | TypeDef _ ->
     map, []
 
-and translate_decls (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.cdecl list =
+and translate_decls scope_params (map: varmap) (decls: Prog.Declaration.t list) : varmap * C.cdecl list =
   let f (map, decls) decl =
-    let map', decls' = translate_decl map decl in
+    let map', decls' = translate_decl scope_params map decl in
     map', decls @ decls'
   in
   List.fold ~init:(map, []) ~f decls
@@ -214,7 +219,7 @@ and translate_local (control_name: string) (map: varmap) (locals : Prog.Declarat
             [CParam (CTypeName "MyC_state", "*state")], 
             translate_block map body)
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } ->
-    translate_table(control_name, snd name, key, actions, entries, default_action, size, custom_properties)
+    translate_table map (control_name, snd name, key, actions, entries, default_action, size, custom_properties)
   | _ -> failwith "incomplete"
 
 and find_table_name (locals : Prog.Declaration.t list) : string =
@@ -258,11 +263,11 @@ and get_name (n: P4.name) =
   | BareName b -> b
   | _ -> failwith "faa"
 
-and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
-  List.map ~f:(get_cond_logic entries) keylist 
+and get_cond_logic_lst map (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
+  List.map ~f:(get_cond_logic map entries) keylist 
 
 (* todo: keylist instead of key  *)
-and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
+and get_cond_logic map (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
   match entries with 
   | None -> failwith "n"
   | Some e -> begin match e with 
@@ -274,7 +279,7 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
           | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
           | _ -> failwith "ddf"
         end in 
-        C.CEq (translate_pointer (C.CVar "state") key, translate_expr equal) 
+        C.CEq (translate_pointer (C.CVar "state") key, translate_expr map equal)
     end 
 
 and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
@@ -300,7 +305,7 @@ and get_entry_methods (entries : Prog.Table.entry list option) =
 and make_state_name =
   Printf.sprintf "%s_state" 
 
-and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
+and translate_inner map ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
   (* todo - deal with multiple keys  *)
   (* todo - ternary matches in entries - spec value and bit mask (e.g. or with a mask), prefix matches  *)
   match k with 
@@ -311,15 +316,12 @@ and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list
       | Some s -> begin match s with 
           | [] -> method_call_table (get_default_action default_action)
           | h::t -> C.CIf 
-                      (get_cond_logic entries key, method_call_table_entry h, translate_inner(k, Some t, default_action)) 
+                      (get_cond_logic map entries key, method_call_table_entry h, translate_inner map (k, Some t, default_action)) 
         end 
     end 
 
-
-and translate_table(control_name, name, k, actions, entries, default_action, size, custom_properties) = 
-  let state_type = C.(CPtr (CTypeName (make_state_name control_name))) in
-  let state_param = C.CParam (state_type, "state") in
-  C.CFun(C.CVoid, name, [state_param], [translate_inner (k, entries, default_action)]) 
+and translate_table scope_params map (name, k, actions, entries, default_action, size, custom_properties) = 
+  map, [C.CFun(C.CVoid, name, scope_params, [translate_inner map (k, entries, default_action)])]
 
 and method_call_table (name : P4.name) = 
   C.CMethodCall (C.CVar (snd (get_name name)), [C.CVar "state"])
@@ -369,11 +371,19 @@ and translate_trans (states: int StrMap.t) (t: Prog.Parser.transition) : C.cstmt
   | Select _ ->
     failwith "translation of select() unimplemented"
 
-and translate_param (param : Typed.Parameter.t) : C.cfield =
+and param_to_struct_field (param : Typed.Parameter.t) : C.cfield =
   let ctyp = translate_type param.typ in
   C.CField (ctyp, snd param.variable)
 
-and translate_params (params : Typed.Parameter.t list) : C.cfield list =
+and params_to_struct_fields (params : Typed.Parameter.t list) : C.cfield list =
+  params
+  |> List.map ~f:param_to_struct_field
+
+and translate_param (param: Typed.Parameter.t) : C.cparam =
+  let ctyp = translate_type param.typ in
+  C.CParam (ctyp, snd param.variable)
+
+and translate_params (params: Typed.Parameter.t list) : C.cparam list =
   params
   |> List.map ~f:translate_param
 

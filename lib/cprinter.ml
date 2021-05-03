@@ -130,6 +130,12 @@ and format_cexpr (expr: cexpr) =
     box (format_cexpr e1
          ++ text " == "
          ++ format_cexpr e2) 
+  | CAnd (e1, e2) -> 
+     box (text "("
+          ++ format_cexpr e1
+          ++ text ") && ("
+          ++ format_cexpr e2
+          ++ text ")") 
   | CCast (t, e) ->
      box (text "(("
           ++ format_ctyp t

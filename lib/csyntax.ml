@@ -54,6 +54,7 @@ and cexpr =
   | CGeq of cexpr * cexpr
   | CPointer of cexpr * cname (* can replace cpointer with deref and cmember  *)
   | CEq of cexpr * cexpr  (* TODO - Ceq can be used for state->hdrs.simple.dst == 0 --> make boolean expressions with equality  *)
+  | CAnd of cexpr * cexpr
   | CCast of ctyp * cexpr
 
 type cprog = cdecl list

@@ -10,14 +10,6 @@ let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
 
-let rec translate_lvalue (e: Prog.Expression.t) : C.cexpr =
-  match (snd e).expr with
-  | Name (BareName str) ->
-     CAddrOf (C.CVar (snd str))
-  | ExpressionMember {expr; name} ->
-     CAddrOf (CMember (translate_lvalue expr, snd name))
-  | _ -> failwith "translate_lvalue unimplemented"
-
 let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName str) -> C.CVar (snd str)
@@ -51,7 +43,7 @@ let rec get_expr_mem_lst (e: Prog.Expression.t) : C.cname list =
 
 let translate_arg (arg: Prog.Expression.t option) : C.cexpr =
   match arg with
-  | Some expr -> translate_lvalue expr
+  | Some expr -> translate_expr expr
   | None -> failwith "don't care args unimplemented"
 
 let translate_args (args: Prog.Expression.t option list) : C.cexpr list =
@@ -80,7 +72,7 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     assert_packet_in (snd pkt).typ;
     let width = type_width hdr_typ in
     let args = translate_args args in
-    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
+    let pkt_arg = translate_expr pkt in
     C.CMethodCall (C.CVar "extract", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
                 type_args = [hdr_typ];
@@ -88,17 +80,17 @@ let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
     assert_packet_out (snd pkt).typ;
     let width = type_width hdr_typ in
     let args = translate_args args in
-    let pkt_arg = C.(CPointer (CVar "state", "pkt")) in
+    let pkt_arg = translate_expr pkt in
     C.CMethodCall (C.CVar "emit", pkt_arg :: args @ [C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->
-    CMethodCall (translate_expr obj, [CVar "state"])
+    CMethodCall (translate_expr obj, [])
   | MethodCall { func; type_args; args } -> 
     let args = translate_args args in
     C.CMethodCall (translate_expr func, args)
   | Assignment { lhs; rhs } -> 
-    C.CAssign (translate_lvalue lhs, translate_expr rhs)
+    C.CAssign (translate_expr lhs, translate_expr rhs)
   | _ -> failwith "translate_stmt unimplemented"
 
 let translate_stmts (stmts: Prog.Statement.t list) : C.cstmt list =
@@ -222,11 +214,8 @@ and get_name (n: Types.name) =
   | BareName b -> b
   | _ -> failwith "faa"
 
-and get_cond_logic_lst (entries : Prog.Table.entry list option) (keylist : Prog.Table.key list) : C.cexpr list =
-  List.map ~f:(get_cond_logic entries) keylist 
-
-(* todo: keylist instead of key  *)
-and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.key) =
+(* todo: keylist instead of key *)
+and get_cond_logic (entries : Prog.Table.entry list option) (key_name: C.cname) =
   match entries with 
   | None -> failwith "n"
   | Some e -> begin match e with 
@@ -238,18 +227,8 @@ and get_cond_logic (entries : Prog.Table.entry list option) (key : Prog.Table.ke
           | (_, {expr = Prog.Match.Expression {expr}; _})::t -> expr 
           | _ -> failwith "ddf"
         end in 
-        C.CEq (translate_pointer (C.CVar "state") key, translate_expr equal)
+        C.CEq (C.CVar key_name, translate_expr equal)
     end 
-
-and translate_pointer (pointer : C.cexpr) (pointee : Prog.Table.key) = 
-  let key_lst = translate_key pointee in 
-  let base (x: C.cname) = C.CPointer (pointer, x) in 
-  let f (index: int) (acc: C.cname -> C.cexpr) (el: C.cname) (x : C.cname) = 
-    if index = List.length key_lst - 1 then 
-      acc el 
-    else 
-      C.CMember (acc el, x) in
-  List.foldi ~init:base ~f:f key_lst "" 
 
 and get_entry_methods (entries : Prog.Table.entry list option) =
   match entries with 
@@ -261,34 +240,36 @@ and get_entry_methods (entries : Prog.Table.entry list option) =
     let l = get_entry_methods_internal e in 
     get_action_ref l 
 
-and make_state_name =
-  Printf.sprintf "%s_state" 
-
-and translate_inner ((k : Prog.Table.key list), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
+and translate_inner ((key_name : C.cname), (entries : Prog.Table.entry list option), (default_action : Prog.Table.action_ref option)) : C.cstmt = 
   (* todo - deal with multiple keys  *)
   (* todo - ternary matches in entries - spec value and bit mask (e.g. or with a mask), prefix matches  *)
-  match k with 
-  | [] -> failwith "empty key list" 
-  | key::key_end -> 
-    begin match entries with 
-      | None -> failwith "f"
-      | Some s -> begin match s with 
-          | [] -> method_call_table (get_default_action default_action)
-          | h::t -> C.CIf (get_cond_logic entries key,
-                           method_call_table_entry h,
-                           translate_inner (k, Some t, default_action)) 
-        end 
-    end 
+  match entries with 
+  | None -> failwith "f"
+  | Some s ->
+     begin match s with 
+     | [] -> method_call_table (get_default_action default_action)
+     | h::t -> C.CIf (get_cond_logic entries key_name,
+                      method_call_table_entry h,
+                      translate_inner (key_name, Some t, default_action)) 
+     end 
 
-and translate_table (name, k, actions, entries, default_action, size, custom_properties) = 
-  [C.CFun (C.CVoid, name, [], [translate_inner (k, entries, default_action)])]
+and translate_table (name, keys, actions, entries, default_action, size, custom_properties) = 
+  let key_name = "key" in
+  let key_param =
+    match keys with
+    | [key] ->
+       let t = translate_type (snd (snd key).key).typ in
+       C.CParam (t, key_name)
+    | _ -> failwith "expect tables to have a single key"
+  in
+  [C.CFun (C.CVoid, name, [key_param], [translate_inner (key_name, entries, default_action)])]
 
 and method_call_table (name : Types.name) = 
-  C.CMethodCall (C.CVar (snd (get_name name)), [C.CVar "state"])
+  C.CMethodCall (C.CVar (snd (get_name name)), [])
 
 and method_call_table_entry (entry : Prog.Table.entry) = 
   let n = snd (snd entry).action in 
-  C.CMethodCall (C.CVar (snd (get_name (n.action).name)), [C.CVar "state"])
+  C.CMethodCall (C.CVar (snd (get_name (n.action).name)), [])
 
 and get_first (list) = 
   match list with 

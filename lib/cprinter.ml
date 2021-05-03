@@ -130,6 +130,12 @@ and format_cexpr (expr: cexpr) =
     box (format_cexpr e1
          ++ text " == "
          ++ format_cexpr e2) 
+  | CCast (t, e) ->
+     box (text "(("
+          ++ format_ctyp t
+          ++ text ")"
+          ++ format_cexpr e
+          ++ text ")")
 
 and format_ccases (cases: ccase list) =
   concat_map ~sep:(text "\n") ~f:format_ccase cases

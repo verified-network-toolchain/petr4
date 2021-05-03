@@ -41,14 +41,21 @@ let rec get_expr_mem_lst (e: Prog.Expression.t) : C.cname list =
   | ExpressionMember x -> get_expr_mem_lst x.expr @ [snd x.name] 
   | _ -> failwith "unimplemented!"
 
-let translate_arg (arg: Prog.Expression.t option) : C.cexpr =
+let translate_arg (dir: Typed.direction) (arg: Prog.Expression.t option) : C.cexpr =
   match arg with
-  | Some expr -> translate_expr expr
+  | Some expr ->
+     begin match dir with
+     | Out
+     | InOut ->
+        C.CAddrOf (translate_expr expr)
+     | _ ->
+        translate_expr expr
+     end
   | None -> failwith "don't care args unimplemented"
 
 let translate_args (args: Prog.Expression.t option list) : C.cexpr list =
   args
-  |> List.map ~f:translate_arg
+  |> List.map ~f:(translate_arg In) (*TODO use actual direction*)
 
 let type_width hdr_type =
   let empty_env = Prog.Env.CheckerEnv.empty_t () in
@@ -64,24 +71,27 @@ let assert_packet_out (typ: Typed.Type.t) : unit =
   (* TODO actually check the type is appropriate? *)
   ()
 
+let cast_to_void_ptr (e: C.cexpr) : C.cexpr =
+  C.CCast (CPtr CVoid, e)
+
 let translate_stmt (stmt: Prog.Statement.t) : C.cstmt =
   match (snd stmt).stmt with 
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "extract")}; _};
                 type_args = [hdr_typ];
-                args} ->
+                args = [hdr_arg]} ->
     assert_packet_in (snd pkt).typ;
     let width = type_width hdr_typ in
-    let args = translate_args args in
+    let hdr_arg = hdr_arg |> translate_arg Out |> cast_to_void_ptr in
     let pkt_arg = translate_expr pkt in
-    C.CMethodCall (C.CVar "extract", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CVar "extract", [pkt_arg; hdr_arg; C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = pkt; name = (_, "emit")}; _};
                 type_args = [hdr_typ];
-                args} ->
+                args = [hdr_arg]} ->
     assert_packet_out (snd pkt).typ;
     let width = type_width hdr_typ in
-    let args = translate_args args in
+    let hdr_arg = hdr_arg |> translate_arg Out |> cast_to_void_ptr in
     let pkt_arg = translate_expr pkt in
-    C.CMethodCall (C.CVar "emit", pkt_arg :: args @ [C.CIntLit width])
+    C.CMethodCall (C.CVar "emit", [pkt_arg; hdr_arg; C.CIntLit width])
   | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->

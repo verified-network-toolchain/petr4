@@ -113,6 +113,9 @@ Module IsValue.
         end.
   End IsValueInduction.
 
+  Lemma value_exm : forall {tags_t : Type} (e : E.e tags_t), value e \/ ~ value e.
+  Admitted.
+
   Inductive lvalue {tags_t : Type} : E.e tags_t -> Prop :=
   | lvalue_var x τ i :
       lvalue <{ Var x:τ @ i }>

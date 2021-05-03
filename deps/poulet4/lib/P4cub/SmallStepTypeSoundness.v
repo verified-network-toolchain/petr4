@@ -224,3 +224,70 @@ Section ExprTheorems.
     Qed.
   End Progress.
 End ExprTheorems.
+
+Section ParserExprTheorems.
+  Variable sts : user_states.
+
+  Variable errs : errors.
+
+  Variable Γ : gamma.
+
+  Context {tags_t : Type}.
+
+  Variable ϵ : @eenv tags_t.
+
+  Section Preservation.
+    Local Hint Constructors check_prsrexpr : core.
+    Local Hint Resolve expr_small_step_preservation : core.
+    Hint Rewrite Forall_app : core.
+
+    Hypothesis Henvs_type : envs_type Γ ϵ errs.
+
+    Theorem parser_expr_preservation : forall e e',
+      π ϵ, e -->  e' -> ⟅ sts, errs, Γ ⟆ ⊢ e -> ⟅ sts, errs, Γ ⟆ ⊢ e'.
+    Proof.
+      intros e e' Hpi Ht; induction Hpi; inv Ht; repeat subst_term; eauto 3.
+      - econstructor; eauto 1; autorewrite with core in *;
+        unravel in *; intuition; inv_Forall_cons;
+        constructor; unravel in *; intuition; eauto 2.
+      - destruct (F.get v cases) as [? |] eqn:Hget; eauto.
+        (* TODO: Need helper lemma for get. *)
+        clear d H6 H0 H.
+        generalize dependent e.
+        induction cases as [| [e pe] cases ?];
+        intros pst Hget; unravel in *;
+        try inv_Forall_cons; try discriminate.
+        destruct (equiv_dec v e) as [Hve | Hve]; unravel in *;
+        inv_eq; intuition.
+    Qed.
+  End Preservation.
+
+  Section Progress.
+    Local Hint Constructors step_parser_expr : core.
+    Hint Rewrite app_nil_r : core.
+    Hint Rewrite Forall_app : core.
+
+    Inductive select_expr : PS.e tags_t -> Prop :=
+      Select_select e d cases i :
+        select_expr p{ select e { cases } default:=d @ i }p.
+    (**[]*)
+
+    Hypothesis Henvs_sound : envs_sound Γ ϵ errs.
+
+    Theorem parser_expr_progress : forall e,
+        select_expr e -> ⟅ sts, errs, Γ ⟆ ⊢ e -> exists e', π ϵ, e -->  e'.
+    Proof.
+      intros e Hs He; induction He using check_prsrexpr_ind; inv Hs.
+      eapply expr_small_step_progress in H as [Hev | [e' He']]; eauto 3.
+      (*pose proof Forall_exists_prefix_only_or_all
+           (value ∘ fst) cases
+        as [Hall | [ee [prf [suf [Heq [Hprf Hee]]]]]].*)
+      (*pose proof Forall_exists_prefix (value ∘ fst) cases
+           as [prf [[| [ee pe] suf] [eq_prf_suf Hprf]]];
+      unravel in *; subst; autorewrite with core in *;
+      intuition; try inv_Forall_cons; unravel in *;
+      intuition;  eauto 3.
+      eapply expr_small_step_progress in H1 as [ee' ?]; eauto 1. *)
+    Admitted.
+  End Progress.
+End ParserExprTheorems.

@@ -7,12 +7,6 @@ Import P.P4cubNotations.
 Import Step.
 Import F.FieldTactics.
 
-Ltac subst_term :=
-  match goal with
-  | x := _ |- _ => subst x
-  end.
-(**[]*)
-
 Section Determinism.
   Context {tags_t : Type}.
 

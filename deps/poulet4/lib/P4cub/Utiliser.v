@@ -57,6 +57,12 @@ Ltac inv_eq :=
         end.
 (**[]*)
 
+Ltac subst_term :=
+  match goal with
+  | x := _ |- _ => subst x
+  end.
+(**[]*)
+
 Ltac solve_eqn :=
   match goal with
   | Ha: ?x = ?a, Hb: ?x = ?b
@@ -368,6 +374,20 @@ Lemma Forall_duh : forall {A : Type} (P : A -> Prop),
     (forall a, P a) -> forall l, Forall P l.
 Proof.
   induction l; constructor; auto.
+Qed.
+
+Lemma Forall_exists_prefix_only_or_all : forall {A : Type} (P : A -> Prop) (l : list A),
+    (forall a, P a \/ ~ P a) ->
+    Forall P l \/ exists a prefix suffix, l = prefix ++ a :: suffix /\ Forall P prefix /\ ~ P a.
+Proof.
+  intros A P l HP;
+  induction l as [| h t [IHt | [a [prf [suf [Heq [Hprf Ha]]]]]]];
+  intuition; subst.
+  - destruct (HP h) as [? | ?]; intuition.
+    right. exists h; exists []; exists t; intuition.
+  - right. destruct (HP h) as [? | ?].
+    + exists a; exists (h :: prf); exists suf; intuition.
+    + exists h; exists []; exists (prf ++ a :: suf); intuition.
 Qed.
 
 (** Option Predicate *)

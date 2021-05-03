@@ -475,16 +475,16 @@ End BabyIPv2.
 
 
 Definition build_bisimulation
-  {a1 a2} 
+  {a1 a2}
   (store_relation_l : store a1 -> Prop)
   (store_relation_r : store a2 -> Prop)
   (st1: states a1 + bool)
   (st2: states a2 + bool)
   (buf_relation : list bool -> list bool -> Prop)
   (cand : configuration a1 -> configuration a2 -> Prop)
-  : Prop := 
-  forall sig1 buf1 sig2 buf2, 
-    store_relation_l sig1 -> 
+  : Prop :=
+  forall sig1 buf1 sig2 buf2,
+    store_relation_l sig1 ->
     store_relation_r sig2 ->
     buf_relation buf1 buf2 ->
     cand (st1, sig1, buf1) (st2, sig2, buf2).
@@ -506,10 +506,10 @@ Inductive candidate:
       (inl BabyIPv2.start)
       (fun buf buf' => List.length buf < 20 /\ buf = buf')
       candidate
-      
+
 
 | BisimulationEnd:
-  forall b, 
+  forall b,
   build_bisimulation
     (a1 := BabyIPv1.v1_parser)
     (a2 := BabyIPv2.v2_parser)
@@ -524,15 +524,15 @@ Inductive candidate:
   build_bisimulation
     (a1 := BabyIPv1.v1_parser)
     (a2 := BabyIPv2.v2_parser)
-    (fun s => 
-      forall ip_hdr, 
+    (fun s =>
+      forall ip_hdr,
       s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
       AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0)
     )
     store_top
     (inl BabyIPv1.parse_tcp)
     (inl BabyIPv2.start)
-    (fun buf1 buf2 => 
+    (fun buf1 buf2 =>
       to_nat (slice 16 20 buf2) = 0 /\
       List.length buf2 = 20 /\
       List.length buf1 < 20
@@ -547,8 +547,8 @@ Inductive candidate:
     store_top
     (inl BabyIPv1.parse_tcp)
     (inl BabyIPv2.parse_tcp)
-    (fun buf1 buf2 => 
-      exists pref, 
+    (fun buf1 buf2 =>
+      exists pref,
       List.length pref = 20 /\
       buf1 = pref ++ buf2
     )
@@ -558,17 +558,17 @@ Inductive candidate:
   build_bisimulation
     (a1 := BabyIPv1.v1_parser)
     (a2 := BabyIPv2.v2_parser)
-    (fun s => 
-      forall ip_hdr, 
+    (fun s =>
+      forall ip_hdr,
       s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
       AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1)
     )
     store_top
     (inl BabyIPv1.parse_udp)
     (inl BabyIPv2.start)
-    (fun buf1 buf2 => 
+    (fun buf1 buf2 =>
       exists pref,
-      to_nat (slice 16 20 pref) = 1 /\ 
+      to_nat (slice 16 20 pref) = 1 /\
       List.length pref = 20 /\
       List.length buf1 < 20 /\
       buf2 = pref ++ buf1
@@ -583,7 +583,7 @@ Inductive candidate:
     store_top
     (inr false)
     (inl BabyIPv2.start)
-    (fun buf1 buf2 => 
+    (fun buf1 buf2 =>
       exists pref,
       buf2 = pref ++ buf1 /\
       List.length pref = 20 /\
@@ -763,10 +763,19 @@ Ltac cleanup_step :=
     repeat match goal with
     | [ H: ?l = ?r -> False |- _ ] =>
       fold (not (l = r)) in H
+    | H: _ /\ _ |- _ =>
+      destruct H
     end;
 
     (* Try to discharge contradictory or easy goals. *)
     try constructor;
+    repeat match goal with
+    | |- _ /\ _ =>
+      split
+    end;
+    unfold store_top;
+    try trivial;
+    try congruence;
     try simpl_length;
     simpl
   end

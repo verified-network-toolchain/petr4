@@ -246,10 +246,9 @@ Module Step.
   Module ST := P.Stmt.
   Module F := P.F.
   Module PT := E.ProperType.
-
+  Module PS := P.Parser.ParserState.
   Import P.P4cubNotations.
   Import Env.EnvNotations.
-
   Module V := IsValue.
 
   Section StepDefs.
@@ -1035,6 +1034,36 @@ Module Step.
       ℶ Access e[idx] @ i -->   Access e'[idx] @ i
   where "'ℶ' e1 '-->' e2" := (lvalue_step e1 e2).
   (**[]*)
+
+  Reserved Notation "'π' envn , pe1 '-->' pe2"
+           (at level 40, pe1 custom p4prsrexpr, pe2 custom p4prsrexpr).
+
+  Inductive step_parser_expr {tags_t : Type} (ϵ : eenv)
+    : PS.e tags_t -> PS.e tags_t -> Prop :=
+  | step_select_discriminee (e e' : E.e tags_t) (d : PS.e tags_t)
+                            (cases : F.fs (E.e tags_t) (PS.e tags_t)) (i : tags_t) :
+      ℵ ϵ, e -->  e' ->
+      π ϵ, select e { cases } default:=d @ i-->  select e' { cases } default:=d @ i
+  | step_select_cases (v : E.e tags_t) (d : PS.e tags_t)
+                      (prefix suffix : F.fs (E.e tags_t) (PS.e tags_t))
+                      (e e' : E.e tags_t) (pe : PS.e tags_t)  (i : tags_t) :
+      V.value v ->
+      Forall (V.value ∘ fst) prefix ->
+      ℵ ϵ, e -->  e'->
+      let cases  := prefix ++ (e,  pe) :: suffix in
+      let cases' := prefix ++ (e', pe) :: suffix in
+      π ϵ, select v { cases } default:=d @ i-->  select v { cases' } default:=d @ i
+  | step_select_resolve (v : E.e tags_t) (d : PS.e tags_t)
+                        (cases : F.fs (E.e tags_t) (PS.e tags_t)) (i : tags_t) :
+      V.value v ->
+      Forall (V.value ∘ fst) cases ->
+      let pe := match F.get v cases with
+                | None => d
+                | Some pe => pe
+                end in
+      π ϵ, select v { cases } default:=d @ i-->  pe
+  where "'π' envn , pe1 '-->' pe2"
+          := (step_parser_expr envn pe1 pe2).
 
   Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
            (at level 40, k1 custom p4kstmt, k2 custom p4kstmt,

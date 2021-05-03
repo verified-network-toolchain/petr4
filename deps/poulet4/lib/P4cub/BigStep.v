@@ -912,7 +912,7 @@ Module Step.
                 end in
       P ϵ p{ select e { cases } default:=def @ i }p st.
 
-    Definition custom_parser_expr_big_step :
+    Definition custom_parser_expr_big_step_ind :
       forall (ϵ : epsilon) (e : PS.e tags_t) (st : PS.state),
         ⦑ ϵ, e ⦒ ⇓ st -> P ϵ e st :=
       fix pebsind ϵ e st H :=

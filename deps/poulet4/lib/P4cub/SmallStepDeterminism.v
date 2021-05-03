@@ -2,6 +2,7 @@ Require Import Poulet4.P4cub.SmallStep.
 
 Module P := Poulet4.P4cub.AST.P4cub.
 Module E := P.Expr.
+Module PS := P.Parser.ParserState.
 Import P.P4cubNotations.
 Import Step.
 Import F.FieldTactics.
@@ -30,17 +31,18 @@ Section Determinism.
     Qed.
   End Lemmas.
 
+  Ltac step_value :=
+    match goal with
+    | He : (ℵ _, ?e -->  _), Hv : (V.value ?e)
+      |- _ => apply step_value_false in He; contradiction
+    | He : (ℵ _, ?e -->  _)
+      |- ~ V.value ?e => apply step_value_false in He; assumption
+    end.
+  (**[]*)
+
   Local Hint Extern 0 => solve_eqn : core.
 
   Section ExprDeterminism.
-    Ltac step_value :=
-      match goal with
-      | He : (ℵ _, ?e -->  _), Hv : (V.value ?e)
-        |- _ => apply step_value_false in He; contradiction
-      | He : (ℵ _, ?e -->  _)
-        |- ~ V.value ?e => apply step_value_false in He; assumption
-      end.
-    (**[]*)
     Local Hint Extern 0 => step_value : core.
 
     Ltac ind_case :=
@@ -81,12 +83,30 @@ Section Determinism.
     Qed.
   End ExprDeterminism.
 
-  Section LValueDeterminism.
-    Lemma lvalue_deterministic : forall (e e1 e2 : E.e tags_t),
+  Lemma lvalue_deterministic : forall (e e1 e2 : E.e tags_t),
       ℶ e -->  e1 -> ℶ e -->  e2 -> e1 = e2.
+  Proof.
+    intros e e1 e2 H1; generalize dependent e2;
+    induction H1; intros e2 H2; inv H2; f_equal; auto 2.
+  Qed.
+  Section ParserExprDeterminism.
+    Local Hint Extern 0 => step_value : core.
+    Local Hint Resolve expr_deterministic : core.
+    Hint Rewrite Forall_app : core.
+    Local Hint Extern 0 => inv_Forall_cons : core.
+
+    Lemma parser_expr_deterministic :
+      forall ϵ (e e1 e2 : PS.e tags_t),
+        π ϵ, e -->  e1 -> π ϵ, e -->  e2 -> e1 = e2.
     Proof.
-      intros e e1 e2 H1; generalize dependent e2;
-      induction H1; intros e2 H2; inv H2; f_equal; auto 2.
+      intros ϵ e e1 e2 He1; generalize dependent e2;
+      induction He1; intros e2 He2;
+      inv He2; f_equal; repeat subst_term;
+      autorewrite with core in *; intuition; unravel in *; eauto 2.
+      assert (~ (V.value ∘ fst) (e, pe)) by (unravel; auto 1).
+      assert (~ (V.value ∘ fst) (e0, pe0)) by (unravel; auto 1).
+      eapply Forall_until_eq in H4 as [? [? ?]]; eauto 1; subst;
+      repeat f_equal; inv H5; eauto 2.
     Qed.
-  End LValueDeterminism.
+  End ParserExprDeterminism.
 End Determinism.

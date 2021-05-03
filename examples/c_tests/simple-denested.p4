@@ -34,10 +34,10 @@ action do_drop(out bool forward) {
 control MyC(inout header_t hdrs, out bool forward) {
     table t {
         key = { hdrs.simple.dst : exact; }
-        actions = { do_forward; do_drop; }
-        default_action = do_drop(forward);
+        actions = { do_forward(forward); do_drop(forward); }
+        default_action = do_drop;
         const entries = {
-            0x0: do_forward(forward);
+            0x0: do_forward;
         }
     }
     apply {

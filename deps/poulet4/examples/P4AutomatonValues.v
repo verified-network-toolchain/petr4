@@ -1159,10 +1159,6 @@ Section parser_to_p4automaton.
       end
     .
 
-    (* Rudy's note: I changed AST.v.
-       I made some changes to get things
-       to compile but it may be incorrect. *)
-
     Section NotationSection.
     Import P4cub.P4cubNotations.
 
@@ -1171,29 +1167,29 @@ Section parser_to_p4automaton.
       : option (list (simple_match * (string + bool)))
     :=
       match trans with
-      | p{ goto start @ _ }p => None (* AST.v change *)
+      | p{ goto start @ _ }p => None (* TODO: Implement this. *)
       | p{ goto accept @ _ }p =>
         Some ((SimpleMatchDontCare, inr true) :: nil)
       | p{ goto reject @ _ }p =>
         Some ((SimpleMatchDontCare, inr false) :: nil)
       | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
-      | p{ select select_exp { cases } default:=_ @ _ }p => (* AST.v change *)
+      | p{ select select_exp { cases } default:=def @ _ }p =>
         let* select_exp' := compile_expression select_exp in
         let fix f cases :=
           match cases with
-          | nil => Some nil
+          | nil =>
+            compile_transition def
           | (case_exp, case_trans) :: cases' =>
             let* child_clauses := compile_transition case_trans in
-            let* augmented_clauses := (* AST.v change *)
-                let* case_exp' := compile_expression case_exp in
-                Some (map (
-                  fun '(clause, target) =>
-                  (SimpleMatchAnd
-                    (SimpleMatchEquals select_exp' case_exp')
-                    clause,
-                   target)
-                ) child_clauses) in
+            let* case_exp' := compile_expression case_exp in
+            let augmented_clauses :=
+              map (
+                fun '(clause, target) =>
+                (SimpleMatchAnd (SimpleMatchEquals select_exp' case_exp')
+                                clause,
+                 target)
+              ) child_clauses in
             let* tail := f cases' in
             Some (augmented_clauses ++ tail)
           end in

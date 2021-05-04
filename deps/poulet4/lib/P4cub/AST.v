@@ -653,7 +653,7 @@ Module P4cub.
       Import MatchkindNotations.
 
       (** An arbitrary predicate. *)
-      Context {tags_t : Type}.
+      Variable tags_t : Type.
 
       Variable P : e tags_t -> Prop.
 
@@ -1141,6 +1141,7 @@ Module P4cub.
         Local Hint Extern 5 => equiv_dec_refl_tactic : core.
         Hint Rewrite (@relop_eq string).
 
+        (* TODO: somehow using a hidden axiom as an assumption. *)
         Lemma equive_eqbe : forall e1 e2 : e tags_t,
             ∮ e1 ≡ e2 -> eqbe e1 e2 = true.
         Proof.

@@ -264,8 +264,8 @@ Section ParserExprTheorems.
 
   Section Progress.
     Local Hint Constructors step_parser_expr : core.
-    Hint Rewrite app_nil_r : core.
     Hint Rewrite Forall_app : core.
+    Hint Resolve value_exm : core.
 
     Inductive select_expr : PS.e tags_t -> Prop :=
       Select_select e d cases i :
@@ -279,15 +279,15 @@ Section ParserExprTheorems.
     Proof.
       intros e Hs He; induction He using check_prsrexpr_ind; inv Hs.
       eapply expr_small_step_progress in H as [Hev | [e' He']]; eauto 3.
-      (*pose proof Forall_exists_prefix_only_or_all
-           (value ∘ fst) cases
-        as [Hall | [ee [prf [suf [Heq [Hprf Hee]]]]]].*)
-      (*pose proof Forall_exists_prefix (value ∘ fst) cases
-           as [prf [[| [ee pe] suf] [eq_prf_suf Hprf]]];
-      unravel in *; subst; autorewrite with core in *;
-      intuition; try inv_Forall_cons; unravel in *;
-      intuition;  eauto 3.
-      eapply expr_small_step_progress in H1 as [ee' ?]; eauto 1. *)
-    Admitted.
+      pose proof Forall_exists_prefix_only_or_all (value ∘ fst) cases
+        as [Hall | [[ee pe] [prf [suf [Heq [Hprf Hee]]]]]];
+      subst; autorewrite with core in *; eauto 3.
+      - intros [? ?]; unravel; auto 1.
+      - unravel in *; intuition; inv_Forall_cons;
+        intuition; unravel in *.
+        eapply expr_small_step_progress in H1 as [? | [ee' ?]];
+        eauto 1; try contradiction.
+        exists (PS.PSelect e def (prf ++ (ee', pe) :: suf) i); eauto 2.
+    Qed.
   End Progress.
 End ParserExprTheorems.

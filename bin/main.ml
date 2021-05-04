@@ -201,7 +201,7 @@ let switch_command =
      +> flag "-i" (listed string) ~doc: "Specify the names by which the ports will be identified"
      +> anon ("p4file" %: string))
     (fun verbose include_dir target pts p4_file () ->
-       let _ = Petr4_unix.Runtime_server.listen ~handlers:(fun _ -> ()) () in
+       let _ = Petr4_unix.Runtime_server.listen ~handlers:handle_message () in
        start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
 let command =

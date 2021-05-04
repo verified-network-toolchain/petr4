@@ -113,8 +113,32 @@ Module IsValue.
         end.
   End IsValueInduction.
 
-  Lemma value_exm : forall {tags_t : Type} (e : E.e tags_t), value e \/ ~ value e.
-  Admitted.
+  Section Lemmas.
+    Import F.FieldTactics.
+
+    Hint Constructors value : core.
+    Hint Extern 0 => inv_Forall_cons : core.
+
+    Lemma value_exm : forall {tags_t : Type} (e : E.e tags_t), value e \/ ~ value e.
+    Proof.
+      induction e using E.custom_e_ind; auto 2;
+      try (right; intros H'; inv H'; contradiction).
+      - assert (Forall value es \/ ~ Forall value es).
+        { ind_list_Forall; intuition. }
+        intuition. right; intros H'; inv H'. contradiction.
+      - assert (F.predfs_data (value ∘ snd) fields \/
+                ~ F.predfs_data (value ∘ snd) fields).
+        { ind_list_predfs; unfold F.predfs_data in *; intuition. }
+        intuition. right; intros H'; inv H'. contradiction.
+      - assert (F.predfs_data (value ∘ snd) fields \/
+                ~ F.predfs_data (value ∘ snd) fields).
+        { ind_list_predfs; unfold F.predfs_data in *; intuition. }
+        intuition; right; intros H'; inv H'; contradiction.
+      - assert (Forall value hs \/ ~ Forall value hs).
+        { ind_list_Forall; intuition. }
+        intuition. right; intros H'; inv H'. contradiction.
+    Qed.
+  End Lemmas.
 
   Inductive lvalue {tags_t : Type} : E.e tags_t -> Prop :=
   | lvalue_var x τ i :
@@ -1041,7 +1065,7 @@ Module Step.
   Reserved Notation "'π' envn , pe1 '-->' pe2"
            (at level 40, pe1 custom p4prsrexpr, pe2 custom p4prsrexpr).
 
-  Inductive step_parser_expr {tags_t : Type} (ϵ : eenv)
+  Inductive step_parser_expr {tags_t : Type} (ϵ : @eenv tags_t)
     : PS.e tags_t -> PS.e tags_t -> Prop :=
   | step_select_discriminee (e e' : E.e tags_t) (d : PS.e tags_t)
                             (cases : F.fs (E.e tags_t) (PS.e tags_t)) (i : tags_t) :

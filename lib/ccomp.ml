@@ -20,6 +20,22 @@ let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
 
+let rec get_expr_name (e: Prog.Expression.t) : C.cname =
+  match (snd e).expr with
+  | ExpressionMember x -> get_expr_name x.expr ^ "." ^ snd x.name 
+  | FunctionCall x -> failwith "a"
+  | NamelessInstantiation x -> failwith "b"
+  | String s -> failwith (snd s)
+  | Mask x -> failwith "dsjak"
+  | Name n -> begin match n with 
+      | BareName str -> snd str 
+      | _ -> failwith "unimplemented" end 
+  | True ->  "true"
+  | False -> "false"
+  | Int i -> Bigint.to_string (snd i).value
+  | Cast {typ ; expr} -> get_expr_name expr
+  | _ -> failwith "unimplementeddj"
+
 let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName str) -> C.CVar (snd str)
@@ -38,12 +54,18 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
       | BitNot -> CUOpBitNot (translate_expr arg)
       | UMinus -> CUOpUMinus (translate_expr arg)
     end 
+  | FunctionCall {func; type_args; args} -> 
+    let rec get_args (a : Prog.Expression.t option list) = 
+      match a with 
+      | [] -> []
+      | (Some h)::t -> translate_expr h::get_args t 
+      | None::t -> get_args t in
+    CCall ((get_expr_name func), get_args args)
   | Record r -> failwith "f" 
   | BinaryOp b -> failwith "f"
   | TypeMember t-> failwith "f"
   | ErrorMember e -> failwith "f"
   | Ternary t -> failwith "f"
-  | FunctionCall x -> failwith "f"
   | NamelessInstantiation x -> failwith "f"
   | Mask x -> failwith "f"
   | Range r -> failwith "f"

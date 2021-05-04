@@ -34,6 +34,17 @@ Reserved Notation "⦉ ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ aa2 , ts2 �
 Reserved Notation "⦇ cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ins2 , fns2 , cs2 ⦈"
          (at level 40, d custom p4topdecl).
 
+Reserved Notation  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final ⟩"
+         (at level 40, strt custom p4prsrstateblock,
+          curr custom p4prsrstate,
+          ϵ2 custom p4env,
+          final custom p4prsrstate).
+
+Reserved Notation "Δ ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
+         (at level 40, currb custom p4prsrstateblock,
+          ϵ2 custom p4env,
+          next custom p4prsrstate).
+
 Module Step.
   Module P := P4cub.
   Module E := P.Expr.
@@ -51,7 +62,8 @@ Module Step.
   Inductive signal : Type :=
   | SIG_Cont                  (* continue *)
   | SIG_Exit                  (* exit *)
-  | SIG_Rtrn (v : option V.v) (* return *).
+  | SIG_Rtrn (v : option V.v) (* return *)
+  | SIG_Rjct                  (* reject *).
 
   Notation "x"
     := x (in custom p4evalsignal at level 0, x constr at level 0).
@@ -486,7 +498,8 @@ Module Step.
         is interrupted by an exit or return statement. *)
     Inductive interrupt : signal -> Prop :=
     | interrupt_exit : interrupt SIG_Exit
-    | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo).
+    | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo)
+    | interrupt_rjct : interrupt SIG_Rjct.
     (**[]*)
 
     Context {tags_t : Type}.
@@ -509,7 +522,9 @@ Module Step.
     | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
             (tbls : tenv) (aa : aenv)
             (apply_blk : ST.s tags_t)  (* control instance *)
-    | PInst (* TODO: parser instance *)
+    | PInst (closure : epsilon) (fs : fenv) (ins : ienv)
+            (strt : PS.state_block tags_t)
+            (states : F.fs string (PS.state_block tags_t))
     | EInst (* TODO: extern object instance *)
     with ienv : Type :=
     | IEnv (ins : Env.t string inst).
@@ -948,6 +963,15 @@ Module Step.
     (**[]*)
   End ParserExprInduction.
 
+  Definition get_state_block {tags_t : Type}
+             (strt : PS.state_block tags_t)
+             (states : F.fs string (PS.state_block tags_t))
+             (curr : PS.state) : option (PS.state_block tags_t) :=
+    match curr with
+    | ={ start }= => Some strt
+    | ={ δ x }=  => F.get x states
+    | _ => None end.
+
   (** Statement big-step semantics. *)
   Inductive stmt_big_step
             {tags_t : Type} (cp : ctrl) (ts : tenv) (aa : aenv)
@@ -1071,12 +1095,12 @@ Module Step.
       (* Assignment to lvalue. *)
       lv_update lv v ϵ''' = ϵ'''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
-  | sbs_apply (args : E.args tags_t)
-              (argsv : V.argsv)
-              (x : string) (i : tags_t)
-              (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
-              (tblclosure : tenv) (aclosure : aenv)
-              (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) :
+  | sbs_ctrl_apply (args : E.args tags_t)
+                   (argsv : V.argsv)
+                   (x : string) (i : tags_t)
+                   (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
+                   (tblclosure : tenv) (aclosure : aenv)
+                   (closure ϵ' ϵ'' ϵ''' : epsilon) :
       (* Instance lookup. *)
       ilookup ins x = Some (CInst closure fclosure iins tblclosure aclosure body) ->
       (* Argument evaluation. *)
@@ -1091,7 +1115,51 @@ Module Step.
       ⟪ cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
       (* Copy-out. *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+  | sbs_prsr_accept_apply (args : E.args tags_t)
+                          (argsv : V.argsv)
+                          (x : string) (i : tags_t)
+                          (strt : PS.state_block tags_t)
+                          (states : F.fs string (PS.state_block tags_t))
+                          (fclosure : fenv) (iins : ienv)
+                          (closure ϵ' ϵ'' ϵ''' : epsilon) :
+      (* Instance lookup *)
+      ilookup ins x = Some (PInst closure fclosure iins strt states) ->
+      (* Argument evaluation *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
+        args argsv ->
+      (* Copy-in *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* state machine evaluation *)
+      bigstep_state_machine cp ts aa fs ins ϵ' strt states ={start}= ϵ'' ={accept}= ->
+      (* copy-out *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+  | sbs_prsr_reject_apply (args : E.args tags_t)
+                          (argsv : V.argsv)
+                          (x : string) (i : tags_t)
+                          (strt : PS.state_block tags_t)
+                          (states : F.fs string (PS.state_block tags_t))
+                          (fclosure : fenv) (iins : ienv)
+                          (closure ϵ' ϵ'' ϵ''' : epsilon) :
+      (* Instance lookup *)
+      ilookup ins x = Some (PInst closure fclosure iins strt states) ->
+      (* Argument evaluation *)
+      F.relfs
+        (P.rel_paramarg
+           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun '(_,e) lv => ⧠ e ⇓ lv))
+        args argsv ->
+      (* Copy-in *)
+      copy_in argsv ϵ closure = ϵ' ->
+      (* state machine evaluation *)
+      bigstep_state_machine cp ts aa fs ins ϵ' strt states ={start}= ϵ'' ={reject}= ->
+      (* copy-out *)
+      copy_out argsv ϵ'' ϵ = ϵ''' ->
+      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct ⟫
   | sbs_invoke (x : string) (i : tags_t)
                (es : entries)
                (ky : list (E.t * E.e tags_t * E.matchkind))
@@ -1108,7 +1176,52 @@ Module Step.
       ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
       ⟪ cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
   where "⟪ cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
-          := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig).
+          := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig)
+
+  with bigstep_state_machine {tags_t : Type}
+         (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
+         (ins : ienv) (ϵ : epsilon) :
+         PS.state_block tags_t -> (F.fs string (PS.state_block tags_t)) ->
+         PS.state -> epsilon -> PS.state -> Prop :=
+  | bsm_accept (strt : PS.state_block tags_t)
+               (states : F.fs string (PS.state_block tags_t))
+               (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
+      get_state_block strt states curr = Some currb ->
+      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' ={ accept }= ->
+      bigstep_state_machine cp ts aa fs ins ϵ strt states curr ϵ' ={ accept }=
+  | bsm_reject (strt : PS.state_block tags_t)
+               (states : F.fs string (PS.state_block tags_t))
+               (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
+      get_state_block strt states curr = Some currb ->
+      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' ={ reject }= ->
+      bigstep_state_machine cp ts aa fs ins ϵ strt states curr ϵ' ={ reject }=
+  | bsm_continue (strt : PS.state_block tags_t)
+                 (states : F.fs string (PS.state_block tags_t))
+                 (curr : PS.state) (currb : PS.state_block tags_t)
+                 (next : PS.state) (final : PS.state) (ϵ' ϵ'' : epsilon) :
+      get_state_block strt states curr = Some currb ->
+      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' next ->
+      bigstep_state_machine cp ts aa fs ins ϵ' strt states next ϵ'' final ->
+      Δ`(cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ ϵ'', final ⟩
+  where  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final ⟩"
+           := (bigstep_state_machine cs1 tenv aenv fenv ienv ϵ1 strt states curr ϵ2 final)
+
+  with bigstep_state_block {tags_t : Type}
+         (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
+         (ins : ienv) (ϵ : epsilon) :
+         PS.state_block tags_t -> epsilon -> PS.state -> Prop :=
+  | bsb_reject (s : ST.s tags_t) (e : PS.e tags_t)
+               (ϵ' : epsilon) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct ⟫ ->
+      bigstep_state_block cp ts aa fs ins ϵ &{ state{s} transition e }& ϵ' ={reject}=
+  | bsb_cont (s : ST.s tags_t) (e : PS.e tags_t)
+             (st : PS.state) (ϵ' : epsilon) :
+      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
+      ⦑ ϵ', e ⦒ ⇓ st ->
+      bigstep_state_block cp ts aa fs ins ϵ &{ state{s} transition e }& ϵ' st
+  where "Δ ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
+  := (bigstep_state_block cs1 tenv aenv fenv ienv ϵ1 currb ϵ2 next).
+
 
   (** Control declaration big-step semantics. *)
   Inductive ctrldecl_big_step

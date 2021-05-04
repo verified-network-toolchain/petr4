@@ -56,7 +56,9 @@ Module Ops.
                    else Some (ValBaseBit w (BitArith.div_mod w n1 n2))
     | Mod       => if n2 =? 0 then None
                    else Some (ValBaseBit w (BitArith.modulo_mod w n1 n2)) 
+    (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
+    (* not allowed *)
     | And
     | Or      => None
     end.
@@ -76,7 +78,9 @@ Module Ops.
     | BitAnd    => Some (ValBaseInt w (IntArith.bit_and w n1 n2))
     | BitXor    => Some (ValBaseInt w (IntArith.bit_xor w n1 n2))
     | BitOr     => Some (ValBaseInt w (IntArith.bit_or  w n1 n2))
+    (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
+    (* not allowed *)
     | Div
     | Mod
     | And
@@ -97,7 +101,9 @@ Module Ops.
     | Ge        => Some (ValBaseBool (n1 >=? n2))
     | Lt        => Some (ValBaseBool (n1 <? n2))
     | Gt        => Some (ValBaseBool (n1 >? n2))
+    (* implemented elsewhere *)
     | Shl | Shr | Eq | NotEq
+    (* not allowed *)
     | PlusPlus
     | PlusSat
     | MinusSat

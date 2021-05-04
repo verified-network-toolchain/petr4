@@ -117,17 +117,22 @@ let stf_command =
     (fun verbose include_dir stf_file p4_file () ->
 	 do_stf include_dir stf_file p4_file)
 
+(***** Switch *****)
+let entries : Prog.Value.entries ref = ref ([],[])
+
 let start_v1switch env prog sockets =
   let open Eval in
   let open V1Interpreter in
   let (env, st) = init_switch env prog in
   let socks = List.map sockets
     ~f:(fun (i, sock) -> i, Lwt_rawlink.read_packet sock) in
-  let rec loop socks ctrl st : unit Lwt.t =
+  let rec loop socks st : unit Lwt.t =
     List.map socks
       ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
-    |> Lwt.choose >>=
-    fun (i, pkt) -> switch_packet ctrl env st pkt (Bigint.of_int i) |> Lwt.return >>=
+    |> Lwt.choose >>=      
+    fun (i, pkt) -> 
+    let ctrl = (!entries,[]) in
+    switch_packet ctrl env st pkt (Bigint.of_int i) |> Lwt.return >>=
     fun (st, pkt) ->
     begin match pkt with
       | [] -> [Lwt.return ()]
@@ -140,11 +145,12 @@ let start_v1switch env prog sockets =
       let socks = List.Assoc.remove socks i ~equal:Int.equal in
       let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
       let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
-      loop socks ctrl st in
+      loop socks st in
   (* only concern: should the output of the evaluator be bound to the next iteration
      of the loop? would this cause us to miss some packets that arrive while the first
      ones are still being put through the interpreter? *)
-  loop socks (([],[]), []) st
+  loop socks st
+
 
 let start_switch verbose include_dir target pts p4_file =
   (* TODO: add a control plane socket *)
@@ -167,6 +173,23 @@ let start_switch verbose include_dir target pts p4_file =
     let info_string = Info.to_string info in
     Format.sprintf "%s\n%s" info_string exn_msg |> print_string |> Lwt.return
 
+let do_insert (table:string) (matches:(string * string) list) (action:string) (action_data:(string * string) list) : unit = 
+  let mk_num x : Ast.number_or_lpm = Ast.Num x in
+  let mk_table : Ast.qualified_name = table in 
+  let mk_priority : int option = None in
+  let mk_matches : Ast.match_ list = List.map matches ~f:(fun (key,pat) -> (key, mk_num pat)) in 
+  let mk_action : Ast.action = (action, action_data) in
+  let mk_id : Ast.id option = None in
+  let entry = (mk_priority, mk_matches, mk_action, mk_id) in
+  let l1,l2 = !entries in 
+  let old_entries = match List.Assoc.find l1 mk_table ~equal:String.(=) with None -> [] | Some l -> l in
+  let l1' = List.Assoc.add l1 mk_table ~equal:String.(=) (entry::old_entries) in 
+  entries := (l1',l2)
+
+let handle_message = function
+  | Runtime.Insert { table; matches; action; action_data } -> 
+     do_insert table matches action action_data
+
 let switch_command =
   let open Command.Spec in
   Command.basic_spec
@@ -181,13 +204,6 @@ let switch_command =
        let _ = Petr4_unix.Runtime_server.listen ~handlers:(fun _ -> ()) () in
        start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
-let runtime_command = 
-  let open Command.Spec in
-  Command.basic_spec 
-    ~summary: "Set up a dummy runtime server for testing"
-    (empty)
-    (fun () -> Petr4_unix.Runtime_server.listen ~handlers:(fun _ -> ()) () |> Lwt_main.run)
-
 let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
@@ -196,7 +212,6 @@ let command =
       "run", eval_command;
       "stf", stf_command;
       "switch", switch_command;
-      "runtime", runtime_command; 
     ]
 
 let () = Command.run ~version: "0.1.2" command

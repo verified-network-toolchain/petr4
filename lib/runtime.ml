@@ -1,6 +1,6 @@
 type message = 
   | Insert of { table : string; 
-                pattern : string; 
+                matches : (string * string) list;
                 action : string; 
-                action_data : string list }
+                action_data : (string * string) list }
    [@@deriving yojson]

@@ -188,6 +188,7 @@ let do_insert (table:string) (matches:(string * string) list) (action:string) (a
 
 let handle_message = function
   | Runtime.Insert { table; matches; action; action_data } -> 
+     Printf.eprintf "Insert: %s %s\n%!" table action; 
      do_insert table matches action action_data
 
 let switch_command =
@@ -204,6 +205,13 @@ let switch_command =
        let _ = Petr4_unix.Runtime_server.listen ~handlers:handle_message () in
        start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
+let runtime_command = 
+  let open Command.Spec in
+  Command.basic_spec 
+    ~summary: "Set up a dummy runtime server for testing"
+    (empty)
+    (fun () -> Petr4_unix.Runtime_server.listen ~handlers:handle_message () |> Lwt_main.run)
+
 let command =
   Command.group
     ~summary: "Petr4: A reference implementation of the P4_16 language"
@@ -212,6 +220,7 @@ let command =
       "run", eval_command;
       "stf", stf_command;
       "switch", switch_command;
+      "runtime", runtime_command;
     ]
 
 let () = Command.run ~version: "0.1.2" command

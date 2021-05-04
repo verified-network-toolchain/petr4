@@ -23,7 +23,7 @@ class App(object):
 
     def insert(self, entry):
         entry_json = json.dumps(entry.to_json())
-        url = "http://%s:%s/%s/insert" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
+        url = "http://%s:%s/%s/message" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
         request = HTTPRequest(url,method='POST',body=entry_json)
         return self.__http_client.fetch(request)
 
@@ -49,7 +49,7 @@ class App(object):
         try:
             response = response_future.result()
             print(f"GOT VERSION { response.body }")
-            self.__poll_event()
+            # self.__poll_event()
             self.connected()
         except httpclient.HTTPError as e:
             if e.code == 599:
@@ -63,38 +63,38 @@ class App(object):
         print("Starting the tornado event loop (does not return).")
         IOLoop.instance().start()
 
-    def __poll_event(self):
-        url = "http://%s:%s/%s/event" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
-        req = HTTPRequest(url, method='GET',request_timeout=0)
-        resp_fut = self.__http_client.fetch(req)
-        IOLoop.instance().add_future(resp_fut, self.__handle_event)
+    # def __poll_event(self):
+    #     url = "http://%s:%s/%s/event" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
+    #     req = HTTPRequest(url, method='GET',request_timeout=0)
+    #     resp_fut = self.__http_client.fetch(req)
+    #     IOLoop.instance().add_future(resp_fut, self.__handle_event)
 
-    def __handle_event(self, response):
-        try: 
-            event =  json.loads(response.result().body)
-            if isinstance(event, list) or 'type' not in event:
-                typ = "UNKNOWN"
-            else:
-                typ = event['type']
-            if typ == 'switch_up':
-                switch_id = event['switch_id']
-                ports = event['ports']
-                self.switch_up(switch_id, ports)
-            elif typ == 'switch_down':
-                switch_id = event['switch_id']
-                self.switch_down(switch_id)
+    # def __handle_event(self, response):
+    #     try: 
+    #         event =  json.loads(response.result().body)
+    #         if isinstance(event, list) or 'type' not in event:
+    #             typ = "UNKNOWN"
+    #         else:
+    #             typ = event['type']
+    #         if typ == 'switch_up':
+    #             switch_id = event['switch_id']
+    #             ports = event['ports']
+    #             self.switch_up(switch_id, ports)
+    #         elif typ == 'switch_down':
+    #             switch_id = event['switch_id']
+    #             self.switch_down(switch_id)
 
-            self.__poll_event()
+    #         self.__poll_event()
 
-        except httpclient.HTTPError as e:
-            if e.code == 599:
-                current_time = time.strftime("%c")
-                print(f"{current_time} Petr4 crashed, re-trying in 5 seconds....")
-                five_seconds = timedelta(seconds = 5)
+    #     except httpclient.HTTPError as e:
+    #         if e.code == 599:
+    #             current_time = time.strftime("%c")
+    #             print(f"{current_time} Petr4 crashed, re-trying in 5 seconds....")
+    #             five_seconds = timedelta(seconds = 5)
 
-                # We wait for a connect instead of going through the loop again.
-                IOLoop.instance().add_timeout(five_seconds,self.__connect)
-            else:
-                raise e
+    #             # We wait for a connect instead of going through the loop again.
+    #             IOLoop.instance().add_timeout(five_seconds,self.__connect)
+    #         else:
+    #             raise e
 
  

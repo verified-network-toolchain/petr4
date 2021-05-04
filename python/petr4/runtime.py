@@ -4,10 +4,17 @@ import collections
 
 class Entry(object):
 
-    def __init__(self, match, action, action_data):
-        self.match = match
+    def __init__(self, table, match, action, action_data):
+        self.table = table
+        self.match = []
         self.action = action
-        self.action_data = action_data
+        self.action_data = []
+        print(f"Made entry")
 
     def to_json(self):
-        return { "match": self.match, "action" : self.action, "action_data" : self.action_data }
+        return ("Entry", 
+                { "table" : self.table, 
+                  "match": self.match, 
+                  "action" : self.action, 
+                  "action_data" : self.action_data })
+                

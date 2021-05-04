@@ -31,7 +31,24 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   | Int i -> CIntLit (Bigint.to_int_exn (snd i).value)
   | Cast {expr; _} -> translate_expr expr
   | String s -> CString (snd s)
-  | _ -> failwith "translate_expr unimplemented"
+  | List {values} -> CList (List.map ~f:translate_expr values)
+  | DontCare -> CString ""
+  | UnaryOp {op; arg} -> begin match snd op with  
+      | Not -> CUOpNot (translate_expr arg)
+      | BitNot -> CUOpBitNot (translate_expr arg)
+      | UMinus -> CUOpUMinus (translate_expr arg)
+    end 
+  | Record r -> failwith "f" 
+  | BinaryOp b -> failwith "f"
+  | TypeMember t-> failwith "f"
+  | ErrorMember e -> failwith "f"
+  | Ternary t -> failwith "f"
+  | FunctionCall x -> failwith "f"
+  | NamelessInstantiation x -> failwith "f"
+  | Mask x -> failwith "f"
+  | Range r -> failwith "f"
+  | ArrayAccess x -> failwith "f"
+  | BitStringAccess x -> failwith "f"
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with

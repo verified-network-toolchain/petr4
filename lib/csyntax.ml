@@ -56,5 +56,9 @@ and cexpr =
   | CEq of cexpr * cexpr  (* TODO - Ceq can be used for state->hdrs.simple.dst == 0 --> make boolean expressions with equality  *)
   | CAnd of cexpr * cexpr
   | CCast of ctyp * cexpr
+  | CList of cexpr list 
+  | CUOpNot of cexpr 
+  | CUOpBitNot of cexpr 
+  | CUOpUMinus of cexpr
 
 type cprog = cdecl list

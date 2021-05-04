@@ -119,7 +119,7 @@ and format_cexpr (expr: cexpr) =
       | true -> text "true"
       | false -> text "false" end 
   | CString cname ->
-     verbatim ("\"" ^ cname ^ "\"")
+    verbatim ("\"" ^ cname ^ "\"")
   | CGeq (e1, e2) ->
     box (format_cexpr e1
          ++ text " >= "
@@ -131,17 +131,30 @@ and format_cexpr (expr: cexpr) =
          ++ text " == "
          ++ format_cexpr e2) 
   | CAnd (e1, e2) -> 
-     box (text "("
-          ++ format_cexpr e1
-          ++ text ") && ("
-          ++ format_cexpr e2
-          ++ text ")") 
+    box (text "("
+         ++ format_cexpr e1
+         ++ text ") && ("
+         ++ format_cexpr e2
+         ++ text ")") 
   | CCast (t, e) ->
-     box (text "(("
-          ++ format_ctyp t
-          ++ text ")"
-          ++ format_cexpr e
-          ++ text ")")
+    box (text "(("
+         ++ format_ctyp t
+         ++ text ")"
+         ++ format_cexpr e
+         ++ text ")")
+  | CList (l) -> 
+    box (text "["
+         ++ format_list_sep format_cexpr ", " l
+         ++ text "]")
+  | CUOpNot (a) ->  box (text "!" ++ format_cexpr a)
+  | CUOpBitNot (a) ->  box (text "~" ++ format_cexpr a)
+  | CUOpUMinus (a) ->  box (text "-" ++ format_cexpr a)
+
+and format_list_pp_sep f sep l =
+  Pp.concat_map ~sep l ~f
+
+and format_list_sep f sep l =
+  format_list_pp_sep f (text sep) l
 
 and format_ccases (cases: ccase list) =
   concat_map ~sep:(text "\n") ~f:format_ccase cases

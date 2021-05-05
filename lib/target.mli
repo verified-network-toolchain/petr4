@@ -29,6 +29,7 @@ module State : sig
   val insert_heap : loc -> value -> 'a t -> 'a t
   val find_heap : loc -> 'a t -> value
   val is_initialized : loc -> 'a t -> bool
+  val merge : 'a t -> 'a t -> 'a t
 end
 
 type 'a writer = bool -> (string * value) list -> string -> value -> value

@@ -694,6 +694,7 @@ module PreV1Switch : Target = struct
       (pkg : pkg) : obj State.t * env * (pkt * Bigint.t) list =
 
     let port_typ = Type.Bit { width = 9 } in
+    let rid_typ = Type.Bit { width = 32 } in
 
     (* Parser invocation *)
     let st, state = eval_v1app ctrl env app "p." pkg.parser pkg.p_args st in
@@ -723,6 +724,10 @@ module PreV1Switch : Target = struct
       State.find_heap pkg.std_meta_loc st
       |> assert_struct
       |> fun x -> List.Assoc.find_exn x "mcast_grp" ~equal:String.equal in
+    let egress_port_lv =
+      std_meta_field_lv pkg.std_meta_t port_typ "egress_port" in
+    let egress_rid_lv =
+      std_meta_field_lv pkg.std_meta_t rid_typ "egress_rid" in
     if State.find_heap "__CLONE_PRIM__" st |> assert_bool
     then st, env, [] (* TODO: implement support for ingress cloning *)
     else if State.find_heap "__DIGEST_PRIM__" st |> assert_bool
@@ -730,12 +735,34 @@ module PreV1Switch : Target = struct
     else if State.find_heap "__RESUB_PRIM__" st |> assert_bool
     then st, env, [] (* TODO: implement support for resubmission *)
     else if Bigint.(bigint_of_val mcast_grp_val <> zero)
-    then st, env, [] (* TODO: implement support for multicast groups *)
+    then
+      (* Current multicast implementation simply duplicates the packet for each
+         port on the switch except for the one on which the packet arrived. *)
+      let num_ports =
+        State.find_heap "__NUM_PORTS__" st
+        |> assert_rawint
+        |> Bigint.to_int_exn in
+      let ingress_port =
+        State.find_heap "__INGRESS_PORT__" st
+        |> assert_bit
+        |> snd
+        |> Bigint.to_int_exn in
+      let instances = List.init num_ports ~f:Fn.id in
+      let instances = List.filter instances ~f:((<>) ingress_port) in
+      let f acc_st inst : obj State.t * (pkt * Bigint.t) list =
+        let egress_spec_val =
+          VBit { w = Bigint.of_int 9; v = Bigint.of_int inst } in
+        let egress_rid_val =
+          VBit { w = Bigint.of_int 16; v = Bigint.of_int inst } in
+        let acc_st, _ = assign_lvalue acc_st env egress_port_lv egress_spec_val in
+        let acc_st, _ = assign_lvalue acc_st env egress_rid_lv egress_rid_val in
+        let acc_st, _, pkts = egress_processing ctrl env acc_st app pkg in
+        State.merge st acc_st, pkts in
+      let st, output_pkts = List.fold_map instances ~init:st ~f in
+      st, env, List.concat output_pkts
     else if Bigint.(bigint_of_val egress_spec_val = drop_spec)
     then st, env, []
     else
-      let egress_port_lv =
-        std_meta_field_lv pkg.std_meta_t port_typ "egress_port" in
       let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
       egress_processing ctrl env st app pkg
 

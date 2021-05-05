@@ -65,6 +65,11 @@ module State = struct
   let is_initialized loc st =
     List.exists st.externs ~f:(fun (x,_) -> String.equal x loc)
 
+  (* heap and packet from 1, externs from 2 *)
+  let merge st1 st2 =
+    { st1 with externs = st2.externs }
+    
+
 end
 
 type 'a writer = bool -> (string * value) list -> string -> value -> value

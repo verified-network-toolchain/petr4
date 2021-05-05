@@ -845,22 +845,60 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
+Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
+
+Definition packet_in_instance : inst_mem_val := (IMInst packet_in_string [packet_in_string]).
+
+Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
+  match param with
+  | MkParameter _ _ typ _ _ =>
+      match typ with
+      | TypTypeName (BareName name) =>
+          P4String.equivb name packet_in_string
+      | _ => false
+      end
+  end.
+
+Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
+
+Definition packet_out_instance : inst_mem_val := (IMInst packet_out_string [packet_out_string]).
+
+Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
+  match param with
+  | MkParameter _ _ typ _ _ =>
+      match typ with
+      | TypTypeName (BareName name) =>
+          P4String.equivb name packet_out_string
+      | _ => false
+      end
+  end.
+
+Definition inline_packet_in_packet_out (p : path) (m : inst_mem) (param : @P4Parameter tags_t) : inst_mem :=
+  if is_packet_in param then
+    PathMap.set (p ++ [get_param_name param]) packet_in_instance m
+  else if is_packet_out param then
+    PathMap.set (p ++ [get_param_name param]) packet_out_instance m
+  else
+    m.
+
 Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ienv) (class_name : ident) (p : path)
       (m : inst_mem) (s : extern_state) {struct rev_decls} : path * inst_mem * extern_state :=
   match rev_decls with
   | decl :: rev_decls' =>
       let instantiate_decls := instantiate_decls' (instantiate_class_body rev_decls') in
       match decl with
-      | DeclParser _ class_name' _ _ _ locals states =>
+      | DeclParser _ class_name' _ params _ locals states =>
           if P4String.equivb class_name class_name' then
+            let m := fold_left (inline_packet_in_packet_out p) params m in
             let locals := concat (map get_direct_applications_ps states) in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
             let m := PathMap.set p (IMInst class_name p) m in
             (p, m, s)
           else
             instantiate_class_body rev_decls' e class_name p m s
-      | DeclControl _ class_name' _ _ _ locals apply =>
+      | DeclControl _ class_name' _ params _ locals apply =>
           if P4String.equivb class_name class_name' then
+            let m := fold_left (inline_packet_in_packet_out p) params m in
             let locals := locals ++ get_direct_applications_blk apply in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
             let m := PathMap.set p (IMInst class_name p) m in
@@ -954,10 +992,17 @@ Definition reject_state :=
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
 
+Definition is_directional (dir : direction) : bool :=
+  match dir with
+  | Directionless => false
+  | _ => true
+  end.
+
 Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
+      let params := filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [name])) states ge in
@@ -969,6 +1014,7 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
       PathMap.set (p ++ [name]) (FInternal params init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
+      let params := filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       PathMap.set (p ++ [name]) (FInternal params init apply) ge
@@ -1062,7 +1108,10 @@ Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)
     end
   end.
 
-Definition gen_ge_typ (l: list (@Declaration tags_t)): option genv_typ :=
-  add_decls_to_ge_typ (Some IdentMap.empty) l.
+Definition gen_ge_typ (prog : @program tags_t) : option genv_typ :=
+  match prog with
+  | Program l =>
+    add_decls_to_ge_typ (Some IdentMap.empty) l
+  end.
 
 End Semantics.

@@ -1095,6 +1095,32 @@ Module Step.
   Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
            (at level 40, k1 custom p4kstmt, k2 custom p4kstmt,
             ϵ1 custom p4env, ϵ2 custom p4env).
+(** TODO: Architecture & Target Issues:
+    - Need a general model for architectures & targets that is both:
+      + suitably abstract & parameterizable for all levels of compilation.
+      + constrained enough to be useful in dynamic semantics.
+    - Unsure of how to evaluate externs.
+    - Unsure of packet representation.
+    - Unsure of how to represent & evaluate pipeline.
+    ```p4
+    extern packet_in {
+        void extract<T>(out T); /// reads from packet into out var
+        T lookahead<T>(); /// reads from packet
+        void advance(in bit<32>); /// writes to packet cursor
+        bit<32> length(); /// reads from packet
+    }
+
+    extern packet_out {
+           void emit<T>(in T); /// writes to output packet
+    }
+    ```
+    Brain storm: could extern methods just be coq-functions?
+    Since they are purely semantic, do I even need a consistent
+    representation?
+
+    Perhaps all IRs share some notion of "packet",
+    and each IR may deal with extern-representations separately?
+ *)
 
   (** Statement evaluation.
       This continuation-based approach

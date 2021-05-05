@@ -40,7 +40,7 @@ Reserved Notation  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , state
           ϵ2 custom p4env,
           final custom p4prsrstate).
 
-Reserved Notation "Δ ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
+Reserved Notation "'Δ' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
          (at level 40, currb custom p4prsrstateblock,
           ϵ2 custom p4env,
           next custom p4prsrstate).
@@ -1134,7 +1134,7 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      bigstep_state_machine cp ts aa fs ins ϵ' strt states ={start}= ϵ'' ={accept}= ->
+      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=) ⇝ ⟨ϵ'', ={accept}=⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
@@ -1156,7 +1156,7 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      bigstep_state_machine cp ts aa fs ins ϵ' strt states ={start}= ϵ'' ={reject}= ->
+      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=) ⇝ ⟨ϵ'', ={reject}=⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct ⟫
@@ -1187,24 +1187,25 @@ Module Step.
                (states : F.fs string (PS.state_block tags_t))
                (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
       get_state_block strt states curr = Some currb ->
-      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' ={ accept }= ->
-      bigstep_state_machine cp ts aa fs ins ϵ strt states curr ϵ' ={ accept }=
+      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ accept }=⟩ ->
+      Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ accept }=⟩
   | bsm_reject (strt : PS.state_block tags_t)
                (states : F.fs string (PS.state_block tags_t))
                (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
       get_state_block strt states curr = Some currb ->
-      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' ={ reject }= ->
-      bigstep_state_machine cp ts aa fs ins ϵ strt states curr ϵ' ={ reject }=
+      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ reject }=⟩ ->
+      Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ reject }=⟩
   | bsm_continue (strt : PS.state_block tags_t)
                  (states : F.fs string (PS.state_block tags_t))
                  (curr : PS.state) (currb : PS.state_block tags_t)
                  (next : PS.state) (final : PS.state) (ϵ' ϵ'' : epsilon) :
       get_state_block strt states curr = Some currb ->
-      bigstep_state_block cp ts aa fs ins ϵ currb ϵ' next ->
-      bigstep_state_machine cp ts aa fs ins ϵ' strt states next ϵ'' final ->
+      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', next⟩ ->
+      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, next) ⇝ ⟨ϵ'', final⟩ ->
       Δ`(cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ ϵ'', final ⟩
   where  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final ⟩"
-           := (bigstep_state_machine cs1 tenv aenv fenv ienv ϵ1 strt states curr ϵ2 final)
+           := (bigstep_state_machine
+                 cs1 tenv aenv fenv ienv ϵ1 strt states curr ϵ2 final)
 
   with bigstep_state_block {tags_t : Type}
          (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
@@ -1213,13 +1214,13 @@ Module Step.
   | bsb_reject (s : ST.s tags_t) (e : PS.e tags_t)
                (ϵ' : epsilon) :
       ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct ⟫ ->
-      bigstep_state_block cp ts aa fs ins ϵ &{ state{s} transition e }& ϵ' ={reject}=
+      Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', ={reject}=⟩
   | bsb_cont (s : ST.s tags_t) (e : PS.e tags_t)
              (st : PS.state) (ϵ' : epsilon) :
       ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
       ⦑ ϵ', e ⦒ ⇓ st ->
-      bigstep_state_block cp ts aa fs ins ϵ &{ state{s} transition e }& ϵ' st
-  where "Δ ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
+      Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', st⟩
+  where "'Δ' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
   := (bigstep_state_block cs1 tenv aenv fenv ienv ϵ1 currb ϵ2 next).
 
 

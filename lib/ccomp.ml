@@ -32,6 +32,27 @@ let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   | Cast {typ ; expr} -> get_expr_name expr
   | _ -> failwith "unimplemented"
 
+let get_name (n: Types.name) = 
+  match n with 
+  | BareName b -> b
+  | _ -> failwith "faa"
+
+let translate_type (typ: Typed.Type.t) : C.ctyp =
+  match typ with
+  | Typed.Type.Bool -> C.CBool
+  | Typed.Type.TypeName (BareName n) ->
+    C.CTypeName (snd n)
+  | Typed.Type.Bit {width = 8} ->
+    C.CBit8
+  | _ -> failwith "incomplete"
+
+let get_ctyp (typ : string) : C.ctyp = 
+  match typ with 
+  | "int" -> C.CInt
+  | "void" -> C.CVoid
+  | "char" -> C.CChar
+  | _ -> failwith "unimplemented"
+
 let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName str) -> C.CVar (snd str)
@@ -58,12 +79,12 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
       | None::t -> get_args t in
     CCall ((get_expr_name func), get_args args)
   | BinaryOp {op; args} -> CBinOp (op, translate_expr (fst args), translate_expr (snd args))
-  | TypeMember t-> failwith "f"
+  | TypeMember {typ; name} -> CTypeMember (typ |> get_name |> snd |> get_ctyp, C.CString (snd name))
   | ErrorMember e -> failwith "f"
   | Ternary t -> failwith "f"
   | NamelessInstantiation x -> failwith "f"
   | ArrayAccess x -> failwith "f"
-  | BitStringAccess x -> failwith "f"
+  | BitStringAccess x -> failwith "f" 
   | Mask x -> failwith "f"
   | Record r -> failwith "f" 
   | Range r -> failwith "f"
@@ -118,11 +139,6 @@ let assert_packet_out (typ: Typed.Type.t) : unit =
 
 let cast_to_void_ptr (e: C.cexpr) : C.cexpr =
   C.CCast (CPtr CVoid, e)
-
-let get_name (n: Types.name) = 
-  match n with 
-  | BareName b -> b
-  | _ -> failwith "faa"
 
 let rec get_expr_c (e: Prog.Expression.t) : C.cexpr =
   (* todo: expand get_expr_c  *)
@@ -472,15 +488,6 @@ and translate_field (field: Prog.Declaration.field) : C.cfield =
 and translate_fields (fields: Prog.Declaration.field list) =
   fields
   |> List.map ~f:translate_field
-
-and translate_type (typ: Typed.Type.t) : C.ctyp =
-  match typ with
-  | Typed.Type.Bool -> C.CBool
-  | Typed.Type.TypeName (BareName n) ->
-    C.CTypeName (snd n)
-  | Typed.Type.Bit {width = 8} ->
-    C.CBit8
-  | _ -> failwith "incomplete"
 
 let translate_prog map ((Program prog): Prog.program) : C.cprog =
   prog

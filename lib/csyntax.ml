@@ -60,6 +60,7 @@ and cexpr =
   | CUOpBitNot of cexpr 
   | CUOpUMinus of cexpr
   | CBinOp of op * cexpr * cexpr 
+  | CTypeMember of ctyp * cexpr
 
 
 type cprog = cdecl list

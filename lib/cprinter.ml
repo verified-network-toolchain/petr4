@@ -164,6 +164,19 @@ and format_cexpr (expr: cexpr) =
       | Or -> " || "
     in (e1 |> format_cexpr) ++ (bop |> text) ++
        (format_cexpr e2) |> hbox
+  | CTypeMember (typ, e) ->
+    let t = match typ with
+      | CVoid -> "void"
+      | CInt -> "int"
+      | CChar -> "char"
+      | CBit8 -> "bit8"
+      | CUInt -> "unsigned int"
+      | CBool -> "bool"
+      | CTypeName n -> "type name"
+      | CPtr p -> "*"
+    in (t |> text) ++ ("." |> text) ++
+       (format_cexpr e) |> box
+
 
 and format_list_pp_sep f sep l =
   Pp.concat_map ~sep l ~f

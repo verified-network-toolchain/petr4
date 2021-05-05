@@ -71,7 +71,7 @@ module type RunnerConfig = sig
   type st
 
   val eval_program : Prog.Value.ctrl -> Prog.Env.EvalEnv.t -> st -> Prog.Value.buf ->
-    Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) list
+    Bigint.t -> Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) list
 end
 
 module MakeRunner (C : RunnerConfig) = struct  
@@ -80,7 +80,7 @@ module MakeRunner (C : RunnerConfig) = struct
       (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) list =
     let pkt_in = Cstruct.of_hex pkt_in in
     let port = Bigint.of_int port in
-    C.eval_program (add, []) env st pkt_in port prog
+    C.eval_program (add, []) env st pkt_in port Bigint.zero prog
 
   let update lst name v =
     match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with

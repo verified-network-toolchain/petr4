@@ -107,7 +107,7 @@ module PreEbpfFilter : Target = struct
     | "hash_table" -> eval_hash_table
     | _ -> failwith "extern unknown in ebpf"
 
-  let initialize_metadata meta st =
+  let initialize_metadata meta _ st =
     State.insert_heap "__INGRESS_PORT__" (VInteger meta) st
 
   let check_pipeline env = failwith "unimplemented"

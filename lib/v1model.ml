@@ -480,7 +480,8 @@ module PreV1Switch : Target = struct
     | "log_msg" -> eval_log_msg
     | _ -> failwith "unknown v1 extern"
 
-  let initialize_metadata meta st =
+  let initialize_metadata meta num_ports st =
+    let st = State.insert_heap "__NUM_PORTS__" (VInteger num_ports) st in
     let nine = Bigint.of_int 9 in
     State.insert_heap
       "__INGRESS_PORT__"

@@ -408,7 +408,7 @@ module type Target = sig
     string -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 
-  val initialize_metadata : Bigint.t -> state -> state
+  val initialize_metadata : Bigint.t -> Bigint.t -> state -> state
 
   val check_pipeline : env -> unit
 

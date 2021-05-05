@@ -40,12 +40,12 @@ module type Interpreter = sig
       the packet [pkt] to [pkt'] and sends it out on egress port [port'] under
       control-plane configuration [ctrl], environment [env], and state [st],
       producing the side-effects in [st']. *)
-  val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> program ->
-    state * (buf * Bigint.t) list
+  val eval_program : ctrl -> env -> state -> buf -> Bigint.t -> Bigint.t ->
+                     program -> state * (buf * Bigint.t) list
 
   val init_switch : env -> program -> env * state
 
-  val switch_packet : ctrl -> env -> state -> buf -> Bigint.t ->
+  val switch_packet : ctrl -> env -> state -> buf -> Bigint.t -> Bigint.t ->
     state * (buf * Bigint.t) list
 
 end

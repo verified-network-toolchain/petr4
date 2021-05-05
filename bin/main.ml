@@ -80,10 +80,11 @@ let eval_command =
      +> flag "-pkt-str" (required string) ~doc: "<pkt_str> Add packet string"
      +> flag "-ctrl-json" (required string) ~doc: "<ctrl_json> Add control json"
      +> flag "-port" (optional_with_default "0" string) ~doc: "<port_number> Specify ingress port"
+     +> flag "-npts" (optional_with_default "0" string) ~doc: "<n> Speicify the number of ports connected to the switch"
      +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir pkt_str ctrl_json port target p4file () ->
-       print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
+    (fun verbose include_dir pkt_str ctrl_json port target num_ports p4file () ->
+       print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) (int_of_string num_ports) target))
 
 let do_stf include_dir stf_file p4_file =
     let print_err (e_port, e_pkt) (a_port, a_pkt) =
@@ -132,7 +133,8 @@ let start_v1switch env prog sockets =
     |> Lwt.choose >>=      
     fun (i, pkt) -> 
     let ctrl = (!entries,[]) in
-    switch_packet ctrl env st pkt (Bigint.of_int i) |> Lwt.return >>=
+    switch_packet ctrl env st pkt (Bigint.of_int i) (List.length socks |> Bigint.of_int)
+    |> Lwt.return >>=
     fun (st, pkt) ->
     begin match pkt with
       | [] -> [Lwt.return ()]

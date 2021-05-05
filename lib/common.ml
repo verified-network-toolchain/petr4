@@ -117,8 +117,9 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
-  let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
+  let eval_file include_dirs p4_file verbose pkt_str ctrl_json port num_ports target =
     let port = Bigint.of_int port in
+    let num_ports = Bigint.of_int num_ports in
     let pkt = Cstruct.of_hex pkt_str in
     let open Yojson.Safe in
     let matches = ctrl_json
@@ -136,14 +137,14 @@ module Make_parse (Conf: Parse_config) = struct
       begin match target with
         | "v1" ->
           let st = V1Interpreter.empty_state in
-          begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
+          begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port num_ports typed_prog |> snd with
             | [(pkt,port)] -> `Ok(pkt, port)
             | [] -> `NoPacket
             | _ -> failwith "multicast unsupported"
           end
         | "ebpf" ->
           let st = EbpfInterpreter.empty_state in
-          begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
+          begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port num_ports typed_prog |> snd with
             | [(pkt, port)] -> `Ok(pkt,port)
             | [] -> `NoPacket
             | _ -> failwith "multicast unsupported"
@@ -152,8 +153,8 @@ module Make_parse (Conf: Parse_config) = struct
       end
     | `Error (info, exn) as e -> e
 
-  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port target =
-    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port target with
+  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port num_ports target =
+    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port num_ports target with
     | `Ok (pkt, port) ->
       (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
     | `NoPacket -> "No packet out"

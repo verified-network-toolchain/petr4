@@ -111,7 +111,7 @@ module PreUp4Filter : Target = struct
   (* Use the port number [meta] to set out_port and in_port of Im_t extern object. *)
   (* QUEUE_DEPTH_AT_DEQUEUE metadata hard coded.. it says in the up4 spec that 
      metadata_fileds_t enums are immutable intrinsic metadata field for the target. *)
-  let initialize_metadata meta st =
+  let initialize_metadata meta _ st =
     State.insert_extern im_t_location (
       Im_t {out_port = meta; in_port = meta; queue_depth_at_dequeue = Bigint.of_int 32}) st
 

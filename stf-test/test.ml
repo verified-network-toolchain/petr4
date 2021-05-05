@@ -80,7 +80,7 @@ module MakeRunner (C : RunnerConfig) = struct
       (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) list =
     let pkt_in = Cstruct.of_hex pkt_in in
     let port = Bigint.of_int port in
-    C.eval_program (add, []) env st pkt_in port Bigint.zero prog
+    C.eval_program (add, []) env st pkt_in port Bigint.(of_int 4) prog
 
   let update lst name v =
     match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with
@@ -104,11 +104,16 @@ module MakeRunner (C : RunnerConfig) = struct
         let (st', result) = evaler prog (packet |> String.lowercase) (int_of_string port) env st (add,set_def) in
         let results' =
         begin match result with
-        | [(pkt, port)] ->
-                let fixed = pkt |> Cstruct.to_string |> Petr4_parse.hex_of_string |> strip_spaces |> String.lowercase in
-                (Bigint.to_string port, fixed) :: results
         | [] -> results
-        | _ -> failwith "multicast unimplemented in stf"
+        | l ->
+           let fixed = List.map l
+                         ~f:(fun (pkt, pt) -> Bigint.to_string pt,
+                                              pkt
+                                              |> Cstruct.to_string
+                                              |> Petr4_parse.hex_of_string
+                                              |> strip_spaces
+                                              |> String.lowercase) in
+           (List.rev fixed) @ results
         end in
         run_test prog tl (add,set_def) results' expected env st'
       | Expect (port, Some packet) -> run_test prog tl (add,set_def) results ((port, strip_spaces packet |> String.lowercase) :: expected) env st

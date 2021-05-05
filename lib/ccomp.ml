@@ -79,6 +79,7 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
       | None::t -> get_args t in
     CCall ((get_expr_name func), get_args args)
   | BinaryOp {op; args} -> CBinOp (op, translate_expr (fst args), translate_expr (snd args))
+  (* todo: for typemember check that there's a better way than going to string first *)
   | TypeMember {typ; name} -> CTypeMember (typ |> get_name |> snd |> get_ctyp, C.CString (snd name))
   | ErrorMember e -> failwith "f"
   | Ternary t -> failwith "f"

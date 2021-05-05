@@ -165,6 +165,7 @@ and format_cexpr (expr: cexpr) =
     in (e1 |> format_cexpr) ++ (bop |> text) ++
        (format_cexpr e2) |> hbox
   | CTypeMember (typ, e) ->
+    (* todo: check the last few types  *)
     let t = match typ with
       | CVoid -> "void"
       | CInt -> "int"

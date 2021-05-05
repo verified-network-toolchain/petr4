@@ -31,12 +31,21 @@ Inductive register := mk_register {
 Definition new_register (size : Z) (w : nat) :=
   mk_register w size (repeat 0 (Z.to_nat size)).
 
-Definition extern_state := @PathMap.t tags_t register.
+Definition packet_in := list bool.
+
+Definition packet_out := list bool.
+
+Inductive object :=
+  | ObjRegister (reg : register)
+  | ObjPin (pin : packet_in)
+  | ObjPout (pout : packet_out).
+
+Definition extern_state := @PathMap.t tags_t object.
 
 Definition extern_empty : extern_state := PathMap.empty.
 
-Axiom dummy_tag : tags_t.
-Definition register_string : ident := {| P4String.tags := dummy_tag; P4String.str := "register" |}.
+Axiom dummy_tags : tags_t.
+Definition register_string : ident := {| P4String.tags := dummy_tags; P4String.str := "register" |}.
 
 Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (@P4Type tags_t)) (p : path) (args : list Val) :=
   if P4String.equivb class register_string then
@@ -46,7 +55,7 @@ Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (
     (* | [ValBaseInt _ size] *) =>
         match type_params with
         | [TypBit w] =>
-            PathMap.set p (new_register size w) s
+            PathMap.set p (ObjRegister (new_register size w)) s
         | _ => s (* fail *)
         end
     | _ => s (* fail *)
@@ -72,7 +81,7 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
             fun _ _ _ _ _ => False
   end.
 
-Definition read_string : ident := {| P4String.tags := dummy_tag; P4String.str := "read" |}.
+Definition read_string : ident := {| P4String.tags := dummy_tags; P4String.str := "read" |}.
 
 Definition Znth {A} : Z -> list A -> A.
 Admitted.
@@ -81,7 +90,7 @@ Definition REG_INDEX_WIDTH := 32%nat.
 
 Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall s p reg w index result,
-      PathMap.get p s = Some reg ->
+      PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       Znth index (reg_content reg) = result ->
@@ -93,19 +102,19 @@ Definition register_read : extern_func := {|
   ef_sem := register_read_sem
 |}.
 
-Definition write_string : ident := {| P4String.tags := dummy_tag; P4String.str := "write" |}.
+Definition write_string : ident := {| P4String.tags := dummy_tags; P4String.str := "write" |}.
 
 Definition upd_Znth {A} : Z -> A -> list A -> list A.
 Admitted.
 
 Inductive register_write_sem : extern_func_sem :=
   | exec_register_write : forall s p reg w content' index value,
-      PathMap.get p s = Some reg ->
+      PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       upd_Znth index value (reg_content reg) = content' ->
       register_write_sem s p [ValBaseBit REG_INDEX_WIDTH index]
-            (PathMap.set p (mk_register w (reg_size reg) content') s)
+            (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
           [] None.
 
 Definition register_write : extern_func := {|
@@ -134,7 +143,27 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_get_entries
   extern_match.
 
-Axiom exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) -> Prop.
+Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
+Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
+Definition p_string : ident := {| P4String.tags := dummy_tags; P4String.str := "p" |}.
+Definition vr_string : ident := {| P4String.tags := dummy_tags; P4String.str := "vr" |}.
+Definition ig_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ig" |}.
+Definition eg_string : ident := {| P4String.tags := dummy_tags; P4String.str := "eg" |}.
+Definition ck_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ck" |}.
+Definition dep_string : ident := {| P4String.tags := dummy_tags; P4String.str := "dep" |}.
+
+Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) ->
+    extern_state -> list bool -> extern_state -> list bool -> Prop :=
+  | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6,
+      PathMap.set [packet_in_string] (ObjPin pin) s0 = s1 ->
+      module_sem [p_string] s1 nil s2 nil ->
+      module_sem [vr_string] s2 nil s3 nil ->
+      module_sem [ig_string] s3 nil s4 nil ->
+      module_sem [eg_string] s4 nil s5 nil ->
+      module_sem [ck_string] s5 nil s6 nil ->
+      module_sem [dep_string] s6 nil s7 nil ->
+      PathMap.get [packet_out_string] s7 = Some (ObjPout pout) ->
+      exec_prog module_sem s0 pin s7 pout.
 
 Instance V1Model : Target := Build_Target _ exec_prog.
 

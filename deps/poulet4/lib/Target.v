@@ -84,7 +84,8 @@ Coercion ExternSemOfSeparableExternSem : SeparableExternSem >-> ExternSem.
 
 Class Target := {
   extern_sem : ExternSem;
-  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) -> Prop
+  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) ->
+      extern_state -> list bool -> extern_state -> list bool -> Prop
 }.
 
 End Target.

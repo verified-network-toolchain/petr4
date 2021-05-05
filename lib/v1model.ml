@@ -519,15 +519,53 @@ module PreV1Switch : Target = struct
     ingress : value;
     egress : value;
     compute : value;
-    deparser : value; }
+    deparser : value;
+    p_args : Expression.t option list;
+    vr_args : Expression.t option list;
+    ig_args : Expression.t option list;
+    eg_args : Expression.t option list;
+    ck_args : Expression.t option list;
+    dep_args : Expression.t option list;
+    pkt_in_t : Type.t;
+    hdr_t : Type.t;
+    meta_t : Type.t;
+    std_meta_t : Type.t;
+    pkt_out_t : Type.t;
+    pkt_in_loc : loc;
+    hdr_loc : loc;
+    meta_loc : loc;
+    std_meta_loc : loc;
+    pkt_out_loc : loc;
+    }
+ 
+  let get_param_typs parser deparser =
+    let pkt_in_t, hdr_t, meta_t, std_meta_t =
+      match parser with
+      | VParser {pparams=ps;_} ->
+        (List.nth_exn ps 0).typ,
+        (List.nth_exn ps 1).typ,
+        (List.nth_exn ps 2).typ,
+        (List.nth_exn ps 3).typ
+      | _ -> failwith "parser is not a parser object" in
+    let pkt_out_t = 
+      match deparser with 
+      | VControl {cparams=ps;_} -> (List.nth_exn ps 0).typ
+      | _ -> failwith "deparser is not a control object" in
+    pkt_in_t, hdr_t, meta_t, std_meta_t, pkt_out_t
 
   let setup_package (env : env) (st : obj State.t) : pkg =
     let main_loc = EvalEnv.find_val (BareName (Info.dummy, "main")) env in
     let main = State.find_heap main_loc st in
     let vs = assert_package main |> snd in
-    { parser =
-        (List.Assoc.find_exn vs "p"   ~equal:String.equal
-        |> fun x -> State.find_heap x st);
+    let parser =
+      (List.Assoc.find_exn vs "p"   ~equal:String.equal
+       |> fun x -> State.find_heap x st) in
+    let deparser =
+      (List.Assoc.find_exn vs "dep" ~equal:String.equal
+       |> fun x -> State.find_heap x st) in
+    let pkt_in_t, hdr_t, meta_t, std_meta_t, pkt_out_t =
+      get_param_typs parser deparser in
+    { parser = parser;
       verify =
         (List.Assoc.find_exn vs "vr"  ~equal:String.equal
         |> fun x -> State.find_heap x st);
@@ -540,24 +578,20 @@ module PreV1Switch : Target = struct
       compute =
         (List.Assoc.find_exn vs "ck"  ~equal:String.equal
         |> fun x -> State.find_heap x st);
-      deparser =
-        (List.Assoc.find_exn vs "dep" ~equal:String.equal
-         |> fun x -> State.find_heap x st); }
-
-  let get_param_typs (pkg : pkg) : Type.t * Type.t * Type.t * Type.t * Type.t =
-    let pkt_in_t, hdr_t, meta_t, std_meta_t =
-      match pkg.parser with
-      | VParser {pparams=ps;_} ->
-        (List.nth_exn ps 0).typ,
-        (List.nth_exn ps 1).typ,
-        (List.nth_exn ps 2).typ,
-        (List.nth_exn ps 3).typ
-      | _ -> failwith "parser is not a parser object" in
-    let pkt_out_t = 
-      match pkg.deparser with 
-      | VControl {cparams=ps;_} -> (List.nth_exn ps 0).typ
-      | _ -> failwith "deparser is not a control object" in
-    pkt_in_t, hdr_t, meta_t, std_meta_t, pkt_out_t
+      deparser = deparser;
+      p_args = [];
+      vr_args = [];
+      ig_args = [];
+      eg_args = [];
+      ck_args = [];
+      dep_args = [];
+      pkt_in_t; hdr_t; meta_t; std_meta_t; pkt_out_t;
+      pkt_in_loc = State.fresh_loc ();
+      hdr_loc = State.fresh_loc ();
+      meta_loc = State.fresh_loc ();
+      std_meta_loc = State.fresh_loc ();
+      pkt_out_loc = State.fresh_loc ();
+    }
 
   let std_meta_field_lv
         (std_meta_t : Type.t)
@@ -577,7 +611,7 @@ module PreV1Switch : Target = struct
             dir = InOut;
             typ = t } )
 
-  let eval_pipeline
+  let rec eval_pipeline
         (ctrl: ctrl)
         (env: env)
         (st: obj State.t)
@@ -588,132 +622,153 @@ module PreV1Switch : Target = struct
        in [env] and into a convenient OCaml record *)
     let pkg = setup_package env st in
 
-    (* As they are runtime-provided, we need to create dummy values for all the
+    (* As they are provided at runtime, we need to create dummy values for all the
        parameters of the parser and controls, and then load them into the
        state/environment.
        TODO: implement a way to generate variable names for these values which
        will not collide with the variable names in the P4 code *)
-    let pkt_in_t, hdr_t, meta_t, std_meta_t, pkt_out_t = get_param_typs pkg in
     let pkt_in_v, hdr_v, meta_v, std_meta_v, pkt_out_v =
       VRuntime { loc = State.packet_location; obj_name = "packet_in"; },
-      init_val_of_typ env hdr_t,
-      init_val_of_typ env meta_t,
-      init_val_of_typ env std_meta_t,
+      init_val_of_typ env pkg.hdr_t,
+      init_val_of_typ env pkg.meta_t,
+      init_val_of_typ env pkg.std_meta_t,
       VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
-    let pkt_in_loc, hdr_loc, meta_loc, std_meta_loc, pkt_out_loc =
-      State.fresh_loc (),
-      State.fresh_loc (),
-      State.fresh_loc (),
-      State.fresh_loc (),
-      State.fresh_loc () in
     let st = st
-      |> State.insert_heap pkt_in_loc pkt_in_v
-      |> State.insert_heap hdr_loc hdr_v
-      |> State.insert_heap meta_loc meta_v
-      |> State.insert_heap std_meta_loc std_meta_v
-      |> State.insert_heap pkt_out_loc pkt_out_v in
+      |> State.insert_heap pkg.pkt_in_loc pkt_in_v
+      |> State.insert_heap pkg.hdr_loc hdr_v
+      |> State.insert_heap pkg.meta_loc meta_v
+      |> State.insert_heap pkg.std_meta_loc std_meta_v
+      |> State.insert_heap pkg.pkt_out_loc pkt_out_v in
     let env = EvalEnv.(env
-      |> insert_val (BareName (Info.dummy, "pkt_in"  )) pkt_in_loc
-      |> insert_val (BareName (Info.dummy, "hdr"     )) hdr_loc
-      |> insert_val (BareName (Info.dummy, "meta"    )) meta_loc
-      |> insert_val (BareName (Info.dummy, "std_meta")) std_meta_loc
-      |> insert_val (BareName (Info.dummy, "pkt_out" )) pkt_out_loc
-      |> insert_typ (BareName (Info.dummy, "pkt_in"  )) pkt_in_t
-      |> insert_typ (BareName (Info.dummy, "hdr"     )) hdr_t
-      |> insert_typ (BareName (Info.dummy, "meta"    )) meta_t
-      |> insert_typ (BareName (Info.dummy, "std_meta")) std_meta_t
-      |> insert_typ (BareName (Info.dummy, "pkt_out" )) pkt_out_t) in
+      |> insert_val (BareName (Info.dummy, "pkt_in"  )) pkg.pkt_in_loc
+      |> insert_val (BareName (Info.dummy, "hdr"     )) pkg.hdr_loc
+      |> insert_val (BareName (Info.dummy, "meta"    )) pkg.meta_loc
+      |> insert_val (BareName (Info.dummy, "std_meta")) pkg.std_meta_loc
+      |> insert_val (BareName (Info.dummy, "pkt_out" )) pkg.pkt_out_loc
+      |> insert_typ (BareName (Info.dummy, "pkt_in"  )) pkg.pkt_in_t
+      |> insert_typ (BareName (Info.dummy, "hdr"     )) pkg.hdr_t
+      |> insert_typ (BareName (Info.dummy, "meta"    )) pkg.meta_t
+      |> insert_typ (BareName (Info.dummy, "std_meta")) pkg.std_meta_t
+      |> insert_typ (BareName (Info.dummy, "pkt_out" )) pkg.pkt_out_t) in
     let pkt_in_e, hdr_e, meta_e, std_meta_e, pkt_out_e =
-      make_var_expr "pkt_in" pkt_in_t,
-      make_var_expr "hdr" hdr_t,
-      make_var_expr "meta" meta_t,
-      make_var_expr "std_meta" std_meta_t,
-      make_var_expr "pkt_out" pkt_out_t in
-    let p_args, vr_args, ig_args, eg_args, ck_args, dep_args =
-      [pkt_in_e; hdr_e; meta_e; std_meta_e],
-      [hdr_e; meta_e],
-      [hdr_e; meta_e; std_meta_e],
-      [hdr_e; meta_e; std_meta_e],
-      [hdr_e; meta_e],
-      [pkt_out_e; hdr_e] in
+      make_var_expr "pkt_in" pkg.pkt_in_t,
+      make_var_expr "hdr" pkg.hdr_t,
+      make_var_expr "meta" pkg.meta_t,
+      make_var_expr "std_meta" pkg.std_meta_t,
+      make_var_expr "pkt_out" pkg.pkt_out_t in
+    let pkg = { pkg with
+                p_args   = [pkt_in_e; hdr_e; meta_e; std_meta_e];
+                vr_args  = [hdr_e; meta_e];
+                ig_args  = [hdr_e; meta_e; std_meta_e];
+                eg_args  = [hdr_e; meta_e; std_meta_e];
+                ck_args  = [hdr_e; meta_e];
+                dep_args = [pkt_out_e; hdr_e]; } in
 
     (* Next, we use the implementation of lvalue assignment to load metadata
        values into the environment/state *)
     let port_typ = Type.Bit {width = 9} in
     let in_port = State.find_heap "__INGRESS_PORT__" st |> assert_bit |> snd in
+    let st = State.insert_heap "__CLONE_PRIM__" (VBool false) st in
+    let st = State.insert_heap "__RECIRC_PRIM__" (VBool false) st in
+    let st = State.insert_heap "__DIGEST_PRIM__" (VBool false) st in
+    let st = State.insert_heap "__RESUB_PRIM__" (VBool false) st in
     let ingress_port_lv =
-      std_meta_field_lv std_meta_t port_typ "ingress_port" in
+      std_meta_field_lv pkg.std_meta_t port_typ "ingress_port" in
     let ingress_port_v = VBit { w = Bigint.of_int 9; v = in_port } in
     let (st, _) = assign_lvalue st env ingress_port_lv ingress_port_v in
-
-    (* Now we are ready to call [app] and execute the parser. According to
-       the v1model spec, the resulting error should get assigned to the
-       proper field in the standard metadata. *)
-    let st, state = eval_v1app ctrl env app "p." pkg.parser p_args st in
-    let parser_error_lv = std_meta_field_lv std_meta_t Error "parser_error" in
-    let st = match state with 
-      | SReject err -> assign_lvalue st env parser_error_lv (VError(err)) |> fst
-      | SContinue -> st
-      | _ -> failwith "parser should not exit or return" in
-
-    (* Checksum verification is next. We assign to the checksum error field in
-       standard metadata according to the v1model spec. *)
-    let st, s = eval_v1app ctrl env app "vr." pkg.verify vr_args st in
-    let checksum_error_lv =
-      std_meta_field_lv std_meta_t (Bit { width = 1}) "checksum_error" in
-    let checksum_error_v = VBit { v = Bigint.one; w = Bigint.one } in
-    let st = match s with
-      | SReject "ChecksumError" ->
-         assign_lvalue st env checksum_error_lv checksum_error_v |> fst
-      | SContinue | SReturn _ | SExit | SReject _ -> st in
-
-    (* The ingress processing is next, followed by the traffic managemet logic
-       specified by v1model. Current implementation handles only a small subset
-       of this behavior. Clones, resubmissions, and multicasting are ignored.
-       The packet will be dropped (and therefore will not proceed to egress) if
-       the egress spec is the drop port (our implementation uses 511).
-       Otherwise, the egress_spec is copied over into the egress_port for
-       standard egress processing. *)
-    let st, _ = eval_v1app ctrl env app "ig."  pkg.ingress ig_args st in
-    let egress_spec_val =
-      State.find_heap std_meta_loc st
-      |> assert_struct
-      |> fun x ->  List.Assoc.find_exn x "egress_spec" ~equal:String.equal in
-    if Bigint.(bigint_of_val egress_spec_val = drop_spec) then st, env, [] else
-    let egress_port_lv = std_meta_field_lv std_meta_t port_typ "egress_port" in
-    let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
+    
+    ingress_processing ctrl env st app pkg
 
     (* Egress processing is the last step, which groups the egress, compute, and
        deparse controls together. After these three follows more traffic
        management in the standard v1model. However, the current implementation
        ignores the standard conditions and simply sends the packet out on the
        egress port. *)
+
+  and ingress_processing
+      (ctrl : ctrl)
+      (env : env)
+      (st : obj State.t)
+      (app : state apply)
+      (pkg : pkg) : obj State.t * env * (pkt * Bigint.t) list =
+
+    let port_typ = Type.Bit { width = 9 } in
+
+    (* Parser invocation *)
+    let st, state = eval_v1app ctrl env app "p." pkg.parser pkg.p_args st in
+    let parser_error_lv = std_meta_field_lv pkg.std_meta_t Error "parser_error" in
+    let st = match state with
+      | SReject err -> assign_lvalue st env parser_error_lv (VError(err)) |> fst
+      | SContinue -> st
+      | _ -> failwith "parser should not exit or return" in
+
+    (* Verify checksum invocation *)
+    let st, s = eval_v1app ctrl env app "vr." pkg.verify pkg.vr_args st in
+    let checksum_error_lv =
+      std_meta_field_lv pkg.std_meta_t (Bit { width = 1}) "checksum_error" in
+    let checksum_error_v = VBit { v = Bigint.one; w = Bigint.one } in
+    let st = match s with
+      | SReject "ChecksumError" ->
+         assign_lvalue st env checksum_error_lv checksum_error_v |> fst
+      | SContinue | SReturn _ | SExit | SReject _ -> st in
+
+    (* ingress processing invocation and traffic management logic *)
+    let st, _ = eval_v1app ctrl env app "ig."  pkg.ingress pkg.ig_args st in
+    let egress_spec_val =
+      State.find_heap pkg.std_meta_loc st
+      |> assert_struct
+      |> fun x ->  List.Assoc.find_exn x "egress_spec" ~equal:String.equal in
+    let mcast_grp_val =
+      State.find_heap pkg.std_meta_loc st
+      |> assert_struct
+      |> fun x -> List.Assoc.find_exn x "mcast_grp" ~equal:String.equal in
+    if State.find_heap "__CLONE_PRIM__" st |> assert_bool
+    then st, env, [] (* TODO: implement support for ingress cloning *)
+    else if State.find_heap "__DIGEST_PRIM__" st |> assert_bool
+    then st, env, [] (* TODO: implement support for digest *)
+    else if State.find_heap "__RESUB_PRIM__" st |> assert_bool
+    then st, env, [] (* TODO: implement support for resubmission *)
+    else if Bigint.(bigint_of_val mcast_grp_val <> zero)
+    then st, env, [] (* TODO: implement support for multicast groups *)
+    else if Bigint.(bigint_of_val egress_spec_val = drop_spec)
+    then st, env, []
+    else
+      let egress_port_lv =
+        std_meta_field_lv pkg.std_meta_t port_typ "egress_port" in
+      let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
+      egress_processing ctrl env st app pkg
+
+  and egress_processing
+      (ctrl : ctrl)
+      (env : env)
+      (st : obj State.t)
+      (app : state apply)
+      (pkg : pkg) : obj State.t * env * (pkt * Bigint.t) list =
     let st =
       st
-      |> eval_v1app ctrl env app "eg."  pkg.egress   eg_args  |> fst
-      |> eval_v1app ctrl env app "ck."  pkg.compute  ck_args  |> fst
-      |> eval_v1app ctrl env app "dep." pkg.deparser dep_args |> fst in
+      |> eval_v1app ctrl env app "eg."  pkg.egress   pkg.eg_args  |> fst
+      |> eval_v1app ctrl env app "ck."  pkg.compute  pkg.ck_args  |> fst
+      |> eval_v1app ctrl env app "dep." pkg.deparser pkg.dep_args |> fst in
     let egress_spec =
-      State.find_heap std_meta_loc st
+      State.find_heap pkg.std_meta_loc st
       |> assert_struct
       |> fun x -> List.Assoc.find_exn x "egress_spec" ~equal:String.equal
-      |> bigint_of_val in
-    if Bigint.(egress_spec = drop_spec) then st, env, [] else
-    let egress_port =
-      State.find_heap std_meta_loc st
-      |> assert_struct
-      |> fun x -> List.Assoc.find_exn x "egress_port" ~equal:String.equal
-      |> bigint_of_val in
-    st, env, [State.get_packet st, egress_port]
-
-  let get_outport (st : state) (env : env) : Bigint.t =
-    let std_meta_loc =
-      EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env in
-    let std_meta_v = State.find_heap std_meta_loc st in
-    let fields = assert_struct std_meta_v in
-    List.Assoc.find_exn fields "egress_port" ~equal:String.equal
-    |> bigint_of_val
-
+                  |> bigint_of_val in
+    if State.find_heap "__CLONE_PRIM__" st |> assert_bool
+    then st, env, [] (* TODO: implement support for egress cloning *)
+    else if Bigint.(egress_spec = drop_spec)
+    then st, env, []
+    else if State.find_heap "__RECIRC_PRIM__" st |> assert_bool
+    then st, env, [] (* TODO: implement support for recirculation *)
+    else
+      let egress_port =
+        State.find_heap pkg.std_meta_loc st
+        |> assert_struct
+        |> fun x -> List.Assoc.find_exn x "egress_port" ~equal:String.equal
+        |> bigint_of_val in
+      st, env, [State.get_packet st, egress_port]
+    
+     
 end
 
 module V1Switch : Target = P4core.Corize(PreV1Switch)

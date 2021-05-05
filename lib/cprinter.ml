@@ -126,16 +126,6 @@ and format_cexpr (expr: cexpr) =
          ++ format_cexpr e2) 
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
-  | CEq (e1, e2) -> 
-    box (format_cexpr e1
-         ++ text " == "
-         ++ format_cexpr e2) 
-  | CAnd (e1, e2) -> 
-    box (text "("
-         ++ format_cexpr e1
-         ++ text ") && ("
-         ++ format_cexpr e2
-         ++ text ")") 
   | CCast (t, e) ->
     box (text "(("
          ++ format_ctyp t
@@ -149,6 +139,31 @@ and format_cexpr (expr: cexpr) =
   | CUOpNot (a) ->  box (text "!" ++ format_cexpr a)
   | CUOpBitNot (a) ->  box (text "~" ++ format_cexpr a)
   | CUOpUMinus (a) ->  box (text "-" ++ format_cexpr a)
+  | CBinOp (op, e1, e2) ->
+    let bop = match (snd op) with
+        Plus -> "+"
+      | PlusSat -> "|+|"
+      | Minus -> "-"
+      | MinusSat -> "|-|"
+      | Mul -> "*"
+      | Div -> "/"
+      | Mod -> "%"
+      | Shl -> "<<"
+      | Shr -> ">>"
+      | Le -> "<="
+      | Ge -> ">="
+      | Lt -> "<"
+      | Gt -> ">"
+      | Eq -> "=="
+      | NotEq -> "!="
+      | BitAnd -> " & "
+      | BitXor -> " ^ "
+      | BitOr -> " | "
+      | PlusPlus -> " ++ "
+      | And -> " && "
+      | Or -> " || "
+    in (e1 |> format_cexpr) ++ (bop |> text) ++
+       (format_cexpr e2) |> hbox
 
 and format_list_pp_sep f sep l =
   Pp.concat_map ~sep l ~f

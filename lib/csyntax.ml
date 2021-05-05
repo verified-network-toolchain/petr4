@@ -11,6 +11,7 @@
      syntax must link to the Petr4 C runtime.
 *)
 
+type op = Types.Op.bin 
 type cname = string
 type ctyp =
     CVoid
@@ -53,12 +54,12 @@ and cexpr =
   | CString of cname 
   | CGeq of cexpr * cexpr
   | CPointer of cexpr * cname (* can replace cpointer with deref and cmember  *)
-  | CEq of cexpr * cexpr  (* TODO - Ceq can be used for state->hdrs.simple.dst == 0 --> make boolean expressions with equality  *)
-  | CAnd of cexpr * cexpr
   | CCast of ctyp * cexpr
   | CList of cexpr list 
   | CUOpNot of cexpr 
   | CUOpBitNot of cexpr 
   | CUOpUMinus of cexpr
+  | CBinOp of op * cexpr * cexpr 
+
 
 type cprog = cdecl list

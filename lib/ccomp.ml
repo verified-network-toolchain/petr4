@@ -23,10 +23,6 @@ let next_state_var = C.CVar next_state_name
 let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
   | ExpressionMember x -> get_expr_name x.expr ^ "." ^ snd x.name 
-  | FunctionCall x -> failwith "a"
-  | NamelessInstantiation x -> failwith "b"
-  | String s -> failwith (snd s)
-  | Mask x -> failwith "dsjak"
   | Name n -> begin match n with 
       | BareName str -> snd str 
       | _ -> failwith "unimplemented" end 
@@ -34,7 +30,7 @@ let rec get_expr_name (e: Prog.Expression.t) : C.cname =
   | False -> "false"
   | Int i -> Bigint.to_string (snd i).value
   | Cast {typ ; expr} -> get_expr_name expr
-  | _ -> failwith "unimplementeddj"
+  | _ -> failwith "unimplemented"
 
 let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
@@ -61,16 +57,16 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
       | (Some h)::t -> translate_expr h::get_args t 
       | None::t -> get_args t in
     CCall ((get_expr_name func), get_args args)
-  | Record r -> failwith "f" 
-  | BinaryOp b -> failwith "f"
+  | BinaryOp {op; args} -> CBinOp (op, translate_expr (fst args), translate_expr (snd args))
   | TypeMember t-> failwith "f"
   | ErrorMember e -> failwith "f"
   | Ternary t -> failwith "f"
   | NamelessInstantiation x -> failwith "f"
-  | Mask x -> failwith "f"
-  | Range r -> failwith "f"
   | ArrayAccess x -> failwith "f"
   | BitStringAccess x -> failwith "f"
+  | Mask x -> failwith "f"
+  | Record r -> failwith "f" 
+  | Range r -> failwith "f"
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
   match (snd e).expr with
@@ -328,14 +324,14 @@ and translate_match ((match_expr, key): Prog.Match.t * Prog.Table.key) : C.cexpr
   | Expression {expr} ->
     begin match (snd key).match_kind with
       | _, "exact" ->
-        C.CEq (translate_expr (snd key).key, translate_expr expr)
+        C.CBinOp ((Info.dummy, Types.Op.Eq), translate_expr (snd key).key, translate_expr expr)
       | _ -> failwith "match_kind not implemented"
     end
 
 and translate_matches (match_exprs: Prog.Match.t list) (keys: Prog.Table.key list) : C.cexpr =
   List.zip_exn match_exprs keys
   |> List.map ~f:translate_match
-  |> List.fold ~init:(C.CBoolExp true) ~f:(fun e1 e2 -> C.CAnd (e1, e2))
+  |> List.fold ~init:(C.CBoolExp true) ~f:(fun e1 e2 -> C.CBinOp ((Info.dummy, Types.Op.Eq), e1, e2))
 
 and translate_action_ref action_map (aref : Prog.Table.action_ref) = 
   let aref = (snd aref).action in
@@ -360,7 +356,7 @@ and get_cond_logic (entry : Prog.Table.entry) (keys : Prog.Table.key list) =
   let f (acc:C.cexpr) (k:Prog.Table.key) (m_el:Prog.Match.t) = 
     begin match (snd m_el).expr with 
       | DontCare -> acc  
-      | Expression {expr} -> C.CEq ((translate_pointer (C.CString "state") k), get_expr_c expr) 
+      | Expression {expr} -> C.CBinOp ((Info.dummy, Types.Op.Eq), translate_pointer (C.CString "state") k, get_expr_c expr) 
     end in 
   List.fold2_exn keys m ~init ~f 
 

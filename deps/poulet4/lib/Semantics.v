@@ -374,31 +374,6 @@ Inductive exec_table_match : path -> state -> ident -> option (list table_entry)
       extern_match (combine keyvals match_kinds) entries = matched_action ->
       exec_table_match this_path s name const_entries matched_action.
 
-Inductive Lval : Type.
-
-Definition argument : Type := (option Val) * (option Lval).
-
-Definition get_arg_directions (func : @Expression tags_t) : list direction :=
-  match func with
-  | MkExpression _ _ (TypFunction (MkFunctionType _ params _ _)) _ =>
-      map get_param_dir params
-  | _ => nil (* impossible *)
-  end.
-
-(* given expression and direction, evaluate to argument. *)
-(* in -> (Some _, None) *)
-(* out -> (None, Some _) *)
-(* inout -> (Some _, Some _) *)
-Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=.
-
-(* exec_arg on a list *)
-Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
-(* TODO *)
-
-Inductive exec_copy_out : path -> state -> list Lval -> list Val -> state -> Prop :=.
-(* TODO *)
-(* This depends on assigning to lvalues. *)
-
 Inductive inst_mem_val :=
   | IMVal (v : Val)
   (* Instances, including parsers, controls, and external objects. *)
@@ -464,22 +439,6 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
   | _ => None
   end.
 
-Definition extract_invals (args : list argument) : list Val :=
-  let f arg :=
-    match arg with
-    | (Some v, _) => [v]
-    | (None, _) => []
-    end in
-  flat_map f args.
-
-Definition extract_outlvals (args : list argument) : list Lval :=
-  let f arg :=
-    match arg with
-    | (_, Some lv) => [lv]
-    | (_, None) => []
-    end in
-  flat_map f args.
-
 Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
   | exec_lvalue_expr_name : forall name loc this st tag typ dir,
                             exec_lvalue_expr this st
@@ -533,6 +492,49 @@ Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) 
       end
   | _ => None (* omitted for now *)
   end.
+
+Definition Lval := @ValueLvalue tags_t.
+
+Definition argument : Type := (option Val) * (option Lval).
+
+Definition get_arg_directions (func : @Expression tags_t) : list direction :=
+  match func with
+  | MkExpression _ _ (TypFunction (MkFunctionType _ params _ _)) _ =>
+      map get_param_dir params
+  | _ => nil (* impossible *)
+  end.
+
+(* given expression and direction, evaluate to argument. *)
+(* in -> (Some _, None) *)
+(* out -> (None, Some _) *)
+(* inout -> (Some _, Some _) *)
+Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=.
+
+(* exec_arg on a list *)
+Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
+(* TODO *)
+
+Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=.
+(* TODO *)
+(* This depends on assigning to lvalues. *)
+
+
+Definition extract_invals (args : list argument) : list Val :=
+  let f arg :=
+    match arg with
+    | (Some v, _) => [v]
+    | (None, _) => []
+    end in
+  flat_map f args.
+
+Definition extract_outlvals (dirs : list direction) (args : list argument) : list (option Lval) :=
+  let f dirarg :=
+    match dirarg with
+    | (Out, (_, olv)) => [olv]
+    | (InOut, (_, olv)) => [olv]
+    | _ => []
+    end in
+  flat_map f (combine dirs args).
 
 Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
@@ -663,7 +665,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> o
       exec_args this_path s args dirs argvals ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
       exec_func obj_path inst_m s fd (extract_invals argvals) s' outvals vret ->
-      exec_copy_out this_path s' (extract_outlvals argvals) outvals s'' ->
+      exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
       exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s' vret
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)

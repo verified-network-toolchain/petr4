@@ -7,193 +7,13 @@ Require Import Poulet4.Syntax.
 Require Import Poulet4.P4defs.
 Require Import Poulet4.AList.
 Require Import Poulet4.Bitwise.
+Require Import Poulet4.P4automata.P4automaton.
 
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Open Scope string_scope.
 Open Scope list_scope.
-
-Section P4Automaton.
-
-  Record p4automaton := MkP4Automaton {
-    store: Type;
-    states: Type;
-    size: states -> nat;
-    update: states -> list bool -> store -> store;
-    transitions: states -> store -> states + bool;
-  }.
-
-  Definition configuration (a: p4automaton) : Type :=
-    (states a + bool) * store a * list bool
-  .
-
-  Definition step
-    {a: p4automaton}
-    (c: configuration a)
-    (b: bool)
-    : configuration a
-  :=
-    let '(state, st, buf) := c in
-    match state with
-    | inl state =>
-      let buf' := buf ++ b :: nil in
-      if List.length buf' == size a state
-      then
-        let st' := update a state buf' st in
-        let state' := transitions a state st' in
-        (state', st', nil)
-      else (inl state, st, buf')
-    | inr halt =>
-      (inr halt, st, buf ++ b :: nil)
-    end
-  .
-
-Definition follow
-  {a: p4automaton}
-  (c: configuration a)
-  (input: list bool)
-  : configuration a
-:=
-  fold_left step input c
-.
-
-Lemma follow_cons
-  {a: p4automaton}
-  (c: configuration a)
-  (b: bool)
-  (input: list bool)
-:
-  follow c (b :: input) = follow (step c b) input
-.
-Proof.
-  reflexivity.
-Qed.
-
-Definition accepting
-  {a: p4automaton}
-  (c: configuration a)
-  : Prop
-:=
-  fst (fst c) = inr true
-.
-
-Definition accepted
-  {a: p4automaton}
-  (c: configuration a)
-  (input: list bool)
-  : Prop
-:=
-  accepting (follow c input)
-.
-
-Definition lang_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:=
-  forall input,
-    accepted c1 input <->
-    accepted c2 input
-.
-
-Definition bisimulation
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (R: configuration a1 -> configuration a2 -> Prop)
-:=
-  forall c1 c2,
-    R c1 c2 ->
-      (accepting c1 <-> accepting c2) /\
-      forall b, R (step c1 b) (step c2 b)
-.
-
-Definition bisimilar
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:=
-  exists R, bisimulation R /\ R c1 c2
-.
-
-Lemma bisimilar_implies_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:
-  bisimilar c1 c2 -> lang_equiv c1 c2
-.
-Proof.
-  intros.
-  unfold lang_equiv.
-  intros; revert c1 c2 H.
-  induction input; intros.
-  - unfold accepted.
-    simpl.
-    unfold bisimilar in H.
-    destruct H as [R [? ?]].
-    now apply H in H0.
-  - unfold accepted.
-    repeat rewrite follow_cons.
-    apply IHinput.
-    unfold bisimilar in H.
-    destruct H as [R [? ?]].
-    exists R.
-    apply H in H0.
-    easy.
-Qed.
-
-Lemma lang_equiv_is_bisimulation
-  {a1: p4automaton}
-  {a2: p4automaton}
-:
-  @bisimulation a1 a2 lang_equiv
-.
-Proof.
-  unfold bisimulation; intros.
-  split.
-  - apply (H nil).
-  - intros.
-    unfold lang_equiv.
-    intros.
-    unfold accepted.
-    repeat rewrite <- follow_cons.
-    apply H.
-Qed.
-
-Lemma equiv_implies_bisimilar
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:
-  lang_equiv c1 c2 -> bisimilar c1 c2
-.
-Proof.
-  intros.
-  exists lang_equiv.
-  split; try easy.
-  apply lang_equiv_is_bisimulation.
-Qed.
-
-Theorem bisimilar_iff_lang_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:
-  lang_equiv c1 c2 <-> bisimilar c1 c2
-.
-Proof.
-  split.
-  - apply equiv_implies_bisimilar.
-  - apply bisimilar_implies_equiv.
-Qed.
-
-End P4Automaton.
 
 Definition to_val (w: nat) (bs: list bool) : @ValueBase Info :=
   let v := to_nat bs in
@@ -216,12 +36,6 @@ Module SimpleParser.
   Inductive states :=
   | one
   | zero.
-
-  Scheme Equality for states.
-
-  Instance states_eq_dec_inst : EqDec states eq := {
-    equiv_dec := states_eq_dec;
-  }.
 
   Definition size' (s: states) :=
     match s with
@@ -252,12 +66,6 @@ Module BabyIPv1.
   | parse_tcp
   .
 
-  Scheme Equality for states.
-
-  Instance states_eq_dec_inst : EqDec states eq := {
-    equiv_dec := states_eq_dec;
-  }.
-
   Definition size' (s: states) : nat :=
     match s with
     | start => 20
@@ -266,37 +74,6 @@ Module BabyIPv1.
     end
   .
   Definition values := @ValueBase Info.
-
-  (*
-  Definition ip_hdr := HAList.t (
-    ("src", values) ::
-    ("dst", values) ::
-    ("proto", values) ::
-    nil
-  ).
-
-  Definition udp_hdr := HAList.t (
-    ("sport", values) ::
-    ("dport", values) ::
-    ("flags", values) ::
-    nil
-  ).
-
-  Definition tcp_hdr := HAList.t (
-    ("sport", values) ::
-    ("dport", values) ::
-    ("flags", values) ::
-    ("seq", values) ::
-    nil
-  ).
-
-  Definition store' := HAList.t (
-    ("ip", ip_hdr) ::
-    ("udp", udp_hdr) ::
-    ("tcp", tcp_hdr) ::
-    nil
-  ).
-  *)
 
   Record store' := MkStore {
     store_ip_hdr: values;
@@ -406,8 +183,6 @@ Module BabyIPv1.
     - exfalso. inversion H.
 
   Qed.
-
-
 End BabyIPv1.
 
 Module BabyIPv2.
@@ -415,12 +190,6 @@ Module BabyIPv2.
   | start
   | parse_tcp
   .
-
-  Scheme Equality for states.
-
-  Instance states_eq_dec_inst : EqDec states eq := {
-    equiv_dec := states_eq_dec;
-  }.
 
   Definition size' (s: states) : nat :=
     match s with
@@ -481,124 +250,61 @@ Module BabyIPv2.
 
 End BabyIPv2.
 
-
-Definition build_bisimulation
-  {a1 a2}
-  (store_relation_l : store a1 -> Prop)
-  (store_relation_r : store a2 -> Prop)
-  (st1: states a1 + bool)
-  (st2: states a2 + bool)
-  (buf_relation : list bool -> list bool -> Prop)
-  (cand : configuration a1 -> configuration a2 -> Prop)
-  : Prop :=
-  forall sig1 buf1 sig2 buf2,
-    store_relation_l sig1 ->
-    store_relation_r sig2 ->
-    buf_relation buf1 buf2 ->
-    cand (st1, sig1, buf1) (st2, sig2, buf2).
-
-Definition store_top {a} : store a -> Prop := fun _ => True.
-
 Inductive candidate:
   configuration BabyIPv1.v1_parser ->
   configuration BabyIPv2.v2_parser ->
   Prop
 :=
 | BisimulationStart:
-    build_bisimulation
-      (a1 := BabyIPv1.v1_parser)
-      (a2 := BabyIPv2.v2_parser)
-      store_top
-      store_top
-      (inl BabyIPv1.start)
-      (inl BabyIPv2.start)
-      (fun buf buf' => List.length buf < 20 /\ buf = buf')
+    forall st1 st2 buf,
+      List.length buf < 20 ->
       candidate
-
+        (inl BabyIPv1.start, st1, buf)
+        (inl BabyIPv2.start, st2, buf)
 
 | BisimulationEnd:
-  forall b,
-  build_bisimulation
-    (a1 := BabyIPv1.v1_parser)
-    (a2 := BabyIPv2.v2_parser)
-    store_top
-    store_top
-    (inr b)
-    (inr b)
-    (fun _ _ => True)
-    candidate
+    forall st1 st2 buf1 buf2 b,
+      candidate
+        (inr b, st1, buf1)
+        (inr b, st2, buf2)
 
 | BisimulationTCPVersusIP:
-  build_bisimulation
-    (a1 := BabyIPv1.v1_parser)
-    (a2 := BabyIPv2.v2_parser)
-    (fun s =>
-      forall ip_hdr,
-      s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
-      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0)
-    )
-    store_top
-    (inl BabyIPv1.parse_tcp)
-    (inl BabyIPv2.start)
-    (fun buf1 buf2 =>
-      to_nat (slice 16 20 buf2) = 0 /\
-      List.length buf2 = 20 /\
-      List.length buf1 < 20
-    )
-    candidate
+    forall st1 ip_hdr buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0) ->
+      to_nat (slice 16 20 buf2) = 0 ->
+      List.length buf2 = 20 ->
+      List.length buf1 < 20 ->
+      candidate
+        (inl BabyIPv1.parse_tcp, st1, buf1)
+        (inl BabyIPv2.start, st2, buf2 ++ buf1)
 
 | BisimulationTCPVersusTCP:
-  build_bisimulation
-    (a1 := BabyIPv1.v1_parser)
-    (a2 := BabyIPv2.v2_parser)
-    store_top
-    store_top
-    (inl BabyIPv1.parse_tcp)
-    (inl BabyIPv2.parse_tcp)
-    (fun buf1 buf2 =>
-      exists pref,
-      List.length pref = 20 /\
-      buf1 = pref ++ buf2
-    )
-    candidate
+    forall st1 buf1 st2 buf2,
+      List.length buf1 = 20 ->
+      candidate
+        (inl BabyIPv1.parse_tcp, st1, buf1 ++ buf2)
+        (inl BabyIPv2.parse_tcp, st2, buf2)
 
 | BisimulationUDPVersusIP:
-  build_bisimulation
-    (a1 := BabyIPv1.v1_parser)
-    (a2 := BabyIPv2.v2_parser)
-    (fun s =>
-      forall ip_hdr,
-      s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
-      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1)
-    )
-    store_top
-    (inl BabyIPv1.parse_udp)
-    (inl BabyIPv2.start)
-    (fun buf1 buf2 =>
-      exists pref,
-      to_nat (slice 16 20 pref) = 1 /\
-      List.length pref = 20 /\
-      List.length buf1 < 20 /\
-      buf2 = pref ++ buf1
-    )
-    candidate
+    forall st1 ip_hdr buf1 st2 buf2,
+      st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1) ->
+      to_nat (slice 16 20 buf2) = 1 ->
+      List.length buf2 = 20 ->
+      List.length buf1 < 20 ->
+      candidate
+        (inl BabyIPv1.parse_udp, st1, buf1)
+        (inl BabyIPv2.start, st2, buf2 ++ buf1)
 
 | BisimulationFalseVersusStart:
-  build_bisimulation
-    (a1 := BabyIPv1.v1_parser)
-    (a2 := BabyIPv2.v2_parser)
-    store_top
-    store_top
-    (inr false)
-    (inl BabyIPv2.start)
-    (fun buf1 buf2 =>
-      exists pref,
-      buf2 = pref ++ buf1 /\
-      List.length pref = 20 /\
-      to_nat (slice 16 20 pref) <> 1 /\
-      to_nat (slice 16 20 pref) <> 0
-    )
-    candidate
+    forall st1 buf1 st2 buf2,
+      List.length buf2 = 20 ->
+      to_nat (slice 16 20 buf2) <> 1 ->
+      to_nat (slice 16 20 buf2) <> 0 ->
+      candidate
+        (inr false, st1, buf1)
+        (inl BabyIPv2.start, st2, buf2 ++ buf1)
 .
 
 Fixpoint to_bits (s n: nat) :=
@@ -743,7 +449,7 @@ Ltac simpl_length :=
 .
 
 (* Possible fallback tactic we don't use right now; derives facts about
-   lengths from facts about lists. Note that this gets rids of the list
+   lengths from facts about lists. Note that this gets rid of the list
    facts, so you cannot use those later on... *)
 Ltac wrangle_length :=
   repeat match goal with
@@ -781,7 +487,6 @@ Ltac cleanup_step :=
     | |- _ /\ _ =>
       split
     end;
-    unfold store_top;
     try trivial;
     try congruence;
     try simpl_length;
@@ -983,12 +688,12 @@ Ltac smtize :=
 Lemma candidate_is_bisimulation:
   bisimulation candidate
 .
-(* Proof.
+Proof.
   Opaque skipn.
   Opaque firstn.
   unfold bisimulation; intros.
   induction H; (split; [try easy|]); intros.
-  2: { split; intros; inversion H2; easy. }
+  2: { split; intros; inversion H; easy. }
   - cleanup_step.
     destruct (Z.of_nat _) eqn:?; [|destruct p|];
     rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1;
@@ -1028,8 +733,7 @@ Lemma candidate_is_bisimulation:
       apply BisimulationFalseVersusStart; assumption.
   Transparent skipn.
   Transparent firstn.
-Qed. *)
-Admitted.
+Qed.
 
 Theorem babyip_equiv
   st1 st2
@@ -1044,586 +748,131 @@ Proof.
   exists candidate.
   split.
   - apply candidate_is_bisimulation.
-  - constructor; compute; trivial.
-    split.
-    + lia.
-    + trivial.
+  - constructor; compute; lia.
 Qed.
 
-Definition chunked_relation
-  (a1 a2: p4automaton)
+(* TODO: The following is a more structured version of the ad-hoc candidate
+   bisimulation built above. Can we make the proof automation nicer if we
+   know that every clause is structed this way?
+
+   The main hurdle seems to be in the folding/unfolding of the
+   build_bisimulation helper. The constructor tactic does not apply
+   unless we have our goal in that form. *)
+
+Definition build_bisimulation
+  {a1 a2}
+  (store_relation_l : store a1 -> Prop)
+  (store_relation_r : store a2 -> Prop)
+  (st1: states a1 + bool)
+  (st2: states a2 + bool)
+  (buf_relation : list bool -> list bool -> Prop)
+  (cand : configuration a1 -> configuration a2 -> Prop)
+  : Prop :=
+  forall sig1 buf1 sig2 buf2,
+    store_relation_l sig1 ->
+    store_relation_r sig2 ->
+    buf_relation buf1 buf2 ->
+    cand (st1, sig1, buf1) (st2, sig2, buf2).
+
+Definition store_top {a} : store a -> Prop := fun _ => True.
+
+Inductive candidate':
+  configuration BabyIPv1.v1_parser ->
+  configuration BabyIPv2.v2_parser ->
+  Prop
 :=
-  list (
-    configuration a1 ->
-    configuration a2 ->
-    Prop
-  )
+| BisimulationStart':
+    build_bisimulation
+      (a1 := BabyIPv1.v1_parser)
+      (a2 := BabyIPv2.v2_parser)
+      store_top
+      store_top
+      (inl BabyIPv1.start)
+      (inl BabyIPv2.start)
+      (fun buf buf' => List.length buf < 20 /\ buf = buf')
+      candidate'
+
+| BisimulationEnd':
+  forall b,
+  build_bisimulation
+    (a1 := BabyIPv1.v1_parser)
+    (a2 := BabyIPv2.v2_parser)
+    store_top
+    store_top
+    (inr b)
+    (inr b)
+    (fun _ _ => True)
+    candidate'
+
+| BisimulationTCPVersusIP':
+  build_bisimulation
+    (a1 := BabyIPv1.v1_parser)
+    (a2 := BabyIPv2.v2_parser)
+    (fun s =>
+      forall ip_hdr,
+      s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0)
+    )
+    store_top
+    (inl BabyIPv1.parse_tcp)
+    (inl BabyIPv2.start)
+    (fun buf1 buf2 =>
+      to_nat (slice 16 20 buf2) = 0 /\
+      List.length buf2 = 20 /\
+      List.length buf1 < 20
+    )
+    candidate'
+
+| BisimulationTCPVersusTCP':
+  build_bisimulation
+    (a1 := BabyIPv1.v1_parser)
+    (a2 := BabyIPv2.v2_parser)
+    store_top
+    store_top
+    (inl BabyIPv1.parse_tcp)
+    (inl BabyIPv2.parse_tcp)
+    (fun buf1 buf2 =>
+      exists pref,
+      List.length pref = 20 /\
+      buf1 = pref ++ buf2
+    )
+    candidate'
+
+| BisimulationUDPVersusIP':
+  build_bisimulation
+    (a1 := BabyIPv1.v1_parser)
+    (a2 := BabyIPv2.v2_parser)
+    (fun s =>
+      forall ip_hdr,
+      s.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
+      AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1)
+    )
+    store_top
+    (inl BabyIPv1.parse_udp)
+    (inl BabyIPv2.start)
+    (fun buf1 buf2 =>
+      exists pref,
+      to_nat (slice 16 20 pref) = 1 /\
+      List.length pref = 20 /\
+      List.length buf1 < 20 /\
+      buf2 = pref ++ buf1
+    )
+    candidate'
+
+| BisimulationFalseVersusStart':
+  build_bisimulation
+    (a1 := BabyIPv1.v1_parser)
+    (a2 := BabyIPv2.v2_parser)
+    store_top
+    store_top
+    (inr false)
+    (inl BabyIPv2.start)
+    (fun buf1 buf2 =>
+      exists pref,
+      buf2 = pref ++ buf1 /\
+      List.length pref = 20 /\
+      to_nat (slice 16 20 pref) <> 1 /\
+      to_nat (slice 16 20 pref) <> 0
+    )
+    candidate'
 .
-
-Definition buffer_appended
-  {a: p4automaton}
-  (c c': configuration a)
-  (b: bool)
-  : Prop
-:=
-  let '(s, st, buf) := c in
-  let '(s', st', buf') := c' in
-  match s with
-  | inl s => Datatypes.length buf + 1 < size a s
-  | inr _ => True
-  end ->
-  buf' = buf ++ b :: nil
-.
-
-Definition buffer_filled
-  {a: p4automaton}
-  (c c': configuration a)
-  (b: bool)
-  : Prop
-:=
-  let '(s, st, buf) := c in
-  let '(s', st', buf') := c' in
-  match s with
-  | inl s =>
-    Datatypes.length buf + 1 = size a s /\
-    buf' = nil /\
-    st' = update a s (buf ++ b :: nil) st /\
-    s' = transitions a s st'
-  | inr _ => False
-  end
-.
-
-Definition symbolic_step
-  {a1 a2: p4automaton}
-  (R: configuration a1 -> configuration a2 -> Prop)
-  : chunked_relation a1 a2
-:=
-  (* First case: neither buffer was filled. *)
-  (fun c1' c2' =>
-     exists c1 c2 b,
-       R c1 c2 /\
-       buffer_appended c1 c1' b /\
-       buffer_appended c2 c2' b
-  ) ::
-  (* Second case: the left buffer was filled, but the right was not. *)
-  (fun c1' c2' =>
-     exists c1 c2 b,
-       R c1 c2 /\
-       buffer_filled c1 c1' b /\
-       buffer_appended c2 c2' b
-  ) ::
-  (* Third case: the right buffer was filled, but the left was not. *)
-  (fun c1' c2' =>
-     exists c1 c2 b,
-       R c1 c2 /\
-       buffer_appended c1 c1' b /\
-       buffer_filled c2 c2' b
-  ) ::
-  (* Fourth case: both buffers were filled. *)
-  (fun c1' c2' =>
-     exists c1 c2 b,
-       R c1 c2 /\
-       buffer_filled c1 c1' b /\
-       buffer_filled c2 c2' b
-  ) ::
-  nil
-.
-
-Lemma appended_or_filled
-  {a: p4automaton}
-  (c c': configuration a)
-  (b: bool)
-:
-
-  buffer_appended c (step c b) b \/
-  buffer_filled c (step c b) b
-.
-Proof.
-  destruct c as ((s, st), buf).
-  destruct s.
-  - simpl step.
-    rewrite app_length.
-    simpl Datatypes.length.
-    destruct (equiv_dec (Datatypes.length buf + 1) (size a s)).
-    + right.
-      unfold buffer_filled.
-      easy.
-    + left.
-      simpl.
-      intros.
-      easy.
-  - left.
-    simpl step.
-    unfold buffer_appended.
-    easy.
-Qed.
-
-Lemma symbolic_step_correct
-  {a1 a2: p4automaton}
-  (R: configuration a1 -> configuration a2 -> Prop)
-  (c1: configuration a1)
-  (c2: configuration a2)
-  (b: bool)
-:
-  R c1 c2 ->
-  exists R',
-    List.In R' (symbolic_step R) /\
-    R' (step c1 b) (step c2 b)
-.
-Proof.
-  intros.
-  unfold symbolic_step.
-  destruct (appended_or_filled c1 (step c1 b) b),
-           (appended_or_filled c2 (step c2 b) b).
-  - eexists; split.
-    + apply in_eq.
-    + simpl.
-      exists c1, c2, b.
-      easy.
-  - eexists; split.
-    + do 2 apply in_cons; apply in_eq.
-    + simpl.
-      exists c1, c2, b.
-      easy.
-  - eexists; split.
-    + apply in_cons; apply in_eq.
-    + simpl.
-      exists c1, c2, b.
-      easy.
-  - eexists; split.
-    + do 3 apply in_cons; apply in_eq.
-    + simpl.
-      exists c1, c2, b.
-      easy.
-Qed.
-
-Lemma bisimilar_deconstruct
-  {a1 a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-:
-  (accepting c1 <-> accepting c2) ->
-  (forall b, bisimilar (step c1 b) (step c2 b)) ->
-  bisimilar c1 c2
-.
-Proof.
-  intros.
-  destruct (H0 true) as [Rtrue [? ?]].
-  destruct (H0 false) as [Rfalse [? ?]].
-  exists (fun c1' c2' =>
-    Rtrue c1' c2' \/
-    Rfalse c1' c2' \/
-    (c1 = c1' /\ c2 = c2')
-  ).
-  split.
-  - unfold bisimulation.
-    intros.
-    repeat destruct H5.
-    + split.
-      * now apply H1.
-      * intuition (now apply H1).
-    + split.
-      * now apply H3.
-      * intuition (now apply H3).
-    + rewrite <- H6.
-      split; try assumption.
-      destruct b; intuition.
-  - intuition.
-Qed.
-
-Definition pre_bisimulation
-  {a1 a2: p4automaton}
-  (expanded: chunked_relation a1 a2)
-  (front: chunked_relation a1 a2)
-:=
-  (forall R c1 c2,
-    List.In R expanded ->
-    R c1 c2 ->
-    (accepting c1 <-> accepting c2) /\
-    forall b,
-      exists R',
-        List.In R' (front ++ expanded) /\
-        R' (step c1 b) (step c2 b)) ->
-  forall R c1 c2,
-    (List.In R (front ++ expanded) ->
-     R c1 c2 ->
-     bisimilar c1 c2)
-.
-
-Lemma pre_bisimulation_intro
-  {a1 a2: p4automaton}
-  (R: configuration a1 -> configuration a2 -> Prop)
-:
-  pre_bisimulation nil (R :: nil) ->
-  (forall c1 c2, R c1 c2 -> bisimilar c1 c2)
-.
-Proof.
-  intros.
-  eapply H.
-  - firstorder.
-  - apply in_eq.
-  - easy.
-Qed.
-
-Lemma pre_bisimulation_leaf
-  {a1 a2: p4automaton}
-  (checked: chunked_relation a1 a2)
-:
-  pre_bisimulation checked nil
-.
-Proof.
-  unfold pre_bisimulation.
-  intros.
-  rewrite app_nil_l in *.
-  exists (fun c1 c2 =>
-    exists R',
-      List.In R' checked /\
-      R' c1 c2
-  ).
-  split.
-  - intros c1' c2' ?.
-    destruct H2 as [R' [? ?]].
-    specialize (H R' c1' c2').
-    now apply H.
-  - exists R; easy.
-Qed.
-
-Lemma pre_bisimulation_valid
-  {a1 a2: p4automaton}
-  (c1: configuration a1)
-  (c2: configuration a2)
-  (checked front: chunked_relation a1 a2)
-:
-  (forall R c1 c2,
-    List.In R checked ->
-    R c1 c2 ->
-    (accepting c1 <-> accepting c2) /\
-    forall b,
-      exists R',
-        List.In R' (front ++ checked) /\
-        R' (step c1 b) (step c2 b)) ->
-  pre_bisimulation checked front ->
-  (exists R, List.In R (front ++ checked) /\ R c1 c2) ->
-  bisimilar c1 c2
-.
-Proof.
-  intros.
-  apply H0 in H.
-  destruct H1 as [R [? ?]].
-  now apply H with (R := R).
-Qed.
-
-Lemma pre_bisimulation_grow
-  {a1 a2: p4automaton}
-  (checked: chunked_relation a1 a2)
-  (front: chunked_relation a1 a2)
-  (R: configuration a1 -> configuration a2 -> Prop)
-:
-  (forall c1 c2, R c1 c2 -> accepting c1 <-> accepting c2) ->
-  pre_bisimulation (R :: checked) (symbolic_step R ++ front) ->
-  pre_bisimulation checked (R :: front)
-.
-Proof.
-  intros; unfold pre_bisimulation; intros.
-  eapply pre_bisimulation_valid.
-  2: { exact H0. }
-  - intros.
-    specialize (H1 R1 c0 c3).
-    destruct H4.
-    + rewrite <- H4 in H5.
-      clear H4.
-      split.
-      * now apply H.
-      * intros.
-        apply symbolic_step_correct with (b0 := b) in H5.
-        destruct H5 as [R' [? ?]].
-        exists R'.
-        split; auto.
-        rewrite <- app_assoc.
-        now apply in_app_iff; left.
-    + split.
-      * now apply H1.
-      * intros.
-        specialize (H1 H4 H5).
-        destruct H1.
-        specialize (H6 b).
-        destruct H6 as [R' [? ?]].
-        exists R'.
-        split; auto.
-        rewrite <- app_assoc.
-        repeat rewrite in_app_iff.
-        repeat rewrite in_app_iff in H6.
-        destruct H6.
-        -- destruct H6.
-           ++ right; right.
-              rewrite H6.
-              apply in_eq.
-           ++ right; left; assumption.
-        -- right; right.
-           now apply in_cons.
-  - exists R0.
-    split; auto.
-    repeat rewrite in_app_iff.
-    repeat rewrite in_app_iff in H2.
-    destruct H2.
-    + destruct H2.
-      * right.
-        rewrite H2.
-        apply in_eq.
-      * left.
-        right.
-        assumption.
-    + right.
-      now apply in_cons.
-Qed.
-
-Lemma pre_bisimulation_skip
-  {a1 a2: p4automaton}
-  (checked: chunked_relation a1 a2)
-  (front: chunked_relation a1 a2)
-  (R: configuration a1 -> configuration a2 -> Prop)
-:
-  (forall c1 c2,
-    R c1 c2 ->
-    exists R',
-      List.In R' checked /\
-      R' c1 c2) ->
-  pre_bisimulation checked front ->
-  pre_bisimulation checked (R :: front)
-.
-Proof.
-  intros; unfold pre_bisimulation; intros.
-  eapply pre_bisimulation_valid.
-  2: { exact H0. }
-  - intros.
-    specialize (H1 R1 c0 c3 H4 H5).
-    split; try apply H1.
-    intros.
-    destruct H1.
-    specialize (H6 b).
-    destruct H6 as [R' [? ?]].
-    rewrite <- app_comm_cons in H6.
-    destruct H6.
-    + rewrite <- H6 in H7.
-      apply H in H7.
-      destruct H7 as [R'' [? ?]].
-      exists R''.
-      split; auto.
-      apply in_app_iff; now right.
-    + exists R'.
-      auto.
-  - rewrite <- app_comm_cons in H2.
-    destruct H2.
-    + rewrite <- H2 in H3.
-      clear H2.
-      apply H in H3.
-      destruct H3 as [R' [? ?]].
-      exists R'.
-      split; auto.
-      apply in_app_iff; now right.
-    + exists R0.
-      auto.
-Qed.
-
-Require Import Poulet4.P4cub.AST.
-Require Import Poulet4.P4cub.Value.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
-Require Import Poulet4.Monads.State.
-
-Open Scope monad_scope.
-
-Section parser_to_p4automaton.
-
-  Variable tags_t : Type.
-
-  Inductive simple_expression :=
-  | SimpleExpressionHeader
-  | SimpleExpressionMember (e: simple_expression) (m: string)
-  .
-
-  Inductive simple_lvalue :=
-  | SimpleLvalueHeader
-  | SimpleLvalueMember (e: simple_lvalue) (m: string)
-  .
-
-  Inductive state_operation :=
-  | StateOperationNil
-  | StateOperationExtract
-      (typ: P4cub.Expr.t)
-      (into: simple_lvalue)
-  .
-
-  Inductive simple_match :=
-  | SimpleMatchEquals (l r: simple_expression)
-  | SimpleMatchAnd (l r: simple_match)
-  | SimpleMatchDontCare
-  .
-
-  Section compile.
-    Variables (pkt_name hdr_name: string).
-
-    Fixpoint compile_expression
-      (expr: P4cub.Expr.e tags_t)
-      : option simple_expression
-    :=
-      match expr with
-      | P4cub.Expr.EVar _ name _ =>
-        if name == hdr_name then
-          Some SimpleExpressionHeader
-        else
-          None
-      | P4cub.Expr.EExprMember name _ expr _ =>
-        let* child := compile_expression expr in
-        Some (SimpleExpressionMember child name)
-      | _ =>
-        None
-      end
-    .
-
-    Fixpoint compile_lvalue
-      (expr: P4cub.Expr.e tags_t)
-      : option simple_lvalue
-    :=
-      match expr with
-      | P4cub.Expr.EVar _ name _ =>
-        if name == hdr_name then
-          Some SimpleLvalueHeader
-        else
-          None
-      | P4cub.Expr.EExprMember name _ expr _ =>
-        let* child := compile_lvalue expr in
-        Some (SimpleLvalueMember child name)
-      | _ =>
-        None
-      end
-    .
-
-    Fixpoint compile_statements
-      (stmt: P4cub.Stmt.s tags_t)
-      : option (list state_operation)
-    :=
-      match stmt with
-      | P4cub.Stmt.SSkip _ =>
-        Some nil
-      | P4cub.Stmt.SSeq s1 s2 _ =>
-        let* f1 := compile_statements s1 in
-        let* f2 := compile_statements s2 in
-        Some (f1 ++ f2)
-      | P4cub.Stmt.SExternMethodCall extern func args _ =>
-        if extern == pkt_name then
-          if func == "extract" then
-            match args with
-            | P4cub.Arrow ((_, P4cub.PAOut (t, e)) :: nil) _ =>
-              let* into := compile_lvalue e in
-              Some (StateOperationExtract t into :: nil)
-            | _=> None
-            end
-          else
-            None
-        else
-          None
-      | _ => None
-      end
-    .
-
-    Fixpoint compile_updates
-      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
-      : option (list (string * list state_operation))
-    :=
-      match states with
-      | nil =>
-        Some nil
-      | state :: states' =>
-        let '(name, P4cub.Parser.ParserState.State stmt _) := state in
-        let* tail := compile_updates states' in
-        let* head := compile_statements stmt in
-        Some ((name, head) :: tail)
-      end
-    .
-
-    Section NotationSection.
-    Import P4cub.P4cubNotations.
-
-    Fixpoint compile_transition
-      (trans: P4cub.Parser.ParserState.e tags_t)
-      : option (list (simple_match * (string + bool)))
-    :=
-      match trans with
-      | p{ goto start @ _ }p => None (* TODO: Implement this. *)
-      | p{ goto accept @ _ }p =>
-        Some ((SimpleMatchDontCare, inr true) :: nil)
-      | p{ goto reject @ _ }p =>
-        Some ((SimpleMatchDontCare, inr false) :: nil)
-      | p{ goto δ st @ _ }p =>
-        Some ((SimpleMatchDontCare, inl st) :: nil)
-      | p{ select select_exp { cases } default:=def @ _ }p =>
-        let* select_exp' := compile_expression select_exp in
-        let fix f cases :=
-          match cases with
-          | nil =>
-            compile_transition def
-          | (case_exp, case_trans) :: cases' =>
-            let* child_clauses := compile_transition case_trans in
-            let* case_exp' := compile_expression case_exp in
-            let augmented_clauses :=
-              map (
-                fun '(clause, target) =>
-                (SimpleMatchAnd (SimpleMatchEquals select_exp' case_exp')
-                                clause,
-                 target)
-              ) child_clauses in
-            let* tail := f cases' in
-            Some (augmented_clauses ++ tail)
-          end in
-         f cases
-      end
-    .
-    End NotationSection.
-
-    Fixpoint compile_transitions
-      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
-      : option (list (string * list (simple_match * (string + bool))))
-    :=
-      match states with
-      | nil =>
-        Some nil
-      | state :: states' =>
-        let '(name, P4cub.Parser.ParserState.State _ trans) := state in
-        let* tail := compile_transitions states' in
-        let* head := compile_transition trans in
-        Some ((name, head) :: tail)
-      end
-    .
-
-  End compile.
-
-  Record embedded_p4automaton := MkEmbeddedP4Automaton {
-    emb_updates: list (string * list state_operation);
-    emb_transitions: list (string * list (simple_match * (string + bool)));
-  }.
-
-  Definition parser_to_p4automaton
-    (parser: P4cub.TopDecl.d tags_t)
-    : option embedded_p4automaton
-  :=
-    match parser with
-    | P4cub.TopDecl.TPParser _ _ params _ states _ => (* AST.v change *)
-      match params with
-      | (pkt_name, P4cub.PAIn pkt_type) ::
-        (hdr_name, P4cub.PAOut hdr_type) :: _ =>
-        let* updates := compile_updates pkt_name hdr_name states in
-        let* transitions := compile_transitions hdr_name states in
-        Some {|
-          emb_updates := updates;
-          emb_transitions := transitions;
-        |}
-      | _ =>
-        None
-      end
-    | _ =>
-      None
-    end
-  .
-
-End parser_to_p4automaton.

@@ -39,10 +39,10 @@ Definition update_memory (f : mem -> mem) (s : state) : state :=
 Definition get_memory (s : state) : mem :=
   let (m, _) := s in m.
 
-Definition loc_to_path (this : path) (loc : Locator) : option path :=
+Definition loc_to_path (this : path) (loc : Locator) : path :=
   match loc with
-  | LGlobal p => Some p
-  | LInstance p => Some (this ++ p)
+  | LGlobal p => p
+  | LInstance p => this ++ p
   end.
 
 Inductive fundef :=
@@ -96,12 +96,8 @@ Definition eval_p4int (n: P4Int) : Val :=
 
 Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
   let p := loc_to_path this loc in
-  match p with
-  | Some p' =>
-    match PathMap.get p' (get_memory s) with
-    | Some v => Some v
-    | _ => None
-    end
+  match PathMap.get p (get_memory s) with
+  | Some v => Some v
   | _ => None
   end.
 
@@ -481,21 +477,14 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLva
                                         lv.
 
 
-Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): option state :=
+Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): state :=
   let p := loc_to_path this loc in
-  match p with
-  | Some p' => Some (update_memory (PathMap.set p' v) s)
-  | _ => None
-  end.
+  update_memory (PathMap.set p v) s.
 
 Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
   match lhs with
   | MkValueLvalue (ValLeftName name loc) _ =>
-    let opt_st := update_val_by_loc this st loc rhs in
-      match opt_st with
-      | Some st' => Some (st', SContinue)
-      | _ => None
-      end
+    let st' := update_val_by_loc this st loc rhs in Some (st', SContinue)
   | _ => None (* omitted for now *)
   end.
 
@@ -518,14 +507,14 @@ Definition read_lval (p: path) (s: state) (lval: Lval): option Val := None.
 (* out -> (None, Some _) *)
 (* inout -> (Some _, Some _) *)
 Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=
-| exec_arg_in: forall this st expr val,
-    exec_expr this st expr val -> exec_arg this st (Some expr) In (Some val, None)
-| exec_arg_out_dontcare: forall this st, exec_arg this st None Out (None, None)
-| exec_arg_out: forall this st expr lval,
-    exec_lvalue_expr this st expr lval -> exec_arg this st (Some expr) Out (None, Some lval)
-| exec_arg_inout: forall this st expr lval val,
-    exec_lvalue_expr this st expr lval -> read_lval this st lval = Some val ->
-    exec_arg this st (Some expr) InOut (Some val, Some lval).
+  | exec_arg_in: forall this st expr val,
+      exec_expr this st expr val -> exec_arg this st (Some expr) In (Some val, None)
+  | exec_arg_out_dontcare: forall this st, exec_arg this st None Out (None, None)
+  | exec_arg_out: forall this st expr lval,
+      exec_lvalue_expr this st expr lval -> exec_arg this st (Some expr) Out (None, Some lval)
+  | exec_arg_inout: forall this st expr lval val,
+      exec_lvalue_expr this st expr lval -> read_lval this st lval = Some val ->
+      exec_arg this st (Some expr) InOut (Some val, Some lval).
 
 (* exec_arg on a list *)
 Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.

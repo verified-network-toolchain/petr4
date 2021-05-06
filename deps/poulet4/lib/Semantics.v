@@ -577,18 +577,36 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   | StatSwCaseFallThrough _ (StatSwLabDefault _) :: _ => None
   end.
 
-Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
-  | dummy : forall v t, is_uninitialized_value v t.
-
-
-Definition table_hit_string := {| P4String.tags := dummy_tags; P4String.str := "hit" |}.
-Definition table_miss_string := {| P4String.tags := dummy_tags; P4String.str := "miss" |}.
+Definition _string := {| P4String.tags := dummy_tags; P4String.str := "" |}.
+Definition hit_string := {| P4String.tags := dummy_tags; P4String.str := "hit" |}.
+Definition miss_string := {| P4String.tags := dummy_tags; P4String.str := "miss" |}.
 Definition action_run_string := {| P4String.tags := dummy_tags; P4String.str := "action_run" |}.
+
 Definition table_retv (b : bool) (ename member : P4String) : ValueBase :=
-  ValBaseStruct 
-  [(table_hit_string, ValBaseBool b);
-   (table_miss_string, ValBaseBool b);
+  ValBaseStruct
+  [(hit_string, ValBaseBool b);
+   (miss_string, ValBaseBool (negb b));
    (action_run_string, ValBaseEnumField ename member)].
+
+Definition name_only (name : Typed.name) : ident :=
+  match name with
+  | BareName name => name
+  | QualifiedName _ name => name
+  end.
+
+Definition get_expr_name (expr : @Expression tags_t) : ident :=
+  match expr with
+  | MkExpression _ (ExpName name _) _ _  =>
+      name_only name
+  | _ => _string
+  end.
+
+Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
+  match expr with
+  | MkExpression _ (ExpFunctionCall func _ _) _ _  =>
+      get_expr_name func
+  | _ => _string
+  end.
 
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
@@ -718,20 +736,23 @@ with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> lis
       exec_table_match obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
       add_ctrl_args (get_action actions name) ctrl_args = Some action ->
       exec_call obj_path inst_m s action s' None ->
-      exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil s' nil None
+      exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil s' nil
+            (Some (table_retv true _string (get_expr_func_name action)))
 
   | exec_func_table_default : forall obj_path name inst_m keys actions default_action const_entries s s',
       exec_table_match obj_path s name const_entries None ->
       exec_call obj_path inst_m s default_action s' None ->
-      exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil s' nil None
+      exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil s' nil
+            (Some (table_retv false _string (get_expr_func_name default_action)))
 
-  | exec_func_table_noaction : forall obj_path name inst_m keys actions const_entries s,
+  (* This will not happen in the latest spec. *)
+  (* | exec_func_table_noaction : forall obj_path name inst_m keys actions const_entries s,
       exec_table_match obj_path s name const_entries None ->
-      exec_func obj_path inst_m s (FTable name keys actions None const_entries) nil s nil None
+      exec_func obj_path inst_m s (FTable name keys actions None const_entries) nil s nil None *)
 
   | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' args args' vret,
       exec_extern es class_name name obj_path args es' args' vret ->
-      exec_func obj_path inst_m (m, es) (FExternal class_name name (* params *)) args (m, es') args' vret. 
+      exec_func obj_path inst_m (m, es) (FExternal class_name name (* params *)) args (m, es') args' vret.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=

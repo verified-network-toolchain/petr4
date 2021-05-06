@@ -504,11 +504,22 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
   | _ => nil (* impossible *)
   end.
 
+Definition read_lval (p: path) (s: state) (lval: Lval): option Val := None.
+(* TODO *)
+
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
 (* out -> (None, Some _) *)
 (* inout -> (Some _, Some _) *)
-Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=.
+Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=
+| exec_arg_in: forall this st expr val,
+    exec_expr this st expr val -> exec_arg this st (Some expr) In (Some val, None)
+| exec_arg_out_dontcare: forall this st, exec_arg this st None Out (None, None)
+| exec_arg_out: forall this st expr lval,
+    exec_lvalue_expr this st expr lval -> exec_arg this st (Some expr) Out (None, Some lval)
+| exec_arg_inout: forall this st expr lval val,
+    exec_lvalue_expr this st expr lval -> read_lval this st lval = Some val ->
+    exec_arg this st (Some expr) InOut (Some val, Some lval).
 
 (* exec_arg on a list *)
 Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.

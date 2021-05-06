@@ -46,13 +46,6 @@ let translate_type (typ: Typed.Type.t) : C.ctyp =
     C.CBit8
   | _ -> failwith "incomplete"
 
-let get_ctyp (typ : string) : C.ctyp = 
-  match typ with 
-  | "int" -> C.CInt
-  | "void" -> C.CVoid
-  | "char" -> C.CChar
-  | _ -> failwith "unimplemented"
-
 let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   match (snd e).expr with
   | Name (BareName str) -> C.CVar (snd str)
@@ -65,7 +58,7 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
   | Cast {expr; _} -> translate_expr expr
   | String s -> CString (snd s)
   | List {values} -> CList (List.map ~f:translate_expr values)
-  | DontCare -> CString ""
+  | DontCare -> failwith "match statement not implemented yet"
   | UnaryOp {op; arg} -> begin match snd op with  
       | Not -> CUOpNot (translate_expr arg)
       | BitNot -> CUOpBitNot (translate_expr arg)
@@ -79,15 +72,14 @@ let rec translate_expr (e: Prog.Expression.t) : C.cexpr =
       | None::t -> get_args t in
     CCall ((get_expr_name func), get_args args)
   | BinaryOp {op; args} -> CBinOp (op, translate_expr (fst args), translate_expr (snd args))
-  (* todo: for typemember check that there's a better way than going to string first *)
-  | TypeMember {typ; name} -> CTypeMember (typ |> get_name |> snd |> get_ctyp, C.CString (snd name))
-  | ErrorMember e -> failwith "f"
-  | Ternary t -> failwith "f"
+  | TypeMember {typ; name} -> CMember (CVar (typ |> get_name |> snd), snd name)
+  | ErrorMember e -> Cerr (snd e)
+  | Ternary t -> CTernary (translate_expr t.cond, translate_expr t.tru, translate_expr t.fls)
+  | ArrayAccess x -> CArrayAccess (translate_expr x.array, translate_expr x.index)
+  | BitStringAccess x -> CBitStringAccess (translate_expr x.bits, x.lo, x.hi)
+  | Mask x -> CBinOp ((Info.dummy, Types.Op.And), translate_expr x.expr, translate_expr x.mask)
   | NamelessInstantiation x -> failwith "f"
-  | ArrayAccess x -> failwith "f"
-  | BitStringAccess x -> failwith "f" 
-  | Mask x -> failwith "f"
-  | Record r -> failwith "f" 
+  | Record r -> failwith "f" (** use struct literals *)
   | Range r -> failwith "f"
 
 let rec get_expr_mem (e: Prog.Expression.t) : C.cname =
@@ -449,7 +441,7 @@ and translate_parser_states map (states: Prog.Parser.state list) : C.cstmt list 
   in
   let start_id = Map.find_exn states_map "start" in
   C.[CVarInit (CInt, next_state_name, CIntLit start_id);
-     CWhile (CGeq (next_state_var, CIntLit 0),
+     CWhile (C.CBinOp ((Info.dummy, Types.Op.Ge), next_state_var, CIntLit 0),
              CSwitch (next_state_var, cases))]
 
 and translate_parser_state map (states: int StrMap.t) (state: Prog.Parser.state) : C.ccase =

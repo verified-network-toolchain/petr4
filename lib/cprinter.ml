@@ -120,10 +120,6 @@ and format_cexpr (expr: cexpr) =
       | false -> text "false" end 
   | CString cname ->
     verbatim ("\"" ^ cname ^ "\"")
-  | CGeq (e1, e2) ->
-    box (format_cexpr e1
-         ++ text " >= "
-         ++ format_cexpr e2) 
   | CPointer (exp, field) ->
     format_cexpr exp ++ text "->" ++ format_cname field
   | CCast (t, e) ->
@@ -164,20 +160,13 @@ and format_cexpr (expr: cexpr) =
       | Or -> " || "
     in (e1 |> format_cexpr) ++ (bop |> text) ++
        (format_cexpr e2) |> hbox
-  | CTypeMember (typ, e) ->
-    (* todo: check the last few types  *)
-    let t = match typ with
-      | CVoid -> "void"
-      | CInt -> "int"
-      | CChar -> "char"
-      | CBit8 -> "bit8"
-      | CUInt -> "unsigned int"
-      | CBool -> "bool"
-      | CTypeName n -> "type name"
-      | CPtr p -> "*"
-    in (t |> text) ++ ("." |> text) ++
-       (format_cexpr e) |> box
-
+  | Cerr e -> text "Error: " ++ text e
+  | CTernary (cond, t, f) -> box (format_cexpr cond ++ text " ? " ++
+                                  format_cexpr t ++ text " : " ++ format_cexpr f)
+  | CArrayAccess (a, i) -> box (format_cexpr a ++ text "[" ++ format_cexpr i 
+                                ++ text "]")
+  | CBitStringAccess (b, lo, hi) -> box (format_cexpr b ++ text "[" ++ text (Bigint.to_string lo) ++ 
+                                         text ":" ++  text (Bigint.to_string hi) ++ text "]")                         
 
 and format_list_pp_sep f sep l =
   Pp.concat_map ~sep l ~f

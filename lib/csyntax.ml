@@ -52,7 +52,6 @@ and cexpr =
   | CCall of cname * cexpr list
   | CBoolExp of bool
   | CString of cname 
-  | CGeq of cexpr * cexpr
   | CPointer of cexpr * cname (* can replace cpointer with deref and cmember  *)
   | CCast of ctyp * cexpr
   | CList of cexpr list 
@@ -60,7 +59,9 @@ and cexpr =
   | CUOpBitNot of cexpr 
   | CUOpUMinus of cexpr
   | CBinOp of op * cexpr * cexpr 
-  | CTypeMember of ctyp * cexpr
-
+  | Cerr of cname 
+  | CTernary of cexpr * cexpr * cexpr
+  | CArrayAccess of cexpr * cexpr
+  | CBitStringAccess of cexpr * Bigint.t * Bigint.t
 
 type cprog = cdecl list

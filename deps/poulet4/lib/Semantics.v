@@ -600,6 +600,12 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
 Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
   | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
 
+Inductive signal_return_value : signal -> Val -> Prop :=
+  | signal_return_return : forall v,
+      signal_return_value (SReturn v) v
+  | signal_return_continue :
+      signal_return_value SContinue ValBaseNull.
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
                                 exec_lvalue_expr this_path st lhs lv ->
@@ -718,10 +724,11 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> V
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
 with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> Val -> Prop :=
-  | exec_func_internal : forall obj_path inst_m s params init body args s''' args' vret s' s'',
+  | exec_func_internal : forall obj_path inst_m s params init body args s''' args' vret s' s'' sig,
       bind_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args s s' ->
       exec_block obj_path inst_m s' init  s'' SContinue ->
-      exec_block obj_path inst_m s'' body s''' (SReturn vret) ->
+      exec_block obj_path inst_m s'' body s''' sig ->
+      signal_return_value sig vret ->
       extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
       exec_func obj_path inst_m s (FInternal params init body) args s''' args' vret
 

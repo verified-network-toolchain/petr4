@@ -4,7 +4,7 @@ Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Strings.String.
 
-Require Import Equations.Equations.
+From Equations Require Import Equations.
 
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
@@ -44,11 +44,11 @@ Section Eval.
   Notation ParserCase := (@ParserCase tags_t).
   Notation ParserTransition := (@ParserTransition tags_t).
 
-  Definition default_value_error (str: string) : ValueBase := 
+  Definition default_value_error (str: string) : ValueBase :=
     ValBaseError {| P4String.tags := tags_dummy; P4String.str := str |}.
-  
+
   Fixpoint default_value_base (A: P4Type) : ValueBase :=
-    match A with 
+    match A with
     | TypBool => ValBaseBool false
     | TypString => ValBaseString {| P4String.tags := tags_dummy; P4String.str := "" |}
     | TypBit w => ValBaseBit w 0
@@ -56,13 +56,13 @@ Section Eval.
     | TypHeader fields => ValBaseHeader (map (fun (field: P4String * P4Type) => let (f, t) := field in (f, default_value_base t)) fields) false
     | _ => default_value_error "unimplemented type for default_value_base"
     end.
-  
-  
+
+
   Definition default_value (A: P4Type) : Value :=
-    match A with 
-    | TypBool 
-    | TypString 
-    | TypBit _ 
+    match A with
+    | TypBool
+    | TypString
+    | TypBit _
     | TypHeader _ => ValBase (default_value_base A)
     | _ => ValBase (default_value_error "unimplemented type for default_value")
     end.
@@ -458,13 +458,13 @@ Section Eval.
       let* val := eval_expression rhs in
       env_update _ lval val;
     eval_statement_pre (StatConditional cond tru fls) :=
-      let* cv := eval_expression cond in 
-      match cv with 
-      | (ValBase (ValBaseBool b)) => 
-        if b then 
-          eval_statement tru 
+      let* cv := eval_expression cond in
+      match cv with
+      | (ValBase (ValBaseBool b)) =>
+        if b then
+          eval_statement tru
         else
-          match fls with 
+          match fls with
           | Some fls' => eval_statement fls'
           | _ => skip
           end

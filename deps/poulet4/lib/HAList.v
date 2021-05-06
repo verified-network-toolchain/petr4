@@ -1,7 +1,7 @@
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Equality.
-Require Import Equations.Equations.
+From Equations Require Import Equations.
 Import ListNotations.
 
 Set Universe Polymorphism.

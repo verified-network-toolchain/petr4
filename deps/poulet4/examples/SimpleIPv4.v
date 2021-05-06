@@ -14,28 +14,28 @@ From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
 Require Import Coq.Lists.List.
-Require Import Equations.Equations.
+From Equations Require Import Equations.
 
 Notation REmp := HAList.REmp.
 Notation RCons := HAList.RCons.
 
 
-Definition slice_list {A} (from: nat) (to: nat) (l: list A) := 
+Definition slice_list {A} (from: nat) (to: nat) (l: list A) :=
   firstn (to - from) (skipn from l).
 
 Fixpoint take_bits_opt (n: nat) (l: list bool) : option (bits n) :=
-  match n as n' return option (bits n') with 
-  | 0 => 
+  match n as n' return option (bits n') with
+  | 0 =>
     match l with
     | [] => Some tt
     | _ => None
     end
-  | S n' => 
-    match l with 
+  | S n' =>
+    match l with
     | [] => None
-    | x :: l' => 
-      match take_bits_opt n' l' with 
-      | Some bs => Some (x, bs) 
+    | x :: l' =>
+      match take_bits_opt n' l' with
+      | Some bs => Some (x, bs)
       | None => None
       end
     end
@@ -47,24 +47,24 @@ Definition IPHeader :=
      ("dst", bits 8);
      ("proto", bits 4)].
 
-Definition mkIPHeader src dst proto : IPHeader := 
+Definition mkIPHeader src dst proto : IPHeader :=
   RCons src (RCons dst (RCons proto REmp)).
 
 Definition IPHeader_default : IPHeader := mkIPHeader zero_bits zero_bits zero_bits.
 
 Definition pkt2IPHeader (pkt: list bool) : IPHeader :=
-  let src := take_bits_opt 8 (slice_list 0 8 pkt) in 
+  let src := take_bits_opt 8 (slice_list 0 8 pkt) in
   let dst := take_bits_opt 8 (slice_list 8 16 pkt) in
   let proto := take_bits_opt 4 (slice_list 16 20 pkt) in
-  match (src, dst, proto) with 
+  match (src, dst, proto) with
   | (Some src', Some dst', Some proto') => mkIPHeader src' dst' proto'
   | _ => IPHeader_default
   end.
 
 Definition IPHeader_p : PktParser IPHeader :=
-  let* src := extract_n 8 in 
-  let* dst := extract_n 8 in 
-  let* proto := extract_n 4 in 
+  let* src := extract_n 8 in
+  let* dst := extract_n 8 in
+  let* proto := extract_n 4 in
   state_return (mkIPHeader src dst proto).
 
 Definition TCP :=
@@ -74,61 +74,61 @@ Definition TCP :=
    ("flags", bits 4);
    ("seq", bits 8)].
 
-Definition mkTCP sport dport flags seq: TCP := 
+Definition mkTCP sport dport flags seq: TCP :=
   RCons sport (RCons dport (RCons flags (RCons seq REmp))).
 
 Definition TCP_default := mkTCP zero_bits zero_bits zero_bits zero_bits.
-  
+
 Definition pkt2TCP (pkt: list bool) : TCP :=
-  let sport := take_bits_opt 8 (slice_list 0 8 pkt) in 
+  let sport := take_bits_opt 8 (slice_list 0 8 pkt) in
   let dport := take_bits_opt 8 (slice_list 8 16 pkt) in
   let flags := take_bits_opt 4 (slice_list 16 20 pkt) in
   let seq := take_bits_opt 8 (slice_list 20 28 pkt) in
-  match (sport, dport, flags, seq) with 
+  match (sport, dport, flags, seq) with
   | (Some sport', Some dport', Some flags', Some seq') => mkTCP sport' dport' flags' seq'
   | _ => TCP_default
   end.
 
 Definition TCP_p : PktParser TCP :=
-  let* sport := extract_n 8 in 
-  let* dport := extract_n 8 in 
-  let* flags := extract_n 4 in 
-  let* seq := extract_n 8 in 
+  let* sport := extract_n 8 in
+  let* dport := extract_n 8 in
+  let* flags := extract_n 4 in
+  let* seq := extract_n 8 in
     state_return (mkTCP sport dport flags seq).
 
-Definition UDP := 
+Definition UDP :=
   HAList.t
-  [("sport", bits 8); 
+  [("sport", bits 8);
    ("dport", bits 8);
    ("flags", bits 4)].
 
-Definition mkUDP sport dport flags : UDP := 
+Definition mkUDP sport dport flags : UDP :=
   RCons sport (RCons dport (RCons flags REmp)).
 
 Definition UDP_default := mkUDP zero_bits zero_bits zero_bits.
-  
+
 Definition pkt2UDP (pkt: list bool) : UDP :=
-  let sport := take_bits_opt 8 (slice_list 0 8 pkt) in 
+  let sport := take_bits_opt 8 (slice_list 0 8 pkt) in
   let dport := take_bits_opt 8 (slice_list 8 16 pkt) in
   let flags := take_bits_opt 4 (slice_list 16 20 pkt) in
-  match (sport, dport, flags) with 
+  match (sport, dport, flags) with
   | (Some sport', Some dport', Some flags') => mkUDP sport' dport' flags'
   | _ => UDP_default
   end.
-  
+
 
 Definition UDP_p : PktParser UDP :=
-  let* sport := extract_n 8 in 
-  let* dport := extract_n 8 in 
-  let* flags := extract_n 4 in 
+  let* sport := extract_n 8 in
+  let* dport := extract_n 8 in
+  let* flags := extract_n 4 in
     state_return (mkUDP sport dport flags).
 
-Definition Headers := 
+Definition Headers :=
   HAList.t
-  [("ip", IPHeader); 
+  [("ip", IPHeader);
    ("transport", (TCP + UDP)%type)].
-  
-Definition mkHeaders iph tu : Headers := 
+
+Definition mkHeaders iph tu : Headers :=
   RCons iph (RCons tu REmp).
 
 Definition Headers_default := mkHeaders IPHeader_default (inl TCP_default).
@@ -136,28 +136,28 @@ Definition Headers_default := mkHeaders IPHeader_default (inl TCP_default).
 Definition pkt2Headers (pkt: list bool) : Headers :=
   let iph := pkt2IPHeader (slice_list 0 20 pkt) in
   let proto := HAList.get iph (exist _ "proto" I) in
-  match proto with 
+  match proto with
   | (false, (false, (false, (false, tt)))) =>
     mkHeaders iph (inl (pkt2TCP (slice_list 20 48 pkt)))
   | (false, (false, (false, (true, tt)))) =>
-    mkHeaders iph (inr (pkt2UDP (slice_list 20 40 pkt))) 
+    mkHeaders iph (inr (pkt2UDP (slice_list 20 40 pkt)))
   | _ => Headers_default
   end.
-      
-Definition Headers_p : PktParser Headers := 
-  let* iph := IPHeader_p in 
+
+Definition Headers_p : PktParser Headers :=
+  let* iph := IPHeader_p in
   let proto := HAList.get iph (exist _ "proto" I) in
-  match proto with 
+  match proto with
   | (false, (false, (false, (false, tt)))) =>
-    let* tcp := TCP_p in 
+    let* tcp := TCP_p in
       state_return (RCons iph (RCons (inl tcp) REmp))
   | (false, (false, (false, (true, tt)))) =>
-    let* udp := UDP_p in 
+    let* udp := UDP_p in
       state_return (RCons iph (RCons (inr udp) REmp))
   | _ => reject
   end.
 
-Lemma Header_destruct (h: Headers) : 
+Lemma Header_destruct (h: Headers) :
   exists ip trans, h = RCons ip (RCons trans REmp).
 Proof.
   unfold Headers in *.
@@ -167,17 +167,17 @@ Proof.
   eauto.
 Qed.
 
-Definition MyIngress (hdr: Headers) : PktParser Headers := 
-  match HAList.get hdr (exist _ "transport" I) with 
-  | inl _ => 
-    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) one_bits) ;; state_return hdr 
-  | _ => 
-    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) zero_bits) ;; state_return hdr 
+Definition MyIngress (hdr: Headers) : PktParser Headers :=
+  match HAList.get hdr (exist _ "transport" I) with
+  | inl _ =>
+    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) one_bits) ;; state_return hdr
+  | _ =>
+    set_std_meta (fun mt => HAList.set mt (exist _ "egress_spec" I) zero_bits) ;; state_return hdr
   end.
 
 Definition MyProg (pkt: list bool) : PktParser Headers :=
   put_state (fun _ => init_state pkt) ;;
-  let* hdr := Headers_p in 
+  let* hdr := Headers_p in
     MyIngress hdr.
 
 Definition HeaderWF (pkt : list bool) : Prop :=
@@ -244,11 +244,11 @@ Proof.
   wp_trans; try app_ex.
   simpl.
   intros.
-  1, 2: eapply strengthen_pre_p; wp_trans. 
+  1, 2: eapply strengthen_pre_p; wp_trans.
   all: app_ex.
   simpl.
   break_match.
-  - exfalso. 
+  - exfalso.
     rewrite <- H in Heql.
     simpl in Heql.
     discriminate.
@@ -262,10 +262,10 @@ Proof.
     + reflexivity.
 Qed.
 
-Lemma next_bit_sp s': 
+Lemma next_bit_sp s':
   << fun s => s = s' /\ length (pkt s) > 0 >>
     next_bit
-  << fun r s => 
+  << fun r s =>
     s' = s <| pkt := r :: (pkt s) |>
   >>.
 Proof.
@@ -286,13 +286,13 @@ Proof.
     trivial.
 Qed.
 
-Definition extract_bit_wp' {Q} := 
-  build_wp next_bit 
-    (fun s => length (pkt s) > 0) 
-    Q 
+Definition extract_bit_wp' {Q} :=
+  build_wp next_bit
+    (fun s => length (pkt s) > 0)
+    Q
     (fun s => match pkt s with | [] => (true, s) | b :: bs => (b, s <| pkt := bs |> ) end).
 
-Lemma extract_bit_wp_corr : 
+Lemma extract_bit_wp_corr :
   forall Q, @extract_bit_wp' Q.
 Proof.
 
@@ -374,19 +374,19 @@ Proof.
       mysimp.
 Qed.
 
-Ltac mylen ls := 
-  match ls with 
-  | _ :: ?tl => 
-    let l' := mylen tl in 
+Ltac mylen ls :=
+  match ls with
+  | _ :: ?tl =>
+    let l' := mylen tl in
     constr:(S l')
   | _ => 0
   end.
 
 Ltac myinduct l := destruct l; (simpl; try (exfalso; simpl in *; lia)).
 
-Lemma extract_bit_wp {Q} : 
-  << fun s => 
-    match (pkt s) with 
+Lemma extract_bit_wp {Q} :
+  << fun s =>
+    match (pkt s) with
     | [] => False
     | b :: bs => Q b (s <| pkt := bs |> )
     end
@@ -403,14 +403,14 @@ Proof.
   - unfold set in H. simpl in *. trivial.
 Qed.
 
-Lemma extract_n_wp n {Q: Post ParserState (bits n)}: 
-  << fun s => 
-    n <= length (pkt s) /\ 
+Lemma extract_n_wp n {Q: Post ParserState (bits n)}:
+  << fun s =>
+    n <= length (pkt s) /\
     exists (bts: bits n) suff,
     pkt s = (bits2list bts) ++ suff /\
     Q bts (s <| pkt := suff |>)
-  >> 
-    extract_n n 
+  >>
+    extract_n n
   << Q >>.
 Proof.
   induction n.
@@ -463,12 +463,12 @@ Proof.
 Qed.
 
 
-Lemma IPHeader_p_spec st: 
+Lemma IPHeader_p_spec st:
   << fun s => s = st /\ length (pkt s) >= 20 >>
     IPHeader_p
-  << fun r s' => 
+  << fun r s' =>
     r = pkt2IPHeader (pkt st) /\
-    s' = st <| pkt := skipn 20 (pkt st) |> 
+    s' = st <| pkt := skipn 20 (pkt st) |>
   >>.
 Proof.
   unfold IPHeader_p, reject.
@@ -502,8 +502,8 @@ Proof.
     split; auto.
 Qed.
 
-Lemma IPHeader_p_wp {Q} : 
-  build_wp 
+Lemma IPHeader_p_wp {Q} :
+  build_wp
     IPHeader_p
     (fun s => length (pkt s) >= 20)
     Q
@@ -521,19 +521,19 @@ Proof.
     split; auto.
 Qed.
 
-Lemma TCP_p_spec st: 
+Lemma TCP_p_spec st:
   << fun s => s = st /\ length (pkt s) >= 28 >>
     TCP_p
-  << fun r s' => 
+  << fun r s' =>
     r = pkt2TCP (pkt st) /\
-    s' = st <| pkt := skipn 28 (pkt st) |> 
+    s' = st <| pkt := skipn 28 (pkt st) |>
   >>.
 Proof.
   unfold TCP_p.
 Admitted.
 
-Lemma TCP_p_wp {Q} : 
-  build_wp 
+Lemma TCP_p_wp {Q} :
+  build_wp
     TCP_p
     (fun s => length (pkt s) >= 28)
     Q
@@ -551,17 +551,17 @@ Proof.
     split; auto.
 Qed.
 
-Lemma UDP_p_spec st: 
+Lemma UDP_p_spec st:
   << fun s => s = st /\ length (pkt s) >= 20 >>
     UDP_p
-  << fun r s' => 
+  << fun r s' =>
     r = pkt2UDP (pkt st) /\
-    s' = st <| pkt := skipn 20 (pkt st) |> 
+    s' = st <| pkt := skipn 20 (pkt st) |>
   >>.
 Admitted.
 
-Lemma UDP_p_wp {Q} : 
-  build_wp 
+Lemma UDP_p_wp {Q} :
+  build_wp
     UDP_p
     (fun s => length (pkt s) >= 20)
     Q
@@ -579,12 +579,12 @@ Proof.
     split; auto.
 Qed.
 
-Lemma Headers_p_wp {Q} : 
-  build_wp 
+Lemma Headers_p_wp {Q} :
+  build_wp
     Headers_p
-    (fun s => 
-      length (pkt s) >= 40 /\ 
-      match slice_list 16 20 (pkt s) with 
+    (fun s =>
+      length (pkt s) >= 40 /\
+      match slice_list 16 20 (pkt s) with
       | [false; false; false; false] => length (pkt s) = 48
       | [false; false; false; true] => length (pkt s) = 40
       | _ => False
@@ -592,10 +592,10 @@ Lemma Headers_p_wp {Q} :
     )
     Q
     (fun s => (
-      pkt2Headers (pkt s), 
-      match slice_list 16 20 (pkt s) with 
+      pkt2Headers (pkt s),
+      match slice_list 16 20 (pkt s) with
       | [false; false; false; false] => s <| pkt := skipn 48 (pkt s) |>
-      | [false; false; false; true] => s  <| pkt := skipn 40 (pkt s) |> 
+      | [false; false; false; true] => s  <| pkt := skipn 40 (pkt s) |>
       | _ => s
       end
     )).
@@ -625,10 +625,10 @@ Lemma ParseUDPCorrect pckt :
   << fun _ s => EgressSpecOne s >>.
 Admitted.
 
-Theorem ParseComplete pckt : 
-  << fun s => 
-    pkt s = pckt /\ 
-    HeaderWF (pkt s) /\ 
+Theorem ParseComplete pckt :
+  << fun s =>
+    pkt s = pckt /\
+    HeaderWF (pkt s) /\
     (IPHeaderIsUDP (pkt s) \/ IPHeaderIsTCP (pkt s))
   >>
     MyProg pckt

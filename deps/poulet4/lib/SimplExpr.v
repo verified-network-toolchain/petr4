@@ -129,6 +129,7 @@ Section Transformer.
       (l1 ++ l2 ++ l3, MkExpression tag (ExpTernary e1 e2 e3) typ dir, n3)
     | ExpFunctionCall func type_args args =>
       (* There are evaluation order issues here, also in bin_op, List, Record, etc. *)
+      let (l0e0, n0) := transform_exp nameIdx func in
       let (l1e1, n1) :=
           ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
               (list (P4String * (@Expression tags_t)) *
@@ -143,10 +144,11 @@ Section Transformer.
                 let (l2, e2) := l2e2 in
                 let (l3e3, n3) := transform_lopt n2 rest in
                 let (l3, el3) := l3e3 in (l2 ++ l3, Some e2 :: el3, n3)
-              end) nameIdx args) in
+              end) n0 args) in
+      let (l0, e0) := l0e0 in
       let (l1, e1) := l1e1 in
-      (l1 ++ [(N_to_tempvar n1,
-               MkExpression tag (ExpFunctionCall func type_args e1) typ dir)],
+      (l0 ++ l1 ++ [(N_to_tempvar n1,
+               MkExpression tag (ExpFunctionCall e0 type_args e1) typ dir)],
        MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ dir, add1 n1)
     | ExpNamelessInstantiation typ' args =>
       (nil, MkExpression tag (ExpNamelessInstantiation typ' args) typ dir, nameIdx)
@@ -249,7 +251,26 @@ Section Transformer.
            (stmt: @StatementPreT tags_t) (typ: StmType):
     (list (@Statement tags_t) * N) :=
     match stmt with
-    | StatMethodCall _ _ _ => ([MkStatement tags stmt typ], nameIdx)
+    | StatMethodCall func type_args args =>
+      let (l0e0, n0) := transform_exp_stmt nameIdx func in
+      let (l1e1, n1) :=
+          ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
+              (list (@Statement tags_t) *
+               (list (option (@Expression tags_t))) * N) :=
+              match l with
+              | nil => (nil, nil, idx)
+              | None :: rest =>
+                let (l2e2, n2) := transform_lopt idx rest in
+                let (l2, e2) := l2e2 in (l2, None :: e2, n2)
+              | Some exp :: rest =>
+                let (l2e2, n2) := transform_exp_stmt idx exp in
+                let (l2, e2) := l2e2 in
+                let (l3e3, n3) := transform_lopt n2 rest in
+                let (l3, el3) := l3e3 in (l2 ++ l3, Some e2 :: el3, n3)
+              end) n0 args) in
+      let (l0, e0) := l0e0 in
+      let (l1, e1) := l1e1 in
+      (l0 ++ l1 ++ [MkStatement tags (StatMethodCall e0 type_args e1) typ], n1)
     | StatAssignment lhs rhs =>
       let (l1e1, n1) := transform_exp_stmt nameIdx lhs in
       let (l1, e1) := l1e1 in

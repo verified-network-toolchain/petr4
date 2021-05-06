@@ -145,6 +145,7 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
 
 Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
 Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
+Definition main_string : ident := {| P4String.tags := dummy_tags; P4String.str := "main" |}.
 Definition p_string : ident := {| P4String.tags := dummy_tags; P4String.str := "p" |}.
 Definition vr_string : ident := {| P4String.tags := dummy_tags; P4String.str := "vr" |}.
 Definition ig_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ig" |}.
@@ -157,12 +158,12 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
       PathMap.set [packet_in_string] (ObjPin pin) s0 = s1 ->
-      module_sem [p_string] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] ->
-      module_sem [vr_string] s2 [hdr2; meta2] s3 [hdr3; meta3] ->
-      module_sem [ig_string] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] ->
-      module_sem [eg_string] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] ->
-      module_sem [ck_string] s5 [hdr5; meta5] s6 [hdr6; meta6] ->
-      module_sem [dep_string] s6 [hdr6] s7 nil ->
+      module_sem [main_string; p_string] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] ->
+      module_sem [main_string; vr_string] s2 [hdr2; meta2] s3 [hdr3; meta3] ->
+      module_sem [main_string; ig_string] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] ->
+      module_sem [main_string; eg_string] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] ->
+      module_sem [main_string; ck_string] s5 [hdr5; meta5] s6 [hdr6; meta6] ->
+      module_sem [main_string; dep_string] s6 [hdr6] s7 nil ->
       PathMap.get [packet_out_string] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 

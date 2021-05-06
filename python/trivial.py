@@ -3,11 +3,11 @@ import petr4
 from petr4.runtime import *
 
 class MyApp(petr4.App):
-  def connected(self):
-    print(f"MyApp.connected!")
+  def switch_up(self,switch,ports):
+    print(f"MyApp.switch_up!")
     entry = Entry("t", [], "a", [])
-    self.insert(entry)
+    self.insert(switch, entry)
     return
 
 app = MyApp()
-app.start_event_loop()
+app.start()

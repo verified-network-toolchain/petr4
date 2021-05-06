@@ -9,12 +9,10 @@ class Entry(object):
         self.match = []
         self.action = action
         self.action_data = []
-        print(f"Made entry")
 
     def to_json(self):
-        return ("Entry", 
-                { "table" : self.table, 
-                  "match": self.match, 
-                  "action" : self.action, 
-                  "action_data" : self.action_data })
-                
+        return { "table" : self.table, 
+                 "matches": self.match, 
+                 "action" : self.action, 
+                 "action_data" : self.action_data }
+    

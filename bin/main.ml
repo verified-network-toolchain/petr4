@@ -189,6 +189,8 @@ let do_insert (table:string) (matches:(string * string) list) (action:string) (a
   entries := (l1',l2)
 
 let handle_message = function
+  | Runtime.Hello _ -> 
+     ()
   | Runtime.Insert { table; matches; action; action_data } -> 
      Printf.eprintf "Insert: %s %s\n%!" table action; 
      do_insert table matches action action_data
@@ -204,7 +206,7 @@ let switch_command =
      +> flag "-i" (listed string) ~doc: "Specify the names by which the ports will be identified"
      +> anon ("p4file" %: string))
     (fun verbose include_dir target pts p4_file () ->
-       let _ = Petr4_unix.Runtime_server.listen ~handlers:handle_message () in
+       let _ = Petr4_unix.Runtime_server.start ~handlers:handle_message () in
        start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
 let runtime_command = 
@@ -212,7 +214,7 @@ let runtime_command =
   Command.basic_spec 
     ~summary: "Set up a dummy runtime server for testing"
     (empty)
-    (fun () -> Petr4_unix.Runtime_server.listen ~handlers:handle_message () |> Lwt_main.run)
+    (fun () -> Petr4_unix.Runtime_server.start ~handlers:handle_message () |> Lwt_main.run)
 
 let command =
   Command.group

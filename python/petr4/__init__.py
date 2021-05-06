@@ -1,100 +1,51 @@
 import uuid, sys, json, base64, time, array, binascii
-from datetime import timedelta
-from functools import partial
-from tornado import httpclient
-from tornado.httpclient import AsyncHTTPClient, HTTPRequest
+import asyncio
+import tornado
+from tornado import httpserver
+from tornado.web import RequestHandler
+from tornado.httpserver import HTTPServer
+from tornado.web import Application
 from tornado.ioloop import IOLoop
-from tornado import gen
+from tornado.queues import Queue
 
 class App(object):
 
-    """This method can be overridden by the application. By default, it simply
-       prints the event."""
-    def switch_up(self,switch_id,ports):
-        print(f"switch_up(switch_id={switch_id})")
+    def switch_up(self,switch,ports):
+        print(f"Petr4: switch_up({switch}, {ports})")
 
-    """This method can be overridden by the application. By default, it simply
-       prints the event."""
-    def switch_down(self,switch_id):
-        print (f"switch_down(switch_id={switch_id})")
+    def insert(self, switch, entry):
+        print(f"Petr4: insert({switch}, {entry})")
+        msg = json.dumps(["Insert", entry.to_json()])
+        self.msg_queue.put(msg)
+        return
 
-    def connected(self):
-        print("established connection to Petr4 controller")
+    class Hello(RequestHandler):
+        def initialize(self, app):
+            self.app = app
+        def post(self):
+            hello = tornado.escape.json_decode(self.request.body)[1]
+            self.app.switch_up(hello["switch"], hello["ports"])
+            self.write("Ok")
 
-    def insert(self, entry):
-        entry_json = json.dumps(entry.to_json())
-        url = "http://%s:%s/%s/message" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
-        request = HTTPRequest(url,method='POST',body=entry_json)
-        return self.__http_client.fetch(request)
+    class Event(RequestHandler):
+        def initialize(self, app):
+            self.app = app
+        async def get(self):
+            msg = await self.app.msg_queue.get()
+            self.write(msg)
 
-    def __init__(self):
-        if not hasattr(self, 'client_id'):
-            self.client_id = uuid.uuid4().hex
-            print(f"No client_id specified. Using {self.client_id}")
-        if not hasattr(self, 'petr4_http_host'):
-            self.petr4_http_host = "localhost"
-        if not hasattr(self, 'petr4_http_port'):
-            self.petr4_http_port = "9000"
-        self.__http_client = AsyncHTTPClient()
-        self.__connect()
+    def __init__(self, port=9000):
+        self.port = port
+        self.msg_queue = Queue()
+        application = Application([
+            ('/hello', self.Hello, { "app" : self } ),
+            ('/event', self.Event, { "app" : self } )])
+        self.http_server = HTTPServer(application)
 
-    def __connect(self):
-        url = "http://%s:%s/version" % (self.petr4_http_host, self.petr4_http_port)
-        req = HTTPRequest(url, method='GET',request_timeout=0)
-        resp_fut = self.__http_client.fetch(req)
-        IOLoop.instance().add_future(resp_fut, self.__handle_connect)
-
-    def __handle_connect(self, response_future):
-
-        try:
-            response = response_future.result()
-            print(f"GOT VERSION { response.body }")
-            # self.__poll_event()
-            self.connected()
-        except httpclient.HTTPError as e:
-            if e.code == 599:
-                print("Petr4 not running, re-trying....")
-                one_second = timedelta(seconds = 1)
-                IOLoop.instance().add_timeout(one_second, self.__connect)
-            else:
-                raise e
-
-    def start_event_loop(self):
-        print("Starting the tornado event loop (does not return).")
+    def start(self):
+        print(f"Petr4: starting controller on {self.port}.")
+        self.http_server.listen(self.port)
         IOLoop.instance().start()
 
-    # def __poll_event(self):
-    #     url = "http://%s:%s/%s/event" % (self.petr4_http_host, self.petr4_http_port, self.client_id)
-    #     req = HTTPRequest(url, method='GET',request_timeout=0)
-    #     resp_fut = self.__http_client.fetch(req)
-    #     IOLoop.instance().add_future(resp_fut, self.__handle_event)
-
-    # def __handle_event(self, response):
-    #     try: 
-    #         event =  json.loads(response.result().body)
-    #         if isinstance(event, list) or 'type' not in event:
-    #             typ = "UNKNOWN"
-    #         else:
-    #             typ = event['type']
-    #         if typ == 'switch_up':
-    #             switch_id = event['switch_id']
-    #             ports = event['ports']
-    #             self.switch_up(switch_id, ports)
-    #         elif typ == 'switch_down':
-    #             switch_id = event['switch_id']
-    #             self.switch_down(switch_id)
-
-    #         self.__poll_event()
-
-    #     except httpclient.HTTPError as e:
-    #         if e.code == 599:
-    #             current_time = time.strftime("%c")
-    #             print(f"{current_time} Petr4 crashed, re-trying in 5 seconds....")
-    #             five_seconds = timedelta(seconds = 5)
-
-    #             # We wait for a connect instead of going through the loop again.
-    #             IOLoop.instance().add_timeout(five_seconds,self.__connect)
-    #         else:
-    #             raise e
 
  

@@ -694,6 +694,10 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                     assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
                                     exec_stmt this_path inst_m st
                                     (MkStatement tags (StatVariable typ' name None loc) typ) st' sig
+  | exec_stmt_constant: forall typ' name v loc this_path inst_m st tags typ st' sig,
+                             assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
+                             exec_stmt this_path inst_m st
+                             (MkStatement tags (StatConstant typ' name v loc) typ) st' sig
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,

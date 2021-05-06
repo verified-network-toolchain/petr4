@@ -181,7 +181,13 @@ Section Transformer.
   Definition transform_Expr (nameIdx: N) (exp: @Expression tags_t):
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
-    | MkExpression _ (ExpFunctionCall _ _ _) _ _ => (nil, exp, nameIdx)
+    | MkExpression _ (ExpFunctionCall _ _ _) _ _ =>
+      let (l1e1, n1) := transform_exp nameIdx exp in
+      let (l1, e1) := l1e1 in
+      match l1 with
+      | [x] => (nil, exp, nameIdx)
+      | _ => (l1e1, n1)
+      end
     | _ => transform_exp nameIdx exp
     end.
 

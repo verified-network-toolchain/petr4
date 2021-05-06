@@ -620,7 +620,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                 (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
   | exec_stmt_assign_func_call : forall lhs lv rhs v this_path inst_m st tags typ st' st'' sig,
                                  exec_lvalue_expr this_path st lhs lv ->
-                                 exec_call this_path inst_m st rhs st' (Some v) ->
+                                 exec_call this_path inst_m st rhs st' v ->
                                  assign_lvalue this_path st' lv v = Some (st'', sig) ->
                                  exec_stmt this_path inst_m st
                                  (MkStatement tags (StatAssignment lhs rhs) typ) st'' sig
@@ -634,10 +634,10 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                    exec_call this_path inst_m st
                                       (MkExpression dummy_tags
                                         (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) dummy_type Directionless)
-                                      st' None ->
+                                      st' ValBaseNull ->
                                    exec_stmt this_path inst_m st
                                    (MkStatement tags (StatDirectApplication typ' args) typ) st' SContinue
-  | exec_stmt_conditional_tru : forall cond tru fls_opt this_path inst_m st tags typ st' sig, 
+  | exec_stmt_conditional_tru : forall cond tru fls_opt this_path inst_m st tags typ st' sig,
                                 exec_expr this_path st cond (ValBaseBool true) ->
                                 exec_stmt this_path inst_m st tru st' sig ->
                                 exec_stmt this_path inst_m st
@@ -669,12 +669,12 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                       exec_stmt this_path inst_m st
                       (MkStatement tags StatEmpty typ) st SContinue
   | exec_stmt_switch_none: forall e b ename member cases  typ dir this_path inst_m (st st': state) tags tags' typ' st st',
-                           exec_call this_path inst_m st e st' (Some (table_retv b ename member)) ->
+                           exec_call this_path inst_m st e st' (table_retv b ename member) ->
                            match_switch_case member cases = None ->
                            exec_stmt this_path inst_m st
                            (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st' SContinue
   | exec_stmt_switch_some: forall e b ename member cases block typ dir this_path inst_m (st st': state) st'' tags tags' typ' st st' sig,
-                           exec_call this_path inst_m st e st' (Some (table_retv b ename member)) ->
+                           exec_call this_path inst_m st e st' (table_retv b ename member) ->
                            match_switch_case member cases = Some block ->
                            exec_block this_path inst_m st' block st'' sig ->
                            exec_stmt this_path inst_m st
@@ -685,7 +685,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                               exec_stmt this_path inst_m st
                               (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' sig
   | exec_stmt_variable_func_call : forall typ' name e v loc this_path inst_m st tags typ st' st'' sig,
-                                        exec_call this_path inst_m st e st' (Some v) ->
+                                        exec_call this_path inst_m st e st' v ->
                                         assign_lvalue this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st'', sig) ->
                                         exec_stmt this_path inst_m st
                                         (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' sig
@@ -707,7 +707,7 @@ with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signa
                              not_continue s = true -> 
                              exec_block this_path inst_m st (BlockCons stmt rest) st' s
 
-with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
+with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> Val -> Prop :=
   (* eval the call expression:
        1. lookup the function to call;
        2. eval arguments;
@@ -724,30 +724,30 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> o
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
-with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> option Val -> Prop :=
+with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> Val -> Prop :=
   | exec_func_internal : forall obj_path inst_m s params init body args s''' args' vret s' s'',
       bind_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args s s' ->
       exec_block obj_path inst_m s' init  s'' SContinue ->
       exec_block obj_path inst_m s'' body s''' (SReturn vret) ->
       extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
-      exec_func obj_path inst_m s (FInternal params init body) args s''' args' (Some vret)
+      exec_func obj_path inst_m s (FInternal params init body) args s''' args' vret
 
   | exec_func_table_match : forall obj_path name inst_m keys actions action_name ctrl_args action default_action const_entries s s',
       exec_table_match obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
       add_ctrl_args (get_action actions name) ctrl_args = Some action ->
-      exec_call obj_path inst_m s action s' None ->
+      exec_call obj_path inst_m s action s' ValBaseNull ->
       exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil s' nil
-            (Some (table_retv true _string (get_expr_func_name action)))
+            (table_retv true _string (get_expr_func_name action))
 
   | exec_func_table_default : forall obj_path name inst_m keys actions default_action const_entries s s',
       exec_table_match obj_path s name const_entries None ->
-      exec_call obj_path inst_m s default_action s' None ->
+      exec_call obj_path inst_m s default_action s' ValBaseNull ->
       exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil s' nil
-            (Some (table_retv false _string (get_expr_func_name default_action)))
+            (table_retv false _string (get_expr_func_name default_action))
 
   (* This will not happen in the latest spec. *)
   (* | exec_func_table_noaction : forall obj_path name inst_m keys actions const_entries s,
-      exec_table_match obj_path s name const_entries None ->
+      exec_table_match obj_path s name const_entries ValBaseNull ->
       exec_func obj_path inst_m s (FTable name keys actions None const_entries) nil s nil None *)
 
   | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' args args' vret,

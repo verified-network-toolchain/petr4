@@ -63,7 +63,7 @@ Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (
   else
     s.
 
-Definition extern_func_sem := extern_state -> path -> list Val -> extern_state -> list Val -> option Val -> Prop.
+Definition extern_func_sem := extern_state -> path -> list Val -> extern_state -> list Val -> Val -> Prop.
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
@@ -71,7 +71,7 @@ Inductive extern_func := mk_extern_func_sem {
   ef_sem : extern_func_sem
 }.
 
-Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list Val -> extern_state -> list Val -> option Val -> Prop :=
+Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list Val -> extern_state -> list Val -> Val -> Prop :=
   match func with
   | mk_extern_func_sem class_name func_name sem =>
       fun s class_name' func_name' =>
@@ -94,7 +94,7 @@ Inductive register_read_sem : extern_func_sem :=
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       Znth index (reg_content reg) = result ->
-      register_read_sem s p [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] None.
+      register_read_sem s p [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] ValBaseNull.
 
 Definition register_read : extern_func := {|
   ef_class := register_string;
@@ -115,7 +115,7 @@ Inductive register_write_sem : extern_func_sem :=
       upd_Znth index value (reg_content reg) = content' ->
       register_write_sem s p [ValBaseBit REG_INDEX_WIDTH index]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
-          [] None.
+          [] ValBaseNull.
 
 Definition register_write : extern_func := {|
   ef_class := register_string;
@@ -123,7 +123,7 @@ Definition register_write : extern_func := {|
   ef_sem := register_write_sem
 |}.
 
-Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> option Val -> Prop :=
+Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> Val -> Prop :=
   | exec_extern_register_read : forall s class method p args s' args' vret,
       apply_extern_func_sem register_read s class method p args s' args' vret ->
       exec_extern s class method p args s' args' vret

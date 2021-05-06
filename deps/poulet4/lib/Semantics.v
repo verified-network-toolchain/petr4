@@ -1180,4 +1180,11 @@ Definition gen_ge_typ (prog : @program tags_t) : option genv_typ :=
     add_decls_to_ge_typ (Some IdentMap.empty) l
   end.
 
+(* TODO this is a dummy function. This should be implemented at the same time as instantiation-time evaluation. *)
+Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
+  match prog with
+  | Program l => IdentMap.empty
+  end.
+
+
 End Semantics.

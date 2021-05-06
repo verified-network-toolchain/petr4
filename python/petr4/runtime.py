@@ -10,6 +10,9 @@ class Entry(object):
         self.action = action
         self.action_data = []
 
+    def __str__(self):
+        return f"table={self.table}, action={self.action})"
+
     def to_json(self):
         return { "table" : self.table, 
                  "matches": self.match, 

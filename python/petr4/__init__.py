@@ -1,3 +1,4 @@
+from collections import defaultdict
 import uuid, sys, json, base64, time, array, binascii
 import asyncio
 import tornado
@@ -16,7 +17,7 @@ class App(object):
     def insert(self, switch, entry):
         print(f"Petr4: insert({switch}, {entry})")
         msg = json.dumps(["Insert", entry.to_json()])
-        self.msg_queue.put(msg)
+        self.msg_queues[switch].put(msg)
         return
 
     class Hello(RequestHandler):
@@ -30,13 +31,14 @@ class App(object):
     class Event(RequestHandler):
         def initialize(self, app):
             self.app = app
-        async def get(self):
-            msg = await self.app.msg_queue.get()
+        async def post(self):
+            switch = tornado.escape.json_decode(self.request.body)[1]["switch"]
+            msg = await self.app.msg_queues[switch].get()
             self.write(msg)
 
     def __init__(self, port=9000):
         self.port = port
-        self.msg_queue = Queue()
+        self.msg_queues = defaultdict(lambda:Queue())
         application = Application([
             ('/hello', self.Hello, { "app" : self } ),
             ('/event', self.Event, { "app" : self } )])

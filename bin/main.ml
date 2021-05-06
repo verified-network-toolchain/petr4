@@ -191,6 +191,8 @@ let do_insert (table:string) (matches:(string * string) list) (action:string) (a
 let handle_message = function
   | Runtime.Hello _ -> 
      ()
+  | Runtime.Event _ -> 
+     ()
   | Runtime.Insert { table; matches; action; action_data } -> 
      Printf.eprintf "Insert: %s %s\n%!" table action; 
      do_insert table matches action action_data
@@ -204,17 +206,19 @@ let switch_command =
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-T" (optional_with_default "v1" string) ~doc: "<target> Specify P4 target (v1, ebpf currently supported)"
      +> flag "-i" (listed string) ~doc: "Specify the names by which the ports will be identified"
+     +> flag "-switch" (optional_with_default "s0" string) ~doc: "Specify the switch identifier"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir target pts p4_file () ->
-       let _ = Petr4_unix.Runtime_server.start ~handlers:handle_message () in
+    (fun verbose include_dir target pts switch p4_file () ->
+       let _ = Petr4_unix.Runtime_server.start switch ~handlers:handle_message () in
        start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
 
 let runtime_command = 
   let open Command.Spec in
   Command.basic_spec 
     ~summary: "Set up a dummy runtime server for testing"
-    (empty)
-    (fun () -> Petr4_unix.Runtime_server.start ~handlers:handle_message () |> Lwt_main.run)
+    (empty 
+     +> flag "-switch" (optional_with_default "s0" string) ~doc: "Specify the switch identifier")
+    (fun switch () -> Petr4_unix.Runtime_server.start switch ~handlers:handle_message () |> Lwt_main.run)
 
 let command =
   Command.group

@@ -385,6 +385,13 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
   | _ => nil (* impossible *)
   end.
 
+(* given expression and direction, evaluate to argument. *)
+(* in -> (Some _, None) *)
+(* out -> (None, Some _) *)
+(* inout -> (Some _, Some _) *)
+Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=.
+
+(* exec_arg on a list *)
 Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
 (* TODO *)
 

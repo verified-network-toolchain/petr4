@@ -608,6 +608,9 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => _string
   end.
 
+Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
+  | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
                                 exec_lvalue_expr this_path st lhs lv ->
@@ -676,24 +679,21 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                            exec_block this_path inst_m st' block st'' sig ->
                            exec_stmt this_path inst_m st
                            (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st'' sig
-  | exec_eval_stmt_variable : forall typ' name init e v loc this_path inst_m st tags typ st' sig,
-                              init = Some e ->
+  | exec_stmt_variable : forall typ' name e v loc this_path inst_m st tags typ st' sig,
                               exec_expr this_path st e v ->
-                              assign_lvalue this_path st (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st', sig) ->
+                              assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
                               exec_stmt this_path inst_m st
-                              (MkStatement tags (StatVariable typ' name init loc) typ) st' sig
-  | exec_eval_stmt_variable_func_call : forall typ' name init e v loc this_path inst_m st tags typ st' st'' sig,
-                                        init = Some e ->
+                              (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' sig
+  | exec_stmt_variable_func_call : forall typ' name e v loc this_path inst_m st tags typ st' st'' sig,
                                         exec_call this_path inst_m st e st' (Some v) ->
-                                        assign_lvalue this_path st' (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st'', sig) ->
+                                        assign_lvalue this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st'', sig) ->
                                         exec_stmt this_path inst_m st
-                                        (MkStatement tags (StatVariable typ' name init loc) typ) st'' sig
-  | exec_eval_stmt_variable_undef : forall typ' name init loc v this_path inst_m st tags typ st'  sig,
-                                    init = None ->
+                                        (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' sig
+  | exec_stmt_variable_undef : forall typ' name loc v this_path inst_m st tags typ st' sig,
                                     is_uninitialized_value v typ' ->
-                                    assign_lvalue this_path st (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st', sig) ->
+                                    assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
                                     exec_stmt this_path inst_m st
-                                    (MkStatement tags (StatVariable typ' name init loc) typ) st' sig
+                                    (MkStatement tags (StatVariable typ' name None loc) typ) st' sig
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,

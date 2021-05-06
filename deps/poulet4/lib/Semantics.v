@@ -315,6 +315,12 @@ Inductive signal : Type :=
    (* parser's states include accept and reject *)
    | SReject : string -> signal.
 
+Definition not_continue (s : signal) : bool :=
+  match s with
+  | SContinue => false
+  | _ => true
+  end.
+
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
@@ -571,16 +577,20 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   | StatSwCaseFallThrough _ (StatSwLabDefault _) :: _ => None
   end.
 
+Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
+  | dummy : forall v t, is_uninitialized_value v t.
+
+
 Definition table_hit_string := {| P4String.tags := dummy_tags; P4String.str := "hit" |}.
 Definition table_miss_string := {| P4String.tags := dummy_tags; P4String.str := "miss" |}.
 Definition action_run_string := {| P4String.tags := dummy_tags; P4String.str := "action_run" |}.
 Definition table_retv (b : bool) (ename member : P4String) : ValueBase :=
   ValBaseStruct 
   [(table_hit_string, ValBaseBool b);
-   (table_hit_string, ValBaseBool b);
+   (table_miss_string, ValBaseBool b);
    (action_run_string, ValBaseEnumField ename member)].
 
-   Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
+Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
                                 exec_lvalue_expr this_path st lhs lv ->
                                 exec_expr this_path st rhs v ->
@@ -592,7 +602,7 @@ Definition table_retv (b : bool) (ename member : P4String) : ValueBase :=
                                  exec_call this_path inst_m st rhs st' (Some v) ->
                                  assign_lvalue this_path st' lv v = Some (st'', sig) ->
                                  exec_stmt this_path inst_m st
-                                 (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
+                                 (MkStatement tags (StatAssignment lhs rhs) typ) st'' sig
   | exec_stmt_method_call : forall this_path inst_m st tags func args typ st' vret,
                             exec_call this_path inst_m st
                               (MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless)
@@ -648,20 +658,24 @@ Definition table_retv (b : bool) (ename member : P4String) : ValueBase :=
                            exec_block this_path inst_m st' block st'' sig ->
                            exec_stmt this_path inst_m st
                            (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st'' sig
-(* 
-  | exec_eval_stmt_variable : forall typ' name init loc this_path inst_m st tags typ st' sig,
-
-                              exec_lvalue_expr this_path st lhs lv ->
-                              exec_expr this_path st rhs v ->
-                              assign_lvalue this_path st lv v = Some (st', sig) ->
+  | exec_eval_stmt_variable : forall typ' name init e v loc this_path inst_m st tags typ st' sig,
+                              init = Some e ->
+                              exec_expr this_path st e v ->
+                              assign_lvalue this_path st (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st', sig) ->
                               exec_stmt this_path inst_m st
-                              (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
-  | exec_eval_stmt_variable_func_call : forall lhs lv rhs v this_path inst_m st tags typ st' st'' sig,
-                                        exec_lvalue_expr this_path st lhs lv ->
-                                        exec_call this_path inst_m st rhs st' (Some v) ->
-                                        assign_lvalue this_path st' lv v = Some (st'', sig) ->
+                              (MkStatement tags (StatVariable typ' name init loc) typ) st' sig
+  | exec_eval_stmt_variable_func_call : forall typ' name init e v loc this_path inst_m st tags typ st' st'' sig,
+                                        init = Some e ->
+                                        exec_call this_path inst_m st e st' (Some v) ->
+                                        assign_lvalue this_path st' (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st'', sig) ->
                                         exec_stmt this_path inst_m st
-                                        (MkStatement tags (StatAssignment lhs rhs) typ) st' sig *)
+                                        (MkStatement tags (StatVariable typ' name init loc) typ) st'' sig
+  | exec_eval_stmt_variable_undef : forall typ' name init loc v this_path inst_m st tags typ st'  sig,
+                                    init = None ->
+                                    is_uninitialized_value v typ' ->
+                                    assign_lvalue this_path st (MkValueLvalue (ValLeftName (QualifiedName this_path name) loc) typ') v = Some (st', sig) ->
+                                    exec_stmt this_path inst_m st
+                                    (MkStatement tags (StatVariable typ' name init loc) typ) st' sig
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
@@ -670,17 +684,10 @@ with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signa
                                exec_stmt this_path inst_m st stmt st' SContinue ->
                                exec_block this_path inst_m st' rest st'' sig ->
                                exec_block this_path inst_m st (BlockCons stmt rest) st'' sig
-  | exec_block_cons_reject : forall stmt rest str this_path inst_m st st', 
-                             exec_stmt this_path inst_m st stmt st' (SReject str) ->
-                             exec_block this_path inst_m st (BlockCons stmt rest) st' (SReject str)
-  | exec_block_cons_return : forall stmt rest v this_path inst_m st st', 
-                             exec_stmt this_path inst_m st stmt st' (SReturn v) ->
-                             exec_block this_path inst_m st (BlockCons stmt rest) st' (SReturn v)
-  | exec_block_cons_exit : forall stmt rest this_path inst_m st st', 
-                           exec_stmt this_path inst_m st stmt st' SExit ->
-                           exec_block this_path inst_m st (BlockCons stmt rest) st' SExit
-
-(* merge *)
+  | exec_block_cons_other : forall stmt rest s this_path inst_m st st', 
+                             exec_stmt this_path inst_m st stmt st' s ->
+                             not_continue s = true -> 
+                             exec_block this_path inst_m st (BlockCons stmt rest) st' s
 
 with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> option Val -> Prop :=
   (* eval the call expression:

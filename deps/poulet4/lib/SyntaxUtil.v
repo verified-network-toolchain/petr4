@@ -2,6 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Typed.
 Require Import Syntax.
 Require Export Maps.
+Require Import String.
 Import ListNotations.
 
 Section SyntaxUtil.
@@ -75,5 +76,15 @@ Definition map_fst {A B C} (f : A -> B) (p : A * C) : B * C :=
 
 Definition map_snd {A B C} (f : A -> B) (p : C * A) : C * B :=
   let (c, a) := p in (c, f a).
+
+(* ************ Semantics common definitions ************************)
+Inductive signal : Type :=
+ | SContinue : signal
+ | SReturn : Val -> signal
+ | SExit
+ (* parser's states include accept and reject *)
+ | SReject : string -> signal.
+
+Definition SReturnNull := SReturn ValBaseNull.
 
 End SyntaxUtil.

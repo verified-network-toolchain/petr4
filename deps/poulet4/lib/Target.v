@@ -6,6 +6,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
+Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.Maps.
 
@@ -15,6 +16,7 @@ Context {tags_t: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation Val := (@ValueBase tags_t).
+Notation signal := (@signal tags_t).
 
 (* We want to share the notation of External between P4light and P4cub, so later we need to
   have a parameter `ActionRef`, while `Match` is just shared. *)
@@ -35,7 +37,7 @@ Class ExternSem := {
   extern_empty : extern_state;
   (* Allocation should be a function; calling may be fine as a relation. *)
   alloc_extern : extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path -> list Val -> extern_state;
-  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> Val -> Prop;
+  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> signal -> Prop;
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
@@ -46,7 +48,7 @@ Class SeparableExternSem := {
   (* extern_empty : extern_state := IdentMap.empty; *)
   (* Allocation should be a function; calling may be fine as a relation. *)
   ses_alloc_extern : ident (* class *) -> list (@P4Type tags_t) -> list Val -> extern_object;
-  ses_exec_extern : ident (* class *) -> ident (* method *) -> extern_object -> list Val -> extern_object -> list Val -> Val -> Prop;
+  ses_exec_extern : ident (* class *) -> ident (* method *) -> extern_object -> list Val -> extern_object -> list Val -> signal -> Prop;
   (* ses_extern_get_entries : extern_state -> path -> list table_entry; *)
   ses_extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
@@ -56,7 +58,7 @@ Context (ses : SeparableExternSem).
 
 Definition extern_state' : Type := @PathMap.t tags_t extern_object * @PathMap.t tags_t (list table_entry).
 
-Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state' -> list Val -> Val -> Prop :=
+Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state' -> list Val -> signal -> Prop :=
   | exec_extern_intro : forall s class method p args s' args' vret obj obj',
       PathMap.get p (fst s) = Some obj ->
       ses_exec_extern class method obj args obj' args' vret ->
@@ -84,7 +86,7 @@ Coercion ExternSemOfSeparableExternSem : SeparableExternSem >-> ExternSem.
 
 Class Target := {
   extern_sem : ExternSem;
-  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) ->
+  exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal-> Prop) ->
       extern_state -> list bool -> extern_state -> list bool -> Prop
 }.
 

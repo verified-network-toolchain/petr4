@@ -8,6 +8,7 @@ Require Import Typed.
 Require Import Syntax.
 Require Import P4Int.
 Require Import Target.
+Require Import Poulet4.SyntaxUtil.
 Require Import Maps.
 Import ListNotations.
 Open Scope Z_scope.
@@ -19,6 +20,7 @@ Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation Val := (@ValueBase tags_t).
+Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
 
@@ -63,7 +65,7 @@ Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (
   else
     s.
 
-Definition extern_func_sem := extern_state -> path -> list Val -> extern_state -> list Val -> Val -> Prop.
+Definition extern_func_sem := extern_state -> path -> list Val -> extern_state -> list Val -> signal -> Prop.
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
@@ -71,7 +73,7 @@ Inductive extern_func := mk_extern_func_sem {
   ef_sem : extern_func_sem
 }.
 
-Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list Val -> extern_state -> list Val -> Val -> Prop :=
+Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list Val -> extern_state -> list Val -> signal -> Prop :=
   match func with
   | mk_extern_func_sem class_name func_name sem =>
       fun s class_name' func_name' =>
@@ -94,7 +96,7 @@ Inductive register_read_sem : extern_func_sem :=
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       Znth index (reg_content reg) = result ->
-      register_read_sem s p [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] ValBaseNull.
+      register_read_sem s p [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := register_string;
@@ -115,7 +117,7 @@ Inductive register_write_sem : extern_func_sem :=
       upd_Znth index value (reg_content reg) = content' ->
       register_write_sem s p [ValBaseBit REG_INDEX_WIDTH index]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
-          [] ValBaseNull.
+          [] SReturnNull.
 
 Definition register_write : extern_func := {|
   ef_class := register_string;
@@ -123,7 +125,7 @@ Definition register_write : extern_func := {|
   ef_sem := register_write_sem
 |}.
 
-Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> Val -> Prop :=
+Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_extern_register_read : forall s class method p args s' args' vret,
       apply_extern_func_sem register_read s class method p args s' args' vret ->
       exec_extern s class method p args s' args' vret
@@ -153,17 +155,17 @@ Definition eg_string : ident := {| P4String.tags := dummy_tags; P4String.str := 
 Definition ck_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ck" |}.
 Definition dep_string : ident := {| P4String.tags := dummy_tags; P4String.str := "dep" |}.
 
-Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> Prop) ->
+Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
-  | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
+  | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
       PathMap.set [packet_in_string] (ObjPin pin) s0 = s1 ->
-      module_sem [main_string; p_string] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] ->
-      module_sem [main_string; vr_string] s2 [hdr2; meta2] s3 [hdr3; meta3] ->
-      module_sem [main_string; ig_string] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] ->
-      module_sem [main_string; eg_string] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] ->
-      module_sem [main_string; ck_string] s5 [hdr5; meta5] s6 [hdr6; meta6] ->
-      module_sem [main_string; dep_string] s6 [hdr6] s7 nil ->
+      module_sem [main_string; p_string] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
+      module_sem [main_string; vr_string] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
+      module_sem [main_string; ig_string] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
+      module_sem [main_string; eg_string] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
+      module_sem [main_string; ck_string] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
+      module_sem [main_string; dep_string] s6 [hdr6] s7 nil SReturnNull ->
       PathMap.get [packet_out_string] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 

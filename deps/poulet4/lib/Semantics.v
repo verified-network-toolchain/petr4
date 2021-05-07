@@ -532,8 +532,8 @@ Inductive exec_copy_out_one: path -> state -> option Lval -> Val -> state -> Pro
 | exec_copy_out_one_some: forall p s lval val s',
     assign_lvalue p s lval val = Some (s', SContinue) ->
     exec_copy_out_one p s (Some lval) val s'
-| exec_copy_out_one_none: forall p s,
-    exec_copy_out_one p s None ValBaseNull s.
+| exec_copy_out_one_none: forall p s val,
+    exec_copy_out_one p s None val s.
 
 Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
 (* This depends on assigning to lvalues. *)

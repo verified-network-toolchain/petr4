@@ -87,11 +87,12 @@ class Petr4Switch(Switch):
         info("Starting Petr4 switch {}.\n".format(self.name))
         args = [self.sw_path + " switch "]
 
+        args.extend(['-switch', self.name])
+        
         for port, intf in self.intfs.items():
             if not intf.IP():
                 args.extend(['-i', str(port) + "@" + intf.name])
-
-       
+                                
         args.extend(['-I', self.include_path]) 
         
         Petr4Switch.device_id += 1

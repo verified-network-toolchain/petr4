@@ -499,8 +499,12 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
   | _ => nil (* impossible *)
   end.
 
-Definition read_lval (p: path) (s: state) (lval: Lval): option Val := None.
-(* TODO *)
+Definition read_lval (p: path) (s: state) (lval: Lval): option Val :=
+  match lval with
+  | MkValueLvalue (ValLeftName name loc) _ => loc_to_val p loc s
+  (* TODO other cases *)
+  | _ => None
+  end.
 
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
@@ -517,13 +521,27 @@ Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -
       exec_arg this st (Some expr) InOut (Some val, Some lval).
 
 (* exec_arg on a list *)
-Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=.
-(* TODO *)
+Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=
+| exec_args_nil: forall p s, exec_args p s nil nil nil
+| exec_args_cons: forall p s exp exps dir dirs arg args,
+    exec_arg p s exp dir arg ->
+    exec_args p s exps dirs args ->
+    exec_args p s (exp :: exps) (dir :: dirs) (arg :: args).
 
-Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=.
-(* TODO *)
+Inductive exec_copy_out_one: path -> state -> option Lval -> Val -> state -> Prop :=
+| exec_copy_out_one_some: forall p s lval val s',
+    assign_lvalue p s lval val = Some (s', SContinue) ->
+    exec_copy_out_one p s (Some lval) val s'
+| exec_copy_out_one_none: forall p s,
+    exec_copy_out_one p s None ValBaseNull s.
+
+Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
 (* This depends on assigning to lvalues. *)
-
+| exec_copy_out_nil: forall p s, exec_copy_out p s nil nil s
+| exec_copy_out_cons: forall p s1 s2 s3 lv lvs val vals,
+    exec_copy_out_one p s1 lv val s2 ->
+    exec_copy_out p s2 lvs vals s3 ->
+    exec_copy_out p s1 (lv :: lvs) (val :: vals) s3.
 
 Definition extract_invals (args : list argument) : list Val :=
   let f arg :=

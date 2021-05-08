@@ -756,36 +756,36 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_intro : forall this_path inst_m s tags func args typ dir argvals obj_path fd outvals s' s'' sig,
+  | exec_call_intro : forall this_path inst_m s tags func targs args typ dir argvals obj_path fd outvals s' s'' sig,
       let dirs := get_arg_directions func in
       exec_args this_path s args dirs argvals ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
-      exec_func obj_path inst_m s fd (extract_invals argvals) s' outvals sig ->
+      exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
-      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s' sig
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir) s' sig
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 
-with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> list Val -> signal -> Prop :=
+with exec_func : path -> inst_mem -> state -> fundef -> list P4Type -> list Val -> state -> list Val -> signal -> Prop :=
   | exec_func_internal : forall obj_path inst_m s params init body args s''' args' s' s'' sig sig',
       bind_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args s s' ->
       exec_block obj_path inst_m s' init  s'' SContinue ->
       exec_block obj_path inst_m s'' body s''' sig ->
       force_return_signal sig = sig' ->
       extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
-      exec_func obj_path inst_m s (FInternal params init body) args s''' args' sig'
+      exec_func obj_path inst_m s (FInternal params init body) nil args s''' args' sig'
 
   | exec_func_table_match : forall obj_path name inst_m keys actions action_name ctrl_args action default_action const_entries s s',
       exec_table_match obj_path s name const_entries (Some (mk_action_ref action_name ctrl_args)) ->
       add_ctrl_args (get_action actions name) ctrl_args = Some action ->
       exec_call obj_path inst_m s action s' SReturnNull ->
-      exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil s' nil
+      exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil nil s' nil
             (SReturn (table_retv true _string (get_expr_func_name action)))
 
   | exec_func_table_default : forall obj_path name inst_m keys actions default_action const_entries s s',
       exec_table_match obj_path s name const_entries None ->
       exec_call obj_path inst_m s default_action s' SReturnNull ->
-      exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil s' nil
+      exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil nil s' nil
             (SReturn (table_retv false _string (get_expr_func_name default_action)))
 
   (* This will not happen in the latest spec. *)
@@ -793,9 +793,9 @@ with exec_func : path -> inst_mem -> state -> fundef -> list Val -> state -> lis
       exec_table_match obj_path s name const_entries SReturnNull ->
       exec_func obj_path inst_m s (FTable name keys actions None const_entries) nil s nil None *)
 
-  | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' args args' sig,
-      exec_extern es class_name name obj_path args es' args' sig ->
-      exec_func obj_path inst_m (m, es) (FExternal class_name name (* params *)) args (m, es') args' sig.
+  | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' targs args args' sig,
+      exec_extern es class_name name obj_path targs args es' args' sig ->
+      exec_func obj_path inst_m (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=

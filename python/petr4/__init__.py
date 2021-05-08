@@ -26,7 +26,7 @@ class App(object):
         def post(self):
             hello = tornado.escape.json_decode(self.request.body)[1]
             self.app.switch_up(hello["switch"], hello["ports"])
-            self.write("Ok")
+            self.write("Hello")
 
     class Event(RequestHandler):
         def initialize(self, app):

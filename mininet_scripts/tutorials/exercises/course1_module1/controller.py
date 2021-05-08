@@ -21,19 +21,22 @@ class MyApp(App):
 
     # switch-switch links
     topo.add_link("s1", "s3", 3, 1, 1)
-    topo.add_link("s1", "s4", 2, 1, 2)
+    topo.add_link("s1", "s4", 2, 1, 1)
 
     topo.add_link("s2", "s3", 4, 2, 1)
     topo.add_link("s2", "s4", 3, 2, 1)
     topo.add_link("s2", "s5", 2, 1, 1)
 
-    topo.add_link("s3", "s6", 3, 1, 3)
+    topo.add_link("s3", "s6", 3, 1, 1)
 
     topo.add_link("s4", "s6", 4, 2, 1)
-    topo.add_link("s4", "s7", 3, 1, 7)
+    topo.add_link("s4", "s7", 3, 1, 1)
 
     topo.add_link("s5", "s7", 2, 2, 1)
-
+    
+    ### TODO: fill in costs here ###
+    ### ...
+    
     # compute shortest paths
     paths = topo.e2e_shortest_path()
 
@@ -46,12 +49,11 @@ class MyApp(App):
             print("%s %s: %s" % (n1, n2, str(paths[n1, n2]))) 
     print("")
 
-    for n1 in topo.switches():
-        print("%s routing table: " % n1)
-        for n2 in topo.hosts():
-            print ("%s --> %s" % (n2, topo.next_hop(n1, n2)))
-
-        print ("")
+#    for n1 in topo.switches():
+#        print("%s routing table: " % n1)
+#        for n2 in topo.hosts():
+#            print ("%s --> %s" % (n2, topo.next_hop(n1, n2)))
+#        print ("")
         
   def __init__(self, port=9000):
     super().__init__(port)

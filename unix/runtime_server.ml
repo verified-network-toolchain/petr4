@@ -17,14 +17,15 @@ let rec loop switch handlers =
       | Ok msg -> 
          handlers msg
       | Error err -> 
-         Printf.eprintf "Unexpected error: %s" err in
+         Printf.eprintf "Unexpected error: %s\n%!" err in
     loop switch handlers
   with exn -> 
-    Printf.eprintf "Unexpected error";
+    Printf.eprintf "Unexpected error: %s\n%!" (Exn.to_string exn);
     loop switch handlers
     
 let start switch ~handlers () = 
   let hello = Petr4.Runtime.Hello { switch = switch; ports = 1} in
   let body = hello |> Petr4.Runtime.message_to_yojson |> Yojson.Safe.to_string |> Body.of_string in
-  let%bind response,body = Client.post ~body (petr4_uri "hello") in 
+  let%bind response,body = Client.post ~body (petr4_uri "hello") in
+  let%bind () = Cohttp_lwt.Body.drain_body body in 
   loop switch handlers

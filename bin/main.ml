@@ -153,7 +153,6 @@ let start_v1switch env prog sockets =
      ones are still being put through the interpreter? *)
   loop socks st
 
-
 let start_switch verbose include_dir target pts p4_file =
   (* TODO: add a control plane socket *)
   let f str =
@@ -194,7 +193,9 @@ let handle_message = function
   | Runtime.Event _ -> 
      ()
   | Runtime.Insert { table; matches; action; action_data } -> 
-     Printf.eprintf "Insert: %s %s\n%!" table action; 
+     let matches_str = List.map matches ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v) |> String.concat ~sep:"," in
+     let action_data_str = List.map action_data ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v) |> String.concat ~sep:"," in
+     Printf.eprintf "Insert: %s [%s] %s [%s]\n%!" table matches_str action action_data_str;
      do_insert table matches action action_data
 
 let switch_command =

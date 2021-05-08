@@ -417,9 +417,14 @@ module MakeInterpreter (T : Target) = struct
       (entries : Table.entry list option)
       (name : string) (actions : Table.action_ref list)
       (default : Table.action_ref) : state * signal * value =
+    Printf.printf "Looking up entries for %s\n" name;
     let ctrl_entries = match List.Assoc.find (fst (fst ctrl)) name ~equal:String.(=) with
-                       | None -> []
-                       | Some entries -> create_pre_entries env st actions key entries in
+      | None ->
+         Printf.printf "Not found\n%!";
+         []
+      | Some entries ->
+         Printf.printf "Found!!\n%!";
+         create_pre_entries env st actions key entries in
     let entries' = match entries with
                         | None -> ctrl_entries
                         | Some entries -> entries |> List.map ~f:snd in

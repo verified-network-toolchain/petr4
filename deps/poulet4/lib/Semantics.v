@@ -927,7 +927,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
   *)
   | exec_call_intro : forall this_path inst_m s tags func targs args typ dir argvals obj_path fd outvals s' s'' sig,
       let dirs := get_arg_directions func in
-      exec_args this_path s args dirs argvals sig ->
+      exec_args this_path s args dirs argvals SContinue ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
       exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->

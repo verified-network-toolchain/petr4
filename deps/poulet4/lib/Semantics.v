@@ -49,9 +49,6 @@ Definition loc_to_path (this : path) (loc : Locator) : path :=
 
 Inductive fundef :=
   | FInternal
-      (* true -> global; false -> instance *)
-      (* Do we need this global flag? *)
-      (* (global : bool) *)
       (params : list (ident * direction))
       (init : @Block tags_t)
       (body : @Block tags_t)
@@ -415,9 +412,7 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
           | _ => None
           end
       end
-  (* See if a function is built-in by FunctionKind? *)
-  (* TODO add other built-in functions *)
-  (* apply and builtin, but builtin unsupported yet. *)
+  (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
       if P4String.equivb name apply_string then
         match expr with
@@ -434,7 +429,7 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
             end
         | _ => None
         end
-      (* If the method name does not match any of the keywords, it is an external method. *)
+      (* If the method name is not apply, it is an external method. *)
       else
         match expr with
         (* Instances should only be referred with bare names. *)
@@ -799,6 +794,10 @@ Definition is_return (sig : signal) : bool :=
   | _ => false
   end.
 
+Inductive exec_builtin : path -> state -> Lval -> ident -> list Val -> state -> signal -> Prop :=
+  (* this_path s lv fname args s' sig *) (* TODO *)
+  .
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st',
                                 exec_lvalue_expr this_path st lhs lv SContinue->
@@ -919,16 +918,25 @@ with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signa
                              exec_block this_path inst_m st (BlockCons stmt rest) st' s
 
 with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
+  | exec_call_builtin : forall this_path inst_m s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig lv,
+      let dirs := map get_param_dir params in
+      exec_lvalue_expr this_path s lhs lv SContinue ->
+      exec_args this_path s args dirs argvals SContinue ->
+      exec_builtin this_path s lv fname (extract_invals argvals) s' sig ->
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall
+          (MkExpression tag' (ExpExpressionMember lhs fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
+          nil args) typ dir) s' sig
+
   (* eval the call expression:
        1. lookup the function to call;
        2. eval arguments;
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_intro : forall this_path inst_m s tags func targs args typ dir argvals obj_path fd outvals s' s'' sig,
+  | exec_call_func : forall this_path inst_m s tags func targs args typ dir argvals obj_path fd outvals s' s'' sig,
       let dirs := get_arg_directions func in
-      exec_args this_path s args dirs argvals SContinue ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
+      exec_args this_path s args dirs argvals SContinue ->
       exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
       exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir) s'' sig

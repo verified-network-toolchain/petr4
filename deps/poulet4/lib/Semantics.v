@@ -307,8 +307,24 @@ Definition bind_parameters (params : list (path * direction)) (args : list Val) 
   s' = update_memory (PathMap.sets (filter_in params) args) s.
 
 (* NOTE: We may need to modify for the call convention for overloaded functions. *)
-Definition extract_parameters (params : list (path * direction)) (args : list Val) (s : state) :=
-  map Some args = PathMap.gets (filter_out params) (get_memory s).
+(* Definition extract_parameters (params : list (path * direction)) (args : list Val) (s : state) :=
+  map Some args = PathMap.gets (filter_out params) (get_memory s). *)
+
+
+Fixpoint extract_parameters (paths : list path) (s : state) : option (list Val) :=
+  let st := get_memory s in 
+  match paths with
+  | hd :: tl => 
+    match extract_parameters tl s with
+    | None => None
+    | Some tl' =>
+      match PathMap.get hd st with
+      | Some v => Some (v :: tl')
+      | None => None
+      end
+    end
+  | [] => Some []
+  end.
 
 Definition not_continue (s : signal) : bool :=
   match s with
@@ -915,7 +931,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
       exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
-      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir) s' sig
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir) s'' sig
   (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next). *)
   | exec_call_other : forall this_path inst_m s tags func args typ dir argvals sig,
       let dirs := get_arg_directions func in
@@ -930,7 +946,7 @@ with exec_func : path -> inst_mem -> state -> fundef -> list P4Type -> list Val 
       exec_block obj_path inst_m s' init  s'' SContinue ->
       exec_block obj_path inst_m s'' body s''' sig ->
       force_return_signal sig = sig' ->
-      extract_parameters (map (map_fst (fun param => obj_path ++ [param])) params) args' s''' ->
+      extract_parameters (filter_out (map (map_fst (fun param => obj_path ++ [param])) params)) s''' = Some args'->
       exec_func obj_path inst_m s (FInternal params init body) nil args s''' args' sig'
 
   | exec_func_table_match : forall obj_path name inst_m keys actions action_name ctrl_args action default_action const_entries s s',

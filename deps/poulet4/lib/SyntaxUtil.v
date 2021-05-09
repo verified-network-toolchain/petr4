@@ -87,4 +87,14 @@ Inductive signal : Type :=
 
 Definition SReturnNull := SReturn ValBaseNull.
 
+(* Errors *)
+Open Scope string_scope.
+Definition NoError_str := "NoError".
+Definition PacketTooShort_str:= "PacketTooShort".
+Definition NoMatch_str := "NoMatch".
+Definition StackOutOfBounds_str := "StackOutOfBounds".
+Definition HeaderTooShort_str := "HeaderTooShort".
+Definition ParserTimeout_str := "ParserTimeout".
+Definition ParserInvalidArgument_str := "ParserInvalidArgument".
+
 End SyntaxUtil.

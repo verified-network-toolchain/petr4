@@ -7,6 +7,7 @@ Require Import Coq.Program.Program.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.P4Int.
+Require Import Poulet4.P4Arith.
 Require Import Poulet4.Ops.
 Require Import Poulet4.Maps.
 Require Export Poulet4.Target.
@@ -120,6 +121,8 @@ Definition bitstring_slice_bits_to_z (v : Val) : option (nat * Z) :=
 Definition z_to_nat (i : Z) : option nat :=
   if (i >=? 0)%Z then Some (Z.to_nat i) else None.
 
+Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
+  | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
 
 (* Ref:When accessing the bits of negative numbers, all functions below will
    use the two's complement representation.
@@ -151,6 +154,7 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                     exec_expr this st
                     (MkExpression tag (ExpName name loc) typ dir)
                     v
+  (* Note: same constructor for the two relations below. Need tactics to auto-run. *)
   | exec_expr_array_access: forall array headers size next idx idxv idxz idxn header this st tag typ dir,
                             exec_expr this st array (ValBaseStack headers size next) ->
                             exec_expr this st idx idxv ->
@@ -166,6 +170,7 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                                   exec_expr this st idx idxv ->
                                   array_access_idx_to_z idxv = Some idxz ->
                                   (idxz < 0)%Z \/ (idxz >= (Z.of_nat size))%Z ->
+                                  is_uninitialized_value v typ ->
                                   exec_expr this st
                                   (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                   v
@@ -435,54 +440,191 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
   | _ => None
   end.
 
-Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> (@ValueLvalue tags_t) -> Prop :=
+Definition Lval := @ValueLvalue tags_t.
+Definition next_string :=  {| P4String.tags := dummy_tags; P4String.str := "next" |}.
+
+Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> Lval -> signal -> Prop :=
   | exec_lvalue_expr_name : forall name loc this st tag typ dir,
                             exec_lvalue_expr this st
                             (MkExpression tag (ExpName name loc) typ dir)
-                            (MkValueLvalue (ValLeftName name loc) typ)
-  | exec_lvalue_expr_member : forall expr lv name this st tag typ dir,
-                              exec_lvalue_expr this st expr lv ->
+                            (MkValueLvalue (ValLeftName name loc) typ) SContinue
+  | exec_lvalue_expr_member : forall expr lv name this st tag typ dir sig,
+                              exec_lvalue_expr this st expr lv sig ->
+                              P4String.equivb next_string name = false ->
                               exec_lvalue_expr this st
                               (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                              (MkValueLvalue (ValLeftMember lv name) typ)
-  (* ATTN: lo and hi interchanged here *)
-  | exec_lvalue_bitstring_access : forall bits lv lo hi this st tag typ dir,
-                                   exec_lvalue_expr this st bits lv ->
+                              (MkValueLvalue (ValLeftMember lv name) typ) sig
+  (* next < 0 is impossible by semantics. *)
+  | exec_lvalue_expr_member_next : forall expr lv headers size next this st tag typ dir sig,
+                                   exec_lvalue_expr this st expr lv sig ->
+                                   exec_expr this st expr (ValBaseStack headers size next) ->
+                                   (next < size)%nat ->
+                                   exec_lvalue_expr this st
+                                   (MkExpression tag (ExpExpressionMember expr next_string) typ dir)
+                                   (MkValueLvalue (ValLeftArrayAccess lv next) typ) sig
+  | exec_lvalue_expr_member_next_reject : forall expr name lv headers size next this st tag typ dir sig,
+                                          exec_lvalue_expr this st expr lv sig->
+                                          P4String.equivb next_string name = true ->
+                                          exec_expr this st expr (ValBaseStack headers size next) ->
+                                          (next >= size)%nat ->
+                                          exec_lvalue_expr this st
+                                          (MkExpression tag (ExpExpressionMember expr name) typ dir)
+                                          (MkValueLvalue (ValLeftArrayAccess lv next) typ) (SReject StackOutOfBounds_str)
+  (* ATTN: lo and hi interchanged here; lo & hi checked in the typechecker *)
+  | exec_lvalue_bitstring_access : forall bits lv lo hi this st tag typ dir sig,
+                                   exec_lvalue_expr this st bits lv sig ->
                                    exec_lvalue_expr this st
                                    (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
-                                   (MkValueLvalue (ValLeftBitAccess lv (N.to_nat hi) (N.to_nat lo)) typ)
-  (* Since array size is unknown here, only the lower-bound undefined behavior is defined.
-     The upper bound should be handled after getting the value from lvalue. *)
-  | exec_lvalue_array_access : forall array lv idx idxv idxz idxn this st tag typ dir,
-                               exec_lvalue_expr this st array lv ->
+                                   (MkValueLvalue (ValLeftBitAccess lv (N.to_nat hi) (N.to_nat lo)) typ) sig
+  | exec_lvalue_array_access : forall array lv idx idxv idxz idxn this st tag typ dir sig,
+                               exec_lvalue_expr this st array lv sig ->
                                exec_expr this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
+                               (idxz >= 0)%Z ->
                                z_to_nat idxz = Some idxn ->
                                exec_lvalue_expr this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                               (MkValueLvalue (ValLeftArrayAccess lv idxn) typ)
-  | exec_lvalue_array_access_undef_lo : forall array headers size next idx idxv idxz lv this st tag typ dir,
-                                        exec_expr this st array (ValBaseStack headers size next) ->
-                                        exec_expr this st idx idxv ->
-                                        array_access_idx_to_z idxv = Some idxz ->
-                                        (idxz < 0)%Z \/ (idxz >= (Z.of_nat size))%Z ->
-                                        exec_lvalue_expr this st
-                                        (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                                        lv.
+                               (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig
+  (* Make negative idxz equal to size to stay out of bound as a nat idx. *)
+  | exec_lvalue_array_access_neg : forall array lv headers size next idx idxv idxz this st tag typ dir sig,
+                                   exec_expr this st array (ValBaseStack headers size next) ->
+                                   exec_lvalue_expr this st array lv sig ->
+                                   exec_expr this st idx idxv ->
+                                   array_access_idx_to_z idxv = Some idxz ->
+                                   (idxz < 0)%Z ->
+                                   exec_lvalue_expr this st
+                                   (MkExpression tag (ExpArrayAccess array idx) typ dir)
+                                   (MkValueLvalue (ValLeftArrayAccess lv size) typ) sig.
 
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): state :=
   let p := loc_to_path this loc in
   update_memory (PathMap.set p v) s.
 
-Definition assign_lvalue (this : path) (st : state) (lhs : @ValueLvalue tags_t) (rhs : Val) : option (state * signal) :=
-  match lhs with
-  | MkValueLvalue (ValLeftName name loc) _ =>
-    let st' := update_val_by_loc this st loc rhs in Some (st', SContinue)
-  | _ => None (* omitted for now *)
+(* TODO: reading uninitialized values a header after it is made valid. *)
+Inductive read_header_field: bool -> P4String.AList tags_t Val -> P4String -> P4Type -> Val -> Prop :=
+  | read_header_field_intro : forall fields name typ v,
+                              AList.get fields name = Some v ->
+                              read_header_field true fields name typ v
+  | read_header_field_undef : forall fields name typ v,
+                              is_uninitialized_value v typ ->
+                              read_header_field false fields name typ v.
+
+Inductive read_lvalue: path -> state -> Lval -> Val -> Prop :=
+  | read_lvalue_name : forall name loc this st v typ,
+                       loc_to_val this loc st = Some v ->
+                       read_lvalue this st (MkValueLvalue (ValLeftName name loc) typ) v
+  | read_lvalue_member : forall lv name this st v typ,
+                         read_lmember this st lv name typ v ->
+                         read_lvalue this st (MkValueLvalue (ValLeftMember lv name) typ) v
+  (* | read_lvalue_bit_access
+     | read_lvalue_array_access *)
+              
+(* (ValLeftMember (ValBaseStack headers size) next_string) is guaranteed avoided 
+   by conversions in exec_lvalue_expr to (ValLeftArrayAccess (ValBaseStack headers size) index). *)
+with read_lmember: path -> state -> Lval -> P4String -> P4Type -> Val -> Prop :=
+  | read_lmember_header : forall is_valid fields this st lv name typ v,
+                          read_lvalue this st lv (ValBaseHeader fields is_valid) ->
+                          read_header_field is_valid fields name typ v ->
+                          read_lmember this st lv name typ v
+  | read_lmember_struct : forall fields this st lv name typ v,
+                          read_lvalue this st lv (ValBaseStruct fields) ->
+                          AList.get fields name = Some v ->
+                          read_lmember this st lv name typ v
+  | read_lmember_union: forall fields this st lv name typ v,
+                        read_lvalue this st lv (ValBaseUnion fields) ->
+                        AList.get fields name = Some v ->
+                        read_lmember this st lv name typ v.
+
+(* TODO: write to the field of an invalid header in a union makes the possibly existing valid header
+    take undefined value. It should be guaranteed there is at most one valid header in a union. *)
+Inductive write_header_field: Val -> P4String -> Val -> Val -> Prop :=
+  (* Writing to an invalid header does not change "any state that is currently defined in the system".
+     Besides, the reading afterwards still produces undefined behavior. *)
+  | write_header_field_intro : forall fields fname bool fv fields',
+                               AList.set fields fname fv = Some fields' ->
+                               write_header_field (ValBaseHeader fields bool) fname fv 
+                               (ValBaseHeader fields' bool).
+
+Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4String) 
+                             (hfields: P4String.AList tags_t Val) (is_valid: bool) : 
+                             option (P4String.AList tags_t Val) :=
+  match fields with
+  | [] => Some []
+  | (fname', ValBaseHeader hfields' is_valid') :: tl =>
+    match update_union_member tl fname hfields is_valid with
+    | None => None
+    | Some tl' =>
+      if is_valid
+      then if P4String.equivb fname fname'
+          then Some ((fname, ValBaseHeader hfields true) :: tl')
+          else Some ((fname', ValBaseHeader hfields' false) :: tl')
+      else if P4String.equivb fname fname'
+          then Some ((fname', ValBaseHeader hfields' false) :: tl')
+          else Some ((fname', ValBaseHeader hfields' is_valid') :: tl')
+    end
+  | _ :: _ => None
   end.
 
-Definition Lval := @ValueLvalue tags_t.
+(* (ValLeftMember (ValBaseStack headers size) next_string) is guaranteed avoided 
+   by conversions in exec_lvalue_expr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
+   Also, value here if derived from lvalue in the caller, so last_string does not exist. *)
+Inductive update_member : Val -> P4String -> Val -> Val -> Prop :=
+  | update_member_header : forall is_valid fields fname fv v,
+                           write_header_field (ValBaseHeader is_valid fields) fname fv v ->
+                           update_member (ValBaseHeader is_valid fields) fname fv v
+  | update_member_struct : forall fields' fields fname fv,
+                           AList.set fields fname fv = Some fields' ->
+                           update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')
+  | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
+                          update_union_member fields fname hfields is_valid = Some fields' ->
+                          update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
+                          (ValBaseUnion fields').
+
+Fixpoint update_stack_header (headers: list Val) (idx: nat) (v: Val) : list Val :=
+  match headers, idx with
+  | header :: tl, O => v :: tl
+  | header :: tl, S n => header :: (update_stack_header tl n v)
+  | [], _ => []
+  end.
+
+Definition update_bitstring (i : Z) (lsb : nat) (msb : nat) (n : Z) : Z :=
+  let lsbz := Z.of_nat lsb in
+  let msbz := Z.of_nat msb in
+  let new_n := (Z.shiftl n lsbz) in
+  let mask := (Z.lxor (-1) (Z.shiftl (Z.pow 2 (msbz - lsbz + 1) - 1) lsbz))%Z in
+  Z.lxor (Z.land i mask) new_n.
+
+
+Inductive assign_lvalue : path -> state -> Lval -> Val -> state -> Prop :=
+  | assign_lvalue_name : forall name loc this st rhs typ st',
+                         update_val_by_loc this st loc rhs = st' ->
+                         assign_lvalue this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
+  | assign_lvalue_member : forall lv fname v v' this st rhs typ st',
+                           read_lvalue this st lv v ->
+                           update_member v fname rhs v' ->
+                           assign_lvalue this st lv v' st' ->
+                           assign_lvalue this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
+  | assign_lvalue_bit_access_bit : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+                                   read_lvalue this st lv (ValBaseBit w bitsz) ->
+                                   (lsb <= msb < w)%nat ->
+                                   update_bitstring bitsv lsb msb n = bitsz' ->
+                                   assign_lvalue this st lv (ValBaseBit w (BitArith.mod_bound w bitsz')) st' ->
+                                   assign_lvalue this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
+                                   (ValBaseBit w' n) st'
+   | assign_lvalue_bit_access_int : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+                                   read_lvalue this st lv (ValBaseInt w bitsz) ->
+                                   (lsb <= msb < w)%nat ->
+                                   update_bitstring bitsv lsb msb n = bitsz' ->
+                                   assign_lvalue this st lv (ValBaseInt w (IntArith.mod_bound w bitsz')) st' ->
+                                   assign_lvalue this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
+                                   (ValBaseBit w' n) st'
+  (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
+  | assign_lvalue_array_access : forall lv headers size next (idx: nat) headers' idx this st rhs typ st',
+                                 read_lvalue this st lv (ValBaseStack headers size next) ->
+                                 update_stack_header headers idx rhs = headers' ->
+                                 assign_lvalue this st lv (ValBaseStack headers' size next) st' ->
+                                 assign_lvalue this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Val) * (option Lval).
 
@@ -493,49 +635,57 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
   | _ => nil (* impossible *)
   end.
 
-Definition read_lval (p: path) (s: state) (lval: Lval): option Val :=
-  match lval with
-  | MkValueLvalue (ValLeftName name loc) _ => loc_to_val p loc s
-  (* TODO other cases *)
-  | _ => None
-  end.
-
 (* given expression and direction, evaluate to argument. *)
 (* in -> (Some _, None) *)
 (* out -> (None, Some _) *)
 (* inout -> (Some _, Some _) *)
-Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> Prop :=
-  | exec_arg_in: forall this st expr val,
-      exec_expr this st expr val -> exec_arg this st (Some expr) In (Some val, None)
-  | exec_arg_out_dontcare: forall this st, exec_arg this st None Out (None, None)
-  | exec_arg_out: forall this st expr lval,
-      exec_lvalue_expr this st expr lval -> exec_arg this st (Some expr) Out (None, Some lval)
-  | exec_arg_inout: forall this st expr lval val,
-      exec_lvalue_expr this st expr lval -> read_lval this st lval = Some val ->
-      exec_arg this st (Some expr) InOut (Some val, Some lval).
+Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
+  | exec_arg_in : forall this st expr val,
+                  exec_expr this st expr val -> 
+                  exec_arg this st (Some expr) In (Some val, None) SContinue
+  | exec_arg_out_dontcare : forall this st, 
+                            exec_arg this st None Out (None, None) SContinue
+  | exec_arg_out : forall this st expr lval sig,
+                   exec_lvalue_expr this st expr lval sig -> 
+                   exec_arg this st (Some expr) Out (None, Some lval) sig
+  | exec_arg_inout : forall this st expr lval val sig,
+                     exec_lvalue_expr this st expr lval sig -> 
+                     read_lvalue this st lval val ->
+                     exec_arg this st (Some expr) InOut (Some val, Some lval) sig.
 
 (* exec_arg on a list *)
-Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> Prop :=
-| exec_args_nil: forall p s, exec_args p s nil nil nil
-| exec_args_cons: forall p s exp exps dir dirs arg args,
-    exec_arg p s exp dir arg ->
-    exec_args p s exps dirs args ->
-    exec_args p s (exp :: exps) (dir :: dirs) (arg :: args).
+Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> signal -> Prop :=
+| exec_args_nil: forall p s, 
+                 exec_args p s nil nil nil SContinue
+| exec_args_cons_continue : forall p s exp exps dir dirs arg args sig,
+                            exec_arg p s exp dir arg SContinue ->
+                            exec_args p s exps dirs args sig ->
+                            exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) sig
+(* After SimplExpr, sig here in fact can only be SReject. 
+   Todo: the current behavior is after getting a non-continue signal, all args are still evaluated.
+         SimplExpr makes execution stops at the non-continue signal. Even though exec_args won't 
+         affect state, it is still good to make the two behavior consistent. *)
+| exec_args_cons_other : forall p s exp exps dir dirs arg args sig sig',
+                         exec_arg p s exp dir arg sig ->
+                         not_continue sig = true -> 
+                         exec_args p s exps dirs args sig' ->
+                         exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) sig.
 
 Inductive exec_copy_out_one: path -> state -> option Lval -> Val -> state -> Prop :=
-| exec_copy_out_one_some: forall p s lval val s',
-    assign_lvalue p s lval val = Some (s', SContinue) ->
-    exec_copy_out_one p s (Some lval) val s'
-| exec_copy_out_one_none: forall p s val,
-    exec_copy_out_one p s None val s.
+| exec_copy_out_one_some : forall p s lval val s',
+                           assign_lvalue p s lval val s' ->
+                           exec_copy_out_one p s (Some lval) val s'
+| exec_copy_out_one_none : forall p s val,
+                           exec_copy_out_one p s None val s.
 
 Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
 (* This depends on assigning to lvalues. *)
-| exec_copy_out_nil: forall p s, exec_copy_out p s nil nil s
-| exec_copy_out_cons: forall p s1 s2 s3 lv lvs val vals,
-    exec_copy_out_one p s1 lv val s2 ->
-    exec_copy_out p s2 lvs vals s3 ->
-    exec_copy_out p s1 (lv :: lvs) (val :: vals) s3.
+| exec_copy_out_nil : forall p s, 
+                      exec_copy_out p s nil nil s
+| exec_copy_out_cons : forall p s1 s2 s3 lv lvs val vals,
+                       exec_copy_out_one p s1 lv val s2 ->
+                       exec_copy_out p s2 lvs vals s3 ->
+                       exec_copy_out p s1 (lv :: lvs) (val :: vals) s3.
 
 Definition extract_invals (args : list argument) : list Val :=
   let f arg :=
@@ -609,9 +759,6 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => _string
   end.
 
-Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
-  | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
-
 Inductive signal_return_value : signal -> Val -> Prop :=
   | signal_return_return : forall v,
       signal_return_value (SReturn v) v
@@ -637,24 +784,29 @@ Definition is_return (sig : signal) : bool :=
   end.
 
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
-  | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st' sig,
-                                exec_lvalue_expr this_path st lhs lv ->
+  | exec_eval_stmt_assignment : forall lhs lv rhs v this_path inst_m st tags typ st',
+                                exec_lvalue_expr this_path st lhs lv SContinue->
                                 exec_expr this_path st rhs v ->
-                                assign_lvalue this_path st lv v = Some (st', sig) ->
+                                assign_lvalue this_path st lv v st' ->
                                 exec_stmt this_path inst_m st
-                                (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
-  | exec_stmt_assign_func_call : forall lhs lv rhs v this_path inst_m st tags typ st' st'' sig,
-                                 exec_lvalue_expr this_path st lhs lv ->
+                                (MkStatement tags (StatAssignment lhs rhs) typ) st' SContinue
+  | exec_stmt_assign_func_call : forall lhs lv rhs v this_path inst_m st tags typ st' st'',
+                                 exec_lvalue_expr this_path st lhs lv SContinue->
                                  exec_call this_path inst_m st rhs st' (SReturn v) ->
-                                 assign_lvalue this_path st' lv v = Some (st'', sig) ->
+                                 assign_lvalue this_path st' lv v st'' ->
                                  exec_stmt this_path inst_m st
-                                 (MkStatement tags (StatAssignment lhs rhs) typ) st'' sig
+                                 (MkStatement tags (StatAssignment lhs rhs) typ) st'' SContinue
   | exec_stmt_assign_func_call' : forall lhs lv rhs this_path inst_m st tags typ st' st'' sig,
-                                 exec_lvalue_expr this_path st lhs lv ->
+                                 exec_lvalue_expr this_path st lhs lv SContinue ->
                                  exec_call this_path inst_m st rhs st' sig ->
                                  is_return sig = false ->
                                  exec_stmt this_path inst_m st
                                  (MkStatement tags (StatAssignment lhs rhs) typ) st'' sig
+  | exec_eval_stmt_assign_other: forall lhs lv rhs this_path inst_m st tags typ sig,
+                                 exec_lvalue_expr this_path st lhs lv sig ->
+                                 not_continue sig = true ->
+                                 exec_stmt this_path inst_m st
+                                (MkStatement tags (StatAssignment lhs rhs) typ) st sig
   | exec_stmt_method_call : forall this_path inst_m st tags func args typ st' sig sig',
                             exec_call this_path inst_m st
                               (MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless)
@@ -712,30 +864,31 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                            exec_block this_path inst_m st' block st'' sig ->
                            exec_stmt this_path inst_m st
                            (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st'' sig
-  | exec_stmt_variable : forall typ' name e v loc this_path inst_m st tags typ st' sig,
-                              exec_expr this_path st e v ->
-                              assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
-                              exec_stmt this_path inst_m st
-                              (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' sig
-  | exec_stmt_variable_func_call : forall typ' name e v loc this_path inst_m st tags typ st' st'' sig,
-                                        exec_call this_path inst_m st e st' (SReturn v) ->
-                                        assign_lvalue this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st'', sig) ->
-                                        exec_stmt this_path inst_m st
-                                        (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' sig
+  | exec_stmt_variable : forall typ' name e v loc this_path inst_m st tags typ st',
+                         exec_expr this_path st e v ->
+                         assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
+                         exec_stmt this_path inst_m st
+                         (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' SContinue
+  | exec_stmt_variable_func_call : forall typ' name e v loc this_path inst_m st tags typ st' st'',
+                                   exec_call this_path inst_m st e st' (SReturn v) ->
+                                   assign_lvalue this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st'' ->
+                                   exec_stmt this_path inst_m st
+                                   (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' SContinue
   | exec_stmt_variable_func_call' : forall typ' name e loc this_path inst_m st tags typ st' st'' sig,
-                                        exec_call this_path inst_m st e st' sig ->
-                                        is_return sig = false ->
-                                        exec_stmt this_path inst_m st
-                                        (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' sig
-  | exec_stmt_variable_undef : forall typ' name loc v this_path inst_m st tags typ st' sig,
-                                    is_uninitialized_value v typ' ->
-                                    assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
+                                    exec_call this_path inst_m st e st' sig ->
+                                    is_return sig = false ->
                                     exec_stmt this_path inst_m st
-                                    (MkStatement tags (StatVariable typ' name None loc) typ) st' sig
-  | exec_stmt_constant: forall typ' name v loc this_path inst_m st tags typ st' sig,
-                             assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v = Some (st', sig) ->
-                             exec_stmt this_path inst_m st
-                             (MkStatement tags (StatConstant typ' name v loc) typ) st' sig
+                                    (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' sig
+  | exec_stmt_variable_undef : forall typ' name loc v this_path inst_m st tags typ st',
+                               is_uninitialized_value v typ' ->
+                               assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
+                               exec_stmt this_path inst_m st
+                               (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
+  | exec_stmt_constant: forall typ' name v loc this_path inst_m st tags typ st',
+                        assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
+                        exec_stmt this_path inst_m st
+                        (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
+  (* StatInstantiation not considered yet *)
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
@@ -756,13 +909,24 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_intro : forall this_path inst_m s tags func args typ dir argvals obj_path fd outvals s' s'' sig,
+  | exec_call_intro : forall this_path inst_m s tags func args typ dir argvals obj_path fd outvals s' s'' sig sig',
       let dirs := get_arg_directions func in
-      exec_args this_path s args dirs argvals ->
+      exec_args this_path s args dirs argvals sig ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
-      exec_func obj_path inst_m s fd (extract_invals argvals) s' outvals sig ->
+      exec_func obj_path inst_m s fd (extract_invals argvals) s' outvals sig' ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
-      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s' sig
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s' sig'
+  (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next).
+     So do we need to consider signal during exec_copy_out?
+     Specifically, non-continue signals in arguments can only be SReject after SimplExpr, 
+     and such signals in arguments can only be only triggered by "next". (Other SReject are triggered
+     during extern function calls.) For the above example, the parameter's direction is Out. 
+     So maybe it is okay to just handle the signal in exec_args, not exec_copy_out. *)
+  | exec_call_other : forall this_path inst_m s tags func args typ dir argvals sig,
+      let dirs := get_arg_directions func in
+      exec_args this_path s args dirs argvals sig ->
+      not_continue sig = true ->
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s sig
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 

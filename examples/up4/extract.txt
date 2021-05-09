@@ -1,0 +1,1751 @@
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T>(out T variableSizeHeader,
+                  in bit<32> variableFieldSizeInBits);
+  T lookahead<T>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T>(in T hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+typedef bit<9> PortId_t;
+typedef bit<16> PktInstId_t;
+typedef bit<16> GroupId_t;
+const PortId_t PORT_CPU = 255;
+const PortId_t PORT_RECIRCULATE = 254;
+enum metadata_fields_t {
+  QUEUE_DEPTH_AT_DEQUEUE
+}
+extern im_t {
+  void set_out_port(in PortId_t out_port);
+  PortId_t get_in_port();
+  PortId_t get_out_port();
+  bit<32> get_value(metadata_fields_t field_type);
+  void drop();
+}
+
+action msa_no_action() { 
+}
+parser micro_parser<H, M, I, IO>
+  (packet_in packet,
+   im_t im,
+   out H hdrs,
+   inout M meta,
+   in I in_param,
+   inout IO inout_param);
+control micro_control<H, M, I, O, IO>
+  (im_t im,
+   inout H hdrs,
+   inout M meta,
+   in I in_param,
+   out O out_param,
+   inout IO inout_param);
+control micro_deparser<H> (packet_out packet, in H hdrs);
+package uP4Switch<H, M, I, O, IO>
+  (micro_parser<H, M, I, IO> p,
+   micro_control<H, M, I, O, IO> c,
+   micro_deparser<H> d);
+package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
+  (uP4Switch<H1, M1, I1, O1, IO1> left,
+   uP4Switch<H2, M2, I2, O2, IO2> right,
+   int split_port);
+header head3 {
+  bit<8> v;
+}
+struct metadata3 {
+  
+}
+struct in_param_t3 {
+  
+}
+struct out_param_t3 {
+  
+}
+parser MyParser(packet_in packet, im_t im, out head3[13] hdrs,
+                inout metadata3 meta, in in_param_t3 in_param,
+                inout error parser_error) {
+  state start
+    {
+    packet.extract(hdrs[0]);
+    transition select(packet.lookahead<bit<8>>()) {
+      42: next;
+      _: reject;
+    }
+  }
+  state next
+    {
+    hdrs.push_front(1);
+    packet.extract(hdrs[0]);
+    transition select(packet.lookahead<bit<8>>()) {
+      42: next;
+      33: final;
+      _: reject;
+    }
+  }
+  state final
+    {
+    hdrs.push_front(1);
+    packet.extract(hdrs[0]);
+    parser_error = error.NoError;
+    transition accept;
+  }
+}
+control MyControl(im_t im, inout head3[13] hdrs, inout metadata3 meta,
+                  in in_param_t3 in_param, out out_param_t3 out_param,
+                  inout error parser_error) {
+  apply
+    {
+    if (parser_error==error.NoError)
+      {
+      hdrs[0] = {72};
+      hdrs[1] = {101};
+      hdrs[2] = {108};
+      hdrs[3] = {108};
+      hdrs[4] = {111};
+      hdrs[5] = {44};
+      hdrs[6] = {32};
+      hdrs[7] = {87};
+      hdrs[8] = {111};
+      hdrs[9] = {114};
+      hdrs[10] = {108};
+      hdrs[11] = {100};
+      hdrs[12] = {33};
+    }
+  }
+}
+control MyDeparser(packet_out packet, in head3[13] hdr) {
+  apply {
+    packet.emit(hdr[0]);
+    packet.emit(hdr);
+  }
+}
+uP4Switch(MyParser(), MyControl(), MyDeparser()) main1;
+
+@
+%!----------
+[
+  "program",
+  [
+    [
+      "Error",
+      {
+        "members": [
+          "NoError", "PacketTooShort", "NoMatch", "StackOutOfBounds",
+          "HeaderTooShort", "ParserTimeout", "ParserInvalidArgument"
+        ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "packet_in",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "extract",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "Out" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "hdr",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "extract",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "Out" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "variableSizeHeader",
+                  "opt_value": null
+                },
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [
+                    "bit",
+                    [ "int", { "value": "32", "width_signed": null } ]
+                  ],
+                  "variable": "variableFieldSizeInBits",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "T" ] ],
+              "name": "lookahead",
+              "type_params": [ "T" ],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "advance",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [
+                    "bit",
+                    [ "int", { "value": "32", "width_signed": null } ]
+                  ],
+                  "variable": "sizeInBits",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [
+                "bit",
+                [ "int", { "value": "32", "width_signed": null } ]
+              ],
+              "name": "length",
+              "type_params": [],
+              "params": []
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "packet_out",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "emit",
+              "type_params": [ "T" ],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [ "name", [ "BareName", "T" ] ],
+                  "variable": "hdr",
+                  "opt_value": null
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "ExternFunction",
+      {
+        "annotations": [],
+        "return": [ "void" ],
+        "name": "verify",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "bool" ],
+            "variable": "check",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "error" ],
+            "variable": "toSignal",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "Action",
+      {
+        "annotations": [],
+        "name": "NoAction",
+        "params": [],
+        "body": { "annotations": [], "statements": [] }
+      }
+    ],
+    [ "MatchKind", { "members": [ "exact", "ternary", "lpm" ] } ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "PortId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "9", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "PktInstId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "16", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "TypeDef",
+      {
+        "annotations": [],
+        "name": "GroupId_t",
+        "typ_or_decl": [
+          "Left",
+          [ "bit", [ "int", { "value": "16", "width_signed": null } ] ]
+        ]
+      }
+    ],
+    [
+      "Constant",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "PortId_t" ] ],
+        "name": "PORT_CPU",
+        "value": [ "int", { "value": "255", "width_signed": null } ]
+      }
+    ],
+    [
+      "Constant",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "PortId_t" ] ],
+        "name": "PORT_RECIRCULATE",
+        "value": [ "int", { "value": "254", "width_signed": null } ]
+      }
+    ],
+    [
+      "Enum",
+      {
+        "annotations": [],
+        "name": "metadata_fields_t",
+        "members": [ "QUEUE_DEPTH_AT_DEQUEUE" ]
+      }
+    ],
+    [
+      "ExternObject",
+      {
+        "annotations": [],
+        "name": "im_t",
+        "type_params": [],
+        "methods": [
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "set_out_port",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": [ "In" ],
+                  "typ": [ "name", [ "BareName", "PortId_t" ] ],
+                  "variable": "out_port",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "PortId_t" ] ],
+              "name": "get_in_port",
+              "type_params": [],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "name", [ "BareName", "PortId_t" ] ],
+              "name": "get_out_port",
+              "type_params": [],
+              "params": []
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [
+                "bit",
+                [ "int", { "value": "32", "width_signed": null } ]
+              ],
+              "name": "get_value",
+              "type_params": [],
+              "params": [
+                {
+                  "annotations": [],
+                  "direction": null,
+                  "typ": [ "name", [ "BareName", "metadata_fields_t" ] ],
+                  "variable": "field_type",
+                  "opt_value": null
+                }
+              ]
+            }
+          ],
+          [
+            "Method",
+            {
+              "annotations": [],
+              "return": [ "void" ],
+              "name": "drop",
+              "type_params": [],
+              "params": []
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      "Action",
+      {
+        "annotations": [],
+        "name": "msa_no_action",
+        "params": [],
+        "body": { "annotations": [], "statements": [] }
+      }
+    ],
+    [
+      "ParserType",
+      {
+        "annotations": [],
+        "name": "micro_parser",
+        "type_params": [ "H", "M", "I", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_in" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "M" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "I" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "IO" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "ControlType",
+      {
+        "annotations": [],
+        "name": "micro_control",
+        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "M" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "I" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "O" ] ],
+            "variable": "out_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "IO" ] ],
+            "variable": "inout_param",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "ControlType",
+      {
+        "annotations": [],
+        "name": "micro_deparser",
+        "type_params": [ "H" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_out" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "H" ] ],
+            "variable": "hdrs",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "PackageType",
+      {
+        "annotations": [],
+        "name": "uP4Switch",
+        "type_params": [ "H", "M", "I", "O", "IO" ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_parser" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H" ] ],
+                  [ "name", [ "BareName", "M" ] ],
+                  [ "name", [ "BareName", "I" ] ],
+                  [ "name", [ "BareName", "IO" ] ]
+                ]
+              }
+            ],
+            "variable": "p",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_control" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H" ] ],
+                  [ "name", [ "BareName", "M" ] ],
+                  [ "name", [ "BareName", "I" ] ],
+                  [ "name", [ "BareName", "O" ] ],
+                  [ "name", [ "BareName", "IO" ] ]
+                ]
+              }
+            ],
+            "variable": "c",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "micro_deparser" ] ],
+                "args": [ [ "name", [ "BareName", "H" ] ] ]
+              }
+            ],
+            "variable": "d",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "PackageType",
+      {
+        "annotations": [],
+        "name": "uP4Merge",
+        "type_params": [
+          "H1", "M1", "I1", "O1", "IO1", "H2", "M2", "I2", "O2", "IO2"
+        ],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "uP4Switch" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H1" ] ],
+                  [ "name", [ "BareName", "M1" ] ],
+                  [ "name", [ "BareName", "I1" ] ],
+                  [ "name", [ "BareName", "O1" ] ],
+                  [ "name", [ "BareName", "IO1" ] ]
+                ]
+              }
+            ],
+            "variable": "left",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [
+              "specialized",
+              {
+                "base": [ "name", [ "BareName", "uP4Switch" ] ],
+                "args": [
+                  [ "name", [ "BareName", "H2" ] ],
+                  [ "name", [ "BareName", "M2" ] ],
+                  [ "name", [ "BareName", "I2" ] ],
+                  [ "name", [ "BareName", "O2" ] ],
+                  [ "name", [ "BareName", "IO2" ] ]
+                ]
+              }
+            ],
+            "variable": "right",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "integer" ],
+            "variable": "split_port",
+            "opt_value": null
+          }
+        ]
+      }
+    ],
+    [
+      "Header",
+      {
+        "annotations": [],
+        "name": "head3",
+        "fields": [
+          {
+            "annotations": [],
+            "type": [
+              "bit",
+              [ "int", { "value": "8", "width_signed": null } ]
+            ],
+            "name": "v"
+          }
+        ]
+      }
+    ],
+    [ "Struct", { "annotations": [], "name": "metadata3", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "in_param_t3", "fields": [] } ],
+    [ "Struct", { "annotations": [], "name": "out_param_t3", "fields": [] } ],
+    [
+      "Parser",
+      {
+        "annotations": [],
+        "name": "MyParser",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_in" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [
+              "header_stack",
+              {
+                "header": [ "name", [ "BareName", "head3" ] ],
+                "size": [ "int", { "value": "13", "width_signed": null } ]
+              }
+            ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "metadata3" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "in_param_t3" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "error" ],
+            "variable": "parser_error",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "states": [
+          {
+            "annotations": [],
+            "name": "start",
+            "statements": [
+              [
+                "method_call",
+                {
+                  "func": [
+                    "expression_member",
+                    {
+                      "expr": [ "name", [ "BareName", "packet" ] ],
+                      "name": "extract"
+                    }
+                  ],
+                  "type_args": [],
+                  "args": [
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "array_access",
+                          {
+                            "array": [ "name", [ "BareName", "hdrs" ] ],
+                            "index": [
+                              "int",
+                              { "value": "0", "width_signed": null }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "transition": [
+              "Select",
+              {
+                "exprs": [
+                  [
+                    "call",
+                    {
+                      "func": [
+                        "expression_member",
+                        {
+                          "expr": [ "name", [ "BareName", "packet" ] ],
+                          "name": "lookahead"
+                        }
+                      ],
+                      "type_args": [
+                        [
+                          "bit",
+                          [ "int", { "value": "8", "width_signed": null } ]
+                        ]
+                      ],
+                      "args": []
+                    }
+                  ]
+                ],
+                "cases": [
+                  {
+                    "matches": [
+                      [
+                        "Expression",
+                        {
+                          "expr": [
+                            "int",
+                            { "value": "42", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    ],
+                    "next": "next"
+                  },
+                  { "matches": [ [ "DontCare" ] ], "next": "reject" }
+                ]
+              }
+            ]
+          },
+          {
+            "annotations": [],
+            "name": "next",
+            "statements": [
+              [
+                "method_call",
+                {
+                  "func": [
+                    "expression_member",
+                    {
+                      "expr": [ "name", [ "BareName", "hdrs" ] ],
+                      "name": "push_front"
+                    }
+                  ],
+                  "type_args": [],
+                  "args": [
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "int",
+                          { "value": "1", "width_signed": null }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                "method_call",
+                {
+                  "func": [
+                    "expression_member",
+                    {
+                      "expr": [ "name", [ "BareName", "packet" ] ],
+                      "name": "extract"
+                    }
+                  ],
+                  "type_args": [],
+                  "args": [
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "array_access",
+                          {
+                            "array": [ "name", [ "BareName", "hdrs" ] ],
+                            "index": [
+                              "int",
+                              { "value": "0", "width_signed": null }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "transition": [
+              "Select",
+              {
+                "exprs": [
+                  [
+                    "call",
+                    {
+                      "func": [
+                        "expression_member",
+                        {
+                          "expr": [ "name", [ "BareName", "packet" ] ],
+                          "name": "lookahead"
+                        }
+                      ],
+                      "type_args": [
+                        [
+                          "bit",
+                          [ "int", { "value": "8", "width_signed": null } ]
+                        ]
+                      ],
+                      "args": []
+                    }
+                  ]
+                ],
+                "cases": [
+                  {
+                    "matches": [
+                      [
+                        "Expression",
+                        {
+                          "expr": [
+                            "int",
+                            { "value": "42", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    ],
+                    "next": "next"
+                  },
+                  {
+                    "matches": [
+                      [
+                        "Expression",
+                        {
+                          "expr": [
+                            "int",
+                            { "value": "33", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    ],
+                    "next": "final"
+                  },
+                  { "matches": [ [ "DontCare" ] ], "next": "reject" }
+                ]
+              }
+            ]
+          },
+          {
+            "annotations": [],
+            "name": "final",
+            "statements": [
+              [
+                "method_call",
+                {
+                  "func": [
+                    "expression_member",
+                    {
+                      "expr": [ "name", [ "BareName", "hdrs" ] ],
+                      "name": "push_front"
+                    }
+                  ],
+                  "type_args": [],
+                  "args": [
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "int",
+                          { "value": "1", "width_signed": null }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                "method_call",
+                {
+                  "func": [
+                    "expression_member",
+                    {
+                      "expr": [ "name", [ "BareName", "packet" ] ],
+                      "name": "extract"
+                    }
+                  ],
+                  "type_args": [],
+                  "args": [
+                    [
+                      "Expression",
+                      {
+                        "value": [
+                          "array_access",
+                          {
+                            "array": [ "name", [ "BareName", "hdrs" ] ],
+                            "index": [
+                              "int",
+                              { "value": "0", "width_signed": null }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                "assignment",
+                {
+                  "lhs": [ "name", [ "BareName", "parser_error" ] ],
+                  "rhs": [ "error_member", "NoError" ]
+                }
+              ]
+            ],
+            "transition": [ "Direct", { "next": "accept" } ]
+          }
+        ]
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "MyControl",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "im_t" ] ],
+            "variable": "im",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [
+              "header_stack",
+              {
+                "header": [ "name", [ "BareName", "head3" ] ],
+                "size": [ "int", { "value": "13", "width_signed": null } ]
+              }
+            ],
+            "variable": "hdrs",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "name", [ "BareName", "metadata3" ] ],
+            "variable": "meta",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [ "name", [ "BareName", "in_param_t3" ] ],
+            "variable": "in_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "Out" ],
+            "typ": [ "name", [ "BareName", "out_param_t3" ] ],
+            "variable": "out_param",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "InOut" ],
+            "typ": [ "error" ],
+            "variable": "parser_error",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "apply": {
+          "annotations": [],
+          "statements": [
+            [
+              "conditional",
+              {
+                "cond": [
+                  "binary_op",
+                  {
+                    "op": [ "Eq" ],
+                    "args": [
+                      [ "name", [ "BareName", "parser_error" ] ],
+                      [ "error_member", "NoError" ]
+                    ]
+                  }
+                ],
+                "tru": [
+                  "block",
+                  {
+                    "block": {
+                      "annotations": [],
+                      "statements": [
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "0", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "72", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "1", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "101", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "2", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "108", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "3", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "108", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "4", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "111", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "5", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "44", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "6", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "32", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "7", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "87", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "8", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "111", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "9", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "114", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "10", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "108", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "11", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "100", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          "assignment",
+                          {
+                            "lhs": [
+                              "array_access",
+                              {
+                                "array": [ "name", [ "BareName", "hdrs" ] ],
+                                "index": [
+                                  "int",
+                                  { "value": "12", "width_signed": null }
+                                ]
+                              }
+                            ],
+                            "rhs": [
+                              "list",
+                              {
+                                "values": [
+                                  [
+                                    "int",
+                                    { "value": "33", "width_signed": null }
+                                  ]
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ],
+                "fls": null
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    [
+      "control",
+      {
+        "annotations": [],
+        "name": "MyDeparser",
+        "type_params": [],
+        "params": [
+          {
+            "annotations": [],
+            "direction": null,
+            "typ": [ "name", [ "BareName", "packet_out" ] ],
+            "variable": "packet",
+            "opt_value": null
+          },
+          {
+            "annotations": [],
+            "direction": [ "In" ],
+            "typ": [
+              "header_stack",
+              {
+                "header": [ "name", [ "BareName", "head3" ] ],
+                "size": [ "int", { "value": "13", "width_signed": null } ]
+              }
+            ],
+            "variable": "hdr",
+            "opt_value": null
+          }
+        ],
+        "constructor_params": [],
+        "locals": [],
+        "apply": {
+          "annotations": [],
+          "statements": [
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    {
+                      "value": [
+                        "array_access",
+                        {
+                          "array": [ "name", [ "BareName", "hdr" ] ],
+                          "index": [
+                            "int",
+                            { "value": "0", "width_signed": null }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ],
+            [
+              "method_call",
+              {
+                "func": [
+                  "expression_member",
+                  {
+                    "expr": [ "name", [ "BareName", "packet" ] ],
+                    "name": "emit"
+                  }
+                ],
+                "type_args": [],
+                "args": [
+                  [
+                    "Expression",
+                    { "value": [ "name", [ "BareName", "hdr" ] ] }
+                  ]
+                ]
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    [
+      "Instantiation",
+      {
+        "annotations": [],
+        "type": [ "name", [ "BareName", "uP4Switch" ] ],
+        "args": [
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyParser" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyControl" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ],
+          [
+            "Expression",
+            {
+              "value": [
+                "instantiation",
+                {
+                  "type": [ "name", [ "BareName", "MyDeparser" ] ],
+                  "args": []
+                }
+              ]
+            }
+          ]
+        ],
+        "name": "main1",
+        "init": null
+      }
+    ]
+  ]
+]
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+typedef bit<9> PortId_t;
+typedef bit<16> PktInstId_t;
+typedef bit<16> GroupId_t;
+const PortId_t PORT_CPU = 255;
+const PortId_t PORT_RECIRCULATE = 254;
+enum metadata_fields_t {
+  QUEUE_DEPTH_AT_DEQUEUE
+}
+extern im_t {
+  void set_out_port(in PortId_t out_port);
+  PortId_t get_in_port();
+  PortId_t get_out_port();
+  bit<32> get_value(metadata_fields_t field_type);
+  void drop();
+}
+
+action msa_no_action() { 
+}
+parser micro_parser<H, M, I, IO>
+  (packet_in packet,
+   im_t im,
+   out H hdrs,
+   inout M meta,
+   in I in_param,
+   inout IO inout_param);
+control micro_control<H3, M4, I5, O, IO6>
+  (im_t im,
+   inout H3 hdrs,
+   inout M4 meta,
+   in I5 in_param,
+   out O out_param,
+   inout IO6 inout_param);
+control micro_deparser<H7> (packet_out packet, in H7 hdrs);
+package uP4Switch<H8, M9, I10, O11, IO12>
+  (micro_parser<H8, M9, I10, IO12> p,
+   micro_control<H8, M9, I10, O11, IO12> c,
+   micro_deparser<H8> d);
+package uP4Merge<H1, M1, I1, O1, IO1, H2, M2, I2, O2, IO2>
+  (uP4Switch<H1, M1, I1, O1, IO1> left,
+   uP4Switch<H2, M2, I2, O2, IO2> right,
+   int split_port);
+header head3 {
+  bit<8> v;
+}
+struct metadata3 {
+  
+}
+struct in_param_t3 {
+  
+}
+struct out_param_t3 {
+  
+}
+parser MyParser(packet_in packet, im_t im, out head3[13] hdrs,
+                inout metadata3 meta, in in_param_t3 in_param,
+                inout error parser_error) {
+  state start
+    {
+    packet.extract(hdrs[0]);
+    transition select(packet.lookahead<bit<8>>()) {
+      42: next;
+      _: reject;
+    }
+  }
+  state next
+    {
+    hdrs.push_front(1);
+    packet.extract(hdrs[0]);
+    transition select(packet.lookahead<bit<8>>()) {
+      42: next;
+      33: final;
+      _: reject;
+    }
+  }
+  state final
+    {
+    hdrs.push_front(1);
+    packet.extract(hdrs[0]);
+    parser_error = error.NoError;
+    transition accept;
+  }
+}
+control MyControl(im_t im, inout head3[13] hdrs, inout metadata3 meta,
+                  in in_param_t3 in_param, out out_param_t3 out_param,
+                  inout error parser_error) {
+  apply
+    {
+    if (parser_error==error.NoError)
+      {
+      hdrs[0] = {72};
+      hdrs[1] = {101};
+      hdrs[2] = {108};
+      hdrs[3] = {108};
+      hdrs[4] = {111};
+      hdrs[5] = {44};
+      hdrs[6] = {32};
+      hdrs[7] = {87};
+      hdrs[8] = {111};
+      hdrs[9] = {114};
+      hdrs[10] = {108};
+      hdrs[11] = {100};
+      hdrs[12] = {33};
+    }
+  }
+}
+control MyDeparser(packet_out packet, in head3[13] hdr) {
+  apply {
+    packet.emit(hdr[0]);
+    packet.emit(hdr);
+  }
+}
+uP4Switch(MyParser(), MyControl(), MyDeparser()) main1;
+

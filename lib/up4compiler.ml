@@ -42,6 +42,41 @@ let program_to_declarations (prog:P4.program) : P4.Declaration.t list = match pr
 let get_program_declaration_name (prog:P4.Declaration.t list) : string list = 
   List.filter (fun x -> compare x "" <> 0) (List.map declaration_name prog)
 
+(* Get a program's declarations e.g. calling 'get_program_declarations prog ["Header"; "Constant"]' will
+   return a list of all header declarations and constant declarations in prog*)
+let get_program_declarations (prog:P4.Declaration.t list) (decl_wanted:string list) : P4.Declaration.t list = 
+  let open P4.Declaration in 
+  let want_type (dec_name:string) t = if List.mem dec_name decl_wanted then Some t else None in 
+  let matcher (decl:P4.Declaration.t) = match (snd decl) with 
+    | Constant _ -> want_type "Constant" decl
+    | Instantiation _ -> want_type "Instantiation" decl
+    | Parser _ -> want_type "Parser" decl
+    | Control _ -> want_type "Control" decl
+    | Function _ -> want_type "Function" decl
+    | ExternFunction _ -> want_type "ExternFunction" decl
+    | Variable _ -> want_type "Variable" decl
+    | ValueSet _ -> want_type "ValueSet" decl
+    | Action _ -> want_type "Action" decl
+    | Table _ -> want_type "Table" decl
+    | Header _ -> want_type "Header" decl
+    | HeaderUnion _ -> want_type "HeaderUnion" decl
+    | Struct _ -> want_type "Struct" decl
+    | Error _ -> want_type "Error" decl
+    | MatchKind _ -> want_type "MatchKind" decl
+    | Enum _ -> want_type "Enum" decl
+    | SerializableEnum _ -> want_type "SerializableEnum" decl
+    | ExternObject _ -> want_type "ExternObject" decl
+    | TypeDef _ -> want_type "TypeDef" decl
+    | NewType _ -> want_type "NewType" decl
+    | ControlType _ -> want_type "ControlType" decl
+    | ParserType _ -> want_type "ParserType" decl
+    | PackageType _ -> want_type "PackageType" decl in 
+  List.map get (List.map matcher prog)
+
+(* Get all header types from prog *)
+let get_program_headers (prog : P4.Declaration.t list) : P4.Declaration.t list = []
+
+
 let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.Error{members} -> Some d
   | _ -> None
@@ -53,13 +88,17 @@ let get_matchkind (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) 
   | P4.Declaration.MatchKind{members} -> Some d
   | _ -> None
 
+let get_matchkind_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd err) with 
+  | P4.Declaration.MatchKind {members} -> members
+  | _ -> raise (IncorrectType "Expected MatchKind")
+
 let get_error_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd err) with 
   | P4.Declaration.Error {members} -> members
   | _ -> raise (IncorrectType "Expected Error")
 
-let get_matchkind_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd err) with 
-  | P4.Declaration.MatchKind {members} -> members
-  | _ -> raise (IncorrectType "Expected MatchKind")
+let get_header_field (h:P4.Declaration.t) : P4.Declaration.field list= match (snd h) with 
+  | P4.Declaration.Header {annotations; name; fields} -> fields
+  | _ -> raise (IncorrectType "Expected Header")
 
 let get_typename_name (t : P4.Type.t) : string = match (snd t) with 
   | TypeName typename -> P4.name_only typename
@@ -170,6 +209,7 @@ let remove_unnamed_decl (prog:P4.Declaration.t list) : P4.Declaration.t list =
 
 let get_main (prog:P4.Declaration.t list) : P4.Declaration.t = 
   find_declaration_by_name prog "main"
+
 (* let main = List.filter_map get_instantiation prog in 
    if List.length main == 0 then raise (DeclarationNotFound "main")
    else if List.length main <> 1 then raise MultipleMains
@@ -180,11 +220,6 @@ let get_main (prog:P4.Declaration.t list) : P4.Declaration.t =
 let get_main_args (prog : P4.Declaration.t list) : P4.Argument.t list = 
   let main = find_declaration_by_name prog "main" in 
   main |> get_instantiation_args |> get 
-(* (List.filter_map get_instantiation_args prog) in 
-   let main =  in 
-   if List.length main == 0 then raise (DeclarationNotFound "main")
-   else if List.length main <> 1 then raise MultipleMains
-   else (List.map get_argument_name (List.hd main)) *)
 
 let p4strings_to_strings (lst:P4.P4String.t list) : string list = List.map snd lst
 
@@ -577,6 +612,25 @@ let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaratio
                        constructor_params = [];
                        locals = [];
                        apply = merge_block dp1 dp2})
+(**Merging functions *)
+
+(**Equivalence *)
+let equivalence_fields (f1:P4.Declaration.field) (f2:P4.Declaration.field) : bool = true 
+let equivalence_headers (h1:P4.Declaration.t) (h2:P4.Declaration.t): bool = 
+  let field1 = get_header_field h1 in 
+  let field2 = get_header_field h2 in 
+  true
+(**Equivalence *)
+(** Parsing state merging *)
+
+(* hdrs1 is a list of headers from program 1 and hdrs2 is a list of headers from program 2. This
+   function returns a association list of header names in prog_1 linked to header names in prog_2 if 
+   the two headers have the same fields*)
+let map_headers (prog_1:P4.Declaration.t list) (prog_2:P4.Declaration.t list): ((string * string) list) = 
+  let hdrs1 = get_program_declarations prog_1 ["Header"] in 
+  let hdrs2 = get_program_declarations prog_2 ["Header"] in 
+  []
+(** Parsing state merging*)
 
 (**Creating new up4 parser *)
 let imt_in_port_expr : (P4.Expression.t) = create_expression_function_call "im" "get_in_port" []

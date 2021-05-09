@@ -37,7 +37,7 @@ Class ExternSem := {
   extern_empty : extern_state;
   (* Allocation should be a function; calling may be fine as a relation. *)
   alloc_extern : extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path -> list Val -> extern_state;
-  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> signal -> Prop;
+  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
@@ -48,7 +48,7 @@ Class SeparableExternSem := {
   (* extern_empty : extern_state := IdentMap.empty; *)
   (* Allocation should be a function; calling may be fine as a relation. *)
   ses_alloc_extern : ident (* class *) -> list (@P4Type tags_t) -> list Val -> extern_object;
-  ses_exec_extern : ident (* class *) -> ident (* method *) -> extern_object -> list Val -> extern_object -> list Val -> signal -> Prop;
+  ses_exec_extern : ident (* class *) -> ident (* method *) -> extern_object -> list (@P4Type tags_t) -> list Val -> extern_object -> list Val -> signal -> Prop;
   (* ses_extern_get_entries : extern_state -> path -> list table_entry; *)
   ses_extern_match : list (Val * ident (* match_kind *)) -> list table_entry -> option action_ref (* action *)
 }.
@@ -58,12 +58,12 @@ Context (ses : SeparableExternSem).
 
 Definition extern_state' : Type := @PathMap.t tags_t extern_object * @PathMap.t tags_t (list table_entry).
 
-Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state' -> list Val -> signal -> Prop :=
-  | exec_extern_intro : forall s class method p args s' args' vret obj obj',
+Inductive exec_extern' : extern_state' -> ident (* class *) -> ident (* method *) -> path -> list (@P4Type tags_t) -> list Val -> extern_state' -> list Val -> signal -> Prop :=
+  | exec_extern_intro : forall s class method targs p args s' args' vret obj obj',
       PathMap.get p (fst s) = Some obj ->
-      ses_exec_extern class method obj args obj' args' vret ->
+      ses_exec_extern class method obj targs args obj' args' vret ->
       (PathMap.set p obj' (fst s), snd s) = s' ->
-      exec_extern' s class method p args s' args' vret.
+      exec_extern' s class method p targs args s' args' vret.
 
 Definition extern_get_entries' (s : extern_state') p :=
   match PathMap.get p (snd s) with

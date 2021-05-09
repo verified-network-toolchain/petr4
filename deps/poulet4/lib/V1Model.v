@@ -19,6 +19,7 @@ Context {tags_t: Type}.
 Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
+Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase tags_t).
 Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
@@ -49,13 +50,13 @@ Definition extern_empty : extern_state := PathMap.empty.
 Axiom dummy_tags : tags_t.
 Definition register_string : ident := {| P4String.tags := dummy_tags; P4String.str := "register" |}.
 
-Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (@P4Type tags_t)) (p : path) (args : list Val) :=
+Definition alloc_extern (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list Val) :=
   if P4String.equivb class register_string then
     match args with
     (* | [ValBaseInteger size] *)
     | [ValBaseBit _ size]
     (* | [ValBaseInt _ size] *) =>
-        match type_params with
+        match targs with
         | [TypBit w] =>
             PathMap.set p (ObjRegister (new_register size w)) s
         | _ => s (* fail *)
@@ -65,7 +66,7 @@ Definition alloc_extern (s : extern_state) (class : ident) (type_params : list (
   else
     s.
 
-Definition extern_func_sem := extern_state -> path -> list Val -> extern_state -> list Val -> signal -> Prop.
+Definition extern_func_sem := extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
@@ -73,14 +74,14 @@ Inductive extern_func := mk_extern_func_sem {
   ef_sem : extern_func_sem
 }.
 
-Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list Val -> extern_state -> list Val -> signal -> Prop :=
+Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   match func with
   | mk_extern_func_sem class_name func_name sem =>
       fun s class_name' func_name' =>
           if P4String.equivb class_name class_name' && P4String.equivb func_name func_name' then
             sem s
           else
-            fun _ _ _ _ _ => False
+            fun _ _ _ _ _ _ => False
   end.
 
 Definition read_string : ident := {| P4String.tags := dummy_tags; P4String.str := "read" |}.
@@ -96,7 +97,7 @@ Inductive register_read_sem : extern_func_sem :=
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       Znth index (reg_content reg) = result ->
-      register_read_sem s p [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
+      register_read_sem s p nil [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := register_string;
@@ -115,7 +116,7 @@ Inductive register_write_sem : extern_func_sem :=
       reg_width reg = w ->
       0 <= index < reg_size reg ->
       upd_Znth index value (reg_content reg) = content' ->
-      register_write_sem s p [ValBaseBit REG_INDEX_WIDTH index]
+      register_write_sem s p nil [ValBaseBit REG_INDEX_WIDTH index]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
           [] SReturnNull.
 
@@ -125,13 +126,64 @@ Definition register_write : extern_func := {|
   ef_sem := register_write_sem
 |}.
 
-Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list Val -> extern_state -> list Val -> signal -> Prop :=
-  | exec_extern_register_read : forall s class method p args s' args' vret,
-      apply_extern_func_sem register_read s class method p args s' args' vret ->
-      exec_extern s class method p args s' args' vret
-  | exec_extern_register_write : forall s class method p args s' args' vret,
-      apply_extern_func_sem register_write s class method p args s' args' vret ->
-      exec_extern s class method p args s' args' vret.
+Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
+Definition extract_string : ident := {| P4String.tags := dummy_tags; P4String.str := "extract" |}.
+
+Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
+Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
+
+Inductive packet_in_extract_sem : extern_func_sem :=
+  | exec_packet_in_extract : forall s p pin typ v pin',
+      PathMap.get p s = Some (ObjPin pin) ->
+      extract pin typ = (v, pin') ->
+      packet_in_extract_sem s p [typ] []
+            (PathMap.set p (ObjPin pin') s)
+          [v] SReturnNull
+  | exec_packet_in_extract2 : forall s p pin typ len v pin',
+      PathMap.get p s = Some (ObjPin pin) ->
+      extract2 pin typ len = (v, pin') ->
+      packet_in_extract_sem s p [typ] [ValBaseBit 32%nat len]
+            (PathMap.set p (ObjPin pin') s)
+          [v] SReturnNull.
+
+Definition packet_in_extract : extern_func := {|
+  ef_class := packet_in_string;
+  ef_func := extract_string;
+  ef_sem := packet_in_extract_sem
+|}.
+
+Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
+Definition emit_string : ident := {| P4String.tags := dummy_tags; P4String.str := "emit" |}.
+
+Axiom emit : forall (pout : list bool) (v : Val), list bool.
+
+Inductive packet_out_emit_sem : extern_func_sem :=
+  | exec_packet_out_emit : forall s p pout typ v pout',
+      PathMap.get p s = Some (ObjPout pout) ->
+      emit pout v = pout' ->
+      packet_out_emit_sem s p [typ] [v]
+            (PathMap.set p (ObjPout pout') s)
+          [] SReturnNull.
+
+Definition packet_out_emit : extern_func := {|
+  ef_class := packet_out_string;
+  ef_func := emit_string;
+  ef_sem := packet_out_emit_sem
+|}.
+
+Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
+  | exec_extern_register_read : forall s class method p targs args s' args' vret,
+      apply_extern_func_sem register_read s class method p targs args s' args' vret ->
+      exec_extern s class method p targs args s' args' vret
+  | exec_extern_register_write : forall s class method p targs args s' args' vret,
+      apply_extern_func_sem register_write s class method p targs args s' args' vret ->
+      exec_extern s class method p targs args s' args' vret
+  | exec_extern_packet_in_extract : forall s class method p targs args s' args' vret,
+      apply_extern_func_sem packet_in_extract s class method p targs args s' args' vret ->
+      exec_extern s class method p targs args s' args' vret
+  | exec_extern_packet_out_emit : forall s class method p targs args s' args' vret,
+      apply_extern_func_sem packet_out_emit s class method p targs args s' args' vret ->
+      exec_extern s class method p targs args s' args' vret.
 
 Axiom extern_get_entries : extern_state -> path -> list table_entry.
 
@@ -145,8 +197,6 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_get_entries
   extern_match.
 
-Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
-Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
 Definition main_string : ident := {| P4String.tags := dummy_tags; P4String.str := "main" |}.
 Definition p_string : ident := {| P4String.tags := dummy_tags; P4String.str := "p" |}.
 Definition vr_string : ident := {| P4String.tags := dummy_tags; P4String.str := "vr" |}.

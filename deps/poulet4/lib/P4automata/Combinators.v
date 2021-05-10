@@ -2,50 +2,48 @@ Require Import Poulet4.P4automata.P4automaton.
 
 Definition concat (l: p4automaton) (r: p4automaton) (r_start: states r) : p4automaton :=
   {|
-    store := store l + store r ;
+    store := store l * store r ;
     states := states l + states r ; 
     size := fun s =>
       match s with
       | inl ls => l.(size) ls
       | inr rs => r.(size) rs
       end ;
-    update := fun st bs s => 
-      match st, s with
-      | inl st', inl s' => inl (l.(update) st' bs s')
-      | inr st', inr s' => inr (r.(update) st' bs s')
-      | _, _ => s
+    update := fun st bs '(s_l, s_r) => 
+      match st with
+      | inl st' => (l.(update) st' bs s_l, s_r)
+      | inr st' => (s_l, r.(update) st' bs s_r)
       end ;
-    transitions := fun st s => 
-      match st, s with 
-      | inl st', inl s' => 
-        match l.(transitions) st' s' with
+    transitions := fun st '(s_l, s_r) => 
+      match st with 
+      | inl st' => 
+        match l.(transitions) st' s_l with
         | inl st'' => inl (inl st'')
         | inr true => inl (inr r_start)
         | inr false => inr false
         end
-      | inr st', inr s' =>
-        match r.(transitions) st' s' with
+      | inr st' =>
+        match r.(transitions) st' s_r with
         | inl st'' => inl (inr st'')
         | inr b => inr b
         end
-      | _, _ => inr false
       end ;
   |}.
 
 Definition concat_config_l 
-  {l r: p4automaton} {r_start} 
+  {l r: p4automaton} {r_start store_r} 
   (c: configuration l) : configuration (concat l r r_start) := 
-  let '(state, store, bs) := c in 
+  let '(state, store_l, bs) := c in 
   match state with
-  | inl st => (inl (inl st), inl store, bs)
-  | inr b => (inr b, inl store, bs)
+  | inl st => (inl (inl st), (store_l, store_r), bs)
+  | inr b => (inr b, (store_l, store_r), bs)
   end.
 
 Definition concat_config_r 
-  {l r: p4automaton} {r_start} 
+  {l r: p4automaton} {r_start store_l} 
   (c: configuration r) : configuration (concat l r r_start) := 
-  let '(state, store, bs) := c in 
+  let '(state, store_r, bs) := c in 
   match state with
-  | inl st => (inl (inr st), inr store, bs)
-  | inr b => (inr b, inr store, bs)
+  | inl st => (inl (inr st), (store_l, store_r), bs)
+  | inr b => (inr b, (store_l, store_r), bs)
   end.

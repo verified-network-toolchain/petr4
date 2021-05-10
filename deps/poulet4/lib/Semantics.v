@@ -358,7 +358,7 @@ Definition add_ctrl_args (oaction : option (@Expression tags_t)) (ctrl_args : li
   | Some action =>
       match action with
       | MkExpression _ (ExpFunctionCall f type_args args) _ dir =>
-          Some (MkExpression dummy_tags (ExpFunctionCall f type_args (args ++ ctrl_args)) dummy_type dir)
+          Some (MkExpression dummy_tags (ExpFunctionCall f type_args (args ++ ctrl_args)) TypVoid dir)
       | _ => None
       end
   | None => None
@@ -824,7 +824,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                 (MkStatement tags (StatAssignment lhs rhs) typ) st sig
   | exec_stmt_method_call : forall this_path inst_m st tags func args typ st' sig sig',
                             exec_call this_path inst_m st
-                              (MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless)
+                              (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
                               st' sig ->
                             force_continue_signal sig = sig' ->
                             exec_stmt this_path inst_m st
@@ -832,7 +832,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
   | exec_stmt_direct_application : forall this_path inst_m st tags typ' args typ st' sig sig',
                                    exec_call this_path inst_m st
                                       (MkExpression dummy_tags
-                                        (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) dummy_type Directionless)
+                                        (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) TypVoid Directionless)
                                       st' sig ->
                                    force_continue_signal sig = sig' ->
                                    exec_stmt this_path inst_m st
@@ -1279,7 +1279,7 @@ Definition verify_string : ident := {| P4String.tags := dummy_tags; P4String.str
 
 Definition reject_state :=
   let verify := (MkExpression dummy_tags (ExpName (BareName verify_string) (LGlobal [verify_string])) dummy_type Directionless) in
-  let false_expr := (MkExpression dummy_tags (ExpBool false) dummy_type Directionless) in
+  let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
 

@@ -71,11 +71,11 @@ let get_program_declarations (prog:P4.Declaration.t list) (decl_wanted:string li
     | ControlType _ -> want_type "ControlType" decl
     | ParserType _ -> want_type "ParserType" decl
     | PackageType _ -> want_type "PackageType" decl in 
-  List.map get (List.map matcher prog)
+  (List.filter_map matcher prog)
 
 (* Get all header types from prog *)
-let get_program_headers (prog : P4.Declaration.t list) : P4.Declaration.t list = []
-
+let get_program_headers (prog : P4.Declaration.t list) : P4.Declaration.t list = 
+  get_program_declarations prog ["Header"]
 
 let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.Error{members} -> Some d
@@ -99,6 +99,10 @@ let get_error_members (err:P4.Declaration.t) : P4.P4String.t list = match (snd e
 let get_header_field (h:P4.Declaration.t) : P4.Declaration.field list= match (snd h) with 
   | P4.Declaration.Header {annotations; name; fields} -> fields
   | _ -> raise (IncorrectType "Expected Header")
+
+let get_header_name (h:P4.Declaration.t) : string = match (snd h) with 
+  | P4.Declaration.Header {annotations; name; fields} -> snd name
+  | _ -> raise (IncorrectType "Expected Header") 
 
 let get_typename_name (t : P4.Type.t) : string = match (snd t) with 
   | TypeName typename -> P4.name_only typename
@@ -615,21 +619,75 @@ let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaratio
 (**Merging functions *)
 
 (**Equivalence *)
-let equivalence_fields (f1:P4.Declaration.field) (f2:P4.Declaration.field) : bool = true 
+let equivalence_p4Int (i1:P4.P4Int.t) (i2:P4.P4Int.t) : bool = 
+  let open P4.P4Int in 
+  match (snd i1, snd i2) with 
+  | {value=v1; width_signed=w1}, {value=v2; width_signed=w2} -> Bigint.equal v1 v2     
+
+let rec equivalence_expr (e1:P4.Expression.t) (e2:P4.Expression.t):bool = 
+  match (snd e1, snd e2) with 
+  | True, True
+  | False, False -> true
+  | Int i1, Int i2 -> equivalence_p4Int i1 i2
+  | String s1, String s2 -> compare (snd s1) (snd s2) == 0
+  | ArrayAccess {array=a1;index=i1}, ArrayAccess {array=a2;index=i2} -> (equivalence_expr a1 a2) && (equivalence_expr i1 i2)
+  | BitStringAccess {bits=b1;lo=lo1;hi=hi1}, BitStringAccess {bits=b2;lo=lo2;hi=hi2} -> 
+    (equivalence_expr b1 b2) && (equivalence_expr lo1 lo2) && (equivalence_expr hi1 hi2) 
+  (* Other equivalence unimplemented for now *)
+  (* | List {values}, List {values=v2}
+              | Record {entries}, Record {entries=e2}
+              | UnaryOp {op=op1;arg=a1}, UnaryOp {op=op2;arg=a2}
+              | BinaryOp{op=op1;args=a1}, BinaryOp {op=op2;args=a2}
+              | Cast {typ=t1;expr=e1}, Cast{typ=t2;expr=e2}
+              | TypeMember {typ=t1;name=n1}, TypeMember {typ=t2;name=n2} *)
+  | _,_ -> false
+
+let rec equivalence_type (t1:P4.Type.t) (t2:P4.Type.t):bool = 
+  match (snd t1, snd t2) with 
+  | (Bool, Bool)
+  | (Error, Error)
+  | (Integer, Integer)
+  | (String, String)
+  | (Void, Void)
+  | (DontCare, DontCare) -> true
+  | (IntType e1, IntType e2)
+  | (BitType e1, BitType e2)
+  | (VarBit e1, VarBit e2) -> equivalence_expr e1 e2 
+  | (TypeName name1, TypeName name2) -> P4.name_eq name1 name2 
+  | (SpecializedType {base=b1; args=a1}, SpecializedType {base=b2; args=a2}) -> 
+    (equivalence_type b1 b2) && (List.fold_left (fun x y -> x && y) true (List.map2 equivalence_type a1 a2))
+  | (HeaderStack {header=h1; size=e1}, HeaderStack {header=h2;size=e2}) -> 
+    (equivalence_type h1 h2) && (equivalence_expr e1 e2)
+  | (Tuple t1, Tuple t2) -> List.fold_left (fun x y -> x && y) true (List.map2 equivalence_type t1 t2)
+  | _,_ -> false
+
+let equivalence_fields (f1:P4.Declaration.field list) (f2:P4.Declaration.field list) : bool = 
+  let t1 = List.map get_field_types f1 in 
+  let t2 = List.map get_field_types f2 in if (List.length t1) == (List.length t2) then 
+    List.fold_left (fun x y -> x && y) true (List.map2 equivalence_type t1 t2)
+  else false
+
 let equivalence_headers (h1:P4.Declaration.t) (h2:P4.Declaration.t): bool = 
+  (* (print_string ((get_header_name h1) ^ " if == "));
+     (print_string ((get_header_name h2) ^ "\n\n")); *)
   let field1 = get_header_field h1 in 
   let field2 = get_header_field h2 in 
-  true
+  if (List.length field1) == (List.length field2) then 
+    equivalence_fields field1 field2 else false
 (**Equivalence *)
-(** Parsing state merging *)
+(* Parsing state merging *)
 
 (* hdrs1 is a list of headers from program 1 and hdrs2 is a list of headers from program 2. This
    function returns a association list of header names in prog_1 linked to header names in prog_2 if 
    the two headers have the same fields*)
-let map_headers (prog_1:P4.Declaration.t list) (prog_2:P4.Declaration.t list): ((string * string) list) = 
+let map_headers (prog_1:P4.Declaration.t list) (prog_2:P4.Declaration.t list): ((string * string) list) =
   let hdrs1 = get_program_declarations prog_1 ["Header"] in 
   let hdrs2 = get_program_declarations prog_2 ["Header"] in 
-  []
+  let find_map (hdrs:P4.Declaration.t list) (hdr1:P4.Declaration.t) = 
+    List.filter_map (fun x -> if equivalence_headers hdr1 x then Some (get_header_name hdr1, get_header_name x) else None) hdrs in 
+  let full_mapping = List.fold_left (fun x y -> x@y) [] (List.map (find_map hdrs2) hdrs1) in 
+  List.filter (fun x -> compare (fst x) (snd x) <> 0) full_mapping
+
 (** Parsing state merging*)
 
 (**Creating new up4 parser *)
@@ -715,6 +773,8 @@ let prog_merge_package (program : P4.program) : P4.program =
   let split_port = get_argument_int (List.nth main_args 2) in 
   let package1 = verify_length (find_declarations_by_names prog names1) 3 in 
   let package2 = verify_length (find_declarations_by_names prog names2) 3 in 
+  let test = map_headers (get_program_headers prog) (get_program_headers prog) in 
+  ignore (List.map (fun x -> print_string ((fst x) ^ " == " ^ (snd x) ^ "\n")) test);
   (* let parser1_params = (List.hd package1) |> get_declaration_params |> get in
      let parser2_params = (List.hd package2) |> get_declaration_params |> get in  *)
   let control1_params = (List.nth package1 1) |> get_declaration_params |> get in

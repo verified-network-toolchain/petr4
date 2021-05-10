@@ -5,6 +5,23 @@ header head {
     bit<8> v;
 }
 
+header head5 {
+    bit<8> v;
+}
+
+header ipv4_t {
+    bit<4>    version;
+    bit<4>    ihl;
+    bit<8>    diffserv;
+    bit<16>   totalLen;
+    bit<16>   identification;
+    bit<3>    flags;
+    bit<13>   fragOffset;
+    bit<8>    ttl;
+    bit<8>    protocol;
+    bit<16>   hdrChecksum;
+}
+
 struct metadata { }
 struct in_param_t { }
 struct out_param_t { }

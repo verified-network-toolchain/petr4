@@ -1,4 +1,5 @@
 Require Import Poulet4.P4automata.P4automaton.
+Require Import Coq.Lists.List.
 
 Definition concat (l: p4automaton) (r: p4automaton) (r_start: states r) : p4automaton :=
   {|
@@ -47,3 +48,10 @@ Definition concat_config_r
   | inl st => (inl (inr st), (store_l, store_r), bs)
   | inr b => (inr b, (store_l, store_r), bs)
   end.
+
+Lemma accepted_concat:
+  forall l r state_l store_l state_r store_r bs_pref bs_suff,
+  accepted (a := l) (inl state_l, store_l, nil) bs_pref ->
+  accepted (a := r) (inl state_r, store_r, nil) bs_suff ->
+  accepted (a := concat l r state_r) (inl (inl state_l), (store_l, store_r), nil) (bs_pref ++ bs_suff).
+Admitted.

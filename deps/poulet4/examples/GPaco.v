@@ -75,3 +75,57 @@ Proof.
         simpl;
         constructor; gbase; eauto.
 Qed.
+
+Theorem teq_i_ii_better:
+  teq i ii.
+Proof.
+  ginit.
+  Unshelve.
+  3:exact id.
+  {
+    unfold id.
+    constructor; auto.
+    intros.
+    inversion PR; subst.
+    constructor; constructor; apply rclo2_base; tauto.
+  }
+  gcofix CIH.
+  rewrite (tunf_eq i).
+  rewrite (tunf_eq ii).
+  gstep.
+  simpl.
+  rewrite (tunf_eq a), (tunf_eq aa), (tunf_eq b), (tunf_eq bb).
+  simpl.
+  cut (gpaco2 teq_gen id r r (node e e) (node ee ee)).
+  { eauto. }
+  rewrite (tunf_eq e), (tunf_eq ee).
+  simpl.
+  gstep.
+  cut (gpaco2 teq_gen id r r (node i i) (node ii ii)).
+  { eauto. }
+  gstep.
+  constructor; gbase; auto.
+Qed.
+
+Theorem teq_i_ii_better_without_gpaco:
+  teq i ii.
+Proof.
+  pcofix CIH.
+  rewrite (tunf_eq i).
+  rewrite (tunf_eq ii).
+  pfold.
+  simpl.
+  rewrite (tunf_eq a), (tunf_eq aa), (tunf_eq b), (tunf_eq bb).
+  simpl.
+  cut (upaco2 teq_gen r (node e e) (node ee ee)).
+  { eauto. }
+  rewrite (tunf_eq e), (tunf_eq ee).
+  simpl.
+  left.
+  cut (upaco2 teq_gen r (node i i) (node ii ii)).
+  { eauto. }
+  left.
+  pfold.
+  constructor; right; auto.
+Qed.
+

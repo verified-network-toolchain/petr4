@@ -12,26 +12,31 @@ Open Scope monad_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
+Module P := P4cub.
+Module E := P.Expr.
+Import P.P4cubNotations.
+Module V := Val.
+Import V.ValueNotations.
+Import V.LValueNotations.
+
 Section parser_to_p4automaton.
 
   Variable tags_t : Type.
 
-  Inductive simple_expression :=
-  | SimpleExpressionHeader
-  | SimpleExpressionMember (e: simple_expression) (m: string)
-  .
+  Definition simple_expression : Type := unit + E.e tags_t.
 
-  Inductive simple_lvalue :=
-  | SimpleLvalueHeader
-  | SimpleLvalueMember (e: simple_lvalue) (m: string)
-  .
-
+  Definition simple_lvalue : Type := unit + V.lv.
+  
   Inductive state_operation :=
   | StateOperationNil
   | StateOperationExtract
-      (typ: P4cub.Expr.t)
-      (into: simple_lvalue)
-  .
+      (typ: E.t)
+      (into_lv: simple_lvalue)
+  | SOVarDecl (x : string) (τ : E.t)
+  | SOAsgn (lv : simple_lvalue) (e : simple_expression)
+  | SOBlock (so : list state_operation)
+  (* functon calls? other extern method calls? *).
+  (**[]*)
 
   Inductive simple_match :=
   | SimpleMatchEquals (l r: simple_expression)
@@ -41,61 +46,53 @@ Section parser_to_p4automaton.
 
   Section compile.
     Variables (pkt_name hdr_name: string).
-
-    Fixpoint compile_expression
-      (expr: P4cub.Expr.e tags_t)
-      : option simple_expression
-    :=
+    
+    Definition compile_expression (expr: E.e tags_t) : simple_expression :=
       match expr with
-      | P4cub.Expr.EVar _ name _ =>
-        if name == hdr_name then
-          Some SimpleExpressionHeader
-        else
-          None
-      | P4cub.Expr.EExprMember name _ expr _ =>
-        let* child := compile_expression expr in
-        Some (SimpleExpressionMember child name)
-      | _ =>
-        None
-      end
-    .
+      | <{ Var x:_ @ _ }> =>
+        if x == hdr_name then inl tt else inr expr
+      | _ => inr expr
+      end.
 
-    Fixpoint compile_lvalue
-      (expr: P4cub.Expr.e tags_t)
-      : option simple_lvalue
-    :=
-      match expr with
-      | P4cub.Expr.EVar _ name _ =>
-        if name == hdr_name then
-          Some SimpleLvalueHeader
-        else
-          None
-      | P4cub.Expr.EExprMember name _ expr _ =>
-        let* child := compile_lvalue expr in
-        Some (SimpleLvalueMember child name)
-      | _ =>
-        None
-      end
-    .
+    Fixpoint eval_lvalue (e : E.e tags_t) : option V.lv :=
+      match e with
+      | <{ Var x:_ @ _ }> => Some l{ VAR x }l
+      | <{ Mem e:_ dot x @ _ }>
+        => lv <<| eval_lvalue e ;; l{ lv DOT x }l
+      | <{ Access e[n] @ _ }>
+        => lv <<| eval_lvalue e ;; l{ lv[n] }l
+      | _ => None
+      end.
+
+    Definition compile_lvalue (lv : V.lv) : simple_lvalue :=
+      match lv with
+      | l{ VAR x }l =>
+        if x == hdr_name then inl tt else inr lv
+      | _ => inr lv
+      end.
+    (**[]*)
 
     Fixpoint compile_statements
       (stmt: P4cub.Stmt.s tags_t)
       : option (list state_operation)
     :=
       match stmt with
-      | P4cub.Stmt.SSkip _ =>
+      | -{ skip @ _ }- =>
         Some nil
-      | P4cub.Stmt.SSeq s1 s2 _ =>
-        let* f1 := compile_statements s1 in
-        let* f2 := compile_statements s2 in
-        Some (f1 ++ f2)
-      | P4cub.Stmt.SExternMethodCall extern func args _ =>
-        if extern == pkt_name then
+      | -{ s1; s2 @ _ }- =>
+        f1 <- compile_statements s1 ;;
+        f2 <<| compile_statements s2 ;; f1 ++ f2
+      | -{ var x:τ @ _ }- => Some [SOVarDecl x τ]
+      | -{ asgn e1 := e2:_ @ _ }-
+        => lv <<| eval_lvalue e1 ;;
+          [SOAsgn (compile_lvalue lv) $ compile_expression e2]
+      | -{ extern extern_lit calls func with args gives _ @ _ }- =>
+        if extern_lit == pkt_name then
           if func == "extract" then
             match args with
-            | P4cub.Arrow ((_, P4cub.PAOut (t, e)) :: nil) _ =>
-              let* into := compile_lvalue e in
-              Some (StateOperationExtract t into :: nil)
+            | ((_, P4cub.PAOut (t, e)) :: nil) =>
+              into_lv <<| eval_lvalue e ;;
+              StateOperationExtract t (compile_lvalue into_lv) :: nil
             | _=> None
             end
           else
@@ -113,16 +110,12 @@ Section parser_to_p4automaton.
       match states with
       | nil =>
         Some nil
-      | state :: states' =>
-        let '(name, P4cub.Parser.ParserState.State stmt _) := state in
+      | (name, &{ state { stmt } transition _ }&) :: states' =>
         let* tail := compile_updates states' in
         let* head := compile_statements stmt in
         Some ((name, head) :: tail)
       end
     .
-
-    Section NotationSection.
-    Import P4cub.P4cubNotations.
 
     Fixpoint compile_transition
       (trans: P4cub.Parser.ParserState.e tags_t)
@@ -137,14 +130,14 @@ Section parser_to_p4automaton.
       | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
       | p{ select select_exp { cases } default:=def @ _ }p =>
-        let* select_exp' := compile_expression select_exp in
+        let select_exp' := compile_expression select_exp in
         let fix f cases :=
           match cases with
           | nil =>
             compile_transition def
           | (case_exp, case_trans) :: cases' =>
             let* child_clauses := compile_transition case_trans in
-            let* case_exp' := compile_expression case_exp in
+            let case_exp' := compile_expression case_exp in
             let augmented_clauses :=
               map (
                 fun '(clause, target) =>
@@ -158,7 +151,6 @@ Section parser_to_p4automaton.
          f cases
       end
     .
-    End NotationSection.
 
     Fixpoint compile_transitions
       (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
@@ -167,8 +159,8 @@ Section parser_to_p4automaton.
       match states with
       | nil =>
         Some nil
-      | state :: states' =>
-        let '(name, P4cub.Parser.ParserState.State _ trans) := state in
+      | st :: states' =>
+        let '(name, P4cub.Parser.ParserState.State _ trans) := st in
         let* tail := compile_transitions states' in
         let* head := compile_transition trans in
         Some ((name, head) :: tail)
@@ -183,10 +175,10 @@ Section parser_to_p4automaton.
   }.
 
   Definition parser_to_p4automaton
-    (parser: P4cub.TopDecl.d tags_t)
+    (prsr: P4cub.TopDecl.d tags_t)
     : option embedded_p4automaton
   :=
-    match parser with
+    match prsr with
     | P4cub.TopDecl.TPParser _ _ params _ states _ => (* AST.v change *)
       match params with
       | (pkt_name, P4cub.PAIn pkt_type) ::

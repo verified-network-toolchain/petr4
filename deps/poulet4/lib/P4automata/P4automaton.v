@@ -7,6 +7,7 @@ Record p4automaton := MkP4Automaton {
   size: states -> nat;
   update: states -> list bool -> store -> store;
   transitions: states -> store -> states + bool;
+  cap: forall s, 0 < size s;
 }.
 
 Definition configuration (a: p4automaton) : Type :=
@@ -23,7 +24,7 @@ Definition step
   match state with
   | inl state =>
     let buf' := buf ++ b :: nil in
-    if List.length buf' == size a state
+    if length buf' == size a state
     then
       let st' := update a state buf' st in
       let state' := transitions a state st' in

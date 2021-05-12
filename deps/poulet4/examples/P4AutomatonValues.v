@@ -44,7 +44,7 @@ Module SimpleParser.
     end.
 
 
-  Definition simple_auto : p4automaton := {|
+  Program Definition simple_auto : p4automaton := {|
     size := size';
     update := fun s bs (v: unit) => v ;
     transitions := fun s v =>
@@ -53,6 +53,9 @@ Module SimpleParser.
       | zero => inr true
       end
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
   Definition simple_config : configuration simple_auto :=
     (inl one, tt, nil).
@@ -123,11 +126,14 @@ Module BabyIPv1.
     end
   .
 
-  Definition v1_parser : p4automaton := {|
+  Program Definition v1_parser : p4automaton := {|
     size := size';
     update := update';
     transitions := transitions';
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
   Record SwitchState := mkSwitchState {
     egress_spec : @ValueBase Info;
@@ -242,11 +248,14 @@ Module BabyIPv2.
     end
   .
 
-  Definition v2_parser : p4automaton := {|
+  Program Definition v2_parser : p4automaton := {|
     size := size';
     update := update';
     transitions := transitions';
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
 End BabyIPv2.
 
@@ -876,3 +885,75 @@ Inductive candidate':
     )
     candidate'
 .
+
+Require Import Poulet4.P4automata.PreBisimulation.
+
+Definition init_rel
+  (a1 a2: p4automaton)
+  (s1: states a1)
+  (s2: states a2)
+  (c1: configuration a1)
+  (c2: configuration a2)
+:=
+  let '(s1', st1, buf1) := c1 in
+  let '(s2', st2, buf2) := c2 in
+  inl s1 = s1' /\
+  inl s2 = s2' /\
+  buf1 = buf2
+.
+
+Lemma init_rel_closed
+  (a1 a2: p4automaton)
+  (s1: states a1)
+  (s2: states a2)
+  (c1: configuration a1)
+  (c2: configuration a2)
+  (c1': configuration a1)
+  (c2': configuration a2)
+  (b: bool)
+:
+  init_rel a1 a2 s1 s2 c1 c2 ->
+  buffer_appended c1 c1' b ->
+  buffer_appended c2 c2' b ->
+  buffer_sane c1' ->
+  buffer_sane c2' ->
+  init_rel a1 a2 s1 s2 c1' c2'
+.
+Proof.
+  destruct c1 as ((s1', st1), buf1).
+  destruct c2 as ((s2', st2), buf2).
+  destruct c1' as ((s1'', st1'), buf1').
+  destruct c2' as ((s2'', st2'), buf2').
+  intros.
+  unfold init_rel, build_chunk in H.
+  destruct H as [? [? ?]].
+  destruct H0 as [? [? ?]].
+  destruct H1 as [? [? ?]].
+  simpl in *.
+  subst.
+  repeat split; simpl; simpl_length.
+Qed.
+
+Goal
+  grows_to_bisimulation (init_rel BabyIPv1.v1_parser BabyIPv2.v2_parser BabyIPv1.start BabyIPv2.start)
+.
+Proof.
+  apply pre_bisimulation_intro'.
+  apply pre_bisimulation_grow.
+  - intros. unfold init_rel; intros.
+    destruct c1 as ((s1, st1), buf1).
+    destruct c2 as ((s2, st2), buf2).
+    simpl in *.
+    destruct H as [? [? ?]].
+    subst.
+    easy.
+  - unfold symbolic_step; rewrite app_nil_r.
+    apply pre_bisimulation_skip.
+    * intros.
+      unfold build_chunk in H.
+      destruct H as [[c1' [c2' [b [? [? ?]]]]] [? ?]].
+      apply ChunkedRelatedHead; auto.
+      apply init_rel_closed with (c1' := c1) (c2' := c2) (c1 := c1') (c2 := c2') (b := b); auto.
+    * eapply pre_bisimulation_replace; intros.
+      (* Find a way to massage this into something usable... *)
+Admitted.

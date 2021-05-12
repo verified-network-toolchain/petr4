@@ -29,10 +29,10 @@ Definition to_val (w: positive) (bs: list bool) : v :=
 
 Definition slice {A} to from (l: list A) := firstn (from - to) (skipn to l).
 
-Definition to_entry (bs: list bool) : v := 
-  let entries := 
-    ("label", to_val 20 (slice 0 20 bs)) :: 
-    ("class", to_val 3 (slice 20 23 bs)) :: 
+Definition to_entry (bs: list bool) : v :=
+  let entries :=
+    ("label", to_val 20 (slice 0 20 bs)) ::
+    ("class", to_val 3 (slice 20 23 bs)) ::
     ("bos_marker", to_val 1 (slice 23 24 bs)) ::
     ("ttl", to_val 8 (slice 24 32 bs)) ::
     nil in
@@ -54,16 +54,19 @@ Module MPLSSimple.
 
   Instance etaStore : Settable _ := settable! mkStore <entries; length >.
 
-  Definition parser : p4automaton := {|
+  Program Definition parser : p4automaton := {|
     size := size';
-    update := fun s bs (v: store) => v 
-      <| entries ::= fun x => x ++ [(to_entry bs)] |> 
+    update := fun s bs (v: store) => v
+      <| entries ::= fun x => x ++ [(to_entry bs)] |>
       <| length ::= fun x => x + 1 |> ;
     transitions := fun _ (v: store) =>
       if v.(length) <? 3
-      then inl parse_entry 
+      then inl parse_entry
       else inr false
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
 End MPLSSimple.
 
@@ -84,26 +87,29 @@ Module MPLSFixedWidth.
 
   Instance etaStore : Settable _ := settable! mkStore <entries; length; seen >.
 
-  Definition parser : p4automaton := {|
+  Program Definition parser : p4automaton := {|
     size := size';
     update := fun s bs (v: store) =>
-      match nth_error v.(entries) v.(length) with 
-      | Some (VHeader fs true) => 
+      match nth_error v.(entries) v.(length) with
+      | Some (VHeader fs true) =>
         match Field.get "bos_marker" fs with
-        | Some (VBit _ 0) => 
-          v <| entries ::= fun x => x ++ [(to_entry bs)] |> 
-            <| length ::= fun x => x + 1 |> 
+        | Some (VBit _ 0) =>
+          v <| entries ::= fun x => x ++ [(to_entry bs)] |>
+            <| length ::= fun x => x + 1 |>
         | _ => v
         end
       | Some _ => v
       | None => v <| entries := [to_entry bs] |> <| length := 1 |>
-      end 
+      end
       <| seen ::= fun x => x + 1 |> ;
-    transitions := fun _ (v: store) => 
-      if v.(seen) <? 3 
+    transitions := fun _ (v: store) =>
+      if v.(seen) <? 3
       then inl parse_entry
       else inr (v.(seen) =? 3)
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
 End MPLSFixedWidth.
 
@@ -113,8 +119,18 @@ Module MPLSVectorized.
 
   Definition size' (s: states) : nat :=
     match s with
-    | parse_entry => 32 * 4
+    | parse_entries => 32 * 4
     end.
+
+  Lemma states_cap:
+    forall s,
+      0 < size' s
+  .
+  Proof.
+    destruct s; simpl; lia.
+  Qed.
+
+  Check states_cap.
 
   Record store := mkStore {
     entries : list v;
@@ -123,9 +139,9 @@ Module MPLSVectorized.
 
   Instance etaStore : Settable _ := settable! mkStore <entries; length >.
 
-  Definition bos_mark (entry: v) := 
+  Definition bos_mark (entry: v) :=
     match entry with
-    | VHeader fs true => 
+    | VHeader fs true =>
       match Field.get "bos_marker" fs with
       | Some (VBit _ 0) => Some false
       | Some (VBit _ 1) => Some true
@@ -133,54 +149,55 @@ Module MPLSVectorized.
       end
     | _ => None
     end.
-  
+
   Definition parser : p4automaton := {|
     size := size';
     update := fun s bs (v: store) =>
-      let v1 := to_entry (slice 0 32 bs) in 
-      let v2 := to_entry (slice 32 (32*2) bs) in 
-      let v3 := to_entry (slice (32*2) (32*3) bs) in 
+      let v1 := to_entry (slice 0 32 bs) in
+      let v2 := to_entry (slice 32 (32*2) bs) in
+      let v3 := to_entry (slice (32*2) (32*3) bs) in
       let v4 := to_entry (slice (32*3) (32*4) bs) in
       match bos_mark v1, bos_mark v2, bos_mark v3, bos_mark v4 with
-      | Some true, _, _, _ => 
+      | Some true, _, _, _ =>
         v <| entries := [v1] |> <| length := 1 |>
-      | Some false, Some true, _, _ => 
+      | Some false, Some true, _, _ =>
         v <| entries := [v1; v2] |> <| length := 2 |>
-      | Some false, Some false, Some true, _ => 
+      | Some false, Some false, Some true, _ =>
         v <| entries := [v1; v2; v3] |> <| length := 3 |>
-      | Some false, Some false, Some false, Some true => 
+      | Some false, Some false, Some false, Some true =>
         v <| entries := [v1; v2; v3; v4] |> <| length := 4 |>
       | _, _, _, _ => v
       end;
-    transitions := fun _ _ => inr false
+    transitions := fun _ _ => inr false;
+    cap := states_cap;
   |}.
 
 End MPLSVectorized.
 
 Require Import Poulet4.Examples.P4AutomatonValues.
 
-Inductive fixed_vector : 
+Inductive fixed_vector :
   configuration MPLSFixedWidth.parser ->
   configuration MPLSVectorized.parser ->
   Prop :=
-  | Start : 
+  | Start :
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)
-      (fun s => 
-        s.(MPLSFixedWidth.seen) = 0 /\ 
-        s.(MPLSFixedWidth.length) = 0 /\ 
+      (fun s =>
+        s.(MPLSFixedWidth.seen) = 0 /\
+        s.(MPLSFixedWidth.length) = 0 /\
         s.(MPLSFixedWidth.entries) = nil
       )
-      (fun s => 
-        s.(MPLSVectorized.length) = 0 /\ 
+      (fun s =>
+        s.(MPLSVectorized.length) = 0 /\
         s.(MPLSVectorized.entries) = nil
       )
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
       (fun buf buf' => length buf < 32 /\ buf = buf')
       fixed_vector
-  | SeenOne : 
+  | SeenOne :
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)
@@ -188,14 +205,14 @@ Inductive fixed_vector :
       store_top
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
-      (fun buf buf' => 
-        length buf < 32 /\ 
+      (fun buf buf' =>
+        length buf < 32 /\
         exists pref,
           buf' = pref ++ buf /\
           length pref = 32
       )
       fixed_vector
-  | SeenTwo : 
+  | SeenTwo :
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)
@@ -203,14 +220,14 @@ Inductive fixed_vector :
       store_top
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
-      (fun buf buf' => 
-        length buf < 32 /\ 
+      (fun buf buf' =>
+        length buf < 32 /\
         exists pref,
           buf' = pref ++ buf /\
           length pref = 32*2
       )
       fixed_vector
-  | SeenThree : 
+  | SeenThree :
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)
@@ -218,15 +235,15 @@ Inductive fixed_vector :
       store_top
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
-      (fun buf buf' => 
-        length buf < 32 /\ 
+      (fun buf buf' =>
+        length buf < 32 /\
         exists pref,
           buf' = pref ++ buf /\
           length pref = 32*3
       )
       fixed_vector
   | EndStates :
-    forall b, 
+    forall b,
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)

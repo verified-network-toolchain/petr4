@@ -227,11 +227,14 @@ Module BabyIPv1.
     end
   .
 
-  Definition v1_parser : p4automaton := {|
+  Program Definition v1_parser : p4automaton := {|
     size := size';
     update := update';
     transitions := transitions';
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
   Record SwitchState := mkSwitchState {
     egress_spec : @ValueBase Info;
@@ -346,11 +349,14 @@ Module BabyIPv2.
     end
   .
 
-  Definition v2_parser : p4automaton := {|
+  Program Definition v2_parser : p4automaton := {|
     size := size';
     update := update';
     transitions := transitions';
   |}.
+  Next Obligation.
+    destruct s; simpl; lia.
+  Qed.
 
 End BabyIPv2.
 
@@ -444,7 +450,7 @@ Qed.
 
 Inductive buf_clo {a b} (R: configuration a -> configuration b -> Prop)
   : configuration a -> configuration b -> Prop :=
-| buf_clo_: forall bs x0 y0 x y, 
+| buf_clo_: forall bs x0 y0 x y,
     buffers x x0 bs ->
     buffers y y0 bs ->
     (accepting x <-> accepting y) ->
@@ -461,7 +467,7 @@ Proof.
 Qed.
 Hint Resolve buf_clo_mono : paco.
 
-Lemma bisim_gen_id_compat: 
+Lemma bisim_gen_id_compat:
   forall a b, wcompatible2 (bisim_gen a b) id.
 Proof.
   unfold id.
@@ -472,7 +478,7 @@ Proof.
 Qed.
 Hint Resolve bisim_gen_id_compat : paco.
 
-Lemma bisim_gen_buf_clo_compat: 
+Lemma bisim_gen_buf_clo_compat:
   forall a b, wcompatible2 (bisim_gen a b) buf_clo.
 Proof.
 Admitted.
@@ -489,7 +495,7 @@ Proof.
   ginit.
   gcofix CIH.
   gclo.
-  match goal with 
+  match goal with
   | |- ?G =>
     cut (forall (bs: list bool), List.length bs = 19 -> G)
   end.

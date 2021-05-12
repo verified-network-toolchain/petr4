@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
+Require Import Coq.micromega.Lia.
 
 Require Import Poulet4.P4automata.P4automaton.
 
@@ -23,11 +24,9 @@ Definition buffer_appended
 :=
   let '(s, st, buf) := c in
   let '(s', st', buf') := c' in
-  match s with
-  | inl s => Datatypes.length buf + 1 < size a s
-  | inr _ => True
-  end ->
-  buf' = buf ++ b :: nil
+  buf' = buf ++ b :: nil /\
+  s = s' /\
+  st = st'
 .
 
 Definition buffer_filled
@@ -48,34 +47,57 @@ Definition buffer_filled
   end
 .
 
+Definition buffer_sane
+  {a: p4automaton}
+  (c: configuration a)
+  : Prop
+:=
+  let '(s, st, buf) := c in
+  match s with
+  | inl s => Datatypes.length buf < size a s
+  | inr _ => True
+  end
+.
+
+Definition build_chunk
+  {a1 a2: p4automaton}
+  (R: configuration a1 -> configuration a2 -> Prop)
+  (c1: configuration a1)
+  (c2: configuration a2)
+:=
+  R c1 c2 /\
+  buffer_sane c1 /\
+  buffer_sane c2
+.
+
 Definition symbolic_step
   {a1 a2: p4automaton}
   (R: configuration a1 -> configuration a2 -> Prop)
   : chunked_relation a1 a2
 :=
   (* First case: neither buffer was filled. *)
-  (fun c1' c2' =>
+  build_chunk (fun c1' c2' =>
      exists c1 c2 b,
        R c1 c2 /\
        buffer_appended c1 c1' b /\
        buffer_appended c2 c2' b
   ) ::
   (* Second case: the left buffer was filled, but the right was not. *)
-  (fun c1' c2' =>
+  build_chunk (fun c1' c2' =>
      exists c1 c2 b,
        R c1 c2 /\
        buffer_filled c1 c1' b /\
        buffer_appended c2 c2' b
   ) ::
   (* Third case: the right buffer was filled, but the left was not. *)
-  (fun c1' c2' =>
+  build_chunk (fun c1' c2' =>
      exists c1 c2 b,
        R c1 c2 /\
        buffer_appended c1 c1' b /\
        buffer_filled c2 c2' b
   ) ::
   (* Fourth case: both buffers were filled. *)
-  (fun c1' c2' =>
+  build_chunk (fun c1' c2' =>
      exists c1 c2 b,
        R c1 c2 /\
        buffer_filled c1 c1' b /\
@@ -84,22 +106,46 @@ Definition symbolic_step
   nil
 .
 
-Lemma appended_or_filled
+Lemma buffer_sane_preserved
   {a: p4automaton}
-  (c c': configuration a)
+  (c: configuration a)
   (b: bool)
 :
+  buffer_sane c ->
+  buffer_sane (step c b)
+.
+Proof.
+  unfold buffer_sane; intros.
+  destruct c as ((s, st), buf).
+  destruct s; auto.
+  simpl step.
+  destruct (equiv_dec _ _).
+  destruct (transitions _ _ _); auto.
+  - simpl length.
+    apply a.
+  - rewrite app_length in *.
+    unfold "===", complement in *.
+    simpl length in *.
+    lia.
+Qed.
 
+Lemma appended_or_filled
+  {a: p4automaton}
+  (c: configuration a)
+  (b: bool)
+:
+  buffer_sane c ->
   buffer_appended c (step c b) b \/
   buffer_filled c (step c b) b
 .
 Proof.
+  intros.
   destruct c as ((s, st), buf).
   destruct s.
   - simpl step.
     rewrite app_length.
-    simpl Datatypes.length.
-    destruct (equiv_dec (Datatypes.length buf + 1) (size a s)).
+    simpl length.
+    destruct (equiv_dec (length buf + 1) (size a s)).
     + right.
       unfold buffer_filled.
       easy.
@@ -123,6 +169,8 @@ Inductive chunked_related
 | ChunkedRelatedHead:
     forall c1 c2 (R: configuration a1 -> configuration a2 -> Prop) rel,
       R c1 c2 ->
+      buffer_sane c1 ->
+      buffer_sane c2 ->
       chunked_related (R :: rel) c1 c2
 | ChunkedRelatedTail:
     forall c1 c2 R rel,
@@ -137,23 +185,27 @@ Lemma chunked_related_correct
   (c2: configuration a2)
 :
   chunked_related R c1 c2 <->
-  exists R', In R' R /\ R' c1 c2
+  (buffer_sane c1 /\
+   buffer_sane c2 /\
+   exists R', In R' R /\ R' c1 c2)
 .
 Proof.
   split; intros.
   - induction H.
+    repeat split; auto.
     + exists R.
       split; auto.
       apply in_eq.
     + firstorder.
   - induction R.
     + firstorder.
-    + destruct H as [R' [? ?]].
-      destruct H.
-      * apply ChunkedRelatedHead.
+    + destruct H as [? [? [R' [? ?]]]].
+      destruct H1.
+      * apply ChunkedRelatedHead; auto.
         congruence.
       * apply ChunkedRelatedTail.
         apply IHR.
+        repeat split; auto.
         now exists R'.
 Qed.
 
@@ -181,22 +233,32 @@ Lemma symbolic_step_correct
   (c2: configuration a2)
   (b: bool)
 :
+  buffer_sane c1 ->
+  buffer_sane c2 ->
   R c1 c2 ->
   chunked_related (symbolic_step R) (step c1 b) (step c2 b)
 .
 Proof.
   intros.
   unfold symbolic_step.
-  destruct (appended_or_filled c1 (step c1 b) b),
-           (appended_or_filled c2 (step c2 b) b).
+  destruct (appended_or_filled c1 b H),
+           (appended_or_filled c2 b H0).
   - apply ChunkedRelatedHead.
+    unfold build_chunk; repeat split.
     exists c1, c2, b; easy.
+    all: eauto using buffer_sane_preserved.
   - do 2 apply ChunkedRelatedTail; apply ChunkedRelatedHead.
+    unfold build_chunk; repeat split.
     exists c1, c2, b; easy.
+    all: eauto using buffer_sane_preserved.
   - do 1 apply ChunkedRelatedTail; apply ChunkedRelatedHead.
+    unfold build_chunk; repeat split.
     exists c1, c2, b; easy.
+    all: eauto using buffer_sane_preserved.
   - do 3 apply ChunkedRelatedTail; apply ChunkedRelatedHead.
+    unfold build_chunk; repeat split.
     exists c1, c2, b; easy.
+    all: eauto using buffer_sane_preserved.
 Qed.
 
 Definition progresses
@@ -237,17 +299,46 @@ Lemma pre_bisimulation_intro
   (R: configuration a1 -> configuration a2 -> Prop)
 :
   pre_bisimulation nil (R :: nil) ->
-  (forall c1 c2, R c1 c2 -> bisimilar c1 c2)
+  (forall c1 c2,
+    R c1 c2 ->
+    buffer_sane c1 ->
+    buffer_sane c2 ->
+    bisimilar c1 c2)
 .
 Proof.
   intros.
   apply H.
   - intros c1' c2' ?.
-    inversion H1.
+    inversion H3.
   - intros c1' c2' ? ?.
-    inversion H1.
+    inversion H3.
   - rewrite app_nil_r.
     now constructor.
+Qed.
+
+Definition grows_to_bisimulation
+  {a1 a2: p4automaton}
+  (R: configuration a1 -> configuration a2 -> Prop)
+:=
+  forall c1 c2,
+    build_chunk R c1 c2 ->
+    bisimilar c1 c2
+.
+
+Lemma pre_bisimulation_intro'
+  {a1 a2: p4automaton}
+  (R: configuration a1 -> configuration a2 -> Prop)
+:
+  pre_bisimulation nil (R :: nil) ->
+  grows_to_bisimulation R
+.
+Proof.
+  intros.
+  unfold grows_to_bisimulation.
+  intros.
+  destruct H0 as [? [? ?]].
+  revert c1 c2 H0 H1 H2.
+  now apply pre_bisimulation_intro.
 Qed.
 
 Lemma pre_bisimulation_leaf
@@ -306,13 +397,39 @@ Proof.
     inversion H4; subst; auto.
   - intros c1' c2' ? ?.
     inversion H4; subst.
-    + apply symbolic_step_correct with (b0 := b) in H9.
+    + apply symbolic_step_correct with (b0 := b) in H7; auto.
       apply chunked_related_subset with (R1 := symbolic_step R); auto.
       solve_incl.
     + apply chunked_related_subset with (R1 := (R :: front) ++ checked); auto.
       solve_incl.
   - apply chunked_related_subset with ((R :: front) ++ checked); auto.
     solve_incl.
+Qed.
+
+Lemma pre_bisimulation_replace
+  {a1 a2: p4automaton}
+  (R R': configuration a1 -> configuration a2 -> Prop)
+  (checked front: chunked_relation a1 a2)
+:
+  (forall c1 c2, R c1 c2 -> R' c1 c2) ->
+  pre_bisimulation checked (R' :: front) ->
+  pre_bisimulation checked (R :: front)
+.
+Proof.
+  unfold pre_bisimulation; intros.
+  apply H0; auto.
+  - intros c1' c2' b ?.
+    apply (H2 _ _ b) in H4.
+    rewrite <- app_comm_cons in *.
+    inversion H4; subst.
+    + apply H in H7.
+      now apply ChunkedRelatedHead.
+    + now apply ChunkedRelatedTail.
+  - rewrite <- app_comm_cons in *.
+    inversion H3; subst.
+    + apply H in H6.
+      now apply ChunkedRelatedHead.
+    + now apply ChunkedRelatedTail.
 Qed.
 
 Lemma pre_bisimulation_skip
@@ -332,12 +449,12 @@ Proof.
     apply (H2 _ _ b) in H4.
     rewrite <- app_comm_cons in H4.
     inversion H4; subst; auto.
-    apply H in H9.
+    apply H in H7.
     apply chunked_related_subset with (R1 := checked); auto.
     solve_incl.
   - rewrite <- app_comm_cons in H3.
     inversion H3; subst; auto.
-    apply H in H8.
+    apply H in H6.
     apply chunked_related_subset with (R1 := checked); auto.
     solve_incl.
 Qed.

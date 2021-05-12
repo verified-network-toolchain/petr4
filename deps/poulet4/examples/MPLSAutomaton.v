@@ -95,7 +95,8 @@ Module MPLSFixedWidth.
             <| length ::= fun x => x + 1 |> 
         | _ => v
         end
-      | _ => v
+      | Some _ => v
+      | None => v <| entries := [to_entry bs] |> <| length := 1 |>
       end 
       <| seen ::= fun x => x + 1 |> ;
     transitions := fun _ (v: store) => 
@@ -166,8 +167,15 @@ Inductive fixed_vector :
     build_bisimulation
       (a1 := MPLSFixedWidth.parser)
       (a2 := MPLSVectorized.parser)
-      store_top
-      store_top
+      (fun s => 
+        s.(MPLSFixedWidth.seen) = 0 /\ 
+        s.(MPLSFixedWidth.length) = 0 /\ 
+        s.(MPLSFixedWidth.entries) = nil
+      )
+      (fun s => 
+        s.(MPLSVectorized.length) = 0 /\ 
+        s.(MPLSVectorized.entries) = nil
+      )
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
       (fun buf buf' => length buf < 32 /\ buf = buf')
@@ -216,10 +224,76 @@ Inductive fixed_vector :
           buf' = pref ++ buf /\
           length pref = 32*3
       )
+      fixed_vector
+  | EndStates :
+    forall b, 
+    build_bisimulation
+      (a1 := MPLSFixedWidth.parser)
+      (a2 := MPLSVectorized.parser)
+      store_top
+      store_top
+      (inr b)
+      (inr b)
+      (fun buf buf' => buf = buf')
       fixed_vector.
 
-(* TODO: remainder of this bisimulation *)
-    
-
 Example fixed_vector_bis : bisimulation fixed_vector.
+  unfold bisimulation.
+  intros.
+  inversion H.
+  - split; intros.
+    + split; intros; unfold accepting in *; exfalso; inversion H5.
+    + unfold step.
+      destruct H2.
+      rewrite <- H5.
+      simpl size. unfold MPLSVectorized.size'.
+      destruct (equiv_dec _ _); destruct (equiv_dec _ _).
+      * exfalso. unfold "===" in *. lia.
+      * simpl transitions.
+        destruct H0 as [HL0 [HL1 HL2]].
+        rewrite HL1, HL2.
+        simpl.
+        rewrite HL0.
+        simpl.
+        rewrite HL1, HL2.
+        simpl.
+
+        eapply SeenOne.
+
+        -- simpl. lia.
+        -- compute. trivial.
+        -- split; [compute; lia|].
+           exists (buf1 ++ [b]). 
+           split; [|unfold "===" in *; trivial].
+           rewrite app_nil_r.
+           trivial.
+      * exfalso. unfold "===" in e. 
+        erewrite app_length in e.
+        simpl in e. 
+        lia.
+      * eapply Start; trivial.
+        split; trivial.
+        unfold "=/=" in c.
+        erewrite app_length in *.
+        simpl in c. simpl.
+        unfold "<".
+        unfold "===" in c.
+        lia.
+  - split; intros.
+    + split; intros; unfold accepting in *; exfalso; inversion H5.
+    + unfold step.
+      destruct H2 as [H2 [pref [HP HPL]]].
+      destruct (equiv_dec _ _); destruct (equiv_dec _ _).
+      * simpl in e. 
+        simpl in e0.
+        unfold MPLSVectorized.size' in e0.
+        exfalso. 
+        unfold "===" in *.
+        erewrite app_length in *.
+        rewrite HP in e0.
+        erewrite app_length in e0.
+        lia.
+      * simpl in e, c. unfold MPLSVectorized.size' in c.
+        simpl transitions.
+        (* TODO: strengthen H0, H1 to make sure entries/length are defined *)
 Admitted.

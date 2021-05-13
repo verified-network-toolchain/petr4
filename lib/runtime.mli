@@ -1,9 +1,14 @@
-type message = 
-  | Hello of { switch: string; 
-               ports: int }
-  | Event of { switch : string }
+type ctrl_msg = 
   | Insert of { table : string; 
                 matches : (string * string) list; 
                 action : string; 
                 action_data : (string * string) list }
-   [@@deriving yojson]
+  | PktOut of { pkt : string; }
+[@@deriving yojson]
+
+type switch_msg =
+  | Hello of { switch: string; 
+               ports: int }
+  | Event of { switch : string }
+  | PktIn of { pkt : string; }
+[@@deriving yojson]

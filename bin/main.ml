@@ -120,6 +120,8 @@ let stf_command =
 
 (***** Switch *****)
 let entries : Prog.Value.entries ref = ref ([],[])
+let ctrl_pkt : string list ref = ref []
+let ctrl_pt : int = 510
 
 let start_v1switch env prog sockets =
   let open Eval in
@@ -128,33 +130,39 @@ let start_v1switch env prog sockets =
   let socks = List.map sockets
     ~f:(fun (i, sock) -> i, Lwt_rawlink.read_packet sock) in
   let rec loop socks st : unit Lwt.t =
-    List.map socks
-      ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
-    |> Lwt.choose >>=      
-    fun (i, pkt) -> 
+    begin match !ctrl_pkt with
+    | [] -> 
+       List.map socks ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
+       |> Lwt.choose
+    | h :: t ->
+       ctrl_pkt := t; Lwt.return (ctrl_pt, Cstruct.of_string h) end
+    >>= fun (i, pkt) ->
     let ctrl = (!entries,[]) in
-    switch_packet ctrl env st pkt (Bigint.of_int i) (List.length socks |> Bigint.of_int)
-    |> Lwt.return >>=
-    fun (st, pkt) ->
+    switch_packet ctrl env st pkt
+      (Bigint.of_int i)
+      (List.length socks |> Bigint.of_int)
+    |> Lwt.return
+    >>= fun (st, pkt) ->
     begin match pkt with
-      | [] -> [Lwt.return ()]
-      | l -> List.map l ~f:(fun (pkt, pt) -> 
-        let pt = pt |> Bigint.to_int_exn |> List.Assoc.find sockets ~equal:Int.equal in
-        begin match pt with
-	  | Some pt -> Lwt_rawlink.send_packet pt pkt
-          | None -> Lwt.return () end) end |> Lwt.join  >>=
-    fun _ ->
-      let socks = List.Assoc.remove socks i ~equal:Int.equal in
-      let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
-      let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
-      loop socks st in
-  (* only concern: should the output of the evaluator be bound to the next iteration
-     of the loop? would this cause us to miss some packets that arrive while the first
-     ones are still being put through the interpreter? *)
+    | [] -> [Lwt.return ()]
+    | l ->
+       List.map l ~f:(fun (pkt, pt) ->
+           let pt = Bigint.to_int_exn pt in
+           if pt = ctrl_pt
+           then Petr4_unix.Runtime_server.post_pkt (Cstruct.to_string pkt)
+           else
+             List.Assoc.find sockets pt ~equal:Int.equal
+             |> Option.value_map ~default:(Lwt.return ())
+                  ~f:(fun pt -> Lwt_rawlink.send_packet pt pkt)) end
+    |> Lwt.join
+    >>= fun _ ->
+    let socks = List.Assoc.remove socks i ~equal:Int.equal in
+    let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
+    let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
+    loop socks st in
   loop socks st
 
 let start_switch verbose include_dir target pts p4_file =
-  (* TODO: add a control plane socket *)
   let f str =
     let pt_num, if_name = String.lsplit2_exn str ~on:'@' in
     String.strip pt_num |> Int.of_string, String.strip if_name in
@@ -187,16 +195,18 @@ let do_insert (table:string) (matches:(string * string) list) (action:string) (a
   let l1' = List.Assoc.add l1 mk_table ~equal:String.(=) (entry::old_entries) in 
   entries := (l1',l2)
 
-let handle_message = function
-  | Runtime.Hello _ -> 
-     ()
-  | Runtime.Event _ -> 
-     ()
+let handle_message (msg : Runtime.ctrl_msg) : unit =
+  match msg with
   | Runtime.Insert { table; matches; action; action_data } -> 
-     let matches_str = List.map matches ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v) |> String.concat ~sep:"," in
-     let action_data_str = List.map action_data ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v) |> String.concat ~sep:"," in
+     let matches_str =
+       List.map matches ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v)
+       |> String.concat ~sep:"," in
+     let action_data_str =
+       List.map action_data ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v)
+       |> String.concat ~sep:"," in
      Printf.eprintf "Insert: %s [%s] %s [%s]\n%!" table matches_str action action_data_str;
      do_insert table matches action action_data
+  | Runtime.PktOut { pkt } -> ctrl_pkt := !ctrl_pkt @ [pkt]
 
 let switch_command =
   let open Command.Spec in

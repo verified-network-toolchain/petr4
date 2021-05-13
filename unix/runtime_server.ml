@@ -8,12 +8,12 @@ let petr4_uri name =
 
 let rec loop switch handlers = 
   let event = Petr4.Runtime.Event { switch } in
-  let body = event |> Petr4.Runtime.message_to_yojson |> Yojson.Safe.to_string |> Body.of_string in
+  let body = event |> Petr4.Runtime.switch_msg_to_yojson |> Yojson.Safe.to_string |> Body.of_string in
   let%bind response,body = Client.post ~body (petr4_uri "event") in 
   try 
     let%bind str = Body.to_string body in 
     let json = Yojson.Safe.from_string str in 
-    let () = match Petr4.Runtime.message_of_yojson json with
+    let () = match Petr4.Runtime.ctrl_msg_of_yojson json with
       | Ok msg -> 
          handlers msg
       | Error err -> 
@@ -25,7 +25,17 @@ let rec loop switch handlers =
     
 let start switch ~handlers () = 
   let hello = Petr4.Runtime.Hello { switch = switch; ports = 1} in
-  let body = hello |> Petr4.Runtime.message_to_yojson |> Yojson.Safe.to_string |> Body.of_string in
+  let body = hello |> Petr4.Runtime.switch_msg_to_yojson |> Yojson.Safe.to_string |> Body.of_string in
   let%bind response,body = Client.post ~body (petr4_uri "hello") in
   let%bind () = Cohttp_lwt.Body.drain_body body in 
   loop switch handlers
+
+let post_pkt pkt =
+  let pkt = Petr4.Runtime.PktIn { pkt } in
+  let body =
+    pkt
+    |> Petr4.Runtime.switch_msg_to_yojson
+    |> Yojson.Safe.to_string
+    |> Body.of_string in
+  let%bind response, body = Client.post ~body (petr4_uri "pktin") in
+  Lwt.return ()

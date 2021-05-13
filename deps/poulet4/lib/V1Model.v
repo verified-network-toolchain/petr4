@@ -39,6 +39,7 @@ Definition packet_in := list bool.
 Definition packet_out := list bool.
 
 Inductive object :=
+  | ObjTable (entries : list table_entry)
   | ObjRegister (reg : register)
   | ObjPin (pin : packet_in)
   | ObjPout (pout : packet_out).
@@ -185,7 +186,11 @@ Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) 
       apply_extern_func_sem packet_out_emit s class method p targs args s' args' vret ->
       exec_extern s class method p targs args s' args' vret.
 
-Axiom extern_get_entries : extern_state -> path -> list table_entry.
+Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
+  match PathMap.get p es with
+  | Some (ObjTable entries) => entries
+  | _ => nil
+  end.
 
 Axiom extern_match : list (Val * ident) -> list table_entry -> option action_ref.
 

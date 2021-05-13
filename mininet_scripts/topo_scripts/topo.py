@@ -26,7 +26,7 @@ class Topology:
     def add_link(self, n1, n2, n1_port, n2_port, weight):
         if self.G.has_edge(n1,n2):
             print("There is already a link in the topology between %s and %s with weight %d." \
-                    % (n1, n2, self.G.edges[n1][n2]["weight"]))
+                    % (n1, n2, self.G.edges[n1, n2]["weight"]))
             return
         ports = { n1 : n1_port, n2 : n2_port } 
         self.G.add_edge(n1, n2, ports = ports, weight = weight)
@@ -48,13 +48,23 @@ class Topology:
             return
 
     def modify_link_weight(self, n1, n2, weight):
-        if not n1 in self.G.edges or not n2 in self.G.edges[n1]:
+        if not (n1, n2) in self.G.edges:
             print("Link (%s, %s) does not exist in the topology." % (n1, n2))
             return
 
-        self.G.edges[n1][n2]["weight"] = weight
+        self.G.edges[n1, n2]["weight"] = weight
 
-    def e2e_shortest_path(self):
+    def shortest_path(self, src_id, dst_id):
+        if not src_id in self.G.nodes or \
+           not dst_id in self.G.nodes:
+            
+            print("invalid src id or dst id")
+            return None
+
+        (_, path) = nx.single_source_dijkstra(self.G, src_id, target = dst_id)
+        return path
+
+    def e2e_shortest_paths(self):
         res = {}
         paths = dict(nx.all_pairs_dijkstra_path(self.G))
         for n1 in paths:
@@ -70,7 +80,7 @@ class Topology:
 
         return res
 
-    def next_hop(self, sw_id, dst_host_id):
+    def shortest_path_next_hop(self, sw_id, dst_host_id):
         if not sw_id in self.G.nodes or \
            self.G.nodes[sw_id]["typ"] != "switch" or \
            not dst_host_id in self.G.nodes or \
@@ -79,10 +89,40 @@ class Topology:
             print("invalid switch id or host id")
             return None
 
-        (_, path) = nx.single_source_dijkstra(self.G, sw_id)
-        
-        if not dst_host_id in path:
+        path = self.shortest_path(sw_id, dst_host_id)
+        if path is None:
             print ("%s is not reachable from %s." % (dst_host_id, sw_id))
             return None
+        else:
+            return path[1]
 
-        return path[dst_host_id][1]
+    def weight(self, path):
+        res = 0
+        if len(path) < 2:
+            return None
+
+        for i, n1 in enumerate(path[:-1]):
+            n2 = path[i + 1]
+            if not n1 in self.G.nodes or \
+               not n2 in self.G.nodes:
+                   print ("Invalid node on input path.")
+                   return None
+            
+            res += self.G.edges[n1, n2]["weight"]
+
+        return res
+
+    def all_simple_paths(self, src_id, dst_id):
+        try:
+            paths = nx.shortest_simple_paths(self.G, src_id, dst_id, weight = "weight")
+            paths_with_weights = []
+            for path in paths:
+                paths_with_weights.append((path, self.weight(path)))
+        except nx.NetworkXError:
+            print("invalid src id or dst id")
+            return None
+        except nx.NetworkXNoPath:
+            print("%s is not reachable from %s." % (dst_id, src_id))
+            return None
+        
+        return paths_with_weights

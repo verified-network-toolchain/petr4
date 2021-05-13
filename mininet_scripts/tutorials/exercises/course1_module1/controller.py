@@ -38,7 +38,7 @@ class MyApp(App):
     ### ...
     
     # compute shortest paths
-    paths = topo.e2e_shortest_path()
+    paths = topo.e2e_shortest_paths()
 
     self.topo = topo
     self.paths = paths
@@ -67,7 +67,7 @@ class MyApp(App):
                  
     print(f"{switch} is up!")
     for host in self.topo.hosts():
-      next_hop = self.topo.next_hop(switch,host)
+      next_hop = self.topo.shortest_path_next_hop(switch,host)
       port = str(self.topo.port(switch,next_hop))
       ip = host_map[host]["ip"]
       mac = host_map[host]["mac"]

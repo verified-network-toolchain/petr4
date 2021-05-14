@@ -187,38 +187,20 @@ Section parser_to_p4automaton.
              (e : Step.epsilon) : P4Automaton_State + bool :=
     inr false.
 
-  Definition parser_to_p4automaton
-    (prsr: P4cub.TopDecl.d tags_t)
-    : option p4automaton
-  :=
-    match prsr with
+  Definition parser_to_p4automaton strt states : p4automaton :=
+    MkP4Automaton
+      (Step.epsilon)
+      P4Automaton_State
+      (P4Automaton_size strt states)
+      (P4Automaton_update strt states)
+      (P4Automaton_transitions strt states)
+      (P4Automaton_Size_Cap strt states).
+
+  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list p4automaton :=
+    match d with
     | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
-      Some (MkP4Automaton
-              unit (* TODO: Step.epsilon causes universal consistency error *)
-              P4Automaton_State
-              (P4Automaton_size strt states)
-              (fun _ _ st => st) (* TODO: should be P4Automaton_update strt states *)
-              (fun _ _ => inr false) (* TODO: should be P4Automaton_transitions strt states *)
-              (P4Automaton_Size_Cap strt states))
-    | _ => None end.
-    (* | P4cub.TopDecl.TPParser p cparams params strt states tags => (* AST.v change *)
-      match params with
-      | (pkt_name, P4cub.PAIn pkt_type) ::
-        (hdr_name, P4cub.PAOut hdr_type) :: _ =>
-        let updates := compile_updates hdr_name states in
-        let transitions := compile_transitions states in
-        match updates, transitions with
-        | Some updates, Some transitions =>
-          Some {|
-              emb_updates := updates;
-              emb_transitions := transitions;
-            |}
-        | _, _ => None end                  
-      | _ =>
-        None
-      end
-    | _ =>
-      None
-    end *)
+      [ (parser_to_p4automaton strt states) ]
+    | %{ d1 ;%; d2 @ i }% => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
+    | _ => [] end.
 
 End parser_to_p4automaton.

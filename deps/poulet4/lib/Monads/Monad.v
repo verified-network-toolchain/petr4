@@ -1,5 +1,7 @@
 Require Import Coq.Lists.List.
 
+Set Universe Polymorphism.
+
 Class Monad (M : Type -> Type) : Type :=
   { mret : forall {A}, A -> M A;
     mbind : forall {A B}, M A -> (A -> M B) -> M B

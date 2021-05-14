@@ -1,6 +1,8 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
 
+Set Universe Polymorphism.
+
 Record p4automaton := MkP4Automaton {
   store: Type;
   states: Type;

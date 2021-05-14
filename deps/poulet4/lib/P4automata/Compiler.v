@@ -26,13 +26,14 @@ Section parser_to_p4automaton.
   Variable tags_t : Type.
   
   Inductive state_operation :=
-  | StateOperationNil
-  | StateOperationExtract
+  | SONil
+  | SOSeq (s1 s2 : state_operation)
+  | SOExtract
       (typ: E.t)
       (into_lv: V.lv)
   | SOVarDecl (x : string) (τ : E.t)
-  | SOAsgn (lv : V.lv) (e : E.e tags_t)
-  | SOBlock (so : list state_operation)
+  | SOAsgn (lhs rhs : E.e tags_t)
+  | SOBlock (s : state_operation)
   (* functon calls? other extern method calls? *).
   (**[]*)
 
@@ -40,13 +41,13 @@ Section parser_to_p4automaton.
   | SimpleMatchEquals (l r: E.e tags_t)
   | SimpleMatchAnd (l r: simple_match)
   | SimpleMatchDontCare
-  .                                   
+  .
 
   Section compile.
-    Variables (pkt_name hdr_name: string).
+    (*Variables (pkt_name hdr_name: string).*)
     
-    Definition compile_expression (expr: E.e tags_t) : E.e tags_t :=
-      expr.
+    (*Definition compile_expression (expr: E.e tags_t) : E.e tags_t :=
+      expr.*)
 
     Fixpoint eval_lvalue (e : E.e tags_t) : option V.lv :=
       match e with
@@ -58,59 +59,47 @@ Section parser_to_p4automaton.
       | _ => None
       end.
 
-    Definition compile_lvalue (lv : V.lv) : V.lv :=
-      lv.
+    (*Definition compile_lvalue (lv : V.lv) : V.lv :=
+      lv.*)
     (**[]*)
 
-    Fixpoint compile_statements
+    Fixpoint compile_statement
       (stmt: P4cub.Stmt.s tags_t)
-      : option (list state_operation)
+      : option state_operation
     :=
       match stmt with
       | -{ skip @ _ }- =>
-        Some nil
+        Some SONil
       | -{ s1; s2 @ _ }- =>
-        f1 <- compile_statements s1 ;;
-        f2 <<| compile_statements s2 ;; f1 ++ f2
-      | -{ var x:τ @ _ }- => Some [SOVarDecl x τ]
+        f1 <- compile_statement s1 ;;
+        f2 <<| compile_statement s2 ;;
+        SOSeq f1 f2
+      | -{ var x:τ @ _ }- => Some $ SOVarDecl x τ
       | -{ asgn e1 := e2:_ @ _ }-
-        => lv <<| eval_lvalue e1 ;;
-          [SOAsgn (compile_lvalue lv) $ compile_expression e2]
+        => (*lv <<| eval_lvalue e1 ;;
+          [SOAsgn (compile_lvalue lv) $ compile_expression e2]*)
+        Some $ SOAsgn e1 e2
       | -{ extern extern_lit calls func with args gives _ @ _ }- =>
-        if extern_lit == pkt_name then
+        (*if extern_lit == pkt_name then*)
           if func == "extract" then
             match args with
+            (* Exactly one argument for "extract" *)
             | ((_, P4cub.PAOut (t, e)) :: nil) =>
-              into_lv <<| eval_lvalue e ;;
-              StateOperationExtract t (compile_lvalue into_lv) :: nil
+              into_lv <<| eval_lvalue e ;; SOExtract t into_lv
             | _=> None
             end
           else
             None
-        else
-          None
+    (*else
+          None*)
       | _ => None
       end
     .
 
-    Fixpoint compile_updates
-      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
-      : option (list (string * list state_operation))
-    :=
-      match states with
-      | nil =>
-        Some nil
-      | (name, &{ state { stmt } transition _ }&) :: states' =>
-        let* tail := compile_updates states' in
-        let* head := compile_statements stmt in
-        Some ((name, head) :: tail)
-      end
-    .
+    Definition trans_t : Type := list (simple_match * (string + bool)).
 
     Fixpoint compile_transition
-      (trans: P4cub.Parser.ParserState.e tags_t)
-      : option (list (simple_match * (string + bool)))
-    :=
+      (trans: P4cub.Parser.ParserState.e tags_t) : option trans_t :=
       match trans with
       | p{ goto start @ _ }p => None (* TODO: Implement this. *)
       | p{ goto accept @ _ }p =>
@@ -120,18 +109,18 @@ Section parser_to_p4automaton.
       | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
       | p{ select select_exp { cases } default:=def @ _ }p =>
-        let select_exp' := compile_expression select_exp in
+        (*let select_exp' := compile_expression select_exp in*)
         let fix f cases :=
           match cases with
           | nil =>
             compile_transition def
           | (case_exp, case_trans) :: cases' =>
             let* child_clauses := compile_transition case_trans in
-            let case_exp' := compile_expression case_exp in
+            (*let case_exp' := compile_expression case_exp in*)
             let augmented_clauses :=
               map (
                 fun '(clause, target) =>
-                (SimpleMatchAnd (SimpleMatchEquals select_exp' case_exp')
+                (SimpleMatchAnd (SimpleMatchEquals select_exp case_exp)
                                 clause,
                  target)
               ) child_clauses in
@@ -141,8 +130,41 @@ Section parser_to_p4automaton.
          f cases
       end
     .
+    
+    Definition compile_state_block
+               (stblk : PS.state_block tags_t)
+      : option (state_operation * trans_t) :=
+      match stblk with
+      | &{ state { s } transition e }& =>
+        so <- compile_statement s ;;
+        tr <<| compile_transition e ;; (so, tr)
+      end.
 
-    Fixpoint compile_transitions
+    Definition compile_state_blocks
+               (stblks : F.fs string (PS.state_block tags_t))
+      : option (F.fs string (state_operation * trans_t)) :=
+      let cfld fld :=
+          let '(x, stblk) := fld in
+          sot <<| compile_state_block stblk ;; (x, sot) in
+      sequence $ List.map cfld stblks.
+
+    (*Search (list (?A * ?B) -> list ?A * list ?B).*)
+
+    (*Fixpoint compile_updates
+      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
+      : option (F.fs (string * list state_operation))
+    :=
+      match states with
+      | nil =>
+        Some nil
+      | (name, &{ state { stmt } transition _ }&) :: states' =>
+        let* tail := compile_updates states' in
+        let* head := compile_statements stmt in
+        Some ((name, head) :: tail)
+      end
+    .*)
+
+    (*Fixpoint compile_transitions
       (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
       : option (list (string * list (simple_match * (string + bool))))
     :=
@@ -155,7 +177,7 @@ Section parser_to_p4automaton.
         let* head := compile_transition trans in
         Some ((name, head) :: tail)
       end
-    .
+    .*)
 
   End compile.
 
@@ -164,8 +186,8 @@ Section parser_to_p4automaton.
   | ST_VAR (x : string).
 
   Definition P4Automaton_size
-             (strt : PS.state_block tags_t)
-             (states : F.fs string (PS.state_block tags_t))
+             (strt : state_operation * trans_t)
+             (states : F.fs string (state_operation * trans_t))
              (st : P4Automaton_State) : nat :=
     0. (* TODO *)
 
@@ -173,33 +195,38 @@ Section parser_to_p4automaton.
   Admitted.
 
   Definition P4Automaton_update
-             (strt : PS.state_block tags_t)
-             (states : F.fs string (PS.state_block tags_t))
+             (strt : state_operation * trans_t)
+             (states : F.fs string (state_operation * trans_t))
              (st : P4Automaton_State)
              (pkt : list bool)
              (e : Step.epsilon) : Step.epsilon :=
     e.
 
   Definition P4Automaton_transitions
-             (strt : PS.state_block tags_t)
-             (states : F.fs string (PS.state_block tags_t))
+             (strt : state_operation * trans_t)
+             (states : F.fs string (state_operation * trans_t))
              (st : P4Automaton_State)
              (e : Step.epsilon) : P4Automaton_State + bool :=
     inr false.
 
-  Definition parser_to_p4automaton strt states : p4automaton :=
-    MkP4Automaton
-      (Step.epsilon)
-      P4Automaton_State
-      (P4Automaton_size strt states)
-      (P4Automaton_update strt states)
-      (P4Automaton_transitions strt states)
-      (P4Automaton_Size_Cap strt states).
+  Definition parser_to_p4automaton strt states : list p4automaton :=
+    let strt := compile_state_block strt in
+    let states := compile_state_blocks states in
+    match (strt, states) with
+    | (Some strt, Some states) =>
+      [ MkP4Automaton
+          (Step.epsilon)
+          P4Automaton_State
+          (P4Automaton_size strt states)
+          (P4Automaton_update strt states)
+          (P4Automaton_transitions strt states)
+          (P4Automaton_Size_Cap strt states) ]
+    | (_, _) => [] end.
 
   Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list p4automaton :=
     match d with
     | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
-      [ (parser_to_p4automaton strt states) ]
+      (parser_to_p4automaton strt states)
     | %{ d1 ;%; d2 @ i }% => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
     | _ => [] end.
 

@@ -7,6 +7,7 @@ Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.State.
 Require Import Poulet4.P4automata.P4automaton.
+Require Import Poulet4.P4cub.BigStep.
 
 Open Scope monad_scope.
 Open Scope string_scope.
@@ -18,41 +19,34 @@ Import P.P4cubNotations.
 Module V := Val.
 Import V.ValueNotations.
 Import V.LValueNotations.
+Module PS := P4cub.Parser.ParserState.
 
 Section parser_to_p4automaton.
 
   Variable tags_t : Type.
-
-  Definition simple_expression : Type := unit + E.e tags_t.
-
-  Definition simple_lvalue : Type := unit + V.lv.
   
   Inductive state_operation :=
   | StateOperationNil
   | StateOperationExtract
       (typ: E.t)
-      (into_lv: simple_lvalue)
+      (into_lv: V.lv)
   | SOVarDecl (x : string) (τ : E.t)
-  | SOAsgn (lv : simple_lvalue) (e : simple_expression)
+  | SOAsgn (lv : V.lv) (e : E.e tags_t)
   | SOBlock (so : list state_operation)
   (* functon calls? other extern method calls? *).
   (**[]*)
 
   Inductive simple_match :=
-  | SimpleMatchEquals (l r: simple_expression)
+  | SimpleMatchEquals (l r: E.e tags_t)
   | SimpleMatchAnd (l r: simple_match)
   | SimpleMatchDontCare
-  .
+  .                                   
 
   Section compile.
     Variables (pkt_name hdr_name: string).
     
-    Definition compile_expression (expr: E.e tags_t) : simple_expression :=
-      match expr with
-      | <{ Var x:_ @ _ }> =>
-        if x == hdr_name then inl tt else inr expr
-      | _ => inr expr
-      end.
+    Definition compile_expression (expr: E.e tags_t) : E.e tags_t :=
+      expr.
 
     Fixpoint eval_lvalue (e : E.e tags_t) : option V.lv :=
       match e with
@@ -64,12 +58,8 @@ Section parser_to_p4automaton.
       | _ => None
       end.
 
-    Definition compile_lvalue (lv : V.lv) : simple_lvalue :=
-      match lv with
-      | l{ VAR x }l =>
-        if x == hdr_name then inl tt else inr lv
-      | _ => inr lv
-      end.
+    Definition compile_lvalue (lv : V.lv) : V.lv :=
+      lv.
     (**[]*)
 
     Fixpoint compile_statements
@@ -169,32 +159,66 @@ Section parser_to_p4automaton.
 
   End compile.
 
-  Record embedded_p4automaton := MkEmbeddedP4Automaton {
-    emb_updates: list (string * list state_operation);
-    emb_transitions: list (string * list (simple_match * (string + bool)));
-  }.
+  Inductive P4Automaton_State :=
+  | START
+  | ST_VAR (x : string).
+
+  Definition P4Automaton_size
+             (strt : PS.state_block tags_t)
+             (states : F.fs string (PS.state_block tags_t))
+             (st : P4Automaton_State) : nat :=
+    0. (* TODO *)
+
+  Theorem P4Automaton_Size_Cap : forall strt states st, 0 < P4Automaton_size strt states st.
+  Admitted.
+
+  Definition P4Automaton_update
+             (strt : PS.state_block tags_t)
+             (states : F.fs string (PS.state_block tags_t))
+             (st : P4Automaton_State)
+             (pkt : list bool)
+             (e : Step.epsilon) : Step.epsilon :=
+    e.
+
+  Definition P4Automaton_transitions
+             (strt : PS.state_block tags_t)
+             (states : F.fs string (PS.state_block tags_t))
+             (st : P4Automaton_State)
+             (e : Step.epsilon) : P4Automaton_State + bool :=
+    inr false.
 
   Definition parser_to_p4automaton
     (prsr: P4cub.TopDecl.d tags_t)
-    : option embedded_p4automaton
+    : option p4automaton
   :=
     match prsr with
-    | P4cub.TopDecl.TPParser _ _ params _ states _ => (* AST.v change *)
+    | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
+      Some (MkP4Automaton
+              unit (* TODO: Step.epsilon causes universal consistency error *)
+              P4Automaton_State
+              (P4Automaton_size strt states)
+              (fun _ _ st => st) (* TODO: should be P4Automaton_update strt states *)
+              (fun _ _ => inr false) (* TODO: should be P4Automaton_transitions strt states *)
+              (P4Automaton_Size_Cap strt states))
+    | _ => None end.
+    (* | P4cub.TopDecl.TPParser p cparams params strt states tags => (* AST.v change *)
       match params with
       | (pkt_name, P4cub.PAIn pkt_type) ::
         (hdr_name, P4cub.PAOut hdr_type) :: _ =>
-        let* updates := compile_updates pkt_name hdr_name states in
-        let* transitions := compile_transitions hdr_name states in
-        Some {|
-          emb_updates := updates;
-          emb_transitions := transitions;
-        |}
+        let updates := compile_updates hdr_name states in
+        let transitions := compile_transitions states in
+        match updates, transitions with
+        | Some updates, Some transitions =>
+          Some {|
+              emb_updates := updates;
+              emb_transitions := transitions;
+            |}
+        | _, _ => None end                  
       | _ =>
         None
       end
     | _ =>
       None
-    end
-  .
+    end *)
 
 End parser_to_p4automaton.

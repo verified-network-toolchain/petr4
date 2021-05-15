@@ -1,7 +1,5 @@
 Require Import Poulet4.Monads.Monad.
 
-Set Universe Polymorphism.
-
 Open Scope monad.
 
 Definition state_monad {State Exception Result: Type} :=

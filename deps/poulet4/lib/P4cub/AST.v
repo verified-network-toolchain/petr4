@@ -6,8 +6,6 @@ Require Import Coq.ZArith.BinInt.
 Require Import Poulet4.P4Arith.
 Require Export Poulet4.P4cub.P4Field.
 
-Set Universe Polymorphism.
-
 (** Notation entries. *)
 Declare Custom Entry p4type.
 Declare Custom Entry p4constructortype.

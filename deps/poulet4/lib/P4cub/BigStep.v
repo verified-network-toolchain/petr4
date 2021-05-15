@@ -12,8 +12,6 @@ Require Import Coq.micromega.Lia.
 Module V := Val.
 Import V.ValueEquality.
 
-Set Universe Polymorphism.
-
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
 

@@ -3,7 +3,6 @@ Require Import Poulet4.Monads.Monad.
 Open Scope monad.
 Open Scope list_scope.
 
-Set Universe Polymorphism.
 
 Definition option_monad {Result: Type} :=
   option Result.

@@ -10,8 +10,6 @@ Require Poulet4.P4cub.Check.
 
 Import Poulet4.P4cub.AST.P4cub.P4cubNotations.
 
-Set Universe Polymorphism.
-
 Module E := Poulet4.P4cub.AST.P4cub.Expr.
 Module F := Poulet4.P4cub.AST.P4cub.F.
 

@@ -3,14 +3,15 @@ Require Import Coq.Lists.List.
 
 Require Import Poulet4.P4cub.AST.
 Require Import Poulet4.P4cub.Value.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.State.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4cub.BigStep.
 
 Open Scope monad_scope.
 Open Scope string_scope.
 Open Scope list_scope.
-
-Set Universe Polymorphism.
 
 Module P := P4cub.
 Module E := P.Expr.
@@ -208,27 +209,25 @@ Section parser_to_p4automaton.
              (e : Step.epsilon) : P4Automaton_State + bool :=
     inr false.
 
-  Definition parser_to_p4automaton
-      (strt : PS.state_block tags_t)
-      (states : F.fs string (PS.state_block tags_t))
-    :=
+  Definition parser_to_p4automaton strt states : list p4automaton :=
     let strt := compile_state_block strt in
     let states := compile_state_blocks states in
     match (strt, states) with
     | (Some strt, Some states) =>
-      Some (MkP4Automaton
-              Step.epsilon
-              P4Automaton_State
-              (P4Automaton_size strt states)
-              (P4Automaton_update strt states)
-              (P4Automaton_transitions strt states)
-              (P4Automaton_Size_Cap strt states))
-    | (_, _) => None end.
+      [ MkP4Automaton
+          (Step.epsilon)
+          P4Automaton_State
+          (P4Automaton_size strt states)
+          (P4Automaton_update strt states)
+          (P4Automaton_transitions strt states)
+          (P4Automaton_Size_Cap strt states) ]
+    | (_, _) => [] end.
 
-  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : option p4automaton :=
+  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list p4automaton :=
     match d with
     | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
-      parser_to_p4automaton strt states
-    | _ => None end.
+      (parser_to_p4automaton strt states)
+    | %{ d1 ;%; d2 @ i }% => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
+    | _ => [] end.
 
 End parser_to_p4automaton.

@@ -24,6 +24,7 @@ Notation Val := (@ValueBase tags_t).
 Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
+Notation ValSet := (@ValueSet tags_t).
 
 Inductive register := mk_register {
   reg_width : nat;
@@ -192,7 +193,83 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
-Axiom extern_match : list (Val * ident) -> list table_entry -> option action_ref.
+Definition lpm_string : ident :=
+  {| P4String.tags := dummy_tags; P4String.str := "lpm" |}.
+
+Definition check_lpm_count (mks: list ident): option bool :=
+  let num_lpm := List.length (List.filter (P4String.equivb lpm_string) mks) in
+  if (1 <? num_lpm)%nat
+  then None
+  else Some (num_lpm =? 1)%nat.
+
+Fixpoint assert_set (v: Val): option ValSet :=
+  match v with
+  | ValBaseSet s => Some s
+  | ValBaseInteger _
+  | ValBaseInt _ _
+  | ValBaseBit _ _ => Some (ValSetSingleton v)
+  | ValBaseSenumField _ _ v => assert_set v
+  | _ => None
+  end.
+
+Fixpoint set_of_match (ma: @Match tags_t): option ValSet :=
+  match ma with
+  | MkMatch _ MatchDontCare _ => Some ValSetUniversal
+  | MkMatch _ (MatchExpression expr) _ =>
+    match expr with
+    | MkExpression _ expr' _ _ => None (* TODO *)
+    end
+  end.
+
+(* TODO *)
+Definition set_of_matches (entry: table_entry): option (ValSet * action_ref) :=
+  match entry with
+  | mk_table_entry matches action => None
+  end.
+
+Fixpoint allSome {A: Type} (l: list (option A)): option (list A) :=
+  match l with
+  | nil => Some nil
+  | None :: _ => None
+  | Some a :: rest => match allSome rest with
+                      | None => None
+                      | Some r => Some (a :: r)
+                      end
+  end.
+
+(* TODO *)
+Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) := l.
+
+(* TODO *)
+Definition filter_lpm_prod (ids: list ident) (vals: list Val)
+           (entries: list (ValSet * action_ref)):
+  list (ValSet * action_ref) * list Val := (nil, nil).
+
+(* TODO *)
+Definition values_match_set (vs: list Val) (s: ValSet): bool := false.
+
+Definition extern_match (key: list (Val * ident)) (entries: list table_entry): option action_ref :=
+  let ks := List.map fst key in
+  let mks := List.map snd key in
+  match check_lpm_count mks with
+  | None => None 
+  | Some sort_mks =>
+    match allSome (List.map set_of_matches entries) with
+    | Some entries' =>
+      let (entries'', ks') :=
+          if list_eqb (@P4String.equivb tags_t) mks [lpm_string]
+          then (sort_lpm entries', ks)
+          else if sort_mks
+               then filter_lpm_prod mks ks entries'
+               else (entries', ks) in
+      let l := List.filter (fun s => values_match_set ks' (fst s)) entries'' in
+      match l with
+      | nil => None
+      | sa :: _ => Some (snd sa)
+      end
+    | None => None
+    end
+  end.
 
 Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_state

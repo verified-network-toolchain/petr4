@@ -18,6 +18,24 @@ Notation path := (list ident).
 Notation Val := (@ValueBase tags_t).
 Notation signal := (@signal tags_t).
 
+Fixpoint width_of_val (v: Val): nat :=
+  let fix fields_width (fields: P4String.AList tags_t ValueBase) : nat :=
+      match fields with
+      | nil => O
+      | (id, v) :: rest => width_of_val v + fields_width rest
+      end in
+  match v with
+  | ValBaseNull => O
+  | ValBaseBool _ => 1
+  | ValBaseBit w _
+  | ValBaseInt w _
+  | ValBaseVarbit _ w _ => w
+  | ValBaseStruct fields
+  | ValBaseHeader fields _ => fields_width fields
+  | ValBaseSenumField _ _ v => width_of_val v
+  | _ => O
+  end.
+
 (* We want to share the notation of External between P4light and P4cub, so later we need to
   have a parameter `ActionRef`, while `Match` is just shared. *)
 (* Because the entries can refer to constructor parameters, we need to refer the arguments as expressions. *)

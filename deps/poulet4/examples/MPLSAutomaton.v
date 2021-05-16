@@ -4,6 +4,7 @@ Require Import Coq.micromega.Lia.
 Require Import Coq.Strings.String.
 Require Export Coq.ZArith.ZArith.
 Require Import Coq.Init.Nat.
+Require Import Coq.Arith.PeanoNat.
 
 Require Import Poulet4.Bitwise.
 
@@ -60,7 +61,7 @@ Module MPLSSimple.
       <| entries ::= fun x => x ++ [(to_entry bs)] |>
       <| length ::= fun x => x + 1 |> ;
     transitions := fun _ (v: store) =>
-      if v.(length) <? 3
+      if v.(length) <? 4
       then inl parse_entry
       else inr false
   |}.
@@ -103,9 +104,9 @@ Module MPLSFixedWidth.
       end
       <| seen ::= fun x => x + 1 |> ;
     transitions := fun _ (v: store) =>
-      if v.(seen) <? 3
+      if v.(seen) <? 4
       then inl parse_entry
-      else inr (v.(seen) =? 3)
+      else inr (v.(seen) =? 4)
   |}.
   Next Obligation.
     destruct s; simpl; lia.
@@ -129,8 +130,6 @@ Module MPLSVectorized.
   Proof.
     destruct s; simpl; lia.
   Qed.
-
-  Check states_cap.
 
   Record store := mkStore {
     entries : list v;
@@ -168,7 +167,7 @@ Module MPLSVectorized.
         v <| entries := [v1; v2; v3; v4] |> <| length := 4 |>
       | _, _, _, _ => v
       end;
-    transitions := fun _ _ => inr false;
+    transitions := fun _ _ => inr true;
     cap := states_cap;
   |}.
 
@@ -754,13 +753,177 @@ Example fixed_vector_bis : bisimulation fixed_vector.
   - simpl step.
     destruct (equiv_dec _ _).
     + destruct (nth_error _ _).
-      * admit.
+      * destruct v0.
+        6: (
+          destruct validity;
+          [destruct (Field.get _ _)|];
+          try destruct v0; 
+          try destruct n;
+          simpl
+        ).
+
+        all : (
+          rewrite H0; simpl;
+          destruct (equiv_dec _ _);
+          destruct H2 as [HB1 [pref [HBufs HPL]]];
+          rewrite HBufs in *;
+          repeat (rewrite app_length in *);
+          rewrite HPL in *
+        ).
+        all: (
+          exfalso;
+          inversion e0;
+          lia
+        ) || trivial.
+
+        all : (
+          eapply SeenThree; auto;
+          simpl;
+          try rewrite H0;
+          auto;
+          split; [ 
+            lia | 
+            exists (pref ++ buf1 ++ [b]);
+            split; [
+              rewrite app_nil_r; rewrite app_assoc; trivial |
+              repeat (rewrite app_length); rewrite e; lia
+            ]
+          ]
+        ).
+
+
       * simpl; rewrite H0; simpl.
-        admit.
-    + admit.
+        destruct (equiv_dec _ _); [
+          exfalso;
+          
+          inversion e0;
+          inversion e;
+          destruct H2 as [HB1 [pref [HB2 HBPL]]];
+          rewrite HB2 in *;
+          repeat (rewrite app_length in *);
+
+          lia |
+        ].
+        destruct H2 as [HB1 [pref [HB2 HBPL]]].
+        eapply SeenThree; auto.
+        -- simpl. lia.
+        -- split; [
+          simpl; lia | 
+          exists (buf2 ++ [b]);
+          split; [
+            rewrite app_nil_r; trivial |
+            rewrite HB2; 
+            repeat (rewrite app_length in *);
+            unfold "===" in *;
+            lia
+          ]
+        ].
+    + destruct H2 as [HB1 [pref [HB2 HBPL]]]. 
+      destruct (equiv_dec _ _).
+      * exfalso. rewrite HB2 in *.
+        repeat (rewrite app_length in *).
+        inversion e.
+        lia.
+      * eapply SeenTwo; auto.
+        unfold "===" in *.
+        unfold complement in c, c0.
+        split.
+        --  destruct (equiv_dec (length (buf1 ++ [b])) 31); [
+              rewrite e; lia | 
+              inversion HB1; [
+                exfalso; eapply c; rewrite app_length; simpl; lia | 
+                rewrite app_length;
+                simpl;
+                lia
+              ]
+            ].
+        --  exists pref.
+            split; [
+              rewrite HB2;
+              rewrite app_assoc;
+              trivial |
+              trivial
+            ].
 
   - split; intros; exfalso; inversion H5.
-  - admit.
+  - simpl step.
+    destruct H2 as [HB1 [pref [HB2 HBPL]]].
+    destruct (equiv_dec _ _).
+    + destruct (nth_error _ _). 
+      * destruct v0.
+        6 : (
+          destruct validity; [
+            destruct (Field.get _ _); [
+              destruct v0; 
+              try destruct n;
+              simpl
+            |]
+          |]
+        ).
+        all: (
+          rewrite H0;
+          simpl;
+        
+          destruct (equiv_dec _ _); [|
+            exfalso;
+            eapply c;
+            unfold "===" in *;
+            rewrite HB2 in *;
+            repeat (rewrite app_length in *);
+            simpl in *;
+            lia
+          ];
+          repeat (destruct (Z.of_nat _));
+          (eapply EndStates; auto || destruct p; eapply EndStates; auto)
+      
+        ).
+      * simpl.
+        rewrite H0.
+        simpl. 
+        destruct (equiv_dec _ _); [|
+          exfalso;
+          eapply c;
+          unfold "===" in *;
+          rewrite HB2 in *;
+          repeat (rewrite app_length in *);
+          simpl in *;
+          lia
+        ];
+        repeat (destruct (Z.of_nat _));
+        (eapply EndStates; auto || destruct p; eapply EndStates; auto).
+
+    + destruct (equiv_dec _ _); [
+        exfalso;
+        eapply c;
+        unfold "===" in *;
+        rewrite HB2 in *;
+        repeat (rewrite app_length in *);
+        simpl in *;
+        lia
+      |].
+      eapply SeenThree; auto.
+      split.
+      * destruct (equiv_dec (length (buf1 ++ [b])) 31); [
+          rewrite e; lia | 
+          inversion HB1; [
+            exfalso; 
+            eapply c; 
+            rewrite app_length; 
+            unfold "==="; 
+            simpl; 
+            lia | 
+            rewrite app_length;
+            simpl;
+            lia
+          ]
+        ].
+      * exists pref.
+        split.
+        --  rewrite HB2.
+            rewrite app_assoc.
+            trivial.
+        --  trivial.
   - split; intros; inversion H5; unfold accepting; trivial.
   - eapply EndStates; auto; rewrite H2; trivial.
-Admitted.
+Qed.
+

@@ -10,6 +10,7 @@ Require Import P4Int.
 Require Import Target.
 Require Import Poulet4.SyntaxUtil.
 Require Import Maps.
+Require Import CoqLib.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -212,19 +213,49 @@ Fixpoint assert_set (v: Val): option ValSet :=
   | _ => None
   end.
 
-Fixpoint set_of_match (ma: @Match tags_t): option ValSet :=
-  match ma with
-  | MkMatch _ MatchDontCare _ => Some ValSetUniversal
-  | MkMatch _ (MatchExpression expr) _ =>
-    match expr with
-    | MkExpression _ expr' _ _ => None (* TODO *)
-    end
+Definition eval_p4int (n: @P4Int.t tags_t) : Val :=
+  match P4Int.width_signed n with
+  | None => ValBaseInteger (P4Int.value n)
+  | Some (w, true) => ValBaseInt w (P4Int.value n)
+  | Some (w, false) => ValBaseBit w (P4Int.value n)
   end.
 
-(* TODO *)
+Fixpoint simple_eval_expr (expr: @Syntax.Expression tags_t): Val :=
+  match expr with
+  | MkExpression _ (ExpInt v) _ _ => eval_p4int v
+  | MkExpression _ (ExpMask exp1 exp2) _ _ =>
+    ValBaseSet (ValSetMask (simple_eval_expr exp1) (simple_eval_expr exp2))
+  | MkExpression _ (ExpRange exp1 exp2) _ _ =>
+    ValBaseSet (ValSetRange (simple_eval_expr exp1) (simple_eval_expr exp2))
+  | _ => ValBaseNull
+  end.
+
+Definition set_of_match (ma: @Match tags_t): option ValSet :=
+  match ma with
+  | MkMatch _ MatchDontCare _ => Some ValSetUniversal
+  | MkMatch _ (MatchExpression expr) _ => assert_set (simple_eval_expr expr)
+  end.
+
+Fixpoint list_of_matches (matches: list (@Match tags_t)): option (list ValSet) :=
+  match matches with
+  | nil => Some nil
+  | a :: rest => match set_of_match a with
+                 | None => None
+                 | Some vs => match (list_of_matches rest) with
+                              | None => None
+                              | Some l => Some (vs :: l)
+                              end
+                 end
+  end.
+
 Definition set_of_matches (entry: table_entry): option (ValSet * action_ref) :=
   match entry with
-  | mk_table_entry matches action => None
+  | mk_table_entry matches action =>
+    match list_of_matches matches with
+    | None => None
+    | Some [a] => Some (a, action)
+    | Some l => Some (ValSetProd l, action)
+    end
   end.
 
 Fixpoint allSome {A: Type} (l: list (option A)): option (list A) :=
@@ -238,7 +269,92 @@ Fixpoint allSome {A: Type} (l: list (option A)): option (list A) :=
   end.
 
 (* TODO *)
-Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) := l.
+Definition bitwise_neg_of_bigint (v1: Z) (v2: Val): Val := v2.
+
+Fixpoint Z_of_val (v: Val): option Z :=
+  match v with
+  | ValBaseBool b => if b then Some 1 else Some 0
+  | ValBaseInteger z
+  | ValBaseBit _ z
+  | ValBaseInt _ z
+  | ValBaseVarbit _ _ z => Some z
+  | ValBaseSenumField _ _ v' => Z_of_val v'
+  | _ => None
+  end.
+
+Fixpoint bits_of_lpmmask_pos (acc: Z) (b: bool) (v: positive): option Z :=
+  match v with
+  | xH => Some (acc + 1)
+  | xI rest => bits_of_lpmmask_pos (acc + 1) true rest
+  | xO rest => if b then None else bits_of_lpmmask_pos acc b rest
+  end.
+                                                                        
+Definition bits_of_lpmmask (acc: Z) (b: bool) (v: Z): option Z :=
+  match v with
+  | Z0 => Some acc
+  | Zpos p
+  | Zneg p => bits_of_lpmmask_pos acc b p
+  end.
+
+Fixpoint lpm_set_of_set (vs: ValSet): option ValSet :=
+  let fix lsos (l: list ValSet): option (list ValSet) :=
+      match l with
+      | nil => Some nil
+      | a :: rest => match lpm_set_of_set a with
+                     | None => None
+                     | Some v => match lsos rest with
+                                 | Some vl => Some (v :: vl)
+                                 | None => None
+                                 end
+                     end
+      end in
+  match vs with
+  | ValSetUniversal
+  | ValSetLpm _ _ _ => Some vs
+  | ValSetProd l => match lsos l with
+                    | Some l' => Some (ValSetProd l')
+                    | None => None
+                    end
+  | ValSetSingleton v =>
+    Some (ValSetLpm v (width_of_val v) (bitwise_neg_of_bigint 0 v))
+  | ValSetMask v1 v2 =>
+    match Z_of_val v2 with
+    | None => None
+    | Some v2' => match bits_of_lpmmask 0 false v2' with
+                  | None => None
+                  | Some n => Some (ValSetLpm v1 (Z.to_nat n) v2)
+                  end
+    end
+  | _ => None
+  end.
+
+Fixpoint get_before_uni (l: list (ValSet * action_ref)):
+  (list (ValSet * action_ref)) * option (ValSet * action_ref) :=
+  match l with
+  | nil => (nil, None)
+  | (ValSetUniversal, act) as x :: rest => (nil, Some x)
+  | y :: rest => let (l', o) := get_before_uni rest in (y :: l', o)
+  end.
+
+Definition lpm_compare (va1 va2: (ValSet * action_ref)): bool :=
+  match (fst va1), (fst va2) with
+  | ValSetLpm _ n1 _, ValSetLpm _ n2 _ => Nat.leb n2 n1
+  | _, _ => false
+  end.
+
+Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) :=
+  let (vl, actL) := List.split l in
+  match allSome (List.map lpm_set_of_set vl) with
+  | None => nil
+  | Some entries =>
+    let entries' := List.combine entries actL in
+    let (entries'', uni) := get_before_uni entries' in
+    let sorted := mergeSort lpm_compare entries'' in
+    match uni with
+    | None => sorted
+    | Some a => sorted ++ [a]
+    end                                                         
+  end.
 
 (* TODO *)
 Definition filter_lpm_prod (ids: list ident) (vals: list Val)

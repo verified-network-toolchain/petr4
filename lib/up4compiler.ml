@@ -4,6 +4,7 @@ exception DeclarationNotFound of string
 exception DuplicateDeclarationName
 exception MissingDeclaration
 exception CompilerError
+exception StateMergeFail
 module P4 = Types
 
 (** Record for temp control *)
@@ -14,6 +15,9 @@ type tempControl = { annotations: P4.Annotation.t list;
                      constructor_params: P4.Parameter.t list;
                      locals: P4.Declaration.t list;
                      apply: P4.Block.t }
+
+type parser = {headers: P4.Declaration.t list; 
+               states: P4.Parser.state list}
 
 let control_info (d : P4.Declaration.t) : tempControl = match (snd d) with
   | P4.Declaration.Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
@@ -77,6 +81,11 @@ let get_program_declarations (prog:P4.Declaration.t list) (decl_wanted:string li
 let get_program_headers (prog : P4.Declaration.t list) : P4.Declaration.t list = 
   get_program_declarations prog ["Header"]
 
+let get_parser_states (p:P4.Declaration.t) : P4.Parser.state list = 
+  match snd p with 
+  | Parser { annotations; name; type_params; params; constructor_params; locals; states} -> states
+  | _ -> raise (IncorrectType "Expected parser in get_parser_states")
+
 let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.Error{members} -> Some d
   | _ -> None
@@ -112,6 +121,16 @@ let get_expression_print (e:P4.Expression.t):string = match (snd e) with
   | Int i -> string_of_int (get_P4int_value i)
   | _ -> raise (IncorrectType "expression print not implemented yet")
 
+let get_expression_name (e:P4.Expression.t) : string = 
+  let open P4.Expression in 
+  match (snd e) with 
+  | Name n -> (match n with 
+      | P4.BareName s -> snd s
+      | QualifiedName (_,s) -> snd s)
+  | TypeMember{typ; name} -> snd name
+  | ExpressionMember {expr; name} -> snd name
+  | _ -> raise (IncorrectType "Expression does not have name")
+
 (**Essentially pretty print for type *)
 let get_type_print (t:P4.Type.t) : string = match (snd t) with
   | TypeName typename -> P4.name_only typename
@@ -123,6 +142,7 @@ let get_argument_name (a : P4.Argument.t) : string = match (snd a) with
   | P4.Argument.Expression {value} -> (match (snd value) with 
       | P4.Expression.NamelessInstantiation {typ; args} -> get_typename_name typ
       | P4.Expression.Name n -> P4.name_only n
+      | P4.Expression.ArrayAccess {array=arr;index} -> get_expression_name arr
       | _ -> raise (IncorrectType "NamelessInstantiation expected"))
   | _ -> raise (IncorrectType "Argument Expression expected")
 
@@ -135,7 +155,7 @@ let get_argument_int (a : P4.Argument.t) : int = match (snd a) with
 let get_argument_expr (a:P4.Argument.t) : P4.Expression.t = match (snd a) with 
   | P4.Argument.Expression {value} -> value
   | P4.Argument.KeyValue {key; value} -> value
-  | _ -> raise (IncorrectType "ARgument Expression not found")
+  | _ -> raise (IncorrectType "Argument Expression not found")
 
 let get_statement_args (s:P4.Statement.t) : P4.Argument.t list = 
   let open P4.Statement in 
@@ -143,6 +163,15 @@ let get_statement_args (s:P4.Statement.t) : P4.Argument.t list =
   | MethodCall {func; type_args; args} -> args
   | DirectApplication {typ; args} -> args
   | _ -> raise (IncorrectType "Statement does not have args")
+
+let get_statement_func (s:P4.Statement.t) : P4.Expression.t = 
+  let open P4.Statement in 
+  match (snd s) with 
+  | MethodCall {func; type_args; args } -> func
+  | _ -> raise (IncorrectType "Statement does not have func")
+
+let get_statement_method_name (s:P4.Statement.t) : string = 
+  get_expression_name (get_statement_func s)
 
 let get_block_statements (b:P4.Block.t) : P4.Statement.t list = match (snd b) with
   | {annotations; statements} -> statements
@@ -193,6 +222,16 @@ let get_declaration_fields (p:P4.Declaration.t) : P4.Declaration.field list opti
 let get_field_types (f:P4.Declaration.field) : P4.Type.t = match (snd f) with
   | {annotations; typ; name} -> typ
 
+let get_state_name (s:P4.Parser.state) : string = 
+  let open P4.Parser in 
+  match (snd s) with
+  | {annotations; name; statements; transition} -> snd name
+
+let get_state_statements (s:P4.Parser.state) : P4.Statement.t list = 
+  let open P4.Parser in 
+  match (snd s) with
+  | {annotations; name; statements; transition} -> statements
+
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
   let declarations = List.filter (fun p -> compare (declaration_name p) name == 0) prog in 
@@ -201,6 +240,12 @@ let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Dec
 
 let find_declarations_by_names (prog:P4.Declaration.t list) (names:string list) : P4.Declaration.t list = 
   List.filter (fun p -> List.mem (declaration_name p) names) prog
+
+let find_state_by_name (p:P4.Declaration.t) (name:string) : P4.Parser.state = 
+  let states = get_parser_states p in 
+  let processed = List.filter (fun s -> compare (get_state_name s) name == 0 ) states in 
+  if List.length processed <> 1 then raise DuplicateDeclarationName
+  else List.hd processed
 
 let remove_declaration (prog:P4.Declaration.t list) (to_remove_name:string) : P4.Declaration.t list = 
   List.filter (fun d -> declaration_name d <> to_remove_name) prog
@@ -560,64 +605,6 @@ and replace_expr_block (expr_map: P4.Expression.t -> P4.Expression.t) (b:P4.Bloc
     dummy, {annotations=annotations; statements = List.map (replace_expr_statement expr_map) statements }
 (** Replacing functions *)
 
-
-(** Merging functions *)
-let merge_block (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t = 
-  let open P4.Block in
-  (fst b1, { annotations = (snd b1).annotations @ (snd b2).annotations;
-             statements = (snd b1).statements @ (snd b2).statements })
-
-let merge_error (e1:P4.Declaration.t) (e2:P4.Declaration.t) : P4.Declaration.t = 
-  Info.dummy, P4.Declaration.Error 
-    {members =((e1 |> get_error_members |> p4strings_to_strings) @ (e2 |> get_error_members |> p4strings_to_strings))
-              |> unique_strings |> strings_to_p4strings}
-
-let merge_matchkind (m1:P4.Declaration.t) (m2:P4.Declaration.t) : P4.Declaration.t = 
-  Info.dummy, P4.Declaration.MatchKind 
-    {members =((m1 |> get_matchkind_members |> p4strings_to_strings) @ (m2 |> get_matchkind_members |> p4strings_to_strings))
-              |> unique_strings |> strings_to_p4strings}
-
-let merge_unnamed_declaration (d1:P4.Declaration.t) (d2:P4.Declaration.t) : P4.Declaration.t= 
-  match (snd d1), (snd d2) with
-  | P4.Declaration.Error{members=m1}, P4.Declaration.Error{members=m2} -> merge_error d1 d2
-  | P4.Declaration.MatchKind{members=m1}, P4.Declaration.MatchKind{members=m2} -> merge_matchkind d1 d2
-  | _ -> raise (IncorrectType "Expected both errors or both matchkinds")
-
-(** Make sure d1 and d2 length should be != 0 *)
-let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t list) : P4.Declaration.t = 
-  if List.length d1 == 0 && List.length d2 == 0 then raise (IncorrectType "SD")
-  else if List.length d1 == 0 then List.fold_left merge_unnamed_declaration (List.hd d2) d2
-  else if List.length d2 == 0 then List.fold_left merge_unnamed_declaration (List.hd d1) d1
-  else List.fold_left merge_unnamed_declaration (List.hd d1) (List.tl d1 @ d2)
-
-let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaration.t) (d2: P4.Declaration.t): P4.Declaration.t = 
-  let dp1_block= (control_info d1).apply in 
-  let dp2_block = (control_info d2).apply in 
-  let emit_matcher = fun (var_name:string) -> (fun (e:P4.Expression.t) -> 
-      match (snd e) with 
-      | P4.Expression.ArrayAccess {array=a; index} -> (
-          match (snd a) with 
-          | P4.Expression.Name n -> 
-            (fst e), P4.Expression.ArrayAccess {
-              array = create_expression_expression_member (create_expression_name header_name) var_name;
-              index = index}
-          | _ -> e)
-      | P4.Expression.Name n -> create_expression_expression_member (create_expression_name header_name) var_name;
-      | _ -> e) in 
-  let is_emit1 = emit_matcher (header_type ^ "1") in 
-  let is_emit2 = emit_matcher (header_type ^ "2") in 
-  let dp1 = replace_expr_block is_emit1 dp1_block in
-  let dp2 = replace_expr_block is_emit2 dp2_block in 
-  let params = [create_param None "packet_out" "packet"; create_param (Some (Info.dummy, P4.Direction.In)) header_type header_name ] in 
-  ((fst d1), Control { annotations = [];
-                       name = Info.dummy, "NewDeparser";
-                       type_params = [];
-                       params = params; (*might need to check for difference *)
-                       constructor_params = [];
-                       locals = [];
-                       apply = merge_block dp1 dp2})
-(**Merging functions *)
-
 (**Equivalence *)
 let equivalence_p4Int (i1:P4.P4Int.t) (i2:P4.P4Int.t) : bool = 
   let open P4.P4Int in 
@@ -675,7 +662,83 @@ let equivalence_headers (h1:P4.Declaration.t) (h2:P4.Declaration.t): bool =
   if (List.length field1) == (List.length field2) then 
     equivalence_fields field1 field2 else false
 (**Equivalence *)
-(* Parsing state merging *)
+
+(** Merging functions *)
+let merge_block (b1 : P4.Block.t) (b2 : P4.Block.t) : P4.Block.t = 
+  let open P4.Block in
+  (fst b1, { annotations = (snd b1).annotations @ (snd b2).annotations;
+             statements = (snd b1).statements @ (snd b2).statements })
+
+let merge_error (e1:P4.Declaration.t) (e2:P4.Declaration.t) : P4.Declaration.t = 
+  Info.dummy, P4.Declaration.Error 
+    {members =((e1 |> get_error_members |> p4strings_to_strings) @ (e2 |> get_error_members |> p4strings_to_strings))
+              |> unique_strings |> strings_to_p4strings}
+
+let merge_matchkind (m1:P4.Declaration.t) (m2:P4.Declaration.t) : P4.Declaration.t = 
+  Info.dummy, P4.Declaration.MatchKind 
+    {members =((m1 |> get_matchkind_members |> p4strings_to_strings) @ (m2 |> get_matchkind_members |> p4strings_to_strings))
+              |> unique_strings |> strings_to_p4strings}
+
+let merge_unnamed_declaration (d1:P4.Declaration.t) (d2:P4.Declaration.t) : P4.Declaration.t= 
+  match (snd d1), (snd d2) with
+  | P4.Declaration.Error{members=m1}, P4.Declaration.Error{members=m2} -> merge_error d1 d2
+  | P4.Declaration.MatchKind{members=m1}, P4.Declaration.MatchKind{members=m2} -> merge_matchkind d1 d2
+  | _ -> raise (IncorrectType "Expected both errors or both matchkinds")
+
+(** Make sure d1 and d2 length should be != 0 *)
+let merge_unnamed_declarations (d1:P4.Declaration.t list) (d2:P4.Declaration.t list) : P4.Declaration.t = 
+  if List.length d1 == 0 && List.length d2 == 0 then raise (IncorrectType "SD")
+  else if List.length d1 == 0 then List.fold_left merge_unnamed_declaration (List.hd d2) d2
+  else if List.length d2 == 0 then List.fold_left merge_unnamed_declaration (List.hd d1) d1
+  else List.fold_left merge_unnamed_declaration (List.hd d1) (List.tl d1 @ d2)
+
+let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaration.t) (d2: P4.Declaration.t): P4.Declaration.t = 
+  let dp1_block= (control_info d1).apply in 
+  let dp2_block = (control_info d2).apply in 
+  let emit_matcher = fun (var_name:string) -> (fun (e:P4.Expression.t) -> 
+      match (snd e) with 
+      | P4.Expression.ArrayAccess {array=a; index} -> (
+          match (snd a) with 
+          | P4.Expression.Name n -> 
+            (fst e), P4.Expression.ArrayAccess {
+              array = create_expression_expression_member (create_expression_name header_name) var_name;
+              index = index}
+          | _ -> e)
+      | P4.Expression.Name n -> create_expression_expression_member (create_expression_name header_name) var_name;
+      | _ -> e) in 
+  let is_emit1 = emit_matcher (header_type ^ "1") in 
+  let is_emit2 = emit_matcher (header_type ^ "2") in 
+  let dp1 = replace_expr_block is_emit1 dp1_block in
+  let dp2 = replace_expr_block is_emit2 dp2_block in 
+  let params = [create_param None "packet_out" "packet"; create_param (Some (Info.dummy, P4.Direction.In)) header_type header_name ] in 
+  ((fst d1), Control { annotations = [];
+                       name = Info.dummy, "NewDeparser";
+                       type_params = [];
+                       params = params; (*might need to check for difference *)
+                       constructor_params = [];
+                       locals = [];
+                       apply = merge_block dp1 dp2})
+
+
+(* Parsing state merging aka*)
+
+
+(* let match_state (prog:P4.Declaration.t list) (p:parser) (new_name:string) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = 
+   let get *)
+(* Header env - association list of header names? *)
+let merge_parsers (p1:parser) (p2:parser):( parser * ((string * string) list))= p1, []
+
+(* p1 and p2 are the parsers from the two programs before merge*)
+let rec match_state  (parsers:P4.Declaration.t * P4.Declaration.t) (headers:P4.Declaration.t list) (p:parser) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = 
+  p
+and match_transition (parsers:P4.Declaration.t * P4.Declaration.t) (p:parser)  (t1:P4.Parser.transition) (t2:P4.Parser.transition):(string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition =
+  let open P4.Parser in 
+  match (snd t1), (snd t2) with 
+  | Direct {next=n1}, Direct{next=n2} -> 
+    (let new_state = "temp" in ([(new_state, find_state_by_name (fst parsers) (snd n1), find_state_by_name (snd parsers) (snd n2) )], (Info.dummy, Direct{next=Info.dummy, new_state})))
+  | _ , _ -> raise StateMergeFail 
+(**Merging functions *)
+
 
 (* hdrs1 is a list of headers from program 1 and hdrs2 is a list of headers from program 2. This
    function returns a association list of header names in prog_1 linked to header names in prog_2 if 
@@ -687,7 +750,6 @@ let map_headers (prog_1:P4.Declaration.t list) (prog_2:P4.Declaration.t list): (
     List.filter_map (fun x -> if equivalence_headers hdr1 x then Some (get_header_name hdr1, get_header_name x) else None) hdrs in 
   let full_mapping = List.fold_left (fun x y -> x@y) [] (List.map (find_map hdrs2) hdrs1) in 
   List.filter (fun x -> compare (fst x) (snd x) <> 0) full_mapping
-
 (** Parsing state merging*)
 
 (**Creating new up4 parser *)

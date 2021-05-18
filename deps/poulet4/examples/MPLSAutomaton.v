@@ -253,17 +253,96 @@ Inductive fixed_vector :
       (fun buf buf' => buf = buf')
       fixed_vector.
 
+Ltac length_contra' := 
+  exfalso; 
+  unfold "===" in *; 
+  repeat (
+    match goal with 
+    | [H : ?L = ?R ++ _ |- _ ] => rewrite H in *
+    | [H : _ /\ _ |- _ ] => destruct H
+    | [H : exists _, _ |- _ ] => destruct H
+    end
+  );
+  repeat (rewrite app_length in *);
+  simpl in *.
+
+Ltac length_contra := 
+  (length_contra'; congruence || lia) || (
+    match goal with 
+    | [ H : _ -> False |- False ] => eapply H; lia
+    end
+  ).
+
+Ltac state_contra := 
+  split; intros; unfold accepting in *; simpl in *; congruence.
+
+Ltac mysimp :=
+  repeat (
+    match goal with 
+    | [H : ?L = ?R ++ _ |- _ ] => rewrite H in *
+    | [H : _ /\ _ |- _ ] => destruct H
+    | [H : exists _, _ |- _ ] => destruct H
+    | [ |- _ /\ _ ] => split
+    end
+  );
+  unfold store_top in *;
+  try repeat (rewrite app_length in *);
+  unfold "===" in *;
+  unfold "=/=" in *; 
+  simpl in *; lia || auto.
+
+Ltac solve_prefix :=
+  match goal with 
+  | [ |- exists X, ?L = X ++ nil /\ _ ] => exists L; split; [rewrite app_nil_r; trivial |]
+  | [ |- exists X, (?L ++ ?R) ++ ?B = X ++ ?R ++ ?B /\ _ ] => exists L; split; [rewrite app_assoc; trivial |] 
+  end.
+
+Ltac break_matches :=
+  match goal with 
+  | [ |- context[ nth_error _ _ ]] => destruct (nth_error _ _)
+  | [ |- context[ match ?X with | VBool _ => _ | _ => _ end ]] => destruct X
+  | [ |- context[ Field.get _ _ ]] => destruct (Field.get _ _)
+  | [ |- context[ match ?X with 0%Z => _ | _ => _ end ]] => destruct X
+  | [ |- context[ match ?X with 1%positive => _ | _ => _ end ]] => destruct X
+  | [ H: ?X = ?Y |- context[ ?X + _ ]] => rewrite H; simpl
+  | [ |- context[ if ?X <? ?Y then _ else _ ]] => destruct (X <? Y) eqn:?
+  | [ |- context[ if ?X then _ else _ ]] => destruct X
+  end.
+
+
+Lemma add_1: 
+  forall n, n + 1 = S n.
+Proof.
+  intros. induction n; auto.
+  rewrite Nat.add_succ_l.
+  rewrite <- IHn.
+  trivial.
+Qed.
+
+Ltac seen_solver := 
+  simpl; auto; 
+  repeat (break_matches || mysimp; (lia || solve_prefix || auto));
+  mysimp; (lia || auto).
+
+Ltac seen_solver' :=
+  (eapply SeenOne; now seen_solver) || 
+  (eapply SeenTwo; now seen_solver) || 
+  (eapply SeenThree; now seen_solver) ||
+  (eapply EndStates; now seen_solver) || 
+  (eapply Start; now seen_solver).
+
+
 Example fixed_vector_bis : bisimulation fixed_vector.
   unfold bisimulation.
   intros.
-  inversion H; split; intros.
-  - split; intros; unfold accepting in *; exfalso; inversion H5.
+  inversion H; clear H; split; intros.
+  - state_contra.
   - unfold step.
     destruct H2.
-    rewrite <- H5.
+    rewrite <- H2.
     simpl size. unfold MPLSVectorized.size'.
-    destruct (equiv_dec _ _); destruct (equiv_dec _ _).
-    + exfalso. unfold "===" in *. lia.
+    repeat break_matches.
+    + length_contra.
     + simpl transitions.
       destruct H0 as [HL0 [HL1 HL2]].
       rewrite HL1, HL2.
@@ -271,659 +350,86 @@ Example fixed_vector_bis : bisimulation fixed_vector.
       rewrite HL0.
       simpl.
       rewrite HL1, HL2.
-      simpl.
 
-      eapply SeenOne.
-
-      * simpl. lia.
-      * compute. trivial.
-      * split; [compute; lia|].
-          exists (buf1 ++ [b]). 
-          split; [|unfold "===" in *; trivial].
-          rewrite app_nil_r.
-          trivial.
-    + exfalso. unfold "===" in e. 
-      erewrite app_length in e.
-      simpl in e. 
-      lia.
-    + eapply Start; trivial.
-      split; trivial.
-      unfold "=/=" in c.
-      erewrite app_length in *.
-      simpl in c. simpl.
-      unfold "<".
-      unfold "===" in c.
-      lia.
-  - split; intros; unfold accepting in *; exfalso; inversion H5.
+      seen_solver'.
+    + length_contra.
+    + eapply Start; mysimp.
+  - state_contra.
   - unfold step.
     destruct H2 as [H2 [pref [HP HPL]]].
-    destruct (equiv_dec _ _); destruct (equiv_dec _ _).
-    + simpl in e. 
-      simpl in e0.
-      unfold MPLSVectorized.size' in e0.
-      exfalso. 
-      unfold "===" in *.
-      erewrite app_length in *.
-      rewrite HP in e0.
-      erewrite app_length in e0.
-      lia.
+    rewrite HP in *.
+    repeat break_matches.
+    + length_contra.
     + simpl in e, c. unfold MPLSVectorized.size' in c.
       simpl transitions.
-      destruct (nth_error _ _).
-      * destruct v0.
-        6: {
-          destruct validity.
-          1 : {
-            destruct (Field.get _ _).
-            1: {
-              destruct v0.
-              3: {
-                destruct n;
-                simpl MPLSFixedWidth.seen;
-                rewrite H0;
-                simpl; 
-                destruct (nth_error _ _).
-                2,4,6: (
-                  eapply SeenTwo
-                ); simpl MPLSFixedWidth.seen; try rewrite H0; auto.
+      mysimp.
+      repeat break_matches; (
+        exfalso;
+        simpl in *;
+        rewrite H0 in *; simpl in *;
+        (now inversion Heqb0) || (now inversion Heqb1)
+      ) || seen_solver'.
 
-                2,3,4: (
-                  split; [simpl; lia|];
-                  exists (buf2 ++ [b]);
-                  split; [rewrite app_nil_r; trivial|];
-                  rewrite HP; 
-                  rewrite <- app_assoc; 
-                  rewrite app_length; 
-                  rewrite e;
-                  rewrite HPL;
-                  auto 
-                ).
-                all: (
-                  destruct v0; try apply SeenTwo;
-                  simpl MPLSFixedWidth.seen; try rewrite H0; auto;
-                  try (
-                    split; [simpl; lia|];
-                    exists (buf2 ++ [b]);
-                    split; [rewrite app_nil_r; trivial|];
-                    rewrite HP; 
-                    rewrite <- app_assoc; 
-                    rewrite app_length; 
-                    rewrite e;
-                    rewrite HPL;
-                    auto 
-                  );
-                  destruct validity; [|rewrite H0; trivial];
-                  destruct (Field.get _ _); [|rewrite H0; trivial];
-                  destruct v0; (
-                    rewrite H0; trivial
-                  ) || (
-                    destruct n; 
-                    simpl MPLSFixedWidth.seen;
-                    rewrite H0; 
-                    trivial
-                  )
-                ).
-              }
-              all : (
-                rewrite H0;
-                simpl;
-                destruct (nth_error _ _) ;
-                (
-                  eapply SeenTwo;
-                  simpl MPLSFixedWidth.seen; try rewrite H0; auto;
-                  split; [simpl; lia|];
-                  exists (buf2 ++ [b]);
-                  split; [rewrite app_nil_r; trivial|];
-                  rewrite HP; 
-                  rewrite <- app_assoc; 
-                  rewrite app_length; 
-                  rewrite e;
-                  rewrite HPL;
-                  auto 
-                ) || (
-                  destruct v0; try apply SeenTwo;
-                  simpl MPLSFixedWidth.seen; try rewrite H0; auto;
-                  try (
-                    split; [simpl; lia|];
-                    exists (buf2 ++ [b]);
-                    split; [rewrite app_nil_r; trivial|];
-                    rewrite HP; 
-                    rewrite <- app_assoc; 
-                    rewrite app_length; 
-                    rewrite e;
-                    rewrite HPL;
-                    auto 
-                  );
-                  
-                  destruct validity; (
-                    rewrite H0; trivial
-                  ) || (
-                    destruct (Field.get _ _); (
-                      rewrite H0; trivial
-                    ) || (
-                      destruct v0; (
-                        rewrite H0; trivial
-                      ) || (
-                        destruct n; 
-                        simpl MPLSFixedWidth.seen;
-                        rewrite H0; 
-                        trivial 
-                      )
-                    ) || (
-                      destruct v0; (
-                        rewrite H0; trivial
-                      ) || (
-                        destruct n0; 
-                        simpl MPLSFixedWidth.seen;
-                        rewrite H0; 
-                        trivial 
-                      )
-                    ) || (
-                      destruct validity0; (
-                        destruct v0; (
-                          rewrite H0; trivial
-                        ) || (
-                          destruct n; 
-                          simpl MPLSFixedWidth.seen;
-                          rewrite H0; 
-                          trivial 
-                        )
-                      ) || (
-                        rewrite H0; trivial
-                      )
-                    )
-                  )
-                )
-              ).
-            }
-            rewrite H0.
-            simpl.
-
-            destruct (nth_error _ _) ;
-            eapply SeenTwo;
-            auto.
-            2, 4: (
-              split; [simpl; lia|];
-              exists (buf2 ++ [b]);
-              split; [rewrite app_nil_r; trivial|];
-              rewrite HP; 
-              rewrite <- app_assoc; 
-              rewrite app_length; 
-              rewrite e;
-              rewrite HPL;
-              auto 
-            ).
-            1: {
-              destruct v0.
-              6: {
-                destruct validity; [|simpl; rewrite H0; auto].
-                destruct (Field.get _ _); [|simpl; rewrite H0; auto].
-                destruct v0.
-                3: {
-                  destruct n;
-                  simpl; rewrite H0; auto.
-                }
-                all: (
-                  simpl; rewrite H0; auto
-                ).
-              }
-              all : ( simpl; rewrite H0; auto).
-            }
-            destruct sig1.
-            simpl in H0.
-            rewrite H0. auto.
-          }
-          rewrite H0.
-          simpl.
-
-          destruct (nth_error _ _); [| 
-            eapply SeenTwo;
-            auto; [
-              destruct sig1; simpl in H0; rewrite H0; auto | 
-              split; [
-                simpl; lia | 
-                exists (buf2 ++ [b]);
-                split; [rewrite app_nil_r; trivial|];
-                rewrite HP; 
-                rewrite <- app_assoc; 
-                rewrite app_length; 
-                rewrite e;
-                rewrite HPL;
-                auto 
-              ]
-            ]
-          ].
-          
-          destruct v0.
-          6: (
-            destruct validity;
-            try destruct (Field.get _ _);
-            try destruct v0;
-            try destruct n
-          ).
-          all: (
-            eapply SeenTwo;
-            auto; [
-              destruct sig1; simpl in H0; rewrite H0; auto | 
-              split; [
-                simpl; lia | 
-                exists (buf2 ++ [b]);
-                split; [rewrite app_nil_r; trivial|];
-                rewrite HP; 
-                rewrite <- app_assoc; 
-                rewrite app_length; 
-                rewrite e;
-                rewrite HPL;
-                auto 
-              ]
-            ]
-          ).
-          
-        }
-        all: rewrite H0; simpl.
-        1,4,5,6,7,8: (
-          destruct (nth_error _ _); (
-            destruct v0; eapply SeenTwo; auto;
-            try (inversion H0; simpl; rewrite H0; auto);
-            try (
-              split; [
-                lia | 
-                exists (buf2 ++ [b]); split; [
-                  rewrite app_nil_r; trivial |
-                ]
-              ];
-              rewrite HP;
-              rewrite <- app_assoc;
-              rewrite app_length;
-              rewrite e;
-              lia
-            );
-
-            destruct validity; [|rewrite H6; auto];
-            destruct (Field.get _ _); [| rewrite H6; auto];
-            destruct v0; try rewrite H6; auto;
-            destruct n; try rewrite H6; auto;
-            simpl;
-            rewrite H6;
-            auto 
-            ) || (
-              eapply SeenTwo;
-              (compute; destruct sig1; simpl in H0; rewrite H0; trivial) ||
-              auto ||
-              split;
-              (compute; lia) || (
-              exists (buf2 ++ [b]);
-              split; (
-                try rewrite app_nil_r; trivial || 
-                rewrite HP; 
-                rewrite <- app_assoc; 
-                rewrite app_length; 
-                rewrite e;
-                rewrite HPL;
-                auto 
-                )
-              )
-            )
-          ).
-
-          1: {
-            destruct (nth_error _ _).
-            destruct v0;
-            eapply SeenTwo;
-            auto;
-            destruct sig1; 
-            simpl in H0;
-            try rewrite H0;
-            auto;
-            try (
-              split;
-              simpl;
-              try lia
-            );
-            try (
-              exists (buf2 ++ [b]);
-              split;
-              try rewrite app_nil_r; trivial ;
-              rewrite HP; 
-              rewrite <- app_assoc; 
-              rewrite app_length; 
-              rewrite e;
-              rewrite HPL;
-              auto 
-            ); try (
-              destruct validity; simpl; trivial;
-              destruct (Field.get _ _); simpl; trivial;
-              destruct v0;
-              try destruct n0;
-              auto
-            ).
-
-            eapply SeenTwo; destruct sig1;
-            simpl in H0; try rewrite H0;
-            simpl; auto.
-
-            split; [lia|].
-
-            exists (buf2 ++ [b]).
-            split;
-            try rewrite app_nil_r; trivial ;
-            rewrite HP; 
-            rewrite <- app_assoc; 
-            rewrite app_length; 
-            rewrite e;
-            rewrite HPL;
-            auto.
-          }
-
-          (* This is copy-paste from above, TODO refactor *)
-
-          1: {
-            destruct (nth_error _ _).
-            destruct v0;
-            eapply SeenTwo;
-            auto;
-            destruct sig1; 
-            simpl in H0;
-            try rewrite H0;
-            auto;
-            try (
-              split;
-              simpl;
-              try lia
-            );
-            try (
-              exists (buf2 ++ [b]);
-              split;
-              try rewrite app_nil_r; trivial ;
-              rewrite HP; 
-              rewrite <- app_assoc; 
-              rewrite app_length; 
-              rewrite e;
-              rewrite HPL;
-              auto 
-            ); try (
-              destruct validity; simpl; trivial;
-              destruct (Field.get _ _); simpl; trivial;
-              destruct v0;
-              try destruct n0;
-              auto
-            ).
-
-            eapply SeenTwo; destruct sig1;
-            simpl in H0; try rewrite H0;
-            simpl; auto.
-
-            split; [lia|].
-
-            exists (buf2 ++ [b]).
-            split;
-            try rewrite app_nil_r; trivial ;
-            rewrite HP; 
-            rewrite <- app_assoc; 
-            rewrite app_length; 
-            rewrite e;
-            rewrite HPL;
-            auto.
-          }
-        
-      * simpl MPLSFixedWidth.seen.
-        rewrite H0.
-        simpl.
-        destruct (nth_error _ _).
-        destruct v0.
-        6: {
-          destruct validity.
-          1 : {
-            destruct (Field.get _ _).
-            1: (
-              destruct v0;
-              try destruct n;
-              try simpl MPLSFixedWidth.seen
-            ).
-            all: (
-              eapply SeenTwo;
-              auto;
-              simpl MPLSFixedWidth.seen;
-              try rewrite H0; auto;
-              split; [simpl; lia|];
-              exists (buf2 ++ [b]);
-              split; [rewrite app_nil_r; trivial|];
-              rewrite HP; 
-              rewrite <- app_assoc; 
-              rewrite app_length; 
-              rewrite e;
-              rewrite HPL;
-              auto 
-            ).
-          }
-          
-          eapply SeenTwo;
-          auto;
-          simpl MPLSFixedWidth.seen;
-          try rewrite H0; auto;
-          split; [simpl; lia|];
-          exists (buf2 ++ [b]);
-          split; [rewrite app_nil_r; trivial|];
-          rewrite HP; 
-          rewrite <- app_assoc; 
-          rewrite app_length; 
-          rewrite e;
-          rewrite HPL;
-          auto.
-            
-        }
-
-        all: (
-          eapply SeenTwo;
-          auto;
-          simpl MPLSFixedWidth.seen;
-          try rewrite H0; auto;
-          split; [simpl; lia|];
-          exists (buf2 ++ [b]);
-          split; [rewrite app_nil_r; trivial|];
-          rewrite HP; 
-          rewrite <- app_assoc; 
-          rewrite app_length; 
-          rewrite e;
-          rewrite HPL;
-          auto 
-        ).
-    
-    + exfalso.
-      simpl in c, e.
-      unfold MPLSVectorized.size' in e.
-      rewrite HP in e.
-      repeat (rewrite app_length in e).
-      rewrite HPL in e.
-      inversion e.
-      lia.
+    + length_contra.
     + simpl in c, c0.
       unfold MPLSVectorized.size' in c0.
-      eapply SeenOne; auto.
-      split; [rewrite app_length in *; simpl in * |].
-      * unfold "=/=" in c.
-          unfold "===" in c.
-          lia.
-      * exists pref.
-        split; trivial.
-        rewrite HP.
-        rewrite <- app_assoc.
-        trivial.
-  - split; intros; exfalso; inversion H5.
+      seen_solver'.
+  - state_contra.
   - simpl step.
     destruct (equiv_dec _ _).
     + destruct (nth_error _ _).
-      * destruct v0.
-        6: (
-          destruct validity;
-          [destruct (Field.get _ _)|];
-          try destruct v0; 
-          try destruct n;
-          simpl
-        ).
-
-        all : (
-          rewrite H0; simpl;
-          destruct (equiv_dec _ _);
-          destruct H2 as [HB1 [pref [HBufs HPL]]];
-          rewrite HBufs in *;
-          repeat (rewrite app_length in *);
-          rewrite HPL in *
-        ).
-        all: (
-          exfalso;
-          inversion e0;
-          lia
-        ) || trivial.
-
-        all : (
-          eapply SeenThree; auto;
-          simpl;
-          try rewrite H0;
-          auto;
-          split; [ 
-            lia | 
-            exists (pref ++ buf1 ++ [b]);
-            split; [
-              rewrite app_nil_r; rewrite app_assoc; trivial |
-              repeat (rewrite app_length); rewrite e; lia
-            ]
-          ]
-        ).
-
-
+      * destruct v0;
+        try (rewrite H0; simpl);
+        destruct (equiv_dec _ _); 
+        try (length_contra || seen_solver').
+        break_matches;
+        break_matches;
+        do 3 (
+          (rewrite H0 in *; try destruct validity; length_contra) || 
+          seen_solver' ||
+          (try break_matches)
+        );
+        (try (simpl in *; rewrite H0 in *; (compute in Heqb1 || compute in Heqb0); congruence)).
+        
       * simpl; rewrite H0; simpl.
-        destruct (equiv_dec _ _); [
-          exfalso;
-          
-          inversion e0;
-          inversion e;
-          destruct H2 as [HB1 [pref [HB2 HBPL]]];
-          rewrite HB2 in *;
-          repeat (rewrite app_length in *);
+        repeat (
+          length_contra || 
+          seen_solver' || 
+          break_matches
+        ).
+    + repeat (
+        length_contra || 
+        seen_solver' || 
+        break_matches
+      ). 
 
-          lia |
-        ].
-        destruct H2 as [HB1 [pref [HB2 HBPL]]].
-        eapply SeenThree; auto.
-        -- simpl. lia.
-        -- split; [
-          simpl; lia | 
-          exists (buf2 ++ [b]);
-          split; [
-            rewrite app_nil_r; trivial |
-            rewrite HB2; 
-            repeat (rewrite app_length in *);
-            unfold "===" in *;
-            lia
-          ]
-        ].
-    + destruct H2 as [HB1 [pref [HB2 HBPL]]]. 
-      destruct (equiv_dec _ _).
-      * exfalso. rewrite HB2 in *.
-        repeat (rewrite app_length in *).
-        inversion e.
-        lia.
-      * eapply SeenTwo; auto.
-        unfold "===" in *.
-        unfold complement in c, c0.
-        split.
-        --  destruct (equiv_dec (length (buf1 ++ [b])) 31); [
-              rewrite e; lia | 
-              inversion HB1; [
-                exfalso; eapply c; rewrite app_length; simpl; lia | 
-                rewrite app_length;
-                simpl;
-                lia
-              ]
-            ].
-        --  exists pref.
-            split; [
-              rewrite HB2;
-              rewrite app_assoc;
-              trivial |
-              trivial
-            ].
-
-  - split; intros; exfalso; inversion H5.
+  - state_contra.
   - simpl step.
     destruct H2 as [HB1 [pref [HB2 HBPL]]].
     destruct (equiv_dec _ _).
-    + destruct (nth_error _ _). 
-      * destruct v0.
-        6 : (
-          destruct validity; [
-            destruct (Field.get _ _); [
-              destruct v0; 
-              try destruct n;
-              simpl
-            |]
-          |]
-        ).
-        all: (
-          rewrite H0;
-          simpl;
-        
-          destruct (equiv_dec _ _); [|
-            exfalso;
-            eapply c;
-            unfold "===" in *;
-            rewrite HB2 in *;
-            repeat (rewrite app_length in *);
-            simpl in *;
-            lia
-          ];
-          repeat (destruct (Z.of_nat _));
-          (eapply EndStates; auto || destruct p; eapply EndStates; auto)
-      
-        ).
-      * simpl.
-        rewrite H0.
-        simpl. 
-        destruct (equiv_dec _ _); [|
-          exfalso;
-          eapply c;
-          unfold "===" in *;
-          rewrite HB2 in *;
-          repeat (rewrite app_length in *);
-          simpl in *;
-          lia
-        ];
-        repeat (destruct (Z.of_nat _));
-        (eapply EndStates; auto || destruct p; eapply EndStates; auto).
+    + destruct (nth_error _ _); [
+        destruct v0 | simpl
+      ]; 
+      try rewrite H0; 
+      simpl;
+      destruct (equiv_dec _ _);
+      try (length_contra || (length_contra'; eapply c; lia));
+      break_matches; 
+      (length_contra || (length_contra'; eapply c; lia)) || 
+      (try seen_solver');
+      destruct validity;
+      repeat (
+        try rewrite H0; simpl;
+        seen_solver' || break_matches
+      ).
 
     + destruct (equiv_dec _ _); [
-        exfalso;
+        length_contra';
         eapply c;
-        unfold "===" in *;
-        rewrite HB2 in *;
-        repeat (rewrite app_length in *);
-        simpl in *;
-        lia
-      |].
-      eapply SeenThree; auto.
-      split.
-      * destruct (equiv_dec (length (buf1 ++ [b])) 31); [
-          rewrite e; lia | 
-          inversion HB1; [
-            exfalso; 
-            eapply c; 
-            rewrite app_length; 
-            unfold "==="; 
-            simpl; 
-            lia | 
-            rewrite app_length;
-            simpl;
-            lia
-          ]
-        ].
-      * exists pref.
-        split.
-        --  rewrite HB2.
-            rewrite app_assoc.
-            trivial.
-        --  trivial.
-  - split; intros; inversion H5; unfold accepting; trivial.
-  - eapply EndStates; auto; rewrite H2; trivial.
+        lia | 
+        seen_solver'
+      ].
+  - state_contra.
+  - rewrite H2. seen_solver'.
 Qed.
 

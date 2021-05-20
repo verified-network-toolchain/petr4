@@ -40,12 +40,6 @@ Section parser_to_p4automaton.
   (* functon calls? other extern method calls? *).
   (**[]*)
 
-  Inductive simple_match :=
-  | SimpleMatchEquals (l r: E.e tags_t)
-  | SimpleMatchAnd (l r: simple_match)
-  | SimpleMatchDontCare
-  .
-
   Section compile.
     (*Variables (pkt_name hdr_name: string).*)
     
@@ -87,53 +81,19 @@ Section parser_to_p4automaton.
         else
           None
       | _ => None end.
-
-    Definition trans_t : Type := list (simple_match * (string + bool)).
-
-    Fixpoint compile_transition
-      (trans: P4cub.Parser.ParserState.e tags_t) : option trans_t :=
-      match trans with
-      | p{ goto start @ _ }p =>
-        Some ((SimpleMatchDontCare, inl "start") :: nil)
-      | p{ goto accept @ _ }p =>
-        Some ((SimpleMatchDontCare, inr true) :: nil)
-      | p{ goto reject @ _ }p =>
-        Some ((SimpleMatchDontCare, inr false) :: nil)
-      | p{ goto δ st @ _ }p =>
-        Some ((SimpleMatchDontCare, inl st) :: nil)
-      | p{ select select_exp { cases } default:=def @ _ }p =>
-        let fix f cases :=
-          match cases with
-          | nil =>
-            compile_transition def
-          | (case_exp, case_trans) :: cases' =>
-            let* child_clauses := compile_transition case_trans in
-            let augmented_clauses :=
-              map (
-                fun '(clause, target) =>
-                (SimpleMatchAnd (SimpleMatchEquals select_exp case_exp)
-                                clause,
-                 target)
-              ) child_clauses in
-            let* tail := f cases' in
-            Some (augmented_clauses ++ tail)
-          end in
-         f cases
-      end
-    .
     
     Definition compile_state_block
                (stblk : PS.state_block tags_t)
-      : option (state_operation * trans_t) :=
+      : option (state_operation * (PS.e tags_t)) :=
       match stblk with
       | &{ state { s } transition e }& =>
-        so <- compile_statement s ;;
-        tr <<| compile_transition e ;; (so, tr)
+        so <<| compile_statement s ;;
+        (so, e)
       end.
 
     Definition compile_state_blocks
                (stblks : F.fs string (PS.state_block tags_t))
-      : option (F.fs string (state_operation * trans_t)) :=
+      : option (F.fs string (state_operation * (PS.e tags_t))) :=
       let cfld fld :=
           let '(x, stblk) := fld in
           sot <<| compile_state_block stblk ;; (x, sot) in
@@ -155,8 +115,8 @@ Section parser_to_p4automaton.
     | SOBlock op => operation_size op end.
 
   Definition P4Automaton_size
-             (strt : state_operation * trans_t)
-             (states : F.fs string (state_operation * trans_t))
+             (strt : state_operation * (PS.e tags_t))
+             (states : F.fs string (state_operation * (PS.e tags_t)))
              (st : P4Automaton_State) : nat :=
     match st with
     | START => operation_size (fst strt)
@@ -251,8 +211,8 @@ Section parser_to_p4automaton.
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
-             (strt : state_operation * trans_t)
-             (states : F.fs string (state_operation * trans_t))
+             (strt : state_operation * (PS.e tags_t))
+             (states : F.fs string (state_operation * (PS.e tags_t)))
              (st : P4Automaton_State)
              (pkt : list bool)
              (e : Step.epsilon) : Step.epsilon :=
@@ -264,7 +224,7 @@ Section parser_to_p4automaton.
       | None => e end
     end.
 
-  Fixpoint interp_match (e : Step.epsilon) (m : simple_match) : bool :=
+  (* Fixpoint interp_match (e : Step.epsilon) (m : PS.e tags_t) : bool :=
     match m with
     | SimpleMatchEquals l r =>
       match (interp_expr e l), (interp_expr e r) with
@@ -272,22 +232,23 @@ Section parser_to_p4automaton.
       | _, _ => false end
     | SimpleMatchAnd l r =>
       andb (interp_match e l) (interp_match e r)
-    | SimpleMatchDontCare => true end.
+    | SimpleMatchDontCare => true end. *)
 
-  Fixpoint interp_transition (e : Step.epsilon) (t : trans_t) : P4Automaton_State + bool :=
+  Fixpoint interp_transition
+           (ϵ : Step.epsilon)
+           (t : PS.e tags_t) : P4Automaton_State + bool :=
     match t with
-    | (m, st) :: t =>
-      if interp_match e m
-      then match st with
-           | inl "start" => inl START
-           | inl x => inl (ST_VAR x)
-           | inr b => inr b end
-      else interp_transition e t
-    | [] => inr false end.
-
+    | p{ goto ={ start }= @ _ }p => inl START
+    | p{ goto ={ accept }= @ _ }p => inr true
+    | p{ goto ={ reject }= @ _ }p => inr false
+    | p{ goto ={ δ x }= @ _ }p => inl (ST_VAR x)
+    | p{ select se { cs } default := def @ _ }p =>
+      inr false (* TODO: redesign transition type for better decreasing fixpoint thing *)
+    end.
+  
   Definition P4Automaton_transitions
-             (strt : state_operation * trans_t)
-             (states : F.fs string (state_operation * trans_t))
+             (strt : state_operation * (PS.e tags_t))
+             (states : F.fs string (state_operation * (PS.e tags_t)))
              (st : P4Automaton_State)
              (e : Step.epsilon) : P4Automaton_State + bool :=
     match st with

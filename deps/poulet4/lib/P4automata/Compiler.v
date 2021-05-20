@@ -5,6 +5,9 @@ Require Import Poulet4.P4cub.AST.
 Require Import Poulet4.P4cub.Value.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4cub.BigStep.
+Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Monad.
+Require Coq.ZArith.BinInt.
 
 Open Scope monad_scope.
 Open Scope string_scope.
@@ -146,7 +149,7 @@ Section parser_to_p4automaton.
     match op with
     | SONil => 0
     | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
-    | SOExtract τ _ => 0 (* TODO *)
+    | SOExtract τ _ => E.width_of_typ τ
     | SOVarDecl _ _ => 0
     | SOAsgn _ _ => 0
     | SOBlock op => operation_size op end.
@@ -163,11 +166,65 @@ Section parser_to_p4automaton.
       | None => 0 end
     end.
     
-  Theorem P4Automaton_Size_Cap : forall strt states st, 0 < P4Automaton_size strt states st.
+  Theorem P4Automaton_Size_Cap : forall strt states st, 0%nat < P4Automaton_size strt states st.
   Admitted.
 
-  Fixpoint interp_expr (e : Step.epsilon) (expr : E.e tags_t) : V.v :=
-    V.VBool false. (* TODO *)
+  Fixpoint interp_expr (ϵ : Step.epsilon) (expr : E.e tags_t) : option V.v :=
+    match expr with
+    | <{ BOOL b @ _ }> => Some ~{ VBOOL b }~
+    | <{ w W n @ _ }> => Some ~{ w VW n }~
+    | <{ w S n @ _ }> => Some ~{ w VS n }~
+    | <{ Var x : _ @ _ }> => ϵ x
+    | <{ Slice e : _ [ h : l ] @ _ }> =>
+      v <- interp_expr ϵ e ;;
+      Step.eval_slice h l v
+    | <{ Cast e : τ @ _ }> =>
+      v <- interp_expr ϵ e ;;
+      Step.eval_cast τ v
+    | <{ UOP op e : _ @ _ }> =>
+      v <- interp_expr ϵ e ;;
+      Step.eval_uop op v
+    | <{ BOP e1 : _ op e2 : _ @ _ }> =>
+      v1 <- interp_expr ϵ e1 ;;
+      v2 <- interp_expr ϵ e2 ;;
+      Step.eval_bop op v1 v2
+    | <{ tup es @ _ }> =>
+      vs <<| sequence (List.map (interp_expr ϵ) es) ;;
+      ~{ TUPLE vs }~
+    | <{ rec { fs } @ i }> =>
+      vs <<| sequence (List.map (fun '(f, (_,e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
+      ~{ REC { vs } }~
+    | <{ hdr { fs } valid := b @ i }> =>
+      b <- interp_expr ϵ b ;;
+      vs <- sequence (List.map (fun '(f, (_, e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
+      match b with
+      | ~{ VBOOL b }~  => Some ~{ HDR { vs } VALID := b }~
+      | _ => None end
+    | <{ Mem e : _ dot x @ _ }> =>
+      v <- interp_expr ϵ e ;;
+      Step.eval_member x v
+    | <{ Error x @ _ }> =>
+      Some ~{ ERROR x }~
+    | <{ Matchkind x @ _ }> =>
+      Some ~{ MATCHKIND x }~
+    | <{ Stack hdrs : ts [ size ] nextIndex := i @ _ }> =>
+      vs <<| sequence (List.map (fun e =>
+                                 v <- interp_expr ϵ e ;;
+                                 match v with
+                                 | ~{ HDR { vs } VALID := b }~ =>
+                                   Some (b, vs)
+                                 | _ => None end
+                              ) hdrs) ;;
+      ~{ STACK vs : ts [ size ] NEXT := i }~
+    | <{ Access e [ n ] @ _ }> =>
+      v <- interp_expr ϵ e ;;
+      match v with
+      | ~{ STACK vs : _ [ _ ]  NEXT := _ }~ =>
+        v <<| List.nth_error vs (BinInt.Z.to_nat n) ;;
+        let '(b, fs) := v in
+        ~{ HDR { fs } VALID := b }~
+      | _ => None end    
+    end.
 
   Fixpoint interp_operation
            (pkt : list bool)
@@ -188,9 +245,9 @@ Section parser_to_p4automaton.
     | SOAsgn lhs rhs =>
       let v := interp_expr e rhs in
       let lv := eval_lvalue lhs in
-      match lv with
-      | Some lv => Step.lv_update lv v e
-      | None => e end
+      match (v, lv) with
+      | (Some v, Some lv) => Step.lv_update lv v e
+      | (_, _) => e end
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
@@ -210,7 +267,9 @@ Section parser_to_p4automaton.
   Fixpoint interp_match (e : Step.epsilon) (m : simple_match) : bool :=
     match m with
     | SimpleMatchEquals l r =>
-      eqbv (interp_expr e l) (interp_expr e r)
+      match (interp_expr e l), (interp_expr e r) with
+      | Some b1, Some b2 => eqbv b1 b2
+      | _, _ => false end
     | SimpleMatchAnd l r =>
       andb (interp_match e l) (interp_match e r)
     | SimpleMatchDontCare => true end.
@@ -264,8 +323,6 @@ Section parser_to_p4automaton.
     | _ => [None] end.
 
   (* TODOS:
-     1) implement size of extract operation = width of type calculation
-     2) implement expression interpreter
-     3) implement extract operation semantics = fix types of packet monad thing *)
+     1) implement extract operation semantics = fix types of packet monad thing *)
 
 End parser_to_p4automaton.

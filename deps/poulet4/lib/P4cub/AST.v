@@ -93,6 +93,23 @@ Module P4cub.
                      (size : positive)   (* header stack type *).
       (**[]*)
 
+      Fixpoint width_of_typ (τ : t) : nat :=
+        match τ with
+        | TBool => 1
+        | TBit w => Pos.to_nat w
+        | TInt w => Pos.to_nat w
+        | TError => 0
+        | TMatchKind => 0
+        | TTuple ts =>
+          (List.fold_left (fun (acc : nat) t => acc + width_of_typ t) ts 0)%nat
+        | TRecord fs =>
+          (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
+        | THeader fs =>
+          (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
+        | THeaderStack fs s =>
+          ((F.fold (fun _ t acc => acc + width_of_typ t) fs 0) * (Pos.to_nat s))%nat
+        end.
+
       (** Function parameters. *)
       Definition params : Type := F.fs string (paramarg t t).
 

@@ -13,5 +13,6 @@ type switch_msg =
   | Hello of { switch : string;
                ports : int; }
   | Event of { switch : string }
-  | PktIn of { pkt : string; }
-[@@deriving yojson]
+  (* TODO: | PktIn of { switch : string, in_port: int, pkt : string; } *)
+  | PktIn of { pkt : string }
+  [@@deriving yojson]

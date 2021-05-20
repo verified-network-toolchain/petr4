@@ -20,4 +20,4 @@ class Entry(object):
                  "matches": self.matches, 
                  "action" : self.action, 
                  "action_data" : self.action_data }
-    
+        

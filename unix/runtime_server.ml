@@ -30,8 +30,8 @@ let start switch ~handlers () =
   let%bind () = Cohttp_lwt.Body.drain_body body in 
   loop switch handlers
 
-let post_pkt pkt =
-  let pkt = Petr4.Runtime.PktIn { pkt } in
+let post_pkt switch in_port pkt =
+  let pkt = Petr4.Runtime.PktIn { switch; in_port; pkt; } in
   let body =
     pkt
     |> Petr4.Runtime.switch_msg_to_yojson

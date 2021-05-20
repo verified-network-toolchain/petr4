@@ -120,22 +120,23 @@ let stf_command =
 
 (***** Switch *****)
 let entries : Prog.Value.entries ref = ref ([],[])
-let ctrl_pkt : string list ref = ref []
+let ctrl_pkt_queue : Runtime.ctrl_pkt list ref = ref []
 let ctrl_pt : int = 510
 
-let start_v1switch env prog sockets =
+let start_v1switch switch env prog sockets =
   let open Eval in
   let open V1Interpreter in
   let (env, st) = init_switch env prog in
   let socks = List.map sockets
     ~f:(fun (i, sock) -> i, Lwt_rawlink.read_packet sock) in
   let rec loop socks st : unit Lwt.t =
-    begin match !ctrl_pkt with
+    begin match !ctrl_pkt_queue with
     | [] -> 
        List.map socks ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
        |> Lwt.choose
     | h :: t ->
-       ctrl_pkt := t; Lwt.return (ctrl_pt, Cstruct.of_string h) end
+      ctrl_pkt_queue := t;
+      Lwt.return (h.in_port, Cstruct.of_string h.pkt) end
     >>= fun (i, pkt) ->
     let ctrl = (!entries,[]) in
     switch_packet ctrl env st pkt
@@ -149,7 +150,7 @@ let start_v1switch env prog sockets =
        List.map l ~f:(fun (pkt, pt) ->
            let pt = Bigint.to_int_exn pt in
            if pt = ctrl_pt
-           then Petr4_unix.Runtime_server.post_pkt (Cstruct.to_string pkt)
+           then Petr4_unix.Runtime_server.post_pkt switch i (Cstruct.to_string pkt)
            else
              List.Assoc.find sockets pt ~equal:Int.equal
              |> Option.value_map ~default:(Lwt.return ())
@@ -162,7 +163,7 @@ let start_v1switch env prog sockets =
     loop socks st in
   loop socks st
 
-let start_switch verbose include_dir target pts p4_file =
+let start_switch verbose include_dir target pts switch p4_file =
   let f str =
     let pt_num, if_name = String.lsplit2_exn str ~on:'@' in
     String.strip pt_num |> Int.of_string, String.strip if_name in
@@ -175,7 +176,7 @@ let start_switch verbose include_dir target pts p4_file =
     let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
     let env = Env.CheckerEnv.eval_env_of_t cenv in
     begin match target with
-      | "v1" -> start_v1switch env typed_prog sockets
+      | "v1" -> start_v1switch switch env typed_prog sockets
       | _ -> failwith "mininet switches unsupported on this architecture" end      
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
@@ -206,7 +207,7 @@ let handle_message (msg : Runtime.ctrl_msg) : unit =
        |> String.concat ~sep:"," in
      Printf.eprintf "Insert: %s [%s] %s [%s]\n%!" table matches_str action action_data_str;
      do_insert table matches action action_data
-  | Runtime.PktOut { pkt } -> ctrl_pkt := !ctrl_pkt @ [pkt]
+  | Runtime.PktOut pkt -> ctrl_pkt_queue := !ctrl_pkt_queue @ [pkt]
 
 let switch_command =
   let open Command.Spec in
@@ -221,7 +222,7 @@ let switch_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir target pts switch p4_file () ->
        let _ = Petr4_unix.Runtime_server.start switch ~handlers:handle_message () in
-       start_switch verbose include_dir target pts p4_file |> Lwt_main.run)
+       start_switch verbose include_dir target pts switch p4_file |> Lwt_main.run)
 
 let runtime_command = 
   let open Command.Spec in

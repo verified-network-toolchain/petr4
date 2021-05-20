@@ -18,6 +18,7 @@ Import P.P4cubNotations.
 Module V := Val.
 Import V.ValueNotations.
 Import V.LValueNotations.
+Import V.ValueEquality.
 Module PS := P4cub.Parser.ParserState.
 
 Section parser_to_p4automaton.
@@ -63,9 +64,7 @@ Section parser_to_p4automaton.
     (**[]*)
 
     Fixpoint compile_statement
-      (stmt: P4cub.Stmt.s tags_t)
-      : option state_operation
-    :=
+             (stmt: P4cub.Stmt.s tags_t) : option state_operation :=
       match stmt with
       | -{ skip @ _ }- =>
         Some SONil
@@ -74,33 +73,25 @@ Section parser_to_p4automaton.
         f2 <<| compile_statement s2 ;;
         SOSeq f1 f2
       | -{ var x:τ @ _ }- => Some $ SOVarDecl x τ
-      | -{ asgn e1 := e2:_ @ _ }-
-        => (*lv <<| eval_lvalue e1 ;;
-          [SOAsgn (compile_lvalue lv) $ compile_expression e2]*)
-        Some $ SOAsgn e1 e2
+      | -{ asgn e1 := e2:_ @ _ }- => Some $ SOAsgn e1 e2
       | -{ extern extern_lit calls func with args gives _ @ _ }- =>
-        (*if extern_lit == pkt_name then*)
-          if func == "extract" then
-            match args with
-            (* Exactly one argument for "extract" *)
-            | ((_, P4cub.PAOut (t, e)) :: nil) =>
-              into_lv <<| eval_lvalue e ;; SOExtract t into_lv
-            | _=> None
-            end
-          else
-            None
-    (*else
-          None*)
-      | _ => None
-      end
-    .
+        if func == "extract" then
+          match args with
+          | ((_, P4cub.PAOut (t, e)) :: nil) =>
+            into_lv <<| eval_lvalue e ;; SOExtract t into_lv
+          | _=> None
+          end
+        else
+          None
+      | _ => None end.
 
     Definition trans_t : Type := list (simple_match * (string + bool)).
 
     Fixpoint compile_transition
       (trans: P4cub.Parser.ParserState.e tags_t) : option trans_t :=
       match trans with
-      | p{ goto start @ _ }p => None (* TODO: Implement this. *)
+      | p{ goto start @ _ }p =>
+        Some ((SimpleMatchDontCare, inl "start") :: nil)
       | p{ goto accept @ _ }p =>
         Some ((SimpleMatchDontCare, inr true) :: nil)
       | p{ goto reject @ _ }p =>
@@ -108,14 +99,12 @@ Section parser_to_p4automaton.
       | p{ goto δ st @ _ }p =>
         Some ((SimpleMatchDontCare, inl st) :: nil)
       | p{ select select_exp { cases } default:=def @ _ }p =>
-        (*let select_exp' := compile_expression select_exp in*)
         let fix f cases :=
           match cases with
           | nil =>
             compile_transition def
           | (case_exp, case_trans) :: cases' =>
             let* child_clauses := compile_transition case_trans in
-            (*let case_exp' := compile_expression case_exp in*)
             let augmented_clauses :=
               map (
                 fun '(clause, target) =>
@@ -147,51 +136,62 @@ Section parser_to_p4automaton.
           sot <<| compile_state_block stblk ;; (x, sot) in
       sequence $ List.map cfld stblks.
 
-    (*Search (list (?A * ?B) -> list ?A * list ?B).*)
-
-    (*Fixpoint compile_updates
-      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
-      : option (F.fs (string * list state_operation))
-    :=
-      match states with
-      | nil =>
-        Some nil
-      | (name, &{ state { stmt } transition _ }&) :: states' =>
-        let* tail := compile_updates states' in
-        let* head := compile_statements stmt in
-        Some ((name, head) :: tail)
-      end
-    .*)
-
-    (*Fixpoint compile_transitions
-      (states: Field.fs string (P4cub.Parser.ParserState.state_block tags_t))
-      : option (list (string * list (simple_match * (string + bool))))
-    :=
-      match states with
-      | nil =>
-        Some nil
-      | st :: states' =>
-        let '(name, P4cub.Parser.ParserState.State _ trans) := st in
-        let* tail := compile_transitions states' in
-        let* head := compile_transition trans in
-        Some ((name, head) :: tail)
-      end
-    .*)
-
   End compile.
 
   Inductive P4Automaton_State :=
   | START
   | ST_VAR (x : string).
 
+  Fixpoint operation_size (op : state_operation) : nat :=
+    match op with
+    | SONil => 0
+    | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
+    | SOExtract τ _ => 0 (* TODO *)
+    | SOVarDecl _ _ => 0
+    | SOAsgn _ _ => 0
+    | SOBlock op => operation_size op end.
+
   Definition P4Automaton_size
              (strt : state_operation * trans_t)
              (states : F.fs string (state_operation * trans_t))
              (st : P4Automaton_State) : nat :=
-    0. (* TODO *)
-
+    match st with
+    | START => operation_size (fst strt)
+    | ST_VAR x =>
+      match F.get x states with
+      | Some stvar => operation_size (fst stvar)
+      | None => 0 end
+    end.
+    
   Theorem P4Automaton_Size_Cap : forall strt states st, 0 < P4Automaton_size strt states st.
   Admitted.
+
+  Fixpoint interp_expr (e : Step.epsilon) (expr : E.e tags_t) : V.v :=
+    V.VBool false. (* TODO *)
+
+  Fixpoint interp_operation
+           (pkt : list bool)
+           (e : Step.epsilon)
+           (operation : state_operation) : Step.epsilon :=
+    match operation with
+    | SONil => e
+    | SOSeq op1 op2 => interp_operation pkt (interp_operation pkt e op2) op2
+    | SOExtract τ lv =>
+      (* let '(v, _) := Poulet4.P4cub.Paquet.ValuePacket.read_inc τ pkt in
+      match v with
+      | inl v => Step.lv_update lv v e
+      | inr _ =>  e end *) e
+    | SOVarDecl x τ =>
+      let v := V.vdefault τ in
+      let lv := Val.LVVar x in
+      Step.lv_update lv v e
+    | SOAsgn lhs rhs =>
+      let v := interp_expr e rhs in
+      let lv := eval_lvalue lhs in
+      match lv with
+      | Some lv => Step.lv_update lv v e
+      | None => e end
+    | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
              (strt : state_operation * trans_t)
@@ -199,14 +199,45 @@ Section parser_to_p4automaton.
              (st : P4Automaton_State)
              (pkt : list bool)
              (e : Step.epsilon) : Step.epsilon :=
-    e.
+    match st with
+    | START => interp_operation pkt e (fst strt)
+    | ST_VAR x =>
+      match F.get x states with
+      | Some stvar => interp_operation pkt e (fst stvar)
+      | None => e end
+    end.
+
+  Fixpoint interp_match (e : Step.epsilon) (m : simple_match) : bool :=
+    match m with
+    | SimpleMatchEquals l r =>
+      eqbv (interp_expr e l) (interp_expr e r)
+    | SimpleMatchAnd l r =>
+      andb (interp_match e l) (interp_match e r)
+    | SimpleMatchDontCare => true end.
+
+  Fixpoint interp_transition (e : Step.epsilon) (t : trans_t) : P4Automaton_State + bool :=
+    match t with
+    | (m, st) :: t =>
+      if interp_match e m
+      then match st with
+           | inl "start" => inl START
+           | inl x => inl (ST_VAR x)
+           | inr b => inr b end
+      else interp_transition e t
+    | [] => inr false end.
 
   Definition P4Automaton_transitions
              (strt : state_operation * trans_t)
              (states : F.fs string (state_operation * trans_t))
              (st : P4Automaton_State)
              (e : Step.epsilon) : P4Automaton_State + bool :=
-    inr false.
+    match st with
+    | START => interp_transition e (snd strt)
+    | ST_VAR x =>
+      match F.get x states with
+      | Some stvar => interp_transition e (snd stvar)
+      | None => inr false end
+    end.
 
   Definition parser_to_p4automaton
       (strt : PS.state_block tags_t)
@@ -225,10 +256,16 @@ Section parser_to_p4automaton.
               (P4Automaton_Size_Cap strt states))
     | (_, _) => None end.
 
-  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : option p4automaton :=
+  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list (option p4automaton) :=
     match d with
     | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
-      parser_to_p4automaton strt states
-    | _ => None end.
+      [parser_to_p4automaton strt states]
+    | %{ d1 ;%; d2 @ i }%  => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
+    | _ => [None] end.
+
+  (* TODOS:
+     1) implement size of extract operation = width of type calculation
+     2) implement expression interpreter
+     3) implement extract operation semantics = fix types of packet monad thing *)
 
 End parser_to_p4automaton.

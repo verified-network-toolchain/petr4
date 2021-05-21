@@ -7,7 +7,7 @@ Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4cub.BigStep.BigStep.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.Monad.
-Require Coq.ZArith.BinInt.
+Require Poulet4.Bitwise.
 
 Open Scope monad_scope.
 Open Scope string_scope.
@@ -185,6 +185,49 @@ Section parser_to_p4automaton.
       | _ => None end    
     end.
 
+  Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
+    let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * E.t) :=
+        let '(pkt, fs) := acc in
+        let '(n, τ) := x in
+        let w := E.width_of_typ τ in
+        let pkt1 := List.firstn w pkt in
+        let pkt2 := List.skipn w pkt in
+        let pair :=
+            v <<| interp_extract τ pkt1 ;; (n, v) in
+        (pkt2, fs ++ [pair]) in
+    match τ with
+    | {{ Bool }} =>
+      b <<| List.nth_error pkt 0%nat ;;
+      ~{ VBOOL b }~
+    | {{ bit < w > }} =>
+      let w' := Pos.to_nat w in
+      let pkt' := List.firstn w' pkt in
+      let n := BinInt.Z.of_nat (Poulet4.Bitwise.to_nat pkt') in
+      Some ~{ w VW n }~
+    | {{ int < w > }} =>
+      let w' := Pos.to_nat (w - 1) in
+      let sign := List.nth_error pkt 0%nat in
+      let pkt := skipn 1%nat pkt in
+      let pkt' := List.firstn (w'-1) pkt in
+      let n := BinInt.Z.of_nat (Poulet4.Bitwise.to_nat pkt') in
+      let n :=
+          if sign
+          then
+            BinInt.Z.of_nat ((BinInt.Z.to_nat n) -
+                             (Pos.to_nat (Coq.PArith.BinPosDef.Pos.pred_double w)))
+          else n in
+      Some ~{ w VS n }~
+    | {{ error }} => None
+    | {{ matchkind }} => None
+    | {{ tuple _ }} => None
+    | {{ rec { fs } }} =>
+      fs <<| sequence (snd (List.fold_left f fs (pkt, []))) ;;
+      ~{ REC { fs } }~
+    | {{ hdr { fs }  }} =>
+      fs <<| sequence (snd (List.fold_left f fs (pkt, []))) ;;
+      ~{ HDR { fs } VALID := true }~
+    | {{ stack _ [ _ ] }} => None end.
+
   Fixpoint interp_operation
            (pkt : list bool)
            (e : Step.epsilon)
@@ -195,10 +238,8 @@ Section parser_to_p4automaton.
       e <- interp_operation pkt e op1 ;;
       interp_operation pkt e op2
     | SOExtract τ lv =>
-      (* let '(v, _) := Poulet4.P4cub.Paquet.ValuePacket.read_inc τ pkt in
-      match v with
-      | inl v => Step.lv_update lv v e
-      | inr _ =>  e end *) Some e
+      v <<| interp_extract τ pkt ;;
+      Step.lv_update lv v e
     | SOVarDecl x τ =>
       let v := V.vdefault τ in
       let lv := Val.LVVar x in

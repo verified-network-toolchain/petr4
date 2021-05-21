@@ -1,10 +1,18 @@
 from petr4 import App
 from topo import *
 from petr4.runtime import *
+from tornado.ioloop import *
 
 SWITCHES_EXPECTED = 7
 
 class DiscoveryApp(App):
+    def discover_topo_h(self):
+        if len(self.switches) == SWITCHES_EXPECTED:
+            print("all switches up; waited long enough!")
+        else:
+            print("some switches not up; didn't wait long enough")
+            
+    
     def discover_topo(self):
         print("discover topology entry point reached")
         
@@ -13,11 +21,11 @@ class DiscoveryApp(App):
         for i in range(1, 5):
             topo.add_host("h" + str(i))
 
+        call_at(5.0, self.discover_topo_h)
+
         # while len(self.switches) < 7:
           #  print("still in while loop")
            # yield gen.sleep(0.5)
-
-        print("All of the switches are up!")
 
         
     

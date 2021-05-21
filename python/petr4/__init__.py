@@ -63,7 +63,7 @@ class App(object):
         application = Application([
             ('/hello', self.Hello, { "app" : self } ),
             ('/event', self.Event, { "app" : self } ),
-            ('/packet_in', self.PacketIn { "app" : self })])
+            ('/packet_in', self.PacketIn, { "app" : self })])
         self.http_server = HTTPServer(application)
 
     def start(self):

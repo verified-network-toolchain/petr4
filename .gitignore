@@ -8,6 +8,7 @@ html_build/p4
 docs/specification/build
 *.p4i
 testruns/
+__pycache__/
 
 # LaTeX output
 *.aux
@@ -22,3 +23,5 @@ testruns/
 .*.sw?
 .#*
 \#*
+*.pyc
+*.py~

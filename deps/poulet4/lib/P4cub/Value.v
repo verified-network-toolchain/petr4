@@ -12,6 +12,7 @@ Import Poulet4.P4cub.AST.P4cub.P4cubNotations.
 
 Module E := Poulet4.P4cub.AST.P4cub.Expr.
 Module F := Poulet4.P4cub.AST.P4cub.F.
+Module PR := Poulet4.P4cub.AST.P4cub.Parser.
 
 Module TE := E.TypeEquivalence.
 
@@ -351,6 +352,28 @@ End LValueNotations.
 Module ValueUtil.
   Import ValueNotations.
 
+  Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
+    match p, V with
+    | [{ ?? }], _ => true
+    | [{ w PW a &&& _ PW b }], ~{ _ VW c }~
+      => Z.land a b =? Z.land c b
+    | [{ w PW a .. _ PW b }], ~{ _ VW c }~
+      => (a <=? c)%Z && (c <=? b)%Z
+    | [{ w1 PW n1 }], ~{ w2 VW n2 }~ =>
+      (w1 =? w2)%positive && (n1 =? n2)%Z
+    | [{ w1 PS n1 }], ~{ w2 VS n2 }~ =>
+      (w1 =? w2)%positive && (n1 =? n2)%Z
+    | [{ PTUP ps }], ~{ TUPLE vs }~ =>
+      (fix F ps vs :=
+         match ps, vs with
+         | [], [] => true
+         | p::ps, v::vs => match_pattern p v && F ps vs
+         | _, _ => false
+         end) ps vs
+    | _,_ => false
+    end.
+  (**[]*)
+  
   Section Util.
     Context {tags_t : Type}.
 

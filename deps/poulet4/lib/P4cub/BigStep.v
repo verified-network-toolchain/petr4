@@ -49,7 +49,7 @@ Module Step.
   Module P := P4cub.
   Module E := P.Expr.
   Module ST := P.Stmt.
-  Module PS := P.Parser.ParserState.
+  Module PR := P.Parser.
   Module CD := P.Control.ControlDecl.
   Module TP := P.TopDecl.
   Module F := P.F.
@@ -523,8 +523,8 @@ Module Step.
             (tbls : tenv) (aa : aenv)
             (apply_blk : ST.s tags_t)  (* control instance *)
     | PInst (closure : epsilon) (fs : fenv) (ins : ienv)
-            (strt : PS.state_block tags_t)
-            (states : F.fs string (PS.state_block tags_t))
+            (strt : PR.state_block tags_t)
+            (states : F.fs string (PR.state_block tags_t))
     | EInst (* TODO: extern object instance *)
     with ienv : Type :=
     | IEnv (ins : Env.t string inst).
@@ -871,24 +871,24 @@ Module Step.
 
   (** Parser-expression evaluation. *)
   Inductive parser_expr_big_step
-            {tags_t} (ϵ : epsilon) : PS.e tags_t -> PS.state -> Prop :=
-  | pebs_goto (st : PS.state) (i : tags_t) :
+            {tags_t} (ϵ : epsilon) : PR.e tags_t -> PR.state -> Prop :=
+  | pebs_goto (st : PR.state) (i : tags_t) :
       ⦑ ϵ, goto st @ i ⦒ ⇓ st
-  | pebs_select (e : E.e tags_t) (def : PS.e tags_t)
-                (cases : F.fs (E.e tags_t) (PS.e tags_t))
-                (i : tags_t) (v : V.v) (st_def : PS.state)
-                (vcases : F.fs V.v PS.state) :
+  | pebs_select (e : E.e tags_t) (def : PR.e tags_t)
+                (cases : F.fs PR.pat (PR.e tags_t))
+                (i : tags_t) (v : V.v) (st_def : PR.state)
+                (vcases : F.fs PR.pat PR.state) :
       ⟨ ϵ, e ⟩ ⇓ v ->
       Forall2
-        (fun epe vps =>
-           let e := fst epe in
-           let v := fst vps in
-           let pe := snd epe in
-           let ps := snd vps in
-           ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+        (fun pe ps =>
+           let p := fst pe in
+           let p' := fst ps in
+           let e := snd pe in
+           let s := snd ps in
+           p = p' /\ ⦑ ϵ, e ⦒ ⇓ s)
         cases vcases ->
       ⦑ ϵ, def ⦒ ⇓ st_def ->
-      let st := match F.get v vcases with
+      let st := match F.find_value (fun p => V.ValueUtil.match_pattern p v) vcases with
                 | None => st_def
                 | Some st => st
                 end in
@@ -899,7 +899,7 @@ Module Step.
 
   Section ParserExprInduction.
     Variable tags_t : Type.
-    Variable P : epsilon -> PS.e tags_t -> PS.state -> Prop.
+    Variable P : epsilon -> PR.e tags_t -> PR.state -> Prop.
 
     Hypothesis HGoto : forall ϵ st i,
       P ϵ p{ goto st @ i }p st.
@@ -908,49 +908,49 @@ Module Step.
                            st_def vcases,
       ⟨ ϵ, e ⟩ ⇓ v ->
       Forall2
-        (fun epe vps =>
-           let e := fst epe in
-           let v := fst vps in
-           let pe := snd epe in
-           let ps := snd vps in
-           ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+        (fun pe ps =>
+           let p := fst pe in
+           let p' := fst ps in
+           let e := snd pe in
+           let s := snd ps in
+           p = p' /\ ⦑ ϵ, e ⦒ ⇓ s)
         cases vcases ->
-      Forall2 (fun epe vps =>
-                 let pe := snd epe in
-                 let ps := snd vps in
-                 P ϵ pe ps) cases vcases ->
+      Forall2 (fun pe ps =>
+                 let e := snd pe in
+                 let s := snd ps in
+                 P ϵ e s) cases vcases ->
       ⦑ ϵ, def ⦒ ⇓ st_def ->
       P ϵ def st_def ->
-      let st := match F.get v vcases with
+      let st := match F.find_value (fun p => V.ValueUtil.match_pattern p v) vcases with
                 | None => st_def
                 | Some st => st
                 end in
       P ϵ p{ select e { cases } default:=def @ i }p st.
 
     Definition custom_parser_expr_big_step_ind :
-      forall (ϵ : epsilon) (e : PS.e tags_t) (st : PS.state),
+      forall (ϵ : epsilon) (e : PR.e tags_t) (st : PR.state),
         ⦑ ϵ, e ⦒ ⇓ st -> P ϵ e st :=
       fix pebsind ϵ e st H :=
         let fix cases_ind
-                {cases : F.fs (E.e tags_t) (PS.e tags_t)}
-                {vcases : F.fs V.v PS.state}
+                {cases : F.fs PR.pat (PR.e tags_t)}
+                {vcases : F.fs PR.pat PR.state}
                 (Hcases :
                    Forall2
-                     (fun epe vps =>
-                        let e := fst epe in
-                        let v := fst vps in
-                        let pe := snd epe in
-                        let ps := snd vps in
-                        ⦑ ϵ, pe ⦒ ⇓ ps /\ ⟨ ϵ, e ⟩ ⇓ v)
+                     (fun pe ps =>
+                        let p := fst pe in
+                        let p' := fst ps in
+                        let e := snd pe in
+                        let s := snd ps in
+                        p = p' /\ ⦑ ϵ, e ⦒ ⇓ s)
                      cases vcases)
             : Forall2
-                (fun epe vps =>
-                   let pe := snd epe in
-                   let ps := snd vps in
-                   P ϵ pe ps) cases vcases :=
+                (fun pe ps =>
+                   let e := snd pe in
+                   let s := snd ps in
+                   P ϵ e s) cases vcases :=
             match Hcases with
             | Forall2_nil _ => Forall2_nil _
-            | Forall2_cons _ _ (conj Hcase _) Htail
+            | Forall2_cons _ _ (conj _ Hcase) Htail
               => Forall2_cons _ _ (pebsind _ _ _ Hcase) (cases_ind Htail)
             end in
         match H with
@@ -964,9 +964,9 @@ Module Step.
   End ParserExprInduction.
 
   Definition get_state_block {tags_t : Type}
-             (strt : PS.state_block tags_t)
-             (states : F.fs string (PS.state_block tags_t))
-             (curr : PS.state) : option (PS.state_block tags_t) :=
+             (strt : PR.state_block tags_t)
+             (states : F.fs string (PR.state_block tags_t))
+             (curr : PR.state) : option (PR.state_block tags_t) :=
     match curr with
     | ={ start }= => Some strt
     | ={ δ x }=  => F.get x states
@@ -1119,8 +1119,8 @@ Module Step.
   | sbs_prsr_accept_apply (args : E.args tags_t)
                           (argsv : V.argsv)
                           (x : string) (i : tags_t)
-                          (strt : PS.state_block tags_t)
-                          (states : F.fs string (PS.state_block tags_t))
+                          (strt : PR.state_block tags_t)
+                          (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (iins : ienv)
                           (closure ϵ' ϵ'' ϵ''' : epsilon) :
       (* Instance lookup *)
@@ -1141,8 +1141,8 @@ Module Step.
   | sbs_prsr_reject_apply (args : E.args tags_t)
                           (argsv : V.argsv)
                           (x : string) (i : tags_t)
-                          (strt : PS.state_block tags_t)
-                          (states : F.fs string (PS.state_block tags_t))
+                          (strt : PR.state_block tags_t)
+                          (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (iins : ienv)
                           (closure ϵ' ϵ'' ϵ''' : epsilon) :
       (* Instance lookup *)
@@ -1181,24 +1181,24 @@ Module Step.
   with bigstep_state_machine {tags_t : Type}
          (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
          (ins : ienv) (ϵ : epsilon) :
-         PS.state_block tags_t -> (F.fs string (PS.state_block tags_t)) ->
-         PS.state -> epsilon -> PS.state -> Prop :=
-  | bsm_accept (strt : PS.state_block tags_t)
-               (states : F.fs string (PS.state_block tags_t))
-               (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
+         PR.state_block tags_t -> (F.fs string (PR.state_block tags_t)) ->
+         PR.state -> epsilon -> PR.state -> Prop :=
+  | bsm_accept (strt : PR.state_block tags_t)
+               (states : F.fs string (PR.state_block tags_t))
+               (curr : PR.state) (currb : PR.state_block tags_t) (ϵ' : epsilon) :
       get_state_block strt states curr = Some currb ->
       Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ accept }=⟩ ->
       Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ accept }=⟩
-  | bsm_reject (strt : PS.state_block tags_t)
-               (states : F.fs string (PS.state_block tags_t))
-               (curr : PS.state) (currb : PS.state_block tags_t) (ϵ' : epsilon) :
+  | bsm_reject (strt : PR.state_block tags_t)
+               (states : F.fs string (PR.state_block tags_t))
+               (curr : PR.state) (currb : PR.state_block tags_t) (ϵ' : epsilon) :
       get_state_block strt states curr = Some currb ->
       Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ reject }=⟩ ->
       Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ reject }=⟩
-  | bsm_continue (strt : PS.state_block tags_t)
-                 (states : F.fs string (PS.state_block tags_t))
-                 (curr : PS.state) (currb : PS.state_block tags_t)
-                 (next : PS.state) (final : PS.state) (ϵ' ϵ'' : epsilon) :
+  | bsm_continue (strt : PR.state_block tags_t)
+                 (states : F.fs string (PR.state_block tags_t))
+                 (curr : PR.state) (currb : PR.state_block tags_t)
+                 (next : PR.state) (final : PR.state) (ϵ' ϵ'' : epsilon) :
       get_state_block strt states curr = Some currb ->
       Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', next⟩ ->
       Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, next) ⇝ ⟨ϵ'', final⟩ ->
@@ -1210,13 +1210,13 @@ Module Step.
   with bigstep_state_block {tags_t : Type}
          (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
          (ins : ienv) (ϵ : epsilon) :
-         PS.state_block tags_t -> epsilon -> PS.state -> Prop :=
-  | bsb_reject (s : ST.s tags_t) (e : PS.e tags_t)
+         PR.state_block tags_t -> epsilon -> PR.state -> Prop :=
+  | bsb_reject (s : ST.s tags_t) (e : PR.e tags_t)
                (ϵ' : epsilon) :
       ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct ⟫ ->
       Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', ={reject}=⟩
-  | bsb_cont (s : ST.s tags_t) (e : PS.e tags_t)
-             (st : PS.state) (ϵ' : epsilon) :
+  | bsb_cont (s : ST.s tags_t) (e : PR.e tags_t)
+             (st : PR.state) (ϵ' : epsilon) :
       ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
       ⦑ ϵ', e ⦒ ⇓ st ->
       Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', st⟩

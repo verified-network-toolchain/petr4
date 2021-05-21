@@ -2,7 +2,7 @@ Require Import Poulet4.P4cub.SmallStep.
 
 Module P := Poulet4.P4cub.AST.P4cub.
 Module E := P.Expr.
-Module PS := P.Parser.ParserState.
+Module PR := P.Parser.
 Import P.P4cubNotations.
 Import Step.
 Import F.FieldTactics.
@@ -90,17 +90,13 @@ Section Determinism.
     Local Hint Extern 0 => inv_Forall_cons : core.
 
     Lemma parser_expr_deterministic :
-      forall ϵ (e e1 e2 : PS.e tags_t),
+      forall ϵ (e e1 e2 : PR.e tags_t),
         π ϵ, e -->  e1 -> π ϵ, e -->  e2 -> e1 = e2.
     Proof.
       intros ϵ e e1 e2 He1; generalize dependent e2;
       induction He1; intros e2 He2;
       inv He2; f_equal; repeat subst_term;
       autorewrite with core in *; intuition; unravel in *; eauto 2.
-      assert (~ (V.value ∘ fst) (e, pe)) by (unravel; auto 1).
-      assert (~ (V.value ∘ fst) (e0, pe0)) by (unravel; auto 1).
-      eapply Forall_until_eq in H4 as [? [? ?]]; eauto 1; subst;
-      repeat f_equal; inv H5; eauto 2.
     Qed.
   End ParserExprDeterminism.
 End Determinism.

@@ -6,12 +6,6 @@ Require Import Poulet4.P4cub.AST.
 Import Field.
 Import P4cub.P4cubNotations.
 
-(*Require Import Poulet4.Syntax.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
-Require Import Poulet4.Step.
-Require Import Poulet4.P4String. *)
-
 Import ListNotations.
 
 Open Scope list_scope.
@@ -22,7 +16,7 @@ Section Unroll.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
   Notation tpdecl := (P4cub.TopDecl.d tags_t).
-  Notation ParserState := (P4cub.Parser.ParserState.state_block tags_t).
+  Notation ParserState := (P4cub.Parser.state_block tags_t).
 
   Definition CFG : Type :=
     prod (list (prod string ParserState)) (list (prod string (list string))).

@@ -81,6 +81,12 @@ Module Field.
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
 
+    Fixpoint find_value {K V : Type} (f : K -> bool) (fds : fs K V) : option V :=
+      match fds with
+      | [] => None
+      | (k, v) :: fds => if f k then Some v else find_value f fds
+      end.
+    
     Section GetUpdate.
       Context {K U : Type}.
       Context {keq : K -> K -> Prop}.

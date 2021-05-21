@@ -19,6 +19,7 @@ Reserved Notation "∮ e1 ≡ e2"
 
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4prsrstate.
+Declare Custom Entry p4selectpattern.
 Declare Custom Entry p4prsrexpr.
 Declare Custom Entry p4prsrstateblock.
 Declare Custom Entry p4ctrldecl.
@@ -1437,102 +1438,169 @@ Module P4cub.
     Module E := Expr.
     Module S := Stmt.
 
-    Module ParserState.
-      Inductive state : Set :=
-      | STStart | STAccept | STReject | STName (st : string).
+    Inductive state : Set :=
+    | STStart | STAccept | STReject | STName (st : string).
+    (**[]*)
+
+    (** Select expression pattern.
+        Corresponds to keySet expressions in p4. *)
+    Inductive pat : Type :=
+    | PATWild
+    | PATMask (p1 p2 : pat)
+    | PATRange (p1 p2 : pat)
+    | PATBit (w : positive) (n : Z)
+    | PATInt (w : positive) (n : Z)
+    | PATTuple (ps : list pat).
+    (**[]*)
+
+    Section Parsers.
+      Variable (tags_t : Type).
+
+      (** Parser expressions, which evaluate to state names *)
+      Inductive e : Type :=
+      | PGoto (st : state) (i : tags_t) (* goto state [st] *)
+      | PSelect (exp : E.e tags_t) (default : e)
+                (cases : F.fs pat e)
+                (i : tags_t)        (* select expressions,
+                                       where "default" is
+                                       the wild card case *).
       (**[]*)
 
-      Section Parsers.
-        Variable (tags_t : Type).
+      (** Parser State Blocks. *)
+      Inductive state_block : Type :=
+      | State (stmt : S.s tags_t) (transition : e).
+      (**[]*)
+    End Parsers.
 
-        (** Parser expressions, which evaluate to state names *)
-        Inductive e : Type :=
-        | PGoto (st : state) (i : tags_t) (* goto state [st] *)
-        | PSelect (exp : E.e tags_t) (default : e)
-                  (cases : F.fs (E.e tags_t) e)
-                  (i : tags_t)        (* select expressions,
-                                         where "default" is
-                                         the wild card case *).
-        (**[]*)
+    Arguments PGoto {_}.
+    Arguments PSelect {_}.
+    Arguments State {_}.
 
-        (** Parser State Blocks. *)
-        Inductive state_block : Type :=
-        | State (stmt : S.s tags_t) (transition : e).
-        (**[]*)
-      End Parsers.
+    Module ParserNotations.
+      Notation "'={' st '}='" := st (st custom p4prsrstate at level 99).
+      Notation "( x )" := x (in custom p4prsrstate, x at level 99).
+      Notation "x"
+        := x (in custom p4prsrstate at level 0, x constr at level 0).
+      Notation "'start'" := STStart (in custom p4prsrstate at level 0).
+      Notation "'accept'" := STAccept (in custom p4prsrstate at level 0).
+      Notation "'reject'" := STReject (in custom p4prsrstate at level 0).
+      Notation "'δ' x" := (STName x) (in custom p4prsrstate at level 0).
+      Notation "'[{' p '}]'" := p (p custom p4selectpattern at level 99).
+      Notation "( x )" := x (in custom p4selectpattern, x at level 99).
+      Notation "x"
+        := x (in custom p4selectpattern at level 0, x constr at level 0).
+      Notation "'??'" := PATWild (in custom p4selectpattern at level 0).
+      Notation "w 'PW' n" := (PATBit w n) (in custom p4selectpattern at level 0).
+      Notation "w 'PS' z" := (PATInt w z) (in custom p4selectpattern at level 0).
+      Notation "'PTUP' ps" := (PATTuple ps) (in custom p4selectpattern at level 0).
+      Notation "p1 '&&&' p2"
+        := (PATMask p1 p2)
+             (in custom p4selectpattern at level 10,
+                 p1 custom p4selectpattern, p2 custom p4selectpattern,
+                 right associativity).
+      Notation "p1 '..' p2"
+        := (PATRange p1 p2)
+             (in custom p4selectpattern at level 12,
+                 p1 custom p4selectpattern, p2 custom p4selectpattern,
+                 right associativity).
+      Notation "'p{' exp '}p'" := exp (exp custom p4prsrexpr at level 99).
+      Notation "( x )" := x (in custom p4prsrexpr, x at level 99).
+      Notation "x"
+        := x (in custom p4prsrexpr at level 0, x constr at level 0).
+      Notation "'goto' st @ i"
+        := (PGoto st i)
+             (in custom p4prsrexpr at level 0,
+                 st custom p4prsrstate).
+      Notation "'select' exp { cases } 'default' ':=' def @ i"
+        := (PSelect exp def cases i)
+             (in custom p4prsrexpr at level 10,
+                 exp custom p4expr).
+      Notation "'&{' st '}&'" := st (st custom p4prsrstateblock at level 99).
+      Notation "( x )" := x (in custom p4prsrstateblock, x at level 99).
+      Notation "x"
+        := x (in custom p4prsrstateblock at level 0, x constr at level 0).
+      Notation "'state' { s } 'transition' pe"
+        := (State s pe)
+             (in custom p4prsrstateblock at level 0,
+                 s custom p4stmt, pe custom p4prsrexpr).
+    End ParserNotations.
 
-      Arguments PGoto {_}.
-      Arguments PSelect {_}.
-      Arguments State {_}.
+    (** A custom induction principle for select patterns. *)
+    Section PatternInduction.
+      Import ParserNotations.
+      
+      Variable P : pat -> Prop.
+      
+      Hypothesis HWild : P [{ ?? }].
 
-      Module ParserNotations.
-        Notation "'={' st '}='" := st (st custom p4prsrstate at level 99).
-        Notation "( x )" := x (in custom p4prsrstate, x at level 99).
-        Notation "x"
-          := x (in custom p4prsrstate at level 0, x constr at level 0).
-        Notation "'start'" := STStart (in custom p4prsrstate at level 0).
-        Notation "'accept'" := STAccept (in custom p4prsrstate at level 0).
-        Notation "'reject'" := STReject (in custom p4prsrstate at level 0).
-        Notation "'δ' x" := (STName x) (in custom p4prsrstate at level 0).
-        Notation "'p{' exp '}p'" := exp (exp custom p4prsrexpr at level 99).
-        Notation "( x )" := x (in custom p4prsrexpr, x at level 99).
-        Notation "x"
-          := x (in custom p4prsrexpr at level 0, x constr at level 0).
-        Notation "'goto' st @ i"
-                 := (PGoto st i)
-                      (in custom p4prsrexpr at level 0,
-                          st custom p4prsrstate).
-        Notation "'select' exp { cases } 'default' ':=' def @ i"
-                 := (PSelect exp def cases i)
-                      (in custom p4prsrexpr at level 10,
-                          exp custom p4expr).
-        Notation "'&{' st '}&'" := st (st custom p4prsrstateblock at level 99).
-        Notation "( x )" := x (in custom p4prsrstateblock, x at level 99).
-        Notation "x"
-          := x (in custom p4prsrstateblock at level 0, x constr at level 0).
-        Notation "'state' { s } 'transition' pe"
-                 := (State s pe)
-                      (in custom p4prsrstateblock at level 0,
-                          s custom p4stmt, pe custom p4prsrexpr).
-      End ParserNotations.
+      Hypothesis HMask : forall p1 p2,
+          P p1 -> P p2 -> P [{ p1 &&& p2 }].
 
-      (** A custom induction principle
-          for parser expressions. *)
-      Section ParserExpreInduction.
-        Import ParserNotations.
-        Import E.ExprNotations.
+      Hypothesis HRange : forall p1 p2,
+          P p1 -> P p2 -> P [{ p1 .. p2 }].
 
-        Context {tags_t : Type}.
+      Hypothesis HBit : forall w n, P [{ w PW n }].
 
-        (** An arbitrary predicate. *)
-        Variable P : e tags_t -> Prop.
+      Hypothesis HInt : forall w n, P [{ w PS n }].
 
-        Hypothesis HState : forall st i, P p{ goto st @ i }p.
+      Hypothesis HTuple : forall ps,
+          Forall P ps -> P [{ PTUP ps }].
 
-        Hypothesis HSelect : forall exp st cases i,
-            F.predfs_data P cases ->
-            P p{ select exp { cases } default:=st @ i }p.
-        (**[]*)
+      (** A custom induction principle,
+          do [induction ?H using custom_pat_ind]. *)
+      Definition custom_pat_ind : forall (p : pat), P p :=
+        fix pind (p : pat) : P p :=
+          let fix lind (ps : list pat) : Forall P ps :=
+              match ps with
+              | [] => Forall_nil _
+              | p::ps => Forall_cons p (pind p) (lind ps)
+              end in
+          match p with
+          | [{ ?? }] => HWild
+          | [{ p1 &&& p2 }] => HMask p1 p2 (pind p1) (pind p2)
+          | [{ p1 .. p2 }] => HRange p1 p2 (pind p1) (pind p2)
+          | [{ w PW n }] => HBit w n
+          | [{ w PS z }] => HInt w z
+          | [{ PTUP ps }] => HTuple ps (lind ps)
+          end.
+      (**[]*)
+    End PatternInduction.
 
-        (** A custom induction principle,
-            do [induction ?H using pe_ind] *)
-        Definition pe_ind : forall pe : e tags_t, P pe :=
-          fix peind pe : P pe :=
-            let fix fsind {A : Type} (es : F.fs A (e tags_t))
-                : F.predfs_data P es :=
-                match es with
-                | [] => Forall_nil _
-                | (_,pe) as epe :: es =>
-                  Forall_cons epe (peind pe) (fsind es)
-                end in
-            match pe with
-            | p{ goto st @ i }p => HState st i
-            | p{ select exp { cases } default:=st @ i }p
-              => HSelect exp st _ i (fsind cases)
-            end.
-        (**[]*)
-      End ParserExpreInduction.
-    End ParserState.
+    (** A custom induction principle for parser expressions. *)
+    Section ParserExprInduction.
+      Import ParserNotations.
+      Import E.ExprNotations.
+      
+      Context {tags_t : Type}.
+
+      (** An arbitrary predicate. *)
+      Variable P : e tags_t -> Prop.
+
+      Hypothesis HState : forall st i, P p{ goto st @ i }p.
+
+      Hypothesis HSelect : forall exp st cases i,
+          F.predfs_data P cases ->
+          P p{ select exp { cases } default:=st @ i }p.
+      (**[]*)
+
+      (** A custom induction principle,
+          do [induction ?H using pe_ind] *)
+      Definition pe_ind : forall pe : e tags_t, P pe :=
+        fix peind pe : P pe :=
+          let fix fsind {A : Type} (es : F.fs A (e tags_t))
+              : F.predfs_data P es :=
+              match es with
+              | [] => Forall_nil _
+              | (_,pe) as epe :: es =>
+                Forall_cons epe (peind pe) (fsind es)
+              end in
+          match pe with
+          | p{ goto st @ i }p => HState st i
+          | p{ select exp { cases } default:=st @ i }p
+            => HSelect exp st _ i (fsind cases)
+          end.
+      (**[]*)
+    End ParserExprInduction.
   End Parser.
 
   (** * Controls *)
@@ -1592,7 +1660,7 @@ Module P4cub.
     Module E := Expr.
     Module S := Stmt.
     Module C := Control.ControlDecl.
-    Module P := Parser.ParserState.
+    Module P := Parser.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
@@ -1672,7 +1740,7 @@ Module P4cub.
     Export Expr.MatchkindNotations.
     Export Expr.ExprNotations.
     Export Stmt.StmtNotations.
-    Export Parser.ParserState.ParserNotations.
+    Export Parser.ParserNotations.
     Export Control.ControlDecl.ControlDeclNotations.
     Export TopDecl.TopDeclNotations.
   End P4cubNotations.

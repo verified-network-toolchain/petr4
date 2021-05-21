@@ -43,7 +43,7 @@ Module Typecheck.
   Module PT := E.ProperType.
 
   Module ST := P.Stmt.
-  Module PS := P.Parser.ParserState.
+  Module PR := P.Parser.
   Module CD := P.Control.ControlDecl.
   Module TD := P.TopDecl.
   Module F := P.F.
@@ -285,7 +285,7 @@ Module Typecheck.
     Definition user_states : Type := strs.
 
     (** Valid parser states. *)
-    Inductive valid_state (us : user_states) : PS.state -> Prop :=
+    Inductive valid_state (us : user_states) : PR.state -> Prop :=
     | start_valid :
         valid_state us ={ start }=
     | accept_valid :
@@ -633,6 +633,150 @@ Module Typecheck.
       lvalue_ok <{ Access e[idx] @ i }>.
   (**[]*)
 
+  (** Select-pattern-typing. *)
+  Inductive check_pat : PR.pat -> E.t -> Prop :=
+  | chk_wild t : check_pat [{ ?? }] t
+  | chk_mask p1 p2 w :
+      check_pat p1 {{ bit<w> }} ->
+      check_pat p2 {{ bit<w> }} ->
+      check_pat [{ p1 &&& p2 }] {{ bit<w> }}
+  | chk_range p1 p2 w :
+      check_pat p1 {{ bit<w> }} ->
+      check_pat p2 {{ bit<w> }} ->
+      check_pat [{ p1 .. p2 }] {{ bit<w> }}
+  | chk_pbit w n :
+      check_pat [{ w PW n }] {{ bit<w> }}
+  | chk_pint w z :
+      check_pat [{ w PS z }] {{ int<w> }}
+  | chk_ptup ps ts :
+      Forall2 check_pat ps ts ->
+      check_pat [{ PTUP ps }] {{ tuple ts }}.
+  (**[]*)
+
+  Section PatternCheckInduction.
+    Variable P : PR.pat -> E.t -> Prop.
+
+    Hypothesis HWild : forall t, P [{ ?? }] t.
+
+    Hypothesis HMask : forall p1 p2 w,
+        check_pat p1 {{ bit<w> }} ->
+        P p1 {{ bit<w> }} ->
+        check_pat p2 {{ bit<w> }} ->
+        P p2 {{ bit<w> }} ->
+        P [{ p1 &&& p2 }] {{ bit<w> }}.
+
+    Hypothesis HRange : forall p1 p2 w,
+        check_pat p1 {{ bit<w> }} ->
+        P p1 {{ bit<w> }} ->
+        check_pat p2 {{ bit<w> }} ->
+        P p2 {{ bit<w> }} ->
+        P [{ p1 .. p2 }] {{ bit<w> }}.
+
+    Hypothesis HBit : forall w n, P [{ w PW n }] {{ bit<w> }}.
+
+    Hypothesis HInt : forall w z, P [{ w PS z }] {{ int<w> }}.
+
+    Hypothesis HTuple : forall ps ts,
+        Forall2 check_pat ps ts ->
+        Forall2 P ps ts ->
+        P [{ PTUP ps }] {{ tuple ts }}.
+
+    Definition custom_check_pat_ind : forall p t,
+        check_pat p t -> P p t :=
+      fix pind p t (H : check_pat p t) :=
+        let fix lind {ps : list PR.pat} {ts : list E.t}
+                 (H : Forall2 check_pat ps ts) : Forall2 P ps ts :=
+            match H with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ Hh Ht
+              => Forall2_cons _ _ (pind _ _ Hh) (lind Ht)
+            end in
+        match H with
+        | chk_wild _ => HWild _
+        | chk_mask _ _ _ Hp1 Hp2
+          => HMask _ _ _ Hp1 (pind _ _ Hp1) Hp2 (pind _ _ Hp2)
+        | chk_range _ _ _ Hp1 Hp2
+          => HRange _ _ _ Hp1 (pind _ _ Hp1) Hp2 (pind _ _ Hp2)
+        | chk_pbit w n => HBit w n
+        | chk_pint w z => HInt w z
+        | chk_ptup _ _ H => HTuple _ _ H (lind H)
+        end.
+    (**[]*)
+  End PatternCheckInduction.
+                           
+  (** Parser-expression typing. *)
+  Inductive check_prsrexpr {tags_t : Type}
+            (sts : user_states) (errs : errors) (Γ : gamma)
+    : PR.e tags_t -> Prop :=
+  | chk_goto (st : PR.state) (i : tags_t) :
+      valid_state sts st ->
+      ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
+  | chk_select (e : E.e tags_t) (def : PR.e tags_t)
+               (cases : F.fs PR.pat (PR.e tags_t))
+               (i : tags_t) (τ : E.t) :
+      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+      ⟅ sts, errs, Γ ⟆ ⊢ def ->
+      Forall
+        (fun pe =>
+           let p := fst pe in
+           let e := snd pe in
+           check_pat p τ /\ ⟅ sts, errs, Γ ⟆ ⊢ e) cases ->
+      ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } default:=def @ i
+  where "⟅ sts , ers , gm ⟆ ⊢ e"
+          := (check_prsrexpr sts ers gm e).
+  (**[]*)
+
+  (** A custom induction principle for parser-expression typing. *)
+  Section CheckParserExprInduction.
+    Variable tags_t: Type.
+
+    (** An arbitrary predicate. *)
+    Variable P : user_states -> errors -> gamma -> PR.e tags_t -> Prop.
+
+    Hypothesis HGoto : forall sts errs Γ st i,
+        valid_state sts st ->
+        P sts errs Γ p{ goto st @ i }p.
+
+    Hypothesis HSelect : forall sts errs Γ e def cases i τ,
+        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        ⟅ sts, errs, Γ ⟆ ⊢ def ->
+        P sts errs Γ def ->
+        Forall
+          (fun pe =>
+             let p := fst pe in
+             let e := snd pe in
+             check_pat p τ /\ ⟅ sts, errs, Γ ⟆ ⊢ e) cases ->
+        F.predfs_data (P sts errs Γ) cases ->
+        P sts errs Γ p{ select e { cases } default:=def @ i }p.
+
+    (** Custom induction principle.
+        Do [induction ?H using custom_check_prsrexpr_ind] *)
+    Definition custom_check_prsrexpr_ind :
+      forall (sts : user_states) (errs : errors) (Γ : gamma) (e : PR.e tags_t)
+        (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
+      fix chind sts errs Γ e Hy :=
+        let fix lind
+                {cases : F.fs PR.pat (PR.e tags_t)} {τ : E.t}
+                (HR : Forall
+                        (fun pe =>
+                           let p := fst pe in
+                           let e := snd pe in
+                           check_pat p τ /\ ⟅ sts, errs, Γ ⟆ ⊢ e) cases)
+            : F.predfs_data (P sts errs Γ) cases :=
+            match HR with
+            | Forall_nil _ => Forall_nil _
+            | Forall_cons _ (conj _ He) Htail
+              => Forall_cons _ (chind _ _ _ _ He) (lind Htail)
+            end in
+        match Hy with
+        | chk_goto _ _ _ _ Hst i => HGoto _ _ _ _ Hst i
+        | chk_select _ _ _ _ _ _ i _
+                     He Hd Hcases
+          => HSelect _ _ _ _ _ _ i _ He Hd (chind _ _ _ _ Hd) Hcases (lind Hcases)
+        end.
+    (**[]*)
+  End CheckParserExprInduction.
+  
   (** Statement typing. *)
   Inductive check_stmt
             {tags_t : Type} (fns : fenv) (errs : errors) (Γ : gamma)
@@ -732,7 +876,7 @@ Module Typecheck.
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       ⦃ fns, errs, Γ ⦄
-      con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
+        con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
   | chk_extern_call_fruit (extrn : string) (f : string)
                           (args : E.args tags_t) (e : E.e tags_t)
                           (i : tags_t) (con : ctx) (eis : eienv)
@@ -747,91 +891,17 @@ Module Typecheck.
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
         args params ->
       let result := Some (τ,e) in
-      ⦃ fns, errs, Γ ⦄
-      con ⊢ extern extrn calls f with args gives result @ i ⊣ ⦃ Γ, C ⦄
-  where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
-          := (check_stmt fe ers g1 con s g2 sg).
+      (⦃ fns, errs, Γ ⦄
+        con ⊢ extern extrn calls f with args gives result @ i ⊣ ⦃ Γ, C ⦄)
+  where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄" := (check_stmt fe ers g1 con s g2 sg).
   (**[]*)
-
-  (** Parser-expression typing. *)
-  Inductive check_prsrexpr {tags_t : Type}
-            (sts : user_states) (errs : errors) (Γ : gamma)
-    : PS.e tags_t -> Prop :=
-  | chk_goto (st : PS.state) (i : tags_t) :
-      valid_state sts st ->
-      ⟅ sts, errs, Γ ⟆ ⊢ goto st @ i
-  | chk_select (e : E.e tags_t) (def : PS.e tags_t)
-               (cases : F.fs (E.e tags_t) (PS.e tags_t))
-               (i : tags_t) (τ : E.t) :
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⟅ sts, errs, Γ ⟆ ⊢ def ->
-      Forall
-        (fun ep =>
-           let e := fst ep in
-           let p := snd ep in
-           ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases ->
-      ⟅ sts, errs, Γ ⟆ ⊢ select e { cases } default:=def @ i
-  where "⟅ sts , ers , gm ⟆ ⊢ e"
-          := (check_prsrexpr sts ers gm e).
-  (**[]*)
-
-  (** A custom induction principle for parser-expression typing. *)
-  Section CheckParserExprInduction.
-    Variable tags_t: Type.
-
-    (** An arbitrary predicate. *)
-    Variable P : user_states -> errors -> gamma -> PS.e tags_t -> Prop.
-
-    Hypothesis HGoto : forall sts errs Γ st i,
-        valid_state sts st ->
-        P sts errs Γ p{ goto st @ i }p.
-
-    Hypothesis HSelect : forall sts errs Γ e def cases i τ,
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-        ⟅ sts, errs, Γ ⟆ ⊢ def ->
-        P sts errs Γ def ->
-        Forall
-          (fun ep =>
-             let e := fst ep in
-             let p := snd ep in
-             ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases ->
-        F.predfs_data (P sts errs Γ) cases ->
-        P sts errs Γ p{ select e { cases } default:=def @ i }p.
-
-    (** Custom induction principle.
-        Do [induction ?H using custom_check_prsrexpr_ind] *)
-    Definition custom_check_prsrexpr_ind :
-      forall (sts : user_states) (errs : errors) (Γ : gamma) (e : PS.e tags_t)
-        (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
-      fix chind sts errs Γ e Hy :=
-        let fix lind
-                {cases : F.fs (E.e tags_t) (PS.e tags_t)} {τ : E.t}
-                (HR : Forall
-                        (fun ep =>
-                           let e := fst ep in
-                           let p := snd ep in
-                           ⟅ sts, errs, Γ ⟆ ⊢ p /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ) cases)
-            : F.predfs_data (P sts errs Γ) cases :=
-            match HR with
-            | Forall_nil _ => Forall_nil _
-            | Forall_cons _ (conj He _) Htail
-              => Forall_cons _ (chind _ _ _ _ He) (lind Htail)
-            end in
-        match Hy with
-        | chk_goto _ _ _ _ Hst i => HGoto _ _ _ _ Hst i
-        | chk_select _ _ _ _ _ _ i _
-                     He Hd Hcases
-          => HSelect _ _ _ _ _ _ i _ He Hd (chind _ _ _ _ Hd) Hcases (lind Hcases)
-        end.
-    (**[]*)
-  End CheckParserExprInduction.
 
   (** Parser State typing. *)
   Inductive check_parser_state
             {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
             (sts : user_states) (errs : errors) (Γ : gamma)
-    : PS.state_block tags_t -> Prop :=
-  | chk_state (s : ST.s tags_t) (e : PS.e tags_t)
+    : PR.state_block tags_t -> Prop :=
+  | chk_state (s : ST.s tags_t) (e : PR.e tags_t)
               (Γ' : gamma) (sg : signal) :
       ⦃ fns, errs, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
       ⟅ sts, errs, Γ' ⟆ ⊢ e ->
@@ -955,8 +1025,8 @@ Module Typecheck.
         ⊣ ⦗ eis, pis, cis, fns, c ↦ ctor;; cs ⦘
   | chk_parser (p : string)
                (cparams : E.constructor_params)
-               (params : E.params) (start_state : PS.state_block tags_t)
-               (states : F.fs string (PS.state_block tags_t)) (i : tags_t)
+               (params : E.params) (start_state : PR.state_block tags_t)
+               (states : F.fs string (PR.state_block tags_t)) (i : tags_t)
                (pis' : pienv) (eis' : eienv)
                (Γ' Γ'' : gamma) :
       let sts := F.fold

@@ -22,7 +22,7 @@ Module V := Val.
 Import V.ValueNotations.
 Import V.LValueNotations.
 Import V.ValueEquality.
-Module PS := P4cub.Parser.ParserState.
+Module PR := P4cub.Parser.
 
 Section parser_to_p4automaton.
 
@@ -83,8 +83,8 @@ Section parser_to_p4automaton.
       | _ => None end.
     
     Definition compile_state_block
-               (stblk : PS.state_block tags_t)
-      : option (state_operation * (PS.e tags_t)) :=
+               (stblk : PR.state_block tags_t)
+      : option (state_operation * (PR.e tags_t)) :=
       match stblk with
       | &{ state { s } transition e }& =>
         so <<| compile_statement s ;;
@@ -92,13 +92,12 @@ Section parser_to_p4automaton.
       end.
 
     Definition compile_state_blocks
-               (stblks : F.fs string (PS.state_block tags_t))
-      : option (F.fs string (state_operation * (PS.e tags_t))) :=
+               (stblks : F.fs string (PR.state_block tags_t))
+      : option (F.fs string (state_operation * (PR.e tags_t))) :=
       let cfld fld :=
           let '(x, stblk) := fld in
           sot <<| compile_state_block stblk ;; (x, sot) in
       sequence $ List.map cfld stblks.
-
   End compile.
 
   Inductive P4Automaton_State :=
@@ -115,8 +114,8 @@ Section parser_to_p4automaton.
     | SOBlock op => operation_size op end.
 
   Definition P4Automaton_size
-             (strt : state_operation * (PS.e tags_t))
-             (states : F.fs string (state_operation * (PS.e tags_t)))
+             (strt : state_operation * (PR.e tags_t))
+             (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State) : nat :=
     match st with
     | START => operation_size (fst strt)
@@ -211,8 +210,8 @@ Section parser_to_p4automaton.
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
-             (strt : state_operation * (PS.e tags_t))
-             (states : F.fs string (state_operation * (PS.e tags_t)))
+             (strt : state_operation * (PR.e tags_t))
+             (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
              (pkt : list bool)
              (e : Step.epsilon) : Step.epsilon :=
@@ -224,31 +223,37 @@ Section parser_to_p4automaton.
       | None => e end
     end.
 
-  (* Fixpoint interp_match (e : Step.epsilon) (m : PS.e tags_t) : bool :=
-    match m with
-    | SimpleMatchEquals l r =>
-      match (interp_expr e l), (interp_expr e r) with
-      | Some b1, Some b2 => eqbv b1 b2
-      | _, _ => false end
-    | SimpleMatchAnd l r =>
-      andb (interp_match e l) (interp_match e r)
-    | SimpleMatchDontCare => true end. *)
-
   Fixpoint interp_transition
            (ϵ : Step.epsilon)
-           (t : PS.e tags_t) : P4Automaton_State + bool :=
+           (t : PR.e tags_t) : P4Automaton_State + bool :=
+    let fix frec (pes : F.fs PR.pat (PR.e tags_t))
+        : F.fs PR.pat (P4Automaton_State + bool) :=
+        match pes with
+        | [] => []
+        | (p, t) :: pes => (p, interp_transition ϵ t) :: frec pes
+        end in
     match t with
     | p{ goto ={ start }= @ _ }p => inl START
     | p{ goto ={ accept }= @ _ }p => inr true
     | p{ goto ={ reject }= @ _ }p => inr false
     | p{ goto ={ δ x }= @ _ }p => inl (ST_VAR x)
     | p{ select se { cs } default := def @ _ }p =>
-      inr false (* TODO: redesign transition type for better decreasing fixpoint thing *)
+      match interp_expr ϵ se with
+      | None => inr false
+      | Some v =>
+        match F.find_value
+                (fun p => V.ValueUtil.match_pattern p v)
+                (frec cs) with
+        | None => interp_transition ϵ def
+        | Some r => r
+        end
+      end
     end.
+  (**[]*)
   
   Definition P4Automaton_transitions
-             (strt : state_operation * (PS.e tags_t))
-             (states : F.fs string (state_operation * (PS.e tags_t)))
+             (strt : state_operation * (PR.e tags_t))
+             (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
              (e : Step.epsilon) : P4Automaton_State + bool :=
     match st with
@@ -260,8 +265,8 @@ Section parser_to_p4automaton.
     end.
 
   Definition parser_to_p4automaton
-      (strt : PS.state_block tags_t)
-      (states : F.fs string (PS.state_block tags_t))
+      (strt : PR.state_block tags_t)
+      (states : F.fs string (PR.state_block tags_t))
     :=
     let strt := compile_state_block strt in
     let states := compile_state_blocks states in

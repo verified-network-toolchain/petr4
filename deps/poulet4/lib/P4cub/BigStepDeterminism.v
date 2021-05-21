@@ -3,7 +3,7 @@ Require Import Poulet4.P4cub.BigStep.
 
 Module P := Poulet4.P4cub.AST.P4cub.
 Module E := P.Expr.
-Module PS := P.Parser.ParserState.
+Module PR := P.Parser.
 Module V := Val.
 Import P.P4cubNotations.
 Import V.ValueNotations.
@@ -68,7 +68,7 @@ Section Determinism.
   End LValueDeterminism.
 
   Theorem parser_expr_deterministic :
-    forall (ϵ : epsilon) (e : PS.e tags_t) (st1 st2 : PS.state),
+    forall (ϵ : epsilon) (e : PR.e tags_t) (st1 st2 : PR.state),
       ⦑ ϵ, e ⦒ ⇓ st1 -> ⦑ ϵ, e ⦒ ⇓ st2 -> st1 = st2.
   Proof.
     intros ϵ e st1 st2 Hst1; generalize dependent st2;
@@ -83,7 +83,8 @@ Section Determinism.
       induction H0; intros [| [? ?] ?] ?;
       repeat inv_Forall2_cons; try reflexivity.
       destruct x as [? ?]; destruct y as [? ?]; unravel in *.
-      repeat f_equal; intuition; eauto using expr_deterministic. }
-    symmetry in Hcases; subst. reflexivity.
+      intuition; subst. apply H8 in H4; subst.
+      apply H5 in H11; subst; reflexivity. }
+    rewrite Hcases; reflexivity.
   Qed.
 End Determinism.

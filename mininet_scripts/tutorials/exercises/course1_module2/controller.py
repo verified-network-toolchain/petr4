@@ -4,34 +4,39 @@ from petr4.runtime import *
 from tornado.ioloop import *
 
 SWITCHES_EXPECTED = 7
+CTRL_PT = 510
+CTRL_MAC = "00:00:00:00:00:00" #TODO
+CTRL_MAC = CTRL_MAC.replace(":", "")
+DISCOVERY_ETHERTYPE = "2A2A"
 
-class DiscoveryApp(App):
-    def discover_topo_h(self):
-        if len(self.switches) == SWITCHES_EXPECTED:
-            print("all switches up; waited long enough!")
-        else:
-            print("some switches not up; didn't wait long enough")
-            
+def switch_mac(switch):
+    return CTRL_MAC #TODO
+
+class DiscoveryApp(App):            
     
     def discover_topo(self):
-        print("discover topology entry point reached")
         
-        topo = Topology()
+        if len(self.switches) != SWITCHES_EXPECTED:
+            IOLoop.instance().call_later(delay=3, callback=self.discover_topo)
+            # TODO: Does this get stack overflow eventually? seems not to...
 
-        for i in range(1, 5):
-            topo.add_host("h" + str(i))
+        else:
+            
+            for i in range(1, 5):
+                self.topo.add_host("h" + str(i))
+                # TODO: handle host links?
 
-        call_at(5.0, self.discover_topo_h)
-
-        # while len(self.switches) < 7:
-          #  print("still in while loop")
-           # yield gen.sleep(0.5)
-
-        
+            for key, value in self.switches.items():
+                self.topo.add_switch(key)
+                ethernet_hdr = CTRL_MAC + switch_mac(key) + DISCOVERY_ETHERTYPE
+                switch_id = "0" + key.replace("s", "")
+                discovery_hdr = switch_id + "FFFF"
+                self.packet_out(key, CTRL_PT, ethernet_hdr + discovery_hdr)
     
     def __init__(self, port=9000):
         super().__init__(port)
         self.switches = dict()
+        self.topo = Topology()
         self.discover_topo()
 
     def switch_up(self, switch, ports):

@@ -26,9 +26,9 @@ class App(object):
     def packet_out(self, switch, in_port, packet_out):
         print(f"Petr4: packet_out({switch}, {packet_out})")
         msg = json.dumps(["PacketOut", 
-                          { "switch" : self.switch,
-                            "in_port" : self.in_port,
-                            "packet" : self.packet }])
+                          { "switch" : switch,
+                            "in_port" : in_port,
+                            "packet" : packet_out }])
         self.msg_queues[switch].put(msg)
         return
 
@@ -54,6 +54,7 @@ class App(object):
             self.app = app
         async def post(self):
             packet_in = tornado.escape.json_decode(self.request.body)[1]
+            print(packet_in)
             packet = packet_in["pkt"]
             self.app.packet_in("switch", "port", packet)
             

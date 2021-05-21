@@ -3,6 +3,9 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x800;
+const bit<16> TYPE_DISCOVERY = 0x2A2A;
+const bit<9> CTRL_PT = 9w510;
+const bit<8> UNINIT = 0xFF;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -33,13 +36,20 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header discovery_hdr_t {
+    bit<8> start_id;
+    bit<8> start_pt;
+    bit<8> end_pt;
+}
+
 struct metadata {
     /* empty */
 }
 
 struct headers {
-    ethernet_t   ethernet;
-    ipv4_t       ipv4;
+    ethernet_t      ethernet;
+    ipv4_t          ipv4;
+    discovery_hdr_t discovery;
 }
 
 /*************************************************************************
@@ -59,6 +69,7 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             TYPE_IPV4: parse_ipv4;
+	    TYPE_DISCOVERY: parse_discovery;
             default: accept;
         }
     }
@@ -66,6 +77,11 @@ parser MyParser(packet_in packet,
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
         transition accept;
+    }
+
+    state parse_discovery {
+	packet.extract(hdr.discovery);
+	transition accept;
     }
 
 }
@@ -114,6 +130,14 @@ control MyIngress(inout headers hdr,
         if (hdr.ipv4.isValid()) {
             ipv4_lpm.apply();
         }
+	else if (hdr.discovery.isValid() && hdr.discovery.start_pt != UNINIT) {
+	    hdr.discovery.end_pt = (bit<8>) standard_metadata.ingress_port;
+	    standard_metadata.egress_spec = CTRL_PT;
+	}
+	else if (hdr.discovery.isValid() && hdr.discovery.start_pt == UNINIT) {
+	    standard_metadata.mcast_grp = 1;
+	}
+	
     }
 }
 
@@ -124,7 +148,11 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+    apply {
+	if (hdr.discovery.isValid() && hdr.discovery.start_pt == UNINIT) {
+	    hdr.discovery.start_pt = (bit<8>) standard_metadata.egress_port;
+	}
+    }
 }
 
 /*************************************************************************
@@ -159,6 +187,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
+	packet.emit(hdr.discovery);
     }
 }
 

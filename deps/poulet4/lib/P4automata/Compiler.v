@@ -188,25 +188,25 @@ Section parser_to_p4automaton.
   Fixpoint interp_operation
            (pkt : list bool)
            (e : Step.epsilon)
-           (operation : state_operation) : Step.epsilon :=
+           (operation : state_operation) : option Step.epsilon :=
     match operation with
-    | SONil => e
-    | SOSeq op1 op2 => interp_operation pkt (interp_operation pkt e op2) op2
+    | SONil => Some e
+    | SOSeq op1 op2 =>
+      e <- interp_operation pkt e op1 ;;
+      interp_operation pkt e op2
     | SOExtract τ lv =>
       (* let '(v, _) := Poulet4.P4cub.Paquet.ValuePacket.read_inc τ pkt in
       match v with
       | inl v => Step.lv_update lv v e
-      | inr _ =>  e end *) e
+      | inr _ =>  e end *) Some e
     | SOVarDecl x τ =>
       let v := V.vdefault τ in
       let lv := Val.LVVar x in
-      Step.lv_update lv v e
+      Some (Step.lv_update lv v e)
     | SOAsgn lhs rhs =>
-      let v := interp_expr e rhs in
-      let lv := eval_lvalue lhs in
-      match (v, lv) with
-      | (Some v, Some lv) => Step.lv_update lv v e
-      | (_, _) => e end
+      v <- interp_expr e rhs ;;
+      lv <<| eval_lvalue lhs ;;
+      Step.lv_update lv v e
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
@@ -214,14 +214,13 @@ Section parser_to_p4automaton.
              (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
              (pkt : list bool)
-             (e : Step.epsilon) : Step.epsilon :=
+             (e : option Step.epsilon) : option Step.epsilon :=
+    e <- e ;;
     match st with
     | START => interp_operation pkt e (fst strt)
     | ST_VAR x =>
-      match F.get x states with
-      | Some stvar => interp_operation pkt e (fst stvar)
-      | None => e end
-    end.
+      stvar <- F.get x states ;;
+      interp_operation pkt e (fst stvar)  end.
 
   Fixpoint interp_transition
            (ϵ : Step.epsilon)
@@ -255,14 +254,17 @@ Section parser_to_p4automaton.
              (strt : state_operation * (PR.e tags_t))
              (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
-             (e : Step.epsilon) : P4Automaton_State + bool :=
-    match st with
-    | START => interp_transition e (snd strt)
-    | ST_VAR x =>
-      match F.get x states with
-      | Some stvar => interp_transition e (snd stvar)
-      | None => inr false end
-    end.
+             (e : option Step.epsilon) : P4Automaton_State + bool :=
+    match e with
+      | Some e =>
+        match st with
+        | START => interp_transition e (snd strt)
+        | ST_VAR x =>
+          match F.get x states with
+          | Some stvar => interp_transition e (snd stvar)
+          | None => inr false end
+        end
+      | None => inr false end.
 
   Definition parser_to_p4automaton
       (strt : PR.state_block tags_t)
@@ -273,7 +275,7 @@ Section parser_to_p4automaton.
     match (strt, states) with
     | (Some strt, Some states) =>
       Some (MkP4Automaton
-              Step.epsilon
+              (option Step.epsilon)
               P4Automaton_State
               (P4Automaton_size strt states)
               (P4Automaton_update strt states)

@@ -1,10 +1,9 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 
-Require Import Poulet4.P4cub.Syntax.AST.
 Require Import Poulet4.P4cub.BigStep.Value.
 Require Import Poulet4.P4automata.P4automaton.
-Require Import Poulet4.P4cub.BigStep.BigStep.
+Require Import Poulet4.P4cub.BigStep.BSSemantics.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.Monad.
 Require Coq.ZArith.BinInt.

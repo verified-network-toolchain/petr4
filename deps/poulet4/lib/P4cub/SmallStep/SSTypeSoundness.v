@@ -4,7 +4,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
-Require Import SmallStep.
+Require Import SSSemantics.
 Import IsValue.
 Import CanonicalForms.
 Import Step.

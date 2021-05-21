@@ -1,5 +1,6 @@
-Require Import Poulet4.P4cub.BigStep.Value.
-Require Import Poulet4.P4cub.BigStep.BigStep.
+Require Import Poulet4.P4cub.Syntax.AST.
+Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.P4cub.BigStep.BSSemantics.
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module PR := P.Parser.

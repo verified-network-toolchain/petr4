@@ -4,7 +4,7 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
 Require Import Poulet4.P4Arith.
-Require Import Poulet4.P4cub.Syntax.AST.
+Require Export Poulet4.P4cub.Syntax.AST.
 Module P := P4cub.
 Import P.P4cubNotations.
 

@@ -1,18 +1,11 @@
-Require Import Poulet4.P4cub.Utiliser.
-Require Import Poulet4.Platform.Packet.
-Require Import Poulet4.P4cub.Syntax.AST.
-Require Import Poulet4.P4cub.BigStep.Value.
-Require Import Poulet4.Monads.State.
+Require Export Poulet4.P4cub.Utiliser.
+Require Export Poulet4.Platform.Packet.
+Require Export Poulet4.Monads.State.
 Require Poulet4.Environment.Environment.
 Module EXN := Poulet4.Environment.Environment.
 (* TODO: why is [exception] defined in [EXN]? *)
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.Strings.String.
-Module P := P4cub.
-Module E := P.Expr.
-Module V := Val.
-Import P.P4cubNotations.
-Import V.ValueNotations.
 
 (** * Blackbox Module For P4 Packet API *)
 
@@ -59,52 +52,8 @@ Module Type P4Packet.
   Parameter write : E -> t -> t.
 End P4Packet.
 
-(** P4cub Big-Step values *)
-Module ValuePacket <: P4Packet.
-  Definition T := E.t.
-
-  Definition E := V.v.
-
-  Fixpoint read_inc (τ : E.t) : packet_monad V.v :=
-    let read_field (fld : F.f string E.t)
-        : packet_monad (F.f string V.v) :=
-        let '(x,τ) := fld in
-        v <<| read_inc τ ;; (x, v) in
-    match τ with
-    | {{ Bool }} =>
-      vec <<| read_first_bits 1 ;;
-      V.VBool $ Vector.hd vec
-    | {{ bit<w> }} =>
-      let width := Pos.to_nat w in
-      vec <<| read_first_bits width ;;
-      V.VBit w $ convert_bits width vec
-    | {{ int<w> }} =>
-      let width := Pos.to_nat w in
-      vec <<| read_first_bits width ;;
-      V.VInt w $ convert_bits width vec
-    | {{ rec { ts } }}
-      => vs <<| sequence $ List.map read_field ts ;;
-        ~{ REC { vs } }~
-    | {{ hdr { ts } }}
-      => vs <<| sequence $ List.map read_field ts ;;
-        ~{ HDR { vs } VALID:=true }~
-    | _ => state_fail
-            $ EXN.TypeError "Unsupported type passed to extract."
-    end.
-  (**[]*)
-
-  Definition read (τ : E.t) : paquet_monad V.v :=
-    lyft_inc $ read_inc τ.
-  (**[]*)
-
-  Definition write (v : V.v) (pkt : t) : t :=
-    {| incoming := incoming pkt;
-       emit_buffer := emit_buffer pkt; (* TODO *)
-       in_length := in_length pkt |}.    
-End ValuePacket.
-
 (** P4cub Small-Step values *)
-Module ExprPacket <: P4Packet.
+(*Module ExprPacket <: P4Packet.
   Definition T := E.t.
 
   (** A structure-preserving mapping [unit -> tags_t]
@@ -147,4 +96,4 @@ Module ExprPacket <: P4Packet.
     {| incoming := incoming pkt;
        emit_buffer := emit_buffer pkt; (* TODO *)
        in_length := in_length pkt |}.    
-End ExprPacket.
+End ExprPacket.*)

@@ -1,4 +1,4 @@
-Require Import SmallStep.
+Require Import SSSemantics.
 
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.

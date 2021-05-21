@@ -1,6 +1,6 @@
-Require Import Poulet4.P4cub.SmallStep.
+Require Import SmallStep.
 
-Module P := Poulet4.P4cub.AST.P4cub.
+Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module PR := P.Parser.
 Import P.P4cubNotations.

@@ -1,8 +1,8 @@
 Require Import Coq.micromega.Lia.
-Require Import Poulet4.P4cub.Value.
-Require Import Poulet4.P4cub.BigStep.
+Require Import Poulet4.P4cub.BigStep.Value.
+Require Import Poulet4.P4cub.BigStep.BigStep.
 
-Module P := Poulet4.P4cub.AST.P4cub.
+Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module ST := P.Stmt.
 Module PR := P.Parser.

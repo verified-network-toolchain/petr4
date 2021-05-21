@@ -1,4 +1,4 @@
-Require Export P4cub.Check.
+Require Export Poulet4.P4cub.Static.Check.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.

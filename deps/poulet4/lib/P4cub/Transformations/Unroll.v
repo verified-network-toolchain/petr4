@@ -2,7 +2,7 @@ Require Import Coq.Strings.String.
 Require Import Coq.Init.Nat.
 Require Import Coq.Lists.List.
 
-Require Import Poulet4.P4cub.AST.
+Require Import Poulet4.P4cub.Syntax.AST.
 Import Field.
 Import P4cub.P4cubNotations.
 
@@ -150,5 +150,4 @@ Section Unroll.
       let d2 := unroll_program unrolls d2 in
       %{ d1 ;%; d2 @ i }%
     | _ => d end.
-
 End Unroll.

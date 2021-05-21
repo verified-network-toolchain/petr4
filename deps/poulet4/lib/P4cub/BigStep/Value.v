@@ -4,17 +4,17 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
 Require Import Poulet4.P4Arith.
-Require Import Poulet4.P4cub.AST.
-Require Import Poulet4.P4cub.Envn.
-Require Poulet4.P4cub.Check.
+Require Import Poulet4.P4cub.Syntax.AST.
+Module P := P4cub.
+Import P.P4cubNotations.
 
-Import Poulet4.P4cub.AST.P4cub.P4cubNotations.
-
-Module E := Poulet4.P4cub.AST.P4cub.Expr.
-Module F := Poulet4.P4cub.AST.P4cub.F.
-Module PR := Poulet4.P4cub.AST.P4cub.Parser.
+Module E := P.Expr.
+Module F := P.F.
+Module PR := P.Parser.
 
 Module TE := E.TypeEquivalence.
+
+Require Poulet4.P4cub.Static.Check.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -355,9 +355,9 @@ Module ValueUtil.
   Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
     match p, V with
     | [{ ?? }], _ => true
-    | [{ w PW a &&& _ PW b }], ~{ _ VW c }~
+    | [{ (w PW a) &&& (_ PW b) }], ~{ _ VW c }~
       => Z.land a b =? Z.land c b
-    | [{ w PW a .. _ PW b }], ~{ _ VW c }~
+    | [{ (w PW a) .. (_ PW b) }], ~{ _ VW c }~
       => (a <=? c)%Z && (c <=? b)%Z
     | [{ w1 PW n1 }], ~{ w2 VW n2 }~ =>
       (w1 =? w2)%positive && (n1 =? n2)%Z

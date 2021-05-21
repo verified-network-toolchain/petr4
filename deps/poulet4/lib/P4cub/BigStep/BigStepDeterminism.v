@@ -1,7 +1,6 @@
-Require Import Poulet4.P4cub.Value.
-Require Import Poulet4.P4cub.BigStep.
-
-Module P := Poulet4.P4cub.AST.P4cub.
+Require Import Poulet4.P4cub.BigStep.Value.
+Require Import Poulet4.P4cub.BigStep.BigStep.
+Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module PR := P.Parser.
 Module V := Val.

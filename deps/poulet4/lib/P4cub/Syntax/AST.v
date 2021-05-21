@@ -4,7 +4,7 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
 
 Require Import Poulet4.P4Arith.
-Require Export Poulet4.P4cub.P4Field.
+Require Export Poulet4.P4cub.Syntax.P4Field.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.

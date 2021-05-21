@@ -4,12 +4,12 @@ Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
 
-Require Import P4cub.SmallStep.
+Require Import SmallStep.
 Import IsValue.
 Import CanonicalForms.
 Import Step.
 Import Typecheck.
-Module P := P4cub.AST.P4cub.
+Module P := P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 
 Import P.P4cubNotations.

@@ -7,7 +7,7 @@ Require Poulet4.P4String.
 Require Poulet4.P4Int.
 Require Export Poulet4.Typed.
 Require Export Poulet4.Syntax.
-Require Export Poulet4.P4cub.AST.
+Require Export Poulet4.P4cub.Syntax.AST.
 Import P4cub.P4cubNotations.
 
 (** * P4light -> P4cub *)

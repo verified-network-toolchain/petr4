@@ -9,8 +9,8 @@ Require Import Coq.Arith.PeanoNat.
 Require Import Poulet4.Bitwise.
 
 
-Require Import Poulet4.P4cub.Value.
-Require Import Poulet4.P4cub.P4Field.
+Require Import Poulet4.P4cub.BigStep.Value.
+Require Import Poulet4.P4cub.Syntax.P4Field.
 
 Require Import Poulet4.P4automata.P4automaton.
 
@@ -432,4 +432,3 @@ Example fixed_vector_bis : bisimulation fixed_vector.
   - state_contra.
   - rewrite H2. seen_solver'.
 Qed.
-

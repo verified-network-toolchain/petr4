@@ -1,10 +1,10 @@
 (** * The P4 Core [packet_in] Extern *)
 
-Require Poulet4.P4cub.Value.
-Require Poulet4.P4cub.Paquet.
-Module PKT := Poulet4.P4cub.Paquet.
-Require Poulet4.P4cub.BigStep.
-Require Poulet4.P4cub.SmallStep.
+Require Poulet4.P4cub.BigStep.Value.
+Require Paquet.
+Module PKT := Paquet.
+Require Poulet4.P4cub.BigStep.BigStep.
+Require Poulet4.P4cub.SmallStep.SmallStep.
 (* TODO: helpers need a different file from semantics. *)
 Require Import Coq.ZArith.BinIntDef.
 Require Import Poulet4.P4cub.Utiliser.
@@ -18,8 +18,8 @@ Definition advance (sizeInBits : Z) (pkt : PKT.t) : PKT.t :=
 Definition length : PKT.t -> Z := Z.of_nat ∘ PKT.in_length.
 
 Section BigStepExtract.
-  Import Poulet4.P4cub.Value.
-  Import Poulet4.P4cub.BigStep.
+  Import Poulet4.P4cub.BigStep.Value.
+  Import Poulet4.P4cub.BigStep.BigStep.
   
   (** [packet_in.extract] *)
   Definition value_extract (τ : E.t) (lv : Val.lv) (ϵ : Step.epsilon)
@@ -29,7 +29,7 @@ Section BigStepExtract.
 End BigStepExtract.
 
 Section SmallStepExtract.
-  Import Poulet4.P4cub.SmallStep.
+  Import Poulet4.P4cub.SmallStep.SmallStep.
 
   (** TODO *)
   Definition emap {A B : Type} : (A -> B) -> Step.E.e A -> Step.E.e B.

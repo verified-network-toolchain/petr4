@@ -1,7 +1,7 @@
 Require Import Poulet4.P4cub.Utiliser.
 Require Import Poulet4.Platform.Packet.
-Require Import Poulet4.P4cub.AST.
-Require Import Poulet4.P4cub.Value.
+Require Import Poulet4.P4cub.Syntax.AST.
+Require Import Poulet4.P4cub.BigStep.Value.
 Require Import Poulet4.Monads.State.
 Require Poulet4.Environment.Environment.
 Module EXN := Poulet4.Environment.Environment.

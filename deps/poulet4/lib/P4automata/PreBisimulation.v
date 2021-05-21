@@ -383,21 +383,138 @@ Proof.
   firstorder.
 Qed.
 
-(* This is NOT a valid closure; it does not preserve transitions. *)
-Inductive close_buffer
+Inductive close_interpolate
   {a1 a2: p4automaton}
   (R: configuration a1 -> configuration a2 -> Prop)
   : configuration a1 -> configuration a2 -> Prop
 :=
-| CloseBase:
+| InterpolateBase:
     forall c1 c2,
-      R c1 c2 -> close_buffer _ c1 c2
-| CloseStep:
+      R c1 c2 -> close_interpolate _ c1 c2
+| InterpolateStep:
     forall s1 st1 buf1 s2 st2 buf2 b,
-      close_buffer _ (inl s1, st1, buf1)
-              (inl s2, st2, buf2) ->
+      close_interpolate _ (inl s1, st1, buf1)
+                          (inl s2, st2, buf2) ->
       length buf1 + 1 < size a1 s1 ->
       length buf2 + 1 < size a2 s2 ->
-      close_buffer _ (inl s1, st1, buf1 ++ b :: nil)
-                     (inl s2, st2, buf2 ++ b :: nil)
+      (forall buf,
+         length buf = min (size a1 s1 - length buf1)
+                          (size a2 s2 - length buf2) ->
+         R (follow (inl s1, st1, buf1) buf)
+           (follow (inl s2, st2, buf2) buf)) ->
+      close_interpolate _ (inl s1, st1, buf1 ++ b :: nil)
+                          (inl s2, st2, buf2 ++ b :: nil)
 .
+
+Lemma close_interpolate_preserves_accept
+  {a1 a2: p4automaton}
+:
+  @closure_preserves_accept a1 a2 close_interpolate
+.
+Proof.
+  intros ? ? ? ? ?.
+  induction H0; firstorder.
+Qed.
+
+Lemma follow_nil
+  {a: p4automaton}
+  (c: configuration a)
+:
+  follow c nil = c
+.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma step_with_space
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf: list bool)
+  (b: bool)
+:
+  length buf + 1 < size a s ->
+  step (inl s, st, buf) b = (inl s, st, buf ++ b :: nil)
+.
+Proof.
+  intros; simpl.
+  destruct (equiv_dec _ _); auto.
+  unfold equiv in e.
+  rewrite app_length in e.
+  simpl length in e.
+  lia.
+Qed.
+
+Lemma follow_with_space
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf buf': list bool)
+  (b: bool)
+:
+  length buf + 1 < size a s ->
+  follow (inl s, st, buf) (b :: buf') =
+  follow (inl s, st, buf ++ b :: nil) buf'
+.
+Proof.
+  intros.
+  rewrite follow_cons.
+  f_equal.
+  now apply step_with_space.
+Qed.
+
+Lemma close_interpolate_preserves_transition
+  {a1 a2: p4automaton}
+:
+  @closure_preserves_transition a1 a2 close_interpolate
+.
+Proof.
+  intros ? ? ? ? ?.
+  induction H0; intros; eauto.
+  repeat rewrite <- step_with_space; auto.
+  destruct (Compare_dec.le_lt_dec (Nat.min (size a1 s1 - length buf1)
+                                           (size a2 s2 - length buf2)) 2).
+  - apply InterpolateBase.
+    rewrite <- follow_nil.
+    rewrite <- follow_nil at 1.
+    repeat rewrite <- follow_cons.
+    apply H3.
+    simpl length.
+    lia.
+  - repeat rewrite step_with_space;
+    repeat rewrite app_length;
+    simpl length;
+    try lia.
+    apply InterpolateStep;
+    repeat rewrite app_length;
+    simpl length;
+    try lia.
+    + repeat rewrite <- step_with_space; auto.
+    + intros.
+       repeat rewrite <- follow_with_space; try lia.
+       apply H3.
+       simpl length.
+       lia.
+Qed.
+
+Lemma close_interpolate_mono
+  {a1 a2: p4automaton}
+:
+  @closure_mono a1 a2 close_interpolate
+.
+Proof.
+  intros ? ? ? ? ? ?.
+  induction H0.
+  - eauto using InterpolateBase.
+  - eauto using InterpolateStep.
+Qed.
+
+Lemma close_interpolate_extends
+  {a1 a2: p4automaton}
+:
+  @closure_extends a1 a2 close_interpolate
+.
+Proof.
+  intros ? ? ? ?.
+  eauto using InterpolateBase.
+Qed.

@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.micromega.Lia.
 Require Import Poulet4.P4cub.Static.Check.
 Require Import Poulet4.P4cub.BigStep.BSSemantics.

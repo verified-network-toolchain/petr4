@@ -1,3 +1,4 @@
+Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 Require Import Coq.ZArith.BinIntDef.

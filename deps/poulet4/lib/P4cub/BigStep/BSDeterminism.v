@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.AST.
 Require Import Poulet4.P4cub.Envn.
 Require Import Poulet4.P4cub.BigStep.BSSemantics.

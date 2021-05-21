@@ -1,9 +1,10 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 
 Require Import Poulet4.P4cub.BigStep.Value.
 Require Import Poulet4.P4automata.P4automaton.
-Require Import Poulet4.P4cub.BigStep.BSSemantics.
+Require Import Poulet4.P4cub.BigStep.BSUtil.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.Monad.
 Require Poulet4.Bitwise.
@@ -127,7 +128,7 @@ Section parser_to_p4automaton.
   Theorem P4Automaton_Size_Cap : forall strt states st, 0%nat < P4Automaton_size strt states st.
   Admitted.
 
-  Fixpoint interp_expr (ϵ : Step.epsilon) (expr : E.e tags_t) : option V.v :=
+  Fixpoint interp_expr (ϵ : EnvUtil.epsilon) (expr : E.e tags_t) : option V.v :=
     match expr with
     | <{ BOOL b @ _ }> => Some ~{ VBOOL b }~
     | <{ w W n @ _ }> => Some ~{ w VW n }~
@@ -135,17 +136,17 @@ Section parser_to_p4automaton.
     | <{ Var x : _ @ _ }> => ϵ x
     | <{ Slice e : _ [ h : l ] @ _ }> =>
       v <- interp_expr ϵ e ;;
-      Step.eval_slice h l v
+      ExprUtil.eval_slice h l v
     | <{ Cast e : τ @ _ }> =>
       v <- interp_expr ϵ e ;;
-      Step.eval_cast τ v
+      ExprUtil.eval_cast τ v
     | <{ UOP op e : _ @ _ }> =>
       v <- interp_expr ϵ e ;;
-      Step.eval_uop op v
+      ExprUtil.eval_uop op v
     | <{ BOP e1 : _ op e2 : _ @ _ }> =>
       v1 <- interp_expr ϵ e1 ;;
       v2 <- interp_expr ϵ e2 ;;
-      Step.eval_bop op v1 v2
+      ExprUtil.eval_bop op v1 v2
     | <{ tup es @ _ }> =>
       vs <<| sequence (List.map (interp_expr ϵ) es) ;;
       ~{ TUPLE vs }~
@@ -160,7 +161,7 @@ Section parser_to_p4automaton.
       | _ => None end
     | <{ Mem e : _ dot x @ _ }> =>
       v <- interp_expr ϵ e ;;
-      Step.eval_member x v
+      ExprUtil.eval_member x v
     | <{ Error x @ _ }> =>
       Some ~{ ERROR x }~
     | <{ Matchkind x @ _ }> =>
@@ -229,8 +230,8 @@ Section parser_to_p4automaton.
 
   Fixpoint interp_operation
            (pkt : list bool)
-           (e : Step.epsilon)
-           (operation : state_operation) : option Step.epsilon :=
+           (e : EnvUtil.epsilon)
+           (operation : state_operation) : option EnvUtil.epsilon :=
     match operation with
     | SONil => Some e
     | SOSeq op1 op2 =>
@@ -238,15 +239,15 @@ Section parser_to_p4automaton.
       interp_operation pkt e op2
     | SOExtract τ lv =>
       v <<| interp_extract τ pkt ;;
-      Step.lv_update lv v e
+      EnvUtil.lv_update lv v e
     | SOVarDecl x τ =>
       let v := V.vdefault τ in
       let lv := Val.LVVar x in
-      Some (Step.lv_update lv v e)
+      Some (EnvUtil.lv_update lv v e)
     | SOAsgn lhs rhs =>
       v <- interp_expr e rhs ;;
       lv <<| eval_lvalue lhs ;;
-      Step.lv_update lv v e
+      EnvUtil.lv_update lv v e
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
@@ -254,7 +255,7 @@ Section parser_to_p4automaton.
              (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
              (pkt : list bool)
-             (e : option Step.epsilon) : option Step.epsilon :=
+             (e : option EnvUtil.epsilon) : option EnvUtil.epsilon :=
     e <- e ;;
     match st with
     | START => interp_operation pkt e (fst strt)
@@ -263,7 +264,7 @@ Section parser_to_p4automaton.
       interp_operation pkt e (fst stvar)  end.
 
   Fixpoint interp_transition
-           (ϵ : Step.epsilon)
+           (ϵ : EnvUtil.epsilon)
            (t : PR.e tags_t) : P4Automaton_State + bool :=
     let fix frec (pes : F.fs PR.pat (PR.e tags_t))
         : F.fs PR.pat (P4Automaton_State + bool) :=
@@ -294,7 +295,7 @@ Section parser_to_p4automaton.
              (strt : state_operation * (PR.e tags_t))
              (states : F.fs string (state_operation * (PR.e tags_t)))
              (st : P4Automaton_State)
-             (e : option Step.epsilon) : P4Automaton_State + bool :=
+             (e : option EnvUtil.epsilon) : P4Automaton_State + bool :=
     match e with
       | Some e =>
         match st with
@@ -315,7 +316,7 @@ Section parser_to_p4automaton.
     match (strt, states) with
     | (Some strt, Some states) =>
       Some (MkP4Automaton
-              (option Step.epsilon)
+              (option EnvUtil.epsilon)
               P4Automaton_State
               (P4Automaton_size strt states)
               (P4Automaton_update strt states)

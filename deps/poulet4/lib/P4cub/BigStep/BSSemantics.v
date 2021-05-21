@@ -1,5 +1,6 @@
 Require Import Coq.ZArith.BinInt.
 Require Export BSUtil.
+Set Warnings "-custom-entry-overridden".
 Require Export Value.
 Require Export Poulet4.P4cub.Envn.
 

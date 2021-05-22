@@ -356,13 +356,97 @@ Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) 
     end                                                         
   end.
 
+Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
+  match vs with
+  | [] => None
+  | h :: _ => match (Z_of_val h), (Z_of_val v) with
+              | Some z1, Some z2 => Some (Z.eqb z1 z2)
+              | _, _ => None
+              end
+  end.
+
+Fixpoint assert_bit (v: Val): option (nat * Z) :=
+  match v with
+  | ValBaseBit w val => Some (w, val)
+  | ValBaseSenumField _ _ val => assert_bit val
+  | _ => None
+  end.
+
+Fixpoint vmm_help (w0 w1 w2: nat) (b0 b1 b2: Z): bool :=
+  if negb ((w0 =? w1)%nat && (w1 =? w2)%nat)
+  then false
+  else match w0 with
+       | O => true
+       | S n => if (b2 mod 2 =? 0) || (b1 mod 2 =? b0 mod 2)
+                then vmm_help n (w1 - 1) (w2 -1) (b0 / 2) (b1 / 2) (b2 / 2)
+                else false
+       end.
+
+Definition values_match_mask (vs: list Val) (v1 v2: Val): option bool :=
+  match vs with
+  | [] => None
+  | v :: _ => match assert_bit v, assert_bit v1, assert_bit v2 with
+              | Some (w0, b0), Some (w1, b1), Some (w2, b2) =>
+                Some (vmm_help w0 w1 w2 b0 b1 b2)
+              | _, _, _ => None
+              end
+  end.
+
+Definition values_match_range (vs: list Val) (v1 v2: Val): option bool :=
+  match vs with
+  | [] => None
+  | v :: _ => match Z_of_val v, Z_of_val v1, Z_of_val v2 with
+              | Some z, Some z1, Some z2 => Some ((z1 <=? z) && (z <=? z2))
+              | _, _, _ => None
+              end
+  end.
+
+Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
+  let fix values_match_prod (vlist: list Val) (sl: list ValSet): option bool :=
+      match sl with
+      | [] => match vlist with
+              | [] => Some true
+              | _ => None
+              end
+      | h :: srest => match vlist with
+                      | [] => None
+                      | v :: _ =>
+                        match values_match_set [v] h with
+                        | Some false => Some false
+                        | Some true => values_match_prod (tl vlist) srest
+                        | None => None
+                        end
+                      end
+      end in
+  let fix values_match_value_set (vlist: list Val) (sl: list ValSet): option bool :=
+      match sl with
+      | [] => Some false
+      | h :: srest => match values_match_set vlist h with
+                      | Some true => Some true
+                      | None => None
+                      | Some false => values_match_value_set vlist srest
+                      end
+      end in
+  match s with
+  | ValSetSingleton v => values_match_singleton vs v
+  | ValSetUniversal => Some true
+  | ValSetMask v1 v2 => values_match_mask vs v1 v2
+  | ValSetProd l => values_match_prod vs l
+  | ValSetRange lo hi => values_match_range vs lo hi
+  | ValSetValueSet _ _ sets => values_match_value_set vs sets
+  | ValSetLpm v1 _ v2 => values_match_mask vs v1 v2
+  end.
+
 (* TODO *)
 Definition filter_lpm_prod (ids: list ident) (vals: list Val)
            (entries: list (ValSet * action_ref)):
   list (ValSet * action_ref) * list Val := (nil, nil).
 
-(* TODO *)
-Definition values_match_set (vs: list Val) (s: ValSet): bool := false.
+Definition isSomeTrue (b: option bool): bool :=
+  match b with
+  | Some true => true
+  | _ => false
+  end.
 
 Definition extern_match (key: list (Val * ident)) (entries: list table_entry): option action_ref :=
   let ks := List.map fst key in
@@ -378,7 +462,8 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry): o
           else if sort_mks
                then filter_lpm_prod mks ks entries'
                else (entries', ks) in
-      let l := List.filter (fun s => values_match_set ks' (fst s)) entries'' in
+      let l := List.filter (fun s => isSomeTrue (values_match_set ks' (fst s)))
+                           entries'' in
       match l with
       | nil => None
       | sa :: _ => Some (snd sa)

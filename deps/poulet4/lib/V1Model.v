@@ -268,8 +268,41 @@ Fixpoint allSome {A: Type} (l: list (option A)): option (list A) :=
                       end
   end.
 
-(* TODO *)
-Definition bitwise_neg_of_bigint (v1: Z) (v2: Val): Val := v2.
+Definition bitstring_slice (n m l: Z): Z :=
+  let slice_width := m + 1 - l in
+  let shifted := Z.shiftr n l in
+  let mask := two_p (slice_width - 1) in
+  Z.land shifted mask.
+
+Fixpoint bitwise_neg_of_nat (n: Z) (w: nat): Z :=
+  match w with
+  | O => n
+  | S w1 => let w' := two_power_nat w1 in
+            let g := bitstring_slice n (Z.of_nat w1) (Z.of_nat w1) in
+            if (g =? 0)
+            then bitwise_neg_of_nat (n + w') w1
+            else bitwise_neg_of_nat (n - w') w1
+  end.
+
+Definition bitwise_neg_of_Z (n w: Z): Z :=
+  if (w >? 0)
+  then bitwise_neg_of_nat n (Z.to_nat w)
+  else n.
+
+Fixpoint bitwise_neg_of_val (v1: Z) (v2: Val): option Val :=
+  match v2 with
+  | ValBaseBool _ => None
+  | ValBaseInteger z => Some (ValBaseInteger (bitwise_neg_of_Z v1 z))
+  | ValBaseBit w z => Some (ValBaseBit w (bitwise_neg_of_Z v1 z))
+  | ValBaseInt w z => Some (ValBaseInt w (bitwise_neg_of_Z v1 z))
+  | ValBaseVarbit max w z => Some (ValBaseVarbit max w (bitwise_neg_of_Z v1 z))
+  | ValBaseSenumField a b v =>
+    match bitwise_neg_of_val v1 v with
+    | Some vv => Some (ValBaseSenumField a b vv)
+    | None => None
+    end
+  | _ => None
+  end.
 
 Fixpoint Z_of_val (v: Val): option Z :=
   match v with
@@ -288,7 +321,7 @@ Fixpoint bits_of_lpmmask_pos (acc: Z) (b: bool) (v: positive): option Z :=
   | xI rest => bits_of_lpmmask_pos (acc + 1) true rest
   | xO rest => if b then None else bits_of_lpmmask_pos acc b rest
   end.
-                                                                        
+
 Definition bits_of_lpmmask (acc: Z) (b: bool) (v: Z): option Z :=
   match v with
   | Z0 => Some acc
@@ -315,8 +348,10 @@ Fixpoint lpm_set_of_set (vs: ValSet): option ValSet :=
                     | Some l' => Some (ValSetProd l')
                     | None => None
                     end
-  | ValSetSingleton v =>
-    Some (ValSetLpm v (width_of_val v) (bitwise_neg_of_bigint 0 v))
+  | ValSetSingleton v => match bitwise_neg_of_val 0 v with
+                         | None => None
+                         | Some val => Some (ValSetLpm v (width_of_val v) val)
+                         end
   | ValSetMask v1 v2 =>
     match Z_of_val v2 with
     | None => None
@@ -353,7 +388,7 @@ Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) 
     match uni with
     | None => sorted
     | Some a => sorted ++ [a]
-    end                                                         
+    end
   end.
 
 Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
@@ -437,22 +472,40 @@ Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
   | ValSetLpm v1 _ v2 => values_match_mask vs v1 v2
   end.
 
-(* TODO *)
-Definition filter_lpm_prod (ids: list ident) (vals: list Val)
-           (entries: list (ValSet * action_ref)):
-  list (ValSet * action_ref) * list Val := (nil, nil).
-
 Definition isSomeTrue (b: option bool): bool :=
   match b with
   | Some true => true
   | _ => false
   end.
 
+Definition filter_lpm_prod (ids: list ident) (vals: list Val)
+           (entries: list (ValSet * action_ref)):
+  list (ValSet * action_ref) * list Val :=
+  match findi (P4String.equivb lpm_string) ids with
+  | None => ([], [])
+  | Some (index, _) =>
+    let f (es: ValSet * action_ref): option (ValSet * action_ref) :=
+        match es with
+        | (ValSetProd l, a) => match nth_error l index with
+                             | None => None
+                             | Some vs => Some (vs, a)
+                             end
+        | _ => None
+        end in
+    match allSome (map f (filter (fun s => isSomeTrue (values_match_set vals (fst s))) entries)) with
+    | None => ([], [])
+    | Some entries' => match nth_error vals index with
+                       | None => ([], [])
+                       | Some ks => (sort_lpm entries', [ks])
+                       end
+    end
+  end.
+
 Definition extern_match (key: list (Val * ident)) (entries: list table_entry): option action_ref :=
   let ks := List.map fst key in
   let mks := List.map snd key in
   match check_lpm_count mks with
-  | None => None 
+  | None => None
   | Some sort_mks =>
     match allSome (List.map set_of_matches entries) with
     | Some entries' =>

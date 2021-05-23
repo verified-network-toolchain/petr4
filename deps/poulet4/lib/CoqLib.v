@@ -307,3 +307,15 @@ Local Open Scope string_scope.
 
 Eval vm_compute in
     mergeSort string_leb ["Bob"; "Alice"; "Tom"; "Jinn"; "Jin"; "Carol"].
+
+Definition findi {A: Type} (f: A -> bool) (l: list A): option (nat * A) :=
+  let fix iter (al: list A) (index: nat): option (nat * A) :=
+      match al with
+      | [] => None
+      | a :: rest => if f a then Some (index, a) else iter rest (S index)
+      end in
+  iter l O.
+
+(* Eval vm_compute in findi (Nat.eqb 5) [1; 2; 5; 6; 3]. *)
+
+(* Eval vm_compute in nth_error [1; 2; 5; 6; 3] 2.  *)

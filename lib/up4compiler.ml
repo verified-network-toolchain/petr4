@@ -19,6 +19,8 @@ type tempControl = { annotations: P4.Annotation.t list;
 type parser = {headers: P4.Declaration.t list; 
                states: P4.Parser.state list}
 
+type state_merge = Merge of string * string | State1 of string | State2 of string
+
 let control_info (d : P4.Declaration.t) : tempControl = match (snd d) with
   | P4.Declaration.Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
     { annotations = annotations; 
@@ -34,6 +36,8 @@ let control_info (d : P4.Declaration.t) : tempControl = match (snd d) with
 let get = function 
   | Some x -> x
   | None -> raise (IncorrectType "Got None when expected Some")
+
+let flatten (l:'a list list) : 'b list = List.fold_left (fun x y -> y @ x) [] l
 
 (** None is a hack that (I think) works, because declaration names won't be "" *)
 let declaration_name (d : P4.Declaration.t) : string = match P4.Declaration.name_opt d with 
@@ -219,7 +223,7 @@ let get_declaration_fields (p:P4.Declaration.t) : P4.Declaration.field list opti
   | P4.Declaration.Struct {annotations; name; fields} -> Some fields
   | _ -> None
 
-let get_field_types (f:P4.Declaration.field) : P4.Type.t = match (snd f) with
+let get_field_type (f:P4.Declaration.field) : P4.Type.t = match (snd f) with
   | {annotations; typ; name} -> typ
 
 let get_state_name (s:P4.Parser.state) : string = 
@@ -231,6 +235,18 @@ let get_state_statements (s:P4.Parser.state) : P4.Statement.t list =
   let open P4.Parser in 
   match (snd s) with
   | {annotations; name; statements; transition} -> statements
+
+
+let get_cases_matches (c:P4.Parser.case) : P4.Match.t list = 
+  let open P4.Parser in 
+  match (snd c) with 
+  | {matches; next} -> matches
+
+let get_cases_next (c:P4.Parser.case) : string = 
+  let open P4.Parser in 
+  match (snd c) with 
+  | {matches; next} -> snd next
+
 
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
@@ -609,7 +625,7 @@ and replace_expr_block (expr_map: P4.Expression.t -> P4.Expression.t) (b:P4.Bloc
 let equivalence_p4Int (i1:P4.P4Int.t) (i2:P4.P4Int.t) : bool = 
   let open P4.P4Int in 
   match (snd i1, snd i2) with 
-  | {value=v1; width_signed=w1}, {value=v2; width_signed=w2} -> Bigint.equal v1 v2     
+  | {value=v1; width_signed=w1}, {value=v2; width_signed=w2} -> Bigint.equal v1 v2   
 
 let rec equivalence_expr (e1:P4.Expression.t) (e2:P4.Expression.t):bool = 
   match (snd e1, snd e2) with 
@@ -649,18 +665,26 @@ let rec equivalence_type (t1:P4.Type.t) (t2:P4.Type.t):bool =
   | _,_ -> false
 
 let equivalence_fields (f1:P4.Declaration.field list) (f2:P4.Declaration.field list) : bool = 
-  let t1 = List.map get_field_types f1 in 
-  let t2 = List.map get_field_types f2 in if (List.length t1) == (List.length t2) then 
+  let t1 = List.map get_field_type f1 in 
+  let t2 = List.map get_field_type f2 in if (List.length t1) == (List.length t2) then 
     List.fold_left (fun x y -> x && y) true (List.map2 equivalence_type t1 t2)
   else false
 
-let equivalence_headers (h1:P4.Declaration.t) (h2:P4.Declaration.t): bool = 
+let equivalence_headers (h1:P4.Declaration.t) (h2:P4.Declaration.t):bool = 
   (* (print_string ((get_header_name h1) ^ " if == "));
      (print_string ((get_header_name h2) ^ "\n\n")); *)
   let field1 = get_header_field h1 in 
   let field2 = get_header_field h2 in 
   if (List.length field1) == (List.length field2) then 
     equivalence_fields field1 field2 else false
+
+let equivalence_matches (m1:P4.Match.t) (m2:P4.Match.t):bool = 
+  let open P4.Match in 
+  match (snd m1, snd m2) with 
+  | Default, Default
+  | DontCare, DontCare -> true
+  | Expression{expr=e1}, Expression{expr=e2} -> equivalence_expr e1 e2
+  | _, _ -> false
 (**Equivalence *)
 
 (** Merging functions *)
@@ -725,17 +749,54 @@ let merge_deparser (header_type:string) (header_name:string) (d1 : P4.Declaratio
 
 (* let match_state (prog:P4.Declaration.t list) (p:parser) (new_name:string) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = 
    let get *)
+
+(*m1 and m2 should be from [case]   *)
+let match_matches (m1:P4.Match.t list) (m2:P4.Match.t list) =
+  List.fold_left (fun x y -> x && y) true (List.map2 equivalence_matches m1 m2)
+
+(*paramter is value we are transitioning from. This should return states we need to merge and the Select transition*)
+let match_selects (parsers:P4.Declaration.t * P4.Declaration.t) (c1:P4.Parser.case list) (c2:P4.Parser.case list) (e:P4.Expression.t list):
+  ((string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition)=
+  let open P4.Parser in 
+  let find_conflict_value (vList:P4.Parser.case list) (v:P4.Parser.case)= 
+    List.filter_map (fun x -> if match_matches (get_cases_matches x) (get_cases_matches v) then Some x else None) vList in
+  let c1_matched_values = List.map (find_conflict_value c2) c1 in 
+  let c2_matched_values = List.map (find_conflict_value c1) c2 in  
+  (* This m_values generated from above. parser is for finding parser states *)
+  let to_add (parsers:P4.Declaration.t * P4.Declaration.t) (is_c1:bool) (curr_case:case) (m_values:case list)  =
+    if List.length m_values == 0 then [], [curr_case]
+    else if List.length m_values > 1 then raise StateMergeFail
+    else if is_c1 then 
+      [get_cases_next curr_case, find_state_by_name (fst parsers) (get_cases_next curr_case), 
+       find_state_by_name (snd parsers) (get_cases_next (List.hd m_values))], [curr_case]
+    else [],[] in 
+  let c1_handle_matched = List.map2 (fun x y -> to_add parsers true x y) c1 c1_matched_values in 
+  let c2_handle_matched = List.map2 (fun x y -> to_add parsers false x y) c2 c2_matched_values in 
+  let to_merge_states = ((List.map (fun x -> fst x) c1_handle_matched) |> flatten) @ ((List.map (fun x -> fst x) c2_handle_matched) |> flatten) in 
+  let new_cases = ((List.map (fun x -> snd x) c1_handle_matched) |> flatten) @ ((List.map (fun x -> snd x) c2_handle_matched) |> flatten) in 
+  let new_select = Info.dummy, Select {exprs = e; cases = new_cases} in 
+  to_merge_states, new_select
+
+
 (* Header env - association list of header names? *)
 let merge_parsers (p1:parser) (p2:parser):( parser * ((string * string) list))= p1, []
 
-(* p1 and p2 are the parsers from the two programs before merge*)
-let rec match_state  (parsers:P4.Declaration.t * P4.Declaration.t) (headers:P4.Declaration.t list) (p:parser) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = 
-  p
-and match_transition (parsers:P4.Declaration.t * P4.Declaration.t) (p:parser)  (t1:P4.Parser.transition) (t2:P4.Parser.transition):(string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition =
+(* parsers contains (p1,p2) which are the parsers from the two programs before merge. 
+   headers is the header env. p is the parser we are generating (Everything before is just for env)
+   s1 and s2 are states you are trying to merge. t1 and t2 are transitions you are trying to merge*)
+let match_state  (parsers:P4.Declaration.t * P4.Declaration.t) (headers:P4.Declaration.t list) (p:parser) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = p
+and match_transition (parsers:P4.Declaration.t * P4.Declaration.t) (p:parser)  (t1:P4.Parser.transition)
+    (t2:P4.Parser.transition):(string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition =
   let open P4.Parser in 
   match (snd t1), (snd t2) with 
   | Direct {next=n1}, Direct{next=n2} -> 
     (let new_state = "temp" in ([(new_state, find_state_by_name (fst parsers) (snd n1), find_state_by_name (snd parsers) (snd n2) )], (Info.dummy, Direct{next=Info.dummy, new_state})))
+  | Select{exprs=e1; cases=c1}, Select{exprs=e2; cases=c2} -> (
+      let expr_equiv_check = List.map2 (fun x y -> equivalence_expr x y) e1 e2 in 
+      if List.fold_left (fun x y -> x && y) true expr_equiv_check 
+      then match_selects parsers c1 c2 e1
+      else raise StateMergeFail
+    )
   | _ , _ -> raise StateMergeFail 
 (**Merging functions *)
 
@@ -857,4 +918,4 @@ let prog_merge_package (program : P4.program) : P4.program =
   let package_arguments = List.map2 create_expression_nameless_instantiation (List.map create_type_typename ["NewParser"; "NewControl"; "NewDeparser"]) ([[];[];[]]) in 
   let new_package = create_declaration_instantiation "main" "uP4Switch" (List.map create_argument_expression package_arguments) in 
   let final_prog = remove_unnamed_decl (remove_declaration prog (prog |> get_main |> declaration_name)) in 
-  P4.Program (merged_unnamed_decs @ final_prog @ new_control_structs @ [new_parser; new_control; new_deparser; new_package]) 
+  P4.Program (merged_unnamed_decs @ final_prog @ new_control_structs @ [new_parser; new_control; new_deparser; new_package])

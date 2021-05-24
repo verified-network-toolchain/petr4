@@ -9,14 +9,16 @@ Require Import Syntax.
 Require Import P4Int.
 Require Import Target.
 Require Import Poulet4.SyntaxUtil.
+Require Import Sublist.
 Require Import Maps.
 Require Import CoqLib.
+Require Import P4Notations.
 Import ListNotations.
 Open Scope Z_scope.
 
 Section V1Model.
 
-Context {tags_t: Type}.
+Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
@@ -50,11 +52,10 @@ Definition extern_state := @PathMap.t tags_t object.
 
 Definition extern_empty : extern_state := PathMap.empty.
 
-Axiom dummy_tags : tags_t.
-Definition register_string : ident := {| P4String.tags := dummy_tags; P4String.str := "register" |}.
+Definition dummy_tags := @default tags_t _.
 
 Definition alloc_extern (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list Val) :=
-  if P4String.equivb class register_string then
+  if P4String.equivb class !"register" then
     match args with
     (* | [ValBaseInteger size] *)
     | [ValBaseBit _ size]
@@ -87,8 +88,6 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
             fun _ _ _ _ _ _ => False
   end.
 
-Definition read_string : ident := {| P4String.tags := dummy_tags; P4String.str := "read" |}.
-
 Definition Znth {A} : Z -> list A -> A.
 Admitted.
 
@@ -103,12 +102,10 @@ Inductive register_read_sem : extern_func_sem :=
       register_read_sem s p nil [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
 
 Definition register_read : extern_func := {|
-  ef_class := register_string;
-  ef_func := read_string;
+  ef_class := !"register";
+  ef_func := !"read";
   ef_sem := register_read_sem
 |}.
-
-Definition write_string : ident := {| P4String.tags := dummy_tags; P4String.str := "write" |}.
 
 Definition upd_Znth {A} : Z -> A -> list A -> list A.
 Admitted.
@@ -124,13 +121,10 @@ Inductive register_write_sem : extern_func_sem :=
           [] SReturnNull.
 
 Definition register_write : extern_func := {|
-  ef_class := register_string;
-  ef_func := write_string;
+  ef_class := !"register";
+  ef_func := !"write";
   ef_sem := register_write_sem
 |}.
-
-Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
-Definition extract_string : ident := {| P4String.tags := dummy_tags; P4String.str := "extract" |}.
 
 Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
 Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
@@ -150,13 +144,10 @@ Inductive packet_in_extract_sem : extern_func_sem :=
           [v] SReturnNull.
 
 Definition packet_in_extract : extern_func := {|
-  ef_class := packet_in_string;
-  ef_func := extract_string;
+  ef_class := !"packet_in";
+  ef_func := !"extract";
   ef_sem := packet_in_extract_sem
 |}.
-
-Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
-Definition emit_string : ident := {| P4String.tags := dummy_tags; P4String.str := "emit" |}.
 
 Axiom emit : forall (pout : list bool) (v : Val), list bool.
 
@@ -169,8 +160,8 @@ Inductive packet_out_emit_sem : extern_func_sem :=
           [] SReturnNull.
 
 Definition packet_out_emit : extern_func := {|
-  ef_class := packet_out_string;
-  ef_func := emit_string;
+  ef_class := !"packet_out";
+  ef_func := !"emit";
   ef_sem := packet_out_emit_sem
 |}.
 
@@ -194,11 +185,8 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
-Definition lpm_string : ident :=
-  {| P4String.tags := dummy_tags; P4String.str := "lpm" |}.
-
 Definition check_lpm_count (mks: list ident): option bool :=
-  let num_lpm := List.length (List.filter (P4String.equivb lpm_string) mks) in
+  let num_lpm := List.length (List.filter (P4String.equivb !"lpm") mks) in
   if (1 <? num_lpm)%nat
   then None
   else Some (num_lpm =? 1)%nat.
@@ -481,7 +469,7 @@ Definition isSomeTrue (b: option bool): bool :=
 Definition filter_lpm_prod (ids: list ident) (vals: list Val)
            (entries: list (ValSet * action_ref)):
   list (ValSet * action_ref) * list Val :=
-  match findi (P4String.equivb lpm_string) ids with
+  match findi (P4String.equivb !"lpm") ids with
   | None => ([], [])
   | Some (index, _) =>
     let f (es: ValSet * action_ref): option (ValSet * action_ref) :=
@@ -510,7 +498,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry): o
     match allSome (List.map set_of_matches entries) with
     | Some entries' =>
       let (entries'', ks') :=
-          if list_eqb (@P4String.equivb tags_t) mks [lpm_string]
+          if list_eqb (@P4String.equivb tags_t) mks !["lpm"]
           then (sort_lpm entries', ks)
           else if sort_mks
                then filter_lpm_prod mks ks entries'
@@ -533,26 +521,18 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   extern_get_entries
   extern_match.
 
-Definition main_string : ident := {| P4String.tags := dummy_tags; P4String.str := "main" |}.
-Definition p_string : ident := {| P4String.tags := dummy_tags; P4String.str := "p" |}.
-Definition vr_string : ident := {| P4String.tags := dummy_tags; P4String.str := "vr" |}.
-Definition ig_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ig" |}.
-Definition eg_string : ident := {| P4String.tags := dummy_tags; P4String.str := "eg" |}.
-Definition ck_string : ident := {| P4String.tags := dummy_tags; P4String.str := "ck" |}.
-Definition dep_string : ident := {| P4String.tags := dummy_tags; P4String.str := "dep" |}.
-
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
-      PathMap.set [packet_in_string] (ObjPin pin) s0 = s1 ->
-      module_sem [main_string; p_string] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
-      module_sem [main_string; vr_string] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
-      module_sem [main_string; ig_string] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
-      module_sem [main_string; eg_string] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
-      module_sem [main_string; ck_string] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
-      module_sem [main_string; dep_string] s6 [hdr6] s7 nil SReturnNull ->
-      PathMap.get [packet_out_string] s7 = Some (ObjPout pout) ->
+      PathMap.set !["packet_in"] (ObjPin pin) s0 = s1 ->
+      module_sem !["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
+      module_sem !["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
+      module_sem !["main"; "ig"] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
+      module_sem !["main"; "eg"] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
+      module_sem !["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
+      module_sem !["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
+      PathMap.get !["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
 Instance V1Model : Target := Build_Target _ exec_prog.

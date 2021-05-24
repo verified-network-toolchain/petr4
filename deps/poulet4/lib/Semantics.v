@@ -12,11 +12,13 @@ Require Import Poulet4.Ops.
 Require Import Poulet4.Maps.
 Require Export Poulet4.Target.
 Require Export Poulet4.SyntaxUtil.
+Require Export Poulet4.Sublist.
+Require Import Poulet4.P4Notations.
 Import ListNotations.
 
 Section Semantics.
 
-Context {tags_t: Type}.
+Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Notation Val := (@ValueBase tags_t).
 
 Notation ident := (P4String.t tags_t).
@@ -26,7 +28,6 @@ Notation P4String := (P4String.t tags_t).
 Notation signal := (@signal tags_t).
 
 Context `{@Target tags_t (@Expression tags_t)}.
-Local Hint Resolve extern_sem : typeclass_instances.
 
 Definition mem := @PathMap.t tags_t Val.
 
@@ -351,7 +352,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
   end.
 
 Axiom dummy_type : @P4Type tags_t.
-Axiom dummy_tags : tags_t.
+Definition dummy_tags := @default tags_t _.
 
 Definition add_ctrl_args (oaction : option (@Expression tags_t)) (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
   match oaction with
@@ -395,9 +396,6 @@ Inductive inst_mem_val :=
 
 Definition inst_mem := @PathMap.t tags_t inst_mem_val.
 
-(* TODO Should we move this to GenLoc? *)
-Definition apply_string : ident := {| P4String.tags := dummy_tags; P4String.str := "apply" |}.
-
 Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
   (* We should think about using option monad in this function. *)
   match func with
@@ -414,7 +412,7 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
       end
   (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
-      if P4String.equivb name apply_string then
+      if P4String.equivb name !"apply" then
         match expr with
         (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName _ loc) _ _ =>
@@ -452,7 +450,6 @@ Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expressio
   end.
 
 Definition Lval := @ValueLvalue tags_t.
-Definition next_string :=  {| P4String.tags := dummy_tags; P4String.str := "next" |}.
 
 Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> Lval -> signal -> Prop :=
   | exec_lvalue_expr_name : forall name loc this st tag typ dir,
@@ -461,7 +458,7 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> Lval -> si
                             (MkValueLvalue (ValLeftName name loc) typ) SContinue
   | exec_lvalue_expr_member : forall expr lv name this st tag typ dir sig,
                               exec_lvalue_expr this st expr lv sig ->
-                              P4String.equivb next_string name = false ->
+                              P4String.equivb !"next" name = false ->
                               exec_lvalue_expr this st
                               (MkExpression tag (ExpExpressionMember expr name) typ dir)
                               (MkValueLvalue (ValLeftMember lv name) typ) sig
@@ -471,11 +468,11 @@ Inductive exec_lvalue_expr : path -> state -> (@Expression tags_t) -> Lval -> si
                                    exec_expr this st expr (ValBaseStack headers size next) ->
                                    (next < size)%nat ->
                                    exec_lvalue_expr this st
-                                   (MkExpression tag (ExpExpressionMember expr next_string) typ dir)
+                                   (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
                                    (MkValueLvalue (ValLeftArrayAccess lv next) typ) sig
   | exec_lvalue_expr_member_next_reject : forall expr name lv headers size next this st tag typ dir sig,
                                           exec_lvalue_expr this st expr lv sig->
-                                          P4String.equivb next_string name = true ->
+                                          P4String.equivb !"next" name = true ->
                                           exec_expr this st expr (ValBaseStack headers size next) ->
                                           (next >= size)%nat ->
                                           exec_lvalue_expr this st
@@ -531,7 +528,7 @@ Inductive read_lvalue: path -> state -> Lval -> Val -> Prop :=
   (* | read_lvalue_bit_access
      | read_lvalue_array_access *)
               
-(* (ValLeftMember (ValBaseStack headers size) next_string) is guaranteed avoided 
+(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lvalue_expr to (ValLeftArrayAccess (ValBaseStack headers size) index). *)
 with read_lmember: path -> state -> Lval -> P4String -> P4Type -> Val -> Prop :=
   | read_lmember_header : forall is_valid fields this st lv name typ v,
@@ -577,7 +574,7 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4Strin
   | _ :: _ => None
   end.
 
-(* (ValLeftMember (ValBaseStack headers size) next_string) is guaranteed avoided 
+(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lvalue_expr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so last_string does not exist. *)
 Inductive update_member : Val -> P4String -> Val -> Val -> Prop :=
@@ -739,16 +736,11 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   | StatSwCaseFallThrough _ (StatSwLabDefault _) :: _ => None
   end.
 
-Definition _string := {| P4String.tags := dummy_tags; P4String.str := "" |}.
-Definition hit_string := {| P4String.tags := dummy_tags; P4String.str := "hit" |}.
-Definition miss_string := {| P4String.tags := dummy_tags; P4String.str := "miss" |}.
-Definition action_run_string := {| P4String.tags := dummy_tags; P4String.str := "action_run" |}.
-
 Definition table_retv (b : bool) (ename member : P4String) : ValueBase :=
   ValBaseStruct
-  [(hit_string, ValBaseBool b);
-   (miss_string, ValBaseBool (negb b));
-   (action_run_string, ValBaseEnumField ename member)].
+  [(!"hit", ValBaseBool b);
+   (!"miss", ValBaseBool (negb b));
+   (!"action_run", ValBaseEnumField ename member)].
 
 Definition name_only (name : Typed.name) : ident :=
   match name with
@@ -760,14 +752,14 @@ Definition get_expr_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpName name _) _ _  =>
       name_only name
-  | _ => _string
+  | _ => !""
   end.
 
 Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpFunctionCall func _ _) _ _  =>
       get_expr_name func
-  | _ => _string
+  | _ => !""
   end.
 
 Inductive signal_return_value : signal -> Val -> Prop :=
@@ -872,13 +864,13 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                            exec_call this_path inst_m st e st' (SReturn (table_retv b ename member)) ->
                            match_switch_case member cases = None ->
                            exec_stmt this_path inst_m st
-                           (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st' SContinue
+                           (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e !"action_run") typ dir) cases) typ') st' SContinue
   | exec_stmt_switch_some: forall e b ename member cases block typ dir this_path inst_m (st st': state) st'' tags tags' typ' st st' sig,
                            exec_call this_path inst_m st e st' (SReturn (table_retv b ename member)) ->
                            match_switch_case member cases = Some block ->
                            exec_block this_path inst_m st' block st'' sig ->
                            exec_stmt this_path inst_m st
-                           (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e action_run_string) typ dir) cases) typ') st'' sig
+                           (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e !"action_run") typ dir) cases) typ') st'' sig
   | exec_stmt_variable : forall typ' name e v loc this_path inst_m st tags typ st',
                          exec_expr this_path st e v ->
                          assign_lvalue this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
@@ -962,13 +954,13 @@ with exec_func : path -> inst_mem -> state -> fundef -> list P4Type -> list Val 
       add_ctrl_args (get_action actions name) ctrl_args = Some action ->
       exec_call obj_path inst_m s action s' SReturnNull ->
       exec_func obj_path inst_m s (FTable name keys actions default_action const_entries) nil nil s' nil
-            (SReturn (table_retv true _string (get_expr_func_name action)))
+            (SReturn (table_retv true !"" (get_expr_func_name action)))
 
   | exec_func_table_default : forall obj_path name inst_m keys actions default_action const_entries s s',
       exec_table_match obj_path s name const_entries None ->
       exec_call obj_path inst_m s default_action s' SReturnNull ->
       exec_func obj_path inst_m s (FTable name keys actions (Some default_action) const_entries) nil nil s' nil
-            (SReturn (table_retv false _string (get_expr_func_name default_action)))
+            (SReturn (table_retv false !"" (get_expr_func_name default_action)))
 
   (* This will not happen in the latest spec. *)
   (* | exec_func_table_noaction : forall obj_path name inst_m keys actions const_entries s,
@@ -1136,30 +1128,26 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
-Definition packet_in_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_in" |}.
-
-Definition packet_in_instance : inst_mem_val := (IMInst packet_in_string [packet_in_string]).
+Definition packet_in_instance : inst_mem_val := (IMInst !"packet_in" !["packet_in"]).
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name packet_in_string
+          P4String.equivb name !"packet_in"
       | _ => false
       end
   end.
 
-Definition packet_out_string : ident := {| P4String.tags := dummy_tags; P4String.str := "packet_out" |}.
-
-Definition packet_out_instance : inst_mem_val := (IMInst packet_out_string [packet_out_string]).
+Definition packet_out_instance : inst_mem_val := (IMInst !"packet_out" !["packet_out"]).
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name packet_out_string
+          P4String.equivb name !"packet_out"
       | _ => false
       end
   end.
@@ -1272,13 +1260,8 @@ Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t
       PathMap.set (p ++ [name]) (FInternal nil BlockNil body) ge
   end.
 
-Definition begin_string : ident := {| P4String.tags := dummy_tags; P4String.str := "begin" |}.
-Definition accept_string : ident := {| P4String.tags := dummy_tags; P4String.str := "accept" |}.
-Definition reject_string : ident := {| P4String.tags := dummy_tags; P4String.str := "reject" |}.
-Definition verify_string : ident := {| P4String.tags := dummy_tags; P4String.str := "verify" |}.
-
 Definition reject_state :=
-  let verify := (MkExpression dummy_tags (ExpName (BareName verify_string) (LGlobal [verify_string])) dummy_type Directionless) in
+  let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal !["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
@@ -1297,9 +1280,9 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [name])) states ge in
-      let ge := PathMap.set (p ++ [accept_string]) (FInternal nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ [reject_string]) (FInternal nil BlockNil BlockNil) ge in
-      let method := MkExpression dummy_tags (ExpName (BareName begin_string) (LInstance [begin_string]))
+      let ge := PathMap.set (p ++ !["accept"]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ !["reject"]) (FInternal nil BlockNil BlockNil) ge in
+      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance !["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
       PathMap.set (p ++ [name]) (FInternal params init (BlockSingleton stmt)) ge

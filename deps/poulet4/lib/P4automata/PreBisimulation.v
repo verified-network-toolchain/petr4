@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
+Require Import Coq.micromega.Lia.
 
 Require Import Poulet4.P4automata.P4automaton.
 
@@ -224,6 +225,117 @@ Proof.
       solve_incl.
   - revert c1 c2 H4.
     apply H.
+    intros.
+    apply chunked_related_subset with (R1 := (R :: front) ++ checked); auto.
+    solve_incl.
+Qed.
+
+Definition symbolic_leap
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
+  (n: nat)
+  (c1: configuration a1)
+  (c2: configuration a2)
+  : Prop
+:=
+  exists c1' c2' buf,
+    length buf = n /\
+    R c1' c2' /\
+    follow c1' buf = c1 /\
+    follow c2' buf = c2
+.
+
+Definition min_step_all
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
+  (n: nat)
+:=
+  forall c1 c2,
+    R c1 c2 ->
+      n = min (min_step c1) (min_step c2)
+.
+
+Lemma pre_bisimulation_leap
+  {a1 a2: p4automaton}
+  (checked: chunked_relation a1 a2)
+  (front: chunked_relation a1 a2)
+  (R: configuration a1 -> configuration a2 -> Prop)
+  (n: nat)
+:
+  (forall c1 c2, R c1 c2 -> accepting c1 <-> accepting c2) ->
+  min_step_all R n ->
+  pre_bisimulation close_interpolate (R :: checked) (symbolic_leap R n :: front) ->
+  pre_bisimulation close_interpolate checked (R :: front)
+.
+Proof.
+  intros ? ? ? ? ? ? ? ?.
+  apply H1.
+  - intros c1' c2' ?.
+    inversion H5; subst; auto.
+  - intros c1' c2' ? ?.
+    inversion_clear H5; subst.
+    + rewrite <- follow_nil.
+      rewrite <- follow_nil at 1.
+      repeat rewrite <- follow_cons.
+      destruct c1' as (([s1' | h1'], st1'), buf1'),
+               c2' as (([s2' | h2'], st2'), buf2').
+      * destruct (Compare_dec.le_lt_dec 2 (min (min_step (inl s1', st1', buf1'))
+                                               (min_step (inl s2', st2', buf2')))).
+        -- repeat rewrite follow_with_space.
+           all: simpl min_step in *; try lia.
+           repeat rewrite follow_nil.
+           apply InterpolateStep; try lia.
+           ++ apply InterpolateBase.
+              apply chunked_related_subset with (R1 := R :: checked).
+              ** solve_incl.
+              ** now apply ChunkedRelatedHead.
+           ++ intros.
+              rewrite <- app_comm_cons.
+              apply ChunkedRelatedHead.
+              repeat eexists; auto.
+              rewrite (H0 _ _ H6).
+              simpl min_step in *.
+              lia.
+        -- apply InterpolateBase.
+           rewrite <- app_comm_cons.
+           apply ChunkedRelatedHead.
+           repeat eexists; auto.
+           simpl length.
+           rewrite (H0 _ _ H6).
+           simpl min_step in *.
+           lia.
+      * apply InterpolateBase.
+        rewrite <- app_comm_cons.
+        apply ChunkedRelatedHead.
+        repeat eexists; auto.
+        simpl length.
+        rewrite (H0 _ _ H6).
+        simpl min_step.
+        lia.
+      * apply InterpolateBase.
+        rewrite <- app_comm_cons.
+        apply ChunkedRelatedHead.
+        repeat eexists; auto.
+        simpl length.
+        rewrite (H0 _ _ H6).
+        simpl min_step.
+        lia.
+      * apply InterpolateBase.
+        rewrite <- app_comm_cons.
+        apply ChunkedRelatedHead.
+        repeat eexists; auto.
+        simpl length.
+        rewrite (H0 _ _ H6).
+        simpl min_step.
+        lia.
+    + apply (H3 _ _ b) in H6.
+      eapply closure_sound_mono in H6.
+      exact H6.
+      intros.
+      apply chunked_related_subset with (R1 := (R :: front) ++ checked); auto.
+      solve_incl.
+  - revert c1 c2 H4.
+    apply closure_sound_mono.
     intros.
     apply chunked_related_subset with (R1 := (R :: front) ++ checked); auto.
     solve_incl.

@@ -21,5 +21,5 @@ Module Type P4PacketIn.
   (** L-value data-type. *)
   Parameter LV : Type.
 
-  Parameter p4extract : T -> LV -> PKT.paquet_monad (Env.t string E).
+  Parameter p4extract : T -> LV -> Env.t string E -> PKT.paquet_monad (Env.t string E).
 End P4PacketIn.

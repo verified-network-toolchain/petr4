@@ -1,40 +1,49 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.ZArith.BinInt.
 Require Export BSUtil.
-Set Warnings "-custom-entry-overridden".
 Require Export Value.
 Require Export Poulet4.P4cub.Envn.
+Require Import BSPacket.
 
 (** * Big-Step Evaluation *)
 
 (** Notation entries. *)
 Declare Custom Entry p4evalsignal.
 
+(** Expression evaluation. *)
 Reserved Notation "⟨ envn , e ⟩ ⇓ v"
          (at level 40, e custom p4expr, v custom p4value).
 
+(** L-value evaluation. *)
 Reserved Notation "⧠ e ⇓ lv"
          (at level 40, e custom p4expr, lv custom p4lvalue).
 
+(** Parser-expression evaluation. *)
 Reserved Notation "⦑ envn , e ⦒ ⇓ st"
          (at level 40, e custom p4prsrexpr, st custom p4prsrstate).
 
-Reserved Notation "⟪ cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig ⟫"
+(** Statement evaluation. *)
+Reserved Notation "⟪ pkt1 , cp , tenv , aenv , fenv , ienv , ϵ1 , s ⟫ ⤋ ⟪ ϵ2 , sig , pkt2 ⟫"
          (at level 40, s custom p4stmt,
           ϵ2 custom p4env, sig custom p4evalsignal).
 
+(** Control-declaration evaluation. *)
 Reserved Notation "⦉ ts1 , aa1 , fns , ins1 , ϵ1 , d ⦊ ⟱  ⦉ aa2 , ts2 ⦊"
          (at level 40, d custom p4ctrldecl, ts2 custom p4env, ts1 custom p4env).
 
+(** Top-declaration evaluation. *)
 Reserved Notation "⦇ cs1 , fns1 , ins1 , ϵ1 , d ⦈ ⟱  ⦇ ins2 , fns2 , cs2 ⦈"
          (at level 40, d custom p4topdecl).
 
-Reserved Notation  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final ⟩"
+(** Parser-state-machine evaluation. *)
+Reserved Notation  "'Δ`' ( pkt1 , cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
          (at level 40, strt custom p4prsrstateblock,
           curr custom p4prsrstate,
           ϵ2 custom p4env,
           final custom p4prsrstate).
 
-Reserved Notation "'Δ' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
+(** Parser-state-block evaluation. *)
+Reserved Notation "'Δ' ( pkt1 , cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
          (at level 40, currb custom p4prsrstateblock,
           ϵ2 custom p4env,
           next custom p4prsrstate).
@@ -464,60 +473,62 @@ Module Step.
 
   (** Statement big-step semantics. *)
   Inductive stmt_big_step
-            {tags_t : Type} (cp : ctrl) (ts : tenv) (aa : aenv)
+            {tags_t : Type} (pkt : Paquet.t)
+            (cp : ctrl) (ts : tenv) (aa : aenv)
             (fs : fenv) (ins : ienv) (ϵ : epsilon) :
-    ST.s tags_t -> epsilon -> signal -> Prop :=
+    ST.s tags_t -> epsilon -> signal -> Paquet.t -> Prop :=
   | sbs_skip (i : tags_t) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, skip @ i ⟫ ⤋ ⟪ ϵ, C, pkt ⟫
   | sbs_seq_cont (s1 s2 : ST.s tags_t) (i : tags_t)
-                 (ϵ' ϵ'' : epsilon) (sig : signal) :
-      ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig ⟫
+                 (ϵ' ϵ'' : epsilon) (sig : signal) (pkt' pkt'' : Paquet.t) :
+      ⟪ pkt, cp,  ts, aa, fs, ins, ϵ,  s1 ⟫ ⤋ ⟪ ϵ',  C, pkt' ⟫ ->
+      ⟪ pkt', cp, ts, aa, fs, ins, ϵ', s2 ⟫ ⤋ ⟪ ϵ'', sig, pkt'' ⟫ ->
+      ⟪ pkt,  cp, ts, aa, fs, ins, ϵ,  s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ'', sig, pkt'' ⟫
   | sbs_seq_interrupt (s1 s2 : ST.s tags_t) (i : tags_t)
-                         (ϵ' : epsilon) (sig : signal) :
+                      (ϵ' : epsilon) (sig : signal) (pkt' : Paquet.t) :
       interrupt sig ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-  | sbs_block_cont (s : ST.s tags_t) (ϵ' : epsilon) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', C ⟫
-  | sbs_block_interrupt (s : ST.s tags_t) (ϵ' : epsilon) (sig : signal) :
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s1 ⟫ ⤋ ⟪ ϵ', sig, pkt' ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s1 ; s2 @ i ⟫ ⤋ ⟪ ϵ', sig, pkt' ⟫
+  | sbs_block_cont (s : ST.s tags_t) (ϵ' : epsilon) (pkt' : Paquet.t) :
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', C, pkt' ⟫
+  | sbs_block_interrupt (s : ST.s tags_t) (ϵ' : epsilon)
+                        (sig : signal) (pkt' : Paquet.t) :
       interrupt sig ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', sig, pkt' ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
   | sbs_vardecl (τ : E.t) (x : string)
                 (i : tags_t) (v : V.v) :
       V.vdefault τ = v ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) :
       lv_update lv v ϵ = ϵ' ->
       ⧠ e1 ⇓ lv ->
       ⟨ ϵ, e2 ⟩ ⇓ v ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C, pkt ⟫
   | sbs_exit (i : tags_t) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, exit @ i ⟫ ⤋ ⟪ ϵ, X, pkt ⟫
   | sbs_retvoid (i : tags_t) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, returns @ i ⟫ ⤋ ⟪ ϵ, Void, pkt ⟫
   | sbs_retfruit (τ : E.t) (e : E.e tags_t)
                  (i : tags_t) (v : V.v) :
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v, pkt ⟫
   | sbs_cond_true (guard : E.e tags_t)
                   (tru fls : ST.s tags_t) (i : tags_t)
                   (ϵ' : epsilon) (sig : signal) :
       ⟨ ϵ, guard ⟩ ⇓ TRUE ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
-        ⤋ ⟪ ϵ', sig ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, tru ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⤋ ⟪ ϵ', sig, pkt ⟫
   | sbs_cond_false (guard : E.e tags_t)
                    (tru fls : ST.s tags_t) (i : tags_t)
                    (ϵ' : epsilon) (sig : signal) :
       ⟨ ϵ, guard ⟩ ⇓ FALSE ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
-        ⤋ ⟪ ϵ', sig ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, fls ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, if guard:Bool then tru else fls @ i ⟫
+        ⤋ ⟪ ϵ', sig, pkt ⟫
   | sbs_action_call (args : E.args tags_t)
                     (argsv : V.argsv)
                     (a : string) (i : tags_t)
@@ -535,10 +546,10 @@ Module Step.
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
       (* Action evaluation *)
-      ⟪ cp, ts, aclosure, fclosure, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      ⟪ pkt, cp, ts, aclosure, fclosure, ains, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void, pkt ⟫ ->
       (* Copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt ⟫
   | sbs_void_call (args : E.args tags_t)
                   (argsv : V.argsv)
                   (f : string) (i : tags_t)
@@ -555,10 +566,10 @@ Module Step.
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
       (* Function evaluation *)
-      ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      ⟪ pkt, cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void, pkt ⟫ ->
       (* Copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt ⟫
   | sbs_fruit_call (args : E.args tags_t)
                    (argsv : V.argsv)
                    (f : string) (τ : E.t)
@@ -579,18 +590,19 @@ Module Step.
       (* Lvalue Evaluation. *)
       ⧠ e ⇓ lv ->
       (* Function evaluation. *)
-      ⟪ cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v ⟫ ->
+      ⟪ pkt, cp, ts, aa, fclosure, fins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Fruit v, pkt ⟫ ->
       (* Copy-out. *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       (* Assignment to lvalue. *)
       lv_update lv v ϵ''' = ϵ'''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ,
+        let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
   | sbs_ctrl_apply (args : E.args tags_t)
                    (argsv : V.argsv)
                    (x : string) (i : tags_t)
                    (body : ST.s tags_t) (fclosure : fenv) (iins : ienv)
                    (tblclosure : tenv) (aclosure : aenv)
-                   (closure ϵ' ϵ'' ϵ''' : epsilon) :
+                   (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup. *)
       ilookup ins x = Some (CInst closure fclosure iins tblclosure aclosure body) ->
       (* Argument evaluation. *)
@@ -602,17 +614,17 @@ Module Step.
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
       (* Apply block evaluation. *)
-      ⟪ cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void ⟫ ->
+      ⟪ pkt, cp, tblclosure, aclosure, fclosure, iins, ϵ', body ⟫ ⤋ ⟪ ϵ'', Void, pkt' ⟫ ->
       (* Copy-out. *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt' ⟫
   | sbs_prsr_accept_apply (args : E.args tags_t)
                           (argsv : V.argsv)
                           (x : string) (i : tags_t)
                           (strt : PR.state_block tags_t)
                           (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (iins : ienv)
-                          (closure ϵ' ϵ'' ϵ''' : epsilon) :
+                          (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup *)
       ilookup ins x = Some (PInst closure fclosure iins strt states) ->
       (* Argument evaluation *)
@@ -624,17 +636,18 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=) ⇝ ⟨ϵ'', ={accept}=⟩ ->
+      Δ` (pkt, cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=)
+       ⇝ ⟨ϵ'', ={accept}=, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt' ⟫
   | sbs_prsr_reject_apply (args : E.args tags_t)
                           (argsv : V.argsv)
                           (x : string) (i : tags_t)
                           (strt : PR.state_block tags_t)
                           (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (iins : ienv)
-                          (closure ϵ' ϵ'' ϵ''' : epsilon) :
+                          (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup *)
       ilookup ins x = Some (PInst closure fclosure iins strt states) ->
       (* Argument evaluation *)
@@ -646,10 +659,10 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=) ⇝ ⟨ϵ'', ={reject}=⟩ ->
+      Δ` (pkt, cp, ts, aa, fs, ins, ϵ', strt, states, ={start}=) ⇝ ⟨ϵ'', reject, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct ⟫
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct, pkt' ⟫
   | sbs_invoke (x : string) (i : tags_t)
                (es : entries)
                (ky : list (E.t * E.e tags_t * E.matchkind))
@@ -663,55 +676,60 @@ Module Step.
       Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
       (* Black box, need extra assumption for soundness *)
       es vky acts = (a,args) ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig ⟫ ->
-      ⟪ cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig ⟫
-  where "⟪ cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig ⟫"
-          := (stmt_big_step cp ts aa fs ins ϵ s ϵ' sig)
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, calling a with args @ i ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫ ->
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫
+  where "⟪ pkt1 , cp , ts , aa , fs , ins , ϵ , s ⟫ ⤋ ⟪ ϵ' , sig , pkt2 ⟫"
+          := (stmt_big_step pkt1 cp ts aa fs ins ϵ s ϵ' sig pkt2)
 
-  with bigstep_state_machine {tags_t : Type}
+  with bigstep_state_machine
+         {tags_t : Type} (pkt : Paquet.t)
          (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
          (ins : ienv) (ϵ : epsilon) :
          PR.state_block tags_t -> (F.fs string (PR.state_block tags_t)) ->
-         PR.state -> epsilon -> PR.state -> Prop :=
+         PR.state -> epsilon -> PR.state -> Paquet.t -> Prop :=
   | bsm_accept (strt : PR.state_block tags_t)
                (states : F.fs string (PR.state_block tags_t))
-               (curr : PR.state) (currb : PR.state_block tags_t) (ϵ' : epsilon) :
+               (curr : PR.state) (currb : PR.state_block tags_t)
+               (ϵ' : epsilon) (pkt' : Paquet.t) :
       get_state_block strt states curr = Some currb ->
-      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ accept }=⟩ ->
-      Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ accept }=⟩
+      Δ (pkt, cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', accept, pkt'⟩ ->
+      Δ` (pkt, cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', accept, pkt'⟩
   | bsm_reject (strt : PR.state_block tags_t)
                (states : F.fs string (PR.state_block tags_t))
-               (curr : PR.state) (currb : PR.state_block tags_t) (ϵ' : epsilon) :
+               (curr : PR.state) (currb : PR.state_block tags_t)
+               (ϵ' : epsilon) (pkt' : Paquet.t) :
       get_state_block strt states curr = Some currb ->
-      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', ={ reject }=⟩ ->
-      Δ` (cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', ={ reject }=⟩
+      Δ (pkt, cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', reject, pkt'⟩ ->
+      Δ` (pkt, cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ϵ', reject, pkt'⟩
   | bsm_continue (strt : PR.state_block tags_t)
                  (states : F.fs string (PR.state_block tags_t))
                  (curr : PR.state) (currb : PR.state_block tags_t)
-                 (next : PR.state) (final : PR.state) (ϵ' ϵ'' : epsilon) :
+                 (next : PR.state) (final : PR.state)
+                 (ϵ' ϵ'' : epsilon) (pkt' pkt'' : Paquet.t) :
       get_state_block strt states curr = Some currb ->
-      Δ (cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', next⟩ ->
-      Δ` (cp, ts, aa, fs, ins, ϵ', strt, states, next) ⇝ ⟨ϵ'', final⟩ ->
-      Δ`(cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ ϵ'', final ⟩
-  where  "'Δ`' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final ⟩"
+      Δ (pkt, cp, ts, aa, fs, ins, ϵ, currb) ⇝ ⟨ϵ', next, pkt'⟩ ->
+      Δ` (pkt', cp, ts, aa, fs, ins, ϵ', strt, states, next) ⇝ ⟨ϵ'', final, pkt''⟩ ->
+      Δ` (pkt, cp, ts, aa, fs, ins, ϵ, strt, states, curr) ⇝ ⟨ ϵ'', final, pkt''⟩
+  where  "'Δ`' ( pkt1 , cs1 , tenv , aenv , fenv , ienv , ϵ1 , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
            := (bigstep_state_machine
-                 cs1 tenv aenv fenv ienv ϵ1 strt states curr ϵ2 final)
+                 pkt1 cs1 tenv aenv fenv ienv ϵ1 strt states curr ϵ2 final pkt2)
 
-  with bigstep_state_block {tags_t : Type}
+  with bigstep_state_block
+         {tags_t : Type} (pkt : Paquet.t)
          (cp : ctrl) (ts : tenv) (aa : aenv) (fs : fenv)
          (ins : ienv) (ϵ : epsilon) :
-         PR.state_block tags_t -> epsilon -> PR.state -> Prop :=
+         PR.state_block tags_t -> epsilon -> PR.state -> Paquet.t -> Prop :=
   | bsb_reject (s : ST.s tags_t) (e : PR.e tags_t)
-               (ϵ' : epsilon) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct ⟫ ->
-      Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', ={reject}=⟩
+               (ϵ' : epsilon) (pkt' : Paquet.t) :
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct, pkt' ⟫ ->
+      Δ (pkt, cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', reject, pkt'⟩
   | bsb_cont (s : ST.s tags_t) (e : PR.e tags_t)
-             (st : PR.state) (ϵ' : epsilon) :
-      ⟪ cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C ⟫ ->
+             (st : PR.state) (ϵ' : epsilon) (pkt' : Paquet.t) :
+      ⟪ pkt, cp, ts, aa, fs, ins, ϵ, s ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫ ->
       ⦑ ϵ', e ⦒ ⇓ st ->
-      Δ (cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', st⟩
-  where "'Δ' ( cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next ⟩"
-  := (bigstep_state_block cs1 tenv aenv fenv ienv ϵ1 currb ϵ2 next).
+      Δ (pkt, cp, ts, aa, fs, ins, ϵ, &{ state{s} transition e }&) ⇝ ⟨ϵ', st, pkt'⟩
+  where "'Δ' ( pkt1 , cs1 , tenv , aenv , fenv , ienv , ϵ1 , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
+  := (bigstep_state_block pkt1 cs1 tenv aenv fenv ienv ϵ1 currb ϵ2 next pkt2).
 
 
   (** Control declaration big-step semantics. *)

@@ -1,6 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
+Require Import Coq.PArith.BinPos.
 
 Require Import Poulet4.P4cub.BigStep.Value.
 Require Import Poulet4.P4automata.P4automaton.

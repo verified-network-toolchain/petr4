@@ -1,9 +1,4 @@
-Require Import Coq.PArith.BinPosDef.
-Require Import Coq.PArith.BinPos.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.ZArith.BinInt.
 Require Import Coq.micromega.Lia.
-
 Require Import SSSemantics.
 Import IsValue.
 Import CanonicalForms.
@@ -181,13 +176,13 @@ Section ExprTheorems.
           repeat rewrite app_comm_cons in *. right.
           exists (E.ERecord (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
           repeat constructor; unravel; eauto 1.
-        + destruct p as [t e]; simpl in *. unfold F.f.
-          rewrite <- (app_nil_l ((s, (t, e)) :: l)).
-          right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
+        + destruct p as [t' e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t', e)) :: l)).
+          right. exists (E.ERecord ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
-        + destruct p as [t e]; simpl in *. unfold F.f.
-          rewrite <- (app_nil_l ((s, (t, e)) :: l)).
-          right. exists (E.ERecord ([] ++ (s, (t, x)) :: l) i).
+        + destruct p as [t' e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t', e)) :: l)).
+          right. exists (E.ERecord ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
       - clear H. rename H0 into H; rename H1 into H0.
         induction H; repeat invert_cons_cons_relate;
@@ -202,13 +197,13 @@ Section ExprTheorems.
                <{ BOOL x @ x0 }> i).
             repeat constructor; unravel; eauto 1.
           * inv H9.
-        + destruct p as [t e]; simpl in *. unfold F.f.
-          rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
+        + destruct p as [t' e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
+          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
-        + destruct p as [t e]; simpl in *. unfold F.f.
-          rewrite <- (app_nil_l ((s, (t, e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t, x1)) :: l) <{ BOOL x @ x0 }> i).
+        + destruct p as [t' e]; simpl in *. unfold F.f.
+          rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
+          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
       - clear H H0 H1 H2.
         induction H3; intros; repeat inv_Forall_cons; eauto 2;

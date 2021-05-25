@@ -1,7 +1,8 @@
-Require Export Coq.PArith.BinPosDef.
+(*Require Export Coq.PArith.BinPosDef.*)
+Require Import Coq.PArith.BinPos.
 Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.BinIntDef.
-Export Pos.
+(*Require Import Coq.ZArith.BinIntDef.*)
+(*Export Pos.*)
 
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4Arith.

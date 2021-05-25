@@ -1,8 +1,10 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.P4Packet.Paquet.
 Require Export Poulet4.P4cub.P4Packet.PacketIn.
 Require Import Coq.PArith.BinPos.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Envn.
+Require Import BSUtil.
 
 Require Import Value.
 Module V := Val.
@@ -42,15 +44,15 @@ Module ValuePacket <: P4Packet.
             $ EXN.TypeError "Unsupported type passed to extract."
     end.
   (**[]*)
-
+  
   Definition read (τ : E.t) : paquet_monad V.v :=
     lyft_inc $ read_inc τ.
   (**[]*)
-
+  
   Definition write (v : V.v) (pkt : t) : t :=
     {| incoming := incoming pkt;
        emit_buffer := emit_buffer pkt; (* TODO *)
-       in_length := in_length pkt |}.    
+       in_length := in_length pkt |}.
 End ValuePacket.
 
 Module BSPacketIn <: P4PacketIn.
@@ -59,9 +61,8 @@ Module BSPacketIn <: P4PacketIn.
   Definition LV := Val.lv.
   
   (** [packet_in.extract] *)
-  Definition p4extract (τ : E.t) (lv : Val.lv)
-  : PKT.paquet_monad (Env.t string Val.v).
-    (*v <<| PKT.ValuePacket.read τ ;; Step.lv_update lv v ϵ.*)
-  Admitted.
+  Definition p4extract (τ : E.t) (lv : Val.lv) (ϵ : EnvUtil.epsilon)
+  : PKT.paquet_monad (Env.t string Val.v) :=
+    v <<| ValuePacket.read τ ;; EnvUtil.lv_update lv v ϵ.
   (**[]*)
 End BSPacketIn.

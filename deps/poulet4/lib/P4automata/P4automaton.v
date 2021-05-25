@@ -1,5 +1,7 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
+Require Import Coq.micromega.Lia.
+Require Import Compare_dec.
 
 Record p4automaton := MkP4Automaton {
   store: Type;
@@ -35,6 +37,25 @@ Definition step
   end
 .
 
+Lemma step_with_space
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf: list bool)
+  (b: bool)
+:
+  length buf + 1 < size a s ->
+  step (inl s, st, buf) b = (inl s, st, buf ++ b :: nil)
+.
+Proof.
+  intros; simpl.
+  destruct (equiv_dec _ _); auto.
+  unfold equiv in e.
+  rewrite app_length in e.
+  simpl length in e.
+  lia.
+Qed.
+
 Definition follow
   {a: p4automaton}
   (c: configuration a)
@@ -56,6 +77,34 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma follow_nil
+  {a: p4automaton}
+  (c: configuration a)
+:
+  follow c nil = c
+.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma follow_with_space
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf buf': list bool)
+  (b: bool)
+:
+  length buf + 1 < size a s ->
+  follow (inl s, st, buf) (b :: buf') =
+  follow (inl s, st, buf ++ b :: nil) buf'
+.
+Proof.
+  intros.
+  rewrite follow_cons.
+  f_equal.
+  now apply step_with_space.
+Qed.
+
 Definition accepting
   {a: p4automaton}
   (c: configuration a)
@@ -74,8 +123,7 @@ Definition accepted
 .
 
 Definition lang_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -84,10 +132,13 @@ Definition lang_equiv
     accepted c2 input
 .
 
+Definition rel (a1 a2: p4automaton) :=
+  configuration a1 -> configuration a2 -> Prop
+.
+
 Definition bisimulation
-  {a1: p4automaton}
-  {a2: p4automaton}
-  (R: configuration a1 -> configuration a2 -> Prop)
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
 :=
   forall c1 c2,
     R c1 c2 ->
@@ -96,8 +147,7 @@ Definition bisimulation
 .
 
 Definition bisimilar
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :=
@@ -105,8 +155,7 @@ Definition bisimilar
 .
 
 Lemma bisimilar_implies_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -133,8 +182,7 @@ Proof.
 Qed.
 
 Lemma lang_equiv_is_bisimulation
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
 :
   @bisimulation a1 a2 lang_equiv
 .
@@ -151,8 +199,7 @@ Proof.
 Qed.
 
 Lemma equiv_implies_bisimilar
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -166,8 +213,7 @@ Proof.
 Qed.
 
 Theorem bisimilar_iff_lang_equiv
-  {a1: p4automaton}
-  {a2: p4automaton}
+  {a1 a2: p4automaton}
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -177,4 +223,196 @@ Proof.
   split.
   - apply equiv_implies_bisimilar.
   - apply bisimilar_implies_equiv.
+Qed.
+
+Definition bisimulation_upto
+  {a1 a2: p4automaton}
+  (f: rel a1 a2 -> rel a1 a2)
+  (R: rel a1 a2)
+:=
+  forall c1 c2,
+    R c1 c2 ->
+      (accepting c1 <-> accepting c2) /\
+      forall b, f R (step c1 b) (step c2 b)
+.
+
+Definition bisimilar_upto
+  {a1 a2: p4automaton}
+  (f: rel a1 a2 -> rel a1 a2)
+  (c1: configuration a1)
+  (c2: configuration a2)
+:=
+  exists R, bisimulation_upto f R /\ R c1 c2
+.
+
+Definition closure_extends
+  {a1 a2: p4automaton}
+  (close: rel a1 a2 -> rel a1 a2)
+:=
+  forall (R: rel a1 a2) c1 c2,
+    R c1 c2 -> close R c1 c2
+.
+
+Definition closure_preserves_accept
+  {a1 a2: p4automaton}
+  (close: rel a1 a2 -> rel a1 a2)
+:=
+  forall (R: rel a1 a2),
+    (forall c1 c2, R c1 c2 -> accepting c1 <-> accepting c2) ->
+    (forall c1 c2, close R c1 c2 -> accepting c1 <-> accepting c2)
+.
+
+Definition closure_preserves_transition
+  {a1 a2: p4automaton}
+  (close: rel a1 a2 -> rel a1 a2)
+:=
+  forall (R: rel a1 a2),
+    (forall c1 c2, R c1 c2 ->
+     forall b, close R (step c1 b) (step c2 b)) ->
+    (forall c1 c2, close R c1 c2 ->
+     forall b, close R (step c1 b) (step c2 b))
+.
+
+Definition closure_mono
+  {a1 a2: p4automaton}
+  (close: rel a1 a2 -> rel a1 a2)
+:=
+  forall (R R': rel a1 a2),
+    (forall c1 c2, R c1 c2 -> R' c1 c2) ->
+    (forall c1 c2, close R c1 c2 -> close R' c1 c2)
+.
+
+Class SoundClosure
+  {a1 a2: p4automaton}
+  (f: rel a1 a2 -> rel a1 a2)
+:= {
+  closure_sound_extends: closure_extends f;
+  closure_sound_preserves_accept: closure_preserves_accept f;
+  closure_sound_preserves_transition: closure_preserves_transition f;
+  closure_sound_mono: closure_mono f;
+}.
+
+Lemma bisimilar_implies_bisimilar_upto
+  {a1 a2: p4automaton}
+  (f: rel a1 a2 -> rel a1 a2)
+:
+  SoundClosure f ->
+  forall c1 c2,
+    bisimilar c1 c2 ->
+    bisimilar_upto f c1 c2
+.
+Proof.
+  intros.
+  destruct H0 as [R [? ?]].
+  exists R; split; auto.
+  intros c1' c2' ?; split.
+  - now apply H0.
+  - intros.
+    now apply H, H0.
+Qed.
+
+Lemma bisimilar_upto_implies_bisimilar
+  {a1 a2: p4automaton}
+  (f: rel a1 a2 -> rel a1 a2)
+:
+  SoundClosure f ->
+  forall c1 c2,
+    bisimilar_upto f c1 c2 ->
+    bisimilar c1 c2
+.
+Proof.
+  intros.
+  destruct H0 as [R [? ?]].
+  exists (f R); split.
+  - intros c1' c2' ?; split.
+    + revert c1' c2' H2.
+      now apply H, H0.
+    + revert c1' c2' H2.
+      now apply H, H0.
+  - now apply closure_sound_extends.
+Qed.
+
+
+(* Sanity check: the identity function is a valid closure. *)
+Definition close_id
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
+:=
+  R
+.
+
+Program Instance close_id_sound
+    {a1 a2: p4automaton}
+    : @SoundClosure a1 a2 close_id
+.
+Solve Obligations with firstorder.
+
+Inductive close_interpolate
+  {a1 a2: p4automaton}
+  (R: configuration a1 -> configuration a2 -> Prop)
+  : configuration a1 -> configuration a2 -> Prop
+:=
+| InterpolateBase:
+    forall c1 c2,
+      R c1 c2 -> close_interpolate _ c1 c2
+| InterpolateStep:
+    forall s1 st1 buf1 s2 st2 buf2 b,
+      close_interpolate _ (inl s1, st1, buf1)
+                          (inl s2, st2, buf2) ->
+      length buf1 + 1 < size a1 s1 ->
+      length buf2 + 1 < size a2 s2 ->
+      (forall buf,
+         length buf = min (size a1 s1 - length buf1)
+                          (size a2 s2 - length buf2) ->
+         R (follow (inl s1, st1, buf1) buf)
+           (follow (inl s2, st2, buf2) buf)) ->
+      close_interpolate _ (inl s1, st1, buf1 ++ b :: nil)
+                          (inl s2, st2, buf2 ++ b :: nil)
+.
+
+Program Instance close_interpolate_sound
+    {a1 a2: p4automaton}
+    : @SoundClosure a1 a2 close_interpolate
+.
+Next Obligation.
+  intros ? ? ? ?.
+  eauto using InterpolateBase.
+Qed.
+Next Obligation.
+  intros ? ? ? ? ?.
+  induction H0; firstorder.
+Qed.
+Next Obligation.
+  intros ? ? ? ? ?.
+  induction H0; intros; eauto.
+  repeat rewrite <- step_with_space; auto.
+  destruct (le_lt_dec (Nat.min (size a1 s1 - length buf1)
+                               (size a2 s2 - length buf2)) 2).
+  - apply InterpolateBase.
+    rewrite <- follow_nil.
+    rewrite <- follow_nil at 1.
+    repeat rewrite <- follow_cons.
+    apply H3.
+    simpl length.
+    lia.
+  - repeat rewrite step_with_space;
+    repeat rewrite app_length;
+    simpl length;
+    try lia.
+    apply InterpolateStep;
+    repeat rewrite app_length;
+    simpl length;
+    try lia.
+    + repeat rewrite <- step_with_space; auto.
+    + intros.
+       repeat rewrite <- follow_with_space; try lia.
+       apply H3.
+       simpl length.
+       lia.
+Qed.
+Next Obligation.
+  intros ? ? ? ? ? ?.
+  induction H0.
+  - eauto using InterpolateBase.
+  - eauto using InterpolateStep.
 Qed.

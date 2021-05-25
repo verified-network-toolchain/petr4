@@ -115,8 +115,10 @@ Module BabyIPv1.
       match st.(store_ip_hdr) with
       | ValBaseHeader fields true =>
         match AList.get fields (mkField "proto") with
-        | Some (ValBaseBit 4 1) => inl parse_udp
-        | Some (ValBaseBit 4 0) => inl parse_tcp
+        | Some (ValBaseBit 4 z) =>
+          if z == Z.of_nat 1 then inl parse_udp
+          else if z == Z.of_nat 0 then inl parse_tcp
+          else inr false
         | _ => inr false
         end
       | _ => inr false
@@ -238,8 +240,10 @@ Module BabyIPv2.
       match st.(store_combined_hdr) with
       | ValBaseHeader fields true =>
         match AList.get fields (mkField "proto") with
-        | Some (ValBaseBit 4 1) => inr true
-        | Some (ValBaseBit 4 0) => inl parse_tcp
+        | Some (ValBaseBit 4 z) =>
+          if z == Z.of_nat 1 then inr true
+          else if z == Z.of_nat 0 then inl parse_tcp
+          else inr false
         | _ => inr false
         end
       | _ => inr false
@@ -265,46 +269,43 @@ Inductive candidate:
   Prop
 :=
 | BisimulationStart:
-    forall st1 st2 buf,
-      List.length buf < 20 ->
+    forall st1 st2,
       candidate
-        (inl BabyIPv1.start, st1, buf)
-        (inl BabyIPv2.start, st2, buf)
+        (inl BabyIPv1.start, st1, nil)
+        (inl BabyIPv2.start, st2, nil)
 
 | BisimulationEnd:
-    forall st1 st2 buf1 buf2 b,
+    forall st1 st2 buf1 buf2 h,
       candidate
-        (inr b, st1, buf1)
-        (inr b, st2, buf2)
+        (inr h, st1, buf1)
+        (inr h, st2, buf2)
 
 | BisimulationTCPVersusIP:
-    forall st1 ip_hdr buf1 st2 buf2,
+    forall st1 ip_hdr st2 buf,
       st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
       AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 0) ->
-      to_nat (slice 16 20 buf2) = 0 ->
-      List.length buf2 = 20 ->
-      List.length buf1 < 20 ->
+      to_nat (slice 16 20 buf) = 0 ->
+      List.length buf = 20 ->
       candidate
-        (inl BabyIPv1.parse_tcp, st1, buf1)
-        (inl BabyIPv2.start, st2, buf2 ++ buf1)
+        (inl BabyIPv1.parse_tcp, st1, nil)
+        (inl BabyIPv2.start, st2, buf)
 
 | BisimulationTCPVersusTCP:
-    forall st1 buf1 st2 buf2,
-      List.length buf1 = 20 ->
+    forall st1 st2 buf,
+      List.length buf = 20 ->
       candidate
-        (inl BabyIPv1.parse_tcp, st1, buf1 ++ buf2)
-        (inl BabyIPv2.parse_tcp, st2, buf2)
+        (inl BabyIPv1.parse_tcp, st1, buf)
+        (inl BabyIPv2.parse_tcp, st2, nil)
 
 | BisimulationUDPVersusIP:
-    forall st1 ip_hdr buf1 st2 buf2,
+    forall st1 ip_hdr st2 buf,
       st1.(BabyIPv1.store_ip_hdr) = ValBaseHeader ip_hdr true ->
       AList.get ip_hdr (mkField "proto") = Some (ValBaseBit 4 1) ->
-      to_nat (slice 16 20 buf2) = 1 ->
-      List.length buf2 = 20 ->
-      List.length buf1 < 20 ->
+      to_nat (slice 16 20 buf) = 1 ->
+      List.length buf = 20 ->
       candidate
-        (inl BabyIPv1.parse_udp, st1, buf1)
-        (inl BabyIPv2.start, st2, buf2 ++ buf1)
+        (inl BabyIPv1.parse_udp, st1, nil)
+        (inl BabyIPv2.start, st2, buf)
 
 | BisimulationFalseVersusStart:
     forall st1 buf1 st2 buf2,
@@ -624,10 +625,14 @@ Ltac smtize :=
       unfold get; simpl; f_equal
     | |- to_val ?s _ = ValBaseBit ?s _ =>
       unfold to_val; f_equal
+    | H: Z.of_nat _ = Z.of_nat _ |- _ =>
+      apply Nat2Z.inj in H
     | H: Z.of_nat _ = _ |- _ =>
       apply (f_equal Z.abs_nat) in H;
       simpl in H;
       rewrite Zabs2Nat.id in H
+    | |- Z.of_nat _ = Z.of_nat _ =>
+      f_equal
     | H: to_nat _ = _ |- _ =>
       apply to_nat_versus_to_bits in H
     | |- to_nat ?l = _ =>
@@ -691,57 +696,150 @@ Ltac smtize :=
   | |- context [nth _ (_ ++ _) _] =>
     rewrite app_nth1 by simpl_length
   end;
-  try congruence
+  try congruence;
+  (* Hail Mary: try and derive a contradiction with some negative premise. *)
+  unfold not in *;
+  match goal with
+  | H: _ -> False |- _ =>
+    contradiction H;
+    clear H;
+    smtize
+  | _ => idtac "foo"
+  end
 .
 
+Lemma follow_buffer
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf buf': list bool)
+:
+  Datatypes.length buf + Datatypes.length buf' + 1 < size a s ->
+  follow (inl s, st, buf) buf' =
+  (inl s, st, buf ++ buf')
+.
+Proof.
+  induction buf' using rev_ind; intros.
+  - now rewrite follow_nil, app_nil_r.
+  - unfold follow.
+    rewrite fold_left_app.
+    fold (follow (inl s, st, buf) buf').
+    simpl fold_left.
+    rewrite IHbuf'.
+    + rewrite step_with_space.
+      * now rewrite app_assoc.
+      * rewrite app_length in *.
+        simpl in *.
+        lia.
+    + rewrite app_length in *.
+      simpl Datatypes.length in *.
+      lia.
+Qed.
+
+Lemma follow_exact
+  {a: p4automaton}
+  (s: states a)
+  (st: store a)
+  (buf buf': list bool)
+:
+  Datatypes.length buf' > 0 ->
+  Datatypes.length buf + Datatypes.length buf' = size a s ->
+  follow (inl s, st, buf) buf' =
+    let st' := update a s (buf ++ buf') st in
+    (transitions a s st', st', nil)
+.
+Proof.
+  intros.
+  destruct buf'.
+  - simpl Datatypes.length in H.
+    lia.
+  - revert s st buf b H H0.
+    induction buf'; intros.
+    + rewrite follow_cons, follow_nil.
+      unfold step.
+      rewrite app_length.
+      simpl Datatypes.length in *.
+      destruct (equiv_dec _ _); smtize.
+    + rewrite follow_cons.
+      rewrite step_with_space.
+      rewrite IHbuf'.
+      * repeat f_equal;
+        rewrite <- app_assoc;
+        rewrite <- app_comm_cons;
+        rewrite app_nil_l;
+        easy.
+      * simpl Datatypes.length in *.
+        lia.
+      * rewrite app_length in *.
+        simpl Datatypes.length in *.
+        lia.
+      * simpl Datatypes.length in *.
+        lia.
+Qed.
+
+Lemma done_stuck:
+  forall buf h st1 st2 buf1 buf2,
+    candidate (follow (inr h, st1, buf1) buf) (follow (inr h, st2, buf2) buf)
+.
+Proof.
+  induction buf; intros.
+  - repeat rewrite follow_nil.
+    constructor.
+  - repeat rewrite follow_cons.
+    apply IHbuf.
+Qed.
+
 Lemma candidate_is_bisimulation:
-  bisimulation candidate
+  bisimulation_with_leaps candidate
 .
 Proof.
   Opaque skipn.
   Opaque firstn.
-  unfold bisimulation; intros.
+  Opaque Z.of_nat.
+  unfold bisimulation_with_leaps; intros.
   induction H; (split; [try easy|]); intros.
   2: { split; intros; inversion H; easy. }
-  - cleanup_step.
-    destruct (Z.of_nat _) eqn:?; [|destruct p|];
-    rewrite  <- app_nil_r with (l := buf ++ b :: nil) at 1;
-    econstructor;
-    smtize.
-  - cleanup_step.
-  - cleanup_step.
-    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
-      * rewrite <- app_nil_r with (l := buf1 ++ b :: nil) at 1.
-        apply BisimulationTCPVersusTCP; smtize.
+  - simpl min in H.
+    rewrite (@follow_buffer BabyIPv2.v2_parser); [|smtize].
+    rewrite (@follow_exact BabyIPv1.v1_parser); [|smtize|smtize].
+    simpl; repeat destruct (equiv_dec _ _).
+    + econstructor; smtize.
+    + econstructor; smtize.
+    + rewrite <- app_nil_r with (l := buf) at 1.
+      constructor; smtize.
+  - apply done_stuck.
+  - simpl min_step in H3.
+    rewrite H2 in H3.
+    simpl in H3.
+    rewrite (@follow_exact BabyIPv2.v2_parser); [|smtize|smtize].
+    rewrite (@follow_buffer BabyIPv1.v1_parser); [|smtize].
+    simpl; repeat destruct (equiv_dec _ _); try constructor; smtize.
+  - simpl min_step in H0.
+    rewrite H in H0.
+    simpl in H0.
+    rewrite (@follow_exact BabyIPv1.v1_parser); [|smtize|smtize].
+    rewrite (@follow_exact BabyIPv2.v2_parser); [|smtize|smtize].
+    simpl.
+    constructor.
+  - simpl min_step in H3.
+    rewrite H2 in H3.
+    simpl in H3.
+    rewrite (@follow_exact BabyIPv1.v1_parser); [|smtize|smtize].
+    rewrite (@follow_exact BabyIPv2.v2_parser); [|smtize|smtize].
+    simpl.
+    repeat destruct (equiv_dec _ _); try constructor; smtize.
+  - clear H2.
+    revert st1 buf1 st2 buf2 H H0 H1; induction buf; intros.
+    + repeat rewrite follow_nil.
+      now constructor.
+    + repeat rewrite follow_cons.
+      unfold step; simpl.
+      repeat destruct (equiv_dec _ _).
       * smtize.
       * smtize.
-      * smtize.
-      * smtize.
-    + rewrite <- app_assoc.
-      apply BisimulationTCPVersusIP with (ip_hdr := ip_hdr); smtize.
-  - cleanup_step.
-    rewrite <- app_assoc.
-    now apply BisimulationTCPVersusTCP.
-  - cleanup_step.
-    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
-      * smtize.
-      * smtize.
-      * smtize.
-      * constructor.
-      * smtize.
-    + rewrite <- app_assoc.
-      apply BisimulationUDPVersusIP with (ip_hdr := ip_hdr); smtize.
-  - cleanup_step.
-    + destruct (Z.of_nat _) eqn:?; [|destruct p eqn:?|].
-      * contradiction H1; smtize.
-      * constructor.
-      * constructor.
-      * contradiction H0; smtize.
-      * constructor.
-    + rewrite <- app_assoc.
-      apply BisimulationFalseVersusStart; assumption.
-  Transparent skipn.
-  Transparent firstn.
+      * apply done_stuck.
+      * rewrite <- app_assoc.
+        apply IHbuf; smtize.
 Qed.
 
 Theorem babyip_equiv
@@ -754,10 +852,11 @@ Theorem babyip_equiv
 .
 Proof.
   apply bisimilar_iff_lang_equiv.
+  apply bisimilar_iff_bisimilar_with_leaps.
   exists candidate.
   split.
+  - constructor.
   - apply candidate_is_bisimulation.
-  - constructor; compute; lia.
 Qed.
 
 (* TODO: The following is a more structured version of the ad-hoc candidate

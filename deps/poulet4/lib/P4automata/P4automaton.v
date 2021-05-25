@@ -416,3 +416,126 @@ Next Obligation.
   - eauto using InterpolateBase.
   - eauto using InterpolateStep.
 Qed.
+
+Definition min_step
+  {a: p4automaton}
+  (c: configuration a)
+:=
+  match c with
+  | (inl s, _, buf) =>
+    max (size a s - length buf) 1
+  | (inr _, _, _) =>
+    1
+  end
+.
+
+Definition bisimulation_with_leaps
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
+:=
+  forall c1 c2,
+    R c1 c2 ->
+      (accepting c1 <-> accepting c2) /\
+      forall buf,
+        length buf = min (min_step c1) (min_step c2) ->
+        R (follow c1 buf) (follow c2 buf)
+.
+
+Definition bisimilar_with_leaps
+  {a1 a2: p4automaton}
+  (c1: configuration a1)
+  (c2: configuration a2)
+:=
+  exists R,
+    R c1 c2 /\ bisimulation_with_leaps R
+.
+
+Lemma bisimilar_with_leaps_implies_bisimilar_upto
+  {a1 a2: p4automaton}
+  (c1: configuration a1)
+  (c2: configuration a2)
+:
+  bisimilar_with_leaps c1 c2 ->
+  bisimilar_upto close_interpolate c1 c2
+.
+Proof.
+  intros.
+  destruct H as [R [? ?]].
+  exists R.
+  split; auto.
+  intros c1' c2' ?; split.
+  - now apply H0.
+  - intros.
+    rewrite <- follow_nil.
+    rewrite <- follow_nil at 1.
+    repeat rewrite <- follow_cons.
+    destruct c1' as (([s1' | h1'], st1'), buf1'),
+             c2' as (([s2' | h2'], st2'), buf2').
+    + destruct (le_lt_dec 2 (min (min_step (inl s1', st1', buf1'))
+                                 (min_step (inl s2', st2', buf2')))).
+      * repeat rewrite follow_with_space.
+        all: unfold min_step; simpl in l; try lia.
+        apply InterpolateStep; try lia.
+        now apply InterpolateBase.
+        intros.
+        apply H0; auto.
+        simpl min_step.
+        lia.
+      * apply InterpolateBase, H0; auto.
+        simpl min_step in *.
+        simpl length.
+        lia.
+    + apply InterpolateBase, H0; auto.
+      simpl min_step in *.
+      simpl length.
+      lia.
+    + apply InterpolateBase, H0; auto.
+      simpl min_step in *.
+      simpl length.
+      lia.
+    + apply InterpolateBase.
+      apply H0; auto.
+Qed.
+
+Lemma bisimilar_implies_bisimilar_with_leaps
+  {a1 a2: p4automaton}
+  (c1: configuration a1)
+  (c2: configuration a2)
+:
+  bisimilar c1 c2 ->
+  bisimilar_with_leaps c1 c2
+.
+Proof.
+  intros.
+  destruct H as [R [? ?]].
+  exists R.
+  split; auto.
+  intros c1' c2' ?; split.
+  - now apply H.
+  - intros.
+    clear H2.
+    induction buf using rev_ind.
+    + now repeat rewrite follow_nil.
+    + unfold follow.
+      repeat rewrite fold_left_app.
+      fold (follow c1' buf).
+      fold (follow c2' buf).
+      simpl fold_left.
+      now apply H.
+Qed.
+
+Theorem bisimilar_iff_bisimilar_with_leaps
+  {a1 a2: p4automaton}
+  (c1: configuration a1)
+  (c2: configuration a2)
+:
+  bisimilar c1 c2 <->
+  bisimilar_with_leaps c1 c2
+.
+Proof.
+  split; intro.
+  - now apply bisimilar_implies_bisimilar_with_leaps.
+  - apply bisimilar_upto_implies_bisimilar with (f := close_interpolate).
+    + apply close_interpolate_sound.
+    + now apply bisimilar_with_leaps_implies_bisimilar_upto.
+Qed.

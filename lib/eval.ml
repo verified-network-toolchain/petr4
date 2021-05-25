@@ -1220,6 +1220,7 @@ module MakeInterpreter (T : Target) = struct
   and eval_state_machine (ctrl : ctrl) (env : env) (st : state)
       (states : (string * Parser.state) list)
       (state : Parser.state) : env * state * signal =
+    let () = Printf.eprintf "Parser: %s\n%!" (snd (snd state).name) in
     let (stms, transition) =
       match snd state with
       | {statements=stms; transition=t;_} -> (stms, t) in

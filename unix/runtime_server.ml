@@ -30,12 +30,13 @@ let start switch ~handlers () =
   let%bind () = Cohttp_lwt.Body.drain_body body in 
   loop switch handlers
 
-let post_pkt switch in_port pkt =
-  let pkt = Petr4.Runtime.PktIn { switch; in_port; pkt; } in
+let post_packet switch in_port packet =
+  let pkt = Petr4.Runtime.PacketIn { switch; in_port; packet } in
   let body =
     pkt
     |> Petr4.Runtime.switch_msg_to_yojson
     |> Yojson.Safe.to_string
     |> Body.of_string in
-  let%bind response, body = Client.post ~body (petr4_uri "pktin") in
+  let%bind response, body = Client.post ~body (petr4_uri "packet_in") in
+  let%bind () = Cohttp_lwt.Body.drain_body body in
   Lwt.return ()

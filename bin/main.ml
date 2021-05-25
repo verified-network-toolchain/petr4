@@ -120,9 +120,18 @@ let stf_command =
 
 (***** Switch *****)
 let entries : Prog.Value.entries ref = ref ([],[])
-let ctrl_pkt_queue : Runtime.ctrl_pkt list ref = ref []
+let ctrl_packet_queue : Runtime.ctrl_packet list ref = ref []
 let ctrl_pt : int = 510
 
+let from_hex h =
+  let buf = Buffer.create 101 in
+  for i = 0 to String.length h / 2 - 1 do
+    let d1 = h.[2 * i] in
+    let d2 = h.[2 * i + 1] in
+    Buffer.add_char buf (Hex.to_char d1 d2)
+  done;
+  Cstruct.of_string (Buffer.contents buf)
+                                                          
 let start_v1switch switch env prog sockets =
   let open Eval in
   let open V1Interpreter in
@@ -130,14 +139,19 @@ let start_v1switch switch env prog sockets =
   let socks = List.map sockets
     ~f:(fun (i, sock) -> i, Lwt_rawlink.read_packet sock) in
   let rec loop socks st : unit Lwt.t =
-    begin match !ctrl_pkt_queue with
-    | [] -> 
-       List.map socks ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
-       |> Lwt.choose
+    begin match !ctrl_packet_queue with
+    | [] ->
+       begin
+         List.map socks ~f:(fun (i,sock) -> sock >|= fun sock -> i, sock)
+         |> Lwt.choose
+         >|= fun (i,pkt) -> (true, i, pkt)
+       end
     | h :: t ->
-      ctrl_pkt_queue := t;
-      Lwt.return (h.in_port, Cstruct.of_string h.pkt) end
-    >>= fun (i, pkt) ->
+       ctrl_packet_queue := t;
+       Printf.eprintf "Handling PacketOut %d %s\n%!" h.in_port h.packet;
+       Lwt.return (false, h.in_port, from_hex h.packet)
+    end
+    >>= fun (is_sock, i, pkt) ->
     let ctrl = (!entries,[]) in
     switch_packet ctrl env st pkt
       (Bigint.of_int i)
@@ -149,18 +163,27 @@ let start_v1switch switch env prog sockets =
     | l ->
        List.map l ~f:(fun (pkt, pt) ->
            let pt = Bigint.to_int_exn pt in
+           Printf.eprintf "Sending packet from %d to %d\n%!" i pt;
            if pt = ctrl_pt
-           then Petr4_unix.Runtime_server.post_pkt switch i (Cstruct.to_string pkt)
+           then
+             begin
+               let hex = Hex.of_cstruct pkt |> Hex.show in
+               Printf.eprintf "Generating PacketIn %d %s\n%!" i hex;
+               Petr4_unix.Runtime_server.post_packet switch i hex
+             end
            else
              List.Assoc.find sockets pt ~equal:Int.equal
              |> Option.value_map ~default:(Lwt.return ())
                   ~f:(fun pt -> Lwt_rawlink.send_packet pt pkt)) end
     |> Lwt.join
     >>= fun _ ->
-    let socks = List.Assoc.remove socks i ~equal:Int.equal in
-    let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
-    let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
-    loop socks st in
+    if is_sock then
+      let socks = List.Assoc.remove socks i ~equal:Int.equal in
+      let sock = List.Assoc.find_exn sockets i ~equal:Int.equal in
+      let socks = List.Assoc.add socks i (Lwt_rawlink.read_packet sock) ~equal:Int.equal in
+      loop socks st
+    else
+      loop socks st in
   loop socks st
 
 let start_switch verbose include_dir target pts switch p4_file =
@@ -207,7 +230,7 @@ let handle_message (msg : Runtime.ctrl_msg) : unit =
        |> String.concat ~sep:"," in
      Printf.eprintf "Insert: %s [%s] %s [%s]\n%!" table matches_str action action_data_str;
      do_insert table matches action action_data
-  | Runtime.PktOut pkt -> ctrl_pkt_queue := !ctrl_pkt_queue @ [pkt]
+  | Runtime.PacketOut pkt -> ctrl_packet_queue := !ctrl_packet_queue @ [pkt]
 
 let switch_command =
   let open Command.Spec in

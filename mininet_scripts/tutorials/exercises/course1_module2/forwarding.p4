@@ -128,16 +128,16 @@ control MyIngress(inout headers hdr,
     
     apply {
         if (hdr.ipv4.isValid()) {
-            ipv4_lpm.apply();
-        }
-	else if (hdr.discovery.isValid() && hdr.discovery.start_pt != UNINIT) {
-	    hdr.discovery.end_pt = (bit<8>) standard_metadata.ingress_port;
+	  ipv4_lpm.apply();
+        } else if (hdr.discovery.isValid()) {
+          if (hdr.discovery.start_pt != UNINIT) {
+            hdr.discovery.end_pt = (bit<8>) standard_metadata.ingress_port;
 	    standard_metadata.egress_spec = CTRL_PT;
-	}
-	else if (hdr.discovery.isValid() && hdr.discovery.start_pt == UNINIT) {
+	  }
+	  else { 
 	    standard_metadata.mcast_grp = 1;
-	}
-	
+	  }
+       }	  	
     }
 }
 

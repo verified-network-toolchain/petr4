@@ -1,7 +1,7 @@
-type ctrl_pkt = {
+type ctrl_packet = {
   switch : string;
   in_port : int;
-  pkt : string;
+  packet : string;
 }
 [@@deriving yojson]
 
@@ -10,13 +10,13 @@ type ctrl_msg =
                 matches : (string * string) list; 
                 action : string; 
                 action_data : (string * string) list }
-  | PktOut of ctrl_pkt
+  | PacketOut of ctrl_packet
 [@@deriving yojson]
 
 type switch_msg =
   | Hello of { switch: string; 
                ports: int }
   | Event of { switch : string }
-  | PktIn of ctrl_pkt
+  | PacketIn of ctrl_packet
 [@@deriving yojson]
 	    

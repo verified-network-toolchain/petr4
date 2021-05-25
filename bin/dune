@@ -2,7 +2,7 @@
   (public_name petr4)
   (name main)
   (modules main)
-  (libraries ANSITerminal core petr4 petr4.unix petr4test alcotest rawlink rawlink.lwt lwt)
+  (libraries ANSITerminal core hex petr4 petr4.unix petr4test alcotest rawlink rawlink.lwt lwt)
   (preprocess (pps ppx_jane -allow-unannotated-ignores)))
 
 (executable

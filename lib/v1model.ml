@@ -715,6 +715,11 @@ module PreV1Switch : Target = struct
       | SContinue | SReturn _ | SExit | SReject _ -> st in
 
     (* ingress processing invocation and traffic management logic *)
+    let ingress_port =
+      State.find_heap "__INGRESS_PORT__" st
+      |> assert_bit
+      |> snd
+      |> Bigint.to_int_exn in    
     let st, _ = eval_v1app ctrl env app "ig."  pkg.ingress pkg.ig_args st in
     let egress_spec_val =
       State.find_heap pkg.std_meta_loc st
@@ -736,6 +741,7 @@ module PreV1Switch : Target = struct
     then st, env, [] (* TODO: implement support for resubmission *)
     else if Bigint.(bigint_of_val mcast_grp_val <> zero)
     then
+      let () = Printf.eprintf "[Multicast]\n%!" in
       (* Current multicast implementation simply duplicates the packet for each
          port on the switch except for the one on which the packet arrived. *)
       let num_ports =
@@ -761,8 +767,11 @@ module PreV1Switch : Target = struct
       let st, output_pkts = List.fold_map instances ~init:st ~f in
       st, env, List.concat output_pkts
     else if Bigint.(bigint_of_val egress_spec_val = drop_spec)
-    then st, env, []
+    then
+      let () = Printf.eprintf "[Drop]\n%!" in
+      st, env, []
     else
+      let () = Printf.eprintf "[Forward %d -> %d]\n%!" ingress_port (bigint_of_val egress_spec_val |> Bigint.to_int_exn) in
       let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
       egress_processing ctrl env st app pkg
 
@@ -785,7 +794,9 @@ module PreV1Switch : Target = struct
     if State.find_heap "__CLONE_PRIM__" st |> assert_bool
     then st, env, [] (* TODO: implement support for egress cloning *)
     else if Bigint.(egress_spec = drop_spec)
-    then st, env, []
+    then
+      let () = Printf.eprintf "[Egress Drop]\n%!" in
+      st, env, []
     else if State.find_heap "__RECIRC_PRIM__" st |> assert_bool
     then st, env, [] (* TODO: implement support for recirculation *)
     else
@@ -793,7 +804,8 @@ module PreV1Switch : Target = struct
         State.find_heap pkg.std_meta_loc st
         |> assert_struct
         |> fun x -> List.Assoc.find_exn x "egress_port" ~equal:String.equal
-        |> bigint_of_val in
+                    |> bigint_of_val in
+      let () = Printf.eprintf "[Emit on %d]\n%!" (Bigint.to_int_exn egress_port) in
       st, env, [State.get_packet st, egress_port]
     
      

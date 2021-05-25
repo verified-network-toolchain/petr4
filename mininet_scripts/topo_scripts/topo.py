@@ -25,8 +25,6 @@ class Topology:
 
     def add_link(self, n1, n2, n1_port, n2_port, weight):
         if self.G.has_edge(n1,n2):
-            print("There is already a link in the topology between %s and %s with weight %d." \
-                    % (n1, n2, self.G.edges[n1, n2]["weight"]))
             return
         ports = { n1 : n1_port, n2 : n2_port } 
         self.G.add_edge(n1, n2, ports = ports, weight = weight)
